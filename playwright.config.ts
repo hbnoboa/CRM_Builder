@@ -11,7 +11,7 @@ export default defineConfig({
     ['list'],
   ],
   use: {
-    baseURL: 'http://localhost:3000',
+    baseURL: 'http://34.134.215.184',
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
     video: 'retain-on-failure',
@@ -36,18 +36,19 @@ export default defineConfig({
     },
   ],
 
-  webServer: [
-    {
-      command: 'cd apps/api && pnpm run dev',
-      port: 3001,
-      reuseExistingServer: !process.env.CI,
-      timeout: 120 * 1000,
-    },
-    {
-      command: 'cd apps/web-admin && pnpm run dev',
-      port: 3000,
-      reuseExistingServer: !process.env.CI,
-      timeout: 120 * 1000,
-    },
-  ],
+  // webServer comentado pois estamos testando contra servidor remoto
+  // webServer: [
+  //   {
+  //     command: 'cd apps/api && pnpm run dev',
+  //     port: 3001,
+  //     reuseExistingServer: !process.env.CI,
+  //     timeout: 120 * 1000,
+  //   },
+  //   {
+  //     command: 'cd apps/web-admin && pnpm run dev',
+  //     port: 3000,
+  //     reuseExistingServer: !process.env.CI,
+  //     timeout: 120 * 1000,
+  //   },
+  // ],
 });
