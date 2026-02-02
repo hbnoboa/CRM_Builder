@@ -18,7 +18,7 @@ import { useUpdateOrganization } from '@/hooks/use-organizations';
 import Link from 'next/link';
 
 export default function OrganizationPage() {
-  const { user, refreshUser } = useAuthStore();
+  const { user, getProfile } = useAuthStore();
   const updateOrganization = useUpdateOrganization();
 
   const [orgName, setOrgName] = useState(user?.organization?.name || '');
@@ -41,7 +41,7 @@ export default function OrganizationPage() {
         },
       });
       // Refresh user data to update the sidebar/header
-      refreshUser?.();
+      await getProfile();
     } catch (error) {
       // Error is handled by the hook
     }
@@ -53,13 +53,13 @@ export default function OrganizationPage() {
       <nav className="mb-2 flex items-center gap-2 text-sm text-muted-foreground" aria-label="breadcrumb" data-testid="breadcrumb">
         <Link href="/dashboard" className="hover:underline">Dashboard</Link>
         <span>/</span>
-        <span className="font-semibold text-foreground">Organizacao</span>
+        <span className="font-semibold text-foreground">Organization</span>
       </nav>
       {/* Header */}
       <div>
-        <h1 className="text-3xl font-bold" data-testid="page-title">Organizacao</h1>
+        <h1 className="text-3xl font-bold" data-testid="page-title">Organization</h1>
         <p className="text-muted-foreground mt-1">
-          Configure sua organizacao e workspaces
+          Configure your organization and workspaces
         </p>
       </div>
 
@@ -87,19 +87,19 @@ export default function OrganizationPage() {
                 <span className="font-medium">{user?.tenant?.name}</span>
               </div>
               <div className="flex justify-between items-center">
-                <span className="text-sm text-muted-foreground">Plano</span>
+                <span className="text-sm text-muted-foreground">Plan</span>
                 <span className="font-medium text-primary">Pro</span>
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-sm text-muted-foreground">Status</span>
-                <span className="text-green-600 font-medium">Ativo</span>
+                <span className="text-green-600 font-medium">Active</span>
               </div>
             </CardContent>
           </Card>
 
           <Card>
             <CardContent className="p-4">
-              <h4 className="font-medium mb-3">Acoes Rapidas</h4>
+              <h4 className="font-medium mb-3">Quick Actions</h4>
               <div className="space-y-2">
                 <Button variant="outline" className="w-full justify-start" asChild data-testid="manage-users-btn">
                   <Link href="/users">
@@ -127,15 +127,15 @@ export default function OrganizationPage() {
           {/* General Settings */}
           <Card>
             <CardHeader>
-              <CardTitle>Configuracoes Gerais</CardTitle>
+              <CardTitle>General Settings</CardTitle>
               <CardDescription>
-                Informacoes basicas sobre sua organizacao
+                Basic information about your organization
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2">
-                  <Label htmlFor="name">Nome da Organizacao</Label>
+                  <Label htmlFor="name">Organization Name</Label>
                   <Input
                     id="name"
                     value={orgName}
@@ -153,7 +153,7 @@ export default function OrganizationPage() {
                 </div>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="domain">Dominio Personalizado</Label>
+                <Label htmlFor="domain">Custom Domain</Label>
                 <div className="flex gap-2">
                   <Input
                     id="domain"
@@ -170,7 +170,7 @@ export default function OrganizationPage() {
               </div>
               <div className="pt-4">
                 <Button onClick={handleSave} disabled={updateOrganization.isPending} data-testid="save-org-btn">
-                  {updateOrganization.isPending ? 'Salvando...' : 'Salvar Alteracoes'}
+                  {updateOrganization.isPending ? 'Saving...' : 'Save Changes'}
                 </Button>
               </div>
             </CardContent>
@@ -179,9 +179,9 @@ export default function OrganizationPage() {
           {/* Branding */}
           <Card>
             <CardHeader>
-              <CardTitle>Personalizacao</CardTitle>
+              <CardTitle>Customization</CardTitle>
               <CardDescription>
-                Configure a aparencia do seu CRM
+                Configure the appearance of your CRM
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -191,7 +191,7 @@ export default function OrganizationPage() {
                   <div className="border-2 border-dashed rounded-lg p-6 text-center">
                     <Palette className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
                     <p className="text-sm text-muted-foreground">
-                      Arraste uma imagem ou clique para enviar
+                      Drag an image or click to upload
                     </p>
                     <Button variant="outline" size="sm" className="mt-2" data-testid="upload-logo-btn">
                       Enviar Logo
@@ -200,14 +200,14 @@ export default function OrganizationPage() {
                 </div>
                 <div className="space-y-4">
                   <div className="space-y-2">
-                    <Label>Cor Primaria</Label>
+                    <Label>Primary Color</Label>
                     <div className="flex gap-2">
                       <div className="w-10 h-10 rounded-lg bg-primary" />
                       <Input defaultValue="#1a1a1a" className="flex-1" />
                     </div>
                   </div>
                   <div className="space-y-2">
-                    <Label>Cor Secundaria</Label>
+                    <Label>Secondary Color</Label>
                     <div className="flex gap-2">
                       <div className="w-10 h-10 rounded-lg bg-secondary" />
                       <Input defaultValue="#f5f5f5" className="flex-1" />
@@ -221,20 +221,20 @@ export default function OrganizationPage() {
           {/* Danger Zone */}
           <Card className="border-destructive/50">
             <CardHeader>
-              <CardTitle className="text-destructive">Zona de Perigo</CardTitle>
+              <CardTitle className="text-destructive">Danger Zone</CardTitle>
               <CardDescription>
-                Acoes irreversiveis para sua organizacao
+                Irreversible actions for your organization
               </CardDescription>
             </CardHeader>
             <CardContent>
               <div className="flex items-center justify-between p-4 bg-destructive/10 rounded-lg">
                 <div>
-                  <h4 className="font-medium">Excluir Organizacao</h4>
+                  <h4 className="font-medium">Delete Organization</h4>
                   <p className="text-sm text-muted-foreground">
-                    Esta acao nao pode ser desfeita
+                    This action cannot be undone
                   </p>
                 </div>
-                <Button variant="destructive" data-testid="delete-org-btn">Excluir</Button>
+                <Button variant="destructive" data-testid="delete-org-btn">Delete</Button>
               </div>
             </CardContent>
           </Card>
