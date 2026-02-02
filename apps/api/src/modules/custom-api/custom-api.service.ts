@@ -5,9 +5,29 @@ import {
   Logger,
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
-import { AuthType as PrismaAuthType } from '@prisma/client';
+import { AuthType as PrismaAuthType, Prisma } from '@prisma/client';
 import { CreateCustomApiDto, UpdateCustomApiDto, HttpMethod } from './dto/custom-api.dto';
+import {
+  CurrentUser,
+  PaginationQuery,
+  parsePaginationParams,
+  createPaginationMeta,
+} from '../../common/types';
 import * as vm from 'vm';
+
+export interface QueryCustomApiDto extends PaginationQuery {
+  isActive?: boolean;
+  method?: HttpMethod;
+}
+
+interface EndpointExecutionContext {
+  body: Record<string, unknown>;
+  query: Record<string, string>;
+  headers: Record<string, string>;
+  user?: CurrentUser;
+  workspaceId: string;
+  prisma: PrismaService;
+}
 
 @Injectable()
 export class CustomApiService {
@@ -50,11 +70,44 @@ export class CustomApiService {
     });
   }
 
-  async findAll(workspaceId: string) {
-    return this.prisma.customEndpoint.findMany({
-      where: { workspaceId },
-      orderBy: { createdAt: 'desc' },
-    });
+  async findAll(workspaceId: string, query: QueryCustomApiDto = {}) {
+    const { page, limit, skip } = parsePaginationParams(query);
+    const { search, isActive, method, sortBy = 'createdAt', sortOrder = 'desc' } = query;
+
+    const where: Prisma.CustomEndpointWhereInput = {
+      workspaceId,
+    };
+
+    if (isActive !== undefined) {
+      where.isActive = isActive;
+    }
+
+    if (method) {
+      where.method = method;
+    }
+
+    if (search) {
+      where.OR = [
+        { name: { contains: search, mode: 'insensitive' } },
+        { path: { contains: search, mode: 'insensitive' } },
+        { description: { contains: search, mode: 'insensitive' } },
+      ];
+    }
+
+    const [data, total] = await Promise.all([
+      this.prisma.customEndpoint.findMany({
+        where,
+        skip,
+        take: limit,
+        orderBy: { [sortBy]: sortOrder },
+      }),
+      this.prisma.customEndpoint.count({ where }),
+    ]);
+
+    return {
+      data,
+      meta: createPaginationMeta(total, page, limit),
+    };
   }
 
   async findOne(id: string, workspaceId: string) {
@@ -130,10 +183,10 @@ export class CustomApiService {
     workspaceId: string,
     path: string,
     method: HttpMethod,
-    body: any,
-    query: any,
-    headers: any,
-    user?: any,
+    body: Record<string, unknown>,
+    query: Record<string, string>,
+    headers: Record<string, string>,
+    user?: CurrentUser,
   ) {
     const endpoint = await this.prisma.customEndpoint.findFirst({
       where: {
@@ -157,7 +210,7 @@ export class CustomApiService {
     }
 
     // Execute logic if defined
-    const logic = endpoint.logic as any;
+    const logic = endpoint.logic as string | null;
     if (logic && typeof logic === 'string') {
       return this.executeLogic(logic, {
         body,
@@ -174,14 +227,7 @@ export class CustomApiService {
 
   private async executeLogic(
     code: string,
-    context: {
-      body: any;
-      query: any;
-      headers: any;
-      user: any;
-      workspaceId: string;
-      prisma: PrismaService;
-    },
+    context: EndpointExecutionContext,
   ) {
     try {
       // Create a sandboxed context
@@ -194,30 +240,30 @@ export class CustomApiService {
         // Limited Prisma access
         db: {
           entityData: {
-            findMany: (args: any) =>
+            findMany: (args: Prisma.EntityDataFindManyArgs) =>
               context.prisma.entityData.findMany({
                 ...args,
                 where: { ...args.where, entity: { workspaceId: context.workspaceId } },
               }),
-            findFirst: (args: any) =>
+            findFirst: (args: Prisma.EntityDataFindFirstArgs) =>
               context.prisma.entityData.findFirst({
                 ...args,
                 where: { ...args.where, entity: { workspaceId: context.workspaceId } },
               }),
-            create: (args: any) =>
+            create: (args: Prisma.EntityDataCreateArgs) =>
               context.prisma.entityData.create(args),
-            update: (args: any) =>
+            update: (args: Prisma.EntityDataUpdateArgs) =>
               context.prisma.entityData.update(args),
           },
         },
         console: {
-          log: (...args: any[]) => this.logger.log(args.join(' ')),
-          error: (...args: any[]) => this.logger.error(args.join(' ')),
+          log: (...args: unknown[]) => this.logger.log(args.map(String).join(' ')),
+          error: (...args: unknown[]) => this.logger.error(args.map(String).join(' ')),
         },
         JSON,
         Date,
         Math,
-        result: null as any,
+        result: null as unknown,
       };
 
       // Create VM context and run code
@@ -235,8 +281,9 @@ export class CustomApiService {
 
       return sandbox.result;
     } catch (error) {
-      this.logger.error(`Error executing custom logic: ${error.message}`);
-      throw new BadRequestException(`Erro na execução: ${error.message}`);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      this.logger.error(`Error executing custom logic: ${errorMessage}`);
+      throw new BadRequestException(`Erro na execucao: ${errorMessage}`);
     }
   }
 

@@ -1,25 +1,57 @@
 import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import {
+  CurrentUser,
+  PaginationQuery,
+  parsePaginationParams,
+  createPaginationMeta,
+} from '../../common/types';
+import { Prisma } from '@prisma/client';
+
+export type QueryEntityDto = PaginationQuery;
 
 export interface FieldDefinition {
   slug: string;
   name: string;
   type: string;
   required?: boolean;
-  default?: any;
+  default?: string | number | boolean | null;
   options?: { value: string; label: string; color?: string }[];
-  validations?: Record<string, any>;
+  validations?: Record<string, unknown>;
   relation?: {
     entity: string;
     displayField: string;
   };
 }
 
+export interface CreateEntityDto {
+  name: string;
+  namePlural?: string;
+  slug: string;
+  description?: string;
+  icon?: string;
+  color?: string;
+  workspaceId: string;
+  fields?: FieldDefinition[];
+  settings?: Record<string, unknown>;
+  isSystem?: boolean;
+}
+
+export interface UpdateEntityDto {
+  name?: string;
+  namePlural?: string;
+  description?: string;
+  icon?: string;
+  color?: string;
+  fields?: FieldDefinition[];
+  settings?: Record<string, unknown>;
+}
+
 @Injectable()
 export class EntityService {
   constructor(private prisma: PrismaService) {}
 
-  async create(dto: any, currentUser: any) {
+  async create(dto: CreateEntityDto, currentUser: CurrentUser) {
     // Verificar se slug já existe no workspace
     const existing = await this.prisma.entity.findFirst({
       where: {
@@ -45,29 +77,52 @@ export class EntityService {
         color: dto.color,
         workspaceId: dto.workspaceId,
         tenantId: currentUser.tenantId,
-        fields: dto.fields || [],
-        settings: dto.settings || {},
+        fields: (dto.fields || []) as unknown as Prisma.InputJsonValue,
+        settings: (dto.settings || {}) as Prisma.InputJsonValue,
         isSystem: dto.isSystem || false,
       },
     });
   }
 
-  async findAll(workspaceId: string, currentUser: any) {
-    return this.prisma.entity.findMany({
-      where: {
-        workspaceId,
-        tenantId: currentUser.tenantId,
-      },
-      include: {
-        _count: {
-          select: { data: true },
+  async findAll(workspaceId: string, currentUser: CurrentUser, query: QueryEntityDto = {}) {
+    const { page, limit, skip } = parsePaginationParams(query);
+    const { search, sortBy = 'name', sortOrder = 'asc' } = query;
+
+    const where: Prisma.EntityWhereInput = {
+      workspaceId,
+      tenantId: currentUser.tenantId,
+    };
+
+    if (search) {
+      where.OR = [
+        { name: { contains: search, mode: 'insensitive' } },
+        { slug: { contains: search, mode: 'insensitive' } },
+        { description: { contains: search, mode: 'insensitive' } },
+      ];
+    }
+
+    const [data, total] = await Promise.all([
+      this.prisma.entity.findMany({
+        where,
+        skip,
+        take: limit,
+        orderBy: { [sortBy]: sortOrder },
+        include: {
+          _count: {
+            select: { data: true },
+          },
         },
-      },
-      orderBy: { name: 'asc' },
-    });
+      }),
+      this.prisma.entity.count({ where }),
+    ]);
+
+    return {
+      data,
+      meta: createPaginationMeta(total, page, limit),
+    };
   }
 
-  async findBySlug(workspaceId: string, slug: string, currentUser: any) {
+  async findBySlug(workspaceId: string, slug: string, currentUser: CurrentUser) {
     const entity = await this.prisma.entity.findFirst({
       where: {
         workspaceId,
@@ -83,7 +138,7 @@ export class EntityService {
     return entity;
   }
 
-  async findOne(id: string, currentUser: any) {
+  async findOne(id: string, currentUser: CurrentUser) {
     const entity = await this.prisma.entity.findFirst({
       where: {
         id,
@@ -98,16 +153,31 @@ export class EntityService {
     return entity;
   }
 
-  async update(id: string, dto: any, currentUser: any) {
+  async update(id: string, dto: UpdateEntityDto, currentUser: CurrentUser) {
     await this.findOne(id, currentUser);
+
+    const updateData: Prisma.EntityUpdateInput = {
+      name: dto.name,
+      namePlural: dto.namePlural,
+      description: dto.description,
+      icon: dto.icon,
+      color: dto.color,
+    };
+
+    if (dto.fields !== undefined) {
+      updateData.fields = dto.fields as unknown as Prisma.InputJsonValue;
+    }
+    if (dto.settings !== undefined) {
+      updateData.settings = dto.settings as Prisma.InputJsonValue;
+    }
 
     return this.prisma.entity.update({
       where: { id },
-      data: dto,
+      data: updateData,
     });
   }
 
-  async remove(id: string, currentUser: any) {
+  async remove(id: string, currentUser: CurrentUser) {
     await this.findOne(id, currentUser);
 
     // Isso também deleta todos os dados da entidade (cascade)

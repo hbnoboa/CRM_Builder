@@ -1,11 +1,36 @@
 import { Injectable, NotFoundException, ConflictException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { Prisma } from '@prisma/client';
+import {
+  CurrentUser,
+  PaginationQuery,
+  parsePaginationParams,
+  createPaginationMeta,
+} from '../../common/types';
+
+export interface CreateRoleDto {
+  name: string;
+  slug?: string;
+  description?: string;
+  permissions?: string[];
+  isSystem?: boolean;
+}
+
+export interface UpdateRoleDto {
+  name?: string;
+  description?: string;
+  permissions?: string[];
+}
+
+export interface QueryRoleDto extends PaginationQuery {
+  isSystem?: boolean;
+}
 
 @Injectable()
 export class RoleService {
   constructor(private prisma: PrismaService) {}
 
-  async create(dto: any, currentUser: any) {
+  async create(dto: CreateRoleDto, currentUser: CurrentUser) {
     // Gerar slug se não fornecido
     const slug = dto.slug || dto.name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
 
@@ -33,19 +58,48 @@ export class RoleService {
     });
   }
 
-  async findAll(currentUser: any) {
-    return this.prisma.role.findMany({
-      where: { tenantId: currentUser.tenantId },
-      include: {
-        _count: {
-          select: { users: true },
+  async findAll(query: QueryRoleDto, currentUser: CurrentUser) {
+    const { page, limit, skip } = parsePaginationParams(query);
+    const { search, isSystem, sortBy = 'name', sortOrder = 'asc' } = query;
+
+    const where: Prisma.RoleWhereInput = {
+      tenantId: currentUser.tenantId,
+    };
+
+    if (isSystem !== undefined) {
+      where.isSystem = isSystem;
+    }
+
+    if (search) {
+      where.OR = [
+        { name: { contains: search, mode: 'insensitive' } },
+        { slug: { contains: search, mode: 'insensitive' } },
+        { description: { contains: search, mode: 'insensitive' } },
+      ];
+    }
+
+    const [data, total] = await Promise.all([
+      this.prisma.role.findMany({
+        where,
+        skip,
+        take: limit,
+        orderBy: { [sortBy]: sortOrder },
+        include: {
+          _count: {
+            select: { users: true },
+          },
         },
-      },
-      orderBy: { name: 'asc' },
-    });
+      }),
+      this.prisma.role.count({ where }),
+    ]);
+
+    return {
+      data,
+      meta: createPaginationMeta(total, page, limit),
+    };
   }
 
-  async findOne(id: string, currentUser: any) {
+  async findOne(id: string, currentUser: CurrentUser) {
     const role = await this.prisma.role.findFirst({
       where: {
         id,
@@ -73,7 +127,7 @@ export class RoleService {
     return role;
   }
 
-  async update(id: string, dto: any, currentUser: any) {
+  async update(id: string, dto: UpdateRoleDto, currentUser: CurrentUser) {
     const role = await this.findOne(id, currentUser);
 
     if (role.isSystem) {
@@ -86,7 +140,7 @@ export class RoleService {
     });
   }
 
-  async remove(id: string, currentUser: any) {
+  async remove(id: string, currentUser: CurrentUser) {
     const role = await this.findOne(id, currentUser);
 
     if (role.isSystem) {
@@ -98,7 +152,7 @@ export class RoleService {
     return { message: 'Role excluída com sucesso' };
   }
 
-  async assignToUser(userId: string, roleId: string, currentUser: any) {
+  async assignToUser(userId: string, roleId: string, currentUser: CurrentUser) {
     // Verificar se role existe
     await this.findOne(roleId, currentUser);
 
@@ -128,7 +182,7 @@ export class RoleService {
     });
   }
 
-  async removeFromUser(userId: string, roleId: string, currentUser: any) {
+  async removeFromUser(userId: string, roleId: string, currentUser: CurrentUser) {
     await this.findOne(roleId, currentUser);
 
     await this.prisma.userRole_.delete({
@@ -140,7 +194,7 @@ export class RoleService {
     return { message: 'Role removida do usuário' };
   }
 
-  async getUserRoles(userId: string, currentUser: any) {
+  async getUserRoles(userId: string, _currentUser: CurrentUser) {
     return this.prisma.userRole_.findMany({
       where: { userId },
       include: {

@@ -14,7 +14,11 @@ out/
 .env
 .env.local
 .env.*.local
+.env.production
+.env.staging
+ecosystem.config.js
 !.env.example
+!.env.production.example
 
 # IDE
 .idea/

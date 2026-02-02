@@ -3,11 +3,16 @@
 
 generator client {
   provider = "prisma-client-js"
+  // Enable previewFeatures if needed
+  // previewFeatures = ["fullTextSearch"]
 }
 
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
+  // Direct URL for migrations (bypasses connection pooler)
+  // Uncomment if using PgBouncer or similar
+  // directUrl = env("DIRECT_DATABASE_URL")
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -135,34 +140,39 @@ model User {
   id             String    @id @default(cuid())
   tenantId       String
   organizationId String?
-  
+
   email          String
   password       String
   name           String
   avatar         String?
-  
+
   role           UserRole  @default(USER)
   status         Status    @default(ACTIVE)
-  
+
   lastLoginAt    DateTime?
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
-  
+
   // Relacionamentos
   tenant         Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   organization   Organization? @relation(fields: [organizationId], references: [id])
   userRoles      UserRole_[]   // Roles adicionais
   refreshTokens  RefreshToken[]
-  
+
   // Dados criados por este usuário
   createdData    EntityData[]  @relation("CreatedBy")
   updatedData    EntityData[]  @relation("UpdatedBy")
-  
+
   @@unique([tenantId, email])
   @@index([tenantId])
   @@index([organizationId])
   @@index([email])
   @@index([status])
+  // Composite indexes for common query patterns
+  @@index([tenantId, status])
+  @@index([tenantId, role])
+  @@index([tenantId, organizationId])
+  @@index([tenantId, createdAt(sort: Desc)])
 }
 
 model RefreshToken {
@@ -231,17 +241,17 @@ model Entity {
   id          String   @id @default(cuid())
   tenantId    String
   workspaceId String
-  
+
   name        String   // "Cliente"
   namePlural  String   // "Clientes"
   slug        String   // "cliente"
   description String?
   icon        String?  // "users"
   color       String?  // "#3B82F6"
-  
+
   // Definição dos campos (JSON Array)
   fields      Json     // [{ slug, name, type, required, options, ... }]
-  
+
   // Configurações da entidade
   settings    Json     @default("{}")
   // {
@@ -250,19 +260,22 @@ model Entity {
   //   searchFields: ["nome", "email"],
   //   defaultSort: { field: "createdAt", order: "desc" }
   // }
-  
+
   isSystem    Boolean  @default(false)
-  
+
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
-  
+
   // Relacionamentos
   workspace Workspace    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   data      EntityData[]
-  
+
   @@unique([workspaceId, slug])
   @@index([tenantId])
   @@index([workspaceId])
+  // Composite indexes for common query patterns
+  @@index([tenantId, workspaceId])
+  @@index([workspaceId, name])
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -273,25 +286,30 @@ model EntityData {
   id        String   @id @default(cuid())
   tenantId  String
   entityId  String
-  
+
   // Dados dinâmicos (JSON)
   data      Json     // { nome: "João", email: "joao@email.com", ... }
-  
+
   // Auditoria
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   createdById String?
   updatedById String?
-  
+
   // Relacionamentos
   entity    Entity @relation(fields: [entityId], references: [id], onDelete: Cascade)
   createdBy User?  @relation("CreatedBy", fields: [createdById], references: [id])
   updatedBy User?  @relation("UpdatedBy", fields: [updatedById], references: [id])
-  
+
   @@index([tenantId])
   @@index([entityId])
   @@index([createdAt])
   @@index([createdById])
+  // Composite indexes for common query patterns
+  @@index([tenantId, entityId])
+  @@index([tenantId, entityId, createdAt(sort: Desc)])
+  @@index([entityId, createdAt(sort: Desc)])
+  @@index([entityId, createdById])
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -302,32 +320,36 @@ model Page {
   id          String   @id @default(cuid())
   tenantId    String
   workspaceId String
-  
+
   title       String
   slug        String
   description String?
   icon        String?
-  
+
   // Conteúdo Puck (JSON)
   content     Json     @default("{}")
-  
+
   // Status de publicação
   isPublished Boolean  @default(false)
   publishedAt DateTime?
-  
+
   // Permissões necessárias para acessar
   permissions Json     @default("[]")
-  
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  
+
   // Relacionamentos
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  
+
   @@unique([workspaceId, slug])
   @@index([tenantId])
   @@index([workspaceId])
   @@index([isPublished])
+  // Composite indexes for common query patterns
+  @@index([tenantId, workspaceId])
+  @@index([workspaceId, isPublished])
+  @@index([tenantId, isPublished])
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -338,16 +360,16 @@ model CustomEndpoint {
   id          String     @id @default(cuid())
   tenantId    String
   workspaceId String
-  
+
   name        String     // "Relatório de Vendas"
   description String?
   path        String     // "relatorio-vendas"
   method      HttpMethod @default(POST)
-  
+
   // Schemas de validação
   requestSchema  Json?   // JSON Schema para request
   responseSchema Json?   // JSON Schema para response
-  
+
   // Lógica (blocos visuais)
   logic       Json       @default("[]")
   // [
@@ -355,25 +377,28 @@ model CustomEndpoint {
   //   { type: "aggregate", operation: "sum", field: "valor" },
   //   { type: "response", template: {...} }
   // ]
-  
+
   // Segurança
   auth        AuthType   @default(JWT)
   permissions Json       @default("[]") // Roles que podem acessar
   rateLimit   Int        @default(100)  // Requests por minuto
-  
+
   // Status
   isActive    Boolean    @default(true)
-  
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  
+
   // Relacionamentos
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  
+
   @@unique([workspaceId, path, method])
   @@index([tenantId])
   @@index([workspaceId])
   @@index([isActive])
+  // Composite indexes for common query patterns
+  @@index([tenantId, workspaceId])
+  @@index([workspaceId, isActive])
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -384,20 +409,62 @@ model AuditLog {
   id        String   @id @default(cuid())
   tenantId  String
   userId    String?
-  
+
   action    String   // "create", "update", "delete", "login", etc
   resource  String   // "user", "entity", "data", etc
   resourceId String?
-  
+
   oldData   Json?
   newData   Json?
   metadata  Json?    // IP, User-Agent, etc
-  
+
   createdAt DateTime @default(now())
-  
+
   @@index([tenantId])
   @@index([userId])
   @@index([action])
   @@index([resource])
   @@index([createdAt])
+  // Composite indexes for common query patterns
+  @@index([tenantId, createdAt(sort: Desc)])
+  @@index([tenantId, action])
+  @@index([tenantId, resource])
+  @@index([tenantId, userId])
+  @@index([resource, resourceId])
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// NOTIFICATIONS
+// ═══════════════════════════════════════════════════════════════════════════
+
+enum NotificationType {
+  INFO
+  SUCCESS
+  WARNING
+  ERROR
+}
+
+model Notification {
+  id        String           @id @default(cuid())
+  tenantId  String
+  userId    String
+
+  type      NotificationType @default(INFO)
+  title     String
+  message   String
+  data      Json?            // Additional data related to the notification
+
+  read      Boolean          @default(false)
+  readAt    DateTime?
+
+  createdAt DateTime         @default(now())
+
+  @@index([tenantId])
+  @@index([userId])
+  @@index([read])
+  @@index([createdAt])
+  // Composite indexes for common query patterns
+  @@index([userId, read])
+  @@index([userId, createdAt(sort: Desc)])
+  @@index([tenantId, userId])
 }

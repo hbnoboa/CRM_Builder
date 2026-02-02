@@ -1,14 +1,29 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { NotificationGateway, Notification } from './notification.gateway';
 import { PrismaService } from '../../prisma/prisma.service';
+import { NotificationType, Prisma } from '@prisma/client';
 import { v4 as uuidv4 } from 'uuid';
 
 export interface CreateNotificationDto {
   type: 'info' | 'success' | 'warning' | 'error';
   title: string;
   message: string;
-  data?: any;
+  data?: Record<string, unknown>;
 }
+
+export interface QueryNotificationDto {
+  page?: number;
+  limit?: number;
+  unreadOnly?: boolean;
+}
+
+// Map string types to Prisma enum
+const typeMap: Record<string, NotificationType> = {
+  info: NotificationType.INFO,
+  success: NotificationType.SUCCESS,
+  warning: NotificationType.WARNING,
+  error: NotificationType.ERROR,
+};
 
 @Injectable()
 export class NotificationService {
@@ -25,6 +40,8 @@ export class NotificationService {
   async notifyUser(
     userId: string,
     notification: CreateNotificationDto,
+    tenantId?: string,
+    persist: boolean = true,
   ): Promise<Notification> {
     const fullNotification: Notification = {
       id: uuidv4(),
@@ -36,8 +53,26 @@ export class NotificationService {
     // Enviar via WebSocket
     this.gateway.sendToUser(userId, fullNotification);
 
-    // Salvar no banco de dados se necessário
-    // await this.saveNotification(userId, fullNotification);
+    // Salvar no banco de dados
+    if (persist && tenantId) {
+      try {
+        await this.prisma.notification.create({
+          data: {
+            id: fullNotification.id,
+            tenantId,
+            userId,
+            type: typeMap[notification.type] || NotificationType.INFO,
+            title: notification.title,
+            message: notification.message,
+            data: notification.data as Prisma.InputJsonValue,
+            read: false,
+          },
+        });
+        this.logger.log(`Notification saved for user: ${userId}`);
+      } catch (error) {
+        this.logger.error(`Failed to save notification: ${error}`);
+      }
+    }
 
     return fullNotification;
   }
@@ -184,5 +219,132 @@ export class NotificationService {
    */
   getOnlineUsers(tenantId: string): string[] {
     return this.gateway.getOnlineUsers(tenantId);
+  }
+
+  // =====================
+  // Persistence Methods
+  // =====================
+
+  /**
+   * Get notifications for a user
+   */
+  async getUserNotifications(
+    userId: string,
+    tenantId: string,
+    query: QueryNotificationDto = {},
+  ) {
+    const { page = 1, limit = 20, unreadOnly = false } = query;
+    const skip = (page - 1) * limit;
+
+    const where: Prisma.NotificationWhereInput = {
+      userId,
+      tenantId,
+    };
+
+    if (unreadOnly) {
+      where.read = false;
+    }
+
+    const [data, total, unreadCount] = await Promise.all([
+      this.prisma.notification.findMany({
+        where,
+        skip,
+        take: limit,
+        orderBy: { createdAt: 'desc' },
+      }),
+      this.prisma.notification.count({ where }),
+      this.prisma.notification.count({
+        where: { userId, tenantId, read: false },
+      }),
+    ]);
+
+    return {
+      data,
+      meta: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+        unreadCount,
+      },
+    };
+  }
+
+  /**
+   * Mark a notification as read
+   */
+  async markAsRead(notificationId: string, userId: string) {
+    return this.prisma.notification.updateMany({
+      where: {
+        id: notificationId,
+        userId,
+      },
+      data: {
+        read: true,
+        readAt: new Date(),
+      },
+    });
+  }
+
+  /**
+   * Mark all notifications as read for a user
+   */
+  async markAllAsRead(userId: string, tenantId: string) {
+    return this.prisma.notification.updateMany({
+      where: {
+        userId,
+        tenantId,
+        read: false,
+      },
+      data: {
+        read: true,
+        readAt: new Date(),
+      },
+    });
+  }
+
+  /**
+   * Delete a notification
+   */
+  async deleteNotification(notificationId: string, userId: string) {
+    return this.prisma.notification.deleteMany({
+      where: {
+        id: notificationId,
+        userId,
+      },
+    });
+  }
+
+  /**
+   * Delete all read notifications older than a certain date
+   */
+  async cleanupOldNotifications(daysOld: number = 30) {
+    const cutoffDate = new Date();
+    cutoffDate.setDate(cutoffDate.getDate() - daysOld);
+
+    const result = await this.prisma.notification.deleteMany({
+      where: {
+        read: true,
+        createdAt: {
+          lt: cutoffDate,
+        },
+      },
+    });
+
+    this.logger.log(`Cleaned up ${result.count} old notifications`);
+    return result;
+  }
+
+  /**
+   * Get unread count for a user
+   */
+  async getUnreadCount(userId: string, tenantId: string): Promise<number> {
+    return this.prisma.notification.count({
+      where: {
+        userId,
+        tenantId,
+        read: false,
+      },
+    });
   }
 }

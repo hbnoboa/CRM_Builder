@@ -4,7 +4,15 @@ import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcryptjs';
 import { PrismaService } from '../../prisma/prisma.service';
 import { LoginDto, RegisterDto, RefreshTokenDto } from './dto/auth.dto';
-import { UserRole, Status } from '@prisma/client';
+import { UserRole, Status, User } from '@prisma/client';
+
+interface UserForTokenGeneration {
+  id: string;
+  email: string;
+  role: UserRole;
+  tenantId: string;
+  organizationId: string | null;
+}
 
 @Injectable()
 export class AuthService {
@@ -254,7 +262,7 @@ export class AuthService {
     };
   }
 
-  private async generateTokens(user: any) {
+  private async generateTokens(user: UserForTokenGeneration) {
     const payload = {
       sub: user.id,
       email: user.email,

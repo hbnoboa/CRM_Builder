@@ -1,14 +1,15 @@
 import { Injectable, NotFoundException, ConflictException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateUserDto, UpdateUserDto, QueryUserDto } from './dto/user.dto';
-import { UserRole, Status } from '@prisma/client';
+import { UserRole, Status, Prisma } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
+import { CurrentUser } from '../../common/types';
 
 @Injectable()
 export class UserService {
   constructor(private prisma: PrismaService) {}
 
-  async create(dto: CreateUserDto, currentUser: any) {
+  async create(dto: CreateUserDto, currentUser: CurrentUser) {
     // Verificar se email já existe no tenant
     const existing = await this.prisma.user.findFirst({
       where: {
@@ -43,12 +44,12 @@ export class UserService {
     });
   }
 
-  async findAll(query: QueryUserDto, currentUser: any) {
+  async findAll(query: QueryUserDto, currentUser: CurrentUser) {
     const { page = 1, limit = 20, search, role, status, organizationId } = query;
     const skip = (page - 1) * limit;
 
     // Base filter por tenant
-    const where: any = {
+    const where: Prisma.UserWhereInput = {
       tenantId: currentUser.tenantId,
     };
 
@@ -105,7 +106,7 @@ export class UserService {
     };
   }
 
-  async findOne(id: string, currentUser: any) {
+  async findOne(id: string, currentUser: CurrentUser) {
     const user = await this.prisma.user.findFirst({
       where: {
         id,
@@ -150,7 +151,7 @@ export class UserService {
     return user;
   }
 
-  async update(id: string, dto: UpdateUserDto, currentUser: any) {
+  async update(id: string, dto: UpdateUserDto, currentUser: CurrentUser) {
     const user = await this.findOne(id, currentUser);
 
     // Verificar permissão (Manager só edita da equipe)
@@ -180,7 +181,7 @@ export class UserService {
     });
   }
 
-  async remove(id: string, currentUser: any) {
+  async remove(id: string, currentUser: CurrentUser) {
     const user = await this.findOne(id, currentUser);
 
     // Não pode deletar a si mesmo

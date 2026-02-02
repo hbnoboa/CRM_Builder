@@ -6,10 +6,11 @@ import {
   Delete,
   Body,
   Param,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
-import { OrganizationService } from './organization.service';
+import { OrganizationService, QueryOrganizationDto } from './organization.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
@@ -33,8 +34,8 @@ export class OrganizationController {
   @Get()
   @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.PLATFORM_ADMIN)
   @ApiOperation({ summary: 'Listar organizações' })
-  async findAll(@CurrentUser() user: any) {
-    return this.organizationService.findAll(user);
+  async findAll(@Query() query: QueryOrganizationDto, @CurrentUser() user: any) {
+    return this.organizationService.findAll(query, user);
   }
 
   @Get(':id')

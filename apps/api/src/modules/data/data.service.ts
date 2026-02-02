@@ -1,7 +1,37 @@
 import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { EntityService } from '../entity/entity.service';
-import { UserRole } from '@prisma/client';
+import { UserRole, Prisma, EntityData, Entity } from '@prisma/client';
+import { CurrentUser } from '../../common/types';
+
+interface CreateDataDto {
+  data: Record<string, unknown>;
+}
+
+interface QueryDataDto {
+  page?: number;
+  limit?: number;
+  search?: string;
+  sortBy?: string;
+  sortOrder?: 'asc' | 'desc';
+}
+
+interface EntitySettings {
+  searchFields?: string[];
+  titleField?: string;
+  subtitleField?: string;
+}
+
+interface EntityField {
+  slug: string;
+  name: string;
+  type: string;
+  required?: boolean;
+}
+
+// Cache for entity lookups within a request (reduces duplicate queries)
+const entityCache = new Map<string, { entity: Entity; timestamp: number }>();
+const CACHE_TTL = 5000; // 5 seconds
 
 @Injectable()
 export class DataService {
@@ -10,12 +40,38 @@ export class DataService {
     private entityService: EntityService,
   ) {}
 
-  async create(entitySlug: string, workspaceId: string, dto: any, currentUser: any) {
-    // Buscar entidade
+  // Get entity with short-lived cache to avoid duplicate queries within same request
+  private async getEntityCached(workspaceId: string, entitySlug: string, currentUser: CurrentUser): Promise<Entity> {
+    const cacheKey = `${workspaceId}:${entitySlug}:${currentUser.tenantId}`;
+    const cached = entityCache.get(cacheKey);
+
+    if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
+      return cached.entity;
+    }
+
     const entity = await this.entityService.findBySlug(workspaceId, entitySlug, currentUser);
+    entityCache.set(cacheKey, { entity, timestamp: Date.now() });
+
+    // Clean old entries periodically
+    if (entityCache.size > 100) {
+      const now = Date.now();
+      for (const [key, value] of entityCache.entries()) {
+        if (now - value.timestamp > CACHE_TTL) {
+          entityCache.delete(key);
+        }
+      }
+    }
+
+    return entity;
+  }
+
+  async create(entitySlug: string, workspaceId: string, dto: CreateDataDto, currentUser: CurrentUser) {
+    // Buscar entidade (cached)
+    const entity = await this.getEntityCached(workspaceId, entitySlug, currentUser);
 
     // Validar dados
-    const errors = this.entityService.validateData(entity.fields as any[], dto.data || {});
+    const fields = (entity.fields as unknown) as EntityField[];
+    const errors = this.entityService.validateData(fields, dto.data as Record<string, unknown> || {});
     if (errors.length > 0) {
       throw new BadRequestException(errors);
     }
@@ -24,7 +80,7 @@ export class DataService {
       data: {
         tenantId: currentUser.tenantId,
         entityId: entity.id,
-        data: dto.data || {},
+        data: (dto.data || {}) as Prisma.InputJsonValue,
         createdById: currentUser.id,
         updatedById: currentUser.id,
       },
@@ -34,17 +90,17 @@ export class DataService {
   async findAll(
     entitySlug: string,
     workspaceId: string,
-    query: any,
-    currentUser: any,
+    query: QueryDataDto,
+    currentUser: CurrentUser,
   ) {
     const { page = 1, limit = 20, search, sortBy = 'createdAt', sortOrder = 'desc' } = query;
     const skip = (page - 1) * limit;
 
-    // Buscar entidade
-    const entity = await this.entityService.findBySlug(workspaceId, entitySlug, currentUser);
+    // Buscar entidade (cached)
+    const entity = await this.getEntityCached(workspaceId, entitySlug, currentUser);
 
     // Base where
-    const where: any = {
+    const where: Prisma.EntityDataWhereInput = {
       tenantId: currentUser.tenantId,
       entityId: entity.id,
     };
@@ -55,7 +111,7 @@ export class DataService {
     // Busca textual
     if (search) {
       // Buscar em campos de busca configurados na entidade
-      const settings = entity.settings as any;
+      const settings = entity.settings as EntitySettings;
       const searchFields = settings?.searchFields || [];
       
       if (searchFields.length > 0) {
@@ -106,8 +162,8 @@ export class DataService {
     };
   }
 
-  async findOne(entitySlug: string, workspaceId: string, id: string, currentUser: any) {
-    const entity = await this.entityService.findBySlug(workspaceId, entitySlug, currentUser);
+  async findOne(entitySlug: string, workspaceId: string, id: string, currentUser: CurrentUser) {
+    const entity = await this.getEntityCached(workspaceId, entitySlug, currentUser);
 
     const record = await this.prisma.entityData.findFirst({
       where: {
@@ -140,8 +196,8 @@ export class DataService {
     };
   }
 
-  async update(entitySlug: string, workspaceId: string, id: string, dto: any, currentUser: any) {
-    const entity = await this.entityService.findBySlug(workspaceId, entitySlug, currentUser);
+  async update(entitySlug: string, workspaceId: string, id: string, dto: CreateDataDto, currentUser: CurrentUser) {
+    const entity = await this.getEntityCached(workspaceId, entitySlug, currentUser);
 
     // Buscar registro
     const record = await this.prisma.entityData.findFirst({
@@ -153,35 +209,36 @@ export class DataService {
     });
 
     if (!record) {
-      throw new NotFoundException('Registro não encontrado');
+      throw new NotFoundException('Registro nao encontrado');
     }
 
     // Verificar permissão de escopo
     this.checkScope(record, currentUser, 'update');
 
     // Validar dados
-    const errors = this.entityService.validateData(entity.fields as any[], dto.data || {});
+    const fields = (entity.fields as unknown) as EntityField[];
+    const errors = this.entityService.validateData(fields, dto.data as Record<string, unknown> || {});
     if (errors.length > 0) {
       throw new BadRequestException(errors);
     }
 
     // Merge dos dados existentes com os novos
     const mergedData = {
-      ...(record.data as object),
+      ...(record.data as Record<string, unknown>),
       ...dto.data,
     };
 
     return this.prisma.entityData.update({
       where: { id },
       data: {
-        data: mergedData,
+        data: mergedData as Prisma.InputJsonValue,
         updatedById: currentUser.id,
       },
     });
   }
 
-  async remove(entitySlug: string, workspaceId: string, id: string, currentUser: any) {
-    const entity = await this.entityService.findBySlug(workspaceId, entitySlug, currentUser);
+  async remove(entitySlug: string, workspaceId: string, id: string, currentUser: CurrentUser) {
+    const entity = await this.getEntityCached(workspaceId, entitySlug, currentUser);
 
     const record = await this.prisma.entityData.findFirst({
       where: {
@@ -204,7 +261,7 @@ export class DataService {
   }
 
   // Aplicar filtros de escopo na query
-  private applyScope(where: any, user: any, action: string) {
+  private applyScope(where: Prisma.EntityDataWhereInput, user: CurrentUser, action: string) {
     // Admin e Platform Admin veem tudo
     if (user.role === UserRole.PLATFORM_ADMIN || user.role === UserRole.ADMIN) {
       return;
@@ -224,8 +281,8 @@ export class DataService {
     }
   }
 
-  // Verificar se usuário pode modificar o registro
-  private checkScope(record: any, user: any, action: string) {
+  // Verificar se usuario pode modificar o registro
+  private checkScope(record: EntityData, user: CurrentUser, action: string) {
     // Admin e Platform Admin podem tudo
     if (user.role === UserRole.PLATFORM_ADMIN || user.role === UserRole.ADMIN) {
       return;

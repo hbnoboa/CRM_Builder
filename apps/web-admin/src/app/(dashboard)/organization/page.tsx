@@ -1,10 +1,9 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Building2,
   Users,
-  Settings,
   Shield,
   CreditCard,
   Globe,
@@ -15,31 +14,52 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { useAuthStore } from '@/stores/auth-store';
+import { useUpdateOrganization } from '@/hooks/use-organizations';
+import Link from 'next/link';
 
 export default function OrganizationPage() {
-  const { user } = useAuthStore();
+  const { user, refreshUser } = useAuthStore();
+  const updateOrganization = useUpdateOrganization();
+
   const [orgName, setOrgName] = useState(user?.organization?.name || '');
-  const [saving, setSaving] = useState(false);
+  const [domain, setDomain] = useState('');
+
+  useEffect(() => {
+    if (user?.organization?.name) {
+      setOrgName(user.organization.name);
+    }
+  }, [user?.organization?.name]);
 
   const handleSave = async () => {
-    setSaving(true);
-    // TODO: Save organization settings
-    setTimeout(() => setSaving(false), 1000);
+    if (!user?.organization?.id) return;
+
+    try {
+      await updateOrganization.mutateAsync({
+        id: user.organization.id,
+        data: {
+          name: orgName,
+        },
+      });
+      // Refresh user data to update the sidebar/header
+      refreshUser?.();
+    } catch (error) {
+      // Error is handled by the hook
+    }
   };
 
   return (
     <div className="space-y-6">
       {/* Breadcrumbs */}
       <nav className="mb-2 flex items-center gap-2 text-sm text-muted-foreground" aria-label="breadcrumb" data-testid="breadcrumb">
-        <a href="/dashboard" className="hover:underline">Dashboard</a>
+        <Link href="/dashboard" className="hover:underline">Dashboard</Link>
         <span>/</span>
-        <span className="font-semibold text-foreground">Organization</span>
+        <span className="font-semibold text-foreground">Organizacao</span>
       </nav>
       {/* Header */}
       <div>
-        <h1 className="text-3xl font-bold" data-testid="page-title">Organization</h1>
+        <h1 className="text-3xl font-bold" data-testid="page-title">Organizacao</h1>
         <p className="text-muted-foreground mt-1">
-          Configure your organization and workspaces
+          Configure sua organizacao e workspaces
         </p>
       </div>
 
@@ -67,31 +87,35 @@ export default function OrganizationPage() {
                 <span className="font-medium">{user?.tenant?.name}</span>
               </div>
               <div className="flex justify-between items-center">
-                <span className="text-sm text-muted-foreground">Plan</span>
+                <span className="text-sm text-muted-foreground">Plano</span>
                 <span className="font-medium text-primary">Pro</span>
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-sm text-muted-foreground">Status</span>
-                <span className="text-green-600 font-medium">Active</span>
+                <span className="text-green-600 font-medium">Ativo</span>
               </div>
             </CardContent>
           </Card>
 
           <Card>
             <CardContent className="p-4">
-              <h4 className="font-medium mb-3">Quick Actions</h4>
+              <h4 className="font-medium mb-3">Acoes Rapidas</h4>
               <div className="space-y-2">
-                <Button variant="outline" className="w-full justify-start" data-testid="manage-users-btn">
-                  <Users className="h-4 w-4 mr-2" />
-                  Manage Users
+                <Button variant="outline" className="w-full justify-start" asChild data-testid="manage-users-btn">
+                  <Link href="/users">
+                    <Users className="h-4 w-4 mr-2" />
+                    Gerenciar Usuarios
+                  </Link>
                 </Button>
-                <Button variant="outline" className="w-full justify-start" data-testid="permissions-btn">
-                  <Shield className="h-4 w-4 mr-2" />
-                  Permissions
+                <Button variant="outline" className="w-full justify-start" asChild data-testid="permissions-btn">
+                  <Link href="/roles">
+                    <Shield className="h-4 w-4 mr-2" />
+                    Permissoes
+                  </Link>
                 </Button>
                 <Button variant="outline" className="w-full justify-start" data-testid="billing-btn">
                   <CreditCard className="h-4 w-4 mr-2" />
-                  Billing
+                  Faturamento
                 </Button>
               </div>
             </CardContent>
@@ -103,15 +127,15 @@ export default function OrganizationPage() {
           {/* General Settings */}
           <Card>
             <CardHeader>
-              <CardTitle>General Settings</CardTitle>
+              <CardTitle>Configuracoes Gerais</CardTitle>
               <CardDescription>
-                Basic information about your organization
+                Informacoes basicas sobre sua organizacao
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2">
-                  <Label htmlFor="name">Organization Name</Label>
+                  <Label htmlFor="name">Nome da Organizacao</Label>
                   <Input
                     id="name"
                     value={orgName}
@@ -129,22 +153,24 @@ export default function OrganizationPage() {
                 </div>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="domain">Custom Domain</Label>
+                <Label htmlFor="domain">Dominio Personalizado</Label>
                 <div className="flex gap-2">
                   <Input
                     id="domain"
                     placeholder="crm.suaempresa.com"
+                    value={domain}
+                    onChange={(e) => setDomain(e.target.value)}
                     className="flex-1"
                   />
                   <Button variant="outline" data-testid="configure-domain-btn">
                     <Globe className="h-4 w-4 mr-2" />
-                    Configure
+                    Configurar
                   </Button>
                 </div>
               </div>
               <div className="pt-4">
-                <Button onClick={handleSave} disabled={saving} data-testid="save-org-btn">
-                  {saving ? 'Saving...' : 'Save Changes'}
+                <Button onClick={handleSave} disabled={updateOrganization.isPending} data-testid="save-org-btn">
+                  {updateOrganization.isPending ? 'Salvando...' : 'Salvar Alteracoes'}
                 </Button>
               </div>
             </CardContent>
@@ -153,9 +179,9 @@ export default function OrganizationPage() {
           {/* Branding */}
           <Card>
             <CardHeader>
-              <CardTitle>Customization</CardTitle>
+              <CardTitle>Personalizacao</CardTitle>
               <CardDescription>
-                Configure your CRM appearance
+                Configure a aparencia do seu CRM
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -165,23 +191,23 @@ export default function OrganizationPage() {
                   <div className="border-2 border-dashed rounded-lg p-6 text-center">
                     <Palette className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
                     <p className="text-sm text-muted-foreground">
-                      Drag an image or click to upload
+                      Arraste uma imagem ou clique para enviar
                     </p>
                     <Button variant="outline" size="sm" className="mt-2" data-testid="upload-logo-btn">
-                      Upload Logo
+                      Enviar Logo
                     </Button>
                   </div>
                 </div>
                 <div className="space-y-4">
                   <div className="space-y-2">
-                    <Label>Primary Color</Label>
+                    <Label>Cor Primaria</Label>
                     <div className="flex gap-2">
                       <div className="w-10 h-10 rounded-lg bg-primary" />
                       <Input defaultValue="#1a1a1a" className="flex-1" />
                     </div>
                   </div>
                   <div className="space-y-2">
-                    <Label>Secondary Color</Label>
+                    <Label>Cor Secundaria</Label>
                     <div className="flex gap-2">
                       <div className="w-10 h-10 rounded-lg bg-secondary" />
                       <Input defaultValue="#f5f5f5" className="flex-1" />
@@ -195,20 +221,20 @@ export default function OrganizationPage() {
           {/* Danger Zone */}
           <Card className="border-destructive/50">
             <CardHeader>
-              <CardTitle className="text-destructive">Danger Zone</CardTitle>
+              <CardTitle className="text-destructive">Zona de Perigo</CardTitle>
               <CardDescription>
-                Irreversible actions for your organization
+                Acoes irreversiveis para sua organizacao
               </CardDescription>
             </CardHeader>
             <CardContent>
               <div className="flex items-center justify-between p-4 bg-destructive/10 rounded-lg">
                 <div>
-                  <h4 className="font-medium">Delete Organization</h4>
+                  <h4 className="font-medium">Excluir Organizacao</h4>
                   <p className="text-sm text-muted-foreground">
-                    This action cannot be undone
+                    Esta acao nao pode ser desfeita
                   </p>
                 </div>
-                <Button variant="destructive" data-testid="delete-org-btn">Delete</Button>
+                <Button variant="destructive" data-testid="delete-org-btn">Excluir</Button>
               </div>
             </CardContent>
           </Card>

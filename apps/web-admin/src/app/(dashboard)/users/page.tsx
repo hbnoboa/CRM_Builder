@@ -1,12 +1,12 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import {
   Plus,
   Search,
   MoreVertical,
   Pencil,
-  Trash,
+  Trash2,
   Users as UsersIcon,
   Mail,
   Shield,
@@ -16,7 +16,15 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
-import api from '@/lib/api';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { useUsers } from '@/hooks/use-users';
+import { UserFormDialog, DeleteUserDialog } from '@/components/users';
 import type { User } from '@/types';
 
 const roleColors: Record<string, string> = {
@@ -29,34 +37,20 @@ const roleColors: Record<string, string> = {
 
 const roleLabels: Record<string, string> = {
   PLATFORM_ADMIN: 'Super Admin',
-  ADMIN: 'Administrator',
-  MANAGER: 'Manager',
-  USER: 'User',
-  VIEWER: 'Viewer',
+  ADMIN: 'Administrador',
+  MANAGER: 'Gerente',
+  USER: 'Usuario',
+  VIEWER: 'Visualizador',
 };
 
 export default function UsersPage() {
-  const [users, setUsers] = useState<User[]>([]);
-  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [formOpen, setFormOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [selectedUser, setSelectedUser] = useState<User | null>(null);
 
-  useEffect(() => {
-    loadUsers();
-  }, []);
-
-  const loadUsers = async () => {
-    try {
-      const response = await api.get('/users');
-      // A API pode retornar { data: [...], meta: {...} } ou um array direto
-      const userDate = Array.isArray(response.data) ? response.data : response.data?.data || [];
-      setUsers(userDate);
-    } catch (error) {
-      console.error('Error loading users:', error);
-      setUsers([]);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const { data, isLoading, refetch } = useUsers();
+  const users = data?.data || [];
 
   const filteredUsers = users.filter(
     (user) =>
@@ -64,25 +58,45 @@ export default function UsersPage() {
       user.email.toLowerCase().includes(search.toLowerCase())
   );
 
+  const handleCreateUser = () => {
+    setSelectedUser(null);
+    setFormOpen(true);
+  };
+
+  const handleEditUser = (user: User) => {
+    setSelectedUser(user);
+    setFormOpen(true);
+  };
+
+  const handleDeleteUser = (user: User) => {
+    setSelectedUser(user);
+    setDeleteOpen(true);
+  };
+
+  const handleSuccess = () => {
+    refetch();
+  };
+
   return (
     <div className="space-y-6">
       {/* Breadcrumbs */}
-      <nav className="mb-2 flex items-center gap-2 text-sm text-muted-foreground" aria-label="breadcrumb" data-testid="breadcrumb">
+      <nav className="mb-2 flex items-center gap-2 text-sm text-muted-foreground" aria-label="breadcrumb">
         <a href="/dashboard" className="hover:underline">Dashboard</a>
         <span>/</span>
-        <span className="font-semibold text-foreground">Users</span>
+        <span className="font-semibold text-foreground">Usuarios</span>
       </nav>
+
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold" data-testid="page-title">Users</h1>
+          <h1 className="text-3xl font-bold">Usuarios</h1>
           <p className="text-muted-foreground mt-1">
-            Manage your organization's users
+            Gerencie os usuarios da sua organizacao
           </p>
         </div>
-        <Button data-testid="invite-user-btn">
+        <Button onClick={handleCreateUser}>
           <Plus className="h-4 w-4 mr-2" />
-          Invite User
+          Novo Usuario
         </Button>
       </div>
 
@@ -91,7 +105,7 @@ export default function UsersPage() {
         <Card>
           <CardContent className="p-4">
             <div className="text-2xl font-bold">{users.length}</div>
-            <p className="text-sm text-muted-foreground">Total Users</p>
+            <p className="text-sm text-muted-foreground">Total de Usuarios</p>
           </CardContent>
         </Card>
         <Card>
@@ -99,7 +113,7 @@ export default function UsersPage() {
             <div className="text-2xl font-bold text-green-600">
               {users.filter((u) => u.status === 'ACTIVE').length}
             </div>
-            <p className="text-sm text-muted-foreground">Active</p>
+            <p className="text-sm text-muted-foreground">Ativos</p>
           </CardContent>
         </Card>
         <Card>
@@ -107,7 +121,7 @@ export default function UsersPage() {
             <div className="text-2xl font-bold text-blue-600">
               {users.filter((u) => u.role === 'ADMIN' || u.role === 'MANAGER').length}
             </div>
-            <p className="text-sm text-muted-foreground">Administrators</p>
+            <p className="text-sm text-muted-foreground">Administradores</p>
           </CardContent>
         </Card>
         <Card>
@@ -115,7 +129,7 @@ export default function UsersPage() {
             <div className="text-2xl font-bold text-yellow-600">
               {users.filter((u) => u.status === 'PENDING').length}
             </div>
-            <p className="text-sm text-muted-foreground">Pending</p>
+            <p className="text-sm text-muted-foreground">Pendentes</p>
           </CardContent>
         </Card>
       </div>
@@ -124,7 +138,7 @@ export default function UsersPage() {
       <div className="relative max-w-md">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
         <Input
-          placeholder="Search users..."
+          placeholder="Buscar usuarios..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className="pl-9"
@@ -132,7 +146,7 @@ export default function UsersPage() {
       </div>
 
       {/* Users List */}
-      {loading ? (
+      {isLoading ? (
         <div className="space-y-3">
           {[1, 2, 3].map((i) => (
             <Card key={i} className="animate-pulse">
@@ -152,12 +166,18 @@ export default function UsersPage() {
         <Card>
           <CardContent className="p-12 text-center">
             <UsersIcon className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-            <h3 className="text-lg font-semibold mb-2">No user found</h3>
+            <h3 className="text-lg font-semibold mb-2">Nenhum usuario encontrado</h3>
             <p className="text-muted-foreground mb-4">
               {search
-                ? 'No user matches your search.'
-                : 'Invite users to get started.'}
+                ? 'Nenhum usuario corresponde a sua busca.'
+                : 'Crie usuarios para comecar.'}
             </p>
+            {!search && (
+              <Button onClick={handleCreateUser}>
+                <Plus className="h-4 w-4 mr-2" />
+                Novo Usuario
+              </Button>
+            )}
           </CardContent>
         </Card>
       ) : (
@@ -195,7 +215,7 @@ export default function UsersPage() {
                         </span>
                         {user.lastLoginAt && (
                           <span>
-                            Last access: {new Date(user.lastLoginAt).toLocaleDateString('en-US')}
+                            Ultimo acesso: {new Date(user.lastLoginAt).toLocaleDateString('pt-BR')}
                           </span>
                         )}
                       </div>
@@ -203,17 +223,35 @@ export default function UsersPage() {
                   </div>
 
                   <div className="flex items-center gap-2">
-                    <Button variant="outline" size="sm" data-testid={`permissions-btn-${user.id}`}>
+                    <Button variant="outline" size="sm">
                       <Shield className="h-4 w-4 mr-1" />
-                      Permissions
+                      Permissoes
                     </Button>
-                    <Button variant="outline" size="sm" data-testid={`edit-user-btn-${user.id}`}>
+                    <Button variant="outline" size="sm" onClick={() => handleEditUser(user)}>
                       <Pencil className="h-4 w-4 mr-1" />
-                      Edit
+                      Editar
                     </Button>
-                    <Button variant="ghost" size="icon">
-                      <MoreVertical className="h-4 w-4" />
-                    </Button>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon">
+                          <MoreVertical className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={() => handleEditUser(user)}>
+                          <Pencil className="h-4 w-4 mr-2" />
+                          Editar
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                          onClick={() => handleDeleteUser(user)}
+                          className="text-destructive focus:text-destructive"
+                        >
+                          <Trash2 className="h-4 w-4 mr-2" />
+                          Excluir
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </div>
                 </div>
               </CardContent>
@@ -221,6 +259,20 @@ export default function UsersPage() {
           ))}
         </div>
       )}
+
+      {/* Dialogs */}
+      <UserFormDialog
+        open={formOpen}
+        onOpenChange={setFormOpen}
+        user={selectedUser}
+        onSuccess={handleSuccess}
+      />
+      <DeleteUserDialog
+        open={deleteOpen}
+        onOpenChange={setDeleteOpen}
+        user={selectedUser}
+        onSuccess={handleSuccess}
+      />
     </div>
   );
 }

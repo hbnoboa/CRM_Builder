@@ -19,7 +19,8 @@ import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
-import { CustomApiService } from './custom-api.service';
+import { AuthenticatedRequest } from '../../common/types';
+import { CustomApiService, QueryCustomApiDto } from './custom-api.service';
 import { CreateCustomApiDto, UpdateCustomApiDto, HttpMethod } from './dto/custom-api.dto';
 import { PrismaService } from '../../prisma/prisma.service';
 
@@ -54,9 +55,9 @@ export class CustomApiController {
   }
 
   @Get()
-  async findAll(@CurrentUser() user: any) {
+  async findAll(@Query() query: QueryCustomApiDto, @CurrentUser() user: any) {
     const workspaceId = await this.getWorkspaceId(user.organizationId);
-    return this.customApiService.findAll(workspaceId);
+    return this.customApiService.findAll(workspaceId, query);
   }
 
   @Get(':id')
@@ -97,18 +98,18 @@ export class DynamicApiController {
   constructor(private readonly customApiService: CustomApiService) {}
 
   @All('*')
-  async handleDynamicRequest(@Req() req: Request, @Param('workspaceId') workspaceId: string) {
-    const path = req.params[0] || '';
+  async handleDynamicRequest(@Req() req: AuthenticatedRequest, @Param('workspaceId') workspaceId: string) {
+    const path = (req.params as Record<string, string>)[0] || '';
     const method = req.method as HttpMethod;
 
     return this.customApiService.executeEndpoint(
       workspaceId,
       `/${path}`,
       method,
-      req.body,
-      req.query,
-      req.headers,
-      (req as any).user,
+      req.body as Record<string, unknown>,
+      req.query as Record<string, string>,
+      req.headers as unknown as Record<string, string>,
+      req.user,
     );
   }
 }

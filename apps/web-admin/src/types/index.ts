@@ -11,6 +11,10 @@ export interface Tenant {
   settings?: Record<string, unknown>;
   createdAt?: string;
   updatedAt?: string;
+  _count?: {
+    users?: number;
+    organizations?: number;
+  };
 }
 
 export interface Organization {
@@ -68,12 +72,19 @@ export interface RegisterDate {
 export interface Entity {
   id: string;
   workspaceId: string;
+  tenantId: string;
   name: string;
+  namePlural?: string;
   slug: string;
   icon?: string;
+  color?: string;
   description?: string;
   fields: EntityField[];
   settings?: EntitySettings;
+  isSystem?: boolean;
+  _count?: {
+    data: number;
+  };
   createdAt?: string;
   updatedAt?: string;
 }
@@ -117,14 +128,29 @@ export interface EntitySettings {
 // Alias para compatibilidade
 export type Field = EntityField;
 
-export interface EntityDate {
+export interface EntityData {
   id: string;
   entityId: string;
+  tenantId: string;
   data: Record<string, unknown>;
-  createdBy: string;
+  createdById: string;
+  updatedById: string;
+  createdBy?: {
+    id: string;
+    name: string;
+    email: string;
+  };
+  updatedBy?: {
+    id: string;
+    name: string;
+    email: string;
+  };
   createdAt: string;
   updatedAt: string;
 }
+
+// Alias for backwards compatibility
+export type EntityDate = EntityData;
 
 export interface PaginatedResponse<T> {
   data: T[];

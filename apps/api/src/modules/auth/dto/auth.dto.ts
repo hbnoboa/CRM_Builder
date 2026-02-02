@@ -1,26 +1,31 @@
-import { IsEmail, IsString, MinLength, IsOptional, IsEnum } from 'class-validator';
+import { IsEmail, IsString, MinLength, MaxLength, IsOptional, IsEnum, Matches } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { UserRole } from '@prisma/client';
 
 export class LoginDto {
   @ApiProperty({ example: 'admin@demo.com' })
-  @IsEmail({}, { message: 'Email inválido' })
+  @IsEmail({}, { message: 'Email invalido' })
   email: string;
 
-  @ApiProperty({ example: 'admin123' })
+  @ApiProperty({ example: 'Admin123!' })
   @IsString()
-  @MinLength(6, { message: 'Senha deve ter no mínimo 6 caracteres' })
+  @MinLength(8, { message: 'Senha deve ter no minimo 8 caracteres' })
+  @MaxLength(128, { message: 'Senha deve ter no maximo 128 caracteres' })
   password: string;
 }
 
 export class RegisterDto {
   @ApiProperty({ example: 'usuario@empresa.com' })
-  @IsEmail({}, { message: 'Email inválido' })
+  @IsEmail({}, { message: 'Email invalido' })
   email: string;
 
-  @ApiProperty({ example: 'senha123' })
+  @ApiProperty({ example: 'Senha123!' })
   @IsString()
-  @MinLength(6, { message: 'Senha deve ter no mínimo 6 caracteres' })
+  @MinLength(8, { message: 'Senha deve ter no minimo 8 caracteres' })
+  @MaxLength(128, { message: 'Senha deve ter no maximo 128 caracteres' })
+  @Matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/, {
+    message: 'Senha deve conter pelo menos uma letra maiuscula, uma minuscula e um numero',
+  })
   password: string;
 
   @ApiProperty({ example: 'João Silva' })

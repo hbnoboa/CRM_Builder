@@ -1,0 +1,21 @@
+'use client';
+
+import { ReactNode } from 'react';
+import { Toaster } from 'sonner';
+import { QueryProvider } from './query-provider';
+import { NotificationProvider } from './notification-provider';
+
+interface ProvidersProps {
+  children: ReactNode;
+}
+
+export function Providers({ children }: ProvidersProps) {
+  return (
+    <QueryProvider>
+      <NotificationProvider>
+        {children}
+        <Toaster position="top-right" richColors closeButton />
+      </NotificationProvider>
+    </QueryProvider>
+  );
+}

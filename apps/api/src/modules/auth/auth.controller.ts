@@ -8,6 +8,7 @@ import {
   HttpStatus,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiResponse } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import { AuthService } from './auth.service';
 import { LoginDto, RegisterDto, RefreshTokenDto } from './dto/auth.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
@@ -19,27 +20,33 @@ export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
   @Post('register')
-  @ApiOperation({ summary: 'Registrar novo usuário' })
-  @ApiResponse({ status: 201, description: 'Usuário criado' })
-  @ApiResponse({ status: 409, description: 'Email já em uso' })
+  @Throttle({ default: { limit: 3, ttl: 60000 } }) // 3 requests per minute
+  @ApiOperation({ summary: 'Registrar novo usuario' })
+  @ApiResponse({ status: 201, description: 'Usuario criado' })
+  @ApiResponse({ status: 409, description: 'Email ja em uso' })
+  @ApiResponse({ status: 429, description: 'Muitas tentativas. Tente novamente em 1 minuto.' })
   async register(@Body() dto: RegisterDto) {
     return this.authService.register(dto);
   }
 
   @Post('login')
+  @Throttle({ default: { limit: 5, ttl: 60000 } }) // 5 requests per minute
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Login' })
   @ApiResponse({ status: 200, description: 'Login realizado' })
-  @ApiResponse({ status: 401, description: 'Credenciais inválidas' })
+  @ApiResponse({ status: 401, description: 'Credenciais invalidas' })
+  @ApiResponse({ status: 429, description: 'Muitas tentativas. Tente novamente em 1 minuto.' })
   async login(@Body() dto: LoginDto) {
     return this.authService.login(dto);
   }
 
   @Post('refresh')
+  @Throttle({ default: { limit: 10, ttl: 60000 } }) // 10 requests per minute
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Renovar tokens' })
   @ApiResponse({ status: 200, description: 'Tokens renovados' })
-  @ApiResponse({ status: 401, description: 'Refresh token inválido' })
+  @ApiResponse({ status: 401, description: 'Refresh token invalido' })
+  @ApiResponse({ status: 429, description: 'Muitas tentativas. Tente novamente em 1 minuto.' })
   async refresh(@Body() dto: RefreshTokenDto) {
     return this.authService.refreshToken(dto);
   }

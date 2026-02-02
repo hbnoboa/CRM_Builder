@@ -9,9 +9,11 @@ import {
   MessageBody,
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
-import { Logger, UseGuards } from '@nestjs/common';
+import { Logger } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
+import { createAdapter } from '@socket.io/redis-adapter';
+import { Redis } from 'ioredis';
 
 export interface Notification {
   id: string;
@@ -51,7 +53,31 @@ export class NotificationGateway
   ) {}
 
   afterInit(server: Server) {
-    this.logger.log('🔌 WebSocket Gateway inicializado');
+    // Configure Redis adapter for horizontal scaling
+    const redisUrl = this.configService.get<string>('REDIS_URL');
+
+    if (redisUrl) {
+      try {
+        const pubClient = new Redis(redisUrl);
+        const subClient = pubClient.duplicate();
+
+        pubClient.on('error', (err) => {
+          this.logger.error('Redis pub client error:', err);
+        });
+
+        subClient.on('error', (err) => {
+          this.logger.error('Redis sub client error:', err);
+        });
+
+        server.adapter(createAdapter(pubClient, subClient));
+        this.logger.log('🔌 WebSocket Gateway initialized with Redis adapter');
+      } catch (error) {
+        this.logger.warn('Failed to configure Redis adapter, using default in-memory adapter:', error);
+        this.logger.log('🔌 WebSocket Gateway initialized (no Redis)');
+      }
+    } else {
+      this.logger.log('🔌 WebSocket Gateway initialized (no Redis URL configured)');
+    }
   }
 
   async handleConnection(client: AuthenticatedSocket) {

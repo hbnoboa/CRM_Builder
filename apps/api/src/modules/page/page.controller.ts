@@ -16,7 +16,7 @@ import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
-import { PageService } from './page.service';
+import { PageService, QueryPageDto } from './page.service';
 import { CreatePageDto, UpdatePageDto } from './dto/page.dto';
 import { PrismaService } from '../../prisma/prisma.service';
 
@@ -54,9 +54,9 @@ export class PageController {
   }
 
   @Get()
-  async findAll(@CurrentUser() user: any) {
+  async findAll(@Query() query: QueryPageDto, @CurrentUser() user: any) {
     const workspaceId = await this.getWorkspaceId(user.organizationId);
-    return this.pageService.findAll(workspaceId);
+    return this.pageService.findAll(workspaceId, query);
   }
 
   @Get(':id')

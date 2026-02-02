@@ -18,7 +18,7 @@ export interface UploadedFile {
 @Injectable()
 export class UploadService {
   private readonly logger = new Logger(UploadService.name);
-  private storage: Storage;
+  private storage: Storage | null;
   private bucket: string;
   private baseUrl: string;
 
@@ -47,12 +47,12 @@ export class UploadService {
         });
       } else {
         // Fallback - modo mock para desenvolvimento sem GCS
-        this.logger.warn('⚠️ Google Cloud Storage não configurado. Usando modo local.');
-        this.storage = null as any;
+        this.logger.warn('Google Cloud Storage nao configurado. Usando modo local.');
+        this.storage = null;
       }
     } catch (error) {
       this.logger.error('Erro ao configurar Google Cloud Storage:', error);
-      this.storage = null as any;
+      this.storage = null;
     }
   }
 

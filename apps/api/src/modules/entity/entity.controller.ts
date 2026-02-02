@@ -11,7 +11,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
-import { EntityService } from './entity.service';
+import { EntityService, QueryEntityDto } from './entity.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
@@ -54,12 +54,16 @@ export class EntityController {
 
   @Get()
   @ApiOperation({ summary: 'Listar entidades do workspace' })
-  async findAll(@Query('workspaceId') workspaceId: string, @CurrentUser() user: any) {
+  async findAll(@Query() query: QueryEntityDto & { workspaceId?: string }, @CurrentUser() user: any) {
     // If workspaceId is not provided, get it from user's organization
+    let workspaceId = query.workspaceId;
     if (!workspaceId && user.organizationId) {
       workspaceId = await this.getWorkspaceId(user.organizationId);
     }
-    return this.entityService.findAll(workspaceId, user);
+    if (!workspaceId) {
+      throw new BadRequestException('workspaceId é obrigatório');
+    }
+    return this.entityService.findAll(workspaceId, user, query);
   }
 
   @Get(':id')

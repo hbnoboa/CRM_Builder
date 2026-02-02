@@ -1,15 +1,29 @@
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe, Logger } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
+import helmet from 'helmet';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
   const logger = new Logger('Bootstrap');
   const app = await NestFactory.create(AppModule);
-  
+
+  // Security headers (Helmet)
+  app.use(helmet({
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        styleSrc: ["'self'", "'unsafe-inline'"],
+        scriptSrc: ["'self'"],
+        imgSrc: ["'self'", "data:", "https:"],
+      },
+    },
+    crossOriginEmbedderPolicy: false, // Permite embed de recursos externos
+  }));
+
   // Prefixo global
   app.setGlobalPrefix('api/v1');
-  
+
   // CORS
   app.enableCors({
     origin: process.env.API_CORS_ORIGIN?.split(',') || ['http://localhost:3000'],

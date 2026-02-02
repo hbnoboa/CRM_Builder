@@ -1,6 +1,16 @@
 import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { Prisma } from '@prisma/client';
 import { CreatePageDto, UpdatePageDto } from './dto/page.dto';
+import {
+  PaginationQuery,
+  parsePaginationParams,
+  createPaginationMeta,
+} from '../../common/types';
+
+export interface QueryPageDto extends PaginationQuery {
+  isPublished?: boolean;
+}
 
 @Injectable()
 export class PageService {
@@ -22,11 +32,40 @@ export class PageService {
     });
   }
 
-  async findAll(workspaceId: string) {
-    return this.prisma.page.findMany({
-      where: { workspaceId },
-      orderBy: { updatedAt: 'desc' },
-    });
+  async findAll(workspaceId: string, query: QueryPageDto = {}) {
+    const { page, limit, skip } = parsePaginationParams(query);
+    const { search, isPublished, sortBy = 'updatedAt', sortOrder = 'desc' } = query;
+
+    const where: Prisma.PageWhereInput = {
+      workspaceId,
+    };
+
+    if (isPublished !== undefined) {
+      where.isPublished = isPublished;
+    }
+
+    if (search) {
+      where.OR = [
+        { title: { contains: search, mode: 'insensitive' } },
+        { slug: { contains: search, mode: 'insensitive' } },
+        { description: { contains: search, mode: 'insensitive' } },
+      ];
+    }
+
+    const [data, total] = await Promise.all([
+      this.prisma.page.findMany({
+        where,
+        skip,
+        take: limit,
+        orderBy: { [sortBy]: sortOrder },
+      }),
+      this.prisma.page.count({ where }),
+    ]);
+
+    return {
+      data,
+      meta: createPaginationMeta(total, page, limit),
+    };
   }
 
   async findOne(id: string, workspaceId: string) {

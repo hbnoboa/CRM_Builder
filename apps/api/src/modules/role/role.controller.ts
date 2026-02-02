@@ -6,10 +6,11 @@ import {
   Delete,
   Body,
   Param,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
-import { RoleService } from './role.service';
+import { RoleService, QueryRoleDto } from './role.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
@@ -33,8 +34,8 @@ export class RoleController {
   @Get()
   @Roles(UserRole.ADMIN, UserRole.PLATFORM_ADMIN)
   @ApiOperation({ summary: 'Listar roles' })
-  async findAll(@CurrentUser() user: any) {
-    return this.roleService.findAll(user);
+  async findAll(@Query() query: QueryRoleDto, @CurrentUser() user: any) {
+    return this.roleService.findAll(query, user);
   }
 
   @Get(':id')

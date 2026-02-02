@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateTenantDto, UpdateTenantDto, QueryTenantDto } from './dto/tenant.dto';
-import { UserRole, Status } from '@prisma/client';
+import { UserRole, Status, Prisma } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
 
 @Injectable()
@@ -64,7 +64,7 @@ export class TenantService {
     const { page = 1, limit = 20, search, plan, status } = query;
     const skip = (page - 1) * limit;
 
-    const where: any = {};
+    const where: Prisma.TenantWhereInput = {};
 
     if (plan) where.plan = plan;
     if (status) where.status = status;

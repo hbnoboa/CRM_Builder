@@ -1,16 +1,11 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
-  Settings as SettingsIcon,
   User,
   Bell,
   Shield,
   Key,
-  Globe,
-  Palette,
-  Database,
-  Mail,
   Webhook,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -18,42 +13,75 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { useAuthStore } from '@/stores/auth-store';
+import { useUpdateProfile, useChangePassword } from '@/hooks/use-auth';
+import Link from 'next/link';
 
 const tabs = [
-  { id: 'profile', label: 'Profile', icon: User },
-  { id: 'notifications', label: 'Notifications', icon: Bell },
-  { id: 'security', label: 'Security', icon: Shield },
-  { id: 'api', label: 'API Keys', icon: Key },
-  { id: 'integrations', label: 'Integrations', icon: Webhook },
+  { id: 'profile', label: 'Perfil', icon: User },
+  { id: 'notifications', label: 'Notificacoes', icon: Bell },
+  { id: 'security', label: 'Seguranca', icon: Shield },
+  { id: 'api', label: 'Chaves de API', icon: Key },
+  { id: 'integrations', label: 'Integracoes', icon: Webhook },
 ];
 
 export default function SettingsPage() {
   const { user } = useAuthStore();
+  const updateProfile = useUpdateProfile();
+  const changePassword = useChangePassword();
+
   const [activeTab, setActiveTab] = useState('profile');
-  const [saving, setSaving] = useState(false);
 
   // Profile form state
   const [name, setName] = useState(user?.name || '');
   const [email, setEmail] = useState(user?.email || '');
 
-  const handleSave = async () => {
-    setSaving(true);
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-    setSaving(false);
+  // Password form state
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+
+  useEffect(() => {
+    if (user) {
+      setName(user.name || '');
+      setEmail(user.email || '');
+    }
+  }, [user]);
+
+  const handleSaveProfile = async () => {
+    try {
+      await updateProfile.mutateAsync({ name, email });
+    } catch (error) {
+      // Error is handled by the hook
+    }
+  };
+
+  const handleChangePassword = async () => {
+    if (newPassword !== confirmPassword) {
+      return;
+    }
+
+    try {
+      await changePassword.mutateAsync({ currentPassword, newPassword });
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+    } catch (error) {
+      // Error is handled by the hook
+    }
   };
 
   return (
     <div className="space-y-6">
-      {/* Header */}
+      {/* Breadcrumbs */}
       <nav className="mb-2 flex items-center gap-2 text-sm text-muted-foreground" aria-label="breadcrumb" data-testid="breadcrumb">
-        <a href="/dashboard" className="hover:underline" data-testid="breadcrumb-dashboard">Dashboard</a>
+        <Link href="/dashboard" className="hover:underline" data-testid="breadcrumb-dashboard">Dashboard</Link>
         <span>/</span>
-        <span className="font-semibold text-foreground" data-testid="breadcrumb-settings">Settings</span>
+        <span className="font-semibold text-foreground" data-testid="breadcrumb-settings">Configuracoes</span>
       </nav>
       <div>
-        <h1 className="text-3xl font-bold" data-testid="settings-heading">Settings</h1>
+        <h1 className="text-3xl font-bold" data-testid="settings-heading">Configuracoes</h1>
         <p className="text-muted-foreground mt-1">
-          Manage your preferences and account settings
+          Gerencie suas preferencias e configuracoes de conta
         </p>
       </div>
 
@@ -82,9 +110,9 @@ export default function SettingsPage() {
           {activeTab === 'profile' && (
             <Card>
               <CardHeader>
-                <CardTitle>Profile</CardTitle>
+                <CardTitle>Perfil</CardTitle>
                 <CardDescription>
-                  Update your personal information
+                  Atualize suas informacoes pessoais
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
@@ -96,17 +124,17 @@ export default function SettingsPage() {
                   </div>
                   <div>
                     <Button variant="outline" size="sm" data-testid="alterar-foto-btn">
-                      Change Photo
+                      Alterar Foto
                     </Button>
                     <p className="text-xs text-muted-foreground mt-1">
-                      JPG, PNG or GIF. Max 2MB.
+                      JPG, PNG ou GIF. Maximo 2MB.
                     </p>
                   </div>
                 </div>
 
                 <div className="grid gap-4 md:grid-cols-2">
                   <div className="space-y-2">
-                    <Label htmlFor="name">Full Name</Label>
+                    <Label htmlFor="name">Nome Completo</Label>
                     <Input
                       id="name"
                       value={name}
@@ -127,8 +155,8 @@ export default function SettingsPage() {
                 </div>
 
                 <div className="pt-4 flex gap-2">
-                  <Button onClick={handleSave} disabled={saving} data-testid="salvar-config-btn">
-                    {saving ? 'Saving...' : 'Save Changes'}
+                  <Button onClick={handleSaveProfile} disabled={updateProfile.isPending} data-testid="salvar-config-btn">
+                    {updateProfile.isPending ? 'Salvando...' : 'Salvar Alteracoes'}
                   </Button>
                 </div>
               </CardContent>
@@ -138,17 +166,17 @@ export default function SettingsPage() {
           {activeTab === 'notifications' && (
             <Card>
               <CardHeader>
-                <CardTitle>Notifications</CardTitle>
+                <CardTitle>Notificacoes</CardTitle>
                 <CardDescription>
-                  Configure how you want to receive notifications
+                  Configure como deseja receber notificacoes
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 {[
-                  { label: 'New records', desc: 'When a new record is created' },
-                  { label: 'Updates', desc: 'When a record is updated' },
-                  { label: 'Mentions', desc: 'When you are mentioned' },
-                  { label: 'Reports', desc: 'Weekly reports by email' },
+                  { label: 'Novos registros', desc: 'Quando um novo registro e criado' },
+                  { label: 'Atualizacoes', desc: 'Quando um registro e atualizado' },
+                  { label: 'Mencoes', desc: 'Quando voce e mencionado' },
+                  { label: 'Relatorios', desc: 'Relatorios semanais por email' },
                 ].map((item, idx) => (
                   <div
                     key={idx}
@@ -171,54 +199,74 @@ export default function SettingsPage() {
           {activeTab === 'security' && (
             <Card>
               <CardHeader>
-                <CardTitle>Security</CardTitle>
+                <CardTitle>Seguranca</CardTitle>
                 <CardDescription>
-                  Manage your account security
+                  Gerencie a seguranca da sua conta
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
                 <div className="space-y-4">
-                  <h4 className="font-medium">Change Password</h4>
+                  <h4 className="font-medium">Alterar Senha</h4>
                   <div className="space-y-3">
                     <div className="space-y-2">
-                      <Label>Current Password</Label>
-                      <Input type="password" />
+                      <Label>Senha Atual</Label>
+                      <Input
+                        type="password"
+                        value={currentPassword}
+                        onChange={(e) => setCurrentPassword(e.target.value)}
+                      />
                     </div>
                     <div className="space-y-2">
-                      <Label>New Password</Label>
-                      <Input type="password" />
+                      <Label>Nova Senha</Label>
+                      <Input
+                        type="password"
+                        value={newPassword}
+                        onChange={(e) => setNewPassword(e.target.value)}
+                      />
                     </div>
                     <div className="space-y-2">
-                      <Label>Confirm New Password</Label>
-                      <Input type="password" />
+                      <Label>Confirmar Nova Senha</Label>
+                      <Input
+                        type="password"
+                        value={confirmPassword}
+                        onChange={(e) => setConfirmPassword(e.target.value)}
+                      />
+                      {confirmPassword && newPassword !== confirmPassword && (
+                        <p className="text-sm text-destructive">As senhas nao coincidem</p>
+                      )}
                     </div>
-                    <Button>Change Password</Button>
+                    <Button
+                      onClick={handleChangePassword}
+                      disabled={changePassword.isPending || !currentPassword || !newPassword || newPassword !== confirmPassword}
+                    >
+                      {changePassword.isPending ? 'Alterando...' : 'Alterar Senha'}
+                    </Button>
                   </div>
                 </div>
 
                 <div className="border-t pt-6">
-                  <h4 className="font-medium mb-4">Two-Factor Authentication</h4>
+                  <h4 className="font-medium mb-4">Autenticacao de Dois Fatores</h4>
                   <div className="flex items-center justify-between p-4 border rounded-lg">
                     <div>
-                      <p className="font-medium">2FA not configured</p>
+                      <p className="font-medium">2FA nao configurado</p>
                       <p className="text-sm text-muted-foreground">
-                        Add an extra layer of security
+                        Adicione uma camada extra de seguranca
                       </p>
                     </div>
-                    <Button variant="outline">Configure 2FA</Button>
+                    <Button variant="outline">Configurar 2FA</Button>
                   </div>
                 </div>
 
                 <div className="border-t pt-6">
-                  <h4 className="font-medium mb-4">Active Sessions</h4>
+                  <h4 className="font-medium mb-4">Sessoes Ativas</h4>
                   <div className="space-y-2">
                     <div className="flex items-center justify-between p-3 border rounded-lg bg-green-50">
                       <div>
-                        <p className="font-medium text-green-800">This device</p>
-                        <p className="text-sm text-green-600">Linux • Chrome • Now</p>
+                        <p className="font-medium text-green-800">Este dispositivo</p>
+                        <p className="text-sm text-green-600">Linux - Chrome - Agora</p>
                       </div>
                       <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded">
-                        Current
+                        Atual
                       </span>
                     </div>
                   </div>
@@ -230,19 +278,19 @@ export default function SettingsPage() {
           {activeTab === 'api' && (
             <Card>
               <CardHeader>
-                <CardTitle>API Keys</CardTitle>
+                <CardTitle>Chaves de API</CardTitle>
                 <CardDescription>
-                  Manage your API keys for integrations
+                  Gerencie suas chaves de API para integracoes
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="flex justify-between items-center">
                   <p className="text-muted-foreground">
-                    Use API keys to access the CRM Builder API
+                    Use chaves de API para acessar a API do CRM Builder
                   </p>
                   <Button>
                     <Key className="h-4 w-4 mr-2" />
-                    New Key
+                    Nova Chave
                   </Button>
                 </div>
 
@@ -250,15 +298,15 @@ export default function SettingsPage() {
                   <div className="p-4 border-b">
                     <div className="flex items-center justify-between">
                       <div>
-                        <p className="font-medium">Production Key</p>
+                        <p className="font-medium">Chave de Producao</p>
                         <code className="text-sm text-muted-foreground">
                           crm_live_****************************
                         </code>
                       </div>
                       <div className="flex gap-2">
-                        <Button variant="outline" size="sm">Copy</Button>
+                        <Button variant="outline" size="sm">Copiar</Button>
                         <Button variant="ghost" size="sm" className="text-destructive">
-                          Revoke
+                          Revogar
                         </Button>
                       </div>
                     </div>
@@ -266,15 +314,15 @@ export default function SettingsPage() {
                   <div className="p-4">
                     <div className="flex items-center justify-between">
                       <div>
-                        <p className="font-medium">Test Key</p>
+                        <p className="font-medium">Chave de Teste</p>
                         <code className="text-sm text-muted-foreground">
                           crm_test_****************************
                         </code>
                       </div>
                       <div className="flex gap-2">
-                        <Button variant="outline" size="sm">Copy</Button>
+                        <Button variant="outline" size="sm">Copiar</Button>
                         <Button variant="ghost" size="sm" className="text-destructive">
-                          Revoke
+                          Revogar
                         </Button>
                       </div>
                     </div>
@@ -287,17 +335,17 @@ export default function SettingsPage() {
           {activeTab === 'integrations' && (
             <Card>
               <CardHeader>
-                <CardTitle>Integrations</CardTitle>
+                <CardTitle>Integracoes</CardTitle>
                 <CardDescription>
-                  Connect your CRM to other tools
+                  Conecte seu CRM a outras ferramentas
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 {[
-                  { name: 'Slack', desc: 'Receive notifications on Slack', connected: true },
-                  { name: 'Zapier', desc: 'Automate workflows', connected: false },
-                  { name: 'Google Sheets', desc: 'Export data automatically', connected: false },
-                  { name: 'WhatsApp', desc: 'WhatsApp Business integration', connected: false },
+                  { name: 'Slack', desc: 'Receba notificacoes no Slack', connected: true },
+                  { name: 'Zapier', desc: 'Automatize fluxos de trabalho', connected: false },
+                  { name: 'Google Sheets', desc: 'Exporte dados automaticamente', connected: false },
+                  { name: 'WhatsApp', desc: 'Integracao com WhatsApp Business', connected: false },
                 ].map((integration, idx) => (
                   <div
                     key={idx}
@@ -313,7 +361,7 @@ export default function SettingsPage() {
                       </div>
                     </div>
                     <Button variant={integration.connected ? 'outline' : 'default'}>
-                      {integration.connected ? 'Configure' : 'Connect'}
+                      {integration.connected ? 'Configurar' : 'Conectar'}
                     </Button>
                   </div>
                 ))}
