@@ -13,6 +13,43 @@ interface PageData {
   isPublished?: boolean;
 }
 
+// Estrutura valida minima para o Puck
+const emptyPuckData: Data = {
+  content: [],
+  root: { props: {} },
+};
+
+// Valida e normaliza o conteudo do Puck
+function normalizePuckContent(content: unknown): Data {
+  // Se for null/undefined, retorna estrutura vazia
+  if (!content) {
+    return emptyPuckData;
+  }
+
+  // Se for string, tenta fazer parse
+  if (typeof content === 'string') {
+    try {
+      content = JSON.parse(content);
+    } catch {
+      return emptyPuckData;
+    }
+  }
+
+  // Se nao for objeto, retorna vazio
+  if (typeof content !== 'object') {
+    return emptyPuckData;
+  }
+
+  const data = content as Record<string, unknown>;
+
+  // Garante que tem a estrutura minima
+  return {
+    content: Array.isArray(data.content) ? data.content : [],
+    root: data.root && typeof data.root === 'object' ? data.root : { props: {} },
+    zones: data.zones && typeof data.zones === 'object' ? data.zones : undefined,
+  } as Data;
+}
+
 export default function PublicPreviewPage() {
   const params = useParams();
   const workspaceId = params.workspaceId as string;
@@ -22,6 +59,14 @@ export default function PublicPreviewPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Atualiza o titulo da pagina
+  useEffect(() => {
+    if (pageData?.title) {
+      document.title = pageData.title;
+    }
+  }, [pageData?.title]);
+
+  // Busca os dados da pagina
   useEffect(() => {
     const fetchPage = async () => {
       try {
@@ -38,7 +83,10 @@ export default function PublicPreviewPage() {
 
           if (authResponse.ok) {
             const data = await authResponse.json();
-            setPageData(data);
+            setPageData({
+              ...data,
+              content: normalizePuckContent(data.content),
+            });
             return;
           }
         }
@@ -58,7 +106,10 @@ export default function PublicPreviewPage() {
         }
 
         const data = await response.json();
-        setPageData(data);
+        setPageData({
+          ...data,
+          content: normalizePuckContent(data.content),
+        });
       } catch (err) {
         console.error('Error fetching page:', err);
         setError('Erro ao conectar com o servidor');
@@ -92,7 +143,7 @@ export default function PublicPreviewPage() {
     );
   }
 
-  if (!pageData || !pageData.content) {
+  if (!pageData) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="text-center">
@@ -102,12 +153,8 @@ export default function PublicPreviewPage() {
     );
   }
 
-  // Atualiza o titulo da pagina via useEffect (client-side)
-  useEffect(() => {
-    if (pageData?.title) {
-      document.title = pageData.title;
-    }
-  }, [pageData?.title]);
+  // Verifica se a pagina tem conteudo
+  const hasContent = pageData.content?.content && pageData.content.content.length > 0;
 
   return (
     <div className="min-h-screen bg-background">
@@ -120,7 +167,16 @@ export default function PublicPreviewPage() {
 
       {/* Rendered Puck Content */}
       <div className={pageData.isPublished === false ? 'pt-10' : ''}>
-        <Render config={puckConfig} data={pageData.content} />
+        {hasContent ? (
+          <Render config={puckConfig} data={pageData.content} />
+        ) : (
+          <div className="flex items-center justify-center min-h-[50vh]">
+            <div className="text-center">
+              <p className="text-lg text-muted-foreground">Esta pagina ainda nao tem conteudo.</p>
+              <p className="text-sm text-muted-foreground mt-2">Adicione componentes no editor para visualizar.</p>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
