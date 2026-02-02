@@ -27,6 +27,29 @@ const defaultData: Data = {
   root: { props: { title: '' } },
 };
 
+// Sanitize page content to prevent Puck rendering errors
+function sanitizePageContent(content: any): Data {
+  if (!content || typeof content !== 'object') {
+    return defaultData;
+  }
+
+  // Ensure content array exists and all items have valid type
+  const safeContent = Array.isArray(content.content)
+    ? content.content.filter((item: any) => item && typeof item.type === 'string')
+    : [];
+
+  // Ensure root exists
+  const safeRoot = content.root && typeof content.root === 'object'
+    ? content.root
+    : { props: {} };
+
+  return {
+    content: safeContent,
+    root: safeRoot,
+    zones: content.zones || {},
+  };
+}
+
 export default function PageEditorPage() {
   const params = useParams();
   const router = useRouter();
@@ -53,10 +76,11 @@ export default function PageEditorPage() {
     try {
       const response = await api.get(`/pages/${pageId}`);
       const page = response.data;
-      setPageName(page.title);
-      setPageSlug(page.slug);
+      setPageName(page.title || '');
+      setPageSlug(page.slug || '');
       setPageDescription(page.description || '');
-      setPageData(page.content || defaultData);
+      // Sanitize content to prevent Puck rendering errors
+      setPageData(sanitizePageContent(page.content));
     } catch (error) {
       console.error('Error fetching page:', error);
       router.push('/pages');
@@ -136,7 +160,7 @@ export default function PageEditorPage() {
             <span className="text-muted-foreground">/</span>
             <Input
               value={pageSlug}
-              onChange={(e) => setPageSlug(e.target.value.toLowerCase().replace(/\s+/g, '-'))}
+              onChange={(e) => setPageSlug((e.target.value || '').toLowerCase().replace(/\s+/g, '-'))}
               placeholder="page-slug"
               className="w-36 h-8 font-mono text-sm"
             />
