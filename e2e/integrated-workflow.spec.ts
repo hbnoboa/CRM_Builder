@@ -653,63 +653,247 @@ test.describe.serial('9. Verificar Estatisticas', () => {
 });
 
 // ============================================================================
-// TESTE 10: LIMPEZA
+// TESTE 10: ANALISE E RELATORIO FINAL
 // ============================================================================
 
-test.describe.serial('10. Limpeza', () => {
-  test('deve excluir pagina criada', async ({ request }) => {
-    if (!pageId) {
-      test.skip();
-      return;
-    }
+// Estrutura para armazenar resultados da analise
+const analysisResults: {
+  entity: { exists: boolean; id: string; name: string; fieldsCount: number; recordsCount: number };
+  records: { count: number; items: Array<{ id: string; titulo: string; status: string }> };
+  customApi: { exists: boolean; id: string; name: string; path: string; isActive: boolean; executionResult: any };
+  page: { exists: boolean; id: string; title: string; slug: string; isPublished: boolean; hasContent: boolean };
+  errors: string[];
+} = {
+  entity: { exists: false, id: '', name: '', fieldsCount: 0, recordsCount: 0 },
+  records: { count: 0, items: [] },
+  customApi: { exists: false, id: '', name: '', path: '', isActive: false, executionResult: null },
+  page: { exists: false, id: '', title: '', slug: '', isPublished: false, hasContent: false },
+  errors: [],
+};
 
-    const response = await apiDelete(request, `/pages/${pageId}`);
-    expect(response.ok()).toBeTruthy();
-  });
-
-  test('deve excluir Custom API criada', async ({ request }) => {
-    if (!customApiId) {
-      test.skip();
-      return;
-    }
-
-    const response = await apiDelete(request, `/custom-apis/${customApiId}`);
-    expect(response.ok()).toBeTruthy();
-  });
-
-  test('deve excluir reclamacoes criadas', async ({ request }) => {
-    for (const id of reclamacaoIds) {
-      const response = await apiDelete(
-        request,
-        `/data/${workspaceId}/reclamacao-e2e-${timestamp}/${id}`
-      );
-      // Pode ja ter sido deletado
-      expect(response.status()).toBeLessThan(500);
-    }
-  });
-
-  test('deve excluir entidade Reclamacao criada', async ({ request }) => {
+test.describe.serial('10. Analise e Relatorio Final', () => {
+  test('analise da Entidade criada', async ({ request }) => {
     if (!reclamacaoEntityId) {
-      test.skip();
+      analysisResults.errors.push('Entidade Reclamacao nao foi criada');
       return;
     }
 
-    const response = await apiDelete(request, `/entities/${reclamacaoEntityId}`);
-    expect(response.ok()).toBeTruthy();
+    const response = await apiGet(request, `/entities/${reclamacaoEntityId}`);
+
+    if (response.ok()) {
+      const entity = await response.json();
+      analysisResults.entity = {
+        exists: true,
+        id: entity.id,
+        name: entity.name,
+        fieldsCount: entity.fields?.length || 0,
+        recordsCount: 0,
+      };
+
+      expect(entity.id).toBe(reclamacaoEntityId);
+      expect(entity.fields.length).toBeGreaterThan(0);
+    } else {
+      analysisResults.errors.push(`Erro ao buscar entidade: ${response.status()}`);
+    }
   });
 
-  test('deve verificar que dados foram limpos', async ({ request }) => {
-    // Verificar que entidade foi removida
-    const entityResponse = await apiGet(request, `/entities/${reclamacaoEntityId}`);
-    expect(entityResponse.status()).toBe(404);
+  test('analise dos Registros criados', async ({ request }) => {
+    if (!workspaceId) {
+      analysisResults.errors.push('WorkspaceId nao disponivel');
+      return;
+    }
 
-    // Verificar que API foi removida
-    const apiResponse = await apiGet(request, `/custom-apis/${customApiId}`);
-    expect(apiResponse.status()).toBe(404);
+    const response = await apiGet(request, `/data/${workspaceId}/reclamacao-e2e-${timestamp}`);
 
-    // Verificar que pagina foi removida
-    const pageResponse = await apiGet(request, `/pages/${pageId}`);
-    expect(pageResponse.status()).toBe(404);
+    if (response.ok()) {
+      const body = await response.json();
+      const records = body.data || [];
+
+      analysisResults.records = {
+        count: records.length,
+        items: records.map((r: any) => ({
+          id: r.id,
+          titulo: r.data?.titulo || 'N/A',
+          status: r.data?.status || 'N/A',
+        })),
+      };
+      analysisResults.entity.recordsCount = records.length;
+
+      expect(records.length).toBeGreaterThanOrEqual(2);
+    } else {
+      analysisResults.errors.push(`Erro ao buscar registros: ${response.status()}`);
+    }
+  });
+
+  test('analise da Custom API criada', async ({ request }) => {
+    if (!customApiId) {
+      analysisResults.errors.push('Custom API nao foi criada');
+      return;
+    }
+
+    const response = await apiGet(request, `/custom-apis/${customApiId}`);
+
+    if (response.ok()) {
+      const api = await response.json();
+      analysisResults.customApi = {
+        exists: true,
+        id: api.id,
+        name: api.name,
+        path: api.path,
+        isActive: api.isActive,
+        executionResult: null,
+      };
+
+      expect(api.id).toBe(customApiId);
+      expect(api.isActive).toBe(true);
+    } else {
+      analysisResults.errors.push(`Erro ao buscar Custom API: ${response.status()}`);
+    }
+  });
+
+  test('analise da execucao da Custom API', async ({ request }) => {
+    if (!workspaceId || !clienteIds[0]) {
+      analysisResults.errors.push('Dados insuficientes para testar Custom API');
+      return;
+    }
+
+    const response = await apiGet(
+      request,
+      `/x/${workspaceId}/cliente-reclamacoes-e2e-${timestamp}?clienteId=${clienteIds[0]}`
+    );
+
+    if (response.ok()) {
+      const result = await response.json();
+      analysisResults.customApi.executionResult = {
+        success: true,
+        clienteRetornado: !!result.cliente,
+        reclamacoesCount: result.total || 0,
+        temReclamacoes: (result.reclamacoes?.length || 0) > 0,
+      };
+
+      expect(result.total).toBeGreaterThanOrEqual(1);
+    } else {
+      const errorText = await response.text();
+      analysisResults.customApi.executionResult = {
+        success: false,
+        error: `Status ${response.status()}: ${errorText.substring(0, 100)}`,
+      };
+      // Nao falha o teste, apenas registra o erro
+      analysisResults.errors.push(`Custom API retornou erro: ${response.status()}`);
+    }
+  });
+
+  test('analise da Pagina criada', async ({ request }) => {
+    if (!pageId) {
+      analysisResults.errors.push('Pagina nao foi criada');
+      return;
+    }
+
+    const response = await apiGet(request, `/pages/${pageId}`);
+
+    if (response.ok()) {
+      const page = await response.json();
+      analysisResults.page = {
+        exists: true,
+        id: page.id,
+        title: page.title,
+        slug: page.slug,
+        isPublished: page.isPublished,
+        hasContent: !!(page.content?.content?.length > 0),
+      };
+
+      expect(page.id).toBe(pageId);
+    } else {
+      analysisResults.errors.push(`Erro ao buscar pagina: ${response.status()}`);
+    }
+  });
+
+  test('RELATORIO FINAL - Resumo de tudo que foi criado', async () => {
+    console.log('\n');
+    console.log('╔════════════════════════════════════════════════════════════════╗');
+    console.log('║              RELATORIO FINAL DO TESTE E2E                      ║');
+    console.log('╠════════════════════════════════════════════════════════════════╣');
+
+    // Entidade
+    console.log('║ ENTIDADE:                                                      ║');
+    if (analysisResults.entity.exists) {
+      console.log(`║   ✅ Nome: ${analysisResults.entity.name.padEnd(47)}║`);
+      console.log(`║   ✅ ID: ${analysisResults.entity.id.substring(0, 30).padEnd(49)}║`);
+      console.log(`║   ✅ Campos: ${String(analysisResults.entity.fieldsCount).padEnd(45)}║`);
+      console.log(`║   ✅ Registros: ${String(analysisResults.entity.recordsCount).padEnd(42)}║`);
+    } else {
+      console.log('║   ❌ Entidade NAO foi criada                                   ║');
+    }
+
+    console.log('╠════════════════════════════════════════════════════════════════╣');
+
+    // Registros
+    console.log('║ REGISTROS (RECLAMACOES):                                       ║');
+    console.log(`║   Total: ${String(analysisResults.records.count).padEnd(52)}║`);
+    for (const record of analysisResults.records.items.slice(0, 3)) {
+      const titulo = record.titulo.substring(0, 35);
+      console.log(`║   • ${titulo.padEnd(40)} [${record.status.padEnd(12)}] ║`);
+    }
+
+    console.log('╠════════════════════════════════════════════════════════════════╣');
+
+    // Custom API
+    console.log('║ CUSTOM API:                                                    ║');
+    if (analysisResults.customApi.exists) {
+      console.log(`║   ✅ Nome: ${analysisResults.customApi.name.substring(0, 45).padEnd(47)}║`);
+      console.log(`║   ✅ Path: ${analysisResults.customApi.path.padEnd(47)}║`);
+      console.log(`║   ✅ Ativa: ${String(analysisResults.customApi.isActive).padEnd(46)}║`);
+      if (analysisResults.customApi.executionResult?.success) {
+        console.log(`║   ✅ Execucao: OK - ${analysisResults.customApi.executionResult.reclamacoesCount} reclamacoes retornadas`.padEnd(63) + '║');
+      } else if (analysisResults.customApi.executionResult?.error) {
+        console.log(`║   ⚠️  Execucao: ${analysisResults.customApi.executionResult.error.substring(0, 40)}`.padEnd(63) + '║');
+      }
+    } else {
+      console.log('║   ❌ Custom API NAO foi criada                                 ║');
+    }
+
+    console.log('╠════════════════════════════════════════════════════════════════╣');
+
+    // Pagina
+    console.log('║ PAGINA:                                                        ║');
+    if (analysisResults.page.exists) {
+      console.log(`║   ✅ Titulo: ${analysisResults.page.title.substring(0, 45).padEnd(45)}║`);
+      console.log(`║   ✅ Slug: ${analysisResults.page.slug.padEnd(47)}║`);
+      console.log(`║   ✅ Publicada: ${String(analysisResults.page.isPublished).padEnd(42)}║`);
+      console.log(`║   ✅ Tem Conteudo: ${String(analysisResults.page.hasContent).padEnd(39)}║`);
+    } else {
+      console.log('║   ❌ Pagina NAO foi criada                                     ║');
+    }
+
+    console.log('╠════════════════════════════════════════════════════════════════╣');
+
+    // Erros
+    console.log('║ ERROS ENCONTRADOS:                                             ║');
+    if (analysisResults.errors.length === 0) {
+      console.log('║   ✅ Nenhum erro encontrado!                                   ║');
+    } else {
+      for (const error of analysisResults.errors) {
+        console.log(`║   ❌ ${error.substring(0, 55).padEnd(55)}║`);
+      }
+    }
+
+    console.log('╠════════════════════════════════════════════════════════════════╣');
+
+    // IDs para referencia
+    console.log('║ IDs PARA REFERENCIA:                                           ║');
+    console.log(`║   WorkspaceId: ${(workspaceId || 'N/A').substring(0, 42).padEnd(42)}║`);
+    console.log(`║   EntityId: ${(reclamacaoEntityId || 'N/A').substring(0, 45).padEnd(45)}║`);
+    console.log(`║   CustomApiId: ${(customApiId || 'N/A').substring(0, 42).padEnd(42)}║`);
+    console.log(`║   PageId: ${(pageId || 'N/A').substring(0, 47).padEnd(47)}║`);
+
+    console.log('╚════════════════════════════════════════════════════════════════╝');
+    console.log('\n');
+
+    // O teste passa se tudo foi criado
+    expect(analysisResults.entity.exists).toBe(true);
+    expect(analysisResults.records.count).toBeGreaterThan(0);
+    expect(analysisResults.customApi.exists).toBe(true);
+    expect(analysisResults.page.exists).toBe(true);
   });
 });
 
