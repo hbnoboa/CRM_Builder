@@ -374,15 +374,18 @@ export const puckConfig: Config<ComponentProps> = {
           },
         },
       },
-      render: ({ columns, puck }) => (
-        <div className="grid grid-cols-12 gap-4">
-          {columns.map((col, idx) => (
-            <div key={idx} style={{ gridColumn: `span ${col.span}` }}>
-              {puck.renderDropZone({ zone: `column-${idx}` })}
-            </div>
-          ))}
-        </div>
-      ),
+      render: ({ columns, puck }) => {
+        const safeColumns = Array.isArray(columns) ? columns : [];
+        return (
+          <div className="grid grid-cols-12 gap-4">
+            {safeColumns.map((col, idx) => (
+              <div key={idx} style={{ gridColumn: `span ${col?.span || 6}` }}>
+                {puck.renderDropZone({ zone: `column-${idx}` })}
+              </div>
+            ))}
+          </div>
+        );
+      },
     },
     Spacer: {
       label: 'Spacer',
@@ -564,16 +567,19 @@ export const puckConfig: Config<ComponentProps> = {
           },
         },
       },
-      render: ({ items }) => (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          {items.map((item, idx) => (
-            <div key={idx} className="border rounded-lg p-4 text-center">
-              <p className="text-2xl font-bold">{item.value}</p>
-              <p className="text-sm text-muted-foreground">{item.label}</p>
-            </div>
-          ))}
-        </div>
-      ),
+      render: ({ items }) => {
+        const safeItems = Array.isArray(items) ? items : [];
+        return (
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {safeItems.map((item, idx) => (
+              <div key={idx} className="border rounded-lg p-4 text-center">
+                <p className="text-2xl font-bold">{item?.value || '-'}</p>
+                <p className="text-sm text-muted-foreground">{item?.label || ''}</p>
+              </div>
+            ))}
+          </div>
+        );
+      },
     },
     Hero: {
       label: 'Hero',

@@ -52,6 +52,7 @@ export default function NewPageEditor() {
   }, [pageTitle, pageSlug, pageDescription, router]);
 
   const generateSlug = (title: string) => {
+    if (!title || typeof title !== 'string') return '';
     return title
       .toLowerCase()
       .normalize('NFD')
