@@ -102,15 +102,15 @@ export default function PublicPreviewPage() {
     );
   }
 
+  // Atualiza o titulo da pagina via useEffect (client-side)
+  useEffect(() => {
+    if (pageData?.title) {
+      document.title = pageData.title;
+    }
+  }, [pageData?.title]);
+
   return (
     <div className="min-h-screen bg-background">
-      {/* Page Title (optional, can be hidden) */}
-      {pageData.title && (
-        <head>
-          <title>{pageData.title}</title>
-        </head>
-      )}
-
       {/* Draft indicator */}
       {pageData.isPublished === false && (
         <div className="fixed top-0 left-0 right-0 bg-yellow-500 text-yellow-900 text-center py-2 text-sm font-medium z-50">
