@@ -35,11 +35,15 @@ ENV NEXT_TELEMETRY_DISABLED=1
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
 
-# Copiar apenas o necessário para produção (standalone mode)
-# O standalone já inclui a estrutura apps/web-admin
+# Copiar standalone build (server.js está em .next/standalone/)
 COPY --from=builder --chown=nextjs:nodejs /app/apps/web-admin/.next/standalone ./
-COPY --from=builder --chown=nextjs:nodejs /app/apps/web-admin/.next/static ./apps/web-admin/.next/static
-COPY --from=builder --chown=nextjs:nodejs /app/apps/web-admin/public ./apps/web-admin/public
+# Copiar static para .next/static
+COPY --from=builder --chown=nextjs:nodejs /app/apps/web-admin/.next/static ./.next/static
+# Copiar public
+COPY --from=builder --chown=nextjs:nodejs /app/apps/web-admin/public ./public
+# Copiar package.json e instalar dependências de produção
+COPY --from=builder --chown=nextjs:nodejs /app/apps/web-admin/package.json ./package.json
+RUN npm install --omit=dev --legacy-peer-deps
 
 USER nextjs
 
@@ -48,4 +52,4 @@ EXPOSE 3000
 ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
 
-CMD ["node", "apps/web-admin/server.js"]
+CMD ["node", "server.js"]
