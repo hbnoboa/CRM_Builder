@@ -269,8 +269,9 @@ model Entity {
   updatedAt   DateTime @updatedAt
 
   // Relacionamentos
-  workspace Workspace    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  data      EntityData[]
+  workspace       Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  data            EntityData[]
+  customEndpoints CustomEndpoint[] // APIs que usam esta entidade como fonte
 
   @@unique([workspaceId, slug])
   @@index([tenantId])
@@ -368,17 +369,46 @@ model CustomEndpoint {
   path        String     // "relatorio-vendas"
   method      HttpMethod @default(POST)
 
+  // Modo: visual (construtor) ou code (JavaScript)
+  mode        String     @default("visual") // "visual" | "code"
+
   // Schemas de validação
   requestSchema  Json?   // JSON Schema para request
   responseSchema Json?   // JSON Schema para response
 
-  // Lógica (blocos visuais)
+  // ═══════════════════════════════════════════════════════════════════════════
+  // MODO VISUAL - Configuracao sem codigo
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  // Entidade fonte dos dados
+  sourceEntityId String?
+  sourceEntity   Entity?  @relation(fields: [sourceEntityId], references: [id], onDelete: SetNull)
+
+  // Campos a retornar (array de nomes de campos)
+  // Ex: ["nome", "email", "status"]
+  selectedFields Json     @default("[]")
+
+  // Filtros fixos (sempre aplicados)
+  // Ex: [{ field: "status", operator: "equals", value: "ativo" }]
+  filters        Json     @default("[]")
+
+  // Parametros dinamicos da URL (query params)
+  // Ex: [{ field: "cidade", operator: "equals", paramName: "cidade" }]
+  queryParams    Json     @default("[]")
+
+  // Ordenacao
+  // Ex: { field: "createdAt", direction: "desc" }
+  orderBy        Json?
+
+  // Limite de registros
+  limitRecords   Int?
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // MODO CODE - JavaScript customizado (avancado)
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  // Lógica em JavaScript (apenas para mode="code")
   logic       Json       @default("[]")
-  // [
-  //   { type: "query", entity: "venda", filters: [...] },
-  //   { type: "aggregate", operation: "sum", field: "valor" },
-  //   { type: "response", template: {...} }
-  // ]
 
   // Segurança
   auth        AuthType   @default(JWT)
@@ -398,6 +428,7 @@ model CustomEndpoint {
   @@index([tenantId])
   @@index([workspaceId])
   @@index([isActive])
+  @@index([sourceEntityId])
   // Composite indexes for common query patterns
   @@index([tenantId, workspaceId])
   @@index([workspaceId, isActive])

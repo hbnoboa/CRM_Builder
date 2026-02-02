@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuthType as PrismaAuthType, Prisma } from '@prisma/client';
-import { CreateCustomApiDto, UpdateCustomApiDto, HttpMethod } from './dto/custom-api.dto';
+import { CreateCustomApiDto, UpdateCustomApiDto, HttpMethod, ApiMode, FilterOperator } from './dto/custom-api.dto';
 import {
   CurrentUser,
   PaginationQuery,
@@ -14,6 +14,26 @@ import {
   createPaginationMeta,
 } from '../../common/types';
 import * as vm from 'vm';
+
+// Interfaces para configuracao visual
+interface VisualFilter {
+  field: string;
+  operator: FilterOperator;
+  value?: any;
+}
+
+interface VisualQueryParam {
+  field: string;
+  operator: FilterOperator;
+  paramName: string;
+  defaultValue?: any;
+  required?: boolean;
+}
+
+interface VisualOrderBy {
+  field: string;
+  direction: 'asc' | 'desc';
+}
 
 export interface QueryCustomApiDto extends PaginationQuery {
   isActive?: boolean;
@@ -47,8 +67,18 @@ export class CustomApiService {
 
     if (existing) {
       throw new BadRequestException(
-        `Endpoint ${data.method} ${data.path} já existe neste workspace`,
+        `Endpoint ${data.method} ${data.path} ja existe neste workspace`,
       );
+    }
+
+    // Validar entidade fonte se modo visual
+    if (data.mode === ApiMode.VISUAL && data.sourceEntityId) {
+      const entity = await this.prisma.entity.findFirst({
+        where: { id: data.sourceEntityId, workspaceId },
+      });
+      if (!entity) {
+        throw new BadRequestException('Entidade fonte nao encontrada');
+      }
     }
 
     return this.prisma.customEndpoint.create({
@@ -57,15 +87,29 @@ export class CustomApiService {
         description: data.description,
         path: data.path,
         method: data.method,
+        // Modo da API
+        mode: data.mode || 'visual',
+        // Configuracao visual
+        sourceEntityId: data.sourceEntityId,
+        selectedFields: data.selectedFields || [],
+        filters: data.filters || [],
+        queryParams: data.queryParams || [],
+        orderBy: data.orderBy || null,
+        limitRecords: data.limitRecords,
+        // Configuracao codigo (legado)
         requestSchema: data.inputSchema,
         responseSchema: data.outputSchema,
         logic: data.logic || [],
+        // Seguranca
         auth: (data.auth as PrismaAuthType) || PrismaAuthType.JWT,
         permissions: data.allowedRoles || [],
         rateLimit: data.rateLimitConfig?.requests || 100,
         isActive: data.isActive ?? true,
         workspaceId,
         tenantId,
+      },
+      include: {
+        sourceEntity: true,
       },
     });
   }
@@ -100,6 +144,16 @@ export class CustomApiService {
         skip,
         take: limit,
         orderBy: { [sortBy]: sortOrder },
+        include: {
+          sourceEntity: {
+            select: {
+              id: true,
+              name: true,
+              slug: true,
+              fields: true,
+            },
+          },
+        },
       }),
       this.prisma.customEndpoint.count({ where }),
     ]);
@@ -113,10 +167,20 @@ export class CustomApiService {
   async findOne(id: string, workspaceId: string) {
     const endpoint = await this.prisma.customEndpoint.findFirst({
       where: { id, workspaceId },
+      include: {
+        sourceEntity: {
+          select: {
+            id: true,
+            name: true,
+            slug: true,
+            fields: true,
+          },
+        },
+      },
     });
 
     if (!endpoint) {
-      throw new NotFoundException('Endpoint não encontrado');
+      throw new NotFoundException('Endpoint nao encontrado');
     }
 
     return endpoint;
@@ -138,8 +202,18 @@ export class CustomApiService {
 
       if (existing) {
         throw new BadRequestException(
-          `Endpoint ${data.method} ${data.path} já existe neste workspace`,
+          `Endpoint ${data.method} ${data.path} ja existe neste workspace`,
         );
+      }
+    }
+
+    // Validar entidade fonte se modo visual
+    if (data.sourceEntityId) {
+      const entity = await this.prisma.entity.findFirst({
+        where: { id: data.sourceEntityId, workspaceId },
+      });
+      if (!entity) {
+        throw new BadRequestException('Entidade fonte nao encontrada');
       }
     }
 
@@ -150,13 +224,27 @@ export class CustomApiService {
         description: data.description,
         path: data.path,
         method: data.method,
+        // Modo da API
+        mode: data.mode,
+        // Configuracao visual
+        sourceEntityId: data.sourceEntityId,
+        selectedFields: data.selectedFields,
+        filters: data.filters,
+        queryParams: data.queryParams,
+        orderBy: data.orderBy,
+        limitRecords: data.limitRecords,
+        // Configuracao codigo
         requestSchema: data.inputSchema,
         responseSchema: data.outputSchema,
         logic: data.logic,
+        // Seguranca
         auth: data.auth as PrismaAuthType,
         permissions: data.allowedRoles,
         rateLimit: data.rateLimitConfig?.requests,
         isActive: data.isActive,
+      },
+      include: {
+        sourceEntity: true,
       },
     });
   }
@@ -213,21 +301,29 @@ export class CustomApiService {
         method,
         isActive: true,
       },
+      include: {
+        sourceEntity: true,
+      },
     });
 
     if (!endpoint) {
-      throw new NotFoundException('Endpoint não encontrado ou inativo');
+      throw new NotFoundException('Endpoint nao encontrado ou inativo');
     }
 
     // Check role permissions
     const permissions = endpoint.permissions as string[];
     if (permissions?.length > 0 && user) {
       if (!permissions.includes(user.role)) {
-        throw new BadRequestException('Acesso não autorizado');
+        throw new BadRequestException('Acesso nao autorizado');
       }
     }
 
-    // Execute logic if defined
+    // Executar baseado no modo
+    if (endpoint.mode === 'visual') {
+      return this.executeVisualMode(endpoint, query, body);
+    }
+
+    // Modo code (legado)
     const logic = endpoint.logic as string | null;
     if (logic && typeof logic === 'string') {
       return this.executeLogic(logic, {
@@ -241,6 +337,166 @@ export class CustomApiService {
     }
 
     return { success: true, message: 'Endpoint executed' };
+  }
+
+  // Executar modo visual
+  private async executeVisualMode(
+    endpoint: any,
+    queryParams: Record<string, string>,
+    body: Record<string, unknown>,
+  ) {
+    // Verificar se tem entidade fonte
+    if (!endpoint.sourceEntityId) {
+      throw new BadRequestException('API visual sem entidade fonte configurada');
+    }
+
+    // Buscar entidade para validar campos
+    const entity = await this.prisma.entity.findUnique({
+      where: { id: endpoint.sourceEntityId },
+    });
+
+    if (!entity) {
+      throw new BadRequestException('Entidade fonte nao encontrada');
+    }
+
+    // Construir filtros
+    const filters: any = {};
+
+    // Filtros fixos
+    const fixedFilters = (endpoint.filters || []) as VisualFilter[];
+    for (const filter of fixedFilters) {
+      this.applyFilter(filters, filter.field, filter.operator, filter.value);
+    }
+
+    // Filtros dinamicos (da URL)
+    const dynamicParams = (endpoint.queryParams || []) as VisualQueryParam[];
+    for (const param of dynamicParams) {
+      const value = queryParams[param.paramName] ?? body[param.paramName] ?? param.defaultValue;
+
+      if (param.required && (value === undefined || value === null || value === '')) {
+        throw new BadRequestException(`Parametro obrigatorio: ${param.paramName}`);
+      }
+
+      if (value !== undefined && value !== null && value !== '') {
+        this.applyFilter(filters, param.field, param.operator, value);
+      }
+    }
+
+    // Montar query
+    const where: Prisma.EntityDataWhereInput = {
+      entityId: endpoint.sourceEntityId,
+    };
+
+    // Aplicar filtros no campo data (JSON)
+    if (Object.keys(filters).length > 0) {
+      where.data = {
+        path: Object.keys(filters),
+        ...filters,
+      };
+    }
+
+    // Ordenacao
+    let orderBy: Prisma.EntityDataOrderByWithRelationInput | undefined;
+    const orderConfig = endpoint.orderBy as VisualOrderBy | null;
+    if (orderConfig) {
+      // Se ordenar por campo do data, usar createdAt como fallback
+      // (Prisma nao suporta ordenar por campo JSON diretamente)
+      orderBy = { createdAt: orderConfig.direction };
+    } else {
+      orderBy = { createdAt: 'desc' };
+    }
+
+    // Executar query
+    const results = await this.prisma.entityData.findMany({
+      where,
+      orderBy,
+      take: endpoint.limitRecords || undefined,
+    });
+
+    // Filtrar campos selecionados
+    const selectedFields = (endpoint.selectedFields || []) as string[];
+
+    if (selectedFields.length > 0) {
+      return results.map((record) => {
+        const data = record.data as Record<string, unknown>;
+        const filtered: Record<string, unknown> = { id: record.id };
+
+        for (const field of selectedFields) {
+          if (field in data) {
+            filtered[field] = data[field];
+          }
+        }
+
+        // Adicionar metadata
+        filtered.createdAt = record.createdAt;
+        filtered.updatedAt = record.updatedAt;
+
+        return filtered;
+      });
+    }
+
+    // Retornar todos os campos
+    return results.map((record) => ({
+      id: record.id,
+      ...(record.data as Record<string, unknown>),
+      createdAt: record.createdAt,
+      updatedAt: record.updatedAt,
+    }));
+  }
+
+  // Aplicar filtro baseado no operador
+  private applyFilter(
+    filters: Record<string, unknown>,
+    field: string,
+    operator: FilterOperator,
+    value: unknown,
+  ) {
+    switch (operator) {
+      case FilterOperator.EQUALS:
+        filters[field] = value;
+        break;
+      case FilterOperator.NOT_EQUALS:
+        filters[field] = { not: value };
+        break;
+      case FilterOperator.CONTAINS:
+        filters[field] = { contains: value, mode: 'insensitive' };
+        break;
+      case FilterOperator.NOT_CONTAINS:
+        filters[field] = { not: { contains: value } };
+        break;
+      case FilterOperator.STARTS_WITH:
+        filters[field] = { startsWith: value };
+        break;
+      case FilterOperator.ENDS_WITH:
+        filters[field] = { endsWith: value };
+        break;
+      case FilterOperator.GREATER_THAN:
+        filters[field] = { gt: value };
+        break;
+      case FilterOperator.GREATER_THAN_OR_EQUAL:
+        filters[field] = { gte: value };
+        break;
+      case FilterOperator.LESS_THAN:
+        filters[field] = { lt: value };
+        break;
+      case FilterOperator.LESS_THAN_OR_EQUAL:
+        filters[field] = { lte: value };
+        break;
+      case FilterOperator.IN:
+        filters[field] = { in: Array.isArray(value) ? value : [value] };
+        break;
+      case FilterOperator.NOT_IN:
+        filters[field] = { notIn: Array.isArray(value) ? value : [value] };
+        break;
+      case FilterOperator.IS_NULL:
+        filters[field] = null;
+        break;
+      case FilterOperator.IS_NOT_NULL:
+        filters[field] = { not: null };
+        break;
+      default:
+        filters[field] = value;
+    }
   }
 
   private async executeLogic(

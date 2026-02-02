@@ -1,4 +1,5 @@
-import { IsString, IsOptional, IsBoolean, IsObject, IsEnum, IsArray, MinLength, Matches } from 'class-validator';
+import { IsString, IsOptional, IsBoolean, IsObject, IsEnum, IsArray, MinLength, Matches, IsNumber, ValidateNested } from 'class-validator';
+import { Type } from 'class-transformer';
 
 export enum HttpMethod {
   GET = 'GET',
@@ -15,6 +16,68 @@ export enum AuthType {
   BASIC = 'BASIC',
 }
 
+export enum ApiMode {
+  VISUAL = 'visual',
+  CODE = 'code',
+}
+
+export enum FilterOperator {
+  EQUALS = 'equals',
+  NOT_EQUALS = 'not_equals',
+  CONTAINS = 'contains',
+  NOT_CONTAINS = 'not_contains',
+  STARTS_WITH = 'starts_with',
+  ENDS_WITH = 'ends_with',
+  GREATER_THAN = 'gt',
+  GREATER_THAN_OR_EQUAL = 'gte',
+  LESS_THAN = 'lt',
+  LESS_THAN_OR_EQUAL = 'lte',
+  IN = 'in',
+  NOT_IN = 'not_in',
+  IS_NULL = 'is_null',
+  IS_NOT_NULL = 'is_not_null',
+}
+
+// Filtro fixo (sempre aplicado)
+export class FixedFilterDto {
+  @IsString()
+  field: string;
+
+  @IsEnum(FilterOperator)
+  operator: FilterOperator;
+
+  @IsOptional()
+  value?: any; // Valor fixo do filtro
+}
+
+// Parametro dinamico da URL
+export class QueryParamDto {
+  @IsString()
+  field: string; // Campo da entidade
+
+  @IsEnum(FilterOperator)
+  operator: FilterOperator;
+
+  @IsString()
+  paramName: string; // Nome do parametro na URL (?paramName=value)
+
+  @IsOptional()
+  defaultValue?: any; // Valor padrao se parametro nao for enviado
+
+  @IsBoolean()
+  @IsOptional()
+  required?: boolean; // Se o parametro e obrigatorio
+}
+
+// Ordenacao
+export class OrderByDto {
+  @IsString()
+  field: string;
+
+  @IsEnum(['asc', 'desc'])
+  direction: 'asc' | 'desc';
+}
+
 export class CreateCustomApiDto {
   @IsString()
   @MinLength(1)
@@ -23,7 +86,7 @@ export class CreateCustomApiDto {
   @IsString()
   @MinLength(1)
   @Matches(/^[a-z0-9-\/]+$/, {
-    message: 'Path deve conter apenas letras minúsculas, números, hífens e barras',
+    message: 'Path deve conter apenas letras minusculas, numeros, hifens e barras',
   })
   path: string;
 
@@ -33,6 +96,59 @@ export class CreateCustomApiDto {
   @IsString()
   @IsOptional()
   description?: string;
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Modo da API: visual ou code
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  @IsEnum(ApiMode)
+  @IsOptional()
+  mode?: ApiMode;
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // MODO VISUAL - Configuracao sem codigo
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  @IsString()
+  @IsOptional()
+  sourceEntityId?: string; // ID da entidade fonte dos dados
+
+  @IsArray()
+  @IsOptional()
+  selectedFields?: string[]; // Campos a retornar
+
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => FixedFilterDto)
+  @IsOptional()
+  filters?: FixedFilterDto[]; // Filtros fixos
+
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => QueryParamDto)
+  @IsOptional()
+  queryParams?: QueryParamDto[]; // Parametros dinamicos
+
+  @ValidateNested()
+  @Type(() => OrderByDto)
+  @IsOptional()
+  orderBy?: OrderByDto; // Ordenacao
+
+  @IsNumber()
+  @IsOptional()
+  limitRecords?: number; // Limite de registros
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // MODO CODE - JavaScript customizado (avancado)
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  @IsString()
+  @IsOptional()
+  logic?: string; // JavaScript/TypeScript code to execute
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Configuracoes comuns
+  // ═══════════════════════════════════════════════════════════════════════════
 
   @IsEnum(AuthType)
   @IsOptional()
@@ -45,10 +161,6 @@ export class CreateCustomApiDto {
   @IsObject()
   @IsOptional()
   outputSchema?: object;
-
-  @IsString()
-  @IsOptional()
-  logic?: string; // JavaScript/TypeScript code to execute
 
   @IsArray()
   @IsOptional()
@@ -75,7 +187,7 @@ export class UpdateCustomApiDto {
   @IsString()
   @MinLength(1)
   @Matches(/^[a-z0-9-\/]+$/, {
-    message: 'Path deve conter apenas letras minúsculas, números, hífens e barras',
+    message: 'Path deve conter apenas letras minusculas, numeros, hifens e barras',
   })
   @IsOptional()
   path?: string;
@@ -88,6 +200,59 @@ export class UpdateCustomApiDto {
   @IsOptional()
   description?: string;
 
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Modo da API: visual ou code
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  @IsEnum(ApiMode)
+  @IsOptional()
+  mode?: ApiMode;
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // MODO VISUAL
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  @IsString()
+  @IsOptional()
+  sourceEntityId?: string;
+
+  @IsArray()
+  @IsOptional()
+  selectedFields?: string[];
+
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => FixedFilterDto)
+  @IsOptional()
+  filters?: FixedFilterDto[];
+
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => QueryParamDto)
+  @IsOptional()
+  queryParams?: QueryParamDto[];
+
+  @ValidateNested()
+  @Type(() => OrderByDto)
+  @IsOptional()
+  orderBy?: OrderByDto;
+
+  @IsNumber()
+  @IsOptional()
+  limitRecords?: number;
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // MODO CODE
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  @IsString()
+  @IsOptional()
+  logic?: string;
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Configuracoes comuns
+  // ═══════════════════════════════════════════════════════════════════════════
+
   @IsEnum(AuthType)
   @IsOptional()
   auth?: AuthType;
@@ -99,10 +264,6 @@ export class UpdateCustomApiDto {
   @IsObject()
   @IsOptional()
   outputSchema?: object;
-
-  @IsString()
-  @IsOptional()
-  logic?: string;
 
   @IsArray()
   @IsOptional()
