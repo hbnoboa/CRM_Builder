@@ -205,13 +205,13 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
             <div className="flex items-center gap-3 p-2 rounded-lg hover:bg-muted transition-colors" data-testid="user-menu">
               <div className="w-10 h-10 rounded-full bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center">
                 <span className="text-sm font-medium text-white">
-                  {user?.name?.charAt(0).toUpperCase() || 'U'}
+                  {user?.name?.charAt(0)?.toUpperCase() || 'U'}
                 </span>
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium truncate">{user?.name}</p>
+                <p className="text-sm font-medium truncate">{user?.name || 'User'}</p>
                 <p className="text-xs text-muted-foreground truncate capitalize">
-                  {user?.role?.toLowerCase().replace('_', ' ') || 'User'}
+                  {(user?.role || 'user').toLowerCase().replace('_', ' ')}
                 </p>
               </div>
               <Button

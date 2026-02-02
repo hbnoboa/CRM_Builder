@@ -42,8 +42,8 @@ export default function RolesPage() {
 
   const filteredRoles = (roles as RoleWithCount[]).filter(
     (role) =>
-      role.name.toLowerCase().includes(search.toLowerCase()) ||
-      (role.description && role.description.toLowerCase().includes(search.toLowerCase()))
+      (role.name || '').toLowerCase().includes(search.toLowerCase()) ||
+      (role.description || '').toLowerCase().includes(search.toLowerCase())
   );
 
   const handleCreateRole = () => {

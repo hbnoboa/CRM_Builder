@@ -51,8 +51,8 @@ export default function ApisPage() {
 
   const filteredApis = apis.filter(
     (api) =>
-      api.name.toLowerCase().includes(search.toLowerCase()) ||
-      api.path.toLowerCase().includes(search.toLowerCase())
+      (api.name || '').toLowerCase().includes(search.toLowerCase()) ||
+      (api.path || '').toLowerCase().includes(search.toLowerCase())
   );
 
   const handleCreateApi = () => {

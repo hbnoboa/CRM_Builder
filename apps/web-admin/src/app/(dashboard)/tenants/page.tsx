@@ -68,8 +68,8 @@ export default function TenantsPage() {
 
   const filteredTenants = tenants.filter(
     (tenant: Tenant) =>
-      tenant.name.toLowerCase().includes(search.toLowerCase()) ||
-      tenant.slug.toLowerCase().includes(search.toLowerCase())
+      (tenant.name || '').toLowerCase().includes(search.toLowerCase()) ||
+      (tenant.slug || '').toLowerCase().includes(search.toLowerCase())
   );
 
   // If not PLATFORM_ADMIN, show access denied message

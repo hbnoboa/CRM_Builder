@@ -118,7 +118,7 @@ export default function PagesPage() {
   };
 
   const filteredPages = pages.filter((page) =>
-    page.title.toLowerCase().includes(search.toLowerCase())
+    (page.title || '').toLowerCase().includes(search.toLowerCase())
   );
 
   return (

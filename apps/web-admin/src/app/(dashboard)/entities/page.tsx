@@ -41,7 +41,7 @@ export default function EntitiesPage() {
   };
 
   const filteredEntities = entities.filter((entity) =>
-    entity.name.toLowerCase().includes(search.toLowerCase())
+    (entity.name || '').toLowerCase().includes(search.toLowerCase())
   );
 
   const fieldTypeColors: Record<string, string> = {
