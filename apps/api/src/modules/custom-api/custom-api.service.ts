@@ -178,6 +178,24 @@ export class CustomApiService {
     });
   }
 
+  async activate(id: string, workspaceId: string) {
+    await this.findOne(id, workspaceId);
+
+    return this.prisma.customEndpoint.update({
+      where: { id },
+      data: { isActive: true },
+    });
+  }
+
+  async deactivate(id: string, workspaceId: string) {
+    await this.findOne(id, workspaceId);
+
+    return this.prisma.customEndpoint.update({
+      where: { id },
+      data: { isActive: false },
+    });
+  }
+
   // Execute custom endpoint logic
   async executeEndpoint(
     workspaceId: string,

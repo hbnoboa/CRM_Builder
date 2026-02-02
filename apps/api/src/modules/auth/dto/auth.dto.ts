@@ -73,3 +73,52 @@ export class AuthResponseDto {
     organizationId?: string;
   };
 }
+
+export class UpdateProfileDto {
+  @ApiPropertyOptional({ example: 'Joao Silva' })
+  @IsString()
+  @IsOptional()
+  name?: string;
+
+  @ApiPropertyOptional({ example: 'https://example.com/avatar.jpg' })
+  @IsString()
+  @IsOptional()
+  avatar?: string;
+}
+
+export class ChangePasswordDto {
+  @ApiProperty({ example: 'SenhaAtual123!' })
+  @IsString()
+  @MinLength(8, { message: 'Senha atual deve ter no minimo 8 caracteres' })
+  currentPassword: string;
+
+  @ApiProperty({ example: 'NovaSenha123!' })
+  @IsString()
+  @MinLength(8, { message: 'Nova senha deve ter no minimo 8 caracteres' })
+  @MaxLength(128, { message: 'Nova senha deve ter no maximo 128 caracteres' })
+  @Matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/, {
+    message: 'Nova senha deve conter pelo menos uma letra maiuscula, uma minuscula e um numero',
+  })
+  newPassword: string;
+}
+
+export class ForgotPasswordDto {
+  @ApiProperty({ example: 'usuario@empresa.com' })
+  @IsEmail({}, { message: 'Email invalido' })
+  email: string;
+}
+
+export class ResetPasswordDto {
+  @ApiProperty({ example: 'token_de_reset' })
+  @IsString()
+  token: string;
+
+  @ApiProperty({ example: 'NovaSenha123!' })
+  @IsString()
+  @MinLength(8, { message: 'Nova senha deve ter no minimo 8 caracteres' })
+  @MaxLength(128, { message: 'Nova senha deve ter no maximo 128 caracteres' })
+  @Matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/, {
+    message: 'Nova senha deve conter pelo menos uma letra maiuscula, uma minuscula e um numero',
+  })
+  newPassword: string;
+}

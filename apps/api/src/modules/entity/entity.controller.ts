@@ -2,7 +2,7 @@ import {
   Controller,
   Get,
   Post,
-  Put,
+  Patch,
   Delete,
   Body,
   Param,
@@ -93,7 +93,7 @@ export class EntityController {
     return this.entityService.findBySlug(workspaceId, slug, user);
   }
 
-  @Put(':id')
+  @Patch(':id')
   @Roles(UserRole.ADMIN, UserRole.PLATFORM_ADMIN)
   @ApiOperation({ summary: 'Atualizar entidade' })
   async update(@Param('id') id: string, @Body() dto: any, @CurrentUser() user: any) {

@@ -71,7 +71,7 @@ export class PageController {
     return this.pageService.findBySlug(slug, workspaceId);
   }
 
-  @Put(':id')
+  @Patch(':id')
   @Roles('ADMIN', 'MANAGER')
   async update(
     @Param('id') id: string,
@@ -115,6 +115,12 @@ export class PageController {
 @Controller('public/pages')
 export class PublicPageController {
   constructor(private readonly pageService: PageService) {}
+
+  // Simple slug-only lookup (for simpler URLs)
+  @Get('slug/:slug')
+  async getPublicPageBySlug(@Param('slug') slug: string) {
+    return this.pageService.getPublicPageBySlug(slug);
+  }
 
   @Get(':workspaceId/:slug')
   async getPublicPage(

@@ -3,6 +3,7 @@ import {
   Get,
   Post,
   Put,
+  Patch,
   Delete,
   Body,
   Param,
@@ -31,7 +32,7 @@ export class UserController {
     return this.userService.findOne(user.id, user);
   }
 
-  @Put('me')
+  @Patch('me')
   @ApiOperation({ summary: 'Atualizar perfil do usuário atual' })
   async updateMe(@Body() dto: UpdateUserDto, @CurrentUser() user: any) {
     return this.userService.update(user.id, dto, user);
@@ -59,7 +60,7 @@ export class UserController {
     return this.userService.findOne(id, user);
   }
 
-  @Put(':id')
+  @Patch(':id')
   @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.PLATFORM_ADMIN)
   @ApiOperation({ summary: 'Atualizar usuário' })
   async update(

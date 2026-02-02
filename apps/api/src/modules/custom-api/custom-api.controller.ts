@@ -66,7 +66,7 @@ export class CustomApiController {
     return this.customApiService.findOne(id, workspaceId);
   }
 
-  @Put(':id')
+  @Patch(':id')
   @Roles('ADMIN')
   async update(
     @Param('id') id: string,
@@ -82,6 +82,20 @@ export class CustomApiController {
   async toggleActive(@Param('id') id: string, @CurrentUser() user: any) {
     const workspaceId = await this.getWorkspaceId(user.organizationId);
     return this.customApiService.toggleActive(id, workspaceId);
+  }
+
+  @Patch(':id/activate')
+  @Roles('ADMIN')
+  async activate(@Param('id') id: string, @CurrentUser() user: any) {
+    const workspaceId = await this.getWorkspaceId(user.organizationId);
+    return this.customApiService.activate(id, workspaceId);
+  }
+
+  @Patch(':id/deactivate')
+  @Roles('ADMIN')
+  async deactivate(@Param('id') id: string, @CurrentUser() user: any) {
+    const workspaceId = await this.getWorkspaceId(user.organizationId);
+    return this.customApiService.deactivate(id, workspaceId);
   }
 
   @Delete(':id')

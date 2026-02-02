@@ -24,7 +24,7 @@ export const dataService = {
     params?: QueryDataParams
   ): Promise<EntityDataResponse> {
     const response = await api.get<EntityDataResponse>(
-      `/workspaces/${workspaceId}/entities/${entitySlug}/data`,
+      `/data/${workspaceId}/${entitySlug}`,
       { params }
     );
     return response.data;
@@ -36,7 +36,7 @@ export const dataService = {
     id: string
   ): Promise<EntityDataDetailResponse> {
     const response = await api.get<EntityDataDetailResponse>(
-      `/workspaces/${workspaceId}/entities/${entitySlug}/data/${id}`
+      `/data/${workspaceId}/${entitySlug}/${id}`
     );
     return response.data;
   },
@@ -47,7 +47,7 @@ export const dataService = {
     data: Record<string, unknown>
   ): Promise<EntityData> {
     const response = await api.post<EntityData>(
-      `/workspaces/${workspaceId}/entities/${entitySlug}/data`,
+      `/data/${workspaceId}/${entitySlug}`,
       { data }
     );
     return response.data;
@@ -60,13 +60,13 @@ export const dataService = {
     data: Record<string, unknown>
   ): Promise<EntityData> {
     const response = await api.patch<EntityData>(
-      `/workspaces/${workspaceId}/entities/${entitySlug}/data/${id}`,
+      `/data/${workspaceId}/${entitySlug}/${id}`,
       { data }
     );
     return response.data;
   },
 
   async delete(workspaceId: string, entitySlug: string, id: string): Promise<void> {
-    await api.delete(`/workspaces/${workspaceId}/entities/${entitySlug}/data/${id}`);
+    await api.delete(`/data/${workspaceId}/${entitySlug}/${id}`);
   },
 };

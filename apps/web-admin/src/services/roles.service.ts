@@ -53,16 +53,16 @@ export const rolesService = {
   },
 
   async assignToUser(userId: string, roleId: string): Promise<UserRole> {
-    const response = await api.post<UserRole>(`/roles/${roleId}/users/${userId}`);
+    const response = await api.post<UserRole>('/roles/assign', { userId, roleId });
     return response.data;
   },
 
   async removeFromUser(userId: string, roleId: string): Promise<void> {
-    await api.delete(`/roles/${roleId}/users/${userId}`);
+    await api.delete(`/roles/user/${userId}/role/${roleId}`);
   },
 
   async getUserRoles(userId: string): Promise<UserRole[]> {
-    const response = await api.get<UserRole[]>(`/users/${userId}/roles`);
+    const response = await api.get<UserRole[]>(`/roles/user/${userId}`);
     return response.data;
   },
 };

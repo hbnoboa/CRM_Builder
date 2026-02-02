@@ -149,9 +149,11 @@ model User {
   role           UserRole  @default(USER)
   status         Status    @default(ACTIVE)
 
-  lastLoginAt    DateTime?
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+  lastLoginAt         DateTime?
+  resetToken          String?
+  resetTokenExpires   DateTime?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
 
   // Relacionamentos
   tenant         Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)

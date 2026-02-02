@@ -1,9 +1,9 @@
-import { Injectable, UnauthorizedException, ConflictException, Logger } from '@nestjs/common';
+import { Injectable, UnauthorizedException, ConflictException, BadRequestException, Logger } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcryptjs';
 import { PrismaService } from '../../prisma/prisma.service';
-import { LoginDto, RegisterDto, RefreshTokenDto } from './dto/auth.dto';
+import { LoginDto, RegisterDto, RefreshTokenDto, UpdateProfileDto, ChangePasswordDto, ForgotPasswordDto, ResetPasswordDto } from './dto/auth.dto';
 import { UserRole, Status, User } from '@prisma/client';
 
 interface UserForTokenGeneration {
@@ -260,6 +260,117 @@ export class AuthService {
       additionalRoles: user.userRoles.map((ur) => ur.role),
       permissions,
     };
+  }
+
+  async updateProfile(userId: string, dto: UpdateProfileDto) {
+    const user = await this.prisma.user.update({
+      where: { id: userId },
+      data: {
+        ...(dto.name && { name: dto.name }),
+        ...(dto.avatar && { avatar: dto.avatar }),
+      },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        avatar: true,
+        role: true,
+        tenantId: true,
+        organizationId: true,
+      },
+    });
+
+    this.logger.log(`Perfil atualizado: ${user.email}`);
+    return user;
+  }
+
+  async changePassword(userId: string, dto: ChangePasswordDto) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, email: true, password: true },
+    });
+
+    if (!user) {
+      throw new UnauthorizedException('Usuario nao encontrado');
+    }
+
+    const isCurrentPasswordValid = await bcrypt.compare(dto.currentPassword, user.password);
+    if (!isCurrentPasswordValid) {
+      throw new BadRequestException('Senha atual incorreta');
+    }
+
+    const hashedPassword = await bcrypt.hash(dto.newPassword, 12);
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { password: hashedPassword },
+    });
+
+    this.logger.log(`Senha alterada: ${user.email}`);
+    return { message: 'Senha alterada com sucesso' };
+  }
+
+  async forgotPassword(dto: ForgotPasswordDto) {
+    const user = await this.prisma.user.findFirst({
+      where: { email: dto.email, status: Status.ACTIVE },
+      select: { id: true, email: true, name: true },
+    });
+
+    // Always return success to prevent email enumeration
+    if (!user) {
+      return { message: 'Se o email existir, voce recebera um link de recuperacao' };
+    }
+
+    // Generate reset token (valid for 1 hour)
+    const resetToken = require('crypto').randomBytes(32).toString('hex');
+    const resetExpires = new Date();
+    resetExpires.setHours(resetExpires.getHours() + 1);
+
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: {
+        resetToken,
+        resetTokenExpires: resetExpires,
+      },
+    });
+
+    // TODO: Send email with reset link
+    // In production, integrate with email service
+    this.logger.log(`Reset token gerado para: ${user.email}`);
+
+    return { message: 'Se o email existir, voce recebera um link de recuperacao' };
+  }
+
+  async resetPassword(dto: ResetPasswordDto) {
+    const user = await this.prisma.user.findFirst({
+      where: {
+        resetToken: dto.token,
+        resetTokenExpires: { gt: new Date() },
+        status: Status.ACTIVE,
+      },
+      select: { id: true, email: true },
+    });
+
+    if (!user) {
+      throw new BadRequestException('Token invalido ou expirado');
+    }
+
+    const hashedPassword = await bcrypt.hash(dto.newPassword, 12);
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: {
+        password: hashedPassword,
+        resetToken: null,
+        resetTokenExpires: null,
+      },
+    });
+
+    // Invalidate all refresh tokens
+    await this.prisma.refreshToken.deleteMany({
+      where: { userId: user.id },
+    });
+
+    this.logger.log(`Senha resetada: ${user.email}`);
+    return { message: 'Senha redefinida com sucesso' };
   }
 
   private async generateTokens(user: UserForTokenGeneration) {

@@ -2,7 +2,7 @@ import {
   Controller,
   Get,
   Post,
-  Put,
+  Patch,
   Delete,
   Body,
   Param,
@@ -54,7 +54,7 @@ export class DataController {
     return this.dataService.findOne(entitySlug, workspaceId, id, user);
   }
 
-  @Put(':workspaceId/:entitySlug/:id')
+  @Patch(':workspaceId/:entitySlug/:id')
   @ApiOperation({ summary: 'Atualizar registro' })
   async update(
     @Param('workspaceId') workspaceId: string,

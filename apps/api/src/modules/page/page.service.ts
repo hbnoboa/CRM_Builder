@@ -172,12 +172,41 @@ export class PageService {
     });
 
     if (!page) {
-      throw new NotFoundException('Página não encontrada');
+      throw new NotFoundException('Pagina nao encontrada');
     }
 
     return {
       title: page.title,
       content: page.content,
+    };
+  }
+
+  // Get page by slug only (for simpler public URLs)
+  async getPublicPageBySlug(slug: string) {
+    const page = await this.prisma.page.findFirst({
+      where: {
+        slug,
+        isPublished: true,
+      },
+      include: {
+        workspace: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+      },
+    });
+
+    if (!page) {
+      throw new NotFoundException('Pagina nao encontrada');
+    }
+
+    return {
+      title: page.title,
+      content: page.content,
+      workspaceId: page.workspaceId,
+      workspaceName: page.workspace.name,
     };
   }
 }

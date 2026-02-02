@@ -2,7 +2,7 @@ import {
   Controller,
   Get,
   Post,
-  Put,
+  Patch,
   Delete,
   Body,
   Param,
@@ -45,7 +45,7 @@ export class RoleController {
     return this.roleService.findOne(id, user);
   }
 
-  @Put(':id')
+  @Patch(':id')
   @Roles(UserRole.ADMIN, UserRole.PLATFORM_ADMIN)
   @ApiOperation({ summary: 'Atualizar role' })
   async update(@Param('id') id: string, @Body() dto: any, @CurrentUser() user: any) {
