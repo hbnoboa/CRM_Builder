@@ -8,9 +8,9 @@ import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { puckConfig, initialDate } from '@/lib/puck-config';
+import { puckConfig, initialData } from '@/lib/puck-config';
 import api from '@/lib/api';
-import type { Date } from '@measured/puck';
+import type { Data } from '@measured/puck';
 
 // Dynamic import for Puck to avoid SSR issues
 const Puck = dynamic(
@@ -26,18 +26,18 @@ export default function NewPageEditor() {
   const [pageTitle, setPageTitle] = useState('New Page');
   const [pageSlug, setPageSlug] = useState('new-page');
   const [pageDescription, setPageDescription] = useState('');
-  const [data, setDate] = useState<Date>(initialDate);
+  const [data, setData] = useState<Data>(initialData);
   const [saving, setSaving] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
 
-  const handleSave = useCallback(async (puckDate: Date) => {
+  const handleSave = useCallback(async (puckData: Data) => {
     setSaving(true);
     try {
-      const response = await api.post('/pages', {
+      await api.post('/pages', {
         title: pageTitle,
         slug: pageSlug,
         description: pageDescription,
-        content: puckDate,
+        content: puckData,
         isPublished: false,
       });
       
@@ -137,7 +137,7 @@ export default function NewPageEditor() {
           config={puckConfig}
           data={data}
           onPublish={handleSave}
-          onChange={setDate}
+          onChange={setData}
         />
       </div>
     </div>

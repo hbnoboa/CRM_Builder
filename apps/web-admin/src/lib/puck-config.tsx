@@ -1,6 +1,6 @@
 'use client';
 
-import { Config, Date } from '@measured/puck';
+import { Config, Data } from '@measured/puck';
 import {
   LayoutGrid,
   Type,
@@ -12,6 +12,7 @@ import {
   ArrowRight,
   FileText,
 } from 'lucide-react';
+import { CustomApiViewer, CustomApiViewerPreview } from '@/components/puck/custom-api-viewer';
 
 // Component Types
 export type ComponentProps = {
@@ -89,6 +90,13 @@ export type ComponentProps = {
     ctaText?: string;
     ctaLink?: string;
   };
+  CustomApiViewer: {
+    apiPath: string;
+    params: { key: string; value: string }[];
+    displayMode: 'table' | 'list' | 'cards' | 'raw';
+    title?: string;
+    refreshInterval?: number;
+  };
 };
 
 // Puck Configuration
@@ -112,7 +120,7 @@ export const puckConfig: Config<ComponentProps> = {
     },
     data: {
       title: 'Dados',
-      components: ['DateTable', 'DateList', 'Stats'],
+      components: ['DateTable', 'DateList', 'Stats', 'CustomApiViewer'],
     },
   },
   components: {
@@ -611,11 +619,74 @@ export const puckConfig: Config<ComponentProps> = {
         </div>
       ),
     },
+    CustomApiViewer: {
+      label: 'Custom API Viewer',
+      defaultProps: {
+        apiPath: '',
+        params: [],
+        displayMode: 'table',
+        title: '',
+        refreshInterval: 0,
+      },
+      fields: {
+        title: { type: 'text', label: 'Titulo (opcional)' },
+        apiPath: {
+          type: 'text',
+          label: 'Caminho da API (ex: /cliente-reclamacoes)'
+        },
+        params: {
+          type: 'array',
+          label: 'Parametros',
+          arrayFields: {
+            key: { type: 'text', label: 'Nome' },
+            value: { type: 'text', label: 'Valor' },
+          },
+        },
+        displayMode: {
+          type: 'select',
+          label: 'Modo de Exibicao',
+          options: [
+            { label: 'Tabela', value: 'table' },
+            { label: 'Lista', value: 'list' },
+            { label: 'Cards', value: 'cards' },
+            { label: 'JSON (Raw)', value: 'raw' },
+          ],
+        },
+        refreshInterval: {
+          type: 'number',
+          label: 'Auto-refresh (segundos, 0 = desabilitado)'
+        },
+      },
+      render: ({ apiPath, params, displayMode, title, refreshInterval, puck }) => {
+        // In editor mode, show preview
+        if (puck?.isEditing) {
+          return (
+            <CustomApiViewerPreview
+              apiPath={apiPath}
+              params={params}
+              displayMode={displayMode}
+              title={title}
+              refreshInterval={refreshInterval}
+            />
+          );
+        }
+        // In view mode, render actual component
+        return (
+          <CustomApiViewer
+            apiPath={apiPath}
+            params={params}
+            displayMode={displayMode}
+            title={title}
+            refreshInterval={refreshInterval}
+          />
+        );
+      },
+    },
   },
 };
 
 // Initial data for new pages
-export const initialDate: Date = {
+export const initialData: Data = {
   content: [],
   root: { props: {} },
 };

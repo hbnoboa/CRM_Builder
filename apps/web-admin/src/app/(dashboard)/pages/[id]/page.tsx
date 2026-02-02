@@ -17,12 +17,12 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Puck, Date } from '@measured/puck';
+import { Puck, Data } from '@measured/puck';
 import { puckConfig } from '@/lib/puck-config';
 import api from '@/lib/api';
 import '@measured/puck/puck.css';
 
-const defaultDate: Date = {
+const defaultData: Data = {
   content: [],
   root: { props: { title: '' } },
 };
@@ -38,7 +38,7 @@ export default function PageEditorPage() {
   const [pageName, setPageName] = useState('');
   const [pageSlug, setPageSlug] = useState('');
   const [pageDescription, setPageDescription] = useState('');
-  const [pageDate, setPageDate] = useState<Date>(defaultDate);
+  const [pageData, setPageData] = useState<Data>(defaultData);
   const [viewMode, setViewMode] = useState<'edit' | 'preview'>('edit');
   const [device, setDevice] = useState<'desktop' | 'tablet' | 'mobile'>('desktop');
   const [showSettings, setShowSettings] = useState(false);
@@ -56,7 +56,7 @@ export default function PageEditorPage() {
       setPageName(page.title);
       setPageSlug(page.slug);
       setPageDescription(page.description || '');
-      setPageDate(page.content || defaultDate);
+      setPageData(page.content || defaultData);
     } catch (error) {
       console.error('Error fetching page:', error);
       router.push('/pages');
@@ -65,7 +65,7 @@ export default function PageEditorPage() {
     }
   };
 
-  const handleSave = async (data: Date) => {
+  const handleSave = async (data: Data) => {
     setSaving(true);
     try {
       if (isNew) {
@@ -191,7 +191,7 @@ export default function PageEditorPage() {
           </Button>
 
           <Button
-            onClick={() => handleSave(pageDate)}
+            onClick={() => handleSave(pageData)}
             disabled={saving}
           >
             <Save className="h-4 w-4 mr-2" />
@@ -204,9 +204,9 @@ export default function PageEditorPage() {
       <div className="flex-1 overflow-hidden">
         <Puck
           config={puckConfig}
-          data={pageDate}
+          data={pageData}
           onPublish={handleSave}
-          onChange={(data) => setPageDate(data)}
+          onChange={(data) => setPageData(data)}
           overrides={{
             header: () => null, // Hide Puck's default header
           }}
