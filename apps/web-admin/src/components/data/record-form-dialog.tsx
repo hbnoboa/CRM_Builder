@@ -109,7 +109,7 @@ export function RecordFormDialog({
       // Validacao de campo obrigatorio
       if (field.required) {
         if (value === undefined || value === null || value === '') {
-          newErrors[field.name] = `${field.label} e obrigatorio`;
+          newErrors[field.name] = `${field.label || field.name} e obrigatorio`;
           return;
         }
       }
@@ -205,7 +205,7 @@ export function RecordFormDialog({
             </Label>
             <Textarea
               id={field.name}
-              placeholder={`Digite ${field.label.toLowerCase()}`}
+              placeholder={`Digite ${(field.label || field.name).toLowerCase()}`}
               value={String(value || '')}
               onChange={(e) => handleFieldChange(field.name, e.target.value)}
               rows={3}
@@ -242,7 +242,7 @@ export function RecordFormDialog({
               onValueChange={(val) => handleFieldChange(field.name, val)}
             >
               <SelectTrigger>
-                <SelectValue placeholder={`Selecione ${field.label.toLowerCase()}`} />
+                <SelectValue placeholder={`Selecione ${(field.label || field.name).toLowerCase()}`} />
               </SelectTrigger>
               <SelectContent>
                 {field.options?.map((option) => (
@@ -337,7 +337,7 @@ export function RecordFormDialog({
             <Input
               id={field.name}
               type="number"
-              placeholder={`Digite ${field.label.toLowerCase()}`}
+              placeholder={`Digite ${(field.label || field.name).toLowerCase()}`}
               value={String(value || '')}
               onChange={(e) => handleFieldChange(field.name, e.target.value)}
             />
@@ -410,7 +410,7 @@ export function RecordFormDialog({
             <Input
               id={field.name}
               type="text"
-              placeholder={`Digite ${field.label.toLowerCase()}`}
+              placeholder={`Digite ${(field.label || field.name).toLowerCase()}`}
               value={String(value || '')}
               onChange={(e) => handleFieldChange(field.name, e.target.value)}
             />
