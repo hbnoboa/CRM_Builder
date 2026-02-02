@@ -1,0 +1,403 @@
+// CRM BUILDER - Database Schema
+// PostgreSQL 16 + Prisma 5.x
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ENUMS
+// ═══════════════════════════════════════════════════════════════════════════
+
+enum Plan {
+  FREE
+  STARTER
+  PROFESSIONAL
+  ENTERPRISE
+}
+
+enum Status {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+}
+
+enum UserRole {
+  PLATFORM_ADMIN // Super admin da plataforma
+  ADMIN          // Admin do tenant
+  MANAGER        // Gerente (edita equipe)
+  USER           // Usuário padrão (edita próprios)
+  VIEWER         // Apenas visualização
+}
+
+enum HttpMethod {
+  GET
+  POST
+  PUT
+  PATCH
+  DELETE
+}
+
+enum AuthType {
+  NONE
+  JWT
+  API_KEY
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// MULTI-TENANCY - NÍVEL 1: TENANT
+// ═══════════════════════════════════════════════════════════════════════════
+
+model Tenant {
+  id        String   @id @default(cuid())
+  name      String
+  slug      String   @unique
+  domain    String?  @unique
+  logo      String?
+  settings  Json     @default("{}")
+  
+  plan      Plan     @default(FREE)
+  status    Status   @default(ACTIVE)
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  // Relacionamentos
+  organizations Organization[]
+  users         User[]
+  roles         Role[]
+  
+  @@index([slug])
+  @@index([status])
+  @@index([plan])
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// MULTI-TENANCY - NÍVEL 2: ORGANIZATION (Filial/Departamento)
+// ═══════════════════════════════════════════════════════════════════════════
+
+model Organization {
+  id        String   @id @default(cuid())
+  tenantId  String
+  name      String
+  slug      String
+  settings  Json     @default("{}")
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  // Relacionamentos
+  tenant     Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  workspaces Workspace[]
+  users      User[]
+  
+  @@unique([tenantId, slug])
+  @@index([tenantId])
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// MULTI-TENANCY - NÍVEL 3: WORKSPACE (Projeto/CRM)
+// ═══════════════════════════════════════════════════════════════════════════
+
+model Workspace {
+  id             String   @id @default(cuid())
+  tenantId       String
+  organizationId String
+  name           String
+  slug           String
+  description    String?
+  settings       Json     @default("{}")
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  // Relacionamentos
+  organization Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  entities     Entity[]
+  pages        Page[]
+  endpoints    CustomEndpoint[]
+  
+  @@unique([organizationId, slug])
+  @@index([tenantId])
+  @@index([organizationId])
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// USERS
+// ═══════════════════════════════════════════════════════════════════════════
+
+model User {
+  id             String    @id @default(cuid())
+  tenantId       String
+  organizationId String?
+  
+  email          String
+  password       String
+  name           String
+  avatar         String?
+  
+  role           UserRole  @default(USER)
+  status         Status    @default(ACTIVE)
+  
+  lastLoginAt    DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  
+  // Relacionamentos
+  tenant         Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  organization   Organization? @relation(fields: [organizationId], references: [id])
+  userRoles      UserRole_[]   // Roles adicionais
+  refreshTokens  RefreshToken[]
+  
+  // Dados criados por este usuário
+  createdData    EntityData[]  @relation("CreatedBy")
+  updatedData    EntityData[]  @relation("UpdatedBy")
+  
+  @@unique([tenantId, email])
+  @@index([tenantId])
+  @@index([organizationId])
+  @@index([email])
+  @@index([status])
+}
+
+model RefreshToken {
+  id        String   @id @default(cuid())
+  userId    String
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@index([userId])
+  @@index([token])
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ROLES & PERMISSIONS (RBAC)
+// ═══════════════════════════════════════════════════════════════════════════
+
+model Role {
+  id          String   @id @default(cuid())
+  tenantId    String
+  
+  name        String
+  slug        String
+  description String?
+  
+  // Array de permissões: ["data:read:all", "cliente:update:own"]
+  permissions Json     @default("[]")
+  
+  isSystem    Boolean  @default(false) // Roles do sistema não podem ser deletadas
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // Relacionamentos
+  tenant Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  users  UserRole_[]
+  
+  @@unique([tenantId, slug])
+  @@index([tenantId])
+}
+
+// Tabela pivô para roles adicionais do usuário
+model UserRole_ {
+  id     String @id @default(cuid())
+  userId String
+  roleId String
+  
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  
+  createdAt DateTime @default(now())
+  
+  @@unique([userId, roleId])
+  @@index([userId])
+  @@index([roleId])
+  @@map("user_roles")
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ENTITY BUILDER (Entidades Dinâmicas)
+// ═══════════════════════════════════════════════════════════════════════════
+
+model Entity {
+  id          String   @id @default(cuid())
+  tenantId    String
+  workspaceId String
+  
+  name        String   // "Cliente"
+  namePlural  String   // "Clientes"
+  slug        String   // "cliente"
+  description String?
+  icon        String?  // "users"
+  color       String?  // "#3B82F6"
+  
+  // Definição dos campos (JSON Array)
+  fields      Json     // [{ slug, name, type, required, options, ... }]
+  
+  // Configurações da entidade
+  settings    Json     @default("{}")
+  // {
+  //   titleField: "nome",
+  //   subtitleField: "email",
+  //   searchFields: ["nome", "email"],
+  //   defaultSort: { field: "createdAt", order: "desc" }
+  // }
+  
+  isSystem    Boolean  @default(false)
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // Relacionamentos
+  workspace Workspace    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  data      EntityData[]
+  
+  @@unique([workspaceId, slug])
+  @@index([tenantId])
+  @@index([workspaceId])
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ENTITY DATA (Dados das Entidades)
+// ═══════════════════════════════════════════════════════════════════════════
+
+model EntityData {
+  id        String   @id @default(cuid())
+  tenantId  String
+  entityId  String
+  
+  // Dados dinâmicos (JSON)
+  data      Json     // { nome: "João", email: "joao@email.com", ... }
+  
+  // Auditoria
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  createdById String?
+  updatedById String?
+  
+  // Relacionamentos
+  entity    Entity @relation(fields: [entityId], references: [id], onDelete: Cascade)
+  createdBy User?  @relation("CreatedBy", fields: [createdById], references: [id])
+  updatedBy User?  @relation("UpdatedBy", fields: [updatedById], references: [id])
+  
+  @@index([tenantId])
+  @@index([entityId])
+  @@index([createdAt])
+  @@index([createdById])
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// PAGE BUILDER (Páginas Puck)
+// ═══════════════════════════════════════════════════════════════════════════
+
+model Page {
+  id          String   @id @default(cuid())
+  tenantId    String
+  workspaceId String
+  
+  title       String
+  slug        String
+  description String?
+  icon        String?
+  
+  // Conteúdo Puck (JSON)
+  content     Json     @default("{}")
+  
+  // Status de publicação
+  isPublished Boolean  @default(false)
+  publishedAt DateTime?
+  
+  // Permissões necessárias para acessar
+  permissions Json     @default("[]")
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  // Relacionamentos
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  
+  @@unique([workspaceId, slug])
+  @@index([tenantId])
+  @@index([workspaceId])
+  @@index([isPublished])
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// API BUILDER (Endpoints Customizados)
+// ═══════════════════════════════════════════════════════════════════════════
+
+model CustomEndpoint {
+  id          String     @id @default(cuid())
+  tenantId    String
+  workspaceId String
+  
+  name        String     // "Relatório de Vendas"
+  description String?
+  path        String     // "relatorio-vendas"
+  method      HttpMethod @default(POST)
+  
+  // Schemas de validação
+  requestSchema  Json?   // JSON Schema para request
+  responseSchema Json?   // JSON Schema para response
+  
+  // Lógica (blocos visuais)
+  logic       Json       @default("[]")
+  // [
+  //   { type: "query", entity: "venda", filters: [...] },
+  //   { type: "aggregate", operation: "sum", field: "valor" },
+  //   { type: "response", template: {...} }
+  // ]
+  
+  // Segurança
+  auth        AuthType   @default(JWT)
+  permissions Json       @default("[]") // Roles que podem acessar
+  rateLimit   Int        @default(100)  // Requests por minuto
+  
+  // Status
+  isActive    Boolean    @default(true)
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  // Relacionamentos
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  
+  @@unique([workspaceId, path, method])
+  @@index([tenantId])
+  @@index([workspaceId])
+  @@index([isActive])
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// AUDIT LOG
+// ═══════════════════════════════════════════════════════════════════════════
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  tenantId  String
+  userId    String?
+  
+  action    String   // "create", "update", "delete", "login", etc
+  resource  String   // "user", "entity", "data", etc
+  resourceId String?
+  
+  oldData   Json?
+  newData   Json?
+  metadata  Json?    // IP, User-Agent, etc
+  
+  createdAt DateTime @default(now())
+  
+  @@index([tenantId])
+  @@index([userId])
+  @@index([action])
+  @@index([resource])
+  @@index([createdAt])
+}

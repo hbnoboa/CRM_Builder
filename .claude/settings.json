@@ -1,0 +1,33 @@
+{
+  "project": {
+    "name": "CRM Builder",
+    "version": "0.1.0",
+    "type": "saas-platform"
+  },
+  "preferences": {
+    "language": "pt-BR",
+    "codeStyle": "typescript-strict",
+    "testFramework": "playwright",
+    "packageManager": "pnpm"
+  },
+  "paths": {
+    "api": "apps/api",
+    "web": "apps/web-admin",
+    "shared": "packages/shared",
+    "docs": "docs",
+    "e2e": "e2e"
+  },
+  "conventions": {
+    "componentNaming": "PascalCase",
+    "fileNaming": "kebab-case",
+    "moduleNaming": "kebab-case",
+    "testSuffix": ".spec.ts"
+  },
+  "features": {
+    "multiTenancy": true,
+    "rbac": true,
+    "realtime": true,
+    "pageBuilder": true,
+    "apiBuilder": true
+  }
+}
