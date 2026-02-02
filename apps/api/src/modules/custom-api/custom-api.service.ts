@@ -92,9 +92,9 @@ export class CustomApiService {
         // Configuracao visual
         sourceEntityId: data.sourceEntityId,
         selectedFields: data.selectedFields || [],
-        filters: data.filters || [],
-        queryParams: data.queryParams || [],
-        orderBy: data.orderBy || null,
+        filters: (data.filters || []) as unknown as Prisma.InputJsonValue,
+        queryParams: (data.queryParams || []) as unknown as Prisma.InputJsonValue,
+        orderBy: data.orderBy ? (data.orderBy as unknown as Prisma.InputJsonValue) : Prisma.JsonNull,
         limitRecords: data.limitRecords,
         // Configuracao codigo (legado)
         requestSchema: data.inputSchema,
@@ -229,9 +229,9 @@ export class CustomApiService {
         // Configuracao visual
         sourceEntityId: data.sourceEntityId,
         selectedFields: data.selectedFields,
-        filters: data.filters,
-        queryParams: data.queryParams,
-        orderBy: data.orderBy,
+        filters: data.filters ? (data.filters as unknown as Prisma.InputJsonValue) : undefined,
+        queryParams: data.queryParams ? (data.queryParams as unknown as Prisma.InputJsonValue) : undefined,
+        orderBy: data.orderBy ? (data.orderBy as unknown as Prisma.InputJsonValue) : undefined,
         limitRecords: data.limitRecords,
         // Configuracao codigo
         requestSchema: data.inputSchema,
