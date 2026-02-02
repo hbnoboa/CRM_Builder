@@ -4,6 +4,7 @@ import { test, expect, APIRequestContext } from '@playwright/test';
  * TESTE E2E - FLUXO INTEGRADO COMPLETO
  *
  * Este teste simula o cenario real demonstrado:
+ * 0. Limpar dados de testes anteriores
  * 1. Login e obtencao de token
  * 2. Criar Entidade "Reclamacao" com relacao a "Cliente"
  * 3. Listar Clientes existentes
@@ -23,6 +24,9 @@ const ADMIN_CREDENTIALS = {
   email: 'admin@demo.com',
   password: 'admin123',
 };
+
+// Prefixo fixo para identificar recursos de teste (facilita limpeza)
+const TEST_PREFIX = 'e2e-test';
 
 // Variaveis para armazenar IDs criados
 let token: string;
@@ -77,12 +81,122 @@ async function apiDelete(request: APIRequestContext, endpoint: string) {
 }
 
 // ============================================================================
+// TESTE 0: LIMPEZA INICIAL (Remover dados de testes anteriores)
+// ============================================================================
+
+test.describe.serial('0. Limpeza Inicial', () => {
+  test('deve fazer login para limpeza', async ({ request }) => {
+    token = await login(request);
+    expect(token).toBeTruthy();
+  });
+
+  test('deve obter workspaceId', async ({ request }) => {
+    const response = await apiGet(request, '/entities');
+    expect(response.ok()).toBeTruthy();
+
+    const body = await response.json();
+    const entities = Array.isArray(body) ? body : body.data || [];
+
+    if (entities.length > 0) {
+      workspaceId = entities[0].workspaceId;
+    }
+  });
+
+  test('deve remover paginas de testes anteriores', async ({ request }) => {
+    const response = await apiGet(request, '/pages');
+    if (!response.ok()) return;
+
+    const body = await response.json();
+    const pages = Array.isArray(body) ? body : body.data || [];
+
+    // Encontrar paginas com prefixo de teste ou slug de teste
+    const testPages = pages.filter((p: any) =>
+      p.slug?.includes(TEST_PREFIX) ||
+      p.slug?.includes('reclamacao-e2e') ||
+      p.slug?.includes('dashboard-reclamacoes-e2e') ||
+      p.slug?.includes('tickets-dashboard-') ||
+      p.title?.includes('E2E')
+    );
+
+    for (const page of testPages) {
+      await apiDelete(request, `/pages/${page.id}`);
+    }
+  });
+
+  test('deve remover Custom APIs de testes anteriores', async ({ request }) => {
+    const response = await apiGet(request, '/custom-apis');
+    if (!response.ok()) return;
+
+    const body = await response.json();
+    const apis = Array.isArray(body) ? body : body.data || [];
+
+    // Encontrar APIs com prefixo de teste
+    const testApis = apis.filter((a: any) =>
+      a.path?.includes(TEST_PREFIX) ||
+      a.path?.includes('cliente-reclamacoes-e2e') ||
+      a.path?.includes('tickets-') ||
+      a.name?.includes('E2E')
+    );
+
+    for (const api of testApis) {
+      await apiDelete(request, `/custom-apis/${api.id}`);
+    }
+  });
+
+  test('deve remover entidades de testes anteriores', async ({ request }) => {
+    const response = await apiGet(request, '/entities');
+    if (!response.ok()) return;
+
+    const body = await response.json();
+    const entities = Array.isArray(body) ? body : body.data || [];
+
+    // Encontrar entidades com prefixo de teste
+    const testEntities = entities.filter((e: any) =>
+      e.slug?.includes(TEST_PREFIX) ||
+      e.slug?.includes('reclamacao-e2e') ||
+      e.slug?.includes('ticket-') ||
+      e.name?.includes('E2E')
+    );
+
+    for (const entity of testEntities) {
+      // Primeiro remover todos os dados da entidade
+      if (workspaceId) {
+        const dataResponse = await apiGet(request, `/data/${workspaceId}/${entity.slug}`);
+        if (dataResponse.ok()) {
+          const dataBody = await dataResponse.json();
+          const records = dataBody.data || [];
+          for (const record of records) {
+            await apiDelete(request, `/data/${workspaceId}/${entity.slug}/${record.id}`);
+          }
+        }
+      }
+
+      // Depois remover a entidade
+      await apiDelete(request, `/entities/${entity.id}`);
+    }
+  });
+
+  test('limpeza inicial concluida', async () => {
+    // Reset das variaveis para os proximos testes
+    reclamacaoEntityId = '';
+    reclamacaoIds = [];
+    customApiId = '';
+    pageId = '';
+
+    expect(true).toBe(true);
+  });
+});
+
+// ============================================================================
 // TESTE 1: AUTENTICACAO
 // ============================================================================
 
 test.describe.serial('1. Autenticacao', () => {
   test('deve fazer login e obter token', async ({ request }) => {
-    token = await login(request);
+    // Token ja obtido na limpeza, mas garantir que esta valido
+    if (!token) {
+      token = await login(request);
+    }
     expect(token).toBeTruthy();
     expect(token.length).toBeGreaterThan(50);
   });
@@ -623,6 +737,53 @@ test.describe('Fluxo Completo (Single Test)', () => {
     localToken = loginData.accessToken;
 
     const headers = { Authorization: `Bearer ${localToken}` };
+
+    // 1.5 Limpeza de dados anteriores com mesmo padrao
+    const existingEntities = await request.get(`${API_URL}/entities`, { headers });
+    if (existingEntities.ok()) {
+      const entitiesData = await existingEntities.json();
+      const entities = Array.isArray(entitiesData) ? entitiesData : entitiesData.data || [];
+
+      // Limpar entidades de teste anteriores
+      for (const entity of entities) {
+        if (entity.slug?.startsWith('ticket-')) {
+          // Limpar dados primeiro
+          const wsId = entity.workspaceId;
+          const dataResp = await request.get(`${API_URL}/data/${wsId}/${entity.slug}`, { headers });
+          if (dataResp.ok()) {
+            const dataBody = await dataResp.json();
+            for (const record of (dataBody.data || [])) {
+              await request.delete(`${API_URL}/data/${wsId}/${entity.slug}/${record.id}`, { headers });
+            }
+          }
+          await request.delete(`${API_URL}/entities/${entity.id}`, { headers });
+        }
+      }
+    }
+
+    // Limpar APIs de teste anteriores
+    const existingApis = await request.get(`${API_URL}/custom-apis`, { headers });
+    if (existingApis.ok()) {
+      const apisData = await existingApis.json();
+      const apis = Array.isArray(apisData) ? apisData : apisData.data || [];
+      for (const api of apis) {
+        if (api.path?.includes('tickets-')) {
+          await request.delete(`${API_URL}/custom-apis/${api.id}`, { headers });
+        }
+      }
+    }
+
+    // Limpar paginas de teste anteriores
+    const existingPages = await request.get(`${API_URL}/pages`, { headers });
+    if (existingPages.ok()) {
+      const pagesData = await existingPages.json();
+      const pages = Array.isArray(pagesData) ? pagesData : pagesData.data || [];
+      for (const page of pages) {
+        if (page.slug?.includes('tickets-dashboard-')) {
+          await request.delete(`${API_URL}/pages/${page.id}`, { headers });
+        }
+      }
+    }
 
     // 2. Obter workspace e cliente
     const entitiesResponse = await request.get(`${API_URL}/entities`, { headers });
