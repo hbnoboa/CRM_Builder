@@ -33,8 +33,10 @@ export interface UpdateCustomApiData {
 
 export const customApisService = {
   async getAll(): Promise<CustomApi[]> {
-    const response = await api.get<CustomApi[]>('/custom-apis');
-    return response.data;
+    const response = await api.get<{ data: CustomApi[]; meta?: unknown } | CustomApi[]>('/custom-apis');
+    // A API retorna { data: [...], meta: {...} } - extrair o array
+    const data = Array.isArray(response.data) ? response.data : response.data?.data || [];
+    return data;
   },
 
   async getById(id: string): Promise<CustomApi> {

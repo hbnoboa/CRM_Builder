@@ -13,26 +13,41 @@ import {
   Eye,
   Download,
   RefreshCw,
+  Loader2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { api } from '@/lib/api';
 import { useTenant } from '@/stores/tenant-context';
+import { RecordFormDialog } from '@/components/data/record-form-dialog';
+import { useDeleteEntityData } from '@/hooks/use-data';
+import type { EntityField } from '@/types';
 
 interface Entity {
   id: string;
   name: string;
   slug: string;
   description?: string;
+  fields?: EntityField[];
   _count?: {
     records: number;
   };
 }
 
-interface Record {
+interface DataRecord {
   id: string;
-  data: any;
+  data: { [key: string]: unknown };
   createdAt: string;
   updatedAt: string;
 }
@@ -41,10 +56,20 @@ export default function DataPage() {
   const { workspace } = useTenant();
   const [entities, setEntities] = useState<Entity[]>([]);
   const [selectedEntity, setSelectedEntity] = useState<Entity | null>(null);
-  const [records, setRecords] = useState<Record[]>([]);
+  const [records, setRecords] = useState<DataRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingRecords, setLoadingRecords] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+
+  // Estado para o dialog de formulario
+  const [formDialogOpen, setFormDialogOpen] = useState(false);
+  const [selectedRecord, setSelectedRecord] = useState<DataRecord | null>(null);
+
+  // Estado para o dialog de exclusao
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [recordToDelete, setRecordToDelete] = useState<DataRecord | null>(null);
+
+  const deleteRecord = useDeleteEntityData();
 
   useEffect(() => {
     fetchEntities();
@@ -83,9 +108,70 @@ export default function DataPage() {
     }
   };
 
-  const handleEntitySelect = (entity: Entity) => {
+  const fetchEntityDetails = async (entityId: string): Promise<Entity | null> => {
+    try {
+      const response = await api.get(`/entities/${entityId}`);
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching entity details:', error);
+      return null;
+    }
+  };
+
+  const handleEntitySelect = async (entity: Entity) => {
+    // Se a entidade nao tem fields, busca os detalhes
+    if (!entity.fields) {
+      const details = await fetchEntityDetails(entity.id);
+      if (details) {
+        entity = { ...entity, ...details };
+        // Atualiza na lista
+        setEntities((prev) =>
+          prev.map((e) => (e.id === entity.id ? entity : e))
+        );
+      }
+    }
     setSelectedEntity(entity);
     fetchRecords(entity.slug);
+  };
+
+  const handleNewRecord = () => {
+    setSelectedRecord(null);
+    setFormDialogOpen(true);
+  };
+
+  const handleEditRecord = (record: DataRecord) => {
+    setSelectedRecord(record);
+    setFormDialogOpen(true);
+  };
+
+  const handleDeleteClick = (record: DataRecord) => {
+    setRecordToDelete(record);
+    setDeleteDialogOpen(true);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!recordToDelete || !selectedEntity || !workspace?.id) return;
+    try {
+      await deleteRecord.mutateAsync({
+        workspaceId: workspace.id,
+        entitySlug: selectedEntity.slug,
+        id: recordToDelete.id,
+      });
+      // Remove da lista local
+      setRecords((prev) => prev.filter((r) => r.id !== recordToDelete.id));
+    } catch (error) {
+      // Erro tratado pelo hook
+    } finally {
+      setDeleteDialogOpen(false);
+      setRecordToDelete(null);
+    }
+  };
+
+  const handleFormSuccess = () => {
+    // Recarrega os registros apos criar/editar
+    if (selectedEntity) {
+      fetchRecords(selectedEntity.slug);
+    }
   };
 
   const getColumns = () => {
@@ -116,7 +202,7 @@ export default function DataPage() {
               <Download className="h-4 w-4 mr-2" />
               Export
             </Button>
-            <Button data-testid="new-record-btn">
+            <Button onClick={handleNewRecord} data-testid="new-record-btn">
               <Plus className="h-4 w-4 mr-2" />
               New Record
             </Button>
@@ -201,7 +287,7 @@ export default function DataPage() {
                     <Button
                       variant="outline"
                       size="icon"
-                      onClick={() => fetchRecords(selectedEntity.id)}
+                      onClick={() => fetchRecords(selectedEntity.slug)}
                     >
                       <RefreshCw className={`h-4 w-4 ${loadingRecords ? 'animate-spin' : ''}`} />
                     </Button>
@@ -220,7 +306,7 @@ export default function DataPage() {
                     <p className="text-sm text-muted-foreground mb-4">
                       Start adding data to this entity
                     </p>
-                    <Button data-testid="add-record-btn">
+                    <Button onClick={handleNewRecord} data-testid="add-record-btn">
                       <Plus className="h-4 w-4 mr-2" />
                       Add Record
                     </Button>
@@ -267,13 +353,29 @@ export default function DataPage() {
                             </td>
                             <td className="px-4 py-3 text-right">
                               <div className="flex items-center justify-end gap-1">
-                                <Button variant="ghost" size="icon" data-testid={`view-record-btn-${record.id}`}>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() => handleEditRecord(record)}
+                                  data-testid={`view-record-btn-${record.id}`}
+                                >
                                   <Eye className="h-4 w-4" />
                                 </Button>
-                                <Button variant="ghost" size="icon" data-testid={`edit-record-btn-${record.id}`}>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() => handleEditRecord(record)}
+                                  data-testid={`edit-record-btn-${record.id}`}
+                                >
                                   <Edit className="h-4 w-4" />
                                 </Button>
-                                <Button variant="ghost" size="icon" className="text-destructive" data-testid={`delete-record-btn-${record.id}`}>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="text-destructive"
+                                  onClick={() => handleDeleteClick(record)}
+                                  data-testid={`delete-record-btn-${record.id}`}
+                                >
                                   <Trash2 className="h-4 w-4" />
                                 </Button>
                               </div>
@@ -299,6 +401,45 @@ export default function DataPage() {
           )}
         </div>
       </div>
+
+      {/* Dialog de formulario para criar/editar registro */}
+      {selectedEntity && workspace?.id && (
+        <RecordFormDialog
+          open={formDialogOpen}
+          onOpenChange={setFormDialogOpen}
+          entity={{
+            id: selectedEntity.id,
+            name: selectedEntity.name,
+            slug: selectedEntity.slug,
+            fields: selectedEntity.fields || [],
+          }}
+          workspaceId={workspace.id}
+          record={selectedRecord}
+          onSuccess={handleFormSuccess}
+        />
+      )}
+
+      {/* Dialog de confirmacao de exclusao */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir registro?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tem certeza que deseja excluir este registro? Esta acao nao pode ser desfeita.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleConfirmDelete}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleteRecord.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Excluir
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
