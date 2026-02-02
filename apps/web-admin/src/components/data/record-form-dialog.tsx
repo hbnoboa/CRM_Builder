@@ -245,11 +245,25 @@ export function RecordFormDialog({
                 <SelectValue placeholder={`Selecione ${(field.label || field.name).toLowerCase()}`} />
               </SelectTrigger>
               <SelectContent>
-                {field.options?.map((option) => (
-                  <SelectItem key={option} value={option}>
-                    {option}
-                  </SelectItem>
-                ))}
+                {field.options?.map((option) => {
+                  // Handle both string options and object options {label, value, color}
+                  const optionValue = typeof option === 'object' ? option.value : option;
+                  const optionLabel = typeof option === 'object' ? option.label : option;
+                  const optionColor = typeof option === 'object' ? option.color : undefined;
+                  return (
+                    <SelectItem key={optionValue} value={optionValue}>
+                      <span className="flex items-center gap-2">
+                        {optionColor && (
+                          <span
+                            className="w-3 h-3 rounded-full"
+                            style={{ backgroundColor: optionColor }}
+                          />
+                        )}
+                        {optionLabel}
+                      </span>
+                    </SelectItem>
+                  );
+                })}
               </SelectContent>
             </Select>
             {error && <p className="text-sm text-destructive">{error}</p>}
@@ -265,25 +279,35 @@ export function RecordFormDialog({
             </Label>
             <div className="border rounded-md p-3 space-y-2 max-h-40 overflow-y-auto">
               {field.options?.map((option) => {
+                // Handle both string options and object options {label, value, color}
+                const optionValue = typeof option === 'object' ? option.value : option;
+                const optionLabel = typeof option === 'object' ? option.label : option;
+                const optionColor = typeof option === 'object' ? option.color : undefined;
                 const selectedValues = Array.isArray(value) ? value : [];
                 return (
-                  <div key={option} className="flex items-center space-x-2">
+                  <div key={optionValue} className="flex items-center space-x-2">
                     <Checkbox
-                      id={`${field.name}-${option}`}
-                      checked={selectedValues.includes(option)}
+                      id={`${field.name}-${optionValue}`}
+                      checked={selectedValues.includes(optionValue)}
                       onCheckedChange={(checked) => {
                         if (checked) {
-                          handleFieldChange(field.name, [...selectedValues, option]);
+                          handleFieldChange(field.name, [...selectedValues, optionValue]);
                         } else {
                           handleFieldChange(
                             field.name,
-                            selectedValues.filter((v: string) => v !== option)
+                            selectedValues.filter((v: string) => v !== optionValue)
                           );
                         }
                       }}
                     />
-                    <Label htmlFor={`${field.name}-${option}`} className="cursor-pointer text-sm">
-                      {option}
+                    <Label htmlFor={`${field.name}-${optionValue}`} className="cursor-pointer text-sm flex items-center gap-2">
+                      {optionColor && (
+                        <span
+                          className="w-3 h-3 rounded-full"
+                          style={{ backgroundColor: optionColor }}
+                        />
+                      )}
+                      {optionLabel}
                     </Label>
                   </div>
                 );
