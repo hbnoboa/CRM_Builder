@@ -71,6 +71,17 @@ export class PageController {
     return this.pageService.findBySlug(slug, workspaceId);
   }
 
+  // Preview endpoint - permite visualizar paginas nao publicadas (autenticado)
+  @Get('preview/:workspaceId/:slug')
+  async preview(
+    @Param('workspaceId') workspaceId: string,
+    @Param('slug') slug: string,
+    @CurrentUser() user: any,
+  ) {
+    this.logger.log(`Preview page: ${slug} in workspace ${workspaceId}`);
+    return this.pageService.getPreviewPage(slug, workspaceId, user.tenantId);
+  }
+
   @Patch(':id')
   @Roles('ADMIN', 'MANAGER')
   async update(

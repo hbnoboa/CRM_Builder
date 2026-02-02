@@ -161,6 +161,27 @@ export class PageService {
     });
   }
 
+  // Get page for preview (authenticated - allows unpublished pages)
+  async getPreviewPage(slug: string, workspaceId: string, tenantId: string) {
+    const page = await this.prisma.page.findFirst({
+      where: {
+        slug,
+        workspaceId,
+        tenantId, // Garante isolamento multi-tenant
+      },
+    });
+
+    if (!page) {
+      throw new NotFoundException('Pagina nao encontrada');
+    }
+
+    return {
+      title: page.title,
+      content: page.content,
+      isPublished: page.isPublished,
+    };
+  }
+
   // Get page for public rendering (only published pages)
   async getPublicPage(slug: string, workspaceId: string) {
     const page = await this.prisma.page.findFirst({

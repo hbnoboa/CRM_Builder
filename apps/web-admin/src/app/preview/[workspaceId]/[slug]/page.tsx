@@ -10,6 +10,7 @@ import '@measured/puck/puck.css';
 interface PageData {
   title: string;
   content: Data;
+  isPublished?: boolean;
 }
 
 export default function PublicPreviewPage() {
@@ -25,11 +26,31 @@ export default function PublicPreviewPage() {
     const fetchPage = async () => {
       try {
         const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+        const token = typeof window !== 'undefined' ? localStorage.getItem('accessToken') : null;
+
+        // Tenta primeiro o endpoint autenticado (permite paginas nao publicadas)
+        if (token) {
+          const authResponse = await fetch(`${apiUrl}/pages/preview/${workspaceId}/${slug}`, {
+            headers: {
+              'Authorization': `Bearer ${token}`,
+            },
+          });
+
+          if (authResponse.ok) {
+            const data = await authResponse.json();
+            setPageData(data);
+            return;
+          }
+        }
+
+        // Fallback para endpoint publico (apenas paginas publicadas)
         const response = await fetch(`${apiUrl}/public/pages/${workspaceId}/${slug}`);
 
         if (!response.ok) {
           if (response.status === 404) {
             setError('Pagina nao encontrada');
+          } else if (response.status === 401) {
+            setError('Pagina nao publicada. Faca login para visualizar.');
           } else {
             setError('Erro ao carregar pagina');
           }
@@ -90,8 +111,17 @@ export default function PublicPreviewPage() {
         </head>
       )}
 
+      {/* Draft indicator */}
+      {pageData.isPublished === false && (
+        <div className="fixed top-0 left-0 right-0 bg-yellow-500 text-yellow-900 text-center py-2 text-sm font-medium z-50">
+          Modo Preview - Esta pagina ainda nao foi publicada
+        </div>
+      )}
+
       {/* Rendered Puck Content */}
-      <Render config={puckConfig} data={pageData.content} />
+      <div className={pageData.isPublished === false ? 'pt-10' : ''}>
+        <Render config={puckConfig} data={pageData.content} />
+      </div>
     </div>
   );
 }
