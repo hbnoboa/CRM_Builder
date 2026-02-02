@@ -403,7 +403,7 @@ export default function DataPage() {
       </div>
 
       {/* Dialog de formulario para criar/editar registro */}
-      {selectedEntity && workspace?.id && (
+      {selectedEntity && (
         <RecordFormDialog
           open={formDialogOpen}
           onOpenChange={setFormDialogOpen}
@@ -413,7 +413,7 @@ export default function DataPage() {
             slug: selectedEntity.slug,
             fields: selectedEntity.fields || [],
           }}
-          workspaceId={workspace.id}
+          workspaceId={workspace?.id || ''}
           record={selectedRecord}
           onSuccess={handleFormSuccess}
         />
