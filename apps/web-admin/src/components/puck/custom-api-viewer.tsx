@@ -45,9 +45,10 @@ export function CustomApiViewer({
         ? localStorage.getItem('currentWorkspaceId') || window.location.pathname.split('/')[2]
         : '';
 
-      // Build query string from params
-      const queryParams = params
-        .filter(p => p.key && p.value)
+      // Build query string from params (safely handle undefined/null)
+      const safeParams = Array.isArray(params) ? params : [];
+      const queryParams = safeParams
+        .filter(p => p && p.key && p.value)
         .map(p => `${encodeURIComponent(p.key)}=${encodeURIComponent(p.value)}`)
         .join('&');
 
@@ -293,6 +294,7 @@ function findSubtitleField(item: Record<string, unknown>): string | null {
 }
 
 function formatColumnName(name: string): string {
+  if (!name || typeof name !== 'string') return '';
   return name
     .replace(/([A-Z])/g, ' $1')
     .replace(/[_-]/g, ' ')
@@ -318,8 +320,10 @@ export function CustomApiViewerPreview({
   displayMode,
   title,
 }: CustomApiViewerProps) {
-  const queryString = params
-    .filter(p => p.key && p.value)
+  // Safely handle undefined/null params
+  const safeParams = Array.isArray(params) ? params : [];
+  const queryString = safeParams
+    .filter(p => p && p.key && p.value)
     .map(p => `${p.key}=${p.value}`)
     .join('&');
 
