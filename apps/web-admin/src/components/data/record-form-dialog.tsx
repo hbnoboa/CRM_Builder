@@ -61,11 +61,38 @@ export function RecordFormDialog({
   const [formData, setFormData] = useState<Record<string, unknown>>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
 
+  // Funcao helper para normalizar valores de select/multiselect
+  // Se o valor for um objeto {color, label, value}, extrai apenas o value
+  const normalizeSelectValue = (val: unknown): unknown => {
+    if (val && typeof val === 'object' && 'value' in (val as Record<string, unknown>)) {
+      return (val as Record<string, unknown>).value;
+    }
+    return val;
+  };
+
+  const normalizeFormData = (data: Record<string, unknown>, fields: EntityField[]): Record<string, unknown> => {
+    const normalized: Record<string, unknown> = {};
+    for (const key in data) {
+      const field = fields.find(f => f.name === key);
+      const value = data[key];
+      
+      if (field?.type === 'select') {
+        normalized[key] = normalizeSelectValue(value);
+      } else if (field?.type === 'multiselect' && Array.isArray(value)) {
+        normalized[key] = value.map(v => normalizeSelectValue(v));
+      } else {
+        normalized[key] = value;
+      }
+    }
+    return normalized;
+  };
+
   // Inicializa o formulario quando abre ou muda o record
   useEffect(() => {
     if (open) {
       if (record) {
-        setFormData(record.data || {});
+        // Normaliza os dados para garantir que valores de select/multiselect sao strings
+        setFormData(normalizeFormData(record.data || {}, entity.fields || []));
       } else {
         // Inicializa com valores default dos campos
         const initialData: Record<string, unknown> = {};

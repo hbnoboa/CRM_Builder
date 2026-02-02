@@ -341,13 +341,33 @@ export default function DataPage() {
                             <td className="px-4 py-3 text-sm font-mono">
                               {record.id.slice(0, 8)}...
                             </td>
-                            {getColumns().map((col) => (
-                              <td key={col} className="px-4 py-3 text-sm">
-                                {typeof record.data[col] === 'object'
-                                  ? JSON.stringify(record.data[col])
-                                  : String(record.data[col] || '-')}
-                              </td>
-                            ))}
+                            {getColumns().map((col) => {
+                              const cellValue = record.data[col];
+                              // Helper para formatar valores de select/multiselect
+                              const formatValue = (val: unknown): string => {
+                                if (val === null || val === undefined) return '-';
+                                if (typeof val === 'object' && val !== null) {
+                                  // Handle {color, label, value} objects
+                                  if ('label' in (val as Record<string, unknown>)) {
+                                    return String((val as Record<string, unknown>).label);
+                                  }
+                                  if ('value' in (val as Record<string, unknown>)) {
+                                    return String((val as Record<string, unknown>).value);
+                                  }
+                                  // Arrays (multiselect)
+                                  if (Array.isArray(val)) {
+                                    return val.map(v => formatValue(v)).join(', ');
+                                  }
+                                  return JSON.stringify(val);
+                                }
+                                return String(val);
+                              };
+                              return (
+                                <td key={col} className="px-4 py-3 text-sm">
+                                  {formatValue(cellValue)}
+                                </td>
+                              );
+                            })}
                             <td className="px-4 py-3 text-sm text-muted-foreground">
                               {new Date(record.createdAt).toLocaleDateString('en-US')}
                             </td>
