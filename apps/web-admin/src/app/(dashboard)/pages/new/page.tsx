@@ -58,25 +58,40 @@ interface StructureItem {
 }
 
 // ============================================================================
-// PAGE COLORS
+// MS PAINT COLOR PALETTE
 // ============================================================================
 
-const PAGE_BACKGROUNDS = [
-  { id: 'white', label: 'Branco', color: '#ffffff' },
-  { id: 'gray-50', label: 'Cinza Claro', color: '#f9fafb' },
-  { id: 'gray-100', label: 'Cinza', color: '#f3f4f6' },
-  { id: 'blue-50', label: 'Azul Claro', color: '#eff6ff' },
-  { id: 'green-50', label: 'Verde Claro', color: '#f0fdf4' },
-  { id: 'purple-50', label: 'Roxo Claro', color: '#faf5ff' },
-  { id: 'orange-50', label: 'Laranja Claro', color: '#fff7ed' },
-];
-
-const TEXT_COLORS = [
-  { id: 'gray-900', label: 'Escuro', color: '#111827' },
-  { id: 'gray-700', label: 'Medio', color: '#374151' },
-  { id: 'gray-600', label: 'Suave', color: '#4b5563' },
-  { id: 'blue-900', label: 'Azul Escuro', color: '#1e3a8a' },
-  { id: 'green-900', label: 'Verde Escuro', color: '#14532d' },
+const MS_PAINT_COLORS = [
+  // Row 1
+  { id: 'black', label: 'Preto', color: '#000000' },
+  { id: 'gray', label: 'Cinza', color: '#808080' },
+  { id: 'dark-red', label: 'Vermelho Escuro', color: '#800000' },
+  { id: 'red', label: 'Vermelho', color: '#FF0000' },
+  { id: 'orange', label: 'Laranja', color: '#FF8000' },
+  { id: 'yellow', label: 'Amarelo', color: '#FFFF00' },
+  { id: 'lime', label: 'Verde Limao', color: '#00FF00' },
+  { id: 'green', label: 'Verde', color: '#008000' },
+  { id: 'cyan', label: 'Ciano', color: '#00FFFF' },
+  { id: 'teal', label: 'Verde-Azulado', color: '#008080' },
+  { id: 'blue', label: 'Azul', color: '#0000FF' },
+  { id: 'navy', label: 'Azul Marinho', color: '#000080' },
+  { id: 'magenta', label: 'Magenta', color: '#FF00FF' },
+  { id: 'purple', label: 'Roxo', color: '#800080' },
+  // Row 2
+  { id: 'white', label: 'Branco', color: '#FFFFFF' },
+  { id: 'light-gray', label: 'Cinza Claro', color: '#C0C0C0' },
+  { id: 'brown', label: 'Marrom', color: '#804000' },
+  { id: 'rose', label: 'Rosa', color: '#FF8080' },
+  { id: 'gold', label: 'Dourado', color: '#FFFF80' },
+  { id: 'light-yellow', label: 'Amarelo Claro', color: '#FFFFCC' },
+  { id: 'light-green', label: 'Verde Claro', color: '#80FF80' },
+  { id: 'mint', label: 'Menta', color: '#00FF80' },
+  { id: 'light-cyan', label: 'Ciano Claro', color: '#80FFFF' },
+  { id: 'sky-blue', label: 'Azul Celeste', color: '#0080FF' },
+  { id: 'light-blue', label: 'Azul Claro', color: '#8080FF' },
+  { id: 'lavender', label: 'Lavanda', color: '#8000FF' },
+  { id: 'pink', label: 'Rosa Claro', color: '#FF80FF' },
+  { id: 'plum', label: 'Ameixa', color: '#FF0080' },
 ];
 
 // ============================================================================
@@ -284,7 +299,7 @@ export default function NewPageEditor() {
   const [pageSlug, setPageSlug] = useState('');
   const [pageDescription, setPageDescription] = useState('');
   const [pageBackground, setPageBackground] = useState('white');
-  const [pageTextColor, setPageTextColor] = useState('gray-900');
+  const [pageTextColor, setPageTextColor] = useState('black');
   const [data, setData] = useState<Data>(initialData);
   const [saving, setSaving] = useState(false);
   const [structures, setStructures] = useState<StructureItem[]>([]);
@@ -295,9 +310,9 @@ export default function NewPageEditor() {
       return;
     }
 
-    // Get color values
-    const bgColor = PAGE_BACKGROUNDS.find(b => b.id === pageBackground)?.color || '#ffffff';
-    const txtColor = TEXT_COLORS.find(t => t.id === pageTextColor)?.color || '#111827';
+    // Get color values from MS Paint palette
+    const bgColor = MS_PAINT_COLORS.find(c => c.id === pageBackground)?.color || '#FFFFFF';
+    const txtColor = MS_PAINT_COLORS.find(c => c.id === pageTextColor)?.color || '#000000';
 
     setSaving(true);
     try {
@@ -470,60 +485,58 @@ export default function NewPageEditor() {
                 </div>
               </div>
 
-              {/* Color Options */}
-              <div className="pt-2 border-t">
-                <h4 className="text-sm font-medium mb-3">Cores da Pagina</h4>
-                <div className="grid gap-4 md:grid-cols-2">
-                  {/* Background Color */}
-                  <div className="space-y-2">
-                    <Label className="text-xs text-muted-foreground">Cor de Fundo</Label>
-                    <div className="flex flex-wrap gap-2">
-                      {PAGE_BACKGROUNDS.map((bg) => (
-                        <button
-                          key={bg.id}
-                          onClick={() => setPageBackground(bg.id)}
-                          className={`w-10 h-10 rounded-lg border-2 transition-all ${
-                            pageBackground === bg.id
-                              ? 'border-primary ring-2 ring-primary/30'
-                              : 'border-border hover:border-primary/50'
-                          }`}
-                          style={{ backgroundColor: bg.color }}
-                          title={bg.label}
-                        />
-                      ))}
-                    </div>
-                  </div>
+              {/* Color Options - MS Paint Style */}
+              <div className="pt-4 border-t">
+                <h4 className="text-sm font-medium mb-4">Cores da Pagina</h4>
 
-                  {/* Text Color */}
-                  <div className="space-y-2">
-                    <Label className="text-xs text-muted-foreground">Cor do Texto</Label>
-                    <div className="flex flex-wrap gap-2">
-                      {TEXT_COLORS.map((txt) => (
-                        <button
-                          key={txt.id}
-                          onClick={() => setPageTextColor(txt.id)}
-                          className={`w-10 h-10 rounded-lg border-2 transition-all flex items-center justify-center ${
-                            pageTextColor === txt.id
-                              ? 'border-primary ring-2 ring-primary/30'
-                              : 'border-border hover:border-primary/50'
-                          }`}
-                          title={txt.label}
-                        >
-                          <span style={{ color: txt.color }} className="text-lg font-bold">A</span>
-                        </button>
-                      ))}
-                    </div>
+                {/* Background Color */}
+                <div className="space-y-2 mb-4">
+                  <Label className="text-xs text-muted-foreground">Cor de Fundo</Label>
+                  <div className="grid grid-cols-14 gap-0.5 p-2 bg-muted/50 rounded-lg w-fit">
+                    {MS_PAINT_COLORS.map((c) => (
+                      <button
+                        key={`bg-${c.id}`}
+                        onClick={() => setPageBackground(c.id)}
+                        className={`w-6 h-6 border transition-all ${
+                          pageBackground === c.id
+                            ? 'ring-2 ring-primary ring-offset-1 z-10'
+                            : 'border-gray-400 hover:scale-110'
+                        }`}
+                        style={{ backgroundColor: c.color }}
+                        title={c.label}
+                      />
+                    ))}
+                  </div>
+                </div>
+
+                {/* Text Color */}
+                <div className="space-y-2 mb-4">
+                  <Label className="text-xs text-muted-foreground">Cor do Texto</Label>
+                  <div className="grid grid-cols-14 gap-0.5 p-2 bg-muted/50 rounded-lg w-fit">
+                    {MS_PAINT_COLORS.map((c) => (
+                      <button
+                        key={`txt-${c.id}`}
+                        onClick={() => setPageTextColor(c.id)}
+                        className={`w-6 h-6 border transition-all ${
+                          pageTextColor === c.id
+                            ? 'ring-2 ring-primary ring-offset-1 z-10'
+                            : 'border-gray-400 hover:scale-110'
+                        }`}
+                        style={{ backgroundColor: c.color }}
+                        title={c.label}
+                      />
+                    ))}
                   </div>
                 </div>
 
                 {/* Preview */}
-                <div className="mt-4">
+                <div>
                   <Label className="text-xs text-muted-foreground">Preview</Label>
                   <div
                     className="mt-2 p-4 rounded-lg border"
                     style={{
-                      backgroundColor: PAGE_BACKGROUNDS.find(b => b.id === pageBackground)?.color,
-                      color: TEXT_COLORS.find(t => t.id === pageTextColor)?.color,
+                      backgroundColor: MS_PAINT_COLORS.find(c => c.id === pageBackground)?.color || '#FFFFFF',
+                      color: MS_PAINT_COLORS.find(c => c.id === pageTextColor)?.color || '#000000',
                     }}
                   >
                     <p className="font-medium">Titulo de Exemplo</p>
