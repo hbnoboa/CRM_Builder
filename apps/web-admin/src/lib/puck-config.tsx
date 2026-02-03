@@ -3,6 +3,9 @@
 import { Config, Data } from '@measured/puck';
 import { ArrowRight } from 'lucide-react';
 import { CustomApiViewer, CustomApiViewerPreview } from '@/components/puck/custom-api-viewer';
+import { ActionButton, ActionButtonPreview, ActionButtonProps } from '@/components/puck/action-button';
+import { EventsField } from '@/components/puck/events-field';
+import { ComponentEvent } from '@/lib/page-events';
 
 // Layout Components
 import {
@@ -69,10 +72,10 @@ export type ComponentProps = {
   };
 
   // ========== FORM FIELDS ==========
-  TextInput: TextInputProps;
+  TextInput: TextInputProps & { events?: ComponentEvent[] };
   TextAreaField: TextAreaProps;
   NumberInput: NumberInputProps;
-  SelectField: SelectFieldProps;
+  SelectField: SelectFieldProps & { events?: ComponentEvent[] };
   CheckboxField: CheckboxFieldProps;
   DatePickerField: DatePickerProps;
   FileUploadField: FileUploadProps;
@@ -100,7 +103,9 @@ export type ComponentProps = {
     href: string;
     variant: 'primary' | 'secondary' | 'outline' | 'ghost';
     size: 'sm' | 'md' | 'lg';
+    events?: ComponentEvent[];
   };
+  ActionButton: ActionButtonProps;
   Image: {
     src: string;
     alt: string;
@@ -130,6 +135,7 @@ export type ComponentProps = {
     fields: string[];
     submitText: string;
     successMessage: string;
+    events?: ComponentEvent[];
   };
   Stats: {
     items: {
@@ -239,7 +245,7 @@ export const puckConfig: Config<ComponentProps> = {
     },
     interativo: {
       title: 'Interativo',
-      components: ['Button', 'Form', 'Tabs', 'Accordion', 'Steps', 'LinkList'],
+      components: ['Button', 'ActionButton', 'Form', 'Tabs', 'Accordion', 'Steps', 'LinkList'],
     },
     dados: {
       title: 'Dados',
@@ -273,6 +279,7 @@ export const puckConfig: Config<ComponentProps> = {
         required: false,
         helpText: '',
         fieldName: '',
+        events: [],
       },
       fields: {
         label: { type: 'text', label: 'Label' },
@@ -283,6 +290,18 @@ export const puckConfig: Config<ComponentProps> = {
           { label: 'Nao', value: false },
         ]},
         helpText: { type: 'text', label: 'Texto de Ajuda' },
+        events: {
+          type: 'custom',
+          label: 'Eventos',
+          render: ({ value, onChange, id }) => (
+            <EventsField
+              value={value || []}
+              onChange={onChange}
+              componentType="TextInput"
+              componentId={id || 'text-input'}
+            />
+          ),
+        },
       },
       render: (props) => <TextInput {...props} />,
     },
@@ -352,6 +371,7 @@ export const puckConfig: Config<ComponentProps> = {
         ],
         helpText: '',
         fieldName: '',
+        events: [],
       },
       fields: {
         label: { type: 'text', label: 'Label' },
@@ -370,6 +390,18 @@ export const puckConfig: Config<ComponentProps> = {
           { label: 'Nao', value: false },
         ]},
         helpText: { type: 'text', label: 'Texto de Ajuda' },
+        events: {
+          type: 'custom',
+          label: 'Eventos',
+          render: ({ value, onChange, id }) => (
+            <EventsField
+              value={value || []}
+              onChange={onChange}
+              componentType="SelectField"
+              componentId={id || 'select'}
+            />
+          ),
+        },
       },
       render: (props) => <SelectField {...props} />,
     },
@@ -712,6 +744,7 @@ export const puckConfig: Config<ComponentProps> = {
         href: '#',
         variant: 'primary',
         size: 'md',
+        events: [],
       },
       fields: {
         text: { type: 'text', label: 'Texto' },
@@ -735,8 +768,20 @@ export const puckConfig: Config<ComponentProps> = {
             { label: 'Grande', value: 'lg' },
           ],
         },
+        events: {
+          type: 'custom',
+          label: 'Eventos',
+          render: ({ value, onChange, id }) => (
+            <EventsField
+              value={value || []}
+              onChange={onChange}
+              componentType="Button"
+              componentId={id || 'button'}
+            />
+          ),
+        },
       },
-      render: ({ text, href, variant, size }) => {
+      render: ({ text, href, variant, size, events }) => {
         const variants = {
           primary: 'bg-primary text-primary-foreground hover:bg-primary/90',
           secondary: 'bg-secondary text-secondary-foreground hover:bg-secondary/80',
@@ -748,14 +793,72 @@ export const puckConfig: Config<ComponentProps> = {
           md: 'h-10 px-4',
           lg: 'h-12 px-6 text-lg',
         };
+        const hasEvents = events && events.length > 0;
         return (
           <a
-            href={href}
-            className={`inline-flex items-center justify-center rounded-md font-medium transition-colors ${variants[variant]} ${sizes[size]}`}
+            href={hasEvents ? undefined : href}
+            className={`inline-flex items-center justify-center rounded-md font-medium transition-colors cursor-pointer ${variants[variant]} ${sizes[size]}`}
+            data-events={hasEvents ? JSON.stringify(events) : undefined}
           >
             {text}
           </a>
         );
+      },
+    },
+    ActionButton: {
+      label: 'Botao de Acao',
+      defaultProps: {
+        text: 'Executar',
+        variant: 'primary',
+        size: 'md',
+        disabled: false,
+        loading: false,
+        events: [],
+      },
+      fields: {
+        text: { type: 'text', label: 'Texto' },
+        variant: {
+          type: 'select',
+          label: 'Variante',
+          options: [
+            { label: 'Primario', value: 'primary' },
+            { label: 'Secundario', value: 'secondary' },
+            { label: 'Outline', value: 'outline' },
+            { label: 'Ghost', value: 'ghost' },
+            { label: 'Destrutivo', value: 'destructive' },
+          ],
+        },
+        size: {
+          type: 'select',
+          label: 'Tamanho',
+          options: [
+            { label: 'Pequeno', value: 'sm' },
+            { label: 'Medio', value: 'md' },
+            { label: 'Grande', value: 'lg' },
+          ],
+        },
+        disabled: { type: 'radio', label: 'Desabilitado', options: [
+          { label: 'Sim', value: true },
+          { label: 'Nao', value: false },
+        ]},
+        events: {
+          type: 'custom',
+          label: 'Eventos',
+          render: ({ value, onChange, id }) => (
+            <EventsField
+              value={value || []}
+              onChange={onChange}
+              componentType="ActionButton"
+              componentId={id || 'action-button'}
+            />
+          ),
+        },
+      },
+      render: (props) => {
+        if (props.puck?.isEditing) {
+          return <ActionButtonPreview {...props} />;
+        }
+        return <ActionButton {...props} />;
       },
     },
     Image: {
@@ -1146,6 +1249,7 @@ export const puckConfig: Config<ComponentProps> = {
         fields: [],
         submitText: 'Submit',
         successMessage: 'Enviado com sucesso!',
+        events: [],
       },
       fields: {
         entitySlug: { type: 'text', label: 'Slug da Entity' },
@@ -1158,9 +1262,21 @@ export const puckConfig: Config<ComponentProps> = {
         },
         submitText: { type: 'text', label: 'Texto do Button' },
         successMessage: { type: 'text', label: 'Mensagem de Success' },
+        events: {
+          type: 'custom',
+          label: 'Eventos',
+          render: ({ value, onChange, id }) => (
+            <EventsField
+              value={value || []}
+              onChange={onChange}
+              componentType="Form"
+              componentId={id || 'form'}
+            />
+          ),
+        },
       },
-      render: ({ entitySlug, submitText }) => (
-        <div className="border rounded-lg p-4 bg-muted/50">
+      render: ({ entitySlug, submitText, events }) => (
+        <div className="border rounded-lg p-4 bg-muted/50" data-events={events?.length ? JSON.stringify(events) : undefined}>
           <p className="text-center text-muted-foreground">
             📝 Form: <strong>{entitySlug || 'Select an entity'}</strong>
           </p>
