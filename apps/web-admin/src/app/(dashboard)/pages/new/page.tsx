@@ -8,17 +8,11 @@ import {
   Save,
   Settings,
   LayoutGrid,
-  Columns,
   Plus,
   Trash2,
   ChevronDown,
   ChevronUp,
   GripVertical,
-  Minus,
-  Square,
-  SplitSquareHorizontal,
-  Grid3X3,
-  AlignHorizontalSpaceBetween,
 } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
@@ -49,7 +43,7 @@ import '@measured/puck/puck.css';
 // STRUCTURE TYPES
 // ============================================================================
 
-type StructureType = 'section' | 'row' | 'spacer' | 'divider';
+type StructureType = 'row' | 'spacer' | 'divider';
 
 interface StructureItem {
   id: string;
@@ -57,15 +51,33 @@ interface StructureItem {
   // Row specific
   layout?: string;
   columns?: number[];
-  // Section specific
-  background?: string;
-  maxWidth?: string;
-  paddingY?: string;
   // Spacer specific
   size?: string;
   // Divider specific
   margin?: string;
 }
+
+// ============================================================================
+// PAGE COLORS
+// ============================================================================
+
+const PAGE_BACKGROUNDS = [
+  { id: 'white', label: 'Branco', color: '#ffffff' },
+  { id: 'gray-50', label: 'Cinza Claro', color: '#f9fafb' },
+  { id: 'gray-100', label: 'Cinza', color: '#f3f4f6' },
+  { id: 'blue-50', label: 'Azul Claro', color: '#eff6ff' },
+  { id: 'green-50', label: 'Verde Claro', color: '#f0fdf4' },
+  { id: 'purple-50', label: 'Roxo Claro', color: '#faf5ff' },
+  { id: 'orange-50', label: 'Laranja Claro', color: '#fff7ed' },
+];
+
+const TEXT_COLORS = [
+  { id: 'gray-900', label: 'Escuro', color: '#111827' },
+  { id: 'gray-700', label: 'Medio', color: '#374151' },
+  { id: 'gray-600', label: 'Suave', color: '#4b5563' },
+  { id: 'blue-900', label: 'Azul Escuro', color: '#1e3a8a' },
+  { id: 'green-900', label: 'Verde Escuro', color: '#14532d' },
+];
 
 // ============================================================================
 // LAYOUT PRESETS
@@ -79,14 +91,6 @@ const ROW_LAYOUTS = [
   { id: '3-equal', label: '3 Colunas Iguais', visual: ['33%', '33%', '33%'], columns: [4, 4, 4] },
   { id: '3-center', label: '3 Colunas (Centro Maior)', visual: ['25%', '50%', '25%'], columns: [3, 6, 3] },
   { id: '4-equal', label: '4 Colunas Iguais', visual: ['25%', '25%', '25%', '25%'], columns: [3, 3, 3, 3] },
-];
-
-const SECTION_BACKGROUNDS = [
-  { id: 'none', label: 'Sem Fundo', color: 'transparent' },
-  { id: 'muted', label: 'Cinza Claro', color: '#f4f4f5' },
-  { id: 'primary', label: 'Cor Primaria', color: '#3b82f6' },
-  { id: 'secondary', label: 'Cor Secundaria', color: '#6366f1' },
-  { id: 'gradient', label: 'Gradiente', color: 'linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%)' },
 ];
 
 const SPACER_SIZES = [
@@ -125,25 +129,6 @@ function RowPreviewCard({ layout, selected, onClick }: { layout: typeof ROW_LAYO
           </div>
         ))}
       </div>
-    </button>
-  );
-}
-
-function SectionPreviewCard({ bg, selected, onClick }: { bg: typeof SECTION_BACKGROUNDS[0]; selected: boolean; onClick: () => void }) {
-  return (
-    <button
-      onClick={onClick}
-      className={`p-3 rounded-lg border-2 transition-all ${
-        selected
-          ? 'border-primary'
-          : 'border-border hover:border-primary/50'
-      }`}
-    >
-      <div
-        className="w-16 h-10 rounded mb-2 border"
-        style={{ background: bg.color }}
-      />
-      <div className="text-xs">{bg.label}</div>
     </button>
   );
 }
@@ -191,14 +176,12 @@ function StructureItemCard({
   const [expanded, setExpanded] = useState(true);
 
   const typeLabels: Record<StructureType, string> = {
-    section: 'Secao',
     row: 'Linha de Colunas',
     spacer: 'Espacamento',
     divider: 'Divisor',
   };
 
   const typeColors: Record<StructureType, string> = {
-    section: 'bg-green-500',
     row: 'bg-blue-500',
     spacer: 'bg-orange-500',
     divider: 'bg-gray-500',
@@ -243,54 +226,6 @@ function StructureItemCard({
                     onClick={() => onUpdate({ layout: layout.id, columns: layout.columns })}
                   />
                 ))}
-              </div>
-            </div>
-          )}
-
-          {item.type === 'section' && (
-            <div className="space-y-3">
-              <Label className="text-xs text-muted-foreground">Cor de fundo da secao:</Label>
-              <div className="flex gap-2 flex-wrap">
-                {SECTION_BACKGROUNDS.map((bg) => (
-                  <SectionPreviewCard
-                    key={bg.id}
-                    bg={bg}
-                    selected={item.background === bg.id}
-                    onClick={() => onUpdate({ background: bg.id })}
-                  />
-                ))}
-              </div>
-              <div className="grid grid-cols-2 gap-3 pt-2">
-                <div>
-                  <Label className="text-xs">Largura Maxima</Label>
-                  <Select value={item.maxWidth || 'lg'} onValueChange={(v) => onUpdate({ maxWidth: v })}>
-                    <SelectTrigger className="h-9 mt-1">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="sm">Pequena (640px)</SelectItem>
-                      <SelectItem value="md">Media (768px)</SelectItem>
-                      <SelectItem value="lg">Grande (1024px)</SelectItem>
-                      <SelectItem value="xl">Extra Grande (1280px)</SelectItem>
-                      <SelectItem value="full">Tela Cheia</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <Label className="text-xs">Espacamento Vertical</Label>
-                  <Select value={item.paddingY || 'md'} onValueChange={(v) => onUpdate({ paddingY: v })}>
-                    <SelectTrigger className="h-9 mt-1">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">Nenhum</SelectItem>
-                      <SelectItem value="sm">Pequeno</SelectItem>
-                      <SelectItem value="md">Medio</SelectItem>
-                      <SelectItem value="lg">Grande</SelectItem>
-                      <SelectItem value="xl">Extra Grande</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
               </div>
             </div>
           )}
@@ -348,6 +283,8 @@ export default function NewPageEditor() {
   const [pageTitle, setPageTitle] = useState('');
   const [pageSlug, setPageSlug] = useState('');
   const [pageDescription, setPageDescription] = useState('');
+  const [pageBackground, setPageBackground] = useState('white');
+  const [pageTextColor, setPageTextColor] = useState('gray-900');
   const [data, setData] = useState<Data>(initialData);
   const [saving, setSaving] = useState(false);
   const [structures, setStructures] = useState<StructureItem[]>([]);
@@ -358,6 +295,10 @@ export default function NewPageEditor() {
       return;
     }
 
+    // Get color values
+    const bgColor = PAGE_BACKGROUNDS.find(b => b.id === pageBackground)?.color || '#ffffff';
+    const txtColor = TEXT_COLORS.find(t => t.id === pageTextColor)?.color || '#111827';
+
     setSaving(true);
     try {
       await api.post('/pages', {
@@ -365,6 +306,10 @@ export default function NewPageEditor() {
         slug: pageSlug || generateSlug(pageTitle),
         description: pageDescription,
         content: puckData,
+        settings: {
+          backgroundColor: bgColor,
+          textColor: txtColor,
+        },
         isPublished: false,
       });
       router.push('/pages');
@@ -374,7 +319,7 @@ export default function NewPageEditor() {
     } finally {
       setSaving(false);
     }
-  }, [pageTitle, pageSlug, pageDescription, router]);
+  }, [pageTitle, pageSlug, pageDescription, pageBackground, pageTextColor, router]);
 
   const generateSlug = (title: string) => {
     if (!title) return '';
@@ -396,10 +341,6 @@ export default function NewPageEditor() {
     if (type === 'row') {
       newItem.layout = '2-equal';
       newItem.columns = [6, 6];
-    } else if (type === 'section') {
-      newItem.background = 'none';
-      newItem.maxWidth = 'lg';
-      newItem.paddingY = 'md';
     } else if (type === 'spacer') {
       newItem.size = 'md';
     } else if (type === 'divider') {
@@ -441,16 +382,6 @@ export default function NewPageEditor() {
             layout: item.layout || '2-equal',
             gap: 'md',
             verticalAlign: 'stretch',
-          },
-        };
-      } else if (item.type === 'section') {
-        return {
-          type: 'Section',
-          props: {
-            id: item.id,
-            background: item.background || 'none',
-            maxWidth: item.maxWidth || 'lg',
-            paddingY: item.paddingY || 'md',
           },
         };
       } else if (item.type === 'spacer') {
@@ -511,7 +442,7 @@ export default function NewPageEditor() {
                 Informacoes da Pagina
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent className="space-y-6">
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2">
                   <Label htmlFor="title">Titulo *</Label>
@@ -538,6 +469,68 @@ export default function NewPageEditor() {
                   </div>
                 </div>
               </div>
+
+              {/* Color Options */}
+              <div className="pt-2 border-t">
+                <h4 className="text-sm font-medium mb-3">Cores da Pagina</h4>
+                <div className="grid gap-4 md:grid-cols-2">
+                  {/* Background Color */}
+                  <div className="space-y-2">
+                    <Label className="text-xs text-muted-foreground">Cor de Fundo</Label>
+                    <div className="flex flex-wrap gap-2">
+                      {PAGE_BACKGROUNDS.map((bg) => (
+                        <button
+                          key={bg.id}
+                          onClick={() => setPageBackground(bg.id)}
+                          className={`w-10 h-10 rounded-lg border-2 transition-all ${
+                            pageBackground === bg.id
+                              ? 'border-primary ring-2 ring-primary/30'
+                              : 'border-border hover:border-primary/50'
+                          }`}
+                          style={{ backgroundColor: bg.color }}
+                          title={bg.label}
+                        />
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Text Color */}
+                  <div className="space-y-2">
+                    <Label className="text-xs text-muted-foreground">Cor do Texto</Label>
+                    <div className="flex flex-wrap gap-2">
+                      {TEXT_COLORS.map((txt) => (
+                        <button
+                          key={txt.id}
+                          onClick={() => setPageTextColor(txt.id)}
+                          className={`w-10 h-10 rounded-lg border-2 transition-all flex items-center justify-center ${
+                            pageTextColor === txt.id
+                              ? 'border-primary ring-2 ring-primary/30'
+                              : 'border-border hover:border-primary/50'
+                          }`}
+                          title={txt.label}
+                        >
+                          <span style={{ color: txt.color }} className="text-lg font-bold">A</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Preview */}
+                <div className="mt-4">
+                  <Label className="text-xs text-muted-foreground">Preview</Label>
+                  <div
+                    className="mt-2 p-4 rounded-lg border"
+                    style={{
+                      backgroundColor: PAGE_BACKGROUNDS.find(b => b.id === pageBackground)?.color,
+                      color: TEXT_COLORS.find(t => t.id === pageTextColor)?.color,
+                    }}
+                  >
+                    <p className="font-medium">Titulo de Exemplo</p>
+                    <p className="text-sm opacity-80">Este e um texto de exemplo para visualizar as cores.</p>
+                  </div>
+                </div>
+              </div>
             </CardContent>
           </Card>
 
@@ -550,7 +543,7 @@ export default function NewPageEditor() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <div className="grid grid-cols-3 gap-3">
                 {/* Row Button */}
                 <button
                   onClick={() => addStructure('row')}
@@ -564,20 +557,6 @@ export default function NewPageEditor() {
                   </div>
                   <div className="text-sm font-medium text-blue-700">Linha de Colunas</div>
                   <div className="text-xs text-blue-600/70">1 a 4 colunas lado a lado</div>
-                </button>
-
-                {/* Section Button */}
-                <button
-                  onClick={() => addStructure('section')}
-                  className="p-4 rounded-lg border-2 border-dashed border-green-300 bg-green-50/50 hover:bg-green-100/50 hover:border-green-400 transition-all group"
-                >
-                  <div className="flex justify-center mb-3">
-                    <div className="w-20 h-12 rounded bg-green-200 group-hover:bg-green-300 flex items-center justify-center">
-                      <Square className="h-5 w-5 text-green-600" />
-                    </div>
-                  </div>
-                  <div className="text-sm font-medium text-green-700">Secao</div>
-                  <div className="text-xs text-green-600/70">Area com fundo colorido</div>
                 </button>
 
                 {/* Spacer Button */}
