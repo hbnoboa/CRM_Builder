@@ -485,12 +485,6 @@ export function RecordFormDialog({
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
-          {!workspaceId && (
-            <div className="bg-yellow-50 border border-yellow-200 text-yellow-800 px-4 py-3 rounded-md text-sm">
-              Nenhum workspace selecionado. Selecione um workspace no menu para continuar.
-            </div>
-          )}
-
           {errors._form && (
             <div className="bg-destructive/10 border border-destructive/20 text-destructive px-4 py-3 rounded-md text-sm">
               {errors._form}

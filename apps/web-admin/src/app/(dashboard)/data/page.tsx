@@ -53,7 +53,7 @@ interface DataRecord {
 }
 
 export default function DataPage() {
-  const { workspace } = useTenant();
+  const { workspace, loading: workspaceLoading } = useTenant();
   const [entities, setEntities] = useState<Entity[]>([]);
   const [selectedEntity, setSelectedEntity] = useState<Entity | null>(null);
   const [records, setRecords] = useState<DataRecord[]>([]);
@@ -202,7 +202,11 @@ export default function DataPage() {
               <Download className="h-4 w-4 mr-2" />
               Export
             </Button>
-            <Button onClick={handleNewRecord} data-testid="new-record-btn">
+            <Button
+              onClick={handleNewRecord}
+              disabled={workspaceLoading || !workspace?.id}
+              data-testid="new-record-btn"
+            >
               <Plus className="h-4 w-4 mr-2" />
               New Record
             </Button>
@@ -306,7 +310,11 @@ export default function DataPage() {
                     <p className="text-sm text-muted-foreground mb-4">
                       Start adding data to this entity
                     </p>
-                    <Button onClick={handleNewRecord} data-testid="add-record-btn">
+                    <Button
+                      onClick={handleNewRecord}
+                      disabled={workspaceLoading || !workspace?.id}
+                      data-testid="add-record-btn"
+                    >
                       <Plus className="h-4 w-4 mr-2" />
                       Add Record
                     </Button>
@@ -423,7 +431,7 @@ export default function DataPage() {
       </div>
 
       {/* Dialog de formulario para criar/editar registro */}
-      {selectedEntity && (
+      {selectedEntity && workspace?.id && (
         <RecordFormDialog
           open={formDialogOpen}
           onOpenChange={setFormDialogOpen}
@@ -433,7 +441,7 @@ export default function DataPage() {
             slug: selectedEntity.slug,
             fields: selectedEntity.fields || [],
           }}
-          workspaceId={workspace?.id || ''}
+          workspaceId={workspace.id}
           record={selectedRecord}
           onSuccess={handleFormSuccess}
         />
