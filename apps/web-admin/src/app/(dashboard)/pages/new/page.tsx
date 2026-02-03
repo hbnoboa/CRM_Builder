@@ -298,8 +298,8 @@ export default function NewPageEditor() {
   const [pageTitle, setPageTitle] = useState('');
   const [pageSlug, setPageSlug] = useState('');
   const [pageDescription, setPageDescription] = useState('');
-  const [pageBackground, setPageBackground] = useState('white');
-  const [pageTextColor, setPageTextColor] = useState('black');
+  const [pageBackground, setPageBackground] = useState('#FFFFFF');
+  const [pageTextColor, setPageTextColor] = useState('#000000');
   const [data, setData] = useState<Data>(initialData);
   const [saving, setSaving] = useState(false);
   const [structures, setStructures] = useState<StructureItem[]>([]);
@@ -310,10 +310,6 @@ export default function NewPageEditor() {
       return;
     }
 
-    // Get color values from MS Paint palette
-    const bgColor = MS_PAINT_COLORS.find(c => c.id === pageBackground)?.color || '#FFFFFF';
-    const txtColor = MS_PAINT_COLORS.find(c => c.id === pageTextColor)?.color || '#000000';
-
     setSaving(true);
     try {
       await api.post('/pages', {
@@ -322,8 +318,8 @@ export default function NewPageEditor() {
         description: pageDescription,
         content: puckData,
         settings: {
-          backgroundColor: bgColor,
-          textColor: txtColor,
+          backgroundColor: pageBackground,
+          textColor: pageTextColor,
         },
         isPublished: false,
       });
@@ -492,40 +488,68 @@ export default function NewPageEditor() {
                 {/* Background Color */}
                 <div className="space-y-2 mb-4">
                   <Label className="text-xs text-muted-foreground">Cor de Fundo</Label>
-                  <div className="grid grid-cols-14 gap-0.5 p-2 bg-muted/50 rounded-lg w-fit">
-                    {MS_PAINT_COLORS.map((c) => (
-                      <button
-                        key={`bg-${c.id}`}
-                        onClick={() => setPageBackground(c.id)}
-                        className={`w-6 h-6 border transition-all ${
-                          pageBackground === c.id
-                            ? 'ring-2 ring-primary ring-offset-1 z-10'
-                            : 'border-gray-400 hover:scale-110'
-                        }`}
-                        style={{ backgroundColor: c.color }}
-                        title={c.label}
+                  <div className="flex items-start gap-3">
+                    {/* MS Paint Palette */}
+                    <div className="grid grid-cols-14 gap-0.5 p-2 bg-muted/50 rounded-lg">
+                      {MS_PAINT_COLORS.map((c) => (
+                        <button
+                          key={`bg-${c.id}`}
+                          onClick={() => setPageBackground(c.color)}
+                          className={`w-6 h-6 border transition-all ${
+                            pageBackground.toUpperCase() === c.color.toUpperCase()
+                              ? 'ring-2 ring-primary ring-offset-1 z-10'
+                              : 'border-gray-400 hover:scale-110'
+                          }`}
+                          style={{ backgroundColor: c.color }}
+                          title={c.label}
+                        />
+                      ))}
+                    </div>
+                    {/* Color Wheel */}
+                    <div className="flex flex-col items-center gap-1">
+                      <input
+                        type="color"
+                        value={pageBackground}
+                        onChange={(e) => setPageBackground(e.target.value)}
+                        className="w-10 h-10 rounded cursor-pointer border-2 border-gray-300"
+                        title="Escolher cor personalizada"
                       />
-                    ))}
+                      <span className="text-[10px] text-muted-foreground font-mono">{pageBackground.toUpperCase()}</span>
+                    </div>
                   </div>
                 </div>
 
                 {/* Text Color */}
                 <div className="space-y-2 mb-4">
                   <Label className="text-xs text-muted-foreground">Cor do Texto</Label>
-                  <div className="grid grid-cols-14 gap-0.5 p-2 bg-muted/50 rounded-lg w-fit">
-                    {MS_PAINT_COLORS.map((c) => (
-                      <button
-                        key={`txt-${c.id}`}
-                        onClick={() => setPageTextColor(c.id)}
-                        className={`w-6 h-6 border transition-all ${
-                          pageTextColor === c.id
-                            ? 'ring-2 ring-primary ring-offset-1 z-10'
-                            : 'border-gray-400 hover:scale-110'
-                        }`}
-                        style={{ backgroundColor: c.color }}
-                        title={c.label}
+                  <div className="flex items-start gap-3">
+                    {/* MS Paint Palette */}
+                    <div className="grid grid-cols-14 gap-0.5 p-2 bg-muted/50 rounded-lg">
+                      {MS_PAINT_COLORS.map((c) => (
+                        <button
+                          key={`txt-${c.id}`}
+                          onClick={() => setPageTextColor(c.color)}
+                          className={`w-6 h-6 border transition-all ${
+                            pageTextColor.toUpperCase() === c.color.toUpperCase()
+                              ? 'ring-2 ring-primary ring-offset-1 z-10'
+                              : 'border-gray-400 hover:scale-110'
+                          }`}
+                          style={{ backgroundColor: c.color }}
+                          title={c.label}
+                        />
+                      ))}
+                    </div>
+                    {/* Color Wheel */}
+                    <div className="flex flex-col items-center gap-1">
+                      <input
+                        type="color"
+                        value={pageTextColor}
+                        onChange={(e) => setPageTextColor(e.target.value)}
+                        className="w-10 h-10 rounded cursor-pointer border-2 border-gray-300"
+                        title="Escolher cor personalizada"
                       />
-                    ))}
+                      <span className="text-[10px] text-muted-foreground font-mono">{pageTextColor.toUpperCase()}</span>
+                    </div>
                   </div>
                 </div>
 
@@ -535,8 +559,8 @@ export default function NewPageEditor() {
                   <div
                     className="mt-2 p-4 rounded-lg border"
                     style={{
-                      backgroundColor: MS_PAINT_COLORS.find(c => c.id === pageBackground)?.color || '#FFFFFF',
-                      color: MS_PAINT_COLORS.find(c => c.id === pageTextColor)?.color || '#000000',
+                      backgroundColor: pageBackground,
+                      color: pageTextColor,
                     }}
                   >
                     <p className="font-medium">Titulo de Exemplo</p>
