@@ -1,20 +1,19 @@
 'use client';
 
 import { Config, Data } from '@measured/puck';
-import {
-  LayoutGrid,
-  Type,
-  Image,
-  List,
-  Table,
-  Square,
-  Columns,
-  ArrowRight,
-  FileText,
-} from 'lucide-react';
+import { ArrowRight } from 'lucide-react';
 import { CustomApiViewer, CustomApiViewerPreview } from '@/components/puck/custom-api-viewer';
 
-// New Puck Components
+// Layout Components
+import {
+  Row, RowProps,
+  Section, SectionProps,
+  FlexRow, FlexRowProps,
+  Grid, GridProps,
+  LAYOUT_OPTIONS,
+} from '@/components/puck/row-col';
+
+// UI Components
 import { Tabs, TabsPreview, TabsProps } from '@/components/puck/tabs';
 import { KanbanBoard, KanbanBoardPreview, KanbanBoardProps } from '@/components/puck/kanban-board';
 import { Timeline, TimelinePreview, TimelineProps } from '@/components/puck/timeline';
@@ -23,12 +22,12 @@ import { Progress, ProgressPreview, ProgressProps } from '@/components/puck/prog
 import { BarChart, LineChart, PieChart, BarChartPreview, LineChartPreview, PieChartPreview, ChartProps } from '@/components/puck/charts';
 import { RelatedRecords, RelatedRecordsPreview, RelatedRecordsProps } from '@/components/puck/related-records';
 import { Accordion, AccordionPreview, AccordionProps } from '@/components/puck/accordion';
-import { Badge, BadgeGroup, BadgePreview, BadgeProps } from '@/components/puck/badge';
-import { Avatar, AvatarGroup, AvatarPreview, AvatarProps } from '@/components/puck/avatar';
+import { Badge, BadgePreview, BadgeProps } from '@/components/puck/badge';
+import { Avatar, AvatarPreview, AvatarProps } from '@/components/puck/avatar';
 import { CalendarView, CalendarViewPreview, CalendarViewProps } from '@/components/puck/calendar-view';
-import { MetricCard, MetricGrid, MetricCardPreview, MetricCardProps } from '@/components/puck/metric-card';
+import { MetricCard, MetricCardPreview, MetricCardProps } from '@/components/puck/metric-card';
 import { DetailView, DetailViewPreview, DetailViewProps } from '@/components/puck/detail-view';
-import { TreeView, TreeViewPreview, TreeViewProps, TreeNode } from '@/components/puck/tree-view';
+import { TreeView, TreeViewPreview, TreeViewProps } from '@/components/puck/tree-view';
 import { Steps, StepsPreview, StepsProps } from '@/components/puck/steps';
 import { LinkList, LinkListPreview, LinkListProps } from '@/components/puck/link-list';
 import { MapView, MapViewPreview, MapViewProps } from '@/components/puck/map-view';
@@ -37,6 +36,20 @@ import { PricingTable, PricingTablePreview, PricingTableProps } from '@/componen
 
 // Component Types
 export type ComponentProps = {
+  // ========== LAYOUT COMPONENTS ==========
+  Row: RowProps;
+  Section: SectionProps;
+  FlexRow: FlexRowProps;
+  Grid: GridProps;
+  Spacer: {
+    size: 'xs' | 'sm' | 'md' | 'lg' | 'xl';
+  };
+  Divider: {
+    color?: string;
+    margin: 'sm' | 'md' | 'lg';
+  };
+
+  // ========== BASIC COMPONENTS ==========
   Heading: {
     text: string;
     level: 'h1' | 'h2' | 'h3' | 'h4';
@@ -64,21 +77,6 @@ export type ComponentProps = {
     description: string;
     image?: string;
     link?: string;
-  };
-  Columns: {
-    columns: { span: number }[];
-  };
-  Container: {
-    maxWidth: 'sm' | 'md' | 'lg' | 'xl' | 'full';
-    padding: 'none' | 'sm' | 'md' | 'lg';
-    background?: string;
-  };
-  Spacer: {
-    size: 'xs' | 'sm' | 'md' | 'lg' | 'xl';
-  };
-  Divider: {
-    color?: string;
-    margin: 'sm' | 'md' | 'lg';
   };
   DateTable: {
     entitySlug: string;
@@ -169,11 +167,12 @@ export type ComponentProps = {
 // Puck Configuration
 export const puckConfig: Config<ComponentProps> = {
   categories: {
-    layout: {
-      title: 'Layout',
-      components: ['Container', 'Columns', 'Spacer', 'Divider', 'Tabs', 'Accordion'],
+    estrutura: {
+      title: 'Estrutura',
+      components: ['Section', 'Row', 'Grid', 'FlexRow', 'Spacer', 'Divider'],
+      defaultExpanded: true,
     },
-    typography: {
+    texto: {
       title: 'Texto',
       components: ['Heading', 'Text'],
     },
@@ -181,24 +180,24 @@ export const puckConfig: Config<ComponentProps> = {
       title: 'Media',
       components: ['Image', 'Card', 'Hero', 'Avatar', 'Badge'],
     },
-    interactive: {
-      title: 'Interactive',
-      components: ['Button', 'Form', 'Steps', 'LinkList'],
+    interativo: {
+      title: 'Interativo',
+      components: ['Button', 'Form', 'Tabs', 'Accordion', 'Steps', 'LinkList'],
     },
-    data: {
+    dados: {
       title: 'Dados',
       components: ['DateTable', 'DateList', 'Stats', 'CustomApiViewer', 'RelatedRecords', 'DetailView'],
     },
-    charts: {
-      title: 'Gráficos',
+    graficos: {
+      title: 'Graficos',
       components: ['BarChart', 'LineChart', 'PieChart', 'MetricCard', 'Progress'],
     },
     feedback: {
       title: 'Feedback',
       components: ['Alert', 'Timeline'],
     },
-    advanced: {
-      title: 'Avançado',
+    avancado: {
+      title: 'Avancado',
       components: ['KanbanBoard', 'CalendarView', 'TreeView', 'MapView'],
     },
     marketing: {
@@ -384,91 +383,203 @@ export const puckConfig: Config<ComponentProps> = {
         </div>
       ),
     },
-    Container: {
-      label: 'Container',
+    // ========== LAYOUT COMPONENTS ==========
+
+    Section: {
+      label: 'Section',
       defaultProps: {
+        background: 'none',
+        paddingY: 'md',
         maxWidth: 'lg',
-        padding: 'md',
       },
       fields: {
+        background: {
+          type: 'select',
+          label: 'Fundo',
+          options: [
+            { label: 'Nenhum', value: 'none' },
+            { label: 'Cinza', value: 'muted' },
+            { label: 'Primario', value: 'primary' },
+            { label: 'Secundario', value: 'secondary' },
+            { label: 'Gradiente', value: 'gradient' },
+            { label: 'Customizado', value: 'custom' },
+          ],
+        },
+        customBackground: { type: 'text', label: 'CSS (se customizado)' },
+        paddingY: {
+          type: 'select',
+          label: 'Espacamento Vertical',
+          options: [
+            { label: 'Nenhum', value: 'none' },
+            { label: 'Pequeno', value: 'sm' },
+            { label: 'Medio', value: 'md' },
+            { label: 'Grande', value: 'lg' },
+            { label: 'Extra Grande', value: 'xl' },
+          ],
+        },
         maxWidth: {
           type: 'select',
-          label: 'Max Width',
+          label: 'Largura Maxima',
           options: [
             { label: 'Pequeno (640px)', value: 'sm' },
-            { label: 'Medium (768px)', value: 'md' },
+            { label: 'Medio (768px)', value: 'md' },
             { label: 'Grande (1024px)', value: 'lg' },
             { label: 'Extra Grande (1280px)', value: 'xl' },
             { label: 'Completo', value: 'full' },
           ],
         },
-        padding: {
+      },
+      render: (props) => <Section {...props} />,
+    },
+
+    Row: {
+      label: 'Row (Colunas)',
+      defaultProps: {
+        layout: '2-equal',
+        gap: 'md',
+        verticalAlign: 'stretch',
+      },
+      fields: {
+        layout: {
           type: 'select',
-          label: 'Padding',
+          label: 'Layout',
+          options: LAYOUT_OPTIONS,
+        },
+        customColumns: {
+          type: 'array',
+          label: 'Colunas Customizadas (se layout=custom)',
+          arrayFields: {
+            size: { type: 'number', label: 'Tamanho (1-12)' },
+          },
+        },
+        gap: {
+          type: 'select',
+          label: 'Espacamento',
           options: [
-            { label: 'No', value: 'none' },
+            { label: 'Nenhum', value: 'none' },
             { label: 'Pequeno', value: 'sm' },
-            { label: 'Medium', value: 'md' },
+            { label: 'Medio', value: 'md' },
             { label: 'Grande', value: 'lg' },
           ],
         },
-        background: { type: 'text', label: 'Cor de Fundo (CSS)' },
+        verticalAlign: {
+          type: 'select',
+          label: 'Alinhamento Vertical',
+          options: [
+            { label: 'Topo', value: 'top' },
+            { label: 'Centro', value: 'center' },
+            { label: 'Base', value: 'bottom' },
+            { label: 'Esticar', value: 'stretch' },
+          ],
+        },
       },
-      render: ({ maxWidth, padding, background, puck }) => {
-        const widths = {
-          sm: 'max-w-screen-sm',
-          md: 'max-w-screen-md',
-          lg: 'max-w-screen-lg',
-          xl: 'max-w-screen-xl',
-          full: 'max-w-full',
-        };
-        const paddings = {
-          none: 'p-0',
-          sm: 'p-4',
-          md: 'p-6',
-          lg: 'p-8',
-        };
-        return (
-          <div
-            className={`mx-auto ${widths[maxWidth]} ${paddings[padding]}`}
-            style={{ background }}
-          >
-            {puck.renderDropZone({ zone: 'content' })}
-          </div>
-        );
-      },
+      render: (props) => <Row {...props} />,
     },
-    Columns: {
-      label: 'Colunas',
+
+    Grid: {
+      label: 'Grid',
       defaultProps: {
-        columns: [{ span: 6 }, { span: 6 }],
+        columns: 3,
+        gap: 'md',
       },
       fields: {
         columns: {
-          type: 'array',
+          type: 'select',
           label: 'Colunas',
-          arrayFields: {
-            span: {
-              type: 'number',
-              label: 'Largura (1-12)',
-              min: 1,
-              max: 12,
-            },
-          },
+          options: [
+            { label: '2 colunas', value: 2 },
+            { label: '3 colunas', value: 3 },
+            { label: '4 colunas', value: 4 },
+            { label: '5 colunas', value: 5 },
+            { label: '6 colunas', value: 6 },
+          ],
+        },
+        columnsMd: {
+          type: 'select',
+          label: 'Colunas (Tablet)',
+          options: [
+            { label: 'Igual', value: undefined },
+            { label: '2 colunas', value: 2 },
+            { label: '3 colunas', value: 3 },
+            { label: '4 colunas', value: 4 },
+          ],
+        },
+        columnsLg: {
+          type: 'select',
+          label: 'Colunas (Desktop)',
+          options: [
+            { label: 'Igual', value: undefined },
+            { label: '3 colunas', value: 3 },
+            { label: '4 colunas', value: 4 },
+            { label: '5 colunas', value: 5 },
+            { label: '6 colunas', value: 6 },
+          ],
+        },
+        gap: {
+          type: 'select',
+          label: 'Espacamento',
+          options: [
+            { label: 'Nenhum', value: 'none' },
+            { label: 'Pequeno', value: 'sm' },
+            { label: 'Medio', value: 'md' },
+            { label: 'Grande', value: 'lg' },
+          ],
         },
       },
-      render: ({ columns, puck }) => {
-        const safeColumns = Array.isArray(columns) ? columns : [];
-        return (
-          <div className="grid grid-cols-12 gap-4">
-            {safeColumns.map((col, idx) => (
-              <div key={idx} style={{ gridColumn: `span ${col?.span || 6}` }}>
-                {puck.renderDropZone({ zone: `column-${idx}` })}
-              </div>
-            ))}
-          </div>
-        );
+      render: (props) => <Grid {...props} />,
+    },
+
+    FlexRow: {
+      label: 'Flex Row',
+      defaultProps: {
+        justify: 'start',
+        align: 'center',
+        wrap: false,
+        gap: 'md',
       },
+      fields: {
+        justify: {
+          type: 'select',
+          label: 'Distribuicao Horizontal',
+          options: [
+            { label: 'Inicio', value: 'start' },
+            { label: 'Centro', value: 'center' },
+            { label: 'Fim', value: 'end' },
+            { label: 'Espaco Entre', value: 'between' },
+            { label: 'Espaco Ao Redor', value: 'around' },
+            { label: 'Espaco Igual', value: 'evenly' },
+          ],
+        },
+        align: {
+          type: 'select',
+          label: 'Alinhamento Vertical',
+          options: [
+            { label: 'Topo', value: 'start' },
+            { label: 'Centro', value: 'center' },
+            { label: 'Base', value: 'end' },
+            { label: 'Esticar', value: 'stretch' },
+          ],
+        },
+        wrap: {
+          type: 'radio',
+          label: 'Quebrar Linha',
+          options: [
+            { label: 'Sim', value: true },
+            { label: 'Nao', value: false },
+          ],
+        },
+        gap: {
+          type: 'select',
+          label: 'Espacamento',
+          options: [
+            { label: 'Nenhum', value: 'none' },
+            { label: 'Pequeno', value: 'sm' },
+            { label: 'Medio', value: 'md' },
+            { label: 'Grande', value: 'lg' },
+          ],
+        },
+      },
+      render: (props) => <FlexRow {...props} />,
     },
     Spacer: {
       label: 'Spacer',
