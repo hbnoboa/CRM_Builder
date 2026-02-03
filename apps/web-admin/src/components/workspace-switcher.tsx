@@ -4,10 +4,12 @@ import { useState } from 'react';
 import { ChevronDown, Check, Building2, Plus } from 'lucide-react';
 import { useTenant } from '@/stores/tenant-context';
 import { Button } from '@/components/ui/button';
+import { WorkspaceFormDialog } from '@/components/workspace-form-dialog';
 
 export function WorkspaceSwitcher() {
   const { workspace, workspaces, setWorkspace, loading } = useTenant();
   const [open, setOpen] = useState(false);
+  const [createDialogOpen, setCreateDialogOpen] = useState(false);
 
   if (loading) {
     return (
@@ -84,7 +86,7 @@ export function WorkspaceSwitcher() {
               <button
                 onClick={() => {
                   setOpen(false);
-                  // TODO: Open create workspace modal
+                  setCreateDialogOpen(true);
                 }}
                 className="w-full flex items-center gap-3 p-2 rounded-md hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
               >
@@ -97,6 +99,12 @@ export function WorkspaceSwitcher() {
           </div>
         </>
       )}
+
+      {/* Create Workspace Dialog */}
+      <WorkspaceFormDialog
+        open={createDialogOpen}
+        onOpenChange={setCreateDialogOpen}
+      />
     </div>
   );
 }
