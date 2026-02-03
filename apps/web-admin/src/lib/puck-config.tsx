@@ -14,6 +14,27 @@ import {
 } from 'lucide-react';
 import { CustomApiViewer, CustomApiViewerPreview } from '@/components/puck/custom-api-viewer';
 
+// New Puck Components
+import { Tabs, TabsPreview, TabsProps } from '@/components/puck/tabs';
+import { KanbanBoard, KanbanBoardPreview, KanbanBoardProps } from '@/components/puck/kanban-board';
+import { Timeline, TimelinePreview, TimelineProps } from '@/components/puck/timeline';
+import { Alert, AlertPreview, AlertProps } from '@/components/puck/alert';
+import { Progress, ProgressPreview, ProgressProps } from '@/components/puck/progress';
+import { BarChart, LineChart, PieChart, BarChartPreview, LineChartPreview, PieChartPreview, ChartProps } from '@/components/puck/charts';
+import { RelatedRecords, RelatedRecordsPreview, RelatedRecordsProps } from '@/components/puck/related-records';
+import { Accordion, AccordionPreview, AccordionProps } from '@/components/puck/accordion';
+import { Badge, BadgeGroup, BadgePreview, BadgeProps } from '@/components/puck/badge';
+import { Avatar, AvatarGroup, AvatarPreview, AvatarProps } from '@/components/puck/avatar';
+import { CalendarView, CalendarViewPreview, CalendarViewProps } from '@/components/puck/calendar-view';
+import { MetricCard, MetricGrid, MetricCardPreview, MetricCardProps } from '@/components/puck/metric-card';
+import { DetailView, DetailViewPreview, DetailViewProps } from '@/components/puck/detail-view';
+import { TreeView, TreeViewPreview, TreeViewProps, TreeNode } from '@/components/puck/tree-view';
+import { Steps, StepsPreview, StepsProps } from '@/components/puck/steps';
+import { LinkList, LinkListPreview, LinkListProps } from '@/components/puck/link-list';
+import { MapView, MapViewPreview, MapViewProps } from '@/components/puck/map-view';
+import { Testimonial, TestimonialPreview, TestimonialProps } from '@/components/puck/testimonial';
+import { PricingTable, PricingTablePreview, PricingTableProps } from '@/components/puck/pricing-table';
+
 // Component Types
 export type ComponentProps = {
   Heading: {
@@ -97,6 +118,52 @@ export type ComponentProps = {
     title?: string;
     refreshInterval?: number;
   };
+  // New Components - using simplified types for Puck compatibility
+  Tabs: {
+    tabs: { label: string; content?: string }[];
+    defaultTab?: number;
+    variant?: 'default' | 'pills' | 'underline';
+  };
+  KanbanBoard: {
+    columns: { id: string; title: string; color?: string }[];
+    entitySlug?: string;
+    statusField?: string;
+  };
+  Timeline: {
+    items: { title: string; description?: string; date?: string; status?: 'completed' | 'current' | 'pending' | 'error' }[];
+    variant?: 'default' | 'alternate' | 'compact';
+  };
+  Alert: {
+    title?: string;
+    description: string;
+    variant?: 'default' | 'success' | 'warning' | 'error' | 'info';
+    dismissible?: boolean;
+  };
+  Progress: {
+    value: number;
+    max?: number;
+    label?: string;
+    showValue?: boolean;
+    variant?: 'default' | 'success' | 'warning' | 'error';
+    size?: 'sm' | 'md' | 'lg';
+    type?: 'bar' | 'circle';
+  };
+  BarChart: ChartProps;
+  LineChart: ChartProps;
+  PieChart: ChartProps;
+  RelatedRecords: RelatedRecordsProps;
+  Accordion: AccordionProps;
+  Badge: BadgeProps;
+  Avatar: AvatarProps;
+  CalendarView: CalendarViewProps;
+  MetricCard: MetricCardProps;
+  DetailView: DetailViewProps;
+  TreeView: TreeViewProps;
+  Steps: StepsProps;
+  LinkList: LinkListProps;
+  MapView: MapViewProps;
+  Testimonial: TestimonialProps;
+  PricingTable: PricingTableProps;
 };
 
 // Puck Configuration
@@ -104,7 +171,7 @@ export const puckConfig: Config<ComponentProps> = {
   categories: {
     layout: {
       title: 'Layout',
-      components: ['Container', 'Columns', 'Spacer', 'Divider'],
+      components: ['Container', 'Columns', 'Spacer', 'Divider', 'Tabs', 'Accordion'],
     },
     typography: {
       title: 'Texto',
@@ -112,15 +179,31 @@ export const puckConfig: Config<ComponentProps> = {
     },
     media: {
       title: 'Media',
-      components: ['Image', 'Card', 'Hero'],
+      components: ['Image', 'Card', 'Hero', 'Avatar', 'Badge'],
     },
     interactive: {
       title: 'Interactive',
-      components: ['Button', 'Form'],
+      components: ['Button', 'Form', 'Steps', 'LinkList'],
     },
     data: {
       title: 'Dados',
-      components: ['DateTable', 'DateList', 'Stats', 'CustomApiViewer'],
+      components: ['DateTable', 'DateList', 'Stats', 'CustomApiViewer', 'RelatedRecords', 'DetailView'],
+    },
+    charts: {
+      title: 'Gráficos',
+      components: ['BarChart', 'LineChart', 'PieChart', 'MetricCard', 'Progress'],
+    },
+    feedback: {
+      title: 'Feedback',
+      components: ['Alert', 'Timeline'],
+    },
+    advanced: {
+      title: 'Avançado',
+      components: ['KanbanBoard', 'CalendarView', 'TreeView', 'MapView'],
+    },
+    marketing: {
+      title: 'Marketing',
+      components: ['Testimonial', 'PricingTable'],
     },
   },
   components: {
@@ -686,6 +769,899 @@ export const puckConfig: Config<ComponentProps> = {
             refreshInterval={refreshInterval}
           />
         );
+      },
+    },
+    
+    // ========== NEW COMPONENTS ==========
+    
+    Tabs: {
+      label: 'Abas',
+      defaultProps: {
+        tabs: [
+          { label: 'Aba 1', content: 'Conteúdo da primeira aba' },
+          { label: 'Aba 2', content: 'Conteúdo da segunda aba' },
+        ],
+        variant: 'default',
+        defaultTab: 0,
+      },
+      fields: {
+        tabs: {
+          type: 'array',
+          label: 'Abas',
+          arrayFields: {
+            label: { type: 'text', label: 'Título' },
+            content: { type: 'textarea', label: 'Conteúdo' },
+          },
+        },
+        variant: {
+          type: 'select',
+          label: 'Variante',
+          options: [
+            { label: 'Padrão', value: 'default' },
+            { label: 'Pills', value: 'pills' },
+            { label: 'Sublinhado', value: 'underline' },
+          ],
+        },
+        defaultTab: { type: 'number', label: 'Aba Ativa (índice)' },
+      },
+      render: ({ tabs, variant, defaultTab, puck }) => {
+        if (puck?.isEditing) {
+          return <TabsPreview tabs={tabs} variant={variant} defaultTab={defaultTab} />;
+        }
+        return <Tabs tabs={tabs} variant={variant} defaultTab={defaultTab} />;
+      },
+    },
+
+    KanbanBoard: {
+      label: 'Kanban',
+      defaultProps: {
+        columns: [
+          { id: 'todo', title: 'A Fazer', color: '#6366f1' },
+          { id: 'doing', title: 'Em Andamento', color: '#f59e0b' },
+          { id: 'done', title: 'Concluído', color: '#22c55e' },
+        ],
+        entitySlug: '',
+        statusField: 'status',
+      },
+      fields: {
+        columns: {
+          type: 'array',
+          label: 'Colunas',
+          arrayFields: {
+            id: { type: 'text', label: 'ID' },
+            title: { type: 'text', label: 'Título' },
+            color: { type: 'text', label: 'Cor (hex)' },
+          },
+        },
+        entitySlug: { type: 'text', label: 'Entidade (slug)' },
+        statusField: { type: 'text', label: 'Campo de Status' },
+      },
+      render: ({ columns, entitySlug, statusField, puck }) => {
+        if (puck?.isEditing) {
+          return <KanbanBoardPreview columns={columns} entitySlug={entitySlug} statusField={statusField} />;
+        }
+        return <KanbanBoard columns={columns} entitySlug={entitySlug} statusField={statusField} />;
+      },
+    },
+
+    Timeline: {
+      label: 'Linha do Tempo',
+      defaultProps: {
+        items: [
+          { title: 'Evento 1', description: 'Descrição', date: new Date().toISOString(), status: 'completed' },
+          { title: 'Evento 2', description: 'Descrição', date: new Date().toISOString(), status: 'current' },
+        ],
+        variant: 'default',
+      },
+      fields: {
+        items: {
+          type: 'array',
+          label: 'Itens',
+          arrayFields: {
+            title: { type: 'text', label: 'Título' },
+            description: { type: 'textarea', label: 'Descrição' },
+            date: { type: 'text', label: 'Data' },
+            status: { 
+              type: 'select', 
+              label: 'Status',
+              options: [
+                { label: 'Concluído', value: 'completed' },
+                { label: 'Atual', value: 'current' },
+                { label: 'Pendente', value: 'pending' },
+                { label: 'Erro', value: 'error' },
+              ],
+            },
+          },
+        },
+        variant: {
+          type: 'select',
+          label: 'Variante',
+          options: [
+            { label: 'Padrão', value: 'default' },
+            { label: 'Alternado', value: 'alternate' },
+            { label: 'Compacto', value: 'compact' },
+          ],
+        },
+      },
+      render: ({ items, variant, puck }) => {
+        if (puck?.isEditing) {
+          return <TimelinePreview items={items} variant={variant} />;
+        }
+        return <Timeline items={items} variant={variant} />;
+      },
+    },
+
+    Alert: {
+      label: 'Alerta',
+      defaultProps: {
+        variant: 'info',
+        title: 'Informação',
+        description: 'Esta é uma mensagem de alerta.',
+        dismissible: false,
+      },
+      fields: {
+        variant: {
+          type: 'select',
+          label: 'Variante',
+          options: [
+            { label: 'Padrão', value: 'default' },
+            { label: 'Sucesso', value: 'success' },
+            { label: 'Aviso', value: 'warning' },
+            { label: 'Erro', value: 'error' },
+            { label: 'Informação', value: 'info' },
+          ],
+        },
+        title: { type: 'text', label: 'Título' },
+        description: { type: 'textarea', label: 'Descrição' },
+        dismissible: { type: 'radio', label: 'Dispensável', options: [
+          { label: 'Sim', value: true },
+          { label: 'Não', value: false },
+        ]},
+      },
+      render: ({ variant, title, description, dismissible, puck }) => {
+        if (puck?.isEditing) {
+          return <AlertPreview variant={variant} title={title} description={description} dismissible={dismissible} />;
+        }
+        return <Alert variant={variant} title={title} description={description} dismissible={dismissible} />;
+      },
+    },
+
+    Progress: {
+      label: 'Progresso',
+      defaultProps: {
+        value: 60,
+        max: 100,
+        type: 'bar',
+        showValue: true,
+        variant: 'default',
+        size: 'md',
+      },
+      fields: {
+        value: { type: 'number', label: 'Valor' },
+        max: { type: 'number', label: 'Máximo' },
+        type: {
+          type: 'select',
+          label: 'Tipo',
+          options: [
+            { label: 'Barra', value: 'bar' },
+            { label: 'Círculo', value: 'circle' },
+          ],
+        },
+        showValue: { type: 'radio', label: 'Mostrar %', options: [
+          { label: 'Sim', value: true },
+          { label: 'Não', value: false },
+        ]},
+        variant: {
+          type: 'select',
+          label: 'Cor',
+          options: [
+            { label: 'Padrão', value: 'default' },
+            { label: 'Sucesso', value: 'success' },
+            { label: 'Aviso', value: 'warning' },
+            { label: 'Erro', value: 'error' },
+          ],
+        },
+        size: {
+          type: 'select',
+          label: 'Tamanho',
+          options: [
+            { label: 'Pequeno', value: 'sm' },
+            { label: 'Médio', value: 'md' },
+            { label: 'Grande', value: 'lg' },
+          ],
+        },
+        label: { type: 'text', label: 'Rótulo' },
+      },
+      render: (props) => {
+        if (props.puck?.isEditing) {
+          return <ProgressPreview {...props} />;
+        }
+        return <Progress {...props} />;
+      },
+    },
+
+    BarChart: {
+      label: 'Gráfico de Barras',
+      defaultProps: {
+        data: [
+          { label: 'Jan', value: 65 },
+          { label: 'Fev', value: 59 },
+          { label: 'Mar', value: 80 },
+          { label: 'Abr', value: 81 },
+        ],
+        title: 'Vendas Mensais',
+        height: 300,
+        showLegend: true,
+      },
+      fields: {
+        title: { type: 'text', label: 'Título' },
+        data: {
+          type: 'array',
+          label: 'Dados',
+          arrayFields: {
+            label: { type: 'text', label: 'Rótulo' },
+            value: { type: 'number', label: 'Valor' },
+          },
+        },
+        height: { type: 'number', label: 'Altura (px)' },
+        showLegend: { type: 'radio', label: 'Mostrar Legenda', options: [
+          { label: 'Sim', value: true },
+          { label: 'Não', value: false },
+        ]},
+      },
+      render: (props) => {
+        if (props.puck?.isEditing) {
+          return <BarChartPreview {...props} />;
+        }
+        return <BarChart {...props} />;
+      },
+    },
+
+    LineChart: {
+      label: 'Gráfico de Linha',
+      defaultProps: {
+        data: [
+          { label: 'Jan', value: 30 },
+          { label: 'Fev', value: 45 },
+          { label: 'Mar', value: 35 },
+          { label: 'Abr', value: 60 },
+        ],
+        title: 'Tendência',
+        height: 300,
+        showLegend: true,
+      },
+      fields: {
+        title: { type: 'text', label: 'Título' },
+        data: {
+          type: 'array',
+          label: 'Dados',
+          arrayFields: {
+            label: { type: 'text', label: 'Rótulo' },
+            value: { type: 'number', label: 'Valor' },
+          },
+        },
+        height: { type: 'number', label: 'Altura (px)' },
+        showLegend: { type: 'radio', label: 'Mostrar Legenda', options: [
+          { label: 'Sim', value: true },
+          { label: 'Não', value: false },
+        ]},
+      },
+      render: (props) => {
+        if (props.puck?.isEditing) {
+          return <LineChartPreview {...props} />;
+        }
+        return <LineChart {...props} />;
+      },
+    },
+
+    PieChart: {
+      label: 'Gráfico de Pizza',
+      defaultProps: {
+        data: [
+          { label: 'A', value: 30 },
+          { label: 'B', value: 45 },
+          { label: 'C', value: 25 },
+        ],
+        title: 'Distribuição',
+        height: 300,
+        showLegend: true,
+      },
+      fields: {
+        title: { type: 'text', label: 'Título' },
+        data: {
+          type: 'array',
+          label: 'Dados',
+          arrayFields: {
+            label: { type: 'text', label: 'Rótulo' },
+            value: { type: 'number', label: 'Valor' },
+          },
+        },
+        height: { type: 'number', label: 'Altura (px)' },
+        showLegend: { type: 'radio', label: 'Mostrar Legenda', options: [
+          { label: 'Sim', value: true },
+          { label: 'Não', value: false },
+        ]},
+      },
+      render: (props) => {
+        if (props.puck?.isEditing) {
+          return <PieChartPreview {...props} />;
+        }
+        return <PieChart {...props} />;
+      },
+    },
+
+    RelatedRecords: {
+      label: 'Registros Relacionados',
+      defaultProps: {
+        entitySlug: '',
+        relationField: '',
+        displayFields: ['id'],
+        layout: 'list',
+        title: 'Registros Relacionados',
+      },
+      fields: {
+        title: { type: 'text', label: 'Título' },
+        entitySlug: { type: 'text', label: 'Entidade (slug)' },
+        relationField: { type: 'text', label: 'Campo de Relação' },
+        displayFields: {
+          type: 'array',
+          label: 'Campos a Exibir',
+          arrayFields: {
+            field: { type: 'text', label: 'Campo' },
+          },
+        },
+        layout: {
+          type: 'select',
+          label: 'Layout',
+          options: [
+            { label: 'Lista', value: 'list' },
+            { label: 'Tabela', value: 'table' },
+            { label: 'Cards', value: 'cards' },
+          ],
+        },
+        limit: { type: 'number', label: 'Limite de Itens' },
+      },
+      render: (props) => {
+        if (props.puck?.isEditing) {
+          return <RelatedRecordsPreview {...props} />;
+        }
+        return <RelatedRecords {...props} />;
+      },
+    },
+
+    Accordion: {
+      label: 'Acordeão',
+      defaultProps: {
+        items: [
+          { title: 'Seção 1', content: 'Conteúdo da seção 1' },
+          { title: 'Seção 2', content: 'Conteúdo da seção 2' },
+        ],
+        variant: 'default',
+        allowMultiple: false,
+      },
+      fields: {
+        items: {
+          type: 'array',
+          label: 'Itens',
+          arrayFields: {
+            title: { type: 'text', label: 'Título' },
+            content: { type: 'textarea', label: 'Conteúdo' },
+            icon: { type: 'text', label: 'Ícone' },
+          },
+        },
+        variant: {
+          type: 'select',
+          label: 'Variante',
+          options: [
+            { label: 'Padrão', value: 'default' },
+            { label: 'Com Borda', value: 'bordered' },
+            { label: 'Separado', value: 'separated' },
+          ],
+        },
+        allowMultiple: { type: 'radio', label: 'Múltiplos Abertos', options: [
+          { label: 'Sim', value: true },
+          { label: 'Não', value: false },
+        ]},
+      },
+      render: (props) => {
+        if (props.puck?.isEditing) {
+          return <AccordionPreview {...props} />;
+        }
+        return <Accordion {...props} />;
+      },
+    },
+
+    Badge: {
+      label: 'Badge',
+      defaultProps: {
+        text: 'Badge',
+        variant: 'primary',
+        size: 'md',
+      },
+      fields: {
+        text: { type: 'text', label: 'Texto' },
+        variant: {
+          type: 'select',
+          label: 'Variante',
+          options: [
+            { label: 'Padrão', value: 'default' },
+            { label: 'Primário', value: 'primary' },
+            { label: 'Sucesso', value: 'success' },
+            { label: 'Aviso', value: 'warning' },
+            { label: 'Erro', value: 'error' },
+            { label: 'Outline', value: 'outline' },
+          ],
+        },
+        size: {
+          type: 'select',
+          label: 'Tamanho',
+          options: [
+            { label: 'Pequeno', value: 'sm' },
+            { label: 'Médio', value: 'md' },
+            { label: 'Grande', value: 'lg' },
+          ],
+        },
+      },
+      render: (props) => {
+        if (props.puck?.isEditing) {
+          return <BadgePreview {...props} />;
+        }
+        return <Badge {...props} />;
+      },
+    },
+
+    Avatar: {
+      label: 'Avatar',
+      defaultProps: {
+        fallback: 'U',
+        size: 'md',
+      },
+      fields: {
+        src: { type: 'text', label: 'URL da Imagem' },
+        alt: { type: 'text', label: 'Alt' },
+        fallback: { type: 'text', label: 'Fallback (iniciais)' },
+        size: {
+          type: 'select',
+          label: 'Tamanho',
+          options: [
+            { label: 'Extra Pequeno', value: 'xs' },
+            { label: 'Pequeno', value: 'sm' },
+            { label: 'Médio', value: 'md' },
+            { label: 'Grande', value: 'lg' },
+            { label: 'Extra Grande', value: 'xl' },
+          ],
+        },
+        status: {
+          type: 'select',
+          label: 'Status',
+          options: [
+            { label: 'Nenhum', value: '' },
+            { label: 'Online', value: 'online' },
+            { label: 'Offline', value: 'offline' },
+            { label: 'Ocupado', value: 'busy' },
+            { label: 'Ausente', value: 'away' },
+          ],
+        },
+      },
+      render: (props) => {
+        if (props.puck?.isEditing) {
+          return <AvatarPreview {...props} />;
+        }
+        return <Avatar {...props} />;
+      },
+    },
+
+    CalendarView: {
+      label: 'Calendário',
+      defaultProps: {
+        view: 'month',
+        events: [],
+        entitySlug: '',
+        dateField: 'date',
+      },
+      fields: {
+        view: {
+          type: 'select',
+          label: 'Visualização',
+          options: [
+            { label: 'Mês', value: 'month' },
+            { label: 'Semana', value: 'week' },
+            { label: 'Agenda', value: 'agenda' },
+          ],
+        },
+        entitySlug: { type: 'text', label: 'Entidade (slug)' },
+        dateField: { type: 'text', label: 'Campo de Data' },
+        titleField: { type: 'text', label: 'Campo de Título' },
+      },
+      render: (props) => {
+        if (props.puck?.isEditing) {
+          return <CalendarViewPreview {...props} />;
+        }
+        return <CalendarView {...props} />;
+      },
+    },
+
+    MetricCard: {
+      label: 'Card de Métrica',
+      defaultProps: {
+        title: 'Total de Vendas',
+        value: 'R$ 45.231',
+        change: 12.5,
+        changeLabel: 'vs mês anterior',
+        variant: 'default',
+      },
+      fields: {
+        title: { type: 'text', label: 'Título' },
+        value: { type: 'text', label: 'Valor' },
+        subtitle: { type: 'text', label: 'Subtítulo' },
+        change: { type: 'number', label: 'Variação (%)' },
+        changeLabel: { type: 'text', label: 'Rótulo da Variação' },
+        icon: { type: 'text', label: 'Ícone' },
+        variant: {
+          type: 'select',
+          label: 'Variante',
+          options: [
+            { label: 'Padrão', value: 'default' },
+            { label: 'Primário', value: 'primary' },
+            { label: 'Sucesso', value: 'success' },
+            { label: 'Aviso', value: 'warning' },
+            { label: 'Erro', value: 'error' },
+          ],
+        },
+      },
+      render: (props) => {
+        if (props.puck?.isEditing) {
+          return <MetricCardPreview {...props} />;
+        }
+        return <MetricCard {...props} />;
+      },
+    },
+
+    DetailView: {
+      label: 'Detalhes',
+      defaultProps: {
+        layout: 'horizontal',
+        fields: [
+          { label: 'Nome', value: 'João Silva', type: 'text' },
+          { label: 'Email', value: 'joao@email.com', type: 'email' },
+          { label: 'Telefone', value: '(11) 99999-9999', type: 'phone' },
+        ],
+        columns: 2,
+        showBorders: true,
+      },
+      fields: {
+        title: { type: 'text', label: 'Título' },
+        layout: {
+          type: 'select',
+          label: 'Layout',
+          options: [
+            { label: 'Horizontal', value: 'horizontal' },
+            { label: 'Vertical', value: 'vertical' },
+            { label: 'Card', value: 'card' },
+          ],
+        },
+        fields: {
+          type: 'array',
+          label: 'Campos',
+          arrayFields: {
+            label: { type: 'text', label: 'Rótulo' },
+            value: { type: 'text', label: 'Valor' },
+            type: { 
+              type: 'select', 
+              label: 'Tipo',
+              options: [
+                { label: 'Texto', value: 'text' },
+                { label: 'Email', value: 'email' },
+                { label: 'Telefone', value: 'phone' },
+                { label: 'URL', value: 'url' },
+                { label: 'Data', value: 'date' },
+                { label: 'Usuário', value: 'user' },
+              ],
+            },
+          },
+        },
+        columns: { type: 'number', label: 'Colunas (2-4)' },
+        showBorders: { type: 'radio', label: 'Mostrar Bordas', options: [
+          { label: 'Sim', value: true },
+          { label: 'Não', value: false },
+        ]},
+      },
+      render: (props) => {
+        if (props.puck?.isEditing) {
+          return <DetailViewPreview {...props} />;
+        }
+        return <DetailView {...props} />;
+      },
+    },
+
+    TreeView: {
+      label: 'Árvore',
+      defaultProps: {
+        nodes: [
+          { id: '1', label: 'Pasta 1', icon: 'folder', children: [
+            { id: '1-1', label: 'Arquivo 1', icon: 'file' },
+            { id: '1-2', label: 'Arquivo 2', icon: 'fileText' },
+          ]},
+          { id: '2', label: 'Pasta 2', icon: 'folder' },
+        ],
+        showIcons: true,
+        variant: 'default',
+      },
+      fields: {
+        nodes: {
+          type: 'array',
+          label: 'Nós',
+          arrayFields: {
+            id: { type: 'text', label: 'ID' },
+            label: { type: 'text', label: 'Rótulo' },
+            icon: { type: 'text', label: 'Ícone' },
+            href: { type: 'text', label: 'Link' },
+          },
+        },
+        showIcons: { type: 'radio', label: 'Mostrar Ícones', options: [
+          { label: 'Sim', value: true },
+          { label: 'Não', value: false },
+        ]},
+        variant: {
+          type: 'select',
+          label: 'Variante',
+          options: [
+            { label: 'Padrão', value: 'default' },
+            { label: 'Compacto', value: 'compact' },
+            { label: 'Com Borda', value: 'bordered' },
+          ],
+        },
+      },
+      render: (props) => {
+        if (props.puck?.isEditing) {
+          return <TreeViewPreview />;
+        }
+        return <TreeView {...props} />;
+      },
+    },
+
+    Steps: {
+      label: 'Passos',
+      defaultProps: {
+        steps: [
+          { title: 'Passo 1', description: 'Descrição' },
+          { title: 'Passo 2', description: 'Descrição' },
+          { title: 'Passo 3', description: 'Descrição' },
+        ],
+        currentStep: 1,
+        direction: 'horizontal',
+        size: 'md',
+      },
+      fields: {
+        steps: {
+          type: 'array',
+          label: 'Passos',
+          arrayFields: {
+            title: { type: 'text', label: 'Título' },
+            description: { type: 'text', label: 'Descrição' },
+          },
+        },
+        currentStep: { type: 'number', label: 'Passo Atual (0-based)' },
+        direction: {
+          type: 'select',
+          label: 'Direção',
+          options: [
+            { label: 'Horizontal', value: 'horizontal' },
+            { label: 'Vertical', value: 'vertical' },
+          ],
+        },
+        size: {
+          type: 'select',
+          label: 'Tamanho',
+          options: [
+            { label: 'Pequeno', value: 'sm' },
+            { label: 'Médio', value: 'md' },
+            { label: 'Grande', value: 'lg' },
+          ],
+        },
+        variant: {
+          type: 'select',
+          label: 'Variante',
+          options: [
+            { label: 'Padrão', value: 'default' },
+            { label: 'Simples', value: 'simple' },
+            { label: 'Pontos', value: 'dots' },
+          ],
+        },
+      },
+      render: (props) => {
+        if (props.puck?.isEditing) {
+          return <StepsPreview {...props} />;
+        }
+        return <Steps {...props} />;
+      },
+    },
+
+    LinkList: {
+      label: 'Lista de Links',
+      defaultProps: {
+        links: [
+          { label: 'Link 1', href: '#', description: 'Descrição do link' },
+          { label: 'Link 2', href: '#' },
+        ],
+        variant: 'default',
+        showArrows: true,
+        columns: 1,
+      },
+      fields: {
+        title: { type: 'text', label: 'Título' },
+        links: {
+          type: 'array',
+          label: 'Links',
+          arrayFields: {
+            label: { type: 'text', label: 'Texto' },
+            href: { type: 'text', label: 'URL' },
+            description: { type: 'text', label: 'Descrição' },
+            icon: { type: 'text', label: 'Ícone' },
+          },
+        },
+        variant: {
+          type: 'select',
+          label: 'Variante',
+          options: [
+            { label: 'Padrão', value: 'default' },
+            { label: 'Cards', value: 'card' },
+            { label: 'Mínimo', value: 'minimal' },
+          ],
+        },
+        showArrows: { type: 'radio', label: 'Mostrar Setas', options: [
+          { label: 'Sim', value: true },
+          { label: 'Não', value: false },
+        ]},
+        columns: { type: 'number', label: 'Colunas (1-3)' },
+      },
+      render: (props) => {
+        if (props.puck?.isEditing) {
+          return <LinkListPreview {...props} />;
+        }
+        return <LinkList {...props} />;
+      },
+    },
+
+    MapView: {
+      label: 'Mapa',
+      defaultProps: {
+        center: { lat: -23.5505, lng: -46.6333 },
+        zoom: 12,
+        height: '400px',
+        showControls: true,
+        variant: 'default',
+      },
+      fields: {
+        height: { type: 'text', label: 'Altura' },
+        zoom: { type: 'number', label: 'Zoom (1-20)' },
+        showControls: { type: 'radio', label: 'Mostrar Controles', options: [
+          { label: 'Sim', value: true },
+          { label: 'Não', value: false },
+        ]},
+        variant: {
+          type: 'select',
+          label: 'Estilo',
+          options: [
+            { label: 'Padrão', value: 'default' },
+            { label: 'Satélite', value: 'satellite' },
+            { label: 'Terreno', value: 'terrain' },
+          ],
+        },
+      },
+      render: (props) => {
+        if (props.puck?.isEditing) {
+          return <MapViewPreview />;
+        }
+        return <MapView {...props} />;
+      },
+    },
+
+    Testimonial: {
+      label: 'Depoimentos',
+      defaultProps: {
+        testimonials: [
+          { quote: 'Excelente produto!', author: 'João Silva', role: 'CEO', rating: 5 },
+        ],
+        variant: 'default',
+        columns: 1,
+        showRating: true,
+      },
+      fields: {
+        testimonials: {
+          type: 'array',
+          label: 'Depoimentos',
+          arrayFields: {
+            quote: { type: 'textarea', label: 'Citação' },
+            author: { type: 'text', label: 'Autor' },
+            role: { type: 'text', label: 'Cargo' },
+            company: { type: 'text', label: 'Empresa' },
+            avatar: { type: 'text', label: 'URL do Avatar' },
+            rating: { type: 'number', label: 'Avaliação (1-5)' },
+          },
+        },
+        variant: {
+          type: 'select',
+          label: 'Variante',
+          options: [
+            { label: 'Padrão', value: 'default' },
+            { label: 'Cards', value: 'card' },
+            { label: 'Mínimo', value: 'minimal' },
+            { label: 'Destaque', value: 'featured' },
+          ],
+        },
+        columns: { type: 'number', label: 'Colunas (1-3)' },
+        showRating: { type: 'radio', label: 'Mostrar Avaliação', options: [
+          { label: 'Sim', value: true },
+          { label: 'Não', value: false },
+        ]},
+      },
+      render: (props) => {
+        if (props.puck?.isEditing) {
+          return <TestimonialPreview {...props} />;
+        }
+        return <Testimonial {...props} />;
+      },
+    },
+
+    PricingTable: {
+      label: 'Tabela de Preços',
+      defaultProps: {
+        plans: [
+          {
+            name: 'Basic',
+            price: 29,
+            billingPeriod: 'mês',
+            features: [
+              { name: '5 Usuários', included: true },
+              { name: 'Suporte Email', included: true },
+              { name: 'API Access', included: false },
+            ],
+          },
+          {
+            name: 'Pro',
+            price: 99,
+            billingPeriod: 'mês',
+            highlighted: true,
+            badge: 'Popular',
+            features: [
+              { name: '25 Usuários', included: true },
+              { name: 'Suporte Prioritário', included: true },
+              { name: 'API Access', included: true },
+            ],
+          },
+        ],
+        variant: 'cards',
+        columns: 2,
+      },
+      fields: {
+        plans: {
+          type: 'array',
+          label: 'Planos',
+          arrayFields: {
+            name: { type: 'text', label: 'Nome' },
+            description: { type: 'text', label: 'Descrição' },
+            price: { type: 'number', label: 'Preço' },
+            billingPeriod: { type: 'text', label: 'Período' },
+            badge: { type: 'text', label: 'Badge' },
+            cta: { type: 'text', label: 'Texto do Botão' },
+          },
+        },
+        variant: {
+          type: 'select',
+          label: 'Variante',
+          options: [
+            { label: 'Cards', value: 'cards' },
+            { label: 'Comparação', value: 'comparison' },
+          ],
+        },
+        columns: { type: 'number', label: 'Colunas (2-4)' },
+      },
+      render: (props) => {
+        if (props.puck?.isEditing) {
+          return <PricingTablePreview {...props} />;
+        }
+        return <PricingTable {...props} />;
       },
     },
   },

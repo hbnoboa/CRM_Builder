@@ -11,16 +11,60 @@ import {
   Eye,
   Database,
 } from 'lucide-react';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
-import api from '@/lib/api';
+import api from '@/lib/api'; // Mantém apenas esta linha
 import type { Entity } from '@/types';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import { Loader2 } from 'lucide-react';
+// import { api } from '@/lib/api'; // Removido, já existe acima
 
 export default function EntitiesPage() {
   const [entities, setEntities] = useState<Entity[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [entityToDelete, setEntityToDelete] = useState<Entity | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+    const handleConfirmDelete = async () => {
+      if (!entityToDelete) return;
+      setIsDeleting(true);
+      try {
+        await api.delete(`/entities/${entityToDelete.id}`);
+        setEntities((prev) => prev.filter((e) => e.id !== entityToDelete.id));
+        setDeleteDialogOpen(false);
+        setEntityToDelete(null);
+      } catch (err) {
+        // TODO: feedback de erro
+        setIsDeleting(false);
+      }
+      setIsDeleting(false);
+    };
+  const handleEditEntity = (entity: Entity) => {
+    window.location.href = `/entities/${entity.id}`;
+  };
+
+  const handleDeleteEntity = (entity: Entity) => {
+    setEntityToDelete(entity);
+    setDeleteDialogOpen(true);
+  };
 
   useEffect(() => {
     loadEntities();
@@ -143,9 +187,24 @@ export default function EntitiesPage() {
                     </div>
                   </div>
                   <div className="opacity-0 group-hover:opacity-100 transition-opacity">
-                    <Button variant="ghost" size="icon">
-                      <MoreVertical className="h-4 w-4" />
-                    </Button>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon">
+                          <MoreVertical className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={() => handleEditEntity(entity)}>
+                          <Pencil className="h-4 w-4 mr-2" />
+                          Editar
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem onClick={() => handleDeleteEntity(entity)} className="text-destructive focus:text-destructive">
+                          <Trash className="h-4 w-4 mr-2" />
+                          Excluir
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </div>
                 </div>
 
@@ -197,6 +256,28 @@ export default function EntitiesPage() {
           ))}
         </div>
       )}
-    </div>
+    {/* Dialog de confirmação de exclusão */}
+    <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Excluir entidade?</AlertDialogTitle>
+          <AlertDialogDescription>
+            Tem certeza que deseja excluir esta entidade? Esta ação não pode ser desfeita.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel disabled={isDeleting}>Cancelar</AlertDialogCancel>
+          <AlertDialogAction
+            onClick={handleConfirmDelete}
+            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            disabled={isDeleting}
+          >
+            {isDeleting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            Excluir
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  </div>
   );
 }
