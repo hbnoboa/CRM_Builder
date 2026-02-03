@@ -63,18 +63,18 @@ export default function OrganizationPage() {
         </p>
       </div>
 
-      <div className="grid gap-6 md:grid-cols-3">
+      <div className="flex flex-col lg:flex-row gap-6">
         {/* Sidebar / Quick Stats */}
-        <div className="space-y-4">
+        <div className="w-full lg:w-80 lg:shrink-0 space-y-4">
           <Card>
             <CardContent className="p-6">
               <div className="flex items-center gap-4">
                 <div className="p-3 rounded-lg bg-primary/10">
                   <Building2 className="h-6 w-6 text-primary" />
                 </div>
-                <div>
-                  <h3 className="font-semibold">{user?.organization?.name}</h3>
-                  <p className="text-sm text-muted-foreground">/{user?.organization?.slug}</p>
+                <div className="min-w-0 flex-1">
+                  <h3 className="font-semibold truncate">{user?.organization?.name}</h3>
+                  <p className="text-sm text-muted-foreground truncate">/{user?.organization?.slug}</p>
                 </div>
               </div>
             </CardContent>
@@ -82,16 +82,16 @@ export default function OrganizationPage() {
 
           <Card>
             <CardContent className="p-4 space-y-3">
-              <div className="flex justify-between items-center">
-                <span className="text-sm text-muted-foreground">Tenant</span>
-                <span className="font-medium">{user?.tenant?.name}</span>
+              <div className="flex justify-between items-center gap-2">
+                <span className="text-sm text-muted-foreground shrink-0">Tenant</span>
+                <span className="font-medium truncate">{user?.tenant?.name}</span>
               </div>
-              <div className="flex justify-between items-center">
-                <span className="text-sm text-muted-foreground">Plan</span>
+              <div className="flex justify-between items-center gap-2">
+                <span className="text-sm text-muted-foreground shrink-0">Plan</span>
                 <span className="font-medium text-primary">Pro</span>
               </div>
-              <div className="flex justify-between items-center">
-                <span className="text-sm text-muted-foreground">Status</span>
+              <div className="flex justify-between items-center gap-2">
+                <span className="text-sm text-muted-foreground shrink-0">Status</span>
                 <span className="text-green-600 font-medium">Active</span>
               </div>
             </CardContent>
@@ -123,7 +123,7 @@ export default function OrganizationPage() {
         </div>
 
         {/* Main Content */}
-        <div className="md:col-span-2 space-y-6">
+        <div className="flex-1 min-w-0 space-y-6">
           {/* General Settings */}
           <Card>
             <CardHeader>
