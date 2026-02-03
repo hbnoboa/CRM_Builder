@@ -7,7 +7,6 @@ interface Workspace {
   id: string;
   name: string;
   slug: string;
-  icon?: string;
 }
 
 interface Tenant {
@@ -21,24 +20,22 @@ interface Tenant {
 interface TenantContextType {
   tenant: Tenant | null;
   workspace: Workspace | null;
-  workspaces: Workspace[];
-  setWorkspace: (workspace: Workspace) => void;
   loading: boolean;
-  refreshWorkspaces: () => Promise<void>;
+  refresh: () => Promise<void>;
 }
 
 const TenantContext = createContext<TenantContextType | undefined>(undefined);
 
 export function TenantProvider({ children }: { children: ReactNode }) {
-  const { user, token } = useAuthStore();
+  const { user } = useAuthStore();
   const [tenant, setTenant] = useState<Tenant | null>(null);
-  const [workspace, setWorkspaceState] = useState<Workspace | null>(null);
-  const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
+  const [workspace, setWorkspace] = useState<Workspace | null>(null);
   const [loading, setLoading] = useState(true);
 
   const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 
-  const fetchTenantDate = async () => {
+  const fetchTenantData = async () => {
+    const token = localStorage.getItem('accessToken');
     if (!token || !user) {
       setLoading(false);
       return;
@@ -51,32 +48,25 @@ export function TenantProvider({ children }: { children: ReactNode }) {
           headers: { Authorization: `Bearer ${token}` },
         });
         if (tenantRes.ok) {
-          const tenantDate = await tenantRes.json();
-          setTenant(tenantDate);
+          const tenantData = await tenantRes.json();
+          setTenant(tenantData);
         }
       }
 
-      // Fetch workspaces
+      // Fetch organization (one per tenant)
       const orgRes = await fetch(`${API_URL}/api/v1/organizations`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (orgRes.ok) {
-        const orgsDate = await orgRes.json();
-        const mappedWorkspaces = orgsDate.map((org: any) => ({
-          id: org.id,
-          name: org.name,
-          slug: org.slug,
-          icon: org.icon,
-        }));
-        setWorkspaces(mappedWorkspaces);
-
-        // Set default workspace
-        if (mappedWorkspaces.length > 0) {
-          const savedWorkspaceId = localStorage.getItem('currentWorkspaceId');
-          const savedWorkspace = mappedWorkspaces.find(
-            (w: Workspace) => w.id === savedWorkspaceId
-          );
-          setWorkspaceState(savedWorkspace || mappedWorkspaces[0]);
+        const orgsData = await orgRes.json();
+        // Use the first organization as the workspace
+        if (orgsData.length > 0) {
+          const org = orgsData[0];
+          setWorkspace({
+            id: org.id,
+            name: org.name,
+            slug: org.slug,
+          });
         }
       }
     } catch (error) {
@@ -87,16 +77,11 @@ export function TenantProvider({ children }: { children: ReactNode }) {
   };
 
   useEffect(() => {
-    fetchTenantDate();
-  }, [token, user]);
+    fetchTenantData();
+  }, [user]);
 
-  const setWorkspace = (ws: Workspace) => {
-    setWorkspaceState(ws);
-    localStorage.setItem('currentWorkspaceId', ws.id);
-  };
-
-  const refreshWorkspaces = async () => {
-    await fetchTenantDate();
+  const refresh = async () => {
+    await fetchTenantData();
   };
 
   return (
@@ -104,10 +89,8 @@ export function TenantProvider({ children }: { children: ReactNode }) {
       value={{
         tenant,
         workspace,
-        workspaces,
-        setWorkspace,
         loading,
-        refreshWorkspaces,
+        refresh,
       }}
     >
       {children}
