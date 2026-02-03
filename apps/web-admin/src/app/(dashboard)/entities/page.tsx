@@ -21,7 +21,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
-import api from '@/lib/api'; // Mantém apenas esta linha
+import api from '@/lib/api';
 import type { Entity } from '@/types';
 import {
   AlertDialog,
@@ -34,9 +34,9 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { Loader2 } from 'lucide-react';
-// import { api } from '@/lib/api'; // Removido, já existe acima
+import { RequireRole } from '@/components/auth/require-role';
 
-export default function EntitiesPage() {
+function EntitiesPageContent() {
   const [entities, setEntities] = useState<Entity[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -279,5 +279,13 @@ export default function EntitiesPage() {
       </AlertDialogContent>
     </AlertDialog>
   </div>
+  );
+}
+
+export default function EntitiesPage() {
+  return (
+    <RequireRole adminOnly message="Apenas administradores podem gerenciar entidades.">
+      <EntitiesPageContent />
+    </RequireRole>
   );
 }

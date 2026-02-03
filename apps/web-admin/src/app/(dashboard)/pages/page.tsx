@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { RequireRole } from '@/components/auth/require-role';
 import {
   Plus,
   Search,
@@ -49,7 +50,7 @@ interface Page {
   updatedAt: string;
 }
 
-export default function PagesPage() {
+function PagesPageContent() {
   const router = useRouter();
   const [pages, setPages] = useState<Page[]>([]);
   const [loading, setLoading] = useState(true);
@@ -331,5 +332,13 @@ export default function PagesPage() {
         </AlertDialogContent>
       </AlertDialog>
     </div>
+  );
+}
+
+export default function PagesPage() {
+  return (
+    <RequireRole adminOnly message="Apenas administradores podem gerenciar paginas.">
+      <PagesPageContent />
+    </RequireRole>
   );
 }

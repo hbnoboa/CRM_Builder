@@ -8,6 +8,7 @@ import {
   Key,
   Webhook,
 } from 'lucide-react';
+import { RequireRole } from '@/components/auth/require-role';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -24,7 +25,7 @@ const tabs = [
   { id: 'integrations', label: 'Integracoes', icon: Webhook },
 ];
 
-export default function SettingsPage() {
+function SettingsPageContent() {
   const { user } = useAuthStore();
   const updateProfile = useUpdateProfile();
   const changePassword = useChangePassword();
@@ -371,5 +372,13 @@ export default function SettingsPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function SettingsPage() {
+  return (
+    <RequireRole adminOnly message="Apenas administradores podem acessar configuracoes.">
+      <SettingsPageContent />
+    </RequireRole>
   );
 }

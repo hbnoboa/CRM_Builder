@@ -11,6 +11,7 @@ import {
   Users,
   Key,
 } from 'lucide-react';
+import { RequireRole } from '@/components/auth/require-role';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
@@ -32,7 +33,7 @@ interface RoleWithCount extends Role {
   };
 }
 
-export default function RolesPage() {
+function RolesPageContent() {
   const [search, setSearch] = useState('');
   const [formOpen, setFormOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -253,5 +254,13 @@ export default function RolesPage() {
         onSuccess={handleSuccess}
       />
     </div>
+  );
+}
+
+export default function RolesPage() {
+  return (
+    <RequireRole adminOnly message="Apenas administradores podem gerenciar roles.">
+      <RolesPageContent />
+    </RequireRole>
   );
 }

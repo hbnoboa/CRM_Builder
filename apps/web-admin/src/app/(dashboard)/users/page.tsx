@@ -13,6 +13,7 @@ import {
   UserCheck,
   UserX,
 } from 'lucide-react';
+import { RequireRole } from '@/components/auth/require-role';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
@@ -43,7 +44,7 @@ const roleLabels: Record<string, string> = {
   VIEWER: 'Visualizador',
 };
 
-export default function UsersPage() {
+function UsersPageContent() {
   const [search, setSearch] = useState('');
   const [formOpen, setFormOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -286,5 +287,13 @@ export default function UsersPage() {
         onSuccess={handleSuccess}
       />
     </div>
+  );
+}
+
+export default function UsersPage() {
+  return (
+    <RequireRole roles={['PLATFORM_ADMIN', 'ADMIN', 'MANAGER']} message="Apenas administradores e gerentes podem gerenciar usuarios.">
+      <UsersPageContent />
+    </RequireRole>
   );
 }

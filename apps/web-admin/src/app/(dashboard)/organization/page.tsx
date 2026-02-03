@@ -9,6 +9,7 @@ import {
   Globe,
   Palette,
 } from 'lucide-react';
+import { RequireRole } from '@/components/auth/require-role';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -17,7 +18,7 @@ import { useAuthStore } from '@/stores/auth-store';
 import { useUpdateOrganization } from '@/hooks/use-organizations';
 import Link from 'next/link';
 
-export default function OrganizationPage() {
+function OrganizationPageContent() {
   const { user, getProfile } = useAuthStore();
   const updateOrganization = useUpdateOrganization();
 
@@ -241,5 +242,13 @@ export default function OrganizationPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function OrganizationPage() {
+  return (
+    <RequireRole roles={['PLATFORM_ADMIN', 'ADMIN', 'MANAGER']} message="Apenas administradores e gerentes podem acessar a organizacao.">
+      <OrganizationPageContent />
+    </RequireRole>
   );
 }

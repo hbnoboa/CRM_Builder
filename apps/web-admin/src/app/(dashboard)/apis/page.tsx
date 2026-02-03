@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import { RequireRole } from '@/components/auth/require-role';
 import {
   Plus,
   Search,
@@ -39,7 +40,7 @@ const methodColors: Record<string, string> = {
   DELETE: 'bg-red-100 text-red-800',
 };
 
-export default function ApisPage() {
+function ApisPageContent() {
   const [search, setSearch] = useState('');
   const [formOpen, setFormOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -315,5 +316,13 @@ export default function ApisPage() {
         onSuccess={handleSuccess}
       />
     </div>
+  );
+}
+
+export default function ApisPage() {
+  return (
+    <RequireRole adminOnly message="Apenas administradores podem gerenciar APIs.">
+      <ApisPageContent />
+    </RequireRole>
   );
 }

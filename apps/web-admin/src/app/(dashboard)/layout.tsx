@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useMemo } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import {
@@ -16,6 +16,8 @@ import {
   Layers,
   Code,
   Search,
+  Shield,
+  Briefcase,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -25,56 +27,134 @@ import { NotificationProvider } from '@/providers/notification-provider';
 import { NotificationBell } from '@/components/notifications/notification-bell';
 import { WorkspaceSwitcher } from '@/components/workspace-switcher';
 import { cn } from '@/lib/utils';
+import type { UserRole } from '@/types';
 
 interface NavItem {
   title: string;
   href: string;
   icon: React.ReactNode;
   badge?: string;
+  // Roles que podem ver este item (vazio = todos)
+  roles?: UserRole[];
+  // Se true, so mostra para admins (PLATFORM_ADMIN, ADMIN)
+  adminOnly?: boolean;
 }
 
+// Definicao de navegacao com restricoes de role
 const navigation: NavItem[] = [
   {
     title: 'Dashboard',
     href: '/dashboard',
     icon: <LayoutDashboard className="h-5 w-5" />,
+    // Todos podem ver o dashboard
   },
   {
-    title: 'Entities',
+    title: 'Entidades',
     href: '/entities',
     icon: <Database className="h-5 w-5" />,
+    // Apenas admins podem configurar entidades
+    adminOnly: true,
   },
   {
-    title: 'Date',
+    title: 'Dados',
     href: '/data',
     icon: <Layers className="h-5 w-5" />,
+    // Todos podem ver dados (com restricoes de escopo no backend)
   },
   {
-    title: 'Pages',
+    title: 'Paginas',
     href: '/pages',
     icon: <FileText className="h-5 w-5" />,
+    // Apenas admins podem criar paginas
+    adminOnly: true,
   },
   {
     title: 'APIs',
     href: '/apis',
     icon: <Code className="h-5 w-5" />,
+    // Apenas admins podem criar APIs
+    adminOnly: true,
   },
   {
-    title: 'Users',
+    title: 'Usuarios',
     href: '/users',
     icon: <Users className="h-5 w-5" />,
+    // Admins e Managers podem ver usuarios
+    roles: ['PLATFORM_ADMIN', 'ADMIN', 'MANAGER'],
   },
   {
-    title: 'Organization',
+    title: 'Roles',
+    href: '/roles',
+    icon: <Shield className="h-5 w-5" />,
+    // Apenas admins podem gerenciar roles
+    adminOnly: true,
+  },
+  {
+    title: 'Organizacao',
     href: '/organization',
     icon: <Building2 className="h-5 w-5" />,
+    // Admins e Managers podem ver organizacao
+    roles: ['PLATFORM_ADMIN', 'ADMIN', 'MANAGER'],
   },
   {
-    title: 'Settings',
+    title: 'Configuracoes',
     href: '/settings',
     icon: <Settings className="h-5 w-5" />,
+    // Apenas admins podem alterar configuracoes
+    adminOnly: true,
   },
 ];
+
+// Funcao para filtrar navegacao por role
+function getNavigationForRole(role: UserRole | undefined): NavItem[] {
+  if (!role) return [];
+
+  const isAdmin = role === 'PLATFORM_ADMIN' || role === 'ADMIN';
+
+  return navigation.filter((item) => {
+    // Se adminOnly e nao e admin, esconde
+    if (item.adminOnly && !isAdmin) {
+      return false;
+    }
+
+    // Se tem roles especificas, verifica se o usuario esta nelas
+    if (item.roles && item.roles.length > 0) {
+      return item.roles.includes(role);
+    }
+
+    // Sem restricoes, mostra para todos
+    return true;
+  });
+}
+
+// Labels e cores para roles
+const roleConfig: Record<UserRole, { label: string; color: string; bgColor: string }> = {
+  PLATFORM_ADMIN: {
+    label: 'Super Admin',
+    color: 'text-purple-700',
+    bgColor: 'bg-purple-100',
+  },
+  ADMIN: {
+    label: 'Administrador',
+    color: 'text-red-700',
+    bgColor: 'bg-red-100',
+  },
+  MANAGER: {
+    label: 'Gerente',
+    color: 'text-blue-700',
+    bgColor: 'bg-blue-100',
+  },
+  USER: {
+    label: 'Usuario',
+    color: 'text-green-700',
+    bgColor: 'bg-green-100',
+  },
+  VIEWER: {
+    label: 'Visualizador',
+    color: 'text-gray-700',
+    bgColor: 'bg-gray-100',
+  },
+};
 
 function DashboardContent({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -83,6 +163,12 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
   const fetchedRef = useRef(false);
+
+  // Filtra navegacao baseado na role do usuario
+  const filteredNavigation = useMemo(
+    () => getNavigationForRole(user?.role),
+    [user?.role]
+  );
 
   useEffect(() => {
     setMounted(true);
@@ -174,7 +260,7 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
 
           {/* Navigation */}
           <nav className="flex-1 overflow-y-auto p-3 space-y-1">
-            {navigation.map((item) => {
+            {filteredNavigation.map((item) => {
               const isActive = pathname === item.href || pathname.startsWith(item.href + '/');
               return (
                 <Link
@@ -210,9 +296,17 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium truncate">{user?.name || 'User'}</p>
-                <p className="text-xs text-muted-foreground truncate capitalize">
-                  {(user?.role || 'user').toLowerCase().replace('_', ' ')}
-                </p>
+                {user?.role && (
+                  <span
+                    className={cn(
+                      'inline-block text-xs px-1.5 py-0.5 rounded font-medium mt-0.5',
+                      roleConfig[user.role]?.bgColor || 'bg-gray-100',
+                      roleConfig[user.role]?.color || 'text-gray-700'
+                    )}
+                  >
+                    {roleConfig[user.role]?.label || user.role}
+                  </span>
+                )}
               </div>
               <Button
                 variant="ghost"
