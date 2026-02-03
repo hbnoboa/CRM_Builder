@@ -6,32 +6,22 @@ import dynamic from 'next/dynamic';
 import {
   ArrowLeft,
   Save,
-  Settings,
-  LayoutGrid,
   Plus,
   Trash2,
-  ChevronDown,
   ChevronUp,
-  GripVertical,
+  ChevronDown,
+  Columns,
 } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
+import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
+import { Slider } from '@/components/ui/slider';
 import { puckConfig, initialData } from '@/lib/puck-config';
 import api from '@/lib/api';
 import type { Data } from '@measured/puck';
 
-// Dynamic import for Puck
 const Puck = dynamic(
   () => import('@measured/puck').then((mod) => mod.Puck),
   { ssr: false, loading: () => <div className="flex items-center justify-center h-96">Carregando editor...</div> }
@@ -40,214 +30,173 @@ const Puck = dynamic(
 import '@measured/puck/puck.css';
 
 // ============================================================================
-// STRUCTURE TYPES
+// TYPES
 // ============================================================================
 
-type StructureType = 'row' | 'spacer' | 'divider';
-
-interface StructureItem {
+interface RowItem {
   id: string;
-  type: StructureType;
-  // Row specific
-  layout?: string;
-  columns?: number[];
-  // Spacer specific
-  size?: string;
-  // Divider specific
-  margin?: string;
-}
-
-
-// ============================================================================
-// LAYOUT PRESETS
-// ============================================================================
-
-const ROW_LAYOUTS = [
-  { id: '1', label: '1 Coluna', visual: ['100%'], columns: [12] },
-  { id: '2-equal', label: '2 Colunas Iguais', visual: ['50%', '50%'], columns: [6, 6] },
-  { id: '2-left', label: '2 Colunas (Grande + Pequena)', visual: ['66%', '33%'], columns: [8, 4] },
-  { id: '2-right', label: '2 Colunas (Pequena + Grande)', visual: ['33%', '66%'], columns: [4, 8] },
-  { id: '3-equal', label: '3 Colunas Iguais', visual: ['33%', '33%', '33%'], columns: [4, 4, 4] },
-  { id: '3-center', label: '3 Colunas (Centro Maior)', visual: ['25%', '50%', '25%'], columns: [3, 6, 3] },
-  { id: '4-equal', label: '4 Colunas Iguais', visual: ['25%', '25%', '25%', '25%'], columns: [3, 3, 3, 3] },
-];
-
-const SPACER_SIZES = [
-  { id: 'xs', label: 'Extra Pequeno', height: 8 },
-  { id: 'sm', label: 'Pequeno', height: 16 },
-  { id: 'md', label: 'Medio', height: 32 },
-  { id: 'lg', label: 'Grande', height: 64 },
-  { id: 'xl', label: 'Extra Grande', height: 96 },
-];
-
-// ============================================================================
-// STRUCTURE PREVIEWS
-// ============================================================================
-
-function RowPreviewCard({ layout, selected, onClick }: { layout: typeof ROW_LAYOUTS[0]; selected: boolean; onClick: () => void }) {
-  return (
-    <button
-      onClick={onClick}
-      className={`w-full p-3 rounded-lg border-2 transition-all text-left ${
-        selected
-          ? 'border-primary bg-primary/5'
-          : 'border-border hover:border-primary/50 hover:bg-muted/50'
-      }`}
-    >
-      <div className="text-xs font-medium mb-2">{layout.label}</div>
-      <div className="flex gap-1 h-8">
-        {layout.visual.map((width, i) => (
-          <div
-            key={i}
-            className={`rounded flex items-center justify-center text-[10px] font-mono ${
-              selected ? 'bg-primary/20 text-primary' : 'bg-muted text-muted-foreground'
-            }`}
-            style={{ width }}
-          >
-            {width}
-          </div>
-        ))}
-      </div>
-    </button>
-  );
-}
-
-function SpacerPreviewCard({ size, selected, onClick }: { size: typeof SPACER_SIZES[0]; selected: boolean; onClick: () => void }) {
-  return (
-    <button
-      onClick={onClick}
-      className={`flex-1 p-2 rounded-lg border-2 transition-all ${
-        selected
-          ? 'border-primary bg-primary/5'
-          : 'border-border hover:border-primary/50'
-      }`}
-    >
-      <div className="flex items-center justify-center mb-1">
-        <div
-          className={`w-full rounded ${selected ? 'bg-primary/30' : 'bg-muted'}`}
-          style={{ height: Math.min(size.height / 2, 24) }}
-        />
-      </div>
-      <div className="text-[10px] text-center">{size.label}</div>
-    </button>
-  );
+  columns: number[]; // Array of column sizes (must sum to 12)
 }
 
 // ============================================================================
-// STRUCTURE ITEM COMPONENT
+// ROW COMPONENT
 // ============================================================================
 
-function StructureItemCard({
-  item,
+function RowCard({
+  row,
   index,
   total,
   onUpdate,
   onDelete,
   onMove,
 }: {
-  item: StructureItem;
+  row: RowItem;
   index: number;
   total: number;
-  onUpdate: (updates: Partial<StructureItem>) => void;
+  onUpdate: (columns: number[]) => void;
   onDelete: () => void;
   onMove: (direction: 'up' | 'down') => void;
 }) {
-  const [expanded, setExpanded] = useState(true);
+  const presets = [
+    { label: '1', cols: [12] },
+    { label: '2', cols: [6, 6] },
+    { label: '3', cols: [4, 4, 4] },
+    { label: '4', cols: [3, 3, 3, 3] },
+  ];
 
-  const typeLabels: Record<StructureType, string> = {
-    row: 'Linha de Colunas',
-    spacer: 'Espacamento',
-    divider: 'Divisor',
+  const addColumn = () => {
+    if (row.columns.length >= 4) return;
+    const newCols = [...row.columns, 3];
+    // Redistribute to sum to 12
+    const total = newCols.reduce((a, b) => a + b, 0);
+    if (total > 12) {
+      const excess = total - 12;
+      newCols[0] = Math.max(1, newCols[0] - excess);
+    }
+    onUpdate(newCols);
   };
 
-  const typeColors: Record<StructureType, string> = {
-    row: 'bg-blue-500',
-    spacer: 'bg-orange-500',
-    divider: 'bg-gray-500',
+  const removeColumn = (colIndex: number) => {
+    if (row.columns.length <= 1) return;
+    const newCols = row.columns.filter((_, i) => i !== colIndex);
+    // Redistribute removed space to first column
+    const removed = row.columns[colIndex];
+    newCols[0] = Math.min(12, newCols[0] + removed);
+    onUpdate(newCols);
   };
+
+  const updateColumnSize = (colIndex: number, newSize: number) => {
+    const newCols = [...row.columns];
+    const oldSize = newCols[colIndex];
+    const diff = newSize - oldSize;
+
+    // Find a column to take/give space
+    const otherIndex = colIndex === 0 ? 1 : 0;
+    if (newCols[otherIndex] !== undefined) {
+      const otherNewSize = newCols[otherIndex] - diff;
+      if (otherNewSize >= 1 && otherNewSize <= 11) {
+        newCols[colIndex] = newSize;
+        newCols[otherIndex] = otherNewSize;
+        onUpdate(newCols);
+      }
+    }
+  };
+
+  const getColumnPercent = (size: number) => Math.round((size / 12) * 100);
 
   return (
-    <div className="border rounded-lg bg-card overflow-hidden">
+    <div className="border rounded-xl bg-card overflow-hidden shadow-sm">
       {/* Header */}
-      <div className="flex items-center gap-2 px-3 py-2 bg-muted/50 border-b">
-        <GripVertical className="h-4 w-4 text-muted-foreground cursor-grab" />
-        <div className={`w-2 h-2 rounded-full ${typeColors[item.type]}`} />
+      <div className="flex items-center gap-2 px-4 py-3 bg-muted/30 border-b">
+        <Columns className="h-4 w-4 text-blue-600" />
         <span className="text-sm font-medium flex-1">
-          {index + 1}. {typeLabels[item.type]}
+          Linha {index + 1} - {row.columns.length} {row.columns.length === 1 ? 'coluna' : 'colunas'}
         </span>
-
-        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => onMove('up')} disabled={index === 0}>
-          <ChevronUp className="h-4 w-4" />
-        </Button>
-        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => onMove('down')} disabled={index === total - 1}>
-          <ChevronDown className="h-4 w-4" />
-        </Button>
-        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setExpanded(!expanded)}>
-          {expanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-        </Button>
-        <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" onClick={onDelete}>
-          <Trash2 className="h-4 w-4" />
-        </Button>
+        <div className="flex items-center gap-1">
+          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => onMove('up')} disabled={index === 0}>
+            <ChevronUp className="h-4 w-4" />
+          </Button>
+          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => onMove('down')} disabled={index === total - 1}>
+            <ChevronDown className="h-4 w-4" />
+          </Button>
+          <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive" onClick={onDelete}>
+            <Trash2 className="h-4 w-4" />
+          </Button>
+        </div>
       </div>
 
-      {/* Content */}
-      {expanded && (
-        <div className="p-4">
-          {item.type === 'row' && (
-            <div className="space-y-3">
-              <Label className="text-xs text-muted-foreground">Escolha o layout das colunas:</Label>
-              <div className="grid grid-cols-2 gap-2">
-                {ROW_LAYOUTS.map((layout) => (
-                  <RowPreviewCard
-                    key={layout.id}
-                    layout={layout}
-                    selected={item.layout === layout.id}
-                    onClick={() => onUpdate({ layout: layout.id, columns: layout.columns })}
-                  />
-                ))}
-              </div>
-            </div>
-          )}
-
-          {item.type === 'spacer' && (
-            <div className="space-y-3">
-              <Label className="text-xs text-muted-foreground">Tamanho do espacamento:</Label>
-              <div className="flex gap-2">
-                {SPACER_SIZES.map((size) => (
-                  <SpacerPreviewCard
-                    key={size.id}
-                    size={size}
-                    selected={item.size === size.id}
-                    onClick={() => onUpdate({ size: size.id })}
-                  />
-                ))}
-              </div>
-            </div>
-          )}
-
-          {item.type === 'divider' && (
-            <div className="space-y-3">
-              <Label className="text-xs text-muted-foreground">Preview do divisor:</Label>
-              <div className="py-4 px-8">
-                <hr className="border-t-2 border-border" />
-              </div>
-              <div>
-                <Label className="text-xs">Margem</Label>
-                <Select value={item.margin || 'md'} onValueChange={(v) => onUpdate({ margin: v })}>
-                  <SelectTrigger className="h-9 mt-1">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="sm">Pequena</SelectItem>
-                    <SelectItem value="md">Media</SelectItem>
-                    <SelectItem value="lg">Grande</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
+      <div className="p-4 space-y-4">
+        {/* Quick Presets */}
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-muted-foreground">Colunas:</span>
+          {presets.map((preset) => (
+            <button
+              key={preset.label}
+              onClick={() => onUpdate(preset.cols)}
+              className={`w-8 h-8 rounded-lg text-sm font-medium transition-all ${
+                row.columns.length === preset.cols.length &&
+                row.columns.every((c, i) => c === preset.cols[i])
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-muted hover:bg-muted/80'
+              }`}
+            >
+              {preset.label}
+            </button>
+          ))}
+          {row.columns.length < 4 && (
+            <button
+              onClick={addColumn}
+              className="w-8 h-8 rounded-lg text-sm font-medium bg-muted hover:bg-muted/80 flex items-center justify-center"
+            >
+              <Plus className="h-4 w-4" />
+            </button>
           )}
         </div>
-      )}
+
+        {/* Visual Preview */}
+        <div className="flex gap-1 h-16 rounded-lg overflow-hidden border">
+          {row.columns.map((size, colIndex) => (
+            <div
+              key={colIndex}
+              className="bg-blue-100 border-r last:border-r-0 border-blue-200 flex items-center justify-center relative group"
+              style={{ width: `${getColumnPercent(size)}%` }}
+            >
+              <span className="text-xs font-medium text-blue-700">
+                {getColumnPercent(size)}%
+              </span>
+              {row.columns.length > 1 && (
+                <button
+                  onClick={() => removeColumn(colIndex)}
+                  className="absolute top-1 right-1 w-5 h-5 rounded bg-red-500 text-white opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
+                >
+                  <Trash2 className="h-3 w-3" />
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+
+        {/* Size Sliders */}
+        {row.columns.length > 1 && (
+          <div className="space-y-3 pt-2">
+            <span className="text-xs text-muted-foreground">Ajustar tamanhos:</span>
+            {row.columns.map((size, colIndex) => (
+              <div key={colIndex} className="flex items-center gap-3">
+                <span className="text-xs w-16 text-muted-foreground">Col {colIndex + 1}</span>
+                <Slider
+                  value={[size]}
+                  min={1}
+                  max={11}
+                  step={1}
+                  onValueChange={([value]) => updateColumnSize(colIndex, value)}
+                  className="flex-1"
+                />
+                <span className="text-xs w-12 text-right font-mono">{getColumnPercent(size)}%</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -261,12 +210,11 @@ export default function NewPageEditor() {
   const [mode, setMode] = useState<'setup' | 'visual'>('setup');
   const [pageTitle, setPageTitle] = useState('');
   const [pageSlug, setPageSlug] = useState('');
-  const [pageDescription, setPageDescription] = useState('');
   const [pageBackground, setPageBackground] = useState('#FFFFFF');
   const [pageTextColor, setPageTextColor] = useState('#000000');
   const [data, setData] = useState<Data>(initialData);
   const [saving, setSaving] = useState(false);
-  const [structures, setStructures] = useState<StructureItem[]>([]);
+  const [rows, setRows] = useState<RowItem[]>([]);
 
   const handleSave = useCallback(async (puckData: Data) => {
     if (!pageTitle.trim()) {
@@ -279,7 +227,6 @@ export default function NewPageEditor() {
       await api.post('/pages', {
         title: pageTitle,
         slug: pageSlug || generateSlug(pageTitle),
-        description: pageDescription,
         content: puckData,
         settings: {
           backgroundColor: pageBackground,
@@ -294,7 +241,7 @@ export default function NewPageEditor() {
     } finally {
       setSaving(false);
     }
-  }, [pageTitle, pageSlug, pageDescription, pageBackground, pageTextColor, router]);
+  }, [pageTitle, pageSlug, pageBackground, pageTextColor, router]);
 
   const generateSlug = (title: string) => {
     if (!title) return '';
@@ -306,39 +253,24 @@ export default function NewPageEditor() {
       .replace(/(^-|-$)/g, '');
   };
 
-  const addStructure = (type: StructureType) => {
-    const newItem: StructureItem = {
-      id: `${type}-${Date.now()}`,
-      type,
-    };
-
-    // Set defaults based on type
-    if (type === 'row') {
-      newItem.layout = '2-equal';
-      newItem.columns = [6, 6];
-    } else if (type === 'spacer') {
-      newItem.size = 'md';
-    } else if (type === 'divider') {
-      newItem.margin = 'md';
-    }
-
-    setStructures([...structures, newItem]);
+  const addRow = (columns: number[] = [6, 6]) => {
+    setRows([...rows, { id: `row-${Date.now()}`, columns }]);
   };
 
-  const updateStructure = (index: number, updates: Partial<StructureItem>) => {
-    setStructures(structures.map((s, i) => (i === index ? { ...s, ...updates } : s)));
+  const updateRow = (index: number, columns: number[]) => {
+    setRows(rows.map((r, i) => (i === index ? { ...r, columns } : r)));
   };
 
-  const deleteStructure = (index: number) => {
-    setStructures(structures.filter((_, i) => i !== index));
+  const deleteRow = (index: number) => {
+    setRows(rows.filter((_, i) => i !== index));
   };
 
-  const moveStructure = (index: number, direction: 'up' | 'down') => {
-    const newStructures = [...structures];
+  const moveRow = (index: number, direction: 'up' | 'down') => {
+    const newRows = [...rows];
     const targetIndex = direction === 'up' ? index - 1 : index + 1;
-    if (targetIndex < 0 || targetIndex >= structures.length) return;
-    [newStructures[index], newStructures[targetIndex]] = [newStructures[targetIndex], newStructures[index]];
-    setStructures(newStructures);
+    if (targetIndex < 0 || targetIndex >= rows.length) return;
+    [newRows[index], newRows[targetIndex]] = [newRows[targetIndex], newRows[index]];
+    setRows(newRows);
   };
 
   const goToVisualEditor = () => {
@@ -347,37 +279,15 @@ export default function NewPageEditor() {
       return;
     }
 
-    // Convert structures to Puck components
-    const content = structures.map((item) => {
-      if (item.type === 'row') {
-        return {
-          type: 'Row',
-          props: {
-            id: item.id,
-            layout: item.layout || '2-equal',
-            gap: 'md',
-            verticalAlign: 'stretch',
-          },
-        };
-      } else if (item.type === 'spacer') {
-        return {
-          type: 'Spacer',
-          props: {
-            id: item.id,
-            size: item.size || 'md',
-          },
-        };
-      } else if (item.type === 'divider') {
-        return {
-          type: 'Divider',
-          props: {
-            id: item.id,
-            margin: item.margin || 'md',
-          },
-        };
-      }
-      return null;
-    }).filter(Boolean);
+    // Convert rows to Puck components
+    const content = rows.map((row) => ({
+      type: 'Row',
+      props: {
+        id: row.id,
+        columns: row.columns,
+        gap: 'md',
+      },
+    }));
 
     setData({
       content: content as any,
@@ -390,9 +300,9 @@ export default function NewPageEditor() {
   // ========== SETUP MODE ==========
   if (mode === 'setup') {
     return (
-      <div className="min-h-screen bg-muted/30">
+      <div className="min-h-screen bg-gradient-to-b from-muted/30 to-background">
         {/* Header */}
-        <header className="sticky top-0 z-50 h-14 border-b bg-background flex items-center px-4 gap-4">
+        <header className="sticky top-0 z-50 h-14 border-b bg-background/95 backdrop-blur flex items-center px-4 gap-4">
           <Link href="/pages">
             <Button variant="ghost" size="sm">
               <ArrowLeft className="h-4 w-4 mr-2" />
@@ -402,25 +312,23 @@ export default function NewPageEditor() {
           <div className="flex-1">
             <h1 className="text-lg font-semibold">Nova Pagina</h1>
           </div>
-          <Button onClick={goToVisualEditor} disabled={!pageTitle.trim() || structures.length === 0}>
-            <LayoutGrid className="h-4 w-4 mr-2" />
-            Continuar para Campos
+          <Button onClick={goToVisualEditor} disabled={!pageTitle.trim() || rows.length === 0}>
+            Continuar
+            <ArrowLeft className="h-4 w-4 ml-2 rotate-180" />
           </Button>
         </header>
 
-        <div className="max-w-4xl mx-auto p-6 space-y-6">
+        <div className="max-w-3xl mx-auto p-6 space-y-6">
           {/* Page Info */}
           <Card>
             <CardHeader className="pb-4">
-              <CardTitle className="text-lg flex items-center gap-2">
-                <Settings className="h-5 w-5" />
-                Informacoes da Pagina
-              </CardTitle>
+              <CardTitle className="text-base">Configuracoes</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-6">
+            <CardContent className="space-y-4">
+              {/* Title & Slug */}
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2">
-                  <Label htmlFor="title">Titulo *</Label>
+                  <Label htmlFor="title">Nome da pagina</Label>
                   <Input
                     id="title"
                     value={pageTitle}
@@ -433,8 +341,8 @@ export default function NewPageEditor() {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="slug">URL</Label>
-                  <div className="flex items-center gap-1">
-                    <span className="text-muted-foreground">/</span>
+                  <div className="flex items-center">
+                    <span className="text-muted-foreground text-sm mr-1">/</span>
                     <Input
                       id="slug"
                       value={pageSlug}
@@ -445,169 +353,113 @@ export default function NewPageEditor() {
                 </div>
               </div>
 
-              {/* Color Options */}
-              <div className="pt-4 border-t">
-                <h4 className="text-sm font-medium mb-4">Cores da Pagina</h4>
-
-                <div className="flex items-center gap-8">
-                  {/* Background Color */}
-                  <div className="flex items-center gap-3">
-                    <input
-                      type="color"
-                      value={pageBackground}
-                      onChange={(e) => setPageBackground(e.target.value)}
-                      className="w-12 h-12 rounded-lg cursor-pointer border-0 p-0"
-                    />
-                    <div>
-                      <Label className="text-sm">Fundo</Label>
-                      <div className="text-xs text-muted-foreground font-mono">{pageBackground.toUpperCase()}</div>
-                    </div>
+              {/* Colors */}
+              <div className="flex items-center gap-6 pt-2">
+                <div className="flex items-center gap-3">
+                  <input
+                    type="color"
+                    value={pageBackground}
+                    onChange={(e) => setPageBackground(e.target.value)}
+                    className="w-10 h-10 rounded-lg cursor-pointer border-2 border-border"
+                  />
+                  <div>
+                    <Label className="text-xs">Fundo</Label>
+                    <div className="text-[10px] text-muted-foreground font-mono">{pageBackground}</div>
                   </div>
-
-                  {/* Text Color */}
-                  <div className="flex items-center gap-3">
-                    <input
-                      type="color"
-                      value={pageTextColor}
-                      onChange={(e) => setPageTextColor(e.target.value)}
-                      className="w-12 h-12 rounded-lg cursor-pointer border-0 p-0"
-                    />
-                    <div>
-                      <Label className="text-sm">Texto</Label>
-                      <div className="text-xs text-muted-foreground font-mono">{pageTextColor.toUpperCase()}</div>
-                    </div>
+                </div>
+                <div className="flex items-center gap-3">
+                  <input
+                    type="color"
+                    value={pageTextColor}
+                    onChange={(e) => setPageTextColor(e.target.value)}
+                    className="w-10 h-10 rounded-lg cursor-pointer border-2 border-border"
+                  />
+                  <div>
+                    <Label className="text-xs">Texto</Label>
+                    <div className="text-[10px] text-muted-foreground font-mono">{pageTextColor}</div>
                   </div>
-
-                  {/* Preview */}
-                  <div
-                    className="flex-1 p-3 rounded-lg border min-h-[48px] flex items-center"
-                    style={{
-                      backgroundColor: pageBackground,
-                      color: pageTextColor,
-                    }}
-                  >
-                    <span className="text-sm font-medium">Exemplo de texto</span>
-                  </div>
+                </div>
+                <div
+                  className="flex-1 py-2 px-3 rounded-lg border text-sm"
+                  style={{ backgroundColor: pageBackground, color: pageTextColor }}
+                >
+                  Preview do texto
                 </div>
               </div>
             </CardContent>
           </Card>
 
-          {/* Add Structure Buttons */}
-          <Card>
-            <CardHeader className="pb-4">
-              <CardTitle className="text-lg">Adicionar Estrutura</CardTitle>
-              <CardDescription>
-                Clique para adicionar elementos de layout a sua pagina
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-3 gap-3">
-                {/* Row Button */}
-                <button
-                  onClick={() => addStructure('row')}
-                  className="p-4 rounded-lg border-2 border-dashed border-blue-300 bg-blue-50/50 hover:bg-blue-100/50 hover:border-blue-400 transition-all group"
-                >
-                  <div className="flex justify-center mb-3">
-                    <div className="flex gap-1">
-                      <div className="w-8 h-12 rounded bg-blue-200 group-hover:bg-blue-300" />
-                      <div className="w-8 h-12 rounded bg-blue-200 group-hover:bg-blue-300" />
-                    </div>
-                  </div>
-                  <div className="text-sm font-medium text-blue-700">Linha de Colunas</div>
-                  <div className="text-xs text-blue-600/70">1 a 4 colunas lado a lado</div>
-                </button>
+          {/* Rows */}
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-base font-semibold">Layout da Pagina</h2>
+              <Button onClick={() => addRow()} variant="outline" size="sm">
+                <Plus className="h-4 w-4 mr-2" />
+                Adicionar Linha
+              </Button>
+            </div>
 
-                {/* Spacer Button */}
-                <button
-                  onClick={() => addStructure('spacer')}
-                  className="p-4 rounded-lg border-2 border-dashed border-orange-300 bg-orange-50/50 hover:bg-orange-100/50 hover:border-orange-400 transition-all group"
-                >
-                  <div className="flex justify-center mb-3">
-                    <div className="flex flex-col items-center gap-1">
-                      <div className="w-16 h-3 rounded bg-orange-200 group-hover:bg-orange-300" />
-                      <div className="w-16 h-4 rounded bg-orange-100 border border-orange-200" />
-                      <div className="w-16 h-3 rounded bg-orange-200 group-hover:bg-orange-300" />
-                    </div>
-                  </div>
-                  <div className="text-sm font-medium text-orange-700">Espacamento</div>
-                  <div className="text-xs text-orange-600/70">Espaco vertical</div>
-                </button>
-
-                {/* Divider Button */}
-                <button
-                  onClick={() => addStructure('divider')}
-                  className="p-4 rounded-lg border-2 border-dashed border-gray-300 bg-gray-50/50 hover:bg-gray-100/50 hover:border-gray-400 transition-all group"
-                >
-                  <div className="flex justify-center mb-3">
-                    <div className="flex flex-col items-center gap-2 w-16">
-                      <div className="w-full h-3 rounded bg-gray-200 group-hover:bg-gray-300" />
-                      <div className="w-full h-0.5 bg-gray-400" />
-                      <div className="w-full h-3 rounded bg-gray-200 group-hover:bg-gray-300" />
-                    </div>
-                  </div>
-                  <div className="text-sm font-medium text-gray-700">Divisor</div>
-                  <div className="text-xs text-gray-600/70">Linha horizontal</div>
-                </button>
+            {rows.length === 0 ? (
+              <div className="text-center py-16 border-2 border-dashed rounded-xl bg-muted/20">
+                <Columns className="h-12 w-12 mx-auto text-muted-foreground/50 mb-4" />
+                <h3 className="text-lg font-medium mb-2">Comece criando linhas</h3>
+                <p className="text-muted-foreground text-sm max-w-md mx-auto mb-6">
+                  Cada linha pode ter de 1 a 4 colunas. Voce pode ajustar o tamanho de cada coluna.
+                </p>
+                <div className="flex justify-center gap-2">
+                  <Button onClick={() => addRow([12])} variant="outline">
+                    <Plus className="h-4 w-4 mr-2" />
+                    1 Coluna
+                  </Button>
+                  <Button onClick={() => addRow([6, 6])} variant="outline">
+                    <Plus className="h-4 w-4 mr-2" />
+                    2 Colunas
+                  </Button>
+                  <Button onClick={() => addRow([4, 4, 4])} variant="outline">
+                    <Plus className="h-4 w-4 mr-2" />
+                    3 Colunas
+                  </Button>
+                </div>
               </div>
-            </CardContent>
-          </Card>
-
-          {/* Structure List */}
-          {structures.length > 0 && (
-            <Card>
-              <CardHeader className="pb-4">
-                <CardTitle className="text-lg">Estrutura da Pagina</CardTitle>
-                <CardDescription>
-                  {structures.length} elemento{structures.length !== 1 ? 's' : ''} - arraste para reordenar
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                {structures.map((item, index) => (
-                  <StructureItemCard
-                    key={item.id}
-                    item={item}
+            ) : (
+              <div className="space-y-3">
+                {rows.map((row, index) => (
+                  <RowCard
+                    key={row.id}
+                    row={row}
                     index={index}
-                    total={structures.length}
-                    onUpdate={(updates) => updateStructure(index, updates)}
-                    onDelete={() => deleteStructure(index)}
-                    onMove={(direction) => moveStructure(index, direction)}
+                    total={rows.length}
+                    onUpdate={(columns) => updateRow(index, columns)}
+                    onDelete={() => deleteRow(index)}
+                    onMove={(direction) => moveRow(index, direction)}
                   />
                 ))}
-              </CardContent>
-            </Card>
-          )}
 
-          {/* Empty State */}
-          {structures.length === 0 && (
-            <div className="text-center py-12 border-2 border-dashed rounded-lg bg-muted/30">
-              <LayoutGrid className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-              <h3 className="text-lg font-medium mb-2">Nenhuma estrutura adicionada</h3>
-              <p className="text-muted-foreground max-w-md mx-auto mb-4">
-                Adicione linhas de colunas, secoes, espacamentos ou divisores
-                para criar o layout da sua pagina.
-              </p>
-              <Button onClick={() => addStructure('row')}>
-                <Plus className="h-4 w-4 mr-2" />
-                Adicionar primeira linha
+                {/* Add more button */}
+                <button
+                  onClick={() => addRow()}
+                  className="w-full py-4 border-2 border-dashed rounded-xl text-muted-foreground hover:text-foreground hover:border-primary/50 transition-colors flex items-center justify-center gap-2"
+                >
+                  <Plus className="h-4 w-4" />
+                  Adicionar outra linha
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Actions */}
+          {rows.length > 0 && (
+            <div className="flex justify-end pt-4">
+              <Button
+                size="lg"
+                onClick={goToVisualEditor}
+                disabled={!pageTitle.trim()}
+              >
+                Continuar para Adicionar Campos
+                <ArrowLeft className="h-4 w-4 ml-2 rotate-180" />
               </Button>
             </div>
           )}
-
-          {/* Actions */}
-          <div className="flex justify-between items-center pt-4 border-t">
-            <Link href="/pages">
-              <Button variant="outline">Cancelar</Button>
-            </Link>
-            <Button
-              size="lg"
-              onClick={goToVisualEditor}
-              disabled={!pageTitle.trim() || structures.length === 0}
-            >
-              <LayoutGrid className="h-4 w-4 mr-2" />
-              Continuar para Adicionar Campos
-            </Button>
-          </div>
         </div>
       </div>
     );
