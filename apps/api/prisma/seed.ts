@@ -131,6 +131,7 @@ async function main() {
   // 5. Criar Usuários de Demo
   const adminPassword = await bcrypt.hash('admin123', 12);
   const userPassword = await bcrypt.hash('user123', 12);
+  const vendedorPassword = await bcrypt.hash('user12345', 12);
 
   const admin = await prisma.user.upsert({
     where: {
@@ -177,12 +178,14 @@ async function main() {
         email: 'vendedor@demo.com',
       },
     },
-    update: {},
+    update: {
+      password: vendedorPassword,
+    },
     create: {
       tenantId: demoTenant.id,
       organizationId: orgSP.id,
       email: 'vendedor@demo.com',
-      password: userPassword,
+      password: vendedorPassword,
       name: 'Vendedor Demo',
       role: UserRole.USER,
       status: Status.ACTIVE,

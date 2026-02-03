@@ -72,9 +72,14 @@ docker compose -f docker-compose.prod.yml stop api web
 # 6. Remove old containers to ensure fresh start
 docker compose -f docker-compose.prod.yml rm -f api web
 
+
 # 7. Start new containers
 echo -e "${YELLOW}🚢 Starting new containers...${NC}"
 docker compose -f docker-compose.prod.yml up -d api web
+
+# 7.1. Restart nginx to apply config changes
+echo -e "${YELLOW}🔄 Restarting nginx...${NC}"
+docker compose -f docker-compose.prod.yml restart nginx
 
 # 8. Clean up old images
 echo -e "${YELLOW}🧹 Cleaning up old images...${NC}"
