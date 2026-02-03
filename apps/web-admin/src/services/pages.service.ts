@@ -2,7 +2,7 @@ import api from '@/lib/api';
 
 export interface Page {
   id: string;
-  workspaceId: string;
+  organizationId: string;
   title: string;
   slug: string;
   content: Record<string, unknown>;
@@ -27,13 +27,13 @@ export interface UpdatePageData {
 }
 
 export const pagesService = {
-  async getAll(workspaceId: string): Promise<Page[]> {
-    const response = await api.get<Page[]>(`/workspaces/${workspaceId}/pages`);
+  async getAll(organizationId: string): Promise<Page[]> {
+    const response = await api.get<Page[]>(`/organizations/${organizationId}/pages`);
     return response.data;
   },
 
-  async getBySlug(workspaceId: string, slug: string): Promise<Page> {
-    const response = await api.get<Page>(`/workspaces/${workspaceId}/pages/${slug}`);
+  async getBySlug(organizationId: string, slug: string): Promise<Page> {
+    const response = await api.get<Page>(`/organizations/${organizationId}/pages/${slug}`);
     return response.data;
   },
 
@@ -42,8 +42,8 @@ export const pagesService = {
     return response.data;
   },
 
-  async create(workspaceId: string, data: CreatePageData): Promise<Page> {
-    const response = await api.post<Page>(`/workspaces/${workspaceId}/pages`, data);
+  async create(organizationId: string, data: CreatePageData): Promise<Page> {
+    const response = await api.post<Page>(`/organizations/${organizationId}/pages`, data);
     return response.data;
   },
 

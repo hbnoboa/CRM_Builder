@@ -5,34 +5,34 @@ import { dataService, QueryDataParams } from '@/services/data.service';
 export const dataKeys = {
   all: ['entityData'] as const,
   lists: () => [...dataKeys.all, 'list'] as const,
-  list: (workspaceId: string, entitySlug: string, params?: QueryDataParams) =>
-    [...dataKeys.lists(), workspaceId, entitySlug, params] as const,
+  list: (organizationId: string, entitySlug: string, params?: QueryDataParams) =>
+    [...dataKeys.lists(), organizationId, entitySlug, params] as const,
   details: () => [...dataKeys.all, 'detail'] as const,
-  detail: (workspaceId: string, entitySlug: string, id: string) =>
-    [...dataKeys.details(), workspaceId, entitySlug, id] as const,
+  detail: (organizationId: string, entitySlug: string, id: string) =>
+    [...dataKeys.details(), organizationId, entitySlug, id] as const,
 };
 
 export function useEntityData(
-  workspaceId: string,
+  organizationId: string,
   entitySlug: string,
   params?: QueryDataParams
 ) {
   return useQuery({
-    queryKey: dataKeys.list(workspaceId, entitySlug, params),
-    queryFn: () => dataService.getAll(workspaceId, entitySlug, params),
-    enabled: !!workspaceId && !!entitySlug,
+    queryKey: dataKeys.list(organizationId, entitySlug, params),
+    queryFn: () => dataService.getAll(organizationId, entitySlug, params),
+    enabled: !!organizationId && !!entitySlug,
   });
 }
 
 export function useEntityDataItem(
-  workspaceId: string,
+  organizationId: string,
   entitySlug: string,
   id: string
 ) {
   return useQuery({
-    queryKey: dataKeys.detail(workspaceId, entitySlug, id),
-    queryFn: () => dataService.getById(workspaceId, entitySlug, id),
-    enabled: !!workspaceId && !!entitySlug && !!id,
+    queryKey: dataKeys.detail(organizationId, entitySlug, id),
+    queryFn: () => dataService.getById(organizationId, entitySlug, id),
+    enabled: !!organizationId && !!entitySlug && !!id,
   });
 }
 
@@ -41,17 +41,17 @@ export function useCreateEntityData() {
 
   return useMutation({
     mutationFn: ({
-      workspaceId,
+      organizationId,
       entitySlug,
       data,
     }: {
-      workspaceId: string;
+      organizationId: string;
       entitySlug: string;
       data: Record<string, unknown>;
-    }) => dataService.create(workspaceId, entitySlug, data),
-    onSuccess: (_, { workspaceId, entitySlug }) => {
+    }) => dataService.create(organizationId, entitySlug, data),
+    onSuccess: (_, { organizationId, entitySlug }) => {
       queryClient.invalidateQueries({
-        queryKey: dataKeys.list(workspaceId, entitySlug),
+        queryKey: dataKeys.list(organizationId, entitySlug),
       });
       toast.success('Registro criado com sucesso');
     },
@@ -66,22 +66,22 @@ export function useUpdateEntityData() {
 
   return useMutation({
     mutationFn: ({
-      workspaceId,
+      organizationId,
       entitySlug,
       id,
       data,
     }: {
-      workspaceId: string;
+      organizationId: string;
       entitySlug: string;
       id: string;
       data: Record<string, unknown>;
-    }) => dataService.update(workspaceId, entitySlug, id, data),
-    onSuccess: (_, { workspaceId, entitySlug, id }) => {
+    }) => dataService.update(organizationId, entitySlug, id, data),
+    onSuccess: (_, { organizationId, entitySlug, id }) => {
       queryClient.invalidateQueries({
-        queryKey: dataKeys.list(workspaceId, entitySlug),
+        queryKey: dataKeys.list(organizationId, entitySlug),
       });
       queryClient.invalidateQueries({
-        queryKey: dataKeys.detail(workspaceId, entitySlug, id),
+        queryKey: dataKeys.detail(organizationId, entitySlug, id),
       });
       toast.success('Registro atualizado com sucesso');
     },
@@ -96,17 +96,17 @@ export function useDeleteEntityData() {
 
   return useMutation({
     mutationFn: ({
-      workspaceId,
+      organizationId,
       entitySlug,
       id,
     }: {
-      workspaceId: string;
+      organizationId: string;
       entitySlug: string;
       id: string;
-    }) => dataService.delete(workspaceId, entitySlug, id),
-    onSuccess: (_, { workspaceId, entitySlug }) => {
+    }) => dataService.delete(organizationId, entitySlug, id),
+    onSuccess: (_, { organizationId, entitySlug }) => {
       queryClient.invalidateQueries({
-        queryKey: dataKeys.list(workspaceId, entitySlug),
+        queryKey: dataKeys.list(organizationId, entitySlug),
       });
       toast.success('Registro excluido com sucesso');
     },

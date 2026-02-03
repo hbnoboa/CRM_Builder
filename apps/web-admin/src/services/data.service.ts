@@ -19,54 +19,54 @@ export interface EntityDataDetailResponse extends EntityData {
 
 export const dataService = {
   async getAll(
-    workspaceId: string,
+    organizationId: string,
     entitySlug: string,
     params?: QueryDataParams
   ): Promise<EntityDataResponse> {
     const response = await api.get<EntityDataResponse>(
-      `/data/${workspaceId}/${entitySlug}`,
+      `/data/${organizationId}/${entitySlug}`,
       { params }
     );
     return response.data;
   },
 
   async getById(
-    workspaceId: string,
+    organizationId: string,
     entitySlug: string,
     id: string
   ): Promise<EntityDataDetailResponse> {
     const response = await api.get<EntityDataDetailResponse>(
-      `/data/${workspaceId}/${entitySlug}/${id}`
+      `/data/${organizationId}/${entitySlug}/${id}`
     );
     return response.data;
   },
 
   async create(
-    workspaceId: string,
+    organizationId: string,
     entitySlug: string,
     data: Record<string, unknown>
   ): Promise<EntityData> {
     const response = await api.post<EntityData>(
-      `/data/${workspaceId}/${entitySlug}`,
+      `/data/${organizationId}/${entitySlug}`,
       { data }
     );
     return response.data;
   },
 
   async update(
-    workspaceId: string,
+    organizationId: string,
     entitySlug: string,
     id: string,
     data: Record<string, unknown>
   ): Promise<EntityData> {
     const response = await api.patch<EntityData>(
-      `/data/${workspaceId}/${entitySlug}/${id}`,
+      `/data/${organizationId}/${entitySlug}/${id}`,
       { data }
     );
     return response.data;
   },
 
-  async delete(workspaceId: string, entitySlug: string, id: string): Promise<void> {
-    await api.delete(`/data/${workspaceId}/${entitySlug}/${id}`);
+  async delete(organizationId: string, entitySlug: string, id: string): Promise<void> {
+    await api.delete(`/data/${organizationId}/${entitySlug}/${id}`);
   },
 };

@@ -166,7 +166,7 @@ export function CustomApiFormDialog({ open, onOpenChange, customApi, onSuccess }
               <p className="text-sm text-destructive">{form.formState.errors.path.message}</p>
             )}
             <p className="text-xs text-muted-foreground">
-              O path completo sera: /api/x/[workspace]{form.watch('path')}
+              O path completo sera: /api/x/[org]{form.watch('path')}
             </p>
           </div>
 

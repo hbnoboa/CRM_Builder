@@ -5,17 +5,17 @@ import { pagesService, CreatePageData, UpdatePageData } from '@/services/pages.s
 export const pageKeys = {
   all: ['pages'] as const,
   lists: () => [...pageKeys.all, 'list'] as const,
-  list: (workspaceId: string) => [...pageKeys.lists(), workspaceId] as const,
+  list: (organizationId: string) => [...pageKeys.lists(), organizationId] as const,
   details: () => [...pageKeys.all, 'detail'] as const,
   detail: (id: string) => [...pageKeys.details(), id] as const,
-  bySlug: (workspaceId: string, slug: string) => [...pageKeys.all, 'slug', workspaceId, slug] as const,
+  bySlug: (organizationId: string, slug: string) => [...pageKeys.all, 'slug', organizationId, slug] as const,
 };
 
-export function usePages(workspaceId: string) {
+export function usePages(organizationId: string) {
   return useQuery({
-    queryKey: pageKeys.list(workspaceId),
-    queryFn: () => pagesService.getAll(workspaceId),
-    enabled: !!workspaceId,
+    queryKey: pageKeys.list(organizationId),
+    queryFn: () => pagesService.getAll(organizationId),
+    enabled: !!organizationId,
   });
 }
 
@@ -27,11 +27,11 @@ export function usePage(id: string) {
   });
 }
 
-export function usePageBySlug(workspaceId: string, slug: string) {
+export function usePageBySlug(organizationId: string, slug: string) {
   return useQuery({
-    queryKey: pageKeys.bySlug(workspaceId, slug),
-    queryFn: () => pagesService.getBySlug(workspaceId, slug),
-    enabled: !!workspaceId && !!slug,
+    queryKey: pageKeys.bySlug(organizationId, slug),
+    queryFn: () => pagesService.getBySlug(organizationId, slug),
+    enabled: !!organizationId && !!slug,
   });
 }
 
@@ -39,10 +39,10 @@ export function useCreatePage() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ workspaceId, data }: { workspaceId: string; data: CreatePageData }) =>
-      pagesService.create(workspaceId, data),
-    onSuccess: (_, { workspaceId }) => {
-      queryClient.invalidateQueries({ queryKey: pageKeys.list(workspaceId) });
+    mutationFn: ({ organizationId, data }: { organizationId: string; data: CreatePageData }) =>
+      pagesService.create(organizationId, data),
+    onSuccess: (_, { organizationId }) => {
+      queryClient.invalidateQueries({ queryKey: pageKeys.list(organizationId) });
       toast.success('Pagina criada com sucesso');
     },
     onError: (error: Error) => {

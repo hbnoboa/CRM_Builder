@@ -41,7 +41,7 @@ interface RecordFormDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   entity: Entity;
-  workspaceId: string;
+  organizationId: string;
   record?: RecordData | null;
   onSuccess?: () => void;
 }
@@ -50,7 +50,7 @@ export function RecordFormDialog({
   open,
   onOpenChange,
   entity,
-  workspaceId,
+  organizationId,
   record,
   onSuccess,
 }: RecordFormDialogProps) {
@@ -172,8 +172,8 @@ export function RecordFormDialog({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!workspaceId) {
-      setErrors({ _form: 'Nenhum workspace selecionado. Selecione um workspace primeiro.' });
+    if (!organizationId) {
+      setErrors({ _form: 'Nenhuma organizacao selecionada.' });
       return;
     }
 
@@ -197,14 +197,14 @@ export function RecordFormDialog({
     try {
       if (isEditing && record) {
         await updateRecord.mutateAsync({
-          workspaceId,
+          organizationId,
           entitySlug: entity.slug,
           id: record.id,
           data: processedData,
         });
       } else {
         await createRecord.mutateAsync({
-          workspaceId,
+          organizationId,
           entitySlug: entity.slug,
           data: processedData,
         });

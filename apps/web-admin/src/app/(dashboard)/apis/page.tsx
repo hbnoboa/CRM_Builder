@@ -84,7 +84,7 @@ function ApisPageContent() {
   };
 
   const handleCopyPath = (path: string) => {
-    navigator.clipboard.writeText(`/api/x/[workspace]${path}`);
+    navigator.clipboard.writeText(`/api/x/[org]${path}`);
     toast.success('Path copiado para a area de transferencia');
   };
 
@@ -225,7 +225,7 @@ function ApisPageContent() {
                       </div>
                       <div className="flex items-center gap-2 mt-1">
                         <code className="text-sm text-muted-foreground bg-muted px-2 py-0.5 rounded">
-                          /api/x/[workspace]{apiItem.path}
+                          /api/x/[org]{apiItem.path}
                         </code>
                         <button
                           className="text-muted-foreground hover:text-foreground"

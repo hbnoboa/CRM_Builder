@@ -17,7 +17,6 @@ export interface UpdateOrganizationData {
 export interface OrganizationWithCounts extends Organization {
   _count?: {
     users: number;
-    workspaces: number;
   };
 }
 

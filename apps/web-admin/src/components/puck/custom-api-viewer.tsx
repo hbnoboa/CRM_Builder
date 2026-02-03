@@ -40,9 +40,9 @@ export function CustomApiViewer({
       const token = typeof window !== 'undefined' ? localStorage.getItem('accessToken') : null;
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
 
-      // Get workspaceId from URL or localStorage
-      const workspaceId = typeof window !== 'undefined'
-        ? localStorage.getItem('currentWorkspaceId') || window.location.pathname.split('/')[2]
+      // Get organizationId from URL or localStorage
+      const organizationId = typeof window !== 'undefined'
+        ? localStorage.getItem('currentOrganizationId') || window.location.pathname.split('/')[2]
         : '';
 
       // Build query string from params (safely handle undefined/null)
@@ -52,7 +52,7 @@ export function CustomApiViewer({
         .map(p => `${encodeURIComponent(p.key)}=${encodeURIComponent(p.value)}`)
         .join('&');
 
-      const url = `${apiUrl}/x/${workspaceId}${apiPath}${queryParams ? `?${queryParams}` : ''}`;
+      const url = `${apiUrl}/x/${organizationId}${apiPath}${queryParams ? `?${queryParams}` : ''}`;
 
       const response = await fetch(url, {
         headers: {
@@ -335,7 +335,7 @@ export function CustomApiViewerPreview({
         </p>
         {title && <p className="text-sm text-muted-foreground mt-1">{title}</p>}
         <div className="mt-4 text-sm text-muted-foreground">
-          <p><strong>Endpoint:</strong> /x/[workspaceId]{apiPath || '/[caminho]'}</p>
+          <p><strong>Endpoint:</strong> /x/[organizationId]{apiPath || '/[caminho]'}</p>
           {queryString && <p><strong>Params:</strong> {queryString}</p>}
           <p><strong>Modo:</strong> {displayMode}</p>
         </div>

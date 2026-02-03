@@ -5,17 +5,17 @@ import { entitiesService, CreateEntityData, UpdateEntityData } from '@/services/
 export const entityKeys = {
   all: ['entities'] as const,
   lists: () => [...entityKeys.all, 'list'] as const,
-  list: (workspaceId: string) => [...entityKeys.lists(), workspaceId] as const,
+  list: (organizationId: string) => [...entityKeys.lists(), organizationId] as const,
   details: () => [...entityKeys.all, 'detail'] as const,
   detail: (id: string) => [...entityKeys.details(), id] as const,
-  bySlug: (workspaceId: string, slug: string) => [...entityKeys.all, 'slug', workspaceId, slug] as const,
+  bySlug: (organizationId: string, slug: string) => [...entityKeys.all, 'slug', organizationId, slug] as const,
 };
 
-export function useEntities(workspaceId: string) {
+export function useEntities(organizationId: string) {
   return useQuery({
-    queryKey: entityKeys.list(workspaceId),
-    queryFn: () => entitiesService.getAll(workspaceId),
-    enabled: !!workspaceId,
+    queryKey: entityKeys.list(organizationId),
+    queryFn: () => entitiesService.getAll(organizationId),
+    enabled: !!organizationId,
   });
 }
 
@@ -27,11 +27,11 @@ export function useEntity(id: string) {
   });
 }
 
-export function useEntityBySlug(workspaceId: string, slug: string) {
+export function useEntityBySlug(organizationId: string, slug: string) {
   return useQuery({
-    queryKey: entityKeys.bySlug(workspaceId, slug),
-    queryFn: () => entitiesService.getBySlug(workspaceId, slug),
-    enabled: !!workspaceId && !!slug,
+    queryKey: entityKeys.bySlug(organizationId, slug),
+    queryFn: () => entitiesService.getBySlug(organizationId, slug),
+    enabled: !!organizationId && !!slug,
   });
 }
 
@@ -39,10 +39,10 @@ export function useCreateEntity() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ workspaceId, data }: { workspaceId: string; data: CreateEntityData }) =>
-      entitiesService.create(workspaceId, data),
-    onSuccess: (_, { workspaceId }) => {
-      queryClient.invalidateQueries({ queryKey: entityKeys.list(workspaceId) });
+    mutationFn: ({ organizationId, data }: { organizationId: string; data: CreateEntityData }) =>
+      entitiesService.create(organizationId, data),
+    onSuccess: (_, { organizationId }) => {
+      queryClient.invalidateQueries({ queryKey: entityKeys.list(organizationId) });
       toast.success('Entidade criada com sucesso');
     },
     onError: (error: Error) => {

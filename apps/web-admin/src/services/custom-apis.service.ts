@@ -14,7 +14,7 @@ export interface CustomApi {
     name: string;
     slug: string;
   };
-  workspaceId: string;
+  organizationId: string;
   tenantId: string;
   createdAt: string;
   updatedAt: string;

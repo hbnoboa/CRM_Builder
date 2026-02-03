@@ -182,7 +182,7 @@ interface EntityField {
 
 export default function NewApiPage() {
   const router = useRouter();
-  const { workspace } = useTenant();
+  const { organizationId } = useTenant();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [entities, setEntities] = useState<Entity[]>([]);
@@ -414,7 +414,7 @@ export default function NewApiPage() {
         return;
       }
 
-      const response = await api.get(`/data/${workspace?.id}/${entity.slug}`);
+      const response = await api.get(`/data/${organizationId}/${entity.slug}`);
       const data = Array.isArray(response.data) ? response.data : response.data?.data || [];
       
       // Aplicar campos selecionados

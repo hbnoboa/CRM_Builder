@@ -75,7 +75,7 @@ export interface RegisterDate {
 
 export interface Entity {
   id: string;
-  workspaceId: string;
+  organizationId: string;
   tenantId: string;
   name: string;
   namePlural?: string;

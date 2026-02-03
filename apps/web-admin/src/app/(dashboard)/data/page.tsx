@@ -53,7 +53,7 @@ interface DataRecord {
 }
 
 export default function DataPage() {
-  const { workspace, loading: workspaceLoading } = useTenant();
+  const { organizationId, loading: orgLoading } = useTenant();
   const [entities, setEntities] = useState<Entity[]>([]);
   const [selectedEntity, setSelectedEntity] = useState<Entity | null>(null);
   const [records, setRecords] = useState<DataRecord[]>([]);
@@ -94,10 +94,10 @@ export default function DataPage() {
   };
 
   const fetchRecords = async (entitySlug: string) => {
-    if (!workspace?.id) return;
+    if (!organizationId) return;
     setLoadingRecords(true);
     try {
-      const response = await api.get(`/data/${workspace.id}/${entitySlug}`);
+      const response = await api.get(`/data/${organizationId}/${entitySlug}`);
       const recordsData = Array.isArray(response.data) ? response.data : response.data?.data || [];
       setRecords(recordsData);
     } catch (error) {
@@ -150,10 +150,10 @@ export default function DataPage() {
   };
 
   const handleConfirmDelete = async () => {
-    if (!recordToDelete || !selectedEntity || !workspace?.id) return;
+    if (!recordToDelete || !selectedEntity || !organizationId) return;
     try {
       await deleteRecord.mutateAsync({
-        workspaceId: workspace.id,
+        organizationId: organizationId,
         entitySlug: selectedEntity.slug,
         id: recordToDelete.id,
       });
@@ -204,7 +204,7 @@ export default function DataPage() {
             </Button>
             <Button
               onClick={handleNewRecord}
-              disabled={workspaceLoading || !workspace?.id}
+              disabled={orgLoading || !organizationId}
               data-testid="new-record-btn"
             >
               <Plus className="h-4 w-4 mr-2" />
@@ -312,7 +312,7 @@ export default function DataPage() {
                     </p>
                     <Button
                       onClick={handleNewRecord}
-                      disabled={workspaceLoading || !workspace?.id}
+                      disabled={orgLoading || !organizationId}
                       data-testid="add-record-btn"
                     >
                       <Plus className="h-4 w-4 mr-2" />
@@ -431,7 +431,7 @@ export default function DataPage() {
       </div>
 
       {/* Dialog de formulario para criar/editar registro */}
-      {selectedEntity && workspace?.id && (
+      {selectedEntity && organizationId && (
         <RecordFormDialog
           open={formDialogOpen}
           onOpenChange={setFormDialogOpen}
@@ -441,7 +441,7 @@ export default function DataPage() {
             slug: selectedEntity.slug,
             fields: selectedEntity.fields || [],
           }}
-          workspaceId={workspace.id}
+          organizationId={organizationId}
           record={selectedRecord}
           onSuccess={handleFormSuccess}
         />
