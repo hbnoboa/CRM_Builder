@@ -164,6 +164,25 @@ export default function NewPageEditor() {
       alert('Por favor, preencha o titulo da pagina');
       return;
     }
+
+    // Convert lines structure to Puck data with Row components
+    if (lines.length > 0) {
+      const content = lines.map((line, index) => ({
+        type: 'Row',
+        props: {
+          id: `row-${index}`,
+          layout: line.layout,
+          gap: 'md',
+          verticalAlign: 'stretch',
+        },
+      }));
+
+      setData({
+        content,
+        root: { props: {} },
+      });
+    }
+
     setMode('visual');
   };
 

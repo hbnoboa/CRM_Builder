@@ -13,6 +13,25 @@ import {
   LAYOUT_OPTIONS,
 } from '@/components/puck/row-col';
 
+// Form Field Components
+import {
+  TextInput, TextInputProps,
+  TextAreaField, TextAreaProps,
+  NumberInput, NumberInputProps,
+  SelectField, SelectFieldProps,
+  CheckboxField, CheckboxFieldProps,
+  DatePickerField, DatePickerProps,
+  FileUploadField, FileUploadProps,
+  ImageUploadField, ImageUploadProps,
+  MapPickerField, MapPickerProps,
+  EmailInput, EmailInputProps,
+  PhoneInput, PhoneInputProps,
+  CurrencyInput, CurrencyInputProps,
+  TagsInput, TagsInputProps,
+  RatingField, RatingFieldProps,
+  SwitchField, SwitchFieldProps,
+} from '@/components/puck/form-fields';
+
 // UI Components
 import { Tabs, TabsPreview, TabsProps } from '@/components/puck/tabs';
 import { KanbanBoard, KanbanBoardPreview, KanbanBoardProps } from '@/components/puck/kanban-board';
@@ -48,6 +67,23 @@ export type ComponentProps = {
     color?: string;
     margin: 'sm' | 'md' | 'lg';
   };
+
+  // ========== FORM FIELDS ==========
+  TextInput: TextInputProps;
+  TextAreaField: TextAreaProps;
+  NumberInput: NumberInputProps;
+  SelectField: SelectFieldProps;
+  CheckboxField: CheckboxFieldProps;
+  DatePickerField: DatePickerProps;
+  FileUploadField: FileUploadProps;
+  ImageUploadField: ImageUploadProps;
+  MapPickerField: MapPickerProps;
+  EmailInput: EmailInputProps;
+  PhoneInput: PhoneInputProps;
+  CurrencyInput: CurrencyInputProps;
+  TagsInput: TagsInputProps;
+  RatingField: RatingFieldProps;
+  SwitchField: SwitchFieldProps;
 
   // ========== BASIC COMPONENTS ==========
   Heading: {
@@ -172,6 +208,27 @@ export const puckConfig: Config<ComponentProps> = {
       components: ['Section', 'Row', 'Grid', 'FlexRow', 'Spacer', 'Divider'],
       defaultExpanded: true,
     },
+    campos: {
+      title: 'Campos de Formulario',
+      components: [
+        'TextInput',
+        'TextAreaField',
+        'NumberInput',
+        'SelectField',
+        'CheckboxField',
+        'SwitchField',
+        'DatePickerField',
+        'EmailInput',
+        'PhoneInput',
+        'CurrencyInput',
+        'FileUploadField',
+        'ImageUploadField',
+        'MapPickerField',
+        'TagsInput',
+        'RatingField',
+      ],
+      defaultExpanded: true,
+    },
     texto: {
       title: 'Texto',
       components: ['Heading', 'Text'],
@@ -206,6 +263,380 @@ export const puckConfig: Config<ComponentProps> = {
     },
   },
   components: {
+    // ========== FORM FIELD COMPONENTS ==========
+
+    TextInput: {
+      label: 'Campo de Texto',
+      defaultProps: {
+        label: 'Nome',
+        placeholder: '',
+        required: false,
+        helpText: '',
+        fieldName: '',
+      },
+      fields: {
+        label: { type: 'text', label: 'Label' },
+        placeholder: { type: 'text', label: 'Placeholder' },
+        fieldName: { type: 'text', label: 'Nome do Campo (para API)' },
+        required: { type: 'radio', label: 'Obrigatorio', options: [
+          { label: 'Sim', value: true },
+          { label: 'Nao', value: false },
+        ]},
+        helpText: { type: 'text', label: 'Texto de Ajuda' },
+      },
+      render: (props) => <TextInput {...props} />,
+    },
+
+    TextAreaField: {
+      label: 'Area de Texto',
+      defaultProps: {
+        label: 'Descricao',
+        placeholder: '',
+        required: false,
+        rows: 3,
+        helpText: '',
+        fieldName: '',
+      },
+      fields: {
+        label: { type: 'text', label: 'Label' },
+        placeholder: { type: 'text', label: 'Placeholder' },
+        fieldName: { type: 'text', label: 'Nome do Campo' },
+        rows: { type: 'number', label: 'Linhas' },
+        required: { type: 'radio', label: 'Obrigatorio', options: [
+          { label: 'Sim', value: true },
+          { label: 'Nao', value: false },
+        ]},
+        helpText: { type: 'text', label: 'Texto de Ajuda' },
+      },
+      render: (props) => <TextAreaField {...props} />,
+    },
+
+    NumberInput: {
+      label: 'Campo Numerico',
+      defaultProps: {
+        label: 'Quantidade',
+        placeholder: '0',
+        required: false,
+        min: undefined,
+        max: undefined,
+        step: 1,
+        helpText: '',
+        fieldName: '',
+      },
+      fields: {
+        label: { type: 'text', label: 'Label' },
+        placeholder: { type: 'text', label: 'Placeholder' },
+        fieldName: { type: 'text', label: 'Nome do Campo' },
+        min: { type: 'number', label: 'Valor Minimo' },
+        max: { type: 'number', label: 'Valor Maximo' },
+        step: { type: 'number', label: 'Incremento' },
+        required: { type: 'radio', label: 'Obrigatorio', options: [
+          { label: 'Sim', value: true },
+          { label: 'Nao', value: false },
+        ]},
+        helpText: { type: 'text', label: 'Texto de Ajuda' },
+      },
+      render: (props) => <NumberInput {...props} />,
+    },
+
+    SelectField: {
+      label: 'Select (Dropdown)',
+      defaultProps: {
+        label: 'Opcao',
+        placeholder: 'Selecione...',
+        required: false,
+        options: [
+          { label: 'Opcao 1', value: 'opcao1' },
+          { label: 'Opcao 2', value: 'opcao2' },
+          { label: 'Opcao 3', value: 'opcao3' },
+        ],
+        helpText: '',
+        fieldName: '',
+      },
+      fields: {
+        label: { type: 'text', label: 'Label' },
+        placeholder: { type: 'text', label: 'Placeholder' },
+        fieldName: { type: 'text', label: 'Nome do Campo' },
+        options: {
+          type: 'array',
+          label: 'Opcoes',
+          arrayFields: {
+            label: { type: 'text', label: 'Texto' },
+            value: { type: 'text', label: 'Valor' },
+          },
+        },
+        required: { type: 'radio', label: 'Obrigatorio', options: [
+          { label: 'Sim', value: true },
+          { label: 'Nao', value: false },
+        ]},
+        helpText: { type: 'text', label: 'Texto de Ajuda' },
+      },
+      render: (props) => <SelectField {...props} />,
+    },
+
+    CheckboxField: {
+      label: 'Checkbox',
+      defaultProps: {
+        label: 'Aceito os termos',
+        description: '',
+        required: false,
+        fieldName: '',
+      },
+      fields: {
+        label: { type: 'text', label: 'Label' },
+        description: { type: 'text', label: 'Descricao' },
+        fieldName: { type: 'text', label: 'Nome do Campo' },
+        required: { type: 'radio', label: 'Obrigatorio', options: [
+          { label: 'Sim', value: true },
+          { label: 'Nao', value: false },
+        ]},
+      },
+      render: (props) => <CheckboxField {...props} />,
+    },
+
+    SwitchField: {
+      label: 'Switch (Toggle)',
+      defaultProps: {
+        label: 'Ativar notificacoes',
+        description: '',
+        defaultChecked: false,
+        fieldName: '',
+      },
+      fields: {
+        label: { type: 'text', label: 'Label' },
+        description: { type: 'text', label: 'Descricao' },
+        fieldName: { type: 'text', label: 'Nome do Campo' },
+        defaultChecked: { type: 'radio', label: 'Ativo por Padrao', options: [
+          { label: 'Sim', value: true },
+          { label: 'Nao', value: false },
+        ]},
+      },
+      render: (props) => <SwitchField {...props} />,
+    },
+
+    DatePickerField: {
+      label: 'Data',
+      defaultProps: {
+        label: 'Data',
+        placeholder: '',
+        required: false,
+        includeTime: false,
+        helpText: '',
+        fieldName: '',
+      },
+      fields: {
+        label: { type: 'text', label: 'Label' },
+        placeholder: { type: 'text', label: 'Placeholder' },
+        fieldName: { type: 'text', label: 'Nome do Campo' },
+        includeTime: { type: 'radio', label: 'Incluir Hora', options: [
+          { label: 'Sim', value: true },
+          { label: 'Nao', value: false },
+        ]},
+        required: { type: 'radio', label: 'Obrigatorio', options: [
+          { label: 'Sim', value: true },
+          { label: 'Nao', value: false },
+        ]},
+        helpText: { type: 'text', label: 'Texto de Ajuda' },
+      },
+      render: (props) => <DatePickerField {...props} />,
+    },
+
+    EmailInput: {
+      label: 'Email',
+      defaultProps: {
+        label: 'Email',
+        placeholder: 'email@exemplo.com',
+        required: false,
+        helpText: '',
+        fieldName: '',
+      },
+      fields: {
+        label: { type: 'text', label: 'Label' },
+        placeholder: { type: 'text', label: 'Placeholder' },
+        fieldName: { type: 'text', label: 'Nome do Campo' },
+        required: { type: 'radio', label: 'Obrigatorio', options: [
+          { label: 'Sim', value: true },
+          { label: 'Nao', value: false },
+        ]},
+        helpText: { type: 'text', label: 'Texto de Ajuda' },
+      },
+      render: (props) => <EmailInput {...props} />,
+    },
+
+    PhoneInput: {
+      label: 'Telefone',
+      defaultProps: {
+        label: 'Telefone',
+        placeholder: '(00) 00000-0000',
+        required: false,
+        helpText: '',
+        fieldName: '',
+      },
+      fields: {
+        label: { type: 'text', label: 'Label' },
+        placeholder: { type: 'text', label: 'Placeholder' },
+        fieldName: { type: 'text', label: 'Nome do Campo' },
+        required: { type: 'radio', label: 'Obrigatorio', options: [
+          { label: 'Sim', value: true },
+          { label: 'Nao', value: false },
+        ]},
+        helpText: { type: 'text', label: 'Texto de Ajuda' },
+      },
+      render: (props) => <PhoneInput {...props} />,
+    },
+
+    CurrencyInput: {
+      label: 'Moeda/Valor',
+      defaultProps: {
+        label: 'Valor',
+        placeholder: '0,00',
+        required: false,
+        currency: 'R$',
+        helpText: '',
+        fieldName: '',
+      },
+      fields: {
+        label: { type: 'text', label: 'Label' },
+        placeholder: { type: 'text', label: 'Placeholder' },
+        fieldName: { type: 'text', label: 'Nome do Campo' },
+        currency: { type: 'text', label: 'Simbolo da Moeda' },
+        required: { type: 'radio', label: 'Obrigatorio', options: [
+          { label: 'Sim', value: true },
+          { label: 'Nao', value: false },
+        ]},
+        helpText: { type: 'text', label: 'Texto de Ajuda' },
+      },
+      render: (props) => <CurrencyInput {...props} />,
+    },
+
+    FileUploadField: {
+      label: 'Upload de Arquivo',
+      defaultProps: {
+        label: 'Documento',
+        required: false,
+        accept: '.pdf,.doc,.docx',
+        multiple: false,
+        maxSize: 10,
+        helpText: '',
+        fieldName: '',
+      },
+      fields: {
+        label: { type: 'text', label: 'Label' },
+        fieldName: { type: 'text', label: 'Nome do Campo' },
+        accept: { type: 'text', label: 'Tipos Aceitos (ex: .pdf,.doc)' },
+        multiple: { type: 'radio', label: 'Multiplos Arquivos', options: [
+          { label: 'Sim', value: true },
+          { label: 'Nao', value: false },
+        ]},
+        maxSize: { type: 'number', label: 'Tamanho Maximo (MB)' },
+        required: { type: 'radio', label: 'Obrigatorio', options: [
+          { label: 'Sim', value: true },
+          { label: 'Nao', value: false },
+        ]},
+        helpText: { type: 'text', label: 'Texto de Ajuda' },
+      },
+      render: (props) => <FileUploadField {...props} />,
+    },
+
+    ImageUploadField: {
+      label: 'Upload de Imagem',
+      defaultProps: {
+        label: 'Foto',
+        required: false,
+        multiple: false,
+        maxSize: 5,
+        helpText: '',
+        fieldName: '',
+      },
+      fields: {
+        label: { type: 'text', label: 'Label' },
+        fieldName: { type: 'text', label: 'Nome do Campo' },
+        multiple: { type: 'radio', label: 'Multiplas Imagens', options: [
+          { label: 'Sim', value: true },
+          { label: 'Nao', value: false },
+        ]},
+        maxSize: { type: 'number', label: 'Tamanho Maximo (MB)' },
+        required: { type: 'radio', label: 'Obrigatorio', options: [
+          { label: 'Sim', value: true },
+          { label: 'Nao', value: false },
+        ]},
+        helpText: { type: 'text', label: 'Texto de Ajuda' },
+      },
+      render: (props) => <ImageUploadField {...props} />,
+    },
+
+    MapPickerField: {
+      label: 'Mapa/Localizacao',
+      defaultProps: {
+        label: 'Localizacao',
+        required: false,
+        defaultLat: -23.5505,
+        defaultLng: -46.6333,
+        zoom: 12,
+        helpText: '',
+        fieldName: '',
+      },
+      fields: {
+        label: { type: 'text', label: 'Label' },
+        fieldName: { type: 'text', label: 'Nome do Campo' },
+        defaultLat: { type: 'number', label: 'Latitude Inicial' },
+        defaultLng: { type: 'number', label: 'Longitude Inicial' },
+        zoom: { type: 'number', label: 'Zoom Inicial (1-20)' },
+        required: { type: 'radio', label: 'Obrigatorio', options: [
+          { label: 'Sim', value: true },
+          { label: 'Nao', value: false },
+        ]},
+        helpText: { type: 'text', label: 'Texto de Ajuda' },
+      },
+      render: (props) => <MapPickerField {...props} />,
+    },
+
+    TagsInput: {
+      label: 'Tags/Multiplos Valores',
+      defaultProps: {
+        label: 'Tags',
+        placeholder: 'Digite e pressione Enter...',
+        required: false,
+        helpText: '',
+        fieldName: '',
+      },
+      fields: {
+        label: { type: 'text', label: 'Label' },
+        placeholder: { type: 'text', label: 'Placeholder' },
+        fieldName: { type: 'text', label: 'Nome do Campo' },
+        required: { type: 'radio', label: 'Obrigatorio', options: [
+          { label: 'Sim', value: true },
+          { label: 'Nao', value: false },
+        ]},
+        helpText: { type: 'text', label: 'Texto de Ajuda' },
+      },
+      render: (props) => <TagsInput {...props} />,
+    },
+
+    RatingField: {
+      label: 'Avaliacao (Estrelas)',
+      defaultProps: {
+        label: 'Avaliacao',
+        required: false,
+        maxStars: 5,
+        helpText: '',
+        fieldName: '',
+      },
+      fields: {
+        label: { type: 'text', label: 'Label' },
+        fieldName: { type: 'text', label: 'Nome do Campo' },
+        maxStars: { type: 'number', label: 'Numero de Estrelas' },
+        required: { type: 'radio', label: 'Obrigatorio', options: [
+          { label: 'Sim', value: true },
+          { label: 'Nao', value: false },
+        ]},
+        helpText: { type: 'text', label: 'Texto de Ajuda' },
+      },
+      render: (props) => <RatingField {...props} />,
+    },
+
+    // ========== BASIC COMPONENTS ==========
+
     Heading: {
       label: 'Title',
       defaultProps: {
