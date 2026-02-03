@@ -45,10 +45,14 @@ export interface User {
 export interface Role {
   id: string;
   name: string;
+  slug?: string;
   description?: string;
-  permissions: Record<string, unknown>;
+  permissions: string[] | Record<string, unknown>;
   tenantId: string;
   organizationId?: string;
+  isSystem?: boolean;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface AuthResponse {

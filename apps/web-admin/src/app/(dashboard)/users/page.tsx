@@ -24,7 +24,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { useUsers } from '@/hooks/use-users';
-import { UserFormDialog, DeleteUserDialog } from '@/components/users';
+import { UserFormDialog, DeleteUserDialog, UserRolesDialog } from '@/components/users';
 import type { User } from '@/types';
 
 const roleColors: Record<string, string> = {
@@ -47,6 +47,7 @@ export default function UsersPage() {
   const [search, setSearch] = useState('');
   const [formOpen, setFormOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [rolesOpen, setRolesOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
 
   const { data, isLoading, refetch } = useUsers();
@@ -71,6 +72,11 @@ export default function UsersPage() {
   const handleDeleteUser = (user: User) => {
     setSelectedUser(user);
     setDeleteOpen(true);
+  };
+
+  const handleManageRoles = (user: User) => {
+    setSelectedUser(user);
+    setRolesOpen(true);
   };
 
   const handleSuccess = () => {
@@ -223,7 +229,7 @@ export default function UsersPage() {
                   </div>
 
                   <div className="flex items-center gap-2">
-                    <Button variant="outline" size="sm">
+                    <Button variant="outline" size="sm" onClick={() => handleManageRoles(user)}>
                       <Shield className="h-4 w-4 mr-1" />
                       Permissoes
                     </Button>
@@ -270,6 +276,12 @@ export default function UsersPage() {
       <DeleteUserDialog
         open={deleteOpen}
         onOpenChange={setDeleteOpen}
+        user={selectedUser}
+        onSuccess={handleSuccess}
+      />
+      <UserRolesDialog
+        open={rolesOpen}
+        onOpenChange={setRolesOpen}
         user={selectedUser}
         onSuccess={handleSuccess}
       />

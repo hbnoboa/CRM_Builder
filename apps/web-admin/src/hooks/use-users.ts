@@ -1,6 +1,18 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
+import { AxiosError } from 'axios';
 import { usersService, QueryUsersParams, CreateUserData, UpdateUserData } from '@/services/users.service';
+
+// Helper para extrair mensagem de erro
+function getErrorMessage(error: unknown): string {
+  if (error instanceof AxiosError) {
+    return error.response?.data?.message || error.message || 'Erro desconhecido';
+  }
+  if (error instanceof Error) {
+    return error.message;
+  }
+  return 'Erro desconhecido';
+}
 
 export const userKeys = {
   all: ['users'] as const,
@@ -34,8 +46,8 @@ export function useCreateUser() {
       queryClient.invalidateQueries({ queryKey: userKeys.lists() });
       toast.success('Usuario criado com sucesso');
     },
-    onError: (error: Error) => {
-      toast.error(error.message || 'Erro ao criar usuario');
+    onError: (error: unknown) => {
+      toast.error(getErrorMessage(error));
     },
   });
 }
@@ -51,8 +63,8 @@ export function useUpdateUser() {
       queryClient.invalidateQueries({ queryKey: userKeys.detail(id) });
       toast.success('Usuario atualizado com sucesso');
     },
-    onError: (error: Error) => {
-      toast.error(error.message || 'Erro ao atualizar usuario');
+    onError: (error: unknown) => {
+      toast.error(getErrorMessage(error));
     },
   });
 }
@@ -66,8 +78,8 @@ export function useDeleteUser() {
       queryClient.invalidateQueries({ queryKey: userKeys.lists() });
       toast.success('Usuario excluido com sucesso');
     },
-    onError: (error: Error) => {
-      toast.error(error.message || 'Erro ao excluir usuario');
+    onError: (error: unknown) => {
+      toast.error(getErrorMessage(error));
     },
   });
 }
