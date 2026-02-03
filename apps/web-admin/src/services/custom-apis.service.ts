@@ -8,6 +8,12 @@ export interface CustomApi {
   description?: string;
   code?: string;
   isActive: boolean;
+  entityId?: string; // Vinculado a uma entity especifica
+  entity?: {
+    id: string;
+    name: string;
+    slug: string;
+  };
   workspaceId: string;
   tenantId: string;
   createdAt: string;
@@ -20,6 +26,7 @@ export interface CreateCustomApiData {
   method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
   description?: string;
   code?: string;
+  entityId?: string; // Vinculado a uma entity especifica
 }
 
 export interface UpdateCustomApiData {
@@ -35,6 +42,12 @@ export const customApisService = {
   async getAll(): Promise<CustomApi[]> {
     const response = await api.get<{ data: CustomApi[]; meta?: unknown } | CustomApi[]>('/custom-apis');
     // A API retorna { data: [...], meta: {...} } - extrair o array
+    const data = Array.isArray(response.data) ? response.data : response.data?.data || [];
+    return data;
+  },
+
+  async getByEntityId(entityId: string): Promise<CustomApi[]> {
+    const response = await api.get<{ data: CustomApi[]; meta?: unknown } | CustomApi[]>(`/custom-apis?entityId=${entityId}`);
     const data = Array.isArray(response.data) ? response.data : response.data?.data || [];
     return data;
   },
