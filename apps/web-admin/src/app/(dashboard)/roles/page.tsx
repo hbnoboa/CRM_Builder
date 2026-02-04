@@ -39,10 +39,17 @@ function RolesPageContent() {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [selectedRole, setSelectedRole] = useState<RoleWithCount | null>(null);
 
-  const { data: rolesData, isLoading, refetch } = useRoles();
-  const roles = Array.isArray(rolesData) ? rolesData : [];
+  const { data, isLoading, refetch } = useRoles();
 
-  const filteredRoles = (roles as RoleWithCount[]).filter(
+  // Garante que roles e sempre um array
+  const roles: RoleWithCount[] = (() => {
+    if (!data) return [];
+    if (Array.isArray(data)) return data;
+    if (data.data && Array.isArray(data.data)) return data.data;
+    return [];
+  })();
+
+  const filteredRoles = roles.filter(
     (role) =>
       (role.name || '').toLowerCase().includes(search.toLowerCase()) ||
       (role.description || '').toLowerCase().includes(search.toLowerCase())
@@ -101,7 +108,7 @@ function RolesPageContent() {
         <Card>
           <CardContent className="p-4">
             <div className="text-2xl font-bold text-blue-600">
-              {(roles as RoleWithCount[]).reduce((sum, r) => sum + (r._count?.users || 0), 0)}
+              {roles.reduce((sum, r) => sum + (r._count?.users || 0), 0)}
             </div>
             <p className="text-sm text-muted-foreground">Usuarios com Roles</p>
           </CardContent>
@@ -109,7 +116,7 @@ function RolesPageContent() {
         <Card>
           <CardContent className="p-4">
             <div className="text-2xl font-bold text-purple-600">
-              {(roles as RoleWithCount[]).filter((r) => Object.keys(r.permissions || {}).length > 0).length}
+              {roles.filter((r) => Object.keys(r.permissions || {}).length > 0).length}
             </div>
             <p className="text-sm text-muted-foreground">Roles com Permissoes</p>
           </CardContent>

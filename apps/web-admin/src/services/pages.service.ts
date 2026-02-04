@@ -1,10 +1,13 @@
 import api from '@/lib/api';
+import { PaginatedResponse } from '@/types';
 
 export interface Page {
   id: string;
   tenantId: string;
   title: string;
   slug: string;
+  description?: string;
+  icon?: string;
   content: Record<string, unknown>;
   isPublished: boolean;
   publishedAt?: string;
@@ -15,6 +18,8 @@ export interface Page {
 export interface CreatePageData {
   title: string;
   slug: string;
+  description?: string;
+  icon?: string;
   content?: Record<string, unknown>;
   isPublished?: boolean;
 }
@@ -22,13 +27,22 @@ export interface CreatePageData {
 export interface UpdatePageData {
   title?: string;
   slug?: string;
+  description?: string;
+  icon?: string;
   content?: Record<string, unknown>;
   isPublished?: boolean;
 }
 
+export interface QueryPagesParams {
+  page?: number;
+  limit?: number;
+  search?: string;
+  isPublished?: boolean;
+}
+
 export const pagesService = {
-  async getAll(): Promise<Page[]> {
-    const response = await api.get<Page[]>('/pages');
+  async getAll(params?: QueryPagesParams): Promise<PaginatedResponse<Page>> {
+    const response = await api.get<PaginatedResponse<Page>>('/pages', { params });
     return response.data;
   },
 

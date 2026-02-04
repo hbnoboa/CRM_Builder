@@ -1,5 +1,5 @@
 import api from '@/lib/api';
-import { Entity, EntityField } from '@/types';
+import { Entity, EntityField, PaginatedResponse } from '@/types';
 
 export interface CreateEntityData {
   name: string;
@@ -21,9 +21,15 @@ export interface UpdateEntityData {
   settings?: Record<string, unknown>;
 }
 
+export interface QueryEntitiesParams {
+  page?: number;
+  limit?: number;
+  search?: string;
+}
+
 export const entitiesService = {
-  async getAll(): Promise<Entity[]> {
-    const response = await api.get<Entity[]>('/entities');
+  async getAll(params?: QueryEntitiesParams): Promise<PaginatedResponse<Entity>> {
+    const response = await api.get<PaginatedResponse<Entity>>('/entities', { params });
     return response.data;
   },
 

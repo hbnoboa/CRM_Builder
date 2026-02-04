@@ -1,4 +1,5 @@
 import api from '@/lib/api';
+import { PaginatedResponse } from '@/types';
 
 export interface CustomApi {
   id: string;
@@ -6,14 +7,21 @@ export interface CustomApi {
   path: string;
   method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
   description?: string;
-  code?: string;
-  isActive: boolean;
-  entityId?: string;
-  entity?: {
+  mode?: 'visual' | 'code';
+  sourceEntityId?: string;
+  sourceEntity?: {
     id: string;
     name: string;
     slug: string;
+    fields?: unknown[];
   };
+  selectedFields?: string[];
+  filters?: unknown[];
+  queryParams?: unknown[];
+  orderBy?: unknown;
+  limitRecords?: number;
+  code?: string;
+  isActive: boolean;
   tenantId: string;
   createdAt: string;
   updatedAt: string;
@@ -24,8 +32,14 @@ export interface CreateCustomApiData {
   path: string;
   method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
   description?: string;
+  mode?: 'visual' | 'code';
+  sourceEntityId?: string;
+  selectedFields?: string[];
+  filters?: unknown[];
+  queryParams?: unknown[];
+  orderBy?: unknown;
+  limitRecords?: number;
   code?: string;
-  entityId?: string; // Vinculado a uma entity especifica
 }
 
 export interface UpdateCustomApiData {
@@ -33,22 +47,36 @@ export interface UpdateCustomApiData {
   path?: string;
   method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
   description?: string;
+  mode?: 'visual' | 'code';
+  sourceEntityId?: string;
+  selectedFields?: string[];
+  filters?: unknown[];
+  queryParams?: unknown[];
+  orderBy?: unknown;
+  limitRecords?: number;
   code?: string;
   isActive?: boolean;
 }
 
+export interface QueryCustomApisParams {
+  page?: number;
+  limit?: number;
+  search?: string;
+  isActive?: boolean;
+  method?: string;
+}
+
 export const customApisService = {
-  async getAll(): Promise<CustomApi[]> {
-    const response = await api.get<{ data: CustomApi[]; meta?: unknown } | CustomApi[]>('/custom-apis');
-    // A API retorna { data: [...], meta: {...} } - extrair o array
-    const data = Array.isArray(response.data) ? response.data : response.data?.data || [];
-    return data;
+  async getAll(params?: QueryCustomApisParams): Promise<PaginatedResponse<CustomApi>> {
+    const response = await api.get<PaginatedResponse<CustomApi>>('/custom-apis', { params });
+    return response.data;
   },
 
-  async getByEntityId(entityId: string): Promise<CustomApi[]> {
-    const response = await api.get<{ data: CustomApi[]; meta?: unknown } | CustomApi[]>(`/custom-apis?entityId=${entityId}`);
-    const data = Array.isArray(response.data) ? response.data : response.data?.data || [];
-    return data;
+  async getByEntityId(entityId: string): Promise<PaginatedResponse<CustomApi>> {
+    const response = await api.get<PaginatedResponse<CustomApi>>('/custom-apis', {
+      params: { sourceEntityId: entityId }
+    });
+    return response.data;
   },
 
   async getById(id: string): Promise<CustomApi> {

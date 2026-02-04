@@ -1,5 +1,5 @@
 import api from '@/lib/api';
-import { Role } from '@/types';
+import { Role, PaginatedResponse } from '@/types';
 
 export interface CreateRoleData {
   name: string;
@@ -12,6 +12,12 @@ export interface UpdateRoleData {
   name?: string;
   description?: string;
   permissions?: string[];
+}
+
+export interface QueryRolesParams {
+  page?: number;
+  limit?: number;
+  search?: string;
 }
 
 export interface RoleWithCounts extends Role {
@@ -28,8 +34,8 @@ export interface UserRole {
 }
 
 export const rolesService = {
-  async getAll(): Promise<RoleWithCounts[]> {
-    const response = await api.get<RoleWithCounts[]>('/roles');
+  async getAll(params?: QueryRolesParams): Promise<PaginatedResponse<RoleWithCounts>> {
+    const response = await api.get<PaginatedResponse<RoleWithCounts>>('/roles', { params });
     return response.data;
   },
 

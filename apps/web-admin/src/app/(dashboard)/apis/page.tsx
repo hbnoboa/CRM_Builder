@@ -46,9 +46,17 @@ function ApisPageContent() {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [selectedApi, setSelectedApi] = useState<CustomApi | null>(null);
 
-  const { data: apis = [], isLoading, refetch } = useCustomApis();
+  const { data, isLoading, refetch } = useCustomApis();
   const activateApi = useActivateCustomApi();
   const deactivateApi = useDeactivateCustomApi();
+
+  // Garante que apis e sempre um array
+  const apis: CustomApi[] = (() => {
+    if (!data) return [];
+    if (Array.isArray(data)) return data;
+    if (data.data && Array.isArray(data.data)) return data.data;
+    return [];
+  })();
 
   const filteredApis = apis.filter(
     (api) =>
