@@ -1,9 +1,8 @@
 'use client';
 
 import { useEffect, useState, useRef, useMemo } from 'react';
-import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
-import { Link, usePathname } from '@/i18n/navigation';
+import { Link, usePathname, useRouter } from '@/i18n/navigation';
 import {
   LayoutDashboard,
   Users,

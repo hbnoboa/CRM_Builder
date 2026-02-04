@@ -12,12 +12,19 @@ import { Button } from '@/components/ui/button';
 import { Globe } from 'lucide-react';
 import { locales, localeNames, type Locale } from '@/i18n/config';
 
+// Funcao para salvar locale no cookie
+function setLocaleCookie(locale: string) {
+  document.cookie = `NEXT_LOCALE=${locale};path=/;max-age=${60 * 60 * 24 * 365}`;
+}
+
 export function LanguageSwitcher() {
   const locale = useLocale();
   const router = useRouter();
   const pathname = usePathname();
 
   const handleLocaleChange = (newLocale: Locale) => {
+    // Salva no cookie antes de navegar
+    setLocaleCookie(newLocale);
     router.replace(pathname, { locale: newLocale });
   };
 
