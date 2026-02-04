@@ -28,7 +28,6 @@ export interface Notification {
 interface AuthenticatedSocket extends Socket {
   userId?: string;
   tenantId?: string;
-  organizationId?: string;
 }
 
 @WebSocketGateway({
@@ -100,7 +99,6 @@ export class NotificationGateway
 
       client.userId = payload.sub;
       client.tenantId = payload.tenantId;
-      client.organizationId = payload.organizationId;
 
       // Adicionar cliente ao mapa
       if (!this.connectedClients.has(payload.sub)) {
@@ -110,9 +108,6 @@ export class NotificationGateway
 
       // Entrar na sala do tenant
       client.join(`tenant:${payload.tenantId}`);
-      if (payload.organizationId) {
-        client.join(`org:${payload.organizationId}`);
-      }
       client.join(`user:${payload.sub}`);
 
       this.logger.log(
@@ -184,14 +179,6 @@ export class NotificationGateway
   sendToTenant(tenantId: string, notification: Notification) {
     this.server.to(`tenant:${tenantId}`).emit('notification', notification);
     this.logger.log(`📤 Notificação enviada para tenant: ${tenantId}`);
-  }
-
-  /**
-   * Enviar notificação para uma organização
-   */
-  sendToOrganization(organizationId: string, notification: Notification) {
-    this.server.to(`org:${organizationId}`).emit('notification', notification);
-    this.logger.log(`📤 Notificação enviada para org: ${organizationId}`);
   }
 
   /**

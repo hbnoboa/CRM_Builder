@@ -96,25 +96,6 @@ export class NotificationService {
     return fullNotification;
   }
 
-  /**
-   * Notificar todos os usuários de uma organização
-   */
-  async notifyOrganization(
-    organizationId: string,
-    notification: CreateNotificationDto,
-  ): Promise<Notification> {
-    const fullNotification: Notification = {
-      id: uuidv4(),
-      ...notification,
-      timestamp: new Date(),
-      read: false,
-    };
-
-    this.gateway.sendToOrganization(organizationId, fullNotification);
-
-    return fullNotification;
-  }
-
   // Helpers para notificações comuns
 
   /**

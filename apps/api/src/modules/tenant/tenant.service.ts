@@ -18,7 +18,7 @@ export class TenantService {
       throw new ConflictException('Slug já está em uso');
     }
 
-    // Criar tenant com admin e organização padrão
+    // Criar tenant com admin
     const tenant = await this.prisma.$transaction(async (tx) => {
       // 1. Criar tenant
       const tenant = await tx.tenant.create({
@@ -31,21 +31,11 @@ export class TenantService {
         },
       });
 
-      // 2. Criar organização padrão
-      const org = await tx.organization.create({
-        data: {
-          tenantId: tenant.id,
-          name: 'Principal',
-          slug: 'principal',
-        },
-      });
-
-      // 3. Criar usuário admin
+      // 2. Criar usuario admin
       const hashedPassword = await bcrypt.hash(dto.adminPassword, 12);
       await tx.user.create({
         data: {
           tenantId: tenant.id,
-          organizationId: org.id,
           email: dto.adminEmail,
           password: hashedPassword,
           name: dto.adminName,
@@ -85,7 +75,6 @@ export class TenantService {
           _count: {
             select: {
               users: true,
-              organizations: true,
             },
           },
         },
@@ -108,11 +97,9 @@ export class TenantService {
     const tenant = await this.prisma.tenant.findUnique({
       where: { id },
       include: {
-        organizations: true,
         _count: {
           select: {
             users: true,
-            organizations: true,
           },
         },
       },
