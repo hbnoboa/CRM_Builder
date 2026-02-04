@@ -2,7 +2,6 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { RequireRole } from '@/components/auth/require-role';
 import {
   Plus,
   Search,
@@ -15,6 +14,7 @@ import {
   UserCheck,
   UserX,
 } from 'lucide-react';
+import { RequireRole } from '@/components/auth/require-role';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
@@ -26,7 +26,9 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { useUsers } from '@/hooks/use-users';
-import { UserFormDialog, DeleteUserDialog, UserRolesDialog } from '@/components/users';
+import { UserFormDialog } from '@/components/users/user-form-dialog';
+import { DeleteUserDialog } from '@/components/users/delete-user-dialog';
+import { UserRolesDialog } from '@/components/users/user-roles-dialog';
 import type { User } from '@/types';
 
 const roleColors: Record<string, string> = {
@@ -54,7 +56,7 @@ function UsersPageContent() {
 
   const { data, isLoading, refetch } = useUsers();
 
-  // Garante que users e sempre um array
+  // Extrai array de users de forma segura (igual ao padrao de /roles)
   const users: User[] = (() => {
     if (!data) return [];
     if (Array.isArray(data)) return data;
@@ -92,12 +94,6 @@ function UsersPageContent() {
     refetch();
   };
 
-  // Contadores seguros
-  const totalUsers = users.length;
-  const activeUsers = users.filter((u) => u.status === 'ACTIVE').length;
-  const adminUsers = users.filter((u) => u.role === 'ADMIN' || u.role === 'MANAGER').length;
-  const pendingUsers = users.filter((u) => u.status === 'PENDING').length;
-
   return (
     <div className="space-y-6">
       {/* Breadcrumbs */}
@@ -125,25 +121,31 @@ function UsersPageContent() {
       <div className="grid gap-4 md:grid-cols-4">
         <Card>
           <CardContent className="p-4">
-            <div className="text-2xl font-bold">{totalUsers}</div>
+            <div className="text-2xl font-bold">{users.length}</div>
             <p className="text-sm text-muted-foreground">Total de Usuarios</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4">
-            <div className="text-2xl font-bold text-green-600">{activeUsers}</div>
+            <div className="text-2xl font-bold text-green-600">
+              {users.filter((u) => u.status === 'ACTIVE').length}
+            </div>
             <p className="text-sm text-muted-foreground">Ativos</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4">
-            <div className="text-2xl font-bold text-blue-600">{adminUsers}</div>
+            <div className="text-2xl font-bold text-blue-600">
+              {users.filter((u) => u.role === 'ADMIN' || u.role === 'MANAGER').length}
+            </div>
             <p className="text-sm text-muted-foreground">Administradores</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4">
-            <div className="text-2xl font-bold text-yellow-600">{pendingUsers}</div>
+            <div className="text-2xl font-bold text-yellow-600">
+              {users.filter((u) => u.status === 'PENDING').length}
+            </div>
             <p className="text-sm text-muted-foreground">Pendentes</p>
           </CardContent>
         </Card>
@@ -228,11 +230,6 @@ function UsersPageContent() {
                           <Mail className="h-3 w-3" />
                           {user.email}
                         </span>
-                        {user.lastLoginAt && (
-                          <span>
-                            Ultimo acesso: {new Date(user.lastLoginAt).toLocaleDateString('pt-BR')}
-                          </span>
-                        )}
                       </div>
                     </div>
                   </div>
@@ -252,6 +249,10 @@ function UsersPageContent() {
                         <DropdownMenuItem onClick={() => handleEditUser(user)}>
                           <Pencil className="h-4 w-4 mr-2" />
                           Editar
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => handleManageRoles(user)}>
+                          <Shield className="h-4 w-4 mr-2" />
+                          Permissoes
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
                         <DropdownMenuItem
