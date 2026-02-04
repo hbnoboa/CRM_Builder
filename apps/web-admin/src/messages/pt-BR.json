@@ -1,0 +1,350 @@
+{
+  "common": {
+    "loading": "Carregando...",
+    "save": "Salvar",
+    "saving": "Salvando...",
+    "cancel": "Cancelar",
+    "delete": "Excluir",
+    "deleting": "Excluindo...",
+    "edit": "Editar",
+    "create": "Criar",
+    "search": "Buscar...",
+    "noResults": "Nenhum resultado encontrado",
+    "close": "Fechar",
+    "confirm": "Confirmar",
+    "back": "Voltar",
+    "next": "Proximo",
+    "yes": "Sim",
+    "no": "Nao",
+    "actions": "Acoes",
+    "status": "Status",
+    "active": "Ativo",
+    "inactive": "Inativo",
+    "suspended": "Suspenso",
+    "pending": "Pendente",
+    "createdAt": "Criado em",
+    "updatedAt": "Atualizado em",
+    "refresh": "Atualizar"
+  },
+  "metadata": {
+    "title": "CRM Builder - Painel Admin",
+    "description": "Plataforma de CRM Personalizado"
+  },
+  "auth": {
+    "login": {
+      "title": "CRM Builder",
+      "subtitle": "Digite suas credenciais para acessar o painel",
+      "email": "Email",
+      "emailPlaceholder": "seu@email.com",
+      "password": "Senha",
+      "passwordPlaceholder": "********",
+      "rememberMe": "Lembrar de mim",
+      "forgotPassword": "Esqueceu a senha?",
+      "signIn": "Entrar",
+      "signingIn": "Entrando...",
+      "noAccount": "Nao tem uma conta?",
+      "createAccount": "Criar conta"
+    },
+    "register": {
+      "title": "CRM Builder",
+      "subtitle": "Crie sua conta para acessar o painel",
+      "name": "Nome",
+      "namePlaceholder": "Seu nome completo",
+      "company": "Empresa",
+      "companyPlaceholder": "Nome da empresa",
+      "email": "Email",
+      "emailPlaceholder": "seu@email.com",
+      "password": "Senha",
+      "passwordPlaceholder": "********",
+      "createAccount": "Criar conta",
+      "creatingAccount": "Criando conta...",
+      "hasAccount": "Ja tem uma conta?",
+      "signIn": "Entrar"
+    },
+    "forgotPassword": {
+      "title": "CRM Builder",
+      "subtitle": "Recupere o acesso a sua conta",
+      "email": "Email",
+      "emailPlaceholder": "seu@email.com",
+      "send": "Enviar",
+      "sending": "Enviando...",
+      "success": "Se o email existir, voce recebera instrucoes para redefinir sua senha.",
+      "error": "Erro ao enviar email. Tente novamente.",
+      "rememberPassword": "Lembra sua senha?",
+      "signIn": "Entrar"
+    },
+    "logout": "Sair",
+    "accessRestricted": "Acesso Restrito",
+    "noPermission": "Voce nao tem permissao para acessar esta pagina.",
+    "currentRole": "Sua role atual:",
+    "notDefined": "Nao definida",
+    "backToDashboard": "Voltar ao Dashboard"
+  },
+  "navigation": {
+    "dashboard": "Dashboard",
+    "entities": "Entidades",
+    "data": "Dados",
+    "pages": "Paginas",
+    "apis": "APIs",
+    "users": "Usuarios",
+    "roles": "Roles",
+    "permissions": "Permissoes",
+    "settings": "Configuracoes",
+    "tenants": "Tenants",
+    "profile": "Perfil",
+    "hello": "Ola,"
+  },
+  "roles": {
+    "PLATFORM_ADMIN": "Super Admin",
+    "ADMIN": "Administrador",
+    "MANAGER": "Gerente",
+    "USER": "Usuario",
+    "VIEWER": "Visualizador"
+  },
+  "roleDescriptions": {
+    "PLATFORM_ADMIN": "Acesso total a plataforma, incluindo todos os tenants",
+    "ADMIN": "Acesso total ao tenant, pode gerenciar usuarios e configuracoes",
+    "MANAGER": "Pode gerenciar equipe e ver dados da organizacao",
+    "USER": "Acesso padrao, pode ver e editar seus proprios dados",
+    "VIEWER": "Apenas visualizacao, sem permissao de edicao"
+  },
+  "dashboard": {
+    "title": "Dashboard",
+    "welcome": "Bem-vindo de volta, {name}! Aqui esta um resumo do seu CRM.",
+    "stats": {
+      "entities": "Entidades",
+      "records": "Registros",
+      "pages": "Paginas",
+      "apis": "APIs",
+      "users": "Usuarios"
+    },
+    "charts": {
+      "recordsLast30Days": "Registros nos Ultimos 30 Dias",
+      "recordsEvolution": "Evolucao de registros criados",
+      "distributionByEntity": "Distribuicao por Entidade",
+      "recordsPerEntity": "Numero de registros por entidade"
+    },
+    "activity": {
+      "title": "Atividade Recente",
+      "subtitle": "Ultimas acoes realizadas no sistema",
+      "noActivity": "Nenhuma atividade registrada",
+      "created": "Criou",
+      "updated": "Atualizou",
+      "deleted": "Excluiu",
+      "in": "em"
+    },
+    "activeUsers": {
+      "title": "Usuarios Ativos",
+      "subtitle": "Ultimos logins de usuarios",
+      "noUsers": "Nenhum usuario registrado",
+      "neverLoggedIn": "Nunca fez login"
+    },
+    "quickActions": {
+      "title": "Acoes Rapidas",
+      "subtitle": "Comece a construir seu CRM",
+      "newEntity": "Nova Entidade",
+      "newEntityDesc": "Defina uma estrutura de dados",
+      "newPage": "Nova Pagina",
+      "newPageDesc": "Crie uma pagina personalizada",
+      "newApi": "Nova API",
+      "newApiDesc": "Configure um endpoint",
+      "manageUsers": "Gerenciar Usuarios",
+      "manageUsersDesc": "Adicione membros da equipe"
+    },
+    "empty": {
+      "noRecords": "Nenhum registro criado ainda",
+      "createFirstRecord": "Criar primeiro registro",
+      "noEntities": "Nenhuma entidade criada ainda",
+      "createFirstEntity": "Criar primeira entidade"
+    }
+  },
+  "users": {
+    "title": "Usuarios",
+    "subtitle": "Gerencie os usuarios da sua organizacao",
+    "newUser": "Novo Usuario",
+    "editUser": "Editar Usuario",
+    "deleteUser": "Excluir Usuario",
+    "stats": {
+      "total": "Total de Usuarios",
+      "active": "Ativos",
+      "administrators": "Administradores",
+      "pending": "Pendentes"
+    },
+    "searchPlaceholder": "Buscar usuarios...",
+    "noUsersFound": "Nenhum usuario encontrado",
+    "noUsersMatchSearch": "Nenhum usuario corresponde a sua busca.",
+    "createUsersToStart": "Crie usuarios para comecar.",
+    "form": {
+      "name": "Nome",
+      "namePlaceholder": "Nome completo",
+      "email": "Email",
+      "emailPlaceholder": "email@exemplo.com",
+      "password": "Senha",
+      "passwordPlaceholder": "Senha segura",
+      "passwordHint": "(deixe em branco para manter)",
+      "role": "Funcao",
+      "rolePlaceholder": "Selecione uma funcao",
+      "status": "Status",
+      "statusPlaceholder": "Selecione um status",
+      "createDescription": "Preencha os dados para criar um novo usuario.",
+      "editDescription": "Atualize as informacoes do usuario."
+    },
+    "deleteConfirm": {
+      "title": "Excluir Usuario",
+      "message": "Tem certeza que deseja excluir o usuario {name}?",
+      "warning": "Esta acao nao pode ser desfeita."
+    },
+    "managePermissions": "Gerenciar Permissoes"
+  },
+  "entities": {
+    "title": "Entidades",
+    "subtitle": "Gerencie as estruturas de dados do seu CRM",
+    "newEntity": "Nova Entidade",
+    "stats": {
+      "total": "Total de Entidades",
+      "withFields": "Com Campos",
+      "totalRecords": "Total de Registros"
+    },
+    "searchPlaceholder": "Buscar entidades...",
+    "noEntitiesFound": "Nenhuma entidade encontrada",
+    "noEntitiesMatchSearch": "Nenhuma entidade corresponde a sua busca.",
+    "createEntitiesToStart": "Crie entidades para estruturar seus dados.",
+    "createFirstEntity": "Criar Primeira Entidade",
+    "fields": "campos",
+    "viewData": "Ver Dados",
+    "deleteConfirm": {
+      "title": "Excluir entidade?",
+      "message": "Tem certeza que deseja excluir a entidade \"{name}\"?",
+      "warning": "Todos os dados relacionados serao perdidos. Esta acao nao pode ser desfeita."
+    }
+  },
+  "rolesPage": {
+    "title": "Roles",
+    "subtitle": "Gerencie as roles e permissoes da sua organizacao",
+    "newRole": "Nova Role",
+    "editRole": "Editar Role",
+    "stats": {
+      "total": "Total de Roles",
+      "usersWithRoles": "Usuarios com Roles",
+      "rolesWithPermissions": "Roles com Permissoes"
+    },
+    "searchPlaceholder": "Buscar roles...",
+    "noRolesFound": "Nenhuma role encontrada",
+    "noRolesMatchSearch": "Nenhuma role corresponde a sua busca.",
+    "createRolesToStart": "Crie roles para organizar permissoes.",
+    "noDescription": "Sem descricao",
+    "permissionsConfigured": "permissoes configuradas",
+    "managePermissions": "Gerenciar Permissoes",
+    "viewUsers": "Ver Usuarios",
+    "form": {
+      "name": "Nome da Role",
+      "namePlaceholder": "Gerente de Vendas",
+      "slug": "Slug (identificador unico)",
+      "slugPlaceholder": "gerente-vendas",
+      "slugHint": "Identificador unico para esta role. Deixe vazio para gerar automaticamente.",
+      "description": "Descricao (opcional)",
+      "descriptionPlaceholder": "Descreva as responsabilidades desta role...",
+      "createDescription": "Preencha os dados para criar uma nova role.",
+      "editDescription": "Atualize as informacoes da role."
+    },
+    "userRoles": {
+      "title": "Gerenciar Permissoes",
+      "subtitle": "Gerencie as roles e permissoes de {name}",
+      "baseRole": "Role Base",
+      "baseRoleDescription": "A role base e definida no cadastro do usuario e determina as permissoes fundamentais.",
+      "additionalRoles": "Roles Adicionais",
+      "additionalRolesDescription": "Atribua roles customizadas para conceder permissoes extras ao usuario.",
+      "noCustomRoles": "Nenhuma role customizada criada ainda.",
+      "createRoles": "Criar Roles",
+      "system": "Sistema",
+      "assignedRoles": "Roles Atribuidas",
+      "permissions": "permissao(oes)",
+      "roleAssigned": "Role atribuida com sucesso",
+      "roleRemoved": "Role removida com sucesso",
+      "roleUpdateError": "Erro ao atualizar role"
+    }
+  },
+  "tenants": {
+    "title": "Tenants",
+    "subtitle": "Gerencie os tenants da plataforma",
+    "newTenant": "Novo Tenant",
+    "accessRestricted": "Acesso Restrito",
+    "platformAdminOnly": "Esta pagina e restrita a administradores da plataforma (PLATFORM_ADMIN).",
+    "stats": {
+      "total": "Total de Tenants",
+      "active": "Ativos",
+      "suspended": "Suspensos",
+      "premium": "Planos Premium"
+    },
+    "searchPlaceholder": "Buscar tenants...",
+    "noTenantsFound": "Nenhum tenant encontrado",
+    "noTenantsMatchSearch": "Nenhum tenant corresponde a sua busca.",
+    "createTenantsToStart": "Crie tenants para comecar.",
+    "suspend": "Suspender",
+    "activate": "Ativar"
+  },
+  "apis": {
+    "title": "APIs Personalizadas",
+    "subtitle": "Crie endpoints personalizados para seu CRM",
+    "newApi": "Nova API",
+    "stats": {
+      "total": "Total de APIs",
+      "active": "Ativas",
+      "getEndpoints": "Endpoints GET",
+      "postEndpoints": "Endpoints POST"
+    },
+    "searchPlaceholder": "Buscar APIs...",
+    "noApisFound": "Nenhuma API encontrada",
+    "noApisMatchSearch": "Nenhuma API corresponde a sua busca.",
+    "createFirstApi": "Crie sua primeira API personalizada para comecar.",
+    "createFirstApiButton": "Criar Primeira API",
+    "test": "Testar",
+    "copyPath": "Copiar Path",
+    "pathCopied": "Path copiado para a area de transferencia",
+    "deactivate": "Desativar",
+    "activate": "Ativar"
+  },
+  "pages": {
+    "title": "Paginas",
+    "subtitle": "Crie e gerencie paginas customizadas",
+    "newPage": "Nova Pagina",
+    "stats": {
+      "total": "Total de Paginas",
+      "published": "Publicadas",
+      "drafts": "Rascunhos"
+    },
+    "searchPlaceholder": "Buscar paginas...",
+    "noPagesFound": "Nenhuma pagina encontrada",
+    "noPagesMatchSearch": "Nenhuma pagina corresponde a sua busca.",
+    "createPagesToStart": "Crie paginas customizadas para seu CRM.",
+    "createFirstPage": "Criar Primeira Pagina",
+    "view": "Visualizar",
+    "duplicate": "Duplicar",
+    "publish": "Publicar",
+    "unpublish": "Despublicar",
+    "preview": "Preview",
+    "copy": "(Copia)",
+    "published": "Publicada",
+    "draft": "Rascunho",
+    "deleteConfirm": {
+      "title": "Excluir pagina?",
+      "message": "Tem certeza que deseja excluir a pagina \"{name}\"?",
+      "warning": "Esta acao nao pode ser desfeita."
+    }
+  },
+  "validation": {
+    "required": "Este campo e obrigatorio",
+    "emailRequired": "Email e obrigatorio",
+    "emailInvalid": "Email invalido",
+    "passwordRequired": "Senha e obrigatoria",
+    "passwordMin": "Senha deve ter pelo menos {min} caracteres",
+    "nameRequired": "Nome e obrigatorio",
+    "nameMin": "Nome deve ter pelo menos {min} caracteres",
+    "companyRequired": "Empresa e obrigatoria",
+    "slugMin": "Slug deve ter pelo menos {min} caracteres",
+    "slugFormat": "Slug deve conter apenas letras minusculas, numeros, hifens e underscores"
+  },
+  "languageSwitcher": {
+    "label": "Idioma"
+  }
+}

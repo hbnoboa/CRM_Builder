@@ -1,8 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import Link from 'next/link';
+import { useTranslations } from 'next-intl';
+import { Link } from '@/i18n/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -12,18 +13,24 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
 import { useAuthStore } from '@/stores/auth-store';
+import { LanguageSwitcher } from '@/components/language-switcher';
 
-const loginSchema = z.object({
-  email: z.string().email('Invalid email'),
-  password: z.string().min(6, 'Password must be at least 6 characters'),
-});
-
-type LoginForm = z.infer<typeof loginSchema>;
+type LoginForm = {
+  email: string;
+  password: string;
+};
 
 export default function LoginPage() {
   const router = useRouter();
+  const t = useTranslations('auth.login');
+  const tValidation = useTranslations('validation');
   const [showPassword, setShowPassword] = useState(false);
   const { login, isLoading, error, clearError } = useAuthStore();
+
+  const loginSchema = useMemo(() => z.object({
+    email: z.string().min(1, tValidation('emailRequired')).email(tValidation('emailInvalid')),
+    password: z.string().min(6, tValidation('passwordMin', { min: 6 })),
+  }), [tValidation]);
 
   const {
     register,
@@ -44,6 +51,9 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-4">
+      <div className="absolute top-4 right-4">
+        <LanguageSwitcher />
+      </div>
       <Card className="w-full max-w-md">
         <CardHeader className="space-y-1 text-center">
           <div className="flex justify-center mb-4">
@@ -51,9 +61,9 @@ export default function LoginPage() {
               <span className="text-2xl font-bold text-primary-foreground">C</span>
             </div>
           </div>
-          <CardTitle className="text-2xl font-bold">CRM Builder</CardTitle>
+          <CardTitle className="text-2xl font-bold">{t('title')}</CardTitle>
           <CardDescription>
-            Enter your credentials to access the dashboard
+            {t('subtitle')}
           </CardDescription>
         </CardHeader>
         <form onSubmit={handleSubmit(onSubmit)}>
@@ -66,17 +76,17 @@ export default function LoginPage() {
                   onClick={clearError}
                   className="ml-2 text-red-700 hover:text-red-900"
                 >
-                  ×
+                  x
                 </button>
               </div>
             )}
 
             <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
+              <Label htmlFor="email">{t('email')}</Label>
               <Input
                 id="email"
                 type="email"
-                placeholder="seu@email.com"
+                placeholder={t('emailPlaceholder')}
                 {...register('email')}
               />
               {errors.email && (
@@ -85,12 +95,12 @@ export default function LoginPage() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
+              <Label htmlFor="password">{t('password')}</Label>
               <div className="relative">
                 <Input
                   id="password"
                   type={showPassword ? 'text' : 'password'}
-                  placeholder="••••••••"
+                  placeholder={t('passwordPlaceholder')}
                   {...register('password')}
                 />
                 <button
@@ -113,13 +123,13 @@ export default function LoginPage() {
             <div className="flex items-center justify-between">
               <label className="flex items-center gap-2 text-sm">
                 <input type="checkbox" className="rounded border-gray-300" />
-                <span>Remember me</span>
+                <span>{t('rememberMe')}</span>
               </label>
               <Link
                 href="/forgot-password"
                 className="text-sm text-primary hover:underline"
               >
-                Forgot password?
+                {t('forgotPassword')}
               </Link>
             </div>
           </CardContent>
@@ -129,17 +139,17 @@ export default function LoginPage() {
               {isLoading ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Signing in...
+                  {t('signingIn')}
                 </>
               ) : (
-                'Sign In'
+                t('signIn')
               )}
             </Button>
 
             <p className="text-sm text-center text-muted-foreground">
-              Don't have an account?{' '}
+              {t('noAccount')}{' '}
               <Link href="/register" className="text-primary hover:underline">
-                Create account
+                {t('createAccount')}
               </Link>
             </p>
           </CardFooter>

@@ -1,0 +1,350 @@
+{
+  "common": {
+    "loading": "Loading...",
+    "save": "Save",
+    "saving": "Saving...",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "deleting": "Deleting...",
+    "edit": "Edit",
+    "create": "Create",
+    "search": "Search...",
+    "noResults": "No results found",
+    "close": "Close",
+    "confirm": "Confirm",
+    "back": "Back",
+    "next": "Next",
+    "yes": "Yes",
+    "no": "No",
+    "actions": "Actions",
+    "status": "Status",
+    "active": "Active",
+    "inactive": "Inactive",
+    "suspended": "Suspended",
+    "pending": "Pending",
+    "createdAt": "Created at",
+    "updatedAt": "Updated at",
+    "refresh": "Refresh"
+  },
+  "metadata": {
+    "title": "CRM Builder - Admin Panel",
+    "description": "Custom CRM Builder Platform"
+  },
+  "auth": {
+    "login": {
+      "title": "CRM Builder",
+      "subtitle": "Enter your credentials to access the dashboard",
+      "email": "Email",
+      "emailPlaceholder": "your@email.com",
+      "password": "Password",
+      "passwordPlaceholder": "********",
+      "rememberMe": "Remember me",
+      "forgotPassword": "Forgot password?",
+      "signIn": "Sign In",
+      "signingIn": "Signing in...",
+      "noAccount": "Don't have an account?",
+      "createAccount": "Create account"
+    },
+    "register": {
+      "title": "CRM Builder",
+      "subtitle": "Create your account to access the dashboard",
+      "name": "Name",
+      "namePlaceholder": "Your full name",
+      "company": "Company",
+      "companyPlaceholder": "Company name",
+      "email": "Email",
+      "emailPlaceholder": "your@email.com",
+      "password": "Password",
+      "passwordPlaceholder": "********",
+      "createAccount": "Create account",
+      "creatingAccount": "Creating account...",
+      "hasAccount": "Already have an account?",
+      "signIn": "Sign in"
+    },
+    "forgotPassword": {
+      "title": "CRM Builder",
+      "subtitle": "Recover access to your account",
+      "email": "Email",
+      "emailPlaceholder": "your@email.com",
+      "send": "Send",
+      "sending": "Sending...",
+      "success": "If the email exists, you will receive instructions to reset your password.",
+      "error": "Error sending email. Please try again.",
+      "rememberPassword": "Remember your password?",
+      "signIn": "Sign in"
+    },
+    "logout": "Logout",
+    "accessRestricted": "Access Restricted",
+    "noPermission": "You don't have permission to access this page.",
+    "currentRole": "Your current role:",
+    "notDefined": "Not defined",
+    "backToDashboard": "Back to Dashboard"
+  },
+  "navigation": {
+    "dashboard": "Dashboard",
+    "entities": "Entities",
+    "data": "Data",
+    "pages": "Pages",
+    "apis": "APIs",
+    "users": "Users",
+    "roles": "Roles",
+    "permissions": "Permissions",
+    "settings": "Settings",
+    "tenants": "Tenants",
+    "profile": "Profile",
+    "hello": "Hello,"
+  },
+  "roles": {
+    "PLATFORM_ADMIN": "Super Admin",
+    "ADMIN": "Administrator",
+    "MANAGER": "Manager",
+    "USER": "User",
+    "VIEWER": "Viewer"
+  },
+  "roleDescriptions": {
+    "PLATFORM_ADMIN": "Full platform access, including all tenants",
+    "ADMIN": "Full tenant access, can manage users and settings",
+    "MANAGER": "Can manage team and view organization data",
+    "USER": "Standard access, can view and edit own data",
+    "VIEWER": "View only, no edit permissions"
+  },
+  "dashboard": {
+    "title": "Dashboard",
+    "welcome": "Welcome back, {name}! Here's a summary of your CRM.",
+    "stats": {
+      "entities": "Entities",
+      "records": "Records",
+      "pages": "Pages",
+      "apis": "APIs",
+      "users": "Users"
+    },
+    "charts": {
+      "recordsLast30Days": "Records in the Last 30 Days",
+      "recordsEvolution": "Evolution of records created",
+      "distributionByEntity": "Distribution by Entity",
+      "recordsPerEntity": "Number of records per entity"
+    },
+    "activity": {
+      "title": "Recent Activity",
+      "subtitle": "Latest actions performed in the system",
+      "noActivity": "No activity recorded",
+      "created": "Created",
+      "updated": "Updated",
+      "deleted": "Deleted",
+      "in": "in"
+    },
+    "activeUsers": {
+      "title": "Active Users",
+      "subtitle": "Latest user logins",
+      "noUsers": "No users registered",
+      "neverLoggedIn": "Never logged in"
+    },
+    "quickActions": {
+      "title": "Quick Actions",
+      "subtitle": "Start building your CRM",
+      "newEntity": "New Entity",
+      "newEntityDesc": "Define a data structure",
+      "newPage": "New Page",
+      "newPageDesc": "Create a custom page",
+      "newApi": "New API",
+      "newApiDesc": "Configure an endpoint",
+      "manageUsers": "Manage Users",
+      "manageUsersDesc": "Add team members"
+    },
+    "empty": {
+      "noRecords": "No records created yet",
+      "createFirstRecord": "Create first record",
+      "noEntities": "No entities created yet",
+      "createFirstEntity": "Create first entity"
+    }
+  },
+  "users": {
+    "title": "Users",
+    "subtitle": "Manage your organization's users",
+    "newUser": "New User",
+    "editUser": "Edit User",
+    "deleteUser": "Delete User",
+    "stats": {
+      "total": "Total Users",
+      "active": "Active",
+      "administrators": "Administrators",
+      "pending": "Pending"
+    },
+    "searchPlaceholder": "Search users...",
+    "noUsersFound": "No users found",
+    "noUsersMatchSearch": "No users match your search.",
+    "createUsersToStart": "Create users to get started.",
+    "form": {
+      "name": "Name",
+      "namePlaceholder": "Full name",
+      "email": "Email",
+      "emailPlaceholder": "email@example.com",
+      "password": "Password",
+      "passwordPlaceholder": "Secure password",
+      "passwordHint": "(leave blank to keep current)",
+      "role": "Role",
+      "rolePlaceholder": "Select a role",
+      "status": "Status",
+      "statusPlaceholder": "Select a status",
+      "createDescription": "Fill in the details to create a new user.",
+      "editDescription": "Update user information."
+    },
+    "deleteConfirm": {
+      "title": "Delete User",
+      "message": "Are you sure you want to delete user {name}?",
+      "warning": "This action cannot be undone."
+    },
+    "managePermissions": "Manage Permissions"
+  },
+  "entities": {
+    "title": "Entities",
+    "subtitle": "Manage your CRM data structures",
+    "newEntity": "New Entity",
+    "stats": {
+      "total": "Total Entities",
+      "withFields": "With Fields",
+      "totalRecords": "Total Records"
+    },
+    "searchPlaceholder": "Search entities...",
+    "noEntitiesFound": "No entities found",
+    "noEntitiesMatchSearch": "No entities match your search.",
+    "createEntitiesToStart": "Create entities to structure your data.",
+    "createFirstEntity": "Create First Entity",
+    "fields": "fields",
+    "viewData": "View Data",
+    "deleteConfirm": {
+      "title": "Delete entity?",
+      "message": "Are you sure you want to delete entity \"{name}\"?",
+      "warning": "All related data will be lost. This action cannot be undone."
+    }
+  },
+  "rolesPage": {
+    "title": "Roles",
+    "subtitle": "Manage your organization's roles and permissions",
+    "newRole": "New Role",
+    "editRole": "Edit Role",
+    "stats": {
+      "total": "Total Roles",
+      "usersWithRoles": "Users with Roles",
+      "rolesWithPermissions": "Roles with Permissions"
+    },
+    "searchPlaceholder": "Search roles...",
+    "noRolesFound": "No roles found",
+    "noRolesMatchSearch": "No roles match your search.",
+    "createRolesToStart": "Create roles to organize permissions.",
+    "noDescription": "No description",
+    "permissionsConfigured": "permissions configured",
+    "managePermissions": "Manage Permissions",
+    "viewUsers": "View Users",
+    "form": {
+      "name": "Role Name",
+      "namePlaceholder": "Sales Manager",
+      "slug": "Slug (unique identifier)",
+      "slugPlaceholder": "sales-manager",
+      "slugHint": "Unique identifier for this role. Leave blank to auto-generate.",
+      "description": "Description (optional)",
+      "descriptionPlaceholder": "Describe the responsibilities of this role...",
+      "createDescription": "Fill in the details to create a new role.",
+      "editDescription": "Update role information."
+    },
+    "userRoles": {
+      "title": "Manage Permissions",
+      "subtitle": "Manage roles and permissions for {name}",
+      "baseRole": "Base Role",
+      "baseRoleDescription": "The base role is set in user registration and determines fundamental permissions.",
+      "additionalRoles": "Additional Roles",
+      "additionalRolesDescription": "Assign custom roles to grant extra permissions to the user.",
+      "noCustomRoles": "No custom roles created yet.",
+      "createRoles": "Create Roles",
+      "system": "System",
+      "assignedRoles": "Assigned Roles",
+      "permissions": "permission(s)",
+      "roleAssigned": "Role assigned successfully",
+      "roleRemoved": "Role removed successfully",
+      "roleUpdateError": "Error updating role"
+    }
+  },
+  "tenants": {
+    "title": "Tenants",
+    "subtitle": "Manage platform tenants",
+    "newTenant": "New Tenant",
+    "accessRestricted": "Access Restricted",
+    "platformAdminOnly": "This page is restricted to platform administrators (PLATFORM_ADMIN).",
+    "stats": {
+      "total": "Total Tenants",
+      "active": "Active",
+      "suspended": "Suspended",
+      "premium": "Premium Plans"
+    },
+    "searchPlaceholder": "Search tenants...",
+    "noTenantsFound": "No tenants found",
+    "noTenantsMatchSearch": "No tenants match your search.",
+    "createTenantsToStart": "Create tenants to get started.",
+    "suspend": "Suspend",
+    "activate": "Activate"
+  },
+  "apis": {
+    "title": "Custom APIs",
+    "subtitle": "Create custom endpoints for your CRM",
+    "newApi": "New API",
+    "stats": {
+      "total": "Total APIs",
+      "active": "Active",
+      "getEndpoints": "GET Endpoints",
+      "postEndpoints": "POST Endpoints"
+    },
+    "searchPlaceholder": "Search APIs...",
+    "noApisFound": "No APIs found",
+    "noApisMatchSearch": "No APIs match your search.",
+    "createFirstApi": "Create your first custom API to get started.",
+    "createFirstApiButton": "Create First API",
+    "test": "Test",
+    "copyPath": "Copy Path",
+    "pathCopied": "Path copied to clipboard",
+    "deactivate": "Deactivate",
+    "activate": "Activate"
+  },
+  "pages": {
+    "title": "Pages",
+    "subtitle": "Create and manage custom pages",
+    "newPage": "New Page",
+    "stats": {
+      "total": "Total Pages",
+      "published": "Published",
+      "drafts": "Drafts"
+    },
+    "searchPlaceholder": "Search pages...",
+    "noPagesFound": "No pages found",
+    "noPagesMatchSearch": "No pages match your search.",
+    "createPagesToStart": "Create custom pages for your CRM.",
+    "createFirstPage": "Create First Page",
+    "view": "View",
+    "duplicate": "Duplicate",
+    "publish": "Publish",
+    "unpublish": "Unpublish",
+    "preview": "Preview",
+    "copy": "(Copy)",
+    "published": "Published",
+    "draft": "Draft",
+    "deleteConfirm": {
+      "title": "Delete page?",
+      "message": "Are you sure you want to delete page \"{name}\"?",
+      "warning": "This action cannot be undone."
+    }
+  },
+  "validation": {
+    "required": "This field is required",
+    "emailRequired": "Email is required",
+    "emailInvalid": "Invalid email",
+    "passwordRequired": "Password is required",
+    "passwordMin": "Password must be at least {min} characters",
+    "nameRequired": "Name is required",
+    "nameMin": "Name must be at least {min} characters",
+    "companyRequired": "Company is required",
+    "slugMin": "Slug must be at least {min} characters",
+    "slugFormat": "Slug must contain only lowercase letters, numbers, hyphens and underscores"
+  },
+  "languageSwitcher": {
+    "label": "Language"
+  }
+}
