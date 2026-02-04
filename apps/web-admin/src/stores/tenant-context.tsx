@@ -33,15 +33,13 @@ export function TenantProvider({ children }: { children: ReactNode }) {
     }
 
     try {
-      // Fetch tenant info
-      if (user.tenantId) {
-        const tenantRes = await fetch(`${API_BASE}/api/v1/tenants/${user.tenantId}`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        if (tenantRes.ok) {
-          const tenantData = await tenantRes.json();
-          setTenant(tenantData);
-        }
+      // Fetch tenant info usando /tenants/me (acessivel por qualquer usuario autenticado)
+      const tenantRes = await fetch(`${API_BASE}/api/v1/tenants/me`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (tenantRes.ok) {
+        const tenantData = await tenantRes.json();
+        setTenant(tenantData);
       }
     } catch (error) {
       console.error('Error fetching tenant data:', error);
