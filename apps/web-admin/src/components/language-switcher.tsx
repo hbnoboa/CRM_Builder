@@ -1,7 +1,7 @@
 'use client';
 
 import { useLocale } from 'next-intl';
-import { usePathname, useRouter } from '@/i18n/navigation';
+import { usePathname } from 'next/navigation';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -18,20 +18,35 @@ function setLocaleCookie(locale: string) {
 }
 
 export function LanguageSwitcher() {
-  const locale = useLocale();
-  const router = useRouter();
+  const currentLocale = useLocale();
   const pathname = usePathname();
 
   const handleLocaleChange = (newLocale: Locale) => {
     // Salva no cookie antes de navegar
     setLocaleCookie(newLocale);
-    router.replace(pathname, { locale: newLocale });
+    
+    // Remove o locale atual do path e adiciona o novo
+    // pathname vem como /pt-BR/dashboard, /en/users, etc.
+    const segments = pathname.split('/');
+    
+    // Verifica se o primeiro segmento e um locale valido
+    if (segments.length > 1 && locales.includes(segments[1] as Locale)) {
+      segments[1] = newLocale;
+    } else {
+      // Se nao tem locale, adiciona no inicio
+      segments.splice(1, 0, newLocale);
+    }
+    
+    const newPath = segments.join('/') || `/${newLocale}`;
+    
+    // Usa window.location para navegacao completa (evita bugs do router)
+    window.location.href = newPath;
   };
 
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="icon" title={localeNames[locale as Locale]}>
+        <Button variant="ghost" size="icon" title={localeNames[currentLocale as Locale]}>
           <Globe className="h-4 w-4" />
         </Button>
       </DropdownMenuTrigger>
@@ -40,7 +55,7 @@ export function LanguageSwitcher() {
           <DropdownMenuItem
             key={loc}
             onClick={() => handleLocaleChange(loc)}
-            className={locale === loc ? 'bg-accent' : ''}
+            className={currentLocale === loc ? 'bg-accent' : ''}
           >
             {localeNames[loc]}
           </DropdownMenuItem>
