@@ -1,6 +1,8 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
+import { RequireRole } from '@/components/auth/require-role';
 import {
   Plus,
   Search,
@@ -13,7 +15,6 @@ import {
   UserCheck,
   UserX,
 } from 'lucide-react';
-import { RequireRole } from '@/components/auth/require-role';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
@@ -52,7 +53,14 @@ function UsersPageContent() {
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
 
   const { data, isLoading, refetch } = useUsers();
-  const users = Array.isArray(data?.data) ? data.data : [];
+
+  // Garante que users e sempre um array
+  const users: User[] = (() => {
+    if (!data) return [];
+    if (Array.isArray(data)) return data;
+    if (data.data && Array.isArray(data.data)) return data.data;
+    return [];
+  })();
 
   const filteredUsers = users.filter(
     (user) =>
@@ -84,11 +92,17 @@ function UsersPageContent() {
     refetch();
   };
 
+  // Contadores seguros
+  const totalUsers = users.length;
+  const activeUsers = users.filter((u) => u.status === 'ACTIVE').length;
+  const adminUsers = users.filter((u) => u.role === 'ADMIN' || u.role === 'MANAGER').length;
+  const pendingUsers = users.filter((u) => u.status === 'PENDING').length;
+
   return (
     <div className="space-y-6">
       {/* Breadcrumbs */}
       <nav className="mb-2 flex items-center gap-2 text-sm text-muted-foreground" aria-label="breadcrumb">
-        <a href="/dashboard" className="hover:underline">Dashboard</a>
+        <Link href="/dashboard" className="hover:underline">Dashboard</Link>
         <span>/</span>
         <span className="font-semibold text-foreground">Usuarios</span>
       </nav>
@@ -111,31 +125,25 @@ function UsersPageContent() {
       <div className="grid gap-4 md:grid-cols-4">
         <Card>
           <CardContent className="p-4">
-            <div className="text-2xl font-bold">{users.length}</div>
+            <div className="text-2xl font-bold">{totalUsers}</div>
             <p className="text-sm text-muted-foreground">Total de Usuarios</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4">
-            <div className="text-2xl font-bold text-green-600">
-              {users.filter((u) => u.status === 'ACTIVE').length}
-            </div>
+            <div className="text-2xl font-bold text-green-600">{activeUsers}</div>
             <p className="text-sm text-muted-foreground">Ativos</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4">
-            <div className="text-2xl font-bold text-blue-600">
-              {users.filter((u) => u.role === 'ADMIN' || u.role === 'MANAGER').length}
-            </div>
+            <div className="text-2xl font-bold text-blue-600">{adminUsers}</div>
             <p className="text-sm text-muted-foreground">Administradores</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4">
-            <div className="text-2xl font-bold text-yellow-600">
-              {users.filter((u) => u.status === 'PENDING').length}
-            </div>
+            <div className="text-2xl font-bold text-yellow-600">{pendingUsers}</div>
             <p className="text-sm text-muted-foreground">Pendentes</p>
           </CardContent>
         </Card>
@@ -204,10 +212,10 @@ function UsersPageContent() {
                         <h3 className="font-semibold">{user.name || user.email}</h3>
                         <span
                           className={`px-2 py-0.5 text-xs font-medium rounded ${
-                            roleColors[user.role]
+                            roleColors[user.role] || 'bg-gray-100 text-gray-800'
                           }`}
                         >
-                          {roleLabels[user.role]}
+                          {roleLabels[user.role] || user.role}
                         </span>
                         {user.status === 'ACTIVE' ? (
                           <UserCheck className="h-4 w-4 text-green-500" />
