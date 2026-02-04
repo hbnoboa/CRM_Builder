@@ -39,7 +39,8 @@ function RolesPageContent() {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [selectedRole, setSelectedRole] = useState<RoleWithCount | null>(null);
 
-  const { data: roles = [], isLoading, refetch } = useRoles();
+  const { data: rolesData, isLoading, refetch } = useRoles();
+  const roles = Array.isArray(rolesData) ? rolesData : [];
 
   const filteredRoles = (roles as RoleWithCount[]).filter(
     (role) =>
