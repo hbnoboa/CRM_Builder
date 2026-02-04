@@ -10,7 +10,6 @@ import {
   Trash2,
   Users as UsersIcon,
   Mail,
-  Shield,
   UserCheck,
   UserX,
 } from 'lucide-react';
@@ -28,7 +27,6 @@ import {
 import { useUsers } from '@/hooks/use-users';
 import { UserFormDialog } from '@/components/users/user-form-dialog';
 import { DeleteUserDialog } from '@/components/users/delete-user-dialog';
-import { UserRolesDialog } from '@/components/users/user-roles-dialog';
 import type { User } from '@/types';
 
 const roleColors: Record<string, string> = {
@@ -51,7 +49,6 @@ function UsersPageContent() {
   const [search, setSearch] = useState('');
   const [formOpen, setFormOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
-  const [rolesOpen, setRolesOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
 
   const { data, isLoading, refetch } = useUsers();
@@ -83,11 +80,6 @@ function UsersPageContent() {
   const handleDeleteUser = (user: User) => {
     setSelectedUser(user);
     setDeleteOpen(true);
-  };
-
-  const handleManageRoles = (user: User) => {
-    setSelectedUser(user);
-    setRolesOpen(true);
   };
 
   const handleSuccess = () => {
@@ -250,10 +242,6 @@ function UsersPageContent() {
                           <Pencil className="h-4 w-4 mr-2" />
                           Editar
                         </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => handleManageRoles(user)}>
-                          <Shield className="h-4 w-4 mr-2" />
-                          Permissoes
-                        </DropdownMenuItem>
                         <DropdownMenuSeparator />
                         <DropdownMenuItem
                           onClick={() => handleDeleteUser(user)}
@@ -282,12 +270,6 @@ function UsersPageContent() {
       <DeleteUserDialog
         open={deleteOpen}
         onOpenChange={setDeleteOpen}
-        user={selectedUser}
-        onSuccess={handleSuccess}
-      />
-      <UserRolesDialog
-        open={rolesOpen}
-        onOpenChange={setRolesOpen}
         user={selectedUser}
         onSuccess={handleSuccess}
       />
