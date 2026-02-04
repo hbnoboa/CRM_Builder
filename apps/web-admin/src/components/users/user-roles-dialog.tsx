@@ -143,7 +143,7 @@ export function UserRolesDialog({
             Gerenciar Permissoes
           </DialogTitle>
           <DialogDescription>
-            Gerencie as roles e permissoes de {user.name}
+            Gerencie as roles e permissoes de {user.name || user.email}
           </DialogDescription>
         </DialogHeader>
 
