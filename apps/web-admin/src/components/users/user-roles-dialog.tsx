@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Dialog,
@@ -87,8 +87,11 @@ export function UserRolesDialog({
     enabled: open && !!user,
   });
 
-  // Extrai array de userRoles de forma segura
-  const userRoles: UserRole[] = Array.isArray(userRolesData) ? userRolesData : [];
+  // Extrai array de userRoles de forma segura (useMemo para evitar loop infinito no useEffect)
+  const userRoles: UserRole[] = useMemo(
+    () => (Array.isArray(userRolesData) ? userRolesData : []),
+    [userRolesData]
+  );
 
   // Atualiza selectedRoles quando userRoles carrega
   useEffect(() => {
