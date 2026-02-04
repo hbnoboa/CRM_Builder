@@ -49,13 +49,14 @@ interface NotificationProviderProps {
 }
 
 export function NotificationProvider({ children }: NotificationProviderProps) {
-  const { accessToken, isAuthenticated } = useAuthStore();
+  const { isAuthenticated } = useAuthStore();
   const [socket, setSocket] = useState<Socket | null>(null);
   const [isConnected, setIsConnected] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
 
   // Conectar ao WebSocket quando autenticado
   useEffect(() => {
+    const accessToken = localStorage.getItem('accessToken');
     if (!isAuthenticated || !accessToken) {
       if (socket) {
         socket.disconnect();
@@ -119,7 +120,7 @@ export function NotificationProvider({ children }: NotificationProviderProps) {
     return () => {
       newSocket.disconnect();
     };
-  }, [isAuthenticated, accessToken]);
+  }, [isAuthenticated]);
 
   const unreadCount = notifications.filter((n) => !n.read).length;
 
