@@ -223,4 +223,75 @@ export function UserRolesDialog({
                           handleRoleToggle(role.id, checked as boolean)
                         }
                         disabled={isMutating}
- 
+                      />
+                      <div className="flex-1 space-y-1">
+                        <div className="flex items-center gap-2">
+                          <Label
+                            htmlFor={`role-${role.id}`}
+                            className="font-medium cursor-pointer"
+                          >
+                            {role.name}
+                          </Label>
+                          {role.isSystem && (
+                            <Badge variant="secondary" className="text-xs">
+                              Sistema
+                            </Badge>
+                          )}
+                        </div>
+                        {role.description && (
+                          <p className="text-xs text-muted-foreground">
+                            {role.description}
+                          </p>
+                        )}
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                          <Shield className="h-3 w-3" />
+                          {permissionCount} permissao(oes)
+                        </div>
+                      </div>
+                      {isAssigned && (
+                        <Check className="h-4 w-4 text-primary" />
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Resumo de Permissoes */}
+          {selectedRoles.size > 0 && (
+            <div className="space-y-2 pt-2 border-t">
+              <Label className="text-sm font-semibold">Roles Atribuidas</Label>
+              <div className="flex flex-wrap gap-2">
+                {allRoles
+                  .filter((r) => selectedRoles.has(r.id))
+                  .map((role) => (
+                    <Badge
+                      key={role.id}
+                      variant="default"
+                      className="flex items-center gap-1"
+                    >
+                      {role.name}
+                      <button
+                        onClick={() => handleRoleToggle(role.id, false)}
+                        disabled={isMutating}
+                        className="ml-1 hover:bg-primary-foreground/20 rounded-full p-0.5"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </Badge>
+                  ))}
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className="flex justify-end gap-2 pt-4 border-t">
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            Fechar
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
