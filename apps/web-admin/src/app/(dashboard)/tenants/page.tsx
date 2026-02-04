@@ -64,7 +64,7 @@ export default function TenantsPage() {
   const suspendTenant = useSuspendTenant();
   const activateTenant = useActivateTenant();
 
-  const tenants = data?.data || [];
+  const tenants = Array.isArray(data?.data) ? data.data : [];
 
   const filteredTenants = tenants.filter(
     (tenant: Tenant) =>

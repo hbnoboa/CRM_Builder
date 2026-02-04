@@ -52,7 +52,7 @@ function UsersPageContent() {
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
 
   const { data, isLoading, refetch } = useUsers();
-  const users = data?.data || [];
+  const users = Array.isArray(data?.data) ? data.data : [];
 
   const filteredUsers = users.filter(
     (user) =>
