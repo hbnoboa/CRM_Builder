@@ -238,10 +238,6 @@ function UsersPageContent() {
                   </div>
 
                   <div className="flex items-center gap-2">
-                    <Button variant="outline" size="sm" onClick={() => handleManageRoles(user)}>
-                      <Shield className="h-4 w-4 mr-1" />
-                      Permissoes
-                    </Button>
                     <Button variant="outline" size="sm" onClick={() => handleEditUser(user)}>
                       <Pencil className="h-4 w-4 mr-1" />
                       Editar

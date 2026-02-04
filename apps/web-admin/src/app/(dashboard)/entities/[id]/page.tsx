@@ -114,8 +114,8 @@ export default function EntityDetailPage() {
   const loadCustomApis = async (entityId: string) => {
     setLoadingApis(true);
     try {
-      const apis = await customApisService.getByEntityId(entityId);
-      setCustomApis(apis);
+      const response = await customApisService.getByEntityId(entityId);
+      setCustomApis(response.data || []);
     } catch (error) {
       console.error('Error loading custom APIs:', error);
     } finally {
@@ -206,7 +206,7 @@ export default function EntityDetailPage() {
       } else {
         await customApisService.create({
           ...apiForm,
-          entityId: params.id as string,
+          sourceEntityId: params.id as string,
         });
         toast.success('API criada!');
       }
