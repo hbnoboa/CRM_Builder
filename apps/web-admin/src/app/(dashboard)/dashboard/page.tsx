@@ -561,7 +561,7 @@ export default function DashboardPage() {
               </Card>
             </Link>
 
-            <Link href="/users/new">
+            <Link href="/users">
               <Card className="hover:border-primary/50 transition-colors cursor-pointer h-full">
                 <CardContent className="p-6">
                   <div className="flex items-center gap-4">
@@ -569,7 +569,7 @@ export default function DashboardPage() {
                       <Users className="h-6 w-6 text-pink-500" />
                     </div>
                     <div>
-                      <h3 className="font-semibold">Invite User</h3>
+                      <h3 className="font-semibold">Manage Users</h3>
                       <p className="text-sm text-muted-foreground">
                         Add team members
                       </p>
