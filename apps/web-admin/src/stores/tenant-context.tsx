@@ -32,7 +32,7 @@ export function TenantProvider({ children }: { children: ReactNode }) {
   const [workspace, setWorkspace] = useState<Workspace | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+  const API_BASE = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001').replace(/\/api\/v1\/?$/, '');
 
   const fetchTenantData = async () => {
     const token = localStorage.getItem('accessToken');
@@ -44,7 +44,7 @@ export function TenantProvider({ children }: { children: ReactNode }) {
     try {
       // Fetch tenant info
       if (user.tenantId) {
-        const tenantRes = await fetch(`${API_URL}/api/v1/tenants/${user.tenantId}`, {
+        const tenantRes = await fetch(`${API_BASE}/api/v1/tenants/${user.tenantId}`, {
           headers: { Authorization: `Bearer ${token}` },
         });
         if (tenantRes.ok) {
@@ -54,7 +54,7 @@ export function TenantProvider({ children }: { children: ReactNode }) {
       }
 
       // Fetch organization (one per tenant)
-      const orgRes = await fetch(`${API_URL}/api/v1/organizations`, {
+      const orgRes = await fetch(`${API_BASE}/api/v1/organizations`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (orgRes.ok) {
