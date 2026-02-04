@@ -31,7 +31,6 @@ export interface CreateEntityDto {
   description?: string;
   icon?: string;
   color?: string;
-  organizationId: string;
   fields?: FieldDefinition[];
   settings?: Record<string, unknown>;
   isSystem?: boolean;
@@ -52,19 +51,19 @@ export class EntityService {
   constructor(private prisma: PrismaService) {}
 
   async create(dto: CreateEntityDto, currentUser: CurrentUser) {
-    // Verificar se slug já existe no organization
+    // Verificar se slug ja existe no tenant
     const existing = await this.prisma.entity.findFirst({
       where: {
-        organizationId: dto.organizationId,
+        tenantId: currentUser.tenantId,
         slug: dto.slug,
       },
     });
 
     if (existing) {
-      throw new ConflictException('Entidade com este slug já existe');
+      throw new ConflictException('Entidade com este slug ja existe');
     }
 
-    // Gerar namePlural se não fornecido
+    // Gerar namePlural se nao fornecido
     const namePlural = dto.namePlural || `${dto.name}s`;
 
     return this.prisma.entity.create({
@@ -75,7 +74,6 @@ export class EntityService {
         description: dto.description,
         icon: dto.icon,
         color: dto.color,
-        organizationId: dto.organizationId,
         tenantId: currentUser.tenantId,
         fields: (dto.fields || []) as unknown as Prisma.InputJsonValue,
         settings: (dto.settings || {}) as Prisma.InputJsonValue,
@@ -84,12 +82,11 @@ export class EntityService {
     });
   }
 
-  async findAll(organizationId: string, currentUser: CurrentUser, query: QueryEntityDto = {}) {
+  async findAll(currentUser: CurrentUser, query: QueryEntityDto = {}) {
     const { page, limit, skip } = parsePaginationParams(query);
     const { search, sortBy = 'name', sortOrder = 'asc' } = query;
 
     const where: Prisma.EntityWhereInput = {
-      organizationId,
       tenantId: currentUser.tenantId,
     };
 
@@ -122,17 +119,16 @@ export class EntityService {
     };
   }
 
-  async findBySlug(organizationId: string, slug: string, currentUser: CurrentUser) {
+  async findBySlug(slug: string, currentUser: CurrentUser) {
     const entity = await this.prisma.entity.findFirst({
       where: {
-        organizationId,
         slug,
         tenantId: currentUser.tenantId,
       },
     });
 
     if (!entity) {
-      throw new NotFoundException(`Entidade "${slug}" não encontrada`);
+      throw new NotFoundException(`Entidade "${slug}" nao encontrada`);
     }
 
     return entity;
@@ -147,7 +143,7 @@ export class EntityService {
     });
 
     if (!entity) {
-      throw new NotFoundException('Entidade não encontrada');
+      throw new NotFoundException('Entidade nao encontrada');
     }
 
     return entity;
@@ -180,35 +176,35 @@ export class EntityService {
   async remove(id: string, currentUser: CurrentUser) {
     await this.findOne(id, currentUser);
 
-    // Isso também deleta todos os dados da entidade (cascade)
+    // Isso tambem deleta todos os dados da entidade (cascade)
     await this.prisma.entity.delete({ where: { id } });
 
-    return { message: 'Entidade excluída com sucesso' };
+    return { message: 'Entidade excluida com sucesso' };
   }
 
-  // Validar dados baseado na definição dos campos
+  // Validar dados baseado na definicao dos campos
   validateData(fields: FieldDefinition[], data: Record<string, any>): string[] {
     const errors: string[] = [];
 
     for (const field of fields) {
       const value = data[field.slug];
 
-      // Verificar campos obrigatórios
+      // Verificar campos obrigatorios
       if (field.required && (value === undefined || value === null || value === '')) {
-        errors.push(`Campo "${field.name}" é obrigatório`);
+        errors.push(`Campo "${field.name}" e obrigatorio`);
         continue;
       }
 
-      // Pular validação se campo vazio e não obrigatório
+      // Pular validacao se campo vazio e nao obrigatorio
       if (value === undefined || value === null || value === '') {
         continue;
       }
 
-      // Validações por tipo
+      // Validacoes por tipo
       switch (field.type) {
         case 'email':
           if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
-            errors.push(`"${field.name}" deve ser um email válido`);
+            errors.push(`"${field.name}" deve ser um email valido`);
           }
           break;
 
@@ -216,7 +212,7 @@ export class EntityService {
         case 'decimal':
         case 'currency':
           if (isNaN(Number(value))) {
-            errors.push(`"${field.name}" deve ser um número`);
+            errors.push(`"${field.name}" deve ser um numero`);
           }
           break;
 
@@ -224,7 +220,7 @@ export class EntityService {
           try {
             new URL(value);
           } catch {
-            errors.push(`"${field.name}" deve ser uma URL válida`);
+            errors.push(`"${field.name}" deve ser uma URL valida`);
           }
           break;
 
@@ -242,7 +238,7 @@ export class EntityService {
             const validValues = field.options.map((o) => o.value);
             for (const v of value) {
               if (!validValues.includes(v)) {
-                errors.push(`"${field.name}" contém valor inválido: ${v}`);
+                errors.push(`"${field.name}" contem valor invalido: ${v}`);
               }
             }
           }

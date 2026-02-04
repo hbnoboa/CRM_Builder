@@ -22,13 +22,13 @@ export interface UpdateEntityData {
 }
 
 export const entitiesService = {
-  async getAll(organizationId: string): Promise<Entity[]> {
-    const response = await api.get<Entity[]>(`/organizations/${organizationId}/entities`);
+  async getAll(): Promise<Entity[]> {
+    const response = await api.get<Entity[]>('/entities');
     return response.data;
   },
 
-  async getBySlug(organizationId: string, slug: string): Promise<Entity> {
-    const response = await api.get<Entity>(`/organizations/${organizationId}/entities/${slug}`);
+  async getBySlug(slug: string): Promise<Entity> {
+    const response = await api.get<Entity>(`/entities/slug/${slug}`);
     return response.data;
   },
 
@@ -37,8 +37,8 @@ export const entitiesService = {
     return response.data;
   },
 
-  async create(organizationId: string, data: CreateEntityData): Promise<Entity> {
-    const response = await api.post<Entity>(`/organizations/${organizationId}/entities`, data);
+  async create(data: CreateEntityData): Promise<Entity> {
+    const response = await api.post<Entity>('/entities', data);
     return response.data;
   },
 

@@ -5,17 +5,8 @@ import { PrismaService } from '../../prisma/prisma.service';
 export class StatsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async getDashboardStats(tenantId: string, organizationId?: string) {
-    // EntityData não tem organizationId, apenas tenantId
-    const whereEntity = {
-      tenantId,
-    };
-
-    // Page, Entity e CustomEndpoint têm organizationId (opcional)
-    const whereWithOrg = {
-      tenantId,
-      ...(organizationId && { organizationId: organizationId }),
-    };
+  async getDashboardStats(tenantId: string) {
+    const where = { tenantId };
 
     const [
       totalEntities,
@@ -23,14 +14,12 @@ export class StatsService {
       totalPages,
       totalApis,
       totalUsers,
-      totalOrganizations,
     ] = await Promise.all([
-      this.prisma.entity.count({ where: whereWithOrg }),
-      this.prisma.entityData.count({ where: whereEntity }),
-      this.prisma.page.count({ where: whereWithOrg }),
-      this.prisma.customEndpoint.count({ where: whereWithOrg }),
-      this.prisma.user.count({ where: { tenantId } }),
-      this.prisma.organization.count({ where: { tenantId } }),
+      this.prisma.entity.count({ where }),
+      this.prisma.entityData.count({ where }),
+      this.prisma.page.count({ where }),
+      this.prisma.customEndpoint.count({ where }),
+      this.prisma.user.count({ where }),
     ]);
 
     return {
@@ -39,15 +28,10 @@ export class StatsService {
       totalPages,
       totalApis,
       totalUsers,
-      totalOrganizations,
     };
   }
 
-  async getRecordsOverTime(
-    tenantId: string,
-    organizationId?: string,
-    days: number = 30,
-  ) {
+  async getRecordsOverTime(tenantId: string, days: number = 30) {
     const startDate = new Date();
     startDate.setDate(startDate.getDate() - days);
 
@@ -87,14 +71,9 @@ export class StatsService {
     return result;
   }
 
-  async getEntitiesDistribution(tenantId: string, organizationId?: string) {
-    const whereWithOrg = {
-      tenantId,
-      ...(organizationId && { organizationId: organizationId }),
-    };
-
+  async getEntitiesDistribution(tenantId: string) {
     const entities = await this.prisma.entity.findMany({
-      where: whereWithOrg,
+      where: { tenantId },
       select: {
         id: true,
         name: true,
@@ -141,23 +120,12 @@ export class StatsService {
     return users;
   }
 
-  async getRecentActivity(
-    tenantId: string,
-    organizationId?: string,
-    limit: number = 10,
-  ) {
-    const whereEntity = {
-      tenantId,
-    };
-
-    const whereWithOrg = {
-      tenantId,
-      ...(organizationId && { organizationId: organizationId }),
-    };
+  async getRecentActivity(tenantId: string, limit: number = 10) {
+    const where = { tenantId };
 
     const [records, pages, entities] = await Promise.all([
       this.prisma.entityData.findMany({
-        where: whereEntity,
+        where,
         select: {
           id: true,
           createdAt: true,
@@ -168,7 +136,7 @@ export class StatsService {
         take: limit,
       }),
       this.prisma.page.findMany({
-        where: whereWithOrg,
+        where,
         select: {
           id: true,
           title: true,
@@ -179,7 +147,7 @@ export class StatsService {
         take: limit,
       }),
       this.prisma.entity.findMany({
-        where: whereWithOrg,
+        where,
         select: {
           id: true,
           name: true,

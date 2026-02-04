@@ -45,7 +45,7 @@ interface EndpointExecutionContext {
   query: Record<string, string>;
   headers: Record<string, string>;
   user?: CurrentUser;
-  organizationId: string;
+  tenantId: string;
   prisma: PrismaService;
 }
 
@@ -55,11 +55,11 @@ export class CustomApiService {
 
   constructor(private prisma: PrismaService) {}
 
-  async create(data: CreateCustomApiDto, organizationId: string, tenantId: string) {
-    // Check if path already exists for this organization and method
+  async create(data: CreateCustomApiDto, tenantId: string) {
+    // Check if path already exists for this tenant and method
     const existing = await this.prisma.customEndpoint.findFirst({
       where: {
-        organizationId,
+        tenantId,
         path: data.path,
         method: data.method,
       },
@@ -67,14 +67,14 @@ export class CustomApiService {
 
     if (existing) {
       throw new BadRequestException(
-        `Endpoint ${data.method} ${data.path} ja existe neste organization`,
+        `Endpoint ${data.method} ${data.path} ja existe neste tenant`,
       );
     }
 
     // Validar entidade fonte se modo visual
     if (data.mode === ApiMode.VISUAL && data.sourceEntityId) {
       const entity = await this.prisma.entity.findFirst({
-        where: { id: data.sourceEntityId, organizationId },
+        where: { id: data.sourceEntityId, tenantId },
       });
       if (!entity) {
         throw new BadRequestException('Entidade fonte nao encontrada');
@@ -105,7 +105,6 @@ export class CustomApiService {
         permissions: data.allowedRoles || [],
         rateLimit: data.rateLimitConfig?.requests || 100,
         isActive: data.isActive ?? true,
-        organizationId,
         tenantId,
       },
       include: {
@@ -114,12 +113,12 @@ export class CustomApiService {
     });
   }
 
-  async findAll(organizationId: string, query: QueryCustomApiDto = {}) {
+  async findAll(tenantId: string, query: QueryCustomApiDto = {}) {
     const { page, limit, skip } = parsePaginationParams(query);
     const { search, isActive, method, sortBy = 'createdAt', sortOrder = 'desc' } = query;
 
     const where: Prisma.CustomEndpointWhereInput = {
-      organizationId,
+      tenantId,
     };
 
     if (isActive !== undefined) {
@@ -164,9 +163,9 @@ export class CustomApiService {
     };
   }
 
-  async findOne(id: string, organizationId: string) {
+  async findOne(id: string, tenantId: string) {
     const endpoint = await this.prisma.customEndpoint.findFirst({
-      where: { id, organizationId },
+      where: { id, tenantId },
       include: {
         sourceEntity: {
           select: {
@@ -186,14 +185,14 @@ export class CustomApiService {
     return endpoint;
   }
 
-  async update(id: string, data: UpdateCustomApiDto, organizationId: string) {
-    await this.findOne(id, organizationId);
+  async update(id: string, data: UpdateCustomApiDto, tenantId: string) {
+    await this.findOne(id, tenantId);
 
     // Check if new path conflicts with existing
     if (data.path || data.method) {
       const existing = await this.prisma.customEndpoint.findFirst({
         where: {
-          organizationId,
+          tenantId,
           path: data.path,
           method: data.method,
           NOT: { id },
@@ -202,7 +201,7 @@ export class CustomApiService {
 
       if (existing) {
         throw new BadRequestException(
-          `Endpoint ${data.method} ${data.path} ja existe neste organization`,
+          `Endpoint ${data.method} ${data.path} ja existe neste tenant`,
         );
       }
     }
@@ -210,7 +209,7 @@ export class CustomApiService {
     // Validar entidade fonte se modo visual
     if (data.sourceEntityId) {
       const entity = await this.prisma.entity.findFirst({
-        where: { id: data.sourceEntityId, organizationId },
+        where: { id: data.sourceEntityId, tenantId },
       });
       if (!entity) {
         throw new BadRequestException('Entidade fonte nao encontrada');
@@ -249,16 +248,16 @@ export class CustomApiService {
     });
   }
 
-  async remove(id: string, organizationId: string) {
-    await this.findOne(id, organizationId);
+  async remove(id: string, tenantId: string) {
+    await this.findOne(id, tenantId);
 
     return this.prisma.customEndpoint.delete({
       where: { id },
     });
   }
 
-  async toggleActive(id: string, organizationId: string) {
-    const endpoint = await this.findOne(id, organizationId);
+  async toggleActive(id: string, tenantId: string) {
+    const endpoint = await this.findOne(id, tenantId);
 
     return this.prisma.customEndpoint.update({
       where: { id },
@@ -266,8 +265,8 @@ export class CustomApiService {
     });
   }
 
-  async activate(id: string, organizationId: string) {
-    await this.findOne(id, organizationId);
+  async activate(id: string, tenantId: string) {
+    await this.findOne(id, tenantId);
 
     return this.prisma.customEndpoint.update({
       where: { id },
@@ -275,8 +274,8 @@ export class CustomApiService {
     });
   }
 
-  async deactivate(id: string, organizationId: string) {
-    await this.findOne(id, organizationId);
+  async deactivate(id: string, tenantId: string) {
+    await this.findOne(id, tenantId);
 
     return this.prisma.customEndpoint.update({
       where: { id },
@@ -286,7 +285,7 @@ export class CustomApiService {
 
   // Execute custom endpoint logic
   async executeEndpoint(
-    organizationId: string,
+    tenantId: string,
     path: string,
     method: HttpMethod,
     body: Record<string, unknown>,
@@ -296,7 +295,7 @@ export class CustomApiService {
   ) {
     const endpoint = await this.prisma.customEndpoint.findFirst({
       where: {
-        organizationId,
+        tenantId,
         path,
         method,
         isActive: true,
@@ -331,7 +330,7 @@ export class CustomApiService {
         query,
         headers,
         user,
-        organizationId,
+        tenantId,
         prisma: this.prisma,
       });
     }
@@ -510,19 +509,19 @@ export class CustomApiService {
         query: context.query,
         headers: context.headers,
         user: context.user,
-        organizationId: context.organizationId,
+        tenantId: context.tenantId,
         // Limited Prisma access
         db: {
           entityData: {
             findMany: (args: Prisma.EntityDataFindManyArgs) =>
               context.prisma.entityData.findMany({
                 ...args,
-                where: { ...args.where, entity: { organizationId: context.organizationId } },
+                where: { ...args.where, entity: { tenantId: context.tenantId } },
               }),
             findFirst: (args: Prisma.EntityDataFindFirstArgs) =>
               context.prisma.entityData.findFirst({
                 ...args,
-                where: { ...args.where, entity: { organizationId: context.organizationId } },
+                where: { ...args.where, entity: { tenantId: context.tenantId } },
               }),
             create: (args: Prisma.EntityDataCreateArgs) =>
               context.prisma.entityData.create(args),
@@ -562,9 +561,9 @@ export class CustomApiService {
   }
 
   // Get endpoint stats
-  async getEndpointStats(organizationId: string) {
+  async getEndpointStats(tenantId: string) {
     const endpoints = await this.prisma.customEndpoint.findMany({
-      where: { organizationId },
+      where: { tenantId },
     });
 
     return {

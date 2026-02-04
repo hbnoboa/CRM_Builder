@@ -9,19 +9,10 @@ interface Tenant {
   slug: string;
 }
 
-interface Organization {
-  id: string;
-  name: string;
-  slug: string;
-}
-
 interface TenantContextType {
   tenantId: string | null;
-  organizationId: string | null;
-  organizationName: string | null;
   loading: boolean;
   tenant: Tenant | null;
-  organization: Organization | null;
   refresh: () => Promise<void>;
 }
 
@@ -30,7 +21,6 @@ const TenantContext = createContext<TenantContextType | undefined>(undefined);
 export function TenantProvider({ children }: { children: ReactNode }) {
   const { user } = useAuthStore();
   const [tenant, setTenant] = useState<Tenant | null>(null);
-  const [organization, setOrganization] = useState<Organization | null>(null);
   const [loading, setLoading] = useState(true);
 
   const API_BASE = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001').replace(/\/api\/v1\/?$/, '');
@@ -53,21 +43,6 @@ export function TenantProvider({ children }: { children: ReactNode }) {
           setTenant(tenantData);
         }
       }
-
-      // Fetch organization from user
-      if (user.organizationId) {
-        const orgRes = await fetch(`${API_BASE}/api/v1/organizations/${user.organizationId}`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        if (orgRes.ok) {
-          const orgData = await orgRes.json();
-          setOrganization({
-            id: orgData.id,
-            name: orgData.name,
-            slug: orgData.slug,
-          });
-        }
-      }
     } catch (error) {
       console.error('Error fetching tenant data:', error);
     } finally {
@@ -87,11 +62,8 @@ export function TenantProvider({ children }: { children: ReactNode }) {
     <TenantContext.Provider
       value={{
         tenantId: user?.tenantId || null,
-        organizationId: user?.organizationId || null,
-        organizationName: organization?.name || null,
         loading,
         tenant,
-        organization,
         refresh,
       }}
     >

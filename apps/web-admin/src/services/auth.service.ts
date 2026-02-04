@@ -6,7 +6,6 @@ export interface RegisterData {
   password: string;
   name: string;
   tenantId: string;
-  organizationId?: string;
 }
 
 export interface UpdateProfileData {

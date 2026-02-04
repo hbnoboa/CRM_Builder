@@ -52,7 +52,7 @@ let createdApiId: string;
 const timestamp = Date.now();
 
 // Workspace ID will be obtained dynamically
-let organizationId: string;
+let tenantId: string;
 
 const TEST_DATA = {
   tenant: {
@@ -646,24 +646,24 @@ test.describe.serial('CRUD - Data (Registros)', () => {
       adminToken = await getAuthToken(request, TENANT_ADMIN.email, TENANT_ADMIN.password);
     }
     
-    // Obter organizationId e entitySlug
+    // Obter tenantId e entitySlug
     const listResponse = await apiRequest(request, 'GET', '/entities', adminToken);
     const entities = await listResponse.json();
     const data = Array.isArray(entities) ? entities : entities.data || [];
     if (data.length > 0) {
       createdEntityId = data[0].id;
       entitySlug = data[0].slug;
-      organizationId = data[0].organizationId;
+      tenantId = data[0].tenantId;
     }
   });
 
   test('CREATE - deve criar registro na entidade', async ({ request }) => {
-    if (!organizationId || !entitySlug) {
+    if (!tenantId || !entitySlug) {
       test.skip();
       return;
     }
     
-    const response = await apiRequest(request, 'POST', `/data/${organizationId}/${entitySlug}`, adminToken, TEST_DATA.record);
+    const response = await apiRequest(request, 'POST', `/data/${entitySlug}`, adminToken, TEST_DATA.record);
     
     if (response.ok()) {
       const body = await response.json();
@@ -676,12 +676,12 @@ test.describe.serial('CRUD - Data (Registros)', () => {
   });
 
   test('READ - deve listar registros da entidade', async ({ request }) => {
-    if (!organizationId || !entitySlug) {
+    if (!tenantId || !entitySlug) {
       test.skip();
       return;
     }
     
-    const response = await apiRequest(request, 'GET', `/data/${organizationId}/${entitySlug}`, adminToken);
+    const response = await apiRequest(request, 'GET', `/data/${entitySlug}`, adminToken);
     expect(response.status()).toBe(200);
     
     const body = await response.json();
@@ -690,23 +690,23 @@ test.describe.serial('CRUD - Data (Registros)', () => {
   });
 
   test('READ - deve buscar registro por ID', async ({ request }) => {
-    if (!organizationId || !entitySlug || !createdRecordId) {
+    if (!tenantId || !entitySlug || !createdRecordId) {
       test.skip();
       return;
     }
     
-    const response = await apiRequest(request, 'GET', `/data/${organizationId}/${entitySlug}/${createdRecordId}`, adminToken);
+    const response = await apiRequest(request, 'GET', `/data/${entitySlug}/${createdRecordId}`, adminToken);
     expect(response.status()).toBe(200);
   });
 
   test('UPDATE - deve atualizar registro', async ({ request }) => {
-    if (!organizationId || !entitySlug || !createdRecordId) {
+    if (!tenantId || !entitySlug || !createdRecordId) {
       test.skip();
       return;
     }
     
     const updateData = { data: { nome: 'Produto Atualizado', preco: 149.90 } };
-    const response = await apiRequest(request, 'PUT', `/data/${organizationId}/${entitySlug}/${createdRecordId}`, adminToken, updateData);
+    const response = await apiRequest(request, 'PUT', `/data/${entitySlug}/${createdRecordId}`, adminToken, updateData);
     
     if (response.ok()) {
       const body = await response.json();
@@ -717,12 +717,12 @@ test.describe.serial('CRUD - Data (Registros)', () => {
   });
 
   test('DELETE - deve excluir registro', async ({ request }) => {
-    if (!organizationId || !entitySlug || !createdRecordId) {
+    if (!tenantId || !entitySlug || !createdRecordId) {
       test.skip();
       return;
     }
     
-    const response = await apiRequest(request, 'DELETE', `/data/${organizationId}/${entitySlug}/${createdRecordId}`, adminToken);
+    const response = await apiRequest(request, 'DELETE', `/data/${entitySlug}/${createdRecordId}`, adminToken);
     expect(response.status()).toBeLessThan(300);
     createdRecordId = '';
   });

@@ -186,17 +186,7 @@ test.describe('Users', () => {
   });
 });
 
-test.describe('Organization', () => {
-  test.beforeEach(async ({ page }) => {
-    await login(page, TEST_ADMIN.email, TEST_ADMIN.password);
-    await page.goto('/organization');
-    await page.waitForLoadState('networkidle', { timeout: 15000 });
-  });
-
-  test('should show organization details', async ({ page }) => {
-    await expect(page.locator('h1')).toContainText('Organization', { timeout: 15000 });
-  });
-});
+// Organization page removed - using only Tenant
 
 test.describe('Settings', () => {
   test.beforeEach(async ({ page }) => {

@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException, ConflictException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateUserDto, UpdateUserDto, QueryUserDto } from './dto/user.dto';
-import { UserRole, Status, Prisma } from '@prisma/client';
+import { UserRole, Prisma } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
 import { CurrentUser } from '../../common/types';
 
@@ -10,7 +10,7 @@ export class UserService {
   constructor(private prisma: PrismaService) {}
 
   async create(dto: CreateUserDto, currentUser: CurrentUser) {
-    // Verificar se email já existe no tenant
+    // Verificar se email ja existe no tenant
     const existing = await this.prisma.user.findFirst({
       where: {
         email: dto.email,
@@ -19,7 +19,7 @@ export class UserService {
     });
 
     if (existing) {
-      throw new ConflictException('Email já está em uso');
+      throw new ConflictException('Email ja esta em uso');
     }
 
     const hashedPassword = await bcrypt.hash(dto.password, 12);
@@ -29,7 +29,6 @@ export class UserService {
         ...dto,
         password: hashedPassword,
         tenantId: currentUser.tenantId,
-        organizationId: dto.organizationId || currentUser.organizationId,
       },
       select: {
         id: true,
@@ -38,14 +37,13 @@ export class UserService {
         avatar: true,
         role: true,
         status: true,
-        organizationId: true,
         createdAt: true,
       },
     });
   }
 
   async findAll(query: QueryUserDto, currentUser: CurrentUser) {
-    const { page = 1, limit = 20, search, role, status, organizationId } = query;
+    const { page = 1, limit = 20, search, role, status } = query;
     const skip = (page - 1) * limit;
 
     // Base filter por tenant
@@ -53,15 +51,9 @@ export class UserService {
       tenantId: currentUser.tenantId,
     };
 
-    // Manager só vê usuários da sua organização
-    if (currentUser.role === UserRole.MANAGER) {
-      where.organizationId = currentUser.organizationId;
-    }
-
     // Filtros opcionais
     if (role) where.role = role;
     if (status) where.status = status;
-    if (organizationId) where.organizationId = organizationId;
     if (search) {
       where.OR = [
         { name: { contains: search, mode: 'insensitive' } },
@@ -84,12 +76,6 @@ export class UserService {
           status: true,
           lastLoginAt: true,
           createdAt: true,
-          organization: {
-            select: {
-              id: true,
-              name: true,
-            },
-          },
         },
       }),
       this.prisma.user.count({ where }),
@@ -122,13 +108,6 @@ export class UserService {
         lastLoginAt: true,
         createdAt: true,
         updatedAt: true,
-        organization: {
-          select: {
-            id: true,
-            name: true,
-            slug: true,
-          },
-        },
         userRoles: {
           include: {
             role: {
@@ -145,21 +124,14 @@ export class UserService {
     });
 
     if (!user) {
-      throw new NotFoundException('Usuário não encontrado');
+      throw new NotFoundException('Usuario nao encontrado');
     }
 
     return user;
   }
 
   async update(id: string, dto: UpdateUserDto, currentUser: CurrentUser) {
-    const user = await this.findOne(id, currentUser);
-
-    // Verificar permissão (Manager só edita da equipe)
-    if (currentUser.role === UserRole.MANAGER) {
-      if (user.organization?.id !== currentUser.organizationId) {
-        throw new ForbiddenException('Você só pode editar usuários da sua equipe');
-      }
-    }
+    await this.findOne(id, currentUser);
 
     // Se mudando senha, fazer hash
     if (dto.password) {
@@ -182,22 +154,15 @@ export class UserService {
   }
 
   async remove(id: string, currentUser: CurrentUser) {
-    const user = await this.findOne(id, currentUser);
+    await this.findOne(id, currentUser);
 
-    // Não pode deletar a si mesmo
+    // Nao pode deletar a si mesmo
     if (id === currentUser.id) {
-      throw new ForbiddenException('Você não pode excluir sua própria conta');
-    }
-
-    // Verificar permissão
-    if (currentUser.role === UserRole.MANAGER) {
-      if (user.organization?.id !== currentUser.organizationId) {
-        throw new ForbiddenException('Você só pode excluir usuários da sua equipe');
-      }
+      throw new ForbiddenException('Voce nao pode excluir sua propria conta');
     }
 
     await this.prisma.user.delete({ where: { id } });
 
-    return { message: 'Usuário excluído com sucesso' };
+    return { message: 'Usuario excluido com sucesso' };
   }
 }

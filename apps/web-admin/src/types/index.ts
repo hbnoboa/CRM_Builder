@@ -13,15 +13,7 @@ export interface Tenant {
   updatedAt?: string;
   _count?: {
     users?: number;
-    organizations?: number;
   };
-}
-
-export interface Organization {
-  id: string;
-  name: string;
-  slug: string;
-  tenantId?: string;
 }
 
 export interface User {
@@ -32,9 +24,7 @@ export interface User {
   role: UserRole;
   status: Status;
   tenantId: string;
-  organizationId: string;
   tenant?: Tenant;
-  organization?: Organization;
   additionalRoles?: Role[];
   permissions?: string[];
   lastLoginAt?: string;
@@ -49,7 +39,6 @@ export interface Role {
   description?: string;
   permissions: string[] | Record<string, unknown>;
   tenantId: string;
-  organizationId?: string;
   isSystem?: boolean;
   createdAt?: string;
   updatedAt?: string;
@@ -75,7 +64,6 @@ export interface RegisterDate {
 
 export interface Entity {
   id: string;
-  organizationId: string;
   tenantId: string;
   name: string;
   namePlural?: string;
@@ -104,7 +92,7 @@ export interface EntityField {
   validation?: Record<string, unknown>;
 }
 
-export type FieldType = 
+export type FieldType =
   | 'text'
   | 'textarea'
   | 'number'

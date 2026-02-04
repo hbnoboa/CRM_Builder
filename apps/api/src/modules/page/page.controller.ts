@@ -2,7 +2,6 @@ import {
   Controller,
   Get,
   Post,
-  Put,
   Delete,
   Patch,
   Body,
@@ -10,7 +9,6 @@ import {
   Query,
   UseGuards,
   Logger,
-  BadRequestException,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
@@ -18,17 +16,13 @@ import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { PageService, QueryPageDto } from './page.service';
 import { CreatePageDto, UpdatePageDto } from './dto/page.dto';
-import { PrismaService } from '../../prisma/prisma.service';
 
 @Controller('pages')
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class PageController {
   private readonly logger = new Logger(PageController.name);
 
-  constructor(
-    private readonly pageService: PageService,
-    private readonly prisma: PrismaService,
-  ) {}
+  constructor(private readonly pageService: PageService) {}
 
   @Post()
   @Roles('ADMIN', 'MANAGER')
@@ -37,33 +31,32 @@ export class PageController {
     @CurrentUser() user: any,
   ) {
     this.logger.log(`Creating page: ${dto.title}`);
-    return this.pageService.create(dto, user.id, user.organizationId, user.tenantId);
+    return this.pageService.create(dto, user.id, user.tenantId);
   }
 
   @Get()
   async findAll(@Query() query: QueryPageDto, @CurrentUser() user: any) {
-    return this.pageService.findAll(user.organizationId, query);
+    return this.pageService.findAll(user.tenantId, query);
   }
 
   @Get(':id')
   async findOne(@Param('id') id: string, @CurrentUser() user: any) {
-    return this.pageService.findOne(id, user.organizationId);
+    return this.pageService.findOne(id, user.tenantId);
   }
 
   @Get('slug/:slug')
   async findBySlug(@Param('slug') slug: string, @CurrentUser() user: any) {
-    return this.pageService.findBySlug(slug, user.organizationId);
+    return this.pageService.findBySlug(slug, user.tenantId);
   }
 
   // Preview endpoint - permite visualizar paginas nao publicadas (autenticado)
-  @Get('preview/:organizationId/:slug')
+  @Get('preview/:slug')
   async preview(
-    @Param('organizationId') organizationId: string,
     @Param('slug') slug: string,
     @CurrentUser() user: any,
   ) {
-    this.logger.log(`Preview page: ${slug} in organization ${organizationId}`);
-    return this.pageService.getPreviewPage(slug, organizationId, user.tenantId);
+    this.logger.log(`Preview page: ${slug}`);
+    return this.pageService.getPreviewPage(slug, user.tenantId);
   }
 
   @Patch(':id')
@@ -73,31 +66,31 @@ export class PageController {
     @Body() dto: UpdatePageDto,
     @CurrentUser() user: any,
   ) {
-    return this.pageService.update(id, dto, user.organizationId);
+    return this.pageService.update(id, dto, user.tenantId);
   }
 
   @Patch(':id/publish')
   @Roles('ADMIN', 'MANAGER')
   async publish(@Param('id') id: string, @CurrentUser() user: any) {
-    return this.pageService.publish(id, user.organizationId);
+    return this.pageService.publish(id, user.tenantId);
   }
 
   @Patch(':id/unpublish')
   @Roles('ADMIN', 'MANAGER')
   async unpublish(@Param('id') id: string, @CurrentUser() user: any) {
-    return this.pageService.unpublish(id, user.organizationId);
+    return this.pageService.unpublish(id, user.tenantId);
   }
 
   @Post(':id/duplicate')
   @Roles('ADMIN', 'MANAGER')
   async duplicate(@Param('id') id: string, @CurrentUser() user: any) {
-    return this.pageService.duplicate(id, user.organizationId, user.tenantId);
+    return this.pageService.duplicate(id, user.tenantId);
   }
 
   @Delete(':id')
   @Roles('ADMIN')
   async remove(@Param('id') id: string, @CurrentUser() user: any) {
-    return this.pageService.remove(id, user.organizationId);
+    return this.pageService.remove(id, user.tenantId);
   }
 }
 
@@ -112,11 +105,11 @@ export class PublicPageController {
     return this.pageService.getPublicPageBySlug(slug);
   }
 
-  @Get(':organizationId/:slug')
+  @Get(':tenantId/:slug')
   async getPublicPage(
-    @Param('organizationId') organizationId: string,
+    @Param('tenantId') tenantId: string,
     @Param('slug') slug: string,
   ) {
-    return this.pageService.getPublicPage(slug, organizationId);
+    return this.pageService.getPublicPage(slug, tenantId);
   }
 }

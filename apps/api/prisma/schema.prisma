@@ -3,16 +3,11 @@
 
 generator client {
   provider = "prisma-client-js"
-  // Enable previewFeatures if needed
-  // previewFeatures = ["fullTextSearch"]
 }
 
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
-  // Direct URL for migrations (bypasses connection pooler)
-  // Uncomment if using PgBouncer or similar
-  // directUrl = env("DIRECT_DATABASE_URL")
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -35,9 +30,9 @@ enum Status {
 enum UserRole {
   PLATFORM_ADMIN // Super admin da plataforma
   ADMIN          // Admin do tenant
-  MANAGER        // Gerente (edita equipe)
-  USER           // Usuário padrão (edita próprios)
-  VIEWER         // Apenas visualização
+  MANAGER        // Gerente
+  USER           // Usuario padrao
+  VIEWER         // Apenas visualizacao
 }
 
 enum HttpMethod {
@@ -55,7 +50,7 @@ enum AuthType {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// MULTI-TENANCY - NÍVEL 1: TENANT
+// TENANT (Empresa)
 // ═══════════════════════════════════════════════════════════════════════════
 
 model Tenant {
@@ -65,46 +60,23 @@ model Tenant {
   domain    String?  @unique
   logo      String?
   settings  Json     @default("{}")
-  
+
   plan      Plan     @default(FREE)
   status    Status   @default(ACTIVE)
-  
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  
+
   // Relacionamentos
-  organizations Organization[]
-  users         User[]
-  roles         Role[]
-  
+  users           User[]
+  roles           Role[]
+  entities        Entity[]
+  pages           Page[]
+  customEndpoints CustomEndpoint[]
+
   @@index([slug])
   @@index([status])
   @@index([plan])
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// MULTI-TENANCY - NÍVEL 2: ORGANIZATION (Area de Trabalho)
-// ═══════════════════════════════════════════════════════════════════════════
-
-model Organization {
-  id        String   @id @default(cuid())
-  tenantId  String
-  name      String
-  slug      String
-  settings  Json     @default("{}")
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  // Relacionamentos
-  tenant    Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  users     User[]
-  entities  Entity[]
-  pages     Page[]
-  endpoints CustomEndpoint[]
-
-  @@unique([tenantId, slug])
-  @@index([tenantId])
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -112,43 +84,38 @@ model Organization {
 // ═══════════════════════════════════════════════════════════════════════════
 
 model User {
-  id             String    @id @default(cuid())
-  tenantId       String
-  organizationId String?
+  id        String    @id @default(cuid())
+  tenantId  String
 
-  email          String
-  password       String
-  name           String
-  avatar         String?
+  email     String
+  password  String
+  name      String
+  avatar    String?
 
-  role           UserRole  @default(USER)
-  status         Status    @default(ACTIVE)
+  role      UserRole  @default(USER)
+  status    Status    @default(ACTIVE)
 
-  lastLoginAt         DateTime?
-  resetToken          String?
-  resetTokenExpires   DateTime?
-  createdAt           DateTime  @default(now())
-  updatedAt           DateTime  @updatedAt
+  lastLoginAt       DateTime?
+  resetToken        String?
+  resetTokenExpires DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 
   // Relacionamentos
-  tenant         Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  organization   Organization? @relation(fields: [organizationId], references: [id])
-  userRoles      UserRole_[]   // Roles adicionais
-  refreshTokens  RefreshToken[]
+  tenant        Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  userRoles     UserRole_[]
+  refreshTokens RefreshToken[]
 
-  // Dados criados por este usuário
-  createdData    EntityData[]  @relation("CreatedBy")
-  updatedData    EntityData[]  @relation("UpdatedBy")
+  // Dados criados por este usuario
+  createdData EntityData[] @relation("CreatedBy")
+  updatedData EntityData[] @relation("UpdatedBy")
 
   @@unique([tenantId, email])
   @@index([tenantId])
-  @@index([organizationId])
   @@index([email])
   @@index([status])
-  // Composite indexes for common query patterns
   @@index([tenantId, status])
   @@index([tenantId, role])
-  @@index([tenantId, organizationId])
   @@index([tenantId, createdAt(sort: Desc)])
 }
 
@@ -158,9 +125,9 @@ model RefreshToken {
   token     String   @unique
   expiresAt DateTime
   createdAt DateTime @default(now())
-  
+
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
+
   @@index([userId])
   @@index([token])
 }
@@ -172,38 +139,34 @@ model RefreshToken {
 model Role {
   id          String   @id @default(cuid())
   tenantId    String
-  
+
   name        String
   slug        String
   description String?
-  
-  // Array de permissões: ["data:read:all", "cliente:update:own"]
-  permissions Json     @default("[]")
-  
-  isSystem    Boolean  @default(false) // Roles do sistema não podem ser deletadas
-  
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  
-  // Relacionamentos
-  tenant Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  permissions Json    @default("[]")
+  isSystem    Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   users  UserRole_[]
-  
+
   @@unique([tenantId, slug])
   @@index([tenantId])
 }
 
-// Tabela pivô para roles adicionais do usuário
 model UserRole_ {
   id     String @id @default(cuid())
   userId String
   roleId String
-  
+
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
   role Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
-  
+
   createdAt DateTime @default(now())
-  
+
   @@unique([userId, roleId])
   @@index([userId])
   @@index([roleId])
@@ -211,49 +174,35 @@ model UserRole_ {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// ENTITY BUILDER (Entidades Dinâmicas)
+// ENTITY BUILDER (Entidades Dinamicas)
 // ═══════════════════════════════════════════════════════════════════════════
 
 model Entity {
-  id             String   @id @default(cuid())
-  tenantId       String
-  organizationId String
+  id       String @id @default(cuid())
+  tenantId String
 
-  name        String   // "Cliente"
-  namePlural  String   // "Clientes"
-  slug        String   // "cliente"
+  name        String
+  namePlural  String
+  slug        String
   description String?
-  icon        String?  // "users"
-  color       String?  // "#3B82F6"
+  icon        String?
+  color       String?
 
-  // Definicao dos campos (JSON Array)
-  fields      Json     // [{ slug, name, type, required, options, ... }]
+  fields   Json    // [{ slug, name, type, required, options, ... }]
+  settings Json    @default("{}")
+  isSystem Boolean @default(false)
 
-  // Configuracoes da entidade
-  settings    Json     @default("{}")
-  // {
-  //   titleField: "nome",
-  //   subtitleField: "email",
-  //   searchFields: ["nome", "email"],
-  //   defaultSort: { field: "createdAt", order: "desc" }
-  // }
-
-  isSystem    Boolean  @default(false)
-
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   // Relacionamentos
-  organization    Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  tenant          Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   data            EntityData[]
-  customEndpoints CustomEndpoint[] // APIs que usam esta entidade como fonte
+  customEndpoints CustomEndpoint[]
 
-  @@unique([organizationId, slug])
+  @@unique([tenantId, slug])
   @@index([tenantId])
-  @@index([organizationId])
-  // Composite indexes for common query patterns
-  @@index([tenantId, organizationId])
-  @@index([organizationId, name])
+  @@index([tenantId, name])
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -261,20 +210,17 @@ model Entity {
 // ═══════════════════════════════════════════════════════════════════════════
 
 model EntityData {
-  id        String   @id @default(cuid())
-  tenantId  String
-  entityId  String
+  id       String @id @default(cuid())
+  tenantId String
+  entityId String
 
-  // Dados dinâmicos (JSON)
-  data      Json     // { nome: "João", email: "joao@email.com", ... }
+  data Json
 
-  // Auditoria
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   createdById String?
   updatedById String?
 
-  // Relacionamentos
   entity    Entity @relation(fields: [entityId], references: [id], onDelete: Cascade)
   createdBy User?  @relation("CreatedBy", fields: [createdById], references: [id])
   updatedBy User?  @relation("UpdatedBy", fields: [updatedById], references: [id])
@@ -283,7 +229,6 @@ model EntityData {
   @@index([entityId])
   @@index([createdAt])
   @@index([createdById])
-  // Composite indexes for common query patterns
   @@index([tenantId, entityId])
   @@index([tenantId, entityId, createdAt(sort: Desc)])
   @@index([entityId, createdAt(sort: Desc)])
@@ -291,42 +236,31 @@ model EntityData {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// PAGE BUILDER (Páginas Puck)
+// PAGE BUILDER (Paginas Puck)
 // ═══════════════════════════════════════════════════════════════════════════
 
 model Page {
-  id             String   @id @default(cuid())
-  tenantId       String
-  organizationId String
+  id       String @id @default(cuid())
+  tenantId String
 
   title       String
   slug        String
   description String?
   icon        String?
 
-  // Conteudo Puck (JSON)
-  content     Json     @default("{}")
-
-  // Status de publicacao
-  isPublished Boolean  @default(false)
+  content     Json    @default("{}")
+  isPublished Boolean @default(false)
   publishedAt DateTime?
-
-  // Permissoes necessarias para acessar
-  permissions Json     @default("[]")
+  permissions Json    @default("[]")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  // Relacionamentos
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
-  @@unique([organizationId, slug])
+  @@unique([tenantId, slug])
   @@index([tenantId])
-  @@index([organizationId])
   @@index([isPublished])
-  // Composite indexes for common query patterns
-  @@index([tenantId, organizationId])
-  @@index([organizationId, isPublished])
   @@index([tenantId, isPublished])
 }
 
@@ -335,78 +269,43 @@ model Page {
 // ═══════════════════════════════════════════════════════════════════════════
 
 model CustomEndpoint {
-  id             String     @id @default(cuid())
-  tenantId       String
-  organizationId String
+  id       String     @id @default(cuid())
+  tenantId String
 
-  name        String     // "Relatorio de Vendas"
+  name        String
   description String?
-  path        String     // "relatorio-vendas"
+  path        String
   method      HttpMethod @default(POST)
 
-  // Modo: visual (construtor) ou code (JavaScript)
-  mode        String     @default("visual") // "visual" | "code"
+  mode           String  @default("visual")
+  requestSchema  Json?
+  responseSchema Json?
 
-  // Schemas de validacao
-  requestSchema  Json?   // JSON Schema para request
-  responseSchema Json?   // JSON Schema para response
-
-  // ═══════════════════════════════════════════════════════════════════════════
-  // MODO VISUAL - Configuracao sem codigo
-  // ═══════════════════════════════════════════════════════════════════════════
-
-  // Entidade fonte dos dados
   sourceEntityId String?
-  sourceEntity   Entity?  @relation(fields: [sourceEntityId], references: [id], onDelete: SetNull)
+  sourceEntity   Entity? @relation(fields: [sourceEntityId], references: [id], onDelete: SetNull)
 
-  // Campos a retornar (array de nomes de campos)
-  // Ex: ["nome", "email", "status"]
-  selectedFields Json     @default("[]")
-
-  // Filtros fixos (sempre aplicados)
-  // Ex: [{ field: "status", operator: "equals", value: "ativo" }]
-  filters        Json     @default("[]")
-
-  // Parametros dinamicos da URL (query params)
-  // Ex: [{ field: "cidade", operator: "equals", paramName: "cidade" }]
-  queryParams    Json     @default("[]")
-
-  // Ordenacao
-  // Ex: { field: "createdAt", direction: "desc" }
+  selectedFields Json @default("[]")
+  filters        Json @default("[]")
+  queryParams    Json @default("[]")
   orderBy        Json?
-
-  // Limite de registros
   limitRecords   Int?
 
-  // ═══════════════════════════════════════════════════════════════════════════
-  // MODO CODE - JavaScript customizado (avancado)
-  // ═══════════════════════════════════════════════════════════════════════════
-
-  // Logica em JavaScript (apenas para mode="code")
-  logic       Json       @default("[]")
-
-  // Seguranca
-  auth        AuthType   @default(JWT)
-  permissions Json       @default("[]") // Roles que podem acessar
-  rateLimit   Int        @default(100)  // Requests por minuto
-
-  // Status
-  isActive    Boolean    @default(true)
+  logic       Json     @default("[]")
+  auth        AuthType @default(JWT)
+  permissions Json     @default("[]")
+  rateLimit   Int      @default(100)
+  isActive    Boolean  @default(true)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  // Relacionamentos
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
-  @@unique([organizationId, path, method])
+  @@unique([tenantId, path, method])
   @@index([tenantId])
-  @@index([organizationId])
   @@index([isActive])
   @@index([sourceEntityId])
-  // Composite indexes for common query patterns
-  @@index([tenantId, organizationId])
-  @@index([organizationId, isActive])
+  @@index([tenantId, isActive])
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -414,26 +313,22 @@ model CustomEndpoint {
 // ═══════════════════════════════════════════════════════════════════════════
 
 model AuditLog {
-  id        String   @id @default(cuid())
-  tenantId  String
-  userId    String?
-
-  action    String   // "create", "update", "delete", "login", etc
-  resource  String   // "user", "entity", "data", etc
+  id         String   @id @default(cuid())
+  tenantId   String
+  userId     String?
+  action     String
+  resource   String
   resourceId String?
-
-  oldData   Json?
-  newData   Json?
-  metadata  Json?    // IP, User-Agent, etc
-
-  createdAt DateTime @default(now())
+  oldData    Json?
+  newData    Json?
+  metadata   Json?
+  createdAt  DateTime @default(now())
 
   @@index([tenantId])
   @@index([userId])
   @@index([action])
   @@index([resource])
   @@index([createdAt])
-  // Composite indexes for common query patterns
   @@index([tenantId, createdAt(sort: Desc)])
   @@index([tenantId, action])
   @@index([tenantId, resource])
@@ -456,22 +351,18 @@ model Notification {
   id        String           @id @default(cuid())
   tenantId  String
   userId    String
-
   type      NotificationType @default(INFO)
   title     String
   message   String
-  data      Json?            // Additional data related to the notification
-
+  data      Json?
   read      Boolean          @default(false)
   readAt    DateTime?
-
   createdAt DateTime         @default(now())
 
   @@index([tenantId])
   @@index([userId])
   @@index([read])
   @@index([createdAt])
-  // Composite indexes for common query patterns
   @@index([userId, read])
   @@index([userId, createdAt(sort: Desc)])
   @@index([tenantId, userId])

@@ -5,34 +5,32 @@ import { dataService, QueryDataParams } from '@/services/data.service';
 export const dataKeys = {
   all: ['entityData'] as const,
   lists: () => [...dataKeys.all, 'list'] as const,
-  list: (organizationId: string, entitySlug: string, params?: QueryDataParams) =>
-    [...dataKeys.lists(), organizationId, entitySlug, params] as const,
+  list: (entitySlug: string, params?: QueryDataParams) =>
+    [...dataKeys.lists(), entitySlug, params] as const,
   details: () => [...dataKeys.all, 'detail'] as const,
-  detail: (organizationId: string, entitySlug: string, id: string) =>
-    [...dataKeys.details(), organizationId, entitySlug, id] as const,
+  detail: (entitySlug: string, id: string) =>
+    [...dataKeys.details(), entitySlug, id] as const,
 };
 
 export function useEntityData(
-  organizationId: string,
   entitySlug: string,
   params?: QueryDataParams
 ) {
   return useQuery({
-    queryKey: dataKeys.list(organizationId, entitySlug, params),
-    queryFn: () => dataService.getAll(organizationId, entitySlug, params),
-    enabled: !!organizationId && !!entitySlug,
+    queryKey: dataKeys.list(entitySlug, params),
+    queryFn: () => dataService.getAll(entitySlug, params),
+    enabled: !!entitySlug,
   });
 }
 
 export function useEntityDataItem(
-  organizationId: string,
   entitySlug: string,
   id: string
 ) {
   return useQuery({
-    queryKey: dataKeys.detail(organizationId, entitySlug, id),
-    queryFn: () => dataService.getById(organizationId, entitySlug, id),
-    enabled: !!organizationId && !!entitySlug && !!id,
+    queryKey: dataKeys.detail(entitySlug, id),
+    queryFn: () => dataService.getById(entitySlug, id),
+    enabled: !!entitySlug && !!id,
   });
 }
 
@@ -41,17 +39,15 @@ export function useCreateEntityData() {
 
   return useMutation({
     mutationFn: ({
-      organizationId,
       entitySlug,
       data,
     }: {
-      organizationId: string;
       entitySlug: string;
       data: Record<string, unknown>;
-    }) => dataService.create(organizationId, entitySlug, data),
-    onSuccess: (_, { organizationId, entitySlug }) => {
+    }) => dataService.create(entitySlug, data),
+    onSuccess: (_, { entitySlug }) => {
       queryClient.invalidateQueries({
-        queryKey: dataKeys.list(organizationId, entitySlug),
+        queryKey: dataKeys.list(entitySlug),
       });
       toast.success('Registro criado com sucesso');
     },
@@ -66,22 +62,20 @@ export function useUpdateEntityData() {
 
   return useMutation({
     mutationFn: ({
-      organizationId,
       entitySlug,
       id,
       data,
     }: {
-      organizationId: string;
       entitySlug: string;
       id: string;
       data: Record<string, unknown>;
-    }) => dataService.update(organizationId, entitySlug, id, data),
-    onSuccess: (_, { organizationId, entitySlug, id }) => {
+    }) => dataService.update(entitySlug, id, data),
+    onSuccess: (_, { entitySlug, id }) => {
       queryClient.invalidateQueries({
-        queryKey: dataKeys.list(organizationId, entitySlug),
+        queryKey: dataKeys.list(entitySlug),
       });
       queryClient.invalidateQueries({
-        queryKey: dataKeys.detail(organizationId, entitySlug, id),
+        queryKey: dataKeys.detail(entitySlug, id),
       });
       toast.success('Registro atualizado com sucesso');
     },
@@ -96,17 +90,15 @@ export function useDeleteEntityData() {
 
   return useMutation({
     mutationFn: ({
-      organizationId,
       entitySlug,
       id,
     }: {
-      organizationId: string;
       entitySlug: string;
       id: string;
-    }) => dataService.delete(organizationId, entitySlug, id),
-    onSuccess: (_, { organizationId, entitySlug }) => {
+    }) => dataService.delete(entitySlug, id),
+    onSuccess: (_, { entitySlug }) => {
       queryClient.invalidateQueries({
-        queryKey: dataKeys.list(organizationId, entitySlug),
+        queryKey: dataKeys.list(entitySlug),
       });
       toast.success('Registro excluido com sucesso');
     },

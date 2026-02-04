@@ -5,17 +5,16 @@ import { pagesService, CreatePageData, UpdatePageData } from '@/services/pages.s
 export const pageKeys = {
   all: ['pages'] as const,
   lists: () => [...pageKeys.all, 'list'] as const,
-  list: (organizationId: string) => [...pageKeys.lists(), organizationId] as const,
+  list: () => [...pageKeys.lists()] as const,
   details: () => [...pageKeys.all, 'detail'] as const,
   detail: (id: string) => [...pageKeys.details(), id] as const,
-  bySlug: (organizationId: string, slug: string) => [...pageKeys.all, 'slug', organizationId, slug] as const,
+  bySlug: (slug: string) => [...pageKeys.all, 'slug', slug] as const,
 };
 
-export function usePages(organizationId: string) {
+export function usePages() {
   return useQuery({
-    queryKey: pageKeys.list(organizationId),
-    queryFn: () => pagesService.getAll(organizationId),
-    enabled: !!organizationId,
+    queryKey: pageKeys.list(),
+    queryFn: () => pagesService.getAll(),
   });
 }
 
@@ -27,11 +26,11 @@ export function usePage(id: string) {
   });
 }
 
-export function usePageBySlug(organizationId: string, slug: string) {
+export function usePageBySlug(slug: string) {
   return useQuery({
-    queryKey: pageKeys.bySlug(organizationId, slug),
-    queryFn: () => pagesService.getBySlug(organizationId, slug),
-    enabled: !!organizationId && !!slug,
+    queryKey: pageKeys.bySlug(slug),
+    queryFn: () => pagesService.getBySlug(slug),
+    enabled: !!slug,
   });
 }
 
@@ -39,10 +38,9 @@ export function useCreatePage() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ organizationId, data }: { organizationId: string; data: CreatePageData }) =>
-      pagesService.create(organizationId, data),
-    onSuccess: (_, { organizationId }) => {
-      queryClient.invalidateQueries({ queryKey: pageKeys.list(organizationId) });
+    mutationFn: (data: CreatePageData) => pagesService.create(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: pageKeys.list() });
       toast.success('Pagina criada com sucesso');
     },
     onError: (error: Error) => {

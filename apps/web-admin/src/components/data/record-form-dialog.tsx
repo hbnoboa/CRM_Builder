@@ -41,7 +41,6 @@ interface RecordFormDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   entity: Entity;
-  organizationId: string;
   record?: RecordData | null;
   onSuccess?: () => void;
 }
@@ -50,7 +49,6 @@ export function RecordFormDialog({
   open,
   onOpenChange,
   entity,
-  organizationId,
   record,
   onSuccess,
 }: RecordFormDialogProps) {
@@ -172,11 +170,6 @@ export function RecordFormDialog({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!organizationId) {
-      setErrors({ _form: 'Nenhuma organizacao selecionada.' });
-      return;
-    }
-
     if (!validateForm()) {
       return;
     }
@@ -197,14 +190,12 @@ export function RecordFormDialog({
     try {
       if (isEditing && record) {
         await updateRecord.mutateAsync({
-          organizationId,
           entitySlug: entity.slug,
           id: record.id,
           data: processedData,
         });
       } else {
         await createRecord.mutateAsync({
-          organizationId,
           entitySlug: entity.slug,
           data: processedData,
         });

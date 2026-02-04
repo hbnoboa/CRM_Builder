@@ -28,16 +28,16 @@ export class FieldDto {
   @IsEnum(FieldType)
   type: FieldType;
 
-  @ApiPropertyOptional({ description: 'Campo obrigatório' })
+  @ApiPropertyOptional({ description: 'Campo obrigatorio' })
   @IsBoolean()
   @IsOptional()
   required?: boolean;
 
-  @ApiPropertyOptional({ description: 'Valor padrão' })
+  @ApiPropertyOptional({ description: 'Valor padrao' })
   @IsOptional()
   defaultValue?: any;
 
-  @ApiPropertyOptional({ description: 'Opções para campos select' })
+  @ApiPropertyOptional({ description: 'Opcoes para campos select' })
   @IsArray()
   @IsOptional()
   options?: string[];
@@ -53,15 +53,10 @@ export class CreateEntityDto {
   @IsString()
   name: string;
 
-  @ApiPropertyOptional({ description: 'Descrição da entidade' })
+  @ApiPropertyOptional({ description: 'Descricao da entidade' })
   @IsString()
   @IsOptional()
   description?: string;
-
-  @ApiPropertyOptional({ description: 'ID da organizacao' })
-  @IsString()
-  @IsOptional()
-  organizationId?: string;
 
   @ApiPropertyOptional({ description: 'Campos da entidade', type: [FieldDto] })
   @IsArray()
@@ -77,7 +72,7 @@ export class UpdateEntityDto {
   @IsOptional()
   name?: string;
 
-  @ApiPropertyOptional({ description: 'Descrição da entidade' })
+  @ApiPropertyOptional({ description: 'Descricao da entidade' })
   @IsString()
   @IsOptional()
   description?: string;
@@ -91,8 +86,8 @@ export class UpdateEntityDto {
 }
 
 export class QueryEntityDto {
-  @ApiPropertyOptional({ description: 'ID da organizacao' })
+  @ApiPropertyOptional({ description: 'Termo de busca' })
   @IsString()
   @IsOptional()
-  organizationId?: string;
+  search?: string;
 }

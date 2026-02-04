@@ -2,7 +2,7 @@ import api from '@/lib/api';
 
 export interface Page {
   id: string;
-  organizationId: string;
+  tenantId: string;
   title: string;
   slug: string;
   content: Record<string, unknown>;
@@ -27,13 +27,13 @@ export interface UpdatePageData {
 }
 
 export const pagesService = {
-  async getAll(organizationId: string): Promise<Page[]> {
-    const response = await api.get<Page[]>(`/organizations/${organizationId}/pages`);
+  async getAll(): Promise<Page[]> {
+    const response = await api.get<Page[]>('/pages');
     return response.data;
   },
 
-  async getBySlug(organizationId: string, slug: string): Promise<Page> {
-    const response = await api.get<Page>(`/organizations/${organizationId}/pages/${slug}`);
+  async getBySlug(slug: string): Promise<Page> {
+    const response = await api.get<Page>(`/pages/slug/${slug}`);
     return response.data;
   },
 
@@ -42,8 +42,8 @@ export const pagesService = {
     return response.data;
   },
 
-  async create(organizationId: string, data: CreatePageData): Promise<Page> {
-    const response = await api.post<Page>(`/organizations/${organizationId}/pages`, data);
+  async create(data: CreatePageData): Promise<Page> {
+    const response = await api.post<Page>('/pages', data);
     return response.data;
   },
 

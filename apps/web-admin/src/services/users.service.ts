@@ -7,7 +7,6 @@ export interface QueryUsersParams {
   search?: string;
   role?: UserRole;
   status?: Status;
-  organizationId?: string;
 }
 
 export interface CreateUserData {
@@ -15,7 +14,6 @@ export interface CreateUserData {
   password: string;
   name: string;
   role?: UserRole;
-  organizationId?: string;
   avatar?: string;
 }
 
@@ -25,7 +23,6 @@ export interface UpdateUserData {
   name?: string;
   role?: UserRole;
   status?: Status;
-  organizationId?: string;
   avatar?: string;
 }
 

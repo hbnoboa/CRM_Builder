@@ -52,7 +52,6 @@ function normalizePuckContent(content: unknown): Data {
 
 export default function PublicPreviewPage() {
   const params = useParams();
-  const organizationId = params.organizationId as string;
   const slug = params.slug as string;
 
   const [pageData, setPageData] = useState<PageData | null>(null);
@@ -75,7 +74,7 @@ export default function PublicPreviewPage() {
 
         // Tenta primeiro o endpoint autenticado (permite paginas nao publicadas)
         if (token) {
-          const authResponse = await fetch(`${apiUrl}/pages/preview/${organizationId}/${slug}`, {
+          const authResponse = await fetch(`${apiUrl}/pages/preview/${slug}`, {
             headers: {
               'Authorization': `Bearer ${token}`,
             },
@@ -92,7 +91,7 @@ export default function PublicPreviewPage() {
         }
 
         // Fallback para endpoint publico (apenas paginas publicadas)
-        const response = await fetch(`${apiUrl}/public/pages/${organizationId}/${slug}`);
+        const response = await fetch(`${apiUrl}/public/pages/${slug}`);
 
         if (!response.ok) {
           if (response.status === 404) {
@@ -119,7 +118,7 @@ export default function PublicPreviewPage() {
     };
 
     fetchPage();
-  }, [organizationId, slug]);
+  }, [slug]);
 
   if (loading) {
     return (

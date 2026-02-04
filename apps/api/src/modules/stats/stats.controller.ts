@@ -12,12 +12,9 @@ export class StatsController {
   constructor(private readonly statsService: StatsService) {}
 
   @Get('dashboard')
-  @ApiOperation({ summary: 'Obter estatísticas do dashboard' })
+  @ApiOperation({ summary: 'Obter estatisticas do dashboard' })
   async getDashboardStats(@CurrentUser() user: any) {
-    return this.statsService.getDashboardStats(
-      user.tenantId,
-      user.organizationId,
-    );
+    return this.statsService.getDashboardStats(user.tenantId);
   }
 
   @Get('records-over-time')
@@ -26,24 +23,17 @@ export class StatsController {
     @CurrentUser() user: any,
     @Query('days') days?: number,
   ) {
-    return this.statsService.getRecordsOverTime(
-      user.tenantId,
-      user.organizationId,
-      days || 30,
-    );
+    return this.statsService.getRecordsOverTime(user.tenantId, days || 30);
   }
 
   @Get('entities-distribution')
-  @ApiOperation({ summary: 'Distribuição de registros por entidade' })
+  @ApiOperation({ summary: 'Distribuicao de registros por entidade' })
   async getEntitiesDistribution(@CurrentUser() user: any) {
-    return this.statsService.getEntitiesDistribution(
-      user.tenantId,
-      user.organizationId,
-    );
+    return this.statsService.getEntitiesDistribution(user.tenantId);
   }
 
   @Get('users-activity')
-  @ApiOperation({ summary: 'Atividade dos usuários' })
+  @ApiOperation({ summary: 'Atividade dos usuarios' })
   async getUsersActivity(
     @CurrentUser() user: any,
     @Query('days') days?: number,
@@ -57,10 +47,6 @@ export class StatsController {
     @CurrentUser() user: any,
     @Query('limit') limit?: number,
   ) {
-    return this.statsService.getRecentActivity(
-      user.tenantId,
-      user.organizationId,
-      limit || 10,
-    );
+    return this.statsService.getRecentActivity(user.tenantId, limit || 10);
   }
 }

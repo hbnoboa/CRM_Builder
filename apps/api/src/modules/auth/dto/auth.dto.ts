@@ -28,18 +28,13 @@ export class RegisterDto {
   })
   password: string;
 
-  @ApiProperty({ example: 'João Silva' })
+  @ApiProperty({ example: 'Joao Silva' })
   @IsString()
   name: string;
 
   @ApiProperty({ example: 'cuid_do_tenant' })
   @IsString()
   tenantId: string;
-
-  @ApiPropertyOptional({ example: 'cuid_da_organizacao' })
-  @IsString()
-  @IsOptional()
-  organizationId?: string;
 
   @ApiPropertyOptional({ enum: UserRole, default: UserRole.USER })
   @IsEnum(UserRole)
@@ -70,7 +65,6 @@ export class AuthResponseDto {
     name: string;
     role: string;
     tenantId: string;
-    organizationId?: string;
   };
 }
 

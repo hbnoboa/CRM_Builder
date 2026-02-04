@@ -33,7 +33,7 @@ const TEST_PREFIX = 'e2e-test';
 
 // Variaveis para armazenar IDs criados
 let token: string;
-let organizationId: string;
+let tenantId: string;
 let clienteEntityId: string;
 let reclamacaoEntityId: string;
 let clienteIds: string[] = [];
@@ -93,7 +93,7 @@ test.describe.serial('0. Limpeza Inicial', () => {
     expect(token).toBeTruthy();
   });
 
-  test('deve obter organizationId', async ({ request }) => {
+  test('deve obter tenantId', async ({ request }) => {
     const response = await apiGet(request, '/entities');
     expect(response.ok()).toBeTruthy();
 
@@ -101,7 +101,7 @@ test.describe.serial('0. Limpeza Inicial', () => {
     const entities = Array.isArray(body) ? body : body.data || [];
 
     if (entities.length > 0) {
-      organizationId = entities[0].organizationId;
+      tenantId = entities[0].tenantId;
     }
   });
 
@@ -163,13 +163,13 @@ test.describe.serial('0. Limpeza Inicial', () => {
 
     for (const entity of testEntities) {
       // Primeiro remover todos os dados da entidade
-      if (organizationId) {
-        const dataResponse = await apiGet(request, `/data/${organizationId}/${entity.slug}`);
+      if (tenantId) {
+        const dataResponse = await apiGet(request, `/data/${entity.slug}`);
         if (dataResponse.ok()) {
           const dataBody = await dataResponse.json();
           const records = dataBody.data || [];
           for (const record of records) {
-            await apiDelete(request, `/data/${organizationId}/${entity.slug}/${record.id}`);
+            await apiDelete(request, `/data/${entity.slug}/${record.id}`);
           }
         }
       }
@@ -231,13 +231,13 @@ test.describe.serial('2. Verificar Entidades Existentes', () => {
     expect(cliente, 'Entidade Cliente nao encontrada').toBeTruthy();
 
     clienteEntityId = cliente.id;
-    organizationId = cliente.organizationId;
+    tenantId = cliente.tenantId;
 
-    expect(organizationId).toBeTruthy();
+    expect(tenantId).toBeTruthy();
   });
 
   test('deve listar clientes existentes', async ({ request }) => {
-    const response = await apiGet(request, `/data/${organizationId}/cliente`);
+    const response = await apiGet(request, `/data/cliente`);
     expect(response.ok()).toBeTruthy();
 
     const body = await response.json();
@@ -344,7 +344,7 @@ test.describe.serial('4. Criar Reclamacoes', () => {
 
     const response = await apiPost(
       request,
-      `/data/${organizationId}/reclamacao-e2e-${timestamp}`,
+      `/data/reclamacao-e2e-${timestamp}`,
       reclamacaoData
     );
     expect(response.ok(), `Falha ao criar reclamacao: ${await response.text()}`).toBeTruthy();
@@ -369,7 +369,7 @@ test.describe.serial('4. Criar Reclamacoes', () => {
 
     const response = await apiPost(
       request,
-      `/data/${organizationId}/reclamacao-e2e-${timestamp}`,
+      `/data/reclamacao-e2e-${timestamp}`,
       reclamacaoData
     );
     expect(response.ok()).toBeTruthy();
@@ -397,7 +397,7 @@ test.describe.serial('4. Criar Reclamacoes', () => {
 
     const response = await apiPost(
       request,
-      `/data/${organizationId}/reclamacao-e2e-${timestamp}`,
+      `/data/reclamacao-e2e-${timestamp}`,
       reclamacaoData
     );
     expect(response.ok()).toBeTruthy();
@@ -407,7 +407,7 @@ test.describe.serial('4. Criar Reclamacoes', () => {
   });
 
   test('deve listar todas as reclamacoes criadas', async ({ request }) => {
-    const response = await apiGet(request, `/data/${organizationId}/reclamacao-e2e-${timestamp}`);
+    const response = await apiGet(request, `/data/reclamacao-e2e-${timestamp}`);
     expect(response.ok()).toBeTruthy();
 
     const body = await response.json();
@@ -481,7 +481,7 @@ test.describe.serial('6. Executar Custom API', () => {
   test('deve executar API e retornar reclamacoes do cliente', async ({ request }) => {
     const response = await apiGet(
       request,
-      `/x/${organizationId}/cliente-reclamacoes-e2e-${timestamp}?clienteId=${clienteIds[0]}`
+      `/x/cliente-reclamacoes-e2e-${timestamp}?clienteId=${clienteIds[0]}`
     );
 
     // A API pode retornar 200 com dados ou erro de execucao
@@ -502,7 +502,7 @@ test.describe.serial('6. Executar Custom API', () => {
   test('deve retornar vazio para cliente sem reclamacoes', async ({ request }) => {
     const response = await apiGet(
       request,
-      `/x/${organizationId}/cliente-reclamacoes-e2e-${timestamp}?clienteId=id-inexistente`
+      `/x/cliente-reclamacoes-e2e-${timestamp}?clienteId=id-inexistente`
     );
 
     if (response.ok()) {
@@ -589,7 +589,7 @@ test.describe.serial('8. Testar Preview e Custom API na Pagina', () => {
   test('deve acessar preview autenticado da pagina', async ({ request }) => {
     const response = await apiGet(
       request,
-      `/pages/preview/${organizationId}/dashboard-reclamacoes-e2e-${timestamp}`
+      `/pages/preview/dashboard-reclamacoes-e2e-${timestamp}`
     );
 
     expect(response.ok()).toBeTruthy();
@@ -621,7 +621,7 @@ test.describe.serial('8. Testar Preview e Custom API na Pagina', () => {
 
   test('deve acessar pagina publica', async ({ request }) => {
     const response = await request.get(
-      `${API_URL}/public/pages/${organizationId}/dashboard-reclamacoes-e2e-${timestamp}`
+      `${API_URL}/public/pages/dashboard-reclamacoes-e2e-${timestamp}`
     );
 
     expect(response.ok()).toBeTruthy();
@@ -637,7 +637,7 @@ test.describe.serial('8. Testar Preview e Custom API na Pagina', () => {
     // Preview autenticado deve funcionar
     const previewResponse = await apiGet(
       request,
-      `/pages/preview/${organizationId}/dashboard-reclamacoes-e2e-${timestamp}`
+      `/pages/preview/dashboard-reclamacoes-e2e-${timestamp}`
     );
     expect(previewResponse.ok()).toBeTruthy();
 
@@ -646,7 +646,7 @@ test.describe.serial('8. Testar Preview e Custom API na Pagina', () => {
 
     // Pagina publica deve falhar (404)
     const publicResponse = await request.get(
-      `${API_URL}/public/pages/${organizationId}/dashboard-reclamacoes-e2e-${timestamp}`
+      `${API_URL}/public/pages/dashboard-reclamacoes-e2e-${timestamp}`
     );
     expect(publicResponse.status()).toBe(404);
   });
@@ -753,7 +753,7 @@ test.describe.serial('8.1. Testar Pagina no Browser', () => {
 
   test('deve verificar preview publico renderiza a pagina', async ({ page }) => {
     // Acessar preview publico (sem login)
-    await page.goto(`${WEB_URL}/preview/${organizationId}/dashboard-reclamacoes-e2e-${timestamp}`);
+    await page.goto(`${WEB_URL}/preview/dashboard-reclamacoes-e2e-${timestamp}`);
     await page.waitForLoadState('networkidle');
     await page.waitForTimeout(2000);
 
@@ -780,7 +780,7 @@ test.describe.serial('8.1. Testar Pagina no Browser', () => {
     // Primeiro, garantir que a Custom API funciona
     const apiResponse = await apiGet(
       request,
-      `/x/${organizationId}/cliente-reclamacoes-e2e-${timestamp}?clienteId=${clienteIds[0]}`
+      `/x/cliente-reclamacoes-e2e-${timestamp}?clienteId=${clienteIds[0]}`
     );
 
     if (!apiResponse.ok()) {
@@ -800,7 +800,7 @@ test.describe.serial('8.1. Testar Pagina no Browser', () => {
     await page.waitForURL(/\/(dashboard|pages|home)/, { timeout: 15000 });
 
     // Navegar para preview da pagina (autenticado)
-    await page.goto(`${WEB_URL}/preview/${organizationId}/dashboard-reclamacoes-e2e-${timestamp}`);
+    await page.goto(`${WEB_URL}/preview/dashboard-reclamacoes-e2e-${timestamp}`);
     await page.waitForLoadState('networkidle');
 
     // Aguardar o CustomApiViewer carregar dados (pode levar alguns segundos)
@@ -931,12 +931,12 @@ test.describe.serial('10. Analise e Relatorio Final', () => {
   });
 
   test('analise dos Registros criados', async ({ request }) => {
-    if (!organizationId) {
+    if (!tenantId) {
       analysisResults.errors.push('WorkspaceId nao disponivel');
       return;
     }
 
-    const response = await apiGet(request, `/data/${organizationId}/reclamacao-e2e-${timestamp}`);
+    const response = await apiGet(request, `/data/reclamacao-e2e-${timestamp}`);
 
     if (response.ok()) {
       const body = await response.json();
@@ -985,14 +985,14 @@ test.describe.serial('10. Analise e Relatorio Final', () => {
   });
 
   test('analise da execucao da Custom API', async ({ request }) => {
-    if (!organizationId || !clienteIds[0]) {
+    if (!tenantId || !clienteIds[0]) {
       analysisResults.errors.push('Dados insuficientes para testar Custom API');
       return;
     }
 
     const response = await apiGet(
       request,
-      `/x/${organizationId}/cliente-reclamacoes-e2e-${timestamp}?clienteId=${clienteIds[0]}`
+      `/x/cliente-reclamacoes-e2e-${timestamp}?clienteId=${clienteIds[0]}`
     );
 
     if (response.ok()) {
@@ -1183,7 +1183,7 @@ test.describe.serial('10. Analise e Relatorio Final', () => {
 
     // IDs para referencia
     console.log('║ IDs PARA REFERENCIA:                                           ║');
-    console.log(`║   WorkspaceId: ${(organizationId || 'N/A').substring(0, 42).padEnd(42)}║`);
+    console.log(`║   WorkspaceId: ${(tenantId || 'N/A').substring(0, 42).padEnd(42)}║`);
     console.log(`║   EntityId: ${(reclamacaoEntityId || 'N/A').substring(0, 45).padEnd(45)}║`);
     console.log(`║   CustomApiId: ${(customApiId || 'N/A').substring(0, 42).padEnd(42)}║`);
     console.log(`║   PageId: ${(pageId || 'N/A').substring(0, 47).padEnd(47)}║`);
@@ -1255,7 +1255,7 @@ test.describe('Fluxo Completo (Single Test)', () => {
       for (const entity of entities) {
         if (entity.slug?.startsWith('ticket-')) {
           // Limpar dados primeiro
-          const wsId = entity.organizationId;
+          const wsId = entity.tenantId;
           const dataResp = await request.get(`${API_URL}/data/${wsId}/${entity.slug}`, { headers });
           if (dataResp.ok()) {
             const dataBody = await dataResp.json();
@@ -1297,7 +1297,7 @@ test.describe('Fluxo Completo (Single Test)', () => {
     const entities = (await entitiesResponse.json()).data || [];
     const clienteEntity = entities.find((e: any) => e.slug === 'cliente');
     expect(clienteEntity).toBeTruthy();
-    localWorkspaceId = clienteEntity.organizationId;
+    localWorkspaceId = clienteEntity.tenantId;
 
     const clientesResponse = await request.get(
       `${API_URL}/data/${localWorkspaceId}/cliente`,

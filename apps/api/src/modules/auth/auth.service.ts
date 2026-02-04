@@ -4,14 +4,13 @@ import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcryptjs';
 import { PrismaService } from '../../prisma/prisma.service';
 import { LoginDto, RegisterDto, RefreshTokenDto, UpdateProfileDto, ChangePasswordDto, ForgotPasswordDto, ResetPasswordDto } from './dto/auth.dto';
-import { UserRole, Status, User } from '@prisma/client';
+import { UserRole, Status } from '@prisma/client';
 
 interface UserForTokenGeneration {
   id: string;
   email: string;
   role: UserRole;
   tenantId: string;
-  organizationId: string | null;
 }
 
 @Injectable()
@@ -25,7 +24,7 @@ export class AuthService {
   ) {}
 
   async register(dto: RegisterDto) {
-    // Verificar se email já existe no tenant
+    // Verificar se email ja existe no tenant
     const existingUser = await this.prisma.user.findFirst({
       where: {
         email: dto.email,
@@ -34,20 +33,19 @@ export class AuthService {
     });
 
     if (existingUser) {
-      throw new ConflictException('Email já está em uso');
+      throw new ConflictException('Email ja esta em uso');
     }
 
     // Hash da senha
     const hashedPassword = await bcrypt.hash(dto.password, 12);
 
-    // Criar usuário
+    // Criar usuario
     const user = await this.prisma.user.create({
       data: {
         email: dto.email,
         password: hashedPassword,
         name: dto.name,
         tenantId: dto.tenantId,
-        organizationId: dto.organizationId,
         role: dto.role || UserRole.USER,
         status: Status.ACTIVE,
       },
@@ -57,17 +55,16 @@ export class AuthService {
         name: true,
         role: true,
         tenantId: true,
-        organizationId: true,
         createdAt: true,
       },
     });
 
-    this.logger.log(`Usuário registrado: ${user.email}`);
+    this.logger.log(`Usuario registrado: ${user.email}`);
     return user;
   }
 
   async login(dto: LoginDto) {
-    // Buscar usuário
+    // Buscar usuario
     const user = await this.prisma.user.findFirst({
       where: {
         email: dto.email,
@@ -80,13 +77,6 @@ export class AuthService {
             name: true,
             slug: true,
             status: true,
-          },
-        },
-        organization: {
-          select: {
-            id: true,
-            name: true,
-            slug: true,
           },
         },
         userRoles: {
@@ -104,10 +94,10 @@ export class AuthService {
     });
 
     if (!user) {
-      throw new UnauthorizedException('Credenciais inválidas');
+      throw new UnauthorizedException('Credenciais invalidas');
     }
 
-    // Verificar se tenant está ativo
+    // Verificar se tenant esta ativo
     if (user.tenant.status !== Status.ACTIVE) {
       throw new UnauthorizedException('Tenant suspenso ou inativo');
     }
@@ -115,19 +105,19 @@ export class AuthService {
     // Verificar senha
     const isPasswordValid = await bcrypt.compare(dto.password, user.password);
     if (!isPasswordValid) {
-      throw new UnauthorizedException('Credenciais inválidas');
+      throw new UnauthorizedException('Credenciais invalidas');
     }
 
     // Gerar tokens
     const tokens = await this.generateTokens(user);
 
-    // Atualizar último login
+    // Atualizar ultimo login
     await this.prisma.user.update({
       where: { id: user.id },
       data: { lastLoginAt: new Date() },
     });
 
-    // Coletar todas as permissões
+    // Coletar todas as permissoes
     const additionalPermissions = user.userRoles.flatMap(
       (ur) => ur.role.permissions as string[],
     );
@@ -142,9 +132,7 @@ export class AuthService {
         avatar: user.avatar,
         role: user.role,
         tenantId: user.tenantId,
-        organizationId: user.organizationId,
         tenant: user.tenant,
-        organization: user.organization,
         additionalRoles: user.userRoles.map((ur) => ({
           id: ur.role.id,
           name: ur.role.name,
@@ -169,14 +157,13 @@ export class AuthService {
           user: {
             include: {
               tenant: true,
-              organization: true,
             },
           },
         },
       });
 
       if (!storedToken || storedToken.expiresAt < new Date()) {
-        throw new UnauthorizedException('Refresh token inválido ou expirado');
+        throw new UnauthorizedException('Refresh token invalido ou expirado');
       }
 
       // Deletar token usado
@@ -189,12 +176,12 @@ export class AuthService {
 
       return tokens;
     } catch (error) {
-      throw new UnauthorizedException('Refresh token inválido');
+      throw new UnauthorizedException('Refresh token invalido');
     }
   }
 
   async logout(userId: string) {
-    // Remover todos os refresh tokens do usuário
+    // Remover todos os refresh tokens do usuario
     await this.prisma.refreshToken.deleteMany({
       where: { userId },
     });
@@ -213,7 +200,6 @@ export class AuthService {
         role: true,
         status: true,
         tenantId: true,
-        organizationId: true,
         lastLoginAt: true,
         createdAt: true,
         tenant: {
@@ -222,13 +208,6 @@ export class AuthService {
             name: true,
             slug: true,
             plan: true,
-          },
-        },
-        organization: {
-          select: {
-            id: true,
-            name: true,
-            slug: true,
           },
         },
         userRoles: {
@@ -247,10 +226,10 @@ export class AuthService {
     });
 
     if (!user) {
-      throw new UnauthorizedException('Usuário não encontrado');
+      throw new UnauthorizedException('Usuario nao encontrado');
     }
 
-    // Coletar todas as permissões
+    // Coletar todas as permissoes
     const permissions = user.userRoles.flatMap(
       (ur) => ur.role.permissions as string[],
     );
@@ -276,7 +255,6 @@ export class AuthService {
         avatar: true,
         role: true,
         tenantId: true,
-        organizationId: true,
       },
     });
 
@@ -379,19 +357,18 @@ export class AuthService {
       email: user.email,
       role: user.role,
       tenantId: user.tenantId,
-      organizationId: user.organizationId,
     };
 
-    // Access Token (curta duração)
+    // Access Token (curta duracao)
     const accessToken = this.jwtService.sign(payload);
 
-    // Refresh Token (longa duração)
+    // Refresh Token (longa duracao)
     const refreshToken = this.jwtService.sign(payload, {
       secret: this.configService.get<string>('JWT_REFRESH_SECRET'),
       expiresIn: this.configService.get<string>('JWT_REFRESH_EXPIRATION') || '7d',
     });
 
-    // Calcular expiração
+    // Calcular expiracao
     const refreshExpiration = new Date();
     refreshExpiration.setDate(refreshExpiration.getDate() + 7);
 

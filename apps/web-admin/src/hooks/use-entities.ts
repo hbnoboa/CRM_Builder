@@ -5,17 +5,16 @@ import { entitiesService, CreateEntityData, UpdateEntityData } from '@/services/
 export const entityKeys = {
   all: ['entities'] as const,
   lists: () => [...entityKeys.all, 'list'] as const,
-  list: (organizationId: string) => [...entityKeys.lists(), organizationId] as const,
+  list: () => [...entityKeys.lists()] as const,
   details: () => [...entityKeys.all, 'detail'] as const,
   detail: (id: string) => [...entityKeys.details(), id] as const,
-  bySlug: (organizationId: string, slug: string) => [...entityKeys.all, 'slug', organizationId, slug] as const,
+  bySlug: (slug: string) => [...entityKeys.all, 'slug', slug] as const,
 };
 
-export function useEntities(organizationId: string) {
+export function useEntities() {
   return useQuery({
-    queryKey: entityKeys.list(organizationId),
-    queryFn: () => entitiesService.getAll(organizationId),
-    enabled: !!organizationId,
+    queryKey: entityKeys.list(),
+    queryFn: () => entitiesService.getAll(),
   });
 }
 
@@ -27,11 +26,11 @@ export function useEntity(id: string) {
   });
 }
 
-export function useEntityBySlug(organizationId: string, slug: string) {
+export function useEntityBySlug(slug: string) {
   return useQuery({
-    queryKey: entityKeys.bySlug(organizationId, slug),
-    queryFn: () => entitiesService.getBySlug(organizationId, slug),
-    enabled: !!organizationId && !!slug,
+    queryKey: entityKeys.bySlug(slug),
+    queryFn: () => entitiesService.getBySlug(slug),
+    enabled: !!slug,
   });
 }
 
@@ -39,10 +38,9 @@ export function useCreateEntity() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ organizationId, data }: { organizationId: string; data: CreateEntityData }) =>
-      entitiesService.create(organizationId, data),
-    onSuccess: (_, { organizationId }) => {
-      queryClient.invalidateQueries({ queryKey: entityKeys.list(organizationId) });
+    mutationFn: (data: CreateEntityData) => entitiesService.create(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: entityKeys.list() });
       toast.success('Entidade criada com sucesso');
     },
     onError: (error: Error) => {

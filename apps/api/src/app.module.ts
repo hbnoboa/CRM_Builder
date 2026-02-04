@@ -5,7 +5,6 @@ import { PrismaModule } from './prisma/prisma.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { UserModule } from './modules/user/user.module';
 import { TenantModule } from './modules/tenant/tenant.module';
-import { OrganizationModule } from './modules/organization/organization.module';
 import { RoleModule } from './modules/role/role.module';
 import { PermissionModule } from './modules/permission/permission.module';
 import { EntityModule } from './modules/entity/entity.module';
@@ -19,29 +18,28 @@ import { HealthModule } from './modules/health/health.module';
 
 @Module({
   imports: [
-    // Configuração
+    // Configuracao
     ConfigModule.forRoot({
       isGlobal: true,
       envFilePath: '../../.env',
     }),
-    
+
     // Rate Limiting
     ThrottlerModule.forRoot([{
       ttl: parseInt(process.env.THROTTLE_TTL || '60') * 1000,
       limit: parseInt(process.env.THROTTLE_LIMIT || '100'),
     }]),
-    
+
     // Database
     PrismaModule,
-    
+
     // Health Check
     HealthModule,
-    
+
     // Modules
     AuthModule,
     UserModule,
     TenantModule,
-    OrganizationModule,
     RoleModule,
     PermissionModule,
     EntityModule,

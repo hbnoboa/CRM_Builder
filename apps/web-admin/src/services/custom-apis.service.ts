@@ -8,13 +8,12 @@ export interface CustomApi {
   description?: string;
   code?: string;
   isActive: boolean;
-  entityId?: string; // Vinculado a uma entity especifica
+  entityId?: string;
   entity?: {
     id: string;
     name: string;
     slug: string;
   };
-  organizationId: string;
   tenantId: string;
   createdAt: string;
   updatedAt: string;

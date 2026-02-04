@@ -15,7 +15,6 @@ export interface CurrentUser {
   name: string;
   role: UserRole;
   tenantId: string;
-  organizationId?: string;
   permissions?: string[];
 }
 
@@ -27,7 +26,6 @@ export interface JwtPayload {
   email: string;
   role: UserRole;
   tenantId: string;
-  organizationId?: string;
   iat?: number;
   exp?: number;
 }

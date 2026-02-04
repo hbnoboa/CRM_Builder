@@ -40,7 +40,7 @@ import api from '@/lib/api';
 
 interface Page {
   id: string;
-  organizationId: string;
+  tenantId: string;
   title: string;
   slug: string;
   description?: string;
@@ -242,7 +242,7 @@ function PagesPageContent() {
                           <Pencil className="h-4 w-4 mr-2" />
                           Edit
                         </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => window.open(`/preview/${page.organizationId}/${page.slug}`, '_blank')} data-testid={`preview-page-menu-${page.id}`}>
+                        <DropdownMenuItem onClick={() => window.open(`/preview/${page.slug}`, '_blank')} data-testid={`preview-page-menu-${page.id}`}>
                           <Eye className="h-4 w-4 mr-2" />
                           Preview
                         </DropdownMenuItem>
@@ -288,7 +288,7 @@ function PagesPageContent() {
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => window.open(`/preview/${page.organizationId}/${page.slug}`, '_blank')}
+                    onClick={() => window.open(`/preview/${page.slug}`, '_blank')}
                     data-testid={`preview-page-btn-${page.id}`}
                   >
                     <Eye className="h-3 w-3 mr-1" />

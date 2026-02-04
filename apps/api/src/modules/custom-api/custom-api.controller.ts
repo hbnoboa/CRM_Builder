@@ -2,7 +2,6 @@ import {
   Controller,
   Get,
   Post,
-  Put,
   Delete,
   Patch,
   Body,
@@ -12,9 +11,7 @@ import {
   Req,
   All,
   Logger,
-  BadRequestException,
 } from '@nestjs/common';
-import { Request } from 'express';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
@@ -22,33 +19,29 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { AuthenticatedRequest } from '../../common/types';
 import { CustomApiService, QueryCustomApiDto } from './custom-api.service';
 import { CreateCustomApiDto, UpdateCustomApiDto, HttpMethod } from './dto/custom-api.dto';
-import { PrismaService } from '../../prisma/prisma.service';
 
 @Controller('custom-apis')
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class CustomApiController {
   private readonly logger = new Logger(CustomApiController.name);
 
-  constructor(
-    private readonly customApiService: CustomApiService,
-    private readonly prisma: PrismaService,
-  ) {}
+  constructor(private readonly customApiService: CustomApiService) {}
 
   @Post()
   @Roles('ADMIN')
   async create(@Body() dto: CreateCustomApiDto, @CurrentUser() user: any) {
     this.logger.log(`Creating custom API: ${dto.name}`);
-    return this.customApiService.create(dto, user.organizationId, user.tenantId);
+    return this.customApiService.create(dto, user.tenantId);
   }
 
   @Get()
   async findAll(@Query() query: QueryCustomApiDto, @CurrentUser() user: any) {
-    return this.customApiService.findAll(user.organizationId, query);
+    return this.customApiService.findAll(user.tenantId, query);
   }
 
   @Get(':id')
   async findOne(@Param('id') id: string, @CurrentUser() user: any) {
-    return this.customApiService.findOne(id, user.organizationId);
+    return this.customApiService.findOne(id, user.tenantId);
   }
 
   @Patch(':id')
@@ -58,46 +51,46 @@ export class CustomApiController {
     @Body() dto: UpdateCustomApiDto,
     @CurrentUser() user: any,
   ) {
-    return this.customApiService.update(id, dto, user.organizationId);
+    return this.customApiService.update(id, dto, user.tenantId);
   }
 
   @Patch(':id/toggle')
   @Roles('ADMIN')
   async toggleActive(@Param('id') id: string, @CurrentUser() user: any) {
-    return this.customApiService.toggleActive(id, user.organizationId);
+    return this.customApiService.toggleActive(id, user.tenantId);
   }
 
   @Patch(':id/activate')
   @Roles('ADMIN')
   async activate(@Param('id') id: string, @CurrentUser() user: any) {
-    return this.customApiService.activate(id, user.organizationId);
+    return this.customApiService.activate(id, user.tenantId);
   }
 
   @Patch(':id/deactivate')
   @Roles('ADMIN')
   async deactivate(@Param('id') id: string, @CurrentUser() user: any) {
-    return this.customApiService.deactivate(id, user.organizationId);
+    return this.customApiService.deactivate(id, user.tenantId);
   }
 
   @Delete(':id')
   @Roles('ADMIN')
   async remove(@Param('id') id: string, @CurrentUser() user: any) {
-    return this.customApiService.remove(id, user.organizationId);
+    return this.customApiService.remove(id, user.tenantId);
   }
 }
 
 // Dynamic endpoint executor
-@Controller('x/:organizationId')
+@Controller('x/:tenantId')
 export class DynamicApiController {
   constructor(private readonly customApiService: CustomApiService) {}
 
   @All('*')
-  async handleDynamicRequest(@Req() req: AuthenticatedRequest, @Param('organizationId') organizationId: string) {
+  async handleDynamicRequest(@Req() req: AuthenticatedRequest, @Param('tenantId') tenantId: string) {
     const path = (req.params as Record<string, string>)[0] || '';
     const method = req.method as HttpMethod;
 
     return this.customApiService.executeEndpoint(
-      organizationId,
+      tenantId,
       `/${path}`,
       method,
       req.body as Record<string, unknown>,

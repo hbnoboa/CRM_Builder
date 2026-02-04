@@ -147,7 +147,7 @@ test.describe('API Stats', () => {
       expect(body.totalPages).toBeDefined();
       expect(body.totalApis).toBeDefined();
       expect(body.totalUsers).toBeDefined();
-      expect(body.totalOrganizations).toBeDefined();
+      // totalOrganizations removed - using only Tenant
     }
   });
 
@@ -248,24 +248,7 @@ test.describe('API Users', () => {
   });
 });
 
-test.describe('API Organizations', () => {
-  test('should list organizations', async ({ request }) => {
-    const accessToken = await getAuthToken(request);
-    
-    const response = await request.get(`${API_URL}/organizacaos`, {
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-      },
-    });
-    
-    expect(response.status()).toBeLessThan(500);
-    
-    if (response.ok()) {
-      const body = await response.json();
-      expect(Array.isArray(body)).toBeTruthy();
-    }
-  });
-});
+// Organizations removed - using only Tenant
 
 test.describe('API Roles', () => {
   test('should list roles', async ({ request }) => {

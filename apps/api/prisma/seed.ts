@@ -4,12 +4,11 @@ import * as bcrypt from 'bcryptjs';
 const prisma = new PrismaClient();
 
 async function main() {
-  console.log('🌱 Iniciando seed...');
+  console.log('Iniciando seed...');
 
   // 1. Criar Platform Admin (Super Admin)
   const platformAdminPassword = await bcrypt.hash('superadmin123', 12);
-  
-  // Primeiro, criar um tenant para o platform admin (necessário pela FK)
+
   const platformTenant = await prisma.tenant.upsert({
     where: { slug: 'platform' },
     update: {},
@@ -18,21 +17,6 @@ async function main() {
       slug: 'platform',
       plan: Plan.ENTERPRISE,
       status: Status.ACTIVE,
-    },
-  });
-
-  const platformOrg = await prisma.organization.upsert({
-    where: {
-      tenantId_slug: {
-        tenantId: platformTenant.id,
-        slug: 'platform-admin',
-      },
-    },
-    update: {},
-    create: {
-      tenantId: platformTenant.id,
-      name: 'Platform Admin',
-      slug: 'platform-admin',
     },
   });
 
@@ -46,7 +30,6 @@ async function main() {
     update: {},
     create: {
       tenantId: platformTenant.id,
-      organizationId: platformOrg.id,
       email: 'superadmin@platform.com',
       password: platformAdminPassword,
       name: 'Super Admin',
@@ -55,7 +38,7 @@ async function main() {
     },
   });
 
-  console.log('✅ Platform Admin criado:', platformAdmin.email);
+  console.log('Platform Admin criado:', platformAdmin.email);
 
   // 2. Criar Tenant de Demo
   const demoTenant = await prisma.tenant.upsert({
@@ -73,45 +56,11 @@ async function main() {
     },
   });
 
-  console.log('✅ Tenant demo criado:', demoTenant.slug);
+  console.log('Tenant demo criado:', demoTenant.slug);
 
-  // 3. Criar Organizações do Demo
-  const orgSP = await prisma.organization.upsert({
-    where: {
-      tenantId_slug: {
-        tenantId: demoTenant.id,
-        slug: 'filial-sp',
-      },
-    },
-    update: {},
-    create: {
-      tenantId: demoTenant.id,
-      name: 'Filial São Paulo',
-      slug: 'filial-sp',
-    },
-  });
-
-  const orgRJ = await prisma.organization.upsert({
-    where: {
-      tenantId_slug: {
-        tenantId: demoTenant.id,
-        slug: 'filial-rj',
-      },
-    },
-    update: {},
-    create: {
-      tenantId: demoTenant.id,
-      name: 'Filial Rio de Janeiro',
-      slug: 'filial-rj',
-    },
-  });
-
-  console.log('✅ Organizacoes criadas');
-
-  // 4. Criar Usuarios de Demo
+  // 3. Criar Usuarios de Demo
   const adminPassword = await bcrypt.hash('admin123', 12);
   const userPassword = await bcrypt.hash('user123', 12);
-  const vendedorPassword = await bcrypt.hash('user12345', 12);
 
   const admin = await prisma.user.upsert({
     where: {
@@ -123,7 +72,6 @@ async function main() {
     update: {},
     create: {
       tenantId: demoTenant.id,
-      organizationId: orgSP.id,
       email: 'admin@demo.com',
       password: adminPassword,
       name: 'Admin Demo',
@@ -132,7 +80,7 @@ async function main() {
     },
   });
 
-  const gerente = await prisma.user.upsert({
+  await prisma.user.upsert({
     where: {
       tenantId_email: {
         tenantId: demoTenant.id,
@@ -142,7 +90,6 @@ async function main() {
     update: {},
     create: {
       tenantId: demoTenant.id,
-      organizationId: orgSP.id,
       email: 'gerente@demo.com',
       password: userPassword,
       name: 'Gerente Demo',
@@ -151,28 +98,25 @@ async function main() {
     },
   });
 
-  const vendedor = await prisma.user.upsert({
+  await prisma.user.upsert({
     where: {
       tenantId_email: {
         tenantId: demoTenant.id,
         email: 'vendedor@demo.com',
       },
     },
-    update: {
-      password: vendedorPassword,
-    },
+    update: {},
     create: {
       tenantId: demoTenant.id,
-      organizationId: orgSP.id,
       email: 'vendedor@demo.com',
-      password: vendedorPassword,
+      password: userPassword,
       name: 'Vendedor Demo',
       role: UserRole.USER,
       status: Status.ACTIVE,
     },
   });
 
-  const viewer = await prisma.user.upsert({
+  await prisma.user.upsert({
     where: {
       tenantId_email: {
         tenantId: demoTenant.id,
@@ -182,7 +126,6 @@ async function main() {
     update: {},
     create: {
       tenantId: demoTenant.id,
-      organizationId: orgSP.id,
       email: 'viewer@demo.com',
       password: userPassword,
       name: 'Visualizador Demo',
@@ -191,24 +134,19 @@ async function main() {
     },
   });
 
-  console.log('✅ Usuários criados:');
-  console.log('   - admin@demo.com / admin123');
-  console.log('   - gerente@demo.com / user123');
-  console.log('   - vendedor@demo.com / user123');
-  console.log('   - viewer@demo.com / user123');
+  console.log('Usuarios criados');
 
-  // 5. Criar Entidade "Cliente"
+  // 4. Criar Entidade "Cliente"
   const clienteEntity = await prisma.entity.upsert({
     where: {
-      organizationId_slug: {
-        organizationId: orgSP.id,
+      tenantId_slug: {
+        tenantId: demoTenant.id,
         slug: 'cliente',
       },
     },
     update: {},
     create: {
       tenantId: demoTenant.id,
-      organizationId: orgSP.id,
       name: 'Cliente',
       namePlural: 'Clientes',
       slug: 'cliente',
@@ -216,30 +154,10 @@ async function main() {
       icon: 'users',
       color: '#3B82F6',
       fields: [
-        {
-          slug: 'nome',
-          name: 'Nome',
-          type: 'text',
-          required: true,
-        },
-        {
-          slug: 'email',
-          name: 'Email',
-          type: 'email',
-          required: true,
-        },
-        {
-          slug: 'telefone',
-          name: 'Telefone',
-          type: 'phone',
-          required: false,
-        },
-        {
-          slug: 'empresa',
-          name: 'Empresa',
-          type: 'text',
-          required: false,
-        },
+        { slug: 'nome', name: 'Nome', type: 'text', required: true },
+        { slug: 'email', name: 'Email', type: 'email', required: true },
+        { slug: 'telefone', name: 'Telefone', type: 'phone', required: false },
+        { slug: 'empresa', name: 'Empresa', type: 'text', required: false },
         {
           slug: 'status',
           name: 'Status',
@@ -252,18 +170,8 @@ async function main() {
             { value: 'inativo', label: 'Inativo', color: '#EF4444' },
           ],
         },
-        {
-          slug: 'valor_contrato',
-          name: 'Valor do Contrato',
-          type: 'currency',
-          required: false,
-        },
-        {
-          slug: 'observacoes',
-          name: 'Observações',
-          type: 'textarea',
-          required: false,
-        },
+        { slug: 'valor_contrato', name: 'Valor do Contrato', type: 'currency', required: false },
+        { slug: 'observacoes', name: 'Observacoes', type: 'textarea', required: false },
       ],
       settings: {
         titleField: 'nome',
@@ -274,34 +182,13 @@ async function main() {
     },
   });
 
-  console.log('✅ Entidade "Cliente" criada');
+  console.log('Entidade "Cliente" criada');
 
-  // 6. Criar alguns clientes de exemplo
+  // 5. Criar alguns clientes de exemplo
   const clientes = [
-    {
-      nome: 'João Silva',
-      email: 'joao@empresa.com',
-      telefone: '11999999999',
-      empresa: 'Tech Solutions',
-      status: 'ativo',
-      valor_contrato: 5000,
-    },
-    {
-      nome: 'Maria Santos',
-      email: 'maria@startup.com',
-      telefone: '11988888888',
-      empresa: 'Startup XYZ',
-      status: 'prospecto',
-      valor_contrato: 0,
-    },
-    {
-      nome: 'Carlos Oliveira',
-      email: 'carlos@comercio.com',
-      telefone: '11977777777',
-      empresa: 'Comércio ABC',
-      status: 'ativo',
-      valor_contrato: 3500,
-    },
+    { nome: 'Joao Silva', email: 'joao@empresa.com', telefone: '11999999999', empresa: 'Tech Solutions', status: 'ativo', valor_contrato: 5000 },
+    { nome: 'Maria Santos', email: 'maria@startup.com', telefone: '11988888888', empresa: 'Startup XYZ', status: 'prospecto', valor_contrato: 0 },
+    { nome: 'Carlos Oliveira', email: 'carlos@comercio.com', telefone: '11977777777', empresa: 'Comercio ABC', status: 'ativo', valor_contrato: 3500 },
   ];
 
   for (const cliente of clientes) {
@@ -316,58 +203,39 @@ async function main() {
     });
   }
 
-  console.log('✅ Clientes de exemplo criados');
+  console.log('Clientes de exemplo criados');
 
-  // 7. Criar Roles personalizadas
-  const vendedorSeniorRole = await prisma.role.upsert({
-    where: {
-      tenantId_slug: {
-        tenantId: demoTenant.id,
-        slug: 'vendedor-senior',
-      },
-    },
+  // 6. Criar Roles personalizadas
+  await prisma.role.upsert({
+    where: { tenantId_slug: { tenantId: demoTenant.id, slug: 'vendedor-senior' } },
     update: {},
     create: {
       tenantId: demoTenant.id,
-      name: 'Vendedor Sênior',
+      name: 'Vendedor Senior',
       slug: 'vendedor-senior',
       description: 'Pode editar clientes da equipe',
-      permissions: [
-        'data:read:all',
-        'data:create:own',
-        'data:update:team',
-        'cliente:update:team',
-      ],
+      permissions: ['data:read:all', 'data:create:own', 'data:update:team', 'cliente:update:team'],
     },
   });
 
-  const financeiroRole = await prisma.role.upsert({
-    where: {
-      tenantId_slug: {
-        tenantId: demoTenant.id,
-        slug: 'financeiro',
-      },
-    },
+  await prisma.role.upsert({
+    where: { tenantId_slug: { tenantId: demoTenant.id, slug: 'financeiro' } },
     update: {},
     create: {
       tenantId: demoTenant.id,
       name: 'Financeiro',
       slug: 'financeiro',
       description: 'Acesso a dados financeiros',
-      permissions: [
-        'data:read:all',
-        'pagamento:manage:all',
-        'cliente:read:all',
-      ],
+      permissions: ['data:read:all', 'pagamento:manage:all', 'cliente:read:all'],
     },
   });
 
-  console.log('✅ Roles personalizadas criadas');
+  console.log('Roles personalizadas criadas');
 
-  console.log('\n═══════════════════════════════════════════════════');
-  console.log('🎉 SEED COMPLETO!');
-  console.log('═══════════════════════════════════════════════════');
-  console.log('\n📝 Credenciais de teste:');
+  console.log('\n===================================================');
+  console.log('SEED COMPLETO!');
+  console.log('===================================================');
+  console.log('\nCredenciais de teste:');
   console.log('');
   console.log('SUPER ADMIN:');
   console.log('   Email: superadmin@platform.com');
@@ -377,17 +245,17 @@ async function main() {
   console.log('   Email: admin@demo.com');
   console.log('   Senha: admin123');
   console.log('');
-  console.log('OUTROS USUÁRIOS (Senha: user123):');
+  console.log('OUTROS USUARIOS (Senha: user123):');
   console.log('   - gerente@demo.com (Manager)');
   console.log('   - vendedor@demo.com (User)');
   console.log('   - viewer@demo.com (Viewer)');
   console.log('');
-  console.log('═══════════════════════════════════════════════════\n');
+  console.log('===================================================\n');
 }
 
 main()
   .catch((e) => {
-    console.error('❌ Erro no seed:', e);
+    console.error('Erro no seed:', e);
     process.exit(1);
   })
   .finally(async () => {

@@ -5,15 +5,15 @@ import { Type } from 'class-transformer';
 
 export class CreateUserDto {
   @ApiProperty({ example: 'usuario@empresa.com' })
-  @IsEmail({}, { message: 'Email inválido' })
+  @IsEmail({}, { message: 'Email invalido' })
   email: string;
 
   @ApiProperty({ example: 'senha123' })
   @IsString()
-  @MinLength(6, { message: 'Senha deve ter no mínimo 6 caracteres' })
+  @MinLength(6, { message: 'Senha deve ter no minimo 6 caracteres' })
   password: string;
 
-  @ApiProperty({ example: 'João Silva' })
+  @ApiProperty({ example: 'Joao Silva' })
   @IsString()
   name: string;
 
@@ -26,11 +26,6 @@ export class CreateUserDto {
   @IsEnum(UserRole)
   @IsOptional()
   role?: UserRole;
-
-  @ApiPropertyOptional()
-  @IsString()
-  @IsOptional()
-  organizationId?: string;
 }
 
 export class UpdateUserDto extends PartialType(CreateUserDto) {
@@ -65,9 +60,4 @@ export class QueryUserDto {
   @IsEnum(Status)
   @IsOptional()
   status?: Status;
-
-  @ApiPropertyOptional()
-  @IsString()
-  @IsOptional()
-  organizationId?: string;
 }

@@ -41,15 +41,15 @@ export class DataService {
   ) {}
 
   // Get entity with short-lived cache to avoid duplicate queries within same request
-  private async getEntityCached(organizationId: string, entitySlug: string, currentUser: CurrentUser): Promise<Entity> {
-    const cacheKey = `${organizationId}:${entitySlug}:${currentUser.tenantId}`;
+  private async getEntityCached(entitySlug: string, currentUser: CurrentUser): Promise<Entity> {
+    const cacheKey = `${entitySlug}:${currentUser.tenantId}`;
     const cached = entityCache.get(cacheKey);
 
     if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
       return cached.entity;
     }
 
-    const entity = await this.entityService.findBySlug(organizationId, entitySlug, currentUser);
+    const entity = await this.entityService.findBySlug(entitySlug, currentUser);
     entityCache.set(cacheKey, { entity, timestamp: Date.now() });
 
     // Clean old entries periodically
@@ -65,9 +65,9 @@ export class DataService {
     return entity;
   }
 
-  async create(entitySlug: string, organizationId: string, dto: CreateDataDto, currentUser: CurrentUser) {
+  async create(entitySlug: string, dto: CreateDataDto, currentUser: CurrentUser) {
     // Buscar entidade (cached)
-    const entity = await this.getEntityCached(organizationId, entitySlug, currentUser);
+    const entity = await this.getEntityCached(entitySlug, currentUser);
 
     // Validar dados
     const fields = (entity.fields as unknown) as EntityField[];
@@ -89,7 +89,6 @@ export class DataService {
 
   async findAll(
     entitySlug: string,
-    organizationId: string,
     query: QueryDataDto,
     currentUser: CurrentUser,
   ) {
@@ -97,7 +96,7 @@ export class DataService {
     const skip = (page - 1) * limit;
 
     // Buscar entidade (cached)
-    const entity = await this.getEntityCached(organizationId, entitySlug, currentUser);
+    const entity = await this.getEntityCached(entitySlug, currentUser);
 
     // Base where
     const where: Prisma.EntityDataWhereInput = {
@@ -113,7 +112,7 @@ export class DataService {
       // Buscar em campos de busca configurados na entidade
       const settings = entity.settings as EntitySettings;
       const searchFields = settings?.searchFields || [];
-      
+
       if (searchFields.length > 0) {
         where.OR = searchFields.map((field: string) => ({
           data: {
@@ -162,8 +161,8 @@ export class DataService {
     };
   }
 
-  async findOne(entitySlug: string, organizationId: string, id: string, currentUser: CurrentUser) {
-    const entity = await this.getEntityCached(organizationId, entitySlug, currentUser);
+  async findOne(entitySlug: string, id: string, currentUser: CurrentUser) {
+    const entity = await this.getEntityCached(entitySlug, currentUser);
 
     const record = await this.prisma.entityData.findFirst({
       where: {
@@ -182,7 +181,7 @@ export class DataService {
     });
 
     if (!record) {
-      throw new NotFoundException('Registro não encontrado');
+      throw new NotFoundException('Registro nao encontrado');
     }
 
     return {
@@ -196,8 +195,8 @@ export class DataService {
     };
   }
 
-  async update(entitySlug: string, organizationId: string, id: string, dto: CreateDataDto, currentUser: CurrentUser) {
-    const entity = await this.getEntityCached(organizationId, entitySlug, currentUser);
+  async update(entitySlug: string, id: string, dto: CreateDataDto, currentUser: CurrentUser) {
+    const entity = await this.getEntityCached(entitySlug, currentUser);
 
     // Buscar registro
     const record = await this.prisma.entityData.findFirst({
@@ -212,7 +211,7 @@ export class DataService {
       throw new NotFoundException('Registro nao encontrado');
     }
 
-    // Verificar permissão de escopo
+    // Verificar permissao de escopo
     this.checkScope(record, currentUser, 'update');
 
     // Validar dados
@@ -237,8 +236,8 @@ export class DataService {
     });
   }
 
-  async remove(entitySlug: string, organizationId: string, id: string, currentUser: CurrentUser) {
-    const entity = await this.getEntityCached(organizationId, entitySlug, currentUser);
+  async remove(entitySlug: string, id: string, currentUser: CurrentUser) {
+    const entity = await this.getEntityCached(entitySlug, currentUser);
 
     const record = await this.prisma.entityData.findFirst({
       where: {
@@ -249,15 +248,15 @@ export class DataService {
     });
 
     if (!record) {
-      throw new NotFoundException('Registro não encontrado');
+      throw new NotFoundException('Registro nao encontrado');
     }
 
-    // Verificar permissão de escopo
+    // Verificar permissao de escopo
     this.checkScope(record, currentUser, 'delete');
 
     await this.prisma.entityData.delete({ where: { id } });
 
-    return { message: 'Registro excluído com sucesso' };
+    return { message: 'Registro excluido com sucesso' };
   }
 
   // Aplicar filtros de escopo na query
@@ -267,18 +266,13 @@ export class DataService {
       return;
     }
 
-    // Manager vê tudo do tenant (para leitura)
+    // Manager ve tudo do tenant (para leitura)
     if (user.role === UserRole.MANAGER && action === 'read') {
       return;
     }
 
-    // User e Viewer veem apenas da equipe (organização)
-    if (user.organizationId) {
-      // Buscar usuários da mesma organização
-      where.createdBy = {
-        organizationId: user.organizationId,
-      };
-    }
+    // User e Viewer veem apenas seus proprios registros
+    where.createdById = user.id;
   }
 
   // Verificar se usuario pode modificar o registro
@@ -288,22 +282,20 @@ export class DataService {
       return;
     }
 
-    // Viewer não pode modificar
+    // Viewer nao pode modificar
     if (user.role === UserRole.VIEWER) {
-      throw new ForbiddenException('Você não tem permissão para modificar registros');
+      throw new ForbiddenException('Voce nao tem permissao para modificar registros');
     }
 
-    // Manager pode modificar registros da equipe
+    // Manager pode modificar registros do tenant
     if (user.role === UserRole.MANAGER) {
-      // Para simplificar, permitimos se está no mesmo tenant
-      // Em produção, verificar se createdBy está na mesma organização
       return;
     }
 
-    // User só pode modificar próprios registros
+    // User so pode modificar proprios registros
     if (user.role === UserRole.USER) {
       if (record.createdById !== user.id) {
-        throw new ForbiddenException('Você só pode modificar registros criados por você');
+        throw new ForbiddenException('Voce so pode modificar registros criados por voce');
       }
     }
   }
