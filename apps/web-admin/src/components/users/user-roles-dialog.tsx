@@ -66,18 +66,29 @@ export function UserRolesDialog({
   const [selectedRoles, setSelectedRoles] = useState<Set<string>>(new Set());
 
   // Busca todas as roles disponiveis
-  const { data: allRoles = [], isLoading: loadingRoles } = useQuery({
+  const { data: rolesData, isLoading: loadingRoles } = useQuery({
     queryKey: ['roles'],
     queryFn: rolesService.getAll,
     enabled: open,
   });
 
+  // Extrai array de roles de forma segura
+  const allRoles: RoleWithCounts[] = (() => {
+    if (!rolesData) return [];
+    if (Array.isArray(rolesData)) return rolesData;
+    if (rolesData.data && Array.isArray(rolesData.data)) return rolesData.data;
+    return [];
+  })();
+
   // Busca roles do usuario
-  const { data: userRoles = [], isLoading: loadingUserRoles } = useQuery({
+  const { data: userRolesData, isLoading: loadingUserRoles } = useQuery({
     queryKey: ['user-roles', user?.id],
     queryFn: () => (user ? rolesService.getUserRoles(user.id) : Promise.resolve([])),
     enabled: open && !!user,
   });
+
+  // Extrai array de userRoles de forma segura
+  const userRoles: UserRole[] = Array.isArray(userRolesData) ? userRolesData : [];
 
   // Atualiza selectedRoles quando userRoles carrega
   useEffect(() => {
