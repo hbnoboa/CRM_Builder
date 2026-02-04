@@ -6,12 +6,20 @@ const intlMiddleware = createMiddleware({
   locales,
   defaultLocale,
   localePrefix: 'always',
-  // Detecta locale do cookie NEXT_LOCALE
   localeDetection: true,
 });
 
 export default function middleware(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
+  
+  // Ignora arquivos estaticos e API
+  if (
+    pathname.startsWith('/_next') ||
+    pathname.startsWith('/api') ||
+    pathname.includes('.') // arquivos com extensao
+  ) {
+    return NextResponse.next();
+  }
   
   // Pega o locale salvo no cookie (se existir)
   const savedLocale = request.cookies.get('NEXT_LOCALE')?.value;
@@ -24,7 +32,9 @@ export default function middleware(request: NextRequest) {
   
   // Se nao tem locale no path, redireciona para a versao com locale
   if (!pathnameHasLocale) {
-    const newUrl = new URL(`/${localeToUse}${pathname}`, request.url);
+    // Garante que o path comeca com /
+    const pathToRedirect = pathname.startsWith('/') ? pathname : `/${pathname}`;
+    const newUrl = new URL(`/${localeToUse}${pathToRedirect}`, request.url);
     newUrl.search = request.nextUrl.search;
     
     const response = NextResponse.redirect(newUrl);
@@ -54,5 +64,6 @@ export default function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/((?!api|_next|_vercel|.*\\..*).*)'],
+  // Matcher que captura todas as rotas exceto arquivos estaticos
+  matcher: ['/((?!_next|api|.*\\..*).*)', '/'],
 };
