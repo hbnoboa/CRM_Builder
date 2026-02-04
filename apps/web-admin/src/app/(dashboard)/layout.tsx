@@ -12,12 +12,10 @@ import {
   LogOut,
   Menu,
   X,
-  Building2,
   Layers,
   Code,
   Search,
   Shield,
-  Briefcase,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -87,13 +85,6 @@ const navigation: NavItem[] = [
     icon: <Shield className="h-5 w-5" />,
     // Apenas admins podem gerenciar roles
     adminOnly: true,
-  },
-  {
-    title: 'Organizacao',
-    href: '/organization',
-    icon: <Building2 className="h-5 w-5" />,
-    // Admins e Managers podem ver organizacao
-    roles: ['PLATFORM_ADMIN', 'ADMIN', 'MANAGER'],
   },
   {
     title: 'Configuracoes',

@@ -8,9 +8,6 @@ import {
   FileText,
   Code,
   Activity,
-  ArrowUpRight,
-  ArrowDownRight,
-  Building2,
   Layers,
   Clock,
   RefreshCw,
@@ -48,7 +45,6 @@ interface DashboardStats {
   totalPages: number;
   totalApis: number;
   totalUsers: number;
-  totalOrganizations: number;
 }
 
 interface RecordOverTime {
@@ -114,7 +110,6 @@ export default function DashboardPage() {
         totalPages: 0,
         totalApis: 0,
         totalUsers: 0,
-        totalOrganizations: 0,
       });
     } finally {
       setLoading(false);
@@ -171,14 +166,6 @@ export default function DashboardPage() {
       color: 'text-pink-500',
       bgColor: 'bg-pink-500/10',
       href: '/users',
-    },
-    {
-      title: 'Organizations',
-      value: stats?.totalOrganizations ?? 0,
-      icon: <Building2 className="h-5 w-5" />,
-      color: 'text-cyan-500',
-      bgColor: 'bg-cyan-500/10',
-      href: '/organization',
     },
   ];
 

@@ -9,7 +9,6 @@ const dashboardRoutes = [
   { path: '/pages', name: 'Páginas' },
   { path: '/apis', name: 'APIs' },
   { path: '/users', name: 'Usuários' },
-  { path: '/organization', name: 'Organização' },
   { path: '/settings', name: 'Configurações' },
   { path: '/perfil', name: 'Perfil' },
   { path: '/permissoes', name: 'Permissões' },
