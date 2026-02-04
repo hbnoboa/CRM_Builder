@@ -7,7 +7,7 @@
 - ✅ Backend NestJS completo
   - Autenticação JWT com refresh tokens
   - Sistema RBAC de permissões
-  - Multi-tenancy (Tenant → Organization → Workspace)
+  - Multi-tenancy (Tenant → Organization → Organization)
   - CRUD dinâmico de entidades
   - WebSocket para notificações
   - Upload de arquivos
@@ -19,7 +19,7 @@
   - Dashboard
   - Listagem de entidades e dados
   - Gerenciamento de usuários
-  - Workspace switcher
+  - Organization switcher
   - Notificações realtime
 - ✅ DevOps
   - Docker Compose (dev + prod)

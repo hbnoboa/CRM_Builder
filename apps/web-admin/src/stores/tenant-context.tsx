@@ -9,7 +9,7 @@ interface Tenant {
   slug: string;
 }
 
-interface Workspace {
+interface Organization {
   id: string;
   name: string;
   slug: string;
@@ -21,7 +21,7 @@ interface TenantContextType {
   organizationName: string | null;
   loading: boolean;
   tenant: Tenant | null;
-  workspace: Workspace | null;
+  organization: Organization | null;
   refresh: () => Promise<void>;
 }
 
@@ -30,7 +30,7 @@ const TenantContext = createContext<TenantContextType | undefined>(undefined);
 export function TenantProvider({ children }: { children: ReactNode }) {
   const { user } = useAuthStore();
   const [tenant, setTenant] = useState<Tenant | null>(null);
-  const [workspace, setWorkspace] = useState<Workspace | null>(null);
+  const [organization, setOrganization] = useState<Organization | null>(null);
   const [loading, setLoading] = useState(true);
 
   const API_BASE = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001').replace(/\/api\/v1\/?$/, '');
@@ -54,19 +54,17 @@ export function TenantProvider({ children }: { children: ReactNode }) {
         }
       }
 
-      // Fetch organization (one per tenant)
-      const orgRes = await fetch(`${API_BASE}/api/v1/organizations`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (orgRes.ok) {
-        const orgsData = await orgRes.json();
-        // Use the first organization as the workspace
-        if (orgsData.length > 0) {
-          const org = orgsData[0];
-          setWorkspace({
-            id: org.id,
-            name: org.name,
-            slug: org.slug,
+      // Fetch organization from user
+      if (user.organizationId) {
+        const orgRes = await fetch(`${API_BASE}/api/v1/organizations/${user.organizationId}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (orgRes.ok) {
+          const orgData = await orgRes.json();
+          setOrganization({
+            id: orgData.id,
+            name: orgData.name,
+            slug: orgData.slug,
           });
         }
       }
@@ -89,11 +87,11 @@ export function TenantProvider({ children }: { children: ReactNode }) {
     <TenantContext.Provider
       value={{
         tenantId: user?.tenantId || null,
-        organizationId: workspace?.id || null,
-        organizationName: workspace?.name || null,
+        organizationId: user?.organizationId || null,
+        organizationName: organization?.name || null,
         loading,
         tenant,
-        workspace,
+        organization,
         refresh,
       }}
     >

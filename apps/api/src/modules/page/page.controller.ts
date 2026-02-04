@@ -30,18 +30,6 @@ export class PageController {
     private readonly prisma: PrismaService,
   ) {}
 
-  // Helper to get workspace from organization
-  private async getWorkspaceId(organizationId: string): Promise<string> {
-    const workspace = await this.prisma.workspace.findFirst({
-      where: { organizationId },
-      select: { id: true },
-    });
-    if (!workspace) {
-      throw new BadRequestException('Nenhum workspace encontrado para esta organização');
-    }
-    return workspace.id;
-  }
-
   @Post()
   @Roles('ADMIN', 'MANAGER')
   async create(
@@ -49,37 +37,33 @@ export class PageController {
     @CurrentUser() user: any,
   ) {
     this.logger.log(`Creating page: ${dto.title}`);
-    const workspaceId = await this.getWorkspaceId(user.organizationId);
-    return this.pageService.create(dto, user.id, workspaceId, user.tenantId);
+    return this.pageService.create(dto, user.id, user.organizationId, user.tenantId);
   }
 
   @Get()
   async findAll(@Query() query: QueryPageDto, @CurrentUser() user: any) {
-    const workspaceId = await this.getWorkspaceId(user.organizationId);
-    return this.pageService.findAll(workspaceId, query);
+    return this.pageService.findAll(user.organizationId, query);
   }
 
   @Get(':id')
   async findOne(@Param('id') id: string, @CurrentUser() user: any) {
-    const workspaceId = await this.getWorkspaceId(user.organizationId);
-    return this.pageService.findOne(id, workspaceId);
+    return this.pageService.findOne(id, user.organizationId);
   }
 
   @Get('slug/:slug')
   async findBySlug(@Param('slug') slug: string, @CurrentUser() user: any) {
-    const workspaceId = await this.getWorkspaceId(user.organizationId);
-    return this.pageService.findBySlug(slug, workspaceId);
+    return this.pageService.findBySlug(slug, user.organizationId);
   }
 
   // Preview endpoint - permite visualizar paginas nao publicadas (autenticado)
-  @Get('preview/:workspaceId/:slug')
+  @Get('preview/:organizationId/:slug')
   async preview(
-    @Param('workspaceId') workspaceId: string,
+    @Param('organizationId') organizationId: string,
     @Param('slug') slug: string,
     @CurrentUser() user: any,
   ) {
-    this.logger.log(`Preview page: ${slug} in workspace ${workspaceId}`);
-    return this.pageService.getPreviewPage(slug, workspaceId, user.tenantId);
+    this.logger.log(`Preview page: ${slug} in organization ${organizationId}`);
+    return this.pageService.getPreviewPage(slug, organizationId, user.tenantId);
   }
 
   @Patch(':id')
@@ -89,36 +73,31 @@ export class PageController {
     @Body() dto: UpdatePageDto,
     @CurrentUser() user: any,
   ) {
-    const workspaceId = await this.getWorkspaceId(user.organizationId);
-    return this.pageService.update(id, dto, workspaceId);
+    return this.pageService.update(id, dto, user.organizationId);
   }
 
   @Patch(':id/publish')
   @Roles('ADMIN', 'MANAGER')
   async publish(@Param('id') id: string, @CurrentUser() user: any) {
-    const workspaceId = await this.getWorkspaceId(user.organizationId);
-    return this.pageService.publish(id, workspaceId);
+    return this.pageService.publish(id, user.organizationId);
   }
 
   @Patch(':id/unpublish')
   @Roles('ADMIN', 'MANAGER')
   async unpublish(@Param('id') id: string, @CurrentUser() user: any) {
-    const workspaceId = await this.getWorkspaceId(user.organizationId);
-    return this.pageService.unpublish(id, workspaceId);
+    return this.pageService.unpublish(id, user.organizationId);
   }
 
   @Post(':id/duplicate')
   @Roles('ADMIN', 'MANAGER')
   async duplicate(@Param('id') id: string, @CurrentUser() user: any) {
-    const workspaceId = await this.getWorkspaceId(user.organizationId);
-    return this.pageService.duplicate(id, workspaceId, user.tenantId);
+    return this.pageService.duplicate(id, user.organizationId, user.tenantId);
   }
 
   @Delete(':id')
   @Roles('ADMIN')
   async remove(@Param('id') id: string, @CurrentUser() user: any) {
-    const workspaceId = await this.getWorkspaceId(user.organizationId);
-    return this.pageService.remove(id, workspaceId);
+    return this.pageService.remove(id, user.organizationId);
   }
 }
 
@@ -133,11 +112,11 @@ export class PublicPageController {
     return this.pageService.getPublicPageBySlug(slug);
   }
 
-  @Get(':workspaceId/:slug')
+  @Get(':organizationId/:slug')
   async getPublicPage(
-    @Param('workspaceId') workspaceId: string,
+    @Param('organizationId') organizationId: string,
     @Param('slug') slug: string,
   ) {
-    return this.pageService.getPublicPage(slug, workspaceId);
+    return this.pageService.getPublicPage(slug, organizationId);
   }
 }

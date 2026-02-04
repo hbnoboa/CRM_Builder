@@ -31,7 +31,7 @@ export interface CreateEntityDto {
   description?: string;
   icon?: string;
   color?: string;
-  workspaceId: string;
+  organizationId: string;
   fields?: FieldDefinition[];
   settings?: Record<string, unknown>;
   isSystem?: boolean;
@@ -52,10 +52,10 @@ export class EntityService {
   constructor(private prisma: PrismaService) {}
 
   async create(dto: CreateEntityDto, currentUser: CurrentUser) {
-    // Verificar se slug já existe no workspace
+    // Verificar se slug já existe no organization
     const existing = await this.prisma.entity.findFirst({
       where: {
-        workspaceId: dto.workspaceId,
+        organizationId: dto.organizationId,
         slug: dto.slug,
       },
     });
@@ -75,7 +75,7 @@ export class EntityService {
         description: dto.description,
         icon: dto.icon,
         color: dto.color,
-        workspaceId: dto.workspaceId,
+        organizationId: dto.organizationId,
         tenantId: currentUser.tenantId,
         fields: (dto.fields || []) as unknown as Prisma.InputJsonValue,
         settings: (dto.settings || {}) as Prisma.InputJsonValue,
@@ -84,12 +84,12 @@ export class EntityService {
     });
   }
 
-  async findAll(workspaceId: string, currentUser: CurrentUser, query: QueryEntityDto = {}) {
+  async findAll(organizationId: string, currentUser: CurrentUser, query: QueryEntityDto = {}) {
     const { page, limit, skip } = parsePaginationParams(query);
     const { search, sortBy = 'name', sortOrder = 'asc' } = query;
 
     const where: Prisma.EntityWhereInput = {
-      workspaceId,
+      organizationId,
       tenantId: currentUser.tenantId,
     };
 
@@ -122,10 +122,10 @@ export class EntityService {
     };
   }
 
-  async findBySlug(workspaceId: string, slug: string, currentUser: CurrentUser) {
+  async findBySlug(organizationId: string, slug: string, currentUser: CurrentUser) {
     const entity = await this.prisma.entity.findFirst({
       where: {
-        workspaceId,
+        organizationId,
         slug,
         tenantId: currentUser.tenantId,
       },

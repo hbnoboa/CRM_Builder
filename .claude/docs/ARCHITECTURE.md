@@ -60,7 +60,7 @@ src/
     ├── user/               # Gerenciamento de usuários
     ├── tenant/             # Multi-tenancy
     ├── organization/       # Organizações
-    ├── workspace/          # Workspaces
+    ├── organization/          # Organizations
     ├── role/               # Roles e permissões
     ├── entity/             # Definição de entidades
     ├── data/               # CRUD dinâmico
@@ -79,7 +79,7 @@ Tenant (Empresa)
 │
 ├── Organizations[] (Filiais)
 │   │
-│   └── Workspaces[] (Projetos CRM)
+│   └── Organizations[] (Projetos CRM)
 │       │
 │       ├── Entities[] (Definições)
 │       │   └── EntityData[] (Registros)

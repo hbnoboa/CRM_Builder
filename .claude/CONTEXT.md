@@ -10,7 +10,7 @@
 - [x] Prisma Schema completo
 - [x] Autenticação JWT com refresh tokens
 - [x] Sistema de permissões RBAC
-- [x] Módulos: Auth, User, Tenant, Organization, Workspace
+- [x] Módulos: Auth, User, Tenant, Organization, Organization
 - [x] Módulos: Entity, Data (CRUD dinâmico)
 - [x] Módulos: Page, CustomApi, Stats, Upload
 - [x] Notifications (WebSocket)
@@ -27,7 +27,7 @@
 - [x] Listagem de entidades
 - [x] CRUD de dados dinâmicos
 - [x] Gerenciamento de usuários
-- [x] Workspace switcher
+- [x] Organization switcher
 - [x] Notificações realtime
 - [ ] Page Builder (Puck) - parcial
 - [ ] API Builder - parcial

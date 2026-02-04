@@ -6,15 +6,15 @@ export class StatsService {
   constructor(private readonly prisma: PrismaService) {}
 
   async getDashboardStats(tenantId: string, organizationId?: string) {
-    // EntityData não tem workspaceId, apenas tenantId
+    // EntityData não tem organizationId, apenas tenantId
     const whereEntity = {
       tenantId,
     };
 
-    // Page, Entity e CustomEndpoint têm workspaceId (opcional)
-    const whereWithWorkspace = {
+    // Page, Entity e CustomEndpoint têm organizationId (opcional)
+    const whereWithOrg = {
       tenantId,
-      ...(organizationId && { workspaceId: organizationId }),
+      ...(organizationId && { organizationId: organizationId }),
     };
 
     const [
@@ -25,10 +25,10 @@ export class StatsService {
       totalUsers,
       totalOrganizations,
     ] = await Promise.all([
-      this.prisma.entity.count({ where: whereWithWorkspace }),
+      this.prisma.entity.count({ where: whereWithOrg }),
       this.prisma.entityData.count({ where: whereEntity }),
-      this.prisma.page.count({ where: whereWithWorkspace }),
-      this.prisma.customEndpoint.count({ where: whereWithWorkspace }),
+      this.prisma.page.count({ where: whereWithOrg }),
+      this.prisma.customEndpoint.count({ where: whereWithOrg }),
       this.prisma.user.count({ where: { tenantId } }),
       this.prisma.organization.count({ where: { tenantId } }),
     ]);
@@ -88,13 +88,13 @@ export class StatsService {
   }
 
   async getEntitiesDistribution(tenantId: string, organizationId?: string) {
-    const whereWithWorkspace = {
+    const whereWithOrg = {
       tenantId,
-      ...(organizationId && { workspaceId: organizationId }),
+      ...(organizationId && { organizationId: organizationId }),
     };
 
     const entities = await this.prisma.entity.findMany({
-      where: whereWithWorkspace,
+      where: whereWithOrg,
       select: {
         id: true,
         name: true,
@@ -150,9 +150,9 @@ export class StatsService {
       tenantId,
     };
 
-    const whereWithWorkspace = {
+    const whereWithOrg = {
       tenantId,
-      ...(organizationId && { workspaceId: organizationId }),
+      ...(organizationId && { organizationId: organizationId }),
     };
 
     const [records, pages, entities] = await Promise.all([
@@ -168,7 +168,7 @@ export class StatsService {
         take: limit,
       }),
       this.prisma.page.findMany({
-        where: whereWithWorkspace,
+        where: whereWithOrg,
         select: {
           id: true,
           title: true,
@@ -179,7 +179,7 @@ export class StatsService {
         take: limit,
       }),
       this.prisma.entity.findMany({
-        where: whereWithWorkspace,
+        where: whereWithOrg,
         select: {
           id: true,
           name: true,

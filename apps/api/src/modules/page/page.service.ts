@@ -16,7 +16,7 @@ export interface QueryPageDto extends PaginationQuery {
 export class PageService {
   constructor(private prisma: PrismaService) {}
 
-  async create(data: CreatePageDto, userId: string, workspaceId: string, tenantId: string) {
+  async create(data: CreatePageDto, userId: string, organizationId: string, tenantId: string) {
     return this.prisma.page.create({
       data: {
         title: data.title,
@@ -26,18 +26,18 @@ export class PageService {
         content: data.content || {},
         isPublished: data.isPublished || false,
         permissions: data.permissions || [],
-        workspaceId,
+        organizationId,
         tenantId,
       },
     });
   }
 
-  async findAll(workspaceId: string, query: QueryPageDto = {}) {
+  async findAll(organizationId: string, query: QueryPageDto = {}) {
     const { page, limit, skip } = parsePaginationParams(query);
     const { search, isPublished, sortBy = 'updatedAt', sortOrder = 'desc' } = query;
 
     const where: Prisma.PageWhereInput = {
-      workspaceId,
+      organizationId,
     };
 
     if (isPublished !== undefined) {
@@ -68,9 +68,9 @@ export class PageService {
     };
   }
 
-  async findOne(id: string, workspaceId: string) {
+  async findOne(id: string, organizationId: string) {
     const page = await this.prisma.page.findFirst({
-      where: { id, workspaceId },
+      where: { id, organizationId },
     });
 
     if (!page) {
@@ -80,9 +80,9 @@ export class PageService {
     return page;
   }
 
-  async findBySlug(slug: string, workspaceId: string) {
+  async findBySlug(slug: string, organizationId: string) {
     const page = await this.prisma.page.findFirst({
-      where: { slug, workspaceId },
+      where: { slug, organizationId },
     });
 
     if (!page) {
@@ -92,8 +92,8 @@ export class PageService {
     return page;
   }
 
-  async update(id: string, data: UpdatePageDto, workspaceId: string) {
-    await this.findOne(id, workspaceId);
+  async update(id: string, data: UpdatePageDto, organizationId: string) {
+    await this.findOne(id, organizationId);
 
     return this.prisma.page.update({
       where: { id },
@@ -110,8 +110,8 @@ export class PageService {
     });
   }
 
-  async publish(id: string, workspaceId: string) {
-    await this.findOne(id, workspaceId);
+  async publish(id: string, organizationId: string) {
+    await this.findOne(id, organizationId);
 
     return this.prisma.page.update({
       where: { id },
@@ -122,8 +122,8 @@ export class PageService {
     });
   }
 
-  async unpublish(id: string, workspaceId: string) {
-    await this.findOne(id, workspaceId);
+  async unpublish(id: string, organizationId: string) {
+    await this.findOne(id, organizationId);
 
     return this.prisma.page.update({
       where: { id },
@@ -134,8 +134,8 @@ export class PageService {
     });
   }
 
-  async duplicate(id: string, workspaceId: string, tenantId: string) {
-    const page = await this.findOne(id, workspaceId);
+  async duplicate(id: string, organizationId: string, tenantId: string) {
+    const page = await this.findOne(id, organizationId);
 
     const newSlug = `${page.slug}-copy-${Date.now()}`;
     
@@ -146,15 +146,15 @@ export class PageService {
         description: page.description,
         content: page.content || {},
         permissions: page.permissions || [],
-        workspaceId,
+        organizationId,
         tenantId,
         isPublished: false,
       },
     });
   }
 
-  async remove(id: string, workspaceId: string) {
-    await this.findOne(id, workspaceId);
+  async remove(id: string, organizationId: string) {
+    await this.findOne(id, organizationId);
 
     return this.prisma.page.delete({
       where: { id },
@@ -162,11 +162,11 @@ export class PageService {
   }
 
   // Get page for preview (authenticated - allows unpublished pages)
-  async getPreviewPage(slug: string, workspaceId: string, tenantId: string) {
+  async getPreviewPage(slug: string, organizationId: string, tenantId: string) {
     const page = await this.prisma.page.findFirst({
       where: {
         slug,
-        workspaceId,
+        organizationId,
         tenantId, // Garante isolamento multi-tenant
       },
     });
@@ -183,11 +183,11 @@ export class PageService {
   }
 
   // Get page for public rendering (only published pages)
-  async getPublicPage(slug: string, workspaceId: string) {
+  async getPublicPage(slug: string, organizationId: string) {
     const page = await this.prisma.page.findFirst({
       where: {
         slug,
-        workspaceId,
+        organizationId,
         isPublished: true,
       },
     });
@@ -210,7 +210,7 @@ export class PageService {
         isPublished: true,
       },
       include: {
-        workspace: {
+        organization: {
           select: {
             id: true,
             name: true,
@@ -226,8 +226,8 @@ export class PageService {
     return {
       title: page.title,
       content: page.content,
-      workspaceId: page.workspaceId,
-      workspaceName: page.workspace.name,
+      organizationId: page.organizationId,
+      organizationName: page.organization.name,
     };
   }
 }

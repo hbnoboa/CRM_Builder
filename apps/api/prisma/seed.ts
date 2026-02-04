@@ -106,29 +106,9 @@ async function main() {
     },
   });
 
-  console.log('✅ Organizações criadas');
+  console.log('✅ Organizacoes criadas');
 
-  // 4. Criar Workspace
-  const workspace = await prisma.workspace.upsert({
-    where: {
-      organizationId_slug: {
-        organizationId: orgSP.id,
-        slug: 'crm-vendas',
-      },
-    },
-    update: {},
-    create: {
-      tenantId: demoTenant.id,
-      organizationId: orgSP.id,
-      name: 'CRM de Vendas',
-      slug: 'crm-vendas',
-      description: 'CRM para gestão de vendas',
-    },
-  });
-
-  console.log('✅ Workspace criado:', workspace.slug);
-
-  // 5. Criar Usuários de Demo
+  // 4. Criar Usuarios de Demo
   const adminPassword = await bcrypt.hash('admin123', 12);
   const userPassword = await bcrypt.hash('user123', 12);
   const vendedorPassword = await bcrypt.hash('user12345', 12);
@@ -217,18 +197,18 @@ async function main() {
   console.log('   - vendedor@demo.com / user123');
   console.log('   - viewer@demo.com / user123');
 
-  // 6. Criar Entidade "Cliente"
+  // 5. Criar Entidade "Cliente"
   const clienteEntity = await prisma.entity.upsert({
     where: {
-      workspaceId_slug: {
-        workspaceId: workspace.id,
+      organizationId_slug: {
+        organizationId: orgSP.id,
         slug: 'cliente',
       },
     },
     update: {},
     create: {
       tenantId: demoTenant.id,
-      workspaceId: workspace.id,
+      organizationId: orgSP.id,
       name: 'Cliente',
       namePlural: 'Clientes',
       slug: 'cliente',
@@ -296,7 +276,7 @@ async function main() {
 
   console.log('✅ Entidade "Cliente" criada');
 
-  // 7. Criar alguns clientes de exemplo
+  // 6. Criar alguns clientes de exemplo
   const clientes = [
     {
       nome: 'João Silva',
@@ -338,7 +318,7 @@ async function main() {
 
   console.log('✅ Clientes de exemplo criados');
 
-  // 8. Criar Roles personalizadas
+  // 7. Criar Roles personalizadas
   const vendedorSeniorRole = await prisma.role.upsert({
     where: {
       tenantId_slug: {

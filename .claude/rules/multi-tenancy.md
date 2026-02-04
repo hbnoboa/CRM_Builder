@@ -8,12 +8,11 @@
 
 ```
 Tenant (Empresa/Cliente)
-├── Organizations (Filiais/Departamentos)
-│   └── Workspaces (Projetos/CRMs)
-│       ├── Entities
-│       ├── EntityData
-│       ├── Pages
-│       └── CustomEndpoints
+├── Organizations (Areas de Trabalho)
+│   ├── Entities
+│   ├── EntityData
+│   ├── Pages
+│   └── CustomEndpoints
 └── Users
     └── Roles
 ```
@@ -71,21 +70,21 @@ async update(id: string, dto: UpdateDto) {
 }
 ```
 
-### 3. Workspace pertence a Organization que pertence a Tenant
+### 3. Organization pertence a Organization que pertence a Tenant
 
 ```typescript
 // Ao criar entidade, validar cadeia completa
 async createEntity(user: User, dto: CreateEntityDto) {
-  // Verificar se workspace pertence ao tenant do usuário
-  const workspace = await this.prisma.workspace.findFirst({
+  // Verificar se organization pertence ao tenant do usuário
+  const organization = await this.prisma.organization.findFirst({
     where: {
-      id: dto.workspaceId,
+      id: dto.organizationId,
       tenantId: user.tenantId, // CRÍTICO!
     },
   });
 
-  if (!workspace) {
-    throw new ForbiddenException('Workspace não encontrado');
+  if (!organization) {
+    throw new ForbiddenException('Organization não encontrado');
   }
 
   return this.prisma.entity.create({
@@ -101,22 +100,22 @@ async createEntity(user: User, dto: CreateEntityDto) {
 
 ```typescript
 // ✅ CORRETO - Sempre validar
-@Get(':workspaceId/entities')
+@Get(':organizationId/entities')
 async getEntities(
-  @Param('workspaceId') workspaceId: string,
+  @Param('organizationId') organizationId: string,
   @CurrentUser() user: User,
 ) {
-  // Validar que workspace pertence ao tenant
-  const workspace = await this.workspaceService.findOne(
-    workspaceId,
+  // Validar que organization pertence ao tenant
+  const organization = await this.organizationService.findOne(
+    organizationId,
     user.tenantId
   );
 
-  if (!workspace) {
+  if (!organization) {
     throw new NotFoundException();
   }
 
-  return this.entityService.findByWorkspace(workspaceId, user.tenantId);
+  return this.entityService.findByOrganization(organizationId, user.tenantId);
 }
 ```
 
@@ -179,7 +178,7 @@ export class TenantGuard implements CanActivate {
 model Entity {
   // ...
   @@index([tenantId])
-  @@index([tenantId, workspaceId])
+  @@index([tenantId, organizationId])
 }
 
 model EntityData {

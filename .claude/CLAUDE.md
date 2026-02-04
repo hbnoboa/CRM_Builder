@@ -23,12 +23,11 @@ O **CRM Builder** é uma plataforma SaaS multi-tenant que permite criar CRMs per
 
 ```
 Tenant (Empresa)
-  └── Organization (Filial/Departamento)
-       └── Workspace (Projeto/CRM)
-            ├── Entities (Definições)
-            ├── EntityData (Dados)
-            ├── Pages (Puck)
-            └── CustomEndpoints (APIs)
+  └── Organization (Area de Trabalho)
+       ├── Entities (Definicoes)
+       ├── EntityData (Dados)
+       ├── Pages (Puck)
+       └── CustomEndpoints (APIs)
 ```
 
 ## Hierarquia de Usuários

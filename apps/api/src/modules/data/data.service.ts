@@ -41,15 +41,15 @@ export class DataService {
   ) {}
 
   // Get entity with short-lived cache to avoid duplicate queries within same request
-  private async getEntityCached(workspaceId: string, entitySlug: string, currentUser: CurrentUser): Promise<Entity> {
-    const cacheKey = `${workspaceId}:${entitySlug}:${currentUser.tenantId}`;
+  private async getEntityCached(organizationId: string, entitySlug: string, currentUser: CurrentUser): Promise<Entity> {
+    const cacheKey = `${organizationId}:${entitySlug}:${currentUser.tenantId}`;
     const cached = entityCache.get(cacheKey);
 
     if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
       return cached.entity;
     }
 
-    const entity = await this.entityService.findBySlug(workspaceId, entitySlug, currentUser);
+    const entity = await this.entityService.findBySlug(organizationId, entitySlug, currentUser);
     entityCache.set(cacheKey, { entity, timestamp: Date.now() });
 
     // Clean old entries periodically
@@ -65,9 +65,9 @@ export class DataService {
     return entity;
   }
 
-  async create(entitySlug: string, workspaceId: string, dto: CreateDataDto, currentUser: CurrentUser) {
+  async create(entitySlug: string, organizationId: string, dto: CreateDataDto, currentUser: CurrentUser) {
     // Buscar entidade (cached)
-    const entity = await this.getEntityCached(workspaceId, entitySlug, currentUser);
+    const entity = await this.getEntityCached(organizationId, entitySlug, currentUser);
 
     // Validar dados
     const fields = (entity.fields as unknown) as EntityField[];
@@ -89,7 +89,7 @@ export class DataService {
 
   async findAll(
     entitySlug: string,
-    workspaceId: string,
+    organizationId: string,
     query: QueryDataDto,
     currentUser: CurrentUser,
   ) {
@@ -97,7 +97,7 @@ export class DataService {
     const skip = (page - 1) * limit;
 
     // Buscar entidade (cached)
-    const entity = await this.getEntityCached(workspaceId, entitySlug, currentUser);
+    const entity = await this.getEntityCached(organizationId, entitySlug, currentUser);
 
     // Base where
     const where: Prisma.EntityDataWhereInput = {
@@ -162,8 +162,8 @@ export class DataService {
     };
   }
 
-  async findOne(entitySlug: string, workspaceId: string, id: string, currentUser: CurrentUser) {
-    const entity = await this.getEntityCached(workspaceId, entitySlug, currentUser);
+  async findOne(entitySlug: string, organizationId: string, id: string, currentUser: CurrentUser) {
+    const entity = await this.getEntityCached(organizationId, entitySlug, currentUser);
 
     const record = await this.prisma.entityData.findFirst({
       where: {
@@ -196,8 +196,8 @@ export class DataService {
     };
   }
 
-  async update(entitySlug: string, workspaceId: string, id: string, dto: CreateDataDto, currentUser: CurrentUser) {
-    const entity = await this.getEntityCached(workspaceId, entitySlug, currentUser);
+  async update(entitySlug: string, organizationId: string, id: string, dto: CreateDataDto, currentUser: CurrentUser) {
+    const entity = await this.getEntityCached(organizationId, entitySlug, currentUser);
 
     // Buscar registro
     const record = await this.prisma.entityData.findFirst({
@@ -237,8 +237,8 @@ export class DataService {
     });
   }
 
-  async remove(entitySlug: string, workspaceId: string, id: string, currentUser: CurrentUser) {
-    const entity = await this.getEntityCached(workspaceId, entitySlug, currentUser);
+  async remove(entitySlug: string, organizationId: string, id: string, currentUser: CurrentUser) {
+    const entity = await this.getEntityCached(organizationId, entitySlug, currentUser);
 
     const record = await this.prisma.entityData.findFirst({
       where: {

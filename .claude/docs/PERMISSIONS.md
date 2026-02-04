@@ -14,7 +14,7 @@
 | `role` | Gerenciamento de roles |
 | `tenant` | Gerenciamento de tenants |
 | `organization` | Gerenciamento de organizações |
-| `workspace` | Gerenciamento de workspaces |
+| `organization` | Gerenciamento de organizations |
 | `entity` | Definição de entidades |
 | `page` | Pages do Puck Builder |
 | `api` | Endpoints customizados |
@@ -71,7 +71,7 @@
   "user:manage:all",
   "role:manage:all",
   "organization:manage:all",
-  "workspace:manage:all",
+  "organization:manage:all",
   "entity:manage:all",
   "page:manage:all",
   "api:manage:all",

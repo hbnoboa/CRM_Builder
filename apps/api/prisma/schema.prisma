@@ -83,7 +83,7 @@ model Tenant {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// MULTI-TENANCY - NÍVEL 2: ORGANIZATION (Filial/Departamento)
+// MULTI-TENANCY - NÍVEL 2: ORGANIZATION (Area de Trabalho)
 // ═══════════════════════════════════════════════════════════════════════════
 
 model Organization {
@@ -92,44 +92,19 @@ model Organization {
   name      String
   slug      String
   settings  Json     @default("{}")
-  
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  
+
   // Relacionamentos
-  tenant     Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  workspaces Workspace[]
-  users      User[]
-  
+  tenant    Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  users     User[]
+  entities  Entity[]
+  pages     Page[]
+  endpoints CustomEndpoint[]
+
   @@unique([tenantId, slug])
   @@index([tenantId])
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// MULTI-TENANCY - NÍVEL 3: WORKSPACE (Projeto/CRM)
-// ═══════════════════════════════════════════════════════════════════════════
-
-model Workspace {
-  id             String   @id @default(cuid())
-  tenantId       String
-  organizationId String
-  name           String
-  slug           String
-  description    String?
-  settings       Json     @default("{}")
-  
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  
-  // Relacionamentos
-  organization Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  entities     Entity[]
-  pages        Page[]
-  endpoints    CustomEndpoint[]
-  
-  @@unique([organizationId, slug])
-  @@index([tenantId])
-  @@index([organizationId])
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -240,9 +215,9 @@ model UserRole_ {
 // ═══════════════════════════════════════════════════════════════════════════
 
 model Entity {
-  id          String   @id @default(cuid())
-  tenantId    String
-  workspaceId String
+  id             String   @id @default(cuid())
+  tenantId       String
+  organizationId String
 
   name        String   // "Cliente"
   namePlural  String   // "Clientes"
@@ -251,10 +226,10 @@ model Entity {
   icon        String?  // "users"
   color       String?  // "#3B82F6"
 
-  // Definição dos campos (JSON Array)
+  // Definicao dos campos (JSON Array)
   fields      Json     // [{ slug, name, type, required, options, ... }]
 
-  // Configurações da entidade
+  // Configuracoes da entidade
   settings    Json     @default("{}")
   // {
   //   titleField: "nome",
@@ -269,16 +244,16 @@ model Entity {
   updatedAt   DateTime @updatedAt
 
   // Relacionamentos
-  workspace       Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  organization    Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   data            EntityData[]
   customEndpoints CustomEndpoint[] // APIs que usam esta entidade como fonte
 
-  @@unique([workspaceId, slug])
+  @@unique([organizationId, slug])
   @@index([tenantId])
-  @@index([workspaceId])
+  @@index([organizationId])
   // Composite indexes for common query patterns
-  @@index([tenantId, workspaceId])
-  @@index([workspaceId, name])
+  @@index([tenantId, organizationId])
+  @@index([organizationId, name])
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -320,38 +295,38 @@ model EntityData {
 // ═══════════════════════════════════════════════════════════════════════════
 
 model Page {
-  id          String   @id @default(cuid())
-  tenantId    String
-  workspaceId String
+  id             String   @id @default(cuid())
+  tenantId       String
+  organizationId String
 
   title       String
   slug        String
   description String?
   icon        String?
 
-  // Conteúdo Puck (JSON)
+  // Conteudo Puck (JSON)
   content     Json     @default("{}")
 
-  // Status de publicação
+  // Status de publicacao
   isPublished Boolean  @default(false)
   publishedAt DateTime?
 
-  // Permissões necessárias para acessar
+  // Permissoes necessarias para acessar
   permissions Json     @default("[]")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   // Relacionamentos
-  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
-  @@unique([workspaceId, slug])
+  @@unique([organizationId, slug])
   @@index([tenantId])
-  @@index([workspaceId])
+  @@index([organizationId])
   @@index([isPublished])
   // Composite indexes for common query patterns
-  @@index([tenantId, workspaceId])
-  @@index([workspaceId, isPublished])
+  @@index([tenantId, organizationId])
+  @@index([organizationId, isPublished])
   @@index([tenantId, isPublished])
 }
 
@@ -360,11 +335,11 @@ model Page {
 // ═══════════════════════════════════════════════════════════════════════════
 
 model CustomEndpoint {
-  id          String     @id @default(cuid())
-  tenantId    String
-  workspaceId String
+  id             String     @id @default(cuid())
+  tenantId       String
+  organizationId String
 
-  name        String     // "Relatório de Vendas"
+  name        String     // "Relatorio de Vendas"
   description String?
   path        String     // "relatorio-vendas"
   method      HttpMethod @default(POST)
@@ -372,7 +347,7 @@ model CustomEndpoint {
   // Modo: visual (construtor) ou code (JavaScript)
   mode        String     @default("visual") // "visual" | "code"
 
-  // Schemas de validação
+  // Schemas de validacao
   requestSchema  Json?   // JSON Schema para request
   responseSchema Json?   // JSON Schema para response
 
@@ -407,10 +382,10 @@ model CustomEndpoint {
   // MODO CODE - JavaScript customizado (avancado)
   // ═══════════════════════════════════════════════════════════════════════════
 
-  // Lógica em JavaScript (apenas para mode="code")
+  // Logica em JavaScript (apenas para mode="code")
   logic       Json       @default("[]")
 
-  // Segurança
+  // Seguranca
   auth        AuthType   @default(JWT)
   permissions Json       @default("[]") // Roles que podem acessar
   rateLimit   Int        @default(100)  // Requests por minuto
@@ -422,16 +397,16 @@ model CustomEndpoint {
   updatedAt DateTime @updatedAt
 
   // Relacionamentos
-  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
-  @@unique([workspaceId, path, method])
+  @@unique([organizationId, path, method])
   @@index([tenantId])
-  @@index([workspaceId])
+  @@index([organizationId])
   @@index([isActive])
   @@index([sourceEntityId])
   // Composite indexes for common query patterns
-  @@index([tenantId, workspaceId])
-  @@index([workspaceId, isActive])
+  @@index([tenantId, organizationId])
+  @@index([organizationId, isActive])
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

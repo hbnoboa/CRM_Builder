@@ -144,21 +144,21 @@ Remove.
 
 ---
 
-## 📂 Workspaces
+## 📂 Organizations
 
-### GET /workspaces
-Lista workspaces da organização.
+### GET /organizations
+Lista organizations da organização.
 
-### POST /workspaces
-Cria workspace.
+### POST /organizations
+Cria organization.
 
-### GET /workspaces/:id
+### GET /organizations/:id
 Detalhes.
 
-### PATCH /workspaces/:id
+### PATCH /organizations/:id
 Atualiza.
 
-### DELETE /workspaces/:id
+### DELETE /organizations/:id
 Remove.
 
 ---
@@ -166,7 +166,7 @@ Remove.
 ## 📋 Entities
 
 ### GET /entities
-Lista entidades do workspace.
+Lista entidades do organization.
 
 ### POST /entities
 Cria entidade.
@@ -272,7 +272,7 @@ Remove role (não-sistema).
 ## 📄 Pages
 
 ### GET /pages
-Lista páginas do workspace.
+Lista páginas do organization.
 
 ### POST /pages
 Cria página.

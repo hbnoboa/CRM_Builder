@@ -29,41 +29,26 @@ export class EntityController {
     private readonly prisma: PrismaService,
   ) {}
 
-  // Helper to get workspace from organization
-  private async getWorkspaceId(organizationId: string): Promise<string> {
-    const workspace = await this.prisma.workspace.findFirst({
-      where: { organizationId },
-      select: { id: true },
-    });
-    if (!workspace) {
-      throw new BadRequestException('Nenhum workspace encontrado para esta organização');
-    }
-    return workspace.id;
-  }
-
   @Post()
   @Roles(UserRole.ADMIN, UserRole.PLATFORM_ADMIN)
   @ApiOperation({ summary: 'Criar entidade' })
   async create(@Body() dto: any, @CurrentUser() user: any) {
-    // If workspaceId is not provided, get it from user's organization
-    if (!dto.workspaceId && user.organizationId) {
-      dto.workspaceId = await this.getWorkspaceId(user.organizationId);
+    // Se organizationId nao foi fornecido, usar do usuario
+    if (!dto.organizationId && user.organizationId) {
+      dto.organizationId = user.organizationId;
     }
     return this.entityService.create(dto, user);
   }
 
   @Get()
-  @ApiOperation({ summary: 'Listar entidades do workspace' })
-  async findAll(@Query() query: QueryEntityDto & { workspaceId?: string }, @CurrentUser() user: any) {
-    // If workspaceId is not provided, get it from user's organization
-    let workspaceId = query.workspaceId;
-    if (!workspaceId && user.organizationId) {
-      workspaceId = await this.getWorkspaceId(user.organizationId);
+  @ApiOperation({ summary: 'Listar entidades da organizacao' })
+  async findAll(@Query() query: QueryEntityDto & { organizationId?: string }, @CurrentUser() user: any) {
+    // Se organizationId nao foi fornecido, usar do usuario
+    const organizationId = query.organizationId || user.organizationId;
+    if (!organizationId) {
+      throw new BadRequestException('organizationId e obrigatorio');
     }
-    if (!workspaceId) {
-      throw new BadRequestException('workspaceId é obrigatório');
-    }
-    return this.entityService.findAll(workspaceId, user, query);
+    return this.entityService.findAll(organizationId, user, query);
   }
 
   @Get(':id')
@@ -72,25 +57,26 @@ export class EntityController {
     return this.entityService.findOne(id, user);
   }
 
-  @Get('workspace/:workspaceId/slug/:slug')
+  @Get('organization/:organizationId/slug/:slug')
   @ApiOperation({ summary: 'Buscar entidade por slug' })
   async findBySlug(
-    @Param('workspaceId') workspaceId: string,
+    @Param('organizationId') organizationId: string,
     @Param('slug') slug: string,
     @CurrentUser() user: any,
   ) {
-    return this.entityService.findBySlug(workspaceId, slug, user);
+    return this.entityService.findBySlug(organizationId, slug, user);
   }
 
-  // Alias for convenience
   @Get('slug/:slug')
-  @ApiOperation({ summary: 'Buscar entidade por slug (usa workspace do usuário)' })
+  @ApiOperation({ summary: 'Buscar entidade por slug (usa organizacao do usuario)' })
   async findBySlugAuto(
     @Param('slug') slug: string,
     @CurrentUser() user: any,
   ) {
-    const workspaceId = await this.getWorkspaceId(user.organizationId);
-    return this.entityService.findBySlug(workspaceId, slug, user);
+    if (!user.organizationId) {
+      throw new BadRequestException('Usuario nao possui organizacao');
+    }
+    return this.entityService.findBySlug(user.organizationId, slug, user);
   }
 
   @Patch(':id')

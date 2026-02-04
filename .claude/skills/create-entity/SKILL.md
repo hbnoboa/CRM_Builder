@@ -11,7 +11,7 @@ curl -X POST http://localhost:3001/api/v1/entities \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
-    "workspaceId": "workspace_id_aqui",
+    "organizationId": "organization_id_aqui",
     "name": "Produto",
     "namePlural": "Produtos",
     "slug": "produto",
@@ -71,15 +71,15 @@ curl -X POST http://localhost:3001/api/v1/entities \
 // Adicionar entidade no seed
 const produtoEntity = await prisma.entity.upsert({
   where: {
-    workspaceId_slug: {
-      workspaceId: workspace.id,
+    organizationId_slug: {
+      organizationId: organization.id,
       slug: 'produto',
     },
   },
   update: {},
   create: {
     tenantId: tenant.id,
-    workspaceId: workspace.id,
+    organizationId: organization.id,
     name: 'Produto',
     namePlural: 'Produtos',
     slug: 'produto',
@@ -203,7 +203,7 @@ Ao criar uma entidade, adicionar permissões nas roles:
 ## Checklist
 
 - [ ] Nome singular e plural definidos
-- [ ] Slug único no workspace (kebab-case)
+- [ ] Slug único no organization (kebab-case)
 - [ ] Ícone do Lucide escolhido
 - [ ] Cor hexadecimal definida
 - [ ] Campos com tipos corretos

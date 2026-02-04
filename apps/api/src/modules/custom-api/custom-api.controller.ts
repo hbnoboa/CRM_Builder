@@ -34,36 +34,21 @@ export class CustomApiController {
     private readonly prisma: PrismaService,
   ) {}
 
-  // Helper to get workspace from organization
-  private async getWorkspaceId(organizationId: string): Promise<string> {
-    const workspace = await this.prisma.workspace.findFirst({
-      where: { organizationId },
-      select: { id: true },
-    });
-    if (!workspace) {
-      throw new BadRequestException('Nenhum workspace encontrado para esta organização');
-    }
-    return workspace.id;
-  }
-
   @Post()
   @Roles('ADMIN')
   async create(@Body() dto: CreateCustomApiDto, @CurrentUser() user: any) {
     this.logger.log(`Creating custom API: ${dto.name}`);
-    const workspaceId = await this.getWorkspaceId(user.organizationId);
-    return this.customApiService.create(dto, workspaceId, user.tenantId);
+    return this.customApiService.create(dto, user.organizationId, user.tenantId);
   }
 
   @Get()
   async findAll(@Query() query: QueryCustomApiDto, @CurrentUser() user: any) {
-    const workspaceId = await this.getWorkspaceId(user.organizationId);
-    return this.customApiService.findAll(workspaceId, query);
+    return this.customApiService.findAll(user.organizationId, query);
   }
 
   @Get(':id')
   async findOne(@Param('id') id: string, @CurrentUser() user: any) {
-    const workspaceId = await this.getWorkspaceId(user.organizationId);
-    return this.customApiService.findOne(id, workspaceId);
+    return this.customApiService.findOne(id, user.organizationId);
   }
 
   @Patch(':id')
@@ -73,51 +58,46 @@ export class CustomApiController {
     @Body() dto: UpdateCustomApiDto,
     @CurrentUser() user: any,
   ) {
-    const workspaceId = await this.getWorkspaceId(user.organizationId);
-    return this.customApiService.update(id, dto, workspaceId);
+    return this.customApiService.update(id, dto, user.organizationId);
   }
 
   @Patch(':id/toggle')
   @Roles('ADMIN')
   async toggleActive(@Param('id') id: string, @CurrentUser() user: any) {
-    const workspaceId = await this.getWorkspaceId(user.organizationId);
-    return this.customApiService.toggleActive(id, workspaceId);
+    return this.customApiService.toggleActive(id, user.organizationId);
   }
 
   @Patch(':id/activate')
   @Roles('ADMIN')
   async activate(@Param('id') id: string, @CurrentUser() user: any) {
-    const workspaceId = await this.getWorkspaceId(user.organizationId);
-    return this.customApiService.activate(id, workspaceId);
+    return this.customApiService.activate(id, user.organizationId);
   }
 
   @Patch(':id/deactivate')
   @Roles('ADMIN')
   async deactivate(@Param('id') id: string, @CurrentUser() user: any) {
-    const workspaceId = await this.getWorkspaceId(user.organizationId);
-    return this.customApiService.deactivate(id, workspaceId);
+    return this.customApiService.deactivate(id, user.organizationId);
   }
 
   @Delete(':id')
   @Roles('ADMIN')
   async remove(@Param('id') id: string, @CurrentUser() user: any) {
-    const workspaceId = await this.getWorkspaceId(user.organizationId);
-    return this.customApiService.remove(id, workspaceId);
+    return this.customApiService.remove(id, user.organizationId);
   }
 }
 
 // Dynamic endpoint executor
-@Controller('x/:workspaceId')
+@Controller('x/:organizationId')
 export class DynamicApiController {
   constructor(private readonly customApiService: CustomApiService) {}
 
   @All('*')
-  async handleDynamicRequest(@Req() req: AuthenticatedRequest, @Param('workspaceId') workspaceId: string) {
+  async handleDynamicRequest(@Req() req: AuthenticatedRequest, @Param('organizationId') organizationId: string) {
     const path = (req.params as Record<string, string>)[0] || '';
     const method = req.method as HttpMethod;
 
     return this.customApiService.executeEndpoint(
-      workspaceId,
+      organizationId,
       `/${path}`,
       method,
       req.body as Record<string, unknown>,

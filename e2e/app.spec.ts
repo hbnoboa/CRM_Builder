@@ -333,15 +333,7 @@ test.describe('Navigation - Sidebar', () => {
     }
   });
 
-  test('deve mostrar workspace switcher', async ({ page }) => {
-    // Verifica se existe seletor de workspace
-    const workspaceSwitcher = page.locator('[data-testid="workspace-switcher"], .workspace-switcher, [aria-label*="workspace"]');
-    
-    // If exists, should be visible
-    if (await workspaceSwitcher.isVisible({ timeout: 10000 }).catch(() => false)) {
-      await expect(workspaceSwitcher.first()).toBeVisible();
-    }
-  });
+  // Workspace switcher removido - cada empresa tem apenas uma area de trabalho (organization)
 });
 
 test.describe('Notifications', () => {

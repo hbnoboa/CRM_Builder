@@ -58,10 +58,10 @@ export class CreateEntityDto {
   @IsOptional()
   description?: string;
 
-  @ApiPropertyOptional({ description: 'ID do workspace' })
+  @ApiPropertyOptional({ description: 'ID da organizacao' })
   @IsString()
   @IsOptional()
-  workspaceId?: string;
+  organizationId?: string;
 
   @ApiPropertyOptional({ description: 'Campos da entidade', type: [FieldDto] })
   @IsArray()
@@ -91,8 +91,8 @@ export class UpdateEntityDto {
 }
 
 export class QueryEntityDto {
-  @ApiPropertyOptional({ description: 'ID do workspace' })
+  @ApiPropertyOptional({ description: 'ID da organizacao' })
   @IsString()
   @IsOptional()
-  workspaceId?: string;
+  organizationId?: string;
 }

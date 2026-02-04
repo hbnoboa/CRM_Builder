@@ -25,12 +25,12 @@ Todos os componentes base vêm do shadcn/ui (Radix + Tailwind).
 
 ## Componentes do App
 
-### Workspace Switcher
+### Organization Switcher
 ```tsx
-// components/workspace-switcher.tsx
-<WorkspaceSwitcher />
+// components/organization-switcher.tsx
+<OrganizationSwitcher />
 ```
-Permite trocar entre workspaces do usuário.
+Permite trocar entre organizations do usuário.
 
 ### Notification Bell
 ```tsx

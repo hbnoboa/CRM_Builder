@@ -21,59 +21,59 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
 export class DataController {
   constructor(private readonly dataService: DataService) {}
 
-  @Post(':workspaceId/:entitySlug')
+  @Post(':organizationId/:entitySlug')
   @ApiOperation({ summary: 'Criar registro' })
   async create(
-    @Param('workspaceId') workspaceId: string,
+    @Param('organizationId') organizationId: string,
     @Param('entitySlug') entitySlug: string,
     @Body() dto: { data: Record<string, any> },
     @CurrentUser() user: any,
   ) {
-    return this.dataService.create(entitySlug, workspaceId, dto, user);
+    return this.dataService.create(entitySlug, organizationId, dto, user);
   }
 
-  @Get(':workspaceId/:entitySlug')
+  @Get(':organizationId/:entitySlug')
   @ApiOperation({ summary: 'Listar registros' })
   async findAll(
-    @Param('workspaceId') workspaceId: string,
+    @Param('organizationId') organizationId: string,
     @Param('entitySlug') entitySlug: string,
     @Query() query: any,
     @CurrentUser() user: any,
   ) {
-    return this.dataService.findAll(entitySlug, workspaceId, query, user);
+    return this.dataService.findAll(entitySlug, organizationId, query, user);
   }
 
-  @Get(':workspaceId/:entitySlug/:id')
+  @Get(':organizationId/:entitySlug/:id')
   @ApiOperation({ summary: 'Buscar registro por ID' })
   async findOne(
-    @Param('workspaceId') workspaceId: string,
+    @Param('organizationId') organizationId: string,
     @Param('entitySlug') entitySlug: string,
     @Param('id') id: string,
     @CurrentUser() user: any,
   ) {
-    return this.dataService.findOne(entitySlug, workspaceId, id, user);
+    return this.dataService.findOne(entitySlug, organizationId, id, user);
   }
 
-  @Patch(':workspaceId/:entitySlug/:id')
+  @Patch(':organizationId/:entitySlug/:id')
   @ApiOperation({ summary: 'Atualizar registro' })
   async update(
-    @Param('workspaceId') workspaceId: string,
+    @Param('organizationId') organizationId: string,
     @Param('entitySlug') entitySlug: string,
     @Param('id') id: string,
     @Body() dto: { data: Record<string, any> },
     @CurrentUser() user: any,
   ) {
-    return this.dataService.update(entitySlug, workspaceId, id, dto, user);
+    return this.dataService.update(entitySlug, organizationId, id, dto, user);
   }
 
-  @Delete(':workspaceId/:entitySlug/:id')
+  @Delete(':organizationId/:entitySlug/:id')
   @ApiOperation({ summary: 'Excluir registro' })
   async remove(
-    @Param('workspaceId') workspaceId: string,
+    @Param('organizationId') organizationId: string,
     @Param('entitySlug') entitySlug: string,
     @Param('id') id: string,
     @CurrentUser() user: any,
   ) {
-    return this.dataService.remove(entitySlug, workspaceId, id, user);
+    return this.dataService.remove(entitySlug, organizationId, id, user);
   }
 }

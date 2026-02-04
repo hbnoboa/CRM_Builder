@@ -10,7 +10,7 @@
 
 ```prisma
 // Multi-tenancy
-Tenant          → Organization → Workspace
+Tenant          → Organization → Organization
                       ↓
                     User
 
@@ -52,9 +52,9 @@ model Organization {
 }
 ```
 
-### Workspace
+### Organization
 ```prisma
-model Workspace {
+model Organization {
   id             String @id @default(cuid())
   tenantId       String
   organizationId String
@@ -89,7 +89,7 @@ model User {
 model Entity {
   id          String  @id @default(cuid())
   tenantId    String
-  workspaceId String
+  organizationId String
   name        String  // "Cliente"
   namePlural  String  // "Clientes"
   slug        String  // "cliente"
@@ -99,7 +99,7 @@ model Entity {
   settings    Json    @default("{}")
   isSystem    Boolean @default(false)
   
-  @@unique([workspaceId, slug])
+  @@unique([organizationId, slug])
 }
 ```
 
