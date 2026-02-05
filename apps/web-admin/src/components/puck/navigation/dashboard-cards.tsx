@@ -1,6 +1,7 @@
 'use client';
 
-import { useRouter, useParams } from 'next/navigation';
+import { useRouter } from '@/i18n/navigation';
+import { useLocale } from 'next-intl';
 import {
   FileText,
   Users,
@@ -55,17 +56,18 @@ export function DashboardCards({
   variant = 'default'
 }: DashboardCardsProps) {
   const router = useRouter();
-  const params = useParams();
-  const locale = params?.locale || 'pt';
+  const locale = useLocale();
 
   const handleCardClick = (href: string) => {
     if (href.startsWith('http')) {
       window.open(href, '_blank');
     } else if (href.startsWith('/')) {
+      // Use router.push which auto-handles locale prefix
       router.push(href);
     } else {
       // Assume it's a page slug, navigate to preview
-      router.push(`/${locale}/preview/${href}`);
+      // Router from @/i18n/navigation auto-prefixes locale
+      router.push(`/preview/${href}`);
     }
   };
 

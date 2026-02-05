@@ -2,13 +2,22 @@
 
 import { Config, Data } from '@measured/puck';
 import { ArrowRight } from 'lucide-react';
-import { CustomApiViewer, CustomApiViewerPreview } from '@/components/puck/custom-api-viewer';
-import { EntityDataTable, EntityDataTablePreview } from '@/components/puck/entity-data-table';
-import { EntityDataForm, EntityDataFormPreview } from '@/components/puck/entity-data-form';
-import { DashboardCards, DashboardCardsPreview, DashboardCardsProps, DashboardCard } from '@/components/puck/dashboard-cards';
-import { ActionButton, ActionButtonPreview, ActionButtonProps } from '@/components/puck/action-button';
-import { EventsField } from '@/components/puck/events-field';
 import { ComponentEvent } from '@/lib/page-events';
+
+// Data Components
+import { CustomApiViewer, CustomApiViewerPreview } from '@/components/puck/data/custom-api-viewer';
+import { EntityDataTable, EntityDataTablePreview } from '@/components/puck/data/entity-data-table';
+import { EntityDataForm, EntityDataFormPreview } from '@/components/puck/data/entity-data-form';
+import { RelatedRecords, RelatedRecordsPreview, RelatedRecordsProps } from '@/components/puck/data/related-records';
+import { DetailView, DetailViewPreview, DetailViewProps } from '@/components/puck/data/detail-view';
+
+// Navigation Components
+import { DashboardCards, DashboardCardsPreview, DashboardCardsProps, DashboardCard } from '@/components/puck/navigation/dashboard-cards';
+import { ActionButton, ActionButtonPreview, ActionButtonProps } from '@/components/puck/navigation/action-button';
+import { LinkList, LinkListPreview, LinkListProps } from '@/components/puck/navigation/link-list';
+
+// Events Components
+import { EventsField } from '@/components/puck/events/events-field';
 
 // Layout Components
 import {
@@ -17,7 +26,10 @@ import {
   FlexRow, FlexRowProps,
   Grid, GridProps,
   LAYOUT_OPTIONS,
-} from '@/components/puck/row-col';
+} from '@/components/puck/layout/row-col';
+import { Tabs, TabsPreview, TabsProps } from '@/components/puck/layout/tabs';
+import { Accordion, AccordionPreview, AccordionProps } from '@/components/puck/layout/accordion';
+import { Steps, StepsPreview, StepsProps } from '@/components/puck/layout/steps';
 
 // Form Field Components
 import {
@@ -36,28 +48,24 @@ import {
   TagsInput, TagsInputProps,
   RatingField, RatingFieldProps,
   SwitchField, SwitchFieldProps,
-} from '@/components/puck/form-fields';
+} from '@/components/puck/forms/form-fields';
 
-// UI Components
-import { Tabs, TabsPreview, TabsProps } from '@/components/puck/tabs';
-import { KanbanBoard, KanbanBoardPreview, KanbanBoardProps } from '@/components/puck/kanban-board';
-import { Timeline, TimelinePreview, TimelineProps } from '@/components/puck/timeline';
-import { Alert, AlertPreview, AlertProps } from '@/components/puck/alert';
-import { Progress, ProgressPreview, ProgressProps } from '@/components/puck/progress';
-import { BarChart, LineChart, PieChart, BarChartPreview, LineChartPreview, PieChartPreview, ChartProps } from '@/components/puck/charts';
-import { RelatedRecords, RelatedRecordsPreview, RelatedRecordsProps } from '@/components/puck/related-records';
-import { Accordion, AccordionPreview, AccordionProps } from '@/components/puck/accordion';
-import { Badge, BadgePreview, BadgeProps } from '@/components/puck/badge';
-import { Avatar, AvatarPreview, AvatarProps } from '@/components/puck/avatar';
-import { CalendarView, CalendarViewPreview, CalendarViewProps } from '@/components/puck/calendar-view';
-import { MetricCard, MetricCardPreview, MetricCardProps } from '@/components/puck/metric-card';
-import { DetailView, DetailViewPreview, DetailViewProps } from '@/components/puck/detail-view';
-import { TreeView, TreeViewPreview, TreeViewProps } from '@/components/puck/tree-view';
-import { Steps, StepsPreview, StepsProps } from '@/components/puck/steps';
-import { LinkList, LinkListPreview, LinkListProps } from '@/components/puck/link-list';
-import { MapView, MapViewPreview, MapViewProps } from '@/components/puck/map-view';
-import { Testimonial, TestimonialPreview, TestimonialProps } from '@/components/puck/testimonial';
-import { PricingTable, PricingTablePreview, PricingTableProps } from '@/components/puck/pricing-table';
+// Display Components
+import { Alert, AlertPreview, AlertProps } from '@/components/puck/display/alert';
+import { Progress, ProgressPreview, ProgressProps } from '@/components/puck/display/progress';
+import { Badge, BadgePreview, BadgeProps } from '@/components/puck/display/badge';
+import { Avatar, AvatarPreview, AvatarProps } from '@/components/puck/display/avatar';
+import { MetricCard, MetricCardPreview, MetricCardProps } from '@/components/puck/display/metric-card';
+import { Testimonial, TestimonialPreview, TestimonialProps } from '@/components/puck/display/testimonial';
+import { PricingTable, PricingTablePreview, PricingTableProps } from '@/components/puck/display/pricing-table';
+
+// Visualization Components
+import { BarChart, LineChart, PieChart, BarChartPreview, LineChartPreview, PieChartPreview, ChartProps } from '@/components/puck/visualization/charts';
+import { KanbanBoard, KanbanBoardPreview, KanbanBoardProps } from '@/components/puck/visualization/kanban-board';
+import { Timeline, TimelinePreview, TimelineProps } from '@/components/puck/visualization/timeline';
+import { CalendarView, CalendarViewPreview, CalendarViewProps } from '@/components/puck/visualization/calendar-view';
+import { TreeView, TreeViewPreview, TreeViewProps } from '@/components/puck/visualization/tree-view';
+import { MapView, MapViewPreview, MapViewProps } from '@/components/puck/visualization/map-view';
 
 // Component Types
 export type ComponentProps = {

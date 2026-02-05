@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { AlertCircle, Loader2, RefreshCw, ChevronLeft, ChevronRight, Pencil, Trash2, Eye, Plus, Search, FileText, LayoutGrid } from 'lucide-react';
-import { useRouter } from 'next/navigation';
+import { useRouter } from '@/i18n/navigation';
 
 interface EntityField {
   slug: string;

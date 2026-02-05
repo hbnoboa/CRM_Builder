@@ -108,7 +108,7 @@ function UserPagesView() {
       ) : (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {filteredPages.map((page) => (
-            <Link key={page.id} href={`/${locale}/preview/${page.slug}`}>
+            <Link key={page.id} href={`/preview/${page.slug}`}>
               <Card className="group hover:border-primary hover:shadow-md transition-all cursor-pointer h-full">
                 <CardContent className="p-6">
                   <div className="flex items-center gap-3">
