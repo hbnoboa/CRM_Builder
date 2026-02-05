@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException, ConflictException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
-import { Prisma } from '@prisma/client';
+import { Prisma, UserRole } from '@prisma/client';
 import {
   CurrentUser,
   PaginationQuery,
@@ -30,14 +30,24 @@ export interface QueryRoleDto extends PaginationQuery {
 export class RoleService {
   constructor(private prisma: PrismaService) {}
 
-  async create(dto: CreateRoleDto, currentUser: CurrentUser) {
+  // Helper para determinar o tenantId efetivo (PLATFORM_ADMIN pode acessar qualquer tenant)
+  private getEffectiveTenantId(currentUser: CurrentUser, requestedTenantId?: string): string {
+    if (currentUser.role === UserRole.PLATFORM_ADMIN && requestedTenantId) {
+      return requestedTenantId;
+    }
+    return currentUser.tenantId;
+  }
+
+  async create(dto: CreateRoleDto & { tenantId?: string }, currentUser: CurrentUser) {
+    const targetTenantId = this.getEffectiveTenantId(currentUser, dto.tenantId);
+    
     // Gerar slug se não fornecido
     const slug = dto.slug || dto.name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
 
     // Verificar se slug já existe no tenant
     const existing = await this.prisma.role.findFirst({
       where: {
-        tenantId: currentUser.tenantId,
+        tenantId: targetTenantId,
         slug,
       },
     });
@@ -51,7 +61,7 @@ export class RoleService {
         name: dto.name,
         slug,
         description: dto.description,
-        tenantId: currentUser.tenantId,
+        tenantId: targetTenantId,
         permissions: dto.permissions || [],
         isSystem: dto.isSystem || false,
       },
@@ -60,11 +70,18 @@ export class RoleService {
 
   async findAll(query: QueryRoleDto, currentUser: CurrentUser) {
     const { page, limit, skip } = parsePaginationParams(query);
-    const { search, isSystem, sortBy = 'name', sortOrder = 'asc' } = query;
+    const { search, isSystem, sortBy = 'name', sortOrder = 'asc', tenantId: queryTenantId } = query;
 
-    const where: Prisma.RoleWhereInput = {
-      tenantId: currentUser.tenantId,
-    };
+    // PLATFORM_ADMIN pode ver de qualquer tenant ou todos
+    const where: Prisma.RoleWhereInput = {};
+    
+    if (currentUser.role === UserRole.PLATFORM_ADMIN) {
+      if (queryTenantId) {
+        where.tenantId = queryTenantId;
+      }
+    } else {
+      where.tenantId = currentUser.tenantId;
+    }
 
     if (isSystem !== undefined) {
       where.isSystem = isSystem;
@@ -88,6 +105,9 @@ export class RoleService {
           _count: {
             select: { users: true },
           },
+          tenant: {
+            select: { id: true, name: true, slug: true },
+          },
         },
       }),
       this.prisma.role.count({ where }),
@@ -100,11 +120,14 @@ export class RoleService {
   }
 
   async findOne(id: string, currentUser: CurrentUser) {
+    // PLATFORM_ADMIN pode ver role de qualquer tenant
+    const whereClause: Prisma.RoleWhereInput = { id };
+    if (currentUser.role !== UserRole.PLATFORM_ADMIN) {
+      whereClause.tenantId = currentUser.tenantId;
+    }
+
     const role = await this.prisma.role.findFirst({
-      where: {
-        id,
-        tenantId: currentUser.tenantId,
-      },
+      where: whereClause,
       include: {
         users: {
           include: {
@@ -116,6 +139,9 @@ export class RoleService {
               },
             },
           },
+        },
+        tenant: {
+          select: { id: true, name: true, slug: true },
         },
       },
     });

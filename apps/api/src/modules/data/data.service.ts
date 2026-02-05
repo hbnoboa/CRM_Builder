@@ -14,6 +14,7 @@ interface QueryDataDto {
   search?: string;
   sortBy?: string;
   sortOrder?: 'asc' | 'desc';
+  tenantId?: string; // Para PLATFORM_ADMIN filtrar por tenant
 }
 
 interface EntitySettings {
@@ -40,16 +41,25 @@ export class DataService {
     private entityService: EntityService,
   ) {}
 
+  // Helper para determinar o tenantId efetivo (PLATFORM_ADMIN pode acessar qualquer tenant)
+  private getEffectiveTenantId(currentUser: CurrentUser, requestedTenantId?: string): string {
+    if (currentUser.role === UserRole.PLATFORM_ADMIN && requestedTenantId) {
+      return requestedTenantId;
+    }
+    return currentUser.tenantId;
+  }
+
   // Get entity with short-lived cache to avoid duplicate queries within same request
-  private async getEntityCached(entitySlug: string, currentUser: CurrentUser): Promise<Entity> {
-    const cacheKey = `${entitySlug}:${currentUser.tenantId}`;
+  private async getEntityCached(entitySlug: string, currentUser: CurrentUser, tenantId?: string): Promise<Entity> {
+    const effectiveTenantId = this.getEffectiveTenantId(currentUser, tenantId);
+    const cacheKey = `${entitySlug}:${effectiveTenantId}`;
     const cached = entityCache.get(cacheKey);
 
     if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
       return cached.entity;
     }
 
-    const entity = await this.entityService.findBySlug(entitySlug, currentUser);
+    const entity = await this.entityService.findBySlug(entitySlug, currentUser, effectiveTenantId);
     entityCache.set(cacheKey, { entity, timestamp: Date.now() });
 
     // Clean old entries periodically
@@ -65,9 +75,11 @@ export class DataService {
     return entity;
   }
 
-  async create(entitySlug: string, dto: CreateDataDto, currentUser: CurrentUser) {
+  async create(entitySlug: string, dto: CreateDataDto & { tenantId?: string }, currentUser: CurrentUser) {
+    const targetTenantId = this.getEffectiveTenantId(currentUser, dto.tenantId);
+    
     // Buscar entidade (cached)
-    const entity = await this.getEntityCached(entitySlug, currentUser);
+    const entity = await this.getEntityCached(entitySlug, currentUser, targetTenantId);
 
     // Validar dados
     const fields = (entity.fields as unknown) as EntityField[];
@@ -78,7 +90,7 @@ export class DataService {
 
     return this.prisma.entityData.create({
       data: {
-        tenantId: currentUser.tenantId,
+        tenantId: targetTenantId,
         entityId: entity.id,
         data: (dto.data || {}) as Prisma.InputJsonValue,
         createdById: currentUser.id,
@@ -92,17 +104,27 @@ export class DataService {
     query: QueryDataDto,
     currentUser: CurrentUser,
   ) {
-    const { page = 1, limit = 20, search, sortBy = 'createdAt', sortOrder = 'desc' } = query;
+    const { page = 1, limit = 20, search, sortBy = 'createdAt', sortOrder = 'desc', tenantId: queryTenantId } = query;
     const skip = (page - 1) * limit;
+    
+    const effectiveTenantId = this.getEffectiveTenantId(currentUser, queryTenantId);
 
     // Buscar entidade (cached)
-    const entity = await this.getEntityCached(entitySlug, currentUser);
+    const entity = await this.getEntityCached(entitySlug, currentUser, effectiveTenantId);
 
     // Base where
     const where: Prisma.EntityDataWhereInput = {
-      tenantId: currentUser.tenantId,
       entityId: entity.id,
     };
+
+    // PLATFORM_ADMIN pode ver de qualquer tenant ou todos
+    if (currentUser.role === UserRole.PLATFORM_ADMIN) {
+      if (queryTenantId) {
+        where.tenantId = queryTenantId;
+      }
+    } else {
+      where.tenantId = currentUser.tenantId;
+    }
 
     // Aplicar filtro de escopo baseado na role
     this.applyScope(where, currentUser, 'read');
@@ -131,6 +153,9 @@ export class DataService {
         take: limit,
         orderBy: { [sortBy]: sortOrder },
         include: {
+          tenant: {
+            select: { id: true, name: true, slug: true },
+          },
           createdBy: {
             select: { id: true, name: true, email: true },
           },
@@ -161,16 +186,26 @@ export class DataService {
     };
   }
 
-  async findOne(entitySlug: string, id: string, currentUser: CurrentUser) {
-    const entity = await this.getEntityCached(entitySlug, currentUser);
+  async findOne(entitySlug: string, id: string, currentUser: CurrentUser, tenantId?: string) {
+    const effectiveTenantId = this.getEffectiveTenantId(currentUser, tenantId);
+    const entity = await this.getEntityCached(entitySlug, currentUser, effectiveTenantId);
+
+    // PLATFORM_ADMIN pode ver registro de qualquer tenant
+    const whereClause: Prisma.EntityDataWhereInput = {
+      id,
+      entityId: entity.id,
+    };
+    
+    if (currentUser.role !== UserRole.PLATFORM_ADMIN) {
+      whereClause.tenantId = currentUser.tenantId;
+    }
 
     const record = await this.prisma.entityData.findFirst({
-      where: {
-        id,
-        entityId: entity.id,
-        tenantId: currentUser.tenantId,
-      },
+      where: whereClause,
       include: {
+        tenant: {
+          select: { id: true, name: true, slug: true },
+        },
         createdBy: {
           select: { id: true, name: true, email: true },
         },
@@ -195,24 +230,33 @@ export class DataService {
     };
   }
 
-  async update(entitySlug: string, id: string, dto: CreateDataDto, currentUser: CurrentUser) {
-    const entity = await this.getEntityCached(entitySlug, currentUser);
+  async update(entitySlug: string, id: string, dto: CreateDataDto & { tenantId?: string }, currentUser: CurrentUser) {
+    const effectiveTenantId = this.getEffectiveTenantId(currentUser, dto.tenantId);
+    const entity = await this.getEntityCached(entitySlug, currentUser, effectiveTenantId);
+
+    // PLATFORM_ADMIN pode editar registro de qualquer tenant
+    const whereClause: Prisma.EntityDataWhereInput = {
+      id,
+      entityId: entity.id,
+    };
+    
+    if (currentUser.role !== UserRole.PLATFORM_ADMIN) {
+      whereClause.tenantId = currentUser.tenantId;
+    }
 
     // Buscar registro
     const record = await this.prisma.entityData.findFirst({
-      where: {
-        id,
-        entityId: entity.id,
-        tenantId: currentUser.tenantId,
-      },
+      where: whereClause,
     });
 
     if (!record) {
       throw new NotFoundException('Registro nao encontrado');
     }
 
-    // Verificar permissao de escopo
-    this.checkScope(record, currentUser, 'update');
+    // Verificar permissao de escopo (exceto PLATFORM_ADMIN)
+    if (currentUser.role !== UserRole.PLATFORM_ADMIN) {
+      this.checkScope(record, currentUser, 'update');
+    }
 
     // Validar dados
     const fields = (entity.fields as unknown) as EntityField[];
@@ -236,23 +280,32 @@ export class DataService {
     });
   }
 
-  async remove(entitySlug: string, id: string, currentUser: CurrentUser) {
-    const entity = await this.getEntityCached(entitySlug, currentUser);
+  async remove(entitySlug: string, id: string, currentUser: CurrentUser, tenantId?: string) {
+    const effectiveTenantId = this.getEffectiveTenantId(currentUser, tenantId);
+    const entity = await this.getEntityCached(entitySlug, currentUser, effectiveTenantId);
+
+    // PLATFORM_ADMIN pode deletar registro de qualquer tenant
+    const whereClause: Prisma.EntityDataWhereInput = {
+      id,
+      entityId: entity.id,
+    };
+    
+    if (currentUser.role !== UserRole.PLATFORM_ADMIN) {
+      whereClause.tenantId = currentUser.tenantId;
+    }
 
     const record = await this.prisma.entityData.findFirst({
-      where: {
-        id,
-        entityId: entity.id,
-        tenantId: currentUser.tenantId,
-      },
+      where: whereClause,
     });
 
     if (!record) {
       throw new NotFoundException('Registro nao encontrado');
     }
 
-    // Verificar permissao de escopo
-    this.checkScope(record, currentUser, 'delete');
+    // Verificar permissao de escopo (exceto PLATFORM_ADMIN)
+    if (currentUser.role !== UserRole.PLATFORM_ADMIN) {
+      this.checkScope(record, currentUser, 'delete');
+    }
 
     await this.prisma.entityData.delete({ where: { id } });
 

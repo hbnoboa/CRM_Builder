@@ -1,8 +1,9 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
-import { Prisma } from '@prisma/client';
+import { Prisma, UserRole } from '@prisma/client';
 import { CreatePageDto, UpdatePageDto } from './dto/page.dto';
 import {
+  CurrentUser,
   PaginationQuery,
   parsePaginationParams,
   createPaginationMeta,
@@ -16,7 +17,17 @@ export interface QueryPageDto extends PaginationQuery {
 export class PageService {
   constructor(private prisma: PrismaService) {}
 
-  async create(data: CreatePageDto, userId: string, tenantId: string) {
+  // Helper para determinar o tenantId efetivo (PLATFORM_ADMIN pode acessar qualquer tenant)
+  private getEffectiveTenantId(currentUser: CurrentUser, requestedTenantId?: string): string {
+    if (currentUser.role === UserRole.PLATFORM_ADMIN && requestedTenantId) {
+      return requestedTenantId;
+    }
+    return currentUser.tenantId;
+  }
+
+  async create(data: CreatePageDto & { tenantId?: string }, userId: string, currentUser: CurrentUser) {
+    const targetTenantId = this.getEffectiveTenantId(currentUser, data.tenantId);
+    
     return this.prisma.page.create({
       data: {
         title: data.title,
@@ -26,18 +37,25 @@ export class PageService {
         content: data.content || {},
         isPublished: data.isPublished || false,
         permissions: data.permissions || [],
-        tenantId,
+        tenantId: targetTenantId,
       },
     });
   }
 
-  async findAll(tenantId: string, query: QueryPageDto = {}) {
+  async findAll(currentUser: CurrentUser, query: QueryPageDto = {}) {
     const { page, limit, skip } = parsePaginationParams(query);
-    const { search, isPublished, sortBy = 'updatedAt', sortOrder = 'desc' } = query;
+    const { search, isPublished, sortBy = 'updatedAt', sortOrder = 'desc', tenantId: queryTenantId } = query;
 
-    const where: Prisma.PageWhereInput = {
-      tenantId,
-    };
+    // PLATFORM_ADMIN pode ver de qualquer tenant ou todos
+    const where: Prisma.PageWhereInput = {};
+    
+    if (currentUser.role === UserRole.PLATFORM_ADMIN) {
+      if (queryTenantId) {
+        where.tenantId = queryTenantId;
+      }
+    } else {
+      where.tenantId = currentUser.tenantId;
+    }
 
     if (isPublished !== undefined) {
       where.isPublished = isPublished;
@@ -57,6 +75,11 @@ export class PageService {
         skip,
         take: limit,
         orderBy: { [sortBy]: sortOrder },
+        include: {
+          tenant: {
+            select: { id: true, name: true, slug: true },
+          },
+        },
       }),
       this.prisma.page.count({ where }),
     ]);
@@ -67,9 +90,20 @@ export class PageService {
     };
   }
 
-  async findOne(id: string, tenantId: string) {
+  async findOne(id: string, currentUser: CurrentUser) {
+    // PLATFORM_ADMIN pode ver pagina de qualquer tenant
+    const whereClause: Prisma.PageWhereInput = { id };
+    if (currentUser.role !== UserRole.PLATFORM_ADMIN) {
+      whereClause.tenantId = currentUser.tenantId;
+    }
+
     const page = await this.prisma.page.findFirst({
-      where: { id, tenantId },
+      where: whereClause,
+      include: {
+        tenant: {
+          select: { id: true, name: true, slug: true },
+        },
+      },
     });
 
     if (!page) {
@@ -79,9 +113,15 @@ export class PageService {
     return page;
   }
 
-  async findBySlug(slug: string, tenantId: string) {
+  async findBySlug(slug: string, currentUser: CurrentUser) {
+    // PLATFORM_ADMIN pode ver pagina de qualquer tenant
+    const whereClause: Prisma.PageWhereInput = { slug };
+    if (currentUser.role !== UserRole.PLATFORM_ADMIN) {
+      whereClause.tenantId = currentUser.tenantId;
+    }
+
     const page = await this.prisma.page.findFirst({
-      where: { slug, tenantId },
+      where: whereClause,
     });
 
     if (!page) {
@@ -91,8 +131,8 @@ export class PageService {
     return page;
   }
 
-  async update(id: string, data: UpdatePageDto, tenantId: string) {
-    await this.findOne(id, tenantId);
+  async update(id: string, data: UpdatePageDto, currentUser: CurrentUser) {
+    await this.findOne(id, currentUser);
 
     return this.prisma.page.update({
       where: { id },
@@ -109,8 +149,8 @@ export class PageService {
     });
   }
 
-  async publish(id: string, tenantId: string) {
-    await this.findOne(id, tenantId);
+  async publish(id: string, currentUser: CurrentUser) {
+    await this.findOne(id, currentUser);
 
     return this.prisma.page.update({
       where: { id },
@@ -121,8 +161,8 @@ export class PageService {
     });
   }
 
-  async unpublish(id: string, tenantId: string) {
-    await this.findOne(id, tenantId);
+  async unpublish(id: string, currentUser: CurrentUser) {
+    await this.findOne(id, currentUser);
 
     return this.prisma.page.update({
       where: { id },
@@ -133,8 +173,8 @@ export class PageService {
     });
   }
 
-  async duplicate(id: string, tenantId: string) {
-    const page = await this.findOne(id, tenantId);
+  async duplicate(id: string, currentUser: CurrentUser) {
+    const page = await this.findOne(id, currentUser);
 
     const newSlug = `${page.slug}-copy-${Date.now()}`;
 
@@ -145,14 +185,14 @@ export class PageService {
         description: page.description,
         content: page.content || {},
         permissions: page.permissions || [],
-        tenantId,
+        tenantId: page.tenantId,
         isPublished: false,
       },
     });
   }
 
-  async remove(id: string, tenantId: string) {
-    await this.findOne(id, tenantId);
+  async remove(id: string, currentUser: CurrentUser) {
+    await this.findOne(id, currentUser);
 
     return this.prisma.page.delete({
       where: { id },
@@ -160,12 +200,14 @@ export class PageService {
   }
 
   // Get page for preview (authenticated - allows unpublished pages)
-  async getPreviewPage(slug: string, tenantId: string) {
+  async getPreviewPage(slug: string, currentUser: CurrentUser) {
+    const whereClause: Prisma.PageWhereInput = { slug };
+    if (currentUser.role !== UserRole.PLATFORM_ADMIN) {
+      whereClause.tenantId = currentUser.tenantId;
+    }
+    
     const page = await this.prisma.page.findFirst({
-      where: {
-        slug,
-        tenantId,
-      },
+      where: whereClause,
     });
 
     if (!page) {

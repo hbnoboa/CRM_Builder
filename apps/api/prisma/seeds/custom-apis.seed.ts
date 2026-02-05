@@ -372,7 +372,7 @@ async function createApi(tenantId: string, apiDef: CustomApiDefinition, entityId
       selectedFields: apiDef.selectedFields || [],
       filters: [],
       queryParams: [],
-      orderBy: apiDef.orderBy || null,
+        orderBy: apiDef.orderBy,
       limitRecords: apiDef.limitRecords || null,
       logic: apiDef.logic ? [{ code: apiDef.logic }] : [],
       auth: apiDef.auth || AuthType.JWT,

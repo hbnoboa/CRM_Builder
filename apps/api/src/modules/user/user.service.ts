@@ -9,12 +9,24 @@ import { CurrentUser } from '../../common/types';
 export class UserService {
   constructor(private prisma: PrismaService) {}
 
+  // Helper para determinar o tenantId a ser usado (suporta PLATFORM_ADMIN)
+  private getEffectiveTenantId(currentUser: CurrentUser, requestedTenantId?: string): string {
+    // PLATFORM_ADMIN pode acessar qualquer tenant
+    if (currentUser.role === UserRole.PLATFORM_ADMIN && requestedTenantId) {
+      return requestedTenantId;
+    }
+    return currentUser.tenantId;
+  }
+
   async create(dto: CreateUserDto, currentUser: CurrentUser) {
+    // Determinar tenantId (PLATFORM_ADMIN pode criar em outro tenant)
+    const targetTenantId = this.getEffectiveTenantId(currentUser, dto.tenantId);
+
     // Verificar se email ja existe no tenant
     const existing = await this.prisma.user.findFirst({
       where: {
         email: dto.email,
-        tenantId: currentUser.tenantId,
+        tenantId: targetTenantId,
       },
     });
 
@@ -24,11 +36,14 @@ export class UserService {
 
     const hashedPassword = await bcrypt.hash(dto.password, 12);
 
+    // Remove tenantId do dto para evitar duplicacao
+    const { tenantId: _, ...userData } = dto;
+
     return this.prisma.user.create({
       data: {
-        ...dto,
+        ...userData,
         password: hashedPassword,
-        tenantId: currentUser.tenantId,
+        tenantId: targetTenantId,
       },
       select: {
         id: true,
@@ -37,19 +52,28 @@ export class UserService {
         avatar: true,
         role: true,
         status: true,
+        tenantId: true,
         createdAt: true,
       },
     });
   }
 
   async findAll(query: QueryUserDto, currentUser: CurrentUser) {
-    const { page = 1, limit = 20, search, role, status } = query;
+    const { page = 1, limit = 20, search, role, status, tenantId: queryTenantId } = query;
     const skip = (page - 1) * limit;
 
-    // Base filter por tenant
-    const where: Prisma.UserWhereInput = {
-      tenantId: currentUser.tenantId,
-    };
+    // Base filter por tenant (PLATFORM_ADMIN pode filtrar por qualquer tenant ou ver todos)
+    const where: Prisma.UserWhereInput = {};
+    
+    if (currentUser.role === UserRole.PLATFORM_ADMIN) {
+      // PLATFORM_ADMIN: se especificou tenantId, filtra; senao, mostra todos
+      if (queryTenantId) {
+        where.tenantId = queryTenantId;
+      }
+    } else {
+      // Outros usuarios: apenas seu tenant
+      where.tenantId = currentUser.tenantId;
+    }
 
     // Filtros opcionais
     if (role) where.role = role;
@@ -74,8 +98,12 @@ export class UserService {
           avatar: true,
           role: true,
           status: true,
+          tenantId: true,
           lastLoginAt: true,
           createdAt: true,
+          tenant: {
+            select: { id: true, name: true, slug: true },
+          },
         },
       }),
       this.prisma.user.count({ where }),
@@ -93,11 +121,14 @@ export class UserService {
   }
 
   async findOne(id: string, currentUser: CurrentUser) {
+    // PLATFORM_ADMIN pode ver usuario de qualquer tenant
+    const whereClause: Prisma.UserWhereInput = { id };
+    if (currentUser.role !== UserRole.PLATFORM_ADMIN) {
+      whereClause.tenantId = currentUser.tenantId;
+    }
+
     const user = await this.prisma.user.findFirst({
-      where: {
-        id,
-        tenantId: currentUser.tenantId,
-      },
+      where: whereClause,
       select: {
         id: true,
         email: true,
@@ -105,9 +136,17 @@ export class UserService {
         avatar: true,
         role: true,
         status: true,
+        tenantId: true,
         lastLoginAt: true,
         createdAt: true,
         updatedAt: true,
+        tenant: {
+          select: {
+            id: true,
+            name: true,
+            slug: true,
+          },
+        },
         userRoles: {
           include: {
             role: {
@@ -131,6 +170,7 @@ export class UserService {
   }
 
   async update(id: string, dto: UpdateUserDto, currentUser: CurrentUser) {
+    // Verifica se usuario existe (e se tem permissao)
     await this.findOne(id, currentUser);
 
     // Se mudando senha, fazer hash
@@ -148,12 +188,14 @@ export class UserService {
         avatar: true,
         role: true,
         status: true,
+        tenantId: true,
         updatedAt: true,
       },
     });
   }
 
   async remove(id: string, currentUser: CurrentUser) {
+    // Verifica se usuario existe (e se tem permissao)
     await this.findOne(id, currentUser);
 
     // Nao pode deletar a si mesmo

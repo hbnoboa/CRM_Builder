@@ -17,6 +17,11 @@ export class CreateUserDto {
   @IsString()
   name: string;
 
+  @ApiPropertyOptional({ description: 'Tenant ID (apenas PLATFORM_ADMIN pode especificar)' })
+  @IsString()
+  @IsOptional()
+  tenantId?: string;
+
   @ApiPropertyOptional()
   @IsString()
   @IsOptional()
@@ -60,4 +65,9 @@ export class QueryUserDto {
   @IsEnum(Status)
   @IsOptional()
   status?: Status;
+
+  @ApiPropertyOptional({ description: 'Filtrar por tenant (apenas PLATFORM_ADMIN)' })
+  @IsString()
+  @IsOptional()
+  tenantId?: string;
 }

@@ -16,6 +16,7 @@ import {
   Code,
   Search,
   Shield,
+  Building2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -41,6 +42,12 @@ const navigationConfig: NavItemConfig[] = [
     titleKey: 'dashboard',
     href: '/dashboard',
     icon: <LayoutDashboard className="h-5 w-5" />,
+  },
+  {
+    titleKey: 'tenants',
+    href: '/tenants',
+    icon: <Building2 className="h-5 w-5" />,
+    roles: ['PLATFORM_ADMIN'],
   },
   {
     titleKey: 'entities',

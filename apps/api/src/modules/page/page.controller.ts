@@ -25,28 +25,28 @@ export class PageController {
   constructor(private readonly pageService: PageService) {}
 
   @Post()
-  @Roles('ADMIN', 'MANAGER')
+  @Roles('ADMIN', 'MANAGER', 'PLATFORM_ADMIN')
   async create(
     @Body() dto: CreatePageDto,
     @CurrentUser() user: any,
   ) {
     this.logger.log(`Creating page: ${dto.title}`);
-    return this.pageService.create(dto, user.id, user.tenantId);
+    return this.pageService.create(dto, user.id, user);
   }
 
   @Get()
   async findAll(@Query() query: QueryPageDto, @CurrentUser() user: any) {
-    return this.pageService.findAll(user.tenantId, query);
+    return this.pageService.findAll(user, query);
   }
 
   @Get(':id')
   async findOne(@Param('id') id: string, @CurrentUser() user: any) {
-    return this.pageService.findOne(id, user.tenantId);
+    return this.pageService.findOne(id, user);
   }
 
   @Get('slug/:slug')
   async findBySlug(@Param('slug') slug: string, @CurrentUser() user: any) {
-    return this.pageService.findBySlug(slug, user.tenantId);
+    return this.pageService.findBySlug(slug, user);
   }
 
   // Preview endpoint - permite visualizar paginas nao publicadas (autenticado)
@@ -56,41 +56,41 @@ export class PageController {
     @CurrentUser() user: any,
   ) {
     this.logger.log(`Preview page: ${slug}`);
-    return this.pageService.getPreviewPage(slug, user.tenantId);
+    return this.pageService.getPreviewPage(slug, user);
   }
 
   @Patch(':id')
-  @Roles('ADMIN', 'MANAGER')
+  @Roles('ADMIN', 'MANAGER', 'PLATFORM_ADMIN')
   async update(
     @Param('id') id: string,
     @Body() dto: UpdatePageDto,
     @CurrentUser() user: any,
   ) {
-    return this.pageService.update(id, dto, user.tenantId);
+    return this.pageService.update(id, dto, user);
   }
 
   @Patch(':id/publish')
-  @Roles('ADMIN', 'MANAGER')
+  @Roles('ADMIN', 'MANAGER', 'PLATFORM_ADMIN')
   async publish(@Param('id') id: string, @CurrentUser() user: any) {
-    return this.pageService.publish(id, user.tenantId);
+    return this.pageService.publish(id, user);
   }
 
   @Patch(':id/unpublish')
-  @Roles('ADMIN', 'MANAGER')
+  @Roles('ADMIN', 'MANAGER', 'PLATFORM_ADMIN')
   async unpublish(@Param('id') id: string, @CurrentUser() user: any) {
-    return this.pageService.unpublish(id, user.tenantId);
+    return this.pageService.unpublish(id, user);
   }
 
   @Post(':id/duplicate')
-  @Roles('ADMIN', 'MANAGER')
+  @Roles('ADMIN', 'MANAGER', 'PLATFORM_ADMIN')
   async duplicate(@Param('id') id: string, @CurrentUser() user: any) {
-    return this.pageService.duplicate(id, user.tenantId);
+    return this.pageService.duplicate(id, user);
   }
 
   @Delete(':id')
-  @Roles('ADMIN')
+  @Roles('ADMIN', 'PLATFORM_ADMIN')
   async remove(@Param('id') id: string, @CurrentUser() user: any) {
-    return this.pageService.remove(id, user.tenantId);
+    return this.pageService.remove(id, user);
   }
 }
 

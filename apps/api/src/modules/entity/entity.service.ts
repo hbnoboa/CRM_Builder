@@ -6,7 +6,7 @@ import {
   parsePaginationParams,
   createPaginationMeta,
 } from '../../common/types';
-import { Prisma } from '@prisma/client';
+import { Prisma, UserRole } from '@prisma/client';
 
 export type QueryEntityDto = PaginationQuery;
 
@@ -50,11 +50,21 @@ export interface UpdateEntityDto {
 export class EntityService {
   constructor(private prisma: PrismaService) {}
 
-  async create(dto: CreateEntityDto, currentUser: CurrentUser) {
+  // Helper para determinar o tenantId a ser usado (suporta PLATFORM_ADMIN)
+  private getEffectiveTenantId(currentUser: CurrentUser, requestedTenantId?: string): string {
+    if (currentUser.role === UserRole.PLATFORM_ADMIN && requestedTenantId) {
+      return requestedTenantId;
+    }
+    return currentUser.tenantId;
+  }
+
+  async create(dto: CreateEntityDto & { tenantId?: string }, currentUser: CurrentUser) {
+    const targetTenantId = this.getEffectiveTenantId(currentUser, dto.tenantId);
+
     // Verificar se slug ja existe no tenant
     const existing = await this.prisma.entity.findFirst({
       where: {
-        tenantId: currentUser.tenantId,
+        tenantId: targetTenantId,
         slug: dto.slug,
       },
     });
@@ -74,7 +84,7 @@ export class EntityService {
         description: dto.description,
         icon: dto.icon,
         color: dto.color,
-        tenantId: currentUser.tenantId,
+        tenantId: targetTenantId,
         fields: (dto.fields || []) as unknown as Prisma.InputJsonValue,
         settings: (dto.settings || {}) as Prisma.InputJsonValue,
         isSystem: dto.isSystem || false,
@@ -84,11 +94,18 @@ export class EntityService {
 
   async findAll(currentUser: CurrentUser, query: QueryEntityDto = {}) {
     const { page, limit, skip } = parsePaginationParams(query);
-    const { search, sortBy = 'name', sortOrder = 'asc' } = query;
+    const { search, sortBy = 'name', sortOrder = 'asc', tenantId: queryTenantId } = query;
 
-    const where: Prisma.EntityWhereInput = {
-      tenantId: currentUser.tenantId,
-    };
+    // PLATFORM_ADMIN pode ver de qualquer tenant ou todos
+    const where: Prisma.EntityWhereInput = {};
+    
+    if (currentUser.role === UserRole.PLATFORM_ADMIN) {
+      if (queryTenantId) {
+        where.tenantId = queryTenantId;
+      }
+    } else {
+      where.tenantId = currentUser.tenantId;
+    }
 
     if (search) {
       where.OR = [
@@ -108,6 +125,9 @@ export class EntityService {
           _count: {
             select: { data: true },
           },
+          tenant: {
+            select: { id: true, name: true, slug: true },
+          },
         },
       }),
       this.prisma.entity.count({ where }),
@@ -119,11 +139,13 @@ export class EntityService {
     };
   }
 
-  async findBySlug(slug: string, currentUser: CurrentUser) {
+  async findBySlug(slug: string, currentUser: CurrentUser, tenantId?: string) {
+    const targetTenantId = this.getEffectiveTenantId(currentUser, tenantId);
+    
     const entity = await this.prisma.entity.findFirst({
       where: {
         slug,
-        tenantId: currentUser.tenantId,
+        tenantId: targetTenantId,
       },
     });
 
@@ -135,10 +157,18 @@ export class EntityService {
   }
 
   async findOne(id: string, currentUser: CurrentUser) {
+    // PLATFORM_ADMIN pode ver entidade de qualquer tenant
+    const whereClause: Prisma.EntityWhereInput = { id };
+    if (currentUser.role !== UserRole.PLATFORM_ADMIN) {
+      whereClause.tenantId = currentUser.tenantId;
+    }
+
     const entity = await this.prisma.entity.findFirst({
-      where: {
-        id,
-        tenantId: currentUser.tenantId,
+      where: whereClause,
+      include: {
+        tenant: {
+          select: { id: true, name: true, slug: true },
+        },
       },
     });
 

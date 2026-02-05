@@ -1,9 +1,10 @@
 import api from '@/lib/api';
-import { PaginatedResponse } from '@/types';
+import { PaginatedResponse, Tenant } from '@/types';
 
 export interface Page {
   id: string;
   tenantId: string;
+  tenant?: Tenant;
   title: string;
   slug: string;
   description?: string;

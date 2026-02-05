@@ -6,6 +6,7 @@ export interface PaginationQuery {
   search?: string;
   sortBy?: string;
   sortOrder?: 'asc' | 'desc';
+  tenantId?: string; // Para PLATFORM_ADMIN filtrar por tenant
 }
 
 export interface PaginationMeta {

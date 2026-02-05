@@ -39,6 +39,7 @@ export interface Role {
   description?: string;
   permissions: string[] | Record<string, unknown>;
   tenantId: string;
+  tenant?: Tenant;
   isSystem?: boolean;
   createdAt?: string;
   updatedAt?: string;
@@ -65,6 +66,7 @@ export interface RegisterDate {
 export interface Entity {
   id: string;
   tenantId: string;
+  tenant?: Tenant;
   name: string;
   namePlural?: string;
   slug: string;
@@ -124,6 +126,7 @@ export interface EntityData {
   id: string;
   entityId: string;
   tenantId: string;
+  tenant?: Tenant;
   data: Record<string, unknown>;
   createdById: string;
   updatedById: string;
