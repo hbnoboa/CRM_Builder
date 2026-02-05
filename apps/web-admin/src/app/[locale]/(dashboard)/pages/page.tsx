@@ -42,6 +42,101 @@ import { usePages, useDeletePage, usePublishPage, useUnpublishPage, useCreatePag
 import { useAuthStore } from '@/stores/auth-store';
 import type { Page } from '@/services/pages.service';
 
+// Versao simplificada para USER/VIEWER - apenas visualizar paginas publicadas
+function UserPagesView() {
+  const locale = useLocale();
+  const [search, setSearch] = useState('');
+  const { data, isLoading } = usePages();
+
+  const pages: Page[] = (() => {
+    if (!data) return [];
+    if (Array.isArray(data)) return data;
+    if (data.data && Array.isArray(data.data)) return data.data;
+    return [];
+  })();
+
+  // Filtrar apenas paginas publicadas
+  const publishedPages = pages.filter((page) => page.isPublished);
+  const filteredPages = publishedPages.filter((page) =>
+    (page.title || '').toLowerCase().includes(search.toLowerCase())
+  );
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-3xl font-bold">Paginas</h1>
+        <p className="text-muted-foreground mt-1">
+          Acesse as paginas disponiveis do sistema
+        </p>
+      </div>
+
+      {/* Search */}
+      <div className="relative max-w-md">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+        <Input
+          placeholder="Buscar paginas..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="pl-9"
+        />
+      </div>
+
+      {/* Pages Grid */}
+      {isLoading ? (
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          {[1, 2, 3].map((i) => (
+            <Card key={i} className="animate-pulse">
+              <CardContent className="p-6">
+                <div className="h-6 bg-muted rounded w-1/2 mb-4" />
+                <div className="h-4 bg-muted rounded w-3/4" />
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      ) : filteredPages.length === 0 ? (
+        <Card>
+          <CardContent className="p-12 text-center">
+            <FileText className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+            <h3 className="text-lg font-semibold mb-2">Nenhuma pagina disponivel</h3>
+            <p className="text-muted-foreground">
+              {search
+                ? 'Nenhuma pagina corresponde a sua busca.'
+                : 'Nao ha paginas publicadas no momento.'}
+            </p>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          {filteredPages.map((page) => (
+            <Link key={page.id} href={`/${locale}/preview/${page.slug}`}>
+              <Card className="group hover:border-primary hover:shadow-md transition-all cursor-pointer h-full">
+                <CardContent className="p-6">
+                  <div className="flex items-center gap-3">
+                    <div className="p-3 rounded-xl bg-primary/10 group-hover:bg-primary/20 transition-colors">
+                      <FileText className="h-6 w-6 text-primary" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h3 className="font-semibold text-lg group-hover:text-primary transition-colors">
+                        {page.title}
+                      </h3>
+                      {page.description && (
+                        <p className="text-sm text-muted-foreground line-clamp-1 mt-1">
+                          {page.description}
+                        </p>
+                      )}
+                    </div>
+                    <ExternalLink className="h-5 w-5 text-muted-foreground group-hover:text-primary transition-colors" />
+                  </div>
+                </CardContent>
+              </Card>
+            </Link>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function PagesPageContent() {
   const { user: currentUser } = useAuthStore();
   const router = useRouter();
@@ -346,9 +441,14 @@ function PagesPageContent() {
 }
 
 export default function PagesPage() {
-  return (
-    <RequireRole adminOnly message="Apenas administradores podem gerenciar paginas.">
-      <PagesPageContent />
-    </RequireRole>
-  );
+  const { user } = useAuthStore();
+  const isAdmin = user?.role === 'PLATFORM_ADMIN' || user?.role === 'ADMIN';
+
+  // USER e VIEWER veem apenas paginas publicadas (sem opcao de editar)
+  if (!isAdmin) {
+    return <UserPagesView />;
+  }
+
+  // ADMIN e PLATFORM_ADMIN veem a versao completa com edicao
+  return <PagesPageContent />;
 }

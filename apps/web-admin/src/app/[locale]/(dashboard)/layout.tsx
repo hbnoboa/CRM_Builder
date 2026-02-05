@@ -59,12 +59,13 @@ const navigationConfig: NavItemConfig[] = [
     titleKey: 'data',
     href: '/data',
     icon: <Layers className="h-5 w-5" />,
+    adminOnly: true, // Esconder /data para USER/VIEWER - eles usam Pages
   },
   {
     titleKey: 'pages',
     href: '/pages',
     icon: <FileText className="h-5 w-5" />,
-    adminOnly: true,
+    // Visivel para todos - USER/VIEWER verao paginas publicadas
   },
   {
     titleKey: 'apis',
