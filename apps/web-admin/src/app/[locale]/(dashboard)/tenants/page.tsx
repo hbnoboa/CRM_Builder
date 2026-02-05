@@ -29,7 +29,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { useTenants, useSuspendTenant, useActivateTenant } from '@/hooks/use-tenants';
 import { TenantFormDialog, DeleteTenantDialog } from '@/components/tenants';
 import { useAuthStore } from '@/stores/auth-store';
-import Link from 'next/link';
+import { Link } from '@/i18n/navigation';
 import type { Tenant } from '@/types';
 
 const statusColors: Record<string, string> = {
