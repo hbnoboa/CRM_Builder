@@ -1,8 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
-import { AlertCircle, Loader2, RefreshCw, ChevronLeft, ChevronRight, Pencil, Trash2, Eye, Plus, Search } from 'lucide-react';
-import Link from 'next/link';
+import { AlertCircle, Loader2, RefreshCw, ChevronLeft, ChevronRight, Pencil, Trash2, Eye, Plus, Search, FileText, LayoutGrid } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
 interface EntityField {
@@ -25,6 +24,8 @@ interface EntityDataTableProps {
   editPageSlug?: string;
   viewPageSlug?: string;
   addPageSlug?: string;
+  emptyMessage?: string;
+  emptyIcon?: string;
 }
 
 interface EntityDataRecord {
@@ -63,6 +64,8 @@ export function EntityDataTable({
   editPageSlug,
   viewPageSlug,
   addPageSlug,
+  emptyMessage,
+  emptyIcon,
 }: EntityDataTableProps) {
   const router = useRouter();
   const [data, setData] = useState<EntityDataResponse | null>(null);
@@ -185,10 +188,12 @@ export function EntityDataTable({
 
   if (loading && !data) {
     return (
-      <div className="border rounded-lg p-8 bg-muted/30">
-        <div className="flex flex-col items-center justify-center gap-2">
-          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-          <p className="text-sm text-muted-foreground">Carregando dados...</p>
+      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-12">
+        <div className="flex flex-col items-center justify-center gap-3">
+          <div className="w-12 h-12 rounded-full bg-blue-50 flex items-center justify-center">
+            <Loader2 className="h-6 w-6 animate-spin text-blue-600" />
+          </div>
+          <p className="text-gray-500 font-medium">Carregando dados...</p>
         </div>
       </div>
     );
@@ -196,29 +201,29 @@ export function EntityDataTable({
 
   if (error) {
     return (
-      <div className="border border-destructive/50 rounded-lg p-6 bg-destructive/10">
-        <div className="flex items-center gap-2 text-destructive">
-          <AlertCircle className="h-5 w-5" />
-          <p className="font-medium">Erro ao carregar dados</p>
+      <div className="bg-white rounded-xl shadow-sm border border-red-100 p-8">
+        <div className="flex flex-col items-center justify-center gap-4">
+          <div className="w-16 h-16 rounded-full bg-red-50 flex items-center justify-center">
+            <AlertCircle className="h-8 w-8 text-red-500" />
+          </div>
+          <div className="text-center">
+            <p className="font-semibold text-gray-900">Erro ao carregar dados</p>
+            <p className="text-sm text-gray-500 mt-1">{error}</p>
+          </div>
+          <button
+            onClick={fetchData}
+            className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors"
+          >
+            <RefreshCw className="h-4 w-4" />
+            Tentar novamente
+          </button>
         </div>
-        <p className="text-sm text-muted-foreground mt-2">{error}</p>
-        <button
-          onClick={fetchData}
-          className="mt-4 inline-flex items-center gap-2 px-3 py-1.5 text-sm bg-background border rounded-md hover:bg-muted"
-        >
-          <RefreshCw className="h-4 w-4" />
-          Tentar novamente
-        </button>
       </div>
     );
   }
 
   if (!data) {
-    return (
-      <div className="border rounded-lg p-6 bg-muted/30">
-        <p className="text-center text-muted-foreground">Nenhum dado encontrado</p>
-      </div>
-    );
+    return null;
   }
 
   const entity = data.entity;
@@ -233,143 +238,176 @@ export function EntityDataTable({
   const displayTitle = title || entity.namePlural || entity.name;
 
   return (
-    <div className="border rounded-lg overflow-hidden bg-card">
+    <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
       {/* Header */}
-      <div className="bg-muted/50 px-4 py-3 border-b flex items-center justify-between flex-wrap gap-3">
-        <h3 className="font-semibold text-lg">{displayTitle}</h3>
-        <div className="flex items-center gap-2">
-          {showSearch && (
-            <form onSubmit={handleSearch} className="flex items-center gap-2">
-              <div className="relative">
-                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+      <div className="px-6 py-4 border-b border-gray-100">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <h2 className="text-xl font-semibold text-gray-900">{displayTitle}</h2>
+            <p className="text-sm text-gray-500 mt-0.5">
+              {meta.total} {meta.total === 1 ? 'registro' : 'registros'} encontrado{meta.total !== 1 ? 's' : ''}
+            </p>
+          </div>
+          <div className="flex items-center gap-3">
+            {showSearch && (
+              <form onSubmit={handleSearch} className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
                 <input
                   type="text"
                   value={searchInput}
                   onChange={(e) => setSearchInput(e.target.value)}
                   placeholder="Buscar..."
-                  className="pl-8 pr-3 py-1.5 text-sm border rounded-md w-48 focus:outline-none focus:ring-2 focus:ring-primary/50"
+                  className="pl-9 pr-4 py-2 text-sm border border-gray-200 rounded-lg w-48 md:w-64 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-shadow"
                 />
-              </div>
-            </form>
-          )}
-          <button
-            onClick={fetchData}
-            className="p-1.5 hover:bg-muted rounded-md transition-colors"
-            title="Atualizar dados"
-          >
-            <RefreshCw className={`h-4 w-4 text-muted-foreground ${loading ? 'animate-spin' : ''}`} />
-          </button>
-          {showAddButton && (
+              </form>
+            )}
             <button
-              onClick={navigateToAdd}
-              className="inline-flex items-center gap-2 px-3 py-1.5 text-sm bg-primary text-primary-foreground rounded-md hover:bg-primary/90"
+              onClick={fetchData}
+              disabled={loading}
+              className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-50 rounded-lg transition-colors"
+              title="Atualizar"
             >
-              <Plus className="h-4 w-4" />
-              Adicionar
+              <RefreshCw className={`h-5 w-5 ${loading ? 'animate-spin' : ''}`} />
             </button>
-          )}
+            {showAddButton && (
+              <button
+                onClick={navigateToAdd}
+                className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors shadow-sm"
+              >
+                <Plus className="h-4 w-4" />
+                <span className="hidden sm:inline">Adicionar</span>
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
       {/* Table */}
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b bg-muted/30">
-              {displayColumns.map((field) => (
-                <th key={field.slug} className="px-4 py-3 text-left font-medium">
-                  {field.label || field.name}
-                </th>
-              ))}
-              {showActions && (
-                <th className="px-4 py-3 text-right font-medium w-32">Acoes</th>
-              )}
-            </tr>
-          </thead>
-          <tbody>
-            {records.length === 0 ? (
-              <tr>
-                <td
-                  colSpan={displayColumns.length + (showActions ? 1 : 0)}
-                  className="px-4 py-8 text-center text-muted-foreground"
-                >
-                  Nenhum registro encontrado
-                </td>
+      {records.length === 0 ? (
+        <div className="px-6 py-16">
+          <div className="flex flex-col items-center justify-center gap-4">
+            <div className="w-20 h-20 rounded-full bg-gray-50 flex items-center justify-center">
+              <FileText className="h-10 w-10 text-gray-300" />
+            </div>
+            <div className="text-center">
+              <p className="font-medium text-gray-900">
+                {emptyMessage || `Nenhum ${entity.name.toLowerCase()} cadastrado`}
+              </p>
+              <p className="text-sm text-gray-500 mt-1">
+                Clique em &quot;Adicionar&quot; para criar o primeiro registro
+              </p>
+            </div>
+            {showAddButton && (
+              <button
+                onClick={navigateToAdd}
+                className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors"
+              >
+                <Plus className="h-4 w-4" />
+                Adicionar {entity.name}
+              </button>
+            )}
+          </div>
+        </div>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead>
+              <tr className="bg-gray-50 border-b border-gray-100">
+                {displayColumns.map((field) => (
+                  <th
+                    key={field.slug}
+                    className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider"
+                  >
+                    {field.label || field.name}
+                  </th>
+                ))}
+                {showActions && (
+                  <th className="px-6 py-3 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider w-32">
+                    Acoes
+                  </th>
+                )}
               </tr>
-            ) : (
-              records.map((record) => (
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {records.map((record) => (
                 <tr
                   key={record.id}
-                  className="border-b last:border-0 hover:bg-muted/30 transition-colors"
+                  className="hover:bg-gray-50 transition-colors"
                 >
                   {displayColumns.map((field) => (
-                    <td key={field.slug} className="px-4 py-3">
+                    <td key={field.slug} className="px-6 py-4 text-sm text-gray-700">
                       {formatCellValue(record.data[field.slug], field.type)}
                     </td>
                   ))}
                   {showActions && (
-                    <td className="px-4 py-3">
+                    <td className="px-6 py-4">
                       <div className="flex items-center justify-end gap-1">
                         <button
                           onClick={() => navigateToView(record.id)}
-                          className="p-1.5 hover:bg-muted rounded-md transition-colors"
+                          className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
                           title="Visualizar"
                         >
-                          <Eye className="h-4 w-4 text-muted-foreground" />
+                          <Eye className="h-4 w-4" />
                         </button>
                         <button
                           onClick={() => navigateToEdit(record.id)}
-                          className="p-1.5 hover:bg-muted rounded-md transition-colors"
+                          className="p-2 text-gray-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors"
                           title="Editar"
                         >
-                          <Pencil className="h-4 w-4 text-muted-foreground" />
+                          <Pencil className="h-4 w-4" />
                         </button>
                         <button
                           onClick={() => handleDelete(record.id)}
                           disabled={deleting === record.id}
-                          className="p-1.5 hover:bg-destructive/10 rounded-md transition-colors"
+                          className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50"
                           title="Excluir"
                         >
                           {deleting === record.id ? (
-                            <Loader2 className="h-4 w-4 animate-spin text-destructive" />
+                            <Loader2 className="h-4 w-4 animate-spin" />
                           ) : (
-                            <Trash2 className="h-4 w-4 text-destructive" />
+                            <Trash2 className="h-4 w-4" />
                           )}
                         </button>
                       </div>
                     </td>
                   )}
                 </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       {/* Pagination */}
       {showPagination && meta && meta.totalPages > 1 && (
-        <div className="px-4 py-3 border-t bg-muted/30 flex items-center justify-between">
-          <p className="text-sm text-muted-foreground">
-            Mostrando {((meta.page - 1) * meta.limit) + 1} - {Math.min(meta.page * meta.limit, meta.total)} de {meta.total}
-          </p>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setPage(p => Math.max(1, p - 1))}
-              disabled={page <= 1}
-              className="p-1.5 border rounded-md hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <ChevronLeft className="h-4 w-4" />
-            </button>
-            <span className="text-sm">
-              Pagina {meta.page} de {meta.totalPages}
-            </span>
-            <button
-              onClick={() => setPage(p => Math.min(meta.totalPages, p + 1))}
-              disabled={page >= meta.totalPages}
-              className="p-1.5 border rounded-md hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <ChevronRight className="h-4 w-4" />
-            </button>
+        <div className="px-6 py-4 border-t border-gray-100 bg-gray-50">
+          <div className="flex items-center justify-between">
+            <p className="text-sm text-gray-600">
+              Mostrando <span className="font-medium">{((meta.page - 1) * meta.limit) + 1}</span> a{' '}
+              <span className="font-medium">{Math.min(meta.page * meta.limit, meta.total)}</span> de{' '}
+              <span className="font-medium">{meta.total}</span> registros
+            </p>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setPage(p => Math.max(1, p - 1))}
+                disabled={page <= 1}
+                className="inline-flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                <ChevronLeft className="h-4 w-4" />
+                Anterior
+              </button>
+              <span className="px-3 py-1.5 text-sm text-gray-600">
+                {meta.page} de {meta.totalPages}
+              </span>
+              <button
+                onClick={() => setPage(p => Math.min(meta.totalPages, p + 1))}
+                disabled={page >= meta.totalPages}
+                className="inline-flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                Proximo
+                <ChevronRight className="h-4 w-4" />
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -397,7 +435,6 @@ function formatCellValue(value: unknown, fieldType: string): string {
       return typeof value === 'number' ? value.toLocaleString('pt-BR') : String(value);
     case 'select':
     case 'api-select':
-      // Handle select values (could be object with label or plain string)
       if (typeof value === 'object' && value !== null && 'label' in value) {
         return String((value as { label: string }).label);
       }
@@ -408,7 +445,6 @@ function formatCellValue(value: unknown, fieldType: string): string {
       }
       return String(value);
     case 'relation':
-      // Handle relation values
       if (typeof value === 'object' && value !== null) {
         const obj = value as Record<string, unknown>;
         return String(obj.name || obj.title || obj.label || obj.id || '-');
@@ -434,25 +470,30 @@ export function EntityDataTablePreview({
   columns,
 }: EntityDataTableProps) {
   return (
-    <div className="border-2 border-dashed border-primary/30 rounded-lg p-6 bg-primary/5">
-      <div className="text-center">
-        <p className="text-lg font-medium text-primary">
-          Tabela de Dados
-        </p>
-        {title && <p className="text-sm text-muted-foreground mt-1">{title}</p>}
-        <div className="mt-4 text-sm text-muted-foreground space-y-1">
-          <p><strong>Entity:</strong> {entitySlug || '[nao configurado]'}</p>
-          <p><strong>Colunas:</strong> {columns?.length ? columns.join(', ') : 'auto'}</p>
-          <p><strong>Itens/pagina:</strong> {pageSize || 10}</p>
-          <div className="flex justify-center gap-4 mt-2">
-            {showSearch && <span className="px-2 py-0.5 bg-muted rounded text-xs">Busca</span>}
-            {showPagination && <span className="px-2 py-0.5 bg-muted rounded text-xs">Paginacao</span>}
-            {showActions && <span className="px-2 py-0.5 bg-muted rounded text-xs">Acoes</span>}
-            {showAddButton && <span className="px-2 py-0.5 bg-muted rounded text-xs">Botao Adicionar</span>}
-          </div>
+    <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl border-2 border-dashed border-blue-200 p-8">
+      <div className="flex flex-col items-center justify-center gap-4">
+        <div className="w-16 h-16 rounded-full bg-blue-100 flex items-center justify-center">
+          <LayoutGrid className="h-8 w-8 text-blue-600" />
         </div>
-        <p className="text-xs text-muted-foreground mt-4">
-          Os dados serao carregados em tempo de execucao
+        <div className="text-center">
+          <p className="text-lg font-semibold text-blue-900">
+            Tabela de Dados
+          </p>
+          {title && <p className="text-blue-600 mt-1">{title}</p>}
+        </div>
+        <div className="bg-white rounded-lg px-4 py-3 text-sm text-gray-600 space-y-1 shadow-sm">
+          <p><strong>Entity:</strong> {entitySlug || '[nao configurado]'}</p>
+          <p><strong>Colunas:</strong> {columns?.length ? columns.join(', ') : 'automatico'}</p>
+          <p><strong>Itens/pagina:</strong> {pageSize || 10}</p>
+        </div>
+        <div className="flex flex-wrap justify-center gap-2 mt-2">
+          {showSearch && <span className="px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-xs font-medium">Busca</span>}
+          {showPagination && <span className="px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-xs font-medium">Paginacao</span>}
+          {showActions && <span className="px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-xs font-medium">Acoes</span>}
+          {showAddButton && <span className="px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-xs font-medium">Adicionar</span>}
+        </div>
+        <p className="text-xs text-blue-500 mt-2">
+          Dados carregados em tempo de execucao
         </p>
       </div>
     </div>

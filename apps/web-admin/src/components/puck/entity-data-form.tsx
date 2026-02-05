@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
-import { AlertCircle, Loader2, Check, ChevronDown } from 'lucide-react';
+import { AlertCircle, Loader2, Check, ChevronDown, ArrowLeft, Save, FileEdit } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 
 interface EntityField {
@@ -45,7 +45,7 @@ interface ApiSelectOption {
 export function EntityDataForm({
   entitySlug,
   title,
-  submitText = 'Salvar',
+  submitText,
   successMessage = 'Registro salvo com sucesso!',
   mode = 'auto',
   recordId: propRecordId,
@@ -247,10 +247,12 @@ export function EntityDataForm({
 
   if (loading) {
     return (
-      <div className="border rounded-lg p-8 bg-muted/30">
-        <div className="flex flex-col items-center justify-center gap-2">
-          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-          <p className="text-sm text-muted-foreground">Carregando formulario...</p>
+      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-12">
+        <div className="flex flex-col items-center justify-center gap-3">
+          <div className="w-12 h-12 rounded-full bg-blue-50 flex items-center justify-center">
+            <Loader2 className="h-6 w-6 animate-spin text-blue-600" />
+          </div>
+          <p className="text-gray-500 font-medium">Carregando formulario...</p>
         </div>
       </div>
     );
@@ -258,18 +260,22 @@ export function EntityDataForm({
 
   if (error && !entity) {
     return (
-      <div className="border border-destructive/50 rounded-lg p-6 bg-destructive/10">
-        <div className="flex items-center gap-2 text-destructive">
-          <AlertCircle className="h-5 w-5" />
-          <p className="font-medium">Erro ao carregar formulario</p>
+      <div className="bg-white rounded-xl shadow-sm border border-red-100 p-8">
+        <div className="flex flex-col items-center justify-center gap-4">
+          <div className="w-16 h-16 rounded-full bg-red-50 flex items-center justify-center">
+            <AlertCircle className="h-8 w-8 text-red-500" />
+          </div>
+          <div className="text-center">
+            <p className="font-semibold text-gray-900">Erro ao carregar formulario</p>
+            <p className="text-sm text-gray-500 mt-1">{error}</p>
+          </div>
+          <button
+            onClick={fetchEntity}
+            className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors"
+          >
+            Tentar novamente
+          </button>
         </div>
-        <p className="text-sm text-muted-foreground mt-2">{error}</p>
-        <button
-          onClick={fetchEntity}
-          className="mt-4 inline-flex items-center gap-2 px-3 py-1.5 text-sm bg-background border rounded-md hover:bg-muted"
-        >
-          Tentar novamente
-        </button>
       </div>
     );
   }
@@ -284,67 +290,104 @@ export function EntityDataForm({
     : entity.fields.filter(f => !['id', 'createdAt', 'updatedAt'].includes(f.slug));
 
   const displayTitle = title || (effectiveMode === 'edit' ? `Editar ${entity.name}` : `Novo ${entity.name}`);
+  const displaySubmitText = submitText || (effectiveMode === 'edit' ? 'Salvar Alteracoes' : `Criar ${entity.name}`);
 
   if (success) {
     return (
-      <div className="border border-green-500/50 rounded-lg p-6 bg-green-500/10">
-        <div className="flex items-center gap-2 text-green-600">
-          <Check className="h-5 w-5" />
-          <p className="font-medium">{successMessage}</p>
+      <div className="bg-white rounded-xl shadow-sm border border-green-100 p-12">
+        <div className="flex flex-col items-center justify-center gap-4">
+          <div className="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center">
+            <Check className="h-8 w-8 text-green-600" />
+          </div>
+          <div className="text-center">
+            <p className="text-xl font-semibold text-gray-900">{successMessage}</p>
+            {redirectAfterSubmit && (
+              <p className="text-sm text-gray-500 mt-2">Redirecionando...</p>
+            )}
+          </div>
         </div>
-        {redirectAfterSubmit && (
-          <p className="text-sm text-muted-foreground mt-2">Redirecionando...</p>
-        )}
       </div>
     );
   }
 
   return (
-    <div className="border rounded-lg overflow-hidden bg-card">
-      <div className="bg-muted/50 px-4 py-3 border-b">
-        <h3 className="font-semibold text-lg">{displayTitle}</h3>
-      </div>
-
-      <form onSubmit={handleSubmit} className="p-4 space-y-4">
-        {error && (
-          <div className="p-3 bg-destructive/10 border border-destructive/50 rounded-md">
-            <p className="text-sm text-destructive">{error}</p>
-          </div>
-        )}
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {fieldsToShow.map((field) => (
-            <div key={field.slug} className={field.type === 'textarea' ? 'md:col-span-2' : ''}>
-              <label className="block text-sm font-medium mb-1.5">
-                {field.label || field.name}
-                {field.required && <span className="text-destructive ml-1">*</span>}
-              </label>
-              {renderField(field, formData[field.slug], (value) => {
-                if (field.type === 'api-select') {
-                  handleApiSelectChange(field, value as string);
-                } else {
-                  handleChange(field.slug, value);
-                }
-              }, apiOptions[field.slug], loadingApiOptions[field.slug])}
+    <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+      {/* Header */}
+      <div className="px-6 py-4 border-b border-gray-100 bg-gradient-to-r from-gray-50 to-white">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center">
+              <FileEdit className="h-5 w-5 text-blue-600" />
             </div>
-          ))}
-        </div>
-
-        <div className="flex justify-end gap-3 pt-4 border-t">
+            <div>
+              <h2 className="text-lg font-semibold text-gray-900">{displayTitle}</h2>
+              <p className="text-sm text-gray-500">
+                {effectiveMode === 'edit' ? 'Atualize as informacoes abaixo' : 'Preencha as informacoes abaixo'}
+              </p>
+            </div>
+          </div>
           <button
             type="button"
             onClick={() => router.back()}
-            className="px-4 py-2 text-sm border rounded-md hover:bg-muted"
+            className="inline-flex items-center gap-2 px-3 py-2 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            Voltar
+          </button>
+        </div>
+      </div>
+
+      <form onSubmit={handleSubmit}>
+        <div className="p-6">
+          {error && (
+            <div className="mb-6 p-4 bg-red-50 border border-red-100 rounded-lg flex items-start gap-3">
+              <AlertCircle className="h-5 w-5 text-red-500 flex-shrink-0 mt-0.5" />
+              <div>
+                <p className="font-medium text-red-800">Erro ao salvar</p>
+                <p className="text-sm text-red-600 mt-0.5">{error}</p>
+              </div>
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {fieldsToShow.map((field) => (
+              <div key={field.slug} className={field.type === 'textarea' ? 'md:col-span-2' : ''}>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  {field.label || field.name}
+                  {field.required && <span className="text-red-500 ml-1">*</span>}
+                </label>
+                {renderField(field, formData[field.slug], (value) => {
+                  if (field.type === 'api-select') {
+                    handleApiSelectChange(field, value as string);
+                  } else {
+                    handleChange(field.slug, value);
+                  }
+                }, apiOptions[field.slug], loadingApiOptions[field.slug])}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="px-6 py-4 border-t border-gray-100 bg-gray-50 flex items-center justify-end gap-3">
+          <button
+            type="button"
+            onClick={() => router.back()}
+            className="px-4 py-2.5 text-sm font-medium text-gray-700 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
           >
             Cancelar
           </button>
           <button
             type="submit"
             disabled={submitting}
-            className="px-4 py-2 text-sm bg-primary text-primary-foreground rounded-md hover:bg-primary/90 disabled:opacity-50 flex items-center gap-2"
+            className="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-sm"
           >
-            {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
-            {submitText}
+            {submitting ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Save className="h-4 w-4" />
+            )}
+            {displaySubmitText}
           </button>
         </div>
       </form>
@@ -359,7 +402,7 @@ function renderField(
   apiOptions?: ApiSelectOption[],
   loadingOptions?: boolean
 ) {
-  const commonClasses = "w-full px-3 py-2 text-sm border rounded-md focus:outline-none focus:ring-2 focus:ring-primary/50";
+  const baseClasses = "w-full px-4 py-2.5 text-sm text-gray-900 bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-shadow";
 
   switch (field.type) {
     case 'text':
@@ -372,7 +415,8 @@ function renderField(
           value={(value as string) || ''}
           onChange={(e) => onChange(e.target.value)}
           required={field.required}
-          className={commonClasses}
+          placeholder={`Digite ${(field.label || field.name).toLowerCase()}...`}
+          className={baseClasses}
         />
       );
 
@@ -383,7 +427,8 @@ function renderField(
           value={(value as number) ?? ''}
           onChange={(e) => onChange(e.target.value ? Number(e.target.value) : null)}
           required={field.required}
-          className={commonClasses}
+          placeholder="0"
+          className={baseClasses}
         />
       );
 
@@ -394,7 +439,8 @@ function renderField(
           onChange={(e) => onChange(e.target.value)}
           required={field.required}
           rows={4}
-          className={commonClasses}
+          placeholder={`Digite ${(field.label || field.name).toLowerCase()}...`}
+          className={`${baseClasses} resize-none`}
         />
       );
 
@@ -405,7 +451,7 @@ function renderField(
           value={(value as string) || ''}
           onChange={(e) => onChange(e.target.value)}
           required={field.required}
-          className={commonClasses}
+          className={baseClasses}
         />
       );
 
@@ -416,20 +462,23 @@ function renderField(
           value={(value as string) || ''}
           onChange={(e) => onChange(e.target.value)}
           required={field.required}
-          className={commonClasses}
+          className={baseClasses}
         />
       );
 
     case 'boolean':
       return (
-        <label className="flex items-center gap-2 cursor-pointer">
-          <input
-            type="checkbox"
-            checked={!!value}
-            onChange={(e) => onChange(e.target.checked)}
-            className="h-4 w-4 rounded border-gray-300"
-          />
-          <span className="text-sm">Sim</span>
+        <label className="flex items-center gap-3 cursor-pointer">
+          <div className="relative">
+            <input
+              type="checkbox"
+              checked={!!value}
+              onChange={(e) => onChange(e.target.checked)}
+              className="sr-only peer"
+            />
+            <div className="w-11 h-6 bg-gray-200 peer-focus:ring-2 peer-focus:ring-blue-500 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+          </div>
+          <span className="text-sm text-gray-700">{value ? 'Sim' : 'Nao'}</span>
         </label>
       );
 
@@ -441,7 +490,7 @@ function renderField(
             value={(value as string) || ''}
             onChange={(e) => onChange(e.target.value)}
             required={field.required}
-            className={`${commonClasses} appearance-none pr-8`}
+            className={`${baseClasses} appearance-none pr-10 cursor-pointer`}
           >
             <option value="">Selecione...</option>
             {options.map((opt) => {
@@ -454,7 +503,7 @@ function renderField(
               );
             })}
           </select>
-          <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+          <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400 pointer-events-none" />
         </div>
       );
 
@@ -466,10 +515,10 @@ function renderField(
             onChange={(e) => onChange(e.target.value)}
             required={field.required}
             disabled={loadingOptions}
-            className={`${commonClasses} appearance-none pr-8 ${loadingOptions ? 'bg-muted' : ''}`}
+            className={`${baseClasses} appearance-none pr-10 cursor-pointer ${loadingOptions ? 'bg-gray-50 text-gray-400' : ''}`}
           >
             <option value="">
-              {loadingOptions ? 'Carregando...' : 'Selecione...'}
+              {loadingOptions ? 'Carregando opcoes...' : 'Selecione...'}
             </option>
             {(apiOptions || []).map((opt) => {
               const optValue = opt.id;
@@ -483,22 +532,21 @@ function renderField(
             })}
           </select>
           {loadingOptions ? (
-            <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground animate-spin" />
+            <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400 animate-spin" />
           ) : (
-            <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+            <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400 pointer-events-none" />
           )}
         </div>
       );
 
     case 'relation':
-      // Basic relation field (would need more implementation for full functionality)
       return (
         <input
           type="text"
           value={(value as string) || ''}
           onChange={(e) => onChange(e.target.value)}
           placeholder="ID do registro relacionado"
-          className={commonClasses}
+          className={baseClasses}
         />
       );
 
@@ -508,7 +556,7 @@ function renderField(
           type="text"
           value={(value as string) || ''}
           onChange={(e) => onChange(e.target.value)}
-          className={commonClasses}
+          className={baseClasses}
         />
       );
   }
@@ -523,20 +571,25 @@ export function EntityDataFormPreview({
   fields,
 }: EntityDataFormProps) {
   return (
-    <div className="border-2 border-dashed border-primary/30 rounded-lg p-6 bg-primary/5">
-      <div className="text-center">
-        <p className="text-lg font-medium text-primary">
-          Formulario de Dados
-        </p>
-        {title && <p className="text-sm text-muted-foreground mt-1">{title}</p>}
-        <div className="mt-4 text-sm text-muted-foreground space-y-1">
+    <div className="bg-gradient-to-br from-emerald-50 to-teal-50 rounded-xl border-2 border-dashed border-emerald-200 p-8">
+      <div className="flex flex-col items-center justify-center gap-4">
+        <div className="w-16 h-16 rounded-full bg-emerald-100 flex items-center justify-center">
+          <FileEdit className="h-8 w-8 text-emerald-600" />
+        </div>
+        <div className="text-center">
+          <p className="text-lg font-semibold text-emerald-900">
+            Formulario de Dados
+          </p>
+          {title && <p className="text-emerald-600 mt-1">{title}</p>}
+        </div>
+        <div className="bg-white rounded-lg px-4 py-3 text-sm text-gray-600 space-y-1 shadow-sm">
           <p><strong>Entity:</strong> {entitySlug || '[nao configurado]'}</p>
           <p><strong>Modo:</strong> {mode || 'auto'}</p>
           <p><strong>Campos:</strong> {fields?.length ? fields.join(', ') : 'todos'}</p>
           <p><strong>Botao:</strong> {submitText || 'Salvar'}</p>
         </div>
-        <p className="text-xs text-muted-foreground mt-4">
-          O formulario sera renderizado em tempo de execucao
+        <p className="text-xs text-emerald-500 mt-2">
+          Formulario renderizado em tempo de execucao
         </p>
       </div>
     </div>
