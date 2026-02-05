@@ -13,15 +13,25 @@ export type QueryEntityDto = PaginationQuery;
 export interface FieldDefinition {
   slug: string;
   name: string;
-  type: string;
+  label?: string;
+  type: string; // text, number, email, date, boolean, select, api-select, relation, etc.
   required?: boolean;
+  unique?: boolean;
   default?: string | number | boolean | null;
-  options?: { value: string; label: string; color?: string }[];
+  options?: { value: string; label: string; color?: string }[] | string[];
   validations?: Record<string, unknown>;
   relation?: {
     entity: string;
     displayField: string;
   };
+  // Campos especificos para api-select
+  apiEndpoint?: string; // Custom API path (ex: "/corretores")
+  valueField?: string; // Campo para usar como valor (default: id)
+  labelField?: string; // Campo para usar como label (default: name)
+  autoFillFields?: Array<{
+    sourceField: string; // Campo fonte da API
+    targetField: string; // Campo destino nesta entidade
+  }>;
 }
 
 export interface CreateEntityDto {

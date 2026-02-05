@@ -93,6 +93,15 @@ export interface EntityField {
   default?: unknown;
   options?: Array<string | { value: string; label: string; color?: string }>;
   validation?: Record<string, unknown>;
+  // api-select specific properties
+  apiEndpoint?: string; // Custom API path (e.g., "/corretores")
+  valueField?: string; // Field to use as value (default: "id")
+  labelField?: string; // Field to use as label (default: "name" or first text field)
+  // Fields to auto-fill from selected item
+  autoFillFields?: Array<{
+    sourceField: string; // Field from API response
+    targetField: string; // Field in this entity to fill
+  }>;
 }
 
 export type FieldType =
@@ -107,6 +116,7 @@ export type FieldType =
   | 'boolean'
   | 'select'
   | 'multiselect'
+  | 'api-select' // Select that fetches options from Custom API
   | 'file'
   | 'image'
   | 'relation'

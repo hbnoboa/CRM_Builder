@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { Loader2 } from 'lucide-react';
 import {
   Dialog,
@@ -23,7 +23,16 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { useCreateEntityData, useUpdateEntityData } from '@/hooks/use-data';
+import { useTenant } from '@/stores/tenant-context';
+import { api } from '@/lib/api';
 import type { EntityField, FieldType } from '@/types';
+
+// Interface para opcoes carregadas da API
+interface ApiOption {
+  value: string;
+  label: string;
+  data: Record<string, unknown>; // Dados completos para auto-fill
+}
 
 interface Entity {
   id: string;
@@ -55,9 +64,12 @@ export function RecordFormDialog({
   const isEditing = !!record;
   const createRecord = useCreateEntityData();
   const updateRecord = useUpdateEntityData();
+  const { tenantId } = useTenant();
 
   const [formData, setFormData] = useState<Record<string, unknown>>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [apiOptions, setApiOptions] = useState<Record<string, ApiOption[]>>({});
+  const [loadingApiOptions, setLoadingApiOptions] = useState<Record<string, boolean>>({});
 
   // Funcao helper para normalizar valores de select/multiselect
   // Se o valor for um objeto {color, label, value}, extrai apenas o value
@@ -74,7 +86,7 @@ export function RecordFormDialog({
       const field = fields.find(f => f.slug === key);
       const value = data[key];
 
-      if (field?.type === 'select') {
+      if (field?.type === 'select' || field?.type === 'api-select') {
         normalized[key] = normalizeSelectValue(value);
       } else if (field?.type === 'multiselect' && Array.isArray(value)) {
         normalized[key] = value.map(v => normalizeSelectValue(v));
@@ -83,6 +95,84 @@ export function RecordFormDialog({
       }
     }
     return normalized;
+  };
+
+  // Funcao para buscar opcoes de uma Custom API
+  const fetchApiOptions = useCallback(async (field: EntityField) => {
+    if (!field.apiEndpoint || !tenantId) return;
+
+    setLoadingApiOptions(prev => ({ ...prev, [field.slug]: true }));
+
+    try {
+      // Custom APIs sao acessadas via /x/:tenantId/:path
+      const response = await api.get(`/x/${tenantId}${field.apiEndpoint}`);
+      const data = Array.isArray(response.data) ? response.data : response.data.data || [];
+
+      const options: ApiOption[] = data.map((item: Record<string, unknown>) => {
+        const valueField = field.valueField || 'id';
+        const labelField = field.labelField || 'name' || 'email' || 'company_name';
+
+        // Tenta encontrar o melhor campo para label
+        let label = item[labelField];
+        if (!label) {
+          // Fallback: usa o primeiro campo texto que encontrar
+          for (const key of Object.keys(item)) {
+            if (typeof item[key] === 'string' && key !== 'id' && key !== 'createdAt' && key !== 'updatedAt') {
+              label = item[key];
+              break;
+            }
+          }
+        }
+
+        return {
+          value: String(item[valueField] || item.id || ''),
+          label: String(label || item[valueField] || 'Sem nome'),
+          data: item,
+        };
+      });
+
+      setApiOptions(prev => ({ ...prev, [field.slug]: options }));
+    } catch (error) {
+      console.error(`Erro ao buscar opcoes da API ${field.apiEndpoint}:`, error);
+      setApiOptions(prev => ({ ...prev, [field.slug]: [] }));
+    } finally {
+      setLoadingApiOptions(prev => ({ ...prev, [field.slug]: false }));
+    }
+  }, [tenantId]);
+
+  // Carrega opcoes de campos api-select quando o dialog abre
+  useEffect(() => {
+    if (open && entity.fields) {
+      const apiSelectFields = entity.fields.filter(f => f.type === 'api-select' && f.apiEndpoint);
+      apiSelectFields.forEach(field => {
+        fetchApiOptions(field);
+      });
+    }
+  }, [open, entity.fields, fetchApiOptions]);
+
+  // Handler para quando um campo api-select muda - aplica auto-fill
+  const handleApiSelectChange = (field: EntityField, value: string) => {
+    const options = apiOptions[field.slug] || [];
+    const selectedOption = options.find(opt => opt.value === value);
+
+    // Atualiza o valor do campo
+    handleFieldChange(field.slug, value);
+
+    // Aplica auto-fill se configurado
+    if (selectedOption && field.autoFillFields) {
+      const updates: Record<string, unknown> = {};
+
+      for (const autoFill of field.autoFillFields) {
+        const sourceValue = selectedOption.data[autoFill.sourceField];
+        if (sourceValue !== undefined) {
+          updates[autoFill.targetField] = sourceValue;
+        }
+      }
+
+      if (Object.keys(updates).length > 0) {
+        setFormData(prev => ({ ...prev, ...updates }));
+      }
+    }
   };
 
   // Inicializa o formulario quando abre ou muda o record
@@ -287,6 +377,50 @@ export function RecordFormDialog({
             {error && <p className="text-sm text-destructive">{error}</p>}
           </div>
         );
+
+      case 'api-select': {
+        const options = apiOptions[field.slug] || [];
+        const isLoadingOptions = loadingApiOptions[field.slug];
+
+        return (
+          <div key={field.slug} className="space-y-2">
+            <Label htmlFor={field.slug}>
+              {field.label || field.name}
+              {field.required && <span className="text-destructive ml-1">*</span>}
+            </Label>
+            <Select
+              value={String(value || '')}
+              onValueChange={(val) => handleApiSelectChange(field, val)}
+              disabled={isLoadingOptions}
+            >
+              <SelectTrigger>
+                {isLoadingOptions ? (
+                  <span className="flex items-center gap-2">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Carregando...
+                  </span>
+                ) : (
+                  <SelectValue placeholder={`Selecione ${(field.label || field.name).toLowerCase()}`} />
+                )}
+              </SelectTrigger>
+              <SelectContent>
+                {options.length === 0 && !isLoadingOptions ? (
+                  <div className="px-2 py-1 text-sm text-muted-foreground">
+                    Nenhuma opcao disponivel
+                  </div>
+                ) : (
+                  options.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))
+                )}
+              </SelectContent>
+            </Select>
+            {error && <p className="text-sm text-destructive">{error}</p>}
+          </div>
+        );
+      }
 
       case 'multiselect':
         return (
