@@ -1,9 +1,10 @@
 'use client';
 
 import { useCallback, useRef, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter } from '@/i18n/navigation';
 import { toast } from 'sonner';
 import api from '@/lib/api';
+import { normalizeHref } from '@/lib/normalize-href';
 import {
   Action,
   ComponentEvent,
@@ -216,10 +217,13 @@ export function usePageEvents(initialState?: Partial<PageState>) {
               context
             ) as string;
 
+            // Normaliza o URL para garantir navegacao correta
+            const normalizedUrl = normalizeHref(url);
+
             if (action.openInNewTab) {
-              window.open(url, '_blank');
+              window.open(normalizedUrl, '_blank');
             } else {
-              router.push(url);
+              router.push(normalizedUrl);
             }
             return { success: true };
           }

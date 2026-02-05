@@ -3,6 +3,7 @@
 import { Config, Data } from '@measured/puck';
 import { ArrowRight } from 'lucide-react';
 import { ComponentEvent } from '@/lib/page-events';
+import { normalizeHref } from '@/lib/normalize-href';
 
 // Data Components
 import { CustomApiViewer, CustomApiViewerPreview } from '@/components/puck/data/custom-api-viewer';
@@ -769,7 +770,11 @@ export const puckConfig: Config<ComponentProps> = {
       },
       fields: {
         text: { type: 'text', label: 'Texto' },
-        href: { type: 'text', label: 'Link' },
+        href: { 
+          type: 'text', 
+          label: 'Link',
+          // Instrucoes no placeholder sobre como usar hrefs
+        },
         variant: {
           type: 'select',
           label: 'Variante',
@@ -802,7 +807,7 @@ export const puckConfig: Config<ComponentProps> = {
           ),
         },
       },
-      render: ({ text, href, variant, size, events }) => {
+      render: ({ text, href, variant, size, events, puck }) => {
         const variants = {
           primary: 'bg-primary text-primary-foreground hover:bg-primary/90',
           secondary: 'bg-secondary text-secondary-foreground hover:bg-secondary/80',
@@ -815,9 +820,12 @@ export const puckConfig: Config<ComponentProps> = {
           lg: 'h-12 px-6 text-lg',
         };
         const hasEvents = events && events.length > 0;
+        
+        const finalHref = hasEvents ? undefined : normalizeHref(href);
+        
         return (
           <a
-            href={hasEvents ? undefined : href}
+            href={finalHref}
             className={`inline-flex items-center justify-center rounded-md font-medium transition-colors cursor-pointer ${variants[variant]} ${sizes[size]}`}
             data-events={hasEvents ? JSON.stringify(events) : undefined}
           >

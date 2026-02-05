@@ -2,6 +2,7 @@
 
 import { useRouter } from '@/i18n/navigation';
 import { useLocale } from 'next-intl';
+import { normalizeHref } from '@/lib/normalize-href';
 import {
   FileText,
   Users,
@@ -61,13 +62,10 @@ export function DashboardCards({
   const handleCardClick = (href: string) => {
     if (href.startsWith('http')) {
       window.open(href, '_blank');
-    } else if (href.startsWith('/')) {
-      // Use router.push which auto-handles locale prefix
-      router.push(href);
     } else {
-      // Assume it's a page slug, navigate to preview
-      // Router from @/i18n/navigation auto-prefixes locale
-      router.push(`/preview/${href}`);
+      // Normaliza e usa router.push que auto-adiciona locale
+      const normalizedHref = normalizeHref(href);
+      router.push(normalizedHref);
     }
   };
 

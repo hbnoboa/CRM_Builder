@@ -2,7 +2,9 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { AlertCircle, Loader2, Check, ChevronDown, ArrowLeft, Save, FileEdit } from 'lucide-react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter } from '@/i18n/navigation';
+import { useSearchParams } from 'next/navigation';
+import { normalizeHref } from '@/lib/normalize-href';
 
 interface EntityField {
   slug: string;
@@ -234,7 +236,7 @@ export function EntityDataForm({
 
       if (redirectAfterSubmit) {
         setTimeout(() => {
-          router.push(redirectAfterSubmit);
+          router.push(normalizeHref(redirectAfterSubmit));
         }, 1500);
       }
     } catch (err) {

@@ -3,6 +3,7 @@
 import React from 'react';
 import { cn } from '@/lib/utils';
 import { ExternalLink, ChevronRight, ArrowUpRight } from 'lucide-react';
+import { normalizeHrefOptional } from '@/lib/normalize-href';
 
 export interface LinkItem {
   label: string;
@@ -45,9 +46,10 @@ export function LinkList({
 
   const LinkWrapper = ({ link, children }: { link: LinkItem; children: React.ReactNode }) => {
     if (link.href) {
+      const finalHref = normalizeHrefOptional(link.href);
       return (
         <a
-          href={link.href}
+          href={finalHref}
           target={link.target || '_self'}
           rel={link.target === '_blank' ? 'noopener noreferrer' : undefined}
           className="block"
