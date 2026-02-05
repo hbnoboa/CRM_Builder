@@ -24,6 +24,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { useRoles } from '@/hooks/use-roles';
 import { RoleFormDialog, DeleteRoleDialog } from '@/components/roles';
+import { useAuthStore } from '@/stores/auth-store';
 import type { Role } from '@/types';
 import Link from 'next/link';
 
@@ -34,6 +35,7 @@ interface RoleWithCount extends Role {
 }
 
 function RolesPageContent() {
+  const { user: currentUser } = useAuthStore();
   const [search, setSearch] = useState('');
   const [formOpen, setFormOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -185,6 +187,12 @@ function RolesPageContent() {
                         {role._count?.users !== undefined && role._count.users > 0 && (
                           <span className="px-2 py-0.5 text-xs font-medium rounded bg-blue-100 text-blue-800">
                             {role._count.users} usuarios
+                          </span>
+                        )}
+                        {/* Exibe o tenant apenas para SuperAdmin */}
+                        {currentUser?.role === 'PLATFORM_ADMIN' && (
+                          <span className="ml-2 px-2 py-0.5 text-xs rounded bg-gray-200 text-gray-700" title={role.tenantId}>
+                            {role.tenant?.name ? role.tenant.name : role.tenantId}
                           </span>
                         )}
                       </div>

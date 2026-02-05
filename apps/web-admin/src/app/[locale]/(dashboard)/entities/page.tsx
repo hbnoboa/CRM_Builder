@@ -34,6 +34,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { RequireRole } from '@/components/auth/require-role';
 import { useEntities, useDeleteEntity } from '@/hooks/use-entities';
+import { useAuthStore } from '@/stores/auth-store';
 import type { Entity } from '@/types';
 
 const fieldTypeColors: Record<string, string> = {
@@ -47,6 +48,7 @@ const fieldTypeColors: Record<string, string> = {
 };
 
 function EntitiesPageContent() {
+  const { user: currentUser } = useAuthStore();
   const [search, setSearch] = useState('');
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [entityToDelete, setEntityToDelete] = useState<Entity | null>(null);
@@ -191,7 +193,15 @@ function EntitiesPageContent() {
                       <Database className="h-5 w-5 text-primary" />
                     </div>
                     <div>
-                      <h3 className="font-semibold">{entity.name}</h3>
+                      <div className="flex items-center gap-2">
+                        <h3 className="font-semibold">{entity.name}</h3>
+                        {/* Exibe o tenant apenas para SuperAdmin */}
+                        {currentUser?.role === 'PLATFORM_ADMIN' && (
+                          <span className="ml-2 px-2 py-0.5 text-xs rounded bg-gray-200 text-gray-700" title={entity.tenantId}>
+                            {entity.tenant?.name ? entity.tenant.name : entity.tenantId}
+                          </span>
+                        )}
+                      </div>
                       <p className="text-sm text-muted-foreground">/{entity.slug}</p>
                     </div>
                   </div>

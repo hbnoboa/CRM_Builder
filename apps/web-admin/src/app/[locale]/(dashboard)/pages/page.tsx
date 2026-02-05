@@ -39,9 +39,11 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { usePages, useDeletePage, usePublishPage, useUnpublishPage, useCreatePage } from '@/hooks/use-pages';
+import { useAuthStore } from '@/stores/auth-store';
 import type { Page } from '@/services/pages.service';
 
 function PagesPageContent() {
+  const { user: currentUser } = useAuthStore();
   const router = useRouter();
   const [search, setSearch] = useState('');
   const [pageToDelete, setPageToDelete] = useState<Page | null>(null);
@@ -207,7 +209,15 @@ function PagesPageContent() {
                       <FileText className="h-5 w-5 text-primary" />
                     </div>
                     <div>
-                      <h3 className="font-semibold">{page.title}</h3>
+                      <div className="flex items-center gap-2">
+                        <h3 className="font-semibold">{page.title}</h3>
+                        {/* Exibe o tenant apenas para SuperAdmin */}
+                        {currentUser?.role === 'PLATFORM_ADMIN' && (
+                          <span className="ml-2 px-2 py-0.5 text-xs rounded bg-gray-200 text-gray-700" title={page.tenantId}>
+                            {page.tenant?.name ? page.tenant.name : page.tenantId}
+                          </span>
+                        )}
+                      </div>
                       <p className="text-sm text-muted-foreground">/{page.slug}</p>
                     </div>
                   </div>

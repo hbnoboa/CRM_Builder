@@ -27,6 +27,7 @@ import {
 import { useUsers } from '@/hooks/use-users';
 import { UserFormDialog } from '@/components/users/user-form-dialog';
 import { DeleteUserDialog } from '@/components/users/delete-user-dialog';
+import { useAuthStore } from '@/stores/auth-store';
 import type { User } from '@/types';
 
 const roleColors: Record<string, string> = {
@@ -46,6 +47,7 @@ const roleLabels: Record<string, string> = {
 };
 
 function UsersPageContent() {
+  const { user: currentUser } = useAuthStore();
   const [search, setSearch] = useState('');
   const [formOpen, setFormOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -215,6 +217,12 @@ function UsersPageContent() {
                           <UserCheck className="h-4 w-4 text-green-500" />
                         ) : (
                           <UserX className="h-4 w-4 text-gray-400" />
+                        )}
+                        {/* Exibe o tenant apenas para SuperAdmin */}
+                        {currentUser?.role === 'PLATFORM_ADMIN' && (
+                          <span className="ml-2 px-2 py-0.5 text-xs rounded bg-gray-200 text-gray-700" title={user.tenantId}>
+                            {user.tenant?.name ? user.tenant.name : user.tenantId}
+                          </span>
                         )}
                       </div>
                       <div className="flex items-center gap-4 mt-1 text-sm text-muted-foreground">

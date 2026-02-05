@@ -30,6 +30,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { api } from '@/lib/api';
 import { useTenant } from '@/stores/tenant-context';
+import { useAuthStore } from '@/stores/auth-store';
 import { RecordFormDialog } from '@/components/data/record-form-dialog';
 import { useDeleteEntityData } from '@/hooks/use-data';
 import type { EntityField } from '@/types';
@@ -47,12 +48,19 @@ interface Entity {
 
 interface DataRecord {
   id: string;
+  tenantId?: string;
+  tenant?: {
+    id: string;
+    name: string;
+    slug: string;
+  };
   data: { [key: string]: unknown };
   createdAt: string;
   updatedAt: string;
 }
 
 export default function DataPage() {
+  const { user: currentUser } = useAuthStore();
   const { tenantId, loading: tenantLoading } = useTenant();
   const [entities, setEntities] = useState<Entity[]>([]);
   const [selectedEntity, setSelectedEntity] = useState<Entity | null>(null);
@@ -334,6 +342,11 @@ export default function DataPage() {
                               {col}
                             </th>
                           ))}
+                          {currentUser?.role === 'PLATFORM_ADMIN' && (
+                            <th className="px-4 py-3 text-left text-sm font-medium text-muted-foreground">
+                              Tenant
+                            </th>
+                          )}
                           <th className="px-4 py-3 text-left text-sm font-medium text-muted-foreground">
                             Created at
                           </th>
@@ -375,6 +388,13 @@ export default function DataPage() {
                                 </td>
                               );
                             })}
+                            {currentUser?.role === 'PLATFORM_ADMIN' && (
+                              <td className="px-4 py-3 text-sm">
+                                <span className="px-2 py-0.5 text-xs rounded bg-gray-200 text-gray-700" title={record.tenantId}>
+                                  {record.tenant?.name ? record.tenant.name : record.tenantId || '-'}
+                                </span>
+                              </td>
+                            )}
                             <td className="px-4 py-3 text-sm text-muted-foreground">
                               {new Date(record.createdAt).toLocaleDateString('en-US')}
                             </td>
