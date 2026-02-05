@@ -5,6 +5,7 @@ import { ArrowRight } from 'lucide-react';
 import { CustomApiViewer, CustomApiViewerPreview } from '@/components/puck/custom-api-viewer';
 import { EntityDataTable, EntityDataTablePreview } from '@/components/puck/entity-data-table';
 import { EntityDataForm, EntityDataFormPreview } from '@/components/puck/entity-data-form';
+import { DashboardCards, DashboardCardsPreview, DashboardCardsProps, DashboardCard } from '@/components/puck/dashboard-cards';
 import { ActionButton, ActionButtonPreview, ActionButtonProps } from '@/components/puck/action-button';
 import { EventsField } from '@/components/puck/events-field';
 import { ComponentEvent } from '@/lib/page-events';
@@ -215,6 +216,7 @@ export type ComponentProps = {
   MapView: MapViewProps;
   Testimonial: TestimonialProps;
   PricingTable: PricingTableProps;
+  DashboardCards: DashboardCardsProps;
 };
 
 // Puck Configuration
@@ -256,7 +258,7 @@ export const puckConfig: Config<ComponentProps> = {
     },
     interativo: {
       title: 'Interativo',
-      components: ['Button', 'ActionButton', 'Form', 'Tabs', 'Accordion', 'Steps', 'LinkList'],
+      components: ['Button', 'ActionButton', 'Form', 'Tabs', 'Accordion', 'Steps', 'LinkList', 'DashboardCards'],
     },
     dados: {
       title: 'Dados',
@@ -2400,6 +2402,76 @@ export const puckConfig: Config<ComponentProps> = {
           return <PricingTablePreview {...props} />;
         }
         return <PricingTable {...props} />;
+      },
+    },
+
+    DashboardCards: {
+      label: 'Cards de Dashboard',
+      defaultProps: {
+        title: 'Bem-vindo ao Sistema',
+        subtitle: 'Selecione um modulo para comecar',
+        cards: [
+          { title: 'Sinistros', description: 'Gerenciar sinistros', icon: 'alert', href: 'sinistro-lista', color: '#ef4444' },
+          { title: 'Corretores', description: 'Gerenciar corretores', icon: 'users', href: 'corretor-lista', color: '#3b82f6' },
+          { title: 'Seguradoras', description: 'Gerenciar seguradoras', icon: 'building', href: 'seguradora-lista', color: '#8b5cf6' },
+        ],
+        columns: 3,
+        variant: 'default',
+      },
+      fields: {
+        title: { type: 'text', label: 'Titulo' },
+        subtitle: { type: 'text', label: 'Subtitulo' },
+        cards: {
+          type: 'array',
+          label: 'Cards',
+          arrayFields: {
+            title: { type: 'text', label: 'Titulo' },
+            description: { type: 'text', label: 'Descricao' },
+            icon: {
+              type: 'select',
+              label: 'Icone',
+              options: [
+                { label: 'Dashboard', value: 'dashboard' },
+                { label: 'Usuarios', value: 'users' },
+                { label: 'Predio', value: 'building' },
+                { label: 'Escudo', value: 'shield' },
+                { label: 'Caminhao', value: 'truck' },
+                { label: 'Alerta', value: 'alert' },
+                { label: 'Carro', value: 'car' },
+                { label: 'Ferramenta', value: 'wrench' },
+                { label: 'Configuracoes', value: 'settings' },
+                { label: 'Documento', value: 'file-text' },
+              ],
+            },
+            href: { type: 'text', label: 'Link (slug da pagina ou URL)' },
+            color: { type: 'text', label: 'Cor (hex)' },
+            count: { type: 'number', label: 'Contador (opcional)' },
+          },
+        },
+        columns: {
+          type: 'select',
+          label: 'Colunas',
+          options: [
+            { label: '2 colunas', value: 2 },
+            { label: '3 colunas', value: 3 },
+            { label: '4 colunas', value: 4 },
+          ],
+        },
+        variant: {
+          type: 'select',
+          label: 'Variante',
+          options: [
+            { label: 'Padrao', value: 'default' },
+            { label: 'Compacto', value: 'compact' },
+            { label: 'Detalhado', value: 'detailed' },
+          ],
+        },
+      },
+      render: (props) => {
+        if (props.puck?.isEditing) {
+          return <DashboardCardsPreview {...props} />;
+        }
+        return <DashboardCards {...props} />;
       },
     },
   },
