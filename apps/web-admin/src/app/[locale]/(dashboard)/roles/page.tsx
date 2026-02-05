@@ -26,7 +26,7 @@ import { useRoles } from '@/hooks/use-roles';
 import { RoleFormDialog, DeleteRoleDialog } from '@/components/roles';
 import { useAuthStore } from '@/stores/auth-store';
 import type { Role } from '@/types';
-import Link from 'next/link';
+import { Link } from '@/i18n/navigation';
 
 interface RoleWithCount extends Role {
   _count?: {

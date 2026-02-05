@@ -1,5 +1,8 @@
 import { PrismaClient, UserRole, Status, Plan } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
+import { seedSinistrosVeiculos } from './seeds/sinistros-veiculos.seed';
+import { seedCustomApis } from './seeds/custom-apis.seed';
+import { seedPages } from './seeds/pages.seed';
 
 const prisma = new PrismaClient();
 
@@ -231,6 +234,15 @@ async function main() {
   });
 
   console.log('Roles personalizadas criadas');
+
+  // 7. Executar seed de Sinistros e Veiculos
+  const entityIdMap = await seedSinistrosVeiculos(demoTenant.id, admin.id);
+
+  // 8. Executar seed de Custom APIs
+  await seedCustomApis(demoTenant.id, entityIdMap);
+
+  // 9. Executar seed de Pages
+  await seedPages(demoTenant.id);
 
   console.log('\n===================================================');
   console.log('SEED COMPLETO!');

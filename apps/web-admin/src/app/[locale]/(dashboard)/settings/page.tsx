@@ -15,7 +15,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { useAuthStore } from '@/stores/auth-store';
 import { useUpdateProfile, useChangePassword } from '@/hooks/use-auth';
-import Link from 'next/link';
+import { Link } from '@/i18n/navigation';
 
 const tabs = [
   { id: 'profile', label: 'Perfil', icon: User },

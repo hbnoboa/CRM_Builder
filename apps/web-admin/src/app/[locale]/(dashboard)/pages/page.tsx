@@ -1,8 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useLocale } from 'next-intl';
+import { Link, useRouter } from '@/i18n/navigation';
 import { RequireRole } from '@/components/auth/require-role';
 import {
   Plus,
@@ -45,6 +45,7 @@ import type { Page } from '@/services/pages.service';
 function PagesPageContent() {
   const { user: currentUser } = useAuthStore();
   const router = useRouter();
+  const locale = useLocale();
   const [search, setSearch] = useState('');
   const [pageToDelete, setPageToDelete] = useState<Page | null>(null);
 
@@ -252,7 +253,7 @@ function PagesPageContent() {
                           <Pencil className="h-4 w-4 mr-2" />
                           Editar
                         </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => window.open(`/preview/${page.slug}`, '_blank')}>
+                        <DropdownMenuItem onClick={() => window.open(`/${locale}/preview/${page.slug}`, '_blank')}>
                           <Eye className="h-4 w-4 mr-2" />
                           Visualizar
                         </DropdownMenuItem>
@@ -297,7 +298,7 @@ function PagesPageContent() {
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => window.open(`/preview/${page.slug}`, '_blank')}
+                    onClick={() => window.open(`/${locale}/preview/${page.slug}`, '_blank')}
                   >
                     <Eye className="h-3 w-3 mr-1" />
                     Preview
