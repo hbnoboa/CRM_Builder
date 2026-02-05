@@ -3,6 +3,8 @@
 import { Config, Data } from '@measured/puck';
 import { ArrowRight } from 'lucide-react';
 import { CustomApiViewer, CustomApiViewerPreview } from '@/components/puck/custom-api-viewer';
+import { EntityDataTable, EntityDataTablePreview } from '@/components/puck/entity-data-table';
+import { EntityDataForm, EntityDataFormPreview } from '@/components/puck/entity-data-form';
 import { ActionButton, ActionButtonPreview, ActionButtonProps } from '@/components/puck/action-button';
 import { EventsField } from '@/components/puck/events-field';
 import { ComponentEvent } from '@/lib/page-events';
@@ -121,9 +123,16 @@ export type ComponentProps = {
   };
   DateTable: {
     entitySlug: string;
-    columns: string[];
+    title?: string;
+    columns: { field: string }[];
     showPagination: boolean;
+    showSearch: boolean;
+    showActions: boolean;
+    showAddButton: boolean;
     pageSize: number;
+    editPageSlug?: string;
+    viewPageSlug?: string;
+    addPageSlug?: string;
   };
   DateList: {
     entitySlug: string;
@@ -132,10 +141,12 @@ export type ComponentProps = {
   };
   Form: {
     entitySlug: string;
-    fields: string[];
+    title?: string;
+    fields: { field: string }[];
     submitText: string;
     successMessage: string;
-    events?: ComponentEvent[];
+    mode: 'auto' | 'create' | 'edit';
+    redirectAfterSubmit?: string;
   };
   Stats: {
     items: {
@@ -1181,33 +1192,83 @@ export const puckConfig: Config<ComponentProps> = {
         entitySlug: '',
         columns: [],
         showPagination: true,
+        showSearch: true,
+        showActions: true,
+        showAddButton: true,
         pageSize: 10,
+        title: '',
+        editPageSlug: '',
+        viewPageSlug: '',
+        addPageSlug: '',
       },
       fields: {
         entitySlug: { type: 'text', label: 'Slug da Entity' },
+        title: { type: 'text', label: 'Titulo (opcional)' },
         columns: {
           type: 'array',
-          label: 'Colunas',
+          label: 'Colunas (vazio = auto)',
           arrayFields: {
-            field: { type: 'text', label: 'Field' },
+            field: { type: 'text', label: 'Campo' },
           },
         },
-        showPagination: { type: 'radio', label: 'Show Pagination', options: [
-          { label: 'Yes', value: true },
-          { label: 'No', value: false },
+        showPagination: { type: 'radio', label: 'Mostrar Paginacao', options: [
+          { label: 'Sim', value: true },
+          { label: 'Nao', value: false },
         ]},
-        pageSize: { type: 'number', label: 'Itens por Page' },
+        showSearch: { type: 'radio', label: 'Mostrar Busca', options: [
+          { label: 'Sim', value: true },
+          { label: 'Nao', value: false },
+        ]},
+        showActions: { type: 'radio', label: 'Mostrar Acoes', options: [
+          { label: 'Sim', value: true },
+          { label: 'Nao', value: false },
+        ]},
+        showAddButton: { type: 'radio', label: 'Botao Adicionar', options: [
+          { label: 'Sim', value: true },
+          { label: 'Nao', value: false },
+        ]},
+        pageSize: { type: 'number', label: 'Itens por Pagina' },
+        editPageSlug: { type: 'text', label: 'Slug da Page de Edicao' },
+        viewPageSlug: { type: 'text', label: 'Slug da Page de Visualizacao' },
+        addPageSlug: { type: 'text', label: 'Slug da Page de Adicionar' },
       },
-      render: ({ entitySlug }) => (
-        <div className="border rounded-lg p-4 bg-muted/50">
-          <p className="text-center text-muted-foreground">
-            📊 Tabela de dados: <strong>{entitySlug || 'Select an entity'}</strong>
-          </p>
-          <p className="text-center text-sm text-muted-foreground mt-2">
-            (Date will be loaded at runtime)
-          </p>
-        </div>
-      ),
+      render: ({ entitySlug, title, columns, showPagination, showSearch, showActions, showAddButton, pageSize, editPageSlug, viewPageSlug, addPageSlug, puck }) => {
+        // Extract column field names
+        const columnFields = Array.isArray(columns)
+          ? columns.map((c) => c?.field).filter((f): f is string => typeof f === 'string')
+          : [];
+
+        // Show preview in editor, real component at runtime
+        if (puck?.isEditing) {
+          return (
+            <EntityDataTablePreview
+              entitySlug={entitySlug}
+              title={title}
+              columns={columnFields}
+              showPagination={showPagination}
+              showSearch={showSearch}
+              showActions={showActions}
+              showAddButton={showAddButton}
+              pageSize={pageSize}
+            />
+          );
+        }
+        return (
+          <EntityDataTable
+            entitySlug={entitySlug}
+            title={title}
+            columns={columnFields}
+            showPagination={showPagination}
+            showSearch={showSearch}
+            showActions={showActions}
+            showAddButton={showAddButton}
+            pageSize={pageSize}
+            editPageSlug={editPageSlug}
+            viewPageSlug={viewPageSlug}
+            addPageSlug={addPageSlug}
+          />
+        );
+      },
     },
     DateList: {
       label: 'Lista de Dados',
@@ -1243,50 +1304,69 @@ export const puckConfig: Config<ComponentProps> = {
       ),
     },
     Form: {
-      label: 'Form',
+      label: 'Formulario de Dados',
       defaultProps: {
         entitySlug: '',
+        title: '',
         fields: [],
-        submitText: 'Submit',
-        successMessage: 'Enviado com sucesso!',
-        events: [],
+        submitText: 'Salvar',
+        successMessage: 'Registro salvo com sucesso!',
+        mode: 'auto',
+        redirectAfterSubmit: '',
       },
       fields: {
         entitySlug: { type: 'text', label: 'Slug da Entity' },
+        title: { type: 'text', label: 'Titulo (opcional)' },
+        mode: {
+          type: 'radio',
+          label: 'Modo',
+          options: [
+            { label: 'Auto (detecta pelo URL)', value: 'auto' },
+            { label: 'Criar', value: 'create' },
+            { label: 'Editar', value: 'edit' },
+          ],
+        },
         fields: {
           type: 'array',
-          label: 'Fields',
+          label: 'Campos (vazio = todos)',
           arrayFields: {
-            field: { type: 'text', label: 'Field' },
+            field: { type: 'text', label: 'Campo' },
           },
         },
-        submitText: { type: 'text', label: 'Texto do Button' },
-        successMessage: { type: 'text', label: 'Mensagem de Success' },
-        events: {
-          type: 'custom',
-          label: 'Eventos',
-          render: ({ value, onChange, id }) => (
-            <EventsField
-              value={value || []}
-              onChange={onChange}
-              componentType="Form"
-              componentId={id || 'form'}
-            />
-          ),
-        },
+        submitText: { type: 'text', label: 'Texto do Botao' },
+        successMessage: { type: 'text', label: 'Mensagem de Sucesso' },
+        redirectAfterSubmit: { type: 'text', label: 'Redirecionar Apos Salvar (URL)' },
       },
-      render: ({ entitySlug, submitText, events }) => (
-        <div className="border rounded-lg p-4 bg-muted/50" data-events={events?.length ? JSON.stringify(events) : undefined}>
-          <p className="text-center text-muted-foreground">
-            📝 Form: <strong>{entitySlug || 'Select an entity'}</strong>
-          </p>
-          <div className="flex justify-center mt-4">
-            <button className="px-4 py-2 bg-primary text-primary-foreground rounded-md">
-              {submitText}
-            </button>
-          </div>
-        </div>
-      ),
+      render: ({ entitySlug, title, fields, submitText, successMessage, mode, redirectAfterSubmit, puck }) => {
+        // Extract field names
+        const fieldNames = Array.isArray(fields)
+          ? fields.map((f) => f?.field).filter((f): f is string => typeof f === 'string')
+          : [];
+
+        // Show preview in editor, real component at runtime
+        if (puck?.isEditing) {
+          return (
+            <EntityDataFormPreview
+              entitySlug={entitySlug}
+              title={title}
+              fields={fieldNames}
+              submitText={submitText}
+              mode={mode}
+            />
+          );
+        }
+        return (
+          <EntityDataForm
+            entitySlug={entitySlug}
+            title={title}
+            fields={fieldNames}
+            submitText={submitText}
+            successMessage={successMessage}
+            mode={mode}
+            redirectAfterSubmit={redirectAfterSubmit}
+          />
+        );
+      },
     },
     Stats: {
       label: 'Statistics',
