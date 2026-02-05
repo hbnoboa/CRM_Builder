@@ -13,6 +13,61 @@ export interface QueryPageDto extends PaginationQuery {
   isPublished?: boolean;
 }
 
+// Locales conhecidos para limpeza de hrefs
+const KNOWN_LOCALES = ['pt-BR', 'en', 'es'];
+
+/**
+ * Remove prefixo de locale de um href se presente.
+ * Ex: "/pt-BR/preview/page" -> "/preview/page"
+ * Ex: "pt-BR/preview/page" -> "preview/page"
+ */
+function stripLocaleFromHref(href: string): string {
+  if (!href || typeof href !== 'string') return href;
+
+  for (const locale of KNOWN_LOCALES) {
+    // Com barra no inicio: /pt-BR/preview -> /preview
+    if (href.startsWith(`/${locale}/`)) {
+      return href.slice(locale.length + 1);
+    }
+    // Sem barra no inicio: pt-BR/preview -> preview
+    if (href.startsWith(`${locale}/`)) {
+      return href.slice(locale.length + 1);
+    }
+    // Apenas o locale: /pt-BR -> /
+    if (href === `/${locale}`) {
+      return '/';
+    }
+  }
+  return href;
+}
+
+/**
+ * Percorre recursivamente o conteudo do Puck e limpa os hrefs
+ * removendo prefixos de locale para evitar duplicacao.
+ */
+function cleanPuckContent(obj: unknown): unknown {
+  if (obj === null || obj === undefined) return obj;
+
+  if (Array.isArray(obj)) {
+    return obj.map(item => cleanPuckContent(item));
+  }
+
+  if (typeof obj === 'object') {
+    const result: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(obj as Record<string, unknown>)) {
+      // Se for um campo href, limpar o locale
+      if (key === 'href' && typeof value === 'string') {
+        result[key] = stripLocaleFromHref(value);
+      } else {
+        result[key] = cleanPuckContent(value);
+      }
+    }
+    return result;
+  }
+
+  return obj;
+}
+
 @Injectable()
 export class PageService {
   constructor(private prisma: PrismaService) {}
@@ -27,14 +82,17 @@ export class PageService {
 
   async create(data: CreatePageDto & { tenantId?: string }, userId: string, currentUser: CurrentUser) {
     const targetTenantId = this.getEffectiveTenantId(currentUser, data.tenantId);
-    
+
+    // Limpar hrefs do conteudo para remover prefixos de locale
+    const cleanedContent = data.content ? cleanPuckContent(data.content) : {};
+
     return this.prisma.page.create({
       data: {
         title: data.title,
         slug: data.slug,
         description: data.description,
         icon: data.icon,
-        content: data.content || {},
+        content: cleanedContent as Prisma.JsonObject,
         isPublished: data.isPublished || false,
         permissions: data.permissions || [],
         tenantId: targetTenantId,
@@ -134,6 +192,9 @@ export class PageService {
   async update(id: string, data: UpdatePageDto, currentUser: CurrentUser) {
     await this.findOne(id, currentUser);
 
+    // Limpar hrefs do conteudo para remover prefixos de locale
+    const cleanedContent = data.content ? cleanPuckContent(data.content) : undefined;
+
     return this.prisma.page.update({
       where: { id },
       data: {
@@ -141,7 +202,7 @@ export class PageService {
         slug: data.slug,
         description: data.description,
         icon: data.icon,
-        content: data.content,
+        content: cleanedContent as Prisma.JsonObject | undefined,
         isPublished: data.isPublished,
         permissions: data.permissions,
         updatedAt: new Date(),
@@ -178,12 +239,15 @@ export class PageService {
 
     const newSlug = `${page.slug}-copy-${Date.now()}`;
 
+    // Limpar hrefs do conteudo para remover prefixos de locale
+    const cleanedContent = page.content ? cleanPuckContent(page.content) : {};
+
     return this.prisma.page.create({
       data: {
         title: `${page.title} (Copia)`,
         slug: newSlug,
         description: page.description,
-        content: page.content || {},
+        content: cleanedContent as Prisma.JsonObject,
         permissions: page.permissions || [],
         tenantId: page.tenantId,
         isPublished: false,
