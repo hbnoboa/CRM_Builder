@@ -101,16 +101,18 @@ export default function DataPage() {
     }
   };
 
-  const fetchRecords = async (entitySlug: string) => {
-    if (!tenantId) return;
+  const fetchRecords = async (entitySlug: string): Promise<DataRecord[]> => {
+    if (!tenantId) return [];
     setLoadingRecords(true);
     try {
       const response = await api.get(`/data/${entitySlug}`);
       const recordsData = Array.isArray(response.data) ? response.data : response.data?.data || [];
       setRecords(recordsData);
+      return recordsData;
     } catch (error) {
       console.error('Error fetching records:', error);
       setRecords([]);
+      return [];
     } finally {
       setLoadingRecords(false);
     }
@@ -139,7 +141,13 @@ export default function DataPage() {
       }
     }
     setSelectedEntity(entity);
-    fetchRecords(entity.slug);
+    const recordsData = await fetchRecords(entity.slug);
+
+    // Se nao tem registros, abre o formulario automaticamente
+    if (recordsData.length === 0 && tenantId) {
+      setSelectedRecord(null);
+      setFormDialogOpen(true);
+    }
   };
 
   const handleNewRecord = () => {
