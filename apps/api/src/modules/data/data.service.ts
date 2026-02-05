@@ -104,7 +104,10 @@ export class DataService {
     query: QueryDataDto,
     currentUser: CurrentUser,
   ) {
-    const { page = 1, limit = 20, search, sortBy = 'createdAt', sortOrder = 'desc', tenantId: queryTenantId } = query;
+    // Parse page and limit as integers (query params come as strings)
+    const page = parseInt(String(query.page || '1'), 10) || 1;
+    const limit = parseInt(String(query.limit || '20'), 10) || 20;
+    const { search, sortBy = 'createdAt', sortOrder = 'desc', tenantId: queryTenantId } = query;
     const skip = (page - 1) * limit;
     
     const effectiveTenantId = this.getEffectiveTenantId(currentUser, queryTenantId);
