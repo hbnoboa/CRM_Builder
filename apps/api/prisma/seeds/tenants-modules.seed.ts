@@ -10,6 +10,8 @@
 
 import { PrismaClient, UserRole, Status, Plan } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
+import { seedSinistrosApis, seedVeiculosApis } from './custom-apis.seed';
+import { seedSinistrosPages, seedVeiculosPages } from './pages.seed';
 
 const prisma = new PrismaClient();
 
@@ -925,12 +927,20 @@ async function main() {
     'admin123'
   );
 
-  await seedSinistrosModule(marisaTenant.id, marisaAdmin.id);
+  const sinistrosEntityIdMap = await seedSinistrosModule(marisaTenant.id, marisaAdmin.id);
+
+  // Custom APIs e Pages para Sinistros
+  await seedSinistrosApis(marisaTenant.id, sinistrosEntityIdMap);
+  await seedSinistrosPages(marisaTenant.id);
 
   // 2. Criar tenant Nexus com modulo Veiculos
   const { tenant: nexusTenant, admin: nexusAdmin } = await createTenantWithAdmin('Nexus', 'nexus', 'admin@nexus.com', 'admin123');
 
-  await seedVeiculosModule(nexusTenant.id, nexusAdmin.id);
+  const veiculosEntityIdMap = await seedVeiculosModule(nexusTenant.id, nexusAdmin.id);
+
+  // Custom APIs e Pages para Veiculos
+  await seedVeiculosApis(nexusTenant.id, veiculosEntityIdMap);
+  await seedVeiculosPages(nexusTenant.id);
 
   console.log('\n=====================================================');
   console.log('SEED CONCLUIDO!');

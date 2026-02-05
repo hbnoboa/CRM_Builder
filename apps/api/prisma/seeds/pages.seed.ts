@@ -1495,22 +1495,11 @@ const veiculosMainPages: PageDefinition[] = [
 ];
 
 // ============================================================================
-// FUNCAO PRINCIPAL DE SEED
+// FUNCOES DE SEED POR MODULO
 // ============================================================================
 
-export async function seedPages(tenantId: string) {
-  console.log('\n=== Iniciando seed de Pages ===\n');
-
-  const allPages = [
-    ...sinistrosSupportPages,
-    ...sinistrosMainPages,
-    ...veiculosSupportPages,
-    ...veiculosMainPages,
-  ];
-
-  console.log(`Criando ${allPages.length} pages...`);
-
-  for (const pageDef of allPages) {
+async function createPages(tenantId: string, pages: PageDefinition[]) {
+  for (const pageDef of pages) {
     await prisma.page.upsert({
       where: {
         tenantId_slug: {
@@ -1531,12 +1520,34 @@ export async function seedPages(tenantId: string) {
         permissions: [],
       },
     });
-    console.log(`  - ${pageDef.title} (/${pageDef.slug}) criada`);
+    console.log(`    ${pageDef.title} (/${pageDef.slug})`);
   }
+  return pages.length;
+}
 
-  console.log(`\n=== Seed de Pages concluido (${allPages.length} pages) ===\n`);
+export async function seedSinistrosPages(tenantId: string) {
+  console.log('\n  Criando Pages - Sinistros...');
+  const pages = [...sinistrosSupportPages, ...sinistrosMainPages];
+  const count = await createPages(tenantId, pages);
+  console.log(`  ${count} pages criadas para Sinistros`);
+  return count;
+}
 
-  return allPages.length;
+export async function seedVeiculosPages(tenantId: string) {
+  console.log('\n  Criando Pages - Veiculos...');
+  const pages = [...veiculosSupportPages, ...veiculosMainPages];
+  const count = await createPages(tenantId, pages);
+  console.log(`  ${count} pages criadas para Veiculos`);
+  return count;
+}
+
+// Funcao legacy para compatibilidade
+export async function seedPages(tenantId: string) {
+  console.log('\n=== Iniciando seed de Pages ===\n');
+  const sinistrosCount = await seedSinistrosPages(tenantId);
+  const veiculosCount = await seedVeiculosPages(tenantId);
+  console.log(`\n=== Seed de Pages concluido (${sinistrosCount + veiculosCount} pages) ===\n`);
+  return sinistrosCount + veiculosCount;
 }
 
 // ============================================================================
