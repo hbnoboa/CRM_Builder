@@ -71,9 +71,9 @@ export function RecordFormDialog({
   const normalizeFormData = (data: Record<string, unknown>, fields: EntityField[]): Record<string, unknown> => {
     const normalized: Record<string, unknown> = {};
     for (const key in data) {
-      const field = fields.find(f => f.name === key);
+      const field = fields.find(f => f.slug === key);
       const value = data[key];
-      
+
       if (field?.type === 'select') {
         normalized[key] = normalizeSelectValue(value);
       } else if (field?.type === 'multiselect' && Array.isArray(value)) {
@@ -96,15 +96,15 @@ export function RecordFormDialog({
         const initialData: Record<string, unknown> = {};
         entity.fields?.forEach((field) => {
           if (field.default !== undefined) {
-            initialData[field.name] = field.default;
+            initialData[field.slug] = field.default;
           } else if (field.type === 'boolean') {
-            initialData[field.name] = false;
+            initialData[field.slug] = false;
           } else if (field.type === 'number') {
-            initialData[field.name] = '';
+            initialData[field.slug] = '';
           } else if (field.type === 'multiselect') {
-            initialData[field.name] = [];
+            initialData[field.slug] = [];
           } else {
-            initialData[field.name] = '';
+            initialData[field.slug] = '';
           }
         });
         setFormData(initialData);
@@ -113,13 +113,13 @@ export function RecordFormDialog({
     }
   }, [open, record, entity.fields]);
 
-  const handleFieldChange = (fieldName: string, value: unknown) => {
-    setFormData((prev) => ({ ...prev, [fieldName]: value }));
+  const handleFieldChange = (fieldSlug: string, value: unknown) => {
+    setFormData((prev) => ({ ...prev, [fieldSlug]: value }));
     // Limpa erro do campo ao editar
-    if (errors[fieldName]) {
+    if (errors[fieldSlug]) {
       setErrors((prev) => {
         const newErrors = { ...prev };
-        delete newErrors[fieldName];
+        delete newErrors[fieldSlug];
         return newErrors;
       });
     }
@@ -129,12 +129,12 @@ export function RecordFormDialog({
     const newErrors: Record<string, string> = {};
 
     entity.fields?.forEach((field) => {
-      const value = formData[field.name];
+      const value = formData[field.slug];
 
       // Validacao de campo obrigatorio
       if (field.required) {
         if (value === undefined || value === null || value === '') {
-          newErrors[field.name] = `${field.label || field.name} e obrigatorio`;
+          newErrors[field.slug] = `${field.label || field.name} e obrigatorio`;
           return;
         }
       }
@@ -144,19 +144,19 @@ export function RecordFormDialog({
         switch (field.type) {
           case 'email':
             if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value))) {
-              newErrors[field.name] = 'Email invalido';
+              newErrors[field.slug] = 'Email invalido';
             }
             break;
           case 'url':
             try {
               new URL(String(value));
             } catch {
-              newErrors[field.name] = 'URL invalida';
+              newErrors[field.slug] = 'URL invalida';
             }
             break;
           case 'number':
             if (isNaN(Number(value))) {
-              newErrors[field.name] = 'Numero invalido';
+              newErrors[field.slug] = 'Numero invalido';
             }
             break;
         }
@@ -177,12 +177,12 @@ export function RecordFormDialog({
     // Processa os dados antes de enviar
     const processedData: Record<string, unknown> = {};
     entity.fields?.forEach((field) => {
-      const value = formData[field.name];
+      const value = formData[field.slug];
       if (value !== undefined && value !== '') {
         if (field.type === 'number') {
-          processedData[field.name] = Number(value);
+          processedData[field.slug] = Number(value);
         } else {
-          processedData[field.name] = value;
+          processedData[field.slug] = value;
         }
       }
     });
@@ -210,22 +210,22 @@ export function RecordFormDialog({
   const isLoading = createRecord.isPending || updateRecord.isPending;
 
   const renderField = (field: EntityField) => {
-    const value = formData[field.name];
-    const error = errors[field.name];
+    const value = formData[field.slug];
+    const error = errors[field.slug];
 
     switch (field.type) {
       case 'textarea':
         return (
-          <div key={field.name} className="space-y-2">
-            <Label htmlFor={field.name}>
-              {field.label}
+          <div key={field.slug} className="space-y-2">
+            <Label htmlFor={field.slug}>
+              {field.label || field.name}
               {field.required && <span className="text-destructive ml-1">*</span>}
             </Label>
             <Textarea
-              id={field.name}
+              id={field.slug}
               placeholder={`Digite ${(field.label || field.name).toLowerCase()}`}
               value={String(value || '')}
-              onChange={(e) => handleFieldChange(field.name, e.target.value)}
+              onChange={(e) => handleFieldChange(field.slug, e.target.value)}
               rows={3}
             />
             {error && <p className="text-sm text-destructive">{error}</p>}
@@ -234,14 +234,14 @@ export function RecordFormDialog({
 
       case 'boolean':
         return (
-          <div key={field.name} className="flex items-center space-x-2">
+          <div key={field.slug} className="flex items-center space-x-2">
             <Checkbox
-              id={field.name}
+              id={field.slug}
               checked={Boolean(value)}
-              onCheckedChange={(checked) => handleFieldChange(field.name, checked)}
+              onCheckedChange={(checked) => handleFieldChange(field.slug, checked)}
             />
-            <Label htmlFor={field.name} className="cursor-pointer">
-              {field.label}
+            <Label htmlFor={field.slug} className="cursor-pointer">
+              {field.label || field.name}
               {field.required && <span className="text-destructive ml-1">*</span>}
             </Label>
             {error && <p className="text-sm text-destructive ml-6">{error}</p>}
@@ -250,14 +250,14 @@ export function RecordFormDialog({
 
       case 'select':
         return (
-          <div key={field.name} className="space-y-2">
-            <Label htmlFor={field.name}>
-              {field.label}
+          <div key={field.slug} className="space-y-2">
+            <Label htmlFor={field.slug}>
+              {field.label || field.name}
               {field.required && <span className="text-destructive ml-1">*</span>}
             </Label>
             <Select
               value={String(value || '')}
-              onValueChange={(val) => handleFieldChange(field.name, val)}
+              onValueChange={(val) => handleFieldChange(field.slug, val)}
             >
               <SelectTrigger>
                 <SelectValue placeholder={`Selecione ${(field.label || field.name).toLowerCase()}`} />
@@ -290,9 +290,9 @@ export function RecordFormDialog({
 
       case 'multiselect':
         return (
-          <div key={field.name} className="space-y-2">
+          <div key={field.slug} className="space-y-2">
             <Label>
-              {field.label}
+              {field.label || field.name}
               {field.required && <span className="text-destructive ml-1">*</span>}
             </Label>
             <div className="border rounded-md p-3 space-y-2 max-h-40 overflow-y-auto">
@@ -305,20 +305,20 @@ export function RecordFormDialog({
                 return (
                   <div key={optionValue} className="flex items-center space-x-2">
                     <Checkbox
-                      id={`${field.name}-${optionValue}`}
+                      id={`${field.slug}-${optionValue}`}
                       checked={selectedValues.includes(optionValue)}
                       onCheckedChange={(checked) => {
                         if (checked) {
-                          handleFieldChange(field.name, [...selectedValues, optionValue]);
+                          handleFieldChange(field.slug, [...selectedValues, optionValue]);
                         } else {
                           handleFieldChange(
-                            field.name,
+                            field.slug,
                             selectedValues.filter((v: string) => v !== optionValue)
                           );
                         }
                       }}
                     />
-                    <Label htmlFor={`${field.name}-${optionValue}`} className="cursor-pointer text-sm flex items-center gap-2">
+                    <Label htmlFor={`${field.slug}-${optionValue}`} className="cursor-pointer text-sm flex items-center gap-2">
                       {optionColor && (
                         <span
                           className="w-3 h-3 rounded-full"
@@ -337,16 +337,16 @@ export function RecordFormDialog({
 
       case 'date':
         return (
-          <div key={field.name} className="space-y-2">
-            <Label htmlFor={field.name}>
-              {field.label}
+          <div key={field.slug} className="space-y-2">
+            <Label htmlFor={field.slug}>
+              {field.label || field.name}
               {field.required && <span className="text-destructive ml-1">*</span>}
             </Label>
             <Input
-              id={field.name}
+              id={field.slug}
               type="date"
               value={String(value || '')}
-              onChange={(e) => handleFieldChange(field.name, e.target.value)}
+              onChange={(e) => handleFieldChange(field.slug, e.target.value)}
             />
             {error && <p className="text-sm text-destructive">{error}</p>}
           </div>
@@ -354,16 +354,16 @@ export function RecordFormDialog({
 
       case 'datetime':
         return (
-          <div key={field.name} className="space-y-2">
-            <Label htmlFor={field.name}>
-              {field.label}
+          <div key={field.slug} className="space-y-2">
+            <Label htmlFor={field.slug}>
+              {field.label || field.name}
               {field.required && <span className="text-destructive ml-1">*</span>}
             </Label>
             <Input
-              id={field.name}
+              id={field.slug}
               type="datetime-local"
               value={String(value || '')}
-              onChange={(e) => handleFieldChange(field.name, e.target.value)}
+              onChange={(e) => handleFieldChange(field.slug, e.target.value)}
             />
             {error && <p className="text-sm text-destructive">{error}</p>}
           </div>
@@ -371,17 +371,17 @@ export function RecordFormDialog({
 
       case 'number':
         return (
-          <div key={field.name} className="space-y-2">
-            <Label htmlFor={field.name}>
-              {field.label}
+          <div key={field.slug} className="space-y-2">
+            <Label htmlFor={field.slug}>
+              {field.label || field.name}
               {field.required && <span className="text-destructive ml-1">*</span>}
             </Label>
             <Input
-              id={field.name}
+              id={field.slug}
               type="number"
               placeholder={`Digite ${(field.label || field.name).toLowerCase()}`}
               value={String(value || '')}
-              onChange={(e) => handleFieldChange(field.name, e.target.value)}
+              onChange={(e) => handleFieldChange(field.slug, e.target.value)}
             />
             {error && <p className="text-sm text-destructive">{error}</p>}
           </div>
@@ -389,17 +389,17 @@ export function RecordFormDialog({
 
       case 'email':
         return (
-          <div key={field.name} className="space-y-2">
-            <Label htmlFor={field.name}>
-              {field.label}
+          <div key={field.slug} className="space-y-2">
+            <Label htmlFor={field.slug}>
+              {field.label || field.name}
               {field.required && <span className="text-destructive ml-1">*</span>}
             </Label>
             <Input
-              id={field.name}
+              id={field.slug}
               type="email"
               placeholder="email@exemplo.com"
               value={String(value || '')}
-              onChange={(e) => handleFieldChange(field.name, e.target.value)}
+              onChange={(e) => handleFieldChange(field.slug, e.target.value)}
             />
             {error && <p className="text-sm text-destructive">{error}</p>}
           </div>
@@ -407,17 +407,17 @@ export function RecordFormDialog({
 
       case 'url':
         return (
-          <div key={field.name} className="space-y-2">
-            <Label htmlFor={field.name}>
-              {field.label}
+          <div key={field.slug} className="space-y-2">
+            <Label htmlFor={field.slug}>
+              {field.label || field.name}
               {field.required && <span className="text-destructive ml-1">*</span>}
             </Label>
             <Input
-              id={field.name}
+              id={field.slug}
               type="url"
               placeholder="https://exemplo.com"
               value={String(value || '')}
-              onChange={(e) => handleFieldChange(field.name, e.target.value)}
+              onChange={(e) => handleFieldChange(field.slug, e.target.value)}
             />
             {error && <p className="text-sm text-destructive">{error}</p>}
           </div>
@@ -425,17 +425,17 @@ export function RecordFormDialog({
 
       case 'phone':
         return (
-          <div key={field.name} className="space-y-2">
-            <Label htmlFor={field.name}>
-              {field.label}
+          <div key={field.slug} className="space-y-2">
+            <Label htmlFor={field.slug}>
+              {field.label || field.name}
               {field.required && <span className="text-destructive ml-1">*</span>}
             </Label>
             <Input
-              id={field.name}
+              id={field.slug}
               type="tel"
               placeholder="(00) 00000-0000"
               value={String(value || '')}
-              onChange={(e) => handleFieldChange(field.name, e.target.value)}
+              onChange={(e) => handleFieldChange(field.slug, e.target.value)}
             />
             {error && <p className="text-sm text-destructive">{error}</p>}
           </div>
@@ -444,17 +444,17 @@ export function RecordFormDialog({
       // text e outros tipos usam input padrao
       default:
         return (
-          <div key={field.name} className="space-y-2">
-            <Label htmlFor={field.name}>
-              {field.label}
+          <div key={field.slug} className="space-y-2">
+            <Label htmlFor={field.slug}>
+              {field.label || field.name}
               {field.required && <span className="text-destructive ml-1">*</span>}
             </Label>
             <Input
-              id={field.name}
+              id={field.slug}
               type="text"
               placeholder={`Digite ${(field.label || field.name).toLowerCase()}`}
               value={String(value || '')}
-              onChange={(e) => handleFieldChange(field.name, e.target.value)}
+              onChange={(e) => handleFieldChange(field.slug, e.target.value)}
             />
             {error && <p className="text-sm text-destructive">{error}</p>}
           </div>

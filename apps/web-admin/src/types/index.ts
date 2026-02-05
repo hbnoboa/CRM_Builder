@@ -84,13 +84,14 @@ export interface Entity {
 }
 
 export interface EntityField {
+  slug: string;
   name: string;
-  label: string;
+  label?: string; // Optional, fallback to name for display
   type: FieldType;
   required?: boolean;
   unique?: boolean;
   default?: unknown;
-  options?: string[];
+  options?: Array<string | { value: string; label: string; color?: string }>;
   validation?: Record<string, unknown>;
 }
 
