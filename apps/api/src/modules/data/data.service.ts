@@ -322,13 +322,22 @@ export class DataService {
       return;
     }
 
-    // Manager ve tudo do tenant (para leitura)
-    if (user.role === UserRole.MANAGER && action === 'read') {
+    // Para leitura, todos os usuarios do tenant podem ver todos os dados do tenant
+    // O filtro por tenantId ja foi aplicado antes desta funcao
+    if (action === 'read') {
       return;
     }
 
-    // User e Viewer veem apenas seus proprios registros
-    where.createdById = user.id;
+    // Para escrita (update/delete), apenas o criador pode modificar (exceto Manager)
+    if (user.role === UserRole.MANAGER) {
+      return;
+    }
+
+    // User so pode modificar proprios registros
+    // Viewer nao pode modificar (tratado em checkScope)
+    if (action !== 'read') {
+      where.createdById = user.id;
+    }
   }
 
   // Verificar se usuario pode modificar o registro
