@@ -266,7 +266,7 @@ export class EntityService {
 
         case 'select':
           if (field.options) {
-            const validValues = field.options.map((o) => o.value);
+            const validValues = field.options.map((o) => typeof o === 'string' ? o : o.value);
             if (!validValues.includes(value)) {
               errors.push(`"${field.name}" deve ser um dos valores: ${validValues.join(', ')}`);
             }
@@ -275,7 +275,7 @@ export class EntityService {
 
         case 'multiselect':
           if (field.options && Array.isArray(value)) {
-            const validValues = field.options.map((o) => o.value);
+            const validValues = field.options.map((o) => typeof o === 'string' ? o : o.value);
             for (const v of value) {
               if (!validValues.includes(v)) {
                 errors.push(`"${field.name}" contem valor invalido: ${v}`);
