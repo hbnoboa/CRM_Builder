@@ -456,6 +456,7 @@ function renderField(
       );
 
     case 'datetime':
+    case 'time':
       return (
         <input
           type="datetime-local"

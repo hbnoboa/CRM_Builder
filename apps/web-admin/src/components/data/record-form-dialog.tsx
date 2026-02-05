@@ -487,6 +487,7 @@ export function RecordFormDialog({
         );
 
       case 'datetime':
+      case 'time':
         return (
           <div key={field.slug} className="space-y-2">
             <Label htmlFor={field.slug}>
