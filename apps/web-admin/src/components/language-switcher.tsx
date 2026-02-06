@@ -1,6 +1,7 @@
 'use client';
 
 import { useLocale } from 'next-intl';
+import { useEffect, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import {
   DropdownMenu,
@@ -12,13 +13,32 @@ import { Button } from '@/components/ui/button';
 import { Globe } from 'lucide-react';
 import { locales, localeNames, type Locale } from '@/i18n/config';
 
+const localeFlags: Record<Locale, string> = {
+  'pt-BR': '🇧🇷',
+  'en': '🇺🇸',
+  'es': '🇲🇽',
+};
+
 // Funcao para salvar locale no cookie
 function setLocaleCookie(locale: string) {
   document.cookie = `NEXT_LOCALE=${locale};path=/;max-age=${60 * 60 * 24 * 365}`;
 }
 
 export function LanguageSwitcher() {
-  const currentLocale = useLocale();
+  const initialLocale = useLocale();
+  const [currentLocale, setCurrentLocale] = useState(initialLocale);
+
+  useEffect(() => {
+    // Atualiza o locale ao recarregar, pegando do cookie
+    const cookieLocale = document.cookie
+      .split('; ')
+      .find(row => row.startsWith('NEXT_LOCALE='))?.split('=')[1];
+    if (cookieLocale && locales.includes(cookieLocale as Locale)) {
+      setCurrentLocale(cookieLocale as Locale);
+    } else {
+      setCurrentLocale(initialLocale);
+    }
+  }, [initialLocale]);
   const pathname = usePathname();
 
   const handleLocaleChange = (newLocale: Locale) => {
@@ -47,7 +67,7 @@ export function LanguageSwitcher() {
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button variant="ghost" size="icon" title={localeNames[currentLocale as Locale]}>
-          <Globe className="h-4 w-4" />
+          {localeFlags[currentLocale as Locale]}
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
@@ -57,7 +77,7 @@ export function LanguageSwitcher() {
             onClick={() => handleLocaleChange(loc)}
             className={currentLocale === loc ? 'bg-accent' : ''}
           >
-            {localeNames[loc]}
+            <span className="text-lg mr-2">{localeFlags[loc]}</span>
           </DropdownMenuItem>
         ))}
       </DropdownMenuContent>

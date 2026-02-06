@@ -5,7 +5,7 @@ import { useParams } from 'next/navigation';
 import { Link, useRouter } from '@/i18n/navigation';
 import {
   ArrowLeft, Plus, Trash2, Save, Loader2, Code, Zap, MoreHorizontal,
-  GripVertical, ChevronDown, ChevronUp, Copy,
+  GripVertical, ChevronDown, ChevronUp, Copy, RefreshCw,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -39,6 +39,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { Switch } from '@/components/ui/switch';
 import { toast } from 'sonner';
 import api from '@/lib/api';
+import { useTenant } from '@/stores/tenant-context';
 import { customApisService, type CustomApi, type CreateCustomApiData } from '@/services/custom-apis.service';
 import type { Entity, Field, FieldType } from '@/types';
 import FieldGridEditor from '@/components/entities/field-grid-editor';
@@ -112,6 +113,12 @@ const fieldTypeCategories = [
     ],
   },
   {
+    label: 'Localização',
+    types: [
+      { value: 'map', label: 'Mapa', icon: '🗺️', desc: 'Campo de mapa com endereço e coordenadas' },
+    ],
+  },
+  {
     label: 'Outros',
     types: [
       { value: 'json', label: 'JSON', icon: '{}', desc: 'Dados em formato JSON' },
@@ -160,6 +167,34 @@ export default function EntityDetailPage() {
     name: '', path: '', method: 'GET', description: '', code: '',
   });
   const [savingApi, setSavingApi] = useState(false);
+  const { tenantId } = useTenant();
+  const [fetchingApiFields, setFetchingApiFields] = useState<number | null>(null);
+
+  const fetchApiFields = async (fieldIndex: number, endpoint?: string) => {
+    const ep = endpoint || fields[fieldIndex]?.apiEndpoint;
+    if (!ep || !tenantId) {
+      toast.error('Selecione um endpoint e verifique o tenant');
+      return;
+    }
+    setFetchingApiFields(fieldIndex);
+    try {
+      const response = await api.get(`/x/${tenantId}${ep}`);
+      const data = Array.isArray(response.data) ? response.data : response.data?.data || [];
+      if (data.length > 0) {
+        const keys = Object.keys(data[0]).filter(k => k !== '__v');
+        updateField(fieldIndex, { apiFields: keys });
+        toast.success(`${keys.length} campos encontrados na API`);
+      } else {
+        updateField(fieldIndex, { apiFields: [] });
+        toast.warning('API retornou lista vazia — nenhum campo detectado');
+      }
+    } catch (error) {
+      console.error('Error fetching API fields:', error);
+      toast.error('Erro ao buscar campos da API');
+    } finally {
+      setFetchingApiFields(null);
+    }
+  };
 
   useEffect(() => {
     if (params.id) {
@@ -455,7 +490,13 @@ export default function EntityDetailPage() {
             <Label className="text-xs">Custom API (Endpoint)</Label>
             <Select
               value={field.apiEndpoint || ''}
-              onValueChange={(val) => updateField(index, { apiEndpoint: val === '__custom__' ? '' : val })}
+              onValueChange={(val) => {
+                const endpoint = val === '__custom__' ? '' : val;
+                updateField(index, { apiEndpoint: endpoint, apiFields: [] });
+                if (endpoint) {
+                  setTimeout(() => fetchApiFields(index, endpoint), 100);
+                }
+              }}
             >
               <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="Selecione a API de dados" /></SelectTrigger>
               <SelectContent>
@@ -492,20 +533,50 @@ export default function EntityDetailPage() {
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <Label className="text-xs font-medium">Auto-preenchimento</Label>
-              <Button onClick={() => addAutoFill(index)} size="sm" variant="outline" className="h-6 text-[10px]">
-                <Plus className="h-2 w-2 mr-1" /> Regra
-              </Button>
+              <div className="flex items-center gap-1">
+                <Button
+                  onClick={() => fetchApiFields(index)}
+                  size="sm"
+                  variant="outline"
+                  className="h-6 text-[10px]"
+                  disabled={!field.apiEndpoint || fetchingApiFields === index}
+                >
+                  {fetchingApiFields === index ? <Loader2 className="h-2 w-2 mr-1 animate-spin" /> : <RefreshCw className="h-2 w-2 mr-1" />}
+                  Buscar Campos
+                </Button>
+                <Button onClick={() => addAutoFill(index)} size="sm" variant="outline" className="h-6 text-[10px]">
+                  <Plus className="h-2 w-2 mr-1" /> Regra
+                </Button>
+              </div>
             </div>
-            <p className="text-xs text-muted-foreground">Ao selecionar um item, preenche automaticamente outros campos</p>
+            <p className="text-xs text-muted-foreground">Ao selecionar um item, preenche automaticamente outros campos. Clique em "Buscar Campos" para carregar os campos disponíveis da API.</p>
             {(field.autoFillFields || []).map((af, afIdx) => (
               <div key={afIdx} className="flex items-center gap-2">
-                <Input className="h-7 text-xs flex-1" placeholder="Campo da API (source)" value={af.sourceField} onChange={(e) => updateAutoFill(index, afIdx, { sourceField: e.target.value })} />
+                <Select
+                  value={af.sourceField}
+                  onValueChange={(val) => updateAutoFill(index, afIdx, { sourceField: val })}
+                >
+                  <SelectTrigger className="h-7 text-xs flex-1">
+                    <SelectValue placeholder="Campo da API (source)" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {!Array.isArray(field.apiFields) || field.apiFields.length === 0 ? (
+                      <SelectItem value="__empty__" disabled>
+                        {fetchingApiFields === index ? 'Carregando...' : 'Clique em "Buscar Campos" primeiro'}
+                      </SelectItem>
+                    ) : (
+                      field.apiFields.map((apiField: string) => (
+                        <SelectItem key={apiField} value={apiField}>{apiField}</SelectItem>
+                      ))
+                    )}
+                  </SelectContent>
+                </Select>
                 <span className="text-xs text-muted-foreground">→</span>
                 <Select value={af.targetField} onValueChange={(val) => updateAutoFill(index, afIdx, { targetField: val })}>
                   <SelectTrigger className="h-7 text-xs flex-1"><SelectValue placeholder="Campo destino" /></SelectTrigger>
                   <SelectContent>
                     {fields.filter((_, i) => i !== index).map(f => (
-                      <SelectItem key={f.name} value={f.name || f.slug || ''}>{f.label || f.name}</SelectItem>
+                      <SelectItem key={f.slug || f.name} value={f.slug || f.name || ''}>{f.label || f.name} <span className="text-muted-foreground">({f.slug || f.name})</span></SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -542,6 +613,54 @@ export default function EntityDetailPage() {
                 <Input className="h-8 text-sm" value={field.prefix ?? ''} placeholder="R$" onChange={(e) => updateField(index, { prefix: e.target.value })} />
               </div>
             )}
+          </div>
+        </div>
+      );
+    }
+
+    if (type === 'map') {
+      return (
+        <div className="space-y-3 mt-3 p-3 bg-teal-50 dark:bg-teal-950/20 rounded-lg border border-teal-200 dark:border-teal-800">
+          <Label className="text-sm font-medium text-teal-700 dark:text-teal-300">🗺️ Configuração do Mapa</Label>
+          <div className="space-y-3">
+            <div className="space-y-1">
+              <Label className="text-xs">Modo de Entrada</Label>
+              <Select value={field.mapMode || 'both'} onValueChange={(val) => updateField(index, { mapMode: val as 'latlng' | 'address' | 'both' })}>
+                <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="both">Endereço + Lat/Lng</SelectItem>
+                  <SelectItem value="address">Apenas Endereço</SelectItem>
+                  <SelectItem value="latlng">Apenas Lat/Lng</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">Define quais campos de entrada serão exibidos</p>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="space-y-1">
+                <Label className="text-xs">Centro padrão (Lat)</Label>
+                <Input type="number" step="any" className="h-8 text-sm" placeholder="-15.7801" value={field.mapDefaultCenter?.[0] ?? ''} onChange={(e) => {
+                  const lat = parseFloat(e.target.value);
+                  if (!isNaN(lat)) updateField(index, { mapDefaultCenter: [lat, field.mapDefaultCenter?.[1] ?? -47.9292] });
+                }} />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Centro padrão (Lng)</Label>
+                <Input type="number" step="any" className="h-8 text-sm" placeholder="-47.9292" value={field.mapDefaultCenter?.[1] ?? ''} onChange={(e) => {
+                  const lng = parseFloat(e.target.value);
+                  if (!isNaN(lng)) updateField(index, { mapDefaultCenter: [field.mapDefaultCenter?.[0] ?? -15.7801, lng] });
+                }} />
+              </div>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="space-y-1">
+                <Label className="text-xs">Zoom padrão (1-18)</Label>
+                <Input type="number" min={1} max={18} className="h-8 text-sm" value={field.mapDefaultZoom ?? 4} onChange={(e) => updateField(index, { mapDefaultZoom: parseInt(e.target.value) || 4 })} />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Altura do mapa (px)</Label>
+                <Input type="number" min={150} max={600} className="h-8 text-sm" value={field.mapHeight ?? 300} onChange={(e) => updateField(index, { mapHeight: parseInt(e.target.value) || 300 })} />
+              </div>
+            </div>
           </div>
         </div>
       );

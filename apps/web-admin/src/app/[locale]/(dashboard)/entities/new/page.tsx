@@ -50,6 +50,7 @@ const fieldTypes = [
   { value: 'password', label: 'Senha' },
   { value: 'json', label: 'JSON' },
   { value: 'hidden', label: 'Oculto' },
+  { value: 'map', label: 'Mapa' },
 ];
 
 export default function NewEntityPage() {

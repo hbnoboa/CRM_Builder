@@ -1,15 +1,17 @@
 'use client';
 
 import React, { useCallback, useRef, useState, useEffect } from 'react';
-import { GripVertical, Maximize2, Trash2, ChevronLeft, ChevronRight } from 'lucide-react';
+import {
+  GripVertical, Maximize2, Trash2, ChevronLeft, ChevronRight,
+  ChevronUp, ChevronDown, ArrowLeftRight,
+} from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import type { Field } from '@/types';
 
 // ─── Constants ─────────────────────────────────────────────────────────────
 const GRID_COLS = 12;
-const MIN_COL_SPAN = 2;
-const COL_SNAP_SIZES = [2, 3, 4, 6, 8, 9, 12];
+const MIN_COL_SPAN = 1;
 
 const fieldTypeIcons: Record<string, string> = {
   text: 'Aa', textarea: '¶', richtext: '📝', password: '🔒',
@@ -20,6 +22,7 @@ const fieldTypeIcons: Record<string, string> = {
   boolean: '☑', select: '▼', multiselect: '☰', color: '🎨',
   relation: '🔗', 'api-select': '⚡',
   file: '📎', image: '🖼', json: '{}', hidden: '👁',
+  map: '🗺️',
 };
 
 const fieldTypeLabels: Record<string, string> = {
@@ -31,6 +34,7 @@ const fieldTypeLabels: Record<string, string> = {
   boolean: 'Sim/Não', select: 'Seleção', multiselect: 'Multi', color: 'Cor',
   relation: 'Relação', 'api-select': 'API Select',
   file: 'Arquivo', image: 'Imagem', json: 'JSON', hidden: 'Oculto',
+  map: 'Mapa',
 };
 
 // ─── Types ─────────────────────────────────────────────────────────────────
@@ -55,6 +59,11 @@ interface FieldGridEditorProps {
   onFieldSelect?: (index: number) => void;
   selectedFieldIndex?: number | null;
 }
+
+type DragState =
+  | { type: 'resize-right'; fieldIndex: number; sourceRow: number; startX: number; startColSpan: number }
+  | { type: 'resize-left'; fieldIndex: number; sourceRow: number; startX: number; startColStart: number; startColSpan: number }
+  | null;
 
 // ─── Helpers ───────────────────────────────────────────────────────────────
 function buildGridFromFields(fields: Partial<Field>[]): GridRow[] {
@@ -95,18 +104,11 @@ function buildGridFromFields(fields: Partial<Field>[]): GridRow[] {
     if (cells.length > 0) rows.push({ cells });
   }
 
-  if (rows.length === 0 && fields.length === 0) return [];
   return rows;
 }
 
-function snapToGrid(colSpan: number): number {
-  let closest = COL_SNAP_SIZES[0];
-  let minDiff = Math.abs(colSpan - closest);
-  for (const s of COL_SNAP_SIZES) {
-    const diff = Math.abs(colSpan - s);
-    if (diff < minDiff) { minDiff = diff; closest = s; }
-  }
-  return Math.max(MIN_COL_SPAN, closest);
+function snapToGrid(value: number): number {
+  return Math.max(MIN_COL_SPAN, Math.min(GRID_COLS, Math.round(value)));
 }
 
 function getGaps(row: GridRow): GapSegment[] {
@@ -151,13 +153,7 @@ export default function FieldGridEditor({
 }: FieldGridEditorProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [grid, setGrid] = useState<GridRow[]>([]);
-  const [dragState, setDragState] = useState<{
-    type: 'resize';
-    fieldIndex: number;
-    sourceRow: number;
-    startX: number;
-    startColSpan: number;
-  } | null>(null);
+  const [dragState, setDragState] = useState<DragState>(null);
   const [dropTarget, setDropTarget] = useState<{
     rowIndex: number;
     position: 'before' | 'after' | 'new-row';
@@ -177,8 +173,8 @@ export default function FieldGridEditor({
     onFieldsChange(recalculateGridRows(fields, newGrid));
   }, [fields, onFieldsChange]);
 
-  // ── Resize handling ────────────────────────────────────────────────────
-  const handleResizeStart = useCallback((
+  // ── Resize RIGHT ───────────────────────────────────────────────────────
+  const handleResizeRightStart = useCallback((
     e: React.MouseEvent,
     fieldIndex: number,
     rowIndex: number,
@@ -186,7 +182,20 @@ export default function FieldGridEditor({
   ) => {
     e.preventDefault();
     e.stopPropagation();
-    setDragState({ type: 'resize', fieldIndex, sourceRow: rowIndex, startX: e.clientX, startColSpan: colSpan });
+    setDragState({ type: 'resize-right', fieldIndex, sourceRow: rowIndex, startX: e.clientX, startColSpan: colSpan });
+  }, []);
+
+  // ── Resize LEFT ────────────────────────────────────────────────────────
+  const handleResizeLeftStart = useCallback((
+    e: React.MouseEvent,
+    fieldIndex: number,
+    rowIndex: number,
+    colStart: number,
+    colSpan: number,
+  ) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragState({ type: 'resize-left', fieldIndex, sourceRow: rowIndex, startX: e.clientX, startColStart: colStart, startColSpan: colSpan });
   }, []);
 
   useEffect(() => {
@@ -194,43 +203,133 @@ export default function FieldGridEditor({
 
     const handleMouseMove = (e: MouseEvent) => {
       const colWidth = getColWidth();
-      const dx = e.clientX - dragState.startX;
-      const colDelta = Math.round(dx / colWidth);
-      let newSpan = dragState.startColSpan + colDelta;
 
-      const row = grid[dragState.sourceRow];
-      if (row) {
-        const cell = row.cells.find(c => c.fieldIndex === dragState.fieldIndex);
-        if (cell) {
-          const maxSpan = GRID_COLS - cell.colStart;
+      if (dragState.type === 'resize-right') {
+        const dx = e.clientX - dragState.startX;
+        const colDelta = Math.round(dx / colWidth);
+        let newSpan = dragState.startColSpan + colDelta;
+
+        const row = grid[dragState.sourceRow];
+        if (row) {
+          const cell = row.cells.find(c => c.fieldIndex === dragState.fieldIndex);
+          if (cell) {
+            const maxSpan = GRID_COLS - cell.colStart;
+            const sorted = [...row.cells].sort((a, b) => a.colStart - b.colStart);
+            const cellIdx = sorted.findIndex(c => c.fieldIndex === dragState.fieldIndex);
+
+            // Auto-adjust neighbor
+            if (cellIdx < sorted.length - 1) {
+              const nextCell = sorted[cellIdx + 1];
+              const nextEnd = nextCell.colStart + nextCell.colSpan;
+              const boundary = nextCell.colStart - cell.colStart;
+
+              if (newSpan > boundary) {
+                const overflow = newSpan - boundary;
+                const nextNewSpan = nextCell.colSpan - overflow;
+                const nextNewStart = cell.colStart + newSpan;
+                if (nextNewSpan >= MIN_COL_SPAN && nextNewStart + nextNewSpan <= GRID_COLS) {
+                  // Shrink neighbor
+                  setGrid(prev => prev.map((r, ri) => ({
+                    cells: r.cells.map(c => {
+                      if (ri === dragState.sourceRow && c.fieldIndex === dragState.fieldIndex) {
+                        return { ...c, colSpan: Math.max(MIN_COL_SPAN, Math.min(newSpan, maxSpan)) };
+                      }
+                      if (ri === dragState.sourceRow && c.fieldIndex === nextCell.fieldIndex) {
+                        return { ...c, colStart: nextNewStart, colSpan: nextNewSpan };
+                      }
+                      return c;
+                    }),
+                  })));
+                  return;
+                } else {
+                  // Can't shrink more, limit to max
+                  newSpan = nextEnd - cell.colStart - MIN_COL_SPAN;
+                }
+              }
+              newSpan = Math.min(newSpan, maxSpan);
+            } else {
+              newSpan = Math.min(newSpan, maxSpan);
+            }
+          }
+        }
+        newSpan = Math.max(MIN_COL_SPAN, Math.min(GRID_COLS, newSpan));
+
+        setGrid(prev => prev.map((r, ri) => ({
+          cells: r.cells.map(c => {
+            if (ri === dragState.sourceRow && c.fieldIndex === dragState.fieldIndex) {
+              return { ...c, colSpan: newSpan };
+            }
+            return c;
+          }),
+        })));
+      }
+
+      if (dragState.type === 'resize-left') {
+        const dx = e.clientX - dragState.startX;
+        const colDelta = Math.round(dx / colWidth);
+        let newStart = dragState.startColStart + colDelta;
+        const rightEdge = dragState.startColStart + dragState.startColSpan;
+        let newSpan = rightEdge - newStart;
+
+        const row = grid[dragState.sourceRow];
+        if (row) {
           const sorted = [...row.cells].sort((a, b) => a.colStart - b.colStart);
           const cellIdx = sorted.findIndex(c => c.fieldIndex === dragState.fieldIndex);
-          if (cellIdx < sorted.length - 1) {
-            const nextCell = sorted[cellIdx + 1];
-            newSpan = Math.min(newSpan, nextCell.colStart - cell.colStart);
-          }
-          newSpan = Math.min(newSpan, maxSpan);
-        }
-      }
-      newSpan = Math.max(MIN_COL_SPAN, Math.min(GRID_COLS, newSpan));
 
-      setGrid(prev => prev.map((row, ri) => ({
-        cells: row.cells.map(cell => {
-          if (ri === dragState.sourceRow && cell.fieldIndex === dragState.fieldIndex) {
-            return { ...cell, colSpan: newSpan };
+          // Auto-adjust previous neighbor
+          if (cellIdx > 0) {
+            const prevCell = sorted[cellIdx - 1];
+            const prevEnd = prevCell.colStart + prevCell.colSpan;
+
+            if (newStart < prevEnd) {
+              const overlap = prevEnd - newStart;
+              const prevNewSpan = prevCell.colSpan - overlap;
+              if (prevNewSpan >= MIN_COL_SPAN) {
+                setGrid(prev => prev.map((r, ri) => ({
+                  cells: r.cells.map(c => {
+                    if (ri === dragState.sourceRow && c.fieldIndex === dragState.fieldIndex) {
+                      return { ...c, colStart: newStart, colSpan: rightEdge - newStart };
+                    }
+                    if (ri === dragState.sourceRow && c.fieldIndex === prevCell.fieldIndex) {
+                      return { ...c, colSpan: prevNewSpan };
+                    }
+                    return c;
+                  }),
+                })));
+                return;
+              } else {
+                newStart = prevCell.colStart + MIN_COL_SPAN;
+                newSpan = rightEdge - newStart;
+              }
+            }
           }
-          return cell;
-        }),
-      })));
+
+          newStart = Math.max(0, newStart);
+          newSpan = rightEdge - newStart;
+        }
+
+        newSpan = Math.max(MIN_COL_SPAN, newSpan);
+        newStart = Math.max(0, rightEdge - newSpan);
+
+        setGrid(prev => prev.map((r, ri) => ({
+          cells: r.cells.map(c => {
+            if (ri === dragState.sourceRow && c.fieldIndex === dragState.fieldIndex) {
+              return { ...c, colStart: newStart, colSpan: newSpan };
+            }
+            return c;
+          }),
+        })));
+      }
     };
 
     const handleMouseUp = () => {
-      const newGrid = grid.map((row, ri) => ({
-        cells: row.cells.map(cell => {
-          if (ri === dragState.sourceRow && cell.fieldIndex === dragState.fieldIndex) {
-            return { ...cell, colSpan: snapToGrid(cell.colSpan) };
+      // Snap all values
+      const newGrid = grid.map((r, ri) => ({
+        cells: r.cells.map(c => {
+          if (ri === dragState.sourceRow) {
+            return { ...c, colSpan: snapToGrid(c.colSpan), colStart: Math.max(0, Math.round(c.colStart)) };
           }
-          return cell;
+          return c;
         }),
       }));
       commitGrid(newGrid);
@@ -365,6 +464,55 @@ export default function FieldGridEditor({
     commitGrid(newGrid);
   }, [grid, commitGrid]);
 
+  // ── Move ROW up/down ───────────────────────────────────────────────────
+  const moveRowUp = useCallback((rowIndex: number) => {
+    if (rowIndex <= 0) return;
+    const newGrid = grid.map(r => ({ cells: [...r.cells] }));
+    const temp = newGrid[rowIndex];
+    newGrid[rowIndex] = newGrid[rowIndex - 1];
+    newGrid[rowIndex - 1] = temp;
+    commitGrid(newGrid);
+  }, [grid, commitGrid]);
+
+  const moveRowDown = useCallback((rowIndex: number) => {
+    if (rowIndex >= grid.length - 1) return;
+    const newGrid = grid.map(r => ({ cells: [...r.cells] }));
+    const temp = newGrid[rowIndex];
+    newGrid[rowIndex] = newGrid[rowIndex + 1];
+    newGrid[rowIndex + 1] = temp;
+    commitGrid(newGrid);
+  }, [grid, commitGrid]);
+
+  // ── Swap fields within a row ───────────────────────────────────────────
+  const swapFieldInRow = useCallback((fieldIndex: number, rowIndex: number, direction: -1 | 1) => {
+    const newGrid = grid.map(r => ({ cells: [...r.cells] }));
+    const row = newGrid[rowIndex];
+    if (!row) return;
+    const sorted = [...row.cells].sort((a, b) => a.colStart - b.colStart);
+    const idx = sorted.findIndex(c => c.fieldIndex === fieldIndex);
+    if (idx === -1) return;
+    const targetIdx = idx + direction;
+    if (targetIdx < 0 || targetIdx >= sorted.length) return;
+
+    const cellA = row.cells.find(c => c.fieldIndex === sorted[idx].fieldIndex)!;
+    const cellB = row.cells.find(c => c.fieldIndex === sorted[targetIdx].fieldIndex)!;
+
+    if (direction === -1) {
+      const newAStart = cellB.colStart;
+      const newBStart = cellB.colStart + cellA.colSpan;
+      if (newBStart + cellB.colSpan > GRID_COLS) return;
+      cellA.colStart = newAStart;
+      cellB.colStart = newBStart;
+    } else {
+      const newBStart = cellA.colStart;
+      const newAStart = cellA.colStart + cellB.colSpan;
+      if (newAStart + cellA.colSpan > GRID_COLS) return;
+      cellB.colStart = newBStart;
+      cellA.colStart = newAStart;
+    }
+    commitGrid(newGrid);
+  }, [grid, commitGrid]);
+
   // ── Move field to new row ──────────────────────────────────────────────
   const moveToNewRow = useCallback((fieldIndex: number) => {
     const newGrid = grid.map(r => ({ cells: [...r.cells] }));
@@ -381,23 +529,38 @@ export default function FieldGridEditor({
     commitGrid(cleaned);
   }, [grid, commitGrid]);
 
-  // ── Quick resize ───────────────────────────────────────────────────────
+  // ── Quick resize with auto-adjust ──────────────────────────────────────
   const setFieldWidth = useCallback((fieldIndex: number, rowIndex: number, newSpan: number) => {
-    const newGrid = grid.map((row, ri) => ({
-      cells: row.cells.map(cell => {
-        if (ri === rowIndex && cell.fieldIndex === fieldIndex) {
-          const maxSpan = GRID_COLS - cell.colStart;
-          const sorted = [...grid[ri].cells].sort((a, b) => a.colStart - b.colStart);
-          const cIdx = sorted.findIndex(c => c.fieldIndex === fieldIndex);
-          let limit = maxSpan;
-          if (cIdx < sorted.length - 1) {
-            limit = Math.min(limit, sorted[cIdx + 1].colStart - cell.colStart);
-          }
-          return { ...cell, colSpan: Math.min(newSpan, limit) };
+    const newGrid = grid.map(r => ({ cells: [...r.cells] }));
+    const row = newGrid[rowIndex];
+    if (!row) return;
+    const cell = row.cells.find(c => c.fieldIndex === fieldIndex);
+    if (!cell) return;
+
+    const maxSpan = GRID_COLS - cell.colStart;
+    newSpan = Math.min(newSpan, maxSpan);
+
+    const sorted = [...row.cells].sort((a, b) => a.colStart - b.colStart);
+    const cIdx = sorted.findIndex(c => c.fieldIndex === fieldIndex);
+
+    // Auto-adjust next field
+    if (cIdx < sorted.length - 1) {
+      const nextCell = row.cells.find(c => c.fieldIndex === sorted[cIdx + 1].fieldIndex)!;
+      const newEnd = cell.colStart + newSpan;
+      if (newEnd > nextCell.colStart) {
+        const nextEnd = nextCell.colStart + nextCell.colSpan;
+        const newNextStart = newEnd;
+        const newNextSpan = nextEnd - newNextStart;
+        if (newNextSpan >= MIN_COL_SPAN) {
+          nextCell.colStart = newNextStart;
+          nextCell.colSpan = newNextSpan;
+        } else {
+          newSpan = nextCell.colStart - cell.colStart;
         }
-        return cell;
-      }),
-    }));
+      }
+    }
+
+    cell.colSpan = Math.max(MIN_COL_SPAN, newSpan);
     commitGrid(newGrid);
   }, [grid, commitGrid]);
 
@@ -416,7 +579,7 @@ export default function FieldGridEditor({
     if (colSpan === 6) return '50%';
     if (colSpan === 4) return '33%';
     if (colSpan === 3) return '25%';
-    return `${Math.round((colSpan / GRID_COLS) * 100)}%`;
+    return `${colSpan}/${GRID_COLS}`;
   };
 
   return (
@@ -439,7 +602,6 @@ export default function FieldGridEditor({
         {grid.map((row, rowIdx) => {
           const sortedCells = [...row.cells].sort((a, b) => a.colStart - b.colStart);
 
-          // Build render items: interleave gaps and cells
           type RenderItem =
             | { kind: 'cell'; cell: GridCell }
             | { kind: 'gap'; gap: GapSegment };
@@ -477,9 +639,43 @@ export default function FieldGridEditor({
 
               {/* Row */}
               <div className="relative group/row">
-                {/* Row label */}
-                <div className="absolute -left-7 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground/40 font-mono w-6 text-right">
-                  L{rowIdx + 1}
+                {/* Row controls (left side) */}
+                <div className="absolute -left-10 top-1/2 -translate-y-1/2 flex flex-col items-center gap-0.5 opacity-0 group-hover/row:opacity-100 transition-opacity z-10">
+                  <TooltipProvider delayDuration={200}>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <button
+                          className={`h-4 w-4 rounded flex items-center justify-center transition-colors ${
+                            rowIdx > 0 ? 'bg-muted hover:bg-muted-foreground/20 text-muted-foreground' : 'opacity-20 cursor-not-allowed text-muted-foreground'
+                          }`}
+                          onClick={() => moveRowUp(rowIdx)}
+                          disabled={rowIdx <= 0}
+                        >
+                          <ChevronUp className="h-3 w-3" />
+                        </button>
+                      </TooltipTrigger>
+                      <TooltipContent side="left" className="text-xs">Mover linha para cima</TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+
+                  <span className="text-[9px] text-muted-foreground/40 font-mono">L{rowIdx + 1}</span>
+
+                  <TooltipProvider delayDuration={200}>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <button
+                          className={`h-4 w-4 rounded flex items-center justify-center transition-colors ${
+                            rowIdx < grid.length - 1 ? 'bg-muted hover:bg-muted-foreground/20 text-muted-foreground' : 'opacity-20 cursor-not-allowed text-muted-foreground'
+                          }`}
+                          onClick={() => moveRowDown(rowIdx)}
+                          disabled={rowIdx >= grid.length - 1}
+                        >
+                          <ChevronDown className="h-3 w-3" />
+                        </button>
+                      </TooltipTrigger>
+                      <TooltipContent side="left" className="text-xs">Mover linha para baixo</TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
                 </div>
 
                 {/* Grid background */}
@@ -534,7 +730,7 @@ export default function FieldGridEditor({
                     const typeLabel = fieldTypeLabels[field.type || 'text'] || field.type;
                     const isSelected = selectedFieldIndex === cell.fieldIndex;
                     const isDragging = dragState?.fieldIndex === cell.fieldIndex;
-                    const isResizing = dragState?.type === 'resize' && dragState?.fieldIndex === cell.fieldIndex;
+                    const isResizing = dragState !== null && dragState.fieldIndex === cell.fieldIndex;
 
                     const canNudgeLeft = cell.colStart > 0 &&
                       !sortedCells.some(c => c.fieldIndex !== cell.fieldIndex &&
@@ -543,6 +739,10 @@ export default function FieldGridEditor({
                       !sortedCells.some(c => c.fieldIndex !== cell.fieldIndex &&
                         c.colStart < cell.colStart + cell.colSpan + 1 &&
                         c.colStart + c.colSpan > cell.colStart + cell.colSpan);
+
+                    const cellSortIdx = sortedCells.findIndex(c => c.fieldIndex === cell.fieldIndex);
+                    const canSwapLeft = cellSortIdx > 0;
+                    const canSwapRight = cellSortIdx < sortedCells.length - 1;
 
                     return (
                       <div
@@ -559,6 +759,14 @@ export default function FieldGridEditor({
                         onDragEnd={handleDragEnd}
                         onClick={() => onFieldSelect?.(cell.fieldIndex)}
                       >
+                        {/* Left resize handle */}
+                        <div
+                          className="absolute left-0 top-0 bottom-0 w-2 cursor-col-resize group/resizeleft hover:bg-orange-400/30 rounded-l-lg transition-colors z-10"
+                          onMouseDown={(e) => handleResizeLeftStart(e, cell.fieldIndex, rowIdx, cell.colStart, cell.colSpan)}
+                        >
+                          <div className="absolute left-0.5 top-1/2 -translate-y-1/2 w-0.5 h-6 bg-muted-foreground/20 group-hover/resizeleft:bg-orange-500 rounded-full transition-colors" />
+                        </div>
+
                         {/* Field content */}
                         <div className="p-2.5 min-h-[68px] flex flex-col">
                           <div className="flex items-center gap-1.5 mb-1.5">
@@ -576,9 +784,30 @@ export default function FieldGridEditor({
                             {field.placeholder || typeLabel}
                           </div>
 
-                          {/* Width badge + nudge + quick size */}
+                          {/* Controls bar */}
                           <div className="flex items-center justify-between mt-1.5">
-                            <div className="flex items-center gap-1">
+                            <div className="flex items-center gap-0.5">
+                              {/* Swap left */}
+                              {sortedCells.length > 1 && (
+                                <TooltipProvider delayDuration={200}>
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <button
+                                        className={`h-4 w-4 rounded flex items-center justify-center transition-colors ${
+                                          canSwapLeft ? 'bg-blue-100 dark:bg-blue-900/30 hover:bg-blue-200 dark:hover:bg-blue-800/40 text-blue-600 dark:text-blue-400' : 'opacity-20 cursor-not-allowed text-muted-foreground'
+                                        }`}
+                                        onClick={(e) => { e.stopPropagation(); if (canSwapLeft) swapFieldInRow(cell.fieldIndex, rowIdx, -1); }}
+                                        disabled={!canSwapLeft}
+                                      >
+                                        <ArrowLeftRight className="h-2.5 w-2.5 -scale-x-100" />
+                                      </button>
+                                    </TooltipTrigger>
+                                    <TooltipContent side="bottom" className="text-xs">Trocar com campo à esquerda</TooltipContent>
+                                  </Tooltip>
+                                </TooltipProvider>
+                              )}
+
+                              {/* Nudge left */}
                               <TooltipProvider delayDuration={200}>
                                 <Tooltip>
                                   <TooltipTrigger asChild>
@@ -592,7 +821,7 @@ export default function FieldGridEditor({
                                       <ChevronLeft className="h-3 w-3" />
                                     </button>
                                   </TooltipTrigger>
-                                  <TooltipContent side="bottom" className="text-xs">Mover para esquerda</TooltipContent>
+                                  <TooltipContent side="bottom" className="text-xs">Mover 1 col para esquerda</TooltipContent>
                                 </Tooltip>
                               </TooltipProvider>
 
@@ -600,6 +829,7 @@ export default function FieldGridEditor({
                                 {cell.colStart > 0 ? `col ${cell.colStart + 1} · ` : ''}{renderWidthIndicator(cell.colSpan)}
                               </Badge>
 
+                              {/* Nudge right */}
                               <TooltipProvider delayDuration={200}>
                                 <Tooltip>
                                   <TooltipTrigger asChild>
@@ -613,11 +843,32 @@ export default function FieldGridEditor({
                                       <ChevronRight className="h-3 w-3" />
                                     </button>
                                   </TooltipTrigger>
-                                  <TooltipContent side="bottom" className="text-xs">Mover para direita</TooltipContent>
+                                  <TooltipContent side="bottom" className="text-xs">Mover 1 col para direita</TooltipContent>
                                 </Tooltip>
                               </TooltipProvider>
+
+                              {/* Swap right */}
+                              {sortedCells.length > 1 && (
+                                <TooltipProvider delayDuration={200}>
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <button
+                                        className={`h-4 w-4 rounded flex items-center justify-center transition-colors ${
+                                          canSwapRight ? 'bg-blue-100 dark:bg-blue-900/30 hover:bg-blue-200 dark:hover:bg-blue-800/40 text-blue-600 dark:text-blue-400' : 'opacity-20 cursor-not-allowed text-muted-foreground'
+                                        }`}
+                                        onClick={(e) => { e.stopPropagation(); if (canSwapRight) swapFieldInRow(cell.fieldIndex, rowIdx, 1); }}
+                                        disabled={!canSwapRight}
+                                      >
+                                        <ArrowLeftRight className="h-2.5 w-2.5" />
+                                      </button>
+                                    </TooltipTrigger>
+                                    <TooltipContent side="bottom" className="text-xs">Trocar com campo à direita</TooltipContent>
+                                  </Tooltip>
+                                </TooltipProvider>
+                              )}
                             </div>
 
+                            {/* Quick size buttons */}
                             <div className="flex items-center gap-0.5">
                               <TooltipProvider delayDuration={200}>
                                 {[
@@ -625,45 +876,36 @@ export default function FieldGridEditor({
                                   { span: 4, label: '33%' },
                                   { span: 6, label: '50%' },
                                   { span: 12, label: '100%' },
-                                ].map(({ span, label }) => {
-                                  let maxAvail = GRID_COLS - cell.colStart;
-                                  const cIdx = sortedCells.findIndex(c => c.fieldIndex === cell.fieldIndex);
-                                  if (cIdx < sortedCells.length - 1) {
-                                    maxAvail = Math.min(maxAvail, sortedCells[cIdx + 1].colStart - cell.colStart);
-                                  }
-                                  if (span > maxAvail) return null;
-
-                                  return (
-                                    <Tooltip key={span}>
-                                      <TooltipTrigger asChild>
-                                        <button
-                                          className={`h-4 px-1 rounded text-[8px] font-mono transition-colors ${
-                                            cell.colSpan === span ? 'bg-primary text-primary-foreground' : 'bg-muted hover:bg-muted-foreground/20 text-muted-foreground'
-                                          }`}
-                                          onClick={(e) => { e.stopPropagation(); setFieldWidth(cell.fieldIndex, rowIdx, span); }}
-                                        >
-                                          {label}
-                                        </button>
-                                      </TooltipTrigger>
-                                      <TooltipContent side="bottom" className="text-xs">{label} da linha</TooltipContent>
-                                    </Tooltip>
-                                  );
-                                })}
+                                ].map(({ span, label }) => (
+                                  <Tooltip key={span}>
+                                    <TooltipTrigger asChild>
+                                      <button
+                                        className={`h-4 px-1 rounded text-[8px] font-mono transition-colors ${
+                                          cell.colSpan === span ? 'bg-primary text-primary-foreground' : 'bg-muted hover:bg-muted-foreground/20 text-muted-foreground'
+                                        }`}
+                                        onClick={(e) => { e.stopPropagation(); setFieldWidth(cell.fieldIndex, rowIdx, span); }}
+                                      >
+                                        {label}
+                                      </button>
+                                    </TooltipTrigger>
+                                    <TooltipContent side="bottom" className="text-xs">{label} da linha</TooltipContent>
+                                  </Tooltip>
+                                ))}
                               </TooltipProvider>
                             </div>
                           </div>
                         </div>
 
-                        {/* Resize handle */}
+                        {/* Right resize handle */}
                         <div
-                          className="absolute right-0 top-0 bottom-0 w-2 cursor-col-resize group/resize hover:bg-blue-400/30 rounded-r-lg transition-colors"
-                          onMouseDown={(e) => handleResizeStart(e, cell.fieldIndex, rowIdx, cell.colSpan)}
+                          className="absolute right-0 top-0 bottom-0 w-2 cursor-col-resize group/resize hover:bg-blue-400/30 rounded-r-lg transition-colors z-10"
+                          onMouseDown={(e) => handleResizeRightStart(e, cell.fieldIndex, rowIdx, cell.colSpan)}
                         >
                           <div className="absolute right-0.5 top-1/2 -translate-y-1/2 w-0.5 h-6 bg-muted-foreground/20 group-hover/resize:bg-blue-500 rounded-full transition-colors" />
                         </div>
 
                         {/* Actions on hover */}
-                        <div className="absolute -top-2 -right-2 opacity-0 group-hover/cell:opacity-100 transition-opacity flex gap-0.5 z-10">
+                        <div className="absolute -top-2 -right-2 opacity-0 group-hover/cell:opacity-100 transition-opacity flex gap-0.5 z-20">
                           <TooltipProvider delayDuration={200}>
                             <Tooltip>
                               <TooltipTrigger asChild>
@@ -733,12 +975,18 @@ export default function FieldGridEditor({
           <GripVertical className="h-3 w-3" /> Arraste para reordenar
         </span>
         <span className="flex items-center gap-1">
-          <div className="w-0.5 h-3 bg-muted-foreground/30 rounded" /> Arraste borda direita para redimensionar
+          <div className="w-0.5 h-3 bg-blue-400/50 rounded" /> Borda direita = resize
         </span>
         <span className="flex items-center gap-1">
-          <ChevronLeft className="h-3 w-3" /><ChevronRight className="h-3 w-3" /> Mover para criar espaços em branco
+          <div className="w-0.5 h-3 bg-orange-400/50 rounded" /> Borda esquerda = resize
         </span>
-        <span>Clique nos botões de % para largura rápida</span>
+        <span className="flex items-center gap-1">
+          <ChevronUp className="h-3 w-3" /><ChevronDown className="h-3 w-3" /> Mover linha
+        </span>
+        <span className="flex items-center gap-1">
+          <ArrowLeftRight className="h-3 w-3" /> Trocar posição
+        </span>
+        <span>Vizinhos se ajustam ao redimensionar</span>
       </div>
     </div>
   );

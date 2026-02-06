@@ -26,7 +26,11 @@ import {
 import { useCreateEntityData, useUpdateEntityData } from '@/hooks/use-data';
 import { useTenant } from '@/stores/tenant-context';
 import { api } from '@/lib/api';
+import dynamic from 'next/dynamic';
 import type { EntityField, FieldType } from '@/types';
+import type { MapFieldValue } from '@/components/form/map-field';
+
+const MapField = dynamic(() => import('@/components/form/map-field'), { ssr: false });
 
 interface ApiOption {
   value: string;
@@ -199,9 +203,18 @@ export function RecordFormDialog({
     const selectedOption = options.find(opt => opt.value === value);
     if (selectedOption && field.autoFillFields) {
       const updates: Record<string, unknown> = {};
+      // Build a lookup: name -> slug, slug -> slug for resilient matching
+      const allFields = entity.fields || [];
+      const slugLookup: Record<string, string> = {};
+      for (const f of allFields) {
+        if (f.slug) slugLookup[f.slug] = f.slug;
+        if (f.name) slugLookup[f.name] = f.slug || f.name;
+      }
       for (const autoFill of field.autoFillFields) {
         const sourceValue = selectedOption.data[autoFill.sourceField];
-        if (sourceValue !== undefined) updates[autoFill.targetField] = sourceValue;
+        // Resolve targetField to actual slug used in formData
+        const resolvedTarget = slugLookup[autoFill.targetField] || autoFill.targetField;
+        if (sourceValue !== undefined) updates[resolvedTarget] = sourceValue;
       }
       if (Object.keys(updates).length > 0) setFormData(prev => ({ ...prev, ...updates }));
     }
@@ -670,11 +683,28 @@ export function RecordFormDialog({
           <div key={field.slug} className="space-y-2">
             {fieldLabel}
             <Input id={field.slug} type="text" placeholder={field.placeholder || `URL do ${field.type === 'image' ? 'imagem' : 'arquivo'}`} value={String(value || '')} onChange={(e) => handleFieldChange(field.slug, e.target.value)} />
-            {field.type === 'image' && value && typeof value === 'string' && (
+            {field.type === 'image' && typeof value === 'string' && value !== '' ? (
               <div className="mt-2 border rounded-md overflow-hidden w-24 h-24">
-                <img src={value} alt="preview" className="w-full h-full object-cover" onError={(e) => (e.currentTarget.style.display = 'none')} />
+                <img src={value as string} alt="preview" className="w-full h-full object-cover" onError={(e) => (e.currentTarget.style.display = 'none')} />
               </div>
-            )}
+            ) : null}
+            {helpEl}{errorEl}
+          </div>
+        );
+
+      case 'map':
+        return (
+          <div key={field.slug} className="space-y-2">
+            {fieldLabel}
+            <MapField
+              value={(value as MapFieldValue) || {}}
+              onChange={(mapValue) => handleFieldChange(field.slug, mapValue)}
+              mode={field.mapMode || 'both'}
+              defaultCenter={field.mapDefaultCenter}
+              defaultZoom={field.mapDefaultZoom}
+              height={field.mapHeight || 300}
+              placeholder={field.placeholder}
+            />
             {helpEl}{errorEl}
           </div>
         );

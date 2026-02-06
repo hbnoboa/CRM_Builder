@@ -105,6 +105,8 @@ export interface EntityField {
   apiEndpoint?: string; // Custom API path (e.g., "/corretores")
   valueField?: string; // Field to use as value (default: "id")
   labelField?: string; // Field to use as label (default: "name" or first text field)
+  // Fields available from the API response (for auto-fill source selection)
+  apiFields?: string[];
   // Fields to auto-fill from selected item
   autoFillFields?: Array<{
     sourceField: string; // Field from API response
@@ -125,6 +127,12 @@ export interface EntityField {
 
   // text specific
   mask?: string; // Input mask pattern
+
+  // map specific
+  mapMode?: 'latlng' | 'address' | 'both'; // Display mode: lat/lng inputs, address input, or both
+  mapDefaultCenter?: [number, number]; // Default center [lat, lng]
+  mapDefaultZoom?: number; // Default zoom level (1-18)
+  mapHeight?: number; // Map height in pixels (default 300)
 }
 
 export type FieldType =
@@ -155,7 +163,8 @@ export type FieldType =
   | 'slider'
   | 'password'
   | 'hidden'
-  | 'json';
+  | 'json'
+  | 'map';
 
 export interface EntitySettings {
   allowCreate?: boolean;
