@@ -39,12 +39,33 @@ import type { Entity } from '@/types';
 
 const fieldTypeColors: Record<string, string> = {
   text: 'bg-blue-100 text-blue-800',
+  textarea: 'bg-blue-100 text-blue-800',
+  richtext: 'bg-blue-100 text-blue-800',
   number: 'bg-green-100 text-green-800',
+  currency: 'bg-green-100 text-green-800',
+  percentage: 'bg-green-100 text-green-800',
+  slider: 'bg-green-100 text-green-800',
+  rating: 'bg-amber-100 text-amber-800',
   email: 'bg-purple-100 text-purple-800',
+  phone: 'bg-purple-100 text-purple-800',
+  url: 'bg-purple-100 text-purple-800',
+  cpf: 'bg-teal-100 text-teal-800',
+  cnpj: 'bg-teal-100 text-teal-800',
+  cep: 'bg-teal-100 text-teal-800',
   date: 'bg-orange-100 text-orange-800',
+  datetime: 'bg-orange-100 text-orange-800',
+  time: 'bg-orange-100 text-orange-800',
   boolean: 'bg-pink-100 text-pink-800',
   select: 'bg-yellow-100 text-yellow-800',
+  multiselect: 'bg-yellow-100 text-yellow-800',
+  'api-select': 'bg-amber-100 text-amber-800',
   relation: 'bg-indigo-100 text-indigo-800',
+  color: 'bg-rose-100 text-rose-800',
+  file: 'bg-gray-100 text-gray-800',
+  image: 'bg-gray-100 text-gray-800',
+  json: 'bg-slate-100 text-slate-800',
+  password: 'bg-red-100 text-red-800',
+  hidden: 'bg-gray-100 text-gray-800',
 };
 
 function EntitiesPageContent() {

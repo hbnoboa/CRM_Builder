@@ -93,6 +93,14 @@ export interface EntityField {
   default?: unknown;
   options?: Array<string | { value: string; label: string; color?: string }>;
   validation?: Record<string, unknown>;
+  placeholder?: string;
+  helpText?: string;
+
+  // Grid positioning for form layout
+  gridRow?: number;    // Row position (1-based, fields with same row appear on same line)
+  gridColSpan?: number; // Column span (1-12, default 12 = full width)
+  gridColStart?: number; // Column start position (1-based, allows gaps between fields)
+
   // api-select specific properties
   apiEndpoint?: string; // Custom API path (e.g., "/corretores")
   valueField?: string; // Field to use as value (default: "id")
@@ -102,24 +110,51 @@ export interface EntityField {
     sourceField: string; // Field from API response
     targetField: string; // Field in this entity to fill
   }>;
+
+  // relation specific properties
+  relatedEntityId?: string;    // ID of the related entity
+  relatedEntitySlug?: string;  // Slug of the related entity
+  relatedDisplayField?: string; // Field to display from related entity (default: first text field)
+
+  // number/currency specific
+  min?: number;
+  max?: number;
+  step?: number;
+  prefix?: string; // e.g., "R$" for currency
+  suffix?: string; // e.g., "%" for percentage
+
+  // text specific
+  mask?: string; // Input mask pattern
 }
 
 export type FieldType =
   | 'text'
   | 'textarea'
+  | 'richtext'
   | 'number'
+  | 'currency'
+  | 'percentage'
   | 'email'
   | 'phone'
   | 'url'
+  | 'cpf'
+  | 'cnpj'
+  | 'cep'
   | 'date'
   | 'datetime'
+  | 'time'
   | 'boolean'
   | 'select'
   | 'multiselect'
   | 'api-select' // Select that fetches options from Custom API
+  | 'relation'   // Relation to another entity
   | 'file'
   | 'image'
-  | 'relation'
+  | 'color'
+  | 'rating'
+  | 'slider'
+  | 'password'
+  | 'hidden'
   | 'json';
 
 export interface EntitySettings {

@@ -19,18 +19,37 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { toast } from 'sonner';
 import api from '@/lib/api';
 import type { Field } from '@/types';
+import FieldGridEditor from '@/components/entities/field-grid-editor';
 
 const fieldTypes = [
-  { value: 'text', label: 'Text' },
-  { value: 'number', label: 'Number' },
+  { value: 'text', label: 'Texto' },
+  { value: 'textarea', label: 'Texto Longo' },
+  { value: 'richtext', label: 'Rich Text' },
+  { value: 'number', label: 'Número' },
+  { value: 'currency', label: 'Moeda (R$)' },
+  { value: 'percentage', label: 'Porcentagem' },
   { value: 'email', label: 'Email' },
-  { value: 'date', label: 'Date' },
-  { value: 'boolean', label: 'Boolean' },
-  { value: 'select', label: 'Select' },
-  { value: 'relation', label: 'Relation' },
-  { value: 'textarea', label: 'Long Text' },
+  { value: 'phone', label: 'Telefone' },
   { value: 'url', label: 'URL' },
-  { value: 'phone', label: 'Phone' },
+  { value: 'cpf', label: 'CPF' },
+  { value: 'cnpj', label: 'CNPJ' },
+  { value: 'cep', label: 'CEP' },
+  { value: 'date', label: 'Data' },
+  { value: 'datetime', label: 'Data e Hora' },
+  { value: 'time', label: 'Hora' },
+  { value: 'boolean', label: 'Sim/Não' },
+  { value: 'select', label: 'Seleção' },
+  { value: 'multiselect', label: 'Multi Seleção' },
+  { value: 'relation', label: 'Relação' },
+  { value: 'api-select', label: 'API Select' },
+  { value: 'color', label: 'Cor' },
+  { value: 'rating', label: 'Avaliação' },
+  { value: 'slider', label: 'Slider' },
+  { value: 'file', label: 'Arquivo' },
+  { value: 'image', label: 'Imagem' },
+  { value: 'password', label: 'Senha' },
+  { value: 'json', label: 'JSON' },
+  { value: 'hidden', label: 'Oculto' },
 ];
 
 export default function NewEntityPage() {
@@ -226,6 +245,24 @@ export default function NewEntityPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Layout Visual */}
+      {fields.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Layout Visual</CardTitle>
+            <CardDescription>
+              Drag fields to reorder rows. Drag the right edge to resize width.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <FieldGridEditor
+              fields={fields as Field[]}
+              onFieldsChange={(updated) => setFields(updated)}
+            />
+          </CardContent>
+        </Card>
+      )}
 
       {/* Actions */}
       <div className="flex justify-end gap-2">

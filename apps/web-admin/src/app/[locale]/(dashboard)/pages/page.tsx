@@ -3,31 +3,24 @@
 import { useState } from 'react';
 import { useLocale } from 'next-intl';
 import { Link, useRouter } from '@/i18n/navigation';
-import { RequireRole } from '@/components/auth/require-role';
 import {
   Plus,
   Search,
-  MoreVertical,
   Pencil,
-  Trash,
+  Trash2,
   Eye,
   FileText,
   Copy,
-  ExternalLink,
-  Loader2,
   Globe,
   GlobeLock,
+  Loader2,
+  RefreshCw,
+  ExternalLink,
+  LayoutDashboard,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Card, CardContent } from '@/components/ui/card';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-  DropdownMenuSeparator,
-} from '@/components/ui/dropdown-menu';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -40,115 +33,27 @@ import {
 } from '@/components/ui/alert-dialog';
 import { usePages, useDeletePage, usePublishPage, useUnpublishPage, useCreatePage } from '@/hooks/use-pages';
 import { useAuthStore } from '@/stores/auth-store';
+import { PageFormDialog } from '@/components/pages/page-form-dialog';
 import type { Page } from '@/services/pages.service';
 
-// Versao simplificada para USER/VIEWER - apenas visualizar paginas publicadas
-function UserPagesView() {
-  const locale = useLocale();
-  const [search, setSearch] = useState('');
-  const { data, isLoading } = usePages();
-
-  const pages: Page[] = (() => {
-    if (!data) return [];
-    if (Array.isArray(data)) return data;
-    if (data.data && Array.isArray(data.data)) return data.data;
-    return [];
-  })();
-
-  // Filtrar apenas paginas publicadas
-  const publishedPages = pages.filter((page) => page.isPublished);
-  const filteredPages = publishedPages.filter((page) =>
-    (page.title || '').toLowerCase().includes(search.toLowerCase())
-  );
-
-  return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold">Paginas</h1>
-        <p className="text-muted-foreground mt-1">
-          Acesse as paginas disponiveis do sistema
-        </p>
-      </div>
-
-      {/* Search */}
-      <div className="relative max-w-md">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-        <Input
-          placeholder="Buscar paginas..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="pl-9"
-        />
-      </div>
-
-      {/* Pages Grid */}
-      {isLoading ? (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {[1, 2, 3].map((i) => (
-            <Card key={i} className="animate-pulse">
-              <CardContent className="p-6">
-                <div className="h-6 bg-muted rounded w-1/2 mb-4" />
-                <div className="h-4 bg-muted rounded w-3/4" />
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      ) : filteredPages.length === 0 ? (
-        <Card>
-          <CardContent className="p-12 text-center">
-            <FileText className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-            <h3 className="text-lg font-semibold mb-2">Nenhuma pagina disponivel</h3>
-            <p className="text-muted-foreground">
-              {search
-                ? 'Nenhuma pagina corresponde a sua busca.'
-                : 'Nao ha paginas publicadas no momento.'}
-            </p>
-          </CardContent>
-        </Card>
-      ) : (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {filteredPages.map((page) => (
-            <Link key={page.id} href={`/preview/${page.slug}`}>
-              <Card className="group hover:border-primary hover:shadow-md transition-all cursor-pointer h-full">
-                <CardContent className="p-6">
-                  <div className="flex items-center gap-3">
-                    <div className="p-3 rounded-xl bg-primary/10 group-hover:bg-primary/20 transition-colors">
-                      <FileText className="h-6 w-6 text-primary" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <h3 className="font-semibold text-lg group-hover:text-primary transition-colors">
-                        {page.title}
-                      </h3>
-                      {page.description && (
-                        <p className="text-sm text-muted-foreground line-clamp-1 mt-1">
-                          {page.description}
-                        </p>
-                      )}
-                    </div>
-                    <ExternalLink className="h-5 w-5 text-muted-foreground group-hover:text-primary transition-colors" />
-                  </div>
-                </CardContent>
-              </Card>
-            </Link>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function PagesPageContent() {
+export default function PagesPage() {
   const { user: currentUser } = useAuthStore();
   const router = useRouter();
   const locale = useLocale();
+
+  const isAdmin = currentUser?.role === 'PLATFORM_ADMIN' || currentUser?.role === 'ADMIN';
+
   const [search, setSearch] = useState('');
+  const [selectedPage, setSelectedPage] = useState<Page | null>(null);
+  const [formDialogOpen, setFormDialogOpen] = useState(false);
+  const [editingPage, setEditingPage] = useState<Page | null>(null);
   const [pageToDelete, setPageToDelete] = useState<Page | null>(null);
 
   const { data, isLoading, refetch } = usePages();
   const deletePage = useDeletePage();
   const publishPage = usePublishPage();
   const unpublishPage = useUnpublishPage();
-  const createPage = useCreatePage();
+  const createPageMutation = useCreatePage();
 
   // Garante que pages e sempre um array
   const pages: Page[] = (() => {
@@ -158,17 +63,24 @@ function PagesPageContent() {
     return [];
   })();
 
-  const filteredPages = pages.filter((page) =>
-    (page.title || '').toLowerCase().includes(search.toLowerCase())
+  // Para USER/VIEWER, mostra apenas publicadas
+  const visiblePages = isAdmin ? pages : pages.filter(p => p.isPublished);
+
+  const filteredPages = visiblePages.filter((page) =>
+    (page.title || '').toLowerCase().includes(search.toLowerCase()) ||
+    (page.slug || '').toLowerCase().includes(search.toLowerCase())
   );
 
   const handleDelete = async () => {
     if (!pageToDelete) return;
     try {
       await deletePage.mutateAsync(pageToDelete.id);
+      if (selectedPage?.id === pageToDelete.id) {
+        setSelectedPage(null);
+      }
       setPageToDelete(null);
     } catch (error) {
-      // Error handled by hook
+      // tratado pelo hook
     }
   };
 
@@ -180,246 +92,294 @@ function PagesPageContent() {
         await publishPage.mutateAsync(page.id);
       }
     } catch (error) {
-      // Error handled by hook
+      // tratado pelo hook
     }
   };
 
   const handleDuplicate = async (page: Page) => {
     try {
-      await createPage.mutateAsync({
+      await createPageMutation.mutateAsync({
         title: `${page.title} (Copia)`,
-        slug: `${page.slug}-copy-${Date.now()}`,
+        slug: `${page.slug}-copia-${Date.now()}`,
         description: page.description,
         content: page.content,
         isPublished: false,
       });
     } catch (error) {
-      // Error handled by hook
+      // tratado pelo hook
     }
   };
 
-  // Contadores seguros
-  const totalPages = pages.length;
-  const publishedPages = pages.filter((p) => p.isPublished).length;
-  const draftPages = pages.filter((p) => !p.isPublished).length;
+  const handleNewPage = () => {
+    setEditingPage(null);
+    setFormDialogOpen(true);
+  };
+
+  const handleEditMeta = (page: Page) => {
+    setEditingPage(page);
+    setFormDialogOpen(true);
+  };
+
+  const handleFormSuccess = () => {
+    refetch();
+  };
 
   return (
     <div className="space-y-6">
       {/* Breadcrumbs */}
-      <nav className="mb-2 flex items-center gap-2 text-sm text-muted-foreground" aria-label="breadcrumb">
+      <nav className="mb-2 flex items-center gap-2 text-sm text-muted-foreground">
         <Link href="/dashboard" className="hover:underline">Dashboard</Link>
         <span>/</span>
         <span className="font-semibold text-foreground">Paginas</span>
       </nav>
 
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="flex justify-between items-start">
         <div>
           <h1 className="text-3xl font-bold">Paginas</h1>
           <p className="text-muted-foreground mt-1">
-            Crie e gerencie paginas customizadas
+            Gerencie as paginas do seu sistema
           </p>
         </div>
-        <Link href="/pages/new">
-          <Button>
+        {isAdmin && (
+          <Button onClick={handleNewPage}>
             <Plus className="h-4 w-4 mr-2" />
             Nova Pagina
           </Button>
-        </Link>
+        )}
       </div>
 
-      {/* Stats */}
-      <div className="grid gap-4 md:grid-cols-3">
-        <Card>
-          <CardContent className="p-4">
-            <div className="text-2xl font-bold">{totalPages}</div>
-            <p className="text-sm text-muted-foreground">Total de Paginas</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <div className="text-2xl font-bold text-green-600">{publishedPages}</div>
-            <p className="text-sm text-muted-foreground">Publicadas</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <div className="text-2xl font-bold text-yellow-600">{draftPages}</div>
-            <p className="text-sm text-muted-foreground">Rascunhos</p>
-          </CardContent>
-        </Card>
-      </div>
+      <div className="flex gap-6">
+        {/* Sidebar de Paginas */}
+        <div className="w-72 space-y-2">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="font-semibold text-sm text-muted-foreground uppercase tracking-wider">
+              Paginas
+            </h3>
+            <span className="text-xs text-muted-foreground">{filteredPages.length}</span>
+          </div>
 
-      {/* Search */}
-      <div className="relative max-w-md">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-        <Input
-          placeholder="Buscar paginas..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="pl-9"
-        />
-      </div>
+          {/* Busca */}
+          <div className="relative mb-3">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+            <Input
+              placeholder="Buscar..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="pl-9 h-9 text-sm"
+            />
+          </div>
 
-      {/* Pages Grid */}
-      {isLoading ? (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {[1, 2, 3].map((i) => (
-            <Card key={i} className="animate-pulse">
-              <CardContent className="p-6">
-                <div className="h-6 bg-muted rounded w-1/2 mb-4" />
-                <div className="h-4 bg-muted rounded w-3/4 mb-2" />
-                <div className="h-4 bg-muted rounded w-1/2" />
+          {isLoading ? (
+            <div className="space-y-2">
+              {[1, 2, 3].map(i => (
+                <div key={i} className="h-14 bg-muted animate-pulse rounded-lg" />
+              ))}
+            </div>
+          ) : filteredPages.length === 0 ? (
+            <Card>
+              <CardContent className="py-8 text-center">
+                <FileText className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
+                <p className="text-sm text-muted-foreground">
+                  {search ? 'Nenhuma pagina encontrada' : 'Nenhuma pagina criada'}
+                </p>
+                {!search && isAdmin && (
+                  <Button variant="link" size="sm" onClick={handleNewPage}>
+                    Criar primeira pagina
+                  </Button>
+                )}
               </CardContent>
             </Card>
-          ))}
-        </div>
-      ) : filteredPages.length === 0 ? (
-        <Card>
-          <CardContent className="p-12 text-center">
-            <FileText className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-            <h3 className="text-lg font-semibold mb-2">Nenhuma pagina encontrada</h3>
-            <p className="text-muted-foreground mb-4">
-              {search
-                ? 'Nenhuma pagina corresponde a sua busca.'
-                : 'Crie paginas customizadas para seu CRM.'}
-            </p>
-            {!search && (
-              <Link href="/pages/new">
-                <Button>
-                  <Plus className="h-4 w-4 mr-2" />
-                  Criar Primeira Pagina
-                </Button>
-              </Link>
-            )}
-          </CardContent>
-        </Card>
-      ) : (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {filteredPages.map((page) => (
-            <Card key={page.id} className="group hover:border-primary/50 transition-colors">
-              <CardContent className="p-6">
-                <div className="flex items-start justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 rounded-lg bg-primary/10">
-                      <FileText className="h-5 w-5 text-primary" />
-                    </div>
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <h3 className="font-semibold">{page.title}</h3>
-                        {/* Exibe o tenant apenas para SuperAdmin */}
-                        {currentUser?.role === 'PLATFORM_ADMIN' && (
-                          <span className="ml-2 px-2 py-0.5 text-xs rounded bg-gray-200 text-gray-700" title={page.tenantId}>
-                            {page.tenant?.name ? page.tenant.name : page.tenantId}
-                          </span>
-                        )}
-                      </div>
-                      <p className="text-sm text-muted-foreground">/{page.slug}</p>
-                    </div>
+          ) : (
+            <div className="space-y-1">
+              {filteredPages.map(page => (
+                <button
+                  key={page.id}
+                  onClick={() => setSelectedPage(page)}
+                  className={`w-full flex items-center gap-3 p-3 rounded-lg text-left transition-colors ${
+                    selectedPage?.id === page.id
+                      ? 'bg-primary text-primary-foreground'
+                      : 'hover:bg-muted'
+                  }`}
+                >
+                  <FileText className="h-4 w-4 flex-shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <div className="font-medium text-sm truncate">{page.title}</div>
+                    <div className="text-xs opacity-70 truncate">/{page.slug}</div>
                   </div>
-                  <div className="flex items-center gap-1">
-                    <span
-                      className={`px-2 py-0.5 text-xs rounded-full flex items-center gap-1 ${
-                        page.isPublished
+                  {page.isPublished ? (
+                    <Globe className="h-3.5 w-3.5 text-green-500 flex-shrink-0" />
+                  ) : (
+                    <GlobeLock className="h-3.5 w-3.5 text-yellow-500 flex-shrink-0" />
+                  )}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Area Principal */}
+        <div className="flex-1">
+          {selectedPage ? (
+            <Card>
+              <CardHeader className="border-b">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle className="flex items-center gap-2">
+                      {selectedPage.title}
+                      {currentUser?.role === 'PLATFORM_ADMIN' && selectedPage.tenant && (
+                        <span className="text-xs font-normal px-2 py-0.5 rounded bg-gray-200 text-gray-700">
+                          {selectedPage.tenant.name || selectedPage.tenantId}
+                        </span>
+                      )}
+                    </CardTitle>
+                    <CardDescription className="flex items-center gap-3 mt-1">
+                      <span>/preview/{selectedPage.slug}</span>
+                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs ${
+                        selectedPage.isPublished
                           ? 'bg-green-100 text-green-800'
                           : 'bg-yellow-100 text-yellow-800'
-                      }`}
+                      }`}>
+                        {selectedPage.isPublished ? (
+                          <><Globe className="h-3 w-3" /> Publicada</>
+                        ) : (
+                          <><GlobeLock className="h-3 w-3" /> Rascunho</>
+                        )}
+                      </span>
+                    </CardDescription>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => window.open(`/${locale}/preview/${selectedPage.slug}`, '_blank')}
                     >
-                      {page.isPublished ? (
-                        <>
-                          <Globe className="h-3 w-3" />
-                          Publicada
-                        </>
-                      ) : (
-                        <>
-                          <GlobeLock className="h-3 w-3" />
-                          Rascunho
-                        </>
-                      )}
-                    </span>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-8 w-8">
-                          <MoreVertical className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={() => router.push(`/pages/${page.id}/edit`)}>
-                          <Pencil className="h-4 w-4 mr-2" />
-                          Editar
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => window.open(`/${locale}/preview/${page.slug}`, '_blank')}>
-                          <Eye className="h-4 w-4 mr-2" />
-                          Visualizar
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => handleDuplicate(page)}>
-                          <Copy className="h-4 w-4 mr-2" />
-                          Duplicar
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => handlePublish(page)}>
-                          <ExternalLink className="h-4 w-4 mr-2" />
-                          {page.isPublished ? 'Despublicar' : 'Publicar'}
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem
-                          onClick={() => setPageToDelete(page)}
-                          className="text-destructive focus:text-destructive"
-                        >
-                          <Trash className="h-4 w-4 mr-2" />
-                          Excluir
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
+                      <Eye className="h-4 w-4 mr-1" />
+                      Preview
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="h-9 w-9"
+                      onClick={() => refetch()}
+                    >
+                      <RefreshCw className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="p-6">
+                {/* Info da pagina */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                  <div className="p-3 rounded-lg bg-muted/50">
+                    <div className="text-xs text-muted-foreground">Slug</div>
+                    <div className="text-sm font-medium mt-1">{selectedPage.slug}</div>
+                  </div>
+                  <div className="p-3 rounded-lg bg-muted/50">
+                    <div className="text-xs text-muted-foreground">Status</div>
+                    <div className="text-sm font-medium mt-1">
+                      {selectedPage.isPublished ? 'Publicada' : 'Rascunho'}
+                    </div>
+                  </div>
+                  <div className="p-3 rounded-lg bg-muted/50">
+                    <div className="text-xs text-muted-foreground">Criado em</div>
+                    <div className="text-sm font-medium mt-1">
+                      {new Date(selectedPage.createdAt).toLocaleDateString('pt-BR')}
+                    </div>
+                  </div>
+                  <div className="p-3 rounded-lg bg-muted/50">
+                    <div className="text-xs text-muted-foreground">Atualizado em</div>
+                    <div className="text-sm font-medium mt-1">
+                      {new Date(selectedPage.updatedAt).toLocaleDateString('pt-BR')}
+                    </div>
                   </div>
                 </div>
 
-                {page.description && (
-                  <p className="text-sm text-muted-foreground mt-3 line-clamp-2">
-                    {page.description}
-                  </p>
+                {selectedPage.description && (
+                  <div className="mb-6 p-3 rounded-lg bg-muted/50">
+                    <div className="text-xs text-muted-foreground mb-1">Descricao</div>
+                    <div className="text-sm">{selectedPage.description}</div>
+                  </div>
                 )}
 
-                <div className="text-xs text-muted-foreground mt-4">
-                  Atualizado em {new Date(page.updatedAt).toLocaleDateString('pt-BR')}
-                </div>
-
-                <div className="flex gap-2 mt-4 pt-4 border-t">
-                  <Link href={`/pages/${page.id}/edit`} className="flex-1">
-                    <Button variant="outline" size="sm" className="w-full">
-                      <Pencil className="h-3 w-3 mr-1" />
-                      Editar
+                {/* Acoes */}
+                {isAdmin && (
+                  <div className="flex flex-wrap gap-2 pt-4 border-t">
+                    <Link href={`/pages/${selectedPage.id}/edit`}>
+                      <Button variant="default" size="sm">
+                        <LayoutDashboard className="h-4 w-4 mr-2" />
+                        Editor Visual
+                      </Button>
+                    </Link>
+                    <Button variant="outline" size="sm" onClick={() => handleEditMeta(selectedPage)}>
+                      <Pencil className="h-4 w-4 mr-2" />
+                      Editar Dados
                     </Button>
-                  </Link>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => window.open(`/${locale}/preview/${page.slug}`, '_blank')}
-                  >
-                    <Eye className="h-3 w-3 mr-1" />
-                    Preview
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => handleDuplicate(page)}
-                    disabled={createPage.isPending}
-                  >
-                    <Copy className="h-3 w-3" />
-                  </Button>
-                </div>
+                    <Button variant="outline" size="sm" onClick={() => handlePublish(selectedPage)}>
+                      {selectedPage.isPublished ? (
+                        <><GlobeLock className="h-4 w-4 mr-2" /> Despublicar</>
+                      ) : (
+                        <><Globe className="h-4 w-4 mr-2" /> Publicar</>
+                      )}
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={() => handleDuplicate(selectedPage)}>
+                      <Copy className="h-4 w-4 mr-2" />
+                      Duplicar
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="text-destructive hover:text-destructive"
+                      onClick={() => setPageToDelete(selectedPage)}
+                    >
+                      <Trash2 className="h-4 w-4 mr-2" />
+                      Excluir
+                    </Button>
+                  </div>
+                )}
+
+                {/* Visualizacao User/Viewer - apenas link para preview */}
+                {!isAdmin && (
+                  <div className="pt-4 border-t">
+                    <Button
+                      onClick={() => window.open(`/${locale}/preview/${selectedPage.slug}`, '_blank')}
+                    >
+                      <ExternalLink className="h-4 w-4 mr-2" />
+                      Abrir Pagina
+                    </Button>
+                  </div>
+                )}
               </CardContent>
             </Card>
-          ))}
+          ) : (
+            <Card>
+              <CardContent className="flex flex-col items-center justify-center h-96">
+                <FileText className="h-16 w-16 text-muted-foreground mb-4" />
+                <h3 className="text-xl font-medium mb-2">Selecione uma Pagina</h3>
+                <p className="text-muted-foreground text-center max-w-md">
+                  Escolha uma pagina na lista a esquerda para ver seus detalhes e gerencia-la
+                </p>
+              </CardContent>
+            </Card>
+          )}
         </div>
-      )}
+      </div>
 
-      {/* Delete Confirmation Dialog */}
+      {/* Dialog de formulario */}
+      <PageFormDialog
+        open={formDialogOpen}
+        onOpenChange={setFormDialogOpen}
+        page={editingPage}
+        onSuccess={handleFormSuccess}
+      />
+
+      {/* Dialog de confirmacao de exclusao */}
       <AlertDialog open={!!pageToDelete} onOpenChange={() => setPageToDelete(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Excluir pagina?</AlertDialogTitle>
             <AlertDialogDescription>
-              Tem certeza que deseja excluir a pagina "{pageToDelete?.title}"?
+              Tem certeza que deseja excluir a pagina &quot;{pageToDelete?.title}&quot;?
               Esta acao nao pode ser desfeita.
             </AlertDialogDescription>
           </AlertDialogHeader>
@@ -438,17 +398,4 @@ function PagesPageContent() {
       </AlertDialog>
     </div>
   );
-}
-
-export default function PagesPage() {
-  const { user } = useAuthStore();
-  const isAdmin = user?.role === 'PLATFORM_ADMIN' || user?.role === 'ADMIN';
-
-  // USER e VIEWER veem apenas paginas publicadas (sem opcao de editar)
-  if (!isAdmin) {
-    return <UserPagesView />;
-  }
-
-  // ADMIN e PLATFORM_ADMIN veem a versao completa com edicao
-  return <PagesPageContent />;
 }

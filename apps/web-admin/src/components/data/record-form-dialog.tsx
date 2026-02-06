@@ -1,7 +1,7 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
-import { Loader2 } from 'lucide-react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
+import { Loader2, Star, Eye, EyeOff } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -15,6 +15,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Slider as SliderUI } from '@/components/ui/slider';
 import {
   Select,
   SelectContent,
@@ -27,11 +28,10 @@ import { useTenant } from '@/stores/tenant-context';
 import { api } from '@/lib/api';
 import type { EntityField, FieldType } from '@/types';
 
-// Interface para opcoes carregadas da API
 interface ApiOption {
   value: string;
   label: string;
-  data: Record<string, unknown>; // Dados completos para auto-fill
+  data: Record<string, unknown>;
 }
 
 interface Entity {
@@ -54,6 +54,32 @@ interface RecordFormDialogProps {
   onSuccess?: () => void;
 }
 
+// ─── Masks ──────────────────────────────────────────────────────────────────
+function applyCpfMask(value: string) {
+  return value.replace(/\D/g, '').replace(/(\d{3})(\d)/, '$1.$2').replace(/(\d{3})(\d)/, '$1.$2').replace(/(\d{3})(\d{1,2})/, '$1-$2').replace(/(-\d{2})\d+?$/, '$1');
+}
+
+function applyCnpjMask(value: string) {
+  return value.replace(/\D/g, '').replace(/(\d{2})(\d)/, '$1.$2').replace(/(\d{3})(\d)/, '$1.$2').replace(/(\d{3})(\d)/, '$1/$2').replace(/(\d{4})(\d{1,2})/, '$1-$2').replace(/(-\d{2})\d+?$/, '$1');
+}
+
+function applyCepMask(value: string) {
+  return value.replace(/\D/g, '').replace(/(\d{5})(\d)/, '$1-$2').replace(/(-\d{3})\d+?$/, '$1');
+}
+
+function applyPhoneMask(value: string) {
+  const digits = value.replace(/\D/g, '');
+  if (digits.length <= 10) return digits.replace(/(\d{2})(\d)/, '($1) $2').replace(/(\d{4})(\d)/, '$1-$2');
+  return digits.replace(/(\d{2})(\d)/, '($1) $2').replace(/(\d{5})(\d)/, '$1-$2').replace(/(-\d{4})\d+?$/, '$1');
+}
+
+function formatCurrency(value: string | number, prefix = 'R$') {
+  const num = typeof value === 'string' ? parseFloat(value.replace(/[^\d.-]/g, '')) : value;
+  if (isNaN(num)) return '';
+  return `${prefix} ${num.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+// ─── Component ──────────────────────────────────────────────────────────────
 export function RecordFormDialog({
   open,
   onOpenChange,
@@ -70,9 +96,10 @@ export function RecordFormDialog({
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [apiOptions, setApiOptions] = useState<Record<string, ApiOption[]>>({});
   const [loadingApiOptions, setLoadingApiOptions] = useState<Record<string, boolean>>({});
+  const [relationOptions, setRelationOptions] = useState<Record<string, ApiOption[]>>({});
+  const [loadingRelations, setLoadingRelations] = useState<Record<string, boolean>>({});
+  const [showPassword, setShowPassword] = useState<Record<string, boolean>>({});
 
-  // Funcao helper para normalizar valores de select/multiselect
-  // Se o valor for um objeto {color, label, value}, extrai apenas o value
   const normalizeSelectValue = (val: unknown): unknown => {
     if (val && typeof val === 'object' && 'value' in (val as Record<string, unknown>)) {
       return (val as Record<string, unknown>).value;
@@ -85,8 +112,7 @@ export function RecordFormDialog({
     for (const key in data) {
       const field = fields.find(f => f.slug === key);
       const value = data[key];
-
-      if (field?.type === 'select' || field?.type === 'api-select') {
+      if (field?.type === 'select' || field?.type === 'api-select' || field?.type === 'relation') {
         normalized[key] = normalizeSelectValue(value);
       } else if (field?.type === 'multiselect' && Array.isArray(value)) {
         normalized[key] = value.map(v => normalizeSelectValue(v));
@@ -97,105 +123,105 @@ export function RecordFormDialog({
     return normalized;
   };
 
-  // Funcao para buscar opcoes de uma Custom API
+  // ─── Fetch API options ──────────────────────────────────────────────────
   const fetchApiOptions = useCallback(async (field: EntityField) => {
     if (!field.apiEndpoint || !tenantId) return;
-
     setLoadingApiOptions(prev => ({ ...prev, [field.slug]: true }));
-
     try {
-      // Custom APIs sao acessadas via /x/:tenantId/:path
       const response = await api.get(`/x/${tenantId}${field.apiEndpoint}`);
       const data = Array.isArray(response.data) ? response.data : response.data.data || [];
-
       const options: ApiOption[] = data.map((item: Record<string, unknown>) => {
         const valueField = field.valueField || 'id';
-        const labelField = field.labelField || 'name' || 'email' || 'company_name';
-
-        // Tenta encontrar o melhor campo para label
+        const labelField = field.labelField || 'name';
         let label = item[labelField];
         if (!label) {
-          // Fallback: usa o primeiro campo texto que encontrar
           for (const key of Object.keys(item)) {
             if (typeof item[key] === 'string' && key !== 'id' && key !== 'createdAt' && key !== 'updatedAt') {
-              label = item[key];
-              break;
+              label = item[key]; break;
             }
           }
         }
-
-        return {
-          value: String(item[valueField] || item.id || ''),
-          label: String(label || item[valueField] || 'Sem nome'),
-          data: item,
-        };
+        return { value: String(item[valueField] || item.id || ''), label: String(label || item[valueField] || 'Sem nome'), data: item };
       });
-
       setApiOptions(prev => ({ ...prev, [field.slug]: options }));
     } catch (error) {
-      console.error(`Erro ao buscar opcoes da API ${field.apiEndpoint}:`, error);
+      console.error(`Erro ao buscar opções da API ${field.apiEndpoint}:`, error);
       setApiOptions(prev => ({ ...prev, [field.slug]: [] }));
     } finally {
       setLoadingApiOptions(prev => ({ ...prev, [field.slug]: false }));
     }
   }, [tenantId]);
 
-  // Carrega opcoes de campos api-select quando o dialog abre
+  // ─── Fetch relation options ─────────────────────────────────────────────
+  const fetchRelationOptions = useCallback(async (field: EntityField) => {
+    if (!field.relatedEntitySlug || !tenantId) return;
+    setLoadingRelations(prev => ({ ...prev, [field.slug]: true }));
+    try {
+      const response = await api.get(`/data/${field.relatedEntitySlug}`);
+      const data = Array.isArray(response.data) ? response.data : response.data?.data || [];
+      const displayField = field.relatedDisplayField || '';
+      const options: ApiOption[] = data.map((item: Record<string, unknown>) => {
+        const itemData = (item.data || item) as Record<string, unknown>;
+        let label = displayField ? itemData[displayField] : undefined;
+        if (!label) {
+          for (const key of Object.keys(itemData)) {
+            if (typeof itemData[key] === 'string' && key !== 'id' && key !== 'createdAt' && key !== 'updatedAt') {
+              label = itemData[key]; break;
+            }
+          }
+        }
+        return {
+          value: String((item as any).id || ''),
+          label: String(label || (item as any).id || 'Sem nome'),
+          data: itemData,
+        };
+      });
+      setRelationOptions(prev => ({ ...prev, [field.slug]: options }));
+    } catch (error) {
+      console.error(`Erro ao buscar relação ${field.relatedEntitySlug}:`, error);
+      setRelationOptions(prev => ({ ...prev, [field.slug]: [] }));
+    } finally {
+      setLoadingRelations(prev => ({ ...prev, [field.slug]: false }));
+    }
+  }, [tenantId]);
+
+  // Load options when dialog opens
   useEffect(() => {
     if (open && entity.fields) {
-      const apiSelectFields = entity.fields.filter(f => f.type === 'api-select' && f.apiEndpoint);
-      apiSelectFields.forEach(field => {
-        fetchApiOptions(field);
-      });
+      entity.fields.filter(f => f.type === 'api-select' && f.apiEndpoint).forEach(fetchApiOptions);
+      entity.fields.filter(f => f.type === 'relation' && f.relatedEntitySlug).forEach(fetchRelationOptions);
     }
-  }, [open, entity.fields, fetchApiOptions]);
+  }, [open, entity.fields, fetchApiOptions, fetchRelationOptions]);
 
-  // Handler para quando um campo api-select muda - aplica auto-fill
   const handleApiSelectChange = (field: EntityField, value: string) => {
+    handleFieldChange(field.slug, value);
     const options = apiOptions[field.slug] || [];
     const selectedOption = options.find(opt => opt.value === value);
-
-    // Atualiza o valor do campo
-    handleFieldChange(field.slug, value);
-
-    // Aplica auto-fill se configurado
     if (selectedOption && field.autoFillFields) {
       const updates: Record<string, unknown> = {};
-
       for (const autoFill of field.autoFillFields) {
         const sourceValue = selectedOption.data[autoFill.sourceField];
-        if (sourceValue !== undefined) {
-          updates[autoFill.targetField] = sourceValue;
-        }
+        if (sourceValue !== undefined) updates[autoFill.targetField] = sourceValue;
       }
-
-      if (Object.keys(updates).length > 0) {
-        setFormData(prev => ({ ...prev, ...updates }));
-      }
+      if (Object.keys(updates).length > 0) setFormData(prev => ({ ...prev, ...updates }));
     }
   };
 
-  // Inicializa o formulario quando abre ou muda o record
   useEffect(() => {
     if (open) {
       if (record) {
-        // Normaliza os dados para garantir que valores de select/multiselect sao strings
         setFormData(normalizeFormData(record.data || {}, entity.fields || []));
       } else {
-        // Inicializa com valores default dos campos
         const initialData: Record<string, unknown> = {};
         entity.fields?.forEach((field) => {
-          if (field.default !== undefined) {
-            initialData[field.slug] = field.default;
-          } else if (field.type === 'boolean') {
-            initialData[field.slug] = false;
-          } else if (field.type === 'number') {
-            initialData[field.slug] = '';
-          } else if (field.type === 'multiselect') {
-            initialData[field.slug] = [];
-          } else {
-            initialData[field.slug] = '';
-          }
+          if (field.default !== undefined) initialData[field.slug] = field.default;
+          else if (field.type === 'boolean') initialData[field.slug] = false;
+          else if (field.type === 'number' || field.type === 'currency' || field.type === 'percentage') initialData[field.slug] = '';
+          else if (field.type === 'multiselect') initialData[field.slug] = [];
+          else if (field.type === 'rating') initialData[field.slug] = 0;
+          else if (field.type === 'slider') initialData[field.slug] = field.min || 0;
+          else if (field.type === 'color') initialData[field.slug] = '#000000';
+          else initialData[field.slug] = '';
         });
         setFormData(initialData);
       }
@@ -205,72 +231,64 @@ export function RecordFormDialog({
 
   const handleFieldChange = (fieldSlug: string, value: unknown) => {
     setFormData((prev) => ({ ...prev, [fieldSlug]: value }));
-    // Limpa erro do campo ao editar
     if (errors[fieldSlug]) {
-      setErrors((prev) => {
-        const newErrors = { ...prev };
-        delete newErrors[fieldSlug];
-        return newErrors;
-      });
+      setErrors((prev) => { const newErrors = { ...prev }; delete newErrors[fieldSlug]; return newErrors; });
     }
   };
 
   const validateForm = (): boolean => {
     const newErrors: Record<string, string> = {};
-
     entity.fields?.forEach((field) => {
       const value = formData[field.slug];
-
-      // Validacao de campo obrigatorio
-      if (field.required) {
-        if (value === undefined || value === null || value === '') {
-          newErrors[field.slug] = `${field.label || field.name} e obrigatorio`;
-          return;
-        }
+      if (field.required && (value === undefined || value === null || value === '')) {
+        newErrors[field.slug] = `${field.label || field.name} é obrigatório`;
+        return;
       }
-
-      // Validacoes especificas por tipo
       if (value !== undefined && value !== null && value !== '') {
         switch (field.type) {
           case 'email':
-            if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value))) {
-              newErrors[field.slug] = 'Email invalido';
-            }
+            if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value))) newErrors[field.slug] = 'Email inválido';
             break;
           case 'url':
-            try {
-              new URL(String(value));
-            } catch {
-              newErrors[field.slug] = 'URL invalida';
-            }
+            try { new URL(String(value)); } catch { newErrors[field.slug] = 'URL inválida'; }
             break;
-          case 'number':
-            if (isNaN(Number(value))) {
-              newErrors[field.slug] = 'Numero invalido';
-            }
+          case 'number': case 'currency': case 'percentage':
+            if (isNaN(Number(String(value).replace(/[^\d.-]/g, '')))) newErrors[field.slug] = 'Número inválido';
             break;
+          case 'cpf': {
+            const digits = String(value).replace(/\D/g, '');
+            if (digits.length !== 11) newErrors[field.slug] = 'CPF deve ter 11 dígitos';
+            break;
+          }
+          case 'cnpj': {
+            const digits = String(value).replace(/\D/g, '');
+            if (digits.length !== 14) newErrors[field.slug] = 'CNPJ deve ter 14 dígitos';
+            break;
+          }
+          case 'cep': {
+            const digits = String(value).replace(/\D/g, '');
+            if (digits.length !== 8) newErrors[field.slug] = 'CEP deve ter 8 dígitos';
+            break;
+          }
         }
       }
     });
-
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!validateForm()) return;
 
-    if (!validateForm()) {
-      return;
-    }
-
-    // Processa os dados antes de enviar
     const processedData: Record<string, unknown> = {};
     entity.fields?.forEach((field) => {
       const value = formData[field.slug];
       if (value !== undefined && value !== '') {
-        if (field.type === 'number') {
+        if (field.type === 'number' || field.type === 'rating' || field.type === 'slider') {
           processedData[field.slug] = Number(value);
+        } else if (field.type === 'currency' || field.type === 'percentage') {
+          processedData[field.slug] = Number(String(value).replace(/[^\d.-]/g, ''));
         } else {
           processedData[field.slug] = value;
         }
@@ -279,356 +297,444 @@ export function RecordFormDialog({
 
     try {
       if (isEditing && record) {
-        await updateRecord.mutateAsync({
-          entitySlug: entity.slug,
-          id: record.id,
-          data: processedData,
-        });
+        await updateRecord.mutateAsync({ entitySlug: entity.slug, id: record.id, data: processedData });
       } else {
-        await createRecord.mutateAsync({
-          entitySlug: entity.slug,
-          data: processedData,
-        });
+        await createRecord.mutateAsync({ entitySlug: entity.slug, data: processedData });
       }
       onOpenChange(false);
       onSuccess?.();
-    } catch (error) {
-      // Erro tratado pelo hook
-    }
+    } catch (error) { /* handled by hook */ }
   };
 
   const isLoading = createRecord.isPending || updateRecord.isPending;
 
+  // ─── Group fields into grid rows ──────────────────────────────────────────
+  const fieldRows = useMemo(() => {
+    const visibleFields = (entity.fields || []).filter(f => f.type !== 'hidden');
+    const rows: EntityField[][] = [];
+    let currentRow: EntityField[] = [];
+    let currentRowNum = -1;
+    let currentRowSpan = 0;
+
+    for (const field of visibleFields) {
+      const fieldRow = field.gridRow || 0;
+      const colSpan = field.gridColSpan || 12;
+
+      if (fieldRow > 0 && fieldRow === currentRowNum && currentRowSpan + colSpan <= 12) {
+        currentRow.push(field);
+        currentRowSpan += colSpan;
+      } else {
+        if (currentRow.length > 0) rows.push(currentRow);
+        currentRow = [field];
+        currentRowNum = fieldRow || -1;
+        currentRowSpan = colSpan;
+      }
+    }
+    if (currentRow.length > 0) rows.push(currentRow);
+    return rows;
+  }, [entity.fields]);
+
+  // ─── Render field ─────────────────────────────────────────────────────────
   const renderField = (field: EntityField) => {
     const value = formData[field.slug];
     const error = errors[field.slug];
+    const helpText = field.helpText;
+
+    const fieldLabel = (
+      <Label htmlFor={field.slug}>
+        {field.label || field.name}
+        {field.required && <span className="text-destructive ml-1">*</span>}
+      </Label>
+    );
+    const errorEl = error ? <p className="text-sm text-destructive">{error}</p> : null;
+    const helpEl = helpText ? <p className="text-xs text-muted-foreground">{helpText}</p> : null;
 
     switch (field.type) {
       case 'textarea':
+      case 'richtext':
         return (
           <div key={field.slug} className="space-y-2">
-            <Label htmlFor={field.slug}>
-              {field.label || field.name}
-              {field.required && <span className="text-destructive ml-1">*</span>}
-            </Label>
-            <Textarea
-              id={field.slug}
-              placeholder={`Digite ${(field.label || field.name).toLowerCase()}`}
-              value={String(value || '')}
-              onChange={(e) => handleFieldChange(field.slug, e.target.value)}
-              rows={3}
-            />
-            {error && <p className="text-sm text-destructive">{error}</p>}
+            {fieldLabel}
+            <Textarea id={field.slug} placeholder={field.placeholder || `Digite ${(field.label || field.name).toLowerCase()}`} value={String(value || '')} onChange={(e) => handleFieldChange(field.slug, e.target.value)} rows={3} />
+            {helpEl}{errorEl}
           </div>
         );
 
       case 'boolean':
         return (
-          <div key={field.slug} className="flex items-center space-x-2">
-            <Checkbox
-              id={field.slug}
-              checked={Boolean(value)}
-              onCheckedChange={(checked) => handleFieldChange(field.slug, checked)}
-            />
-            <Label htmlFor={field.slug} className="cursor-pointer">
-              {field.label || field.name}
-              {field.required && <span className="text-destructive ml-1">*</span>}
-            </Label>
-            {error && <p className="text-sm text-destructive ml-6">{error}</p>}
+          <div key={field.slug} className="flex items-center space-x-2 pt-6">
+            <Checkbox id={field.slug} checked={Boolean(value)} onCheckedChange={(checked) => handleFieldChange(field.slug, checked)} />
+            <Label htmlFor={field.slug} className="cursor-pointer">{field.label || field.name}{field.required && <span className="text-destructive ml-1">*</span>}</Label>
+            {errorEl}
           </div>
         );
 
       case 'select':
         return (
           <div key={field.slug} className="space-y-2">
-            <Label htmlFor={field.slug}>
-              {field.label || field.name}
-              {field.required && <span className="text-destructive ml-1">*</span>}
-            </Label>
-            <Select
-              value={String(value || '')}
-              onValueChange={(val) => handleFieldChange(field.slug, val)}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder={`Selecione ${(field.label || field.name).toLowerCase()}`} />
-              </SelectTrigger>
+            {fieldLabel}
+            <Select value={String(value || '')} onValueChange={(val) => handleFieldChange(field.slug, val)}>
+              <SelectTrigger><SelectValue placeholder={field.placeholder || `Selecione`} /></SelectTrigger>
               <SelectContent>
                 {field.options?.map((option) => {
-                  // Handle both string options and object options {label, value, color}
-                  const optionValue = typeof option === 'object' ? option.value : option;
-                  const optionLabel = typeof option === 'object' ? option.label : option;
-                  const optionColor = typeof option === 'object' ? option.color : undefined;
+                  const optVal = typeof option === 'object' ? option.value : option;
+                  const optLabel = typeof option === 'object' ? option.label : option;
+                  const optColor = typeof option === 'object' ? option.color : undefined;
                   return (
-                    <SelectItem key={optionValue} value={optionValue}>
+                    <SelectItem key={optVal} value={optVal}>
                       <span className="flex items-center gap-2">
-                        {optionColor && (
-                          <span
-                            className="w-3 h-3 rounded-full"
-                            style={{ backgroundColor: optionColor }}
-                          />
-                        )}
-                        {optionLabel}
+                        {optColor && <span className="w-3 h-3 rounded-full" style={{ backgroundColor: optColor }} />}
+                        {optLabel}
                       </span>
                     </SelectItem>
                   );
                 })}
               </SelectContent>
             </Select>
-            {error && <p className="text-sm text-destructive">{error}</p>}
+            {helpEl}{errorEl}
+          </div>
+        );
+
+      case 'multiselect':
+        return (
+          <div key={field.slug} className="space-y-2">
+            {fieldLabel}
+            <div className="border rounded-md p-3 space-y-2 max-h-40 overflow-y-auto">
+              {field.options?.map((option) => {
+                const optVal = typeof option === 'object' ? option.value : option;
+                const optLabel = typeof option === 'object' ? option.label : option;
+                const selectedValues = Array.isArray(value) ? value : [];
+                return (
+                  <div key={optVal} className="flex items-center space-x-2">
+                    <Checkbox id={`${field.slug}-${optVal}`} checked={selectedValues.includes(optVal)}
+                      onCheckedChange={(checked) => {
+                        if (checked) handleFieldChange(field.slug, [...selectedValues, optVal]);
+                        else handleFieldChange(field.slug, selectedValues.filter((v: string) => v !== optVal));
+                      }} />
+                    <Label htmlFor={`${field.slug}-${optVal}`} className="cursor-pointer text-sm">{optLabel}</Label>
+                  </div>
+                );
+              })}
+            </div>
+            {helpEl}{errorEl}
           </div>
         );
 
       case 'api-select': {
         const options = apiOptions[field.slug] || [];
-        const isLoadingOptions = loadingApiOptions[field.slug];
-
+        const isLoadingOpts = loadingApiOptions[field.slug];
         return (
           <div key={field.slug} className="space-y-2">
-            <Label htmlFor={field.slug}>
-              {field.label || field.name}
-              {field.required && <span className="text-destructive ml-1">*</span>}
-            </Label>
-            <Select
-              value={String(value || '')}
-              onValueChange={(val) => handleApiSelectChange(field, val)}
-              disabled={isLoadingOptions}
-            >
+            {fieldLabel}
+            <Select value={String(value || '')} onValueChange={(val) => handleApiSelectChange(field, val)} disabled={isLoadingOpts}>
               <SelectTrigger>
-                {isLoadingOptions ? (
-                  <span className="flex items-center gap-2">
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Carregando...
-                  </span>
+                {isLoadingOpts ? (
+                  <span className="flex items-center gap-2"><Loader2 className="h-4 w-4 animate-spin" /> Carregando...</span>
                 ) : (
-                  <SelectValue placeholder={`Selecione ${(field.label || field.name).toLowerCase()}`} />
+                  <SelectValue placeholder={field.placeholder || `Selecione`} />
                 )}
               </SelectTrigger>
               <SelectContent>
-                {options.length === 0 && !isLoadingOptions ? (
-                  <div className="px-2 py-1 text-sm text-muted-foreground">
-                    Nenhuma opcao disponivel
-                  </div>
+                {options.length === 0 && !isLoadingOpts ? (
+                  <div className="px-2 py-1 text-sm text-muted-foreground">Nenhuma opção disponível</div>
                 ) : (
-                  options.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
-                      {option.label}
-                    </SelectItem>
-                  ))
+                  options.map((opt) => <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>)
                 )}
               </SelectContent>
             </Select>
-            {error && <p className="text-sm text-destructive">{error}</p>}
+            {field.apiEndpoint && <p className="text-xs text-muted-foreground">API: {field.apiEndpoint}</p>}
+            {helpEl}{errorEl}
           </div>
         );
       }
 
-      case 'multiselect':
+      case 'relation': {
+        const options = relationOptions[field.slug] || [];
+        const isLoadingRel = loadingRelations[field.slug];
         return (
           <div key={field.slug} className="space-y-2">
-            <Label>
-              {field.label || field.name}
-              {field.required && <span className="text-destructive ml-1">*</span>}
-            </Label>
-            <div className="border rounded-md p-3 space-y-2 max-h-40 overflow-y-auto">
-              {field.options?.map((option) => {
-                // Handle both string options and object options {label, value, color}
-                const optionValue = typeof option === 'object' ? option.value : option;
-                const optionLabel = typeof option === 'object' ? option.label : option;
-                const optionColor = typeof option === 'object' ? option.color : undefined;
-                const selectedValues = Array.isArray(value) ? value : [];
-                return (
-                  <div key={optionValue} className="flex items-center space-x-2">
-                    <Checkbox
-                      id={`${field.slug}-${optionValue}`}
-                      checked={selectedValues.includes(optionValue)}
-                      onCheckedChange={(checked) => {
-                        if (checked) {
-                          handleFieldChange(field.slug, [...selectedValues, optionValue]);
-                        } else {
-                          handleFieldChange(
-                            field.slug,
-                            selectedValues.filter((v: string) => v !== optionValue)
-                          );
-                        }
-                      }}
-                    />
-                    <Label htmlFor={`${field.slug}-${optionValue}`} className="cursor-pointer text-sm flex items-center gap-2">
-                      {optionColor && (
-                        <span
-                          className="w-3 h-3 rounded-full"
-                          style={{ backgroundColor: optionColor }}
-                        />
-                      )}
-                      {optionLabel}
-                    </Label>
-                  </div>
-                );
-              })}
-            </div>
-            {error && <p className="text-sm text-destructive">{error}</p>}
+            {fieldLabel}
+            <Select value={String(value || '')} onValueChange={(val) => handleFieldChange(field.slug, val)} disabled={isLoadingRel}>
+              <SelectTrigger>
+                {isLoadingRel ? (
+                  <span className="flex items-center gap-2"><Loader2 className="h-4 w-4 animate-spin" /> Carregando...</span>
+                ) : (
+                  <SelectValue placeholder={field.placeholder || `Selecione ${(field.label || field.name).toLowerCase()}`} />
+                )}
+              </SelectTrigger>
+              <SelectContent>
+                {options.length === 0 && !isLoadingRel ? (
+                  <div className="px-2 py-1 text-sm text-muted-foreground">Nenhum registro encontrado</div>
+                ) : (
+                  options.map((opt) => <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>)
+                )}
+              </SelectContent>
+            </Select>
+            {field.relatedEntitySlug && <p className="text-xs text-muted-foreground">Entidade: {field.relatedEntitySlug}</p>}
+            {helpEl}{errorEl}
           </div>
         );
+      }
 
       case 'date':
         return (
           <div key={field.slug} className="space-y-2">
-            <Label htmlFor={field.slug}>
-              {field.label || field.name}
-              {field.required && <span className="text-destructive ml-1">*</span>}
-            </Label>
-            <Input
-              id={field.slug}
-              type="date"
-              value={String(value || '')}
-              onChange={(e) => handleFieldChange(field.slug, e.target.value)}
-            />
-            {error && <p className="text-sm text-destructive">{error}</p>}
+            {fieldLabel}
+            <Input id={field.slug} type="date" value={String(value || '')} onChange={(e) => handleFieldChange(field.slug, e.target.value)} />
+            {helpEl}{errorEl}
           </div>
         );
 
       case 'datetime':
+        return (
+          <div key={field.slug} className="space-y-2">
+            {fieldLabel}
+            <Input id={field.slug} type="datetime-local" value={String(value || '')} onChange={(e) => handleFieldChange(field.slug, e.target.value)} />
+            {helpEl}{errorEl}
+          </div>
+        );
+
       case 'time':
         return (
           <div key={field.slug} className="space-y-2">
-            <Label htmlFor={field.slug}>
-              {field.label || field.name}
-              {field.required && <span className="text-destructive ml-1">*</span>}
-            </Label>
-            <Input
-              id={field.slug}
-              type="datetime-local"
-              value={String(value || '')}
-              onChange={(e) => handleFieldChange(field.slug, e.target.value)}
-            />
-            {error && <p className="text-sm text-destructive">{error}</p>}
+            {fieldLabel}
+            <Input id={field.slug} type="time" value={String(value || '')} onChange={(e) => handleFieldChange(field.slug, e.target.value)} />
+            {helpEl}{errorEl}
           </div>
         );
 
       case 'number':
         return (
           <div key={field.slug} className="space-y-2">
-            <Label htmlFor={field.slug}>
-              {field.label || field.name}
-              {field.required && <span className="text-destructive ml-1">*</span>}
-            </Label>
-            <Input
-              id={field.slug}
-              type="number"
-              placeholder={`Digite ${(field.label || field.name).toLowerCase()}`}
-              value={String(value || '')}
-              onChange={(e) => handleFieldChange(field.slug, e.target.value)}
-            />
-            {error && <p className="text-sm text-destructive">{error}</p>}
+            {fieldLabel}
+            <Input id={field.slug} type="number" min={field.min} max={field.max} step={field.step} placeholder={field.placeholder || `Digite ${(field.label || field.name).toLowerCase()}`} value={String(value || '')} onChange={(e) => handleFieldChange(field.slug, e.target.value)} />
+            {helpEl}{errorEl}
+          </div>
+        );
+
+      case 'currency':
+        return (
+          <div key={field.slug} className="space-y-2">
+            {fieldLabel}
+            <div className="relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">{field.prefix || 'R$'}</span>
+              <Input id={field.slug} type="number" step="0.01" min={field.min} max={field.max} className="pl-10" placeholder="0,00" value={String(value || '')} onChange={(e) => handleFieldChange(field.slug, e.target.value)} />
+            </div>
+            {helpEl}{errorEl}
+          </div>
+        );
+
+      case 'percentage':
+        return (
+          <div key={field.slug} className="space-y-2">
+            {fieldLabel}
+            <div className="relative">
+              <Input id={field.slug} type="number" step="0.1" min={field.min ?? 0} max={field.max ?? 100} className="pr-8" placeholder="0" value={String(value || '')} onChange={(e) => handleFieldChange(field.slug, e.target.value)} />
+              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">%</span>
+            </div>
+            {helpEl}{errorEl}
           </div>
         );
 
       case 'email':
         return (
           <div key={field.slug} className="space-y-2">
-            <Label htmlFor={field.slug}>
-              {field.label || field.name}
-              {field.required && <span className="text-destructive ml-1">*</span>}
-            </Label>
-            <Input
-              id={field.slug}
-              type="email"
-              placeholder="email@exemplo.com"
-              value={String(value || '')}
-              onChange={(e) => handleFieldChange(field.slug, e.target.value)}
-            />
-            {error && <p className="text-sm text-destructive">{error}</p>}
+            {fieldLabel}
+            <Input id={field.slug} type="email" placeholder={field.placeholder || 'email@exemplo.com'} value={String(value || '')} onChange={(e) => handleFieldChange(field.slug, e.target.value)} />
+            {helpEl}{errorEl}
           </div>
         );
 
       case 'url':
         return (
           <div key={field.slug} className="space-y-2">
-            <Label htmlFor={field.slug}>
-              {field.label || field.name}
-              {field.required && <span className="text-destructive ml-1">*</span>}
-            </Label>
-            <Input
-              id={field.slug}
-              type="url"
-              placeholder="https://exemplo.com"
-              value={String(value || '')}
-              onChange={(e) => handleFieldChange(field.slug, e.target.value)}
-            />
-            {error && <p className="text-sm text-destructive">{error}</p>}
+            {fieldLabel}
+            <Input id={field.slug} type="url" placeholder={field.placeholder || 'https://exemplo.com'} value={String(value || '')} onChange={(e) => handleFieldChange(field.slug, e.target.value)} />
+            {helpEl}{errorEl}
           </div>
         );
 
       case 'phone':
         return (
           <div key={field.slug} className="space-y-2">
-            <Label htmlFor={field.slug}>
-              {field.label || field.name}
-              {field.required && <span className="text-destructive ml-1">*</span>}
-            </Label>
-            <Input
-              id={field.slug}
-              type="tel"
-              placeholder="(00) 00000-0000"
-              value={String(value || '')}
-              onChange={(e) => handleFieldChange(field.slug, e.target.value)}
-            />
-            {error && <p className="text-sm text-destructive">{error}</p>}
+            {fieldLabel}
+            <Input id={field.slug} type="tel" placeholder={field.placeholder || '(00) 00000-0000'} value={String(value || '')} onChange={(e) => handleFieldChange(field.slug, applyPhoneMask(e.target.value))} maxLength={15} />
+            {helpEl}{errorEl}
           </div>
         );
 
-      // text e outros tipos usam input padrao
+      case 'cpf':
+        return (
+          <div key={field.slug} className="space-y-2">
+            {fieldLabel}
+            <Input id={field.slug} placeholder={field.placeholder || '000.000.000-00'} value={String(value || '')} onChange={(e) => handleFieldChange(field.slug, applyCpfMask(e.target.value))} maxLength={14} />
+            {helpEl}{errorEl}
+          </div>
+        );
+
+      case 'cnpj':
+        return (
+          <div key={field.slug} className="space-y-2">
+            {fieldLabel}
+            <Input id={field.slug} placeholder={field.placeholder || '00.000.000/0000-00'} value={String(value || '')} onChange={(e) => handleFieldChange(field.slug, applyCnpjMask(e.target.value))} maxLength={18} />
+            {helpEl}{errorEl}
+          </div>
+        );
+
+      case 'cep':
+        return (
+          <div key={field.slug} className="space-y-2">
+            {fieldLabel}
+            <Input id={field.slug} placeholder={field.placeholder || '00000-000'} value={String(value || '')} onChange={(e) => handleFieldChange(field.slug, applyCepMask(e.target.value))} maxLength={9} />
+            {helpEl}{errorEl}
+          </div>
+        );
+
+      case 'password':
+        return (
+          <div key={field.slug} className="space-y-2">
+            {fieldLabel}
+            <div className="relative">
+              <Input id={field.slug} type={showPassword[field.slug] ? 'text' : 'password'} placeholder={field.placeholder || '••••••••'} value={String(value || '')} onChange={(e) => handleFieldChange(field.slug, e.target.value)} className="pr-10" />
+              <button type="button" className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground" onClick={() => setShowPassword(prev => ({ ...prev, [field.slug]: !prev[field.slug] }))}>
+                {showPassword[field.slug] ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            </div>
+            {helpEl}{errorEl}
+          </div>
+        );
+
+      case 'color':
+        return (
+          <div key={field.slug} className="space-y-2">
+            {fieldLabel}
+            <div className="flex items-center gap-3">
+              <input type="color" id={field.slug} value={String(value || '#000000')} onChange={(e) => handleFieldChange(field.slug, e.target.value)} className="w-10 h-10 rounded cursor-pointer border" />
+              <Input value={String(value || '#000000')} onChange={(e) => handleFieldChange(field.slug, e.target.value)} placeholder="#000000" className="flex-1" />
+            </div>
+            {helpEl}{errorEl}
+          </div>
+        );
+
+      case 'rating': {
+        const maxStars = field.max || 5;
+        const currentRating = Number(value) || 0;
+        return (
+          <div key={field.slug} className="space-y-2">
+            {fieldLabel}
+            <div className="flex items-center gap-1">
+              {Array.from({ length: maxStars }, (_, i) => (
+                <button key={i} type="button" className="p-0.5" onClick={() => handleFieldChange(field.slug, i + 1)}>
+                  <Star className={`h-6 w-6 ${i < currentRating ? 'fill-yellow-400 text-yellow-400' : 'text-gray-300'}`} />
+                </button>
+              ))}
+              <span className="ml-2 text-sm text-muted-foreground">{currentRating}/{maxStars}</span>
+            </div>
+            {helpEl}{errorEl}
+          </div>
+        );
+      }
+
+      case 'slider': {
+        const min = field.min ?? 0;
+        const max = field.max ?? 100;
+        const step = field.step ?? 1;
+        const currentVal = Number(value) || min;
+        return (
+          <div key={field.slug} className="space-y-2">
+            {fieldLabel}
+            <div className="flex items-center gap-4">
+              <span className="text-sm text-muted-foreground w-10">{min}</span>
+              <SliderUI value={[currentVal]} min={min} max={max} step={step} onValueChange={(vals) => handleFieldChange(field.slug, vals[0])} className="flex-1" />
+              <span className="text-sm font-medium w-10 text-right">{currentVal}</span>
+            </div>
+            {helpEl}{errorEl}
+          </div>
+        );
+      }
+
+      case 'json':
+        return (
+          <div key={field.slug} className="space-y-2">
+            {fieldLabel}
+            <Textarea id={field.slug} className="font-mono text-sm" placeholder='{"key": "value"}' value={typeof value === 'object' ? JSON.stringify(value, null, 2) : String(value || '')} onChange={(e) => {
+              try { handleFieldChange(field.slug, JSON.parse(e.target.value)); } catch { handleFieldChange(field.slug, e.target.value); }
+            }} rows={4} />
+            {helpEl}{errorEl}
+          </div>
+        );
+
+      case 'file':
+      case 'image':
+        return (
+          <div key={field.slug} className="space-y-2">
+            {fieldLabel}
+            <Input id={field.slug} type="text" placeholder={field.placeholder || `URL do ${field.type === 'image' ? 'imagem' : 'arquivo'}`} value={String(value || '')} onChange={(e) => handleFieldChange(field.slug, e.target.value)} />
+            {field.type === 'image' && value && typeof value === 'string' && (
+              <div className="mt-2 border rounded-md overflow-hidden w-24 h-24">
+                <img src={value} alt="preview" className="w-full h-full object-cover" onError={(e) => (e.currentTarget.style.display = 'none')} />
+              </div>
+            )}
+            {helpEl}{errorEl}
+          </div>
+        );
+
+      // text, hidden, and default
       default:
         return (
           <div key={field.slug} className="space-y-2">
-            <Label htmlFor={field.slug}>
-              {field.label || field.name}
-              {field.required && <span className="text-destructive ml-1">*</span>}
-            </Label>
-            <Input
-              id={field.slug}
-              type="text"
-              placeholder={`Digite ${(field.label || field.name).toLowerCase()}`}
-              value={String(value || '')}
-              onChange={(e) => handleFieldChange(field.slug, e.target.value)}
-            />
-            {error && <p className="text-sm text-destructive">{error}</p>}
+            {fieldLabel}
+            <Input id={field.slug} type="text" placeholder={field.placeholder || `Digite ${(field.label || field.name).toLowerCase()}`} value={String(value || '')} onChange={(e) => handleFieldChange(field.slug, e.target.value)} />
+            {helpEl}{errorEl}
           </div>
         );
     }
   };
 
+  // ─── Render ──────────────────────────────────────────────────────────────
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[500px] max-h-[85vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-[700px] max-h-[85vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>
-            {isEditing ? `Editar ${entity.name}` : `Novo ${entity.name}`}
-          </DialogTitle>
-          <DialogDescription>
-            {isEditing
-              ? `Atualize os dados do registro.`
-              : `Preencha os campos para criar um novo registro.`}
-          </DialogDescription>
+          <DialogTitle>{isEditing ? `Editar ${entity.name}` : `Novo ${entity.name}`}</DialogTitle>
+          <DialogDescription>{isEditing ? 'Atualize os dados do registro.' : 'Preencha os campos para criar um novo registro.'}</DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           {errors._form && (
-            <div className="bg-destructive/10 border border-destructive/20 text-destructive px-4 py-3 rounded-md text-sm">
-              {errors._form}
-            </div>
+            <div className="bg-destructive/10 border border-destructive/20 text-destructive px-4 py-3 rounded-md text-sm">{errors._form}</div>
           )}
 
           {entity.fields?.length > 0 ? (
-            entity.fields.map((field) => renderField(field))
+            fieldRows.length > 0 ? (
+              <div className="space-y-4">
+                {fieldRows.map((row, rowIdx) => (
+                  <div key={rowIdx} className="grid grid-cols-12 gap-4">
+                    {row.map((field) => {
+                      const colSpan = field.gridColSpan || 12;
+                      const colStart = field.gridColStart;
+                      return (
+                        <div key={field.slug} style={{ gridColumn: colStart ? `${colStart} / span ${colSpan}` : `span ${colSpan} / span ${colSpan}` }}>
+                          {renderField(field)}
+                        </div>
+                      );
+                    })}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              entity.fields.map((field) => renderField(field))
+            )
           ) : (
-            <p className="text-sm text-muted-foreground text-center py-4">
-              Esta entidade nao possui campos definidos.
-            </p>
+            <p className="text-sm text-muted-foreground text-center py-4">Esta entidade não possui campos definidos.</p>
           )}
 
+          {/* Hidden fields */}
+          {entity.fields?.filter(f => f.type === 'hidden').map(field => (
+            <input key={field.slug} type="hidden" value={String(formData[field.slug] || field.default || '')} />
+          ))}
+
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-              Cancelar
-            </Button>
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
             <Button type="submit" disabled={isLoading || !entity.fields?.length}>
               {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               {isLoading ? 'Salvando...' : isEditing ? 'Salvar' : 'Criar'}

@@ -525,7 +525,7 @@ export default function DashboardPage() {
               </Card>
             </Link>
 
-            <Link href="/pages/new">
+            <Link href="/pages">
               <Card className="hover:border-primary/50 transition-colors cursor-pointer h-full">
                 <CardContent className="p-6">
                   <div className="flex items-center gap-4">
@@ -533,9 +533,9 @@ export default function DashboardPage() {
                       <FileText className="h-6 w-6 text-orange-500" />
                     </div>
                     <div>
-                      <h3 className="font-semibold">New Page</h3>
+                      <h3 className="font-semibold">Nova Pagina</h3>
                       <p className="text-sm text-muted-foreground">
-                        Create a custom page
+                        Crie uma pagina personalizada
                       </p>
                     </div>
                   </div>
