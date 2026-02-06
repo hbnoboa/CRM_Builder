@@ -4,4 +4,3 @@ export * from './entities.service';
 export * from './data.service';
 export * from './tenants.service';
 export * from './roles.service';
-export * from './pages.service';

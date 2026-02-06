@@ -7,7 +7,6 @@ import {
   LayoutDashboard,
   Users,
   Database,
-  FileText,
   Settings,
   LogOut,
   Menu,
