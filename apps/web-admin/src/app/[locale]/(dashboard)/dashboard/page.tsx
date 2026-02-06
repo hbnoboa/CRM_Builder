@@ -174,8 +174,6 @@ export default function DashboardPage() {
         return <Database className="h-4 w-4 text-blue-500" />;
       case 'record':
         return <Layers className="h-4 w-4 text-green-500" />;
-      case 'page':
-        return <FileText className="h-4 w-4 text-orange-500" />;
       case 'api':
         return <Code className="h-4 w-4 text-purple-500" />;
       case 'user':
