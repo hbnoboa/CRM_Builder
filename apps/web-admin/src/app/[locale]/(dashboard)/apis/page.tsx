@@ -112,19 +112,19 @@ function ApisPageContent() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold">APIs Personalizadas</h1>
-          <p className="text-muted-foreground mt-1">
+          <h1 className="text-2xl sm:text-3xl font-bold">APIs Personalizadas</h1>
+          <p className="text-muted-foreground mt-1 text-sm sm:text-base">
             Crie endpoints personalizados para seu CRM
           </p>
         </div>
-        <Button onClick={handleCreateApi}>
+        <Button onClick={handleCreateApi} className="w-full sm:w-auto">
           <Plus className="h-4 w-4 mr-2" />
           Nova API
         </Button>
       </div>
 
       {/* Stats */}
-      <div className="grid gap-4 md:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-4">
         <Card>
           <CardContent className="p-4">
             <div className="text-2xl font-bold">{apis.length}</div>
@@ -205,24 +205,24 @@ function ApisPageContent() {
               key={apiItem.id}
               className="hover:border-primary/50 transition-colors"
             >
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-4">
-                    <div className="p-2 rounded-lg bg-primary/10">
-                      <Zap className="h-5 w-5 text-primary" />
+              <CardContent className="p-3 sm:p-4">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
+                  <div className="flex items-start sm:items-center gap-3 sm:gap-4 min-w-0">
+                    <div className="p-1.5 sm:p-2 rounded-lg bg-primary/10 flex-shrink-0">
+                      <Zap className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />
                     </div>
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <h3 className="font-semibold">{apiItem.name}</h3>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+                        <h3 className="font-semibold text-sm sm:text-base">{apiItem.name}</h3>
                         <span
-                          className={`px-2 py-0.5 text-xs font-medium rounded ${
+                          className={`px-2 py-0.5 text-xs font-medium rounded whitespace-nowrap ${
                             methodColors[apiItem.method]
                           }`}
                         >
                           {apiItem.method}
                         </span>
                         <span
-                          className={`px-2 py-0.5 text-xs rounded-full ${
+                          className={`px-2 py-0.5 text-xs rounded-full whitespace-nowrap ${
                             apiItem.isActive
                               ? 'bg-green-100 text-green-800'
                               : 'bg-gray-100 text-gray-800'
@@ -231,37 +231,37 @@ function ApisPageContent() {
                           {apiItem.isActive ? 'Ativa' : 'Inativa'}
                         </span>
                       </div>
-                      <div className="flex items-center gap-2 mt-1">
-                        <code className="text-sm text-muted-foreground bg-muted px-2 py-0.5 rounded">
+                      <div className="flex items-center gap-2 mt-1 overflow-hidden">
+                        <code className="text-xs sm:text-sm text-muted-foreground bg-muted px-2 py-0.5 rounded truncate max-w-[200px] sm:max-w-none">
                           /api/x/[org]{apiItem.path}
                         </code>
                         <button
-                          className="text-muted-foreground hover:text-foreground"
+                          className="text-muted-foreground hover:text-foreground flex-shrink-0"
                           onClick={() => handleCopyPath(apiItem.path)}
                         >
                           <Copy className="h-3 w-3" />
                         </button>
                       </div>
                       {apiItem.description && (
-                        <p className="text-sm text-muted-foreground mt-1">
+                        <p className="text-xs sm:text-sm text-muted-foreground mt-1 line-clamp-1">
                           {apiItem.description}
                         </p>
                       )}
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2">
-                    <Button variant="ghost" size="sm">
+                  <div className="flex items-center gap-2 justify-end sm:justify-start flex-shrink-0">
+                    <Button variant="ghost" size="sm" className="hidden md:flex">
                       <Play className="h-4 w-4 mr-1" />
                       Testar
                     </Button>
-                    <Button variant="outline" size="sm" onClick={() => handleEditApi(apiItem)}>
+                    <Button variant="outline" size="sm" onClick={() => handleEditApi(apiItem)} className="hidden sm:flex">
                       <Pencil className="h-4 w-4 mr-1" />
                       Editar
                     </Button>
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon">
+                        <Button variant="ghost" size="icon" className="h-8 w-8">
                           <MoreVertical className="h-4 w-4" />
                         </Button>
                       </DropdownMenuTrigger>

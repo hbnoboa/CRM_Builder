@@ -88,19 +88,19 @@ function RolesPageContent() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold">Roles</h1>
-          <p className="text-muted-foreground mt-1">
+          <h1 className="text-2xl sm:text-3xl font-bold">Roles</h1>
+          <p className="text-muted-foreground mt-1 text-sm sm:text-base">
             Gerencie as roles e permissoes da sua organizacao
           </p>
         </div>
-        <Button onClick={handleCreateRole}>
+        <Button onClick={handleCreateRole} className="w-full sm:w-auto">
           <Plus className="h-4 w-4 mr-2" />
           Nova Role
         </Button>
       </div>
 
       {/* Stats */}
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
         <Card>
           <CardContent className="p-4">
             <div className="text-2xl font-bold">{roles.length}</div>
@@ -175,28 +175,27 @@ function RolesPageContent() {
         <div className="space-y-3">
           {filteredRoles.map((role) => (
             <Card key={role.id} className="hover:border-primary/50 transition-colors">
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-4">
-                    <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
+              <CardContent className="p-3 sm:p-4">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
+                  <div className="flex items-center gap-3 sm:gap-4 min-w-0">
+                    <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
                       <Shield className="h-5 w-5 text-primary" />
                     </div>
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <h3 className="font-semibold">{role.name}</h3>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+                        <h3 className="font-semibold text-sm sm:text-base">{role.name}</h3>
                         {role._count?.users !== undefined && role._count.users > 0 && (
-                          <span className="px-2 py-0.5 text-xs font-medium rounded bg-blue-100 text-blue-800">
+                          <span className="px-2 py-0.5 text-xs font-medium rounded bg-blue-100 text-blue-800 whitespace-nowrap">
                             {role._count.users} usuarios
                           </span>
                         )}
-                        {/* Exibe o tenant apenas para SuperAdmin */}
                         {currentUser?.role === 'PLATFORM_ADMIN' && (
-                          <span className="ml-2 px-2 py-0.5 text-xs rounded bg-gray-200 text-gray-700" title={role.tenantId}>
+                          <span className="px-2 py-0.5 text-xs rounded bg-gray-200 text-gray-700 truncate max-w-[100px]" title={role.tenantId}>
                             {role.tenant?.name ? role.tenant.name : role.tenantId}
                           </span>
                         )}
                       </div>
-                      <div className="flex items-center gap-4 mt-1 text-sm text-muted-foreground">
+                      <div className="mt-1 text-xs sm:text-sm text-muted-foreground line-clamp-1">
                         {role.description ? (
                           <span>{role.description}</span>
                         ) : (
@@ -204,24 +203,24 @@ function RolesPageContent() {
                         )}
                       </div>
                       {role.permissions && Object.keys(role.permissions).length > 0 && (
-                        <div className="flex items-center gap-1 mt-2">
-                          <Key className="h-3 w-3 text-muted-foreground" />
+                        <div className="flex items-center gap-1 mt-1.5 sm:mt-2">
+                          <Key className="h-3 w-3 text-muted-foreground flex-shrink-0" />
                           <span className="text-xs text-muted-foreground">
-                            {Object.keys(role.permissions).length} permissoes configuradas
+                            {Object.keys(role.permissions).length} permissoes
                           </span>
                         </div>
                       )}
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2">
-                    <Button variant="outline" size="sm" onClick={() => handleEditRole(role)}>
+                  <div className="flex items-center gap-2 justify-end sm:justify-start flex-shrink-0">
+                    <Button variant="outline" size="sm" onClick={() => handleEditRole(role)} className="hidden sm:flex">
                       <Pencil className="h-4 w-4 mr-1" />
                       Editar
                     </Button>
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon">
+                        <Button variant="ghost" size="icon" className="h-8 w-8">
                           <MoreVertical className="h-4 w-4" />
                         </Button>
                       </DropdownMenuTrigger>

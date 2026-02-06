@@ -120,13 +120,13 @@ function EntitiesPageContent() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold">Entidades</h1>
-          <p className="text-muted-foreground mt-1">
+          <h1 className="text-2xl sm:text-3xl font-bold">Entidades</h1>
+          <p className="text-muted-foreground mt-1 text-sm sm:text-base">
             Gerencie as estruturas de dados do seu CRM
           </p>
         </div>
-        <Link href="/entities/new">
-          <Button>
+        <Link href="/entities/new" className="w-full sm:w-auto">
+          <Button className="w-full sm:w-auto">
             <Plus className="h-4 w-4 mr-2" />
             Nova Entidade
           </Button>
@@ -134,7 +134,7 @@ function EntitiesPageContent() {
       </div>
 
       {/* Stats */}
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
         <Card>
           <CardContent className="p-4">
             <div className="text-2xl font-bold">{totalEntities}</div>
@@ -204,32 +204,31 @@ function EntitiesPageContent() {
           </CardContent>
         </Card>
       ) : (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-3 sm:gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {filteredEntities.map((entity) => (
             <Card key={entity.id} className="group hover:border-primary/50 transition-colors">
-              <CardContent className="p-6">
-                <div className="flex items-start justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 rounded-lg bg-primary/10">
-                      <Database className="h-5 w-5 text-primary" />
+              <CardContent className="p-4 sm:p-6">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+                    <div className="p-1.5 sm:p-2 rounded-lg bg-primary/10 flex-shrink-0">
+                      <Database className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />
                     </div>
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <h3 className="font-semibold">{entity.name}</h3>
-                        {/* Exibe o tenant apenas para SuperAdmin */}
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-1 sm:gap-2">
+                        <h3 className="font-semibold text-sm sm:text-base truncate">{entity.name}</h3>
                         {currentUser?.role === 'PLATFORM_ADMIN' && (
-                          <span className="ml-2 px-2 py-0.5 text-xs rounded bg-gray-200 text-gray-700" title={entity.tenantId}>
+                          <span className="px-1.5 sm:px-2 py-0.5 text-xs rounded bg-gray-200 text-gray-700 truncate max-w-[80px]" title={entity.tenantId}>
                             {entity.tenant?.name ? entity.tenant.name : entity.tenantId}
                           </span>
                         )}
                       </div>
-                      <p className="text-sm text-muted-foreground">/{entity.slug}</p>
+                      <p className="text-xs sm:text-sm text-muted-foreground truncate">/{entity.slug}</p>
                     </div>
                   </div>
-                  <div className="opacity-0 group-hover:opacity-100 transition-opacity">
+                  <div className="opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity flex-shrink-0">
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon">
+                        <Button variant="ghost" size="icon" className="h-8 w-8">
                           <MoreVertical className="h-4 w-4" />
                         </Button>
                       </DropdownMenuTrigger>
@@ -254,43 +253,43 @@ function EntitiesPageContent() {
                 </div>
 
                 {entity.description && (
-                  <p className="text-sm text-muted-foreground mt-3 line-clamp-2">
+                  <p className="text-xs sm:text-sm text-muted-foreground mt-2 sm:mt-3 line-clamp-2">
                     {entity.description}
                   </p>
                 )}
 
-                <div className="mt-4">
+                <div className="mt-3 sm:mt-4">
                   <p className="text-xs text-muted-foreground mb-2">
                     {entity.fields?.length || 0} campos
                   </p>
                   <div className="flex flex-wrap gap-1">
-                    {(entity.fields || []).slice(0, 4).map((field) => (
+                    {(entity.fields || []).slice(0, 3).map((field) => (
                       <span
                         key={field.name}
-                        className={`text-xs px-2 py-0.5 rounded ${
+                        className={`text-xs px-1.5 sm:px-2 py-0.5 rounded ${
                           fieldTypeColors[field.type] || 'bg-gray-100 text-gray-800'
                         }`}
                       >
                         {field.label}
                       </span>
                     ))}
-                    {(entity.fields?.length || 0) > 4 && (
-                      <span className="text-xs px-2 py-0.5 rounded bg-gray-100 text-gray-800">
-                        +{(entity.fields?.length || 0) - 4}
+                    {(entity.fields?.length || 0) > 3 && (
+                      <span className="text-xs px-1.5 sm:px-2 py-0.5 rounded bg-gray-100 text-gray-800">
+                        +{(entity.fields?.length || 0) - 3}
                       </span>
                     )}
                   </div>
                 </div>
 
-                <div className="flex gap-2 mt-4 pt-4 border-t">
+                <div className="flex gap-2 mt-3 sm:mt-4 pt-3 sm:pt-4 border-t">
                   <Link href={`/data?entity=${entity.slug}`} className="flex-1">
-                    <Button variant="outline" size="sm" className="w-full">
+                    <Button variant="outline" size="sm" className="w-full text-xs sm:text-sm">
                       <Eye className="h-3 w-3 mr-1" />
-                      Ver Dados
+                      <span className="hidden xs:inline">Ver </span>Dados
                     </Button>
                   </Link>
                   <Link href={`/entities/${entity.id}`} className="flex-1">
-                    <Button variant="outline" size="sm" className="w-full">
+                    <Button variant="outline" size="sm" className="w-full text-xs sm:text-sm">
                       <Pencil className="h-3 w-3 mr-1" />
                       Editar
                     </Button>

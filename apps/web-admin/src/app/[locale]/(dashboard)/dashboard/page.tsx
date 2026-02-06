@@ -5,7 +5,6 @@ import { Link } from '@/i18n/navigation';
 import {
   Users,
   Database,
-  FileText,
   Code,
   Activity,
   Layers,
@@ -130,7 +129,7 @@ export default function DashboardPage() {
     {
       title: 'Entities',
       value: stats?.totalEntities ?? 0,
-      icon: <Database className="h-5 w-5" />,
+      icon: <Database className="h-4 w-4 sm:h-5 sm:w-5" />,
       color: 'text-blue-500',
       bgColor: 'bg-blue-500/10',
       href: '/entities',
@@ -138,23 +137,15 @@ export default function DashboardPage() {
     {
       title: 'Records',
       value: stats?.totalRecords ?? 0,
-      icon: <Layers className="h-5 w-5" />,
+      icon: <Layers className="h-4 w-4 sm:h-5 sm:w-5" />,
       color: 'text-green-500',
       bgColor: 'bg-green-500/10',
       href: '/data',
     },
     {
-      title: 'Pages',
-      value: stats?.totalPages ?? 0,
-      icon: <FileText className="h-5 w-5" />,
-      color: 'text-orange-500',
-      bgColor: 'bg-orange-500/10',
-      href: '/pages',
-    },
-    {
       title: 'APIs',
       value: stats?.totalApis ?? 0,
-      icon: <Code className="h-5 w-5" />,
+      icon: <Code className="h-4 w-4 sm:h-5 sm:w-5" />,
       color: 'text-purple-500',
       bgColor: 'bg-purple-500/10',
       href: '/apis',
@@ -162,10 +153,18 @@ export default function DashboardPage() {
     {
       title: 'Users',
       value: stats?.totalUsers ?? 0,
-      icon: <Users className="h-5 w-5" />,
+      icon: <Users className="h-4 w-4 sm:h-5 sm:w-5" />,
       color: 'text-pink-500',
       bgColor: 'bg-pink-500/10',
       href: '/users',
+    },
+    {
+      title: 'Roles',
+      value: 0,
+      icon: <Activity className="h-4 w-4 sm:h-5 sm:w-5" />,
+      color: 'text-amber-500',
+      bgColor: 'bg-amber-500/10',
+      href: '/roles',
     },
   ];
 
@@ -222,33 +221,33 @@ export default function DashboardPage() {
   return (
     <div className="space-y-8" data-testid="dashboard-container">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold" data-testid="dashboard-heading">Dashboard</h1>
-          <p className="text-muted-foreground mt-1">
+          <h1 className="text-2xl sm:text-3xl font-bold" data-testid="dashboard-heading">Dashboard</h1>
+          <p className="text-muted-foreground mt-1 text-sm sm:text-base">
             Welcome back, {user?.name?.split(' ')[0]}! Here's a summary of your CRM.
           </p>
         </div>
-        <Button variant="outline" size="sm" onClick={handleRefresh} disabled={refreshing} data-testid="refresh-btn">
+        <Button variant="outline" size="sm" onClick={handleRefresh} disabled={refreshing} data-testid="refresh-btn" className="w-full sm:w-auto">
           <RefreshCw className={cn('h-4 w-4 mr-2', refreshing && 'animate-spin')} />
           Refresh
         </Button>
       </div>
 
       {/* Stats Grid */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3 lg:grid-cols-5">
         {statCards.map((stat, index) => (
           <Link key={index} href={stat.href}>
             <Card className="hover:border-primary/50 transition-colors cursor-pointer h-full">
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <div className={`p-2 rounded-lg ${stat.bgColor}`}>
+              <CardContent className="p-4 sm:p-6">
+                <div className="flex items-center justify-between mb-2 sm:mb-4">
+                  <div className={`p-1.5 sm:p-2 rounded-lg ${stat.bgColor}`}>
                     <div className={stat.color}>{stat.icon}</div>
                   </div>
                 </div>
                 <div>
-                  <h3 className="text-2xl font-bold">{stat.value.toLocaleString('en-US')}</h3>
-                  <p className="text-sm text-muted-foreground">{stat.title}</p>
+                  <h3 className="text-xl sm:text-2xl font-bold">{stat.value.toLocaleString('en-US')}</h3>
+                  <p className="text-xs sm:text-sm text-muted-foreground">{stat.title}</p>
                 </div>
               </CardContent>
             </Card>
@@ -506,17 +505,17 @@ export default function DashboardPage() {
           <CardDescription>Start building your CRM</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
             <Link href="/entities/new">
               <Card className="hover:border-primary/50 transition-colors cursor-pointer h-full">
-                <CardContent className="p-6">
-                  <div className="flex items-center gap-4">
-                    <div className="p-3 rounded-lg bg-blue-500/10">
-                      <Database className="h-6 w-6 text-blue-500" />
+                <CardContent className="p-4 sm:p-6">
+                  <div className="flex items-center gap-3 sm:gap-4">
+                    <div className="p-2 sm:p-3 rounded-lg bg-blue-500/10 flex-shrink-0">
+                      <Database className="h-5 w-5 sm:h-6 sm:w-6 text-blue-500" />
                     </div>
-                    <div>
-                      <h3 className="font-semibold">New Entity</h3>
-                      <p className="text-sm text-muted-foreground">
+                    <div className="min-w-0">
+                      <h3 className="font-semibold text-sm sm:text-base">New Entity</h3>
+                      <p className="text-xs sm:text-sm text-muted-foreground truncate">
                         Define a data structure
                       </p>
                     </div>
@@ -525,17 +524,17 @@ export default function DashboardPage() {
               </Card>
             </Link>
 
-            <Link href="/pages">
+            <Link href="/data">
               <Card className="hover:border-primary/50 transition-colors cursor-pointer h-full">
-                <CardContent className="p-6">
-                  <div className="flex items-center gap-4">
-                    <div className="p-3 rounded-lg bg-orange-500/10">
-                      <FileText className="h-6 w-6 text-orange-500" />
+                <CardContent className="p-4 sm:p-6">
+                  <div className="flex items-center gap-3 sm:gap-4">
+                    <div className="p-2 sm:p-3 rounded-lg bg-orange-500/10 flex-shrink-0">
+                      <Layers className="h-5 w-5 sm:h-6 sm:w-6 text-orange-500" />
                     </div>
-                    <div>
-                      <h3 className="font-semibold">Nova Pagina</h3>
-                      <p className="text-sm text-muted-foreground">
-                        Crie uma pagina personalizada
+                    <div className="min-w-0">
+                      <h3 className="font-semibold text-sm sm:text-base">Manage Data</h3>
+                      <p className="text-xs sm:text-sm text-muted-foreground truncate">
+                        View and manage records
                       </p>
                     </div>
                   </div>
@@ -545,14 +544,14 @@ export default function DashboardPage() {
 
             <Link href="/apis/new">
               <Card className="hover:border-primary/50 transition-colors cursor-pointer h-full">
-                <CardContent className="p-6">
-                  <div className="flex items-center gap-4">
-                    <div className="p-3 rounded-lg bg-purple-500/10">
-                      <Code className="h-6 w-6 text-purple-500" />
+                <CardContent className="p-4 sm:p-6">
+                  <div className="flex items-center gap-3 sm:gap-4">
+                    <div className="p-2 sm:p-3 rounded-lg bg-purple-500/10 flex-shrink-0">
+                      <Code className="h-5 w-5 sm:h-6 sm:w-6 text-purple-500" />
                     </div>
-                    <div>
-                      <h3 className="font-semibold">New API</h3>
-                      <p className="text-sm text-muted-foreground">
+                    <div className="min-w-0">
+                      <h3 className="font-semibold text-sm sm:text-base">New API</h3>
+                      <p className="text-xs sm:text-sm text-muted-foreground truncate">
                         Configure an endpoint
                       </p>
                     </div>
@@ -563,14 +562,14 @@ export default function DashboardPage() {
 
             <Link href="/users">
               <Card className="hover:border-primary/50 transition-colors cursor-pointer h-full">
-                <CardContent className="p-6">
-                  <div className="flex items-center gap-4">
-                    <div className="p-3 rounded-lg bg-pink-500/10">
-                      <Users className="h-6 w-6 text-pink-500" />
+                <CardContent className="p-4 sm:p-6">
+                  <div className="flex items-center gap-3 sm:gap-4">
+                    <div className="p-2 sm:p-3 rounded-lg bg-pink-500/10 flex-shrink-0">
+                      <Users className="h-5 w-5 sm:h-6 sm:w-6 text-pink-500" />
                     </div>
-                    <div>
-                      <h3 className="font-semibold">Manage Users</h3>
-                      <p className="text-sm text-muted-foreground">
+                    <div className="min-w-0">
+                      <h3 className="font-semibold text-sm sm:text-base">Manage Users</h3>
+                      <p className="text-xs sm:text-sm text-muted-foreground truncate">
                         Add team members
                       </p>
                     </div>

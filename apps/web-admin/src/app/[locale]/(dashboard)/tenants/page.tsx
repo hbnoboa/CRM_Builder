@@ -142,19 +142,19 @@ export default function TenantsPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold">Tenants</h1>
-          <p className="text-muted-foreground mt-1">
+          <h1 className="text-2xl sm:text-3xl font-bold">Tenants</h1>
+          <p className="text-muted-foreground mt-1 text-sm sm:text-base">
             Gerencie os tenants da plataforma
           </p>
         </div>
-        <Button onClick={handleCreateTenant}>
+        <Button onClick={handleCreateTenant} className="w-full sm:w-auto">
           <Plus className="h-4 w-4 mr-2" />
           Novo Tenant
         </Button>
       </div>
 
       {/* Stats */}
-      <div className="grid gap-4 md:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-4">
         <Card>
           <CardContent className="p-4">
             <div className="text-2xl font-bold">{tenants.length}</div>
@@ -237,17 +237,17 @@ export default function TenantsPage() {
         <div className="space-y-3">
           {filteredTenants.map((tenant: Tenant) => (
             <Card key={tenant.id} className="hover:border-primary/50 transition-colors">
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-4">
-                    <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
+              <CardContent className="p-3 sm:p-4">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
+                  <div className="flex items-center gap-3 sm:gap-4 min-w-0">
+                    <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
                       <Building2 className="h-5 w-5 text-primary" />
                     </div>
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <h3 className="font-semibold">{tenant.name}</h3>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+                        <h3 className="font-semibold text-sm sm:text-base truncate max-w-[150px] sm:max-w-none">{tenant.name}</h3>
                         <span
-                          className={`px-2 py-0.5 text-xs font-medium rounded ${
+                          className={`px-2 py-0.5 text-xs font-medium rounded whitespace-nowrap ${
                             statusColors[tenant.status] || 'bg-gray-100 text-gray-800'
                           }`}
                         >
@@ -255,7 +255,7 @@ export default function TenantsPage() {
                         </span>
                         {tenant.plan && (
                           <span
-                            className={`px-2 py-0.5 text-xs font-medium rounded ${
+                            className={`px-2 py-0.5 text-xs font-medium rounded whitespace-nowrap ${
                               planColors[tenant.plan] || 'bg-gray-100 text-gray-800'
                             }`}
                           >
@@ -263,39 +263,32 @@ export default function TenantsPage() {
                           </span>
                         )}
                       </div>
-                      <div className="flex items-center gap-4 mt-1 text-sm text-muted-foreground">
-                        <span className="font-mono">{tenant.slug}</span>
+                      <div className="flex flex-wrap items-center gap-2 sm:gap-4 mt-1 text-xs sm:text-sm text-muted-foreground">
+                        <span className="font-mono truncate">{tenant.slug}</span>
                         {tenant._count?.users !== undefined && (
-                          <span className="flex items-center gap-1">
-                            <Users className="h-3 w-3" />
-                            {tenant._count.users} usuarios
+                          <span className="flex items-center gap-1 whitespace-nowrap">
+                            <Users className="h-3 w-3 flex-shrink-0" />
+                            {tenant._count.users}
                           </span>
                         )}
                         {tenant.createdAt && (
-                          <span className="flex items-center gap-1">
-                            <Calendar className="h-3 w-3" />
-                            Criado em {new Date(tenant.createdAt).toLocaleDateString('pt-BR')}
+                          <span className="hidden sm:flex items-center gap-1 whitespace-nowrap">
+                            <Calendar className="h-3 w-3 flex-shrink-0" />
+                            {new Date(tenant.createdAt).toLocaleDateString('pt-BR')}
                           </span>
                         )}
                       </div>
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2">
-                    <TooltipProvider>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Button variant="outline" size="sm" onClick={() => handleEditTenant(tenant)}>
-                            <Pencil className="h-4 w-4 mr-1" />
-                            Editar
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent>Editar tenant</TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
+                  <div className="flex items-center gap-2 justify-end sm:justify-start flex-shrink-0">
+                    <Button variant="outline" size="sm" onClick={() => handleEditTenant(tenant)} className="hidden sm:flex">
+                      <Pencil className="h-4 w-4 mr-1" />
+                      Editar
+                    </Button>
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon">
+                        <Button variant="ghost" size="icon" className="h-8 w-8">
                           <MoreVertical className="h-4 w-4" />
                         </Button>
                       </DropdownMenuTrigger>

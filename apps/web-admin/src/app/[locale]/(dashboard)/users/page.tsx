@@ -100,19 +100,19 @@ function UsersPageContent() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold">Usuarios</h1>
-          <p className="text-muted-foreground mt-1">
+          <h1 className="text-2xl sm:text-3xl font-bold">Usuarios</h1>
+          <p className="text-muted-foreground mt-1 text-sm sm:text-base">
             Gerencie os usuarios da sua organizacao
           </p>
         </div>
-        <Button onClick={handleCreateUser}>
+        <Button onClick={handleCreateUser} className="w-full sm:w-auto">
           <Plus className="h-4 w-4 mr-2" />
           Novo Usuario
         </Button>
       </div>
 
       {/* Stats */}
-      <div className="grid gap-4 md:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-4">
         <Card>
           <CardContent className="p-4">
             <div className="text-2xl font-bold">{users.length}</div>
@@ -195,53 +195,52 @@ function UsersPageContent() {
         <div className="space-y-3">
           {filteredUsers.map((user) => (
             <Card key={user.id} className="hover:border-primary/50 transition-colors">
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-4">
-                    <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
+              <CardContent className="p-3 sm:p-4">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
+                  <div className="flex items-center gap-3 sm:gap-4 min-w-0">
+                    <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
                       <span className="text-sm font-medium text-primary">
                         {(user.name || user.email || '?').charAt(0).toUpperCase()}
                       </span>
                     </div>
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <h3 className="font-semibold">{user.name || user.email}</h3>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+                        <h3 className="font-semibold text-sm sm:text-base truncate max-w-[150px] sm:max-w-none">{user.name || user.email}</h3>
                         <span
-                          className={`px-2 py-0.5 text-xs font-medium rounded ${
+                          className={`px-2 py-0.5 text-xs font-medium rounded whitespace-nowrap ${
                             roleColors[user.role] || 'bg-gray-100 text-gray-800'
                           }`}
                         >
                           {roleLabels[user.role] || user.role}
                         </span>
                         {user.status === 'ACTIVE' ? (
-                          <UserCheck className="h-4 w-4 text-green-500" />
+                          <UserCheck className="h-4 w-4 text-green-500 flex-shrink-0" />
                         ) : (
-                          <UserX className="h-4 w-4 text-gray-400" />
+                          <UserX className="h-4 w-4 text-gray-400 flex-shrink-0" />
                         )}
-                        {/* Exibe o tenant apenas para SuperAdmin */}
                         {currentUser?.role === 'PLATFORM_ADMIN' && (
-                          <span className="ml-2 px-2 py-0.5 text-xs rounded bg-gray-200 text-gray-700" title={user.tenantId}>
+                          <span className="px-2 py-0.5 text-xs rounded bg-gray-200 text-gray-700 truncate max-w-[100px]" title={user.tenantId}>
                             {user.tenant?.name ? user.tenant.name : user.tenantId}
                           </span>
                         )}
                       </div>
-                      <div className="flex items-center gap-4 mt-1 text-sm text-muted-foreground">
-                        <span className="flex items-center gap-1">
-                          <Mail className="h-3 w-3" />
-                          {user.email}
+                      <div className="flex items-center gap-4 mt-1 text-xs sm:text-sm text-muted-foreground">
+                        <span className="flex items-center gap-1 truncate">
+                          <Mail className="h-3 w-3 flex-shrink-0" />
+                          <span className="truncate">{user.email}</span>
                         </span>
                       </div>
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2">
-                    <Button variant="outline" size="sm" onClick={() => handleEditUser(user)}>
+                  <div className="flex items-center gap-2 justify-end sm:justify-start flex-shrink-0">
+                    <Button variant="outline" size="sm" onClick={() => handleEditUser(user)} className="hidden sm:flex">
                       <Pencil className="h-4 w-4 mr-1" />
                       Editar
                     </Button>
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon">
+                        <Button variant="ghost" size="icon" className="h-8 w-8">
                           <MoreVertical className="h-4 w-4" />
                         </Button>
                       </DropdownMenuTrigger>
