@@ -25,6 +25,7 @@ import {
 } from '@/components/ui/select';
 import { useCreateEntityData, useUpdateEntityData } from '@/hooks/use-data';
 import { useTenant } from '@/stores/tenant-context';
+import { useAuthStore } from '@/stores/auth-store';
 import { api } from '@/lib/api';
 import dynamic from 'next/dynamic';
 import type { EntityField, FieldType } from '@/types';
@@ -97,6 +98,7 @@ export function RecordFormDialog({
   const createRecord = useCreateEntityData();
   const updateRecord = useUpdateEntityData();
   const { tenantId } = useTenant();
+  const { user } = useAuthStore();
 
   const [formData, setFormData] = useState<Record<string, unknown>>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -313,6 +315,14 @@ export function RecordFormDialog({
         }
       }
     });
+
+    // Injeta automaticamente o email do usuario logado
+    if (user?.email) {
+      if (!isEditing) {
+        processedData.created_by = user.email;
+      }
+      processedData.updated_by = user.email;
+    }
 
     try {
       if (isEditing && record) {
