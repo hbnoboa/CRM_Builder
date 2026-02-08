@@ -35,6 +35,22 @@ interface VisualOrderBy {
   direction: 'asc' | 'desc';
 }
 
+// Interface para campos do inputSchema (valores dinamicos)
+interface InputSchemaField {
+  fieldSlug: string;
+  enabled: boolean;
+  valueMode: 'manual' | 'auto';
+  manualValue?: unknown;   // Valor digitado pelo usuario (texto, numero, data)
+  dynamicValue?: string;   // Placeholder do sistema ({{user.email}}, {{now}}, etc)
+}
+
+interface InputSchema {
+  _v?: number;
+  selectedFields?: InputSchemaField[];
+  filters?: VisualFilter[];
+  orderBy?: VisualOrderBy[];
+}
+
 export interface QueryCustomApiDto extends PaginationQuery {
   isActive?: boolean;
   method?: HttpMethod;
@@ -319,7 +335,7 @@ export class CustomApiService {
 
     // Executar baseado no modo
     if (endpoint.mode === 'visual') {
-      return this.executeVisualMode(endpoint, query, body);
+      return this.executeVisualMode(endpoint, method, query, body, user, tenantId);
     }
 
     // Modo code (legado)
@@ -341,8 +357,11 @@ export class CustomApiService {
   // Executar modo visual
   private async executeVisualMode(
     endpoint: any,
+    method: HttpMethod,
     queryParams: Record<string, string>,
     body: Record<string, unknown>,
+    user?: CurrentUser,
+    tenantId?: string,
   ) {
     // Verificar se tem entidade fonte
     if (!endpoint.sourceEntityId) {
@@ -358,6 +377,120 @@ export class CustomApiService {
       throw new BadRequestException('Entidade fonte nao encontrada');
     }
 
+    // POST/PUT/PATCH = escrita (criar/atualizar registro)
+    if (method === HttpMethod.POST || method === HttpMethod.PUT || method === HttpMethod.PATCH) {
+      return this.executeVisualWrite(endpoint, entity, body, user, tenantId);
+    }
+
+    // GET/DELETE = leitura
+    return this.executeVisualRead(endpoint, queryParams, body);
+  }
+
+  // Executar escrita (POST/PUT/PATCH)
+  private async executeVisualWrite(
+    endpoint: any,
+    entity: any,
+    body: Record<string, unknown>,
+    user?: CurrentUser,
+    tenantId?: string,
+  ) {
+    const effectiveTenantId = tenantId || endpoint.tenantId;
+
+    // Processar inputSchema para obter valores dinamicos
+    const inputSchema = endpoint.requestSchema as InputSchema | null;
+    const schemaFields = inputSchema?.selectedFields || [];
+
+    // Montar dados do registro
+    const recordData: Record<string, unknown> = { ...body };
+
+    // Processar campos com valores configurados (manual ou auto)
+    for (const field of schemaFields) {
+      if (!field.enabled) continue;
+
+      switch (field.valueMode) {
+        case 'auto':
+          // Substituir placeholders como {{user.email}}
+          if (field.dynamicValue) {
+            const resolvedValue = this.resolveDynamicValue(field.dynamicValue, user);
+            if (resolvedValue !== undefined) {
+              recordData[field.fieldSlug] = resolvedValue;
+            }
+          }
+          break;
+
+        case 'manual':
+          // Usar valor fixo digitado pelo usuario
+          if (field.manualValue !== undefined) {
+            recordData[field.fieldSlug] = field.manualValue;
+          }
+          break;
+      }
+    }
+
+    this.logger.log(`Creating record for entity ${entity.slug} with data: ${JSON.stringify(recordData)}`);
+
+    // Criar registro
+    const created = await this.prisma.entityData.create({
+      data: {
+        tenantId: effectiveTenantId,
+        entityId: entity.id,
+        data: recordData as Prisma.InputJsonValue,
+        createdById: user?.id,
+        updatedById: user?.id,
+      },
+    });
+
+    return {
+      success: true,
+      message: 'Registro criado com sucesso',
+      data: {
+        id: created.id,
+        ...recordData,
+        createdAt: created.createdAt,
+        updatedAt: created.updatedAt,
+      },
+    };
+  }
+
+  // Resolver valor dinamico (substituir placeholders)
+  private resolveDynamicValue(template: string, user?: CurrentUser): unknown {
+    if (!template) return undefined;
+
+    // Mapa de valores disponiveis
+    const now = new Date();
+    const values: Record<string, unknown> = {
+      'user.id': user?.id,
+      'user.email': user?.email,
+      'user.name': user?.name,
+      'user.role': user?.role,
+      'user.tenantId': user?.tenantId,
+      'now': now.toISOString(),
+      'today': now.toISOString().split('T')[0],
+      'timestamp': now.getTime(),
+    };
+
+    // Se template e exatamente um placeholder, retornar valor diretamente
+    const singleMatch = template.match(/^\{\{(.+?)\}\}$/);
+    if (singleMatch) {
+      const key = singleMatch[1].trim();
+      return values[key];
+    }
+
+    // Se template tem multiplos placeholders ou texto misto, substituir todos
+    let result = template;
+    for (const [key, value] of Object.entries(values)) {
+      result = result.replace(new RegExp(`\\{\\{\\s*${key.replace('.', '\\.')}\\s*\\}\\}`, 'g'), String(value ?? ''));
+    }
+
+    return result;
+  }
+
+  // Executar leitura (GET)
+  private async executeVisualRead(
+    endpoint: any,
+    queryParams: Record<string, string>,
+    body: Record<string, unknown>,
+  ) {
     // Construir filtros
     const filters: any = {};
 

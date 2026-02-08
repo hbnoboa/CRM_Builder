@@ -81,13 +81,18 @@ export class CustomApiController {
 
 // Dynamic endpoint executor
 @Controller('x/:tenantId')
+@UseGuards(JwtAuthGuard)
 export class DynamicApiController {
+  private readonly logger = new Logger(DynamicApiController.name);
+
   constructor(private readonly customApiService: CustomApiService) {}
 
   @All('*')
   async handleDynamicRequest(@Req() req: AuthenticatedRequest, @Param('tenantId') tenantId: string) {
     const path = (req.params as Record<string, string>)[0] || '';
     const method = req.method as HttpMethod;
+
+    this.logger.log(`Executing custom endpoint: ${method} /${path} (tenant: ${tenantId}, user: ${req.user?.email})`);
 
     return this.customApiService.executeEndpoint(
       tenantId,

@@ -34,7 +34,7 @@ import { entitiesService } from '@/services/entities.service';
 import type { Entity, EntityField } from '@/types';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
-type ValueMode = 'static' | 'dynamic' | 'param';
+type ValueMode = 'manual' | 'auto';
 type FilterOperator = 'eq' | 'neq' | 'gt' | 'gte' | 'lt' | 'lte' | 'contains' | 'startsWith' | 'endsWith' | 'in' | 'isNull' | 'isNotNull';
 type SortDirection = 'asc' | 'desc';
 
@@ -42,18 +42,16 @@ interface FieldConfig {
   fieldSlug: string;
   enabled: boolean;
   valueMode?: ValueMode;
-  staticValue?: string;
-  dynamicValue?: string;
-  paramKey?: string;
+  manualValue?: string;  // Valor digitado pelo usuario (texto, numero, data, etc)
+  dynamicValue?: string; // Placeholder do sistema ({{user.email}}, {{now}}, etc)
 }
 
 interface FilterConfig {
   fieldSlug: string;
   operator: FilterOperator;
   valueMode: ValueMode;
-  staticValue?: string;
+  manualValue?: string;
   dynamicValue?: string;
-  paramKey?: string;
 }
 
 interface SortConfig {
@@ -100,20 +98,40 @@ const FILTER_OPERATORS: { value: FilterOperator; label: string; desc: string }[]
   { value: 'isNotNull', label: '!NULL', desc: 'Não é nulo' },
 ];
 
-const DYNAMIC_VALUES = [
-  { value: '{{user.email}}', label: 'Email do usuário logado', icon: '📧' },
-  { value: '{{user.name}}', label: 'Nome do usuário logado', icon: '👤' },
-  { value: '{{user.id}}', label: 'ID do usuário logado', icon: '🆔' },
-  { value: '{{now}}', label: 'Data/Hora atual', icon: '🕐' },
-  { value: '{{today}}', label: 'Data de hoje', icon: '📅' },
-  { value: '{{true}}', label: 'Verdadeiro (true)', icon: '✅' },
-  { value: '{{false}}', label: 'Falso (false)', icon: '❌' },
-  { value: '{{startOfDay}}', label: 'Início do dia', icon: '🌅' },
-  { value: '{{endOfDay}}', label: 'Fim do dia', icon: '🌆' },
-  { value: '{{startOfMonth}}', label: 'Início do mês', icon: '📆' },
-  { value: '{{endOfMonth}}', label: 'Fim do mês', icon: '📆' },
-  { value: '{{tenant.id}}', label: 'ID do tenant', icon: '🏢' },
+// Valores dinamicos com tipos compativeis
+const DYNAMIC_VALUES: { value: string; label: string; icon: string; types: string[] }[] = [
+  { value: '{{user.email}}', label: 'Email do usuario logado', icon: '📧', types: ['text', 'email', 'hidden'] },
+  { value: '{{user.name}}', label: 'Nome do usuario logado', icon: '👤', types: ['text', 'textarea', 'hidden'] },
+  { value: '{{user.id}}', label: 'ID do usuario logado', icon: '🆔', types: ['text', 'hidden', 'relation'] },
+  { value: '{{user.role}}', label: 'Role do usuario logado', icon: '👔', types: ['text', 'select', 'hidden'] },
+  { value: '{{now}}', label: 'Data/Hora atual', icon: '🕐', types: ['datetime', 'text', 'hidden'] },
+  { value: '{{today}}', label: 'Data de hoje', icon: '📅', types: ['date', 'text', 'hidden'] },
+  { value: '{{true}}', label: 'Verdadeiro (true)', icon: '✅', types: ['boolean'] },
+  { value: '{{false}}', label: 'Falso (false)', icon: '❌', types: ['boolean'] },
+  { value: '{{startOfDay}}', label: 'Inicio do dia', icon: '🌅', types: ['datetime', 'text', 'hidden'] },
+  { value: '{{endOfDay}}', label: 'Fim do dia', icon: '🌆', types: ['datetime', 'text', 'hidden'] },
+  { value: '{{startOfMonth}}', label: 'Inicio do mes', icon: '📆', types: ['date', 'datetime', 'text', 'hidden'] },
+  { value: '{{endOfMonth}}', label: 'Fim do mes', icon: '📆', types: ['date', 'datetime', 'text', 'hidden'] },
+  { value: '{{tenant.id}}', label: 'ID do tenant', icon: '🏢', types: ['text', 'hidden', 'relation'] },
+  { value: '{{timestamp}}', label: 'Timestamp atual', icon: '⏱️', types: ['number', 'text', 'hidden'] },
 ];
+
+// Retorna valores dinamicos compativeis com o tipo do campo
+function getDynamicValuesForType(fieldType: string): typeof DYNAMIC_VALUES {
+  return DYNAMIC_VALUES.filter(dv => dv.types.includes(fieldType));
+}
+
+// Verifica se um tipo de campo suporta modo Auto
+function fieldSupportsAuto(fieldType: string): boolean {
+  return DYNAMIC_VALUES.some(dv => dv.types.includes(fieldType));
+}
+
+// Verifica se um tipo de campo suporta modo Manual
+function fieldSupportsManual(fieldType: string): boolean {
+  // Tipos que NAO suportam valor manual (precisam de upload, selecao especial, etc)
+  const noManualTypes = ['file', 'image', 'map', 'json', 'richtext', 'api-select'];
+  return !noManualTypes.includes(fieldType);
+}
 
 const METHOD_COLORS: Record<string, string> = {
   GET: 'bg-emerald-500',
@@ -183,14 +201,8 @@ function defaultConfig(customApi?: CustomApi | null): ApiConfig {
       ...rawFilters.map((f: any) => ({
         fieldSlug: f.field || f.fieldSlug || '',
         operator: reverseOp(f.operator),
-        valueMode: 'static' as ValueMode,
-        staticValue: f.value != null ? String(f.value) : '',
-      })),
-      ...rawParams.map((p: any) => ({
-        fieldSlug: p.field || p.fieldSlug || '',
-        operator: reverseOp(p.operator),
-        valueMode: 'param' as ValueMode,
-        paramKey: p.paramName || p.paramKey || '',
+        valueMode: 'manual' as ValueMode,
+        manualValue: f.value != null ? String(f.value) : '',
       })),
     ];
 
@@ -278,9 +290,7 @@ export function CustomApiFormDialog({ open, onOpenChange, customApi, onSuccess }
         ...prev,
         selectedFields: entityFields.map(f => ({
           fieldSlug: f.slug || f.name,
-          enabled: true,
-          valueMode: isWriteMethod ? 'param' : undefined,
-          paramKey: isWriteMethod ? (f.slug || f.name) : undefined,
+          enabled: !isWriteMethod, // GET: enabled por padrao, POST: desabilitado (usuario escolhe o modo)
         })),
       }));
     }
@@ -311,24 +321,15 @@ export function CustomApiFormDialog({ open, onOpenChange, customApi, onSuccess }
     const enabledFields = config.selectedFields.filter(f => isFieldEnabled(f.fieldSlug));
     const fieldSlugs = enabledFields.map(f => f.fieldSlug);
 
-    // Fixed filters (static/dynamic → { field, operator, value })
-    const fixedFilters = config.filters
-      .filter(f => f.valueMode !== 'param')
-      .map(f => ({
-        field: f.fieldSlug,
-        operator: mapOp(f.operator),
-        value: f.valueMode === 'dynamic' ? f.dynamicValue : f.staticValue,
-      }));
+    // Filters (manual/auto → { field, operator, value })
+    const fixedFilters = config.filters.map(f => ({
+      field: f.fieldSlug,
+      operator: mapOp(f.operator),
+      value: f.valueMode === 'auto' ? f.dynamicValue : f.manualValue,
+    }));
 
-    // Dynamic query params (param → { field, operator, paramName, required })
-    const queryParams = config.filters
-      .filter(f => f.valueMode === 'param')
-      .map(f => ({
-        field: f.fieldSlug,
-        operator: mapOp(f.operator),
-        paramName: f.paramKey || f.fieldSlug,
-        required: true,
-      }));
+    // No more queryParams - all values are resolved server-side
+    const queryParams: never[] = [];
 
     // OrderBy → single { field, direction } object (backend expects one, not array)
     const orderBy = config.orderBy.length > 0
@@ -372,7 +373,7 @@ export function CustomApiFormDialog({ open, onOpenChange, customApi, onSuccess }
 
   // ─── Field helpers ──────────────────────────────────────────────────────
 
-  // New: Set valueMode for a field, which enables it; clearing disables it
+  // Set valueMode for a field, which enables it; clearing disables it
   const setFieldValueMode = (slug: string, valueMode: ValueMode | undefined) => {
     setConfig(prev => {
       const existing = prev.selectedFields.find(f => f.fieldSlug === slug);
@@ -385,7 +386,7 @@ export function CustomApiFormDialog({ open, onOpenChange, customApi, onSuccess }
         return {
           ...prev,
           selectedFields: prev.selectedFields.map(f =>
-            f.fieldSlug === slug ? { ...f, valueMode, enabled: true, paramKey: valueMode === 'param' ? (f.paramKey || slug) : f.paramKey } : f
+            f.fieldSlug === slug ? { ...f, valueMode, enabled: true } : f
           ),
         };
       }
@@ -399,7 +400,6 @@ export function CustomApiFormDialog({ open, onOpenChange, customApi, onSuccess }
               fieldSlug: slug,
               enabled: true,
               valueMode,
-              paramKey: valueMode === 'param' ? slug : undefined,
             },
           ],
         };
@@ -441,15 +441,14 @@ export function CustomApiFormDialog({ open, onOpenChange, customApi, onSuccess }
     config.selectedFields.find(f => f.fieldSlug === slug);
 
 
-  // New: select all = set valueMode to 'param' for all fields; deselect all = remove all from selectedFields
+  // Select all = set valueMode to 'manual' for all fields; deselect all = remove all from selectedFields
   const selectAllFields = () => {
     setConfig(prev => ({
       ...prev,
       selectedFields: entityFields.map(f => ({
         fieldSlug: f.slug || f.name,
         enabled: true,
-        valueMode: isWriteMethod ? 'param' : undefined,
-        paramKey: isWriteMethod ? (f.slug || f.name) : undefined,
+        valueMode: isWriteMethod ? 'manual' : undefined,
       })),
     }));
   };
@@ -474,8 +473,8 @@ export function CustomApiFormDialog({ open, onOpenChange, customApi, onSuccess }
       filters: [...prev.filters, {
         fieldSlug: first.slug || first.name,
         operator: 'eq',
-        valueMode: 'static',
-        staticValue: '',
+        valueMode: 'manual',
+        manualValue: '',
       }],
     }));
   };
@@ -690,22 +689,26 @@ export function CustomApiFormDialog({ open, onOpenChange, customApi, onSuccess }
                           {field.required && <span className="text-[9px] text-destructive">obrigatório</span>}
                         </div>
 
-                        {/* Mode toggle buttons (1 click instead of dropdown) */}
+                        {/* Mode toggle buttons - desabilitado se tipo nao suporta */}
                         <div className="flex gap-0.5 rounded-md border p-0.5 bg-background flex-shrink-0">
                           {([
-                            { mode: 'param' as ValueMode, label: 'Param', icon: <Zap className="h-3 w-3" /> },
-                            { mode: 'static' as ValueMode, label: 'Fixo', icon: <ListChecks className="h-3 w-3" /> },
-                            { mode: 'dynamic' as ValueMode, label: 'Auto', icon: <Clock className="h-3 w-3" /> },
-                          ]).map(({ mode, label, icon }) => (
+                            { mode: 'manual' as ValueMode, label: 'Manual', icon: <ListChecks className="h-3 w-3" />, supported: fieldSupportsManual(field.type) },
+                            { mode: 'auto' as ValueMode, label: 'Auto', icon: <Zap className="h-3 w-3" />, supported: fieldSupportsAuto(field.type) },
+                          ]).map(({ mode, label, icon, supported }) => (
                             <button
                               key={mode}
                               type="button"
+                              disabled={!supported}
+                              title={!supported ? `Tipo "${field.type}" nao suporta modo ${label}` : undefined}
                               className={`px-2 py-1 text-[11px] rounded flex items-center gap-1 transition-colors ${
                                 fc?.valueMode === mode
                                   ? 'bg-primary text-primary-foreground shadow-sm'
-                                  : 'hover:bg-muted text-muted-foreground'
+                                  : supported
+                                    ? 'hover:bg-muted text-muted-foreground'
+                                    : 'opacity-30 cursor-not-allowed text-muted-foreground'
                               }`}
                               onClick={() => {
+                                if (!supported) return;
                                 if (fc?.valueMode === mode) setFieldValueMode(slug, undefined);
                                 else setFieldValueMode(slug, mode);
                               }}
@@ -717,36 +720,34 @@ export function CustomApiFormDialog({ open, onOpenChange, customApi, onSuccess }
 
                         {/* Inline value input */}
                         <div className="flex-1 min-w-0">
-                          {fc?.valueMode === 'param' && (
-                            <Input
-                              className="h-7 text-xs"
-                              placeholder={slug}
-                              value={fc.paramKey || slug}
-                              onChange={e => updateFieldConfig(slug, { paramKey: e.target.value })}
-                            />
-                          )}
-                          {fc?.valueMode === 'static' && (
+                          {fc?.valueMode === 'manual' && (
                             <ValueInput
                               fieldType={field.type}
                               fieldOptions={field.options}
-                              value={fc.staticValue || ''}
-                              onChange={v => updateFieldConfig(slug, { staticValue: v })}
+                              value={fc.manualValue || ''}
+                              onChange={v => updateFieldConfig(slug, { manualValue: v })}
                             />
                           )}
-                          {fc?.valueMode === 'dynamic' && (
+                          {fc?.valueMode === 'auto' && (
                             <Select
                               value={fc.dynamicValue || ''}
                               onValueChange={v => updateFieldConfig(slug, { dynamicValue: v })}
                             >
                               <SelectTrigger className="h-7 text-xs">
-                                <SelectValue placeholder="Valor automático..." />
+                                <SelectValue placeholder="Valor automatico..." />
                               </SelectTrigger>
                               <SelectContent>
-                                {DYNAMIC_VALUES.map(dv => (
-                                  <SelectItem key={dv.value} value={dv.value}>
-                                    <span className="mr-1">{dv.icon}</span> {dv.label}
-                                  </SelectItem>
-                                ))}
+                                {getDynamicValuesForType(field.type).length > 0 ? (
+                                  getDynamicValuesForType(field.type).map(dv => (
+                                    <SelectItem key={dv.value} value={dv.value}>
+                                      <span className="mr-1">{dv.icon}</span> {dv.label}
+                                    </SelectItem>
+                                  ))
+                                ) : (
+                                  <div className="px-2 py-1 text-xs text-muted-foreground">
+                                    Nenhum valor disponivel para este tipo
+                                  </div>
+                                )}
                               </SelectContent>
                             </Select>
                           )}
@@ -841,17 +842,16 @@ export function CustomApiFormDialog({ open, onOpenChange, customApi, onSuccess }
                         <Select value={filter.valueMode} onValueChange={v => updateFilter(idx, { valueMode: v as ValueMode })}>
                           <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="static">Valor fixo</SelectItem>
-                            <SelectItem value="dynamic">Dinâmico</SelectItem>
-                            <SelectItem value="param">Parâmetro</SelectItem>
+                            <SelectItem value="manual">Manual</SelectItem>
+                            <SelectItem value="auto">Auto</SelectItem>
                           </SelectContent>
                         </Select>
-                        {filter.valueMode === 'static' && !['isNull', 'isNotNull'].includes(filter.operator) && (
-                          <Input className="h-8 text-xs" placeholder="Valor..." value={filter.staticValue || ''} onChange={e => updateFilter(idx, { staticValue: e.target.value })} />
+                        {filter.valueMode === 'manual' && !['isNull', 'isNotNull'].includes(filter.operator) && (
+                          <Input className="h-8 text-xs" placeholder="Valor..." value={filter.manualValue || ''} onChange={e => updateFilter(idx, { manualValue: e.target.value })} />
                         )}
-                        {filter.valueMode === 'dynamic' && (
+                        {filter.valueMode === 'auto' && (
                           <Select value={filter.dynamicValue || ''} onValueChange={v => updateFilter(idx, { dynamicValue: v })}>
-                            <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Dinâmico..." /></SelectTrigger>
+                            <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Valor automatico..." /></SelectTrigger>
                             <SelectContent>
                               {DYNAMIC_VALUES.map(dv => (
                                 <SelectItem key={dv.value} value={dv.value}>
@@ -860,9 +860,6 @@ export function CustomApiFormDialog({ open, onOpenChange, customApi, onSuccess }
                               ))}
                             </SelectContent>
                           </Select>
-                        )}
-                        {filter.valueMode === 'param' && (
-                          <Input className="h-8 text-xs" placeholder="Nome do param" value={filter.paramKey || ''} onChange={e => updateFilter(idx, { paramKey: e.target.value })} />
                         )}
                       </div>
                       <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive flex-shrink-0" onClick={() => removeFilter(idx)}>
@@ -1024,17 +1021,17 @@ export function CustomApiFormDialog({ open, onOpenChange, customApi, onSuccess }
               <div className="space-y-2 text-xs text-blue-600 dark:text-blue-400">
                 {isWriteMethod ? (
                   <>
-                    <p>• <strong>Marcar como concluído:</strong> PATCH + campo <code>concluido</code> = Fixo <code>true</code></p>
-                    <p>• <strong>Atribuir ao usuário:</strong> campo <code>responsavel_email</code> = Dinâmico <code>{'{{user.email}}'}</code></p>
-                    <p>• <strong>Registrar data:</strong> campo <code>concluido_em</code> = Dinâmico <code>{'{{now}}'}</code></p>
-                    <p>• <strong>Criar registro:</strong> POST com campos em modo Parâmetro</p>
+                    <p>• <strong>Marcar como concluido:</strong> PATCH + campo <code>concluido</code> = Manual <code>true</code></p>
+                    <p>• <strong>Atribuir ao usuario:</strong> campo <code>responsavel_email</code> = Auto <code>{'{{user.email}}'}</code></p>
+                    <p>• <strong>Registrar data:</strong> campo <code>concluido_em</code> = Auto <code>{'{{now}}'}</code></p>
+                    <p>• <strong>Valor fixo:</strong> campo <code>status</code> = Manual <code>aberto</code></p>
                   </>
                 ) : (
                   <>
                     <p>• <strong>Clientes VIP:</strong> Filtro <code>tipo = VIP</code> + Ordenar por <code>nome ASC</code></p>
-                    <p>• <strong>Últimos 10:</strong> Ordenar por <code>createdAt DESC</code> + Limite <code>10</code></p>
+                    <p>• <strong>Ultimos 10:</strong> Ordenar por <code>createdAt DESC</code> + Limite <code>10</code></p>
                     <p>• <strong>Meus registros:</strong> Filtro <code>email = {'{{user.email}}'}</code></p>
-                    <p>• <strong>Criados hoje:</strong> Filtro <code>createdAt ≥ {'{{startOfDay}}'}</code></p>
+                    <p>• <strong>Criados hoje:</strong> Filtro <code>createdAt {'>='} {'{{startOfDay}}'}</code></p>
                   </>
                 )}
               </div>
@@ -1074,7 +1071,28 @@ export function CustomApiFormDialog({ open, onOpenChange, customApi, onSuccess }
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
-// ValueInput — Smart input based on field type
+// Mascaras (mesmo do record-form-dialog)
+// ═════════════════════════════════════════════════════════════════════════════
+function applyCpfMask(value: string) {
+  return value.replace(/\D/g, '').replace(/(\d{3})(\d)/, '$1.$2').replace(/(\d{3})(\d)/, '$1.$2').replace(/(\d{3})(\d{1,2})/, '$1-$2').replace(/(-\d{2})\d+?$/, '$1');
+}
+
+function applyCnpjMask(value: string) {
+  return value.replace(/\D/g, '').replace(/(\d{2})(\d)/, '$1.$2').replace(/(\d{3})(\d)/, '$1.$2').replace(/(\d{3})(\d)/, '$1/$2').replace(/(\d{4})(\d{1,2})/, '$1-$2').replace(/(-\d{2})\d+?$/, '$1');
+}
+
+function applyCepMask(value: string) {
+  return value.replace(/\D/g, '').replace(/(\d{5})(\d)/, '$1-$2').replace(/(-\d{3})\d+?$/, '$1');
+}
+
+function applyPhoneMask(value: string) {
+  const digits = value.replace(/\D/g, '');
+  if (digits.length <= 10) return digits.replace(/(\d{2})(\d)/, '($1) $2').replace(/(\d{4})(\d)/, '$1-$2');
+  return digits.replace(/(\d{2})(\d)/, '($1) $2').replace(/(\d{5})(\d)/, '$1-$2').replace(/(-\d{4})\d+?$/, '$1');
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// ValueInput — Input baseado no tipo do campo (mesmo padrao do formulario de entidade)
 // ═════════════════════════════════════════════════════════════════════════════
 function ValueInput({
   fieldType,
@@ -1087,49 +1105,109 @@ function ValueInput({
   value: string;
   onChange: (v: string) => void;
 }) {
-  if (fieldType === 'boolean') {
-    return (
-      <Select value={value || ''} onValueChange={onChange}>
-        <SelectTrigger className="h-8 flex-1 text-xs"><SelectValue placeholder="Valor..." /></SelectTrigger>
-        <SelectContent>
-          <SelectItem value="true">✅ Verdadeiro (true)</SelectItem>
-          <SelectItem value="false">❌ Falso (false)</SelectItem>
-        </SelectContent>
-      </Select>
-    );
+  const inputClass = "h-7 flex-1 text-xs";
+
+  switch (fieldType) {
+    case 'boolean':
+      return (
+        <Select value={value || ''} onValueChange={onChange}>
+          <SelectTrigger className="h-7 flex-1 text-xs"><SelectValue placeholder="Escolha..." /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="true">Verdadeiro (true)</SelectItem>
+            <SelectItem value="false">Falso (false)</SelectItem>
+          </SelectContent>
+        </Select>
+      );
+
+    case 'select':
+    case 'multiselect':
+      if (fieldOptions && fieldOptions.length > 0) {
+        return (
+          <Select value={value || ''} onValueChange={onChange}>
+            <SelectTrigger className="h-7 flex-1 text-xs"><SelectValue placeholder="Escolha..." /></SelectTrigger>
+            <SelectContent>
+              {fieldOptions.map((opt, i) => {
+                const optValue = typeof opt === 'object' ? opt.value : opt;
+                const optLabel = typeof opt === 'object' ? opt.label : opt;
+                const optColor = typeof opt === 'object' ? opt.color : undefined;
+                return (
+                  <SelectItem key={i} value={optValue}>
+                    <span className="flex items-center gap-2">
+                      {optColor && <span className="w-2 h-2 rounded-full" style={{ backgroundColor: optColor }} />}
+                      {optLabel}
+                    </span>
+                  </SelectItem>
+                );
+              })}
+            </SelectContent>
+          </Select>
+        );
+      }
+      return <Input className={inputClass} placeholder="Valor..." value={value} onChange={e => onChange(e.target.value)} />;
+
+    case 'date':
+      return <Input type="date" className={inputClass} value={value} onChange={e => onChange(e.target.value)} />;
+
+    case 'datetime':
+      return <Input type="datetime-local" className={inputClass} value={value} onChange={e => onChange(e.target.value)} />;
+
+    case 'time':
+      return <Input type="time" className={inputClass} value={value} onChange={e => onChange(e.target.value)} />;
+
+    case 'number':
+    case 'rating':
+    case 'slider':
+      return <Input type="number" className={inputClass} placeholder="0" value={value} onChange={e => onChange(e.target.value)} />;
+
+    case 'currency':
+      return (
+        <div className="flex items-center gap-1 flex-1">
+          <span className="text-xs text-muted-foreground">R$</span>
+          <Input type="number" step="0.01" className={inputClass} placeholder="0,00" value={value} onChange={e => onChange(e.target.value)} />
+        </div>
+      );
+
+    case 'percentage':
+      return (
+        <div className="flex items-center gap-1 flex-1">
+          <Input type="number" step="0.1" min={0} max={100} className={inputClass} placeholder="0" value={value} onChange={e => onChange(e.target.value)} />
+          <span className="text-xs text-muted-foreground">%</span>
+        </div>
+      );
+
+    case 'email':
+      return <Input type="email" className={inputClass} placeholder="email@exemplo.com" value={value} onChange={e => onChange(e.target.value)} />;
+
+    case 'url':
+      return <Input type="url" className={inputClass} placeholder="https://exemplo.com" value={value} onChange={e => onChange(e.target.value)} />;
+
+    case 'phone':
+      return <Input type="tel" className={inputClass} placeholder="(00) 00000-0000" value={value} onChange={e => onChange(applyPhoneMask(e.target.value))} maxLength={15} />;
+
+    case 'cpf':
+      return <Input className={inputClass} placeholder="000.000.000-00" value={value} onChange={e => onChange(applyCpfMask(e.target.value))} maxLength={14} />;
+
+    case 'cnpj':
+      return <Input className={inputClass} placeholder="00.000.000/0000-00" value={value} onChange={e => onChange(applyCnpjMask(e.target.value))} maxLength={18} />;
+
+    case 'cep':
+      return <Input className={inputClass} placeholder="00000-000" value={value} onChange={e => onChange(applyCepMask(e.target.value))} maxLength={9} />;
+
+    case 'color':
+      return (
+        <div className="flex gap-1 flex-1 items-center">
+          <input type="color" className="h-7 w-8 rounded cursor-pointer border p-0.5" value={value || '#000000'} onChange={e => onChange(e.target.value)} />
+          <Input className={inputClass} value={value} onChange={e => onChange(e.target.value)} placeholder="#000000" />
+        </div>
+      );
+
+    case 'textarea':
+    case 'richtext':
+      return <Textarea className="h-16 flex-1 text-xs resize-none" placeholder="Digite o texto..." value={value} onChange={e => onChange(e.target.value)} />;
+
+    case 'text':
+    case 'hidden':
+    default:
+      return <Input className={inputClass} placeholder="Valor..." value={value} onChange={e => onChange(e.target.value)} />;
   }
-
-  if ((fieldType === 'select' || fieldType === 'multiselect') && fieldOptions && fieldOptions.length > 0) {
-    return (
-      <Select value={value || ''} onValueChange={onChange}>
-        <SelectTrigger className="h-8 flex-1 text-xs"><SelectValue placeholder="Escolha..." /></SelectTrigger>
-        <SelectContent>
-          {fieldOptions.map((opt, i) => {
-            const optValue = typeof opt === 'object' ? opt.value : opt;
-            const optLabel = typeof opt === 'object' ? opt.label : opt;
-            return <SelectItem key={i} value={optValue}>{optLabel}</SelectItem>;
-          })}
-        </SelectContent>
-      </Select>
-    );
-  }
-
-  if (fieldType === 'date') return <Input type="date" className="h-8 flex-1 text-xs" value={value} onChange={e => onChange(e.target.value)} />;
-  if (fieldType === 'datetime') return <Input type="datetime-local" className="h-8 flex-1 text-xs" value={value} onChange={e => onChange(e.target.value)} />;
-  if (fieldType === 'time') return <Input type="time" className="h-8 flex-1 text-xs" value={value} onChange={e => onChange(e.target.value)} />;
-
-  if (['number', 'currency', 'percentage', 'rating', 'slider'].includes(fieldType)) {
-    return <Input type="number" className="h-8 flex-1 text-xs" placeholder="Valor numérico" value={value} onChange={e => onChange(e.target.value)} />;
-  }
-
-  if (fieldType === 'color') {
-    return (
-      <div className="flex gap-1 flex-1">
-        <Input type="color" className="h-8 w-10 p-0.5" value={value || '#000000'} onChange={e => onChange(e.target.value)} />
-        <Input className="h-8 flex-1 text-xs" value={value} onChange={e => onChange(e.target.value)} placeholder="#000000" />
-      </div>
-    );
-  }
-
-  return <Input className="h-8 flex-1 text-xs" placeholder="Valor..." value={value} onChange={e => onChange(e.target.value)} />;
 }
