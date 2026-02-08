@@ -11,13 +11,11 @@ import {
   Trash2,
   Code,
   Play,
-  Pause,
   Copy,
   Zap,
   PlayCircle,
   PauseCircle,
   Loader2,
-  CheckCircle2,
   XCircle,
   Clock,
   Send,
@@ -26,7 +24,6 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
@@ -59,13 +56,82 @@ const methodColors: Record<string, string> = {
   DELETE: 'bg-red-100 text-red-800',
 };
 
-// ── Test API Dialog ──────────────────────────────────────────────────────────
+// ── Test API Dialog (noob-friendly) ──────────────────────────────────────────
+
+interface KeyValueRow {
+  id: string;
+  key: string;
+  value: string;
+}
+
+const createRow = (): KeyValueRow => ({ id: Math.random().toString(36).slice(2), key: '', value: '' });
 
 interface TestResult {
   status: number;
   statusText: string;
   data: unknown;
   duration: number;
+}
+
+function KeyValueFields({
+  label,
+  hint,
+  rows,
+  onChange,
+}: {
+  label: string;
+  hint: string;
+  rows: KeyValueRow[];
+  onChange: (rows: KeyValueRow[]) => void;
+}) {
+  const updateRow = (id: string, field: 'key' | 'value', val: string) => {
+    onChange(rows.map((r) => (r.id === id ? { ...r, [field]: val } : r)));
+  };
+  const removeRow = (id: string) => {
+    const next = rows.filter((r) => r.id !== id);
+    onChange(next.length === 0 ? [createRow()] : next);
+  };
+  const addRow = () => onChange([...rows, createRow()]);
+
+  return (
+    <div className="space-y-2">
+      <div>
+        <Label className="text-sm font-medium">{label}</Label>
+        <p className="text-xs text-muted-foreground">{hint}</p>
+      </div>
+      <div className="space-y-1.5">
+        {rows.map((row, idx) => (
+          <div key={row.id} className="flex items-center gap-2">
+            <Input
+              placeholder={`Nome do campo ${idx + 1}`}
+              value={row.key}
+              onChange={(e) => updateRow(row.id, 'key', e.target.value)}
+              className="text-sm flex-1"
+            />
+            <Input
+              placeholder={`Valor do campo ${idx + 1}`}
+              value={row.value}
+              onChange={(e) => updateRow(row.id, 'value', e.target.value)}
+              className="text-sm flex-1"
+            />
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 flex-shrink-0 text-muted-foreground hover:text-destructive"
+              onClick={() => removeRow(row.id)}
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </Button>
+          </div>
+        ))}
+      </div>
+      <Button type="button" variant="outline" size="sm" className="w-full text-xs" onClick={addRow}>
+        <Plus className="h-3 w-3 mr-1" />
+        Adicionar campo
+      </Button>
+    </div>
+  );
 }
 
 function TestApiDialog({
@@ -78,11 +144,32 @@ function TestApiDialog({
   customApi: CustomApi | null;
 }) {
   const { tenantId } = useTenant();
-  const [body, setBody] = useState('');
-  const [queryParams, setQueryParams] = useState('');
+  const [paramRows, setParamRows] = useState<KeyValueRow[]>([createRow()]);
+  const [bodyRows, setBodyRows] = useState<KeyValueRow[]>([createRow()]);
   const [testing, setTesting] = useState(false);
   const [result, setResult] = useState<TestResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  // Reset state when dialog opens with a different API
+  const handleOpenChange = (isOpen: boolean) => {
+    if (!isOpen) {
+      setResult(null);
+      setError(null);
+    }
+    onOpenChange(isOpen);
+  };
+
+  const rowsToObject = (rows: KeyValueRow[]): Record<string, string> | undefined => {
+    const obj: Record<string, string> = {};
+    let hasValue = false;
+    for (const row of rows) {
+      if (row.key.trim()) {
+        obj[row.key.trim()] = row.value;
+        hasValue = true;
+      }
+    }
+    return hasValue ? obj : undefined;
+  };
 
   const handleTest = async () => {
     if (!customApi || !tenantId) {
@@ -100,40 +187,14 @@ function TestApiDialog({
       const path = `/x/${tenantId}${customApi.path}`;
       const method = customApi.method.toLowerCase() as 'get' | 'post' | 'put' | 'patch' | 'delete';
 
-      // Parse query params
-      let params: Record<string, string> | undefined;
-      if (queryParams.trim()) {
-        try {
-          params = JSON.parse(queryParams);
-        } catch {
-          // Try key=value format
-          params = {};
-          queryParams.split('&').forEach((pair) => {
-            const [key, ...rest] = pair.split('=');
-            if (key?.trim()) {
-              params![key.trim()] = rest.join('=').trim();
-            }
-          });
-        }
-      }
-
-      // Parse body
-      let parsedBody: unknown = undefined;
-      if (body.trim() && ['post', 'put', 'patch'].includes(method)) {
-        try {
-          parsedBody = JSON.parse(body);
-        } catch {
-          setError('Body JSON inválido. Verifique a sintaxe.');
-          setTesting(false);
-          return;
-        }
-      }
+      const params = rowsToObject(paramRows);
+      const bodyData = ['post', 'put', 'patch'].includes(method) ? rowsToObject(bodyRows) : undefined;
 
       const response = await api.request({
         url: path,
         method,
         params,
-        data: parsedBody,
+        data: bodyData,
       });
 
       const duration = Date.now() - startTime;
@@ -153,7 +214,7 @@ function TestApiDialog({
           duration,
         });
       } else {
-        setError(err.message || 'Erro ao testar a API');
+        setError(err.message || 'Erro ao conectar com a API');
       }
     } finally {
       setTesting(false);
@@ -163,112 +224,144 @@ function TestApiDialog({
   const isSuccess = result && result.status >= 200 && result.status < 300;
   const needsBody = customApi && ['POST', 'PUT', 'PATCH'].includes(customApi.method);
 
+  // Friendly status message
+  const getStatusMessage = () => {
+    if (!result) return '';
+    if (isSuccess) return '✅ A API respondeu com sucesso!';
+    if (result.status === 404) return '❌ Endpoint não encontrado. Verifique se a API está ativa.';
+    if (result.status === 401 || result.status === 403) return '🔒 Sem permissão. Verifique se você tem acesso.';
+    if (result.status >= 500) return '⚠️ Erro interno no servidor.';
+    return `⚠️ A API retornou um erro (código ${result.status}).`;
+  };
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[640px] max-h-[85vh] flex flex-col">
+    <Dialog open={open} onOpenChange={handleOpenChange}>
+      <DialogContent className="sm:max-w-[600px] max-h-[85vh] flex flex-col">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Play className="h-5 w-5 text-primary" />
             Testar API
           </DialogTitle>
           {customApi && (
-            <DialogDescription className="flex items-center gap-2 pt-1">
-              <Badge
-                variant="outline"
-                className={`text-xs font-mono ${methodColors[customApi.method]}`}
-              >
-                {customApi.method}
-              </Badge>
-              <code className="text-xs bg-muted px-2 py-0.5 rounded">
-                /api/x/[org]{customApi.path}
-              </code>
+            <DialogDescription className="pt-1">
+              Teste a API <strong>{customApi.name}</strong> e veja a resposta abaixo.
             </DialogDescription>
           )}
         </DialogHeader>
 
-        <div className="flex flex-col gap-3 flex-1 min-h-0">
-          {/* Query Params */}
-          <div className="space-y-1.5">
-            <Label className="text-xs">
-              Query Params{' '}
-              <span className="text-muted-foreground">(JSON ou key=value&key2=value2)</span>
-            </Label>
-            <Input
-              placeholder='{"page": 1, "limit": 10} ou page=1&limit=10'
-              value={queryParams}
-              onChange={(e) => setQueryParams(e.target.value)}
-              className="font-mono text-xs"
-            />
+        {/* API info card */}
+        {customApi && (
+          <div className="flex items-center gap-2 p-2.5 rounded-lg bg-muted/50 border">
+            <Badge
+              variant="outline"
+              className={`text-xs font-semibold ${methodColors[customApi.method]}`}
+            >
+              {customApi.method}
+            </Badge>
+            <span className="text-sm text-muted-foreground truncate">
+              /api/x/[org]{customApi.path}
+            </span>
+            <Badge
+              variant={customApi.isActive ? 'default' : 'secondary'}
+              className="ml-auto text-[10px]"
+            >
+              {customApi.isActive ? 'Ativa' : 'Inativa'}
+            </Badge>
           </div>
+        )}
 
-          {/* Body (only for POST/PUT/PATCH) */}
-          {needsBody && (
-            <div className="space-y-1.5">
-              <Label className="text-xs">Body (JSON)</Label>
-              <Textarea
-                placeholder={'{\n  "key": "value"\n}'}
-                value={body}
-                onChange={(e) => setBody(e.target.value)}
-                rows={4}
-                className="font-mono text-xs"
-              />
-            </div>
-          )}
+        <ScrollArea className="flex-1 min-h-0 max-h-[calc(85vh-180px)]">
+          <div className="flex flex-col gap-4 pr-3">
+            {/* Filtros / Query Params */}
+            <KeyValueFields
+              label="📋 Filtros (opcional)"
+              hint="Adicione filtros para a busca, como página, limite, etc."
+              rows={paramRows}
+              onChange={setParamRows}
+            />
 
-          {/* Send Button */}
-          <Button onClick={handleTest} disabled={testing || !tenantId} className="w-full">
-            {testing ? (
+            {/* Body data for POST/PUT/PATCH */}
+            {needsBody && (
               <>
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                Executando...
-              </>
-            ) : (
-              <>
-                <Send className="h-4 w-4 mr-2" />
-                Enviar Requisição
+                <Separator />
+                <KeyValueFields
+                  label="📝 Dados para enviar"
+                  hint="Preencha os campos que a API espera receber."
+                  rows={bodyRows}
+                  onChange={setBodyRows}
+                />
               </>
             )}
-          </Button>
 
-          <Separator />
+            <Separator />
 
-          {/* Result */}
-          {result && (
-            <div className="space-y-2">
-              <div className="flex items-center gap-2">
-                {isSuccess ? (
-                  <CheckCircle2 className="h-4 w-4 text-green-600" />
-                ) : (
-                  <XCircle className="h-4 w-4 text-red-600" />
-                )}
-                <Badge
-                  variant={isSuccess ? 'default' : 'destructive'}
-                  className="text-xs"
+            {/* Send Button */}
+            <Button
+              onClick={handleTest}
+              disabled={testing || !tenantId}
+              size="lg"
+              className="w-full text-base"
+            >
+              {testing ? (
+                <>
+                  <Loader2 className="h-5 w-5 mr-2 animate-spin" />
+                  Testando...
+                </>
+              ) : (
+                <>
+                  <Send className="h-5 w-5 mr-2" />
+                  Testar Agora
+                </>
+              )}
+            </Button>
+
+            {/* Result */}
+            {result && (
+              <div className="space-y-2">
+                {/* Friendly status */}
+                <div
+                  className={`p-3 rounded-lg border text-sm font-medium ${
+                    isSuccess
+                      ? 'bg-green-50 border-green-200 text-green-800 dark:bg-green-950/30 dark:border-green-800 dark:text-green-300'
+                      : 'bg-red-50 border-red-200 text-red-800 dark:bg-red-950/30 dark:border-red-800 dark:text-red-300'
+                  }`}
                 >
-                  {result.status} {result.statusText}
-                </Badge>
-                <div className="flex items-center gap-1 text-xs text-muted-foreground ml-auto">
-                  <Clock className="h-3 w-3" />
-                  {result.duration}ms
+                  <div className="flex items-center justify-between">
+                    <span>{getStatusMessage()}</span>
+                    <span className="flex items-center gap-1 text-xs opacity-70">
+                      <Clock className="h-3 w-3" />
+                      {result.duration < 1000
+                        ? `${result.duration}ms`
+                        : `${(result.duration / 1000).toFixed(1)}s`}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Response data */}
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">Resposta da API:</Label>
+                  <ScrollArea className="max-h-[220px] border rounded-lg bg-muted/30">
+                    <pre className="p-3 text-xs whitespace-pre-wrap break-all">
+                      {typeof result.data === 'string'
+                        ? result.data
+                        : JSON.stringify(result.data, null, 2)}
+                    </pre>
+                  </ScrollArea>
                 </div>
               </div>
-              <ScrollArea className="max-h-[250px] border rounded-lg">
-                <pre className="p-3 text-xs font-mono whitespace-pre-wrap break-all">
-                  {typeof result.data === 'string'
-                    ? result.data
-                    : JSON.stringify(result.data, null, 2)}
-                </pre>
-              </ScrollArea>
-            </div>
-          )}
+            )}
 
-          {error && (
-            <div className="flex items-center gap-2 p-3 border border-destructive/50 bg-destructive/5 rounded-lg">
-              <XCircle className="h-4 w-4 text-destructive flex-shrink-0" />
-              <p className="text-sm text-destructive">{error}</p>
-            </div>
-          )}
-        </div>
+            {error && (
+              <div className="flex items-start gap-2 p-3 border border-destructive/50 bg-destructive/5 rounded-lg">
+                <XCircle className="h-4 w-4 text-destructive flex-shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-sm font-medium text-destructive">Não foi possível conectar</p>
+                  <p className="text-xs text-destructive/80 mt-0.5">{error}</p>
+                </div>
+              </div>
+            )}
+          </div>
+        </ScrollArea>
       </DialogContent>
     </Dialog>
   );
