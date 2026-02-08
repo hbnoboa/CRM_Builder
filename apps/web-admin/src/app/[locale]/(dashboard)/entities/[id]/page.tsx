@@ -169,7 +169,7 @@ export default function EntityDetailPage() {
   const [apiDialogOpen, setApiDialogOpen] = useState(false);
   const [editingApi, setEditingApi] = useState<CustomApi | null>(null);
   const [apiForm, setApiForm] = useState<CreateCustomApiData>({
-    name: '', path: '', method: 'GET', description: '', code: '',
+    name: '', path: '', method: 'GET', description: '', logic: '',
   });
   const [savingApi, setSavingApi] = useState(false);
   const { tenantId } = useTenant();
@@ -355,10 +355,10 @@ export default function EntityDetailPage() {
   const openApiDialog = (existingApi?: CustomApi) => {
     if (existingApi) {
       setEditingApi(existingApi);
-      setApiForm({ name: existingApi.name, path: existingApi.path, method: existingApi.method, description: existingApi.description || '', code: existingApi.code || '' });
+      setApiForm({ name: existingApi.name, path: existingApi.path, method: existingApi.method, description: existingApi.description || '', logic: (existingApi.logic as string) || '' });
     } else {
       setEditingApi(null);
-      setApiForm({ name: '', path: '', method: 'GET', description: '', code: '' });
+      setApiForm({ name: '', path: '', method: 'GET', description: '', logic: '' });
     }
     setApiDialogOpen(true);
   };
@@ -1164,7 +1164,7 @@ export default function EntityDetailPage() {
             </div>
             <div className="space-y-2">
               <Label>Código (JavaScript)</Label>
-              <Textarea value={apiForm.code} onChange={(e) => setApiForm({ ...apiForm, code: e.target.value })} placeholder={`// Contexto: ctx.params, ctx.body, ctx.user, ctx.entity\nconst { id } = ctx.params;\nconst record = await ctx.entity.findById(id);\nreturn { success: true, data: record };`} rows={10} className="font-mono text-sm" />
+              <Textarea value={apiForm.logic} onChange={(e) => setApiForm({ ...apiForm, logic: e.target.value })} placeholder={`// Contexto: ctx.params, ctx.body, ctx.user, ctx.entity\nconst { id } = ctx.params;\nconst record = await ctx.entity.findById(id);\nreturn { success: true, data: record };`} rows={10} className="font-mono text-sm" />
             </div>
           </div>
           <DialogFooter>

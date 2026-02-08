@@ -134,18 +134,86 @@ const FIELD_TYPE_ICONS: Record<string, string> = {
 
 function defaultConfig(customApi?: CustomApi | null): ApiConfig {
   if (customApi) {
+    // Try to load full frontend config from requestSchema (saved by handleSubmit)
+    const saved = customApi.requestSchema as Record<string, unknown> | null;
+
+    if (saved && saved._v) {
+      // Rich config saved — reload directly
+      return {
+        name: customApi.name,
+        method: customApi.method,
+        sourceEntityId: customApi.sourceEntityId || '',
+        description: customApi.description || '',
+        mode: (customApi.mode as 'visual' | 'code') || 'visual',
+        code: (customApi.logic as string) || customApi.code || '',
+        selectedFields: (saved.selectedFields as FieldConfig[]) || [],
+        filters: (saved.filters as FilterConfig[]) || [],
+        orderBy: (saved.orderBy as SortConfig[]) || [],
+        groupBy: [],
+        limitRecords: customApi.limitRecords ?? null,
+        offset: null,
+        distinct: false,
+        schedule: { enabled: false },
+      };
+    }
+
+    // Fallback: reconstruct from flat backend format
+    const rawFields = Array.isArray(customApi.selectedFields) ? customApi.selectedFields : [];
+    const selectedFields: FieldConfig[] = rawFields.map((f: unknown) =>
+      typeof f === 'string'
+        ? { fieldSlug: f, enabled: true }
+        : (f as FieldConfig)
+    );
+
+    // Reconstruct filters from backend FixedFilterDto + QueryParamDto
+    const reverseOp = (op: string): FilterOperator => {
+      const m: Record<string, FilterOperator> = {
+        equals: 'eq', not_equals: 'neq',
+        gt: 'gt', gte: 'gte', lt: 'lt', lte: 'lte',
+        contains: 'contains', starts_with: 'startsWith', ends_with: 'endsWith',
+        in: 'in', is_null: 'isNull', is_not_null: 'isNotNull',
+      };
+      return m[op] || (op as FilterOperator);
+    };
+
+    const rawFilters = Array.isArray(customApi.filters) ? customApi.filters : [];
+    const rawParams = Array.isArray(customApi.queryParams) ? customApi.queryParams : [];
+
+    const filters: FilterConfig[] = [
+      ...rawFilters.map((f: any) => ({
+        fieldSlug: f.field || f.fieldSlug || '',
+        operator: reverseOp(f.operator),
+        valueMode: 'static' as ValueMode,
+        staticValue: f.value != null ? String(f.value) : '',
+      })),
+      ...rawParams.map((p: any) => ({
+        fieldSlug: p.field || p.fieldSlug || '',
+        operator: reverseOp(p.operator),
+        valueMode: 'param' as ValueMode,
+        paramKey: p.paramName || p.paramKey || '',
+      })),
+    ];
+
+    // Reconstruct orderBy
+    const rawOrder = customApi.orderBy as any;
+    const orderBy: SortConfig[] = rawOrder
+      ? Array.isArray(rawOrder)
+        ? rawOrder.map((o: any) => ({ fieldSlug: o.field || o.fieldSlug, direction: o.direction || 'asc' }))
+        : rawOrder.field
+          ? [{ fieldSlug: rawOrder.field, direction: rawOrder.direction || 'asc' }]
+          : []
+      : [];
+
     return {
       name: customApi.name,
       method: customApi.method,
       sourceEntityId: customApi.sourceEntityId || '',
       description: customApi.description || '',
       mode: (customApi.mode as 'visual' | 'code') || 'visual',
-      code: customApi.code || '',
-      selectedFields: Array.isArray(customApi.selectedFields)
-        ? (customApi.selectedFields as unknown as FieldConfig[])
-        : [],
-      filters: Array.isArray(customApi.filters) ? (customApi.filters as unknown as FilterConfig[]) : [],
-      orderBy: customApi.orderBy ? (customApi.orderBy as unknown as SortConfig[]) : [],
+      code: (customApi.logic as string) || customApi.code || '',
+      selectedFields,
+      filters,
+      orderBy,
       groupBy: [],
       limitRecords: customApi.limitRecords ?? null,
       offset: null,
@@ -228,6 +296,53 @@ export function CustomApiFormDialog({ open, onOpenChange, customApi, onSuccess }
     const slug = entity?.slug || 'api';
     const path = `/${slug}-${config.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/-+$/, '')}`;
 
+    // Map frontend operator names to backend FilterOperator enum values
+    const mapOp = (op: FilterOperator): string => {
+      const m: Record<string, string> = {
+        eq: 'equals', neq: 'not_equals',
+        gt: 'gt', gte: 'gte', lt: 'lt', lte: 'lte',
+        contains: 'contains', startsWith: 'starts_with', endsWith: 'ends_with',
+        in: 'in', isNull: 'is_null', isNotNull: 'is_not_null',
+      };
+      return m[op] || op;
+    };
+
+    // Enabled fields → string[] (just slugs for the backend)
+    const enabledFields = config.selectedFields.filter(f => isFieldEnabled(f.fieldSlug));
+    const fieldSlugs = enabledFields.map(f => f.fieldSlug);
+
+    // Fixed filters (static/dynamic → { field, operator, value })
+    const fixedFilters = config.filters
+      .filter(f => f.valueMode !== 'param')
+      .map(f => ({
+        field: f.fieldSlug,
+        operator: mapOp(f.operator),
+        value: f.valueMode === 'dynamic' ? f.dynamicValue : f.staticValue,
+      }));
+
+    // Dynamic query params (param → { field, operator, paramName, required })
+    const queryParams = config.filters
+      .filter(f => f.valueMode === 'param')
+      .map(f => ({
+        field: f.fieldSlug,
+        operator: mapOp(f.operator),
+        paramName: f.paramKey || f.fieldSlug,
+        required: true,
+      }));
+
+    // OrderBy → single { field, direction } object (backend expects one, not array)
+    const orderBy = config.orderBy.length > 0
+      ? { field: config.orderBy[0].fieldSlug, direction: config.orderBy[0].direction }
+      : undefined;
+
+    // Store full frontend config in inputSchema for reload when editing
+    const inputSchema: Record<string, unknown> = {
+      _v: 1,
+      selectedFields: enabledFields,
+      filters: config.filters,
+      orderBy: config.orderBy,
+    };
+
     const payload: CreateCustomApiData = {
       name: config.name,
       path,
@@ -235,12 +350,13 @@ export function CustomApiFormDialog({ open, onOpenChange, customApi, onSuccess }
       description: config.description || undefined,
       mode: config.mode,
       sourceEntityId: config.sourceEntityId,
-      selectedFields: config.selectedFields.filter(f => f.enabled) as unknown as string[],
-      filters: config.filters as unknown[],
-      queryParams: [],
-      orderBy: config.orderBy as unknown,
+      selectedFields: fieldSlugs,
+      filters: fixedFilters,
+      queryParams,
+      orderBy,
       limitRecords: config.limitRecords ?? undefined,
-      code: config.mode === 'code' ? config.code : undefined,
+      logic: config.mode === 'code' ? config.code : undefined,
+      inputSchema,
     };
 
     try {

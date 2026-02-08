@@ -20,7 +20,9 @@ export interface CustomApi {
   queryParams?: unknown[];
   orderBy?: unknown;
   limitRecords?: number;
+  logic?: string;
   code?: string;
+  requestSchema?: unknown;
   isActive: boolean;
   tenantId: string;
   createdAt: string;
@@ -39,7 +41,8 @@ export interface CreateCustomApiData {
   queryParams?: unknown[];
   orderBy?: unknown;
   limitRecords?: number;
-  code?: string;
+  logic?: string;
+  inputSchema?: Record<string, unknown>;
 }
 
 export interface UpdateCustomApiData {
@@ -54,7 +57,8 @@ export interface UpdateCustomApiData {
   queryParams?: unknown[];
   orderBy?: unknown;
   limitRecords?: number;
-  code?: string;
+  logic?: string;
+  inputSchema?: Record<string, unknown>;
   isActive?: boolean;
 }
 
