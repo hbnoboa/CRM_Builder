@@ -477,15 +477,13 @@ export default function DataPage() {
     return selectedEntity?.fields?.find(f => f.slug === slug);
   }, [selectedEntity?.fields]);
 
-  // Campos disponiveis para filtro (que ainda nao tem filtro ativo)
+  // Campos disponiveis para filtro (permite multiplos filtros por campo)
   const availableFieldsForFilter = useMemo(() => {
     if (!selectedEntity?.fields) return [];
-    const usedFields = new Set(activeFilters.map(f => f.fieldSlug));
     return selectedEntity.fields.filter(f =>
-      !usedFields.has(f.slug) &&
       !['hidden', 'file', 'image', 'map', 'json', 'richtext', 'sub-entity', 'zone-diagram'].includes(f.type)
     );
-  }, [selectedEntity?.fields, activeFilters]);
+  }, [selectedEntity?.fields]);
 
   // Filtro de busca e filtros ativos
   const filteredRecords = useMemo(() => {
@@ -651,9 +649,9 @@ export default function DataPage() {
         </div>
 
         {/* Tabela de Registros */}
-        <div className="flex-1">
+        <div className="flex-1 min-w-0">
           {selectedEntity ? (
-            <Card>
+            <Card className="overflow-hidden">
               <CardHeader className="border-b p-4 sm:p-6 space-y-4">
                 {/* Linha 1: Titulo e botoes principais */}
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -986,78 +984,129 @@ export default function DataPage() {
                     )}
                   </div>
                 ) : (
-                  <div className="overflow-x-auto">
-                    <table className="w-full min-w-[600px]">
-                      <thead className="bg-muted/50">
-                        <tr>
-                          {visibleColumns.map(col => {
-                            const field = getFieldBySlug(col);
-                            return (
-                              <th
-                                key={col}
-                                className="px-3 sm:px-4 py-2 sm:py-3 text-left text-xs sm:text-sm font-medium text-muted-foreground whitespace-nowrap"
-                              >
-                                {field?.name || col}
-                              </th>
-                            );
-                          })}
-                          {currentUser?.role === 'PLATFORM_ADMIN' && (
-                            <th className="px-3 sm:px-4 py-2 sm:py-3 text-left text-xs sm:text-sm font-medium text-muted-foreground whitespace-nowrap">
-                              Tenant
-                            </th>
-                          )}
-                          <th className="px-3 sm:px-4 py-2 sm:py-3 text-left text-xs sm:text-sm font-medium text-muted-foreground whitespace-nowrap">
-                            Criado em
-                          </th>
-                          <th className="px-3 sm:px-4 py-2 sm:py-3 text-right text-xs sm:text-sm font-medium text-muted-foreground sticky right-0 bg-muted">
-                            Acoes
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y">
-                        {filteredRecords.map(record => (
-                          <tr key={record.id} className="hover:bg-muted/30">
-                            {visibleColumns.map(col => (
-                              <td key={col} className="px-3 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm max-w-[200px] truncate">
-                                {formatCellValue(record.data[col])}
-                              </td>
-                            ))}
+                  <div className="w-full overflow-hidden">
+                    {/* Desktop: Tabela tradicional */}
+                    <div className="hidden md:block overflow-x-auto">
+                      <table className="w-full table-auto">
+                        <thead className="bg-muted/50">
+                          <tr>
+                            {visibleColumns.map(col => {
+                              const field = getFieldBySlug(col);
+                              return (
+                                <th
+                                  key={col}
+                                  className="px-3 py-2 text-left text-xs font-medium text-muted-foreground"
+                                >
+                                  {field?.name || col}
+                                </th>
+                              );
+                            })}
                             {currentUser?.role === 'PLATFORM_ADMIN' && (
-                              <td className="px-3 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm">
-                                <span className="px-2 py-0.5 text-xs rounded bg-gray-200 text-gray-700" title={record.tenantId}>
-                                  {record.tenant?.name || record.tenantId || '-'}
-                                </span>
-                              </td>
+                              <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">
+                                Tenant
+                              </th>
                             )}
-                            <td className="px-3 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm text-muted-foreground whitespace-nowrap">
-                              {new Date(record.createdAt).toLocaleDateString('pt-BR')}
-                            </td>
-                            <td className="px-3 sm:px-4 py-2 sm:py-3 text-right sticky right-0 bg-background">
-                              <div className="flex items-center justify-end gap-1">
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-8 w-8"
-                                  onClick={() => handleEditRecord(record)}
-                                  data-testid={`edit-record-btn-${record.id}`}
-                                >
-                                  <Edit className="h-4 w-4" />
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-8 w-8 text-destructive"
-                                  onClick={() => handleDeleteClick(record)}
-                                  data-testid={`delete-record-btn-${record.id}`}
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                </Button>
-                              </div>
-                            </td>
+                            <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">
+                              Criado em
+                            </th>
+                            <th className="px-3 py-2 text-right text-xs font-medium text-muted-foreground w-20">
+                              Acoes
+                            </th>
                           </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                        </thead>
+                        <tbody className="divide-y">
+                          {filteredRecords.map(record => (
+                            <tr key={record.id} className="hover:bg-muted/30">
+                              {visibleColumns.map(col => (
+                                <td key={col} className="px-3 py-2 text-sm max-w-[200px] truncate">
+                                  {formatCellValue(record.data[col])}
+                                </td>
+                              ))}
+                              {currentUser?.role === 'PLATFORM_ADMIN' && (
+                                <td className="px-3 py-2 text-sm">
+                                  <span className="px-2 py-0.5 text-xs rounded bg-gray-200 text-gray-700" title={record.tenantId}>
+                                    {record.tenant?.name || record.tenantId || '-'}
+                                  </span>
+                                </td>
+                              )}
+                              <td className="px-3 py-2 text-sm text-muted-foreground whitespace-nowrap">
+                                {new Date(record.createdAt).toLocaleDateString('pt-BR')}
+                              </td>
+                              <td className="px-3 py-2 text-right">
+                                <div className="flex items-center justify-end gap-1">
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-8 w-8"
+                                    onClick={() => handleEditRecord(record)}
+                                    data-testid={`edit-record-btn-${record.id}`}
+                                  >
+                                    <Edit className="h-4 w-4" />
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-8 w-8 text-destructive"
+                                    onClick={() => handleDeleteClick(record)}
+                                    data-testid={`delete-record-btn-${record.id}`}
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    {/* Mobile: Cards */}
+                    <div className="md:hidden divide-y">
+                      {filteredRecords.map(record => (
+                        <div key={record.id} className="p-3 hover:bg-muted/30">
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="flex-1 min-w-0 space-y-1">
+                              {/* Mostrar primeiras 3 colunas visiveis */}
+                              {visibleColumns.slice(0, 3).map((col, idx) => {
+                                const field = getFieldBySlug(col);
+                                const value = formatCellValue(record.data[col]);
+                                return (
+                                  <div key={col} className={idx === 0 ? 'font-medium text-sm' : 'text-xs text-muted-foreground'}>
+                                    {idx === 0 ? value : `${field?.name || col}: ${value}`}
+                                  </div>
+                                );
+                              })}
+                              {visibleColumns.length > 3 && (
+                                <div className="text-xs text-muted-foreground">
+                                  +{visibleColumns.length - 3} campos
+                                </div>
+                              )}
+                              <div className="text-xs text-muted-foreground pt-1">
+                                {new Date(record.createdAt).toLocaleDateString('pt-BR')}
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-1 flex-shrink-0">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8"
+                                onClick={() => handleEditRecord(record)}
+                              >
+                                <Edit className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 text-destructive"
+                                onClick={() => handleDeleteClick(record)}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 )}
               </CardContent>
