@@ -262,7 +262,7 @@ export default function DataPage() {
                     <Database className="h-4 w-4" />
                     <span>{selectedEntity.name}</span>
                     <span className="text-xs text-muted-foreground ml-auto">
-                      ({selectedEntity._count?.records || 0})
+                      ({selectedEntity._count?.data || 0})
                     </span>
                   </div>
                 )}
@@ -275,7 +275,7 @@ export default function DataPage() {
                     <Database className="h-4 w-4" />
                     <span>{entity.name}</span>
                     <span className="text-xs text-muted-foreground ml-2">
-                      ({entity._count?.records || 0})
+                      ({entity._count?.data || 0})
                     </span>
                   </div>
                 </SelectItem>
@@ -331,7 +331,7 @@ export default function DataPage() {
                     <span className="font-medium">{entity.name}</span>
                   </div>
                   <span className="text-xs opacity-70">
-                    {entity._count?.records || 0}
+                    {entity._count?.data || 0}
                   </span>
                 </button>
               ))}
