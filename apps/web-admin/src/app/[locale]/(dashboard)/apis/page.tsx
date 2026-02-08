@@ -16,10 +16,27 @@ import {
   Zap,
   PlayCircle,
   PauseCircle,
+  Loader2,
+  CheckCircle2,
+  XCircle,
+  Clock,
+  Send,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Separator } from '@/components/ui/separator';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -30,6 +47,8 @@ import {
 import { toast } from 'sonner';
 import { useCustomApis, useActivateCustomApi, useDeactivateCustomApi } from '@/hooks/use-custom-apis';
 import { CustomApiFormDialog, DeleteCustomApiDialog } from '@/components/custom-apis';
+import { useTenant } from '@/stores/tenant-context';
+import { api } from '@/lib/api';
 import type { CustomApi } from '@/services/custom-apis.service';
 
 const methodColors: Record<string, string> = {
@@ -40,10 +59,226 @@ const methodColors: Record<string, string> = {
   DELETE: 'bg-red-100 text-red-800',
 };
 
+// ── Test API Dialog ──────────────────────────────────────────────────────────
+
+interface TestResult {
+  status: number;
+  statusText: string;
+  data: unknown;
+  duration: number;
+}
+
+function TestApiDialog({
+  open,
+  onOpenChange,
+  customApi,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  customApi: CustomApi | null;
+}) {
+  const { tenantId } = useTenant();
+  const [body, setBody] = useState('');
+  const [queryParams, setQueryParams] = useState('');
+  const [testing, setTesting] = useState(false);
+  const [result, setResult] = useState<TestResult | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleTest = async () => {
+    if (!customApi || !tenantId) {
+      toast.error('Tenant não encontrado. Faça login novamente.');
+      return;
+    }
+
+    setTesting(true);
+    setResult(null);
+    setError(null);
+
+    const startTime = Date.now();
+
+    try {
+      const path = `/x/${tenantId}${customApi.path}`;
+      const method = customApi.method.toLowerCase() as 'get' | 'post' | 'put' | 'patch' | 'delete';
+
+      // Parse query params
+      let params: Record<string, string> | undefined;
+      if (queryParams.trim()) {
+        try {
+          params = JSON.parse(queryParams);
+        } catch {
+          // Try key=value format
+          params = {};
+          queryParams.split('&').forEach((pair) => {
+            const [key, ...rest] = pair.split('=');
+            if (key?.trim()) {
+              params![key.trim()] = rest.join('=').trim();
+            }
+          });
+        }
+      }
+
+      // Parse body
+      let parsedBody: unknown = undefined;
+      if (body.trim() && ['post', 'put', 'patch'].includes(method)) {
+        try {
+          parsedBody = JSON.parse(body);
+        } catch {
+          setError('Body JSON inválido. Verifique a sintaxe.');
+          setTesting(false);
+          return;
+        }
+      }
+
+      const response = await api.request({
+        url: path,
+        method,
+        params,
+        data: parsedBody,
+      });
+
+      const duration = Date.now() - startTime;
+      setResult({
+        status: response.status,
+        statusText: response.statusText,
+        data: response.data,
+        duration,
+      });
+    } catch (err: any) {
+      const duration = Date.now() - startTime;
+      if (err.response) {
+        setResult({
+          status: err.response.status,
+          statusText: err.response.statusText,
+          data: err.response.data,
+          duration,
+        });
+      } else {
+        setError(err.message || 'Erro ao testar a API');
+      }
+    } finally {
+      setTesting(false);
+    }
+  };
+
+  const isSuccess = result && result.status >= 200 && result.status < 300;
+  const needsBody = customApi && ['POST', 'PUT', 'PATCH'].includes(customApi.method);
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-[640px] max-h-[85vh] flex flex-col">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Play className="h-5 w-5 text-primary" />
+            Testar API
+          </DialogTitle>
+          {customApi && (
+            <DialogDescription className="flex items-center gap-2 pt-1">
+              <Badge
+                variant="outline"
+                className={`text-xs font-mono ${methodColors[customApi.method]}`}
+              >
+                {customApi.method}
+              </Badge>
+              <code className="text-xs bg-muted px-2 py-0.5 rounded">
+                /api/x/[org]{customApi.path}
+              </code>
+            </DialogDescription>
+          )}
+        </DialogHeader>
+
+        <div className="flex flex-col gap-3 flex-1 min-h-0">
+          {/* Query Params */}
+          <div className="space-y-1.5">
+            <Label className="text-xs">
+              Query Params{' '}
+              <span className="text-muted-foreground">(JSON ou key=value&key2=value2)</span>
+            </Label>
+            <Input
+              placeholder='{"page": 1, "limit": 10} ou page=1&limit=10'
+              value={queryParams}
+              onChange={(e) => setQueryParams(e.target.value)}
+              className="font-mono text-xs"
+            />
+          </div>
+
+          {/* Body (only for POST/PUT/PATCH) */}
+          {needsBody && (
+            <div className="space-y-1.5">
+              <Label className="text-xs">Body (JSON)</Label>
+              <Textarea
+                placeholder={'{\n  "key": "value"\n}'}
+                value={body}
+                onChange={(e) => setBody(e.target.value)}
+                rows={4}
+                className="font-mono text-xs"
+              />
+            </div>
+          )}
+
+          {/* Send Button */}
+          <Button onClick={handleTest} disabled={testing || !tenantId} className="w-full">
+            {testing ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                Executando...
+              </>
+            ) : (
+              <>
+                <Send className="h-4 w-4 mr-2" />
+                Enviar Requisição
+              </>
+            )}
+          </Button>
+
+          <Separator />
+
+          {/* Result */}
+          {result && (
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                {isSuccess ? (
+                  <CheckCircle2 className="h-4 w-4 text-green-600" />
+                ) : (
+                  <XCircle className="h-4 w-4 text-red-600" />
+                )}
+                <Badge
+                  variant={isSuccess ? 'default' : 'destructive'}
+                  className="text-xs"
+                >
+                  {result.status} {result.statusText}
+                </Badge>
+                <div className="flex items-center gap-1 text-xs text-muted-foreground ml-auto">
+                  <Clock className="h-3 w-3" />
+                  {result.duration}ms
+                </div>
+              </div>
+              <ScrollArea className="max-h-[250px] border rounded-lg">
+                <pre className="p-3 text-xs font-mono whitespace-pre-wrap break-all">
+                  {typeof result.data === 'string'
+                    ? result.data
+                    : JSON.stringify(result.data, null, 2)}
+                </pre>
+              </ScrollArea>
+            </div>
+          )}
+
+          {error && (
+            <div className="flex items-center gap-2 p-3 border border-destructive/50 bg-destructive/5 rounded-lg">
+              <XCircle className="h-4 w-4 text-destructive flex-shrink-0" />
+              <p className="text-sm text-destructive">{error}</p>
+            </div>
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function ApisPageContent() {
   const [search, setSearch] = useState('');
   const [formOpen, setFormOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [testOpen, setTestOpen] = useState(false);
   const [selectedApi, setSelectedApi] = useState<CustomApi | null>(null);
 
   const { data, isLoading, refetch } = useCustomApis();
@@ -77,6 +312,11 @@ function ApisPageContent() {
   const handleDeleteApi = (api: CustomApi) => {
     setSelectedApi(api);
     setDeleteOpen(true);
+  };
+
+  const handleTestApi = (apiItem: CustomApi) => {
+    setSelectedApi(apiItem);
+    setTestOpen(true);
   };
 
   const handleToggleActive = async (api: CustomApi) => {
@@ -251,7 +491,7 @@ function ApisPageContent() {
                   </div>
 
                   <div className="flex items-center gap-2 justify-end sm:justify-start flex-shrink-0">
-                    <Button variant="ghost" size="sm" className="hidden md:flex">
+                    <Button variant="ghost" size="sm" className="hidden md:flex" onClick={() => handleTestApi(apiItem)}>
                       <Play className="h-4 w-4 mr-1" />
                       Testar
                     </Button>
@@ -266,6 +506,10 @@ function ApisPageContent() {
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={() => handleTestApi(apiItem)}>
+                          <Play className="h-4 w-4 mr-2" />
+                          Testar
+                        </DropdownMenuItem>
                         <DropdownMenuItem onClick={() => handleEditApi(apiItem)}>
                           <Pencil className="h-4 w-4 mr-2" />
                           Editar
@@ -322,6 +566,11 @@ function ApisPageContent() {
         onOpenChange={setDeleteOpen}
         customApi={selectedApi}
         onSuccess={handleSuccess}
+      />
+      <TestApiDialog
+        open={testOpen}
+        onOpenChange={setTestOpen}
+        customApi={selectedApi}
       />
     </div>
   );
