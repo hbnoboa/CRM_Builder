@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { Link } from '@/i18n/navigation';
 import {
   Database,
@@ -10,7 +10,9 @@ import {
   Trash2,
   RefreshCw,
   Loader2,
-  ChevronDown,
+  Filter,
+  Columns3,
+  X,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -32,12 +34,100 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuCheckboxItem,
+  DropdownMenuTrigger,
+  DropdownMenuSeparator,
+  DropdownMenuLabel,
+} from '@/components/ui/dropdown-menu';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
+import { Badge } from '@/components/ui/badge';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
 import { api } from '@/lib/api';
 import { useTenant } from '@/stores/tenant-context';
 import { useAuthStore } from '@/stores/auth-store';
 import { RecordFormDialog } from '@/components/data/record-form-dialog';
 import { useDeleteEntityData } from '@/hooks/use-data';
 import type { EntityField } from '@/types';
+
+// Tipos de filtro
+type FilterOperator = 'equals' | 'contains' | 'startsWith' | 'endsWith' | 'gt' | 'gte' | 'lt' | 'lte' | 'between' | 'isEmpty' | 'isNotEmpty';
+
+interface ActiveFilter {
+  fieldSlug: string;
+  fieldName: string;
+  fieldType: string;
+  operator: FilterOperator;
+  value: unknown;
+  value2?: unknown; // Para operador 'between'
+}
+
+// Operadores disponiveis por tipo de campo
+const OPERATORS_BY_TYPE: Record<string, { value: FilterOperator; label: string }[]> = {
+  text: [
+    { value: 'contains', label: 'Contem' },
+    { value: 'equals', label: 'Igual a' },
+    { value: 'startsWith', label: 'Comeca com' },
+    { value: 'endsWith', label: 'Termina com' },
+    { value: 'isEmpty', label: 'Esta vazio' },
+    { value: 'isNotEmpty', label: 'Nao esta vazio' },
+  ],
+  number: [
+    { value: 'equals', label: 'Igual a' },
+    { value: 'gt', label: 'Maior que' },
+    { value: 'gte', label: 'Maior ou igual' },
+    { value: 'lt', label: 'Menor que' },
+    { value: 'lte', label: 'Menor ou igual' },
+    { value: 'between', label: 'Entre' },
+    { value: 'isEmpty', label: 'Esta vazio' },
+  ],
+  date: [
+    { value: 'equals', label: 'Igual a' },
+    { value: 'gt', label: 'Depois de' },
+    { value: 'gte', label: 'A partir de' },
+    { value: 'lt', label: 'Antes de' },
+    { value: 'lte', label: 'Ate' },
+    { value: 'between', label: 'Entre' },
+    { value: 'isEmpty', label: 'Esta vazio' },
+  ],
+  boolean: [
+    { value: 'equals', label: 'Igual a' },
+  ],
+  select: [
+    { value: 'equals', label: 'Igual a' },
+    { value: 'isEmpty', label: 'Esta vazio' },
+    { value: 'isNotEmpty', label: 'Nao esta vazio' },
+  ],
+};
+
+// Mapear tipos de campo para categoria de operadores
+function getOperatorCategory(fieldType: string): string {
+  const textTypes = ['text', 'textarea', 'richtext', 'email', 'phone', 'url', 'cpf', 'cnpj', 'cep', 'password'];
+  const numberTypes = ['number', 'currency', 'percentage', 'rating', 'slider'];
+  const dateTypes = ['date', 'datetime', 'time'];
+  const booleanTypes = ['boolean'];
+  const selectTypes = ['select', 'multiselect', 'api-select', 'relation'];
+
+  if (textTypes.includes(fieldType)) return 'text';
+  if (numberTypes.includes(fieldType)) return 'number';
+  if (dateTypes.includes(fieldType)) return 'date';
+  if (booleanTypes.includes(fieldType)) return 'boolean';
+  if (selectTypes.includes(fieldType)) return 'select';
+  return 'text';
+}
+
+// Obter operadores para um tipo de campo
+function getOperatorsForField(fieldType: string): { value: FilterOperator; label: string }[] {
+  const category = getOperatorCategory(fieldType);
+  return OPERATORS_BY_TYPE[category] || OPERATORS_BY_TYPE.text;
+}
 
 interface Entity {
   id: string;
@@ -46,7 +136,7 @@ interface Entity {
   description?: string;
   fields?: EntityField[];
   _count?: {
-    records: number;
+    data: number;
   };
 }
 
@@ -81,6 +171,124 @@ function formatCellValue(val: unknown): string {
   return String(val);
 }
 
+// Avalia se um valor satisfaz um filtro
+function evaluateFilter(value: unknown, filter: ActiveFilter): boolean {
+  const { operator, value: filterValue, value2 } = filter;
+
+  // Operadores que nao precisam de valor
+  if (operator === 'isEmpty') {
+    return value === null || value === undefined || value === '' ||
+           (Array.isArray(value) && value.length === 0);
+  }
+  if (operator === 'isNotEmpty') {
+    return value !== null && value !== undefined && value !== '' &&
+           !(Array.isArray(value) && value.length === 0);
+  }
+
+  // Normalizar valor para comparacao
+  const normalizedValue = formatCellValue(value).toLowerCase();
+  const normalizedFilterValue = String(filterValue || '').toLowerCase();
+
+  switch (operator) {
+    case 'equals':
+      if (filter.fieldType === 'boolean') {
+        return value === filterValue;
+      }
+      return normalizedValue === normalizedFilterValue;
+
+    case 'contains':
+      return normalizedValue.includes(normalizedFilterValue);
+
+    case 'startsWith':
+      return normalizedValue.startsWith(normalizedFilterValue);
+
+    case 'endsWith':
+      return normalizedValue.endsWith(normalizedFilterValue);
+
+    case 'gt': {
+      const numValue = parseFloat(String(value));
+      const numFilter = parseFloat(String(filterValue));
+      if (filter.fieldType === 'date' || filter.fieldType === 'datetime') {
+        return new Date(String(value)) > new Date(String(filterValue));
+      }
+      return !isNaN(numValue) && !isNaN(numFilter) && numValue > numFilter;
+    }
+
+    case 'gte': {
+      const numValue = parseFloat(String(value));
+      const numFilter = parseFloat(String(filterValue));
+      if (filter.fieldType === 'date' || filter.fieldType === 'datetime') {
+        return new Date(String(value)) >= new Date(String(filterValue));
+      }
+      return !isNaN(numValue) && !isNaN(numFilter) && numValue >= numFilter;
+    }
+
+    case 'lt': {
+      const numValue = parseFloat(String(value));
+      const numFilter = parseFloat(String(filterValue));
+      if (filter.fieldType === 'date' || filter.fieldType === 'datetime') {
+        return new Date(String(value)) < new Date(String(filterValue));
+      }
+      return !isNaN(numValue) && !isNaN(numFilter) && numValue < numFilter;
+    }
+
+    case 'lte': {
+      const numValue = parseFloat(String(value));
+      const numFilter = parseFloat(String(filterValue));
+      if (filter.fieldType === 'date' || filter.fieldType === 'datetime') {
+        return new Date(String(value)) <= new Date(String(filterValue));
+      }
+      return !isNaN(numValue) && !isNaN(numFilter) && numValue <= numFilter;
+    }
+
+    case 'between': {
+      if (filter.fieldType === 'date' || filter.fieldType === 'datetime') {
+        const dateValue = new Date(String(value));
+        return dateValue >= new Date(String(filterValue)) && dateValue <= new Date(String(value2));
+      }
+      const numValue = parseFloat(String(value));
+      const numMin = parseFloat(String(filterValue));
+      const numMax = parseFloat(String(value2));
+      return !isNaN(numValue) && !isNaN(numMin) && !isNaN(numMax) &&
+             numValue >= numMin && numValue <= numMax;
+    }
+
+    default:
+      return true;
+  }
+}
+
+// Formatar label do filtro para exibicao
+function formatFilterLabel(filter: ActiveFilter): string {
+  const operators: Record<FilterOperator, string> = {
+    equals: '=',
+    contains: 'contem',
+    startsWith: 'comeca com',
+    endsWith: 'termina com',
+    gt: '>',
+    gte: '>=',
+    lt: '<',
+    lte: '<=',
+    between: 'entre',
+    isEmpty: 'vazio',
+    isNotEmpty: 'preenchido',
+  };
+
+  if (filter.operator === 'isEmpty' || filter.operator === 'isNotEmpty') {
+    return `${filter.fieldName}: ${operators[filter.operator]}`;
+  }
+
+  if (filter.operator === 'between') {
+    return `${filter.fieldName}: ${filter.value} - ${filter.value2}`;
+  }
+
+  if (filter.fieldType === 'boolean') {
+    return `${filter.fieldName}: ${filter.value ? 'Sim' : 'Nao'}`;
+  }
+
+  return `${filter.fieldName} ${operators[filter.operator]} ${filter.value}`;
+}
+
 export default function DataPage() {
   const { user: currentUser } = useAuthStore();
   const { tenantId, loading: tenantLoading } = useTenant();
@@ -95,6 +303,12 @@ export default function DataPage() {
   const [selectedRecord, setSelectedRecord] = useState<DataRecord | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [recordToDelete, setRecordToDelete] = useState<DataRecord | null>(null);
+
+  // Estados de filtro e colunas
+  const [activeFilters, setActiveFilters] = useState<ActiveFilter[]>([]);
+  const [hiddenColumns, setHiddenColumns] = useState<Set<string>>(new Set());
+  const [filterPopoverOpen, setFilterPopoverOpen] = useState(false);
+  const [newFilter, setNewFilter] = useState<Partial<ActiveFilter>>({});
 
   const deleteRecord = useDeleteEntityData();
 
@@ -145,6 +359,7 @@ export default function DataPage() {
       } catch {}
     }
     setSelectedEntity(entity);
+    resetFilters(); // Limpar filtros ao trocar de entidade
     const data = await fetchRecords(entity.slug);
     if (data.length === 0 && tenantId) {
       setSelectedRecord(null);
@@ -187,19 +402,115 @@ export default function DataPage() {
     if (selectedEntity) fetchRecords(selectedEntity.slug);
   };
 
-  const columns = useMemo(() => {
-    if (records.length === 0) return [];
-    return Object.keys(records[0].data || {});
-  }, [records]);
+  // Resetar filtros ao trocar de entidade
+  const resetFilters = useCallback(() => {
+    setActiveFilters([]);
+    setHiddenColumns(new Set());
+    setSearchTerm('');
+    setNewFilter({});
+  }, []);
 
-  // Filtro de busca nos registros
-  const filteredRecords = useMemo(() => {
-    if (!searchTerm.trim()) return records;
-    const term = searchTerm.toLowerCase();
-    return records.filter(r =>
-      columns.some(col => formatCellValue(r.data[col]).toLowerCase().includes(term))
+  // Handler para adicionar filtro
+  const handleAddFilter = useCallback(() => {
+    if (!newFilter.fieldSlug || !newFilter.operator) return;
+
+    // Para operadores que nao precisam de valor
+    if (newFilter.operator === 'isEmpty' || newFilter.operator === 'isNotEmpty') {
+      setActiveFilters(prev => [...prev, newFilter as ActiveFilter]);
+      setNewFilter({});
+      setFilterPopoverOpen(false);
+      return;
+    }
+
+    // Para outros operadores, precisa de valor
+    if (newFilter.value === undefined || newFilter.value === '') return;
+
+    // Para between, precisa de value2
+    if (newFilter.operator === 'between' && (newFilter.value2 === undefined || newFilter.value2 === '')) return;
+
+    setActiveFilters(prev => [...prev, newFilter as ActiveFilter]);
+    setNewFilter({});
+    setFilterPopoverOpen(false);
+  }, [newFilter]);
+
+  // Handler para remover filtro
+  const handleRemoveFilter = useCallback((index: number) => {
+    setActiveFilters(prev => prev.filter((_, i) => i !== index));
+  }, []);
+
+  // Handler para limpar todos os filtros
+  const handleClearFilters = useCallback(() => {
+    setActiveFilters([]);
+    setSearchTerm('');
+  }, []);
+
+  // Toggle visibilidade de coluna
+  const toggleColumnVisibility = useCallback((column: string) => {
+    setHiddenColumns(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(column)) {
+        newSet.delete(column);
+      } else {
+        newSet.add(column);
+      }
+      return newSet;
+    });
+  }, []);
+
+  // Todas as colunas disponiveis (baseado nos campos da entidade)
+  const allColumns = useMemo(() => {
+    if (!selectedEntity?.fields) {
+      // Fallback: usar chaves do primeiro registro
+      if (records.length === 0) return [];
+      return Object.keys(records[0].data || {});
+    }
+    return selectedEntity.fields.map(f => f.slug);
+  }, [selectedEntity?.fields, records]);
+
+  // Colunas visiveis (excluindo as ocultas)
+  const visibleColumns = useMemo(() => {
+    return allColumns.filter(col => !hiddenColumns.has(col));
+  }, [allColumns, hiddenColumns]);
+
+  // Obter campo por slug
+  const getFieldBySlug = useCallback((slug: string): EntityField | undefined => {
+    return selectedEntity?.fields?.find(f => f.slug === slug);
+  }, [selectedEntity?.fields]);
+
+  // Campos disponiveis para filtro (que ainda nao tem filtro ativo)
+  const availableFieldsForFilter = useMemo(() => {
+    if (!selectedEntity?.fields) return [];
+    const usedFields = new Set(activeFilters.map(f => f.fieldSlug));
+    return selectedEntity.fields.filter(f =>
+      !usedFields.has(f.slug) &&
+      !['hidden', 'file', 'image', 'map', 'json', 'richtext', 'sub-entity', 'zone-diagram'].includes(f.type)
     );
-  }, [records, searchTerm, columns]);
+  }, [selectedEntity?.fields, activeFilters]);
+
+  // Filtro de busca e filtros ativos
+  const filteredRecords = useMemo(() => {
+    let result = records;
+
+    // Aplicar busca textual
+    if (searchTerm.trim()) {
+      const term = searchTerm.toLowerCase();
+      result = result.filter(r =>
+        allColumns.some(col => formatCellValue(r.data[col]).toLowerCase().includes(term))
+      );
+    }
+
+    // Aplicar filtros ativos
+    if (activeFilters.length > 0) {
+      result = result.filter(record => {
+        return activeFilters.every(filter => {
+          const value = record.data[filter.fieldSlug];
+          return evaluateFilter(value, filter);
+        });
+      });
+    }
+
+    return result;
+  }, [records, searchTerm, allColumns, activeFilters]);
 
   return (
     <div className="space-y-4 sm:space-y-6">
@@ -343,34 +654,312 @@ export default function DataPage() {
         <div className="flex-1">
           {selectedEntity ? (
             <Card>
-              <CardHeader className="border-b p-4 sm:p-6">
+              <CardHeader className="border-b p-4 sm:p-6 space-y-4">
+                {/* Linha 1: Titulo e botoes principais */}
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                   <div>
                     <CardTitle className="text-lg sm:text-xl">{selectedEntity.name}</CardTitle>
                     <CardDescription>
-                      {filteredRecords.length} registro(s)
+                      {filteredRecords.length} de {records.length} registro(s)
+                      {activeFilters.length > 0 && ` (${activeFilters.length} filtro(s) ativo(s))`}
                     </CardDescription>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {/* Busca */}
                     <div className="relative flex-1 sm:flex-none">
                       <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                       <Input
                         placeholder="Buscar..."
                         value={searchTerm}
                         onChange={e => setSearchTerm(e.target.value)}
-                        className="pl-9 w-full sm:w-48 md:w-64"
+                        className="pl-9 w-full sm:w-40 md:w-52"
                       />
                     </div>
+
+                    {/* Botao + Filtrar */}
+                    <Popover open={filterPopoverOpen} onOpenChange={setFilterPopoverOpen}>
+                      <PopoverTrigger asChild>
+                        <Button variant="outline" size="sm" className="gap-1">
+                          <Filter className="h-4 w-4" />
+                          <span className="hidden sm:inline">Filtrar</span>
+                          {activeFilters.length > 0 && (
+                            <Badge variant="secondary" className="ml-1 px-1.5 py-0 text-xs">
+                              {activeFilters.length}
+                            </Badge>
+                          )}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-80 p-4" align="end">
+                        <div className="space-y-4">
+                          <div className="font-medium">Adicionar Filtro</div>
+
+                          {/* Selecionar campo */}
+                          <div className="space-y-2">
+                            <Label className="text-xs text-muted-foreground">Campo</Label>
+                            <Select
+                              value={newFilter.fieldSlug || ''}
+                              onValueChange={(value) => {
+                                const field = getFieldBySlug(value);
+                                if (field) {
+                                  const operators = getOperatorsForField(field.type);
+                                  setNewFilter({
+                                    fieldSlug: field.slug,
+                                    fieldName: field.name,
+                                    fieldType: field.type,
+                                    operator: operators[0]?.value,
+                                    value: field.type === 'boolean' ? true : undefined,
+                                  });
+                                }
+                              }}
+                            >
+                              <SelectTrigger>
+                                <SelectValue placeholder="Selecione um campo" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {availableFieldsForFilter.map(field => (
+                                  <SelectItem key={field.slug} value={field.slug}>
+                                    {field.name}
+                                  </SelectItem>
+                                ))}
+                                {availableFieldsForFilter.length === 0 && (
+                                  <div className="px-2 py-1 text-sm text-muted-foreground">
+                                    Nenhum campo disponivel
+                                  </div>
+                                )}
+                              </SelectContent>
+                            </Select>
+                          </div>
+
+                          {/* Selecionar operador */}
+                          {newFilter.fieldSlug && (
+                            <div className="space-y-2">
+                              <Label className="text-xs text-muted-foreground">Condicao</Label>
+                              <Select
+                                value={newFilter.operator || ''}
+                                onValueChange={(value) => setNewFilter(prev => ({
+                                  ...prev,
+                                  operator: value as FilterOperator,
+                                  value: prev.fieldType === 'boolean' ? true : undefined,
+                                  value2: undefined,
+                                }))}
+                              >
+                                <SelectTrigger>
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {getOperatorsForField(newFilter.fieldType || 'text').map(op => (
+                                    <SelectItem key={op.value} value={op.value}>
+                                      {op.label}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                          )}
+
+                          {/* Input de valor (baseado no tipo) */}
+                          {newFilter.operator &&
+                           newFilter.operator !== 'isEmpty' &&
+                           newFilter.operator !== 'isNotEmpty' && (
+                            <div className="space-y-2">
+                              <Label className="text-xs text-muted-foreground">Valor</Label>
+
+                              {/* Boolean */}
+                              {newFilter.fieldType === 'boolean' && (
+                                <div className="flex items-center gap-3">
+                                  <Switch
+                                    checked={newFilter.value === true}
+                                    onCheckedChange={(checked) => setNewFilter(prev => ({
+                                      ...prev,
+                                      value: checked,
+                                    }))}
+                                  />
+                                  <span className="text-sm">
+                                    {newFilter.value ? 'Sim' : 'Nao'}
+                                  </span>
+                                </div>
+                              )}
+
+                              {/* Number/Currency/Percentage */}
+                              {['number', 'currency', 'percentage', 'rating', 'slider'].includes(newFilter.fieldType || '') && (
+                                <div className="flex gap-2">
+                                  <Input
+                                    type="number"
+                                    placeholder="Valor"
+                                    value={String(newFilter.value || '')}
+                                    onChange={(e) => setNewFilter(prev => ({
+                                      ...prev,
+                                      value: e.target.value ? parseFloat(e.target.value) : undefined,
+                                    }))}
+                                  />
+                                  {newFilter.operator === 'between' && (
+                                    <>
+                                      <span className="text-muted-foreground self-center">e</span>
+                                      <Input
+                                        type="number"
+                                        placeholder="Valor"
+                                        value={String(newFilter.value2 || '')}
+                                        onChange={(e) => setNewFilter(prev => ({
+                                          ...prev,
+                                          value2: e.target.value ? parseFloat(e.target.value) : undefined,
+                                        }))}
+                                      />
+                                    </>
+                                  )}
+                                </div>
+                              )}
+
+                              {/* Date/Datetime */}
+                              {['date', 'datetime'].includes(newFilter.fieldType || '') && (
+                                <div className="flex gap-2">
+                                  <Input
+                                    type={newFilter.fieldType === 'datetime' ? 'datetime-local' : 'date'}
+                                    value={String(newFilter.value || '')}
+                                    onChange={(e) => setNewFilter(prev => ({
+                                      ...prev,
+                                      value: e.target.value,
+                                    }))}
+                                  />
+                                  {newFilter.operator === 'between' && (
+                                    <>
+                                      <span className="text-muted-foreground self-center">e</span>
+                                      <Input
+                                        type={newFilter.fieldType === 'datetime' ? 'datetime-local' : 'date'}
+                                        value={String(newFilter.value2 || '')}
+                                        onChange={(e) => setNewFilter(prev => ({
+                                          ...prev,
+                                          value2: e.target.value,
+                                        }))}
+                                      />
+                                    </>
+                                  )}
+                                </div>
+                              )}
+
+                              {/* Select/Multiselect - Mostrar opcoes */}
+                              {['select', 'multiselect'].includes(newFilter.fieldType || '') && (
+                                <Select
+                                  value={String(newFilter.value || '')}
+                                  onValueChange={(value) => setNewFilter(prev => ({
+                                    ...prev,
+                                    value,
+                                  }))}
+                                >
+                                  <SelectTrigger>
+                                    <SelectValue placeholder="Selecione" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {(getFieldBySlug(newFilter.fieldSlug || '')?.options || []).map(opt => {
+                                      const optValue = typeof opt === 'string' ? opt : opt.value;
+                                      const optLabel = typeof opt === 'string' ? opt : opt.label;
+                                      return (
+                                        <SelectItem key={optValue} value={optValue}>
+                                          {optLabel}
+                                        </SelectItem>
+                                      );
+                                    })}
+                                  </SelectContent>
+                                </Select>
+                              )}
+
+                              {/* Text (default) */}
+                              {['text', 'textarea', 'email', 'phone', 'url', 'cpf', 'cnpj', 'cep', 'password', 'api-select', 'relation'].includes(newFilter.fieldType || '') && (
+                                <Input
+                                  placeholder="Digite o valor"
+                                  value={String(newFilter.value || '')}
+                                  onChange={(e) => setNewFilter(prev => ({
+                                    ...prev,
+                                    value: e.target.value,
+                                  }))}
+                                />
+                              )}
+                            </div>
+                          )}
+
+                          {/* Botao adicionar */}
+                          <Button
+                            onClick={handleAddFilter}
+                            className="w-full"
+                            disabled={!newFilter.fieldSlug || !newFilter.operator}
+                          >
+                            <Plus className="h-4 w-4 mr-2" />
+                            Adicionar Filtro
+                          </Button>
+                        </div>
+                      </PopoverContent>
+                    </Popover>
+
+                    {/* Botao Colunas */}
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="outline" size="sm" className="gap-1">
+                          <Columns3 className="h-4 w-4" />
+                          <span className="hidden sm:inline">Colunas</span>
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="w-48">
+                        <DropdownMenuLabel>Colunas visiveis</DropdownMenuLabel>
+                        <DropdownMenuSeparator />
+                        {allColumns.map(col => {
+                          const field = getFieldBySlug(col);
+                          return (
+                            <DropdownMenuCheckboxItem
+                              key={col}
+                              checked={!hiddenColumns.has(col)}
+                              onCheckedChange={() => toggleColumnVisibility(col)}
+                            >
+                              {field?.name || col}
+                            </DropdownMenuCheckboxItem>
+                          );
+                        })}
+                        {allColumns.length === 0 && (
+                          <div className="px-2 py-1 text-sm text-muted-foreground">
+                            Nenhuma coluna
+                          </div>
+                        )}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+
+                    {/* Botao Refresh */}
                     <Button
                       variant="outline"
                       size="icon"
                       onClick={() => fetchRecords(selectedEntity.slug)}
-                      className="flex-shrink-0"
+                      className="flex-shrink-0 h-8 w-8"
                     >
                       <RefreshCw className={`h-4 w-4 ${loadingRecords ? 'animate-spin' : ''}`} />
                     </Button>
                   </div>
                 </div>
+
+                {/* Linha 2: Filtros ativos (pills) */}
+                {activeFilters.length > 0 && (
+                  <div className="flex flex-wrap gap-2 items-center">
+                    {activeFilters.map((filter, index) => (
+                      <Badge
+                        key={`${filter.fieldSlug}-${index}`}
+                        variant="secondary"
+                        className="gap-1 pl-2 pr-1 py-1"
+                      >
+                        <span className="text-xs">{formatFilterLabel(filter)}</span>
+                        <button
+                          onClick={() => handleRemoveFilter(index)}
+                          className="ml-1 rounded-full hover:bg-muted p-0.5"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </Badge>
+                    ))}
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={handleClearFilters}
+                      className="h-6 px-2 text-xs text-muted-foreground hover:text-foreground"
+                    >
+                      Limpar tudo
+                    </Button>
+                  </div>
+                )}
               </CardHeader>
               <CardContent className="p-0">
                 {loadingRecords ? (
@@ -401,14 +990,17 @@ export default function DataPage() {
                     <table className="w-full min-w-[600px]">
                       <thead className="bg-muted/50">
                         <tr>
-                          {columns.map(col => (
-                            <th
-                              key={col}
-                              className="px-3 sm:px-4 py-2 sm:py-3 text-left text-xs sm:text-sm font-medium text-muted-foreground capitalize whitespace-nowrap"
-                            >
-                              {col}
-                            </th>
-                          ))}
+                          {visibleColumns.map(col => {
+                            const field = getFieldBySlug(col);
+                            return (
+                              <th
+                                key={col}
+                                className="px-3 sm:px-4 py-2 sm:py-3 text-left text-xs sm:text-sm font-medium text-muted-foreground whitespace-nowrap"
+                              >
+                                {field?.name || col}
+                              </th>
+                            );
+                          })}
                           {currentUser?.role === 'PLATFORM_ADMIN' && (
                             <th className="px-3 sm:px-4 py-2 sm:py-3 text-left text-xs sm:text-sm font-medium text-muted-foreground whitespace-nowrap">
                               Tenant
@@ -425,7 +1017,7 @@ export default function DataPage() {
                       <tbody className="divide-y">
                         {filteredRecords.map(record => (
                           <tr key={record.id} className="hover:bg-muted/30">
-                            {columns.map(col => (
+                            {visibleColumns.map(col => (
                               <td key={col} className="px-3 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm max-w-[200px] truncate">
                                 {formatCellValue(record.data[col])}
                               </td>
