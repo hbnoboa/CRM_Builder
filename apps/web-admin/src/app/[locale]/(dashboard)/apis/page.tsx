@@ -101,7 +101,7 @@ function ApisPageContent() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       {/* Breadcrumbs */}
       <nav className="mb-2 flex items-center gap-2 text-sm text-muted-foreground" aria-label="breadcrumb">
         <Link href="/dashboard" className="hover:underline">Dashboard</Link>
@@ -126,39 +126,39 @@ function ApisPageContent() {
       {/* Stats */}
       <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-4">
         <Card>
-          <CardContent className="p-4">
-            <div className="text-2xl font-bold">{apis.length}</div>
-            <p className="text-sm text-muted-foreground">Total de APIs</p>
+          <CardContent className="p-3 sm:p-4">
+            <div className="text-xl sm:text-2xl font-bold">{apis.length}</div>
+            <p className="text-xs sm:text-sm text-muted-foreground">Total de APIs</p>
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="p-4">
-            <div className="text-2xl font-bold text-green-600">
+          <CardContent className="p-3 sm:p-4">
+            <div className="text-xl sm:text-2xl font-bold text-green-600">
               {apis.filter((a) => a.isActive).length}
             </div>
-            <p className="text-sm text-muted-foreground">Ativas</p>
+            <p className="text-xs sm:text-sm text-muted-foreground">Ativas</p>
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="p-4">
-            <div className="text-2xl font-bold text-blue-600">
+          <CardContent className="p-3 sm:p-4">
+            <div className="text-xl sm:text-2xl font-bold text-blue-600">
               {apis.filter((a) => a.method === 'GET').length}
             </div>
-            <p className="text-sm text-muted-foreground">Endpoints GET</p>
+            <p className="text-xs sm:text-sm text-muted-foreground">Endpoints GET</p>
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="p-4">
-            <div className="text-2xl font-bold text-purple-600">
+          <CardContent className="p-3 sm:p-4">
+            <div className="text-xl sm:text-2xl font-bold text-purple-600">
               {apis.filter((a) => a.method === 'POST').length}
             </div>
-            <p className="text-sm text-muted-foreground">Endpoints POST</p>
+            <p className="text-xs sm:text-sm text-muted-foreground">Endpoints POST</p>
           </CardContent>
         </Card>
       </div>
 
       {/* Search */}
-      <div className="relative max-w-md">
+      <div className="relative w-full max-w-md">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
         <Input
           placeholder="Buscar APIs..."
@@ -182,9 +182,9 @@ function ApisPageContent() {
         </div>
       ) : filteredApis.length === 0 ? (
         <Card>
-          <CardContent className="p-12 text-center">
-            <Code className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-            <h3 className="text-lg font-semibold mb-2">Nenhuma API encontrada</h3>
+          <CardContent className="p-6 sm:p-12 text-center">
+            <Code className="h-8 w-8 sm:h-12 sm:w-12 mx-auto text-muted-foreground mb-4" />
+            <h3 className="text-base sm:text-lg font-semibold mb-2">Nenhuma API encontrada</h3>
             <p className="text-muted-foreground mb-4">
               {search
                 ? 'Nenhuma API corresponde a sua busca.'
@@ -232,7 +232,7 @@ function ApisPageContent() {
                         </span>
                       </div>
                       <div className="flex items-center gap-2 mt-1 overflow-hidden">
-                        <code className="text-xs sm:text-sm text-muted-foreground bg-muted px-2 py-0.5 rounded truncate max-w-[200px] sm:max-w-none">
+                        <code className="text-xs sm:text-sm text-muted-foreground bg-muted px-1.5 sm:px-2 py-0.5 rounded truncate max-w-[140px] sm:max-w-none">
                           /api/x/[org]{apiItem.path}
                         </code>
                         <button

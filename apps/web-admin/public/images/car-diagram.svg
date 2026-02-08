@@ -1,0 +1,74 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 600" width="400" height="600">
+  <defs>
+    <linearGradient id="bodyGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#e2e8f0;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#cbd5e1;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="windowGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#93c5fd;stop-opacity:0.7" />
+      <stop offset="100%" style="stop-color:#60a5fa;stop-opacity:0.5" />
+    </linearGradient>
+  </defs>
+  
+  <!-- Car body outline -->
+  <path d="M120,80 Q100,80 90,100 L80,180 Q70,200 70,220 L70,380 Q70,400 80,420 L90,500 Q100,520 120,520 L280,520 Q300,520 310,500 L320,420 Q330,400 330,380 L330,220 Q330,200 320,180 L310,100 Q300,80 280,80 Z" 
+        fill="url(#bodyGrad)" stroke="#94a3b8" stroke-width="2"/>
+  
+  <!-- Front windshield -->
+  <path d="M140,120 Q135,110 130,100 L270,100 Q265,110 260,120 Z" 
+        fill="url(#windowGrad)" stroke="#94a3b8" stroke-width="1"/>
+  
+  <!-- Rear windshield -->
+  <path d="M140,480 Q135,490 130,500 L270,500 Q265,490 260,480 Z" 
+        fill="url(#windowGrad)" stroke="#94a3b8" stroke-width="1"/>
+  
+  <!-- Left windows -->
+  <rect x="78" y="200" width="15" height="80" rx="4" fill="url(#windowGrad)" stroke="#94a3b8" stroke-width="1"/>
+  <rect x="78" y="320" width="15" height="80" rx="4" fill="url(#windowGrad)" stroke="#94a3b8" stroke-width="1"/>
+  
+  <!-- Right windows -->
+  <rect x="307" y="200" width="15" height="80" rx="4" fill="url(#windowGrad)" stroke="#94a3b8" stroke-width="1"/>
+  <rect x="307" y="320" width="15" height="80" rx="4" fill="url(#windowGrad)" stroke="#94a3b8" stroke-width="1"/>
+  
+  <!-- Hood lines -->
+  <line x1="160" y1="100" x2="160" y2="160" stroke="#94a3b8" stroke-width="0.5" opacity="0.5"/>
+  <line x1="200" y1="90" x2="200" y2="160" stroke="#94a3b8" stroke-width="0.5" opacity="0.5"/>
+  <line x1="240" y1="100" x2="240" y2="160" stroke="#94a3b8" stroke-width="0.5" opacity="0.5"/>
+  
+  <!-- Trunk lines -->
+  <line x1="160" y1="440" x2="160" y2="500" stroke="#94a3b8" stroke-width="0.5" opacity="0.5"/>
+  <line x1="200" y1="440" x2="200" y2="510" stroke="#94a3b8" stroke-width="0.5" opacity="0.5"/>
+  <line x1="240" y1="440" x2="240" y2="500" stroke="#94a3b8" stroke-width="0.5" opacity="0.5"/>
+  
+  <!-- Front bumper -->
+  <path d="M110,80 Q100,70 95,60 L305,60 Q300,70 290,80" 
+        fill="none" stroke="#94a3b8" stroke-width="1.5"/>
+  
+  <!-- Rear bumper -->
+  <path d="M110,520 Q100,530 95,540 L305,540 Q300,530 290,520" 
+        fill="none" stroke="#94a3b8" stroke-width="1.5"/>
+  
+  <!-- Front headlights -->
+  <ellipse cx="110" cy="75" rx="12" ry="8" fill="#fbbf24" opacity="0.3" stroke="#94a3b8" stroke-width="1"/>
+  <ellipse cx="290" cy="75" rx="12" ry="8" fill="#fbbf24" opacity="0.3" stroke="#94a3b8" stroke-width="1"/>
+  
+  <!-- Rear taillights -->
+  <ellipse cx="110" cy="525" rx="12" ry="8" fill="#ef4444" opacity="0.3" stroke="#94a3b8" stroke-width="1"/>
+  <ellipse cx="290" cy="525" rx="12" ry="8" fill="#ef4444" opacity="0.3" stroke="#94a3b8" stroke-width="1"/>
+  
+  <!-- Wheels -->
+  <rect x="55" y="150" width="25" height="50" rx="6" fill="#475569" stroke="#334155" stroke-width="2"/>
+  <rect x="320" y="150" width="25" height="50" rx="6" fill="#475569" stroke="#334155" stroke-width="2"/>
+  <rect x="55" y="400" width="25" height="50" rx="6" fill="#475569" stroke="#334155" stroke-width="2"/>
+  <rect x="320" y="400" width="25" height="50" rx="6" fill="#475569" stroke="#334155" stroke-width="2"/>
+  
+  <!-- Side mirrors -->
+  <ellipse cx="65" cy="170" rx="8" ry="5" fill="#94a3b8" stroke="#64748b" stroke-width="1"/>
+  <ellipse cx="335" cy="170" rx="8" ry="5" fill="#94a3b8" stroke="#64748b" stroke-width="1"/>
+  
+  <!-- Roof line (center) -->
+  <rect x="130" y="200" width="140" height="200" rx="10" fill="none" stroke="#94a3b8" stroke-width="0.5" stroke-dasharray="4,4" opacity="0.4"/>
+  
+  <!-- Center line -->
+  <line x1="200" y1="60" x2="200" y2="540" stroke="#94a3b8" stroke-width="0.3" opacity="0.3" stroke-dasharray="8,4"/>
+</svg>

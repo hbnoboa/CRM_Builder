@@ -56,6 +56,7 @@ interface RecordFormDialogProps {
   entity: Entity;
   record?: RecordData | null;
   onSuccess?: () => void;
+  parentRecordId?: string;
 }
 
 // ─── Masks ──────────────────────────────────────────────────────────────────
@@ -90,6 +91,7 @@ export function RecordFormDialog({
   entity,
   record,
   onSuccess,
+  parentRecordId,
 }: RecordFormDialogProps) {
   const isEditing = !!record;
   const createRecord = useCreateEntityData();
@@ -252,6 +254,8 @@ export function RecordFormDialog({
   const validateForm = (): boolean => {
     const newErrors: Record<string, string> = {};
     entity.fields?.forEach((field) => {
+      // Sub-entity fields are not validated (they manage their own data)
+      if (field.type === 'sub-entity') return;
       const value = formData[field.slug];
       if (field.required && (value === undefined || value === null || value === '')) {
         newErrors[field.slug] = `${field.label || field.name} é obrigatório`;
@@ -296,6 +300,8 @@ export function RecordFormDialog({
 
     const processedData: Record<string, unknown> = {};
     entity.fields?.forEach((field) => {
+      // Sub-entity fields store data separately, skip them
+      if (field.type === 'sub-entity') return;
       const value = formData[field.slug];
       if (value !== undefined && value !== '') {
         if (field.type === 'number' || field.type === 'rating' || field.type === 'slider') {
@@ -312,7 +318,7 @@ export function RecordFormDialog({
       if (isEditing && record) {
         await updateRecord.mutateAsync({ entitySlug: entity.slug, id: record.id, data: processedData });
       } else {
-        await createRecord.mutateAsync({ entitySlug: entity.slug, data: processedData });
+        await createRecord.mutateAsync({ entitySlug: entity.slug, data: processedData, parentRecordId });
       }
       onOpenChange(false);
       onSuccess?.();
@@ -678,19 +684,22 @@ export function RecordFormDialog({
         );
 
       case 'file':
-      case 'image':
+      case 'image': {
+        const ImageUploadField = require('@/components/form/image-upload-field').default;
         return (
           <div key={field.slug} className="space-y-2">
             {fieldLabel}
-            <Input id={field.slug} type="text" placeholder={field.placeholder || `URL do ${field.type === 'image' ? 'imagem' : 'arquivo'}`} value={String(value || '')} onChange={(e) => handleFieldChange(field.slug, e.target.value)} />
-            {field.type === 'image' && typeof value === 'string' && value !== '' ? (
-              <div className="mt-2 border rounded-md overflow-hidden w-24 h-24">
-                <img src={value as string} alt="preview" className="w-full h-full object-cover" onError={(e) => (e.currentTarget.style.display = 'none')} />
-              </div>
-            ) : null}
+            <ImageUploadField
+              value={value as string | string[] || ''}
+              onChange={(v: string | string[]) => handleFieldChange(field.slug, v)}
+              mode={field.type === 'image' ? 'image' : 'file'}
+              placeholder={field.placeholder}
+              folder={field.type === 'image' ? 'images' : 'files'}
+            />
             {helpEl}{errorEl}
           </div>
         );
+      }
 
       case 'map':
         return (
@@ -708,6 +717,66 @@ export function RecordFormDialog({
             {helpEl}{errorEl}
           </div>
         );
+
+      case 'array': {
+        const ArrayField = require('@/components/form/array-field').default;
+        const arrayValue = Array.isArray(value) ? value : (typeof value === 'string' && value ? [value] : []);
+        return (
+          <div key={field.slug} className="space-y-2">
+            {fieldLabel}
+            <ArrayField
+              value={arrayValue}
+              onChange={(vals: string[]) => handleFieldChange(field.slug, vals)}
+              placeholder={field.placeholder || `Adicione itens para ${(field.label || field.name).toLowerCase()}`}
+            />
+            {helpEl}{errorEl}
+          </div>
+        );
+      }
+
+      case 'sub-entity': {
+        // Sub-entity field only works when editing an existing record (needs parentRecordId)
+        if (!record?.id) {
+          return (
+            <div key={field.slug} className="space-y-2">
+              {fieldLabel}
+              <div className="border rounded-lg p-4 text-center text-muted-foreground bg-muted/30">
+                <p className="text-sm">💡 Salve o registro primeiro para adicionar {field.label || field.name}</p>
+                <p className="text-xs mt-1">Sub-registros só podem ser adicionados após a criação do registro pai.</p>
+              </div>
+            </div>
+          );
+        }
+        const SubEntityField = require('./sub-entity-field').default;
+        return (
+          <div key={field.slug} className="col-span-full space-y-2">
+            <SubEntityField
+              parentRecordId={record.id}
+              subEntitySlug={field.subEntitySlug || ''}
+              subEntityId={field.subEntityId || ''}
+              subEntityDisplayFields={field.subEntityDisplayFields}
+              label={field.label || field.name}
+            />
+          </div>
+        );
+      }
+
+      case 'zone-diagram': {
+        const ZoneDiagramField = require('@/components/form/zone-diagram-field').default;
+        return (
+          <div key={field.slug} className="col-span-full space-y-2">
+            <ZoneDiagramField
+              value={(value as Record<string, string>) || {}}
+              onChange={(val: Record<string, string>) => handleFieldChange(field.slug, val)}
+              diagramImage={field.diagramImage}
+              zones={field.diagramZones}
+              label={field.label || field.name}
+              readOnly={false}
+            />
+            {errorEl}
+          </div>
+        );
+      }
 
       // text, hidden, and default
       default:
@@ -740,7 +809,7 @@ export function RecordFormDialog({
                 {fieldRows.map((row, rowIdx) => (
                   <div key={rowIdx} className="grid grid-cols-12 gap-4">
                     {row.map((field) => {
-                      const colSpan = field.gridColSpan || 12;
+                      const colSpan = (field.type === 'sub-entity' || field.type === 'zone-diagram') ? 12 : (field.gridColSpan || 12);
                       const colStart = field.gridColStart;
                       return (
                         <div key={field.slug} style={{ gridColumn: colStart ? `${colStart} / span ${colSpan}` : `span ${colSpan} / span ${colSpan}` }}>

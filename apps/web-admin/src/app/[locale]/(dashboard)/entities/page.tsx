@@ -109,7 +109,7 @@ function EntitiesPageContent() {
   const totalEntities = entities.length;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       {/* Breadcrumbs */}
       <nav className="mb-2 flex items-center gap-2 text-sm text-muted-foreground" aria-label="breadcrumb">
         <Link href="/dashboard" className="hover:underline">Dashboard</Link>
@@ -136,31 +136,31 @@ function EntitiesPageContent() {
       {/* Stats */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
         <Card>
-          <CardContent className="p-4">
-            <div className="text-2xl font-bold">{totalEntities}</div>
-            <p className="text-sm text-muted-foreground">Total de Entidades</p>
+          <CardContent className="p-3 sm:p-4">
+            <div className="text-xl sm:text-2xl font-bold">{totalEntities}</div>
+            <p className="text-xs sm:text-sm text-muted-foreground">Total de Entidades</p>
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="p-4">
-            <div className="text-2xl font-bold text-blue-600">
+          <CardContent className="p-3 sm:p-4">
+            <div className="text-xl sm:text-2xl font-bold text-blue-600">
               {entities.filter((e) => (e.fields?.length || 0) > 0).length}
             </div>
-            <p className="text-sm text-muted-foreground">Com Campos</p>
+            <p className="text-xs sm:text-sm text-muted-foreground">Com Campos</p>
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="p-4">
-            <div className="text-2xl font-bold text-green-600">
+          <CardContent className="p-3 sm:p-4">
+            <div className="text-xl sm:text-2xl font-bold text-green-600">
               {entities.reduce((sum, e) => sum + (e._count?.data || 0), 0)}
             </div>
-            <p className="text-sm text-muted-foreground">Total de Registros</p>
+            <p className="text-xs sm:text-sm text-muted-foreground">Total de Registros</p>
           </CardContent>
         </Card>
       </div>
 
       {/* Search */}
-      <div className="relative max-w-md">
+      <div className="relative w-full sm:max-w-md">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
         <Input
           placeholder="Buscar entidades..."
@@ -185,9 +185,9 @@ function EntitiesPageContent() {
         </div>
       ) : filteredEntities.length === 0 ? (
         <Card>
-          <CardContent className="p-12 text-center">
-            <Database className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-            <h3 className="text-lg font-semibold mb-2">Nenhuma entidade encontrada</h3>
+          <CardContent className="p-6 sm:p-12 text-center">
+            <Database className="h-10 w-10 sm:h-12 sm:w-12 mx-auto text-muted-foreground mb-3 sm:mb-4" />
+            <h3 className="text-base sm:text-lg font-semibold mb-2">Nenhuma entidade encontrada</h3>
             <p className="text-muted-foreground mb-4">
               {search
                 ? 'Nenhuma entidade corresponde a sua busca.'

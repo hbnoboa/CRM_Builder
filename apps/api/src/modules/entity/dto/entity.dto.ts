@@ -19,6 +19,22 @@ export enum FieldType {
   FILE = 'file',
   IMAGE = 'image',
   JSON = 'json',
+  MAP = 'map',
+  RICHTEXT = 'richtext',
+  TIME = 'time',
+  CPF = 'cpf',
+  CNPJ = 'cnpj',
+  CEP = 'cep',
+  CURRENCY = 'currency',
+  PERCENTAGE = 'percentage',
+  SLIDER = 'slider',
+  RATING = 'rating',
+  COLOR = 'color',
+  PASSWORD = 'password',
+  HIDDEN = 'hidden',
+  ARRAY = 'array',
+  SUB_ENTITY = 'sub-entity',
+  ZONE_DIAGRAM = 'zone-diagram',
 }
 
 export class AutoFillFieldDto {
@@ -95,6 +111,42 @@ export class FieldDto {
   @Type(() => AutoFillFieldDto)
   @IsOptional()
   autoFillFields?: AutoFillFieldDto[];
+
+  // Campos específicos para sub-entity
+  @ApiPropertyOptional({ description: 'ID da sub-entidade (filha)' })
+  @IsString()
+  @IsOptional()
+  subEntityId?: string;
+
+  @ApiPropertyOptional({ description: 'Slug da sub-entidade (filha)' })
+  @IsString()
+  @IsOptional()
+  subEntitySlug?: string;
+
+  @ApiPropertyOptional({ description: 'Campos da sub-entidade a exibir na tabela' })
+  @IsArray()
+  @IsOptional()
+  subEntityDisplayFields?: string[];
+
+  // Campos específicos para zone-diagram
+  @ApiPropertyOptional({ description: 'URL da imagem de fundo do diagrama' })
+  @IsString()
+  @IsOptional()
+  diagramImage?: string;
+
+  @ApiPropertyOptional({ description: 'Configuração das zonas do diagrama (id, label, x, y, optionsSource, options, sourceEntitySlug, sourceFieldSlug)' })
+  @IsArray()
+  @IsOptional()
+  diagramZones?: Array<{
+    id: string;
+    label: string;
+    x: number;
+    y: number;
+    optionsSource: 'manual' | 'entity';
+    options?: string[];
+    sourceEntitySlug?: string;
+    sourceFieldSlug?: string;
+  }>;
 }
 
 export class CreateEntityDto {

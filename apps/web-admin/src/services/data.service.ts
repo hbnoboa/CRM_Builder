@@ -7,6 +7,7 @@ export interface QueryDataParams {
   search?: string;
   sortBy?: string;
   sortOrder?: 'asc' | 'desc';
+  parentRecordId?: string;
 }
 
 export interface EntityDataResponse extends PaginatedResponse<EntityData> {
@@ -41,11 +42,12 @@ export const dataService = {
 
   async create(
     entitySlug: string,
-    data: Record<string, unknown>
+    data: Record<string, unknown>,
+    parentRecordId?: string
   ): Promise<EntityData> {
     const response = await api.post<EntityData>(
       `/data/${entitySlug}`,
-      { data }
+      { data, parentRecordId }
     );
     return response.data;
   },

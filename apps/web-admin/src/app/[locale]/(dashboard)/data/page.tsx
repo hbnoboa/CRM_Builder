@@ -202,7 +202,7 @@ export default function DataPage() {
   }, [records, searchTerm, columns]);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       {/* Breadcrumbs */}
       <nav className="mb-2 flex items-center gap-2 text-sm text-muted-foreground" aria-label="breadcrumb" data-testid="breadcrumb">
         <Link href="/dashboard" className="hover:underline">Dashboard</Link>
@@ -390,7 +390,6 @@ export default function DataPage() {
                         disabled={tenantLoading || !tenantId}
                         data-testid="add-record-btn"
                         size="sm"
-                        className="sm:size-default"
                       >
                         <Plus className="h-4 w-4 mr-2" />
                         Adicionar Registro
@@ -418,7 +417,7 @@ export default function DataPage() {
                           <th className="px-3 sm:px-4 py-2 sm:py-3 text-left text-xs sm:text-sm font-medium text-muted-foreground whitespace-nowrap">
                             Criado em
                           </th>
-                          <th className="px-3 sm:px-4 py-2 sm:py-3 text-right text-xs sm:text-sm font-medium text-muted-foreground sticky right-0 bg-muted/50">
+                          <th className="px-3 sm:px-4 py-2 sm:py-3 text-right text-xs sm:text-sm font-medium text-muted-foreground sticky right-0 bg-muted">
                             Acoes
                           </th>
                         </tr>

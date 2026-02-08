@@ -217,15 +217,20 @@ model EntityData {
 
   data Json
 
+  // Sub-entity support: links child records to a parent record
+  parentRecordId String?
+
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   createdById String?
   updatedById String?
 
-  entity    Entity @relation(fields: [entityId], references: [id], onDelete: Cascade)
-  tenant    Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  createdBy User?  @relation("CreatedBy", fields: [createdById], references: [id])
-  updatedBy User?  @relation("UpdatedBy", fields: [updatedById], references: [id])
+  entity       Entity      @relation(fields: [entityId], references: [id], onDelete: Cascade)
+  tenant       Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  createdBy    User?       @relation("CreatedBy", fields: [createdById], references: [id])
+  updatedBy    User?       @relation("UpdatedBy", fields: [updatedById], references: [id])
+  parentRecord EntityData? @relation("SubRecords", fields: [parentRecordId], references: [id], onDelete: Cascade)
+  childRecords EntityData[] @relation("SubRecords")
 
   @@index([tenantId])
   @@index([entityId])
@@ -235,6 +240,8 @@ model EntityData {
   @@index([tenantId, entityId, createdAt(sort: Desc)])
   @@index([entityId, createdAt(sort: Desc)])
   @@index([entityId, createdById])
+  @@index([parentRecordId])
+  @@index([entityId, parentRecordId])
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

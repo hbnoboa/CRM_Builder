@@ -49,3 +49,7 @@ Thumbs.db
 # Uploads
 uploads/
 !uploads/.gitkeep
+
+# Google Cloud SDK
+google-cloud-sdk/
+google-cloud-sdk-*.tar.gz

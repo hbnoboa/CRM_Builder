@@ -25,7 +25,7 @@ export class DataController {
   @ApiOperation({ summary: 'Criar registro' })
   async create(
     @Param('entitySlug') entitySlug: string,
-    @Body() dto: { data: Record<string, any> },
+    @Body() dto: { data: Record<string, any>; parentRecordId?: string },
     @CurrentUser() user: any,
   ) {
     return this.dataService.create(entitySlug, dto, user);

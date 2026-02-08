@@ -244,11 +244,7 @@ const sinistroEntity = {
     { slug: 'event_time', name: 'Hora do Evento', type: 'text', required: false },
     { slug: 'notice_date', name: 'Data do Aviso', type: 'date', required: false },
     { slug: 'notice_time', name: 'Hora do Aviso', type: 'text', required: false },
-    { slug: 'event_address', name: 'Endereco do Evento', type: 'textarea', required: false },
-    { slug: 'event_city', name: 'Cidade do Evento', type: 'text', required: false },
-    { slug: 'event_state', name: 'Estado do Evento', type: 'text', required: false },
-    { slug: 'event_latitude', name: 'Latitude', type: 'number', required: false },
-    { slug: 'event_longitude', name: 'Longitude', type: 'number', required: false },
+    { slug: 'event_location', name: 'Local do Evento', type: 'map', required: false, mapMode: 'both', mapDefaultZoom: 4, mapHeight: 350 },
 
     // Dados da Transportadora
     { slug: 'shipping_company_id', name: 'Transportadora', type: 'relation', required: false, relationEntitySlug: 'transportadora' },

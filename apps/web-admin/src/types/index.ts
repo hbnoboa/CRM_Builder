@@ -133,6 +133,24 @@ export interface EntityField {
   mapDefaultCenter?: [number, number]; // Default center [lat, lng]
   mapDefaultZoom?: number; // Default zoom level (1-18)
   mapHeight?: number; // Map height in pixels (default 300)
+
+  // sub-entity specific
+  subEntityId?: string;    // ID of the child entity
+  subEntitySlug?: string;  // Slug of the child entity
+  subEntityDisplayFields?: string[]; // Which fields of the child entity to show in the table
+
+  // zone-diagram specific
+  diagramImage?: string;       // URL of the background image
+  diagramZones?: Array<{
+    id: string;
+    label: string;
+    x: number; // percentage 0-100
+    y: number; // percentage 0-100
+    optionsSource: 'manual' | 'entity'; // Where options come from
+    options?: string[];                 // Manual hardcoded options
+    sourceEntitySlug?: string;          // Entity slug to fetch options from
+    sourceFieldSlug?: string;           // Field from entity to use as option labels
+  }>;
 }
 
 export type FieldType =
@@ -164,7 +182,10 @@ export type FieldType =
   | 'password'
   | 'hidden'
   | 'json'
-  | 'map';
+  | 'map'
+  | 'array'
+  | 'sub-entity'
+  | 'zone-diagram';
 
 export interface EntitySettings {
   allowCreate?: boolean;

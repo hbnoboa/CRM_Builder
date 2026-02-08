@@ -8,6 +8,8 @@ import {
   GripVertical, ChevronDown, ChevronUp, Copy, RefreshCw,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import Papa from 'papaparse';
+import * as XLSX from 'xlsx';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -53,6 +55,7 @@ const fieldTypeCategories = [
       { value: 'textarea', label: 'Texto Longo', icon: '¶', desc: 'Área de texto com múltiplas linhas' },
       { value: 'richtext', label: 'Rich Text', icon: '📝', desc: 'Editor de texto formatado' },
       { value: 'password', label: 'Senha', icon: '🔒', desc: 'Campo de senha mascarado' },
+      { value: 'array', label: 'Lista de Textos', icon: '📋', desc: 'Múltiplos textos salvos como lista' },
     ],
   },
   {
@@ -103,6 +106,8 @@ const fieldTypeCategories = [
     types: [
       { value: 'relation', label: 'Relação', icon: '🔗', desc: 'Vínculo com outra entidade' },
       { value: 'api-select', label: 'API Select', icon: '⚡', desc: 'Seleção via Custom API' },
+      { value: 'sub-entity', label: 'Sub-Entidade', icon: '📂', desc: 'Lista de registros filhos de outra entidade' },
+      { value: 'zone-diagram', label: 'Diagrama de Zonas', icon: '🗺️', desc: 'Imagem com zonas clicáveis — cada zona tem um select de opções' },
     ],
   },
   {
@@ -410,19 +415,103 @@ export default function EntityDetailPage() {
     return ent?.fields || [];
   };
 
+  // Estados globais para importação de opções por campo
+  const [importPreview, setImportPreview] = useState<Record<number, any[] | null>>({});
+  const [importError, setImportError] = useState<Record<number, string | null>>({});
+
+  // Handler de importação
+  const handleImportOptions = async (e: React.ChangeEvent<HTMLInputElement>, fieldIndex: number) => {
+    setImportError(prev => ({ ...prev, [fieldIndex]: null }));
+    setImportPreview(prev => ({ ...prev, [fieldIndex]: null }));
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const ext = file.name.split('.').pop()?.toLowerCase();
+    try {
+      if (ext === 'json') {
+        const text = await file.text();
+        const data = JSON.parse(text);
+        if (Array.isArray(data)) setImportPreview(prev => ({ ...prev, [fieldIndex]: data }));
+        else setImportError(prev => ({ ...prev, [fieldIndex]: 'JSON deve ser um array de objetos ou strings.' }));
+      } else if (ext === 'csv') {
+        Papa.parse(file, {
+          header: true,
+          complete: (results: Papa.ParseResult<any>) => {
+            setImportPreview(prev => ({ ...prev, [fieldIndex]: results.data }));
+          },
+          error: (err: any) => setImportError(prev => ({ ...prev, [fieldIndex]: 'Erro ao ler CSV: ' + err.message })),
+        });
+      } else if (ext === 'xlsx') {
+        const data = await file.arrayBuffer();
+        const workbook = XLSX.read(data);
+        const sheet = workbook.Sheets[workbook.SheetNames[0]];
+        const json = XLSX.utils.sheet_to_json(sheet);
+        setImportPreview(prev => ({ ...prev, [fieldIndex]: json }));
+      } else {
+        setImportError(prev => ({ ...prev, [fieldIndex]: 'Formato não suportado. Use .json, .csv ou .xlsx' }));
+      }
+    } catch (err: any) {
+      setImportError(prev => ({ ...prev, [fieldIndex]: 'Erro ao importar: ' + (err.message || String(err)) }));
+    }
+  };
+
+  // Aplicar preview ao campo
+  const applyImportPreview = (fieldIndex: number) => {
+    const preview = importPreview[fieldIndex];
+    if (!preview) return;
+    const options = preview.map((item: any) => {
+      if (typeof item === 'string') return item;
+      if (typeof item === 'object' && item !== null) {
+        if ('value' in item && 'label' in item) return { value: item.value, label: item.label };
+        if ('value' in item) return { value: item.value, label: String(item.value) };
+        if ('label' in item) return { value: String(item.label), label: item.label };
+        const firstKey = Object.keys(item)[0];
+        return { value: item[firstKey], label: String(item[firstKey]) };
+      }
+      return String(item);
+    });
+    updateField(fieldIndex, { options });
+    setImportPreview(prev => ({ ...prev, [fieldIndex]: null }));
+  };
+
   // ─── Type-specific config render ─────────────────────────────────────────
   const renderFieldTypeSpecificConfig = (field: Partial<Field>, index: number) => {
     const type = field.type as FieldType;
 
+    if (type === 'array') {
+      return null;
+    }
+
     if (type === 'select' || type === 'multiselect') {
       return (
         <div className="space-y-3 mt-3 p-3 bg-blue-50 dark:bg-blue-950/20 rounded-lg border border-blue-200 dark:border-blue-800">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between gap-2">
             <Label className="text-sm font-medium text-blue-700 dark:text-blue-300">Opções de Seleção</Label>
-            <Button onClick={() => addOption(index)} size="sm" variant="outline" className="h-7 text-xs">
-              <Plus className="h-3 w-3 mr-1" /> Opção
-            </Button>
+            <div className="flex gap-2">
+              <Button asChild size="sm" variant="outline" className="h-7 text-xs">
+                <label style={{ cursor: 'pointer' }}>
+                  <Plus className="h-3 w-3 mr-1" /> Opção
+                  <input type="file" accept=".json,.csv,.xlsx" style={{ display: 'none' }} onChange={(e) => handleImportOptions(e, index)} />
+                </label>
+              </Button>
+              <Button onClick={() => addOption(index)} size="sm" variant="outline" className="h-7 text-xs">
+                +1
+              </Button>
+            </div>
           </div>
+          {importError[index] && <div className="text-xs text-red-600">{importError[index]}</div>}
+          {importPreview[index] && (
+            <div className="bg-muted p-2 rounded border text-xs mb-2">
+              <div className="mb-1 font-medium">Preview da importação ({importPreview[index].length} opções):</div>
+              <ul className="max-h-32 overflow-y-auto">
+                {importPreview[index].slice(0, 10).map((item: any, i: number) => (
+                  <li key={i}>{typeof item === 'object' ? JSON.stringify(item) : String(item)}</li>
+                ))}
+                {importPreview[index].length > 10 && <li>...e mais {importPreview[index].length - 10} opções</li>}
+              </ul>
+              <Button size="sm" className="mt-2" onClick={() => applyImportPreview(index)}>Aplicar opções</Button>
+              <Button size="sm" variant="ghost" className="mt-2 ml-2" onClick={() => setImportPreview(prev => ({ ...prev, [index]: null }))}>Cancelar</Button>
+            </div>
+          )}
           {(field.options || []).length === 0 ? (
             <p className="text-xs text-muted-foreground">Nenhuma opção. Adicione opções para o seletor.</p>
           ) : (
@@ -479,6 +568,95 @@ export default function EntityDetailPage() {
             )}
           </div>
         </div>
+      );
+    }
+
+    if (type === 'sub-entity') {
+      const selectedSubEntity = allEntities.find(e => e.id === field.subEntityId);
+      const subEntityFields = selectedSubEntity?.fields || [];
+      return (
+        <div className="space-y-3 mt-3 p-3 bg-violet-50 dark:bg-violet-950/20 rounded-lg border border-violet-200 dark:border-violet-800">
+          <Label className="text-sm font-medium text-violet-700 dark:text-violet-300">📂 Configuração da Sub-Entidade</Label>
+          <p className="text-xs text-muted-foreground">
+            Ao editar um registro desta entidade, será exibida uma tabela com registros filhos da entidade selecionada abaixo.
+            Ex: Veículo → Avarias, Sinistro → Follow-ups
+          </p>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="space-y-1">
+              <Label className="text-xs">Entidade Filha</Label>
+              <Select
+                value={field.subEntityId || ''}
+                onValueChange={(val) => {
+                  const ent = allEntities.find(e => e.id === val);
+                  updateField(index, {
+                    subEntityId: val,
+                    subEntitySlug: ent?.slug || '',
+                    subEntityDisplayFields: [],
+                  });
+                }}
+              >
+                <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="Selecione a entidade filha" /></SelectTrigger>
+                <SelectContent>
+                  {allEntities.filter(e => e.id !== entity?.id).map(e => (
+                    <SelectItem key={e.id} value={e.id}>
+                      {e.name} <span className="text-muted-foreground ml-1">/{e.slug}</span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            {field.subEntityId && subEntityFields.length > 0 && (
+              <div className="space-y-1">
+                <Label className="text-xs">Campos a Exibir na Tabela</Label>
+                <div className="flex flex-wrap gap-1.5 p-2 border rounded-lg bg-background min-h-[34px]">
+                  {subEntityFields.map((f: any) => {
+                    const slug = f.slug || f.name;
+                    const isSelected = (field.subEntityDisplayFields || []).includes(slug);
+                    return (
+                      <button
+                        key={slug}
+                        type="button"
+                        className={`px-2 py-0.5 rounded-full text-xs transition-colors ${
+                          isSelected
+                            ? 'bg-violet-500 text-white'
+                            : 'bg-muted text-muted-foreground hover:bg-muted/80'
+                        }`}
+                        onClick={() => {
+                          const current = field.subEntityDisplayFields || [];
+                          const updated = isSelected
+                            ? current.filter((s: string) => s !== slug)
+                            : [...current, slug];
+                          updateField(index, { subEntityDisplayFields: updated });
+                        }}
+                      >
+                        {f.label || f.name}
+                      </button>
+                    );
+                  })}
+                </div>
+                <p className="text-xs text-muted-foreground">Clique para selecionar/deselecionar campos visíveis</p>
+              </div>
+            )}
+          </div>
+          {field.subEntityId && (
+            <div className="text-xs text-violet-600 dark:text-violet-400 bg-violet-100 dark:bg-violet-900/30 rounded p-2">
+              💡 Os registros filhos serão criados/gerenciados dentro do formulário de edição de cada registro desta entidade.
+              Registros filhos deletados junto com o pai (cascata).
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    if (type === 'zone-diagram') {
+      const ZoneDiagramEditor = require('@/components/form/zone-diagram-editor').default;
+      return (
+        <ZoneDiagramEditor
+          diagramImage={field.diagramImage}
+          diagramZones={field.diagramZones}
+          allEntities={allEntities}
+          onUpdate={(updates: Record<string, unknown>) => updateField(index, updates)}
+        />
       );
     }
 
@@ -551,7 +729,7 @@ export default function EntityDetailPage() {
             </div>
             <p className="text-xs text-muted-foreground">Ao selecionar um item, preenche automaticamente outros campos. Clique em "Buscar Campos" para carregar os campos disponíveis da API.</p>
             {(field.autoFillFields || []).map((af, afIdx) => (
-              <div key={afIdx} className="flex items-center gap-2">
+              <div key={afIdx} className="flex flex-col sm:flex-row sm:items-center gap-2">
                 <Select
                   value={af.sourceField}
                   onValueChange={(val) => updateAutoFill(index, afIdx, { sourceField: val })}
@@ -594,7 +772,7 @@ export default function EntityDetailPage() {
       return (
         <div className="space-y-3 mt-3 p-3 bg-green-50 dark:bg-green-950/20 rounded-lg border border-green-200 dark:border-green-800">
           <Label className="text-sm font-medium text-green-700 dark:text-green-300">Configuração Numérica</Label>
-          <div className="grid gap-3 sm:grid-cols-4">
+          <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
             <div className="space-y-1">
               <Label className="text-xs">Mínimo</Label>
               <Input type="number" className="h-8 text-sm" value={field.min ?? ''} placeholder="0" onChange={(e) => updateField(index, { min: e.target.value ? Number(e.target.value) : undefined })} />
@@ -689,8 +867,8 @@ export default function EntityDetailPage() {
 
   // ─── Render ──────────────────────────────────────────────────────────────
   return (
-    <div className="space-y-6">
-      <div className="flex items-center gap-4">
+    <div className="space-y-4 sm:space-y-6">
+      <div className="flex items-center gap-3 sm:gap-4 flex-wrap">
         <TooltipProvider>
           <Tooltip>
             <TooltipTrigger asChild>
@@ -699,18 +877,18 @@ export default function EntityDetailPage() {
             <TooltipContent>Voltar</TooltipContent>
           </Tooltip>
         </TooltipProvider>
-        <div className="flex-1">
-          <h1 className="text-2xl font-bold">{entity.name}</h1>
-          <p className="text-sm text-muted-foreground">/{entity.slug} — {entity._count?.data || 0} registros</p>
+        <div className="flex-1 min-w-0">
+          <h1 className="text-xl sm:text-2xl font-bold truncate">{entity.name}</h1>
+          <p className="text-xs sm:text-sm text-muted-foreground truncate">/{entity.slug} — {entity._count?.data || 0} registros</p>
         </div>
-        <Button onClick={handleSave} disabled={saving}>
+        <Button onClick={handleSave} disabled={saving} className="w-full sm:w-auto">
           {saving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
           Salvar
         </Button>
       </div>
 
       <Tabs defaultValue="fields" className="space-y-4">
-        <TabsList>
+        <TabsList className="w-full overflow-x-auto flex-wrap h-auto gap-1">
           <TabsTrigger value="info">Informações</TabsTrigger>
           <TabsTrigger value="fields">Campos ({fields.length})</TabsTrigger>
           <TabsTrigger value="layout">Layout Visual</TabsTrigger>
@@ -741,7 +919,7 @@ export default function EntityDetailPage() {
               </div>
               <div className="pt-4 border-t">
                 <h4 className="text-sm font-medium mb-3">Endpoints Automáticos (CRUD)</h4>
-                <div className="grid gap-2 text-sm font-mono">
+                <div className="grid gap-2 text-xs sm:text-sm font-mono overflow-x-auto">
                   {[
                     { method: 'GET', path: `/${entity.slug}`, desc: 'Listar todos', color: 'bg-green-500' },
                     { method: 'GET', path: `/${entity.slug}/:id`, desc: 'Buscar um', color: 'bg-green-500' },
@@ -749,10 +927,10 @@ export default function EntityDetailPage() {
                     { method: 'PUT', path: `/${entity.slug}/:id`, desc: 'Atualizar', color: 'bg-yellow-500' },
                     { method: 'DELETE', path: `/${entity.slug}/:id`, desc: 'Deletar', color: 'bg-red-500' },
                   ].map(ep => (
-                    <div key={`${ep.method}-${ep.path}`} className="flex items-center gap-2">
-                      <Badge className={`${ep.color} text-white w-16 justify-center`}>{ep.method}</Badge>
-                      <span className="text-muted-foreground">/api{ep.path}</span>
-                      <span className="text-xs text-muted-foreground ml-auto">{ep.desc}</span>
+                    <div key={`${ep.method}-${ep.path}`} className="flex items-center gap-2 min-w-0">
+                      <Badge className={`${ep.color} text-white w-16 justify-center flex-shrink-0`}>{ep.method}</Badge>
+                      <span className="text-muted-foreground truncate">/api{ep.path}</span>
+                      <span className="text-xs text-muted-foreground ml-auto flex-shrink-0 hidden sm:inline">{ep.desc}</span>
                     </div>
                   ))}
                 </div>
@@ -765,18 +943,18 @@ export default function EntityDetailPage() {
         <TabsContent value="fields">
           <Card>
             <CardHeader>
-              <div className="flex items-center justify-between">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div>
                   <CardTitle>Campos</CardTitle>
                   <CardDescription>Configure os campos da entidade. Clique para expandir.</CardDescription>
                 </div>
-                <Button onClick={addField} size="sm"><Plus className="h-4 w-4 mr-1" /> Adicionar Campo</Button>
+                <Button onClick={addField} size="sm" className="w-full sm:w-auto"><Plus className="h-4 w-4 mr-1" /> Adicionar Campo</Button>
               </div>
             </CardHeader>
             <CardContent>
               {fields.length === 0 ? (
-                <div className="text-center py-12 border-2 border-dashed rounded-lg">
-                  <p className="text-muted-foreground mb-4">Nenhum campo definido.</p>
+                <div className="text-center py-8 sm:py-12 border-2 border-dashed rounded-lg px-4">
+                  <p className="text-muted-foreground mb-4 text-sm sm:text-base">Nenhum campo definido.</p>
                   <Button onClick={addField} variant="outline"><Plus className="h-4 w-4 mr-2" /> Adicionar primeiro campo</Button>
                 </div>
               ) : (
@@ -874,12 +1052,12 @@ export default function EntityDetailPage() {
             </CardHeader>
             <CardContent>
               {fields.length === 0 ? (
-                <div className="text-center py-12 border-2 border-dashed rounded-lg">
-                  <p className="text-muted-foreground mb-4">Adicione campos na aba "Campos" primeiro</p>
+                <div className="text-center py-8 sm:py-12 border-2 border-dashed rounded-lg px-4">
+                  <p className="text-muted-foreground mb-4 text-sm sm:text-base">Adicione campos na aba "Campos" primeiro</p>
                   <Button onClick={() => { addField(); }} variant="outline"><Plus className="h-4 w-4 mr-2" /> Adicionar primeiro campo</Button>
                 </div>
               ) : (
-                <div className="pl-8">
+                <div className="pl-0 sm:pl-8">
                   <FieldGridEditor
                     fields={fields}
                     onFieldsChange={setFields}
@@ -896,29 +1074,29 @@ export default function EntityDetailPage() {
         <TabsContent value="apis">
           <Card>
             <CardHeader>
-              <div className="flex items-center justify-between">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div>
                   <CardTitle>Custom APIs</CardTitle>
                   <CardDescription>Endpoints customizados para esta entidade.</CardDescription>
                 </div>
-                <Button onClick={() => openApiDialog()} size="sm"><Plus className="h-4 w-4 mr-1" /> Nova API</Button>
+                <Button onClick={() => openApiDialog()} size="sm" className="w-full sm:w-auto"><Plus className="h-4 w-4 mr-1" /> Nova API</Button>
               </div>
             </CardHeader>
             <CardContent>
               {loadingApis ? (
                 <div className="flex items-center justify-center py-12"><Loader2 className="h-6 w-6 animate-spin" /></div>
               ) : customApis.length === 0 ? (
-                <div className="text-center py-12 border-2 border-dashed rounded-lg">
-                  <Zap className="h-12 w-12 mx-auto text-muted-foreground/50 mb-4" />
-                  <h3 className="font-medium mb-2">Nenhuma Custom API</h3>
-                  <p className="text-muted-foreground text-sm mb-4 max-w-md mx-auto">Crie endpoints customizados para ações como "Aprovar", "Enviar Email", etc.</p>
+                <div className="text-center py-8 sm:py-12 border-2 border-dashed rounded-lg px-4">
+                  <Zap className="h-10 w-10 sm:h-12 sm:w-12 mx-auto text-muted-foreground/50 mb-3 sm:mb-4" />
+                  <h3 className="font-medium mb-2 text-sm sm:text-base">Nenhuma Custom API</h3>
+                  <p className="text-muted-foreground text-xs sm:text-sm mb-4 max-w-md mx-auto">Crie endpoints customizados para ações como "Aprovar", "Enviar Email", etc.</p>
                   <Button onClick={() => openApiDialog()} variant="outline"><Plus className="h-4 w-4 mr-2" /> Criar primeira API</Button>
                 </div>
               ) : (
                 <div className="space-y-3">
                   {customApis.map((customApi) => (
-                    <div key={customApi.id} className="flex items-center gap-3 p-4 border rounded-lg hover:bg-muted/30 transition-colors">
-                      <Badge className={`${getMethodColor(customApi.method)} text-white w-16 justify-center`}>{customApi.method}</Badge>
+                    <div key={customApi.id} className="flex flex-wrap items-center gap-2 sm:gap-3 p-3 sm:p-4 border rounded-lg hover:bg-muted/30 transition-colors">
+                      <Badge className={`${getMethodColor(customApi.method)} text-white w-16 justify-center flex-shrink-0`}>{customApi.method}</Badge>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
                           <span className="font-medium">{customApi.name}</span>
@@ -948,7 +1126,7 @@ export default function EntityDetailPage() {
 
       {/* Custom API Dialog */}
       <Dialog open={apiDialogOpen} onOpenChange={setApiDialogOpen}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-[95vw] sm:max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editingApi ? 'Editar Custom API' : 'Nova Custom API'}</DialogTitle>
             <DialogDescription>Crie um endpoint customizado para {entity.name}</DialogDescription>
@@ -975,8 +1153,8 @@ export default function EntityDetailPage() {
             </div>
             <div className="space-y-2">
               <Label>Caminho (path)</Label>
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-muted-foreground">/api/{entity.slug}/</span>
+              <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                <span className="text-sm text-muted-foreground flex-shrink-0">/api/{entity.slug}/</span>
                 <Input value={apiForm.path} onChange={(e) => setApiForm({ ...apiForm, path: e.target.value })} placeholder="aprovar ou :id/aprovar" className="flex-1" />
               </div>
             </div>

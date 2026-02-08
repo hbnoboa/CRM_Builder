@@ -72,7 +72,7 @@ function SettingsPageContent() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       {/* Breadcrumbs */}
       <nav className="mb-2 flex items-center gap-2 text-sm text-muted-foreground" aria-label="breadcrumb" data-testid="breadcrumb">
         <Link href="/dashboard" className="hover:underline" data-testid="breadcrumb-dashboard">Dashboard</Link>
@@ -80,27 +80,27 @@ function SettingsPageContent() {
         <span className="font-semibold text-foreground" data-testid="breadcrumb-settings">Configuracoes</span>
       </nav>
       <div>
-        <h1 className="text-3xl font-bold" data-testid="settings-heading">Configuracoes</h1>
-        <p className="text-muted-foreground mt-1">
+        <h1 className="text-2xl md:text-3xl font-bold" data-testid="settings-heading">Configuracoes</h1>
+        <p className="text-sm md:text-base text-muted-foreground mt-1">
           Gerencie suas preferencias e configuracoes de conta
         </p>
       </div>
 
-      <div className="flex flex-col md:flex-row gap-6">
+      <div className="flex flex-col md:flex-row gap-4 md:gap-6">
         {/* Sidebar Tabs */}
-        <div className="md:w-64 space-y-1">
+        <div className="flex md:flex-col md:w-64 gap-1 overflow-x-auto pb-2 md:pb-0 md:overflow-x-visible">
           {tabs.map((tab) => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-left transition-colors ${
+              className={`flex items-center gap-2 md:gap-3 px-3 md:px-4 py-2 md:py-2.5 rounded-lg text-left transition-colors whitespace-nowrap text-sm md:text-base md:w-full ${
                 activeTab === tab.id
                   ? 'bg-primary text-primary-foreground'
                   : 'hover:bg-muted'
               }`}
               data-testid={`tab-${tab.id}`}
             >
-              <tab.icon className="h-5 w-5" />
+              <tab.icon className="h-4 w-4 md:h-5 md:w-5 shrink-0" />
               {tab.label}
             </button>
           ))}
@@ -116,14 +116,14 @@ function SettingsPageContent() {
                   Atualize suas informacoes pessoais
                 </CardDescription>
               </CardHeader>
-              <CardContent className="space-y-6">
-                <div className="flex items-center gap-6">
-                  <div className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center">
-                    <span className="text-2xl font-semibold text-primary">
+              <CardContent className="space-y-4 md:space-y-6">
+                <div className="flex flex-col items-center gap-3 sm:flex-row sm:gap-6">
+                  <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                    <span className="text-xl sm:text-2xl font-semibold text-primary">
                       {user?.name?.charAt(0).toUpperCase()}
                     </span>
                   </div>
-                  <div>
+                  <div className="text-center sm:text-left">
                     <Button variant="outline" size="sm" data-testid="alterar-foto-btn">
                       Alterar Foto
                     </Button>
@@ -156,7 +156,7 @@ function SettingsPageContent() {
                 </div>
 
                 <div className="pt-4 flex gap-2">
-                  <Button onClick={handleSaveProfile} disabled={updateProfile.isPending} data-testid="salvar-config-btn">
+                  <Button className="w-full sm:w-auto" onClick={handleSaveProfile} disabled={updateProfile.isPending} data-testid="salvar-config-btn">
                     {updateProfile.isPending ? 'Salvando...' : 'Salvar Alteracoes'}
                   </Button>
                 </div>
@@ -181,13 +181,13 @@ function SettingsPageContent() {
                 ].map((item, idx) => (
                   <div
                     key={idx}
-                    className="flex items-center justify-between p-4 border rounded-lg"
+                    className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between p-3 sm:p-4 border rounded-lg"
                   >
-                    <div>
-                      <h4 className="font-medium">{item.label}</h4>
-                      <p className="text-sm text-muted-foreground">{item.desc}</p>
+                    <div className="min-w-0">
+                      <h4 className="font-medium text-sm sm:text-base">{item.label}</h4>
+                      <p className="text-xs sm:text-sm text-muted-foreground">{item.desc}</p>
                     </div>
-                    <label className="relative inline-flex items-center cursor-pointer">
+                    <label className="relative inline-flex items-center cursor-pointer shrink-0 self-end sm:self-center">
                       <input type="checkbox" className="sr-only peer" defaultChecked />
                       <div className="w-11 h-6 bg-muted rounded-full peer peer-checked:bg-primary peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all"></div>
                     </label>
@@ -247,26 +247,26 @@ function SettingsPageContent() {
 
                 <div className="border-t pt-6">
                   <h4 className="font-medium mb-4">Autenticacao de Dois Fatores</h4>
-                  <div className="flex items-center justify-between p-4 border rounded-lg">
-                    <div>
-                      <p className="font-medium">2FA nao configurado</p>
-                      <p className="text-sm text-muted-foreground">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between p-3 sm:p-4 border rounded-lg">
+                    <div className="min-w-0">
+                      <p className="font-medium text-sm sm:text-base">2FA nao configurado</p>
+                      <p className="text-xs sm:text-sm text-muted-foreground">
                         Adicione uma camada extra de seguranca
                       </p>
                     </div>
-                    <Button variant="outline">Configurar 2FA</Button>
+                    <Button variant="outline" className="w-full sm:w-auto shrink-0">Configurar 2FA</Button>
                   </div>
                 </div>
 
                 <div className="border-t pt-6">
                   <h4 className="font-medium mb-4">Sessoes Ativas</h4>
                   <div className="space-y-2">
-                    <div className="flex items-center justify-between p-3 border rounded-lg bg-green-50">
-                      <div>
-                        <p className="font-medium text-green-800">Este dispositivo</p>
-                        <p className="text-sm text-green-600">Linux - Chrome - Agora</p>
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between p-3 border rounded-lg bg-green-50">
+                      <div className="min-w-0">
+                        <p className="font-medium text-sm sm:text-base text-green-800">Este dispositivo</p>
+                        <p className="text-xs sm:text-sm text-green-600">Linux - Chrome - Agora</p>
                       </div>
-                      <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded">
+                      <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded self-start sm:self-center shrink-0">
                         Atual
                       </span>
                     </div>
@@ -285,26 +285,26 @@ function SettingsPageContent() {
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="flex justify-between items-center">
-                  <p className="text-muted-foreground">
+                <div className="flex flex-col gap-3 sm:flex-row sm:justify-between sm:items-center">
+                  <p className="text-sm sm:text-base text-muted-foreground">
                     Use chaves de API para acessar a API do CRM Builder
                   </p>
-                  <Button>
+                  <Button className="w-full sm:w-auto shrink-0">
                     <Key className="h-4 w-4 mr-2" />
                     Nova Chave
                   </Button>
                 </div>
 
                 <div className="border rounded-lg">
-                  <div className="p-4 border-b">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="font-medium">Chave de Producao</p>
-                        <code className="text-sm text-muted-foreground">
+                  <div className="p-3 sm:p-4 border-b">
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="min-w-0">
+                        <p className="font-medium text-sm sm:text-base">Chave de Producao</p>
+                        <code className="text-xs sm:text-sm text-muted-foreground break-all">
                           crm_live_****************************
                         </code>
                       </div>
-                      <div className="flex gap-2">
+                      <div className="flex gap-2 shrink-0">
                         <Button variant="outline" size="sm">Copiar</Button>
                         <Button variant="ghost" size="sm" className="text-destructive">
                           Revogar
@@ -312,15 +312,15 @@ function SettingsPageContent() {
                       </div>
                     </div>
                   </div>
-                  <div className="p-4">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="font-medium">Chave de Teste</p>
-                        <code className="text-sm text-muted-foreground">
+                  <div className="p-3 sm:p-4">
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="min-w-0">
+                        <p className="font-medium text-sm sm:text-base">Chave de Teste</p>
+                        <code className="text-xs sm:text-sm text-muted-foreground break-all">
                           crm_test_****************************
                         </code>
                       </div>
-                      <div className="flex gap-2">
+                      <div className="flex gap-2 shrink-0">
                         <Button variant="outline" size="sm">Copiar</Button>
                         <Button variant="ghost" size="sm" className="text-destructive">
                           Revogar
@@ -350,18 +350,18 @@ function SettingsPageContent() {
                 ].map((integration, idx) => (
                   <div
                     key={idx}
-                    className="flex items-center justify-between p-4 border rounded-lg"
+                    className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between p-3 sm:p-4 border rounded-lg"
                   >
-                    <div className="flex items-center gap-4">
-                      <div className="w-10 h-10 rounded-lg bg-muted flex items-center justify-center">
-                        <Webhook className="h-5 w-5" />
+                    <div className="flex items-center gap-3 sm:gap-4 min-w-0">
+                      <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-lg bg-muted flex items-center justify-center shrink-0">
+                        <Webhook className="h-4 w-4 sm:h-5 sm:w-5" />
                       </div>
-                      <div>
-                        <h4 className="font-medium">{integration.name}</h4>
-                        <p className="text-sm text-muted-foreground">{integration.desc}</p>
+                      <div className="min-w-0">
+                        <h4 className="font-medium text-sm sm:text-base">{integration.name}</h4>
+                        <p className="text-xs sm:text-sm text-muted-foreground truncate">{integration.desc}</p>
                       </div>
                     </div>
-                    <Button variant={integration.connected ? 'outline' : 'default'}>
+                    <Button className="w-full sm:w-auto shrink-0" variant={integration.connected ? 'outline' : 'default'}>
                       {integration.connected ? 'Configurar' : 'Conectar'}
                     </Button>
                   </div>

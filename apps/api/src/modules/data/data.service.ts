@@ -6,6 +6,7 @@ import { CurrentUser } from '../../common/types';
 
 interface CreateDataDto {
   data: Record<string, unknown>;
+  parentRecordId?: string;
 }
 
 interface QueryDataDto {
@@ -15,6 +16,7 @@ interface QueryDataDto {
   sortBy?: string;
   sortOrder?: 'asc' | 'desc';
   tenantId?: string; // Para PLATFORM_ADMIN filtrar por tenant
+  parentRecordId?: string; // Para filtrar sub-registros de um registro pai
 }
 
 interface EntitySettings {
@@ -93,6 +95,7 @@ export class DataService {
         tenantId: targetTenantId,
         entityId: entity.id,
         data: (dto.data || {}) as Prisma.InputJsonValue,
+        parentRecordId: dto.parentRecordId || null,
         createdById: currentUser.id,
         updatedById: currentUser.id,
       },
@@ -107,7 +110,7 @@ export class DataService {
     // Parse page and limit as integers (query params come as strings)
     const page = parseInt(String(query.page || '1'), 10) || 1;
     const limit = parseInt(String(query.limit || '20'), 10) || 20;
-    const { search, sortBy = 'createdAt', sortOrder = 'desc', tenantId: queryTenantId } = query;
+    const { search, sortBy = 'createdAt', sortOrder = 'desc', tenantId: queryTenantId, parentRecordId } = query;
     const skip = (page - 1) * limit;
     
     const effectiveTenantId = this.getEffectiveTenantId(currentUser, queryTenantId);
@@ -119,6 +122,14 @@ export class DataService {
     const where: Prisma.EntityDataWhereInput = {
       entityId: entity.id,
     };
+
+    // Filtro de sub-entidade: se parentRecordId for passado, retorna apenas sub-registros
+    // Se não for passado, retorna apenas registros raiz (sem parentRecordId)
+    if (parentRecordId) {
+      where.parentRecordId = parentRecordId;
+    } else {
+      where.parentRecordId = null;
+    }
 
     // PLATFORM_ADMIN pode ver de qualquer tenant ou todos
     if (currentUser.role === UserRole.PLATFORM_ADMIN) {

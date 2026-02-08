@@ -198,13 +198,13 @@ export default function DashboardPage() {
 
   if (loading) {
     return (
-      <div className="space-y-8">
+      <div className="space-y-4 md:space-y-8">
         <div>
           <Skeleton className="h-9 w-48" />
-          <Skeleton className="h-5 w-96 mt-2" />
+          <Skeleton className="h-5 w-full max-w-96 mt-2" />
         </div>
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
-          {[...Array(6)].map((_, i) => (
+        <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3 lg:grid-cols-5">
+          {[...Array(5)].map((_, i) => (
             <Skeleton key={i} className="h-28" />
           ))}
         </div>
@@ -217,7 +217,7 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="space-y-8" data-testid="dashboard-container">
+    <div className="space-y-4 md:space-y-8" data-testid="dashboard-container">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
@@ -329,15 +329,11 @@ export default function DashboardPage() {
                     data={entitiesDistribution}
                     cx="50%"
                     cy="50%"
-                    innerRadius={60}
-                    outerRadius={100}
+                    innerRadius={50}
+                    outerRadius={80}
                     paddingAngle={5}
                     dataKey="records"
                     nameKey="name"
-                    label={({ name, percent }) =>
-                      `${name} (${(percent * 100).toFixed(0)}%)`
-                    }
-                    labelLine={true}
                   >
                     {entitiesDistribution.map((entry, index) => (
                       <Cell
@@ -346,6 +342,7 @@ export default function DashboardPage() {
                       />
                     ))}
                   </Pie>
+                  <Legend layout="horizontal" verticalAlign="bottom" align="center" />
                   <Tooltip
                     formatter={(value: number, name: string) => [
                       `${value.toLocaleString('en-US')} records`,
@@ -395,16 +392,16 @@ export default function DashboardPage() {
                   return (
                     <div
                       key={activity.id}
-                      className="flex items-center justify-between py-2 border-b last:border-0"
+                      className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 sm:gap-2 py-2 border-b last:border-0"
                     >
-                      <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-3 min-w-0">
                         {getActivityIcon(activity.type)}
-                        <div>
-                          <div className="flex items-center gap-2">
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
                             <Badge variant="secondary" className={actionInfo.color}>
                               {actionInfo.label}
                             </Badge>
-                            <span className="font-medium">{activity.name}</span>
+                            <span className="font-medium truncate">{activity.name}</span>
                           </div>
                           {activity.entityName && (
                             <span className="text-xs text-muted-foreground">
@@ -413,7 +410,7 @@ export default function DashboardPage() {
                           )}
                         </div>
                       </div>
-                      <span className="text-sm text-muted-foreground flex items-center gap-1">
+                      <span className="text-xs sm:text-sm text-muted-foreground flex items-center gap-1 shrink-0">
                         <Clock className="h-3 w-3" />
                         {formatDistanceToNow(new Date(activity.timestamp), {
                           addSuffix: true,
@@ -448,11 +445,11 @@ export default function DashboardPage() {
                 {usersActivity.map((user) => (
                   <div
                     key={user.id}
-                    className="flex items-center justify-between py-2 border-b last:border-0"
+                    className="flex items-center justify-between gap-2 py-2 border-b last:border-0"
                   >
-                    <div className="flex items-center gap-3">
-                      <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
-                        <span className="text-sm font-medium text-primary">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="h-8 w-8 sm:h-10 sm:w-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                        <span className="text-xs sm:text-sm font-medium text-primary">
                           {user.name
                             .split(' ')
                             .map((n) => n[0])
@@ -461,12 +458,12 @@ export default function DashboardPage() {
                             .toUpperCase()}
                         </span>
                       </div>
-                      <div>
-                        <p className="font-medium">{user.name}</p>
-                        <p className="text-sm text-muted-foreground">{user.email}</p>
+                      <div className="min-w-0">
+                        <p className="font-medium truncate">{user.name}</p>
+                        <p className="text-xs sm:text-sm text-muted-foreground truncate">{user.email}</p>
                       </div>
                     </div>
-                    <div className="text-right">
+                    <div className="text-right shrink-0">
                       {user.lastLoginAt ? (
                         <>
                           <p className="text-sm text-muted-foreground">

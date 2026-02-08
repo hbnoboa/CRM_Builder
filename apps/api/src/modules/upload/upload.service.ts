@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { Storage } from '@google-cloud/storage';
 import { v4 as uuidv4 } from 'uuid';
 import * as path from 'path';
+import * as fs from 'fs';
 
 export interface UploadedFile {
   url: string;
@@ -99,12 +100,23 @@ export class UploadService {
     const fileName = `${uuidv4()}${ext}`;
     const filePath = `${tenantId}/${folder}/${fileName}`;
 
-    // Se GCS não está configurado, retornar mock
+    // Se GCS não está configurado, salvar localmente
     if (!this.storage) {
-      this.logger.warn('Usando modo mock - arquivo não foi salvo no GCS');
+      this.logger.warn('GCS não configurado - salvando arquivo localmente');
+      
+      const uploadsDir = path.join(process.cwd(), 'uploads', tenantId, folder);
+      fs.mkdirSync(uploadsDir, { recursive: true });
+      
+      const localPath = path.join(uploadsDir, fileName);
+      fs.writeFileSync(localPath, file.buffer);
+      
+      const publicUrl = `/uploads/${filePath}`;
+      
+      this.logger.log(`✅ Arquivo salvo localmente: ${publicUrl}`);
+      
       return {
-        url: `/uploads/${filePath}`,
-        publicUrl: `http://localhost:3001/uploads/${filePath}`,
+        url: publicUrl,
+        publicUrl,
         fileName,
         originalName: file.originalname,
         mimeType: file.mimetype,
@@ -129,8 +141,12 @@ export class UploadService {
         },
       });
 
-      // Tornar arquivo público (opcional)
-      await blob.makePublic();
+      // Tentar tornar arquivo público (pode falhar com Uniform Bucket-Level Access)
+      try {
+        await blob.makePublic();
+      } catch (publicError) {
+        this.logger.warn(`Não foi possível tornar público individualmente (Uniform Bucket-Level Access ativado). Configure o bucket como público via IAM.`);
+      }
 
       const publicUrl = `${this.baseUrl}/${filePath}`;
 
@@ -182,7 +198,7 @@ export class UploadService {
     expiresInMinutes: number = 60,
   ): Promise<string> {
     if (!this.storage) {
-      return `http://localhost:3001/uploads/${filePath}`;
+      return `/uploads/${filePath}`;
     }
 
     try {

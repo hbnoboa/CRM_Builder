@@ -41,10 +41,12 @@ export function useCreateEntityData() {
     mutationFn: ({
       entitySlug,
       data,
+      parentRecordId,
     }: {
       entitySlug: string;
       data: Record<string, unknown>;
-    }) => dataService.create(entitySlug, data),
+      parentRecordId?: string;
+    }) => dataService.create(entitySlug, data, parentRecordId),
     onSuccess: (_, { entitySlug }) => {
       queryClient.invalidateQueries({
         queryKey: dataKeys.list(entitySlug),

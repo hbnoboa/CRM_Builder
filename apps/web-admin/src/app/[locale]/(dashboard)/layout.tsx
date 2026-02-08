@@ -203,7 +203,7 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
 
       <aside
         className={cn(
-          'fixed inset-y-0 left-0 z-50 w-64 bg-card border-r transform transition-transform duration-200 ease-in-out lg:translate-x-0',
+          'fixed inset-y-0 left-0 z-50 w-64 max-w-[calc(100vw-3rem)] lg:max-w-none bg-card border-r transform transition-transform duration-200 ease-in-out lg:translate-x-0',
           sidebarOpen ? 'translate-x-0' : '-translate-x-full'
         )}
       >
@@ -214,7 +214,7 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
             </div>
             <span className="font-semibold text-lg">CRM Builder</span>
             <button
-              className="ml-auto lg:hidden"
+              className="ml-auto lg:hidden p-2 -mr-2 rounded-lg hover:bg-muted active:bg-muted/80 transition-colors"
               onClick={() => setSidebarOpen(false)}
               data-testid="mobile-menu-button"
             >
@@ -231,7 +231,7 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
                   href={item.href}
                   prefetch={false}
                   className={cn(
-                    'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all',
+                    'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all min-h-[44px]',
                     isActive
                       ? 'bg-primary text-primary-foreground shadow-sm'
                       : 'text-muted-foreground hover:text-foreground hover:bg-muted'
@@ -250,8 +250,8 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
             })}
           </nav>
 
-          <div className="p-3 border-t bg-muted/30">
-            <div className="flex items-center gap-3 p-2 rounded-lg hover:bg-muted transition-colors" data-testid="user-menu">
+          <div className="p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] border-t bg-muted/30">
+            <div className="flex items-center gap-3 p-2.5 rounded-lg hover:bg-muted transition-colors" data-testid="user-menu">
               <div className="w-10 h-10 rounded-full bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center">
                 <span className="text-sm font-medium text-white">
                   {user?.name?.charAt(0)?.toUpperCase() || 'U'}
@@ -287,9 +287,9 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
 
       <div className="lg:pl-64">
         <header className="sticky top-0 z-30 h-16 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-          <div className="flex items-center gap-4 h-full px-4">
+          <div className="flex items-center gap-2 sm:gap-4 h-full px-3 sm:px-4">
             <button
-              className="lg:hidden"
+              className="lg:hidden p-2 -ml-2 rounded-lg hover:bg-muted active:bg-muted/80 transition-colors"
               onClick={() => setSidebarOpen(true)}
               data-testid="mobile-menu-button"
             >
@@ -311,6 +311,13 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
             </div>
 
             <div className="flex-1 md:hidden" />
+
+            <button
+              className="md:hidden p-2 rounded-lg hover:bg-muted active:bg-muted/80 transition-colors text-muted-foreground"
+              aria-label={t('common.search')}
+            >
+              <Search className="h-5 w-5" />
+            </button>
 
             <LanguageSwitcher />
 

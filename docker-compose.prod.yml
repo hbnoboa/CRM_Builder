@@ -57,6 +57,11 @@ services:
       JWT_SECRET: ${JWT_SECRET}
       JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-7d}
       CORS_ORIGIN: ${CORS_ORIGIN:-https://your-domain.com}
+      GCS_PROJECT_ID: ${GCS_PROJECT_ID:-}
+      GCS_BUCKET: ${GCS_BUCKET:-}
+      GCS_KEY_FILE: ${GCS_KEY_FILE:-}
+      GCS_CREDENTIALS: ${GCS_CREDENTIALS:-}
+      GCS_BASE_URL: ${GCS_BASE_URL:-}
     depends_on:
       postgres:
         condition: service_healthy
@@ -68,6 +73,8 @@ services:
       timeout: 10s
       retries: 3
       start_period: 40s
+    volumes:
+      - api_uploads:/app/uploads
     networks:
       - crm-network
 
@@ -113,6 +120,7 @@ services:
 volumes:
   postgres_data:
   redis_data:
+  api_uploads:
 
 networks:
   crm-network:

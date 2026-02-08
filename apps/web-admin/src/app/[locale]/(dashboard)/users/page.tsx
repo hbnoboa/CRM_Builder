@@ -89,7 +89,7 @@ function UsersPageContent() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       {/* Breadcrumbs */}
       <nav className="mb-2 flex items-center gap-2 text-sm text-muted-foreground" aria-label="breadcrumb">
         <Link href="/dashboard" className="hover:underline">Dashboard</Link>
@@ -114,39 +114,39 @@ function UsersPageContent() {
       {/* Stats */}
       <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-4">
         <Card>
-          <CardContent className="p-4">
-            <div className="text-2xl font-bold">{users.length}</div>
-            <p className="text-sm text-muted-foreground">Total de Usuarios</p>
+          <CardContent className="p-3 sm:p-4">
+            <div className="text-xl sm:text-2xl font-bold">{users.length}</div>
+            <p className="text-xs sm:text-sm text-muted-foreground">Total de Usuarios</p>
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="p-4">
-            <div className="text-2xl font-bold text-green-600">
+          <CardContent className="p-3 sm:p-4">
+            <div className="text-xl sm:text-2xl font-bold text-green-600">
               {users.filter((u) => u.status === 'ACTIVE').length}
             </div>
-            <p className="text-sm text-muted-foreground">Ativos</p>
+            <p className="text-xs sm:text-sm text-muted-foreground">Ativos</p>
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="p-4">
-            <div className="text-2xl font-bold text-blue-600">
+          <CardContent className="p-3 sm:p-4">
+            <div className="text-xl sm:text-2xl font-bold text-blue-600">
               {users.filter((u) => u.role === 'ADMIN' || u.role === 'MANAGER').length}
             </div>
-            <p className="text-sm text-muted-foreground">Administradores</p>
+            <p className="text-xs sm:text-sm text-muted-foreground">Administradores</p>
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="p-4">
-            <div className="text-2xl font-bold text-yellow-600">
+          <CardContent className="p-3 sm:p-4">
+            <div className="text-xl sm:text-2xl font-bold text-yellow-600">
               {users.filter((u) => u.status === 'PENDING').length}
             </div>
-            <p className="text-sm text-muted-foreground">Pendentes</p>
+            <p className="text-xs sm:text-sm text-muted-foreground">Pendentes</p>
           </CardContent>
         </Card>
       </div>
 
       {/* Search */}
-      <div className="relative max-w-md">
+      <div className="relative w-full sm:max-w-md">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
         <Input
           placeholder="Buscar usuarios..."
@@ -165,8 +165,8 @@ function UsersPageContent() {
                 <div className="flex items-center gap-4">
                   <div className="w-10 h-10 rounded-full bg-muted" />
                   <div className="flex-1">
-                    <div className="h-5 bg-muted rounded w-1/4 mb-2" />
-                    <div className="h-4 bg-muted rounded w-1/3" />
+                    <div className="h-5 bg-muted rounded w-1/2 sm:w-1/4 mb-2" />
+                    <div className="h-4 bg-muted rounded w-2/3 sm:w-1/3" />
                   </div>
                 </div>
               </CardContent>
@@ -175,9 +175,9 @@ function UsersPageContent() {
         </div>
       ) : filteredUsers.length === 0 ? (
         <Card>
-          <CardContent className="p-12 text-center">
-            <UsersIcon className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-            <h3 className="text-lg font-semibold mb-2">Nenhum usuario encontrado</h3>
+          <CardContent className="p-6 sm:p-12 text-center">
+            <UsersIcon className="h-10 w-10 sm:h-12 sm:w-12 mx-auto text-muted-foreground mb-3 sm:mb-4" />
+            <h3 className="text-base sm:text-lg font-semibold mb-2">Nenhum usuario encontrado</h3>
             <p className="text-muted-foreground mb-4">
               {search
                 ? 'Nenhum usuario corresponde a sua busca.'
@@ -219,7 +219,7 @@ function UsersPageContent() {
                           <UserX className="h-4 w-4 text-gray-400 flex-shrink-0" />
                         )}
                         {currentUser?.role === 'PLATFORM_ADMIN' && (
-                          <span className="px-2 py-0.5 text-xs rounded bg-gray-200 text-gray-700 truncate max-w-[100px]" title={user.tenantId}>
+                          <span className="px-2 py-0.5 text-xs rounded bg-gray-200 text-gray-700 truncate max-w-[80px] sm:max-w-[120px] md:max-w-[160px]" title={user.tenantId}>
                             {user.tenant?.name ? user.tenant.name : user.tenantId}
                           </span>
                         )}

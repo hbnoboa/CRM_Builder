@@ -75,12 +75,12 @@ export default function TenantsPage() {
   // If not PLATFORM_ADMIN, show access denied message
   if (!isPlatformAdmin) {
     return (
-      <div className="max-w-3xl mx-auto mt-8">
+      <div className="max-w-3xl mx-auto mt-4 sm:mt-8 px-2 sm:px-0">
         <Card>
-          <CardContent className="flex flex-col items-center justify-center py-12">
-            <ShieldAlert className="h-16 w-16 text-destructive mb-4" />
-            <h2 className="text-xl font-semibold mb-2">Acesso Restrito</h2>
-            <p className="text-muted-foreground text-center mb-4">
+          <CardContent className="flex flex-col items-center justify-center py-8 sm:py-12">
+            <ShieldAlert className="h-12 w-12 sm:h-16 sm:w-16 text-destructive mb-4" />
+            <h2 className="text-lg sm:text-xl font-semibold mb-2">Acesso Restrito</h2>
+            <p className="text-muted-foreground text-center mb-4 text-sm sm:text-base px-2">
               Esta pagina e restrita a administradores da plataforma (PLATFORM_ADMIN).
             </p>
             <Link href="/dashboard">
@@ -156,39 +156,39 @@ export default function TenantsPage() {
       {/* Stats */}
       <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-4">
         <Card>
-          <CardContent className="p-4">
-            <div className="text-2xl font-bold">{tenants.length}</div>
-            <p className="text-sm text-muted-foreground">Total de Tenants</p>
+          <CardContent className="p-3 sm:p-4">
+            <div className="text-xl sm:text-2xl font-bold">{tenants.length}</div>
+            <p className="text-xs sm:text-sm text-muted-foreground">Total de Tenants</p>
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="p-4">
-            <div className="text-2xl font-bold text-green-600">
+          <CardContent className="p-3 sm:p-4">
+            <div className="text-xl sm:text-2xl font-bold text-green-600">
               {tenants.filter((t: Tenant) => t.status === 'ACTIVE').length}
             </div>
-            <p className="text-sm text-muted-foreground">Ativos</p>
+            <p className="text-xs sm:text-sm text-muted-foreground">Ativos</p>
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="p-4">
-            <div className="text-2xl font-bold text-yellow-600">
+          <CardContent className="p-3 sm:p-4">
+            <div className="text-xl sm:text-2xl font-bold text-yellow-600">
               {tenants.filter((t: Tenant) => t.status === 'SUSPENDED').length}
             </div>
-            <p className="text-sm text-muted-foreground">Suspensos</p>
+            <p className="text-xs sm:text-sm text-muted-foreground">Suspensos</p>
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="p-4">
-            <div className="text-2xl font-bold text-purple-600">
+          <CardContent className="p-3 sm:p-4">
+            <div className="text-xl sm:text-2xl font-bold text-purple-600">
               {tenants.filter((t: Tenant) => t.plan === 'pro' || t.plan === 'enterprise').length}
             </div>
-            <p className="text-sm text-muted-foreground">Planos Premium</p>
+            <p className="text-xs sm:text-sm text-muted-foreground">Planos Premium</p>
           </CardContent>
         </Card>
       </div>
 
       {/* Search */}
-      <div className="relative max-w-md">
+      <div className="relative w-full sm:max-w-md">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
         <Input
           placeholder="Buscar tenants..."
@@ -217,10 +217,10 @@ export default function TenantsPage() {
         </div>
       ) : filteredTenants.length === 0 ? (
         <Card>
-          <CardContent className="p-12 text-center">
-            <Building2 className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-            <h3 className="text-lg font-semibold mb-2">Nenhum tenant encontrado</h3>
-            <p className="text-muted-foreground mb-4">
+          <CardContent className="p-6 sm:p-12 text-center">
+            <Building2 className="h-10 w-10 sm:h-12 sm:w-12 mx-auto text-muted-foreground mb-4" />
+            <h3 className="text-base sm:text-lg font-semibold mb-2">Nenhum tenant encontrado</h3>
+            <p className="text-muted-foreground mb-4 text-sm sm:text-base">
               {search
                 ? 'Nenhum tenant corresponde a sua busca.'
                 : 'Crie tenants para comecar.'}
