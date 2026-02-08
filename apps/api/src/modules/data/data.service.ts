@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException, BadRequestException, Logger } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { EntityService } from '../entity/entity.service';
 import { UserRole, Prisma, EntityData, Entity } from '@prisma/client';
@@ -7,6 +7,20 @@ import { CurrentUser } from '../../common/types';
 interface CreateDataDto {
   data: Record<string, unknown>;
   parentRecordId?: string;
+}
+
+// Interface para campos do inputSchema da Custom API
+interface CustomApiFieldConfig {
+  fieldSlug: string;
+  enabled: boolean;
+  valueMode: 'manual' | 'auto';
+  manualValue?: unknown;
+  dynamicValue?: string;
+}
+
+interface CustomApiInputSchema {
+  _v?: number;
+  selectedFields?: CustomApiFieldConfig[];
 }
 
 interface QueryDataDto {
@@ -38,10 +52,114 @@ const CACHE_TTL = 5000; // 5 seconds
 
 @Injectable()
 export class DataService {
+  private readonly logger = new Logger(DataService.name);
+
   constructor(
     private prisma: PrismaService,
     private entityService: EntityService,
   ) {}
+
+  // Busca Custom API configurada para a entidade (POST para create, PATCH para update)
+  private async findCustomApiForEntity(
+    entityId: string,
+    tenantId: string,
+    method: 'POST' | 'PATCH',
+  ) {
+    return this.prisma.customEndpoint.findFirst({
+      where: {
+        tenantId,
+        sourceEntityId: entityId,
+        method,
+        isActive: true,
+        mode: 'visual',
+      },
+    });
+  }
+
+  // Resolve valores dinamicos ({{user.email}}, {{now}}, etc)
+  private resolveDynamicValue(template: string, user: CurrentUser): unknown {
+    if (!template) return undefined;
+
+    const now = new Date();
+    const values: Record<string, unknown> = {
+      'user.id': user.id,
+      'user.email': user.email,
+      'user.name': user.name,
+      'user.role': user.role,
+      'user.tenantId': user.tenantId,
+      'now': now.toISOString(),
+      'today': now.toISOString().split('T')[0],
+      'timestamp': now.getTime(),
+      'true': true,
+      'false': false,
+    };
+
+    // Se template e exatamente um placeholder, retornar valor diretamente
+    const singleMatch = template.match(/^\{\{(.+?)\}\}$/);
+    if (singleMatch) {
+      const key = singleMatch[1].trim();
+      return values[key];
+    }
+
+    // Se template tem multiplos placeholders ou texto misto, substituir todos
+    let result = template;
+    for (const [key, value] of Object.entries(values)) {
+      result = result.replace(new RegExp(`\\{\\{\\s*${key.replace('.', '\\.')}\\s*\\}\\}`, 'g'), String(value ?? ''));
+    }
+
+    return result;
+  }
+
+  // Aplica valores da Custom API aos dados
+  private async applyCustomApiValues(
+    data: Record<string, unknown>,
+    entityId: string,
+    tenantId: string,
+    user: CurrentUser,
+    method: 'POST' | 'PATCH',
+  ): Promise<Record<string, unknown>> {
+    const customApi = await this.findCustomApiForEntity(entityId, tenantId, method);
+
+    if (!customApi) {
+      return data;
+    }
+
+    const inputSchema = customApi.requestSchema as CustomApiInputSchema | null;
+    const schemaFields = inputSchema?.selectedFields || [];
+
+    if (schemaFields.length === 0) {
+      return data;
+    }
+
+    const result = { ...data };
+
+    for (const field of schemaFields) {
+      if (!field.enabled) continue;
+
+      switch (field.valueMode) {
+        case 'auto':
+          if (field.dynamicValue) {
+            const resolvedValue = this.resolveDynamicValue(field.dynamicValue, user);
+            if (resolvedValue !== undefined) {
+              result[field.fieldSlug] = resolvedValue;
+              this.logger.debug(`Custom API auto field: ${field.fieldSlug} = ${resolvedValue}`);
+            }
+          }
+          break;
+
+        case 'manual':
+          if (field.manualValue !== undefined) {
+            result[field.fieldSlug] = field.manualValue;
+            this.logger.debug(`Custom API manual field: ${field.fieldSlug} = ${field.manualValue}`);
+          }
+          break;
+      }
+    }
+
+    this.logger.log(`Applied Custom API values for entity ${entityId}: ${schemaFields.filter(f => f.enabled).map(f => f.fieldSlug).join(', ')}`);
+
+    return result;
+  }
 
   // Helper para determinar o tenantId efetivo (PLATFORM_ADMIN pode acessar qualquer tenant)
   private getEffectiveTenantId(currentUser: CurrentUser, requestedTenantId?: string): string {
@@ -79,13 +197,22 @@ export class DataService {
 
   async create(entitySlug: string, dto: CreateDataDto & { tenantId?: string }, currentUser: CurrentUser) {
     const targetTenantId = this.getEffectiveTenantId(currentUser, dto.tenantId);
-    
+
     // Buscar entidade (cached)
     const entity = await this.getEntityCached(entitySlug, currentUser, targetTenantId);
 
-    // Validar dados
+    // Aplicar valores da Custom API (se existir)
+    const dataWithCustomApi = await this.applyCustomApiValues(
+      dto.data as Record<string, unknown> || {},
+      entity.id,
+      targetTenantId,
+      currentUser,
+      'POST',
+    );
+
+    // Validar dados (apos aplicar Custom API para incluir campos automaticos)
     const fields = (entity.fields as unknown) as EntityField[];
-    const errors = this.entityService.validateData(fields, dto.data as Record<string, unknown> || {});
+    const errors = this.entityService.validateData(fields, dataWithCustomApi);
     if (errors.length > 0) {
       throw new BadRequestException(errors);
     }
@@ -94,7 +221,7 @@ export class DataService {
       data: {
         tenantId: targetTenantId,
         entityId: entity.id,
-        data: (dto.data || {}) as Prisma.InputJsonValue,
+        data: dataWithCustomApi as Prisma.InputJsonValue,
         parentRecordId: dto.parentRecordId || null,
         createdById: currentUser.id,
         updatedById: currentUser.id,
@@ -253,7 +380,7 @@ export class DataService {
       id,
       entityId: entity.id,
     };
-    
+
     if (currentUser.role !== UserRole.PLATFORM_ADMIN) {
       whereClause.tenantId = currentUser.tenantId;
     }
@@ -272,17 +399,26 @@ export class DataService {
       this.checkScope(record, currentUser, 'update');
     }
 
-    // Validar dados
+    // Aplicar valores da Custom API (se existir) - usa PATCH para update
+    const dataWithCustomApi = await this.applyCustomApiValues(
+      dto.data as Record<string, unknown> || {},
+      entity.id,
+      effectiveTenantId,
+      currentUser,
+      'PATCH',
+    );
+
+    // Validar dados (apos aplicar Custom API)
     const fields = (entity.fields as unknown) as EntityField[];
-    const errors = this.entityService.validateData(fields, dto.data as Record<string, unknown> || {});
+    const errors = this.entityService.validateData(fields, dataWithCustomApi);
     if (errors.length > 0) {
       throw new BadRequestException(errors);
     }
 
-    // Merge dos dados existentes com os novos
+    // Merge dos dados existentes com os novos (incluindo Custom API)
     const mergedData = {
       ...(record.data as Record<string, unknown>),
-      ...dto.data,
+      ...dataWithCustomApi,
     };
 
     return this.prisma.entityData.update({
