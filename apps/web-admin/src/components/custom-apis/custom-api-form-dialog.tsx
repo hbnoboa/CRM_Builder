@@ -255,19 +255,41 @@ export function CustomApiFormDialog({ open, onOpenChange, customApi, onSuccess }
   };
 
   // ─── Field helpers ──────────────────────────────────────────────────────
-  const toggleField = (slug: string) => {
+
+  // New: Set valueMode for a field, which enables it; clearing disables it
+  const setFieldValueMode = (slug: string, valueMode: ValueMode | undefined) => {
     setConfig(prev => {
       const existing = prev.selectedFields.find(f => f.fieldSlug === slug);
       if (existing) {
-        return { ...prev, selectedFields: prev.selectedFields.map(f =>
-          f.fieldSlug === slug ? { ...f, enabled: !f.enabled } : f
-        )};
+        // If valueMode is undefined, remove the field from selectedFields
+        if (!valueMode) {
+          return { ...prev, selectedFields: prev.selectedFields.filter(f => f.fieldSlug !== slug) };
+        }
+        // Otherwise, update valueMode
+        return {
+          ...prev,
+          selectedFields: prev.selectedFields.map(f =>
+            f.fieldSlug === slug ? { ...f, valueMode, enabled: true, paramKey: valueMode === 'param' ? (f.paramKey || slug) : f.paramKey } : f
+          ),
+        };
       }
-      return { ...prev, selectedFields: [...prev.selectedFields, {
-        fieldSlug: slug, enabled: true,
-        valueMode: isWriteMethod ? 'param' : undefined,
-        paramKey: isWriteMethod ? slug : undefined,
-      }]};
+      // If not present and valueMode is set, add it
+      if (valueMode) {
+        return {
+          ...prev,
+          selectedFields: [
+            ...prev.selectedFields,
+            {
+              fieldSlug: slug,
+              enabled: true,
+              valueMode,
+              paramKey: valueMode === 'param' ? slug : undefined,
+            },
+          ],
+        };
+      }
+      // If not present and valueMode is undefined, do nothing
+      return prev;
     });
   };
 
@@ -280,12 +302,30 @@ export function CustomApiFormDialog({ open, onOpenChange, customApi, onSuccess }
     }));
   };
 
-  const isFieldEnabled = (slug: string) =>
-    config.selectedFields.find(f => f.fieldSlug === slug)?.enabled ?? false;
+
+  const isFieldEnabled = (slug: string) => {
+    const fc = config.selectedFields.find(f => f.fieldSlug === slug);
+    if (!fc) return false;
+    return isWriteMethod ? !!fc.valueMode : fc.enabled;
+  };
+
+  const toggleField = (slug: string) => {
+    setConfig(prev => {
+      const existing = prev.selectedFields.find(f => f.fieldSlug === slug);
+      if (existing) {
+        return { ...prev, selectedFields: prev.selectedFields.map(f =>
+          f.fieldSlug === slug ? { ...f, enabled: !f.enabled } : f
+        )};
+      }
+      return { ...prev, selectedFields: [...prev.selectedFields, { fieldSlug: slug, enabled: true }] };
+    });
+  };
 
   const getFieldConfig = (slug: string) =>
     config.selectedFields.find(f => f.fieldSlug === slug);
 
+
+  // New: select all = set valueMode to 'param' for all fields; deselect all = remove all from selectedFields
   const selectAllFields = () => {
     setConfig(prev => ({
       ...prev,
@@ -299,10 +339,14 @@ export function CustomApiFormDialog({ open, onOpenChange, customApi, onSuccess }
   };
 
   const deselectAllFields = () => {
-    setConfig(prev => ({
-      ...prev,
-      selectedFields: prev.selectedFields.map(f => ({ ...f, enabled: false })),
-    }));
+    if (isWriteMethod) {
+      setConfig(prev => ({ ...prev, selectedFields: [] }));
+    } else {
+      setConfig(prev => ({
+        ...prev,
+        selectedFields: prev.selectedFields.map(f => ({ ...f, enabled: false })),
+      }));
+    }
   };
 
   // ─── Filter helpers ─────────────────────────────────────────────────────
@@ -382,13 +426,10 @@ export function CustomApiFormDialog({ open, onOpenChange, customApi, onSuccess }
         </DialogHeader>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-4">
+          <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="basic">Básico</TabsTrigger>
             <TabsTrigger value="fields" disabled={!config.sourceEntityId}>
               Campos {enabledFieldsCount > 0 && <Badge variant="secondary" className="ml-1 h-5 text-[10px]">{enabledFieldsCount}</Badge>}
-            </TabsTrigger>
-            <TabsTrigger value="query" disabled={!config.sourceEntityId}>
-              {isWriteMethod ? 'Valores' : 'Consulta'}
             </TabsTrigger>
             <TabsTrigger value="advanced" disabled={!config.sourceEntityId}>Avançado</TabsTrigger>
           </TabsList>
@@ -492,23 +533,121 @@ export function CustomApiFormDialog({ open, onOpenChange, customApi, onSuccess }
             )}
           </TabsContent>
 
-          {/* ═══ TAB: FIELDS ═══ */}
-          <TabsContent value="fields" className="space-y-4 mt-4">
+          {/* ═══ TAB: FIELDS (unified — fields + filters + query) ═══ */}
+          <TabsContent value="fields" className="space-y-5 mt-4">
             {entityFields.length === 0 ? (
               <div className="text-center py-8 text-muted-foreground">
                 <p>Nenhum campo encontrado na entidade.</p>
               </div>
-            ) : (
+            ) : isWriteMethod ? (
+              /* ── WRITE: campo + modo (toggle buttons) + valor inline ── */
               <>
                 <div className="flex items-center justify-between">
                   <div>
-                    <Label className="text-sm font-medium">
-                      {isWriteMethod ? 'Campos para enviar' : 'Campos para retornar'}
-                    </Label>
+                    <Label className="text-sm font-medium">Campos e valores</Label>
                     <p className="text-xs text-muted-foreground mt-0.5">
-                      {isWriteMethod
-                        ? 'Selecione os campos e defina como cada valor será preenchido.'
-                        : 'Selecione quais campos serão retornados na resposta.'}
+                      Clique no modo desejado para incluir o campo. Clique novamente para remover.
+                    </p>
+                  </div>
+                  <div className="flex gap-1">
+                    <Button variant="outline" size="sm" className="h-7 text-xs" onClick={selectAllFields}>Todos</Button>
+                    <Button variant="outline" size="sm" className="h-7 text-xs" onClick={deselectAllFields}>Limpar</Button>
+                  </div>
+                </div>
+
+                <div className="space-y-1 max-h-[320px] overflow-y-auto pr-1">
+                  {entityFields.map(field => {
+                    const slug = field.slug || field.name;
+                    const fc = getFieldConfig(slug);
+                    const enabled = isFieldEnabled(slug);
+                    return (
+                      <div
+                        key={slug}
+                        className={`flex items-center gap-2 p-2 border rounded-lg transition-all ${
+                          enabled ? 'border-primary/30 bg-primary/5' : 'border-transparent bg-muted/20'
+                        }`}
+                      >
+                        {/* Field info */}
+                        <span className="text-sm w-5 text-center flex-shrink-0">{FIELD_TYPE_ICONS[field.type] || '?'}</span>
+                        <div className="w-[110px] flex-shrink-0 min-w-0">
+                          <span className="font-medium text-xs truncate block">{field.label || field.name}</span>
+                          {field.required && <span className="text-[9px] text-destructive">obrigatório</span>}
+                        </div>
+
+                        {/* Mode toggle buttons (1 click instead of dropdown) */}
+                        <div className="flex gap-0.5 rounded-md border p-0.5 bg-background flex-shrink-0">
+                          {([
+                            { mode: 'param' as ValueMode, label: 'Param', icon: <Zap className="h-3 w-3" /> },
+                            { mode: 'static' as ValueMode, label: 'Fixo', icon: <ListChecks className="h-3 w-3" /> },
+                            { mode: 'dynamic' as ValueMode, label: 'Auto', icon: <Clock className="h-3 w-3" /> },
+                          ]).map(({ mode, label, icon }) => (
+                            <button
+                              key={mode}
+                              type="button"
+                              className={`px-2 py-1 text-[11px] rounded flex items-center gap-1 transition-colors ${
+                                fc?.valueMode === mode
+                                  ? 'bg-primary text-primary-foreground shadow-sm'
+                                  : 'hover:bg-muted text-muted-foreground'
+                              }`}
+                              onClick={() => {
+                                if (fc?.valueMode === mode) setFieldValueMode(slug, undefined);
+                                else setFieldValueMode(slug, mode);
+                              }}
+                            >
+                              {icon} {label}
+                            </button>
+                          ))}
+                        </div>
+
+                        {/* Inline value input */}
+                        <div className="flex-1 min-w-0">
+                          {fc?.valueMode === 'param' && (
+                            <Input
+                              className="h-7 text-xs"
+                              placeholder={slug}
+                              value={fc.paramKey || slug}
+                              onChange={e => updateFieldConfig(slug, { paramKey: e.target.value })}
+                            />
+                          )}
+                          {fc?.valueMode === 'static' && (
+                            <ValueInput
+                              fieldType={field.type}
+                              fieldOptions={field.options}
+                              value={fc.staticValue || ''}
+                              onChange={v => updateFieldConfig(slug, { staticValue: v })}
+                            />
+                          )}
+                          {fc?.valueMode === 'dynamic' && (
+                            <Select
+                              value={fc.dynamicValue || ''}
+                              onValueChange={v => updateFieldConfig(slug, { dynamicValue: v })}
+                            >
+                              <SelectTrigger className="h-7 text-xs">
+                                <SelectValue placeholder="Valor automático..." />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {DYNAMIC_VALUES.map(dv => (
+                                  <SelectItem key={dv.value} value={dv.value}>
+                                    <span className="mr-1">{dv.icon}</span> {dv.label}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </>
+            ) : (
+              /* ── GET: seleção compacta de campos (badges clicáveis) ── */
+              <>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <Label className="text-sm font-medium">Campos para retornar</Label>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Clique nos campos que deseja incluir na resposta.
                     </p>
                   </div>
                   <div className="flex gap-1">
@@ -517,285 +656,179 @@ export function CustomApiFormDialog({ open, onOpenChange, customApi, onSuccess }
                   </div>
                 </div>
 
-                <div className="space-y-1.5 max-h-[400px] overflow-y-auto pr-1">
+                <div className="flex flex-wrap gap-1.5">
                   {entityFields.map(field => {
                     const slug = field.slug || field.name;
                     const enabled = isFieldEnabled(slug);
-                    const fc = getFieldConfig(slug);
                     return (
-                      <div
+                      <Badge
                         key={slug}
-                        className={`border rounded-lg transition-all ${enabled ? 'border-primary/30 bg-primary/5' : 'border-border bg-background opacity-60'}`}
+                        variant={enabled ? 'default' : 'outline'}
+                        className={`cursor-pointer transition-all text-xs py-1 px-2.5 ${
+                          enabled ? '' : 'opacity-50 hover:opacity-100 hover:bg-muted'
+                        }`}
+                        onClick={() => toggleField(slug)}
                       >
-                        <div className="flex items-center gap-3 p-3 cursor-pointer" onClick={() => toggleField(slug)}>
-                          <Checkbox checked={enabled} onCheckedChange={() => toggleField(slug)} />
-                          <span className="text-base w-6 text-center flex-shrink-0">{FIELD_TYPE_ICONS[field.type] || '?'}</span>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2">
-                              <span className="font-medium text-sm truncate">{field.label || field.name}</span>
-                              <Badge variant="outline" className="text-[10px] h-4 flex-shrink-0">{field.type}</Badge>
-                              {field.required && <Badge variant="destructive" className="text-[10px] h-4 flex-shrink-0">obrigatório</Badge>}
-                            </div>
-                            <span className="text-xs text-muted-foreground">{slug}</span>
-                          </div>
-                        </div>
-
-                        {enabled && isWriteMethod && (
-                          <div className="px-3 pb-3 border-t border-dashed">
-                            <div className="pt-2 space-y-2">
-                              <div className="flex gap-2">
-                                <Select
-                                  value={fc?.valueMode || 'param'}
-                                  onValueChange={v => updateFieldConfig(slug, { valueMode: v as ValueMode })}
-                                >
-                                  <SelectTrigger className="h-8 w-[180px] text-xs"><SelectValue /></SelectTrigger>
-                                  <SelectContent>
-                                    <SelectItem value="param">
-                                      <div className="flex items-center gap-1.5"><Zap className="h-3 w-3" /> Parâmetro</div>
-                                    </SelectItem>
-                                    <SelectItem value="static">
-                                      <div className="flex items-center gap-1.5"><ListChecks className="h-3 w-3" /> Valor fixo</div>
-                                    </SelectItem>
-                                    <SelectItem value="dynamic">
-                                      <div className="flex items-center gap-1.5"><Clock className="h-3 w-3" /> Dinâmico</div>
-                                    </SelectItem>
-                                  </SelectContent>
-                                </Select>
-
-                                {fc?.valueMode === 'static' && (
-                                  <ValueInput
-                                    fieldType={field.type}
-                                    fieldOptions={field.options}
-                                    value={fc.staticValue || ''}
-                                    onChange={v => updateFieldConfig(slug, { staticValue: v })}
-                                  />
-                                )}
-
-                                {fc?.valueMode === 'dynamic' && (
-                                  <Select
-                                    value={fc.dynamicValue || ''}
-                                    onValueChange={v => updateFieldConfig(slug, { dynamicValue: v })}
-                                  >
-                                    <SelectTrigger className="h-8 flex-1 text-xs">
-                                      <SelectValue placeholder="Escolha o valor dinâmico..." />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      {DYNAMIC_VALUES.map(dv => (
-                                        <SelectItem key={dv.value} value={dv.value}>
-                                          <span className="mr-1">{dv.icon}</span> {dv.label}
-                                        </SelectItem>
-                                      ))}
-                                    </SelectContent>
-                                  </Select>
-                                )}
-
-                                {(fc?.valueMode === 'param' || !fc?.valueMode) && (
-                                  <Input
-                                    className="h-8 flex-1 text-xs"
-                                    placeholder="Nome do parâmetro"
-                                    value={fc?.paramKey || slug}
-                                    onChange={e => updateFieldConfig(slug, { paramKey: e.target.value })}
-                                  />
-                                )}
-                              </div>
-                              <p className="text-[10px] text-muted-foreground">
-                                {fc?.valueMode === 'static' && 'Sempre usará este valor fixo.'}
-                                {fc?.valueMode === 'dynamic' && 'Valor preenchido automaticamente pelo sistema.'}
-                                {(fc?.valueMode === 'param' || !fc?.valueMode) && 'Recebe o valor do body/query da requisição.'}
-                              </p>
-                            </div>
-                          </div>
-                        )}
-                      </div>
+                        <span className="mr-1">{FIELD_TYPE_ICONS[field.type] || '?'}</span>
+                        {field.label || field.name}
+                      </Badge>
                     );
                   })}
                 </div>
               </>
             )}
-          </TabsContent>
 
-          {/* ═══ TAB: QUERY / VALUES ═══ */}
-          <TabsContent value="query" className="space-y-5 mt-4">
-            {/* FILTERS */}
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Filter className="h-4 w-4 text-muted-foreground" />
-                  <Label className="text-sm font-medium">Filtros</Label>
-                </div>
-                <Button variant="outline" size="sm" className="h-7 text-xs" onClick={addFilter}>
-                  <Plus className="h-3 w-3 mr-1" /> Filtro
-                </Button>
-              </div>
-              {config.filters.length === 0 && (
-                <p className="text-xs text-muted-foreground py-2">
-                  Nenhum filtro. {isWriteMethod ? 'Filtros definem quais registros serão afetados.' : 'Retornará todos os registros.'}
-                </p>
-              )}
-              {config.filters.map((filter, idx) => (
-                <div key={idx} className="flex items-start gap-2 p-2.5 bg-muted/30 rounded-lg border">
-                  <div className="flex-1 grid gap-2 sm:grid-cols-4">
-                    <Select value={filter.fieldSlug} onValueChange={v => updateFilter(idx, { fieldSlug: v })}>
-                      <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        {entityFields.map(f => (
-                          <SelectItem key={f.slug || f.name} value={f.slug || f.name}>
-                            <span className="mr-1">{FIELD_TYPE_ICONS[f.type] || '?'}</span> {f.label || f.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <Select value={filter.operator} onValueChange={v => updateFilter(idx, { operator: v as FilterOperator })}>
-                      <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        {FILTER_OPERATORS.map(op => (
-                          <SelectItem key={op.value} value={op.value}>
-                            <span className="font-mono mr-1">{op.label}</span> {op.desc}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <Select value={filter.valueMode} onValueChange={v => updateFilter(idx, { valueMode: v as ValueMode })}>
-                      <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="static">Valor fixo</SelectItem>
-                        <SelectItem value="dynamic">Dinâmico</SelectItem>
-                        <SelectItem value="param">Parâmetro</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    {filter.valueMode === 'static' && !['isNull', 'isNotNull'].includes(filter.operator) && (
-                      <Input className="h-8 text-xs" placeholder="Valor..." value={filter.staticValue || ''} onChange={e => updateFilter(idx, { staticValue: e.target.value })} />
-                    )}
-                    {filter.valueMode === 'dynamic' && (
-                      <Select value={filter.dynamicValue || ''} onValueChange={v => updateFilter(idx, { dynamicValue: v })}>
-                        <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Dinâmico..." /></SelectTrigger>
-                        <SelectContent>
-                          {DYNAMIC_VALUES.map(dv => (
-                            <SelectItem key={dv.value} value={dv.value}>
-                              <span className="mr-1">{dv.icon}</span> {dv.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    )}
-                    {filter.valueMode === 'param' && (
-                      <Input className="h-8 text-xs" placeholder="Nome do param" value={filter.paramKey || ''} onChange={e => updateFilter(idx, { paramKey: e.target.value })} />
-                    )}
-                  </div>
-                  <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive flex-shrink-0" onClick={() => removeFilter(idx)}>
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </Button>
-                </div>
-              ))}
-            </div>
-
-            {/* ORDER BY (GET) */}
-            {!isWriteMethod && (
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <SortAsc className="h-4 w-4 text-muted-foreground" />
-                    <Label className="text-sm font-medium">Ordenação</Label>
-                  </div>
-                  <Button variant="outline" size="sm" className="h-7 text-xs" onClick={addSort}>
-                    <Plus className="h-3 w-3 mr-1" /> Ordem
-                  </Button>
-                </div>
-                {config.orderBy.length === 0 && (
-                  <p className="text-xs text-muted-foreground py-2">Sem ordenação. Usará ordem padrão (mais recente primeiro).</p>
-                )}
-                {config.orderBy.map((sort, idx) => (
-                  <div key={idx} className="flex items-center gap-2 p-2.5 bg-muted/30 rounded-lg border">
-                    <Select value={sort.fieldSlug} onValueChange={v => updateSort(idx, { fieldSlug: v })}>
-                      <SelectTrigger className="h-8 flex-1 text-xs"><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        {entityFields.map(f => (
-                          <SelectItem key={f.slug || f.name} value={f.slug || f.name}>
-                            <span className="mr-1">{FIELD_TYPE_ICONS[f.type] || '?'}</span> {f.label || f.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <Select value={sort.direction} onValueChange={v => updateSort(idx, { direction: v as SortDirection })}>
-                      <SelectTrigger className="h-8 w-[160px] text-xs"><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="asc">↑ Crescente (A-Z)</SelectItem>
-                        <SelectItem value="desc">↓ Decrescente (Z-A)</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => removeSort(idx)}>
-                      <Trash2 className="h-3.5 w-3.5" />
+            {/* ── FILTERS (both GET and write) ── */}
+            {entityFields.length > 0 && (
+              <>
+                <div className="border-t pt-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                      <Filter className="h-4 w-4 text-muted-foreground" />
+                      <Label className="text-sm font-medium">Filtros</Label>
+                      <span className="text-[10px] text-muted-foreground">
+                        {isWriteMethod ? '— quais registros afetar' : '— condições da busca'}
+                      </span>
+                    </div>
+                    <Button variant="outline" size="sm" className="h-7 text-xs" onClick={addFilter}>
+                      <Plus className="h-3 w-3 mr-1" /> Filtro
                     </Button>
                   </div>
-                ))}
-              </div>
-            )}
+                  {config.filters.length === 0 && (
+                    <p className="text-xs text-muted-foreground py-1">
+                      {isWriteMethod ? 'Sem filtros — afetará todos os registros.' : 'Sem filtros — retornará todos os registros.'}
+                    </p>
+                  )}
+                  {config.filters.map((filter, idx) => (
+                    <div key={idx} className="flex items-start gap-2 p-2 bg-muted/30 rounded-lg border mb-2">
+                      <div className="flex-1 grid gap-2 sm:grid-cols-4">
+                        <Select value={filter.fieldSlug} onValueChange={v => updateFilter(idx, { fieldSlug: v })}>
+                          <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            {entityFields.map(f => (
+                              <SelectItem key={f.slug || f.name} value={f.slug || f.name}>
+                                <span className="mr-1">{FIELD_TYPE_ICONS[f.type] || '?'}</span> {f.label || f.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <Select value={filter.operator} onValueChange={v => updateFilter(idx, { operator: v as FilterOperator })}>
+                          <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            {FILTER_OPERATORS.map(op => (
+                              <SelectItem key={op.value} value={op.value}>
+                                <span className="font-mono mr-1">{op.label}</span> {op.desc}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <Select value={filter.valueMode} onValueChange={v => updateFilter(idx, { valueMode: v as ValueMode })}>
+                          <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="static">Valor fixo</SelectItem>
+                            <SelectItem value="dynamic">Dinâmico</SelectItem>
+                            <SelectItem value="param">Parâmetro</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        {filter.valueMode === 'static' && !['isNull', 'isNotNull'].includes(filter.operator) && (
+                          <Input className="h-8 text-xs" placeholder="Valor..." value={filter.staticValue || ''} onChange={e => updateFilter(idx, { staticValue: e.target.value })} />
+                        )}
+                        {filter.valueMode === 'dynamic' && (
+                          <Select value={filter.dynamicValue || ''} onValueChange={v => updateFilter(idx, { dynamicValue: v })}>
+                            <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Dinâmico..." /></SelectTrigger>
+                            <SelectContent>
+                              {DYNAMIC_VALUES.map(dv => (
+                                <SelectItem key={dv.value} value={dv.value}>
+                                  <span className="mr-1">{dv.icon}</span> {dv.label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        )}
+                        {filter.valueMode === 'param' && (
+                          <Input className="h-8 text-xs" placeholder="Nome do param" value={filter.paramKey || ''} onChange={e => updateFilter(idx, { paramKey: e.target.value })} />
+                        )}
+                      </div>
+                      <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive flex-shrink-0" onClick={() => removeFilter(idx)}>
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
 
-            {/* GROUP BY (GET) */}
-            {!isWriteMethod && (
-              <div className="space-y-3">
-                <div className="flex items-center gap-2">
-                  <ListChecks className="h-4 w-4 text-muted-foreground" />
-                  <Label className="text-sm font-medium">Agrupar por</Label>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {entityFields.map(f => {
-                    const slug = f.slug || f.name;
-                    const active = config.groupBy.includes(slug);
-                    return (
-                      <Badge
-                        key={slug}
-                        variant={active ? 'default' : 'outline'}
-                        className={`cursor-pointer transition-colors ${active ? '' : 'hover:bg-muted'}`}
-                        onClick={() => {
-                          setConfig(prev => ({
-                            ...prev,
-                            groupBy: active ? prev.groupBy.filter(g => g !== slug) : [...prev.groupBy, slug],
-                          }));
-                        }}
-                      >
-                        <span className="mr-1 text-xs">{FIELD_TYPE_ICONS[f.type] || '?'}</span>
-                        {f.label || f.name}
-                      </Badge>
-                    );
-                  })}
-                </div>
-                {config.groupBy.length === 0 && (
-                  <p className="text-xs text-muted-foreground">Clique nos campos para agrupar os resultados.</p>
+                {/* ── ORDER BY + LIMIT (GET only) ── */}
+                {!isWriteMethod && (
+                  <>
+                    <div className="border-t pt-4">
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center gap-2">
+                          <SortAsc className="h-4 w-4 text-muted-foreground" />
+                          <Label className="text-sm font-medium">Ordenação</Label>
+                        </div>
+                        <Button variant="outline" size="sm" className="h-7 text-xs" onClick={addSort}>
+                          <Plus className="h-3 w-3 mr-1" /> Ordem
+                        </Button>
+                      </div>
+                      {config.orderBy.length === 0 && (
+                        <p className="text-xs text-muted-foreground py-1">Ordem padrão (mais recente primeiro).</p>
+                      )}
+                      {config.orderBy.map((sort, idx) => (
+                        <div key={idx} className="flex items-center gap-2 p-2 bg-muted/30 rounded-lg border mb-2">
+                          <Select value={sort.fieldSlug} onValueChange={v => updateSort(idx, { fieldSlug: v })}>
+                            <SelectTrigger className="h-8 flex-1 text-xs"><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              {entityFields.map(f => (
+                                <SelectItem key={f.slug || f.name} value={f.slug || f.name}>
+                                  <span className="mr-1">{FIELD_TYPE_ICONS[f.type] || '?'}</span> {f.label || f.name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <Select value={sort.direction} onValueChange={v => updateSort(idx, { direction: v as SortDirection })}>
+                            <SelectTrigger className="h-8 w-[140px] text-xs"><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="asc">↑ Crescente</SelectItem>
+                              <SelectItem value="desc">↓ Decrescente</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => removeSort(idx)}>
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="border-t pt-4 grid gap-4 sm:grid-cols-3">
+                      <div className="space-y-1.5">
+                        <Label className="text-xs">Limite</Label>
+                        <Input
+                          type="number"
+                          className="h-8 text-sm"
+                          placeholder="Sem limite"
+                          value={config.limitRecords ?? ''}
+                          onChange={e => update({ limitRecords: e.target.value ? Number(e.target.value) : null })}
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label className="text-xs">Offset</Label>
+                        <Input
+                          type="number"
+                          className="h-8 text-sm"
+                          placeholder="0"
+                          value={config.offset ?? ''}
+                          onChange={e => update({ offset: e.target.value ? Number(e.target.value) : null })}
+                        />
+                      </div>
+                      <div className="flex items-end">
+                        <div className="flex items-center gap-2 pb-1">
+                          <Switch checked={config.distinct} onCheckedChange={v => update({ distinct: v })} />
+                          <Label className="text-xs">Apenas únicos</Label>
+                        </div>
+                      </div>
+                    </div>
+                  </>
                 )}
-              </div>
-            )}
-
-            {/* LIMIT / OFFSET (GET) */}
-            {!isWriteMethod && (
-              <div className="grid gap-4 sm:grid-cols-3">
-                <div className="space-y-2">
-                  <Label className="text-xs">Limite de registros</Label>
-                  <Input
-                    type="number"
-                    className="h-8 text-sm"
-                    placeholder="Sem limite"
-                    value={config.limitRecords ?? ''}
-                    onChange={e => update({ limitRecords: e.target.value ? Number(e.target.value) : null })}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-xs">Offset (pular)</Label>
-                  <Input
-                    type="number"
-                    className="h-8 text-sm"
-                    placeholder="0"
-                    value={config.offset ?? ''}
-                    onChange={e => update({ offset: e.target.value ? Number(e.target.value) : null })}
-                  />
-                </div>
-                <div className="flex items-end">
-                  <div className="flex items-center gap-2 pb-1">
-                    <Switch checked={config.distinct} onCheckedChange={v => update({ distinct: v })} />
-                    <Label className="text-xs">Apenas únicos</Label>
-                  </div>
-                </div>
-              </div>
+              </>
             )}
           </TabsContent>
 
