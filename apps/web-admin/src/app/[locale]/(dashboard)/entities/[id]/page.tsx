@@ -1017,8 +1017,13 @@ export default function EntityDetailPage() {
                                 </Select>
                               </div>
                               <div className="space-y-1">
-                                <Label className="text-xs">Obrigatório</Label>
+                                <Label className="text-xs">Obrigatorio</Label>
                                 <div className="pt-1"><Switch checked={field.required || false} onCheckedChange={(checked) => updateField(index, { required: checked })} /></div>
+                              </div>
+                              <div className="space-y-1">
+                                <Label className="text-xs">Oculto</Label>
+                                <div className="pt-1"><Switch checked={field.hidden || false} onCheckedChange={(checked) => updateField(index, { hidden: checked })} /></div>
+                                <p className="text-[10px] text-muted-foreground">Campo preenchido via Custom API</p>
                               </div>
                             </div>
                             <div className="grid gap-3 sm:grid-cols-2">

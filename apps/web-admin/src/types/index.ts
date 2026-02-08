@@ -90,6 +90,7 @@ export interface EntityField {
   type: FieldType;
   required?: boolean;
   unique?: boolean;
+  hidden?: boolean; // Se true, campo nao aparece no formulario (preenchido via Custom API)
   default?: unknown;
   options?: Array<string | { value: string; label: string; color?: string }>;
   validation?: Record<string, unknown>;

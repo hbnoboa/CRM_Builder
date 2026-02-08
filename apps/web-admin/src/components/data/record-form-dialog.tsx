@@ -329,7 +329,8 @@ export function RecordFormDialog({
 
   // ─── Group fields into grid rows ──────────────────────────────────────────
   const fieldRows = useMemo(() => {
-    const visibleFields = (entity.fields || []).filter(f => f.type !== 'hidden');
+    // Filtra campos ocultos (type === 'hidden' OU hidden === true)
+    const visibleFields = (entity.fields || []).filter(f => f.type !== 'hidden' && !f.hidden);
     const rows: EntityField[][] = [];
     let currentRow: EntityField[] = [];
     let currentRowNum = -1;
@@ -827,8 +828,8 @@ export function RecordFormDialog({
             <p className="text-sm text-muted-foreground text-center py-4">Esta entidade não possui campos definidos.</p>
           )}
 
-          {/* Hidden fields */}
-          {entity.fields?.filter(f => f.type === 'hidden').map(field => (
+          {/* Hidden fields (type === 'hidden' OU hidden === true) */}
+          {entity.fields?.filter(f => f.type === 'hidden' || f.hidden).map(field => (
             <input key={field.slug} type="hidden" value={String(formData[field.slug] || field.default || '')} />
           ))}
 
