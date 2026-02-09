@@ -59,6 +59,56 @@ export class DataService {
     private entityService: EntityService,
   ) {}
 
+  // Verifica se o usuario tem permissao especifica para a entidade atraves das roles customizadas
+  private async checkEntityPermission(
+    entityId: string,
+    tenantId: string,
+    userId: string,
+    action: 'canCreate' | 'canRead' | 'canUpdate' | 'canDelete',
+  ): Promise<boolean> {
+    // Busca todas as roles customizadas do usuario que tem permissao para a entidade
+    const userRolesWithEntityPerms = await this.prisma.userRole_.findMany({
+      where: { userId },
+      include: {
+        role: {
+          include: {
+            entityPermissions: {
+              where: {
+                entityId,
+                tenantId,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    // Verifica se alguma role tem a permissao especifica
+    for (const userRole of userRolesWithEntityPerms) {
+      const entityPerm = userRole.role.entityPermissions[0];
+      if (entityPerm && entityPerm[action]) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  // Verifica se existe qualquer restricao de entidade configurada para o usuario
+  private async hasEntityRestrictions(userId: string, tenantId: string): Promise<boolean> {
+    const count = await this.prisma.entityPermission.count({
+      where: {
+        tenantId,
+        role: {
+          users: {
+            some: { userId },
+          },
+        },
+      },
+    });
+    return count > 0;
+  }
+
   // Busca Custom API configurada para a entidade (POST para create, PATCH para update)
   private async findCustomApiForEntity(
     entityId: string,
@@ -201,6 +251,17 @@ export class DataService {
     // Buscar entidade (cached)
     const entity = await this.getEntityCached(entitySlug, currentUser, targetTenantId);
 
+    // Verificar permissao de entidade (exceto admins)
+    if (currentUser.role !== UserRole.PLATFORM_ADMIN && currentUser.role !== UserRole.ADMIN) {
+      const hasRestrictions = await this.hasEntityRestrictions(currentUser.id, targetTenantId);
+      if (hasRestrictions) {
+        const hasPermission = await this.checkEntityPermission(entity.id, targetTenantId, currentUser.id, 'canCreate');
+        if (!hasPermission) {
+          throw new ForbiddenException('Voce nao tem permissao para criar registros nesta entidade');
+        }
+      }
+    }
+
     // Aplicar valores da Custom API (se existir)
     const dataWithCustomApi = await this.applyCustomApiValues(
       dto.data as Record<string, unknown> || {},
@@ -239,11 +300,22 @@ export class DataService {
     const limit = parseInt(String(query.limit || '20'), 10) || 20;
     const { search, sortBy = 'createdAt', sortOrder = 'desc', tenantId: queryTenantId, parentRecordId } = query;
     const skip = (page - 1) * limit;
-    
+
     const effectiveTenantId = this.getEffectiveTenantId(currentUser, queryTenantId);
 
     // Buscar entidade (cached)
     const entity = await this.getEntityCached(entitySlug, currentUser, effectiveTenantId);
+
+    // Verificar permissao de entidade para leitura (exceto admins)
+    if (currentUser.role !== UserRole.PLATFORM_ADMIN && currentUser.role !== UserRole.ADMIN) {
+      const hasRestrictions = await this.hasEntityRestrictions(currentUser.id, effectiveTenantId);
+      if (hasRestrictions) {
+        const hasPermission = await this.checkEntityPermission(entity.id, effectiveTenantId, currentUser.id, 'canRead');
+        if (!hasPermission) {
+          throw new ForbiddenException('Voce nao tem permissao para visualizar registros desta entidade');
+        }
+      }
+    }
 
     // Base where
     const where: Prisma.EntityDataWhereInput = {
@@ -331,6 +403,17 @@ export class DataService {
     const effectiveTenantId = this.getEffectiveTenantId(currentUser, tenantId);
     const entity = await this.getEntityCached(entitySlug, currentUser, effectiveTenantId);
 
+    // Verificar permissao de entidade para leitura (exceto admins)
+    if (currentUser.role !== UserRole.PLATFORM_ADMIN && currentUser.role !== UserRole.ADMIN) {
+      const hasRestrictions = await this.hasEntityRestrictions(currentUser.id, effectiveTenantId);
+      if (hasRestrictions) {
+        const hasPermission = await this.checkEntityPermission(entity.id, effectiveTenantId, currentUser.id, 'canRead');
+        if (!hasPermission) {
+          throw new ForbiddenException('Voce nao tem permissao para visualizar registros desta entidade');
+        }
+      }
+    }
+
     // PLATFORM_ADMIN pode ver registro de qualquer tenant
     const whereClause: Prisma.EntityDataWhereInput = {
       id,
@@ -374,6 +457,17 @@ export class DataService {
   async update(entitySlug: string, id: string, dto: CreateDataDto & { tenantId?: string }, currentUser: CurrentUser) {
     const effectiveTenantId = this.getEffectiveTenantId(currentUser, dto.tenantId);
     const entity = await this.getEntityCached(entitySlug, currentUser, effectiveTenantId);
+
+    // Verificar permissao de entidade para atualizacao (exceto admins)
+    if (currentUser.role !== UserRole.PLATFORM_ADMIN && currentUser.role !== UserRole.ADMIN) {
+      const hasRestrictions = await this.hasEntityRestrictions(currentUser.id, effectiveTenantId);
+      if (hasRestrictions) {
+        const hasPermission = await this.checkEntityPermission(entity.id, effectiveTenantId, currentUser.id, 'canUpdate');
+        if (!hasPermission) {
+          throw new ForbiddenException('Voce nao tem permissao para atualizar registros desta entidade');
+        }
+      }
+    }
 
     // PLATFORM_ADMIN pode editar registro de qualquer tenant
     const whereClause: Prisma.EntityDataWhereInput = {
@@ -433,6 +527,17 @@ export class DataService {
   async remove(entitySlug: string, id: string, currentUser: CurrentUser, tenantId?: string) {
     const effectiveTenantId = this.getEffectiveTenantId(currentUser, tenantId);
     const entity = await this.getEntityCached(entitySlug, currentUser, effectiveTenantId);
+
+    // Verificar permissao de entidade para exclusao (exceto admins)
+    if (currentUser.role !== UserRole.PLATFORM_ADMIN && currentUser.role !== UserRole.ADMIN) {
+      const hasRestrictions = await this.hasEntityRestrictions(currentUser.id, effectiveTenantId);
+      if (hasRestrictions) {
+        const hasPermission = await this.checkEntityPermission(entity.id, effectiveTenantId, currentUser.id, 'canDelete');
+        if (!hasPermission) {
+          throw new ForbiddenException('Voce nao tem permissao para excluir registros desta entidade');
+        }
+      }
+    }
 
     // PLATFORM_ADMIN pode deletar registro de qualquer tenant
     const whereClause: Prisma.EntityDataWhereInput = {

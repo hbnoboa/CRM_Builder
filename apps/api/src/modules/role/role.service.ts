@@ -228,4 +228,141 @@ export class RoleService {
       },
     });
   }
+
+  // ========== ENTITY PERMISSIONS ==========
+
+  async getEntityPermissions(roleId: string, currentUser: CurrentUser) {
+    // Verifica se role existe e usuario tem acesso
+    await this.findOne(roleId, currentUser);
+
+    return this.prisma.entityPermission.findMany({
+      where: { roleId },
+      include: {
+        entity: {
+          select: {
+            id: true,
+            name: true,
+            slug: true,
+            icon: true,
+          },
+        },
+      },
+    });
+  }
+
+  async setEntityPermission(
+    roleId: string,
+    entityId: string,
+    permissions: { canCreate: boolean; canRead: boolean; canUpdate: boolean; canDelete: boolean },
+    currentUser: CurrentUser,
+  ) {
+    // Verifica se role existe e usuario tem acesso
+    const role = await this.findOne(roleId, currentUser);
+
+    // Verifica se entity existe e pertence ao mesmo tenant
+    const entity = await this.prisma.entity.findFirst({
+      where: {
+        id: entityId,
+        tenantId: role.tenantId,
+      },
+    });
+
+    if (!entity) {
+      throw new NotFoundException('Entidade não encontrada');
+    }
+
+    // Upsert - cria ou atualiza
+    return this.prisma.entityPermission.upsert({
+      where: {
+        roleId_entityId: { roleId, entityId },
+      },
+      create: {
+        roleId,
+        entityId,
+        tenantId: role.tenantId,
+        ...permissions,
+      },
+      update: permissions,
+      include: {
+        entity: {
+          select: {
+            id: true,
+            name: true,
+            slug: true,
+            icon: true,
+          },
+        },
+      },
+    });
+  }
+
+  async removeEntityPermission(roleId: string, entityId: string, currentUser: CurrentUser) {
+    // Verifica se role existe e usuario tem acesso
+    await this.findOne(roleId, currentUser);
+
+    await this.prisma.entityPermission.delete({
+      where: {
+        roleId_entityId: { roleId, entityId },
+      },
+    });
+
+    return { message: 'Permissão de entidade removida' };
+  }
+
+  async bulkSetEntityPermissions(
+    roleId: string,
+    entityPermissions: Array<{
+      entityId: string;
+      canCreate: boolean;
+      canRead: boolean;
+      canUpdate: boolean;
+      canDelete: boolean;
+    }>,
+    currentUser: CurrentUser,
+  ) {
+    // Verifica se role existe e usuario tem acesso
+    const role = await this.findOne(roleId, currentUser);
+
+    // Processa em transacao
+    return this.prisma.$transaction(async (tx) => {
+      // Remove permissoes existentes
+      await tx.entityPermission.deleteMany({
+        where: { roleId },
+      });
+
+      // Cria novas permissoes (apenas as que tem pelo menos uma permissao true)
+      const permissionsToCreate = entityPermissions.filter(
+        (p) => p.canCreate || p.canRead || p.canUpdate || p.canDelete,
+      );
+
+      if (permissionsToCreate.length > 0) {
+        await tx.entityPermission.createMany({
+          data: permissionsToCreate.map((p) => ({
+            roleId,
+            entityId: p.entityId,
+            tenantId: role.tenantId,
+            canCreate: p.canCreate,
+            canRead: p.canRead,
+            canUpdate: p.canUpdate,
+            canDelete: p.canDelete,
+          })),
+        });
+      }
+
+      // Retorna permissoes atualizadas
+      return tx.entityPermission.findMany({
+        where: { roleId },
+        include: {
+          entity: {
+            select: {
+              id: true,
+              name: true,
+              slug: true,
+              icon: true,
+            },
+          },
+        },
+      });
+    });
+  }
 }

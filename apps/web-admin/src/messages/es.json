@@ -534,7 +534,18 @@
     "permissions": {
       "title": "Permisos",
       "selectAll": "Todos",
-      "selectNone": "Ninguno"
+      "selectNone": "Ninguno",
+      "systemTab": "Sistema",
+      "entitiesTab": "Por Entidad",
+      "systemDescription": "Permisos generales del sistema que controlan el acceso a recursos globales.",
+      "entitiesDescription": "Define permisos específicos para cada entidad (CRUD por tabla).",
+      "noEntities": "Ninguna entidad registrada todavía.",
+      "entity": {
+        "canCreate": "Crear",
+        "canRead": "Leer",
+        "canUpdate": "Actualizar",
+        "canDelete": "Eliminar"
+      }
     },
     "permissionCategories": {
       "entities": "Entidades",

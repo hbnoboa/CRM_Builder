@@ -1,10 +1,11 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useTranslations } from 'next-intl';
+import { useQuery } from '@tanstack/react-query';
 import {
   Dialog,
   DialogContent,
@@ -21,6 +22,7 @@ import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   Shield,
   Database,
@@ -34,9 +36,12 @@ import {
   Upload,
   CheckSquare,
   Loader2,
+  Table2,
 } from 'lucide-react';
 import { useCreateRole, useUpdateRole } from '@/hooks/use-roles';
-import type { Role } from '@/types';
+import { useEntities } from '@/hooks/use-entities';
+import { rolesService, type EntityPermission, type EntityPermissionInput } from '@/services/roles.service';
+import type { Role, Entity } from '@/types';
 
 // ── Permissões do sistema organizadas por categoria ──────────────────────────
 
@@ -185,6 +190,15 @@ interface RoleFormDialogProps {
   onSuccess?: () => void;
 }
 
+// Tipo para permissoes por entidade no estado local
+interface LocalEntityPermission {
+  entityId: string;
+  canCreate: boolean;
+  canRead: boolean;
+  canUpdate: boolean;
+  canDelete: boolean;
+}
+
 export function RoleFormDialog({
   open,
   onOpenChange,
@@ -195,6 +209,26 @@ export function RoleFormDialog({
   const tCommon = useTranslations('common');
   const tValidation = useTranslations('validation');
   const isEditing = !!role;
+
+  // Estado para permissoes por entidade
+  const [entityPermissions, setEntityPermissions] = useState<Map<string, LocalEntityPermission>>(new Map());
+  const [activeTab, setActiveTab] = useState<string>('system');
+
+  // Busca entidades disponiveis
+  const { data: entitiesData, isLoading: loadingEntities } = useEntities();
+  const entities: Entity[] = useMemo(() => {
+    if (!entitiesData) return [];
+    if (Array.isArray(entitiesData)) return entitiesData;
+    if (entitiesData.data && Array.isArray(entitiesData.data)) return entitiesData.data;
+    return [];
+  }, [entitiesData]);
+
+  // Busca permissoes de entidade da role (apenas quando editando)
+  const { data: existingEntityPerms } = useQuery({
+    queryKey: ['entity-permissions', role?.id],
+    queryFn: () => role ? rolesService.getEntityPermissions(role.id) : Promise.resolve([]),
+    enabled: open && !!role?.id,
+  });
 
   // Schema with translations
   const roleSchema = z.object({
@@ -225,6 +259,7 @@ export function RoleFormDialog({
 
   useEffect(() => {
     if (!open) return;
+    setActiveTab('system');
     if (role) {
       const perms = Array.isArray(role.permissions)
         ? (role.permissions as string[])
@@ -244,9 +279,27 @@ export function RoleFormDialog({
         description: '',
         permissions: [],
       });
+      setEntityPermissions(new Map());
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [role, open]);
+
+  // Carrega permissoes de entidade existentes
+  useEffect(() => {
+    if (existingEntityPerms && Array.isArray(existingEntityPerms)) {
+      const permsMap = new Map<string, LocalEntityPermission>();
+      existingEntityPerms.forEach((perm: EntityPermission) => {
+        permsMap.set(perm.entityId, {
+          entityId: perm.entityId,
+          canCreate: perm.canCreate,
+          canRead: perm.canRead,
+          canUpdate: perm.canUpdate,
+          canDelete: perm.canDelete,
+        });
+      });
+      setEntityPermissions(permsMap);
+    }
+  }, [existingEntityPerms]);
 
   // Auto-generate slug from name
   const watchName = form.watch('name');
@@ -323,8 +376,83 @@ export function RoleFormDialog({
     return some && !all;
   };
 
+  // ========== Entity Permissions Helpers ==========
+
+  const toggleEntityPermission = (
+    entityId: string,
+    permission: 'canCreate' | 'canRead' | 'canUpdate' | 'canDelete',
+  ) => {
+    setEntityPermissions((prev) => {
+      const newMap = new Map(prev);
+      const existing = newMap.get(entityId) || {
+        entityId,
+        canCreate: false,
+        canRead: false,
+        canUpdate: false,
+        canDelete: false,
+      };
+      newMap.set(entityId, {
+        ...existing,
+        [permission]: !existing[permission],
+      });
+      return newMap;
+    });
+  };
+
+  const toggleAllEntityPermissions = (entityId: string) => {
+    setEntityPermissions((prev) => {
+      const newMap = new Map(prev);
+      const existing = newMap.get(entityId);
+      const allEnabled = existing && existing.canCreate && existing.canRead && existing.canUpdate && existing.canDelete;
+
+      if (allEnabled) {
+        newMap.delete(entityId);
+      } else {
+        newMap.set(entityId, {
+          entityId,
+          canCreate: true,
+          canRead: true,
+          canUpdate: true,
+          canDelete: true,
+        });
+      }
+      return newMap;
+    });
+  };
+
+  const getEntityPermission = (entityId: string): LocalEntityPermission => {
+    return entityPermissions.get(entityId) || {
+      entityId,
+      canCreate: false,
+      canRead: false,
+      canUpdate: false,
+      canDelete: false,
+    };
+  };
+
+  const isEntityFullySelected = (entityId: string): boolean => {
+    const perm = entityPermissions.get(entityId);
+    return !!perm && perm.canCreate && perm.canRead && perm.canUpdate && perm.canDelete;
+  };
+
+  const isEntityPartiallySelected = (entityId: string): boolean => {
+    const perm = entityPermissions.get(entityId);
+    if (!perm) return false;
+    const hasAny = perm.canCreate || perm.canRead || perm.canUpdate || perm.canDelete;
+    const hasAll = perm.canCreate && perm.canRead && perm.canUpdate && perm.canDelete;
+    return hasAny && !hasAll;
+  };
+
+  const getSelectedEntitiesCount = (): number => {
+    return Array.from(entityPermissions.values()).filter(
+      (p) => p.canCreate || p.canRead || p.canUpdate || p.canDelete
+    ).length;
+  };
+
   const onSubmit = async (data: RoleFormData) => {
     try {
+      let roleId = role?.id;
+
       if (isEditing && role) {
         await updateRole.mutateAsync({
           id: role.id,
@@ -335,13 +463,25 @@ export function RoleFormDialog({
           },
         });
       } else {
-        await createRole.mutateAsync({
+        const newRole = await createRole.mutateAsync({
           name: data.name,
           slug: data.slug || undefined,
           description: data.description,
           permissions: data.permissions,
         });
+        roleId = newRole.id;
       }
+
+      // Salvar permissoes de entidade (apenas se tiver roleId)
+      if (roleId) {
+        const entityPermsArray: EntityPermissionInput[] = Array.from(entityPermissions.values())
+          .filter((p) => p.canCreate || p.canRead || p.canUpdate || p.canDelete);
+
+        if (entityPermsArray.length > 0 || isEditing) {
+          await rolesService.bulkSetEntityPermissions(roleId, entityPermsArray);
+        }
+      }
+
       onOpenChange(false);
       onSuccess?.();
     } catch (error) {
@@ -416,114 +556,259 @@ export function RoleFormDialog({
 
           <Separator />
 
-          {/* Permissões */}
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Key className="h-4 w-4 text-muted-foreground" />
-              <Label className="text-sm font-semibold">{t('permissions.title')}</Label>
-              <Badge variant="secondary" className="text-xs">
-                {selectedPermissions.length}/{ALL_PERMISSION_KEYS.length}
-              </Badge>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="h-7 text-xs"
-                onClick={selectAll}
-              >
-                <CheckSquare className="h-3 w-3 mr-1" />
-                {t('permissions.selectAll')}
-              </Button>
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="h-7 text-xs"
-                onClick={deselectAll}
-              >
-                {t('permissions.selectNone')}
-              </Button>
-            </div>
-          </div>
+          {/* Tabs de Permissoes */}
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col min-h-0">
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="system" className="flex items-center gap-2">
+                <Key className="h-4 w-4" />
+                {t('permissions.systemTab')}
+                <Badge variant="secondary" className="text-xs ml-1">
+                  {selectedPermissions.length}
+                </Badge>
+              </TabsTrigger>
+              <TabsTrigger value="entities" className="flex items-center gap-2">
+                <Table2 className="h-4 w-4" />
+                {t('permissions.entitiesTab')}
+                <Badge variant="secondary" className="text-xs ml-1">
+                  {getSelectedEntitiesCount()}
+                </Badge>
+              </TabsTrigger>
+            </TabsList>
 
-          <ScrollArea className="flex-1 min-h-0 max-h-[340px] border rounded-lg">
-            <div className="p-3 space-y-3">
-              {PERMISSION_CATEGORIES_CONFIG.map((category) => {
-                const fullySelected = isCategoryFullySelected(category.key);
-                const partiallySelected = isCategoryPartiallySelected(
-                  category.key
-                );
-
-                return (
-                  <div
-                    key={category.key}
-                    className="rounded-lg border bg-card p-3 space-y-2"
+            {/* Tab: Permissoes do Sistema */}
+            <TabsContent value="system" className="flex-1 flex flex-col min-h-0 mt-3">
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-xs text-muted-foreground">{t('permissions.systemDescription')}</p>
+                <div className="flex items-center gap-1.5">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 text-xs"
+                    onClick={selectAll}
                   >
-                    {/* Category header */}
-                    <div
-                      className="flex items-center gap-2 cursor-pointer select-none"
-                      onClick={() => toggleCategory(category.key)}
-                    >
-                      <Checkbox
-                        checked={
-                          fullySelected
-                            ? true
-                            : partiallySelected
-                              ? 'indeterminate'
-                              : false
-                        }
-                        onCheckedChange={() => toggleCategory(category.key)}
-                        className="data-[state=checked]:bg-primary data-[state=indeterminate]:bg-primary"
-                      />
-                      <span className={category.color}>{category.icon}</span>
-                      <span className="text-sm font-medium">
-                        {t(`permissionCategories.${category.labelKey}`)}
-                      </span>
-                      <Badge
-                        variant="outline"
-                        className="text-[10px] ml-auto px-1.5 py-0"
+                    <CheckSquare className="h-3 w-3 mr-1" />
+                    {t('permissions.selectAll')}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 text-xs"
+                    onClick={deselectAll}
+                  >
+                    {t('permissions.selectNone')}
+                  </Button>
+                </div>
+              </div>
+
+              <ScrollArea className="flex-1 min-h-0 max-h-[280px] border rounded-lg">
+                <div className="p-3 space-y-3">
+                  {PERMISSION_CATEGORIES_CONFIG.map((category) => {
+                    const fullySelected = isCategoryFullySelected(category.key);
+                    const partiallySelected = isCategoryPartiallySelected(
+                      category.key
+                    );
+
+                    return (
+                      <div
+                        key={category.key}
+                        className="rounded-lg border bg-card p-3 space-y-2"
                       >
-                        {
-                          category.permissions.filter((p) =>
-                            selectedPermissions.includes(p.key)
-                          ).length
-                        }
-                        /{category.permissions.length}
-                      </Badge>
-                    </div>
-                    {/* Individual permissions */}
-                    <div className="flex flex-wrap gap-1.5 pl-6">
-                      {category.permissions.map((perm) => {
-                        const isSelected = selectedPermissions.includes(
-                          perm.key
-                        );
-                        return (
-                          <button
-                            key={perm.key}
-                            type="button"
-                            onClick={() => togglePermission(perm.key)}
-                            className={`
-                              inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium
-                              transition-all border cursor-pointer
-                              ${
-                                isSelected
-                                  ? 'bg-primary text-primary-foreground border-primary shadow-sm'
-                                  : 'bg-muted/50 text-muted-foreground border-transparent hover:bg-muted hover:border-border'
-                              }
-                            `}
+                        {/* Category header */}
+                        <div
+                          className="flex items-center gap-2 cursor-pointer select-none"
+                          onClick={() => toggleCategory(category.key)}
+                        >
+                          <Checkbox
+                            checked={
+                              fullySelected
+                                ? true
+                                : partiallySelected
+                                  ? 'indeterminate'
+                                  : false
+                            }
+                            onCheckedChange={() => toggleCategory(category.key)}
+                            className="data-[state=checked]:bg-primary data-[state=indeterminate]:bg-primary"
+                          />
+                          <span className={category.color}>{category.icon}</span>
+                          <span className="text-sm font-medium">
+                            {t(`permissionCategories.${category.labelKey}`)}
+                          </span>
+                          <Badge
+                            variant="outline"
+                            className="text-[10px] ml-auto px-1.5 py-0"
                           >
-                            {t(`permissionActions.${perm.actionKey}`)}
-                          </button>
-                        );
-                      })}
-                    </div>
+                            {
+                              category.permissions.filter((p) =>
+                                selectedPermissions.includes(p.key)
+                              ).length
+                            }
+                            /{category.permissions.length}
+                          </Badge>
+                        </div>
+                        {/* Individual permissions */}
+                        <div className="flex flex-wrap gap-1.5 pl-6">
+                          {category.permissions.map((perm) => {
+                            const isSelected = selectedPermissions.includes(
+                              perm.key
+                            );
+                            return (
+                              <button
+                                key={perm.key}
+                                type="button"
+                                onClick={() => togglePermission(perm.key)}
+                                className={`
+                                  inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium
+                                  transition-all border cursor-pointer
+                                  ${
+                                    isSelected
+                                      ? 'bg-primary text-primary-foreground border-primary shadow-sm'
+                                      : 'bg-muted/50 text-muted-foreground border-transparent hover:bg-muted hover:border-border'
+                                  }
+                                `}
+                              >
+                                {t(`permissionActions.${perm.actionKey}`)}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </ScrollArea>
+            </TabsContent>
+
+            {/* Tab: Permissoes por Entidade */}
+            <TabsContent value="entities" className="flex-1 flex flex-col min-h-0 mt-3">
+              <p className="text-xs text-muted-foreground mb-2">
+                {t('permissions.entitiesDescription')}
+              </p>
+
+              {loadingEntities ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                </div>
+              ) : entities.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-8 text-center border rounded-lg">
+                  <Database className="h-8 w-8 text-muted-foreground mb-2" />
+                  <p className="text-sm text-muted-foreground">
+                    {t('permissions.noEntities')}
+                  </p>
+                </div>
+              ) : (
+                <ScrollArea className="flex-1 min-h-0 max-h-[280px] border rounded-lg">
+                  <div className="p-3 space-y-2">
+                    {entities.map((entity) => {
+                      const perm = getEntityPermission(entity.id);
+                      const fullySelected = isEntityFullySelected(entity.id);
+                      const partiallySelected = isEntityPartiallySelected(entity.id);
+
+                      return (
+                        <div
+                          key={entity.id}
+                          className={`rounded-lg border p-3 transition-colors ${
+                            fullySelected
+                              ? 'border-primary bg-primary/5'
+                              : partiallySelected
+                                ? 'border-primary/50 bg-primary/5'
+                                : 'bg-card hover:bg-muted/50'
+                          }`}
+                        >
+                          <div className="flex items-center gap-3">
+                            {/* Checkbox de selecao total */}
+                            <Checkbox
+                              checked={
+                                fullySelected
+                                  ? true
+                                  : partiallySelected
+                                    ? 'indeterminate'
+                                    : false
+                              }
+                              onCheckedChange={() => toggleAllEntityPermissions(entity.id)}
+                              className="data-[state=checked]:bg-primary data-[state=indeterminate]:bg-primary"
+                            />
+
+                            {/* Icone da entidade */}
+                            <div className="flex items-center gap-2 flex-1 min-w-0">
+                              <span className="text-lg">{entity.icon || '📋'}</span>
+                              <div className="min-w-0 flex-1">
+                                <span className="text-sm font-medium block truncate">
+                                  {entity.name}
+                                </span>
+                                <span className="text-xs text-muted-foreground block truncate">
+                                  {entity.slug}
+                                </span>
+                              </div>
+                            </div>
+
+                            {/* Permissoes individuais */}
+                            <div className="flex items-center gap-1">
+                              {(['canCreate', 'canRead', 'canUpdate', 'canDelete'] as const).map((permKey) => {
+                                const isEnabled = perm[permKey];
+                                const labels: Record<string, string> = {
+                                  canCreate: 'C',
+                                  canRead: 'R',
+                                  canUpdate: 'U',
+                                  canDelete: 'D',
+                                };
+                                const colors: Record<string, string> = {
+                                  canCreate: 'bg-green-500',
+                                  canRead: 'bg-blue-500',
+                                  canUpdate: 'bg-yellow-500',
+                                  canDelete: 'bg-red-500',
+                                };
+
+                                return (
+                                  <button
+                                    key={permKey}
+                                    type="button"
+                                    onClick={() => toggleEntityPermission(entity.id, permKey)}
+                                    className={`
+                                      w-7 h-7 rounded text-xs font-bold transition-all
+                                      ${
+                                        isEnabled
+                                          ? `${colors[permKey]} text-white shadow-sm`
+                                          : 'bg-muted text-muted-foreground hover:bg-muted/80'
+                                      }
+                                    `}
+                                    title={t(`permissions.entity.${permKey}`)}
+                                  >
+                                    {labels[permKey]}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
-                );
-              })}
-            </div>
-          </ScrollArea>
+                </ScrollArea>
+              )}
+
+              {/* Legenda */}
+              <div className="flex items-center gap-4 mt-2 text-xs text-muted-foreground">
+                <span className="flex items-center gap-1">
+                  <span className="w-4 h-4 rounded bg-green-500 text-white text-[10px] flex items-center justify-center font-bold">C</span>
+                  {t('permissions.entity.canCreate')}
+                </span>
+                <span className="flex items-center gap-1">
+                  <span className="w-4 h-4 rounded bg-blue-500 text-white text-[10px] flex items-center justify-center font-bold">R</span>
+                  {t('permissions.entity.canRead')}
+                </span>
+                <span className="flex items-center gap-1">
+                  <span className="w-4 h-4 rounded bg-yellow-500 text-white text-[10px] flex items-center justify-center font-bold">U</span>
+                  {t('permissions.entity.canUpdate')}
+                </span>
+                <span className="flex items-center gap-1">
+                  <span className="w-4 h-4 rounded bg-red-500 text-white text-[10px] flex items-center justify-center font-bold">D</span>
+                  {t('permissions.entity.canDelete')}
+                </span>
+              </div>
+            </TabsContent>
+          </Tabs>
 
           <DialogFooter className="pt-2">
             <Button

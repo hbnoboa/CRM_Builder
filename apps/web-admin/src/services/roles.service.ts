@@ -33,6 +33,31 @@ export interface UserRole {
   role: Role;
 }
 
+export interface EntityPermission {
+  id: string;
+  roleId: string;
+  entityId: string;
+  tenantId: string;
+  canCreate: boolean;
+  canRead: boolean;
+  canUpdate: boolean;
+  canDelete: boolean;
+  entity?: {
+    id: string;
+    name: string;
+    slug: string;
+    icon?: string;
+  };
+}
+
+export interface EntityPermissionInput {
+  entityId: string;
+  canCreate: boolean;
+  canRead: boolean;
+  canUpdate: boolean;
+  canDelete: boolean;
+}
+
 export const rolesService = {
   async getAll(params?: QueryRolesParams): Promise<PaginatedResponse<RoleWithCounts>> {
     const response = await api.get<PaginatedResponse<RoleWithCounts>>('/roles', { params });
@@ -69,6 +94,36 @@ export const rolesService = {
 
   async getUserRoles(userId: string): Promise<UserRole[]> {
     const response = await api.get<UserRole[]>(`/roles/user/${userId}`);
+    return response.data;
+  },
+
+  // ========== ENTITY PERMISSIONS ==========
+
+  async getEntityPermissions(roleId: string): Promise<EntityPermission[]> {
+    const response = await api.get<EntityPermission[]>(`/roles/${roleId}/entity-permissions`);
+    return response.data;
+  },
+
+  async setEntityPermission(
+    roleId: string,
+    data: EntityPermissionInput,
+  ): Promise<EntityPermission> {
+    const response = await api.post<EntityPermission>(`/roles/${roleId}/entity-permissions`, data);
+    return response.data;
+  },
+
+  async removeEntityPermission(roleId: string, entityId: string): Promise<void> {
+    await api.delete(`/roles/${roleId}/entity-permissions/${entityId}`);
+  },
+
+  async bulkSetEntityPermissions(
+    roleId: string,
+    entityPermissions: EntityPermissionInput[],
+  ): Promise<EntityPermission[]> {
+    const response = await api.post<EntityPermission[]>(
+      `/roles/${roleId}/entity-permissions/bulk`,
+      { entityPermissions },
+    );
     return response.data;
   },
 };

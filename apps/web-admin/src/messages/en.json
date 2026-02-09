@@ -534,7 +534,18 @@
     "permissions": {
       "title": "Permissions",
       "selectAll": "All",
-      "selectNone": "None"
+      "selectNone": "None",
+      "systemTab": "System",
+      "entitiesTab": "By Entity",
+      "systemDescription": "General system permissions that control access to global resources.",
+      "entitiesDescription": "Set specific permissions for each entity (CRUD per table).",
+      "noEntities": "No entities registered yet.",
+      "entity": {
+        "canCreate": "Create",
+        "canRead": "Read",
+        "canUpdate": "Update",
+        "canDelete": "Delete"
+      }
     },
     "permissionCategories": {
       "entities": "Entities",
