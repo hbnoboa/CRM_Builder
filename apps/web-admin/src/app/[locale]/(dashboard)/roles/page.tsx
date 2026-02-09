@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { useTranslations } from 'next-intl';
 import {
   Plus,
@@ -76,9 +76,9 @@ function RolesPageContent() {
     setDeleteOpen(true);
   };
 
-  const handleSuccess = () => {
+  const handleSuccess = useCallback(() => {
     refetch();
-  };
+  }, [refetch]);
 
   return (
     <div className="space-y-4 sm:space-y-6">

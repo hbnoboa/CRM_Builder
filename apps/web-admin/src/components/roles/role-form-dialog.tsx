@@ -1,7 +1,7 @@
 'use client';
 
-import { useEffect, useState, useMemo } from 'react';
-import { useForm } from 'react-hook-form';
+import { useEffect, useState, useMemo, useCallback, useRef } from 'react';
+import { useForm, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useTranslations } from 'next-intl';
@@ -263,11 +263,17 @@ export function RoleFormDialog({
     },
   });
 
-  const selectedPermissions = form.watch('permissions') || [];
+  const selectedPermissions = useWatch({ control: form.control, name: 'permissions' }) ?? [];
+
+  // Ref para controlar se o slug deve ser auto-gerado (apenas quando usuario digita, nao no reset)
+  const shouldAutoSlug = useRef(false);
+  // Ref para armazenar a ultima versao serializada de entityPerms (evitar loop)
+  const lastEntityPermsRef = useRef<string>('');
 
   useEffect(() => {
     if (!open) return;
     setActiveTab('system');
+    shouldAutoSlug.current = false;
     if (role) {
       const perms = Array.isArray(role.permissions)
         ? (role.permissions as string[])
@@ -288,6 +294,9 @@ export function RoleFormDialog({
         permissions: [],
       });
       setEntityPermissions(new Map());
+      lastEntityPermsRef.current = '';
+      // Permitir auto-slug apos reset para novo role
+      setTimeout(() => { shouldAutoSlug.current = true; }, 0);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [role, open]);
@@ -296,6 +305,19 @@ export function RoleFormDialog({
   useEffect(() => {
     if (!open) return;
     if (existingEntityPerms && Array.isArray(existingEntityPerms)) {
+      // Serializar para comparar e evitar loop infinito de setState
+      const serialized = JSON.stringify(
+        existingEntityPerms.map((p: EntityPermission) => ({
+          entityId: p.entityId,
+          canCreate: p.canCreate,
+          canRead: p.canRead,
+          canUpdate: p.canUpdate,
+          canDelete: p.canDelete,
+        }))
+      );
+      if (serialized === lastEntityPermsRef.current) return;
+      lastEntityPermsRef.current = serialized;
+
       const permsMap = new Map<string, LocalEntityPermission>();
       existingEntityPerms.forEach((perm: EntityPermission) => {
         permsMap.set(perm.entityId, {
@@ -311,20 +333,38 @@ export function RoleFormDialog({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, existingEntityPerms]);
 
-  // Auto-generate slug from name
-  const watchName = form.watch('name');
+  // Auto-generate slug from name (apenas no modo criacao quando o usuario digita)
   useEffect(() => {
-    if (!isEditing && watchName) {
-      const slug = watchName
-        .toLowerCase()
-        .normalize('NFD')
-        .replace(/[\u0300-\u036f]/g, '')
-        .replace(/\s+/g, '-')
-        .replace(/[^a-z0-9-_]/g, '');
-      form.setValue('slug', slug);
+    if (!isEditing && shouldAutoSlug.current) {
+      const name = form.getValues('name');
+      if (name) {
+        const slug = name
+          .toLowerCase()
+          .normalize('NFD')
+          .replace(/[\u0300-\u036f]/g, '')
+          .replace(/\s+/g, '-')
+          .replace(/[^a-z0-9-_]/g, '');
+        form.setValue('slug', slug, { shouldDirty: true });
+      }
     }
+    // Observar mudancas no campo name via subscription, nao via watch
+    const subscription = form.watch((value, { name: fieldName }) => {
+      if (fieldName === 'name' && !isEditing && shouldAutoSlug.current) {
+        const nameVal = value.name;
+        if (nameVal) {
+          const slug = nameVal
+            .toLowerCase()
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .replace(/\s+/g, '-')
+            .replace(/[^a-z0-9-_]/g, '');
+          form.setValue('slug', slug, { shouldDirty: true });
+        }
+      }
+    });
+    return () => subscription.unsubscribe();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [watchName, isEditing]);
+  }, [isEditing]);
 
   const togglePermission = (key: string) => {
     const current = form.getValues('permissions') || [];
