@@ -76,20 +76,19 @@ export function UserRolesDialog({
     enabled: open && !!user,
   });
 
-  // Extrai array de userRoles de forma segura (useMemo para evitar loop infinito no useEffect)
+  // Extrai array de userRoles de forma segura
   const userRoles: UserRole[] = useMemo(
     () => (Array.isArray(userRolesData) ? userRolesData : []),
     [userRolesData]
   );
 
-  // Atualiza selectedRoles quando userRoles carrega
+  // Atualiza selectedRoles apenas quando o dialog abre ou quando userRoles carrega inicialmente
   useEffect(() => {
-    if (userRoles.length > 0) {
+    if (open && userRolesData !== undefined) {
       setSelectedRoles(new Set(userRoles.map((ur) => ur.roleId)));
-    } else {
-      setSelectedRoles(new Set());
     }
-  }, [userRoles]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, userRolesData]);
 
   // Mutation para atribuir role
   const assignMutation = useMutation({
@@ -112,22 +111,37 @@ export function UserRolesDialog({
   const handleRoleToggle = async (roleId: string, checked: boolean) => {
     if (!user) return;
 
+    // Optimistic update
+    setSelectedRoles((prev) => {
+      const newSet = new Set(prev);
+      if (checked) {
+        newSet.add(roleId);
+      } else {
+        newSet.delete(roleId);
+      }
+      return newSet;
+    });
+
     try {
       if (checked) {
         await assignMutation.mutateAsync({ userId: user.id, roleId });
-        setSelectedRoles((prev) => new Set(Array.from(prev).concat(roleId)));
         toast.success(t('userRoles.roleAssigned'));
       } else {
         await removeMutation.mutateAsync({ userId: user.id, roleId });
-        setSelectedRoles((prev) => {
-          const newSet = new Set(prev);
-          newSet.delete(roleId);
-          return newSet;
-        });
         toast.success(t('userRoles.roleRemoved'));
       }
       onSuccess?.();
     } catch (error: any) {
+      // Rollback on error
+      setSelectedRoles((prev) => {
+        const newSet = new Set(prev);
+        if (checked) {
+          newSet.delete(roleId);
+        } else {
+          newSet.add(roleId);
+        }
+        return newSet;
+      });
       toast.error(error.response?.data?.message || t('userRoles.roleUpdateError'));
     }
   };

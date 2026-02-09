@@ -65,6 +65,7 @@ export function UserFormDialog({ open, onOpenChange, user, onSuccess }: UserForm
   });
 
   useEffect(() => {
+    if (!open) return;
     if (user) {
       form.reset({
         name: user.name,
@@ -82,7 +83,8 @@ export function UserFormDialog({ open, onOpenChange, user, onSuccess }: UserForm
         status: 'ACTIVE',
       });
     }
-  }, [user, form]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, open]);
 
   const onSubmit = async (data: UserFormData) => {
     try {

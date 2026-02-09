@@ -224,6 +224,7 @@ export function RoleFormDialog({
   const selectedPermissions = form.watch('permissions') || [];
 
   useEffect(() => {
+    if (!open) return;
     if (role) {
       const perms = Array.isArray(role.permissions)
         ? (role.permissions as string[])
@@ -244,7 +245,8 @@ export function RoleFormDialog({
         permissions: [],
       });
     }
-  }, [role, form, open]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [role, open]);
 
   // Auto-generate slug from name
   const watchName = form.watch('name');
@@ -258,7 +260,8 @@ export function RoleFormDialog({
         .replace(/[^a-z0-9-_]/g, '');
       form.setValue('slug', slug);
     }
-  }, [watchName, isEditing, form]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [watchName, isEditing]);
 
   const togglePermission = (key: string) => {
     const current = form.getValues('permissions') || [];

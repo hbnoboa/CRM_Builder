@@ -77,6 +77,7 @@ export function TenantFormDialog({ open, onOpenChange, tenant, onSuccess }: Tena
   });
 
   useEffect(() => {
+    if (!open) return;
     if (tenant) {
       form.reset({
         name: tenant.name,
@@ -94,7 +95,8 @@ export function TenantFormDialog({ open, onOpenChange, tenant, onSuccess }: Tena
         adminPassword: '',
       });
     }
-  }, [tenant, form]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tenant, open]);
 
   const onSubmit = async (data: CreateTenantFormData | UpdateTenantFormData) => {
     try {
