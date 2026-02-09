@@ -45,17 +45,31 @@ import type { Role, Entity } from '@/types';
 
 // ── Permissões do sistema organizadas por categoria ──────────────────────────
 
+type IconName = 'Database' | 'FileText' | 'Code' | 'Users' | 'Key' | 'Building' | 'Settings' | 'BarChart3' | 'Upload';
+
+const CATEGORY_ICONS: Record<IconName, React.ComponentType<{ className?: string }>> = {
+  Database,
+  FileText,
+  Code,
+  Users,
+  Key,
+  Building,
+  Settings,
+  BarChart3,
+  Upload,
+};
+
 const PERMISSION_CATEGORIES_CONFIG: {
   key: string;
   labelKey: string;
-  icon: React.ReactNode;
+  iconName: IconName;
   color: string;
   permissions: { key: string; actionKey: string }[];
 }[] = [
   {
     key: 'entities',
     labelKey: 'entities',
-    icon: <Database className="h-4 w-4" />,
+    iconName: 'Database',
     color: 'text-blue-600',
     permissions: [
       { key: 'entities:create', actionKey: 'create' },
@@ -67,7 +81,7 @@ const PERMISSION_CATEGORIES_CONFIG: {
   {
     key: 'data',
     labelKey: 'data',
-    icon: <FileText className="h-4 w-4" />,
+    iconName: 'FileText',
     color: 'text-green-600',
     permissions: [
       { key: 'data:create', actionKey: 'create' },
@@ -81,7 +95,7 @@ const PERMISSION_CATEGORIES_CONFIG: {
   {
     key: 'pages',
     labelKey: 'pages',
-    icon: <FileText className="h-4 w-4" />,
+    iconName: 'FileText',
     color: 'text-purple-600',
     permissions: [
       { key: 'pages:create', actionKey: 'create' },
@@ -94,7 +108,7 @@ const PERMISSION_CATEGORIES_CONFIG: {
   {
     key: 'apis',
     labelKey: 'apis',
-    icon: <Code className="h-4 w-4" />,
+    iconName: 'Code',
     color: 'text-orange-600',
     permissions: [
       { key: 'apis:create', actionKey: 'create' },
@@ -107,7 +121,7 @@ const PERMISSION_CATEGORIES_CONFIG: {
   {
     key: 'users',
     labelKey: 'users',
-    icon: <Users className="h-4 w-4" />,
+    iconName: 'Users',
     color: 'text-cyan-600',
     permissions: [
       { key: 'users:create', actionKey: 'create' },
@@ -120,7 +134,7 @@ const PERMISSION_CATEGORIES_CONFIG: {
   {
     key: 'roles',
     labelKey: 'roles',
-    icon: <Key className="h-4 w-4" />,
+    iconName: 'Key',
     color: 'text-yellow-600',
     permissions: [
       { key: 'roles:create', actionKey: 'create' },
@@ -133,7 +147,7 @@ const PERMISSION_CATEGORIES_CONFIG: {
   {
     key: 'organization',
     labelKey: 'organization',
-    icon: <Building className="h-4 w-4" />,
+    iconName: 'Building',
     color: 'text-indigo-600',
     permissions: [
       { key: 'organization:read', actionKey: 'read' },
@@ -143,7 +157,7 @@ const PERMISSION_CATEGORIES_CONFIG: {
   {
     key: 'settings',
     labelKey: 'settings',
-    icon: <Settings className="h-4 w-4" />,
+    iconName: 'Settings',
     color: 'text-gray-600',
     permissions: [
       { key: 'settings:read', actionKey: 'read' },
@@ -153,14 +167,14 @@ const PERMISSION_CATEGORIES_CONFIG: {
   {
     key: 'stats',
     labelKey: 'stats',
-    icon: <BarChart3 className="h-4 w-4" />,
+    iconName: 'BarChart3',
     color: 'text-pink-600',
     permissions: [{ key: 'stats:read', actionKey: 'read' }],
   },
   {
     key: 'upload',
     labelKey: 'upload',
-    icon: <Upload className="h-4 w-4" />,
+    iconName: 'Upload',
     color: 'text-teal-600',
     permissions: [
       { key: 'upload:create', actionKey: 'upload' },
@@ -230,8 +244,8 @@ export function RoleFormDialog({
     enabled: open && !!role?.id,
   });
 
-  // Schema with translations
-  const roleSchema = z.object({
+  // Schema with translations - memoized to prevent re-renders
+  const roleSchema = useMemo(() => z.object({
     name: z.string().min(2, tValidation('nameMin', { min: 2 })),
     slug: z
       .string()
@@ -241,7 +255,8 @@ export function RoleFormDialog({
       .or(z.literal('')),
     description: z.string().optional(),
     permissions: z.array(z.string()).optional(),
-  });
+  }), [tValidation]);
+
   const createRole = useCreateRole({ success: t('toast.created') });
   const updateRole = useUpdateRole({ success: t('toast.updated') });
 
@@ -284,8 +299,9 @@ export function RoleFormDialog({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [role, open]);
 
-  // Carrega permissoes de entidade existentes
+  // Carrega permissoes de entidade existentes (apenas quando dialog abre com role)
   useEffect(() => {
+    if (!open) return;
     if (existingEntityPerms && Array.isArray(existingEntityPerms)) {
       const permsMap = new Map<string, LocalEntityPermission>();
       existingEntityPerms.forEach((perm: EntityPermission) => {
@@ -299,7 +315,8 @@ export function RoleFormDialog({
       });
       setEntityPermissions(permsMap);
     }
-  }, [existingEntityPerms]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, existingEntityPerms]);
 
   // Auto-generate slug from name
   const watchName = form.watch('name');
@@ -610,6 +627,7 @@ export function RoleFormDialog({
                       category.key
                     );
 
+                    const IconComponent = CATEGORY_ICONS[category.iconName];
                     return (
                       <div
                         key={category.key}
@@ -628,10 +646,11 @@ export function RoleFormDialog({
                                   ? 'indeterminate'
                                   : false
                             }
-                            onCheckedChange={() => toggleCategory(category.key)}
-                            className="data-[state=checked]:bg-primary data-[state=indeterminate]:bg-primary"
+                            className="data-[state=checked]:bg-primary data-[state=indeterminate]:bg-primary pointer-events-none"
                           />
-                          <span className={category.color}>{category.icon}</span>
+                          <span className={category.color}>
+                            <IconComponent className="h-4 w-4" />
+                          </span>
                           <span className="text-sm font-medium">
                             {t(`permissionCategories.${category.labelKey}`)}
                           </span>
