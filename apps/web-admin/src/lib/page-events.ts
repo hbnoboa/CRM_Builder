@@ -133,33 +133,51 @@ export function createEmptyAction(type: ActionType): Action {
   };
 }
 
-// Labels amigaveis para tipos de evento
-export function getEventLabel(type: EventType): string {
+// Translation keys for event types (use with t(`pageEvents.events.${key}`))
+export function getEventLabelKey(type: EventType): string {
+  return type;
+}
+
+// Translation keys for action types (use with t(`pageEvents.actions.${key}`))
+export function getActionLabelKey(type: ActionType): string {
+  return type;
+}
+
+// Labels amigaveis para tipos de evento (with translator function)
+export function getEventLabel(type: EventType, t?: (key: string) => string): string {
+  if (t) {
+    return t(`pageEvents.events.${type}`);
+  }
+  // Fallback for non-translated contexts
   const labels: Record<EventType, string> = {
-    onClick: 'Ao Clicar',
-    onChange: 'Ao Alterar',
-    onSubmit: 'Ao Enviar',
-    onLoad: 'Ao Carregar',
-    onSuccess: 'Ao Sucesso',
-    onError: 'Ao Erro',
+    onClick: 'On Click',
+    onChange: 'On Change',
+    onSubmit: 'On Submit',
+    onLoad: 'On Load',
+    onSuccess: 'On Success',
+    onError: 'On Error',
   };
   return labels[type];
 }
 
-// Labels amigaveis para tipos de acao
-export function getActionLabel(type: ActionType): string {
+// Labels amigaveis para tipos de acao (with translator function)
+export function getActionLabel(type: ActionType, t?: (key: string) => string): string {
+  if (t) {
+    return t(`pageEvents.actions.${type}`);
+  }
+  // Fallback for non-translated contexts
   const labels: Record<ActionType, string> = {
-    callApi: 'Chamar API',
-    setValue: 'Definir Valor',
-    filterData: 'Filtrar Dados',
-    navigate: 'Navegar',
-    showToast: 'Mostrar Notificacao',
-    showModal: 'Abrir Modal',
-    closeModal: 'Fechar Modal',
-    refresh: 'Atualizar Dados',
-    setVisibility: 'Mostrar/Esconder',
-    setLoading: 'Definir Loading',
-    runActions: 'Executar Acoes',
+    callApi: 'Call API',
+    setValue: 'Set Value',
+    filterData: 'Filter Data',
+    navigate: 'Navigate',
+    showToast: 'Show Toast',
+    showModal: 'Open Modal',
+    closeModal: 'Close Modal',
+    refresh: 'Refresh Data',
+    setVisibility: 'Show/Hide',
+    setLoading: 'Set Loading',
+    runActions: 'Run Actions',
   };
   return labels[type];
 }

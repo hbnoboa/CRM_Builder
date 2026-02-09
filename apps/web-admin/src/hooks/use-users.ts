@@ -4,14 +4,14 @@ import { AxiosError } from 'axios';
 import { usersService, QueryUsersParams, CreateUserData, UpdateUserData } from '@/services/users.service';
 
 // Helper para extrair mensagem de erro
-function getErrorMessage(error: unknown): string {
+function getErrorMessage(error: unknown, fallback?: string): string {
   if (error instanceof AxiosError) {
-    return error.response?.data?.message || error.message || 'Erro desconhecido';
+    return error.response?.data?.message || error.message || fallback || 'Error';
   }
   if (error instanceof Error) {
-    return error.message;
+    return error.message || fallback || 'Error';
   }
-  return 'Erro desconhecido';
+  return fallback || 'Error';
 }
 
 export const userKeys = {
@@ -37,22 +37,27 @@ export function useUser(id: string) {
   });
 }
 
-export function useCreateUser() {
+interface MutationMessages {
+  success?: string;
+  error?: string;
+}
+
+export function useCreateUser(messages?: MutationMessages) {
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: (data: CreateUserData) => usersService.create(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: userKeys.lists() });
-      toast.success('Usuario criado com sucesso');
+      if (messages?.success) toast.success(messages.success);
     },
     onError: (error: unknown) => {
-      toast.error(getErrorMessage(error));
+      toast.error(getErrorMessage(error, messages?.error));
     },
   });
 }
 
-export function useUpdateUser() {
+export function useUpdateUser(messages?: MutationMessages) {
   const queryClient = useQueryClient();
 
   return useMutation({
@@ -61,25 +66,25 @@ export function useUpdateUser() {
     onSuccess: (_, { id }) => {
       queryClient.invalidateQueries({ queryKey: userKeys.lists() });
       queryClient.invalidateQueries({ queryKey: userKeys.detail(id) });
-      toast.success('Usuario atualizado com sucesso');
+      if (messages?.success) toast.success(messages.success);
     },
     onError: (error: unknown) => {
-      toast.error(getErrorMessage(error));
+      toast.error(getErrorMessage(error, messages?.error));
     },
   });
 }
 
-export function useDeleteUser() {
+export function useDeleteUser(messages?: MutationMessages) {
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: (id: string) => usersService.delete(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: userKeys.lists() });
-      toast.success('Usuario excluido com sucesso');
+      if (messages?.success) toast.success(messages.success);
     },
     onError: (error: unknown) => {
-      toast.error(getErrorMessage(error));
+      toast.error(getErrorMessage(error, messages?.error));
     },
   });
 }

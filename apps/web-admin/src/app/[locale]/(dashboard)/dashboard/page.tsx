@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { Link } from '@/i18n/navigation';
+import { useTranslations, useLocale } from 'next-intl';
 import {
   Users,
   Database,
@@ -28,8 +29,8 @@ import {
   ResponsiveContainer,
   Legend,
 } from 'recharts';
-import { format, formatDistanceToNow } from 'date-fns';
-import { enUS } from 'date-fns/locale';
+import { format, formatDistanceToNow, Locale } from 'date-fns';
+import { enUS, ptBR, es } from 'date-fns/locale';
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -75,7 +76,18 @@ interface RecentActivity {
 
 const COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899', '#06B6D4', '#84CC16'];
 
+const dateLocales: Record<string, Locale> = {
+  'pt-BR': ptBR,
+  'en': enUS,
+  'es': es,
+};
+
 export default function DashboardPage() {
+  const t = useTranslations('dashboard');
+  const tCommon = useTranslations('common');
+  const tNav = useTranslations('navigation');
+  const locale = useLocale();
+  const dateLocale = dateLocales[locale] || enUS;
   const { user } = useAuthStore();
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [recordsOverTime, setRecordsOverTime] = useState<RecordOverTime[]>([]);
@@ -127,7 +139,7 @@ export default function DashboardPage() {
 
   const statCards = [
     {
-      title: 'Entities',
+      title: t('stats.entities'),
       value: stats?.totalEntities ?? 0,
       icon: <Database className="h-4 w-4 sm:h-5 sm:w-5" />,
       color: 'text-blue-500',
@@ -135,7 +147,7 @@ export default function DashboardPage() {
       href: '/entities',
     },
     {
-      title: 'Records',
+      title: t('stats.records'),
       value: stats?.totalRecords ?? 0,
       icon: <Layers className="h-4 w-4 sm:h-5 sm:w-5" />,
       color: 'text-green-500',
@@ -143,7 +155,7 @@ export default function DashboardPage() {
       href: '/data',
     },
     {
-      title: 'APIs',
+      title: t('stats.apis'),
       value: stats?.totalApis ?? 0,
       icon: <Code className="h-4 w-4 sm:h-5 sm:w-5" />,
       color: 'text-purple-500',
@@ -151,7 +163,7 @@ export default function DashboardPage() {
       href: '/apis',
     },
     {
-      title: 'Users',
+      title: t('stats.users'),
       value: stats?.totalUsers ?? 0,
       icon: <Users className="h-4 w-4 sm:h-5 sm:w-5" />,
       color: 'text-pink-500',
@@ -159,7 +171,7 @@ export default function DashboardPage() {
       href: '/users',
     },
     {
-      title: 'Roles',
+      title: tNav('roles'),
       value: 0,
       icon: <Activity className="h-4 w-4 sm:h-5 sm:w-5" />,
       color: 'text-amber-500',
@@ -186,11 +198,11 @@ export default function DashboardPage() {
   const getActionLabel = (action: string) => {
     switch (action) {
       case 'created':
-        return { label: 'Created', color: 'bg-green-500/10 text-green-700' };
+        return { label: t('activity.created'), color: 'bg-green-500/10 text-green-700' };
       case 'updated':
-        return { label: 'Updated', color: 'bg-blue-500/10 text-blue-700' };
+        return { label: t('activity.updated'), color: 'bg-blue-500/10 text-blue-700' };
       case 'deleted':
-        return { label: 'Deleted', color: 'bg-red-500/10 text-red-700' };
+        return { label: t('activity.deleted'), color: 'bg-red-500/10 text-red-700' };
       default:
         return { label: action, color: 'bg-gray-500/10 text-gray-700' };
     }
@@ -221,14 +233,14 @@ export default function DashboardPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-bold" data-testid="dashboard-heading">Dashboard</h1>
+          <h1 className="text-2xl sm:text-3xl font-bold" data-testid="dashboard-heading">{t('title')}</h1>
           <p className="text-muted-foreground mt-1 text-sm sm:text-base">
-            Welcome back, {user?.name?.split(' ')[0]}! Here's a summary of your CRM.
+            {t('welcome', { name: user?.name?.split(' ')[0] ?? '' })}
           </p>
         </div>
         <Button variant="outline" size="sm" onClick={handleRefresh} disabled={refreshing} data-testid="refresh-btn" className="w-full sm:w-auto">
           <RefreshCw className={cn('h-4 w-4 mr-2', refreshing && 'animate-spin')} />
-          Refresh
+          {tCommon('refresh')}
         </Button>
       </div>
 
@@ -258,8 +270,8 @@ export default function DashboardPage() {
         {/* Records Over Time */}
         <Card>
           <CardHeader>
-            <CardTitle>Records in the Last 30 Days</CardTitle>
-            <CardDescription>Evolution of records created</CardDescription>
+            <CardTitle>{t('charts.recordsLast30Days')}</CardTitle>
+            <CardDescription>{t('charts.recordsEvolution')}</CardDescription>
           </CardHeader>
           <CardContent>
             {recordsOverTime.length > 0 ? (
@@ -274,15 +286,15 @@ export default function DashboardPage() {
                   <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
                   <XAxis
                     dataKey="date"
-                    tickFormatter={(value) => format(new Date(value), 'MM/dd', { locale: enUS })}
+                    tickFormatter={(value) => format(new Date(value), 'MM/dd', { locale: dateLocale })}
                     className="text-xs"
                   />
                   <YAxis className="text-xs" />
                   <Tooltip
                     labelFormatter={(value) =>
-                      format(new Date(value), "MMMM dd", { locale: enUS })
+                      format(new Date(value), "MMMM dd", { locale: dateLocale })
                     }
-                    formatter={(value: number) => [value, 'Records']}
+                    formatter={(value) => [value, t('stats.records')]}
                     contentStyle={{
                       backgroundColor: 'hsl(var(--card))',
                       border: '1px solid hsl(var(--border))',
@@ -303,10 +315,10 @@ export default function DashboardPage() {
               <div className="h-[300px] flex items-center justify-center text-muted-foreground">
                 <div className="text-center">
                   <Layers className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                  <p>No records created yet</p>
+                  <p>{t('empty.noRecords')}</p>
                   <Link href="/data">
                     <Button variant="link" className="mt-2">
-                      Create first record
+                      {t('empty.createFirstRecord')}
                     </Button>
                   </Link>
                 </div>
@@ -318,8 +330,8 @@ export default function DashboardPage() {
         {/* Entities Distribution */}
         <Card>
           <CardHeader>
-            <CardTitle>Distribution by Entity</CardTitle>
-            <CardDescription>Number of records per entity</CardDescription>
+            <CardTitle>{t('charts.distributionByEntity')}</CardTitle>
+            <CardDescription>{t('charts.recordsPerEntity')}</CardDescription>
           </CardHeader>
           <CardContent>
             {entitiesDistribution.length > 0 ? (
@@ -344,8 +356,8 @@ export default function DashboardPage() {
                   </Pie>
                   <Legend layout="horizontal" verticalAlign="bottom" align="center" />
                   <Tooltip
-                    formatter={(value: number, name: string) => [
-                      `${value.toLocaleString('en-US')} records`,
+                    formatter={(value, name) => [
+                      `${Number(value).toLocaleString(locale)} ${t('stats.records').toLowerCase()}`,
                       name,
                     ]}
                     contentStyle={{
@@ -360,10 +372,10 @@ export default function DashboardPage() {
               <div className="h-[300px] flex items-center justify-center text-muted-foreground">
                 <div className="text-center">
                   <Database className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                  <p>No entities created yet</p>
+                  <p>{t('empty.noEntities')}</p>
                   <Link href="/entities">
                     <Button variant="link" className="mt-2">
-                      Create first entity
+                      {t('empty.createFirstEntity')}
                     </Button>
                   </Link>
                 </div>
@@ -380,9 +392,9 @@ export default function DashboardPage() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Activity className="h-5 w-5" />
-              Recent Activity
+              {t('activity.title')}
             </CardTitle>
-            <CardDescription>Latest actions performed in the system</CardDescription>
+            <CardDescription>{t('activity.subtitle')}</CardDescription>
           </CardHeader>
           <CardContent>
             {recentActivity.length > 0 ? (
@@ -405,7 +417,7 @@ export default function DashboardPage() {
                           </div>
                           {activity.entityName && (
                             <span className="text-xs text-muted-foreground">
-                              em {activity.entityName}
+                              {t('activity.in')} {activity.entityName}
                             </span>
                           )}
                         </div>
@@ -414,7 +426,7 @@ export default function DashboardPage() {
                         <Clock className="h-3 w-3" />
                         {formatDistanceToNow(new Date(activity.timestamp), {
                           addSuffix: true,
-                          locale: enUS,
+                          locale: dateLocale,
                         })}
                       </span>
                     </div>
@@ -424,7 +436,7 @@ export default function DashboardPage() {
             ) : (
               <div className="py-8 text-center text-muted-foreground">
                 <Activity className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                <p>No activity recorded</p>
+                <p>{t('activity.noActivity')}</p>
               </div>
             )}
           </CardContent>
@@ -435,22 +447,22 @@ export default function DashboardPage() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Users className="h-5 w-5" />
-              Active Users
+              {t('activeUsers.title')}
             </CardTitle>
-            <CardDescription>Latest user logins</CardDescription>
+            <CardDescription>{t('activeUsers.subtitle')}</CardDescription>
           </CardHeader>
           <CardContent>
             {usersActivity.length > 0 ? (
               <div className="space-y-4">
-                {usersActivity.map((user) => (
+                {usersActivity.map((activityUser) => (
                   <div
-                    key={user.id}
+                    key={activityUser.id}
                     className="flex items-center justify-between gap-2 py-2 border-b last:border-0"
                   >
                     <div className="flex items-center gap-3 min-w-0">
                       <div className="h-8 w-8 sm:h-10 sm:w-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
                         <span className="text-xs sm:text-sm font-medium text-primary">
-                          {user.name
+                          {activityUser.name
                             .split(' ')
                             .map((n) => n[0])
                             .join('')
@@ -459,25 +471,25 @@ export default function DashboardPage() {
                         </span>
                       </div>
                       <div className="min-w-0">
-                        <p className="font-medium truncate">{user.name}</p>
-                        <p className="text-xs sm:text-sm text-muted-foreground truncate">{user.email}</p>
+                        <p className="font-medium truncate">{activityUser.name}</p>
+                        <p className="text-xs sm:text-sm text-muted-foreground truncate">{activityUser.email}</p>
                       </div>
                     </div>
                     <div className="text-right shrink-0">
-                      {user.lastLoginAt ? (
+                      {activityUser.lastLoginAt ? (
                         <>
                           <p className="text-sm text-muted-foreground">
-                            {formatDistanceToNow(new Date(user.lastLoginAt), {
+                            {formatDistanceToNow(new Date(activityUser.lastLoginAt), {
                               addSuffix: true,
-                              locale: enUS,
+                              locale: dateLocale,
                             })}
                           </p>
                           <p className="text-xs text-muted-foreground">
-                            {format(new Date(user.lastLoginAt), 'dd/MM/yyyy HH:mm')}
+                            {format(new Date(activityUser.lastLoginAt), 'dd/MM/yyyy HH:mm')}
                           </p>
                         </>
                       ) : (
-                        <Badge variant="outline">Never logged in</Badge>
+                        <Badge variant="outline">{t('activeUsers.neverLoggedIn')}</Badge>
                       )}
                     </div>
                   </div>
@@ -486,7 +498,7 @@ export default function DashboardPage() {
             ) : (
               <div className="py-8 text-center text-muted-foreground">
                 <Users className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                <p>No users registered</p>
+                <p>{t('activeUsers.noUsers')}</p>
               </div>
             )}
           </CardContent>
@@ -496,8 +508,8 @@ export default function DashboardPage() {
       {/* Quick Actions */}
       <Card>
         <CardHeader>
-          <CardTitle>Quick Actions</CardTitle>
-          <CardDescription>Start building your CRM</CardDescription>
+          <CardTitle>{t('quickActions.title')}</CardTitle>
+          <CardDescription>{t('quickActions.subtitle')}</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
@@ -509,9 +521,9 @@ export default function DashboardPage() {
                       <Database className="h-5 w-5 sm:h-6 sm:w-6 text-blue-500" />
                     </div>
                     <div className="min-w-0">
-                      <h3 className="font-semibold text-sm sm:text-base">New Entity</h3>
+                      <h3 className="font-semibold text-sm sm:text-base">{t('quickActions.newEntity')}</h3>
                       <p className="text-xs sm:text-sm text-muted-foreground truncate">
-                        Define a data structure
+                        {t('quickActions.newEntityDesc')}
                       </p>
                     </div>
                   </div>
@@ -527,9 +539,9 @@ export default function DashboardPage() {
                       <Layers className="h-5 w-5 sm:h-6 sm:w-6 text-orange-500" />
                     </div>
                     <div className="min-w-0">
-                      <h3 className="font-semibold text-sm sm:text-base">Manage Data</h3>
+                      <h3 className="font-semibold text-sm sm:text-base">{tNav('data')}</h3>
                       <p className="text-xs sm:text-sm text-muted-foreground truncate">
-                        View and manage records
+                        {t('quickActions.newPageDesc')}
                       </p>
                     </div>
                   </div>
@@ -545,9 +557,9 @@ export default function DashboardPage() {
                       <Code className="h-5 w-5 sm:h-6 sm:w-6 text-purple-500" />
                     </div>
                     <div className="min-w-0">
-                      <h3 className="font-semibold text-sm sm:text-base">New API</h3>
+                      <h3 className="font-semibold text-sm sm:text-base">{t('quickActions.newApi')}</h3>
                       <p className="text-xs sm:text-sm text-muted-foreground truncate">
-                        Configure an endpoint
+                        {t('quickActions.newApiDesc')}
                       </p>
                     </div>
                   </div>
@@ -563,9 +575,9 @@ export default function DashboardPage() {
                       <Users className="h-5 w-5 sm:h-6 sm:w-6 text-pink-500" />
                     </div>
                     <div className="min-w-0">
-                      <h3 className="font-semibold text-sm sm:text-base">Manage Users</h3>
+                      <h3 className="font-semibold text-sm sm:text-base">{t('quickActions.manageUsers')}</h3>
                       <p className="text-xs sm:text-sm text-muted-foreground truncate">
-                        Add team members
+                        {t('quickActions.manageUsersDesc')}
                       </p>
                     </div>
                   </div>

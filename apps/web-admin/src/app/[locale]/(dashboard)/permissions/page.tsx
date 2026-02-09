@@ -1,5 +1,6 @@
 'use client';
 import { useQuery } from '@tanstack/react-query';
+import { useTranslations } from 'next-intl';
 import { api } from '@/lib/api';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { LoadingPage } from '@/components/ui/loading-page';
@@ -12,6 +13,9 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 
 export default function PermissionsPage() {
+  const t = useTranslations('permissions');
+  const tNav = useTranslations('navigation');
+  const tCommon = useTranslations('common');
   // Usa o endpoint de roles que existe no backend
   const { data, isLoading, isError } = useQuery({
     queryKey: ['roles'],
@@ -26,41 +30,41 @@ export default function PermissionsPage() {
       <div className="max-w-3xl mx-auto mt-8">
         {/* Breadcrumbs */}
         <nav className="mb-4 flex items-center gap-2 text-sm text-muted-foreground" aria-label="breadcrumb" data-testid="breadcrumb">
-          <Link href="/dashboard" className="hover:underline" data-testid="breadcrumb-dashboard">Dashboard</Link>
+          <Link href="/dashboard" className="hover:underline" data-testid="breadcrumb-dashboard">{tNav('dashboard')}</Link>
           <span>/</span>
-          <span className="font-semibold text-foreground" data-testid="breadcrumb-permissions">Permissions</span>
+          <span className="font-semibold text-foreground" data-testid="breadcrumb-permissions">{t('title')}</span>
         </nav>
         {/* Back */}
         <TooltipProvider>
           <Tooltip>
             <TooltipTrigger asChild>
               <Link href="/dashboard">
-                <Button variant="ghost" size="icon" className="mb-2" aria-label="Back to dashboard" data-testid="voltar-dashboard-btn">
+                <Button variant="ghost" size="icon" className="mb-2" aria-label={t('backToDashboard')} data-testid="voltar-dashboard-btn">
                   <ArrowLeft className="h-5 w-5" />
                 </Button>
               </Link>
             </TooltipTrigger>
-            <TooltipContent>Back to dashboard</TooltipContent>
+            <TooltipContent>{t('backToDashboard')}</TooltipContent>
           </Tooltip>
         </TooltipProvider>
-        
-        <h1 className="text-3xl font-bold mb-6" data-testid="page-title">Permissions and Roles</h1>
-        
+
+        <h1 className="text-3xl font-bold mb-6" data-testid="page-title">{t('pageTitle')}</h1>
+
         {isLoading ? (
           <LoadingPage />
         ) : isError ? (
-          <EmptyState message="Error loading permissions." />
+          <EmptyState message={t('loadError')} />
         ) : (
           <Card>
             <CardHeader>
               <CardTitle data-testid="permissions-heading" className="flex items-center gap-2">
                 <Shield className="h-5 w-5" />
-                System Roles
+                {t('systemRoles')}
               </CardTitle>
             </CardHeader>
             <CardContent>
               {data?.length === 0 ? (
-                <EmptyState message="No papel found." />
+                <EmptyState message={t('noRolesFound')} />
               ) : (
                 <div className="space-y-4">
                   {data?.map((role: any) => (
@@ -71,11 +75,11 @@ export default function PermissionsPage() {
                           <span className="font-semibold">{role.name}</span>
                         </div>
                         {role.isSystem && (
-                          <Badge variant="secondary">Sistema</Badge>
+                          <Badge variant="secondary">{t('system')}</Badge>
                         )}
                       </div>
                       <div className="text-sm text-muted-foreground mt-1">
-                        {role.description || 'No description'}
+                        {role.description || t('noDescription')}
                       </div>
                       {role.permissions && role.permissions.length > 0 && (
                         <div className="mt-3 flex flex-wrap gap-1">

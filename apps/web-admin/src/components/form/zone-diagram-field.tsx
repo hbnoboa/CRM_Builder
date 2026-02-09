@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useCallback, useEffect, useRef } from 'react';
+import { useTranslations } from 'next-intl';
 import { X, Check, Loader2, MapPin, RotateCcw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -55,10 +56,13 @@ export default function ZoneDiagramField({
   onChange,
   diagramImage,
   zones = [],
-  label = 'Diagrama de Zonas',
+  label,
   readOnly = false,
 }: ZoneDiagramFieldProps) {
+  const t = useTranslations('zoneDiagram');
+  const tUpload = useTranslations('upload');
   const { tenantId } = useTenant();
+  const displayLabel = label || t('title');
   const [activeZone, setActiveZone] = useState<string | null>(null);
   const [entityOptions, setEntityOptions] = useState<Record<string, string[]>>({});
   const [loadingEntity, setLoadingEntity] = useState<Record<string, boolean>>({});
@@ -159,8 +163,8 @@ export default function ZoneDiagramField({
     return (
       <div className="border-2 border-dashed rounded-xl p-6 text-center text-muted-foreground bg-muted/20">
         <MapPin className="h-8 w-8 mx-auto mb-2 opacity-50" />
-        <p className="text-sm font-medium">Diagrama de Zonas</p>
-        <p className="text-xs mt-1">Nenhuma imagem configurada. Configure no editor de entidade.</p>
+        <p className="text-sm font-medium">{t('title')}</p>
+        <p className="text-xs mt-1">{t('noImageConfigured')}</p>
       </div>
     );
   }
@@ -171,8 +175,8 @@ export default function ZoneDiagramField({
     return (
       <div className="border-2 border-dashed rounded-xl p-6 text-center text-muted-foreground bg-muted/20">
         <MapPin className="h-8 w-8 mx-auto mb-2 opacity-50" />
-        <p className="text-sm font-medium">Diagrama de Zonas</p>
-        <p className="text-xs mt-1">Nenhuma zona configurada. Configure as zonas no editor de entidade.</p>
+        <p className="text-sm font-medium">{t('title')}</p>
+        <p className="text-xs mt-1">{t('noZonesConfigured')}</p>
       </div>
     );
   }
@@ -185,7 +189,7 @@ export default function ZoneDiagramField({
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <MapPin className="h-4 w-4 text-muted-foreground" />
-          <span className="text-sm font-medium">{label}</span>
+          <span className="text-sm font-medium">{displayLabel}</span>
           <Badge variant="secondary" className="text-xs">
             {filledCount}/{zones.length}
           </Badge>
@@ -199,7 +203,7 @@ export default function ZoneDiagramField({
             onClick={handleClearAll}
           >
             <RotateCcw className="h-3 w-3 mr-1" />
-            Limpar tudo
+            {t('clearAll')}
           </Button>
         )}
       </div>
@@ -217,7 +221,7 @@ export default function ZoneDiagramField({
               const img = e.currentTarget;
               img.style.minHeight = '300px';
               img.style.background = 'repeating-conic-gradient(#80808015 0% 25%, transparent 0% 50%) 50% / 20px 20px';
-              img.alt = 'Imagem não encontrada';
+              img.alt = tUpload('imageNotFound');
             }}
           />
 
@@ -261,7 +265,7 @@ export default function ZoneDiagramField({
                     title={
                       isSelected
                         ? `${zone.label}: ${value[zone.label]}`
-                        : `${zone.label} — Clique para selecionar`
+                        : `${zone.label} — ${t('clickToSelect')}`
                     }
                   >
                     {isSelected ? (
@@ -295,7 +299,7 @@ export default function ZoneDiagramField({
                           }}
                         >
                           <X className="h-3 w-3 mr-1" />
-                          Limpar
+                          {t('clear')}
                         </Button>
                       )}
                     </div>
@@ -308,22 +312,22 @@ export default function ZoneDiagramField({
 
                   {readOnly ? (
                     <div className="p-3 text-sm text-muted-foreground">
-                      {isSelected ? value[zone.label] : 'Nenhuma seleção'}
+                      {isSelected ? value[zone.label] : t('noSelection')}
                     </div>
                   ) : loading ? (
                     <div className="flex items-center justify-center p-4 gap-2">
                       <Loader2 className="h-4 w-4 animate-spin" />
-                      <span className="text-sm text-muted-foreground">Carregando opções...</span>
+                      <span className="text-sm text-muted-foreground">{t('loadingOptions')}</span>
                     </div>
                   ) : options.length === 0 ? (
                     <div className="p-3 text-sm text-muted-foreground text-center">
-                      Nenhuma opção disponível
+                      {t('noOptionsAvailable')}
                     </div>
                   ) : (
                     <Command>
-                      {options.length > 6 && <CommandInput placeholder="Buscar opção..." />}
+                      {options.length > 6 && <CommandInput placeholder={t('searchOption')} />}
                       <CommandList className="max-h-48">
-                        <CommandEmpty>Nenhuma opção encontrada</CommandEmpty>
+                        <CommandEmpty>{t('noOptionsFound')}</CommandEmpty>
                         <CommandGroup>
                           {options.map((opt) => (
                             <CommandItem
@@ -356,7 +360,7 @@ export default function ZoneDiagramField({
       {/* Summary of selected zones */}
       {filledCount > 0 && (
         <div className="space-y-1">
-          <p className="text-xs text-muted-foreground font-medium">Seleções:</p>
+          <p className="text-xs text-muted-foreground font-medium">{t('selections')}</p>
           <div className="flex flex-wrap gap-1.5">
             {zones
               .filter(z => value[z.label])

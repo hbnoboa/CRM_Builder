@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useTranslations } from 'next-intl';
 import {
   Plus,
   Search,
@@ -35,6 +36,9 @@ interface RoleWithCount extends Role {
 }
 
 function RolesPageContent() {
+  const t = useTranslations('rolesPage');
+  const tCommon = useTranslations('common');
+  const tNav = useTranslations('navigation');
   const { user: currentUser } = useAuthStore();
   const [search, setSearch] = useState('');
   const [formOpen, setFormOpen] = useState(false);
@@ -80,22 +84,22 @@ function RolesPageContent() {
     <div className="space-y-4 sm:space-y-6">
       {/* Breadcrumbs */}
       <nav className="mb-2 flex items-center gap-2 text-sm text-muted-foreground" aria-label="breadcrumb">
-        <Link href="/dashboard" className="hover:underline">Dashboard</Link>
+        <Link href="/dashboard" className="hover:underline">{tNav('dashboard')}</Link>
         <span>/</span>
-        <span className="font-semibold text-foreground">Roles</span>
+        <span className="font-semibold text-foreground">{tNav('roles')}</span>
       </nav>
 
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-bold">Roles</h1>
+          <h1 className="text-2xl sm:text-3xl font-bold">{t('title')}</h1>
           <p className="text-muted-foreground mt-1 text-sm sm:text-base">
-            Gerencie as roles e permissoes da sua organizacao
+            {t('subtitle')}
           </p>
         </div>
         <Button onClick={handleCreateRole} className="w-full sm:w-auto">
           <Plus className="h-4 w-4 mr-2" />
-          Nova Role
+          {t('newRole')}
         </Button>
       </div>
 
@@ -104,7 +108,7 @@ function RolesPageContent() {
         <Card>
           <CardContent className="p-3 sm:p-4">
             <div className="text-xl sm:text-2xl font-bold">{roles.length}</div>
-            <p className="text-xs sm:text-sm text-muted-foreground">Total de Roles</p>
+            <p className="text-xs sm:text-sm text-muted-foreground">{t('stats.total')}</p>
           </CardContent>
         </Card>
         <Card>
@@ -112,7 +116,7 @@ function RolesPageContent() {
             <div className="text-xl sm:text-2xl font-bold text-blue-600">
               {roles.reduce((sum, r) => sum + (r._count?.users || 0), 0)}
             </div>
-            <p className="text-xs sm:text-sm text-muted-foreground">Usuarios com Roles</p>
+            <p className="text-xs sm:text-sm text-muted-foreground">{t('stats.usersWithRoles')}</p>
           </CardContent>
         </Card>
         <Card>
@@ -120,7 +124,7 @@ function RolesPageContent() {
             <div className="text-xl sm:text-2xl font-bold text-purple-600">
               {roles.filter((r) => Object.keys(r.permissions || {}).length > 0).length}
             </div>
-            <p className="text-xs sm:text-sm text-muted-foreground">Roles com Permissoes</p>
+            <p className="text-xs sm:text-sm text-muted-foreground">{t('stats.rolesWithPermissions')}</p>
           </CardContent>
         </Card>
       </div>
@@ -129,7 +133,7 @@ function RolesPageContent() {
       <div className="relative w-full sm:max-w-md">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
         <Input
-          placeholder="Buscar roles..."
+          placeholder={t('searchPlaceholder')}
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className="pl-9"
@@ -157,16 +161,16 @@ function RolesPageContent() {
         <Card>
           <CardContent className="p-6 sm:p-12 text-center">
             <Shield className="h-10 w-10 sm:h-12 sm:w-12 mx-auto text-muted-foreground mb-3 sm:mb-4" />
-            <h3 className="text-base sm:text-lg font-semibold mb-2">Nenhuma role encontrada</h3>
+            <h3 className="text-base sm:text-lg font-semibold mb-2">{t('noRolesFound')}</h3>
             <p className="text-muted-foreground mb-4">
               {search
-                ? 'Nenhuma role corresponde a sua busca.'
-                : 'Crie roles para organizar permissoes.'}
+                ? t('noRolesMatchSearch')
+                : t('createRolesToStart')}
             </p>
             {!search && (
               <Button onClick={handleCreateRole}>
                 <Plus className="h-4 w-4 mr-2" />
-                Nova Role
+                {t('newRole')}
               </Button>
             )}
           </CardContent>
@@ -186,7 +190,7 @@ function RolesPageContent() {
                         <h3 className="font-semibold text-sm sm:text-base">{role.name}</h3>
                         {role._count?.users !== undefined && role._count.users > 0 && (
                           <span className="px-2 py-0.5 text-xs font-medium rounded bg-blue-100 text-blue-800 whitespace-nowrap">
-                            {role._count.users} usuarios
+                            {role._count.users} {tNav('users').toLowerCase()}
                           </span>
                         )}
                         {currentUser?.role === 'PLATFORM_ADMIN' && (
@@ -199,14 +203,14 @@ function RolesPageContent() {
                         {role.description ? (
                           <span>{role.description}</span>
                         ) : (
-                          <span className="italic">Sem descricao</span>
+                          <span className="italic">{t('noDescription')}</span>
                         )}
                       </div>
                       {role.permissions && Object.keys(role.permissions).length > 0 && (
                         <div className="flex items-center gap-1 mt-1.5 sm:mt-2">
                           <Key className="h-3 w-3 text-muted-foreground flex-shrink-0" />
                           <span className="text-xs text-muted-foreground">
-                            {Object.keys(role.permissions).length} permissoes
+                            {Object.keys(role.permissions).length} {t('permissionsConfigured')}
                           </span>
                         </div>
                       )}
@@ -216,7 +220,7 @@ function RolesPageContent() {
                   <div className="flex items-center gap-2 justify-end sm:justify-start flex-shrink-0">
                     <Button variant="outline" size="sm" onClick={() => handleEditRole(role)} className="hidden sm:flex">
                       <Pencil className="h-4 w-4 mr-1" />
-                      Editar
+                      {tCommon('edit')}
                     </Button>
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
@@ -227,15 +231,15 @@ function RolesPageContent() {
                       <DropdownMenuContent align="end">
                         <DropdownMenuItem onClick={() => handleEditRole(role)}>
                           <Pencil className="h-4 w-4 mr-2" />
-                          Editar
+                          {tCommon('edit')}
                         </DropdownMenuItem>
                         <DropdownMenuItem>
                           <Key className="h-4 w-4 mr-2" />
-                          Gerenciar Permissoes
+                          {t('managePermissions')}
                         </DropdownMenuItem>
                         <DropdownMenuItem>
                           <Users className="h-4 w-4 mr-2" />
-                          Ver Usuarios
+                          {t('viewUsers')}
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
                         <DropdownMenuItem
@@ -243,7 +247,7 @@ function RolesPageContent() {
                           className="text-destructive focus:text-destructive"
                         >
                           <Trash2 className="h-4 w-4 mr-2" />
-                          Excluir
+                          {tCommon('delete')}
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
@@ -274,7 +278,7 @@ function RolesPageContent() {
 
 export default function RolesPage() {
   return (
-    <RequireRole adminOnly message="Apenas administradores podem gerenciar roles.">
+    <RequireRole adminOnly>
       <RolesPageContent />
     </RequireRole>
   );

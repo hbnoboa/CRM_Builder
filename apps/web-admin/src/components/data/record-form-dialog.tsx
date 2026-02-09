@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import { Loader2, Star, Eye, EyeOff } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import {
   Dialog,
   DialogContent,
@@ -93,9 +94,13 @@ export function RecordFormDialog({
   onSuccess,
   parentRecordId,
 }: RecordFormDialogProps) {
+  const t = useTranslations('data');
+  const tCommon = useTranslations('common');
+  const tPlaceholders = useTranslations('placeholders');
+  const tValidation = useTranslations('validation');
   const isEditing = !!record;
-  const createRecord = useCreateEntityData();
-  const updateRecord = useUpdateEntityData();
+  const createRecord = useCreateEntityData({ success: isEditing ? t('toast.updated') : t('toast.created') });
+  const updateRecord = useUpdateEntityData({ success: t('toast.updated') });
   const { tenantId } = useTenant();
 
   const [formData, setFormData] = useState<Record<string, unknown>>({});
@@ -147,16 +152,16 @@ export function RecordFormDialog({
             }
           }
         }
-        return { value: String(item[valueField] || item.id || ''), label: String(label || item[valueField] || 'Sem nome'), data: item };
+        return { value: String(item[valueField] || item.id || ''), label: String(label || item[valueField] || t('noName')), data: item };
       });
       setApiOptions(prev => ({ ...prev, [field.slug]: options }));
     } catch (error) {
-      console.error(`Erro ao buscar opções da API ${field.apiEndpoint}:`, error);
+      console.error(`Error loading API options ${field.apiEndpoint}:`, error);
       setApiOptions(prev => ({ ...prev, [field.slug]: [] }));
     } finally {
       setLoadingApiOptions(prev => ({ ...prev, [field.slug]: false }));
     }
-  }, [tenantId]);
+  }, [tenantId, t]);
 
   // ─── Fetch relation options ─────────────────────────────────────────────
   const fetchRelationOptions = useCallback(async (field: EntityField) => {
@@ -178,18 +183,18 @@ export function RecordFormDialog({
         }
         return {
           value: String((item as any).id || ''),
-          label: String(label || (item as any).id || 'Sem nome'),
+          label: String(label || (item as any).id || t('noName')),
           data: itemData,
         };
       });
       setRelationOptions(prev => ({ ...prev, [field.slug]: options }));
     } catch (error) {
-      console.error(`Erro ao buscar relação ${field.relatedEntitySlug}:`, error);
+      console.error(`Error loading relation ${field.relatedEntitySlug}:`, error);
       setRelationOptions(prev => ({ ...prev, [field.slug]: [] }));
     } finally {
       setLoadingRelations(prev => ({ ...prev, [field.slug]: false }));
     }
-  }, [tenantId]);
+  }, [tenantId, t]);
 
   // Load options when dialog opens
   useEffect(() => {
@@ -258,33 +263,33 @@ export function RecordFormDialog({
       if (field.type === 'sub-entity') return;
       const value = formData[field.slug];
       if (field.required && (value === undefined || value === null || value === '')) {
-        newErrors[field.slug] = `${field.label || field.name} é obrigatório`;
+        newErrors[field.slug] = tValidation('fieldRequired', { field: field.label || field.name });
         return;
       }
       if (value !== undefined && value !== null && value !== '') {
         switch (field.type) {
           case 'email':
-            if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value))) newErrors[field.slug] = 'Email inválido';
+            if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value))) newErrors[field.slug] = tValidation('emailInvalid');
             break;
           case 'url':
-            try { new URL(String(value)); } catch { newErrors[field.slug] = 'URL inválida'; }
+            try { new URL(String(value)); } catch { newErrors[field.slug] = tValidation('urlInvalid'); }
             break;
           case 'number': case 'currency': case 'percentage':
-            if (isNaN(Number(String(value).replace(/[^\d.-]/g, '')))) newErrors[field.slug] = 'Número inválido';
+            if (isNaN(Number(String(value).replace(/[^\d.-]/g, '')))) newErrors[field.slug] = tValidation('numberInvalid');
             break;
           case 'cpf': {
             const digits = String(value).replace(/\D/g, '');
-            if (digits.length !== 11) newErrors[field.slug] = 'CPF deve ter 11 dígitos';
+            if (digits.length !== 11) newErrors[field.slug] = tValidation('cpfDigits');
             break;
           }
           case 'cnpj': {
             const digits = String(value).replace(/\D/g, '');
-            if (digits.length !== 14) newErrors[field.slug] = 'CNPJ deve ter 14 dígitos';
+            if (digits.length !== 14) newErrors[field.slug] = tValidation('cnpjDigits');
             break;
           }
           case 'cep': {
             const digits = String(value).replace(/\D/g, '');
-            if (digits.length !== 8) newErrors[field.slug] = 'CEP deve ter 8 dígitos';
+            if (digits.length !== 8) newErrors[field.slug] = tValidation('cepDigits');
             break;
           }
         }
@@ -375,7 +380,7 @@ export function RecordFormDialog({
         return (
           <div key={field.slug} className="space-y-2">
             {fieldLabel}
-            <Textarea id={field.slug} placeholder={field.placeholder || `Digite ${(field.label || field.name).toLowerCase()}`} value={String(value || '')} onChange={(e) => handleFieldChange(field.slug, e.target.value)} rows={3} />
+            <Textarea id={field.slug} placeholder={field.placeholder || tPlaceholders('enterField', { field: (field.label || field.name).toLowerCase() })} value={String(value || '')} onChange={(e) => handleFieldChange(field.slug, e.target.value)} rows={3} />
             {helpEl}{errorEl}
           </div>
         );
@@ -394,7 +399,7 @@ export function RecordFormDialog({
           <div key={field.slug} className="space-y-2">
             {fieldLabel}
             <Select value={String(value || '')} onValueChange={(val) => handleFieldChange(field.slug, val)}>
-              <SelectTrigger><SelectValue placeholder={field.placeholder || `Selecione`} /></SelectTrigger>
+              <SelectTrigger><SelectValue placeholder={field.placeholder || tCommon('select')} /></SelectTrigger>
               <SelectContent>
                 {field.options?.map((option) => {
                   const optVal = typeof option === 'object' ? option.value : option;
@@ -449,14 +454,14 @@ export function RecordFormDialog({
             <Select value={String(value || '')} onValueChange={(val) => handleApiSelectChange(field, val)} disabled={isLoadingOpts}>
               <SelectTrigger>
                 {isLoadingOpts ? (
-                  <span className="flex items-center gap-2"><Loader2 className="h-4 w-4 animate-spin" /> Carregando...</span>
+                  <span className="flex items-center gap-2"><Loader2 className="h-4 w-4 animate-spin" /> {t('loadingOptions')}</span>
                 ) : (
-                  <SelectValue placeholder={field.placeholder || `Selecione`} />
+                  <SelectValue placeholder={field.placeholder || tCommon('select')} />
                 )}
               </SelectTrigger>
               <SelectContent>
                 {options.length === 0 && !isLoadingOpts ? (
-                  <div className="px-2 py-1 text-sm text-muted-foreground">Nenhuma opção disponível</div>
+                  <div className="px-2 py-1 text-sm text-muted-foreground">{t('noOptionsAvailable')}</div>
                 ) : (
                   options.map((opt) => <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>)
                 )}
@@ -477,20 +482,20 @@ export function RecordFormDialog({
             <Select value={String(value || '')} onValueChange={(val) => handleFieldChange(field.slug, val)} disabled={isLoadingRel}>
               <SelectTrigger>
                 {isLoadingRel ? (
-                  <span className="flex items-center gap-2"><Loader2 className="h-4 w-4 animate-spin" /> Carregando...</span>
+                  <span className="flex items-center gap-2"><Loader2 className="h-4 w-4 animate-spin" /> {t('loadingOptions')}</span>
                 ) : (
-                  <SelectValue placeholder={field.placeholder || `Selecione ${(field.label || field.name).toLowerCase()}`} />
+                  <SelectValue placeholder={field.placeholder || tCommon('select')} />
                 )}
               </SelectTrigger>
               <SelectContent>
                 {options.length === 0 && !isLoadingRel ? (
-                  <div className="px-2 py-1 text-sm text-muted-foreground">Nenhum registro encontrado</div>
+                  <div className="px-2 py-1 text-sm text-muted-foreground">{t('noRecordFound')}</div>
                 ) : (
                   options.map((opt) => <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>)
                 )}
               </SelectContent>
             </Select>
-            {field.relatedEntitySlug && <p className="text-xs text-muted-foreground">Entidade: {field.relatedEntitySlug}</p>}
+            {field.relatedEntitySlug && <p className="text-xs text-muted-foreground">{tCommon('type')}: {field.relatedEntitySlug}</p>}
             {helpEl}{errorEl}
           </div>
         );
@@ -527,7 +532,7 @@ export function RecordFormDialog({
         return (
           <div key={field.slug} className="space-y-2">
             {fieldLabel}
-            <Input id={field.slug} type="number" min={field.min} max={field.max} step={field.step} placeholder={field.placeholder || `Digite ${(field.label || field.name).toLowerCase()}`} value={String(value || '')} onChange={(e) => handleFieldChange(field.slug, e.target.value)} />
+            <Input id={field.slug} type="number" min={field.min} max={field.max} step={field.step} placeholder={field.placeholder || tPlaceholders('enterField', { field: (field.label || field.name).toLowerCase() })} value={String(value || '')} onChange={(e) => handleFieldChange(field.slug, e.target.value)} />
             {helpEl}{errorEl}
           </div>
         );
@@ -560,7 +565,7 @@ export function RecordFormDialog({
         return (
           <div key={field.slug} className="space-y-2">
             {fieldLabel}
-            <Input id={field.slug} type="email" placeholder={field.placeholder || 'email@exemplo.com'} value={String(value || '')} onChange={(e) => handleFieldChange(field.slug, e.target.value)} />
+            <Input id={field.slug} type="email" placeholder={field.placeholder || tPlaceholders('email')} value={String(value || '')} onChange={(e) => handleFieldChange(field.slug, e.target.value)} />
             {helpEl}{errorEl}
           </div>
         );
@@ -569,7 +574,7 @@ export function RecordFormDialog({
         return (
           <div key={field.slug} className="space-y-2">
             {fieldLabel}
-            <Input id={field.slug} type="url" placeholder={field.placeholder || 'https://exemplo.com'} value={String(value || '')} onChange={(e) => handleFieldChange(field.slug, e.target.value)} />
+            <Input id={field.slug} type="url" placeholder={field.placeholder || tPlaceholders('url')} value={String(value || '')} onChange={(e) => handleFieldChange(field.slug, e.target.value)} />
             {helpEl}{errorEl}
           </div>
         );
@@ -578,7 +583,7 @@ export function RecordFormDialog({
         return (
           <div key={field.slug} className="space-y-2">
             {fieldLabel}
-            <Input id={field.slug} type="tel" placeholder={field.placeholder || '(00) 00000-0000'} value={String(value || '')} onChange={(e) => handleFieldChange(field.slug, applyPhoneMask(e.target.value))} maxLength={15} />
+            <Input id={field.slug} type="tel" placeholder={field.placeholder || tPlaceholders('phone')} value={String(value || '')} onChange={(e) => handleFieldChange(field.slug, applyPhoneMask(e.target.value))} maxLength={15} />
             {helpEl}{errorEl}
           </div>
         );
@@ -587,7 +592,7 @@ export function RecordFormDialog({
         return (
           <div key={field.slug} className="space-y-2">
             {fieldLabel}
-            <Input id={field.slug} placeholder={field.placeholder || '000.000.000-00'} value={String(value || '')} onChange={(e) => handleFieldChange(field.slug, applyCpfMask(e.target.value))} maxLength={14} />
+            <Input id={field.slug} placeholder={field.placeholder || tPlaceholders('cpf')} value={String(value || '')} onChange={(e) => handleFieldChange(field.slug, applyCpfMask(e.target.value))} maxLength={14} />
             {helpEl}{errorEl}
           </div>
         );
@@ -596,7 +601,7 @@ export function RecordFormDialog({
         return (
           <div key={field.slug} className="space-y-2">
             {fieldLabel}
-            <Input id={field.slug} placeholder={field.placeholder || '00.000.000/0000-00'} value={String(value || '')} onChange={(e) => handleFieldChange(field.slug, applyCnpjMask(e.target.value))} maxLength={18} />
+            <Input id={field.slug} placeholder={field.placeholder || tPlaceholders('cnpj')} value={String(value || '')} onChange={(e) => handleFieldChange(field.slug, applyCnpjMask(e.target.value))} maxLength={18} />
             {helpEl}{errorEl}
           </div>
         );
@@ -605,7 +610,7 @@ export function RecordFormDialog({
         return (
           <div key={field.slug} className="space-y-2">
             {fieldLabel}
-            <Input id={field.slug} placeholder={field.placeholder || '00000-000'} value={String(value || '')} onChange={(e) => handleFieldChange(field.slug, applyCepMask(e.target.value))} maxLength={9} />
+            <Input id={field.slug} placeholder={field.placeholder || tPlaceholders('cep')} value={String(value || '')} onChange={(e) => handleFieldChange(field.slug, applyCepMask(e.target.value))} maxLength={9} />
             {helpEl}{errorEl}
           </div>
         );
@@ -615,7 +620,7 @@ export function RecordFormDialog({
           <div key={field.slug} className="space-y-2">
             {fieldLabel}
             <div className="relative">
-              <Input id={field.slug} type={showPassword[field.slug] ? 'text' : 'password'} placeholder={field.placeholder || '••••••••'} value={String(value || '')} onChange={(e) => handleFieldChange(field.slug, e.target.value)} className="pr-10" />
+              <Input id={field.slug} type={showPassword[field.slug] ? 'text' : 'password'} placeholder={field.placeholder || tPlaceholders('password')} value={String(value || '')} onChange={(e) => handleFieldChange(field.slug, e.target.value)} className="pr-10" />
               <button type="button" className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground" onClick={() => setShowPassword(prev => ({ ...prev, [field.slug]: !prev[field.slug] }))}>
                 {showPassword[field.slug] ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
               </button>
@@ -742,8 +747,8 @@ export function RecordFormDialog({
             <div key={field.slug} className="space-y-2">
               {fieldLabel}
               <div className="border rounded-lg p-4 text-center text-muted-foreground bg-muted/30">
-                <p className="text-sm">💡 Salve o registro primeiro para adicionar {field.label || field.name}</p>
-                <p className="text-xs mt-1">Sub-registros só podem ser adicionados após a criação do registro pai.</p>
+                <p className="text-sm">💡 {t('subEntitySaveFirst', { name: field.label || field.name })}</p>
+                <p className="text-xs mt-1">{t('subEntityNote')}</p>
               </div>
             </div>
           );
@@ -784,7 +789,7 @@ export function RecordFormDialog({
         return (
           <div key={field.slug} className="space-y-2">
             {fieldLabel}
-            <Input id={field.slug} type="text" placeholder={field.placeholder || `Digite ${(field.label || field.name).toLowerCase()}`} value={String(value || '')} onChange={(e) => handleFieldChange(field.slug, e.target.value)} />
+            <Input id={field.slug} type="text" placeholder={field.placeholder || tPlaceholders('enterField', { field: (field.label || field.name).toLowerCase() })} value={String(value || '')} onChange={(e) => handleFieldChange(field.slug, e.target.value)} />
             {helpEl}{errorEl}
           </div>
         );
@@ -796,8 +801,8 @@ export function RecordFormDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[700px] max-h-[85vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>{isEditing ? `Editar ${entity.name}` : `Novo ${entity.name}`}</DialogTitle>
-          <DialogDescription>{isEditing ? 'Atualize os dados do registro.' : 'Preencha os campos para criar um novo registro.'}</DialogDescription>
+          <DialogTitle>{isEditing ? t('editRecord') : t('newRecord')} - {entity.name}</DialogTitle>
+          <DialogDescription>{isEditing ? t('toast.updated').replace('!', '') : t('toast.created').replace('!', '')}</DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           {errors._form && (
@@ -825,7 +830,7 @@ export function RecordFormDialog({
               entity.fields.map((field) => renderField(field))
             )
           ) : (
-            <p className="text-sm text-muted-foreground text-center py-4">Esta entidade não possui campos definidos.</p>
+            <p className="text-sm text-muted-foreground text-center py-4">{tCommon('noResults')}</p>
           )}
 
           {/* Hidden fields (type === 'hidden' OU hidden === true) */}
@@ -834,10 +839,10 @@ export function RecordFormDialog({
           ))}
 
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>{tCommon('cancel')}</Button>
             <Button type="submit" disabled={isLoading || !entity.fields?.length}>
               {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              {isLoading ? 'Salvando...' : isEditing ? 'Salvar' : 'Criar'}
+              {isLoading ? tCommon('saving') : isEditing ? tCommon('save') : tCommon('create')}
             </Button>
           </DialogFooter>
         </form>

@@ -4,6 +4,7 @@ import { useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
+import { useTranslations } from 'next-intl';
 import {
   Dialog,
   DialogContent,
@@ -39,152 +40,143 @@ import type { Role } from '@/types';
 
 // ── Permissões do sistema organizadas por categoria ──────────────────────────
 
-const PERMISSION_CATEGORIES: {
+const PERMISSION_CATEGORIES_CONFIG: {
   key: string;
-  label: string;
+  labelKey: string;
   icon: React.ReactNode;
   color: string;
-  permissions: { key: string; label: string }[];
+  permissions: { key: string; actionKey: string }[];
 }[] = [
   {
     key: 'entities',
-    label: 'Entidades',
+    labelKey: 'entities',
     icon: <Database className="h-4 w-4" />,
     color: 'text-blue-600',
     permissions: [
-      { key: 'entities:create', label: 'Criar' },
-      { key: 'entities:read', label: 'Visualizar' },
-      { key: 'entities:update', label: 'Editar' },
-      { key: 'entities:delete', label: 'Excluir' },
+      { key: 'entities:create', actionKey: 'create' },
+      { key: 'entities:read', actionKey: 'read' },
+      { key: 'entities:update', actionKey: 'update' },
+      { key: 'entities:delete', actionKey: 'delete' },
     ],
   },
   {
     key: 'data',
-    label: 'Dados / Registros',
+    labelKey: 'data',
     icon: <FileText className="h-4 w-4" />,
     color: 'text-green-600',
     permissions: [
-      { key: 'data:create', label: 'Criar' },
-      { key: 'data:read', label: 'Visualizar' },
-      { key: 'data:update', label: 'Editar' },
-      { key: 'data:delete', label: 'Excluir' },
-      { key: 'data:export', label: 'Exportar' },
-      { key: 'data:import', label: 'Importar' },
+      { key: 'data:create', actionKey: 'create' },
+      { key: 'data:read', actionKey: 'read' },
+      { key: 'data:update', actionKey: 'update' },
+      { key: 'data:delete', actionKey: 'delete' },
+      { key: 'data:export', actionKey: 'export' },
+      { key: 'data:import', actionKey: 'import' },
     ],
   },
   {
     key: 'pages',
-    label: 'Páginas',
+    labelKey: 'pages',
     icon: <FileText className="h-4 w-4" />,
     color: 'text-purple-600',
     permissions: [
-      { key: 'pages:create', label: 'Criar' },
-      { key: 'pages:read', label: 'Visualizar' },
-      { key: 'pages:update', label: 'Editar' },
-      { key: 'pages:delete', label: 'Excluir' },
-      { key: 'pages:publish', label: 'Publicar' },
+      { key: 'pages:create', actionKey: 'create' },
+      { key: 'pages:read', actionKey: 'read' },
+      { key: 'pages:update', actionKey: 'update' },
+      { key: 'pages:delete', actionKey: 'delete' },
+      { key: 'pages:publish', actionKey: 'publish' },
     ],
   },
   {
     key: 'apis',
-    label: 'APIs Customizadas',
+    labelKey: 'apis',
     icon: <Code className="h-4 w-4" />,
     color: 'text-orange-600',
     permissions: [
-      { key: 'apis:create', label: 'Criar' },
-      { key: 'apis:read', label: 'Visualizar' },
-      { key: 'apis:update', label: 'Editar' },
-      { key: 'apis:delete', label: 'Excluir' },
-      { key: 'apis:execute', label: 'Executar' },
+      { key: 'apis:create', actionKey: 'create' },
+      { key: 'apis:read', actionKey: 'read' },
+      { key: 'apis:update', actionKey: 'update' },
+      { key: 'apis:delete', actionKey: 'delete' },
+      { key: 'apis:execute', actionKey: 'execute' },
     ],
   },
   {
     key: 'users',
-    label: 'Usuários',
+    labelKey: 'users',
     icon: <Users className="h-4 w-4" />,
     color: 'text-cyan-600',
     permissions: [
-      { key: 'users:create', label: 'Criar' },
-      { key: 'users:read', label: 'Visualizar' },
-      { key: 'users:update', label: 'Editar' },
-      { key: 'users:delete', label: 'Excluir' },
-      { key: 'users:invite', label: 'Convidar' },
+      { key: 'users:create', actionKey: 'create' },
+      { key: 'users:read', actionKey: 'read' },
+      { key: 'users:update', actionKey: 'update' },
+      { key: 'users:delete', actionKey: 'delete' },
+      { key: 'users:invite', actionKey: 'invite' },
     ],
   },
   {
     key: 'roles',
-    label: 'Roles / Papéis',
+    labelKey: 'roles',
     icon: <Key className="h-4 w-4" />,
     color: 'text-yellow-600',
     permissions: [
-      { key: 'roles:create', label: 'Criar' },
-      { key: 'roles:read', label: 'Visualizar' },
-      { key: 'roles:update', label: 'Editar' },
-      { key: 'roles:delete', label: 'Excluir' },
-      { key: 'roles:assign', label: 'Atribuir' },
+      { key: 'roles:create', actionKey: 'create' },
+      { key: 'roles:read', actionKey: 'read' },
+      { key: 'roles:update', actionKey: 'update' },
+      { key: 'roles:delete', actionKey: 'delete' },
+      { key: 'roles:assign', actionKey: 'assign' },
     ],
   },
   {
     key: 'organization',
-    label: 'Organização',
+    labelKey: 'organization',
     icon: <Building className="h-4 w-4" />,
     color: 'text-indigo-600',
     permissions: [
-      { key: 'organization:read', label: 'Visualizar' },
-      { key: 'organization:update', label: 'Editar' },
+      { key: 'organization:read', actionKey: 'read' },
+      { key: 'organization:update', actionKey: 'update' },
     ],
   },
   {
     key: 'settings',
-    label: 'Configurações',
+    labelKey: 'settings',
     icon: <Settings className="h-4 w-4" />,
     color: 'text-gray-600',
     permissions: [
-      { key: 'settings:read', label: 'Visualizar' },
-      { key: 'settings:update', label: 'Editar' },
+      { key: 'settings:read', actionKey: 'read' },
+      { key: 'settings:update', actionKey: 'update' },
     ],
   },
   {
     key: 'stats',
-    label: 'Estatísticas',
+    labelKey: 'stats',
     icon: <BarChart3 className="h-4 w-4" />,
     color: 'text-pink-600',
-    permissions: [{ key: 'stats:read', label: 'Visualizar' }],
+    permissions: [{ key: 'stats:read', actionKey: 'read' }],
   },
   {
     key: 'upload',
-    label: 'Upload / Arquivos',
+    labelKey: 'upload',
     icon: <Upload className="h-4 w-4" />,
     color: 'text-teal-600',
     permissions: [
-      { key: 'upload:create', label: 'Fazer Upload' },
-      { key: 'upload:delete', label: 'Excluir' },
+      { key: 'upload:create', actionKey: 'upload' },
+      { key: 'upload:delete', actionKey: 'delete' },
     ],
   },
 ];
 
-const ALL_PERMISSION_KEYS = PERMISSION_CATEGORIES.flatMap((c) =>
+const ALL_PERMISSION_KEYS = PERMISSION_CATEGORIES_CONFIG.flatMap((c) =>
   c.permissions.map((p) => p.key)
 );
 
 // ── Schema ───────────────────────────────────────────────────────────────────
 
-const roleSchema = z.object({
-  name: z.string().min(2, 'Nome deve ter pelo menos 2 caracteres'),
-  slug: z
-    .string()
-    .min(2, 'Slug deve ter pelo menos 2 caracteres')
-    .regex(
-      /^[a-z0-9-_]+$/,
-      'Apenas letras minúsculas, números, hífens e underscores'
-    )
-    .optional()
-    .or(z.literal('')),
-  description: z.string().optional(),
-  permissions: z.array(z.string()).optional(),
-});
-
-type RoleFormData = z.infer<typeof roleSchema>;
+// Schema is created inside the component to use translations
+type RoleFormData = {
+  name: string;
+  slug?: string;
+  description?: string;
+  permissions?: string[];
+};
 
 interface RoleFormDialogProps {
   open: boolean;
@@ -199,9 +191,25 @@ export function RoleFormDialog({
   role,
   onSuccess,
 }: RoleFormDialogProps) {
+  const t = useTranslations('rolesPage');
+  const tCommon = useTranslations('common');
+  const tValidation = useTranslations('validation');
   const isEditing = !!role;
-  const createRole = useCreateRole();
-  const updateRole = useUpdateRole();
+
+  // Schema with translations
+  const roleSchema = z.object({
+    name: z.string().min(2, tValidation('nameMin', { min: 2 })),
+    slug: z
+      .string()
+      .min(2, tValidation('slugMin', { min: 2 }))
+      .regex(/^[a-z0-9-_]+$/, tValidation('slugFormat'))
+      .optional()
+      .or(z.literal('')),
+    description: z.string().optional(),
+    permissions: z.array(z.string()).optional(),
+  });
+  const createRole = useCreateRole({ success: t('toast.created') });
+  const updateRole = useUpdateRole({ success: t('toast.updated') });
 
   const form = useForm<RoleFormData>({
     resolver: zodResolver(roleSchema),
@@ -266,7 +274,7 @@ export function RoleFormDialog({
   };
 
   const toggleCategory = (categoryKey: string) => {
-    const category = PERMISSION_CATEGORIES.find((c) => c.key === categoryKey);
+    const category = PERMISSION_CATEGORIES_CONFIG.find((c) => c.key === categoryKey);
     if (!category) return;
     const categoryPerms = category.permissions.map((p) => p.key);
     const current = form.getValues('permissions') || [];
@@ -293,7 +301,7 @@ export function RoleFormDialog({
   };
 
   const isCategoryFullySelected = (categoryKey: string) => {
-    const category = PERMISSION_CATEGORIES.find((c) => c.key === categoryKey);
+    const category = PERMISSION_CATEGORIES_CONFIG.find((c) => c.key === categoryKey);
     if (!category) return false;
     return category.permissions.every((p) =>
       selectedPermissions.includes(p.key)
@@ -301,7 +309,7 @@ export function RoleFormDialog({
   };
 
   const isCategoryPartiallySelected = (categoryKey: string) => {
-    const category = PERMISSION_CATEGORIES.find((c) => c.key === categoryKey);
+    const category = PERMISSION_CATEGORIES_CONFIG.find((c) => c.key === categoryKey);
     if (!category) return false;
     const some = category.permissions.some((p) =>
       selectedPermissions.includes(p.key)
@@ -346,12 +354,12 @@ export function RoleFormDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Shield className="h-5 w-5 text-primary" />
-            {isEditing ? 'Editar Role' : 'Nova Role'}
+            {isEditing ? t('editRole') : t('newRole')}
           </DialogTitle>
           <DialogDescription>
             {isEditing
-              ? 'Atualize as informações e permissões desta role.'
-              : 'Defina o nome e as permissões para a nova role.'}
+              ? t('form.editDescription')
+              : t('form.createDescription')}
           </DialogDescription>
         </DialogHeader>
 
@@ -362,10 +370,10 @@ export function RoleFormDialog({
           {/* Dados básicos */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <Label htmlFor="name">Nome *</Label>
+              <Label htmlFor="name">{t('form.name')} *</Label>
               <Input
                 id="name"
-                placeholder="Ex: Gerente de Vendas"
+                placeholder={t('form.namePlaceholder')}
                 {...form.register('name')}
               />
               {form.formState.errors.name && (
@@ -376,10 +384,10 @@ export function RoleFormDialog({
             </div>
             {!isEditing && (
               <div className="space-y-1.5">
-                <Label htmlFor="slug">Slug</Label>
+                <Label htmlFor="slug">{t('form.slug')}</Label>
                 <Input
                   id="slug"
-                  placeholder="gerente-vendas"
+                  placeholder={t('form.slugPlaceholder')}
                   {...form.register('slug')}
                   className="font-mono text-sm"
                 />
@@ -393,10 +401,10 @@ export function RoleFormDialog({
             <div
               className={`space-y-1.5 ${isEditing ? '' : 'sm:col-span-2'}`}
             >
-              <Label htmlFor="description">Descrição</Label>
+              <Label htmlFor="description">{t('form.description')}</Label>
               <Textarea
                 id="description"
-                placeholder="Descreva as responsabilidades desta role..."
+                placeholder={t('form.descriptionPlaceholder')}
                 rows={2}
                 {...form.register('description')}
               />
@@ -409,7 +417,7 @@ export function RoleFormDialog({
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Key className="h-4 w-4 text-muted-foreground" />
-              <Label className="text-sm font-semibold">Permissões</Label>
+              <Label className="text-sm font-semibold">{t('permissions.title')}</Label>
               <Badge variant="secondary" className="text-xs">
                 {selectedPermissions.length}/{ALL_PERMISSION_KEYS.length}
               </Badge>
@@ -423,7 +431,7 @@ export function RoleFormDialog({
                 onClick={selectAll}
               >
                 <CheckSquare className="h-3 w-3 mr-1" />
-                Todas
+                {t('permissions.selectAll')}
               </Button>
               <Button
                 type="button"
@@ -432,14 +440,14 @@ export function RoleFormDialog({
                 className="h-7 text-xs"
                 onClick={deselectAll}
               >
-                Nenhuma
+                {t('permissions.selectNone')}
               </Button>
             </div>
           </div>
 
           <ScrollArea className="flex-1 min-h-0 max-h-[340px] border rounded-lg">
             <div className="p-3 space-y-3">
-              {PERMISSION_CATEGORIES.map((category) => {
+              {PERMISSION_CATEGORIES_CONFIG.map((category) => {
                 const fullySelected = isCategoryFullySelected(category.key);
                 const partiallySelected = isCategoryPartiallySelected(
                   category.key
@@ -468,7 +476,7 @@ export function RoleFormDialog({
                       />
                       <span className={category.color}>{category.icon}</span>
                       <span className="text-sm font-medium">
-                        {category.label}
+                        {t(`permissionCategories.${category.labelKey}`)}
                       </span>
                       <Badge
                         variant="outline"
@@ -503,7 +511,7 @@ export function RoleFormDialog({
                               }
                             `}
                           >
-                            {perm.label}
+                            {t(`permissionActions.${perm.actionKey}`)}
                           </button>
                         );
                       })}
@@ -520,18 +528,18 @@ export function RoleFormDialog({
               variant="outline"
               onClick={() => onOpenChange(false)}
             >
-              Cancelar
+              {tCommon('cancel')}
             </Button>
             <Button type="submit" disabled={isLoading}>
               {isLoading ? (
                 <>
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Salvando...
+                  {tCommon('saving')}
                 </>
               ) : isEditing ? (
-                'Salvar Alterações'
+                tCommon('save')
               ) : (
-                'Criar Role'
+                tCommon('create')
               )}
             </Button>
           </DialogFooter>

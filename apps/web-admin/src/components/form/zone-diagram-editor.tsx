@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -48,6 +49,9 @@ export default function ZoneDiagramEditor({
   allEntities,
   onUpdate,
 }: ZoneDiagramEditorProps) {
+  const t = useTranslations('zoneDiagram');
+  const tCommon = useTranslations('common');
+  const tPlaceholders = useTranslations('placeholders');
   const currentZones: ZoneConfig[] = (diagramZones || []).map(z => ({
     ...z,
     optionsSource: z.optionsSource || 'manual',
@@ -117,21 +121,21 @@ export default function ZoneDiagramEditor({
 
   return (
     <div className="space-y-3 mt-3 p-3 bg-emerald-50 dark:bg-emerald-950/20 rounded-lg border border-emerald-200 dark:border-emerald-800">
-      <Label className="text-sm font-medium text-emerald-700 dark:text-emerald-300">🗺️ Configuração do Diagrama de Zonas</Label>
+      <Label className="text-sm font-medium text-emerald-700 dark:text-emerald-300">🗺️ {t('config.title')}</Label>
       <p className="text-xs text-muted-foreground">
-        Faça upload de uma imagem, depois clique nela para posicionar zonas. Cada zona terá um select com opções.
+        {t('config.description')}
       </p>
 
       {/* Image Upload */}
       <div className="space-y-1">
-        <Label className="text-xs">Imagem de Fundo</Label>
+        <Label className="text-xs">{t('config.backgroundImage')}</Label>
         <ImageUploadField
           value={diagramImage || ''}
           onChange={(url) => onUpdate({ diagramImage: typeof url === 'string' ? url : (Array.isArray(url) ? url[0] || '' : '') })}
           mode="image"
           multiple={false}
           accept="image/*"
-          placeholder="Arraste uma imagem ou clique para fazer upload"
+          placeholder={t('config.uploadImagePlaceholder')}
           folder="diagrams"
         />
       </div>
@@ -150,17 +154,17 @@ export default function ZoneDiagramEditor({
                 setRepositioningZoneIdx(null);
               }}
             >
-              {placingZone ? '🎯 Clique na imagem...' : '➕ Adicionar Zona'}
+              {placingZone ? `🎯 ${t('config.clickOnImage')}` : `➕ ${t('config.addZone')}`}
             </Button>
             {repositioningZoneIdx !== null && (
-              <span className="text-xs text-primary font-medium animate-pulse">📍 Clique na imagem para reposicionar...</span>
+              <span className="text-xs text-primary font-medium animate-pulse">📍 {t('config.clickToReposition')}</span>
             )}
             {(placingZone || repositioningZoneIdx !== null) && (
               <Button type="button" size="sm" variant="ghost" className="h-7 text-xs" onClick={() => { setPlacingZone(false); setRepositioningZoneIdx(null); }}>
-                Cancelar
+                {t('config.cancel')}
               </Button>
             )}
-            <span className="text-xs text-muted-foreground ml-auto">{currentZones.length} zona(s)</span>
+            <span className="text-xs text-muted-foreground ml-auto">{currentZones.length} {t('config.zones')}</span>
           </div>
 
           <div
@@ -206,7 +210,7 @@ export default function ZoneDiagramEditor({
         </div>
       ) : (
         <div className="border-2 border-dashed rounded-lg p-6 text-center text-muted-foreground">
-          <p className="text-sm">📷 Faça upload de uma imagem acima para começar a posicionar as zonas</p>
+          <p className="text-sm">📷 {t('config.uploadImageFirst')}</p>
         </div>
       )}
 
@@ -216,28 +220,28 @@ export default function ZoneDiagramEditor({
         return (
           <div className="p-3 border rounded-lg bg-background space-y-3">
             <div className="flex items-center justify-between">
-              <Label className="text-sm font-medium">⚙️ Editando: {zone.label}</Label>
+              <Label className="text-sm font-medium">⚙️ {t('config.editing')} {zone.label}</Label>
               <div className="flex gap-1">
-                <Button type="button" size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setEditingZoneIdx(null)}>Fechar</Button>
-                <Button type="button" size="sm" variant="ghost" className="h-7 text-xs text-destructive hover:text-destructive" onClick={() => removeZone(editingZoneIdx)}>Remover</Button>
+                <Button type="button" size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setEditingZoneIdx(null)}>{t('config.close')}</Button>
+                <Button type="button" size="sm" variant="ghost" className="h-7 text-xs text-destructive hover:text-destructive" onClick={() => removeZone(editingZoneIdx)}>{t('config.remove')}</Button>
               </div>
             </div>
 
             {/* Label / Nome */}
             <div className="space-y-1">
-              <Label className="text-xs">Nome da Zona</Label>
+              <Label className="text-xs">{t('config.zoneName')}</Label>
               <Input
                 className="h-8 text-sm"
                 value={zone.label}
                 onChange={(e) => updateZone(editingZoneIdx, { label: e.target.value })}
-                placeholder="Ex: Parachoque Dianteiro"
+                placeholder={t('exampleLabel')}
               />
-              <p className="text-xs text-muted-foreground">Este nome será a chave no JSON dos dados</p>
+              <p className="text-xs text-muted-foreground">{t('config.zoneNameHint')}</p>
             </div>
 
             {/* Position — editable inputs + reposition button */}
             <div className="space-y-1">
-              <Label className="text-xs">Posição</Label>
+              <Label className="text-xs">{t('config.position')}</Label>
               <div className="flex items-center gap-2 flex-wrap">
                 <div className="flex items-center gap-1">
                   <span className="text-xs text-muted-foreground w-3">X:</span>
@@ -275,14 +279,14 @@ export default function ZoneDiagramEditor({
                     setRepositioningZoneIdx(repositioningZoneIdx === editingZoneIdx ? null : editingZoneIdx);
                   }}
                 >
-                  📍 {repositioningZoneIdx === editingZoneIdx ? 'Clique na imagem...' : 'Reposicionar'}
+                  📍 {repositioningZoneIdx === editingZoneIdx ? t('config.clickOnImage') : t('config.reposition')}
                 </Button>
               </div>
             </div>
 
             {/* Options Source */}
             <div className="space-y-1">
-              <Label className="text-xs">Fonte das Opções</Label>
+              <Label className="text-xs">{t('config.optionsSource')}</Label>
               <div className="flex gap-2">
                 <Button
                   type="button"
@@ -291,7 +295,7 @@ export default function ZoneDiagramEditor({
                   className="h-7 text-xs flex-1"
                   onClick={() => updateZone(editingZoneIdx, { optionsSource: 'manual' })}
                 >
-                  ✏️ Manual
+                  ✏️ {t('config.manual')}
                 </Button>
                 <Button
                   type="button"
@@ -300,7 +304,7 @@ export default function ZoneDiagramEditor({
                   className="h-7 text-xs flex-1"
                   onClick={() => updateZone(editingZoneIdx, { optionsSource: 'entity' })}
                 >
-                  🗃️ De outra Entidade
+                  🗃️ {t('config.fromEntity')}
                 </Button>
               </div>
             </div>
@@ -308,7 +312,7 @@ export default function ZoneDiagramEditor({
             {/* Manual options editor */}
             {zone.optionsSource === 'manual' && (
               <div className="space-y-2">
-                <Label className="text-xs">Opções ({(zone.options || []).length})</Label>
+                <Label className="text-xs">{t('config.options')} ({(zone.options || []).length})</Label>
                 <div className="flex flex-wrap gap-1.5 min-h-[28px]">
                   {(zone.options || []).map((opt, oIdx) => (
                     <span key={oIdx} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300">
@@ -323,7 +327,7 @@ export default function ZoneDiagramEditor({
                 <div className="flex gap-1">
                   <Input
                     className="h-7 text-sm flex-1"
-                    placeholder="Nova opção..."
+                    placeholder={t('config.newOption')}
                     value={newOption}
                     onChange={(e) => setNewOption(e.target.value)}
                     onKeyDown={(e) => {
@@ -350,12 +354,12 @@ export default function ZoneDiagramEditor({
             {zone.optionsSource === 'entity' && (
               <div className="grid gap-3 sm:grid-cols-2">
                 <div className="space-y-1">
-                  <Label className="text-xs">Entidade</Label>
+                  <Label className="text-xs">{t('config.entity')}</Label>
                   <Select
                     value={zone.sourceEntitySlug || ''}
                     onValueChange={(val) => updateZone(editingZoneIdx, { sourceEntitySlug: val, sourceFieldSlug: '' })}
                   >
-                    <SelectTrigger className="h-7 text-sm"><SelectValue placeholder="Selecione..." /></SelectTrigger>
+                    <SelectTrigger className="h-7 text-sm"><SelectValue placeholder={t('config.selectPlaceholder')} /></SelectTrigger>
                     <SelectContent>
                       {allEntities.map(e => (
                         <SelectItem key={e.slug} value={e.slug}>
@@ -366,12 +370,12 @@ export default function ZoneDiagramEditor({
                   </Select>
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-xs">Campo (opções)</Label>
+                  <Label className="text-xs">{t('config.field')}</Label>
                   <Select
                     value={zone.sourceFieldSlug || ''}
                     onValueChange={(val) => updateZone(editingZoneIdx, { sourceFieldSlug: val })}
                   >
-                    <SelectTrigger className="h-7 text-sm"><SelectValue placeholder="Selecione..." /></SelectTrigger>
+                    <SelectTrigger className="h-7 text-sm"><SelectValue placeholder={t('config.selectPlaceholder')} /></SelectTrigger>
                     <SelectContent>
                       {(allEntities.find(e => e.slug === zone.sourceEntitySlug)?.fields || []).map((f: { name: string; slug: string; label?: string }) => (
                         <SelectItem key={f.slug || f.name} value={f.slug || f.name}>
@@ -380,7 +384,7 @@ export default function ZoneDiagramEditor({
                       ))}
                     </SelectContent>
                   </Select>
-                  <p className="text-xs text-muted-foreground">Os valores deste campo serão as opções do select</p>
+                  <p className="text-xs text-muted-foreground">{t('config.fieldHint')}</p>
                 </div>
               </div>
             )}
@@ -391,7 +395,7 @@ export default function ZoneDiagramEditor({
       {/* Zone list summary */}
       {currentZones.length > 0 && (
         <div className="space-y-1">
-          <Label className="text-xs">Zonas configuradas:</Label>
+          <Label className="text-xs">{t('config.configuredZones')}</Label>
           <div className="flex flex-wrap gap-1">
             {currentZones.map((z, i) => (
               <button
@@ -408,7 +412,7 @@ export default function ZoneDiagramEditor({
                 }`}
                 onClick={() => setEditingZoneIdx(editingZoneIdx === i ? null : i)}
               >
-                {z.label}: {z.optionsSource === 'entity' ? `🗃️ ${z.sourceEntitySlug || '?'}` : `${(z.options || []).length} opç.`}
+                {z.label}: {z.optionsSource === 'entity' ? `🗃️ ${z.sourceEntitySlug || '?'}` : `${(z.options || []).length} ${t('config.opts')}`}
               </button>
             ))}
           </div>
@@ -416,7 +420,7 @@ export default function ZoneDiagramEditor({
       )}
 
       <div className="text-xs text-emerald-600 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-900/30 rounded p-2">
-        💡 Faça upload da imagem, clique em &quot;Adicionar Zona&quot; e depois clique na imagem para posicionar. Clique em uma zona para editar nome, posição e opções.
+        💡 {t('config.tip')}
       </div>
     </div>
   );

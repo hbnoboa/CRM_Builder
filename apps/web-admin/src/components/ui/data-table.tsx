@@ -14,6 +14,7 @@ import {
   useReactTable,
 } from "@tanstack/react-table"
 import { ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Search } from "lucide-react"
+import { useTranslations } from "next-intl"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -60,7 +61,7 @@ export function DataTable<TData, TValue>({
   columns,
   data,
   searchKey,
-  searchPlaceholder = "Buscar...",
+  searchPlaceholder,
   isLoading = false,
   pageCount,
   pageIndex = 0,
@@ -71,6 +72,7 @@ export function DataTable<TData, TValue>({
   manualFiltering = false,
   onSearch,
 }: DataTableProps<TData, TValue>) {
+  const t = useTranslations('dataTable')
   const [sorting, setSorting] = React.useState<SortingState>([])
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([])
   const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({})
@@ -126,7 +128,7 @@ export function DataTable<TData, TValue>({
           <div className="relative">
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
-              placeholder={searchPlaceholder}
+              placeholder={searchPlaceholder || t('search')}
               value={globalFilter}
               onChange={(e) => handleSearch(e.target.value)}
               className="pl-8 w-[250px]"
@@ -136,7 +138,7 @@ export function DataTable<TData, TValue>({
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="outline" className="ml-auto">
-              Colunas <ChevronDown className="ml-2 h-4 w-4" />
+              {t('columns')} <ChevronDown className="ml-2 h-4 w-4" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
@@ -211,7 +213,7 @@ export function DataTable<TData, TValue>({
                   colSpan={columns.length}
                   className="h-24 text-center"
                 >
-                  Nenhum resultado encontrado.
+                  {t('noResults')}
                 </TableCell>
               </TableRow>
             )}
@@ -222,14 +224,16 @@ export function DataTable<TData, TValue>({
         <div className="flex-1 text-sm text-muted-foreground">
           {table.getFilteredSelectedRowModel().rows.length > 0 && (
             <span>
-              {table.getFilteredSelectedRowModel().rows.length} de{" "}
-              {table.getFilteredRowModel().rows.length} linha(s) selecionada(s).
+              {t('rowsSelected', {
+                selected: table.getFilteredSelectedRowModel().rows.length,
+                total: table.getFilteredRowModel().rows.length
+              })}
             </span>
           )}
         </div>
         <div className="flex items-center gap-6">
           <div className="flex items-center gap-2">
-            <p className="text-sm font-medium">Linhas por pagina</p>
+            <p className="text-sm font-medium">{t('rowsPerPage')}</p>
             <Select
               value={`${currentPageSize}`}
               onValueChange={(value) => {
@@ -253,7 +257,7 @@ export function DataTable<TData, TValue>({
             </Select>
           </div>
           <div className="flex w-[100px] items-center justify-center text-sm font-medium">
-            Pagina {currentPageIndex + 1} de {totalPages}
+            {t('pageOf', { current: currentPageIndex + 1, total: totalPages })}
           </div>
           <div className="flex items-center gap-2">
             <Button
@@ -268,7 +272,7 @@ export function DataTable<TData, TValue>({
               }}
               disabled={currentPageIndex === 0}
             >
-              <span className="sr-only">Primeira pagina</span>
+              <span className="sr-only">{t('firstPage')}</span>
               <ChevronsLeft className="h-4 w-4" />
             </Button>
             <Button
@@ -283,7 +287,7 @@ export function DataTable<TData, TValue>({
               }}
               disabled={currentPageIndex === 0}
             >
-              <span className="sr-only">Pagina anterior</span>
+              <span className="sr-only">{t('previousPage')}</span>
               <ChevronLeft className="h-4 w-4" />
             </Button>
             <Button
@@ -298,7 +302,7 @@ export function DataTable<TData, TValue>({
               }}
               disabled={currentPageIndex >= totalPages - 1}
             >
-              <span className="sr-only">Proxima pagina</span>
+              <span className="sr-only">{t('nextPage')}</span>
               <ChevronRight className="h-4 w-4" />
             </Button>
             <Button
@@ -313,7 +317,7 @@ export function DataTable<TData, TValue>({
               }}
               disabled={currentPageIndex >= totalPages - 1}
             >
-              <span className="sr-only">Ultima pagina</span>
+              <span className="sr-only">{t('lastPage')}</span>
               <ChevronsRight className="h-4 w-4" />
             </Button>
           </div>

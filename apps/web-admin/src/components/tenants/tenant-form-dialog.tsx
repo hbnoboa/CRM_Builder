@@ -4,6 +4,7 @@ import { useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
+import { useTranslations } from 'next-intl';
 import {
   Dialog,
   DialogContent,
@@ -25,21 +26,24 @@ import {
 import { useCreateTenant, useUpdateTenant } from '@/hooks/use-tenants';
 import type { Tenant } from '@/types';
 
-const createTenantSchema = z.object({
-  name: z.string().min(2, 'Nome deve ter pelo menos 2 caracteres'),
-  slug: z.string().min(2, 'Slug deve ter pelo menos 2 caracteres').regex(/^[a-z0-9-]+$/, 'Slug deve conter apenas letras minusculas, numeros e hifens'),
+const createTenantSchemaFn = (t: (key: string) => string) => z.object({
+  name: z.string().min(2, t('nameMinLength')),
+  slug: z.string().min(2, t('slugMinLength')).regex(/^[a-z0-9-]+$/, t('slugFormat')),
   domain: z.string().optional(),
   plan: z.string().optional(),
-  adminEmail: z.string().email('Email invalido'),
-  adminName: z.string().min(2, 'Nome do admin deve ter pelo menos 2 caracteres'),
-  adminPassword: z.string().min(8, 'Senha deve ter pelo menos 8 caracteres'),
+  adminEmail: z.string().email(t('emailInvalid')),
+  adminName: z.string().min(2, t('adminNameMinLength')),
+  adminPassword: z.string().min(8, t('passwordMinLength')),
 });
 
-const updateTenantSchema = z.object({
-  name: z.string().min(2, 'Nome deve ter pelo menos 2 caracteres'),
+const updateTenantSchemaFn = (t: (key: string) => string) => z.object({
+  name: z.string().min(2, t('nameMinLength')),
   domain: z.string().optional(),
   plan: z.string().optional(),
 });
+
+const createTenantSchema = createTenantSchemaFn((key) => key);
+const updateTenantSchema = updateTenantSchemaFn((key) => key);
 
 type CreateTenantFormData = z.infer<typeof createTenantSchema>;
 type UpdateTenantFormData = z.infer<typeof updateTenantSchema>;
@@ -52,12 +56,15 @@ interface TenantFormDialogProps {
 }
 
 export function TenantFormDialog({ open, onOpenChange, tenant, onSuccess }: TenantFormDialogProps) {
+  const t = useTranslations('tenants');
+  const tCommon = useTranslations('common');
+  const tValidation = useTranslations('validation');
   const isEditing = !!tenant;
-  const createTenant = useCreateTenant();
-  const updateTenant = useUpdateTenant();
+  const createTenant = useCreateTenant({ success: t('toast.created') });
+  const updateTenant = useUpdateTenant({ success: t('toast.updated') });
 
   const form = useForm<CreateTenantFormData | UpdateTenantFormData>({
-    resolver: zodResolver(isEditing ? updateTenantSchema : createTenantSchema),
+    resolver: zodResolver(isEditing ? updateTenantSchemaFn(tValidation) : createTenantSchemaFn(tValidation)),
     defaultValues: {
       name: '',
       slug: '',
@@ -125,19 +132,19 @@ export function TenantFormDialog({ open, onOpenChange, tenant, onSuccess }: Tena
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
-          <DialogTitle>{isEditing ? 'Editar Tenant' : 'Novo Tenant'}</DialogTitle>
+          <DialogTitle>{isEditing ? t('title') : t('newTenant')}</DialogTitle>
           <DialogDescription>
             {isEditing
-              ? 'Atualize as informacoes do tenant.'
-              : 'Preencha os dados para criar um novo tenant.'}
+              ? t('form.editDescription')
+              : t('form.createDescription')}
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="name">Nome da Empresa</Label>
+            <Label htmlFor="name">{t('form.name')}</Label>
             <Input
               id="name"
-              placeholder="Minha Empresa"
+              placeholder={t('form.namePlaceholder')}
               {...form.register('name')}
             />
             {form.formState.errors.name && (
@@ -147,10 +154,10 @@ export function TenantFormDialog({ open, onOpenChange, tenant, onSuccess }: Tena
 
           {!isEditing && (
             <div className="space-y-2">
-              <Label htmlFor="slug">Slug (URL)</Label>
+              <Label htmlFor="slug">{t('form.slug')}</Label>
               <Input
                 id="slug"
-                placeholder="minha-empresa"
+                placeholder={t('form.slugPlaceholder')}
                 {...form.register('slug' as keyof CreateTenantFormData)}
               />
               {(form.formState.errors as Record<string, { message?: string }>).slug && (
@@ -160,22 +167,22 @@ export function TenantFormDialog({ open, onOpenChange, tenant, onSuccess }: Tena
           )}
 
           <div className="space-y-2">
-            <Label htmlFor="domain">Dominio Personalizado (opcional)</Label>
+            <Label htmlFor="domain">{t('form.domain')}</Label>
             <Input
               id="domain"
-              placeholder="app.minhaempresa.com"
+              placeholder={t('form.domainPlaceholder')}
               {...form.register('domain')}
             />
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="plan">Plano</Label>
+            <Label htmlFor="plan">{t('form.plan')}</Label>
             <Select
               value={form.watch('plan') || 'basic'}
               onValueChange={(value) => form.setValue('plan', value)}
             >
               <SelectTrigger>
-                <SelectValue placeholder="Selecione um plano" />
+                <SelectValue placeholder={t('form.planPlaceholder')} />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="free">Free</SelectItem>
@@ -189,13 +196,13 @@ export function TenantFormDialog({ open, onOpenChange, tenant, onSuccess }: Tena
           {!isEditing && (
             <>
               <div className="border-t pt-4 mt-4">
-                <h4 className="font-medium mb-3">Administrador do Tenant</h4>
+                <h4 className="font-medium mb-3">{t('form.adminTitle')}</h4>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="adminName">Nome do Administrador</Label>
+                <Label htmlFor="adminName">{t('form.adminName')}</Label>
                 <Input
                   id="adminName"
-                  placeholder="Joao Silva"
+                  placeholder={t('form.adminNamePlaceholder')}
                   {...form.register('adminName' as keyof CreateTenantFormData)}
                 />
                 {(form.formState.errors as Record<string, { message?: string }>).adminName && (
@@ -203,11 +210,11 @@ export function TenantFormDialog({ open, onOpenChange, tenant, onSuccess }: Tena
                 )}
               </div>
               <div className="space-y-2">
-                <Label htmlFor="adminEmail">Email do Administrador</Label>
+                <Label htmlFor="adminEmail">{t('form.adminEmail')}</Label>
                 <Input
                   id="adminEmail"
                   type="email"
-                  placeholder="admin@empresa.com"
+                  placeholder={t('form.adminEmailPlaceholder')}
                   {...form.register('adminEmail' as keyof CreateTenantFormData)}
                 />
                 {(form.formState.errors as Record<string, { message?: string }>).adminEmail && (
@@ -215,11 +222,11 @@ export function TenantFormDialog({ open, onOpenChange, tenant, onSuccess }: Tena
                 )}
               </div>
               <div className="space-y-2">
-                <Label htmlFor="adminPassword">Senha do Administrador</Label>
+                <Label htmlFor="adminPassword">{t('form.adminPassword')}</Label>
                 <Input
                   id="adminPassword"
                   type="password"
-                  placeholder="Senha segura"
+                  placeholder={t('form.adminPasswordPlaceholder')}
                   {...form.register('adminPassword' as keyof CreateTenantFormData)}
                 />
                 {(form.formState.errors as Record<string, { message?: string }>).adminPassword && (
@@ -231,10 +238,10 @@ export function TenantFormDialog({ open, onOpenChange, tenant, onSuccess }: Tena
 
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-              Cancelar
+              {tCommon('cancel')}
             </Button>
             <Button type="submit" disabled={isLoading}>
-              {isLoading ? 'Salvando...' : isEditing ? 'Salvar' : 'Criar Tenant'}
+              {isLoading ? tCommon('saving') : isEditing ? tCommon('save') : tCommon('create')}
             </Button>
           </DialogFooter>
         </form>

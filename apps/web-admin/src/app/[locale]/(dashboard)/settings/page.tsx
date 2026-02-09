@@ -8,6 +8,7 @@ import {
   Key,
   Webhook,
 } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import { RequireRole } from '@/components/auth/require-role';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -17,20 +18,24 @@ import { useAuthStore } from '@/stores/auth-store';
 import { useUpdateProfile, useChangePassword } from '@/hooks/use-auth';
 import { Link } from '@/i18n/navigation';
 
-const tabs = [
-  { id: 'profile', label: 'Perfil', icon: User },
-  { id: 'notifications', label: 'Notificacoes', icon: Bell },
-  { id: 'security', label: 'Seguranca', icon: Shield },
-  { id: 'api', label: 'Chaves de API', icon: Key },
-  { id: 'integrations', label: 'Integracoes', icon: Webhook },
-];
+const TAB_IDS = ['profile', 'notifications', 'security', 'api', 'integrations'] as const;
+const TAB_ICONS = {
+  profile: User,
+  notifications: Bell,
+  security: Shield,
+  api: Key,
+  integrations: Webhook,
+};
 
 function SettingsPageContent() {
+  const t = useTranslations('settings');
+  const tCommon = useTranslations('common');
+  const tNav = useTranslations('navigation');
   const { user } = useAuthStore();
   const updateProfile = useUpdateProfile();
   const changePassword = useChangePassword();
 
-  const [activeTab, setActiveTab] = useState('profile');
+  const [activeTab, setActiveTab] = useState<typeof TAB_IDS[number]>('profile');
 
   // Profile form state
   const [name, setName] = useState(user?.name || '');
@@ -75,35 +80,38 @@ function SettingsPageContent() {
     <div className="space-y-4 sm:space-y-6">
       {/* Breadcrumbs */}
       <nav className="mb-2 flex items-center gap-2 text-sm text-muted-foreground" aria-label="breadcrumb" data-testid="breadcrumb">
-        <Link href="/dashboard" className="hover:underline" data-testid="breadcrumb-dashboard">Dashboard</Link>
+        <Link href="/dashboard" className="hover:underline" data-testid="breadcrumb-dashboard">{tNav('dashboard')}</Link>
         <span>/</span>
-        <span className="font-semibold text-foreground" data-testid="breadcrumb-settings">Configuracoes</span>
+        <span className="font-semibold text-foreground" data-testid="breadcrumb-settings">{tNav('settings')}</span>
       </nav>
       <div>
-        <h1 className="text-2xl md:text-3xl font-bold" data-testid="settings-heading">Configuracoes</h1>
+        <h1 className="text-2xl md:text-3xl font-bold" data-testid="settings-heading">{t('title')}</h1>
         <p className="text-sm md:text-base text-muted-foreground mt-1">
-          Gerencie suas preferencias e configuracoes de conta
+          {t('subtitle')}
         </p>
       </div>
 
       <div className="flex flex-col md:flex-row gap-4 md:gap-6">
         {/* Sidebar Tabs */}
         <div className="flex md:flex-col md:w-64 gap-1 overflow-x-auto pb-2 md:pb-0 md:overflow-x-visible">
-          {tabs.map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center gap-2 md:gap-3 px-3 md:px-4 py-2 md:py-2.5 rounded-lg text-left transition-colors whitespace-nowrap text-sm md:text-base md:w-full ${
-                activeTab === tab.id
-                  ? 'bg-primary text-primary-foreground'
-                  : 'hover:bg-muted'
-              }`}
-              data-testid={`tab-${tab.id}`}
-            >
-              <tab.icon className="h-4 w-4 md:h-5 md:w-5 shrink-0" />
-              {tab.label}
-            </button>
-          ))}
+          {TAB_IDS.map((tabId) => {
+            const Icon = TAB_ICONS[tabId];
+            return (
+              <button
+                key={tabId}
+                onClick={() => setActiveTab(tabId)}
+                className={`flex items-center gap-2 md:gap-3 px-3 md:px-4 py-2 md:py-2.5 rounded-lg text-left transition-colors whitespace-nowrap text-sm md:text-base md:w-full ${
+                  activeTab === tabId
+                    ? 'bg-primary text-primary-foreground'
+                    : 'hover:bg-muted'
+                }`}
+                data-testid={`tab-${tabId}`}
+              >
+                <Icon className="h-4 w-4 md:h-5 md:w-5 shrink-0" />
+                {t(`tabs.${tabId}`)}
+              </button>
+            );
+          })}
         </div>
 
         {/* Content */}
@@ -111,9 +119,9 @@ function SettingsPageContent() {
           {activeTab === 'profile' && (
             <Card>
               <CardHeader>
-                <CardTitle>Perfil</CardTitle>
+                <CardTitle>{t('profile.title')}</CardTitle>
                 <CardDescription>
-                  Atualize suas informacoes pessoais
+                  {t('profile.description')}
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4 md:space-y-6">
@@ -125,17 +133,17 @@ function SettingsPageContent() {
                   </div>
                   <div className="text-center sm:text-left">
                     <Button variant="outline" size="sm" data-testid="alterar-foto-btn">
-                      Alterar Foto
+                      {t('profile.changePhoto')}
                     </Button>
                     <p className="text-xs text-muted-foreground mt-1">
-                      JPG, PNG ou GIF. Maximo 2MB.
+                      {t('profile.photoHint')}
                     </p>
                   </div>
                 </div>
 
                 <div className="grid gap-4 md:grid-cols-2">
                   <div className="space-y-2">
-                    <Label htmlFor="name">Nome Completo</Label>
+                    <Label htmlFor="name">{t('profile.fullName')}</Label>
                     <Input
                       id="name"
                       value={name}
@@ -144,7 +152,7 @@ function SettingsPageContent() {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="email">Email</Label>
+                    <Label htmlFor="email">{t('profile.email')}</Label>
                     <Input
                       id="email"
                       type="email"
@@ -157,7 +165,7 @@ function SettingsPageContent() {
 
                 <div className="pt-4 flex gap-2">
                   <Button className="w-full sm:w-auto" onClick={handleSaveProfile} disabled={updateProfile.isPending} data-testid="salvar-config-btn">
-                    {updateProfile.isPending ? 'Salvando...' : 'Salvar Alteracoes'}
+                    {updateProfile.isPending ? tCommon('saving') : t('profile.saveChanges')}
                   </Button>
                 </div>
               </CardContent>
@@ -167,25 +175,20 @@ function SettingsPageContent() {
           {activeTab === 'notifications' && (
             <Card>
               <CardHeader>
-                <CardTitle>Notificacoes</CardTitle>
+                <CardTitle>{t('notifications.title')}</CardTitle>
                 <CardDescription>
-                  Configure como deseja receber notificacoes
+                  {t('notifications.description')}
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                {[
-                  { label: 'Novos registros', desc: 'Quando um novo registro e criado' },
-                  { label: 'Atualizacoes', desc: 'Quando um registro e atualizado' },
-                  { label: 'Mencoes', desc: 'Quando voce e mencionado' },
-                  { label: 'Relatorios', desc: 'Relatorios semanais por email' },
-                ].map((item, idx) => (
+                {(['newRecords', 'updates', 'mentions', 'reports'] as const).map((key) => (
                   <div
-                    key={idx}
+                    key={key}
                     className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between p-3 sm:p-4 border rounded-lg"
                   >
                     <div className="min-w-0">
-                      <h4 className="font-medium text-sm sm:text-base">{item.label}</h4>
-                      <p className="text-xs sm:text-sm text-muted-foreground">{item.desc}</p>
+                      <h4 className="font-medium text-sm sm:text-base">{t(`notifications.${key}.label`)}</h4>
+                      <p className="text-xs sm:text-sm text-muted-foreground">{t(`notifications.${key}.desc`)}</p>
                     </div>
                     <label className="relative inline-flex items-center cursor-pointer shrink-0 self-end sm:self-center">
                       <input type="checkbox" className="sr-only peer" defaultChecked />
@@ -200,17 +203,17 @@ function SettingsPageContent() {
           {activeTab === 'security' && (
             <Card>
               <CardHeader>
-                <CardTitle>Seguranca</CardTitle>
+                <CardTitle>{t('security.title')}</CardTitle>
                 <CardDescription>
-                  Gerencie a seguranca da sua conta
+                  {t('security.description')}
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
                 <div className="space-y-4">
-                  <h4 className="font-medium">Alterar Senha</h4>
+                  <h4 className="font-medium">{t('security.changePassword')}</h4>
                   <div className="space-y-3">
                     <div className="space-y-2">
-                      <Label>Senha Atual</Label>
+                      <Label>{t('security.currentPassword')}</Label>
                       <Input
                         type="password"
                         value={currentPassword}
@@ -218,7 +221,7 @@ function SettingsPageContent() {
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label>Nova Senha</Label>
+                      <Label>{t('security.newPassword')}</Label>
                       <Input
                         type="password"
                         value={newPassword}
@@ -226,48 +229,48 @@ function SettingsPageContent() {
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label>Confirmar Nova Senha</Label>
+                      <Label>{t('security.confirmNewPassword')}</Label>
                       <Input
                         type="password"
                         value={confirmPassword}
                         onChange={(e) => setConfirmPassword(e.target.value)}
                       />
                       {confirmPassword && newPassword !== confirmPassword && (
-                        <p className="text-sm text-destructive">As senhas nao coincidem</p>
+                        <p className="text-sm text-destructive">{t('security.passwordsNotMatch')}</p>
                       )}
                     </div>
                     <Button
                       onClick={handleChangePassword}
                       disabled={changePassword.isPending || !currentPassword || !newPassword || newPassword !== confirmPassword}
                     >
-                      {changePassword.isPending ? 'Alterando...' : 'Alterar Senha'}
+                      {changePassword.isPending ? t('security.changing') : t('security.changePassword')}
                     </Button>
                   </div>
                 </div>
 
                 <div className="border-t pt-6">
-                  <h4 className="font-medium mb-4">Autenticacao de Dois Fatores</h4>
+                  <h4 className="font-medium mb-4">{t('security.twoFactor')}</h4>
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between p-3 sm:p-4 border rounded-lg">
                     <div className="min-w-0">
-                      <p className="font-medium text-sm sm:text-base">2FA nao configurado</p>
+                      <p className="font-medium text-sm sm:text-base">{t('security.twoFactorNotConfigured')}</p>
                       <p className="text-xs sm:text-sm text-muted-foreground">
-                        Adicione uma camada extra de seguranca
+                        {t('security.twoFactorHint')}
                       </p>
                     </div>
-                    <Button variant="outline" className="w-full sm:w-auto shrink-0">Configurar 2FA</Button>
+                    <Button variant="outline" className="w-full sm:w-auto shrink-0">{t('security.setup2FA')}</Button>
                   </div>
                 </div>
 
                 <div className="border-t pt-6">
-                  <h4 className="font-medium mb-4">Sessoes Ativas</h4>
+                  <h4 className="font-medium mb-4">{t('security.activeSessions')}</h4>
                   <div className="space-y-2">
                     <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between p-3 border rounded-lg bg-green-50">
                       <div className="min-w-0">
-                        <p className="font-medium text-sm sm:text-base text-green-800">Este dispositivo</p>
-                        <p className="text-xs sm:text-sm text-green-600">Linux - Chrome - Agora</p>
+                        <p className="font-medium text-sm sm:text-base text-green-800">{t('security.thisDevice')}</p>
+                        <p className="text-xs sm:text-sm text-green-600">{t('security.deviceInfo')}</p>
                       </div>
                       <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded self-start sm:self-center shrink-0">
-                        Atual
+                        {t('security.current')}
                       </span>
                     </div>
                   </div>
@@ -279,19 +282,19 @@ function SettingsPageContent() {
           {activeTab === 'api' && (
             <Card>
               <CardHeader>
-                <CardTitle>Chaves de API</CardTitle>
+                <CardTitle>{t('apiKeys.title')}</CardTitle>
                 <CardDescription>
-                  Gerencie suas chaves de API para integracoes
+                  {t('apiKeys.description')}
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="flex flex-col gap-3 sm:flex-row sm:justify-between sm:items-center">
                   <p className="text-sm sm:text-base text-muted-foreground">
-                    Use chaves de API para acessar a API do CRM Builder
+                    {t('apiKeys.hint')}
                   </p>
                   <Button className="w-full sm:w-auto shrink-0">
                     <Key className="h-4 w-4 mr-2" />
-                    Nova Chave
+                    {t('apiKeys.newKey')}
                   </Button>
                 </div>
 
@@ -299,15 +302,15 @@ function SettingsPageContent() {
                   <div className="p-3 sm:p-4 border-b">
                     <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                       <div className="min-w-0">
-                        <p className="font-medium text-sm sm:text-base">Chave de Producao</p>
+                        <p className="font-medium text-sm sm:text-base">{t('apiKeys.productionKey')}</p>
                         <code className="text-xs sm:text-sm text-muted-foreground break-all">
                           crm_live_****************************
                         </code>
                       </div>
                       <div className="flex gap-2 shrink-0">
-                        <Button variant="outline" size="sm">Copiar</Button>
+                        <Button variant="outline" size="sm">{tCommon('copy')}</Button>
                         <Button variant="ghost" size="sm" className="text-destructive">
-                          Revogar
+                          {t('apiKeys.revoke')}
                         </Button>
                       </div>
                     </div>
@@ -315,15 +318,15 @@ function SettingsPageContent() {
                   <div className="p-3 sm:p-4">
                     <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                       <div className="min-w-0">
-                        <p className="font-medium text-sm sm:text-base">Chave de Teste</p>
+                        <p className="font-medium text-sm sm:text-base">{t('apiKeys.testKey')}</p>
                         <code className="text-xs sm:text-sm text-muted-foreground break-all">
                           crm_test_****************************
                         </code>
                       </div>
                       <div className="flex gap-2 shrink-0">
-                        <Button variant="outline" size="sm">Copiar</Button>
+                        <Button variant="outline" size="sm">{tCommon('copy')}</Button>
                         <Button variant="ghost" size="sm" className="text-destructive">
-                          Revogar
+                          {t('apiKeys.revoke')}
                         </Button>
                       </div>
                     </div>
@@ -336,36 +339,34 @@ function SettingsPageContent() {
           {activeTab === 'integrations' && (
             <Card>
               <CardHeader>
-                <CardTitle>Integracoes</CardTitle>
+                <CardTitle>{t('integrations.title')}</CardTitle>
                 <CardDescription>
-                  Conecte seu CRM a outras ferramentas
+                  {t('integrations.description')}
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                {[
-                  { name: 'Slack', desc: 'Receba notificacoes no Slack', connected: true },
-                  { name: 'Zapier', desc: 'Automatize fluxos de trabalho', connected: false },
-                  { name: 'Google Sheets', desc: 'Exporte dados automaticamente', connected: false },
-                  { name: 'WhatsApp', desc: 'Integracao com WhatsApp Business', connected: false },
-                ].map((integration, idx) => (
-                  <div
-                    key={idx}
-                    className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between p-3 sm:p-4 border rounded-lg"
-                  >
-                    <div className="flex items-center gap-3 sm:gap-4 min-w-0">
-                      <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-lg bg-muted flex items-center justify-center shrink-0">
-                        <Webhook className="h-4 w-4 sm:h-5 sm:w-5" />
+                {(['slack', 'zapier', 'googleSheets', 'whatsapp'] as const).map((key) => {
+                  const isConnected = key === 'slack';
+                  return (
+                    <div
+                      key={key}
+                      className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between p-3 sm:p-4 border rounded-lg"
+                    >
+                      <div className="flex items-center gap-3 sm:gap-4 min-w-0">
+                        <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-lg bg-muted flex items-center justify-center shrink-0">
+                          <Webhook className="h-4 w-4 sm:h-5 sm:w-5" />
+                        </div>
+                        <div className="min-w-0">
+                          <h4 className="font-medium text-sm sm:text-base">{t(`integrations.${key}.name`)}</h4>
+                          <p className="text-xs sm:text-sm text-muted-foreground truncate">{t(`integrations.${key}.desc`)}</p>
+                        </div>
                       </div>
-                      <div className="min-w-0">
-                        <h4 className="font-medium text-sm sm:text-base">{integration.name}</h4>
-                        <p className="text-xs sm:text-sm text-muted-foreground truncate">{integration.desc}</p>
-                      </div>
+                      <Button className="w-full sm:w-auto shrink-0" variant={isConnected ? 'outline' : 'default'}>
+                        {isConnected ? t('integrations.configure') : t('integrations.connect')}
+                      </Button>
                     </div>
-                    <Button className="w-full sm:w-auto shrink-0" variant={integration.connected ? 'outline' : 'default'}>
-                      {integration.connected ? 'Configurar' : 'Conectar'}
-                    </Button>
-                  </div>
-                ))}
+                  );
+                })}
               </CardContent>
             </Card>
           )}
@@ -377,7 +378,7 @@ function SettingsPageContent() {
 
 export default function SettingsPage() {
   return (
-    <RequireRole adminOnly message="Apenas administradores podem acessar configuracoes.">
+    <RequireRole adminOnly>
       <SettingsPageContent />
     </RequireRole>
   );

@@ -1,5 +1,6 @@
 'use client';
 
+import { useTranslations } from 'next-intl';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -21,7 +22,9 @@ interface DeleteUserDialogProps {
 }
 
 export function DeleteUserDialog({ open, onOpenChange, user, onSuccess }: DeleteUserDialogProps) {
-  const deleteUser = useDeleteUser();
+  const t = useTranslations('users');
+  const tCommon = useTranslations('common');
+  const deleteUser = useDeleteUser({ success: t('toast.deleted') });
 
   const handleDelete = async () => {
     if (!user) return;
@@ -39,20 +42,20 @@ export function DeleteUserDialog({ open, onOpenChange, user, onSuccess }: Delete
     <AlertDialog open={open} onOpenChange={onOpenChange}>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>Excluir Usuario</AlertDialogTitle>
+          <AlertDialogTitle>{t('deleteConfirm.title')}</AlertDialogTitle>
           <AlertDialogDescription>
-            Tem certeza que deseja excluir o usuario <strong>{user?.name}</strong>?
-            Esta acao nao pode ser desfeita.
+            {t('deleteConfirm.message', { name: user?.name || '' })}
+            {' '}{t('deleteConfirm.warning')}
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel>Cancelar</AlertDialogCancel>
+          <AlertDialogCancel>{tCommon('cancel')}</AlertDialogCancel>
           <AlertDialogAction
             onClick={handleDelete}
             className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             disabled={deleteUser.isPending}
           >
-            {deleteUser.isPending ? 'Excluindo...' : 'Excluir'}
+            {deleteUser.isPending ? tCommon('deleting') : tCommon('delete')}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

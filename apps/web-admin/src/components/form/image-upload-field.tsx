@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import { api } from '@/lib/api';
 import { toast } from 'sonner';
+import { useTranslations } from 'next-intl';
 
 interface ImageUploadFieldProps {
   value: string | string[];
@@ -44,6 +45,7 @@ export default function ImageUploadField({
   disabled = false,
   folder = 'uploads',
 }: ImageUploadFieldProps) {
+  const t = useTranslations('upload');
   const [isDragOver, setIsDragOver] = useState(false);
   const [uploading, setUploading] = useState<UploadingFile[]>([]);
   const [urlMode, setUrlMode] = useState(false);
@@ -69,7 +71,7 @@ export default function ImageUploadField({
     const toUpload = fileArray.slice(0, remaining);
 
     if (toUpload.length === 0) {
-      toast.error(`Máximo de ${maxFiles} arquivos permitidos`);
+      toast.error(t('maxFilesAllowed', { count: maxFiles }));
       return;
     }
 
@@ -101,7 +103,7 @@ export default function ImageUploadField({
       } catch (err) {
         setUploading(prev => prev.filter(u => u.id !== uploadId));
         console.error('Upload error:', err);
-        toast.error(`Erro ao enviar ${file.name}`);
+        toast.error(t('uploadError', { name: file.name }));
         return null;
       }
     });
@@ -254,11 +256,11 @@ export default function ImageUploadField({
               <Input
                 value={urlInput}
                 onChange={e => setUrlInput(e.target.value)}
-                placeholder="Cole a URL do arquivo..."
+                placeholder={t('pasteUrl')}
                 onKeyDown={e => e.key === 'Enter' && handleUrlSubmit()}
                 autoFocus
               />
-              <Button type="button" size="sm" onClick={handleUrlSubmit}>OK</Button>
+              <Button type="button" size="sm" onClick={handleUrlSubmit}>{t('ok')}</Button>
               <Button type="button" size="sm" variant="ghost" onClick={() => setUrlMode(false)}>
                 <X className="h-4 w-4" />
               </Button>
@@ -294,8 +296,8 @@ export default function ImageUploadField({
                 )}
                 <p className="text-sm text-muted-foreground">
                   {placeholder || (mode === 'image'
-                    ? 'Arraste uma imagem ou clique para selecionar'
-                    : 'Arraste um arquivo ou clique para selecionar')}
+                    ? t('dragImage')
+                    : t('dragFile'))}
                 </p>
                 <div className="flex gap-2 mt-1">
                   <Button
@@ -308,7 +310,7 @@ export default function ImageUploadField({
                     }}
                   >
                     <Upload className="h-3.5 w-3.5 mr-1" />
-                    Escolher arquivo
+                    {t('chooseFile')}
                   </Button>
                   <Button
                     type="button"
@@ -319,7 +321,7 @@ export default function ImageUploadField({
                       setUrlMode(true);
                     }}
                   >
-                    🔗 Colar URL
+                    {t('pasteUrlButton')}
                   </Button>
                 </div>
               </div>

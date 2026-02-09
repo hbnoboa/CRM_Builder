@@ -34,22 +34,27 @@ export function useEntityBySlug(slug: string) {
   });
 }
 
-export function useCreateEntity() {
+interface MutationMessages {
+  success?: string;
+  error?: string;
+}
+
+export function useCreateEntity(messages?: MutationMessages) {
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: (data: CreateEntityData) => entitiesService.create(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: entityKeys.list() });
-      toast.success('Entidade criada com sucesso');
+      if (messages?.success) toast.success(messages.success);
     },
     onError: (error: Error) => {
-      toast.error(error.message || 'Erro ao criar entidade');
+      toast.error(messages?.error || error.message);
     },
   });
 }
 
-export function useUpdateEntity() {
+export function useUpdateEntity(messages?: MutationMessages) {
   const queryClient = useQueryClient();
 
   return useMutation({
@@ -58,25 +63,25 @@ export function useUpdateEntity() {
     onSuccess: (_, { id }) => {
       queryClient.invalidateQueries({ queryKey: entityKeys.lists() });
       queryClient.invalidateQueries({ queryKey: entityKeys.detail(id) });
-      toast.success('Entidade atualizada com sucesso');
+      if (messages?.success) toast.success(messages.success);
     },
     onError: (error: Error) => {
-      toast.error(error.message || 'Erro ao atualizar entidade');
+      toast.error(messages?.error || error.message);
     },
   });
 }
 
-export function useDeleteEntity() {
+export function useDeleteEntity(messages?: MutationMessages) {
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: (id: string) => entitiesService.delete(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: entityKeys.lists() });
-      toast.success('Entidade excluida com sucesso');
+      if (messages?.success) toast.success(messages.success);
     },
     onError: (error: Error) => {
-      toast.error(error.message || 'Erro ao excluir entidade');
+      toast.error(messages?.error || error.message);
     },
   });
 }

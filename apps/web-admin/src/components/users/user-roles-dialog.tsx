@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
+import { useTranslations } from 'next-intl';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Dialog,
@@ -32,14 +33,6 @@ interface UserRolesDialogProps {
   onSuccess?: () => void;
 }
 
-const baseRoleLabels: Record<string, string> = {
-  PLATFORM_ADMIN: 'Super Admin',
-  ADMIN: 'Administrador',
-  MANAGER: 'Gerente',
-  USER: 'Usuario',
-  VIEWER: 'Visualizador',
-};
-
 const baseRoleColors: Record<string, string> = {
   PLATFORM_ADMIN: 'bg-purple-100 text-purple-800',
   ADMIN: 'bg-red-100 text-red-800',
@@ -48,20 +41,16 @@ const baseRoleColors: Record<string, string> = {
   VIEWER: 'bg-gray-100 text-gray-800',
 };
 
-const baseRoleDescriptions: Record<string, string> = {
-  PLATFORM_ADMIN: 'Acesso total a plataforma, incluindo todos os tenants',
-  ADMIN: 'Acesso total ao tenant, pode gerenciar usuarios e configuracoes',
-  MANAGER: 'Pode gerenciar equipe e ver dados da organizacao',
-  USER: 'Acesso padrao, pode ver e editar seus proprios dados',
-  VIEWER: 'Apenas visualizacao, sem permissao de edicao',
-};
-
 export function UserRolesDialog({
   open,
   onOpenChange,
   user,
   onSuccess,
 }: UserRolesDialogProps) {
+  const t = useTranslations('rolesPage');
+  const tRoles = useTranslations('roles');
+  const tRoleDesc = useTranslations('roleDescriptions');
+  const tCommon = useTranslations('common');
   const queryClient = useQueryClient();
   const [selectedRoles, setSelectedRoles] = useState<Set<string>>(new Set());
 
@@ -127,7 +116,7 @@ export function UserRolesDialog({
       if (checked) {
         await assignMutation.mutateAsync({ userId: user.id, roleId });
         setSelectedRoles((prev) => new Set(Array.from(prev).concat(roleId)));
-        toast.success('Role atribuida com sucesso');
+        toast.success(t('userRoles.roleAssigned'));
       } else {
         await removeMutation.mutateAsync({ userId: user.id, roleId });
         setSelectedRoles((prev) => {
@@ -135,11 +124,11 @@ export function UserRolesDialog({
           newSet.delete(roleId);
           return newSet;
         });
-        toast.success('Role removida com sucesso');
+        toast.success(t('userRoles.roleRemoved'));
       }
       onSuccess?.();
     } catch (error: any) {
-      toast.error(error.response?.data?.message || 'Erro ao atualizar role');
+      toast.error(error.response?.data?.message || t('userRoles.roleUpdateError'));
     }
   };
 
@@ -154,10 +143,10 @@ export function UserRolesDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Shield className="h-5 w-5" />
-            Gerenciar Permissoes
+            {t('userRoles.title')}
           </DialogTitle>
           <DialogDescription>
-            Gerencie as roles e permissoes de {user?.name || user?.email || 'usuario'}
+            {t('userRoles.subtitle', { name: user?.name || user?.email || '' })}
           </DialogDescription>
         </DialogHeader>
 
@@ -165,28 +154,28 @@ export function UserRolesDialog({
           {/* Role Base do Usuario - so mostra se user existe */}
           {user && (
           <div className="space-y-3">
-            <Label className="text-sm font-semibold">Role Base</Label>
+            <Label className="text-sm font-semibold">{t('userRoles.baseRole')}</Label>
             <div className="flex items-start gap-3 p-3 rounded-lg border bg-muted/30">
               <div
                 className={`px-2 py-1 rounded text-xs font-medium ${baseRoleColors[user.role] || 'bg-gray-100 text-gray-800'}`}
               >
-                {baseRoleLabels[user.role] || user.role}
+                {tRoles(user.role as any) || user.role}
               </div>
               <p className="text-sm text-muted-foreground">
-                {baseRoleDescriptions[user.role] || 'Role nao definida'}
+                {tRoleDesc(user.role as any) || ''}
               </p>
             </div>
             <p className="text-xs text-muted-foreground">
-              A role base e definida no cadastro do usuario e determina as permissoes fundamentais.
+              {t('userRoles.baseRoleDescription')}
             </p>
           </div>
           )}
 
           {/* Roles Customizadas */}
           <div className="space-y-3">
-            <Label className="text-sm font-semibold">Roles Adicionais</Label>
+            <Label className="text-sm font-semibold">{t('userRoles.additionalRoles')}</Label>
             <p className="text-xs text-muted-foreground mb-2">
-              Atribua roles customizadas para conceder permissoes extras ao usuario.
+              {t('userRoles.additionalRolesDescription')}
             </p>
 
             {isLoading ? (
@@ -197,10 +186,10 @@ export function UserRolesDialog({
               <div className="flex flex-col items-center justify-center py-8 text-center">
                 <AlertCircle className="h-8 w-8 text-muted-foreground mb-2" />
                 <p className="text-sm text-muted-foreground">
-                  Nenhuma role customizada criada ainda.
+                  {t('userRoles.noCustomRoles')}
                 </p>
                 <Button variant="link" size="sm" className="mt-2" asChild>
-                  <a href="/roles">Criar Roles</a>
+                  <a href="/roles">{t('userRoles.createRoles')}</a>
                 </Button>
               </div>
             ) : (
@@ -234,7 +223,7 @@ export function UserRolesDialog({
                           </Label>
                           {role.isSystem && (
                             <Badge variant="secondary" className="text-xs">
-                              Sistema
+                              {t('userRoles.system')}
                             </Badge>
                           )}
                         </div>
@@ -245,7 +234,7 @@ export function UserRolesDialog({
                         )}
                         <div className="flex items-center gap-2 text-xs text-muted-foreground">
                           <Shield className="h-3 w-3" />
-                          {permissionCount} permissao(oes)
+                          {permissionCount} {t('userRoles.permissions')}
                         </div>
                       </div>
                       {isAssigned && (
@@ -261,7 +250,7 @@ export function UserRolesDialog({
           {/* Resumo de Permissoes */}
           {selectedRoles.size > 0 && (
             <div className="space-y-2 pt-2 border-t">
-              <Label className="text-sm font-semibold">Roles Atribuidas</Label>
+              <Label className="text-sm font-semibold">{t('userRoles.assignedRoles')}</Label>
               <div className="flex flex-wrap gap-2">
                 {allRoles
                   .filter((r) => selectedRoles.has(r.id))
@@ -288,7 +277,7 @@ export function UserRolesDialog({
 
         <div className="flex justify-end gap-2 pt-4 border-t">
           <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Fechar
+            {tCommon('close')}
           </Button>
         </div>
       </DialogContent>

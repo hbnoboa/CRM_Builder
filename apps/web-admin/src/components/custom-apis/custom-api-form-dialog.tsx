@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, useMemo } from 'react';
+import { useTranslations } from 'next-intl';
 import {
   Dialog,
   DialogContent,
@@ -83,37 +84,37 @@ interface ApiConfig {
 }
 
 // ─── Constants ──────────────────────────────────────────────────────────────
-const FILTER_OPERATORS: { value: FilterOperator; label: string; desc: string }[] = [
-  { value: 'eq', label: '=', desc: 'Igual a' },
-  { value: 'neq', label: '≠', desc: 'Diferente de' },
-  { value: 'gt', label: '>', desc: 'Maior que' },
-  { value: 'gte', label: '≥', desc: 'Maior ou igual' },
-  { value: 'lt', label: '<', desc: 'Menor que' },
-  { value: 'lte', label: '≤', desc: 'Menor ou igual' },
-  { value: 'contains', label: '∈', desc: 'Contém' },
-  { value: 'startsWith', label: 'A…', desc: 'Começa com' },
-  { value: 'endsWith', label: '…Z', desc: 'Termina com' },
-  { value: 'in', label: 'IN', desc: 'Está na lista' },
-  { value: 'isNull', label: 'NULL', desc: 'É nulo' },
-  { value: 'isNotNull', label: '!NULL', desc: 'Não é nulo' },
+const FILTER_OPERATORS: { value: FilterOperator; label: string; descKey: string }[] = [
+  { value: 'eq', label: '=', descKey: 'equals' },
+  { value: 'neq', label: '≠', descKey: 'notEquals' },
+  { value: 'gt', label: '>', descKey: 'gt' },
+  { value: 'gte', label: '≥', descKey: 'gte' },
+  { value: 'lt', label: '<', descKey: 'lt' },
+  { value: 'lte', label: '≤', descKey: 'lte' },
+  { value: 'contains', label: '∈', descKey: 'contains' },
+  { value: 'startsWith', label: 'A…', descKey: 'startsWith' },
+  { value: 'endsWith', label: '…Z', descKey: 'endsWith' },
+  { value: 'in', label: 'IN', descKey: 'in' },
+  { value: 'isNull', label: 'NULL', descKey: 'isNull' },
+  { value: 'isNotNull', label: '!NULL', descKey: 'isNotNull' },
 ];
 
 // Valores dinamicos com tipos compativeis
-const DYNAMIC_VALUES: { value: string; label: string; icon: string; types: string[] }[] = [
-  { value: '{{user.email}}', label: 'Email do usuario logado', icon: '📧', types: ['text', 'email', 'hidden'] },
-  { value: '{{user.name}}', label: 'Nome do usuario logado', icon: '👤', types: ['text', 'textarea', 'hidden'] },
-  { value: '{{user.id}}', label: 'ID do usuario logado', icon: '🆔', types: ['text', 'hidden', 'relation'] },
-  { value: '{{user.role}}', label: 'Role do usuario logado', icon: '👔', types: ['text', 'select', 'hidden'] },
-  { value: '{{now}}', label: 'Data/Hora atual', icon: '🕐', types: ['datetime', 'text', 'hidden'] },
-  { value: '{{today}}', label: 'Data de hoje', icon: '📅', types: ['date', 'text', 'hidden'] },
-  { value: '{{true}}', label: 'Verdadeiro (true)', icon: '✅', types: ['boolean'] },
-  { value: '{{false}}', label: 'Falso (false)', icon: '❌', types: ['boolean'] },
-  { value: '{{startOfDay}}', label: 'Inicio do dia', icon: '🌅', types: ['datetime', 'text', 'hidden'] },
-  { value: '{{endOfDay}}', label: 'Fim do dia', icon: '🌆', types: ['datetime', 'text', 'hidden'] },
-  { value: '{{startOfMonth}}', label: 'Inicio do mes', icon: '📆', types: ['date', 'datetime', 'text', 'hidden'] },
-  { value: '{{endOfMonth}}', label: 'Fim do mes', icon: '📆', types: ['date', 'datetime', 'text', 'hidden'] },
-  { value: '{{tenant.id}}', label: 'ID do tenant', icon: '🏢', types: ['text', 'hidden', 'relation'] },
-  { value: '{{timestamp}}', label: 'Timestamp atual', icon: '⏱️', types: ['number', 'text', 'hidden'] },
+const DYNAMIC_VALUES: { value: string; labelKey: string; icon: string; types: string[] }[] = [
+  { value: '{{user.email}}', labelKey: 'userEmail', icon: '📧', types: ['text', 'email', 'hidden'] },
+  { value: '{{user.name}}', labelKey: 'userName', icon: '👤', types: ['text', 'textarea', 'hidden'] },
+  { value: '{{user.id}}', labelKey: 'userId', icon: '🆔', types: ['text', 'hidden', 'relation'] },
+  { value: '{{user.role}}', labelKey: 'userRole', icon: '👔', types: ['text', 'select', 'hidden'] },
+  { value: '{{now}}', labelKey: 'now', icon: '🕐', types: ['datetime', 'text', 'hidden'] },
+  { value: '{{today}}', labelKey: 'today', icon: '📅', types: ['date', 'text', 'hidden'] },
+  { value: '{{true}}', labelKey: 'true', icon: '✅', types: ['boolean'] },
+  { value: '{{false}}', labelKey: 'false', icon: '❌', types: ['boolean'] },
+  { value: '{{startOfDay}}', labelKey: 'startOfDay', icon: '🌅', types: ['datetime', 'text', 'hidden'] },
+  { value: '{{endOfDay}}', labelKey: 'endOfDay', icon: '🌆', types: ['datetime', 'text', 'hidden'] },
+  { value: '{{startOfMonth}}', labelKey: 'startOfMonth', icon: '📆', types: ['date', 'datetime', 'text', 'hidden'] },
+  { value: '{{endOfMonth}}', labelKey: 'endOfMonth', icon: '📆', types: ['date', 'datetime', 'text', 'hidden'] },
+  { value: '{{tenant.id}}', labelKey: 'tenantId', icon: '🏢', types: ['text', 'hidden', 'relation'] },
+  { value: '{{timestamp}}', labelKey: 'timestamp', icon: '⏱️', types: ['number', 'text', 'hidden'] },
 ];
 
 // Retorna valores dinamicos compativeis com o tipo do campo
@@ -253,13 +254,23 @@ interface CustomApiFormDialogProps {
 // MAIN COMPONENT
 // ═════════════════════════════════════════════════════════════════════════════
 export function CustomApiFormDialog({ open, onOpenChange, customApi, onSuccess }: CustomApiFormDialogProps) {
+  const t = useTranslations('apis');
+  const tCommon = useTranslations('common');
+  const tDynamic = useTranslations('apis.dynamicValues');
+  const tOperators = useTranslations('apis.filterOperators');
+  const tLabels = useTranslations('apis.labels');
+  const tTabs = useTranslations('apis.tabs');
+  const tSchedule = useTranslations('apis.schedulePresets');
+  const tTimezones = useTranslations('apis.timezones');
+  const tHttp = useTranslations('apis.httpMethod');
+  const tPlaceholders = useTranslations('placeholders');
   const [entities, setEntities] = useState<Entity[]>([]);
   const [config, setConfig] = useState<ApiConfig>(defaultConfig(customApi));
   const [activeTab, setActiveTab] = useState('basic');
 
   const isEditing = !!customApi;
-  const createCustomApi = useCreateCustomApi();
-  const updateCustomApi = useUpdateCustomApi();
+  const createCustomApi = useCreateCustomApi({ success: t('toast.created') });
+  const updateCustomApi = useUpdateCustomApi({ success: t('toast.updated') });
   const isLoading = createCustomApi.isPending || updateCustomApi.isPending;
 
   const isWriteMethod = ['POST', 'PUT', 'PATCH'].includes(config.method);
@@ -528,7 +539,7 @@ export function CustomApiFormDialog({ open, onOpenChange, customApi, onSuccess }
       <DialogContent className="sm:max-w-[800px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            {isEditing ? 'Editar API' : 'Nova API'}
+            {isEditing ? t('editApi') : t('newApi')}
             {config.method && (
               <Badge className={`${METHOD_COLORS[config.method]} text-white text-xs`}>
                 {config.method}
@@ -536,32 +547,32 @@ export function CustomApiFormDialog({ open, onOpenChange, customApi, onSuccess }
             )}
           </DialogTitle>
           <DialogDescription>
-            Configure visualmente sua API personalizada — campos, filtros, ordenação e valores.
+            {t('subtitle')}
           </DialogDescription>
         </DialogHeader>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <TabsList className="grid w-full grid-cols-3">
-            <TabsTrigger value="basic">Básico</TabsTrigger>
+            <TabsTrigger value="basic">{tTabs('basic')}</TabsTrigger>
             <TabsTrigger value="fields" disabled={!config.sourceEntityId}>
-              Campos {enabledFieldsCount > 0 && <Badge variant="secondary" className="ml-1 h-5 text-[10px]">{enabledFieldsCount}</Badge>}
+              {tTabs('fields')} {enabledFieldsCount > 0 && <Badge variant="secondary" className="ml-1 h-5 text-[10px]">{enabledFieldsCount}</Badge>}
             </TabsTrigger>
-            <TabsTrigger value="advanced" disabled={!config.sourceEntityId}>Avançado</TabsTrigger>
+            <TabsTrigger value="advanced" disabled={!config.sourceEntityId}>{tTabs('advanced')}</TabsTrigger>
           </TabsList>
 
           {/* ═══ TAB: BASIC ═══ */}
           <TabsContent value="basic" className="space-y-4 mt-4">
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
-                <Label>Nome da API</Label>
+                <Label>{tLabels('apiName')}</Label>
                 <Input
-                  placeholder="Listar Clientes VIP"
+                  placeholder={t('form.namePlaceholder')}
                   value={config.name}
                   onChange={e => update({ name: e.target.value })}
                 />
               </div>
               <div className="space-y-2">
-                <Label>Método HTTP</Label>
+                <Label>{tLabels('httpMethod')}</Label>
                 <Select value={config.method} onValueChange={v => update({ method: v as ApiConfig['method'] })}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
@@ -571,7 +582,7 @@ export function CustomApiFormDialog({ open, onOpenChange, customApi, onSuccess }
                           <span className={`inline-block w-2 h-2 rounded-full ${METHOD_COLORS[m]}`} />
                           {m}
                           <span className="text-xs text-muted-foreground ml-1">
-                            {m === 'GET' ? '(Buscar)' : m === 'POST' ? '(Criar)' : m === 'PUT' ? '(Substituir)' : m === 'PATCH' ? '(Atualizar)' : '(Deletar)'}
+                            ({tHttp(m.toLowerCase() as 'get' | 'post' | 'put' | 'patch' | 'delete')})
                           </span>
                         </div>
                       </SelectItem>
@@ -582,9 +593,9 @@ export function CustomApiFormDialog({ open, onOpenChange, customApi, onSuccess }
             </div>
 
             <div className="space-y-2">
-              <Label>Entidade (fonte dos dados)</Label>
+              <Label>{tLabels('entity')}</Label>
               <Select value={config.sourceEntityId} onValueChange={v => update({ sourceEntityId: v, selectedFields: [], filters: [], orderBy: [], groupBy: [] })}>
-                <SelectTrigger><SelectValue placeholder="Selecione a entidade..." /></SelectTrigger>
+                <SelectTrigger><SelectValue placeholder={tLabels('selectEntity')} /></SelectTrigger>
                 <SelectContent>
                   {entities.map(e => (
                     <SelectItem key={e.id} value={e.id}>
@@ -593,7 +604,7 @@ export function CustomApiFormDialog({ open, onOpenChange, customApi, onSuccess }
                         <span>{e.name}</span>
                         <span className="text-xs text-muted-foreground">/{e.slug}</span>
                         {e._count?.data !== undefined && (
-                          <Badge variant="outline" className="text-[10px] h-4">{e._count.data} reg.</Badge>
+                          <Badge variant="outline" className="text-[10px] h-4">{e._count.data} {t('form.records')}</Badge>
                         )}
                       </div>
                     </SelectItem>
@@ -604,15 +615,15 @@ export function CustomApiFormDialog({ open, onOpenChange, customApi, onSuccess }
 
             {generatedPath && (
               <div className="p-3 bg-muted/50 rounded-lg border">
-                <Label className="text-xs text-muted-foreground">Endpoint gerado</Label>
+                <Label className="text-xs text-muted-foreground">{tLabels('generatedEndpoint')}</Label>
                 <p className="font-mono text-sm mt-1">{generatedPath}</p>
               </div>
             )}
 
             <div className="space-y-2">
-              <Label>Descrição (opcional)</Label>
+              <Label>{tLabels('descriptionOptional')}</Label>
               <Textarea
-                placeholder="Descreva o que esta API faz..."
+                placeholder={t('form.descriptionPlaceholder')}
                 rows={2}
                 value={config.description}
                 onChange={e => update({ description: e.target.value })}
@@ -625,20 +636,20 @@ export function CustomApiFormDialog({ open, onOpenChange, customApi, onSuccess }
                 onCheckedChange={v => update({ mode: v ? 'code' : 'visual' })}
               />
               <div>
-                <Label className="text-sm">{config.mode === 'code' ? 'Modo Código' : 'Modo Visual'}</Label>
+                <Label className="text-sm">{config.mode === 'code' ? tLabels('modeCode') : tLabels('modeVisual')}</Label>
                 <p className="text-xs text-muted-foreground">
                   {config.mode === 'code'
-                    ? 'Escreva código personalizado para processar a requisição.'
-                    : 'Configure visualmente os campos, filtros e valores.'}
+                    ? tLabels('modeCodeDesc')
+                    : tLabels('modeVisualDesc')}
                 </p>
               </div>
             </div>
 
             {config.mode === 'code' && (
               <div className="space-y-2">
-                <Label>Código</Label>
+                <Label>{tLabels('code')}</Label>
                 <Textarea
-                  placeholder="// Seu código JavaScript aqui..."
+                  placeholder={t('form.codePlaceholder')}
                   rows={10}
                   className="font-mono text-sm"
                   value={config.code}
@@ -652,21 +663,21 @@ export function CustomApiFormDialog({ open, onOpenChange, customApi, onSuccess }
           <TabsContent value="fields" className="space-y-5 mt-4">
             {entityFields.length === 0 ? (
               <div className="text-center py-8 text-muted-foreground">
-                <p>Nenhum campo encontrado na entidade.</p>
+                <p>{tLabels('noFieldsFound')}</p>
               </div>
             ) : isWriteMethod ? (
               /* ── WRITE: campo + modo (toggle buttons) + valor inline ── */
               <>
                 <div className="flex items-center justify-between">
                   <div>
-                    <Label className="text-sm font-medium">Campos e valores</Label>
+                    <Label className="text-sm font-medium">{tLabels('fieldsAndValues')}</Label>
                     <p className="text-xs text-muted-foreground mt-0.5">
-                      Clique no modo desejado para incluir o campo. Clique novamente para remover.
+                      {tLabels('fieldsAndValuesDesc')}
                     </p>
                   </div>
                   <div className="flex gap-1">
-                    <Button variant="outline" size="sm" className="h-7 text-xs" onClick={selectAllFields}>Todos</Button>
-                    <Button variant="outline" size="sm" className="h-7 text-xs" onClick={deselectAllFields}>Limpar</Button>
+                    <Button variant="outline" size="sm" className="h-7 text-xs" onClick={selectAllFields}>{tLabels('selectAll')}</Button>
+                    <Button variant="outline" size="sm" className="h-7 text-xs" onClick={deselectAllFields}>{tLabels('clear')}</Button>
                   </div>
                 </div>
 
@@ -686,20 +697,20 @@ export function CustomApiFormDialog({ open, onOpenChange, customApi, onSuccess }
                         <span className="text-sm w-5 text-center flex-shrink-0">{FIELD_TYPE_ICONS[field.type] || '?'}</span>
                         <div className="w-[110px] flex-shrink-0 min-w-0">
                           <span className="font-medium text-xs truncate block">{field.label || field.name}</span>
-                          {field.required && <span className="text-[9px] text-destructive">obrigatório</span>}
+                          {field.required && <span className="text-[9px] text-destructive">{tCommon('required')}</span>}
                         </div>
 
                         {/* Mode toggle buttons - desabilitado se tipo nao suporta */}
                         <div className="flex gap-0.5 rounded-md border p-0.5 bg-background flex-shrink-0">
                           {([
-                            { mode: 'manual' as ValueMode, label: 'Manual', icon: <ListChecks className="h-3 w-3" />, supported: fieldSupportsManual(field.type) },
-                            { mode: 'auto' as ValueMode, label: 'Auto', icon: <Zap className="h-3 w-3" />, supported: fieldSupportsAuto(field.type) },
+                            { mode: 'manual' as ValueMode, label: t('fieldConfig.manual'), icon: <ListChecks className="h-3 w-3" />, supported: fieldSupportsManual(field.type) },
+                            { mode: 'auto' as ValueMode, label: t('fieldConfig.auto'), icon: <Zap className="h-3 w-3" />, supported: fieldSupportsAuto(field.type) },
                           ]).map(({ mode, label, icon, supported }) => (
                             <button
                               key={mode}
                               type="button"
                               disabled={!supported}
-                              title={!supported ? `Tipo "${field.type}" nao suporta modo ${label}` : undefined}
+                              title={!supported ? tLabels('typeNotSupportsMode', { type: field.type, mode: label }) : undefined}
                               className={`px-2 py-1 text-[11px] rounded flex items-center gap-1 transition-colors ${
                                 fc?.valueMode === mode
                                   ? 'bg-primary text-primary-foreground shadow-sm'
@@ -734,18 +745,18 @@ export function CustomApiFormDialog({ open, onOpenChange, customApi, onSuccess }
                               onValueChange={v => updateFieldConfig(slug, { dynamicValue: v })}
                             >
                               <SelectTrigger className="h-7 text-xs">
-                                <SelectValue placeholder="Valor automatico..." />
+                                <SelectValue placeholder={t('fieldConfig.autoValue')} />
                               </SelectTrigger>
                               <SelectContent>
                                 {getDynamicValuesForType(field.type).length > 0 ? (
                                   getDynamicValuesForType(field.type).map(dv => (
                                     <SelectItem key={dv.value} value={dv.value}>
-                                      <span className="mr-1">{dv.icon}</span> {dv.label}
+                                      <span className="mr-1">{dv.icon}</span> {tDynamic(dv.labelKey as keyof typeof tDynamic)}
                                     </SelectItem>
                                   ))
                                 ) : (
                                   <div className="px-2 py-1 text-xs text-muted-foreground">
-                                    Nenhum valor disponivel para este tipo
+                                    {tLabels('noValueAvailable')}
                                   </div>
                                 )}
                               </SelectContent>
@@ -762,14 +773,14 @@ export function CustomApiFormDialog({ open, onOpenChange, customApi, onSuccess }
               <>
                 <div className="flex items-center justify-between">
                   <div>
-                    <Label className="text-sm font-medium">Campos para retornar</Label>
+                    <Label className="text-sm font-medium">{tLabels('fieldsToReturn')}</Label>
                     <p className="text-xs text-muted-foreground mt-0.5">
-                      Clique nos campos que deseja incluir na resposta.
+                      {tLabels('fieldsToReturnDesc')}
                     </p>
                   </div>
                   <div className="flex gap-1">
-                    <Button variant="outline" size="sm" className="h-7 text-xs" onClick={selectAllFields}>Todos</Button>
-                    <Button variant="outline" size="sm" className="h-7 text-xs" onClick={deselectAllFields}>Nenhum</Button>
+                    <Button variant="outline" size="sm" className="h-7 text-xs" onClick={selectAllFields}>{tLabels('selectAll')}</Button>
+                    <Button variant="outline" size="sm" className="h-7 text-xs" onClick={deselectAllFields}>{tLabels('selectNone')}</Button>
                   </div>
                 </div>
 
@@ -802,18 +813,18 @@ export function CustomApiFormDialog({ open, onOpenChange, customApi, onSuccess }
                   <div className="flex items-center justify-between mb-3">
                     <div className="flex items-center gap-2">
                       <Filter className="h-4 w-4 text-muted-foreground" />
-                      <Label className="text-sm font-medium">Filtros</Label>
+                      <Label className="text-sm font-medium">{tLabels('filters')}</Label>
                       <span className="text-[10px] text-muted-foreground">
-                        {isWriteMethod ? '— quais registros afetar' : '— condições da busca'}
+                        — {isWriteMethod ? tLabels('filtersWriteCondition') : tLabels('filtersReadCondition')}
                       </span>
                     </div>
                     <Button variant="outline" size="sm" className="h-7 text-xs" onClick={addFilter}>
-                      <Plus className="h-3 w-3 mr-1" /> Filtro
+                      <Plus className="h-3 w-3 mr-1" /> {tLabels('addFilter')}
                     </Button>
                   </div>
                   {config.filters.length === 0 && (
                     <p className="text-xs text-muted-foreground py-1">
-                      {isWriteMethod ? 'Sem filtros — afetará todos os registros.' : 'Sem filtros — retornará todos os registros.'}
+                      {isWriteMethod ? tLabels('noFiltersWrite') : tLabels('noFiltersRead')}
                     </p>
                   )}
                   {config.filters.map((filter, idx) => (
@@ -834,7 +845,7 @@ export function CustomApiFormDialog({ open, onOpenChange, customApi, onSuccess }
                           <SelectContent>
                             {FILTER_OPERATORS.map(op => (
                               <SelectItem key={op.value} value={op.value}>
-                                <span className="font-mono mr-1">{op.label}</span> {op.desc}
+                                <span className="font-mono mr-1">{op.label}</span> {tOperators(op.descKey as keyof typeof tOperators)}
                               </SelectItem>
                             ))}
                           </SelectContent>
@@ -842,20 +853,20 @@ export function CustomApiFormDialog({ open, onOpenChange, customApi, onSuccess }
                         <Select value={filter.valueMode} onValueChange={v => updateFilter(idx, { valueMode: v as ValueMode })}>
                           <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="manual">Manual</SelectItem>
-                            <SelectItem value="auto">Auto</SelectItem>
+                            <SelectItem value="manual">{t('fieldConfig.manual')}</SelectItem>
+                            <SelectItem value="auto">{t('fieldConfig.auto')}</SelectItem>
                           </SelectContent>
                         </Select>
                         {filter.valueMode === 'manual' && !['isNull', 'isNotNull'].includes(filter.operator) && (
-                          <Input className="h-8 text-xs" placeholder="Valor..." value={filter.manualValue || ''} onChange={e => updateFilter(idx, { manualValue: e.target.value })} />
+                          <Input className="h-8 text-xs" placeholder={tLabels('value')} value={filter.manualValue || ''} onChange={e => updateFilter(idx, { manualValue: e.target.value })} />
                         )}
                         {filter.valueMode === 'auto' && (
                           <Select value={filter.dynamicValue || ''} onValueChange={v => updateFilter(idx, { dynamicValue: v })}>
-                            <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Valor automatico..." /></SelectTrigger>
+                            <SelectTrigger className="h-8 text-xs"><SelectValue placeholder={t('fieldConfig.autoValue')} /></SelectTrigger>
                             <SelectContent>
                               {DYNAMIC_VALUES.map(dv => (
                                 <SelectItem key={dv.value} value={dv.value}>
-                                  <span className="mr-1">{dv.icon}</span> {dv.label}
+                                  <span className="mr-1">{dv.icon}</span> {tDynamic(dv.labelKey as keyof typeof tDynamic)}
                                 </SelectItem>
                               ))}
                             </SelectContent>
@@ -876,14 +887,14 @@ export function CustomApiFormDialog({ open, onOpenChange, customApi, onSuccess }
                       <div className="flex items-center justify-between mb-3">
                         <div className="flex items-center gap-2">
                           <SortAsc className="h-4 w-4 text-muted-foreground" />
-                          <Label className="text-sm font-medium">Ordenação</Label>
+                          <Label className="text-sm font-medium">{tLabels('ordering')}</Label>
                         </div>
                         <Button variant="outline" size="sm" className="h-7 text-xs" onClick={addSort}>
-                          <Plus className="h-3 w-3 mr-1" /> Ordem
+                          <Plus className="h-3 w-3 mr-1" /> {tLabels('addOrder')}
                         </Button>
                       </div>
                       {config.orderBy.length === 0 && (
-                        <p className="text-xs text-muted-foreground py-1">Ordem padrão (mais recente primeiro).</p>
+                        <p className="text-xs text-muted-foreground py-1">{tLabels('defaultOrder')}</p>
                       )}
                       {config.orderBy.map((sort, idx) => (
                         <div key={idx} className="flex items-center gap-2 p-2 bg-muted/30 rounded-lg border mb-2">
@@ -900,8 +911,8 @@ export function CustomApiFormDialog({ open, onOpenChange, customApi, onSuccess }
                           <Select value={sort.direction} onValueChange={v => updateSort(idx, { direction: v as SortDirection })}>
                             <SelectTrigger className="h-8 w-[140px] text-xs"><SelectValue /></SelectTrigger>
                             <SelectContent>
-                              <SelectItem value="asc">↑ Crescente</SelectItem>
-                              <SelectItem value="desc">↓ Decrescente</SelectItem>
+                              <SelectItem value="asc">↑ {tLabels('ascending')}</SelectItem>
+                              <SelectItem value="desc">↓ {tLabels('descending')}</SelectItem>
                             </SelectContent>
                           </Select>
                           <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => removeSort(idx)}>
@@ -913,17 +924,17 @@ export function CustomApiFormDialog({ open, onOpenChange, customApi, onSuccess }
 
                     <div className="border-t pt-4 grid gap-4 sm:grid-cols-3">
                       <div className="space-y-1.5">
-                        <Label className="text-xs">Limite</Label>
+                        <Label className="text-xs">{tLabels('limit')}</Label>
                         <Input
                           type="number"
                           className="h-8 text-sm"
-                          placeholder="Sem limite"
+                          placeholder={tLabels('noLimit')}
                           value={config.limitRecords ?? ''}
                           onChange={e => update({ limitRecords: e.target.value ? Number(e.target.value) : null })}
                         />
                       </div>
                       <div className="space-y-1.5">
-                        <Label className="text-xs">Offset</Label>
+                        <Label className="text-xs">{tLabels('offset')}</Label>
                         <Input
                           type="number"
                           className="h-8 text-sm"
@@ -935,7 +946,7 @@ export function CustomApiFormDialog({ open, onOpenChange, customApi, onSuccess }
                       <div className="flex items-end">
                         <div className="flex items-center gap-2 pb-1">
                           <Switch checked={config.distinct} onCheckedChange={v => update({ distinct: v })} />
-                          <Label className="text-xs">Apenas únicos</Label>
+                          <Label className="text-xs">{tLabels('distinctOnly')}</Label>
                         </div>
                       </div>
                     </div>
@@ -952,7 +963,7 @@ export function CustomApiFormDialog({ open, onOpenChange, customApi, onSuccess }
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <Clock className="h-4 w-4 text-muted-foreground" />
-                  <Label className="text-sm font-medium">Agendamento</Label>
+                  <Label className="text-sm font-medium">{tLabels('schedule')}</Label>
                 </div>
                 <Switch
                   checked={config.schedule.enabled}
@@ -960,12 +971,12 @@ export function CustomApiFormDialog({ open, onOpenChange, customApi, onSuccess }
                 />
               </div>
               <p className="text-xs text-muted-foreground">
-                Execute esta API automaticamente em intervalos programados.
+                {tLabels('scheduleDesc')}
               </p>
               {config.schedule.enabled && (
                 <div className="grid gap-3 sm:grid-cols-2 pt-2">
                   <div className="space-y-2">
-                    <Label className="text-xs">Expressão Cron</Label>
+                    <Label className="text-xs">{tLabels('cronExpression')}</Label>
                     <Input
                       className="h-8 text-sm font-mono"
                       placeholder="0 8 * * *"
@@ -974,12 +985,12 @@ export function CustomApiFormDialog({ open, onOpenChange, customApi, onSuccess }
                     />
                     <div className="flex flex-wrap gap-1.5">
                       {[
-                        { label: 'Todo dia 8h', value: '0 8 * * *' },
-                        { label: 'A cada hora', value: '0 * * * *' },
-                        { label: 'Seg-Sex 9h', value: '0 9 * * 1-5' },
-                        { label: 'A cada 30min', value: '*/30 * * * *' },
-                        { label: 'Meia-noite', value: '0 0 * * *' },
-                        { label: '1º do mês', value: '0 0 1 * *' },
+                        { label: tSchedule('everyDay8am'), value: '0 8 * * *' },
+                        { label: tSchedule('everyHour'), value: '0 * * * *' },
+                        { label: tSchedule('monFri9am'), value: '0 9 * * 1-5' },
+                        { label: tSchedule('every30min'), value: '*/30 * * * *' },
+                        { label: tSchedule('midnight'), value: '0 0 * * *' },
+                        { label: tSchedule('firstOfMonth'), value: '0 0 1 * *' },
                       ].map(preset => (
                         <Badge
                           key={preset.value}
@@ -993,18 +1004,18 @@ export function CustomApiFormDialog({ open, onOpenChange, customApi, onSuccess }
                     </div>
                   </div>
                   <div className="space-y-2">
-                    <Label className="text-xs">Fuso horário</Label>
+                    <Label className="text-xs">{tLabels('timezone')}</Label>
                     <Select
                       value={config.schedule.timezone || 'America/Sao_Paulo'}
                       onValueChange={v => update({ schedule: { ...config.schedule, timezone: v } })}
                     >
                       <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="America/Sao_Paulo">São Paulo (BRT -3)</SelectItem>
-                        <SelectItem value="America/Manaus">Manaus (AMT -4)</SelectItem>
-                        <SelectItem value="America/New_York">New York (EST -5)</SelectItem>
-                        <SelectItem value="Europe/London">London (GMT 0)</SelectItem>
-                        <SelectItem value="UTC">UTC</SelectItem>
+                        <SelectItem value="America/Sao_Paulo">{tTimezones('saoPaulo')}</SelectItem>
+                        <SelectItem value="America/Manaus">{tTimezones('manaus')}</SelectItem>
+                        <SelectItem value="America/New_York">{tTimezones('newYork')}</SelectItem>
+                        <SelectItem value="Europe/London">{tTimezones('london')}</SelectItem>
+                        <SelectItem value="UTC">{tTimezones('utc')}</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -1016,22 +1027,22 @@ export function CustomApiFormDialog({ open, onOpenChange, customApi, onSuccess }
             <div className="space-y-3 p-4 rounded-lg border bg-blue-50 dark:bg-blue-950/20">
               <div className="flex items-center gap-2">
                 <Info className="h-4 w-4 text-blue-500" />
-                <Label className="text-sm font-medium text-blue-700 dark:text-blue-300">Exemplos de uso</Label>
+                <Label className="text-sm font-medium text-blue-700 dark:text-blue-300">{tLabels('usageExamples')}</Label>
               </div>
               <div className="space-y-2 text-xs text-blue-600 dark:text-blue-400">
                 {isWriteMethod ? (
                   <>
-                    <p>• <strong>Marcar como concluido:</strong> PATCH + campo <code>concluido</code> = Manual <code>true</code></p>
-                    <p>• <strong>Atribuir ao usuario:</strong> campo <code>responsavel_email</code> = Auto <code>{'{{user.email}}'}</code></p>
-                    <p>• <strong>Registrar data:</strong> campo <code>concluido_em</code> = Auto <code>{'{{now}}'}</code></p>
-                    <p>• <strong>Valor fixo:</strong> campo <code>status</code> = Manual <code>aberto</code></p>
+                    <p>• <strong>PATCH + <code>completed</code> = Manual <code>true</code></strong></p>
+                    <p>• <strong><code>responsible_email</code> = Auto <code>{'{{user.email}}'}</code></strong></p>
+                    <p>• <strong><code>completed_at</code> = Auto <code>{'{{now}}'}</code></strong></p>
+                    <p>• <strong><code>status</code> = Manual <code>open</code></strong></p>
                   </>
                 ) : (
                   <>
-                    <p>• <strong>Clientes VIP:</strong> Filtro <code>tipo = VIP</code> + Ordenar por <code>nome ASC</code></p>
-                    <p>• <strong>Ultimos 10:</strong> Ordenar por <code>createdAt DESC</code> + Limite <code>10</code></p>
-                    <p>• <strong>Meus registros:</strong> Filtro <code>email = {'{{user.email}}'}</code></p>
-                    <p>• <strong>Criados hoje:</strong> Filtro <code>createdAt {'>='} {'{{startOfDay}}'}</code></p>
+                    <p>• <strong><code>type = VIP</code> + Order by <code>name ASC</code></strong></p>
+                    <p>• <strong>Order by <code>createdAt DESC</code> + Limit <code>10</code></strong></p>
+                    <p>• <strong><code>email = {'{{user.email}}'}</code></strong></p>
+                    <p>• <strong><code>createdAt {'>='} {'{{startOfDay}}'}</code></strong></p>
                   </>
                 )}
               </div>
@@ -1039,16 +1050,16 @@ export function CustomApiFormDialog({ open, onOpenChange, customApi, onSuccess }
 
             {/* Summary */}
             <div className="space-y-2 p-4 rounded-lg border bg-muted/30">
-              <Label className="text-sm font-medium">Resumo da API</Label>
+              <Label className="text-sm font-medium">{tLabels('apiSummary')}</Label>
               <div className="text-xs space-y-1 text-muted-foreground">
-                <p><strong>Método:</strong> <Badge className={`${METHOD_COLORS[config.method]} text-white text-[10px]`}>{config.method}</Badge></p>
-                <p><strong>Entidade:</strong> {selectedEntity?.name || '—'}</p>
-                <p><strong>Campos:</strong> {enabledFieldsCount} de {entityFields.length}</p>
-                <p><strong>Filtros:</strong> {config.filters.length}</p>
-                {!isWriteMethod && <p><strong>Ordenação:</strong> {config.orderBy.length || 'padrão'}</p>}
-                {!isWriteMethod && <p><strong>Agrupamento:</strong> {config.groupBy.length || 'nenhum'}</p>}
-                {config.limitRecords && <p><strong>Limite:</strong> {config.limitRecords}</p>}
-                {config.schedule.enabled && <p><strong>Agendamento:</strong> {config.schedule.cron}</p>}
+                <p><strong>{tLabels('method')}:</strong> <Badge className={`${METHOD_COLORS[config.method]} text-white text-[10px]`}>{config.method}</Badge></p>
+                <p><strong>{tLabels('entity')}:</strong> {selectedEntity?.name || '—'}</p>
+                <p><strong>{tLabels('fields')}:</strong> {enabledFieldsCount} {tCommon('of')} {entityFields.length}</p>
+                <p><strong>{tLabels('filters')}:</strong> {config.filters.length}</p>
+                {!isWriteMethod && <p><strong>{tLabels('ordering')}:</strong> {config.orderBy.length || tLabels('default')}</p>}
+                {!isWriteMethod && <p><strong>{tLabels('grouping')}:</strong> {config.groupBy.length || tLabels('noneValue')}</p>}
+                {config.limitRecords && <p><strong>{tLabels('limit')}:</strong> {config.limitRecords}</p>}
+                {config.schedule.enabled && <p><strong>{tLabels('schedule')}:</strong> {config.schedule.cron}</p>}
               </div>
             </div>
           </TabsContent>
@@ -1056,13 +1067,13 @@ export function CustomApiFormDialog({ open, onOpenChange, customApi, onSuccess }
 
         <DialogFooter className="mt-4">
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-            Cancelar
+            {tCommon('cancel')}
           </Button>
           <Button
             onClick={handleSubmit}
             disabled={isLoading || !config.name.trim() || !config.sourceEntityId}
           >
-            {isLoading ? 'Salvando...' : isEditing ? 'Salvar Alterações' : 'Criar API'}
+            {isLoading ? tCommon('saving') : isEditing ? tCommon('save') : tCommon('create')}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -1105,16 +1116,18 @@ function ValueInput({
   value: string;
   onChange: (v: string) => void;
 }) {
+  const tLabels = useTranslations('apis.labels');
+  const tPlaceholders = useTranslations('placeholders');
   const inputClass = "h-7 flex-1 text-xs";
 
   switch (fieldType) {
     case 'boolean':
       return (
         <Select value={value || ''} onValueChange={onChange}>
-          <SelectTrigger className="h-7 flex-1 text-xs"><SelectValue placeholder="Escolha..." /></SelectTrigger>
+          <SelectTrigger className="h-7 flex-1 text-xs"><SelectValue placeholder={tLabels('chooseOption')} /></SelectTrigger>
           <SelectContent>
-            <SelectItem value="true">Verdadeiro (true)</SelectItem>
-            <SelectItem value="false">Falso (false)</SelectItem>
+            <SelectItem value="true">{tLabels('trueValue')}</SelectItem>
+            <SelectItem value="false">{tLabels('falseValue')}</SelectItem>
           </SelectContent>
         </Select>
       );
@@ -1124,7 +1137,7 @@ function ValueInput({
       if (fieldOptions && fieldOptions.length > 0) {
         return (
           <Select value={value || ''} onValueChange={onChange}>
-            <SelectTrigger className="h-7 flex-1 text-xs"><SelectValue placeholder="Escolha..." /></SelectTrigger>
+            <SelectTrigger className="h-7 flex-1 text-xs"><SelectValue placeholder={tLabels('chooseOption')} /></SelectTrigger>
             <SelectContent>
               {fieldOptions.map((opt, i) => {
                 const optValue = typeof opt === 'object' ? opt.value : opt;
@@ -1143,7 +1156,7 @@ function ValueInput({
           </Select>
         );
       }
-      return <Input className={inputClass} placeholder="Valor..." value={value} onChange={e => onChange(e.target.value)} />;
+      return <Input className={inputClass} placeholder={tLabels('value')} value={value} onChange={e => onChange(e.target.value)} />;
 
     case 'date':
       return <Input type="date" className={inputClass} value={value} onChange={e => onChange(e.target.value)} />;
@@ -1176,38 +1189,38 @@ function ValueInput({
       );
 
     case 'email':
-      return <Input type="email" className={inputClass} placeholder="email@exemplo.com" value={value} onChange={e => onChange(e.target.value)} />;
+      return <Input type="email" className={inputClass} placeholder={tPlaceholders('email')} value={value} onChange={e => onChange(e.target.value)} />;
 
     case 'url':
-      return <Input type="url" className={inputClass} placeholder="https://exemplo.com" value={value} onChange={e => onChange(e.target.value)} />;
+      return <Input type="url" className={inputClass} placeholder={tPlaceholders('url')} value={value} onChange={e => onChange(e.target.value)} />;
 
     case 'phone':
-      return <Input type="tel" className={inputClass} placeholder="(00) 00000-0000" value={value} onChange={e => onChange(applyPhoneMask(e.target.value))} maxLength={15} />;
+      return <Input type="tel" className={inputClass} placeholder={tPlaceholders('phone')} value={value} onChange={e => onChange(applyPhoneMask(e.target.value))} maxLength={15} />;
 
     case 'cpf':
-      return <Input className={inputClass} placeholder="000.000.000-00" value={value} onChange={e => onChange(applyCpfMask(e.target.value))} maxLength={14} />;
+      return <Input className={inputClass} placeholder={tPlaceholders('cpf')} value={value} onChange={e => onChange(applyCpfMask(e.target.value))} maxLength={14} />;
 
     case 'cnpj':
-      return <Input className={inputClass} placeholder="00.000.000/0000-00" value={value} onChange={e => onChange(applyCnpjMask(e.target.value))} maxLength={18} />;
+      return <Input className={inputClass} placeholder={tPlaceholders('cnpj')} value={value} onChange={e => onChange(applyCnpjMask(e.target.value))} maxLength={18} />;
 
     case 'cep':
-      return <Input className={inputClass} placeholder="00000-000" value={value} onChange={e => onChange(applyCepMask(e.target.value))} maxLength={9} />;
+      return <Input className={inputClass} placeholder={tPlaceholders('cep')} value={value} onChange={e => onChange(applyCepMask(e.target.value))} maxLength={9} />;
 
     case 'color':
       return (
         <div className="flex gap-1 flex-1 items-center">
           <input type="color" className="h-7 w-8 rounded cursor-pointer border p-0.5" value={value || '#000000'} onChange={e => onChange(e.target.value)} />
-          <Input className={inputClass} value={value} onChange={e => onChange(e.target.value)} placeholder="#000000" />
+          <Input className={inputClass} value={value} onChange={e => onChange(e.target.value)} placeholder={tPlaceholders('color')} />
         </div>
       );
 
     case 'textarea':
     case 'richtext':
-      return <Textarea className="h-16 flex-1 text-xs resize-none" placeholder="Digite o texto..." value={value} onChange={e => onChange(e.target.value)} />;
+      return <Textarea className="h-16 flex-1 text-xs resize-none" placeholder={tLabels('value')} value={value} onChange={e => onChange(e.target.value)} />;
 
     case 'text':
     case 'hidden':
     default:
-      return <Input className={inputClass} placeholder="Valor..." value={value} onChange={e => onChange(e.target.value)} />;
+      return <Input className={inputClass} placeholder={tLabels('value')} value={value} onChange={e => onChange(e.target.value)} />;
   }
 }

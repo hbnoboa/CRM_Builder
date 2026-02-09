@@ -3,30 +3,35 @@ import { toast } from 'sonner';
 import { authService, UpdateProfileData } from '@/services/auth.service';
 import { useAuthStore } from '@/stores/auth-store';
 
-export function useUpdateProfile() {
+interface MutationMessages {
+  success?: string;
+  error?: string;
+}
+
+export function useUpdateProfile(messages?: MutationMessages) {
   const { setUser } = useAuthStore();
 
   return useMutation({
     mutationFn: (data: UpdateProfileData) => authService.updateProfile(data),
     onSuccess: (updatedUser) => {
       setUser(updatedUser);
-      toast.success('Perfil atualizado com sucesso');
+      if (messages?.success) toast.success(messages.success);
     },
     onError: (error: Error) => {
-      toast.error(error.message || 'Erro ao atualizar perfil');
+      toast.error(messages?.error || error.message);
     },
   });
 }
 
-export function useChangePassword() {
+export function useChangePassword(messages?: MutationMessages) {
   return useMutation({
     mutationFn: ({ currentPassword, newPassword }: { currentPassword: string; newPassword: string }) =>
       authService.changePassword(currentPassword, newPassword),
     onSuccess: () => {
-      toast.success('Senha alterada com sucesso');
+      if (messages?.success) toast.success(messages.success);
     },
     onError: (error: Error) => {
-      toast.error(error.message || 'Erro ao alterar senha');
+      toast.error(messages?.error || error.message);
     },
   });
 }

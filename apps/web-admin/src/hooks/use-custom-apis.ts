@@ -29,22 +29,27 @@ export function useCustomApi(id: string) {
   });
 }
 
-export function useCreateCustomApi() {
+interface MutationMessages {
+  success?: string;
+  error?: string;
+}
+
+export function useCreateCustomApi(messages?: MutationMessages) {
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: (data: CreateCustomApiData) => customApisService.create(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: customApiKeys.lists() });
-      toast.success('API criada com sucesso');
+      if (messages?.success) toast.success(messages.success);
     },
     onError: (error: Error) => {
-      toast.error(error.message || 'Erro ao criar API');
+      toast.error(messages?.error || error.message);
     },
   });
 }
 
-export function useUpdateCustomApi() {
+export function useUpdateCustomApi(messages?: MutationMessages) {
   const queryClient = useQueryClient();
 
   return useMutation({
@@ -53,30 +58,30 @@ export function useUpdateCustomApi() {
     onSuccess: (_, { id }) => {
       queryClient.invalidateQueries({ queryKey: customApiKeys.lists() });
       queryClient.invalidateQueries({ queryKey: customApiKeys.detail(id) });
-      toast.success('API atualizada com sucesso');
+      if (messages?.success) toast.success(messages.success);
     },
     onError: (error: Error) => {
-      toast.error(error.message || 'Erro ao atualizar API');
+      toast.error(messages?.error || error.message);
     },
   });
 }
 
-export function useDeleteCustomApi() {
+export function useDeleteCustomApi(messages?: MutationMessages) {
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: (id: string) => customApisService.delete(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: customApiKeys.lists() });
-      toast.success('API excluida com sucesso');
+      if (messages?.success) toast.success(messages.success);
     },
     onError: (error: Error) => {
-      toast.error(error.message || 'Erro ao excluir API');
+      toast.error(messages?.error || error.message);
     },
   });
 }
 
-export function useActivateCustomApi() {
+export function useActivateCustomApi(messages?: MutationMessages) {
   const queryClient = useQueryClient();
 
   return useMutation({
@@ -84,15 +89,15 @@ export function useActivateCustomApi() {
     onSuccess: (_, id) => {
       queryClient.invalidateQueries({ queryKey: customApiKeys.lists() });
       queryClient.invalidateQueries({ queryKey: customApiKeys.detail(id) });
-      toast.success('API ativada com sucesso');
+      if (messages?.success) toast.success(messages.success);
     },
     onError: (error: Error) => {
-      toast.error(error.message || 'Erro ao ativar API');
+      toast.error(messages?.error || error.message);
     },
   });
 }
 
-export function useDeactivateCustomApi() {
+export function useDeactivateCustomApi(messages?: MutationMessages) {
   const queryClient = useQueryClient();
 
   return useMutation({
@@ -100,23 +105,23 @@ export function useDeactivateCustomApi() {
     onSuccess: (_, id) => {
       queryClient.invalidateQueries({ queryKey: customApiKeys.lists() });
       queryClient.invalidateQueries({ queryKey: customApiKeys.detail(id) });
-      toast.success('API desativada com sucesso');
+      if (messages?.success) toast.success(messages.success);
     },
     onError: (error: Error) => {
-      toast.error(error.message || 'Erro ao desativar API');
+      toast.error(messages?.error || error.message);
     },
   });
 }
 
-export function useTestCustomApi() {
+export function useTestCustomApi(messages?: MutationMessages) {
   return useMutation({
     mutationFn: ({ id, payload }: { id: string; payload?: Record<string, unknown> }) =>
       customApisService.test(id, payload),
     onSuccess: () => {
-      toast.success('Teste executado com sucesso');
+      if (messages?.success) toast.success(messages.success);
     },
     onError: (error: Error) => {
-      toast.error(error.message || 'Erro ao testar API');
+      toast.error(messages?.error || error.message);
     },
   });
 }

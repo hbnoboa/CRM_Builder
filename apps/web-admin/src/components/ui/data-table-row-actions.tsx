@@ -2,6 +2,7 @@
 
 import { Row } from "@tanstack/react-table"
 import { MoreHorizontal, Pencil, Trash2, Eye } from "lucide-react"
+import { useTranslations } from "next-intl"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -25,6 +26,8 @@ export function DataTableRowActions<TData>({
   onEdit,
   onDelete,
 }: DataTableRowActionsProps<TData>) {
+  const tCommon = useTranslations('common')
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -33,20 +36,20 @@ export function DataTableRowActions<TData>({
           className="flex h-8 w-8 p-0 data-[state=open]:bg-muted"
         >
           <MoreHorizontal className="h-4 w-4" />
-          <span className="sr-only">Abrir menu</span>
+          <span className="sr-only">{tCommon('actions')}</span>
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-[160px]">
         {onView && (
           <DropdownMenuItem onClick={() => onView(row.original)}>
             <Eye className="mr-2 h-4 w-4" />
-            Visualizar
+            {tCommon('view')}
           </DropdownMenuItem>
         )}
         {onEdit && (
           <DropdownMenuItem onClick={() => onEdit(row.original)}>
             <Pencil className="mr-2 h-4 w-4" />
-            Editar
+            {tCommon('edit')}
           </DropdownMenuItem>
         )}
         {(onView || onEdit) && onDelete && <DropdownMenuSeparator />}
@@ -56,7 +59,7 @@ export function DataTableRowActions<TData>({
             className="text-destructive focus:text-destructive"
           >
             <Trash2 className="mr-2 h-4 w-4" />
-            Excluir
+            {tCommon('delete')}
           </DropdownMenuItem>
         )}
       </DropdownMenuContent>

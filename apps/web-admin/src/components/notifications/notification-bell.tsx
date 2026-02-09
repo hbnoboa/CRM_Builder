@@ -3,7 +3,8 @@
 import { useState } from 'react';
 import { Bell, Check, CheckCheck, Trash2, X, Info, CheckCircle, AlertTriangle, XCircle } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
+import { ptBR, enUS, es } from 'date-fns/locale';
+import { useTranslations, useLocale } from 'next-intl';
 import { Button } from '@/components/ui/button';
 import {
   Popover,
@@ -28,7 +29,11 @@ const notificationColors = {
   error: 'text-red-500 bg-red-500/10',
 };
 
+const dateLocales = { 'pt-BR': ptBR, en: enUS, es };
+
 export function NotificationBell() {
+  const t = useTranslations('notifications');
+  const locale = useLocale();
   const [open, setOpen] = useState(false);
   const {
     notifications,
@@ -68,7 +73,7 @@ export function NotificationBell() {
       </PopoverTrigger>
       <PopoverContent className="w-80 p-0" align="end">
         <div className="flex items-center justify-between border-b px-4 py-3">
-          <h4 className="font-semibold">Notifications</h4>
+          <h4 className="font-semibold">{t('title')}</h4>
           <div className="flex items-center gap-1">
             {notifications.length > 0 && (
               <>
@@ -79,7 +84,7 @@ export function NotificationBell() {
                   className="h-8 px-2 text-xs"
                 >
                   <CheckCheck className="h-3 w-3 mr-1" />
-                  Marcar todas
+                  {t('markAllRead')}
                 </Button>
                 <Button
                   variant="ghost"
@@ -98,7 +103,7 @@ export function NotificationBell() {
           {notifications.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
               <Bell className="h-10 w-10 mb-2 opacity-50" />
-              <p className="text-sm">Noa notification</p>
+              <p className="text-sm">{t('noNotifications')}</p>
             </div>
           ) : (
             <div className="divide-y">
@@ -146,7 +151,7 @@ export function NotificationBell() {
                       <p className="text-xs text-muted-foreground mt-1">
                         {formatDistanceToNow(new Date(notification.timestamp), {
                           addSuffix: true,
-                          locale: ptBR,
+                          locale: dateLocales[locale as keyof typeof dateLocales] || enUS,
                         })}
                       </p>
                     </div>

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useTranslations, useLocale } from 'next-intl';
 import {
   Plus,
   Search,
@@ -38,12 +39,6 @@ const statusColors: Record<string, string> = {
   INACTIVE: 'bg-gray-100 text-gray-800',
 };
 
-const statusLabels: Record<string, string> = {
-  ACTIVE: 'Ativo',
-  SUSPENDED: 'Suspenso',
-  INACTIVE: 'Inativo',
-};
-
 const planColors: Record<string, string> = {
   free: 'bg-gray-100 text-gray-800',
   basic: 'bg-blue-100 text-blue-800',
@@ -52,6 +47,11 @@ const planColors: Record<string, string> = {
 };
 
 export default function TenantsPage() {
+  const t = useTranslations('tenants');
+  const tCommon = useTranslations('common');
+  const tNav = useTranslations('navigation');
+  const tAuth = useTranslations('auth');
+  const locale = useLocale();
   const { user } = useAuthStore();
   const isPlatformAdmin = user?.role === 'PLATFORM_ADMIN';
 
@@ -61,8 +61,12 @@ export default function TenantsPage() {
   const [selectedTenant, setSelectedTenant] = useState<Tenant | null>(null);
 
   const { data, isLoading, refetch } = useTenants();
-  const suspendTenant = useSuspendTenant();
-  const activateTenant = useActivateTenant();
+  const suspendTenant = useSuspendTenant({
+    success: t('toast.suspended'),
+  });
+  const activateTenant = useActivateTenant({
+    success: t('toast.activated'),
+  });
 
   const tenants = Array.isArray(data?.data) ? data.data : [];
 
@@ -79,14 +83,14 @@ export default function TenantsPage() {
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-8 sm:py-12">
             <ShieldAlert className="h-12 w-12 sm:h-16 sm:w-16 text-destructive mb-4" />
-            <h2 className="text-lg sm:text-xl font-semibold mb-2">Acesso Restrito</h2>
+            <h2 className="text-lg sm:text-xl font-semibold mb-2">{t('accessRestricted')}</h2>
             <p className="text-muted-foreground text-center mb-4 text-sm sm:text-base px-2">
-              Esta pagina e restrita a administradores da plataforma (PLATFORM_ADMIN).
+              {t('platformAdminOnly')}
             </p>
             <Link href="/dashboard">
               <Button variant="outline">
                 <ArrowLeft className="h-4 w-4 mr-2" />
-                Voltar ao Dashboard
+                {tAuth('backToDashboard')}
               </Button>
             </Link>
           </CardContent>
@@ -134,22 +138,22 @@ export default function TenantsPage() {
     <div className="space-y-6">
       {/* Breadcrumbs */}
       <nav className="mb-2 flex items-center gap-2 text-sm text-muted-foreground" aria-label="breadcrumb">
-        <Link href="/dashboard" className="hover:underline">Dashboard</Link>
+        <Link href="/dashboard" className="hover:underline">{tNav('dashboard')}</Link>
         <span>/</span>
-        <span className="font-semibold text-foreground">Tenants</span>
+        <span className="font-semibold text-foreground">{tNav('tenants')}</span>
       </nav>
 
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-bold">Tenants</h1>
+          <h1 className="text-2xl sm:text-3xl font-bold">{t('title')}</h1>
           <p className="text-muted-foreground mt-1 text-sm sm:text-base">
-            Gerencie os tenants da plataforma
+            {t('subtitle')}
           </p>
         </div>
         <Button onClick={handleCreateTenant} className="w-full sm:w-auto">
           <Plus className="h-4 w-4 mr-2" />
-          Novo Tenant
+          {t('newTenant')}
         </Button>
       </div>
 
@@ -158,31 +162,31 @@ export default function TenantsPage() {
         <Card>
           <CardContent className="p-3 sm:p-4">
             <div className="text-xl sm:text-2xl font-bold">{tenants.length}</div>
-            <p className="text-xs sm:text-sm text-muted-foreground">Total de Tenants</p>
+            <p className="text-xs sm:text-sm text-muted-foreground">{t('stats.total')}</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-3 sm:p-4">
             <div className="text-xl sm:text-2xl font-bold text-green-600">
-              {tenants.filter((t: Tenant) => t.status === 'ACTIVE').length}
+              {tenants.filter((tenant: Tenant) => tenant.status === 'ACTIVE').length}
             </div>
-            <p className="text-xs sm:text-sm text-muted-foreground">Ativos</p>
+            <p className="text-xs sm:text-sm text-muted-foreground">{t('stats.active')}</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-3 sm:p-4">
             <div className="text-xl sm:text-2xl font-bold text-yellow-600">
-              {tenants.filter((t: Tenant) => t.status === 'SUSPENDED').length}
+              {tenants.filter((tenant: Tenant) => tenant.status === 'SUSPENDED').length}
             </div>
-            <p className="text-xs sm:text-sm text-muted-foreground">Suspensos</p>
+            <p className="text-xs sm:text-sm text-muted-foreground">{t('stats.suspended')}</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-3 sm:p-4">
             <div className="text-xl sm:text-2xl font-bold text-purple-600">
-              {tenants.filter((t: Tenant) => t.plan === 'pro' || t.plan === 'enterprise').length}
+              {tenants.filter((tenant: Tenant) => tenant.plan === 'pro' || tenant.plan === 'enterprise').length}
             </div>
-            <p className="text-xs sm:text-sm text-muted-foreground">Planos Premium</p>
+            <p className="text-xs sm:text-sm text-muted-foreground">{t('stats.premium')}</p>
           </CardContent>
         </Card>
       </div>
@@ -191,7 +195,7 @@ export default function TenantsPage() {
       <div className="relative w-full sm:max-w-md">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
         <Input
-          placeholder="Buscar tenants..."
+          placeholder={t('searchPlaceholder')}
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className="pl-9"
@@ -219,16 +223,16 @@ export default function TenantsPage() {
         <Card>
           <CardContent className="p-6 sm:p-12 text-center">
             <Building2 className="h-10 w-10 sm:h-12 sm:w-12 mx-auto text-muted-foreground mb-4" />
-            <h3 className="text-base sm:text-lg font-semibold mb-2">Nenhum tenant encontrado</h3>
+            <h3 className="text-base sm:text-lg font-semibold mb-2">{t('noTenantsFound')}</h3>
             <p className="text-muted-foreground mb-4 text-sm sm:text-base">
               {search
-                ? 'Nenhum tenant corresponde a sua busca.'
-                : 'Crie tenants para comecar.'}
+                ? t('noTenantsMatchSearch')
+                : t('createTenantsToStart')}
             </p>
             {!search && (
               <Button onClick={handleCreateTenant}>
                 <Plus className="h-4 w-4 mr-2" />
-                Novo Tenant
+                {t('newTenant')}
               </Button>
             )}
           </CardContent>
@@ -251,7 +255,7 @@ export default function TenantsPage() {
                             statusColors[tenant.status] || 'bg-gray-100 text-gray-800'
                           }`}
                         >
-                          {statusLabels[tenant.status] || tenant.status}
+                          {tCommon(tenant.status === 'ACTIVE' ? 'active' : tenant.status === 'SUSPENDED' ? 'suspended' : 'inactive')}
                         </span>
                         {tenant.plan && (
                           <span
@@ -274,7 +278,7 @@ export default function TenantsPage() {
                         {tenant.createdAt && (
                           <span className="hidden sm:flex items-center gap-1 whitespace-nowrap">
                             <Calendar className="h-3 w-3 flex-shrink-0" />
-                            {new Date(tenant.createdAt).toLocaleDateString('pt-BR')}
+                            {new Date(tenant.createdAt).toLocaleDateString(locale)}
                           </span>
                         )}
                       </div>
@@ -284,7 +288,7 @@ export default function TenantsPage() {
                   <div className="flex items-center gap-2 justify-end sm:justify-start flex-shrink-0">
                     <Button variant="outline" size="sm" onClick={() => handleEditTenant(tenant)} className="hidden sm:flex">
                       <Pencil className="h-4 w-4 mr-1" />
-                      Editar
+                      {tCommon('edit')}
                     </Button>
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
@@ -295,7 +299,7 @@ export default function TenantsPage() {
                       <DropdownMenuContent align="end">
                         <DropdownMenuItem onClick={() => handleEditTenant(tenant)}>
                           <Pencil className="h-4 w-4 mr-2" />
-                          Editar
+                          {tCommon('edit')}
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
                         {tenant.status === 'ACTIVE' ? (
@@ -304,7 +308,7 @@ export default function TenantsPage() {
                             className="text-yellow-600 focus:text-yellow-600"
                           >
                             <PauseCircle className="h-4 w-4 mr-2" />
-                            Suspender
+                            {t('suspend')}
                           </DropdownMenuItem>
                         ) : (
                           <DropdownMenuItem
@@ -312,7 +316,7 @@ export default function TenantsPage() {
                             className="text-green-600 focus:text-green-600"
                           >
                             <PlayCircle className="h-4 w-4 mr-2" />
-                            Ativar
+                            {t('activate')}
                           </DropdownMenuItem>
                         )}
                         <DropdownMenuSeparator />
@@ -321,7 +325,7 @@ export default function TenantsPage() {
                           className="text-destructive focus:text-destructive"
                         >
                           <Trash2 className="h-4 w-4 mr-2" />
-                          Excluir
+                          {tCommon('delete')}
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>

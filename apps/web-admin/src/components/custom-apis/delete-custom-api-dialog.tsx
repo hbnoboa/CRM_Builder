@@ -12,6 +12,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { useDeleteCustomApi } from '@/hooks/use-custom-apis';
 import type { CustomApi } from '@/services/custom-apis.service';
+import { useTranslations } from 'next-intl';
 
 interface DeleteCustomApiDialogProps {
   open: boolean;
@@ -21,6 +22,8 @@ interface DeleteCustomApiDialogProps {
 }
 
 export function DeleteCustomApiDialog({ open, onOpenChange, customApi, onSuccess }: DeleteCustomApiDialogProps) {
+  const t = useTranslations('apis.deleteDialog');
+  const tCommon = useTranslations('common');
   const deleteCustomApi = useDeleteCustomApi();
 
   const handleDelete = async () => {
@@ -39,20 +42,21 @@ export function DeleteCustomApiDialog({ open, onOpenChange, customApi, onSuccess
     <AlertDialog open={open} onOpenChange={onOpenChange}>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>Excluir API</AlertDialogTitle>
+          <AlertDialogTitle>{t('title')}</AlertDialogTitle>
           <AlertDialogDescription>
-            Tem certeza que deseja excluir a API <strong>{customApi?.name}</strong>?
-            Esta acao nao pode ser desfeita e todas as chamadas a este endpoint deixarao de funcionar.
+            {t('message', { name: customApi?.name ?? '' })}
+            {' '}
+            {t('warning')}
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel>Cancelar</AlertDialogCancel>
+          <AlertDialogCancel>{tCommon('cancel')}</AlertDialogCancel>
           <AlertDialogAction
             onClick={handleDelete}
             className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             disabled={deleteCustomApi.isPending}
           >
-            {deleteCustomApi.isPending ? 'Excluindo...' : 'Excluir'}
+            {deleteCustomApi.isPending ? tCommon('deleting') : tCommon('delete')}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

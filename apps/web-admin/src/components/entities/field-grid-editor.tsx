@@ -8,6 +8,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import type { Field } from '@/types';
+import { useTranslations } from 'next-intl';
 
 // ─── Constants ─────────────────────────────────────────────────────────────
 const GRID_COLS = 12;
@@ -25,17 +26,7 @@ const fieldTypeIcons: Record<string, string> = {
   map: '🗺️',
 };
 
-const fieldTypeLabels: Record<string, string> = {
-  text: 'Texto', textarea: 'Texto Longo', richtext: 'Rich Text', password: 'Senha',
-  number: 'Número', currency: 'Moeda', percentage: '%', slider: 'Slider', rating: 'Avaliação',
-  email: 'Email', phone: 'Telefone', url: 'URL',
-  cpf: 'CPF', cnpj: 'CNPJ', cep: 'CEP',
-  date: 'Data', datetime: 'Data/Hora', time: 'Hora',
-  boolean: 'Sim/Não', select: 'Seleção', multiselect: 'Multi', color: 'Cor',
-  relation: 'Relação', 'api-select': 'API Select',
-  file: 'Arquivo', image: 'Imagem', json: 'JSON', hidden: 'Oculto',
-  map: 'Mapa',
-};
+// Field type labels are now loaded from translations (fieldTypes namespace)
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 interface GridCell {
@@ -151,6 +142,8 @@ export default function FieldGridEditor({
   onFieldSelect,
   selectedFieldIndex,
 }: FieldGridEditorProps) {
+  const t = useTranslations('entities.gridEditor');
+  const tFieldTypes = useTranslations('fieldTypes');
   const containerRef = useRef<HTMLDivElement>(null);
   const [grid, setGrid] = useState<GridRow[]>([]);
   const [dragState, setDragState] = useState<DragState>(null);
@@ -633,7 +626,7 @@ export default function FieldGridEditor({
                 onDrop={(e) => handleDrop(e, rowIdx)}
               >
                 {dropTarget?.rowIndex === rowIdx && dropTarget?.position === 'new-row' && (
-                  <span className="text-xs text-primary font-medium">Soltar aqui (nova linha)</span>
+                  <span className="text-xs text-primary font-medium">{t('dropHereNewRow')}</span>
                 )}
               </div>
 
@@ -654,7 +647,7 @@ export default function FieldGridEditor({
                           <ChevronUp className="h-3 w-3" />
                         </button>
                       </TooltipTrigger>
-                      <TooltipContent side="left" className="text-xs">Mover linha para cima</TooltipContent>
+                      <TooltipContent side="left" className="text-xs">{t('moveRowUp')}</TooltipContent>
                     </Tooltip>
                   </TooltipProvider>
 
@@ -673,7 +666,7 @@ export default function FieldGridEditor({
                           <ChevronDown className="h-3 w-3" />
                         </button>
                       </TooltipTrigger>
-                      <TooltipContent side="left" className="text-xs">Mover linha para baixo</TooltipContent>
+                      <TooltipContent side="left" className="text-xs">{t('moveRowDown')}</TooltipContent>
                     </Tooltip>
                   </TooltipProvider>
                 </div>
@@ -717,7 +710,7 @@ export default function FieldGridEditor({
                           onDrop={(e) => handleDropOnGap(e, rowIdx, gap.colStart, gap.colSpan)}
                         >
                           <span className="text-muted-foreground/30 font-mono text-[10px] select-none">
-                            {gap.colSpan} col{gap.colSpan > 1 ? 's' : ''}
+                            {gap.colSpan} {gap.colSpan > 1 ? t('colsPlural') : t('cols')}
                           </span>
                         </div>
                       );
@@ -727,7 +720,14 @@ export default function FieldGridEditor({
                     const field = fields[cell.fieldIndex];
                     if (!field) return null;
                     const icon = fieldTypeIcons[field.type || 'text'] || '?';
-                    const typeLabel = fieldTypeLabels[field.type || 'text'] || field.type;
+                    const fieldType = field.type || 'text';
+                    // Try to get translated label, fallback to raw type
+                    let typeLabel: string;
+                    try {
+                      typeLabel = tFieldTypes(fieldType as 'text') || field.type || 'text';
+                    } catch {
+                      typeLabel = field.type || 'text';
+                    }
                     const isSelected = selectedFieldIndex === cell.fieldIndex;
                     const isDragging = dragState?.fieldIndex === cell.fieldIndex;
                     const isResizing = dragState !== null && dragState.fieldIndex === cell.fieldIndex;
@@ -773,7 +773,7 @@ export default function FieldGridEditor({
                             <GripVertical className="h-3.5 w-3.5 text-muted-foreground/40 cursor-grab flex-shrink-0" />
                             <span className="text-sm flex-shrink-0">{icon}</span>
                             <span className="text-xs font-medium truncate flex-1">
-                              {field.label || field.name || '(sem nome)'}
+                              {field.label || field.name || t('noName')}
                             </span>
                             {field.required && (
                               <span className="text-destructive text-[10px] font-bold flex-shrink-0">*</span>
@@ -802,7 +802,7 @@ export default function FieldGridEditor({
                                         <ArrowLeftRight className="h-2.5 w-2.5 -scale-x-100" />
                                       </button>
                                     </TooltipTrigger>
-                                    <TooltipContent side="bottom" className="text-xs">Trocar com campo à esquerda</TooltipContent>
+                                    <TooltipContent side="bottom" className="text-xs">{t('swapFieldLeft')}</TooltipContent>
                                   </Tooltip>
                                 </TooltipProvider>
                               )}
@@ -821,7 +821,7 @@ export default function FieldGridEditor({
                                       <ChevronLeft className="h-3 w-3" />
                                     </button>
                                   </TooltipTrigger>
-                                  <TooltipContent side="bottom" className="text-xs">Mover 1 col para esquerda</TooltipContent>
+                                  <TooltipContent side="bottom" className="text-xs">{t('nudgeLeft')}</TooltipContent>
                                 </Tooltip>
                               </TooltipProvider>
 
@@ -843,7 +843,7 @@ export default function FieldGridEditor({
                                       <ChevronRight className="h-3 w-3" />
                                     </button>
                                   </TooltipTrigger>
-                                  <TooltipContent side="bottom" className="text-xs">Mover 1 col para direita</TooltipContent>
+                                  <TooltipContent side="bottom" className="text-xs">{t('nudgeRight')}</TooltipContent>
                                 </Tooltip>
                               </TooltipProvider>
 
@@ -862,7 +862,7 @@ export default function FieldGridEditor({
                                         <ArrowLeftRight className="h-2.5 w-2.5" />
                                       </button>
                                     </TooltipTrigger>
-                                    <TooltipContent side="bottom" className="text-xs">Trocar com campo à direita</TooltipContent>
+                                    <TooltipContent side="bottom" className="text-xs">{t('swapFieldRight')}</TooltipContent>
                                   </Tooltip>
                                 </TooltipProvider>
                               )}
@@ -888,7 +888,7 @@ export default function FieldGridEditor({
                                         {label}
                                       </button>
                                     </TooltipTrigger>
-                                    <TooltipContent side="bottom" className="text-xs">{label} da linha</TooltipContent>
+                                    <TooltipContent side="bottom" className="text-xs">{label} {t('ofRow')}</TooltipContent>
                                   </Tooltip>
                                 ))}
                               </TooltipProvider>
@@ -916,7 +916,7 @@ export default function FieldGridEditor({
                                   <Trash2 className="h-2.5 w-2.5" />
                                 </button>
                               </TooltipTrigger>
-                              <TooltipContent side="top" className="text-xs">Remover campo</TooltipContent>
+                              <TooltipContent side="top" className="text-xs">{t('removeField')}</TooltipContent>
                             </Tooltip>
                           </TooltipProvider>
 
@@ -931,7 +931,7 @@ export default function FieldGridEditor({
                                     <Maximize2 className="h-2.5 w-2.5" />
                                   </button>
                                 </TooltipTrigger>
-                                <TooltipContent side="top" className="text-xs">Mover para nova linha</TooltipContent>
+                                <TooltipContent side="top" className="text-xs">{t('moveToNewRow')}</TooltipContent>
                               </Tooltip>
                             </TooltipProvider>
                           )}
@@ -956,7 +956,7 @@ export default function FieldGridEditor({
           onDrop={(e) => handleDrop(e, grid.length)}
         >
           {dropTarget?.rowIndex === grid.length && dropTarget?.position === 'new-row' && (
-            <span className="text-xs text-primary font-medium">Soltar aqui (nova linha)</span>
+            <span className="text-xs text-primary font-medium">{t('dropHereNewRow')}</span>
           )}
         </div>
       </div>
@@ -964,29 +964,29 @@ export default function FieldGridEditor({
       {/* Empty state */}
       {grid.length === 0 && (
         <div className="border-2 border-dashed rounded-lg p-8 text-center text-muted-foreground">
-          <p className="text-sm mb-2">Nenhum campo definido ainda</p>
-          <p className="text-xs">Adicione campos e arraste para organizar o layout</p>
+          <p className="text-sm mb-2">{t('noFieldsDefined')}</p>
+          <p className="text-xs">{t('addFieldsHint')}</p>
         </div>
       )}
 
       {/* Legend */}
       <div className="flex flex-wrap items-center gap-3 pt-2 text-[10px] text-muted-foreground/60 border-t border-muted-foreground/10">
         <span className="flex items-center gap-1">
-          <GripVertical className="h-3 w-3" /> Arraste para reordenar
+          <GripVertical className="h-3 w-3" /> {t('dragToReorder')}
         </span>
         <span className="flex items-center gap-1">
-          <div className="w-0.5 h-3 bg-blue-400/50 rounded" /> Borda direita = resize
+          <div className="w-0.5 h-3 bg-blue-400/50 rounded" /> {t('rightBorderResize')}
         </span>
         <span className="flex items-center gap-1">
-          <div className="w-0.5 h-3 bg-orange-400/50 rounded" /> Borda esquerda = resize
+          <div className="w-0.5 h-3 bg-orange-400/50 rounded" /> {t('leftBorderResize')}
         </span>
         <span className="flex items-center gap-1">
-          <ChevronUp className="h-3 w-3" /><ChevronDown className="h-3 w-3" /> Mover linha
+          <ChevronUp className="h-3 w-3" /><ChevronDown className="h-3 w-3" /> {t('moveRow')}
         </span>
         <span className="flex items-center gap-1">
-          <ArrowLeftRight className="h-3 w-3" /> Trocar posição
+          <ArrowLeftRight className="h-3 w-3" /> {t('swapPosition')}
         </span>
-        <span>Vizinhos se ajustam ao redimensionar</span>
+        <span>{t('neighborsAdjust')}</span>
       </div>
     </div>
   );

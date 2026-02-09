@@ -38,22 +38,27 @@ export function useUserRoles(userId: string) {
   });
 }
 
-export function useCreateRole() {
+interface MutationMessages {
+  success?: string;
+  error?: string;
+}
+
+export function useCreateRole(messages?: MutationMessages) {
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: (data: CreateRoleData) => rolesService.create(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: roleKeys.lists() });
-      toast.success('Role criada com sucesso');
+      if (messages?.success) toast.success(messages.success);
     },
     onError: (error: Error) => {
-      toast.error(error.message || 'Erro ao criar role');
+      toast.error(messages?.error || error.message);
     },
   });
 }
 
-export function useUpdateRole() {
+export function useUpdateRole(messages?: MutationMessages) {
   const queryClient = useQueryClient();
 
   return useMutation({
@@ -62,30 +67,30 @@ export function useUpdateRole() {
     onSuccess: (_, { id }) => {
       queryClient.invalidateQueries({ queryKey: roleKeys.lists() });
       queryClient.invalidateQueries({ queryKey: roleKeys.detail(id) });
-      toast.success('Role atualizada com sucesso');
+      if (messages?.success) toast.success(messages.success);
     },
     onError: (error: Error) => {
-      toast.error(error.message || 'Erro ao atualizar role');
+      toast.error(messages?.error || error.message);
     },
   });
 }
 
-export function useDeleteRole() {
+export function useDeleteRole(messages?: MutationMessages) {
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: (id: string) => rolesService.delete(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: roleKeys.lists() });
-      toast.success('Role excluida com sucesso');
+      if (messages?.success) toast.success(messages.success);
     },
     onError: (error: Error) => {
-      toast.error(error.message || 'Erro ao excluir role');
+      toast.error(messages?.error || error.message);
     },
   });
 }
 
-export function useAssignRoleToUser() {
+export function useAssignRoleToUser(messages?: MutationMessages) {
   const queryClient = useQueryClient();
 
   return useMutation({
@@ -93,15 +98,15 @@ export function useAssignRoleToUser() {
       rolesService.assignToUser(userId, roleId),
     onSuccess: (_, { userId }) => {
       queryClient.invalidateQueries({ queryKey: roleKeys.userRoles(userId) });
-      toast.success('Role atribuida ao usuario');
+      if (messages?.success) toast.success(messages.success);
     },
     onError: (error: Error) => {
-      toast.error(error.message || 'Erro ao atribuir role');
+      toast.error(messages?.error || error.message);
     },
   });
 }
 
-export function useRemoveRoleFromUser() {
+export function useRemoveRoleFromUser(messages?: MutationMessages) {
   const queryClient = useQueryClient();
 
   return useMutation({
@@ -109,10 +114,10 @@ export function useRemoveRoleFromUser() {
       rolesService.removeFromUser(userId, roleId),
     onSuccess: (_, { userId }) => {
       queryClient.invalidateQueries({ queryKey: roleKeys.userRoles(userId) });
-      toast.success('Role removida do usuario');
+      if (messages?.success) toast.success(messages.success);
     },
     onError: (error: Error) => {
-      toast.error(error.message || 'Erro ao remover role');
+      toast.error(messages?.error || error.message);
     },
   });
 }

@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useCallback, useEffect, useRef } from 'react';
+import { useTranslations } from 'next-intl';
 import { MapPin, Search, Loader2, Navigation, RotateCcw } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -173,6 +174,8 @@ export default function MapField({
   placeholder,
   disabled = false,
 }: MapFieldProps) {
+  const t = useTranslations('map');
+  const tCommon = useTranslations('common');
   const L = useDynamicLeaflet();
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<L.Map | null>(null);
@@ -410,7 +413,7 @@ export default function MapField({
           <div className="flex gap-2">
             <div className="relative flex-1">
               <Input
-                placeholder={placeholder || 'Buscar endereço...'}
+                placeholder={placeholder || t('searchAddress')}
                 value={addressSearch}
                 onChange={(e) => {
                   setAddressSearch(e.target.value);
@@ -487,7 +490,7 @@ export default function MapField({
       {(mode === 'latlng' || mode === 'both') && (
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-1">
-            <Label className="text-xs text-muted-foreground">Latitude</Label>
+            <Label className="text-xs text-muted-foreground">{t('latitude')}</Label>
             <Input
               type="number"
               step="any"
@@ -498,7 +501,7 @@ export default function MapField({
             />
           </div>
           <div className="space-y-1">
-            <Label className="text-xs text-muted-foreground">Longitude</Label>
+            <Label className="text-xs text-muted-foreground">{t('longitude')}</Label>
             <Input
               type="number"
               step="any"
@@ -520,7 +523,7 @@ export default function MapField({
           >
             <div className="flex items-center gap-2 text-muted-foreground">
               <Loader2 className="h-5 w-5 animate-spin" />
-              <span className="text-sm">Carregando mapa...</span>
+              <span className="text-sm">{tCommon('loading')}</span>
             </div>
           </div>
         )}
@@ -540,7 +543,7 @@ export default function MapField({
                 size="icon"
                 className="h-8 w-8 shadow-md"
                 onClick={handleGoToCoords}
-                title="Ir para coordenadas"
+                title={t('goToCoordinates')}
               >
                 <Navigation className="h-4 w-4" />
               </Button>
@@ -551,7 +554,7 @@ export default function MapField({
               size="icon"
               className="h-8 w-8 shadow-md"
               onClick={handleReset}
-              title="Limpar marcador"
+              title={t('clearMarker')}
             >
               <RotateCcw className="h-4 w-4" />
             </Button>
@@ -585,27 +588,29 @@ export function MapFieldConfig({
   mapHeight?: number;
   onChange: (key: string, value: unknown) => void;
 }) {
+  const t = useTranslations('map');
+
   return (
     <div className="space-y-3 border-t pt-3 mt-3">
-      <Label className="text-sm font-medium">Configurações do Mapa</Label>
+      <Label className="text-sm font-medium">{t('config.title')}</Label>
 
       <div className="space-y-2">
-        <Label className="text-xs">Modo de Entrada</Label>
+        <Label className="text-xs">{t('config.inputMode')}</Label>
         <Select value={mode || 'both'} onValueChange={(val) => onChange('mapMode', val)}>
           <SelectTrigger>
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="both">Endereço + Lat/Lng</SelectItem>
-            <SelectItem value="address">Apenas Endereço</SelectItem>
-            <SelectItem value="latlng">Apenas Lat/Lng</SelectItem>
+            <SelectItem value="both">{t('config.modeAddressLatLng')}</SelectItem>
+            <SelectItem value="address">{t('config.modeAddress')}</SelectItem>
+            <SelectItem value="latlng">{t('config.modeLatLng')}</SelectItem>
           </SelectContent>
         </Select>
       </div>
 
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-1">
-          <Label className="text-xs">Centro padrão (Lat)</Label>
+          <Label className="text-xs">{t('config.defaultCenterLat')}</Label>
           <Input
             type="number"
             step="any"
@@ -620,7 +625,7 @@ export function MapFieldConfig({
           />
         </div>
         <div className="space-y-1">
-          <Label className="text-xs">Centro padrão (Lng)</Label>
+          <Label className="text-xs">{t('config.defaultCenterLng')}</Label>
           <Input
             type="number"
             step="any"
@@ -638,7 +643,7 @@ export function MapFieldConfig({
 
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-1">
-          <Label className="text-xs">Zoom padrão (1-18)</Label>
+          <Label className="text-xs">{t('config.defaultZoom')}</Label>
           <Input
             type="number"
             min={1}
@@ -648,7 +653,7 @@ export function MapFieldConfig({
           />
         </div>
         <div className="space-y-1">
-          <Label className="text-xs">Altura do mapa (px)</Label>
+          <Label className="text-xs">{t('config.mapHeight')}</Label>
           <Input
             type="number"
             min={150}

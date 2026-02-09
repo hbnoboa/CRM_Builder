@@ -1,7 +1,8 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
-
+import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useRouter } from '@/i18n/navigation';
+import { useTranslations } from 'next-intl';
 import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -76,38 +77,38 @@ import { useTenant } from '@/stores/tenant-context';
 // ═══════════════════════════════════════════════════════════════════════════
 
 const HTTP_METHODS = [
-  { value: 'GET', label: 'GET', color: 'bg-green-500', description: 'Buscar dados' },
-  { value: 'POST', label: 'POST', color: 'bg-blue-500', description: 'Criar registro' },
-  { value: 'PUT', label: 'PUT', color: 'bg-yellow-500', description: 'Substituir registro' },
-  { value: 'PATCH', label: 'PATCH', color: 'bg-orange-500', description: 'Atualizar parcial' },
-  { value: 'DELETE', label: 'DELETE', color: 'bg-red-500', description: 'Excluir registro' },
+  { value: 'GET', label: 'GET', color: 'bg-green-500', descKey: 'httpDesc.get' },
+  { value: 'POST', label: 'POST', color: 'bg-blue-500', descKey: 'httpDesc.post' },
+  { value: 'PUT', label: 'PUT', color: 'bg-yellow-500', descKey: 'httpDesc.put' },
+  { value: 'PATCH', label: 'PATCH', color: 'bg-orange-500', descKey: 'httpDesc.patch' },
+  { value: 'DELETE', label: 'DELETE', color: 'bg-red-500', descKey: 'httpDesc.delete' },
 ];
 
 const FILTER_OPERATORS = [
-  { value: 'equals', label: '= Igual', sql: '=' },
-  { value: 'not_equals', label: '≠ Diferente', sql: '!=' },
-  { value: 'contains', label: '∋ Contém', sql: 'LIKE' },
-  { value: 'not_contains', label: '∌ Não contém', sql: 'NOT LIKE' },
-  { value: 'starts_with', label: '⊳ Começa com', sql: 'LIKE' },
-  { value: 'ends_with', label: '⊲ Termina com', sql: 'LIKE' },
-  { value: 'gt', label: '> Maior que', sql: '>' },
-  { value: 'gte', label: '≥ Maior ou igual', sql: '>=' },
-  { value: 'lt', label: '< Menor que', sql: '<' },
-  { value: 'lte', label: '≤ Menor ou igual', sql: '<=' },
-  { value: 'in', label: '∈ Está em', sql: 'IN' },
-  { value: 'not_in', label: '∉ Não está em', sql: 'NOT IN' },
-  { value: 'is_null', label: '∅ É nulo', sql: 'IS NULL' },
-  { value: 'is_not_null', label: '≠∅ Não é nulo', sql: 'IS NOT NULL' },
-  { value: 'between', label: '↔ Entre', sql: 'BETWEEN' },
+  { value: 'equals', labelKey: 'filterOps.equals', sql: '=' },
+  { value: 'not_equals', labelKey: 'filterOps.notEquals', sql: '!=' },
+  { value: 'contains', labelKey: 'filterOps.contains', sql: 'LIKE' },
+  { value: 'not_contains', labelKey: 'filterOps.notContains', sql: 'NOT LIKE' },
+  { value: 'starts_with', labelKey: 'filterOps.startsWith', sql: 'LIKE' },
+  { value: 'ends_with', labelKey: 'filterOps.endsWith', sql: 'LIKE' },
+  { value: 'gt', labelKey: 'filterOps.gt', sql: '>' },
+  { value: 'gte', labelKey: 'filterOps.gte', sql: '>=' },
+  { value: 'lt', labelKey: 'filterOps.lt', sql: '<' },
+  { value: 'lte', labelKey: 'filterOps.lte', sql: '<=' },
+  { value: 'in', labelKey: 'filterOps.in', sql: 'IN' },
+  { value: 'not_in', labelKey: 'filterOps.notIn', sql: 'NOT IN' },
+  { value: 'is_null', labelKey: 'filterOps.isNull', sql: 'IS NULL' },
+  { value: 'is_not_null', labelKey: 'filterOps.isNotNull', sql: 'IS NOT NULL' },
+  { value: 'between', labelKey: 'filterOps.between', sql: 'BETWEEN' },
 ];
 
 const AGGREGATE_FUNCTIONS = [
-  { value: '', label: 'Nenhum' },
-  { value: 'count', label: 'COUNT - Contar' },
-  { value: 'sum', label: 'SUM - Somar' },
-  { value: 'avg', label: 'AVG - Média' },
-  { value: 'min', label: 'MIN - Mínimo' },
-  { value: 'max', label: 'MAX - Máximo' },
+  { value: '', labelKey: 'aggregate.none' },
+  { value: 'count', labelKey: 'aggregate.count' },
+  { value: 'sum', labelKey: 'aggregate.sum' },
+  { value: 'avg', labelKey: 'aggregate.avg' },
+  { value: 'min', labelKey: 'aggregate.min' },
+  { value: 'max', labelKey: 'aggregate.max' },
 ];
 
 const FIELD_TYPE_ICONS: Record<string, string> = {
@@ -128,10 +129,10 @@ const FIELD_TYPE_ICONS: Record<string, string> = {
   json: '{}',
 };
 
-// Schema de validação
-const apiSchema = z.object({
-  name: z.string().min(2, 'Nome deve ter pelo menos 2 caracteres'),
-  path: z.string().min(1, 'Path obrigatório').regex(/^[a-z0-9-/]+$/, 'Path inválido'),
+// Schema de validação (function to support i18n)
+const createApiSchema = (t: (key: string) => string) => z.object({
+  name: z.string().min(2, t('nameMinLength')),
+  path: z.string().min(1, t('apiPathRequired')).regex(/^[a-z0-9-/]+$/, t('pathInvalid')),
   method: z.enum(['GET', 'POST', 'PUT', 'PATCH', 'DELETE']),
   description: z.string().optional(),
   mode: z.enum(['visual', 'code']),
@@ -160,6 +161,9 @@ const apiSchema = z.object({
   logic: z.string().optional(),
 });
 
+// Base schema for type inference
+const apiSchema = createApiSchema((key) => key);
+
 type ApiForm = z.infer<typeof apiSchema>;
 
 interface Entity {
@@ -183,6 +187,13 @@ interface EntityField {
 export default function NewApiPage() {
   const router = useRouter();
   const { tenantId } = useTenant();
+  const t = useTranslations('apis.newPage');
+  const tCommon = useTranslations('common');
+  const tValidation = useTranslations('validation');
+
+  // Memoize schema with translations
+  const translatedSchema = useMemo(() => createApiSchema(tValidation), [tValidation]);
+
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [entities, setEntities] = useState<Entity[]>([]);
@@ -206,7 +217,7 @@ export default function NewApiPage() {
     control,
     formState: { errors },
   } = useForm<ApiForm>({
-    resolver: zodResolver(apiSchema),
+    resolver: zodResolver(translatedSchema),
     defaultValues: {
       method: 'GET',
       mode: 'visual',
@@ -393,7 +404,7 @@ export default function NewApiPage() {
       await api.post('/custom-apis', payload);
       router.push('/apis');
     } catch (err: any) {
-      setError(err?.response?.data?.message || 'Erro ao criar API');
+      setError(err?.response?.data?.message || tValidation('createApiError'));
     } finally {
       setIsLoading(false);
     }
@@ -405,12 +416,12 @@ export default function NewApiPage() {
     setTestResult(null);
     try {
       if (!sourceEntityId) {
-        setTestResult({ error: 'Selecione uma entidade' });
+        setTestResult({ error: tValidation('selectEntity') });
         return;
       }
       const entity = entities.find((e) => e.id === sourceEntityId);
       if (!entity) {
-        setTestResult({ error: 'Entidade não encontrada' });
+        setTestResult({ error: tValidation('entityNotFound') });
         return;
       }
 
@@ -439,7 +450,7 @@ export default function NewApiPage() {
         data: limited.slice(0, 5),
       });
     } catch (err: any) {
-      setTestResult({ error: err?.response?.data?.message || 'Erro ao testar' });
+      setTestResult({ error: err?.response?.data?.message || tValidation('testError') });
     } finally {
       setTesting(false);
     }
@@ -454,8 +465,8 @@ export default function NewApiPage() {
             <ArrowLeft className="h-5 w-5" />
           </Button>
           <div>
-            <h1 className="text-2xl font-bold">Nova API Customizada</h1>
-            <p className="text-muted-foreground">Construa sua API visualmente como um SELECT SQL</p>
+            <h1 className="text-2xl font-bold">{t('title')}</h1>
+            <p className="text-muted-foreground">{t('subtitle')}</p>
           </div>
         </div>
       </div>
@@ -469,18 +480,18 @@ export default function NewApiPage() {
               <CardHeader className="pb-4">
                 <CardTitle className="flex items-center gap-2 text-lg">
                   <Settings className="h-5 w-5" />
-                  Configuração da API
+                  {t('apiConfig')}
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
                   <div className="space-y-2">
-                    <Label>Nome *</Label>
-                    <Input placeholder="Listar Clientes" {...register('name')} />
+                    <Label>{tCommon('name')} *</Label>
+                    <Input placeholder={t('namePlaceholder')} {...register('name')} />
                     {errors.name && <p className="text-xs text-destructive">{errors.name.message}</p>}
                   </div>
                   <div className="space-y-2">
-                    <Label>Método HTTP *</Label>
+                    <Label>{t('httpMethod')} *</Label>
                     <Select value={method} onValueChange={(v) => setValue('method', v as any)}>
                       <SelectTrigger>
                         <SelectValue />
@@ -491,7 +502,7 @@ export default function NewApiPage() {
                             <div className="flex items-center gap-2">
                               <span className={`w-2 h-2 rounded-full ${m.color}`} />
                               <span className="font-mono font-bold">{m.label}</span>
-                              <span className="text-muted-foreground text-xs">- {m.description}</span>
+                              <span className="text-muted-foreground text-xs">- {t(m.descKey)}</span>
                             </div>
                           </SelectItem>
                         ))}
@@ -505,7 +516,7 @@ export default function NewApiPage() {
                         /api/v1/x/
                       </span>
                       <Input
-                        placeholder="clientes-ativos"
+                        placeholder={t('pathPlaceholder')}
                         className="rounded-l-none"
                         {...register('path')}
                       />
@@ -514,8 +525,8 @@ export default function NewApiPage() {
                   </div>
                 </div>
                 <div className="space-y-2">
-                  <Label>Descrição</Label>
-                  <Textarea placeholder="O que esta API faz..." rows={2} {...register('description')} />
+                  <Label>{tCommon('description')}</Label>
+                  <Textarea placeholder={t('descriptionPlaceholder')} rows={2} {...register('description')} />
                 </div>
               </CardContent>
             </Card>
@@ -527,11 +538,11 @@ export default function NewApiPage() {
                   <TabsList className="grid w-full grid-cols-2">
                     <TabsTrigger value="visual" className="flex items-center gap-2">
                       <Wand2 className="h-4 w-4" />
-                      Query Builder Visual
+                      {t('queryBuilderVisual')}
                     </TabsTrigger>
                     <TabsTrigger value="code" className="flex items-center gap-2">
                       <Code className="h-4 w-4" />
-                      Código (Avançado)
+                      {t('codeAdvanced')}
                     </TabsTrigger>
                   </TabsList>
                 </Tabs>
@@ -547,7 +558,7 @@ export default function NewApiPage() {
                     Query Builder
                   </CardTitle>
                   <CardDescription>
-                    Construa sua consulta como um SELECT SQL
+                    {t('queryBuilderDescription')}
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4 pt-4">
@@ -557,7 +568,7 @@ export default function NewApiPage() {
                       <Badge variant="outline" className="bg-blue-100 text-blue-700 font-mono text-sm px-3 py-1">
                         FROM
                       </Badge>
-                      <span className="text-sm text-muted-foreground">Selecione a entidade fonte dos dados</span>
+                      <span className="text-sm text-muted-foreground">{t('selectSourceEntity')}</span>
                     </div>
                     <Select
                       value={sourceEntityId || ''}
@@ -565,7 +576,7 @@ export default function NewApiPage() {
                       disabled={loadingEntities}
                     >
                       <SelectTrigger className="w-full bg-white dark:bg-background">
-                        <SelectValue placeholder={loadingEntities ? 'Carregando...' : '📦 Selecione uma entidade'} />
+                        <SelectValue placeholder={loadingEntities ? tCommon('loading') : t('selectEntityPlaceholder')} />
                       </SelectTrigger>
                       <SelectContent>
                         {entities.map((entity) => (
@@ -575,7 +586,7 @@ export default function NewApiPage() {
                               <span className="font-medium">{entity.name}</span>
                               <span className="text-muted-foreground font-mono text-xs">({entity.slug})</span>
                               <Badge variant="secondary" className="ml-2 text-xs">
-                                {entity.fields?.length || 0} campos
+                                {entity.fields?.length || 0} {tCommon('fields').toLowerCase()}
                               </Badge>
                             </div>
                           </SelectItem>
@@ -595,7 +606,7 @@ export default function NewApiPage() {
                                 SELECT
                               </Badge>
                               <span className="text-sm text-muted-foreground">
-                                {selectedFields.length === 0 ? 'Todos os campos (*)' : `${selectedFields.length} campo(s)`}
+                                {selectedFields.length === 0 ? t('allFields') : t('fieldsCount', { count: selectedFields.length })}
                               </span>
                             </div>
                             <div className="flex items-center gap-2">
@@ -612,10 +623,10 @@ export default function NewApiPage() {
                           <CollapsibleContent className="mt-4">
                             <div className="flex justify-end gap-2 mb-3">
                               <Button type="button" variant="outline" size="sm" onClick={selectAllFields}>
-                                Selecionar Todos
+                                {t('selectAll')}
                               </Button>
                               <Button type="button" variant="outline" size="sm" onClick={clearFields}>
-                                Limpar
+                                {t('clear')}
                               </Button>
                             </div>
                             <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
@@ -643,7 +654,7 @@ export default function NewApiPage() {
                                     {isSelected && fieldIndex >= 0 && (
                                       <div className="mt-2 pt-2 border-t space-y-2" onClick={(e) => e.stopPropagation()}>
                                         <Input
-                                          placeholder="Alias (opcional)"
+                                          placeholder={t('aliasOptional')}
                                           className="h-7 text-xs"
                                           value={selectedFields[fieldIndex]?.alias || ''}
                                           onChange={(e) => updateFieldConfig(fieldIndex, 'alias', e.target.value)}
@@ -653,12 +664,12 @@ export default function NewApiPage() {
                                           onValueChange={(v) => updateFieldConfig(fieldIndex, 'aggregate', v)}
                                         >
                                           <SelectTrigger className="h-7 text-xs">
-                                            <SelectValue placeholder="Função agregadora" />
+                                            <SelectValue placeholder={t('aggregateFunction')} />
                                           </SelectTrigger>
                                           <SelectContent>
                                             {AGGREGATE_FUNCTIONS.map((fn) => (
                                               <SelectItem key={fn.value} value={fn.value}>
-                                                {fn.label}
+                                                {t(fn.labelKey)}
                                               </SelectItem>
                                             ))}
                                           </SelectContent>
@@ -682,7 +693,7 @@ export default function NewApiPage() {
                                 WHERE
                               </Badge>
                               <span className="text-sm text-muted-foreground">
-                                {filterFields.length === 0 ? 'Sem filtros' : `${filterFields.length} filtro(s)`}
+                                {filterFields.length === 0 ? t('noFilters') : t('filtersCount', { count: filterFields.length })}
                               </span>
                             </div>
                             {expandedSections.where ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
@@ -691,13 +702,13 @@ export default function NewApiPage() {
                             {filterFields.map((filterField, index) => (
                               <div key={filterField.id} className="flex flex-wrap items-end gap-2 p-3 bg-white dark:bg-background rounded-lg border">
                                 <div className="flex-1 min-w-[120px] space-y-1">
-                                  <Label className="text-xs">Campo</Label>
+                                  <Label className="text-xs">{tCommon('field')}</Label>
                                   <Select
                                     value={watch(`filters.${index}.field`)}
                                     onValueChange={(v) => setValue(`filters.${index}.field`, v)}
                                   >
                                     <SelectTrigger className="h-9">
-                                      <SelectValue placeholder="Campo" />
+                                      <SelectValue placeholder={tCommon('field')} />
                                     </SelectTrigger>
                                     <SelectContent>
                                       {entityFields.map((f) => (
@@ -709,25 +720,25 @@ export default function NewApiPage() {
                                   </Select>
                                 </div>
                                 <div className="flex-1 min-w-[140px] space-y-1">
-                                  <Label className="text-xs">Operador</Label>
+                                  <Label className="text-xs">{t('operator')}</Label>
                                   <Select
                                     value={watch(`filters.${index}.operator`)}
                                     onValueChange={(v) => setValue(`filters.${index}.operator`, v)}
                                   >
                                     <SelectTrigger className="h-9">
-                                      <SelectValue placeholder="Operador" />
+                                      <SelectValue placeholder={t('operator')} />
                                     </SelectTrigger>
                                     <SelectContent>
                                       {FILTER_OPERATORS.map((op) => (
                                         <SelectItem key={op.value} value={op.value}>
-                                          <span className="font-mono">{op.label}</span>
+                                          <span className="font-mono">{t(op.labelKey)}</span>
                                         </SelectItem>
                                       ))}
                                     </SelectContent>
                                   </Select>
                                 </div>
                                 <div className="flex-1 min-w-[100px] space-y-1">
-                                  <Label className="text-xs">Tipo</Label>
+                                  <Label className="text-xs">{tCommon('type')}</Label>
                                   <Select
                                     value={watch(`filters.${index}.valueType`) || 'static'}
                                     onValueChange={(v) => setValue(`filters.${index}.valueType`, v as any)}
@@ -736,28 +747,28 @@ export default function NewApiPage() {
                                       <SelectValue />
                                     </SelectTrigger>
                                     <SelectContent>
-                                      <SelectItem value="static">📌 Valor Fixo</SelectItem>
-                                      <SelectItem value="param">🔗 Parâmetro URL</SelectItem>
+                                      <SelectItem value="static">{t('fixedValue')}</SelectItem>
+                                      <SelectItem value="param">{t('urlParam')}</SelectItem>
                                     </SelectContent>
                                   </Select>
                                 </div>
                                 <div className="flex-1 min-w-[120px] space-y-1">
                                   <Label className="text-xs">
-                                    {watch(`filters.${index}.valueType`) === 'param' ? 'Nome Parâmetro' : 'Valor'}
+                                    {watch(`filters.${index}.valueType`) === 'param' ? t('paramName') : tCommon('value')}
                                   </Label>
                                   {watch(`filters.${index}.valueType`) === 'param' ? (
                                     <div className="flex">
                                       <span className="flex items-center px-2 bg-muted border border-r-0 rounded-l text-sm">?</span>
                                       <Input
                                         className="h-9 rounded-l-none"
-                                        placeholder="nome_param"
+                                        placeholder="param_name"
                                         {...register(`filters.${index}.paramName`)}
                                       />
                                     </div>
                                   ) : (
                                     <Input
                                       className="h-9"
-                                      placeholder="Valor"
+                                      placeholder={tCommon('value')}
                                       {...register(`filters.${index}.value`)}
                                     />
                                   )}
@@ -781,7 +792,7 @@ export default function NewApiPage() {
                               onClick={() => appendFilter({ field: '', operator: 'equals', value: '', valueType: 'static' })}
                             >
                               <Plus className="h-4 w-4 mr-2" />
-                              Adicionar Filtro
+                              {t('addFilter')}
                             </Button>
                           </CollapsibleContent>
                         </div>
@@ -796,7 +807,7 @@ export default function NewApiPage() {
                                 ORDER BY
                               </Badge>
                               <span className="text-sm text-muted-foreground">
-                                {orderByFields.length === 0 ? 'Sem ordenação' : `${orderByFields.length} campo(s)`}
+                                {orderByFields.length === 0 ? t('noOrdering') : t('fieldsCount', { count: orderByFields.length })}
                               </span>
                             </div>
                             {expandedSections.orderBy ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
@@ -805,25 +816,25 @@ export default function NewApiPage() {
                             {orderByFields.map((orderField, index) => (
                               <div key={orderField.id} className="flex items-end gap-2 p-3 bg-white dark:bg-background rounded-lg border">
                                 <div className="flex-1 space-y-1">
-                                  <Label className="text-xs">Campo</Label>
+                                  <Label className="text-xs">{tCommon('field')}</Label>
                                   <Select
                                     value={watch(`orderBy.${index}.field`)}
                                     onValueChange={(v) => setValue(`orderBy.${index}.field`, v)}
                                   >
                                     <SelectTrigger className="h-9">
-                                      <SelectValue placeholder="Campo" />
+                                      <SelectValue placeholder={tCommon('field')} />
                                     </SelectTrigger>
                                     <SelectContent>
                                       {entityFields.map((f) => (
                                         <SelectItem key={f.name} value={f.name}>{f.label || f.name}</SelectItem>
                                       ))}
-                                      <SelectItem value="createdAt">📅 Data de Criação</SelectItem>
-                                      <SelectItem value="updatedAt">📅 Data de Atualização</SelectItem>
+                                      <SelectItem value="createdAt">{t('createdAtField')}</SelectItem>
+                                      <SelectItem value="updatedAt">{t('updatedAtField')}</SelectItem>
                                     </SelectContent>
                                   </Select>
                                 </div>
                                 <div className="w-40 space-y-1">
-                                  <Label className="text-xs">Direção</Label>
+                                  <Label className="text-xs">{t('direction')}</Label>
                                   <Select
                                     value={watch(`orderBy.${index}.direction`)}
                                     onValueChange={(v) => setValue(`orderBy.${index}.direction`, v as any)}
@@ -832,8 +843,8 @@ export default function NewApiPage() {
                                       <SelectValue />
                                     </SelectTrigger>
                                     <SelectContent>
-                                      <SelectItem value="asc">↑ Crescente (ASC)</SelectItem>
-                                      <SelectItem value="desc">↓ Decrescente (DESC)</SelectItem>
+                                      <SelectItem value="asc">{t('ascending')}</SelectItem>
+                                      <SelectItem value="desc">{t('descending')}</SelectItem>
                                     </SelectContent>
                                   </Select>
                                 </div>
@@ -850,7 +861,7 @@ export default function NewApiPage() {
                               onClick={() => appendOrderBy({ field: '', direction: 'asc' })}
                             >
                               <Plus className="h-4 w-4 mr-2" />
-                              Adicionar Ordenação
+                              {t('addOrdering')}
                             </Button>
                           </CollapsibleContent>
                         </div>
@@ -865,13 +876,13 @@ export default function NewApiPage() {
                                 GROUP BY
                               </Badge>
                               <span className="text-sm text-muted-foreground">
-                                {groupBy.length === 0 ? 'Sem agrupamento' : `${groupBy.length} campo(s)`}
+                                {groupBy.length === 0 ? t('noGrouping') : t('fieldsCount', { count: groupBy.length })}
                               </span>
                             </div>
                             {expandedSections.groupBy ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
                           </CollapsibleTrigger>
                           <CollapsibleContent className="mt-4">
-                            <p className="text-sm text-muted-foreground mb-3">Clique nos campos para agrupar:</p>
+                            <p className="text-sm text-muted-foreground mb-3">{t('clickToGroup')}</p>
                             <div className="flex flex-wrap gap-2">
                               {entityFields.map((field) => {
                                 const isGrouped = groupBy.includes(field.name);
@@ -901,7 +912,7 @@ export default function NewApiPage() {
                                 LIMIT / OPTIONS
                               </Badge>
                               <span className="text-sm text-muted-foreground">
-                                {limitRecords ? `Limite: ${limitRecords}` : 'Sem limite'}
+                                {limitRecords ? t('limitValue', { limit: limitRecords }) : t('noLimit')}
                               </span>
                             </div>
                             {expandedSections.options ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
@@ -909,15 +920,15 @@ export default function NewApiPage() {
                           <CollapsibleContent className="mt-4">
                             <div className="grid gap-4 sm:grid-cols-2">
                               <div className="space-y-2">
-                                <Label>Limite de Registros</Label>
+                                <Label>{t('recordLimit')}</Label>
                                 <Input
                                   type="number"
-                                  placeholder="Sem limite"
+                                  placeholder={t('noLimit')}
                                   {...register('limitRecords', { valueAsNumber: true })}
                                 />
                               </div>
                               <div className="space-y-2">
-                                <Label>Autenticação</Label>
+                                <Label>{t('authentication')}</Label>
                                 <Select
                                   value={watch('auth') || 'JWT'}
                                   onValueChange={(v) => setValue('auth', v as any)}
@@ -926,9 +937,9 @@ export default function NewApiPage() {
                                     <SelectValue />
                                   </SelectTrigger>
                                   <SelectContent>
-                                    <SelectItem value="JWT">🔐 JWT (Token)</SelectItem>
-                                    <SelectItem value="API_KEY">🔑 API Key</SelectItem>
-                                    <SelectItem value="NONE">🌍 Pública</SelectItem>
+                                    <SelectItem value="JWT">{t('authJwt')}</SelectItem>
+                                    <SelectItem value="API_KEY">{t('authApiKey')}</SelectItem>
+                                    <SelectItem value="NONE">{t('authPublic')}</SelectItem>
                                   </SelectContent>
                                 </Select>
                               </div>
@@ -948,28 +959,15 @@ export default function NewApiPage() {
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <Code className="h-5 w-5" />
-                    Código JavaScript
+                    {t('jsCode')}
                   </CardTitle>
                   <CardDescription>
-                    Modo avançado: escreva código para lógica customizada
+                    {t('codeAdvancedDesc')}
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
                   <Textarea
-                    placeholder={`// Variáveis disponíveis:
-// - body: corpo da requisição
-// - query: parâmetros da URL
-// - headers: cabeçalhos
-// - user: usuário autenticado
-// - db.entityData: acesso aos dados
-
-const dados = await db.entityData.findMany({
-  where: {
-    entity: { slug: 'cliente' }
-  }
-});
-
-return dados;`}
+                    placeholder={t('codePlaceholder')}
                     rows={18}
                     className="font-mono text-sm"
                     {...register('logic')}
@@ -987,13 +985,13 @@ return dados;`}
                 <CardHeader className="pb-3">
                   <CardTitle className="flex items-center gap-2 text-lg">
                     <FileJson className="h-5 w-5" />
-                    Preview SQL
+                    {t('sqlPreview')}
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
                   <ScrollArea className="h-48">
                     <pre className="text-xs font-mono p-3 bg-slate-900 text-green-400 rounded-lg overflow-x-auto whitespace-pre-wrap">
-                      {sqlPreview || '-- Selecione uma entidade para ver o preview'}
+                      {sqlPreview || t('selectEntityForPreview')}
                     </pre>
                   </ScrollArea>
                 </CardContent>
@@ -1003,7 +1001,7 @@ return dados;`}
             {/* Endpoint Preview */}
             <Card>
               <CardHeader className="pb-3">
-                <CardTitle className="text-lg">Endpoint</CardTitle>
+                <CardTitle className="text-lg">{t('endpoint')}</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="p-3 bg-muted rounded-lg font-mono text-sm break-all">
@@ -1014,7 +1012,7 @@ return dados;`}
 
                 {filters.filter((f) => f.valueType === 'param').length > 0 && (
                   <div className="space-y-2">
-                    <Label className="text-xs">Parâmetros URL:</Label>
+                    <Label className="text-xs">{t('urlParams')}</Label>
                     <div className="flex flex-wrap gap-1">
                       {filters.filter((f) => f.valueType === 'param').map((f, i) => (
                         <Badge key={i} variant="outline" className="font-mono">?{f.paramName}</Badge>
@@ -1031,7 +1029,7 @@ return dados;`}
                   disabled={testing || !sourceEntityId}
                 >
                   {testing ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Play className="h-4 w-4 mr-2" />}
-                  Testar API
+                  {t('testApi')}
                 </Button>
 
                 {testResult && (
@@ -1045,7 +1043,7 @@ return dados;`}
                       <div className="space-y-2">
                         <p className="font-medium flex items-center gap-2">
                           <Check className="h-4 w-4" />
-                          {testResult.count} registro(s)
+                          {t('recordsFound', { count: testResult.count })}
                         </p>
                         {testResult.data?.length > 0 && (
                           <ScrollArea className="h-32">
@@ -1077,10 +1075,10 @@ return dados;`}
             <div className="flex flex-col gap-2">
               <Button type="submit" disabled={isLoading} className="w-full">
                 {isLoading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Check className="h-4 w-4 mr-2" />}
-                Criar API
+                {t('createApi')}
               </Button>
               <Button type="button" variant="outline" className="w-full" onClick={() => router.push('/apis')}>
-                Cancelar
+                {tCommon('cancel')}
               </Button>
             </div>
           </div>

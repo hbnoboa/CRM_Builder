@@ -34,7 +34,12 @@ export function useEntityDataItem(
   });
 }
 
-export function useCreateEntityData() {
+interface MutationMessages {
+  success?: string;
+  error?: string;
+}
+
+export function useCreateEntityData(messages?: MutationMessages) {
   const queryClient = useQueryClient();
 
   return useMutation({
@@ -51,15 +56,15 @@ export function useCreateEntityData() {
       queryClient.invalidateQueries({
         queryKey: dataKeys.list(entitySlug),
       });
-      toast.success('Registro criado com sucesso');
+      if (messages?.success) toast.success(messages.success);
     },
     onError: (error: Error) => {
-      toast.error(error.message || 'Erro ao criar registro');
+      toast.error(messages?.error || error.message);
     },
   });
 }
 
-export function useUpdateEntityData() {
+export function useUpdateEntityData(messages?: MutationMessages) {
   const queryClient = useQueryClient();
 
   return useMutation({
@@ -79,15 +84,15 @@ export function useUpdateEntityData() {
       queryClient.invalidateQueries({
         queryKey: dataKeys.detail(entitySlug, id),
       });
-      toast.success('Registro atualizado com sucesso');
+      if (messages?.success) toast.success(messages.success);
     },
     onError: (error: Error) => {
-      toast.error(error.message || 'Erro ao atualizar registro');
+      toast.error(messages?.error || error.message);
     },
   });
 }
 
-export function useDeleteEntityData() {
+export function useDeleteEntityData(messages?: MutationMessages) {
   const queryClient = useQueryClient();
 
   return useMutation({
@@ -102,10 +107,10 @@ export function useDeleteEntityData() {
       queryClient.invalidateQueries({
         queryKey: dataKeys.list(entitySlug),
       });
-      toast.success('Registro excluido com sucesso');
+      if (messages?.success) toast.success(messages.success);
     },
     onError: (error: Error) => {
-      toast.error(error.message || 'Erro ao excluir registro');
+      toast.error(messages?.error || error.message);
     },
   });
 }

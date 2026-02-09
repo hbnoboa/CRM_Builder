@@ -2,6 +2,7 @@
 
 import { X, Plus } from 'lucide-react';
 import { useRef, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 
@@ -13,6 +14,7 @@ interface ArrayFieldProps {
 }
 
 export default function ArrayField({ value = [], onChange, placeholder, disabled }: ArrayFieldProps) {
+  const t = useTranslations('arrayField');
   const [input, setInput] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -60,7 +62,7 @@ export default function ArrayField({ value = [], onChange, placeholder, disabled
               type="button"
               onClick={(e) => { e.stopPropagation(); handleRemove(idx); }}
               className="rounded-full p-0.5 hover:bg-destructive/20 hover:text-destructive transition-colors"
-              aria-label="Remover"
+              aria-label={t('remove')}
             >
               <X className="h-3 w-3" />
             </button>
@@ -73,7 +75,7 @@ export default function ArrayField({ value = [], onChange, placeholder, disabled
         onChange={e => setInput(e.target.value)}
         onKeyDown={handleKeyDown}
         onBlur={() => { if (input.trim()) handleAdd(); }}
-        placeholder={value.length === 0 ? (placeholder || 'Digite e pressione Enter…') : ''}
+        placeholder={value.length === 0 ? (placeholder || t('placeholder')) : ''}
         disabled={disabled}
         className="flex-1 min-w-[120px] bg-transparent outline-none text-sm placeholder:text-muted-foreground"
       />

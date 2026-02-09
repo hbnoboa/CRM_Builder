@@ -1,5 +1,6 @@
 'use client';
 
+import { useTranslations } from 'next-intl';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -21,7 +22,9 @@ interface DeleteRoleDialogProps {
 }
 
 export function DeleteRoleDialog({ open, onOpenChange, role, onSuccess }: DeleteRoleDialogProps) {
-  const deleteRole = useDeleteRole();
+  const t = useTranslations('rolesPage');
+  const tCommon = useTranslations('common');
+  const deleteRole = useDeleteRole({ success: t('toast.deleted') });
 
   const handleDelete = async () => {
     if (!role) return;
@@ -39,20 +42,20 @@ export function DeleteRoleDialog({ open, onOpenChange, role, onSuccess }: Delete
     <AlertDialog open={open} onOpenChange={onOpenChange}>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>Excluir Role</AlertDialogTitle>
+          <AlertDialogTitle>{t('deleteConfirm.title')}</AlertDialogTitle>
           <AlertDialogDescription>
-            Tem certeza que deseja excluir a role <strong>{role?.name}</strong>?
-            Os usuarios que possuem esta role perderao as permissoes associadas.
+            {t('deleteConfirm.message', { name: role?.name || '' })}
+            {' '}{t('deleteConfirm.warning')}
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel>Cancelar</AlertDialogCancel>
+          <AlertDialogCancel>{tCommon('cancel')}</AlertDialogCancel>
           <AlertDialogAction
             onClick={handleDelete}
             className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             disabled={deleteRole.isPending}
           >
-            {deleteRole.isPending ? 'Excluindo...' : 'Excluir'}
+            {deleteRole.isPending ? tCommon('deleting') : tCommon('delete')}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

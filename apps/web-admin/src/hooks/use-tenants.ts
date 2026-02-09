@@ -44,7 +44,12 @@ export function useTenantStats() {
   });
 }
 
-export function useCreateTenant() {
+interface MutationMessages {
+  success?: string;
+  error?: string;
+}
+
+export function useCreateTenant(messages?: MutationMessages) {
   const queryClient = useQueryClient();
 
   return useMutation({
@@ -52,15 +57,15 @@ export function useCreateTenant() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: tenantKeys.lists() });
       queryClient.invalidateQueries({ queryKey: tenantKeys.stats() });
-      toast.success('Tenant criado com sucesso');
+      if (messages?.success) toast.success(messages.success);
     },
     onError: (error: Error) => {
-      toast.error(error.message || 'Erro ao criar tenant');
+      toast.error(messages?.error || error.message);
     },
   });
 }
 
-export function useUpdateTenant() {
+export function useUpdateTenant(messages?: MutationMessages) {
   const queryClient = useQueryClient();
 
   return useMutation({
@@ -69,15 +74,15 @@ export function useUpdateTenant() {
     onSuccess: (_, { id }) => {
       queryClient.invalidateQueries({ queryKey: tenantKeys.lists() });
       queryClient.invalidateQueries({ queryKey: tenantKeys.detail(id) });
-      toast.success('Tenant atualizado com sucesso');
+      if (messages?.success) toast.success(messages.success);
     },
     onError: (error: Error) => {
-      toast.error(error.message || 'Erro ao atualizar tenant');
+      toast.error(messages?.error || error.message);
     },
   });
 }
 
-export function useDeleteTenant() {
+export function useDeleteTenant(messages?: MutationMessages) {
   const queryClient = useQueryClient();
 
   return useMutation({
@@ -85,15 +90,15 @@ export function useDeleteTenant() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: tenantKeys.lists() });
       queryClient.invalidateQueries({ queryKey: tenantKeys.stats() });
-      toast.success('Tenant excluido com sucesso');
+      if (messages?.success) toast.success(messages.success);
     },
     onError: (error: Error) => {
-      toast.error(error.message || 'Erro ao excluir tenant');
+      toast.error(messages?.error || error.message);
     },
   });
 }
 
-export function useSuspendTenant() {
+export function useSuspendTenant(messages?: MutationMessages) {
   const queryClient = useQueryClient();
 
   return useMutation({
@@ -102,15 +107,15 @@ export function useSuspendTenant() {
       queryClient.invalidateQueries({ queryKey: tenantKeys.lists() });
       queryClient.invalidateQueries({ queryKey: tenantKeys.detail(id) });
       queryClient.invalidateQueries({ queryKey: tenantKeys.stats() });
-      toast.success('Tenant suspenso com sucesso');
+      if (messages?.success) toast.success(messages.success);
     },
     onError: (error: Error) => {
-      toast.error(error.message || 'Erro ao suspender tenant');
+      toast.error(messages?.error || error.message);
     },
   });
 }
 
-export function useActivateTenant() {
+export function useActivateTenant(messages?: MutationMessages) {
   const queryClient = useQueryClient();
 
   return useMutation({
@@ -119,10 +124,10 @@ export function useActivateTenant() {
       queryClient.invalidateQueries({ queryKey: tenantKeys.lists() });
       queryClient.invalidateQueries({ queryKey: tenantKeys.detail(id) });
       queryClient.invalidateQueries({ queryKey: tenantKeys.stats() });
-      toast.success('Tenant ativado com sucesso');
+      if (messages?.success) toast.success(messages.success);
     },
     onError: (error: Error) => {
-      toast.error(error.message || 'Erro ao ativar tenant');
+      toast.error(messages?.error || error.message);
     },
   });
 }

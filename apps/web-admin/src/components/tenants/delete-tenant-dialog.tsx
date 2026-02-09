@@ -1,5 +1,6 @@
 'use client';
 
+import { useTranslations } from 'next-intl';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -21,7 +22,9 @@ interface DeleteTenantDialogProps {
 }
 
 export function DeleteTenantDialog({ open, onOpenChange, tenant, onSuccess }: DeleteTenantDialogProps) {
-  const deleteTenant = useDeleteTenant();
+  const t = useTranslations('tenants');
+  const tCommon = useTranslations('common');
+  const deleteTenant = useDeleteTenant({ success: t('toast.deleted') });
 
   const handleDelete = async () => {
     if (!tenant) return;
@@ -39,20 +42,20 @@ export function DeleteTenantDialog({ open, onOpenChange, tenant, onSuccess }: De
     <AlertDialog open={open} onOpenChange={onOpenChange}>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>Excluir Tenant</AlertDialogTitle>
+          <AlertDialogTitle>{t('deleteConfirm.title')}</AlertDialogTitle>
           <AlertDialogDescription>
-            Tem certeza que deseja excluir o tenant <strong>{tenant?.name}</strong>?
-            Esta acao nao pode ser desfeita e todos os dados associados serao removidos.
+            {t('deleteConfirm.message', { name: tenant?.name || '' })}
+            {' '}{t('deleteConfirm.warning')}
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel>Cancelar</AlertDialogCancel>
+          <AlertDialogCancel>{tCommon('cancel')}</AlertDialogCancel>
           <AlertDialogAction
             onClick={handleDelete}
             className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             disabled={deleteTenant.isPending}
           >
-            {deleteTenant.isPending ? 'Excluindo...' : 'Excluir'}
+            {deleteTenant.isPending ? tCommon('deleting') : tCommon('delete')}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

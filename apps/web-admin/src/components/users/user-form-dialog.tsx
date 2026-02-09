@@ -4,6 +4,7 @@ import { useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
+import { useTranslations } from 'next-intl';
 import {
   Dialog,
   DialogContent,
@@ -25,14 +26,15 @@ import {
 import { useCreateUser, useUpdateUser } from '@/hooks/use-users';
 import type { User, UserRole, Status } from '@/types';
 
-const userSchema = z.object({
-  name: z.string().min(2, 'Nome deve ter pelo menos 2 caracteres'),
-  email: z.string().email('Email invalido'),
-  password: z.string().min(8, 'Senha deve ter pelo menos 8 caracteres').optional().or(z.literal('')),
+const createUserSchema = (t: (key: string) => string) => z.object({
+  name: z.string().min(2, t('nameMinLength')),
+  email: z.string().email(t('emailInvalid')),
+  password: z.string().min(8, t('passwordMinLength')).optional().or(z.literal('')),
   role: z.enum(['PLATFORM_ADMIN', 'ADMIN', 'MANAGER', 'USER', 'VIEWER'] as const),
   status: z.enum(['ACTIVE', 'INACTIVE', 'SUSPENDED', 'PENDING'] as const).optional(),
 });
 
+const userSchema = createUserSchema((key) => key);
 type UserFormData = z.infer<typeof userSchema>;
 
 interface UserFormDialogProps {
@@ -43,12 +45,16 @@ interface UserFormDialogProps {
 }
 
 export function UserFormDialog({ open, onOpenChange, user, onSuccess }: UserFormDialogProps) {
+  const t = useTranslations('users');
+  const tRoles = useTranslations('roles');
+  const tCommon = useTranslations('common');
+  const tValidation = useTranslations('validation');
   const isEditing = !!user;
-  const createUser = useCreateUser();
-  const updateUser = useUpdateUser();
+  const createUser = useCreateUser({ success: t('toast.created') });
+  const updateUser = useUpdateUser({ success: t('toast.updated') });
 
   const form = useForm<UserFormData>({
-    resolver: zodResolver(userSchema),
+    resolver: zodResolver(createUserSchema(tValidation)),
     defaultValues: {
       name: '',
       email: '',
@@ -112,19 +118,19 @@ export function UserFormDialog({ open, onOpenChange, user, onSuccess }: UserForm
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
-          <DialogTitle>{isEditing ? 'Editar Usuario' : 'Novo Usuario'}</DialogTitle>
+          <DialogTitle>{isEditing ? t('editUser') : t('newUser')}</DialogTitle>
           <DialogDescription>
             {isEditing
-              ? 'Atualize as informacoes do usuario.'
-              : 'Preencha os dados para criar um novo usuario.'}
+              ? t('form.editDescription')
+              : t('form.createDescription')}
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="name">Nome</Label>
+            <Label htmlFor="name">{t('form.name')}</Label>
             <Input
               id="name"
-              placeholder="Nome completo"
+              placeholder={t('form.namePlaceholder')}
               {...form.register('name')}
             />
             {form.formState.errors.name && (
@@ -133,11 +139,11 @@ export function UserFormDialog({ open, onOpenChange, user, onSuccess }: UserForm
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="email">Email</Label>
+            <Label htmlFor="email">{t('form.email')}</Label>
             <Input
               id="email"
               type="email"
-              placeholder="email@exemplo.com"
+              placeholder={t('form.emailPlaceholder')}
               {...form.register('email')}
             />
             {form.formState.errors.email && (
@@ -147,12 +153,12 @@ export function UserFormDialog({ open, onOpenChange, user, onSuccess }: UserForm
 
           <div className="space-y-2">
             <Label htmlFor="password">
-              Senha {isEditing && '(deixe em branco para manter)'}
+              {t('form.password')} {isEditing && t('form.passwordHint')}
             </Label>
             <Input
               id="password"
               type="password"
-              placeholder={isEditing ? '********' : 'Senha segura'}
+              placeholder={isEditing ? '********' : t('form.passwordPlaceholder')}
               {...form.register('password')}
             />
             {form.formState.errors.password && (
@@ -161,38 +167,38 @@ export function UserFormDialog({ open, onOpenChange, user, onSuccess }: UserForm
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="role">Funcao</Label>
+            <Label htmlFor="role">{t('form.role')}</Label>
             <Select
               value={form.watch('role')}
               onValueChange={(value) => form.setValue('role', value as UserRole)}
             >
               <SelectTrigger>
-                <SelectValue placeholder="Selecione uma funcao" />
+                <SelectValue placeholder={t('form.rolePlaceholder')} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="ADMIN">Administrador</SelectItem>
-                <SelectItem value="MANAGER">Gerente</SelectItem>
-                <SelectItem value="USER">Usuario</SelectItem>
-                <SelectItem value="VIEWER">Visualizador</SelectItem>
+                <SelectItem value="ADMIN">{tRoles('ADMIN')}</SelectItem>
+                <SelectItem value="MANAGER">{tRoles('MANAGER')}</SelectItem>
+                <SelectItem value="USER">{tRoles('USER')}</SelectItem>
+                <SelectItem value="VIEWER">{tRoles('VIEWER')}</SelectItem>
               </SelectContent>
             </Select>
           </div>
 
           {isEditing && (
             <div className="space-y-2">
-              <Label htmlFor="status">Status</Label>
+              <Label htmlFor="status">{t('form.status')}</Label>
               <Select
                 value={form.watch('status')}
                 onValueChange={(value) => form.setValue('status', value as Status)}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Selecione um status" />
+                  <SelectValue placeholder={t('form.statusPlaceholder')} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="ACTIVE">Ativo</SelectItem>
-                  <SelectItem value="INACTIVE">Inativo</SelectItem>
-                  <SelectItem value="SUSPENDED">Suspenso</SelectItem>
-                  <SelectItem value="PENDING">Pendente</SelectItem>
+                  <SelectItem value="ACTIVE">{tCommon('active')}</SelectItem>
+                  <SelectItem value="INACTIVE">{tCommon('inactive')}</SelectItem>
+                  <SelectItem value="SUSPENDED">{tCommon('suspended')}</SelectItem>
+                  <SelectItem value="PENDING">{tCommon('pending')}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -200,10 +206,10 @@ export function UserFormDialog({ open, onOpenChange, user, onSuccess }: UserForm
 
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-              Cancelar
+              {tCommon('cancel')}
             </Button>
             <Button type="submit" disabled={isLoading}>
-              {isLoading ? 'Salvando...' : isEditing ? 'Salvar' : 'Criar'}
+              {isLoading ? tCommon('saving') : isEditing ? tCommon('save') : tCommon('create')}
             </Button>
           </DialogFooter>
         </form>

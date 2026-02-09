@@ -9,11 +9,12 @@ interface AuthState {
   isAuthenticated: boolean;
   isLoading: boolean;
   error: string | null;
-  
+
   login: (credentials: LoginCredentials) => Promise<void>;
   register: (data: RegisterDate) => Promise<void>;
   logout: () => Promise<void>;
   getProfile: () => Promise<void>;
+  setUser: (user: User) => void;
   clearError: () => void;
 }
 
@@ -96,6 +97,8 @@ export const useAuthStore = create<AuthState>()(
           set({ user: null, isAuthenticated: false, isLoading: false });
         }
       },
+
+      setUser: (user: User) => set({ user }),
 
       clearError: () => set({ error: null }),
     }),

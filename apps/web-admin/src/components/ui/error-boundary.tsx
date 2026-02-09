@@ -1,8 +1,12 @@
+'use client';
+
 import React from 'react';
+import { useTranslations } from 'next-intl';
 
 interface ErrorBoundaryProps {
   children: React.ReactNode;
   fallback?: React.ReactNode;
+  fallbackMessage?: string;
 }
 
 interface ErrorBoundaryState {
@@ -26,8 +30,18 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
 
   render() {
     if (this.state.hasError) {
-      return this.props.fallback || <div className="p-4 text-red-500">Ocorreu um erro inesperado.</div>;
+      return this.props.fallback || <div className="p-4 text-red-500">{this.props.fallbackMessage || 'An unexpected error occurred.'}</div>;
     }
     return this.props.children;
   }
+}
+
+// Wrapper component with translations
+export function TranslatedErrorBoundary({ children, fallback }: { children: React.ReactNode; fallback?: React.ReactNode }) {
+  const t = useTranslations('common');
+  return (
+    <ErrorBoundary fallback={fallback} fallbackMessage={t('unexpectedError')}>
+      {children}
+    </ErrorBoundary>
+  );
 }

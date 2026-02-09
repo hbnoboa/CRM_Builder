@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
+import { useTranslations } from 'next-intl';
 import {
   Plus,
   Trash2,
@@ -55,15 +56,15 @@ interface SubRecord {
   createdBy?: { id: string; name: string; email: string };
 }
 
-function formatCellValue(val: unknown): string {
+function formatCellValue(val: unknown, boolYes: string, boolNo: string): string {
   if (val === null || val === undefined) return '-';
   if (typeof val === 'object' && val !== null) {
     if ('label' in (val as Record<string, unknown>)) return String((val as Record<string, unknown>).label);
     if ('value' in (val as Record<string, unknown>)) return String((val as Record<string, unknown>).value);
-    if (Array.isArray(val)) return val.map(v => formatCellValue(v)).join(', ');
+    if (Array.isArray(val)) return val.map(v => formatCellValue(v, boolYes, boolNo)).join(', ');
     return JSON.stringify(val);
   }
-  if (typeof val === 'boolean') return val ? 'Sim' : 'Não';
+  if (typeof val === 'boolean') return val ? boolYes : boolNo;
   return String(val);
 }
 
@@ -75,6 +76,9 @@ export default function SubEntityField({
   label,
   readOnly = false,
 }: SubEntityFieldProps) {
+  const t = useTranslations('subEntity');
+  const tCommon = useTranslations('common');
+  const tBool = useTranslations('booleanValues');
   const { tenantId } = useTenant();
   const [subEntity, setSubEntity] = useState<SubEntity | null>(null);
   const [records, setRecords] = useState<SubRecord[]>([]);
@@ -97,9 +101,9 @@ export default function SubEntityField({
       setSubEntity(response.data);
     } catch (error) {
       console.error('Error loading sub-entity:', error);
-      toast.error('Erro ao carregar definição da sub-entidade');
+      toast.error(t('loadError'));
     }
-  }, [subEntityId]);
+  }, [subEntityId, t]);
 
   // Load sub-records
   const loadRecords = useCallback(async () => {
@@ -155,10 +159,10 @@ export default function SubEntityField({
     try {
       await api.delete(`/data/${subEntitySlug}/${recordToDelete.id}`);
       setRecords(prev => prev.filter(r => r.id !== recordToDelete.id));
-      toast.success('Registro removido');
+      toast.success(t('recordRemoved'));
     } catch (error) {
       console.error('Error deleting sub-record:', error);
-      toast.error('Erro ao excluir registro');
+      toast.error(t('removeError'));
     } finally {
       setDeleting(false);
       setDeleteOpen(false);
@@ -183,7 +187,7 @@ export default function SubEntityField({
     return (
       <div className="border rounded-lg p-4 text-center text-muted-foreground">
         <AlertCircle className="h-5 w-5 mx-auto mb-2" />
-        <p className="text-sm">Sub-entidade não encontrada</p>
+        <p className="text-sm">{t('notFound')}</p>
       </div>
     );
   }
@@ -204,7 +208,7 @@ export default function SubEntityField({
           <div className="flex items-center gap-2">
             <FileText className="h-4 w-4 text-violet-500" />
             <span className="font-medium text-sm">
-              {label || subEntity?.name || 'Sub-registros'}
+              {label || subEntity?.name || t('subRecords')}
             </span>
             <Badge variant="secondary" className="text-xs h-5">
               {records.length}
@@ -222,7 +226,7 @@ export default function SubEntityField({
             }}
           >
             <Plus className="h-3 w-3 mr-1" />
-            Novo
+            {t('new')}
           </Button>
         )}
       </div>
@@ -238,12 +242,12 @@ export default function SubEntityField({
             <div className="flex flex-col items-center justify-center py-8 px-4 text-center">
               <MessageSquare className="h-8 w-8 text-muted-foreground/40 mb-2" />
               <p className="text-sm text-muted-foreground mb-3">
-                Nenhum registro de {subEntity?.name || 'sub-entidade'}
+                {t('noRecords', { name: subEntity?.name || t('subRecords') })}
               </p>
               {!readOnly && (
                 <Button size="sm" variant="outline" onClick={handleCreate}>
                   <Plus className="h-3.5 w-3.5 mr-1" />
-                  Adicionar {subEntity?.name || 'registro'}
+                  {t('addRecord', { name: subEntity?.name || '' })}
                 </Button>
               )}
             </div>
@@ -260,11 +264,11 @@ export default function SubEntityField({
                         </th>
                       ))}
                       <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">
-                        Criado
+                        {t('created')}
                       </th>
                       {!readOnly && (
                         <th className="px-3 py-2 text-right text-xs font-medium text-muted-foreground w-20">
-                          Ações
+                          {tCommon('actions')}
                         </th>
                       )}
                     </tr>
@@ -274,7 +278,7 @@ export default function SubEntityField({
                       <tr key={record.id} className="hover:bg-muted/30 transition-colors">
                         {displayFields.map(field => (
                           <td key={field} className="px-3 py-2 text-sm max-w-[200px] truncate">
-                            {formatCellValue(record.data[field])}
+                            {formatCellValue(record.data[field], tBool('yes'), tBool('no'))}
                           </td>
                         ))}
                         <td className="px-3 py-2 text-xs text-muted-foreground whitespace-nowrap">
@@ -317,7 +321,7 @@ export default function SubEntityField({
                         {displayFields.map((field, idx) => (
                           <div key={field} className={idx === 0 ? 'font-medium text-sm' : 'text-xs text-muted-foreground'}>
                             {idx > 0 && <span className="text-muted-foreground/60">{getFieldLabel(field)}: </span>}
-                            {formatCellValue(record.data[field])}
+                            {formatCellValue(record.data[field], tBool('yes'), tBool('no'))}
                           </div>
                         ))}
                         <div className="text-xs text-muted-foreground">
@@ -375,20 +379,19 @@ export default function SubEntityField({
       <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Excluir registro?</AlertDialogTitle>
+            <AlertDialogTitle>{t('deleteConfirm.title')}</AlertDialogTitle>
             <AlertDialogDescription>
-              Tem certeza que deseja excluir este registro de {subEntity?.name || 'sub-entidade'}?
-              Esta ação não pode ser desfeita.
+              {t('deleteConfirm.message', { name: subEntity?.name || t('subRecords') })}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogCancel>{tCommon('cancel')}</AlertDialogCancel>
             <AlertDialogAction
               onClick={handleConfirmDelete}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               {deleting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Excluir
+              {tCommon('delete')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { Link } from '@/i18n/navigation';
+import { useTranslations } from 'next-intl';
 import {
   Plus,
   Search,
@@ -69,13 +70,16 @@ const fieldTypeColors: Record<string, string> = {
 };
 
 function EntitiesPageContent() {
+  const t = useTranslations('entities');
+  const tCommon = useTranslations('common');
+  const tNav = useTranslations('navigation');
   const { user: currentUser } = useAuthStore();
   const [search, setSearch] = useState('');
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [entityToDelete, setEntityToDelete] = useState<Entity | null>(null);
 
   const { data, isLoading, refetch } = useEntities();
-  const deleteEntity = useDeleteEntity();
+  const deleteEntity = useDeleteEntity({ success: t('toast.deleted') });
 
   // Garante que entities e sempre um array
   const entities: Entity[] = (() => {
@@ -112,23 +116,23 @@ function EntitiesPageContent() {
     <div className="space-y-4 sm:space-y-6">
       {/* Breadcrumbs */}
       <nav className="mb-2 flex items-center gap-2 text-sm text-muted-foreground" aria-label="breadcrumb">
-        <Link href="/dashboard" className="hover:underline">Dashboard</Link>
+        <Link href="/dashboard" className="hover:underline">{tNav('dashboard')}</Link>
         <span>/</span>
-        <span className="font-semibold text-foreground">Entidades</span>
+        <span className="font-semibold text-foreground">{tNav('entities')}</span>
       </nav>
 
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-bold">Entidades</h1>
+          <h1 className="text-2xl sm:text-3xl font-bold">{t('title')}</h1>
           <p className="text-muted-foreground mt-1 text-sm sm:text-base">
-            Gerencie as estruturas de dados do seu CRM
+            {t('subtitle')}
           </p>
         </div>
         <Link href="/entities/new" className="w-full sm:w-auto">
           <Button className="w-full sm:w-auto">
             <Plus className="h-4 w-4 mr-2" />
-            Nova Entidade
+            {t('newEntity')}
           </Button>
         </Link>
       </div>
@@ -138,7 +142,7 @@ function EntitiesPageContent() {
         <Card>
           <CardContent className="p-3 sm:p-4">
             <div className="text-xl sm:text-2xl font-bold">{totalEntities}</div>
-            <p className="text-xs sm:text-sm text-muted-foreground">Total de Entidades</p>
+            <p className="text-xs sm:text-sm text-muted-foreground">{t('stats.total')}</p>
           </CardContent>
         </Card>
         <Card>
@@ -146,7 +150,7 @@ function EntitiesPageContent() {
             <div className="text-xl sm:text-2xl font-bold text-blue-600">
               {entities.filter((e) => (e.fields?.length || 0) > 0).length}
             </div>
-            <p className="text-xs sm:text-sm text-muted-foreground">Com Campos</p>
+            <p className="text-xs sm:text-sm text-muted-foreground">{t('stats.withFields')}</p>
           </CardContent>
         </Card>
         <Card>
@@ -154,7 +158,7 @@ function EntitiesPageContent() {
             <div className="text-xl sm:text-2xl font-bold text-green-600">
               {entities.reduce((sum, e) => sum + (e._count?.data || 0), 0)}
             </div>
-            <p className="text-xs sm:text-sm text-muted-foreground">Total de Registros</p>
+            <p className="text-xs sm:text-sm text-muted-foreground">{t('stats.totalRecords')}</p>
           </CardContent>
         </Card>
       </div>
@@ -163,7 +167,7 @@ function EntitiesPageContent() {
       <div className="relative w-full sm:max-w-md">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
         <Input
-          placeholder="Buscar entidades..."
+          placeholder={t('searchPlaceholder')}
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className="pl-9"
@@ -187,17 +191,17 @@ function EntitiesPageContent() {
         <Card>
           <CardContent className="p-6 sm:p-12 text-center">
             <Database className="h-10 w-10 sm:h-12 sm:w-12 mx-auto text-muted-foreground mb-3 sm:mb-4" />
-            <h3 className="text-base sm:text-lg font-semibold mb-2">Nenhuma entidade encontrada</h3>
+            <h3 className="text-base sm:text-lg font-semibold mb-2">{t('noEntitiesFound')}</h3>
             <p className="text-muted-foreground mb-4">
               {search
-                ? 'Nenhuma entidade corresponde a sua busca.'
-                : 'Crie entidades para estruturar seus dados.'}
+                ? t('noEntitiesMatchSearch')
+                : t('createEntitiesToStart')}
             </p>
             {!search && (
               <Link href="/entities/new">
                 <Button>
                   <Plus className="h-4 w-4 mr-2" />
-                  Criar Primeira Entidade
+                  {t('createFirstEntity')}
                 </Button>
               </Link>
             )}
@@ -236,7 +240,7 @@ function EntitiesPageContent() {
                         <DropdownMenuItem asChild>
                           <Link href={`/entities/${entity.id}`}>
                             <Pencil className="h-4 w-4 mr-2" />
-                            Editar
+                            {tCommon('edit')}
                           </Link>
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
@@ -245,7 +249,7 @@ function EntitiesPageContent() {
                           className="text-destructive focus:text-destructive"
                         >
                           <Trash className="h-4 w-4 mr-2" />
-                          Excluir
+                          {tCommon('delete')}
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
@@ -260,7 +264,7 @@ function EntitiesPageContent() {
 
                 <div className="mt-3 sm:mt-4">
                   <p className="text-xs text-muted-foreground mb-2">
-                    {entity.fields?.length || 0} campos
+                    {entity.fields?.length || 0} {t('fields')}
                   </p>
                   <div className="flex flex-wrap gap-1">
                     {(entity.fields || []).slice(0, 3).map((field) => (
@@ -285,13 +289,13 @@ function EntitiesPageContent() {
                   <Link href={`/data?entity=${entity.slug}`} className="flex-1">
                     <Button variant="outline" size="sm" className="w-full text-xs sm:text-sm">
                       <Eye className="h-3 w-3 mr-1" />
-                      <span className="hidden xs:inline">Ver </span>Dados
+                      {t('viewData')}
                     </Button>
                   </Link>
                   <Link href={`/entities/${entity.id}`} className="flex-1">
                     <Button variant="outline" size="sm" className="w-full text-xs sm:text-sm">
                       <Pencil className="h-3 w-3 mr-1" />
-                      Editar
+                      {tCommon('edit')}
                     </Button>
                   </Link>
                 </div>
@@ -305,21 +309,21 @@ function EntitiesPageContent() {
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Excluir entidade?</AlertDialogTitle>
+            <AlertDialogTitle>{t('deleteConfirm.title')}</AlertDialogTitle>
             <AlertDialogDescription>
-              Tem certeza que deseja excluir a entidade "{entityToDelete?.name}"?
-              Todos os dados relacionados serao perdidos. Esta acao nao pode ser desfeita.
+              {t('deleteConfirm.message', { name: entityToDelete?.name || '' })}
+              {' '}{t('deleteConfirm.warning')}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={deleteEntity.isPending}>Cancelar</AlertDialogCancel>
+            <AlertDialogCancel disabled={deleteEntity.isPending}>{tCommon('cancel')}</AlertDialogCancel>
             <AlertDialogAction
               onClick={handleConfirmDelete}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               disabled={deleteEntity.isPending}
             >
               {deleteEntity.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Excluir
+              {tCommon('delete')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -330,7 +334,7 @@ function EntitiesPageContent() {
 
 export default function EntitiesPage() {
   return (
-    <RequireRole adminOnly message="Apenas administradores podem gerenciar entidades.">
+    <RequireRole adminOnly>
       <EntitiesPageContent />
     </RequireRole>
   );

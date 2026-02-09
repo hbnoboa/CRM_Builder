@@ -18,43 +18,25 @@ import {
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { toast } from 'sonner';
 import api from '@/lib/api';
-import type { Field } from '@/types';
+import type { Field, FieldType } from '@/types';
 import FieldGridEditor from '@/components/entities/field-grid-editor';
+import { useTranslations } from 'next-intl';
 
-const fieldTypes = [
-  { value: 'text', label: 'Texto' },
-  { value: 'textarea', label: 'Texto Longo' },
-  { value: 'richtext', label: 'Rich Text' },
-  { value: 'number', label: 'Número' },
-  { value: 'currency', label: 'Moeda (R$)' },
-  { value: 'percentage', label: 'Porcentagem' },
-  { value: 'email', label: 'Email' },
-  { value: 'phone', label: 'Telefone' },
-  { value: 'url', label: 'URL' },
-  { value: 'cpf', label: 'CPF' },
-  { value: 'cnpj', label: 'CNPJ' },
-  { value: 'cep', label: 'CEP' },
-  { value: 'date', label: 'Data' },
-  { value: 'datetime', label: 'Data e Hora' },
-  { value: 'time', label: 'Hora' },
-  { value: 'boolean', label: 'Sim/Não' },
-  { value: 'select', label: 'Seleção' },
-  { value: 'multiselect', label: 'Multi Seleção' },
-  { value: 'relation', label: 'Relação' },
-  { value: 'api-select', label: 'API Select' },
-  { value: 'color', label: 'Cor' },
-  { value: 'rating', label: 'Avaliação' },
-  { value: 'slider', label: 'Slider' },
-  { value: 'file', label: 'Arquivo' },
-  { value: 'image', label: 'Imagem' },
-  { value: 'password', label: 'Senha' },
-  { value: 'json', label: 'JSON' },
-  { value: 'hidden', label: 'Oculto' },
-  { value: 'map', label: 'Mapa' },
+// Field type keys - labels come from translations
+const FIELD_TYPE_KEYS: FieldType[] = [
+  'text', 'textarea', 'richtext', 'number', 'currency', 'percentage',
+  'email', 'phone', 'url', 'cpf', 'cnpj', 'cep',
+  'date', 'datetime', 'time', 'boolean', 'select', 'multiselect',
+  'relation', 'api-select', 'color', 'rating', 'slider',
+  'file', 'image', 'password', 'json', 'hidden', 'map',
 ];
 
 export default function NewEntityPage() {
   const router = useRouter();
+  const t = useTranslations('entities');
+  const tFieldTypes = useTranslations('fieldTypes');
+  const tCommon = useTranslations('common');
+  const tNav = useTranslations('navigation');
   const [saving, setSaving] = useState(false);
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
@@ -84,7 +66,7 @@ export default function NewEntityPage() {
 
   const handleSave = async () => {
     if (!name.trim()) {
-      toast.error('Entity name is required');
+      toast.error(t('validation.nameRequired'));
       return;
     }
 
@@ -95,11 +77,11 @@ export default function NewEntityPage() {
         description,
         fields,
       });
-      toast.success('Entity created successfully!');
+      toast.success(t('toast.created'));
       router.push('/entities');
     } catch (error) {
       console.error('Error creating entity:', error);
-      toast.error('Error creating entity');
+      toast.error(t('toast.createError'));
     } finally {
       setSaving(false);
     }
@@ -109,11 +91,11 @@ export default function NewEntityPage() {
     <div className="space-y-6">
       {/* Breadcrumbs */}
       <nav className="flex items-center gap-2 text-sm text-muted-foreground" aria-label="breadcrumb">
-        <Link href="/dashboard" className="hover:underline">Dashboard</Link>
+        <Link href="/dashboard" className="hover:underline">{tNav('dashboard')}</Link>
         <span>/</span>
-        <Link href="/entities" className="hover:underline">Entities</Link>
+        <Link href="/entities" className="hover:underline">{tNav('entities')}</Link>
         <span>/</span>
-        <span className="font-semibold text-foreground">New</span>
+        <span className="font-semibold text-foreground">{tCommon('new')}</span>
       </nav>
 
       {/* Header */}
@@ -127,13 +109,13 @@ export default function NewEntityPage() {
                 </Button>
               </Link>
             </TooltipTrigger>
-            <TooltipContent>Back to entities</TooltipContent>
+            <TooltipContent>{t('backToEntities')}</TooltipContent>
           </Tooltip>
         </TooltipProvider>
         <div>
-          <h1 className="text-3xl font-bold" data-testid="page-title">New Entity</h1>
+          <h1 className="text-3xl font-bold" data-testid="page-title">{t('newEntity')}</h1>
           <p className="text-muted-foreground">
-            Create a new entity for your CRM
+            {t('newEntityDescription')}
           </p>
         </div>
       </div>
@@ -143,28 +125,28 @@ export default function NewEntityPage() {
         {/* Basic Information */}
         <Card>
           <CardHeader>
-            <CardTitle>Basic Information</CardTitle>
+            <CardTitle>{t('basicInfo')}</CardTitle>
             <CardDescription>
-              Name and description of the entity
+              {t('basicInfoDescription')}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="name">Name *</Label>
+              <Label htmlFor="name">{t('name')} *</Label>
               <Input
                 id="name"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder="Ex: Customers, Products, Leads..."
+                placeholder={t('namePlaceholder')}
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="description">Description</Label>
+              <Label htmlFor="description">{t('description')}</Label>
               <Input
                 id="description"
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
-                placeholder="Description (optional)"
+                placeholder={t('descriptionPlaceholder')}
               />
             </div>
           </CardContent>
@@ -175,21 +157,21 @@ export default function NewEntityPage() {
           <CardHeader>
             <div className="flex items-center justify-between">
               <div>
-                <CardTitle>Fields</CardTitle>
+                <CardTitle>{t('fields')}</CardTitle>
                 <CardDescription>
-                  Configure the entity fields
+                  {t('fieldsDescription')}
                 </CardDescription>
               </div>
               <Button onClick={addField} size="sm">
                 <Plus className="h-4 w-4 mr-1" />
-                Add
+                {tCommon('add')}
               </Button>
             </div>
           </CardHeader>
           <CardContent>
             {fields.length === 0 ? (
               <p className="text-center text-muted-foreground py-8">
-                No fields defined. Click "Add" to create a new field.
+                {t('noFieldsDefined')}
               </p>
             ) : (
               <div className="space-y-4">
@@ -200,14 +182,14 @@ export default function NewEntityPage() {
                   >
                     <div className="flex-1 grid gap-2 sm:grid-cols-3">
                       <Input
-                        placeholder="Field name"
+                        placeholder={t('fieldNamePlaceholder')}
                         value={field.name || ''}
                         onChange={(e) =>
                           updateField(index, { name: e.target.value })
                         }
                       />
                       <Input
-                        placeholder="Label"
+                        placeholder={t('labelPlaceholder')}
                         value={field.label || ''}
                         onChange={(e) =>
                           updateField(index, { label: e.target.value })
@@ -220,12 +202,12 @@ export default function NewEntityPage() {
                         }
                       >
                         <SelectTrigger>
-                          <SelectValue placeholder="Type" />
+                          <SelectValue placeholder={t('typePlaceholder')} />
                         </SelectTrigger>
                         <SelectContent>
-                          {fieldTypes.map((type) => (
-                            <SelectItem key={type.value} value={type.value}>
-                              {type.label}
+                          {FIELD_TYPE_KEYS.map((typeKey) => (
+                            <SelectItem key={typeKey} value={typeKey}>
+                              {tFieldTypes(typeKey)}
                             </SelectItem>
                           ))}
                         </SelectContent>
@@ -251,9 +233,9 @@ export default function NewEntityPage() {
       {fields.length > 0 && (
         <Card>
           <CardHeader>
-            <CardTitle>Layout Visual</CardTitle>
+            <CardTitle>{t('visualLayout')}</CardTitle>
             <CardDescription>
-              Drag fields to reorder rows. Drag the right edge to resize width.
+              {t('visualLayoutDescription')}
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -268,18 +250,18 @@ export default function NewEntityPage() {
       {/* Actions */}
       <div className="flex justify-end gap-2">
         <Link href="/entities">
-          <Button variant="outline">Cancel</Button>
+          <Button variant="outline">{tCommon('cancel')}</Button>
         </Link>
         <Button onClick={handleSave} disabled={saving}>
           {saving ? (
             <>
               <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              Creating...
+              {t('creating')}
             </>
           ) : (
             <>
               <Save className="h-4 w-4 mr-2" />
-              Create Entity
+              {t('createEntity')}
             </>
           )}
         </Button>

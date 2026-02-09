@@ -16,6 +16,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { useTranslations } from "next-intl"
 
 interface Option {
   value: string
@@ -36,11 +37,12 @@ export function FormSelect({
   name,
   label,
   options,
-  placeholder = "Selecione...",
+  placeholder,
   description,
   disabled = false,
   className,
 }: FormSelectProps) {
+  const t = useTranslations('placeholders')
   const form = useFormContext()
 
   return (
@@ -57,7 +59,7 @@ export function FormSelect({
           >
             <FormControl>
               <SelectTrigger>
-                <SelectValue placeholder={placeholder} />
+                <SelectValue placeholder={placeholder ?? t('selectHere')} />
               </SelectTrigger>
             </FormControl>
             <SelectContent>

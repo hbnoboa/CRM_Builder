@@ -2,6 +2,7 @@
 
 import { useState, useRef, useCallback } from 'react';
 import { Upload, X, FileIcon, ImageIcon, Loader2, AlertCircle } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { cn } from '@/lib/utils';
@@ -43,6 +44,7 @@ export function FileUpload({
   className,
   disabled = false,
 }: FileUploadProps) {
+  const t = useTranslations('fileUpload');
   const [isDragging, setIsDragging] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
@@ -64,12 +66,12 @@ export function FileUpload({
   }, []);
 
   const uploadFile = async (file: File): Promise<UploadedFile | null> => {
-    const formDate = new FormDate();
-    formDate.append('file', file);
-    formDate.append('folder', folder);
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('folder', folder);
 
     try {
-      const response = await api.post('/upload/file', formDate, {
+      const response = await api.post('/upload/file', formData, {
         headers: {
           'Content-Type': 'multipart/form-data',
         },
@@ -83,8 +85,8 @@ export function FileUpload({
 
       return response.data;
     } catch (err: any) {
-      console.error('Error ao fazer upload:', err);
-      throw new Error(err.response?.data?.message || 'Error ao fazer upload');
+      console.error('Upload error:', err);
+      throw new Error(err.response?.data?.message || t('uploadError'));
     }
   };
 
@@ -94,19 +96,19 @@ export function FileUpload({
 
     // Validate number of files
     if (!multiple && filesToUpload.length > 1) {
-      setError('Only one file is allowed');
+      setError(t('onlyOneFile'));
       return;
     }
 
     if (files.length + filesToUpload.length > maxFiles) {
-      setError(`Maximum de ${maxFiles} files allowed`);
+      setError(t('maxFilesError', { count: maxFiles }));
       return;
     }
 
     // Validar tamanho
     for (const file of filesToUpload) {
       if (file.size > maxSize) {
-        setError(`File "${file.name}" exceeds max size of ${formatFileSize(maxSize)}`);
+        setError(t('fileTooLarge', { name: file.name, maxSize: formatFileSize(maxSize) }));
         return;
       }
     }
@@ -201,18 +203,18 @@ export function FileUpload({
         {isUploading ? (
           <div className="space-y-4">
             <Loader2 className="h-10 w-10 mx-auto animate-spin text-primary" />
-            <p className="text-sm text-muted-foreground">Enviando file...</p>
+            <p className="text-sm text-muted-foreground">{t('uploading')}</p>
             <Progress value={uploadProgress} className="w-full max-w-xs mx-auto" />
           </div>
         ) : (
           <>
             <Upload className="h-10 w-10 mx-auto mb-4 text-muted-foreground" />
             <p className="text-sm font-medium">
-              Arraste files aqui ou clique para selecionar
+              {t('dragOrClick')}
             </p>
             <p className="text-xs text-muted-foreground mt-1">
-              {multiple ? `Up to ${maxFiles} files, ` : ''}
-              Maximum {formatFileSize(maxSize)}
+              {multiple ? t('upToFiles', { count: maxFiles }) + ' ' : ''}
+              {t('maxSize', { size: formatFileSize(maxSize) })}
             </p>
           </>
         )}
@@ -291,6 +293,7 @@ export function ImageUpload({
   className?: string;
   disabled?: boolean;
 }) {
+  const t = useTranslations('fileUpload');
   const handleUpload = (file: UploadedFile) => {
     onChange(file.publicUrl || file.url);
   };
@@ -319,7 +322,7 @@ export function ImageUpload({
                 onClick={handleRemove}
               >
                 <X className="h-4 w-4 mr-1" />
-                Remove
+                {t('remove')}
               </Button>
             </div>
           )}

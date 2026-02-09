@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { Link, useRouter } from '@/i18n/navigation';
+import { useTranslations } from 'next-intl';
 import {
   ArrowLeft, Plus, Trash2, Save, Loader2, Code, Zap, MoreHorizontal,
   GripVertical, ChevronDown, ChevronUp, Copy, RefreshCw,
@@ -47,87 +48,88 @@ import type { Entity, Field, FieldType } from '@/types';
 import FieldGridEditor from '@/components/entities/field-grid-editor';
 
 // ─── Field Type Definitions ────────────────────────────────────────────────
+// Uses translation keys that are resolved at runtime in the component
 const fieldTypeCategories = [
   {
-    label: 'Texto',
+    labelKey: 'fieldCategories.text',
     types: [
-      { value: 'text', label: 'Texto', icon: 'Aa', desc: 'Campo de texto simples' },
-      { value: 'textarea', label: 'Texto Longo', icon: '¶', desc: 'Área de texto com múltiplas linhas' },
-      { value: 'richtext', label: 'Rich Text', icon: '📝', desc: 'Editor de texto formatado' },
-      { value: 'password', label: 'Senha', icon: '🔒', desc: 'Campo de senha mascarado' },
-      { value: 'array', label: 'Lista de Textos', icon: '📋', desc: 'Múltiplos textos salvos como lista' },
+      { value: 'text', labelKey: 'text', icon: 'Aa', descKey: 'fieldDesc.text' },
+      { value: 'textarea', labelKey: 'textarea', icon: '¶', descKey: 'fieldDesc.textarea' },
+      { value: 'richtext', labelKey: 'richtext', icon: '📝', descKey: 'fieldDesc.richtext' },
+      { value: 'password', labelKey: 'password', icon: '🔒', descKey: 'fieldDesc.password' },
+      { value: 'array', labelKey: 'array', icon: '📋', descKey: 'fieldDesc.array' },
     ],
   },
   {
-    label: 'Números',
+    labelKey: 'fieldCategories.numbers',
     types: [
-      { value: 'number', label: 'Número', icon: '#', desc: 'Valor numérico' },
-      { value: 'currency', label: 'Moeda', icon: 'R$', desc: 'Valor monetário com formatação' },
-      { value: 'percentage', label: 'Porcentagem', icon: '%', desc: 'Valor percentual' },
-      { value: 'slider', label: 'Slider', icon: '🎚', desc: 'Seletor deslizante de valor' },
-      { value: 'rating', label: 'Avaliação', icon: '⭐', desc: 'Avaliação em estrelas' },
+      { value: 'number', labelKey: 'number', icon: '#', descKey: 'fieldDesc.number' },
+      { value: 'currency', labelKey: 'currency', icon: 'R$', descKey: 'fieldDesc.currency' },
+      { value: 'percentage', labelKey: 'percentage', icon: '%', descKey: 'fieldDesc.percentage' },
+      { value: 'slider', labelKey: 'slider', icon: '🎚', descKey: 'fieldDesc.slider' },
+      { value: 'rating', labelKey: 'rating', icon: '⭐', descKey: 'fieldDesc.rating' },
     ],
   },
   {
-    label: 'Contato',
+    labelKey: 'fieldCategories.contact',
     types: [
-      { value: 'email', label: 'Email', icon: '@', desc: 'Endereço de email' },
-      { value: 'phone', label: 'Telefone', icon: '📞', desc: 'Número de telefone' },
-      { value: 'url', label: 'URL', icon: '🔗', desc: 'Link/endereço web' },
+      { value: 'email', labelKey: 'email', icon: '@', descKey: 'fieldDesc.email' },
+      { value: 'phone', labelKey: 'phone', icon: '📞', descKey: 'fieldDesc.phone' },
+      { value: 'url', labelKey: 'url', icon: '🔗', descKey: 'fieldDesc.url' },
     ],
   },
   {
-    label: 'Documentos BR',
+    labelKey: 'fieldCategories.documents',
     types: [
-      { value: 'cpf', label: 'CPF', icon: '🪪', desc: 'CPF com máscara' },
-      { value: 'cnpj', label: 'CNPJ', icon: '🏢', desc: 'CNPJ com máscara' },
-      { value: 'cep', label: 'CEP', icon: '📮', desc: 'CEP com máscara' },
+      { value: 'cpf', labelKey: 'cpf', icon: '🪪', descKey: 'fieldDesc.cpf' },
+      { value: 'cnpj', labelKey: 'cnpj', icon: '🏢', descKey: 'fieldDesc.cnpj' },
+      { value: 'cep', labelKey: 'cep', icon: '📮', descKey: 'fieldDesc.cep' },
     ],
   },
   {
-    label: 'Data e Hora',
+    labelKey: 'fieldCategories.datetime',
     types: [
-      { value: 'date', label: 'Data', icon: '📅', desc: 'Seletor de data' },
-      { value: 'datetime', label: 'Data e Hora', icon: '🕐', desc: 'Data com hora' },
-      { value: 'time', label: 'Hora', icon: '⏰', desc: 'Apenas hora' },
+      { value: 'date', labelKey: 'date', icon: '📅', descKey: 'fieldDesc.date' },
+      { value: 'datetime', labelKey: 'datetime', icon: '🕐', descKey: 'fieldDesc.datetime' },
+      { value: 'time', labelKey: 'time', icon: '⏰', descKey: 'fieldDesc.time' },
     ],
   },
   {
-    label: 'Seleção',
+    labelKey: 'fieldCategories.selection',
     types: [
-      { value: 'boolean', label: 'Sim/Não', icon: '☑', desc: 'Valor verdadeiro/falso' },
-      { value: 'select', label: 'Seleção', icon: '▼', desc: 'Escolha única de uma lista' },
-      { value: 'multiselect', label: 'Multi Seleção', icon: '☰', desc: 'Múltiplas escolhas de uma lista' },
-      { value: 'color', label: 'Cor', icon: '🎨', desc: 'Seletor de cor' },
+      { value: 'boolean', labelKey: 'boolean', icon: '☑', descKey: 'fieldDesc.boolean' },
+      { value: 'select', labelKey: 'select', icon: '▼', descKey: 'fieldDesc.select' },
+      { value: 'multiselect', labelKey: 'multiselect', icon: '☰', descKey: 'fieldDesc.multiselect' },
+      { value: 'color', labelKey: 'color', icon: '🎨', descKey: 'fieldDesc.color' },
     ],
   },
   {
-    label: 'Relacionamento',
+    labelKey: 'fieldCategories.relationship',
     types: [
-      { value: 'relation', label: 'Relação', icon: '🔗', desc: 'Vínculo com outra entidade' },
-      { value: 'api-select', label: 'API Select', icon: '⚡', desc: 'Seleção via Custom API' },
-      { value: 'sub-entity', label: 'Sub-Entidade', icon: '📂', desc: 'Lista de registros filhos de outra entidade' },
-      { value: 'zone-diagram', label: 'Diagrama de Zonas', icon: '🗺️', desc: 'Imagem com zonas clicáveis — cada zona tem um select de opções' },
+      { value: 'relation', labelKey: 'relation', icon: '🔗', descKey: 'fieldDesc.relation' },
+      { value: 'api-select', labelKey: 'apiSelect', icon: '⚡', descKey: 'fieldDesc.apiSelect' },
+      { value: 'sub-entity', labelKey: 'subEntity', icon: '📂', descKey: 'fieldDesc.subEntity' },
+      { value: 'zone-diagram', labelKey: 'zoneDiagram', icon: '🗺️', descKey: 'fieldDesc.zoneDiagram' },
     ],
   },
   {
-    label: 'Mídia',
+    labelKey: 'fieldCategories.media',
     types: [
-      { value: 'file', label: 'Arquivo', icon: '📎', desc: 'Upload de arquivo' },
-      { value: 'image', label: 'Imagem', icon: '🖼', desc: 'Upload de imagem' },
+      { value: 'file', labelKey: 'file', icon: '📎', descKey: 'fieldDesc.file' },
+      { value: 'image', labelKey: 'image', icon: '🖼', descKey: 'fieldDesc.image' },
     ],
   },
   {
-    label: 'Localização',
+    labelKey: 'fieldCategories.location',
     types: [
-      { value: 'map', label: 'Mapa', icon: '🗺️', desc: 'Campo de mapa com endereço e coordenadas' },
+      { value: 'map', labelKey: 'map', icon: '🗺️', descKey: 'fieldDesc.map' },
     ],
   },
   {
-    label: 'Outros',
+    labelKey: 'fieldCategories.other',
     types: [
-      { value: 'json', label: 'JSON', icon: '{}', desc: 'Dados em formato JSON' },
-      { value: 'hidden', label: 'Oculto', icon: '👁', desc: 'Campo oculto no formulário' },
+      { value: 'json', labelKey: 'json', icon: '{}', descKey: 'fieldDesc.json' },
+      { value: 'hidden', labelKey: 'hidden', icon: '👁', descKey: 'fieldDesc.hidden' },
     ],
   },
 ];
@@ -135,7 +137,7 @@ const fieldTypeCategories = [
 const allFieldTypes = fieldTypeCategories.flatMap(c => c.types);
 
 const getFieldTypeInfo = (type: string) =>
-  allFieldTypes.find(t => t.value === type) || { value: type, label: type, icon: '?', desc: '' };
+  allFieldTypes.find(t => t.value === type) || { value: type, labelKey: type, icon: '?', descKey: '' };
 
 const httpMethods = [
   { value: 'GET', label: 'GET', color: 'bg-green-500' },
@@ -153,6 +155,25 @@ interface RelatedEntity {
 }
 
 export default function EntityDetailPage() {
+  const t = useTranslations('entities.detail');
+  const tCommon = useTranslations('common');
+  const tNav = useTranslations('navigation');
+  const tToast = useTranslations('entities.toast');
+  const tFieldTypes = useTranslations('fieldTypes');
+  const tFieldCategories = useTranslations('fieldCategories');
+  const tFieldDesc = useTranslations('fieldDesc');
+  const tFieldConfig = useTranslations('entities.fieldConfig');
+  const tImport = useTranslations('entities.import');
+
+  // Helper to get translated field type label
+  const getFieldTypeLabel = (type: string): string => {
+    try {
+      return tFieldTypes(type as 'text') || type;
+    } catch {
+      return type;
+    }
+  };
+
   const params = useParams();
   const router = useRouter();
   const [entity, setEntity] = useState<Entity | null>(null);
@@ -178,7 +199,7 @@ export default function EntityDetailPage() {
   const fetchApiFields = async (fieldIndex: number, endpoint?: string) => {
     const ep = endpoint || fields[fieldIndex]?.apiEndpoint;
     if (!ep || !tenantId) {
-      toast.error('Selecione um endpoint e verifique o tenant');
+      toast.error(t('fieldFilledByApi'));
       return;
     }
     setFetchingApiFields(fieldIndex);
@@ -188,14 +209,14 @@ export default function EntityDetailPage() {
       if (data.length > 0) {
         const keys = Object.keys(data[0]).filter(k => k !== '__v');
         updateField(fieldIndex, { apiFields: keys });
-        toast.success(`${keys.length} campos encontrados na API`);
+        toast.success(`${keys.length} ${tCommon('fields').toLowerCase()}`);
       } else {
         updateField(fieldIndex, { apiFields: [] });
-        toast.warning('API retornou lista vazia — nenhum campo detectado');
+        toast.warning(t('noFieldsDefined'));
       }
     } catch (error) {
       console.error('Error fetching API fields:', error);
-      toast.error('Erro ao buscar campos da API');
+      toast.error(tCommon('error'));
     } finally {
       setFetchingApiFields(null);
     }
@@ -220,7 +241,7 @@ export default function EntityDetailPage() {
       loadCustomApis(id);
     } catch (error) {
       console.error('Error loading entity:', error);
-      toast.error('Entidade não encontrada');
+      toast.error(tToast('notFound'));
       router.push('/entities');
     } finally {
       setLoading(false);
@@ -283,7 +304,7 @@ export default function EntityDetailPage() {
 
   const duplicateField = (index: number) => {
     const field = fields[index];
-    const newField = { ...field, name: `${field.name}_copy`, label: `${field.label || ''} (Cópia)`, gridRow: (field.gridRow || 1) + 1 };
+    const newField = { ...field, name: `${field.name}_copy`, label: `${field.label || ''} (${tCommon('copy')})`, gridRow: (field.gridRow || 1) + 1 };
     const newFields = [...fields];
     newFields.splice(index + 1, 0, newField);
     setFields(newFields);
@@ -338,15 +359,15 @@ export default function EntityDetailPage() {
   };
 
   const handleSave = async () => {
-    if (!name.trim()) { toast.error('Nome da entidade obrigatório'); return; }
+    if (!name.trim()) { toast.error(tToast('nameRequired')); return; }
     setSaving(true);
     try {
       await api.patch(`/entities/${params.id}`, { name, description, fields });
-      toast.success('Entidade atualizada!');
+      toast.success(tToast('updated'));
       router.push('/entities');
     } catch (error) {
       console.error('Error saving entity:', error);
-      toast.error('Erro ao salvar entidade');
+      toast.error(tToast('saveError'));
     } finally {
       setSaving(false);
     }
@@ -364,35 +385,35 @@ export default function EntityDetailPage() {
   };
 
   const handleSaveApi = async () => {
-    if (!apiForm.name.trim() || !apiForm.path.trim()) { toast.error('Nome e caminho são obrigatórios'); return; }
+    if (!apiForm.name.trim() || !apiForm.path.trim()) { toast.error(tToast('nameRequired')); return; }
     setSavingApi(true);
     try {
       if (editingApi) {
         await customApisService.update(editingApi.id, apiForm);
-        toast.success('API atualizada!');
+        toast.success(tToast('updated'));
       } else {
         await customApisService.create({ ...apiForm, sourceEntityId: params.id as string });
-        toast.success('API criada!');
+        toast.success(tToast('created'));
       }
       setApiDialogOpen(false);
       loadCustomApis(params.id as string);
     } catch (error) {
       console.error('Error saving API:', error);
-      toast.error('Erro ao salvar API');
+      toast.error(tToast('saveError'));
     } finally {
       setSavingApi(false);
     }
   };
 
   const handleDeleteApi = async (apiToDelete: CustomApi) => {
-    if (!confirm(`Deletar API "${apiToDelete.name}"?`)) return;
+    if (!confirm(`${tCommon('delete')} API "${apiToDelete.name}"?`)) return;
     try {
       await customApisService.delete(apiToDelete.id);
-      toast.success('API deletada!');
+      toast.success(tToast('deleted'));
       loadCustomApis(params.id as string);
     } catch (error) {
       console.error('Error deleting API:', error);
-      toast.error('Erro ao deletar API');
+      toast.error(tCommon('error'));
     }
   };
 
@@ -403,7 +424,7 @@ export default function EntityDetailPage() {
       loadCustomApis(params.id as string);
     } catch (error) {
       console.error('Error toggling API:', error);
-      toast.error('Erro ao alterar status');
+      toast.error(tCommon('error'));
     }
   };
 
@@ -431,14 +452,14 @@ export default function EntityDetailPage() {
         const text = await file.text();
         const data = JSON.parse(text);
         if (Array.isArray(data)) setImportPreview(prev => ({ ...prev, [fieldIndex]: data }));
-        else setImportError(prev => ({ ...prev, [fieldIndex]: 'JSON deve ser um array de objetos ou strings.' }));
+        else setImportError(prev => ({ ...prev, [fieldIndex]: tImport('jsonMustBeArray') }));
       } else if (ext === 'csv') {
         Papa.parse(file, {
           header: true,
           complete: (results: Papa.ParseResult<any>) => {
             setImportPreview(prev => ({ ...prev, [fieldIndex]: results.data }));
           },
-          error: (err: any) => setImportError(prev => ({ ...prev, [fieldIndex]: 'Erro ao ler CSV: ' + err.message })),
+          error: (err: any) => setImportError(prev => ({ ...prev, [fieldIndex]: tImport('csvReadError') + err.message })),
         });
       } else if (ext === 'xlsx') {
         const data = await file.arrayBuffer();
@@ -447,10 +468,10 @@ export default function EntityDetailPage() {
         const json = XLSX.utils.sheet_to_json(sheet);
         setImportPreview(prev => ({ ...prev, [fieldIndex]: json }));
       } else {
-        setImportError(prev => ({ ...prev, [fieldIndex]: 'Formato não suportado. Use .json, .csv ou .xlsx' }));
+        setImportError(prev => ({ ...prev, [fieldIndex]: tImport('unsupportedFormat') }));
       }
     } catch (err: any) {
-      setImportError(prev => ({ ...prev, [fieldIndex]: 'Erro ao importar: ' + (err.message || String(err)) }));
+      setImportError(prev => ({ ...prev, [fieldIndex]: tImport('importError') + (err.message || String(err)) }));
     }
   };
 
@@ -485,11 +506,11 @@ export default function EntityDetailPage() {
       return (
         <div className="space-y-3 mt-3 p-3 bg-blue-50 dark:bg-blue-950/20 rounded-lg border border-blue-200 dark:border-blue-800">
           <div className="flex items-center justify-between gap-2">
-            <Label className="text-sm font-medium text-blue-700 dark:text-blue-300">Opções de Seleção</Label>
+            <Label className="text-sm font-medium text-blue-700 dark:text-blue-300">{tFieldConfig('selectOptions')}</Label>
             <div className="flex gap-2">
               <Button asChild size="sm" variant="outline" className="h-7 text-xs">
                 <label style={{ cursor: 'pointer' }}>
-                  <Plus className="h-3 w-3 mr-1" /> Opção
+                  <Plus className="h-3 w-3 mr-1" /> {tFieldConfig('option')}
                   <input type="file" accept=".json,.csv,.xlsx" style={{ display: 'none' }} onChange={(e) => handleImportOptions(e, index)} />
                 </label>
               </Button>
@@ -501,24 +522,24 @@ export default function EntityDetailPage() {
           {importError[index] && <div className="text-xs text-red-600">{importError[index]}</div>}
           {importPreview[index] && (
             <div className="bg-muted p-2 rounded border text-xs mb-2">
-              <div className="mb-1 font-medium">Preview da importação ({importPreview[index].length} opções):</div>
+              <div className="mb-1 font-medium">{tFieldConfig('importPreview', { count: importPreview[index].length })}</div>
               <ul className="max-h-32 overflow-y-auto">
                 {importPreview[index].slice(0, 10).map((item: any, i: number) => (
                   <li key={i}>{typeof item === 'object' ? JSON.stringify(item) : String(item)}</li>
                 ))}
-                {importPreview[index].length > 10 && <li>...e mais {importPreview[index].length - 10} opções</li>}
+                {importPreview[index].length > 10 && <li>{tFieldConfig('andMore', { count: importPreview[index].length - 10 })}</li>}
               </ul>
-              <Button size="sm" className="mt-2" onClick={() => applyImportPreview(index)}>Aplicar opções</Button>
-              <Button size="sm" variant="ghost" className="mt-2 ml-2" onClick={() => setImportPreview(prev => ({ ...prev, [index]: null }))}>Cancelar</Button>
+              <Button size="sm" className="mt-2" onClick={() => applyImportPreview(index)}>{tFieldConfig('applyOptions')}</Button>
+              <Button size="sm" variant="ghost" className="mt-2 ml-2" onClick={() => setImportPreview(prev => ({ ...prev, [index]: null }))}>{tCommon('cancel')}</Button>
             </div>
           )}
           {(field.options || []).length === 0 ? (
-            <p className="text-xs text-muted-foreground">Nenhuma opção. Adicione opções para o seletor.</p>
+            <p className="text-xs text-muted-foreground">{tFieldConfig('noOptions')}</p>
           ) : (
             <div className="space-y-2">
               {(field.options || []).map((opt, optIdx) => (
                 <div key={optIdx} className="flex items-center gap-2">
-                  <Input value={typeof opt === 'object' ? opt.value : opt} onChange={(e) => updateOption(index, optIdx, e.target.value)} placeholder={`Opção ${optIdx + 1}`} className="h-8 text-sm" />
+                  <Input value={typeof opt === 'object' ? opt.value : opt} onChange={(e) => updateOption(index, optIdx, e.target.value)} placeholder={`${tFieldConfig('option')} ${optIdx + 1}`} className="h-8 text-sm" />
                   <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => removeOption(index, optIdx)}>
                     <Trash2 className="h-3 w-3" />
                   </Button>
@@ -533,10 +554,10 @@ export default function EntityDetailPage() {
     if (type === 'relation') {
       return (
         <div className="space-y-3 mt-3 p-3 bg-indigo-50 dark:bg-indigo-950/20 rounded-lg border border-indigo-200 dark:border-indigo-800">
-          <Label className="text-sm font-medium text-indigo-700 dark:text-indigo-300">🔗 Configuração da Relação</Label>
+          <Label className="text-sm font-medium text-indigo-700 dark:text-indigo-300">{tFieldConfig('relationConfig')}</Label>
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="space-y-1">
-              <Label className="text-xs">Entidade Relacionada</Label>
+              <Label className="text-xs">{tFieldConfig('relatedEntity')}</Label>
               <Select
                 value={field.relatedEntityId || ''}
                 onValueChange={(val) => {
@@ -544,7 +565,7 @@ export default function EntityDetailPage() {
                   updateField(index, { relatedEntityId: val, relatedEntitySlug: ent?.slug || '', relatedDisplayField: '' });
                 }}
               >
-                <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="Selecione a entidade" /></SelectTrigger>
+                <SelectTrigger className="h-8 text-sm"><SelectValue placeholder={tFieldConfig('selectEntity')} /></SelectTrigger>
                 <SelectContent>
                   {allEntities.filter(e => e.id !== entity?.id).map(e => (
                     <SelectItem key={e.id} value={e.id}>{e.name} <span className="text-muted-foreground ml-1">/{e.slug}</span></SelectItem>
@@ -554,16 +575,16 @@ export default function EntityDetailPage() {
             </div>
             {field.relatedEntityId && (
               <div className="space-y-1">
-                <Label className="text-xs">Campo para Exibição</Label>
+                <Label className="text-xs">{tFieldConfig('displayField')}</Label>
                 <Select value={field.relatedDisplayField || ''} onValueChange={(val) => updateField(index, { relatedDisplayField: val })}>
-                  <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="Campo para exibir" /></SelectTrigger>
+                  <SelectTrigger className="h-8 text-sm"><SelectValue placeholder={tFieldConfig('fieldToDisplay')} /></SelectTrigger>
                   <SelectContent>
                     {getRelatedEntityFields(field.relatedEntityId).map(f => (
                       <SelectItem key={f.slug || f.name} value={f.slug || f.name}>{f.label || f.name}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
-                <p className="text-xs text-muted-foreground">Qual campo da entidade relacionada será exibido no formulário</p>
+                <p className="text-xs text-muted-foreground">{tFieldConfig('displayFieldHint')}</p>
               </div>
             )}
           </div>
@@ -576,14 +597,13 @@ export default function EntityDetailPage() {
       const subEntityFields = selectedSubEntity?.fields || [];
       return (
         <div className="space-y-3 mt-3 p-3 bg-violet-50 dark:bg-violet-950/20 rounded-lg border border-violet-200 dark:border-violet-800">
-          <Label className="text-sm font-medium text-violet-700 dark:text-violet-300">📂 Configuração da Sub-Entidade</Label>
+          <Label className="text-sm font-medium text-violet-700 dark:text-violet-300">{tFieldConfig('subEntityConfig')}</Label>
           <p className="text-xs text-muted-foreground">
-            Ao editar um registro desta entidade, será exibida uma tabela com registros filhos da entidade selecionada abaixo.
-            Ex: Veículo → Avarias, Sinistro → Follow-ups
+            {tFieldConfig('subEntityDescription')}
           </p>
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="space-y-1">
-              <Label className="text-xs">Entidade Filha</Label>
+              <Label className="text-xs">{tFieldConfig('childEntity')}</Label>
               <Select
                 value={field.subEntityId || ''}
                 onValueChange={(val) => {
@@ -595,7 +615,7 @@ export default function EntityDetailPage() {
                   });
                 }}
               >
-                <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="Selecione a entidade filha" /></SelectTrigger>
+                <SelectTrigger className="h-8 text-sm"><SelectValue placeholder={tFieldConfig('selectChildEntity')} /></SelectTrigger>
                 <SelectContent>
                   {allEntities.filter(e => e.id !== entity?.id).map(e => (
                     <SelectItem key={e.id} value={e.id}>
@@ -607,7 +627,7 @@ export default function EntityDetailPage() {
             </div>
             {field.subEntityId && subEntityFields.length > 0 && (
               <div className="space-y-1">
-                <Label className="text-xs">Campos a Exibir na Tabela</Label>
+                <Label className="text-xs">{tFieldConfig('fieldsToShow')}</Label>
                 <div className="flex flex-wrap gap-1.5 p-2 border rounded-lg bg-background min-h-[34px]">
                   {subEntityFields.map((f: any) => {
                     const slug = f.slug || f.name;
@@ -634,14 +654,13 @@ export default function EntityDetailPage() {
                     );
                   })}
                 </div>
-                <p className="text-xs text-muted-foreground">Clique para selecionar/deselecionar campos visíveis</p>
+                <p className="text-xs text-muted-foreground">{tFieldConfig('clickToToggle')}</p>
               </div>
             )}
           </div>
           {field.subEntityId && (
             <div className="text-xs text-violet-600 dark:text-violet-400 bg-violet-100 dark:bg-violet-900/30 rounded p-2">
-              💡 Os registros filhos serão criados/gerenciados dentro do formulário de edição de cada registro desta entidade.
-              Registros filhos deletados junto com o pai (cascata).
+              {tFieldConfig('subEntityHint')}
             </div>
           )}
         </div>
@@ -663,9 +682,9 @@ export default function EntityDetailPage() {
     if (type === 'api-select') {
       return (
         <div className="space-y-3 mt-3 p-3 bg-amber-50 dark:bg-amber-950/20 rounded-lg border border-amber-200 dark:border-amber-800">
-          <Label className="text-sm font-medium text-amber-700 dark:text-amber-300">⚡ Configuração da API Select</Label>
+          <Label className="text-sm font-medium text-amber-700 dark:text-amber-300">{tFieldConfig('apiSelectConfig')}</Label>
           <div className="space-y-1">
-            <Label className="text-xs">Custom API (Endpoint)</Label>
+            <Label className="text-xs">{tFieldConfig('customApiEndpoint')}</Label>
             <Select
               value={field.apiEndpoint || ''}
               onValueChange={(val) => {
@@ -676,7 +695,7 @@ export default function EntityDetailPage() {
                 }
               }}
             >
-              <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="Selecione a API de dados" /></SelectTrigger>
+              <SelectTrigger className="h-8 text-sm"><SelectValue placeholder={tFieldConfig('selectDataApi')} /></SelectTrigger>
               <SelectContent>
                 {allCustomApis.map(ca => (
                   <SelectItem key={ca.id} value={ca.path}>
@@ -688,29 +707,29 @@ export default function EntityDetailPage() {
                   </SelectItem>
                 ))}
                 <SelectItem value="__custom__">
-                  <span className="text-muted-foreground">✏️ Digitar manualmente...</span>
+                  <span className="text-muted-foreground">{tFieldConfig('typeManually')}</span>
                 </SelectItem>
               </SelectContent>
             </Select>
             {(!field.apiEndpoint || field.apiEndpoint === '') && (
-              <Input className="h-8 text-sm mt-1" placeholder="/meu-endpoint" value={field.apiEndpoint || ''} onChange={(e) => updateField(index, { apiEndpoint: e.target.value })} />
+              <Input className="h-8 text-sm mt-1" placeholder="/my-endpoint" value={field.apiEndpoint || ''} onChange={(e) => updateField(index, { apiEndpoint: e.target.value })} />
             )}
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="space-y-1">
-              <Label className="text-xs">Campo Valor (value)</Label>
+              <Label className="text-xs">{tFieldConfig('valueField')}</Label>
               <Input className="h-8 text-sm" placeholder="id" value={field.valueField || ''} onChange={(e) => updateField(index, { valueField: e.target.value })} />
-              <p className="text-xs text-muted-foreground">Campo da API usado como valor (padrão: id)</p>
+              <p className="text-xs text-muted-foreground">{tFieldConfig('valueFieldHint')}</p>
             </div>
             <div className="space-y-1">
-              <Label className="text-xs">Campo Label (exibição)</Label>
+              <Label className="text-xs">{tFieldConfig('labelField')}</Label>
               <Input className="h-8 text-sm" placeholder="name" value={field.labelField || ''} onChange={(e) => updateField(index, { labelField: e.target.value })} />
-              <p className="text-xs text-muted-foreground">Campo da API exibido no seletor (padrão: name)</p>
+              <p className="text-xs text-muted-foreground">{tFieldConfig('labelFieldHint')}</p>
             </div>
           </div>
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <Label className="text-xs font-medium">Auto-preenchimento</Label>
+              <Label className="text-xs font-medium">{tFieldConfig('autoFill')}</Label>
               <div className="flex items-center gap-1">
                 <Button
                   onClick={() => fetchApiFields(index)}
@@ -720,14 +739,14 @@ export default function EntityDetailPage() {
                   disabled={!field.apiEndpoint || fetchingApiFields === index}
                 >
                   {fetchingApiFields === index ? <Loader2 className="h-2 w-2 mr-1 animate-spin" /> : <RefreshCw className="h-2 w-2 mr-1" />}
-                  Buscar Campos
+                  {tFieldConfig('fetchFields')}
                 </Button>
                 <Button onClick={() => addAutoFill(index)} size="sm" variant="outline" className="h-6 text-[10px]">
-                  <Plus className="h-2 w-2 mr-1" /> Regra
+                  <Plus className="h-2 w-2 mr-1" /> {tFieldConfig('rule')}
                 </Button>
               </div>
             </div>
-            <p className="text-xs text-muted-foreground">Ao selecionar um item, preenche automaticamente outros campos. Clique em "Buscar Campos" para carregar os campos disponíveis da API.</p>
+            <p className="text-xs text-muted-foreground">{tFieldConfig('autoFillDescription')}</p>
             {(field.autoFillFields || []).map((af, afIdx) => (
               <div key={afIdx} className="flex flex-col sm:flex-row sm:items-center gap-2">
                 <Select
@@ -735,12 +754,12 @@ export default function EntityDetailPage() {
                   onValueChange={(val) => updateAutoFill(index, afIdx, { sourceField: val })}
                 >
                   <SelectTrigger className="h-7 text-xs flex-1">
-                    <SelectValue placeholder="Campo da API (source)" />
+                    <SelectValue placeholder={tFieldConfig('sourceField')} />
                   </SelectTrigger>
                   <SelectContent>
                     {!Array.isArray(field.apiFields) || field.apiFields.length === 0 ? (
                       <SelectItem value="__empty__" disabled>
-                        {fetchingApiFields === index ? 'Carregando...' : 'Clique em "Buscar Campos" primeiro'}
+                        {fetchingApiFields === index ? tCommon('loading') : tFieldConfig('fetchFieldsFirst')}
                       </SelectItem>
                     ) : (
                       field.apiFields.map((apiField: string) => (
@@ -751,7 +770,7 @@ export default function EntityDetailPage() {
                 </Select>
                 <span className="text-xs text-muted-foreground">→</span>
                 <Select value={af.targetField} onValueChange={(val) => updateAutoFill(index, afIdx, { targetField: val })}>
-                  <SelectTrigger className="h-7 text-xs flex-1"><SelectValue placeholder="Campo destino" /></SelectTrigger>
+                  <SelectTrigger className="h-7 text-xs flex-1"><SelectValue placeholder={tFieldConfig('targetField')} /></SelectTrigger>
                   <SelectContent>
                     {fields.filter((_, i) => i !== index).map(f => (
                       <SelectItem key={f.slug || f.name} value={f.slug || f.name || ''}>{f.label || f.name} <span className="text-muted-foreground">({f.slug || f.name})</span></SelectItem>
@@ -771,23 +790,23 @@ export default function EntityDetailPage() {
     if (['number', 'currency', 'percentage', 'slider', 'rating'].includes(type)) {
       return (
         <div className="space-y-3 mt-3 p-3 bg-green-50 dark:bg-green-950/20 rounded-lg border border-green-200 dark:border-green-800">
-          <Label className="text-sm font-medium text-green-700 dark:text-green-300">Configuração Numérica</Label>
+          <Label className="text-sm font-medium text-green-700 dark:text-green-300">{tFieldConfig('numericConfig')}</Label>
           <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
             <div className="space-y-1">
-              <Label className="text-xs">Mínimo</Label>
+              <Label className="text-xs">{tFieldConfig('minimum')}</Label>
               <Input type="number" className="h-8 text-sm" value={field.min ?? ''} placeholder="0" onChange={(e) => updateField(index, { min: e.target.value ? Number(e.target.value) : undefined })} />
             </div>
             <div className="space-y-1">
-              <Label className="text-xs">Máximo</Label>
+              <Label className="text-xs">{tFieldConfig('maximum')}</Label>
               <Input type="number" className="h-8 text-sm" value={field.max ?? ''} placeholder="100" onChange={(e) => updateField(index, { max: e.target.value ? Number(e.target.value) : undefined })} />
             </div>
             <div className="space-y-1">
-              <Label className="text-xs">Passo</Label>
+              <Label className="text-xs">{tFieldConfig('step')}</Label>
               <Input type="number" className="h-8 text-sm" value={field.step ?? ''} placeholder="1" onChange={(e) => updateField(index, { step: e.target.value ? Number(e.target.value) : undefined })} />
             </div>
             {type === 'currency' && (
               <div className="space-y-1">
-                <Label className="text-xs">Prefixo</Label>
+                <Label className="text-xs">{tFieldConfig('prefix')}</Label>
                 <Input className="h-8 text-sm" value={field.prefix ?? ''} placeholder="R$" onChange={(e) => updateField(index, { prefix: e.target.value })} />
               </div>
             )}
@@ -799,30 +818,30 @@ export default function EntityDetailPage() {
     if (type === 'map') {
       return (
         <div className="space-y-3 mt-3 p-3 bg-teal-50 dark:bg-teal-950/20 rounded-lg border border-teal-200 dark:border-teal-800">
-          <Label className="text-sm font-medium text-teal-700 dark:text-teal-300">🗺️ Configuração do Mapa</Label>
+          <Label className="text-sm font-medium text-teal-700 dark:text-teal-300">{tFieldConfig('mapConfig')}</Label>
           <div className="space-y-3">
             <div className="space-y-1">
-              <Label className="text-xs">Modo de Entrada</Label>
+              <Label className="text-xs">{tFieldConfig('inputMode')}</Label>
               <Select value={field.mapMode || 'both'} onValueChange={(val) => updateField(index, { mapMode: val as 'latlng' | 'address' | 'both' })}>
                 <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="both">Endereço + Lat/Lng</SelectItem>
-                  <SelectItem value="address">Apenas Endereço</SelectItem>
-                  <SelectItem value="latlng">Apenas Lat/Lng</SelectItem>
+                  <SelectItem value="both">{tFieldConfig('addressAndLatLng')}</SelectItem>
+                  <SelectItem value="address">{tFieldConfig('addressOnly')}</SelectItem>
+                  <SelectItem value="latlng">{tFieldConfig('latLngOnly')}</SelectItem>
                 </SelectContent>
               </Select>
-              <p className="text-xs text-muted-foreground">Define quais campos de entrada serão exibidos</p>
+              <p className="text-xs text-muted-foreground">{tFieldConfig('inputModeHint')}</p>
             </div>
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="space-y-1">
-                <Label className="text-xs">Centro padrão (Lat)</Label>
+                <Label className="text-xs">{tFieldConfig('defaultCenterLat')}</Label>
                 <Input type="number" step="any" className="h-8 text-sm" placeholder="-15.7801" value={field.mapDefaultCenter?.[0] ?? ''} onChange={(e) => {
                   const lat = parseFloat(e.target.value);
                   if (!isNaN(lat)) updateField(index, { mapDefaultCenter: [lat, field.mapDefaultCenter?.[1] ?? -47.9292] });
                 }} />
               </div>
               <div className="space-y-1">
-                <Label className="text-xs">Centro padrão (Lng)</Label>
+                <Label className="text-xs">{tFieldConfig('defaultCenterLng')}</Label>
                 <Input type="number" step="any" className="h-8 text-sm" placeholder="-47.9292" value={field.mapDefaultCenter?.[1] ?? ''} onChange={(e) => {
                   const lng = parseFloat(e.target.value);
                   if (!isNaN(lng)) updateField(index, { mapDefaultCenter: [field.mapDefaultCenter?.[0] ?? -15.7801, lng] });
@@ -831,11 +850,11 @@ export default function EntityDetailPage() {
             </div>
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="space-y-1">
-                <Label className="text-xs">Zoom padrão (1-18)</Label>
+                <Label className="text-xs">{tFieldConfig('defaultZoom')}</Label>
                 <Input type="number" min={1} max={18} className="h-8 text-sm" value={field.mapDefaultZoom ?? 4} onChange={(e) => updateField(index, { mapDefaultZoom: parseInt(e.target.value) || 4 })} />
               </div>
               <div className="space-y-1">
-                <Label className="text-xs">Altura do mapa (px)</Label>
+                <Label className="text-xs">{tFieldConfig('mapHeight')}</Label>
                 <Input type="number" min={150} max={600} className="h-8 text-sm" value={field.mapHeight ?? 300} onChange={(e) => updateField(index, { mapHeight: parseInt(e.target.value) || 300 })} />
               </div>
             </div>
@@ -859,8 +878,8 @@ export default function EntityDetailPage() {
   if (!entity) {
     return (
       <div className="text-center py-12">
-        <p className="text-muted-foreground">Entidade não encontrada</p>
-        <Link href="/entities"><Button variant="link">Voltar para entidades</Button></Link>
+        <p className="text-muted-foreground">{tToast('notFound')}</p>
+        <Link href="/entities"><Button variant="link">{tCommon('back')}</Button></Link>
       </div>
     );
   }
@@ -874,58 +893,58 @@ export default function EntityDetailPage() {
             <TooltipTrigger asChild>
               <Link href="/entities"><Button variant="ghost" size="icon"><ArrowLeft className="h-5 w-5" /></Button></Link>
             </TooltipTrigger>
-            <TooltipContent>Voltar</TooltipContent>
+            <TooltipContent>{tCommon('back')}</TooltipContent>
           </Tooltip>
         </TooltipProvider>
         <div className="flex-1 min-w-0">
           <h1 className="text-xl sm:text-2xl font-bold truncate">{entity.name}</h1>
-          <p className="text-xs sm:text-sm text-muted-foreground truncate">/{entity.slug} — {entity._count?.data || 0} registros</p>
+          <p className="text-xs sm:text-sm text-muted-foreground truncate">/{entity.slug} — {entity._count?.data || 0} {tCommon('fields').toLowerCase()}</p>
         </div>
         <Button onClick={handleSave} disabled={saving} className="w-full sm:w-auto">
           {saving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
-          Salvar
+          {tCommon('save')}
         </Button>
       </div>
 
       <Tabs defaultValue="fields" className="space-y-4">
         <TabsList className="w-full overflow-x-auto flex-wrap h-auto gap-1">
-          <TabsTrigger value="info">Informações</TabsTrigger>
-          <TabsTrigger value="fields">Campos ({fields.length})</TabsTrigger>
-          <TabsTrigger value="layout">Layout Visual</TabsTrigger>
-          <TabsTrigger value="apis">Custom APIs ({customApis.length})</TabsTrigger>
+          <TabsTrigger value="info">{t('basicInfo')}</TabsTrigger>
+          <TabsTrigger value="fields">{t('fieldsTab')} ({fields.length})</TabsTrigger>
+          <TabsTrigger value="layout">{t('visualLayout')}</TabsTrigger>
+          <TabsTrigger value="apis">{t('customApis')} ({customApis.length})</TabsTrigger>
         </TabsList>
 
         {/* Info Tab */}
         <TabsContent value="info">
           <Card>
             <CardHeader>
-              <CardTitle>Informações Básicas</CardTitle>
-              <CardDescription>Nome e descrição da entidade</CardDescription>
+              <CardTitle>{t('basicInfo')}</CardTitle>
+              <CardDescription>{tCommon('name')} {tCommon('and').toLowerCase()} {tCommon('description').toLowerCase()}</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2">
-                  <Label htmlFor="name">Nome</Label>
-                  <Input id="name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Nome da entidade" />
+                  <Label htmlFor="name">{tCommon('name')}</Label>
+                  <Input id="name" value={name} onChange={(e) => setName(e.target.value)} placeholder={t('namePlaceholder')} />
                 </div>
                 <div className="space-y-2">
-                  <Label>Slug</Label>
+                  <Label>{tCommon('slug')}</Label>
                   <Input value={entity.slug} disabled className="bg-muted" />
                 </div>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="description">Descrição</Label>
-                <Textarea id="description" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Descrição (opcional)" rows={3} />
+                <Label htmlFor="description">{tCommon('description')}</Label>
+                <Textarea id="description" value={description} onChange={(e) => setDescription(e.target.value)} placeholder={t('descriptionPlaceholder')} rows={3} />
               </div>
               <div className="pt-4 border-t">
-                <h4 className="text-sm font-medium mb-3">Endpoints Automáticos (CRUD)</h4>
+                <h4 className="text-sm font-medium mb-3">{t('autoEndpoints')}</h4>
                 <div className="grid gap-2 text-xs sm:text-sm font-mono overflow-x-auto">
                   {[
-                    { method: 'GET', path: `/${entity.slug}`, desc: 'Listar todos', color: 'bg-green-500' },
-                    { method: 'GET', path: `/${entity.slug}/:id`, desc: 'Buscar um', color: 'bg-green-500' },
-                    { method: 'POST', path: `/${entity.slug}`, desc: 'Criar', color: 'bg-blue-500' },
-                    { method: 'PUT', path: `/${entity.slug}/:id`, desc: 'Atualizar', color: 'bg-yellow-500' },
-                    { method: 'DELETE', path: `/${entity.slug}/:id`, desc: 'Deletar', color: 'bg-red-500' },
+                    { method: 'GET', path: `/${entity.slug}`, desc: t('listAll'), color: 'bg-green-500' },
+                    { method: 'GET', path: `/${entity.slug}/:id`, desc: t('findOne'), color: 'bg-green-500' },
+                    { method: 'POST', path: `/${entity.slug}`, desc: t('createOne'), color: 'bg-blue-500' },
+                    { method: 'PUT', path: `/${entity.slug}/:id`, desc: t('updateOne'), color: 'bg-yellow-500' },
+                    { method: 'DELETE', path: `/${entity.slug}/:id`, desc: t('deleteOne'), color: 'bg-red-500' },
                   ].map(ep => (
                     <div key={`${ep.method}-${ep.path}`} className="flex items-center gap-2 min-w-0">
                       <Badge className={`${ep.color} text-white w-16 justify-center flex-shrink-0`}>{ep.method}</Badge>
@@ -945,17 +964,17 @@ export default function EntityDetailPage() {
             <CardHeader>
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div>
-                  <CardTitle>Campos</CardTitle>
-                  <CardDescription>Configure os campos da entidade. Clique para expandir.</CardDescription>
+                  <CardTitle>{tCommon('fields')}</CardTitle>
+                  <CardDescription>{t('fieldsTab')}</CardDescription>
                 </div>
-                <Button onClick={addField} size="sm" className="w-full sm:w-auto"><Plus className="h-4 w-4 mr-1" /> Adicionar Campo</Button>
+                <Button onClick={addField} size="sm" className="w-full sm:w-auto"><Plus className="h-4 w-4 mr-1" /> {t('addField')}</Button>
               </div>
             </CardHeader>
             <CardContent>
               {fields.length === 0 ? (
                 <div className="text-center py-8 sm:py-12 border-2 border-dashed rounded-lg px-4">
-                  <p className="text-muted-foreground mb-4 text-sm sm:text-base">Nenhum campo definido.</p>
-                  <Button onClick={addField} variant="outline"><Plus className="h-4 w-4 mr-2" /> Adicionar primeiro campo</Button>
+                  <p className="text-muted-foreground mb-4 text-sm sm:text-base">{t('noFieldsDefined')}</p>
+                  <Button onClick={addField} variant="outline"><Plus className="h-4 w-4 mr-2" /> {t('addFirstField')}</Button>
                 </div>
               ) : (
                 <div className="space-y-2">
@@ -969,9 +988,9 @@ export default function EntityDetailPage() {
                           <span className="w-8 h-8 flex items-center justify-center bg-muted rounded text-sm font-medium">{typeInfo.icon}</span>
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2">
-                              <span className="font-medium text-sm truncate">{field.label || field.name || '(sem nome)'}</span>
-                              <Badge variant="secondary" className="text-[10px] h-5">{typeInfo.label}</Badge>
-                              {field.required && <Badge variant="destructive" className="text-[10px] h-5">obrigatório</Badge>}
+                              <span className="font-medium text-sm truncate">{field.label || field.name || `(${tCommon('name').toLowerCase()})`}</span>
+                              <Badge variant="secondary" className="text-[10px] h-5">{getFieldTypeLabel(typeInfo.labelKey)}</Badge>
+                              {field.required && <Badge variant="destructive" className="text-[10px] h-5">{tCommon('required').toLowerCase()}</Badge>}
                             </div>
                             {field.name && <p className="text-xs text-muted-foreground truncate">{field.name}</p>}
                           </div>
@@ -981,8 +1000,8 @@ export default function EntityDetailPage() {
                             <DropdownMenu>
                               <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="h-7 w-7" onClick={(e) => e.stopPropagation()}><MoreHorizontal className="h-3 w-3" /></Button></DropdownMenuTrigger>
                               <DropdownMenuContent align="end">
-                                <DropdownMenuItem onClick={() => duplicateField(index)}><Copy className="h-4 w-4 mr-2" /> Duplicar</DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => removeField(index)} className="text-destructive"><Trash2 className="h-4 w-4 mr-2" /> Excluir</DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => duplicateField(index)}><Copy className="h-4 w-4 mr-2" /> {tCommon('duplicate')}</DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => removeField(index)} className="text-destructive"><Trash2 className="h-4 w-4 mr-2" /> {tCommon('delete')}</DropdownMenuItem>
                               </DropdownMenuContent>
                             </DropdownMenu>
                           </div>
@@ -991,24 +1010,24 @@ export default function EntityDetailPage() {
                           <div className="px-3 pb-4 pt-1 border-t space-y-4">
                             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                               <div className="space-y-1">
-                                <Label className="text-xs">Nome do campo (slug)</Label>
+                                <Label className="text-xs">{t('fieldName')}</Label>
                                 <Input placeholder="nome_campo" value={field.name || ''} onChange={(e) => updateField(index, { name: e.target.value })} className="h-8 text-sm" />
                               </div>
                               <div className="space-y-1">
-                                <Label className="text-xs">Label (exibição)</Label>
+                                <Label className="text-xs">{t('fieldLabel')}</Label>
                                 <Input placeholder="Nome do Campo" value={field.label || ''} onChange={(e) => updateField(index, { label: e.target.value })} className="h-8 text-sm" />
                               </div>
                               <div className="space-y-1">
-                                <Label className="text-xs">Tipo</Label>
+                                <Label className="text-xs">{tCommon('type')}</Label>
                                 <Select value={field.type || 'text'} onValueChange={(value) => updateField(index, { type: value as FieldType })}>
                                   <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
                                   <SelectContent>
                                     {fieldTypeCategories.map(cat => (
-                                      <div key={cat.label}>
-                                        <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground bg-muted/50">{cat.label}</div>
-                                        {cat.types.map(t => (
-                                          <SelectItem key={t.value} value={t.value}>
-                                            <span className="flex items-center gap-2"><span className="w-5 text-center">{t.icon}</span>{t.label}</span>
+                                      <div key={cat.labelKey}>
+                                        <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground bg-muted/50">{tFieldCategories(cat.labelKey.split('.')[1] as 'text')}</div>
+                                        {cat.types.map(ft => (
+                                          <SelectItem key={ft.value} value={ft.value}>
+                                            <span className="flex items-center gap-2"><span className="w-5 text-center">{ft.icon}</span>{getFieldTypeLabel(ft.labelKey)}</span>
                                           </SelectItem>
                                         ))}
                                       </div>
@@ -1017,23 +1036,23 @@ export default function EntityDetailPage() {
                                 </Select>
                               </div>
                               <div className="space-y-1">
-                                <Label className="text-xs">Obrigatorio</Label>
+                                <Label className="text-xs">{tCommon('required')}</Label>
                                 <div className="pt-1"><Switch checked={field.required || false} onCheckedChange={(checked) => updateField(index, { required: checked })} /></div>
                               </div>
                               <div className="space-y-1">
-                                <Label className="text-xs">Oculto</Label>
+                                <Label className="text-xs">{tCommon('hidden')}</Label>
                                 <div className="pt-1"><Switch checked={field.hidden || false} onCheckedChange={(checked) => updateField(index, { hidden: checked })} /></div>
-                                <p className="text-[10px] text-muted-foreground">Campo preenchido via Custom API</p>
+                                <p className="text-[10px] text-muted-foreground">{t('fieldFilledByApi')}</p>
                               </div>
                             </div>
                             <div className="grid gap-3 sm:grid-cols-2">
                               <div className="space-y-1">
-                                <Label className="text-xs">Placeholder</Label>
-                                <Input className="h-8 text-sm" value={field.placeholder || ''} placeholder="Texto de ajuda no campo" onChange={(e) => updateField(index, { placeholder: e.target.value })} />
+                                <Label className="text-xs">{t('placeholder')}</Label>
+                                <Input className="h-8 text-sm" value={field.placeholder || ''} placeholder={tFieldConfig('placeholderHint')} onChange={(e) => updateField(index, { placeholder: e.target.value })} />
                               </div>
                               <div className="space-y-1">
-                                <Label className="text-xs">Texto de ajuda</Label>
-                                <Input className="h-8 text-sm" value={field.helpText || ''} placeholder="Dica exibida abaixo do campo" onChange={(e) => updateField(index, { helpText: e.target.value })} />
+                                <Label className="text-xs">{t('helpText')}</Label>
+                                <Input className="h-8 text-sm" value={field.helpText || ''} placeholder={tFieldConfig('helpTextHint')} onChange={(e) => updateField(index, { helpText: e.target.value })} />
                               </div>
                             </div>
                             {renderFieldTypeSpecificConfig(field, index)}
@@ -1052,14 +1071,14 @@ export default function EntityDetailPage() {
         <TabsContent value="layout">
           <Card>
             <CardHeader>
-              <CardTitle>Layout do Formulário</CardTitle>
-              <CardDescription>Arraste os campos para reordená-los. Arraste a borda direita para redimensionar. Use os botões de % para larguras rápidas.</CardDescription>
+              <CardTitle>{t('visualLayout')}</CardTitle>
+              <CardDescription>{tFieldConfig('layoutDescription')}</CardDescription>
             </CardHeader>
             <CardContent>
               {fields.length === 0 ? (
                 <div className="text-center py-8 sm:py-12 border-2 border-dashed rounded-lg px-4">
-                  <p className="text-muted-foreground mb-4 text-sm sm:text-base">Adicione campos na aba "Campos" primeiro</p>
-                  <Button onClick={() => { addField(); }} variant="outline"><Plus className="h-4 w-4 mr-2" /> Adicionar primeiro campo</Button>
+                  <p className="text-muted-foreground mb-4 text-sm sm:text-base">{tFieldConfig('addFieldsInTab')}</p>
+                  <Button onClick={() => { addField(); }} variant="outline"><Plus className="h-4 w-4 mr-2" /> {t('addFirstField')}</Button>
                 </div>
               ) : (
                 <div className="pl-0 sm:pl-8">
@@ -1081,10 +1100,10 @@ export default function EntityDetailPage() {
             <CardHeader>
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div>
-                  <CardTitle>Custom APIs</CardTitle>
-                  <CardDescription>Endpoints customizados para esta entidade.</CardDescription>
+                  <CardTitle>{t('customApis')}</CardTitle>
+                  <CardDescription>{tFieldConfig('customApisDescription')}</CardDescription>
                 </div>
-                <Button onClick={() => openApiDialog()} size="sm" className="w-full sm:w-auto"><Plus className="h-4 w-4 mr-1" /> Nova API</Button>
+                <Button onClick={() => openApiDialog()} size="sm" className="w-full sm:w-auto"><Plus className="h-4 w-4 mr-1" /> {tFieldConfig('newApi')}</Button>
               </div>
             </CardHeader>
             <CardContent>
@@ -1093,9 +1112,9 @@ export default function EntityDetailPage() {
               ) : customApis.length === 0 ? (
                 <div className="text-center py-8 sm:py-12 border-2 border-dashed rounded-lg px-4">
                   <Zap className="h-10 w-10 sm:h-12 sm:w-12 mx-auto text-muted-foreground/50 mb-3 sm:mb-4" />
-                  <h3 className="font-medium mb-2 text-sm sm:text-base">Nenhuma Custom API</h3>
-                  <p className="text-muted-foreground text-xs sm:text-sm mb-4 max-w-md mx-auto">Crie endpoints customizados para ações como "Aprovar", "Enviar Email", etc.</p>
-                  <Button onClick={() => openApiDialog()} variant="outline"><Plus className="h-4 w-4 mr-2" /> Criar primeira API</Button>
+                  <h3 className="font-medium mb-2 text-sm sm:text-base">{t('noCustomApis')}</h3>
+                  <p className="text-muted-foreground text-xs sm:text-sm mb-4 max-w-md mx-auto">{t('createCustomApisHint')}</p>
+                  <Button onClick={() => openApiDialog()} variant="outline"><Plus className="h-4 w-4 mr-2" /> {t('createFirstApi')}</Button>
                 </div>
               ) : (
                 <div className="space-y-3">
@@ -1105,7 +1124,7 @@ export default function EntityDetailPage() {
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
                           <span className="font-medium">{customApi.name}</span>
-                          {!customApi.isActive && <Badge variant="secondary" className="text-xs">Inativo</Badge>}
+                          {!customApi.isActive && <Badge variant="secondary" className="text-xs">{tCommon('inactive')}</Badge>}
                         </div>
                         <div className="text-sm text-muted-foreground font-mono truncate">/api/{entity.slug}/{customApi.path}</div>
                         {customApi.description && <p className="text-xs text-muted-foreground mt-1">{customApi.description}</p>}
@@ -1115,8 +1134,8 @@ export default function EntityDetailPage() {
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild><Button variant="ghost" size="icon"><MoreHorizontal className="h-4 w-4" /></Button></DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => openApiDialog(customApi)}><Code className="h-4 w-4 mr-2" /> Editar</DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => handleDeleteApi(customApi)} className="text-destructive"><Trash2 className="h-4 w-4 mr-2" /> Deletar</DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => openApiDialog(customApi)}><Code className="h-4 w-4 mr-2" /> {tCommon('edit')}</DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleDeleteApi(customApi)} className="text-destructive"><Trash2 className="h-4 w-4 mr-2" /> {tCommon('delete')}</DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
                       </div>
@@ -1133,17 +1152,17 @@ export default function EntityDetailPage() {
       <Dialog open={apiDialogOpen} onOpenChange={setApiDialogOpen}>
         <DialogContent className="max-w-[95vw] sm:max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>{editingApi ? 'Editar Custom API' : 'Nova Custom API'}</DialogTitle>
-            <DialogDescription>Crie um endpoint customizado para {entity.name}</DialogDescription>
+            <DialogTitle>{editingApi ? tCommon('edit') : tCommon('create')} Custom API</DialogTitle>
+            <DialogDescription>{t('createCustomApisHint')}</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
-                <Label>Nome</Label>
+                <Label>{tCommon('name')}</Label>
                 <Input value={apiForm.name} onChange={(e) => setApiForm({ ...apiForm, name: e.target.value })} placeholder="Ex: Aprovar Pedido" />
               </div>
               <div className="space-y-2">
-                <Label>Método HTTP</Label>
+                <Label>HTTP</Label>
                 <Select value={apiForm.method} onValueChange={(value: any) => setApiForm({ ...apiForm, method: value })}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
@@ -1157,26 +1176,26 @@ export default function EntityDetailPage() {
               </div>
             </div>
             <div className="space-y-2">
-              <Label>Caminho (path)</Label>
+              <Label>Path</Label>
               <div className="flex flex-col sm:flex-row sm:items-center gap-2">
                 <span className="text-sm text-muted-foreground flex-shrink-0">/api/{entity.slug}/</span>
                 <Input value={apiForm.path} onChange={(e) => setApiForm({ ...apiForm, path: e.target.value })} placeholder="aprovar ou :id/aprovar" className="flex-1" />
               </div>
             </div>
             <div className="space-y-2">
-              <Label>Descrição</Label>
-              <Input value={apiForm.description} onChange={(e) => setApiForm({ ...apiForm, description: e.target.value })} placeholder="O que essa API faz?" />
+              <Label>{tCommon('description')}</Label>
+              <Input value={apiForm.description} onChange={(e) => setApiForm({ ...apiForm, description: e.target.value })} placeholder={t('descriptionPlaceholder')} />
             </div>
             <div className="space-y-2">
-              <Label>Código (JavaScript)</Label>
+              <Label>JavaScript</Label>
               <Textarea value={apiForm.logic} onChange={(e) => setApiForm({ ...apiForm, logic: e.target.value })} placeholder={`// Contexto: ctx.params, ctx.body, ctx.user, ctx.entity\nconst { id } = ctx.params;\nconst record = await ctx.entity.findById(id);\nreturn { success: true, data: record };`} rows={10} className="font-mono text-sm" />
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setApiDialogOpen(false)}>Cancelar</Button>
+            <Button variant="outline" onClick={() => setApiDialogOpen(false)}>{tCommon('cancel')}</Button>
             <Button onClick={handleSaveApi} disabled={savingApi}>
               {savingApi ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
-              {editingApi ? 'Atualizar' : 'Criar'}
+              {editingApi ? tCommon('save') : tCommon('create')}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { Link } from '@/i18n/navigation';
+import { useTranslations } from 'next-intl';
 import { RequireRole } from '@/components/auth/require-role';
 import {
   Plus,
@@ -84,6 +85,7 @@ function KeyValueFields({
   rows: KeyValueRow[];
   onChange: (rows: KeyValueRow[]) => void;
 }) {
+  const t = useTranslations('apis.keyValueFields');
   const updateRow = (id: string, field: 'key' | 'value', val: string) => {
     onChange(rows.map((r) => (r.id === id ? { ...r, [field]: val } : r)));
   };
@@ -103,13 +105,13 @@ function KeyValueFields({
         {rows.map((row, idx) => (
           <div key={row.id} className="flex items-center gap-2">
             <Input
-              placeholder={`Nome do campo ${idx + 1}`}
+              placeholder={t('fieldName', { index: idx + 1 })}
               value={row.key}
               onChange={(e) => updateRow(row.id, 'key', e.target.value)}
               className="text-sm flex-1"
             />
             <Input
-              placeholder={`Valor do campo ${idx + 1}`}
+              placeholder={t('fieldValue', { index: idx + 1 })}
               value={row.value}
               onChange={(e) => updateRow(row.id, 'value', e.target.value)}
               className="text-sm flex-1"
@@ -128,7 +130,7 @@ function KeyValueFields({
       </div>
       <Button type="button" variant="outline" size="sm" className="w-full text-xs" onClick={addRow}>
         <Plus className="h-3 w-3 mr-1" />
-        Adicionar campo
+        {t('addField')}
       </Button>
     </div>
   );
@@ -143,6 +145,9 @@ function TestApiDialog({
   onOpenChange: (open: boolean) => void;
   customApi: CustomApi | null;
 }) {
+  const t = useTranslations('apis.testDialog');
+  const tToast = useTranslations('apis.toast');
+  const tCommon = useTranslations('common');
   const { tenantId } = useTenant();
   const [paramRows, setParamRows] = useState<KeyValueRow[]>([createRow()]);
   const [bodyRows, setBodyRows] = useState<KeyValueRow[]>([createRow()]);
@@ -173,7 +178,7 @@ function TestApiDialog({
 
   const handleTest = async () => {
     if (!customApi || !tenantId) {
-      toast.error('Tenant não encontrado. Faça login novamente.');
+      toast.error(tToast('tenantNotFound'));
       return;
     }
 
@@ -214,7 +219,7 @@ function TestApiDialog({
           duration,
         });
       } else {
-        setError(err.message || 'Erro ao conectar com a API');
+        setError(err.message || t('connectionError'));
       }
     } finally {
       setTesting(false);
@@ -227,11 +232,11 @@ function TestApiDialog({
   // Friendly status message
   const getStatusMessage = () => {
     if (!result) return '';
-    if (isSuccess) return '✅ A API respondeu com sucesso!';
-    if (result.status === 404) return '❌ Endpoint não encontrado. Verifique se a API está ativa.';
-    if (result.status === 401 || result.status === 403) return '🔒 Sem permissão. Verifique se você tem acesso.';
-    if (result.status >= 500) return '⚠️ Erro interno no servidor.';
-    return `⚠️ A API retornou um erro (código ${result.status}).`;
+    if (isSuccess) return `✅ ${t('success')}`;
+    if (result.status === 404) return `❌ ${t('errorNotFound')}`;
+    if (result.status === 401 || result.status === 403) return `🔒 ${t('errorForbidden')}`;
+    if (result.status >= 500) return `⚠️ ${t('errorServer')}`;
+    return `⚠️ ${t('errorGeneric', { status: result.status })}`;
   };
 
   return (
@@ -240,11 +245,11 @@ function TestApiDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Play className="h-5 w-5 text-primary" />
-            Testar API
+            {t('title')}
           </DialogTitle>
           {customApi && (
             <DialogDescription className="pt-1">
-              Teste a API <strong>{customApi.name}</strong> e veja a resposta abaixo.
+              {t('subtitle', { name: customApi.name })}
             </DialogDescription>
           )}
         </DialogHeader>
@@ -265,7 +270,7 @@ function TestApiDialog({
               variant={customApi.isActive ? 'default' : 'secondary'}
               className="ml-auto text-[10px]"
             >
-              {customApi.isActive ? 'Ativa' : 'Inativa'}
+              {customApi.isActive ? tCommon('active') : tCommon('inactive')}
             </Badge>
           </div>
         )}
@@ -274,8 +279,8 @@ function TestApiDialog({
           <div className="flex flex-col gap-4 pr-3">
             {/* Filtros / Query Params */}
             <KeyValueFields
-              label="📋 Filtros (opcional)"
-              hint="Adicione filtros para a busca, como página, limite, etc."
+              label={`📋 ${t('filters')}`}
+              hint={t('filtersHint')}
               rows={paramRows}
               onChange={setParamRows}
             />
@@ -285,8 +290,8 @@ function TestApiDialog({
               <>
                 <Separator />
                 <KeyValueFields
-                  label="📝 Dados para enviar"
-                  hint="Preencha os campos que a API espera receber."
+                  label={`📝 ${t('dataToSend')}`}
+                  hint={t('dataToSendHint')}
                   rows={bodyRows}
                   onChange={setBodyRows}
                 />
@@ -305,12 +310,12 @@ function TestApiDialog({
               {testing ? (
                 <>
                   <Loader2 className="h-5 w-5 mr-2 animate-spin" />
-                  Testando...
+                  {tCommon('testing')}
                 </>
               ) : (
                 <>
                   <Send className="h-5 w-5 mr-2" />
-                  Testar Agora
+                  {t('testNow')}
                 </>
               )}
             </Button>
@@ -339,7 +344,7 @@ function TestApiDialog({
 
                 {/* Response data */}
                 <div className="space-y-1">
-                  <Label className="text-xs text-muted-foreground">Resposta da API:</Label>
+                  <Label className="text-xs text-muted-foreground">{t('response')}</Label>
                   <ScrollArea className="max-h-[220px] border rounded-lg bg-muted/30">
                     <pre className="p-3 text-xs whitespace-pre-wrap break-all">
                       {typeof result.data === 'string'
@@ -355,7 +360,7 @@ function TestApiDialog({
               <div className="flex items-start gap-2 p-3 border border-destructive/50 bg-destructive/5 rounded-lg">
                 <XCircle className="h-4 w-4 text-destructive flex-shrink-0 mt-0.5" />
                 <div>
-                  <p className="text-sm font-medium text-destructive">Não foi possível conectar</p>
+                  <p className="text-sm font-medium text-destructive">{t('connectionError')}</p>
                   <p className="text-xs text-destructive/80 mt-0.5">{error}</p>
                 </div>
               </div>
@@ -368,6 +373,9 @@ function TestApiDialog({
 }
 
 function ApisPageContent() {
+  const t = useTranslations('apis');
+  const tCommon = useTranslations('common');
+  const tNav = useTranslations('navigation');
   const [search, setSearch] = useState('');
   const [formOpen, setFormOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -375,8 +383,8 @@ function ApisPageContent() {
   const [selectedApi, setSelectedApi] = useState<CustomApi | null>(null);
 
   const { data, isLoading, refetch } = useCustomApis();
-  const activateApi = useActivateCustomApi();
-  const deactivateApi = useDeactivateCustomApi();
+  const activateApi = useActivateCustomApi({ success: t('toast.activated') });
+  const deactivateApi = useDeactivateCustomApi({ success: t('toast.deactivated') });
 
   // Garante que apis e sempre um array
   const apis: CustomApi[] = (() => {
@@ -426,7 +434,7 @@ function ApisPageContent() {
 
   const handleCopyPath = (path: string) => {
     navigator.clipboard.writeText(`/api/x/[org]${path}`);
-    toast.success('Path copiado para a area de transferencia');
+    toast.success(t('pathCopied'));
   };
 
   const handleSuccess = () => {
@@ -437,22 +445,22 @@ function ApisPageContent() {
     <div className="space-y-4 sm:space-y-6">
       {/* Breadcrumbs */}
       <nav className="mb-2 flex items-center gap-2 text-sm text-muted-foreground" aria-label="breadcrumb">
-        <Link href="/dashboard" className="hover:underline">Dashboard</Link>
+        <Link href="/dashboard" className="hover:underline">{tNav('dashboard')}</Link>
         <span>/</span>
-        <span className="font-semibold text-foreground">APIs</span>
+        <span className="font-semibold text-foreground">{tNav('apis')}</span>
       </nav>
 
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-bold">APIs Personalizadas</h1>
+          <h1 className="text-2xl sm:text-3xl font-bold">{t('title')}</h1>
           <p className="text-muted-foreground mt-1 text-sm sm:text-base">
-            Crie endpoints personalizados para seu CRM
+            {t('subtitle')}
           </p>
         </div>
         <Button onClick={handleCreateApi} className="w-full sm:w-auto">
           <Plus className="h-4 w-4 mr-2" />
-          Nova API
+          {t('newApi')}
         </Button>
       </div>
 
@@ -461,7 +469,7 @@ function ApisPageContent() {
         <Card>
           <CardContent className="p-3 sm:p-4">
             <div className="text-xl sm:text-2xl font-bold">{apis.length}</div>
-            <p className="text-xs sm:text-sm text-muted-foreground">Total de APIs</p>
+            <p className="text-xs sm:text-sm text-muted-foreground">{t('stats.total')}</p>
           </CardContent>
         </Card>
         <Card>
@@ -469,7 +477,7 @@ function ApisPageContent() {
             <div className="text-xl sm:text-2xl font-bold text-green-600">
               {apis.filter((a) => a.isActive).length}
             </div>
-            <p className="text-xs sm:text-sm text-muted-foreground">Ativas</p>
+            <p className="text-xs sm:text-sm text-muted-foreground">{t('stats.active')}</p>
           </CardContent>
         </Card>
         <Card>
@@ -477,7 +485,7 @@ function ApisPageContent() {
             <div className="text-xl sm:text-2xl font-bold text-blue-600">
               {apis.filter((a) => a.method === 'GET').length}
             </div>
-            <p className="text-xs sm:text-sm text-muted-foreground">Endpoints GET</p>
+            <p className="text-xs sm:text-sm text-muted-foreground">{t('stats.getEndpoints')}</p>
           </CardContent>
         </Card>
         <Card>
@@ -485,7 +493,7 @@ function ApisPageContent() {
             <div className="text-xl sm:text-2xl font-bold text-purple-600">
               {apis.filter((a) => a.method === 'POST').length}
             </div>
-            <p className="text-xs sm:text-sm text-muted-foreground">Endpoints POST</p>
+            <p className="text-xs sm:text-sm text-muted-foreground">{t('stats.postEndpoints')}</p>
           </CardContent>
         </Card>
       </div>
@@ -494,7 +502,7 @@ function ApisPageContent() {
       <div className="relative w-full max-w-md">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
         <Input
-          placeholder="Buscar APIs..."
+          placeholder={t('searchPlaceholder')}
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className="pl-9"
@@ -517,16 +525,16 @@ function ApisPageContent() {
         <Card>
           <CardContent className="p-6 sm:p-12 text-center">
             <Code className="h-8 w-8 sm:h-12 sm:w-12 mx-auto text-muted-foreground mb-4" />
-            <h3 className="text-base sm:text-lg font-semibold mb-2">Nenhuma API encontrada</h3>
+            <h3 className="text-base sm:text-lg font-semibold mb-2">{t('noApisFound')}</h3>
             <p className="text-muted-foreground mb-4">
               {search
-                ? 'Nenhuma API corresponde a sua busca.'
-                : 'Crie sua primeira API personalizada para comecar.'}
+                ? t('noApisMatchSearch')
+                : t('createFirstApi')}
             </p>
             {!search && (
               <Button onClick={handleCreateApi}>
                 <Plus className="h-4 w-4 mr-2" />
-                Criar Primeira API
+                {t('createFirstApiButton')}
               </Button>
             )}
           </CardContent>
@@ -561,7 +569,7 @@ function ApisPageContent() {
                               : 'bg-gray-100 text-gray-800'
                           }`}
                         >
-                          {apiItem.isActive ? 'Ativa' : 'Inativa'}
+                          {apiItem.isActive ? tCommon('active') : tCommon('inactive')}
                         </span>
                       </div>
                       <div className="flex items-center gap-2 mt-1 overflow-hidden">
@@ -586,11 +594,11 @@ function ApisPageContent() {
                   <div className="flex items-center gap-2 justify-end sm:justify-start flex-shrink-0">
                     <Button variant="ghost" size="sm" className="hidden md:flex" onClick={() => handleTestApi(apiItem)}>
                       <Play className="h-4 w-4 mr-1" />
-                      Testar
+                      {t('test')}
                     </Button>
                     <Button variant="outline" size="sm" onClick={() => handleEditApi(apiItem)} className="hidden sm:flex">
                       <Pencil className="h-4 w-4 mr-1" />
-                      Editar
+                      {tCommon('edit')}
                     </Button>
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
@@ -601,15 +609,15 @@ function ApisPageContent() {
                       <DropdownMenuContent align="end">
                         <DropdownMenuItem onClick={() => handleTestApi(apiItem)}>
                           <Play className="h-4 w-4 mr-2" />
-                          Testar
+                          {t('test')}
                         </DropdownMenuItem>
                         <DropdownMenuItem onClick={() => handleEditApi(apiItem)}>
                           <Pencil className="h-4 w-4 mr-2" />
-                          Editar
+                          {tCommon('edit')}
                         </DropdownMenuItem>
                         <DropdownMenuItem onClick={() => handleCopyPath(apiItem.path)}>
                           <Copy className="h-4 w-4 mr-2" />
-                          Copiar Path
+                          {t('copyPath')}
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
                         {apiItem.isActive ? (
@@ -618,7 +626,7 @@ function ApisPageContent() {
                             className="text-yellow-600 focus:text-yellow-600"
                           >
                             <PauseCircle className="h-4 w-4 mr-2" />
-                            Desativar
+                            {t('deactivate')}
                           </DropdownMenuItem>
                         ) : (
                           <DropdownMenuItem
@@ -626,7 +634,7 @@ function ApisPageContent() {
                             className="text-green-600 focus:text-green-600"
                           >
                             <PlayCircle className="h-4 w-4 mr-2" />
-                            Ativar
+                            {t('activate')}
                           </DropdownMenuItem>
                         )}
                         <DropdownMenuSeparator />
@@ -635,7 +643,7 @@ function ApisPageContent() {
                           className="text-destructive focus:text-destructive"
                         >
                           <Trash2 className="h-4 w-4 mr-2" />
-                          Excluir
+                          {tCommon('delete')}
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
@@ -671,7 +679,7 @@ function ApisPageContent() {
 
 export default function ApisPage() {
   return (
-    <RequireRole adminOnly message="Apenas administradores podem gerenciar APIs.">
+    <RequireRole adminOnly>
       <ApisPageContent />
     </RequireRole>
   );

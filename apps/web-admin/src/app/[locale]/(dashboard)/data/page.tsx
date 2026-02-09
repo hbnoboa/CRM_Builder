@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useTranslations } from 'next-intl';
 import { Link } from '@/i18n/navigation';
 import {
   Database,
@@ -69,41 +70,41 @@ interface ActiveFilter {
   value2?: unknown; // Para operador 'between'
 }
 
-// Operadores disponiveis por tipo de campo
-const OPERATORS_BY_TYPE: Record<string, { value: FilterOperator; label: string }[]> = {
+// Operadores disponiveis por tipo de campo (keys para traducao)
+const OPERATORS_BY_TYPE: Record<string, { value: FilterOperator; labelKey: string }[]> = {
   text: [
-    { value: 'contains', label: 'Contem' },
-    { value: 'equals', label: 'Igual a' },
-    { value: 'startsWith', label: 'Comeca com' },
-    { value: 'endsWith', label: 'Termina com' },
-    { value: 'isEmpty', label: 'Esta vazio' },
-    { value: 'isNotEmpty', label: 'Nao esta vazio' },
+    { value: 'contains', labelKey: 'contains' },
+    { value: 'equals', labelKey: 'equals' },
+    { value: 'startsWith', labelKey: 'startsWith' },
+    { value: 'endsWith', labelKey: 'endsWith' },
+    { value: 'isEmpty', labelKey: 'isEmpty' },
+    { value: 'isNotEmpty', labelKey: 'isNotEmpty' },
   ],
   number: [
-    { value: 'equals', label: 'Igual a' },
-    { value: 'gt', label: 'Maior que' },
-    { value: 'gte', label: 'Maior ou igual' },
-    { value: 'lt', label: 'Menor que' },
-    { value: 'lte', label: 'Menor ou igual' },
-    { value: 'between', label: 'Entre' },
-    { value: 'isEmpty', label: 'Esta vazio' },
+    { value: 'equals', labelKey: 'equals' },
+    { value: 'gt', labelKey: 'gt' },
+    { value: 'gte', labelKey: 'gte' },
+    { value: 'lt', labelKey: 'lt' },
+    { value: 'lte', labelKey: 'lte' },
+    { value: 'between', labelKey: 'between' },
+    { value: 'isEmpty', labelKey: 'isEmpty' },
   ],
   date: [
-    { value: 'equals', label: 'Igual a' },
-    { value: 'gt', label: 'Depois de' },
-    { value: 'gte', label: 'A partir de' },
-    { value: 'lt', label: 'Antes de' },
-    { value: 'lte', label: 'Ate' },
-    { value: 'between', label: 'Entre' },
-    { value: 'isEmpty', label: 'Esta vazio' },
+    { value: 'equals', labelKey: 'equals' },
+    { value: 'gt', labelKey: 'after' },
+    { value: 'gte', labelKey: 'afterOrOn' },
+    { value: 'lt', labelKey: 'before' },
+    { value: 'lte', labelKey: 'beforeOrOn' },
+    { value: 'between', labelKey: 'between' },
+    { value: 'isEmpty', labelKey: 'isEmpty' },
   ],
   boolean: [
-    { value: 'equals', label: 'Igual a' },
+    { value: 'equals', labelKey: 'equals' },
   ],
   select: [
-    { value: 'equals', label: 'Igual a' },
-    { value: 'isEmpty', label: 'Esta vazio' },
-    { value: 'isNotEmpty', label: 'Nao esta vazio' },
+    { value: 'equals', labelKey: 'equals' },
+    { value: 'isEmpty', labelKey: 'isEmpty' },
+    { value: 'isNotEmpty', labelKey: 'isNotEmpty' },
   ],
 };
 
@@ -124,7 +125,7 @@ function getOperatorCategory(fieldType: string): string {
 }
 
 // Obter operadores para um tipo de campo
-function getOperatorsForField(fieldType: string): { value: FilterOperator; label: string }[] {
+function getOperatorsForField(fieldType: string): { value: FilterOperator; labelKey: string }[] {
   const category = getOperatorCategory(fieldType);
   return OPERATORS_BY_TYPE[category] || OPERATORS_BY_TYPE.text;
 }
@@ -258,20 +259,24 @@ function evaluateFilter(value: unknown, filter: ActiveFilter): boolean {
   }
 }
 
-// Formatar label do filtro para exibicao
-function formatFilterLabel(filter: ActiveFilter): string {
+// Formatar label do filtro para exibicao (requer funcao de traducao)
+function formatFilterLabel(
+  filter: ActiveFilter,
+  t: (key: string) => string,
+  tCommon: (key: string) => string
+): string {
   const operators: Record<FilterOperator, string> = {
     equals: '=',
-    contains: 'contem',
-    startsWith: 'comeca com',
-    endsWith: 'termina com',
+    contains: t('filter.operators.contains').toLowerCase(),
+    startsWith: t('filter.operators.startsWith').toLowerCase(),
+    endsWith: t('filter.operators.endsWith').toLowerCase(),
     gt: '>',
     gte: '>=',
     lt: '<',
     lte: '<=',
-    between: 'entre',
-    isEmpty: 'vazio',
-    isNotEmpty: 'preenchido',
+    between: t('filter.operators.between').toLowerCase(),
+    isEmpty: t('filter.labels.empty'),
+    isNotEmpty: t('filter.labels.filled'),
   };
 
   if (filter.operator === 'isEmpty' || filter.operator === 'isNotEmpty') {
@@ -283,13 +288,16 @@ function formatFilterLabel(filter: ActiveFilter): string {
   }
 
   if (filter.fieldType === 'boolean') {
-    return `${filter.fieldName}: ${filter.value ? 'Sim' : 'Nao'}`;
+    return `${filter.fieldName}: ${filter.value ? tCommon('yes') : tCommon('no')}`;
   }
 
   return `${filter.fieldName} ${operators[filter.operator]} ${filter.value}`;
 }
 
 export default function DataPage() {
+  const t = useTranslations('data');
+  const tCommon = useTranslations('common');
+  const tNav = useTranslations('navigation');
   const { user: currentUser } = useAuthStore();
   const { tenantId, loading: tenantLoading } = useTenant();
   const [entities, setEntities] = useState<Entity[]>([]);
@@ -514,17 +522,17 @@ export default function DataPage() {
     <div className="space-y-4 sm:space-y-6">
       {/* Breadcrumbs */}
       <nav className="mb-2 flex items-center gap-2 text-sm text-muted-foreground" aria-label="breadcrumb" data-testid="breadcrumb">
-        <Link href="/dashboard" className="hover:underline">Dashboard</Link>
+        <Link href="/dashboard" className="hover:underline">{tNav('dashboard')}</Link>
         <span>/</span>
-        <span className="font-semibold text-foreground">Dados</span>
+        <span className="font-semibold text-foreground">{t('title')}</span>
       </nav>
 
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-bold" data-testid="page-title">Dados</h1>
+          <h1 className="text-2xl sm:text-3xl font-bold" data-testid="page-title">{t('title')}</h1>
           <p className="text-muted-foreground mt-1 text-sm sm:text-base">
-            Visualize e gerencie os registros das suas entidades
+            {t('subtitle')}
           </p>
         </div>
         {selectedEntity && (
@@ -535,7 +543,7 @@ export default function DataPage() {
             className="w-full sm:w-auto"
           >
             <Plus className="h-4 w-4 mr-2" />
-            Novo Registro
+            {t('newRecord')}
           </Button>
         )}
       </div>
@@ -548,10 +556,10 @@ export default function DataPage() {
           <Card>
             <CardContent className="py-6 text-center">
               <Database className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
-              <p className="text-sm text-muted-foreground">Nenhuma entidade criada</p>
+              <p className="text-sm text-muted-foreground">{t('noEntitiesCreated')}</p>
               <Link href="/entities">
                 <Button variant="link" size="sm" data-testid="create-entity-btn-mobile">
-                  Criar Entidade
+                  {t('createEntity')}
                 </Button>
               </Link>
             </CardContent>
@@ -565,7 +573,7 @@ export default function DataPage() {
             }}
           >
             <SelectTrigger className="w-full">
-              <SelectValue placeholder="Selecione uma entidade">
+              <SelectValue placeholder={t('selectEntity')}>
                 {selectedEntity && (
                   <div className="flex items-center gap-2">
                     <Database className="h-4 w-4" />
@@ -599,7 +607,7 @@ export default function DataPage() {
         <div className="hidden lg:block w-64 space-y-2 flex-shrink-0">
           <div className="flex items-center justify-between mb-3">
             <h3 className="font-semibold text-sm text-muted-foreground uppercase tracking-wider">
-              Entidades
+              {tNav('entities')}
             </h3>
             <span className="text-xs text-muted-foreground">{entities.length}</span>
           </div>
@@ -614,11 +622,11 @@ export default function DataPage() {
               <CardContent className="py-8 text-center">
                 <Database className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
                 <p className="text-sm text-muted-foreground">
-                  Nenhuma entidade criada
+                  {t('noEntitiesCreated')}
                 </p>
                 <Link href="/entities">
                   <Button variant="link" size="sm" data-testid="create-entity-btn">
-                    Criar Entidade
+                    {t('createEntity')}
                   </Button>
                 </Link>
               </CardContent>
@@ -658,8 +666,8 @@ export default function DataPage() {
                   <div>
                     <CardTitle className="text-lg sm:text-xl">{selectedEntity.name}</CardTitle>
                     <CardDescription>
-                      {filteredRecords.length} de {records.length} registro(s)
-                      {activeFilters.length > 0 && ` (${activeFilters.length} filtro(s) ativo(s))`}
+                      {t('recordsCount', { filtered: filteredRecords.length, total: records.length })}
+                      {activeFilters.length > 0 && ` (${t('filtersActive', { count: activeFilters.length })})`}
                     </CardDescription>
                   </div>
                   <div className="flex items-center gap-2 flex-wrap">
@@ -667,7 +675,7 @@ export default function DataPage() {
                     <div className="relative flex-1 sm:flex-none">
                       <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                       <Input
-                        placeholder="Buscar..."
+                        placeholder={tCommon('search')}
                         value={searchTerm}
                         onChange={e => setSearchTerm(e.target.value)}
                         className="pl-9 w-full sm:w-40 md:w-52"
@@ -679,7 +687,7 @@ export default function DataPage() {
                       <PopoverTrigger asChild>
                         <Button variant="outline" size="sm" className="gap-1">
                           <Filter className="h-4 w-4" />
-                          <span className="hidden sm:inline">Filtrar</span>
+                          <span className="hidden sm:inline">{t('filter.title')}</span>
                           {activeFilters.length > 0 && (
                             <Badge variant="secondary" className="ml-1 px-1.5 py-0 text-xs">
                               {activeFilters.length}
@@ -689,11 +697,11 @@ export default function DataPage() {
                       </PopoverTrigger>
                       <PopoverContent className="w-80 p-4" align="end">
                         <div className="space-y-4">
-                          <div className="font-medium">Adicionar Filtro</div>
+                          <div className="font-medium">{t('filter.addFilter')}</div>
 
                           {/* Selecionar campo */}
                           <div className="space-y-2">
-                            <Label className="text-xs text-muted-foreground">Campo</Label>
+                            <Label className="text-xs text-muted-foreground">{t('filter.field')}</Label>
                             <Select
                               value={newFilter.fieldSlug || ''}
                               onValueChange={(value) => {
@@ -711,7 +719,7 @@ export default function DataPage() {
                               }}
                             >
                               <SelectTrigger>
-                                <SelectValue placeholder="Selecione um campo" />
+                                <SelectValue placeholder={tCommon('selectOption')} />
                               </SelectTrigger>
                               <SelectContent>
                                 {availableFieldsForFilter.map(field => (
@@ -721,7 +729,7 @@ export default function DataPage() {
                                 ))}
                                 {availableFieldsForFilter.length === 0 && (
                                   <div className="px-2 py-1 text-sm text-muted-foreground">
-                                    Nenhum campo disponivel
+                                    {t('filter.noFieldsAvailable')}
                                   </div>
                                 )}
                               </SelectContent>
@@ -731,7 +739,7 @@ export default function DataPage() {
                           {/* Selecionar operador */}
                           {newFilter.fieldSlug && (
                             <div className="space-y-2">
-                              <Label className="text-xs text-muted-foreground">Condicao</Label>
+                              <Label className="text-xs text-muted-foreground">{t('filter.condition')}</Label>
                               <Select
                                 value={newFilter.operator || ''}
                                 onValueChange={(value) => setNewFilter(prev => ({
@@ -747,7 +755,7 @@ export default function DataPage() {
                                 <SelectContent>
                                   {getOperatorsForField(newFilter.fieldType || 'text').map(op => (
                                     <SelectItem key={op.value} value={op.value}>
-                                      {op.label}
+                                      {t(`filter.operators.${op.labelKey}`)}
                                     </SelectItem>
                                   ))}
                                 </SelectContent>
@@ -760,7 +768,7 @@ export default function DataPage() {
                            newFilter.operator !== 'isEmpty' &&
                            newFilter.operator !== 'isNotEmpty' && (
                             <div className="space-y-2">
-                              <Label className="text-xs text-muted-foreground">Valor</Label>
+                              <Label className="text-xs text-muted-foreground">{t('filter.value')}</Label>
 
                               {/* Boolean */}
                               {newFilter.fieldType === 'boolean' && (
@@ -773,7 +781,7 @@ export default function DataPage() {
                                     }))}
                                   />
                                   <span className="text-sm">
-                                    {newFilter.value ? 'Sim' : 'Nao'}
+                                    {newFilter.value ? tCommon('yes') : tCommon('no')}
                                   </span>
                                 </div>
                               )}
@@ -783,7 +791,7 @@ export default function DataPage() {
                                 <div className="flex gap-2">
                                   <Input
                                     type="number"
-                                    placeholder="Valor"
+                                    placeholder={tCommon('value')}
                                     value={String(newFilter.value || '')}
                                     onChange={(e) => setNewFilter(prev => ({
                                       ...prev,
@@ -792,10 +800,10 @@ export default function DataPage() {
                                   />
                                   {newFilter.operator === 'between' && (
                                     <>
-                                      <span className="text-muted-foreground self-center">e</span>
+                                      <span className="text-muted-foreground self-center">{tCommon('and')}</span>
                                       <Input
                                         type="number"
-                                        placeholder="Valor"
+                                        placeholder={tCommon('value')}
                                         value={String(newFilter.value2 || '')}
                                         onChange={(e) => setNewFilter(prev => ({
                                           ...prev,
@@ -820,7 +828,7 @@ export default function DataPage() {
                                   />
                                   {newFilter.operator === 'between' && (
                                     <>
-                                      <span className="text-muted-foreground self-center">e</span>
+                                      <span className="text-muted-foreground self-center">{tCommon('and')}</span>
                                       <Input
                                         type={newFilter.fieldType === 'datetime' ? 'datetime-local' : 'date'}
                                         value={String(newFilter.value2 || '')}
@@ -844,7 +852,7 @@ export default function DataPage() {
                                   }))}
                                 >
                                   <SelectTrigger>
-                                    <SelectValue placeholder="Selecione" />
+                                    <SelectValue placeholder={tCommon('select')} />
                                   </SelectTrigger>
                                   <SelectContent>
                                     {(getFieldBySlug(newFilter.fieldSlug || '')?.options || []).map(opt => {
@@ -863,7 +871,7 @@ export default function DataPage() {
                               {/* Text (default) */}
                               {['text', 'textarea', 'email', 'phone', 'url', 'cpf', 'cnpj', 'cep', 'password', 'api-select', 'relation'].includes(newFilter.fieldType || '') && (
                                 <Input
-                                  placeholder="Digite o valor"
+                                  placeholder={tCommon('value')}
                                   value={String(newFilter.value || '')}
                                   onChange={(e) => setNewFilter(prev => ({
                                     ...prev,
@@ -881,7 +889,7 @@ export default function DataPage() {
                             disabled={!newFilter.fieldSlug || !newFilter.operator}
                           >
                             <Plus className="h-4 w-4 mr-2" />
-                            Adicionar Filtro
+                            {t('filter.addFilter')}
                           </Button>
                         </div>
                       </PopoverContent>
@@ -892,11 +900,11 @@ export default function DataPage() {
                       <DropdownMenuTrigger asChild>
                         <Button variant="outline" size="sm" className="gap-1">
                           <Columns3 className="h-4 w-4" />
-                          <span className="hidden sm:inline">Colunas</span>
+                          <span className="hidden sm:inline">{t('filter.columns')}</span>
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end" className="w-48">
-                        <DropdownMenuLabel>Colunas visiveis</DropdownMenuLabel>
+                        <DropdownMenuLabel>{t('filter.visibleColumns')}</DropdownMenuLabel>
                         <DropdownMenuSeparator />
                         {allColumns.map(col => {
                           const field = getFieldBySlug(col);
@@ -912,7 +920,7 @@ export default function DataPage() {
                         })}
                         {allColumns.length === 0 && (
                           <div className="px-2 py-1 text-sm text-muted-foreground">
-                            Nenhuma coluna
+                            {t('filter.noColumns')}
                           </div>
                         )}
                       </DropdownMenuContent>
@@ -939,7 +947,7 @@ export default function DataPage() {
                         variant="secondary"
                         className="gap-1 pl-2 pr-1 py-1"
                       >
-                        <span className="text-xs">{formatFilterLabel(filter)}</span>
+                        <span className="text-xs">{formatFilterLabel(filter, t, tCommon)}</span>
                         <button
                           onClick={() => handleRemoveFilter(index)}
                           className="ml-1 rounded-full hover:bg-muted p-0.5"
@@ -954,7 +962,7 @@ export default function DataPage() {
                       onClick={handleClearFilters}
                       className="h-6 px-2 text-xs text-muted-foreground hover:text-foreground"
                     >
-                      Limpar tudo
+                      {t('filter.clearAll')}
                     </Button>
                   </div>
                 )}
@@ -967,9 +975,9 @@ export default function DataPage() {
                 ) : filteredRecords.length === 0 ? (
                   <div className="flex flex-col items-center justify-center h-48 sm:h-64 text-center p-4">
                     <Database className="h-10 w-10 sm:h-12 sm:w-12 text-muted-foreground mb-4" />
-                    <h3 className="font-medium mb-1 text-sm sm:text-base">Nenhum registro</h3>
+                    <h3 className="font-medium mb-1 text-sm sm:text-base">{t('noRecords')}</h3>
                     <p className="text-xs sm:text-sm text-muted-foreground mb-4">
-                      {searchTerm ? 'Nenhum resultado para a busca' : 'Comece adicionando dados a esta entidade'}
+                      {searchTerm ? t('noSearchResults') : t('startAddingData')}
                     </p>
                     {!searchTerm && (
                       <Button
@@ -979,7 +987,7 @@ export default function DataPage() {
                         size="sm"
                       >
                         <Plus className="h-4 w-4 mr-2" />
-                        Adicionar Registro
+                        {t('addRecord')}
                       </Button>
                     )}
                   </div>
@@ -1003,14 +1011,14 @@ export default function DataPage() {
                             })}
                             {currentUser?.role === 'PLATFORM_ADMIN' && (
                               <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">
-                                Tenant
+                                {tCommon('tenant')}
                               </th>
                             )}
                             <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">
-                              Criado em
+                              {tCommon('createdAt')}
                             </th>
                             <th className="px-3 py-2 text-right text-xs font-medium text-muted-foreground w-20">
-                              Acoes
+                              {tCommon('actions')}
                             </th>
                           </tr>
                         </thead>
@@ -1078,7 +1086,7 @@ export default function DataPage() {
                               })}
                               {visibleColumns.length > 3 && (
                                 <div className="text-xs text-muted-foreground">
-                                  +{visibleColumns.length - 3} campos
+                                  {t('moreFields', { count: visibleColumns.length - 3 })}
                                 </div>
                               )}
                               <div className="text-xs text-muted-foreground pt-1">
@@ -1115,9 +1123,9 @@ export default function DataPage() {
             <Card>
               <CardContent className="flex flex-col items-center justify-center h-64 sm:h-96 p-4">
                 <Database className="h-12 w-12 sm:h-16 sm:w-16 text-muted-foreground mb-4" />
-                <h3 className="text-lg sm:text-xl font-medium mb-2 text-center">Selecione uma Entidade</h3>
+                <h3 className="text-lg sm:text-xl font-medium mb-2 text-center">{t('selectEntity')}</h3>
                 <p className="text-muted-foreground text-center text-sm sm:text-base max-w-md">
-                  Escolha uma entidade {entities.length > 0 ? 'acima' : 'na lista'} para visualizar e gerenciar seus registros
+                  {t('selectEntityHint')}
                 </p>
               </CardContent>
             </Card>
@@ -1145,19 +1153,19 @@ export default function DataPage() {
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Excluir registro?</AlertDialogTitle>
+            <AlertDialogTitle>{t('deleteConfirm.title')}</AlertDialogTitle>
             <AlertDialogDescription>
-              Tem certeza que deseja excluir este registro? Esta acao nao pode ser desfeita.
+              {t('deleteConfirm.message')}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogCancel>{tCommon('cancel')}</AlertDialogCancel>
             <AlertDialogAction
               onClick={handleConfirmDelete}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               {deleteRecord.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Excluir
+              {tCommon('delete')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
