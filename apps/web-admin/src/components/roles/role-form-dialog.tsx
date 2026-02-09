@@ -1,7 +1,7 @@
 'use client';
 
-import { useEffect, useState, useMemo, useCallback, useRef } from 'react';
-import { useForm, useWatch } from 'react-hook-form';
+import { useEffect, useState, useMemo, useCallback } from 'react';
+import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useTranslations } from 'next-intl';
@@ -43,7 +43,7 @@ import { useEntities } from '@/hooks/use-entities';
 import { rolesService, type EntityPermission, type EntityPermissionInput } from '@/services/roles.service';
 import type { Role, Entity } from '@/types';
 
-// ── Permissões do sistema organizadas por categoria ──────────────────────────
+// ── Permissoes do sistema organizadas por categoria ──────────────────────────
 
 type IconName = 'Database' | 'FileText' | 'Code' | 'Users' | 'Key' | 'Building' | 'Settings' | 'BarChart3' | 'Upload';
 
@@ -189,7 +189,6 @@ const ALL_PERMISSION_KEYS = PERMISSION_CATEGORIES_CONFIG.flatMap((c) =>
 
 // ── Schema ───────────────────────────────────────────────────────────────────
 
-// Schema estatico (mensagens de erro traduzidas separadamente)
 const roleSchema = z.object({
   name: z.string().min(2, 'nameMin'),
   slug: z
@@ -220,6 +219,16 @@ interface LocalEntityPermission {
   canDelete: boolean;
 }
 
+// Funcao para gerar slug a partir do nome
+function generateSlug(name: string): string {
+  return name
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, '-')
+    .replace(/[^a-z0-9-_]/g, '');
+}
+
 export function RoleFormDialog({
   open,
   onOpenChange,
@@ -233,6 +242,8 @@ export function RoleFormDialog({
   // Estado para permissoes por entidade
   const [entityPermissions, setEntityPermissions] = useState<Map<string, LocalEntityPermission>>(new Map());
   const [activeTab, setActiveTab] = useState<string>('system');
+  // Estado para controlar se o slug foi editado manualmente
+  const [slugManuallyEdited, setSlugManuallyEdited] = useState(false);
 
   // Busca entidades disponiveis
   const { data: entitiesData, isLoading: loadingEntities } = useEntities();
@@ -248,6 +259,7 @@ export function RoleFormDialog({
     queryKey: ['entity-permissions', role?.id],
     queryFn: () => role ? rolesService.getEntityPermissions(role.id) : Promise.resolve([]),
     enabled: open && !!role?.id,
+    staleTime: 0,
   });
 
   const createRole = useCreateRole({ success: t('toast.created') });
@@ -263,17 +275,13 @@ export function RoleFormDialog({
     },
   });
 
-  const selectedPermissions = useWatch({ control: form.control, name: 'permissions' }) ?? [];
-
-  // Ref para controlar se o slug deve ser auto-gerado (apenas quando usuario digita, nao no reset)
-  const shouldAutoSlug = useRef(false);
-  // Ref para armazenar a ultima versao serializada de entityPerms (evitar loop)
-  const lastEntityPermsRef = useRef<string>('');
-
+  // UNICO useEffect para reset do form quando open/role muda
   useEffect(() => {
     if (!open) return;
+
     setActiveTab('system');
-    shouldAutoSlug.current = false;
+    setSlugManuallyEdited(false);
+
     if (role) {
       const perms = Array.isArray(role.permissions)
         ? (role.permissions as string[])
@@ -294,79 +302,53 @@ export function RoleFormDialog({
         permissions: [],
       });
       setEntityPermissions(new Map());
-      lastEntityPermsRef.current = '';
-      // Permitir auto-slug apos reset para novo role
-      setTimeout(() => { shouldAutoSlug.current = true; }, 0);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [role, open]);
+  }, [role?.id, open]);
 
-  // Carrega permissoes de entidade existentes (apenas quando dialog abre com role)
+  // useEffect separado para carregar permissoes de entidade (apenas quando existingEntityPerms muda)
   useEffect(() => {
-    if (!open) return;
-    if (existingEntityPerms && Array.isArray(existingEntityPerms)) {
-      // Serializar para comparar e evitar loop infinito de setState
-      const serialized = JSON.stringify(
-        existingEntityPerms.map((p: EntityPermission) => ({
-          entityId: p.entityId,
-          canCreate: p.canCreate,
-          canRead: p.canRead,
-          canUpdate: p.canUpdate,
-          canDelete: p.canDelete,
-        }))
-      );
-      if (serialized === lastEntityPermsRef.current) return;
-      lastEntityPermsRef.current = serialized;
+    if (!open || !isEditing) return;
+    if (!existingEntityPerms || !Array.isArray(existingEntityPerms)) return;
 
-      const permsMap = new Map<string, LocalEntityPermission>();
-      existingEntityPerms.forEach((perm: EntityPermission) => {
-        permsMap.set(perm.entityId, {
-          entityId: perm.entityId,
-          canCreate: perm.canCreate,
-          canRead: perm.canRead,
-          canUpdate: perm.canUpdate,
-          canDelete: perm.canDelete,
-        });
+    const permsMap = new Map<string, LocalEntityPermission>();
+    existingEntityPerms.forEach((perm: EntityPermission) => {
+      permsMap.set(perm.entityId, {
+        entityId: perm.entityId,
+        canCreate: perm.canCreate,
+        canRead: perm.canRead,
+        canUpdate: perm.canUpdate,
+        canDelete: perm.canDelete,
       });
-      setEntityPermissions(permsMap);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, existingEntityPerms]);
-
-  // Auto-generate slug from name (apenas no modo criacao quando o usuario digita)
-  useEffect(() => {
-    if (!isEditing && shouldAutoSlug.current) {
-      const name = form.getValues('name');
-      if (name) {
-        const slug = name
-          .toLowerCase()
-          .normalize('NFD')
-          .replace(/[\u0300-\u036f]/g, '')
-          .replace(/\s+/g, '-')
-          .replace(/[^a-z0-9-_]/g, '');
-        form.setValue('slug', slug, { shouldDirty: true });
-      }
-    }
-    // Observar mudancas no campo name via subscription, nao via watch
-    const subscription = form.watch((value, { name: fieldName }) => {
-      if (fieldName === 'name' && !isEditing && shouldAutoSlug.current) {
-        const nameVal = value.name;
-        if (nameVal) {
-          const slug = nameVal
-            .toLowerCase()
-            .normalize('NFD')
-            .replace(/[\u0300-\u036f]/g, '')
-            .replace(/\s+/g, '-')
-            .replace(/[^a-z0-9-_]/g, '');
-          form.setValue('slug', slug, { shouldDirty: true });
-        }
-      }
     });
-    return () => subscription.unsubscribe();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isEditing]);
+    setEntityPermissions(permsMap);
+  }, [open, isEditing, existingEntityPerms]);
 
-  const togglePermission = (key: string) => {
+  // Handler para mudanca do nome - gera slug automaticamente se nao foi editado manualmente
+  const handleNameChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const newName = e.target.value;
+    form.setValue('name', newName, { shouldDirty: true, shouldValidate: true });
+
+    // Gerar slug automaticamente apenas se:
+    // 1. Nao estiver editando
+    // 2. Slug nao foi editado manualmente
+    if (!isEditing && !slugManuallyEdited) {
+      const newSlug = generateSlug(newName);
+      form.setValue('slug', newSlug, { shouldDirty: true });
+    }
+  }, [form, isEditing, slugManuallyEdited]);
+
+  // Handler para mudanca do slug - marca como editado manualmente
+  const handleSlugChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    setSlugManuallyEdited(true);
+    form.setValue('slug', e.target.value, { shouldDirty: true, shouldValidate: true });
+  }, [form]);
+
+  // Leitura dos valores do form para renderizacao
+  const selectedPermissions = form.watch('permissions') ?? [];
+  const currentSlug = form.watch('slug');
+
+  const togglePermission = useCallback((key: string) => {
     const current = form.getValues('permissions') || [];
     if (current.includes(key)) {
       form.setValue(
@@ -377,9 +359,9 @@ export function RoleFormDialog({
     } else {
       form.setValue('permissions', [...current, key], { shouldDirty: true });
     }
-  };
+  }, [form]);
 
-  const toggleCategory = (categoryKey: string) => {
+  const toggleCategory = useCallback((categoryKey: string) => {
     const category = PERMISSION_CATEGORIES_CONFIG.find((c) => c.key === categoryKey);
     if (!category) return;
     const categoryPerms = category.permissions.map((p) => p.key);
@@ -396,25 +378,25 @@ export function RoleFormDialog({
       const newPerms = new Set([...current, ...categoryPerms]);
       form.setValue('permissions', Array.from(newPerms), { shouldDirty: true });
     }
-  };
+  }, [form]);
 
-  const selectAll = () => {
+  const selectAll = useCallback(() => {
     form.setValue('permissions', [...ALL_PERMISSION_KEYS], { shouldDirty: true });
-  };
+  }, [form]);
 
-  const deselectAll = () => {
+  const deselectAll = useCallback(() => {
     form.setValue('permissions', [], { shouldDirty: true });
-  };
+  }, [form]);
 
-  const isCategoryFullySelected = (categoryKey: string) => {
+  const isCategoryFullySelected = useCallback((categoryKey: string) => {
     const category = PERMISSION_CATEGORIES_CONFIG.find((c) => c.key === categoryKey);
     if (!category) return false;
     return category.permissions.every((p) =>
       selectedPermissions.includes(p.key)
     );
-  };
+  }, [selectedPermissions]);
 
-  const isCategoryPartiallySelected = (categoryKey: string) => {
+  const isCategoryPartiallySelected = useCallback((categoryKey: string) => {
     const category = PERMISSION_CATEGORIES_CONFIG.find((c) => c.key === categoryKey);
     if (!category) return false;
     const some = category.permissions.some((p) =>
@@ -424,11 +406,11 @@ export function RoleFormDialog({
       selectedPermissions.includes(p.key)
     );
     return some && !all;
-  };
+  }, [selectedPermissions]);
 
   // ========== Entity Permissions Helpers ==========
 
-  const toggleEntityPermission = (
+  const toggleEntityPermission = useCallback((
     entityId: string,
     permission: 'canCreate' | 'canRead' | 'canUpdate' | 'canDelete',
   ) => {
@@ -447,9 +429,9 @@ export function RoleFormDialog({
       });
       return newMap;
     });
-  };
+  }, []);
 
-  const toggleAllEntityPermissions = (entityId: string) => {
+  const toggleAllEntityPermissions = useCallback((entityId: string) => {
     setEntityPermissions((prev) => {
       const newMap = new Map(prev);
       const existing = newMap.get(entityId);
@@ -468,9 +450,9 @@ export function RoleFormDialog({
       }
       return newMap;
     });
-  };
+  }, []);
 
-  const getEntityPermission = (entityId: string): LocalEntityPermission => {
+  const getEntityPermission = useCallback((entityId: string): LocalEntityPermission => {
     return entityPermissions.get(entityId) || {
       entityId,
       canCreate: false,
@@ -478,26 +460,26 @@ export function RoleFormDialog({
       canUpdate: false,
       canDelete: false,
     };
-  };
+  }, [entityPermissions]);
 
-  const isEntityFullySelected = (entityId: string): boolean => {
+  const isEntityFullySelected = useCallback((entityId: string): boolean => {
     const perm = entityPermissions.get(entityId);
     return !!perm && perm.canCreate && perm.canRead && perm.canUpdate && perm.canDelete;
-  };
+  }, [entityPermissions]);
 
-  const isEntityPartiallySelected = (entityId: string): boolean => {
+  const isEntityPartiallySelected = useCallback((entityId: string): boolean => {
     const perm = entityPermissions.get(entityId);
     if (!perm) return false;
     const hasAny = perm.canCreate || perm.canRead || perm.canUpdate || perm.canDelete;
     const hasAll = perm.canCreate && perm.canRead && perm.canUpdate && perm.canDelete;
     return hasAny && !hasAll;
-  };
+  }, [entityPermissions]);
 
-  const getSelectedEntitiesCount = (): number => {
+  const getSelectedEntitiesCount = useCallback((): number => {
     return Array.from(entityPermissions.values()).filter(
       (p) => p.canCreate || p.canRead || p.canUpdate || p.canDelete
     ).length;
-  };
+  }, [entityPermissions]);
 
   const onSubmit = async (data: RoleFormData) => {
     try {
@@ -534,7 +516,7 @@ export function RoleFormDialog({
 
       onOpenChange(false);
       onSuccess?.();
-    } catch (error) {
+    } catch {
       // Error is handled by the hook
     }
   };
@@ -560,14 +542,15 @@ export function RoleFormDialog({
           onSubmit={form.handleSubmit(onSubmit)}
           className="flex flex-col flex-1 min-h-0 gap-4"
         >
-          {/* Dados básicos */}
+          {/* Dados basicos */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label htmlFor="name">{t('form.name')} *</Label>
               <Input
                 id="name"
                 placeholder={t('form.namePlaceholder')}
-                {...form.register('name')}
+                value={form.watch('name')}
+                onChange={handleNameChange}
               />
               {form.formState.errors.name && (
                 <p className="text-xs text-destructive">
@@ -581,7 +564,8 @@ export function RoleFormDialog({
                 <Input
                   id="slug"
                   placeholder={t('form.slugPlaceholder')}
-                  {...form.register('slug')}
+                  value={currentSlug || ''}
+                  onChange={handleSlugChange}
                   className="font-mono text-sm"
                 />
                 {form.formState.errors.slug && (
