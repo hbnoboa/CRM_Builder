@@ -189,13 +189,20 @@ const ALL_PERMISSION_KEYS = PERMISSION_CATEGORIES_CONFIG.flatMap((c) =>
 
 // ── Schema ───────────────────────────────────────────────────────────────────
 
-// Schema is created inside the component to use translations
-type RoleFormData = {
-  name: string;
-  slug?: string;
-  description?: string;
-  permissions?: string[];
-};
+// Schema estatico (mensagens de erro traduzidas separadamente)
+const roleSchema = z.object({
+  name: z.string().min(2, 'nameMin'),
+  slug: z
+    .string()
+    .min(2, 'slugMin')
+    .regex(/^[a-z0-9-_]+$/, 'slugFormat')
+    .optional()
+    .or(z.literal('')),
+  description: z.string().optional(),
+  permissions: z.array(z.string()).optional(),
+});
+
+type RoleFormData = z.infer<typeof roleSchema>;
 
 interface RoleFormDialogProps {
   open: boolean;
@@ -221,7 +228,6 @@ export function RoleFormDialog({
 }: RoleFormDialogProps) {
   const t = useTranslations('rolesPage');
   const tCommon = useTranslations('common');
-  const tValidation = useTranslations('validation');
   const isEditing = !!role;
 
   // Estado para permissoes por entidade
@@ -243,19 +249,6 @@ export function RoleFormDialog({
     queryFn: () => role ? rolesService.getEntityPermissions(role.id) : Promise.resolve([]),
     enabled: open && !!role?.id,
   });
-
-  // Schema with translations - memoized to prevent re-renders
-  const roleSchema = useMemo(() => z.object({
-    name: z.string().min(2, tValidation('nameMin', { min: 2 })),
-    slug: z
-      .string()
-      .min(2, tValidation('slugMin', { min: 2 }))
-      .regex(/^[a-z0-9-_]+$/, tValidation('slugFormat'))
-      .optional()
-      .or(z.literal('')),
-    description: z.string().optional(),
-    permissions: z.array(z.string()).optional(),
-  }), [tValidation]);
 
   const createRole = useCreateRole({ success: t('toast.created') });
   const updateRole = useUpdateRole({ success: t('toast.updated') });
