@@ -3,6 +3,7 @@ import * as bcrypt from 'bcryptjs';
 import { seedSinistrosVeiculos } from './seeds/sinistros-veiculos.seed';
 import { seedCustomApis } from './seeds/custom-apis.seed';
 import { seedPages } from './seeds/pages.seed';
+import { seedTenantsMarisaIOS } from './seeds/tenants-marisa-ios.seed';
 
 const prisma = new PrismaClient();
 
@@ -217,6 +218,9 @@ async function main() {
   // 8. Executar seed de Pages
   await seedPages(demoTenant.id);
 
+  // 9. Executar seed dos Tenants Marisa Dilda e IOS
+  await seedTenantsMarisaIOS();
+
   console.log('\n===================================================');
   console.log('SEED COMPLETO!');
   console.log('===================================================');
@@ -226,14 +230,20 @@ async function main() {
   console.log('   Email: superadmin@platform.com');
   console.log('   Senha: superadmin123');
   console.log('');
-  console.log('ADMIN (Tenant Demo):');
-  console.log('   Email: admin@demo.com');
-  console.log('   Senha: admin123');
+  console.log('DEMO TENANT:');
+  console.log('   Admin: admin@demo.com / admin123');
+  console.log('   Manager: gerente@demo.com / user123');
+  console.log('   User: vendedor@demo.com / user123');
+  console.log('   Viewer: viewer@demo.com / user123');
   console.log('');
-  console.log('OUTROS USUARIOS (Senha: user123):');
-  console.log('   - gerente@demo.com (Manager)');
-  console.log('   - vendedor@demo.com (User)');
-  console.log('   - viewer@demo.com (Viewer)');
+  console.log('MARISA DILDA:');
+  console.log('   Admin: admin@marisadilda.com / marisa123');
+  console.log('   User: operador@marisadilda.com / user123');
+  console.log('');
+  console.log('IOS:');
+  console.log('   Admin: admin@ios.com / ios123');
+  console.log('   Gerente: gerente@ios.com / inspetor123');
+  console.log('   Inspetor: inspetor@ios.com / inspetor123');
   console.log('');
   console.log('===================================================\n');
 }
