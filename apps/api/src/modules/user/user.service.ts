@@ -1,5 +1,6 @@
-import { Injectable, NotFoundException, ConflictException, ForbiddenException } from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException, ForbiddenException, Logger } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { NotificationService } from '../notification/notification.service';
 import { CreateUserDto, UpdateUserDto, QueryUserDto } from './dto/user.dto';
 import { UserRole, Prisma } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
@@ -7,7 +8,12 @@ import { CurrentUser } from '../../common/types';
 
 @Injectable()
 export class UserService {
-  constructor(private prisma: PrismaService) {}
+  private readonly logger = new Logger(UserService.name);
+
+  constructor(
+    private prisma: PrismaService,
+    private notificationService: NotificationService,
+  ) {}
 
   // Helper para determinar o tenantId a ser usado (suporta PLATFORM_ADMIN)
   private getEffectiveTenantId(currentUser: CurrentUser, requestedTenantId?: string): string {
@@ -39,7 +45,7 @@ export class UserService {
     // Remove tenantId do dto para evitar duplicacao
     const { tenantId: _, ...userData } = dto;
 
-    return this.prisma.user.create({
+    const newUser = await this.prisma.user.create({
       data: {
         ...userData,
         password: hashedPassword,
@@ -56,6 +62,15 @@ export class UserService {
         createdAt: true,
       },
     });
+
+    // Enviar notificacao para o tenant
+    this.notificationService.notifyNewUser(
+      targetTenantId,
+      newUser.name,
+      currentUser.name,
+    ).catch((err) => this.logger.error('Failed to send notification', err));
+
+    return newUser;
   }
 
   async findAll(query: QueryUserDto, currentUser: CurrentUser) {

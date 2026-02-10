@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException, ForbiddenException, BadRequestException, Logger } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { EntityService } from '../entity/entity.service';
+import { NotificationService } from '../notification/notification.service';
 import { UserRole, Prisma, EntityData, Entity } from '@prisma/client';
 import { CurrentUser } from '../../common/types';
 
@@ -57,6 +58,7 @@ export class DataService {
   constructor(
     private prisma: PrismaService,
     private entityService: EntityService,
+    private notificationService: NotificationService,
   ) {}
 
   // Busca Custom API configurada para a entidade (POST para create, PATCH para update)
@@ -220,7 +222,7 @@ export class DataService {
       throw new BadRequestException(errors);
     }
 
-    return this.prisma.entityData.create({
+    const record = await this.prisma.entityData.create({
       data: {
         tenantId: targetTenantId,
         entityId: entity.id,
@@ -230,6 +232,20 @@ export class DataService {
         updatedById: currentUser.id,
       },
     });
+
+    // Enviar notificacao para o tenant
+    const settings = entity.settings as EntitySettings;
+    const titleField = settings?.titleField || 'nome';
+    const recordName = String((dataWithCustomApi as Record<string, unknown>)[titleField] || record.id);
+
+    this.notificationService.notifyRecordCreated(
+      targetTenantId,
+      entity.name,
+      recordName,
+      currentUser.name,
+    ).catch((err) => this.logger.error('Failed to send notification', err));
+
+    return record;
   }
 
   async findAll(
@@ -424,13 +440,27 @@ export class DataService {
       ...dataWithCustomApi,
     };
 
-    return this.prisma.entityData.update({
+    const updatedRecord = await this.prisma.entityData.update({
       where: { id },
       data: {
         data: mergedData as Prisma.InputJsonValue,
         updatedById: currentUser.id,
       },
     });
+
+    // Enviar notificacao para o tenant
+    const settings = entity.settings as EntitySettings;
+    const titleField = settings?.titleField || 'nome';
+    const recordName = String((mergedData as Record<string, unknown>)[titleField] || record.id);
+
+    this.notificationService.notifyRecordUpdated(
+      effectiveTenantId,
+      entity.name,
+      recordName,
+      currentUser.name,
+    ).catch((err) => this.logger.error('Failed to send notification', err));
+
+    return updatedRecord;
   }
 
   async remove(entitySlug: string, id: string, currentUser: CurrentUser, tenantId?: string) {
@@ -460,7 +490,21 @@ export class DataService {
       this.checkScope(record, currentUser, 'delete');
     }
 
+    // Extrair nome do registro antes de deletar
+    const settings = entity.settings as EntitySettings;
+    const titleField = settings?.titleField || 'nome';
+    const recordData = record.data as Record<string, unknown>;
+    const recordName = String(recordData[titleField] || record.id);
+
     await this.prisma.entityData.delete({ where: { id } });
+
+    // Enviar notificacao para o tenant
+    this.notificationService.notifyRecordDeleted(
+      effectiveTenantId,
+      entity.name,
+      recordName,
+      currentUser.name,
+    ).catch((err) => this.logger.error('Failed to send notification', err));
 
     return { message: 'Registro excluido com sucesso' };
   }

@@ -1,5 +1,6 @@
-import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException, Logger } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { NotificationService } from '../notification/notification.service';
 import {
   CurrentUser,
   PaginationQuery,
@@ -58,7 +59,12 @@ export interface UpdateEntityDto {
 
 @Injectable()
 export class EntityService {
-  constructor(private prisma: PrismaService) {}
+  private readonly logger = new Logger(EntityService.name);
+
+  constructor(
+    private prisma: PrismaService,
+    private notificationService: NotificationService,
+  ) {}
 
   // Helper para determinar o tenantId a ser usado (suporta PLATFORM_ADMIN)
   private getEffectiveTenantId(currentUser: CurrentUser, requestedTenantId?: string): string {
@@ -86,7 +92,7 @@ export class EntityService {
     // Gerar namePlural se nao fornecido
     const namePlural = dto.namePlural || `${dto.name}s`;
 
-    return this.prisma.entity.create({
+    const entity = await this.prisma.entity.create({
       data: {
         name: dto.name,
         namePlural,
@@ -100,6 +106,15 @@ export class EntityService {
         isSystem: dto.isSystem || false,
       },
     });
+
+    // Enviar notificacao para o tenant
+    this.notificationService.notifyEntityCreated(
+      targetTenantId,
+      entity.name,
+      currentUser.name,
+    ).catch((err) => this.logger.error('Failed to send notification', err));
+
+    return entity;
   }
 
   async findAll(currentUser: CurrentUser, query: QueryEntityDto = {}) {
