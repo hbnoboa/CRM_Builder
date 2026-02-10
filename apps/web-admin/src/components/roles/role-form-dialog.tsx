@@ -10,8 +10,6 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Switch } from '@/components/ui/switch';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -193,7 +191,7 @@ export function RoleFormDialog({ open, onOpenChange, role, onSuccess }: RoleForm
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[900px] max-h-[98vh] overflow-hidden flex flex-col">
+      <DialogContent className="sm:max-w-[900px] max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Shield className="h-5 w-5" style={{ color }} />
@@ -204,9 +202,7 @@ export function RoleFormDialog({ open, onOpenChange, role, onSuccess }: RoleForm
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0 overflow-hidden">
-          <ScrollArea className="flex-1 min-h-0 pr-4 -mr-4">
-            <div className="space-y-5 pb-4">
+        <form onSubmit={handleSubmit} className="space-y-5">
               {/* Nome e Descrição */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
@@ -252,25 +248,24 @@ export function RoleFormDialog({ open, onOpenChange, role, onSuccess }: RoleForm
                 <p className="text-sm text-muted-foreground">{t('form.systemModulesDesc')}</p>
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                   {Object.entries(modulePerms).map(([key, value]) => (
-                    <div
+                    <label
                       key={key}
                       className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
                         value ? 'border-primary bg-primary/5' : 'border-border hover:border-muted-foreground/30'
                       }`}
-                      onClick={() => setModulePerms((prev) => ({ ...prev, [key]: !prev[key as keyof ModulePermissions] }))}
                     >
+                      <Checkbox
+                        checked={value || false}
+                        onCheckedChange={(checked) => {
+                          setModulePerms((prev) => ({ ...prev, [key]: !!checked }));
+                        }}
+                        className="h-4 w-4"
+                      />
                       <div className={`${value ? 'text-primary' : 'text-muted-foreground'}`}>
                         {moduleIcons[key]}
                       </div>
                       <span className="text-sm font-medium flex-1">{moduleLabels[key] || key}</span>
-                      <Switch
-                        checked={value || false}
-                        onCheckedChange={(checked) => {
-                          setModulePerms((prev) => ({ ...prev, [key]: checked }));
-                        }}
-                        onClick={(e) => e.stopPropagation()}
-                      />
-                    </div>
+                    </label>
                   ))}
                 </div>
               </div>
@@ -354,14 +349,12 @@ export function RoleFormDialog({ open, onOpenChange, role, onSuccess }: RoleForm
 
               {/* Default */}
               <div className="flex items-center gap-3 p-3 rounded-lg border">
-                <Switch checked={isDefault} onCheckedChange={setIsDefault} />
+                <Checkbox checked={isDefault} onCheckedChange={(checked) => setIsDefault(!!checked)} className="h-4 w-4" />
                 <div>
                   <Label className="font-medium">{t('form.isDefault')}</Label>
                   <p className="text-xs text-muted-foreground">{t('form.isDefaultDesc')}</p>
                 </div>
               </div>
-            </div>
-          </ScrollArea>
 
           <DialogFooter className="pt-4 border-t mt-2">
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
