@@ -1,6 +1,6 @@
 import { IsString, IsOptional, IsEnum, IsEmail, MinLength } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional, PartialType } from '@nestjs/swagger';
-import { Plan, Status } from '@prisma/client';
+import { Status } from '@prisma/client';
 import { Type } from 'class-transformer';
 
 export class CreateTenantDto {
@@ -21,11 +21,6 @@ export class CreateTenantDto {
   @IsString()
   @IsOptional()
   logo?: string;
-
-  @ApiPropertyOptional({ enum: Plan, default: Plan.FREE })
-  @IsEnum(Plan)
-  @IsOptional()
-  plan?: Plan;
 
   // Admin inicial
   @ApiProperty({ example: 'admin@empresa.com' })
@@ -68,11 +63,6 @@ export class QueryTenantDto {
   @IsString()
   @IsOptional()
   search?: string;
-
-  @ApiPropertyOptional({ enum: Plan })
-  @IsEnum(Plan)
-  @IsOptional()
-  plan?: Plan;
 
   @ApiPropertyOptional({ enum: Status })
   @IsEnum(Status)

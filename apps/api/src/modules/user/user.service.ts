@@ -57,9 +57,11 @@ export class UserService {
         name: true,
         avatar: true,
         role: true,
+        customRoleId: true,
         status: true,
         tenantId: true,
         createdAt: true,
+        customRole: { select: { id: true, name: true, color: true } },
       },
     });
 
@@ -112,10 +114,12 @@ export class UserService {
           name: true,
           avatar: true,
           role: true,
+          customRoleId: true,
           status: true,
           tenantId: true,
           lastLoginAt: true,
           createdAt: true,
+          customRole: { select: { id: true, name: true, color: true } },
           tenant: {
             select: { id: true, name: true, slug: true },
           },
@@ -150,11 +154,18 @@ export class UserService {
         name: true,
         avatar: true,
         role: true,
+        customRoleId: true,
         status: true,
         tenantId: true,
         lastLoginAt: true,
         createdAt: true,
         updatedAt: true,
+        customRole: {
+          select: {
+            id: true, name: true, color: true,
+            permissions: true, modulePermissions: true,
+          },
+        },
         tenant: {
           select: {
             id: true,
@@ -190,9 +201,11 @@ export class UserService {
         name: true,
         avatar: true,
         role: true,
+        customRoleId: true,
         status: true,
         tenantId: true,
         updatedAt: true,
+        customRole: { select: { id: true, name: true, color: true } },
       },
     });
   }

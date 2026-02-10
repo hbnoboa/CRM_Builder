@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { NotificationGateway, Notification } from './notification.gateway';
 import { PrismaService } from '../../prisma/prisma.service';
-import { NotificationType, Prisma } from '@prisma/client';
+import { NotificationType, Prisma, UserRole } from '@prisma/client';
 import { v4 as uuidv4 } from 'uuid';
 
 export interface CreateNotificationDto {
@@ -78,11 +78,12 @@ export class NotificationService {
   }
 
   /**
-   * Notificar todos os usuários de um tenant
+   * Notificar todos os usuários de um tenant (com filtro opcional por entidade)
    */
   async notifyTenant(
     tenantId: string,
     notification: CreateNotificationDto,
+    entitySlug?: string,
   ): Promise<Notification> {
     const fullNotification: Notification = {
       id: uuidv4(),
@@ -91,9 +92,91 @@ export class NotificationService {
       read: false,
     };
 
-    this.gateway.sendToTenant(tenantId, fullNotification);
+    // Se tem entitySlug, só notificar usuários com permissão nessa entidade
+    if (entitySlug) {
+      await this.notifyUsersWithEntityAccess(tenantId, entitySlug, fullNotification);
+    } else {
+      this.gateway.sendToTenant(tenantId, fullNotification);
+    }
 
     return fullNotification;
+  }
+
+  /**
+   * Notifica apenas os usuários que têm acesso à entidade específica
+   */
+  private async notifyUsersWithEntityAccess(
+    tenantId: string,
+    entitySlug: string,
+    notification: Notification,
+  ): Promise<void> {
+    try {
+      const users = await this.prisma.user.findMany({
+        where: { tenantId, status: 'ACTIVE' },
+        select: { id: true, role: true, customRoleId: true },
+      });
+
+      for (const user of users) {
+        // PLATFORM_ADMIN e ADMIN recebem tudo
+        if (user.role === UserRole.PLATFORM_ADMIN || user.role === UserRole.ADMIN) {
+          this.gateway.sendToUser(user.id, notification);
+          this.persistNotification(user.id, tenantId, notification, entitySlug);
+          continue;
+        }
+
+        // Verificar custom role
+        if (user.customRoleId) {
+          const customRole = await this.prisma.customRole.findUnique({
+            where: { id: user.customRoleId },
+            select: { permissions: true },
+          });
+
+          if (customRole) {
+            const permissions = customRole.permissions as unknown as Array<{
+              entitySlug: string; canRead: boolean;
+            }>;
+            const hasAccess = permissions.some(
+              (p) => p.entitySlug === entitySlug && p.canRead,
+            );
+            if (hasAccess) {
+              this.gateway.sendToUser(user.id, notification);
+              this.persistNotification(user.id, tenantId, notification, entitySlug);
+            }
+          }
+        } else {
+          // Sem custom role: MANAGER, USER e VIEWER recebem
+          this.gateway.sendToUser(user.id, notification);
+          this.persistNotification(user.id, tenantId, notification, entitySlug);
+        }
+      }
+    } catch (error) {
+      this.logger.error(`Failed to notify users with entity access: ${error}`);
+      this.gateway.sendToTenant(tenantId, notification);
+    }
+  }
+
+  private async persistNotification(
+    userId: string,
+    tenantId: string,
+    notification: Notification,
+    entitySlug?: string,
+  ): Promise<void> {
+    try {
+      await this.prisma.notification.create({
+        data: {
+          tenantId,
+          userId,
+          type: typeMap[notification.type] || NotificationType.INFO,
+          title: notification.title,
+          message: notification.message,
+          data: notification.data as Prisma.InputJsonValue,
+          entitySlug,
+          read: false,
+        },
+      });
+    } catch (error) {
+      // Ignora erros de persistência silenciosamente
+    }
   }
 
   // Helpers para notificações comuns
@@ -106,13 +189,14 @@ export class NotificationService {
     entityName: string,
     recordName: string,
     createdBy: string,
+    entitySlug?: string,
   ) {
     return this.notifyTenant(tenantId, {
       type: 'success',
       title: 'Novo Registro',
       message: `${createdBy} criou um novo registro em ${entityName}: ${recordName}`,
-      data: { entityName, recordName, createdBy },
-    });
+      data: { entityName, recordName, createdBy, entitySlug },
+    }, entitySlug);
   }
 
   /**
@@ -123,13 +207,14 @@ export class NotificationService {
     entityName: string,
     recordName: string,
     updatedBy: string,
+    entitySlug?: string,
   ) {
     return this.notifyTenant(tenantId, {
       type: 'info',
       title: 'Registro Atualizado',
       message: `${updatedBy} atualizou um registro em ${entityName}: ${recordName}`,
-      data: { entityName, recordName, updatedBy },
-    });
+      data: { entityName, recordName, updatedBy, entitySlug },
+    }, entitySlug);
   }
 
   /**
@@ -140,13 +225,14 @@ export class NotificationService {
     entityName: string,
     recordName: string,
     deletedBy: string,
+    entitySlug?: string,
   ) {
     return this.notifyTenant(tenantId, {
       type: 'warning',
       title: 'Registro Excluído',
       message: `${deletedBy} excluiu um registro em ${entityName}: ${recordName}`,
-      data: { entityName, recordName, deletedBy },
-    });
+      data: { entityName, recordName, deletedBy, entitySlug },
+    }, entitySlug);
   }
 
   /**

@@ -31,6 +31,11 @@ export class CreateUserDto {
   @IsEnum(UserRole)
   @IsOptional()
   role?: UserRole;
+
+  @ApiPropertyOptional({ description: 'ID da role customizada' })
+  @IsString()
+  @IsOptional()
+  customRoleId?: string;
 }
 
 export class UpdateUserDto extends PartialType(CreateUserDto) {

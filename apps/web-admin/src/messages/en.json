@@ -224,6 +224,9 @@
       "rolePlaceholder": "Select a role",
       "status": "Status",
       "statusPlaceholder": "Select a status",
+      "customRole": "Custom Role",
+      "customRolePlaceholder": "Select a role",
+      "noCustomRole": "No custom role",
       "createDescription": "Fill in the details to create a new user.",
       "editDescription": "Update user information."
     },
@@ -482,8 +485,13 @@
     "stats": {
       "total": "Total Roles",
       "usersWithRoles": "Users with Roles",
-      "rolesWithPermissions": "Roles with Permissions"
+      "usersAssigned": "Users Assigned",
+      "rolesWithPermissions": "Roles with Permissions",
+      "defaults": "Default Roles"
     },
+    "default": "Default",
+    "usersCount": "users",
+    "entitiesCount": "entities",
     "searchPlaceholder": "Search roles...",
     "noRolesFound": "No roles found",
     "noRolesMatchSearch": "No roles match your search.",
@@ -502,7 +510,31 @@
       "description": "Description (optional)",
       "descriptionPlaceholder": "Describe the responsibilities of this role...",
       "createDescription": "Fill in the details to create a new role.",
-      "editDescription": "Update role information."
+      "editDescription": "Update role information.",
+      "color": "Color",
+      "systemModules": "System Modules",
+      "systemModulesDesc": "Select which modules this role can access",
+      "entityPermissions": "Entity Permissions",
+      "entityPermissionsDesc": "Set CRUD permissions for each entity",
+      "noEntities": "No entities registered yet.",
+      "entity": "Entity",
+      "create": "Create",
+      "read": "Read",
+      "update": "Edit",
+      "delete": "Delete",
+      "isDefault": "Default Role",
+      "isDefaultDesc": "Automatically assign to new users",
+      "customRole": "Custom Role",
+      "customRolePlaceholder": "Select a custom role",
+      "noCustomRole": "No custom role"
+    },
+    "modules": {
+      "dashboard": "Dashboard",
+      "users": "Users",
+      "settings": "Settings",
+      "apis": "APIs",
+      "pages": "Pages",
+      "entities": "Entities"
     },
     "userRoles": {
       "title": "Manage Permissions",

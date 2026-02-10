@@ -15,6 +15,7 @@ import {
   Code,
   Search,
   Building2,
+  Shield,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -70,6 +71,12 @@ const navigationConfig: NavItemConfig[] = [
     href: '/users',
     icon: <Users className="h-5 w-5" />,
     roles: ['PLATFORM_ADMIN', 'ADMIN', 'MANAGER'],
+  },
+  {
+    titleKey: 'roles',
+    href: '/roles',
+    icon: <Shield className="h-5 w-5" />,
+    roles: ['PLATFORM_ADMIN', 'ADMIN'],
   },
   {
     titleKey: 'settings',

@@ -224,6 +224,9 @@
       "rolePlaceholder": "Selecione uma função",
       "status": "Status",
       "statusPlaceholder": "Selecione um status",
+      "customRole": "Role Customizada",
+      "customRolePlaceholder": "Selecione uma role",
+      "noCustomRole": "Sem role customizada",
       "createDescription": "Preencha os dados para criar um novo usuário.",
       "editDescription": "Atualize as informações do usuário."
     },
@@ -482,8 +485,13 @@
     "stats": {
       "total": "Total de Roles",
       "usersWithRoles": "Usuários com Roles",
-      "rolesWithPermissions": "Roles com Permissões"
+      "usersAssigned": "Usuários Atribuídos",
+      "rolesWithPermissions": "Roles com Permissões",
+      "defaults": "Roles Padrão"
     },
+    "default": "Padrão",
+    "usersCount": "usuários",
+    "entitiesCount": "entidades",
     "searchPlaceholder": "Buscar roles...",
     "noRolesFound": "Nenhuma role encontrada",
     "noRolesMatchSearch": "Nenhuma role corresponde à sua busca.",
@@ -502,7 +510,31 @@
       "description": "Descrição (opcional)",
       "descriptionPlaceholder": "Descreva as responsabilidades desta role...",
       "createDescription": "Preencha os dados para criar uma nova role.",
-      "editDescription": "Atualize as informações da role."
+      "editDescription": "Atualize as informações da role.",
+      "color": "Cor",
+      "systemModules": "Módulos do Sistema",
+      "systemModulesDesc": "Selecione quais módulos esta role terá acesso",
+      "entityPermissions": "Permissões por Entidade",
+      "entityPermissionsDesc": "Defina permissões CRUD para cada entidade",
+      "noEntities": "Nenhuma entidade cadastrada ainda.",
+      "entity": "Entidade",
+      "create": "Criar",
+      "read": "Ler",
+      "update": "Editar",
+      "delete": "Excluir",
+      "isDefault": "Role Padrão",
+      "isDefaultDesc": "Atribuir automaticamente a novos usuários",
+      "customRole": "Role Customizada",
+      "customRolePlaceholder": "Selecione uma role customizada",
+      "noCustomRole": "Sem role customizada"
+    },
+    "modules": {
+      "dashboard": "Dashboard",
+      "users": "Usuários",
+      "settings": "Configurações",
+      "apis": "APIs",
+      "pages": "Páginas",
+      "entities": "Entidades"
     },
     "userRoles": {
       "title": "Gerenciar Permissões",

@@ -24,6 +24,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { useCreateUser, useUpdateUser } from '@/hooks/use-users';
+import { useCustomRoles } from '@/hooks/use-custom-roles';
 import type { User, UserRole, Status } from '@/types';
 
 const createUserSchema = (t: (key: string) => string) => z.object({
@@ -32,6 +33,7 @@ const createUserSchema = (t: (key: string) => string) => z.object({
   password: z.string().min(8, t('passwordMinLength')).optional().or(z.literal('')),
   role: z.enum(['PLATFORM_ADMIN', 'ADMIN', 'MANAGER', 'USER', 'VIEWER'] as const),
   status: z.enum(['ACTIVE', 'INACTIVE', 'SUSPENDED', 'PENDING'] as const).optional(),
+  customRoleId: z.string().optional(),
 });
 
 const userSchema = createUserSchema((key) => key);
@@ -52,6 +54,8 @@ export function UserFormDialog({ open, onOpenChange, user, onSuccess }: UserForm
   const isEditing = !!user;
   const createUser = useCreateUser({ success: t('toast.created') });
   const updateUser = useUpdateUser({ success: t('toast.updated') });
+  const { data: rolesData } = useCustomRoles();
+  const customRoles = Array.isArray(rolesData?.data) ? rolesData.data : [];
 
   const form = useForm<UserFormData>({
     resolver: zodResolver(createUserSchema(tValidation)),
@@ -61,6 +65,7 @@ export function UserFormDialog({ open, onOpenChange, user, onSuccess }: UserForm
       password: '',
       role: 'USER',
       status: 'ACTIVE',
+      customRoleId: '',
     },
   });
 
@@ -73,6 +78,7 @@ export function UserFormDialog({ open, onOpenChange, user, onSuccess }: UserForm
         password: '',
         role: user.role,
         status: user.status,
+        customRoleId: user.customRoleId || '',
       });
     } else {
       form.reset({
@@ -81,6 +87,7 @@ export function UserFormDialog({ open, onOpenChange, user, onSuccess }: UserForm
         password: '',
         role: 'USER',
         status: 'ACTIVE',
+        customRoleId: '',
       });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -94,6 +101,7 @@ export function UserFormDialog({ open, onOpenChange, user, onSuccess }: UserForm
           email: data.email,
           role: data.role,
           status: data.status,
+          customRoleId: data.customRoleId || null,
         };
         if (data.password) {
           updateData.password = data.password;
@@ -105,6 +113,7 @@ export function UserFormDialog({ open, onOpenChange, user, onSuccess }: UserForm
           email: data.email,
           password: data.password || '',
           role: data.role as UserRole,
+          customRoleId: data.customRoleId || undefined,
         });
       }
       onOpenChange(false);
@@ -185,6 +194,34 @@ export function UserFormDialog({ open, onOpenChange, user, onSuccess }: UserForm
               </SelectContent>
             </Select>
           </div>
+
+          {customRoles.length > 0 && (
+            <div className="space-y-2">
+              <Label htmlFor="customRole">{t('form.customRole')}</Label>
+              <Select
+                value={form.watch('customRoleId') || '_none'}
+                onValueChange={(value) => form.setValue('customRoleId', value === '_none' ? '' : value)}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder={t('form.customRolePlaceholder')} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="_none">{t('form.noCustomRole')}</SelectItem>
+                  {customRoles.map((role) => (
+                    <SelectItem key={role.id} value={role.id}>
+                      <div className="flex items-center gap-2">
+                        <div
+                          className="w-3 h-3 rounded-full flex-shrink-0"
+                          style={{ backgroundColor: role.color || '#6366f1' }}
+                        />
+                        {role.name}
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
 
           {isEditing && (
             <div className="space-y-2">

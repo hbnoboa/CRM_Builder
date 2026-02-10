@@ -186,7 +186,6 @@ export class AuthService {
             id: true,
             name: true,
             slug: true,
-            plan: true,
           },
         },
       },

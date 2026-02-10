@@ -1,4 +1,4 @@
-import { PrismaClient, UserRole, Status, Plan } from '@prisma/client';
+import { PrismaClient, UserRole, Status } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
 
 const prisma = new PrismaClient();
@@ -26,7 +26,6 @@ async function main() {
     data: {
       name: 'Platform',
       slug: 'platform',
-      plan: Plan.ENTERPRISE,
       status: Status.ACTIVE,
     },
   });

@@ -39,13 +39,6 @@ const statusColors: Record<string, string> = {
   INACTIVE: 'bg-gray-100 text-gray-800',
 };
 
-const planColors: Record<string, string> = {
-  free: 'bg-gray-100 text-gray-800',
-  basic: 'bg-blue-100 text-blue-800',
-  pro: 'bg-purple-100 text-purple-800',
-  enterprise: 'bg-orange-100 text-orange-800',
-};
-
 export default function TenantsPage() {
   const t = useTranslations('tenants');
   const tCommon = useTranslations('common');
@@ -183,10 +176,10 @@ export default function TenantsPage() {
         </Card>
         <Card>
           <CardContent className="p-3 sm:p-4">
-            <div className="text-xl sm:text-2xl font-bold text-purple-600">
-              {tenants.filter((tenant: Tenant) => tenant.plan === 'pro' || tenant.plan === 'enterprise').length}
+            <div className="text-xl sm:text-2xl font-bold text-gray-600">
+              {tenants.filter((tenant: Tenant) => tenant.status === 'INACTIVE').length}
             </div>
-            <p className="text-xs sm:text-sm text-muted-foreground">{t('stats.premium')}</p>
+            <p className="text-xs sm:text-sm text-muted-foreground">{tCommon('inactive')}</p>
           </CardContent>
         </Card>
       </div>
@@ -257,15 +250,6 @@ export default function TenantsPage() {
                         >
                           {tCommon(tenant.status === 'ACTIVE' ? 'active' : tenant.status === 'SUSPENDED' ? 'suspended' : 'inactive')}
                         </span>
-                        {tenant.plan && (
-                          <span
-                            className={`px-2 py-0.5 text-xs font-medium rounded whitespace-nowrap ${
-                              planColors[tenant.plan] || 'bg-gray-100 text-gray-800'
-                            }`}
-                          >
-                            {tenant.plan.charAt(0).toUpperCase() + tenant.plan.slice(1)}
-                          </span>
-                        )}
                       </div>
                       <div className="flex flex-wrap items-center gap-2 sm:gap-4 mt-1 text-xs sm:text-sm text-muted-foreground">
                         <span className="font-mono truncate">{tenant.slug}</span>

@@ -16,13 +16,6 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import { useCreateTenant, useUpdateTenant } from '@/hooks/use-tenants';
 import type { Tenant } from '@/types';
 
@@ -30,7 +23,6 @@ const createTenantSchemaFn = (t: (key: string) => string) => z.object({
   name: z.string().min(2, t('nameMinLength')),
   slug: z.string().min(2, t('slugMinLength')).regex(/^[a-z0-9-]+$/, t('slugFormat')),
   domain: z.string().optional(),
-  plan: z.string().optional(),
   adminEmail: z.string().email(t('emailInvalid')),
   adminName: z.string().min(2, t('adminNameMinLength')),
   adminPassword: z.string().min(8, t('passwordMinLength')),
@@ -39,7 +31,6 @@ const createTenantSchemaFn = (t: (key: string) => string) => z.object({
 const updateTenantSchemaFn = (t: (key: string) => string) => z.object({
   name: z.string().min(2, t('nameMinLength')),
   domain: z.string().optional(),
-  plan: z.string().optional(),
 });
 
 const createTenantSchema = createTenantSchemaFn((key) => key);
@@ -69,7 +60,6 @@ export function TenantFormDialog({ open, onOpenChange, tenant, onSuccess }: Tena
       name: '',
       slug: '',
       domain: '',
-      plan: 'basic',
       adminEmail: '',
       adminName: '',
       adminPassword: '',
@@ -82,14 +72,12 @@ export function TenantFormDialog({ open, onOpenChange, tenant, onSuccess }: Tena
       form.reset({
         name: tenant.name,
         domain: '',
-        plan: tenant.plan || 'basic',
       });
     } else {
       form.reset({
         name: '',
         slug: '',
         domain: '',
-        plan: 'basic',
         adminEmail: '',
         adminName: '',
         adminPassword: '',
@@ -106,7 +94,6 @@ export function TenantFormDialog({ open, onOpenChange, tenant, onSuccess }: Tena
           data: {
             name: data.name,
             domain: data.domain,
-            plan: data.plan,
           },
         });
       } else {
@@ -115,7 +102,6 @@ export function TenantFormDialog({ open, onOpenChange, tenant, onSuccess }: Tena
           name: createData.name,
           slug: createData.slug,
           domain: createData.domain,
-          plan: createData.plan,
           adminEmail: createData.adminEmail,
           adminName: createData.adminName,
           adminPassword: createData.adminPassword,
@@ -175,24 +161,6 @@ export function TenantFormDialog({ open, onOpenChange, tenant, onSuccess }: Tena
               placeholder={t('form.domainPlaceholder')}
               {...form.register('domain')}
             />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="plan">{t('form.plan')}</Label>
-            <Select
-              value={form.watch('plan') || 'basic'}
-              onValueChange={(value) => form.setValue('plan', value)}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder={t('form.planPlaceholder')} />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="free">Free</SelectItem>
-                <SelectItem value="basic">Basic</SelectItem>
-                <SelectItem value="pro">Pro</SelectItem>
-                <SelectItem value="enterprise">Enterprise</SelectItem>
-              </SelectContent>
-            </Select>
           </div>
 
           {!isEditing && (

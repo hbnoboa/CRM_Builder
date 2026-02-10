@@ -7,7 +7,6 @@ export interface Tenant {
   name: string;
   slug: string;
   status: TenantStatus;
-  plan?: string;
   settings?: Record<string, unknown>;
   createdAt?: string;
   updatedAt?: string;
@@ -22,14 +21,48 @@ export interface User {
   name: string;
   avatar?: string | null;
   role: UserRole;
+  customRoleId?: string | null;
+  customRole?: CustomRole | null;
   status: Status;
   tenantId: string;
   tenant?: Tenant;
-  additionalRoles?: Role[];
   permissions?: string[];
   lastLoginAt?: string;
   createdAt?: string;
   updatedAt?: string;
+}
+
+export interface CustomRole {
+  id: string;
+  name: string;
+  description?: string;
+  color?: string;
+  permissions: EntityPermission[];
+  modulePermissions?: ModulePermissions;
+  isDefault?: boolean;
+  tenantId: string;
+  _count?: { users: number };
+  users?: Array<{ id: string; name: string; email: string; avatar?: string }>;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface EntityPermission {
+  entitySlug: string;
+  entityName?: string;
+  canCreate: boolean;
+  canRead: boolean;
+  canUpdate: boolean;
+  canDelete: boolean;
+}
+
+export interface ModulePermissions {
+  dashboard?: boolean;
+  users?: boolean;
+  settings?: boolean;
+  apis?: boolean;
+  pages?: boolean;
+  entities?: boolean;
 }
 
 export interface Role {

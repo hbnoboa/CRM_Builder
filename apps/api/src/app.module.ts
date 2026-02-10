@@ -14,6 +14,7 @@ import { StatsModule } from './modules/stats/stats.module';
 import { UploadModule } from './modules/upload/upload.module';
 import { NotificationModule } from './modules/notification/notification.module';
 import { HealthModule } from './modules/health/health.module';
+import { CustomRoleModule } from './modules/custom-role/custom-role.module';
 
 @Module({
   imports: [
@@ -44,6 +45,7 @@ import { HealthModule } from './modules/health/health.module';
     DataModule,
     PageModule,
     CustomApiModule,
+    CustomRoleModule,
     StatsModule,
     UploadModule,
     NotificationModule,

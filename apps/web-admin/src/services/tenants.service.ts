@@ -5,7 +5,6 @@ export interface QueryTenantsParams {
   page?: number;
   limit?: number;
   search?: string;
-  plan?: string;
   status?: TenantStatus;
 }
 
@@ -14,7 +13,6 @@ export interface CreateTenantData {
   slug: string;
   domain?: string;
   logo?: string;
-  plan?: string;
   adminEmail: string;
   adminName: string;
   adminPassword: string;
@@ -24,14 +22,13 @@ export interface UpdateTenantData {
   name?: string;
   domain?: string;
   logo?: string;
-  plan?: string;
   settings?: Record<string, unknown>;
 }
 
 export interface TenantStats {
   total: number;
   active: number;
-  byPlan: Record<string, number>;
+  suspended: number;
 }
 
 export const tenantsService = {

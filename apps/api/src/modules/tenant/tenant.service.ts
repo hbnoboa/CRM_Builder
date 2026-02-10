@@ -27,7 +27,6 @@ export class TenantService {
           slug: dto.slug,
           domain: dto.domain,
           logo: dto.logo,
-          plan: dto.plan,
         },
       });
 
@@ -51,12 +50,11 @@ export class TenantService {
   }
 
   async findAll(query: QueryTenantDto) {
-    const { page = 1, limit = 20, search, plan, status } = query;
+    const { page = 1, limit = 20, search, status } = query;
     const skip = (page - 1) * limit;
 
     const where: Prisma.TenantWhereInput = {};
 
-    if (plan) where.plan = plan;
     if (status) where.status = status;
     if (search) {
       where.OR = [
@@ -148,22 +146,16 @@ export class TenantService {
   }
 
   async getStats() {
-    const [total, active, byPlan] = await Promise.all([
+    const [total, active, suspended] = await Promise.all([
       this.prisma.tenant.count(),
       this.prisma.tenant.count({ where: { status: Status.ACTIVE } }),
-      this.prisma.tenant.groupBy({
-        by: ['plan'],
-        _count: true,
-      }),
+      this.prisma.tenant.count({ where: { status: Status.SUSPENDED } }),
     ]);
 
     return {
       total,
       active,
-      byPlan: byPlan.reduce((acc, item) => {
-        acc[item.plan] = item._count;
-        return acc;
-      }, {} as Record<string, number>),
+      suspended,
     };
   }
 }
