@@ -2,6 +2,7 @@ import { Injectable, NotFoundException, ForbiddenException, BadRequestException,
 import { PrismaService } from '../../prisma/prisma.service';
 import { EntityService } from '../entity/entity.service';
 import { NotificationService } from '../notification/notification.service';
+import { CustomRoleService } from '../custom-role/custom-role.service';
 import { UserRole, Prisma, EntityData, Entity } from '@prisma/client';
 import {
   CurrentUser,
@@ -70,7 +71,31 @@ export class DataService {
     private prisma: PrismaService,
     private entityService: EntityService,
     private notificationService: NotificationService,
+    private customRoleService: CustomRoleService,
   ) {}
+
+  /**
+   * Verifica se usuario tem permissao para acao na entidade
+   * Lanca ForbiddenException se nao tiver
+   */
+  private async checkEntityPermission(
+    userId: string,
+    entitySlug: string,
+    action: 'canCreate' | 'canRead' | 'canUpdate' | 'canDelete',
+  ): Promise<void> {
+    const hasPermission = await this.customRoleService.hasEntityPermission(userId, entitySlug, action);
+    if (!hasPermission) {
+      const actionLabels = {
+        canCreate: 'criar registros em',
+        canRead: 'visualizar',
+        canUpdate: 'editar registros em',
+        canDelete: 'excluir registros em',
+      };
+      throw new ForbiddenException(
+        `Voce nao tem permissao para ${actionLabels[action]} "${entitySlug}"`,
+      );
+    }
+  }
 
   // Busca Custom API configurada para a entidade (POST para create, PATCH para update)
   private async findCustomApiForEntity(
@@ -212,6 +237,9 @@ export class DataService {
   }
 
   async create(entitySlug: string, dto: CreateDataDto & { tenantId?: string }, currentUser: CurrentUser) {
+    // Verificar permissao de criacao na entidade
+    await this.checkEntityPermission(currentUser.id, entitySlug, 'canCreate');
+
     const targetTenantId = this.getEffectiveTenantId(currentUser, dto.tenantId);
 
     // Buscar entidade (cached)
@@ -264,6 +292,9 @@ export class DataService {
     query: QueryDataDto,
     currentUser: CurrentUser,
   ) {
+    // Verificar permissao de leitura na entidade
+    await this.checkEntityPermission(currentUser.id, entitySlug, 'canRead');
+
     // Parse parameters
     const page = parseInt(String(query.page || '1'), 10) || 1;
     const limit = Math.min(MAX_LIMIT, Math.max(1, parseInt(String(query.limit || DEFAULT_LIMIT), 10) || DEFAULT_LIMIT));
@@ -432,6 +463,9 @@ export class DataService {
   }
 
   async findOne(entitySlug: string, id: string, currentUser: CurrentUser, tenantId?: string) {
+    // Verificar permissao de leitura na entidade
+    await this.checkEntityPermission(currentUser.id, entitySlug, 'canRead');
+
     const effectiveTenantId = this.getEffectiveTenantId(currentUser, tenantId);
     const entity = await this.getEntityCached(entitySlug, currentUser, effectiveTenantId);
 
@@ -476,6 +510,9 @@ export class DataService {
   }
 
   async update(entitySlug: string, id: string, dto: CreateDataDto & { tenantId?: string }, currentUser: CurrentUser) {
+    // Verificar permissao de edicao na entidade
+    await this.checkEntityPermission(currentUser.id, entitySlug, 'canUpdate');
+
     const effectiveTenantId = this.getEffectiveTenantId(currentUser, dto.tenantId);
     const entity = await this.getEntityCached(entitySlug, currentUser, effectiveTenantId);
 
@@ -549,6 +586,9 @@ export class DataService {
   }
 
   async remove(entitySlug: string, id: string, currentUser: CurrentUser, tenantId?: string) {
+    // Verificar permissao de exclusao na entidade
+    await this.checkEntityPermission(currentUser.id, entitySlug, 'canDelete');
+
     const effectiveTenantId = this.getEffectiveTenantId(currentUser, tenantId);
     const entity = await this.getEntityCached(entitySlug, currentUser, effectiveTenantId);
 
