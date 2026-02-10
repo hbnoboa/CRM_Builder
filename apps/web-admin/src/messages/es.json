@@ -971,88 +971,30 @@
     "subtitle": "Gestiona tus preferencias y configuración de cuenta",
     "tabs": {
       "profile": "Perfil",
-      "notifications": "Notificaciones",
-      "security": "Seguridad",
-      "api": "Claves de API",
-      "integrations": "Integraciones"
+      "language": "Idioma",
+      "theme": "Tema"
     },
     "profile": {
       "title": "Perfil",
       "description": "Actualiza tu información personal",
-      "changePhoto": "Cambiar Foto",
-      "photoHint": "JPG, PNG o GIF. Máximo 2MB.",
-      "fullName": "Nombre Completo",
-      "email": "Correo electrónico",
-      "saveChanges": "Guardar Cambios"
-    },
-    "notifications": {
-      "title": "Notificaciones",
-      "description": "Configura cómo deseas recibir notificaciones",
-      "newRecords": {
-        "label": "Nuevos registros",
-        "desc": "Cuando se crea un nuevo registro"
-      },
-      "updates": {
-        "label": "Actualizaciones",
-        "desc": "Cuando se actualiza un registro"
-      },
-      "mentions": {
-        "label": "Menciones",
-        "desc": "Cuando te mencionan"
-      },
-      "reports": {
-        "label": "Informes",
-        "desc": "Informes semanales por correo"
-      }
+      "fullName": "Nombre Completo"
     },
     "security": {
-      "title": "Seguridad",
-      "description": "Gestiona la seguridad de tu cuenta",
+      "description": "Cambia tu contraseña de acceso",
       "changePassword": "Cambiar Contraseña",
       "currentPassword": "Contraseña Actual",
       "newPassword": "Nueva Contraseña",
       "confirmNewPassword": "Confirmar Nueva Contraseña",
-      "passwordsNotMatch": "Las contraseñas no coinciden",
-      "changing": "Cambiando...",
-      "twoFactor": "Autenticación de Dos Factores",
-      "twoFactorNotConfigured": "2FA no configurado",
-      "twoFactorHint": "Añade una capa extra de seguridad",
-      "setup2FA": "Configurar 2FA",
-      "activeSessions": "Sesiones Activas",
-      "thisDevice": "Este dispositivo",
-      "deviceInfo": "Linux - Chrome - Ahora",
-      "current": "Actual"
+      "passwordsNotMatch": "Las contraseñas no coinciden"
     },
-    "apiKeys": {
-      "title": "Claves de API",
-      "description": "Gestiona tus claves de API para integraciones",
-      "hint": "Usa claves de API para acceder a la API de CRM Builder",
-      "newKey": "Nueva Clave",
-      "productionKey": "Clave de Producción",
-      "testKey": "Clave de Prueba",
-      "revoke": "Revocar"
+    "language": {
+      "title": "Idioma",
+      "description": "Selecciona el idioma de la interfaz"
     },
-    "integrations": {
-      "title": "Integraciones",
-      "description": "Conecta tu CRM con otras herramientas",
-      "configure": "Configurar",
-      "connect": "Conectar",
-      "slack": {
-        "name": "Slack",
-        "desc": "Recibe notificaciones en Slack"
-      },
-      "zapier": {
-        "name": "Zapier",
-        "desc": "Automatiza flujos de trabajo"
-      },
-      "googleSheets": {
-        "name": "Google Sheets",
-        "desc": "Exporta datos automáticamente"
-      },
-      "whatsapp": {
-        "name": "WhatsApp",
-        "desc": "Integración con WhatsApp Business"
-      }
+    "theme": {
+      "title": "Tema",
+      "comingSoon": "En Construcción",
+      "comingSoonDesc": "La personalización de temas estará disponible pronto."
     }
   },
   "validation": {

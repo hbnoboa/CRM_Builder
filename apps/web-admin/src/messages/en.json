@@ -971,88 +971,30 @@
     "subtitle": "Manage your preferences and account settings",
     "tabs": {
       "profile": "Profile",
-      "notifications": "Notifications",
-      "security": "Security",
-      "api": "API Keys",
-      "integrations": "Integrations"
+      "language": "Language",
+      "theme": "Theme"
     },
     "profile": {
       "title": "Profile",
       "description": "Update your personal information",
-      "changePhoto": "Change Photo",
-      "photoHint": "JPG, PNG or GIF. Maximum 2MB.",
-      "fullName": "Full Name",
-      "email": "Email",
-      "saveChanges": "Save Changes"
-    },
-    "notifications": {
-      "title": "Notifications",
-      "description": "Configure how you want to receive notifications",
-      "newRecords": {
-        "label": "New records",
-        "desc": "When a new record is created"
-      },
-      "updates": {
-        "label": "Updates",
-        "desc": "When a record is updated"
-      },
-      "mentions": {
-        "label": "Mentions",
-        "desc": "When you are mentioned"
-      },
-      "reports": {
-        "label": "Reports",
-        "desc": "Weekly reports by email"
-      }
+      "fullName": "Full Name"
     },
     "security": {
-      "title": "Security",
-      "description": "Manage your account security",
+      "description": "Change your access password",
       "changePassword": "Change Password",
       "currentPassword": "Current Password",
       "newPassword": "New Password",
       "confirmNewPassword": "Confirm New Password",
-      "passwordsNotMatch": "Passwords do not match",
-      "changing": "Changing...",
-      "twoFactor": "Two-Factor Authentication",
-      "twoFactorNotConfigured": "2FA not configured",
-      "twoFactorHint": "Add an extra layer of security",
-      "setup2FA": "Setup 2FA",
-      "activeSessions": "Active Sessions",
-      "thisDevice": "This device",
-      "deviceInfo": "Linux - Chrome - Now",
-      "current": "Current"
+      "passwordsNotMatch": "Passwords do not match"
     },
-    "apiKeys": {
-      "title": "API Keys",
-      "description": "Manage your API keys for integrations",
-      "hint": "Use API keys to access the CRM Builder API",
-      "newKey": "New Key",
-      "productionKey": "Production Key",
-      "testKey": "Test Key",
-      "revoke": "Revoke"
+    "language": {
+      "title": "Language",
+      "description": "Select the interface language"
     },
-    "integrations": {
-      "title": "Integrations",
-      "description": "Connect your CRM to other tools",
-      "configure": "Configure",
-      "connect": "Connect",
-      "slack": {
-        "name": "Slack",
-        "desc": "Receive notifications on Slack"
-      },
-      "zapier": {
-        "name": "Zapier",
-        "desc": "Automate workflows"
-      },
-      "googleSheets": {
-        "name": "Google Sheets",
-        "desc": "Export data automatically"
-      },
-      "whatsapp": {
-        "name": "WhatsApp",
-        "desc": "WhatsApp Business integration"
-      }
+    "theme": {
+      "title": "Theme",
+      "comingSoon": "Under Construction",
+      "comingSoonDesc": "Theme customization will be available soon."
     }
   },
   "validation": {
