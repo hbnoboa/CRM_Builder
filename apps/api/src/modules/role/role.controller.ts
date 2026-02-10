@@ -83,47 +83,4 @@ export class RoleController {
   async getUserRoles(@Param('userId') userId: string, @CurrentUser() user: any) {
     return this.roleService.getUserRoles(userId, user);
   }
-
-  // ========== ENTITY PERMISSIONS ==========
-
-  @Get(':roleId/entity-permissions')
-  @Roles(UserRole.ADMIN, UserRole.PLATFORM_ADMIN)
-  @ApiOperation({ summary: 'Listar permissões de entidade de uma role' })
-  async getEntityPermissions(@Param('roleId') roleId: string, @CurrentUser() user: any) {
-    return this.roleService.getEntityPermissions(roleId, user);
-  }
-
-  @Post(':roleId/entity-permissions')
-  @Roles(UserRole.ADMIN, UserRole.PLATFORM_ADMIN)
-  @ApiOperation({ summary: 'Definir permissão de entidade para uma role' })
-  async setEntityPermission(
-    @Param('roleId') roleId: string,
-    @Body() dto: { entityId: string; canCreate: boolean; canRead: boolean; canUpdate: boolean; canDelete: boolean },
-    @CurrentUser() user: any,
-  ) {
-    const { entityId, ...permissions } = dto;
-    return this.roleService.setEntityPermission(roleId, entityId, permissions, user);
-  }
-
-  @Delete(':roleId/entity-permissions/:entityId')
-  @Roles(UserRole.ADMIN, UserRole.PLATFORM_ADMIN)
-  @ApiOperation({ summary: 'Remover permissão de entidade de uma role' })
-  async removeEntityPermission(
-    @Param('roleId') roleId: string,
-    @Param('entityId') entityId: string,
-    @CurrentUser() user: any,
-  ) {
-    return this.roleService.removeEntityPermission(roleId, entityId, user);
-  }
-
-  @Post(':roleId/entity-permissions/bulk')
-  @Roles(UserRole.ADMIN, UserRole.PLATFORM_ADMIN)
-  @ApiOperation({ summary: 'Definir múltiplas permissões de entidade para uma role' })
-  async bulkSetEntityPermissions(
-    @Param('roleId') roleId: string,
-    @Body() dto: { entityPermissions: Array<{ entityId: string; canCreate: boolean; canRead: boolean; canUpdate: boolean; canDelete: boolean }> },
-    @CurrentUser() user: any,
-  ) {
-    return this.roleService.bulkSetEntityPermissions(roleId, dto.entityPermissions, user);
-  }
 }

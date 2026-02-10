@@ -153,7 +153,6 @@ model Role {
 
   tenant Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   users  UserRole_[]
-  entityPermissions EntityPermission[]
 
   @@unique([tenantId, slug])
   @@index([tenantId])
@@ -173,31 +172,6 @@ model UserRole_ {
   @@index([userId])
   @@index([roleId])
   @@map("user_roles")
-}
-
-// Permissoes por entidade especifica para cada Role
-model EntityPermission {
-  id       String @id @default(cuid())
-  roleId   String
-  entityId String
-  tenantId String
-
-  canCreate Boolean @default(false)
-  canRead   Boolean @default(true)
-  canUpdate Boolean @default(false)
-  canDelete Boolean @default(false)
-
-  role   Role   @relation(fields: [roleId], references: [id], onDelete: Cascade)
-  entity Entity @relation(fields: [entityId], references: [id], onDelete: Cascade)
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@unique([roleId, entityId])
-  @@index([roleId])
-  @@index([entityId])
-  @@index([tenantId])
-  @@map("entity_permissions")
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -226,7 +200,6 @@ model Entity {
   tenant            Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   data              EntityData[]
   customEndpoints   CustomEndpoint[]
-  entityPermissions EntityPermission[]
 
   @@unique([tenantId, slug])
   @@index([tenantId])
