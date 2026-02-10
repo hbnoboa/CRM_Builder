@@ -264,7 +264,13 @@ export function RoleFormDialog({ open, onOpenChange, role, onSuccess }: RoleForm
                         {moduleIcons[key]}
                       </div>
                       <span className="text-sm font-medium flex-1">{moduleLabels[key] || key}</span>
-                      <Switch checked={value || false} onCheckedChange={() => {}} />
+                      <Switch
+                        checked={value || false}
+                        onCheckedChange={(checked) => {
+                          setModulePerms((prev) => ({ ...prev, [key]: checked }));
+                        }}
+                        onClick={(e) => e.stopPropagation()}
+                      />
                     </div>
                   ))}
                 </div>
