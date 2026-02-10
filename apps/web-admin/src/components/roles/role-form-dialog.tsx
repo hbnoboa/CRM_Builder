@@ -52,7 +52,7 @@ export function RoleFormDialog({ open, onOpenChange, role, onSuccess }: RoleForm
     dashboard: true, users: false, settings: false, apis: false, pages: false, entities: false,
   });
 
-  // Buscar entidades do tenant
+  // Buscar entidades do tenant - refetch sempre que abrir para garantir dados atualizados
   const { data: entitiesData } = useQuery({
     queryKey: ['entities-for-roles'],
     queryFn: async () => {
@@ -60,6 +60,8 @@ export function RoleFormDialog({ open, onOpenChange, role, onSuccess }: RoleForm
       return res.data;
     },
     enabled: open,
+    staleTime: 0, // Sempre refetch quando abrir
+    refetchOnMount: 'always',
   });
 
   const entities: Entity[] = useMemo(() => {
