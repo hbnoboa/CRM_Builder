@@ -491,6 +491,7 @@
     "noDescription": "Sem descrição",
     "permissionsConfigured": "permissões configuradas",
     "managePermissions": "Gerenciar Permissões",
+    "entityPermissions": "Permissões por Entidade",
     "viewUsers": "Ver Usuários",
     "form": {
       "name": "Nome da Role",
@@ -524,7 +525,9 @@
       "updated": "Role atualizada com sucesso",
       "deleted": "Role excluída com sucesso",
       "assigned": "Role atribuída ao usuário",
-      "removed": "Role removida do usuário"
+      "removed": "Role removida do usuário",
+      "permissionsSaved": "Permissões salvas com sucesso",
+      "error": "Erro ao salvar permissões"
     },
     "deleteConfirm": {
       "title": "Excluir Role",
@@ -537,6 +540,7 @@
       "selectNone": "Nenhuma",
       "systemTab": "Sistema",
       "entitiesTab": "Por Entidade",
+      "entitiesTitle": "Permissões por Entidade",
       "systemDescription": "Permissões gerais do sistema que controlam o acesso a recursos globais.",
       "entitiesDescription": "Defina permissões específicas para cada entidade (CRUD por tabela).",
       "noEntities": "Nenhuma entidade cadastrada ainda.",

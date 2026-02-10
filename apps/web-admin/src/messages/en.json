@@ -491,6 +491,7 @@
     "noDescription": "No description",
     "permissionsConfigured": "permissions configured",
     "managePermissions": "Manage Permissions",
+    "entityPermissions": "Entity Permissions",
     "viewUsers": "View Users",
     "form": {
       "name": "Role Name",
@@ -524,7 +525,9 @@
       "updated": "Role updated successfully",
       "deleted": "Role deleted successfully",
       "assigned": "Role assigned to user",
-      "removed": "Role removed from user"
+      "removed": "Role removed from user",
+      "permissionsSaved": "Permissions saved successfully",
+      "error": "Error saving permissions"
     },
     "deleteConfirm": {
       "title": "Delete Role",
@@ -537,6 +540,7 @@
       "selectNone": "None",
       "systemTab": "System",
       "entitiesTab": "By Entity",
+      "entitiesTitle": "Entity Permissions",
       "systemDescription": "General system permissions that control access to global resources.",
       "entitiesDescription": "Set specific permissions for each entity (CRUD per table).",
       "noEntities": "No entities registered yet.",

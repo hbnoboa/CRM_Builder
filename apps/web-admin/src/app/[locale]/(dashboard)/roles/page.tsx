@@ -11,6 +11,7 @@ import {
   Shield,
   Users,
   Key,
+  Database,
 } from 'lucide-react';
 import { RequireRole } from '@/components/auth/require-role';
 import { Button } from '@/components/ui/button';
@@ -25,6 +26,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { useRoles } from '@/hooks/use-roles';
 import { RoleFormDialog, DeleteRoleDialog } from '@/components/roles';
+import { EntityPermissionsDialog } from '@/components/roles/entity-permissions-dialog';
 import { useAuthStore } from '@/stores/auth-store';
 import type { Role } from '@/types';
 import { Link } from '@/i18n/navigation';
@@ -43,6 +45,7 @@ function RolesPageContent() {
   const [search, setSearch] = useState('');
   const [formOpen, setFormOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [entityPermsOpen, setEntityPermsOpen] = useState(false);
   const [selectedRole, setSelectedRole] = useState<RoleWithCount | null>(null);
 
   const { data, isLoading, refetch } = useRoles();
@@ -74,6 +77,11 @@ function RolesPageContent() {
   const handleDeleteRole = (role: RoleWithCount) => {
     setSelectedRole(role);
     setDeleteOpen(true);
+  };
+
+  const handleEntityPerms = (role: RoleWithCount) => {
+    setSelectedRole(role);
+    setEntityPermsOpen(true);
   };
 
   const handleSuccess = useCallback(() => {
@@ -233,9 +241,9 @@ function RolesPageContent() {
                           <Pencil className="h-4 w-4 mr-2" />
                           {tCommon('edit')}
                         </DropdownMenuItem>
-                        <DropdownMenuItem>
-                          <Key className="h-4 w-4 mr-2" />
-                          {t('managePermissions')}
+                        <DropdownMenuItem onClick={() => handleEntityPerms(role)}>
+                          <Database className="h-4 w-4 mr-2" />
+                          {t('entityPermissions')}
                         </DropdownMenuItem>
                         <DropdownMenuItem>
                           <Users className="h-4 w-4 mr-2" />
@@ -271,6 +279,11 @@ function RolesPageContent() {
         onOpenChange={setDeleteOpen}
         role={selectedRole}
         onSuccess={handleSuccess}
+      />
+      <EntityPermissionsDialog
+        open={entityPermsOpen}
+        onOpenChange={setEntityPermsOpen}
+        role={selectedRole}
       />
     </div>
   );
