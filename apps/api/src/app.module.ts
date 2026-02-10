@@ -5,7 +5,6 @@ import { PrismaModule } from './prisma/prisma.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { UserModule } from './modules/user/user.module';
 import { TenantModule } from './modules/tenant/tenant.module';
-import { RoleModule } from './modules/role/role.module';
 import { PermissionModule } from './modules/permission/permission.module';
 import { EntityModule } from './modules/entity/entity.module';
 import { DataModule } from './modules/data/data.module';
@@ -40,7 +39,6 @@ import { HealthModule } from './modules/health/health.module';
     AuthModule,
     UserModule,
     TenantModule,
-    RoleModule,
     PermissionModule,
     EntityModule,
     DataModule,

@@ -8,7 +8,6 @@ const SYSTEM_ROUTES = [
   '/data',
   '/users',
   '/settings',
-  '/roles',
   '/apis',
   '/tenants',
   '/login',

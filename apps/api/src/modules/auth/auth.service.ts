@@ -79,17 +79,6 @@ export class AuthService {
             status: true,
           },
         },
-        userRoles: {
-          include: {
-            role: {
-              select: {
-                id: true,
-                name: true,
-                permissions: true,
-              },
-            },
-          },
-        },
       },
     });
 
@@ -117,11 +106,6 @@ export class AuthService {
       data: { lastLoginAt: new Date() },
     });
 
-    // Coletar todas as permissoes
-    const additionalPermissions = user.userRoles.flatMap(
-      (ur) => ur.role.permissions as string[],
-    );
-
     this.logger.log(`Login: ${user.email}`);
 
     return {
@@ -133,11 +117,6 @@ export class AuthService {
         role: user.role,
         tenantId: user.tenantId,
         tenant: user.tenant,
-        additionalRoles: user.userRoles.map((ur) => ({
-          id: ur.role.id,
-          name: ur.role.name,
-        })),
-        permissions: additionalPermissions,
       },
       ...tokens,
     };
@@ -210,18 +189,6 @@ export class AuthService {
             plan: true,
           },
         },
-        userRoles: {
-          include: {
-            role: {
-              select: {
-                id: true,
-                name: true,
-                slug: true,
-                permissions: true,
-              },
-            },
-          },
-        },
       },
     });
 
@@ -229,16 +196,7 @@ export class AuthService {
       throw new UnauthorizedException('Usuario nao encontrado');
     }
 
-    // Coletar todas as permissoes
-    const permissions = user.userRoles.flatMap(
-      (ur) => ur.role.permissions as string[],
-    );
-
-    return {
-      ...user,
-      additionalRoles: user.userRoles.map((ur) => ur.role),
-      permissions,
-    };
+    return user;
   }
 
   async updateProfile(userId: string, dto: UpdateProfileDto) {

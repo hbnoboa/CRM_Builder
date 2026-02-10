@@ -208,40 +208,13 @@ async function main() {
 
   console.log('Clientes de exemplo criados');
 
-  // 6. Criar Roles personalizadas
-  await prisma.role.upsert({
-    where: { tenantId_slug: { tenantId: demoTenant.id, slug: 'vendedor-senior' } },
-    update: {},
-    create: {
-      tenantId: demoTenant.id,
-      name: 'Vendedor Senior',
-      slug: 'vendedor-senior',
-      description: 'Pode editar clientes da equipe',
-      permissions: ['data:read:all', 'data:create:own', 'data:update:team', 'cliente:update:team'],
-    },
-  });
-
-  await prisma.role.upsert({
-    where: { tenantId_slug: { tenantId: demoTenant.id, slug: 'financeiro' } },
-    update: {},
-    create: {
-      tenantId: demoTenant.id,
-      name: 'Financeiro',
-      slug: 'financeiro',
-      description: 'Acesso a dados financeiros',
-      permissions: ['data:read:all', 'pagamento:manage:all', 'cliente:read:all'],
-    },
-  });
-
-  console.log('Roles personalizadas criadas');
-
-  // 7. Executar seed de Sinistros e Veiculos
+  // 6. Executar seed de Sinistros e Veiculos
   const entityIdMap = await seedSinistrosVeiculos(demoTenant.id, admin.id);
 
-  // 8. Executar seed de Custom APIs
+  // 7. Executar seed de Custom APIs
   await seedCustomApis(demoTenant.id, entityIdMap);
 
-  // 9. Executar seed de Pages
+  // 8. Executar seed de Pages
   await seedPages(demoTenant.id);
 
   console.log('\n===================================================');

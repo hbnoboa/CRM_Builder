@@ -13,7 +13,6 @@ import {
   Mail,
   UserCheck,
   UserX,
-  Shield,
 } from 'lucide-react';
 import { RequireRole } from '@/components/auth/require-role';
 import { Button } from '@/components/ui/button';
@@ -29,7 +28,6 @@ import {
 import { useUsers } from '@/hooks/use-users';
 import { UserFormDialog } from '@/components/users/user-form-dialog';
 import { DeleteUserDialog } from '@/components/users/delete-user-dialog';
-import { UserRolesDialog } from '@/components/users/user-roles-dialog';
 import { useAuthStore } from '@/stores/auth-store';
 import type { User } from '@/types';
 
@@ -51,7 +49,6 @@ function UsersPageContent() {
   const [search, setSearch] = useState('');
   const [formOpen, setFormOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
-  const [rolesOpen, setRolesOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
 
   const { data, isLoading, refetch } = useUsers();
@@ -83,11 +80,6 @@ function UsersPageContent() {
   const handleDeleteUser = (user: User) => {
     setSelectedUser(user);
     setDeleteOpen(true);
-  };
-
-  const handleManageRoles = (user: User) => {
-    setSelectedUser(user);
-    setRolesOpen(true);
   };
 
   const handleSuccess = () => {
@@ -255,12 +247,6 @@ function UsersPageContent() {
                           <Pencil className="h-4 w-4 mr-2" />
                           {tCommon('edit')}
                         </DropdownMenuItem>
-                        {(currentUser?.role === 'ADMIN' || currentUser?.role === 'PLATFORM_ADMIN') && (
-                          <DropdownMenuItem onClick={() => handleManageRoles(user)}>
-                            <Shield className="h-4 w-4 mr-2" />
-                            {t('managePermissions')}
-                          </DropdownMenuItem>
-                        )}
                         <DropdownMenuSeparator />
                         <DropdownMenuItem
                           onClick={() => handleDeleteUser(user)}
@@ -289,12 +275,6 @@ function UsersPageContent() {
       <DeleteUserDialog
         open={deleteOpen}
         onOpenChange={setDeleteOpen}
-        user={selectedUser}
-        onSuccess={handleSuccess}
-      />
-      <UserRolesDialog
-        open={rolesOpen}
-        onOpenChange={setRolesOpen}
         user={selectedUser}
         onSuccess={handleSuccess}
       />

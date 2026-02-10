@@ -147,18 +147,6 @@ export class UserService {
             slug: true,
           },
         },
-        userRoles: {
-          include: {
-            role: {
-              select: {
-                id: true,
-                name: true,
-                slug: true,
-                permissions: true,
-              },
-            },
-          },
-        },
       },
     });
 

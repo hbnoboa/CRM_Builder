@@ -143,12 +143,8 @@ export class PermissionService {
   ): Promise<boolean> {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
-      include: {
-        userRoles: {
-          include: {
-            role: true,
-          },
-        },
+      select: {
+        role: true,
       },
     });
 
@@ -159,17 +155,7 @@ export class PermissionService {
 
     // Verificar permissões do papel base
     const basePermissions = this.getDefaultPermissionsForRole(user.role);
-    if (basePermissions.includes(permission)) return true;
-
-    // Verificar permissões de papéis customizados
-    for (const userRole of user.userRoles) {
-      const rolePermissions = userRole.role.permissions as string[] | null;
-      if (rolePermissions?.includes(permission)) {
-        return true;
-      }
-    }
-
-    return false;
+    return basePermissions.includes(permission);
   }
 
   /**
@@ -178,12 +164,8 @@ export class PermissionService {
   async getUserPermissions(userId: string): Promise<PermissionKey[]> {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
-      include: {
-        userRoles: {
-          include: {
-            role: true,
-          },
-        },
+      select: {
+        role: true,
       },
     });
 
@@ -194,22 +176,7 @@ export class PermissionService {
       return Object.keys(PERMISSIONS) as PermissionKey[];
     }
 
-    // Combinar permissões do papel base com papéis customizados
-    const permissions = new Set<PermissionKey>(
-      this.getDefaultPermissionsForRole(user.role)
-    );
-
-    for (const userRole of user.userRoles) {
-      const rolePermissions = userRole.role.permissions as string[] | null;
-      if (rolePermissions) {
-        rolePermissions.forEach((p: string) => {
-          if (p in PERMISSIONS) {
-            permissions.add(p as PermissionKey);
-          }
-        });
-      }
-    }
-
-    return Array.from(permissions);
+    // Retorna permissões do papel base
+    return this.getDefaultPermissionsForRole(user.role);
   }
 }

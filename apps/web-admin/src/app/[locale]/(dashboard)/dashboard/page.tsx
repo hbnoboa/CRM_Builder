@@ -170,14 +170,6 @@ export default function DashboardPage() {
       bgColor: 'bg-pink-500/10',
       href: '/users',
     },
-    {
-      title: tNav('roles'),
-      value: 0,
-      icon: <Activity className="h-4 w-4 sm:h-5 sm:w-5" />,
-      color: 'text-amber-500',
-      bgColor: 'bg-amber-500/10',
-      href: '/roles',
-    },
   ];
 
   const getActivityIcon = (type: string) => {

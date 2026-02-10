@@ -69,7 +69,6 @@ model Tenant {
 
   // Relacionamentos
   users           User[]
-  roles           Role[]
   entities        Entity[]
   entityData      EntityData[]
   pages           Page[]
@@ -104,7 +103,6 @@ model User {
 
   // Relacionamentos
   tenant        Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  userRoles     UserRole_[]
   refreshTokens RefreshToken[]
 
   // Dados criados por este usuario
@@ -131,47 +129,6 @@ model RefreshToken {
 
   @@index([userId])
   @@index([token])
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// ROLES & PERMISSIONS (RBAC)
-// ═══════════════════════════════════════════════════════════════════════════
-
-model Role {
-  id          String   @id @default(cuid())
-  tenantId    String
-
-  name        String
-  slug        String
-  description String?
-
-  permissions Json    @default("[]")
-  isSystem    Boolean @default(false)
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  tenant Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  users  UserRole_[]
-
-  @@unique([tenantId, slug])
-  @@index([tenantId])
-}
-
-model UserRole_ {
-  id     String @id @default(cuid())
-  userId String
-  roleId String
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-  role Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
-
-  createdAt DateTime @default(now())
-
-  @@unique([userId, roleId])
-  @@index([userId])
-  @@index([roleId])
-  @@map("user_roles")
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

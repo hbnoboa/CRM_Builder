@@ -14,7 +14,6 @@ import {
   Layers,
   Code,
   Search,
-  Shield,
   Building2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -71,12 +70,6 @@ const navigationConfig: NavItemConfig[] = [
     href: '/users',
     icon: <Users className="h-5 w-5" />,
     roles: ['PLATFORM_ADMIN', 'ADMIN', 'MANAGER'],
-  },
-  {
-    titleKey: 'roles',
-    href: '/roles',
-    icon: <Shield className="h-5 w-5" />,
-    adminOnly: true,
   },
   {
     titleKey: 'settings',

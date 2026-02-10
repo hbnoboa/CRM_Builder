@@ -34,15 +34,6 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
         role: true,
         status: true,
         tenantId: true,
-        userRoles: {
-          include: {
-            role: {
-              select: {
-                permissions: true,
-              },
-            },
-          },
-        },
       },
     });
 
@@ -50,18 +41,12 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       throw new UnauthorizedException('Usuário não encontrado ou inativo');
     }
 
-    // Coletar permissões adicionais
-    const permissions = user.userRoles.flatMap(
-      (ur) => ur.role.permissions as string[],
-    );
-
     return {
       id: user.id,
       email: user.email,
       name: user.name,
       role: user.role,
       tenantId: user.tenantId,
-      permissions,
     };
   }
 }
