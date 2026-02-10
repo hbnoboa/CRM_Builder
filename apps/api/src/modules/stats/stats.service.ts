@@ -1,12 +1,19 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { UserRole } from '@prisma/client';
 
 @Injectable()
 export class StatsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async getDashboardStats(tenantId: string) {
-    const where = { tenantId };
+  // Helper: PLATFORM_ADMIN ve tudo, demais filtram por tenant
+  private getWhere(tenantId: string, role: string) {
+    if (role === UserRole.PLATFORM_ADMIN) return {};
+    return { tenantId };
+  }
+
+  async getDashboardStats(tenantId: string, role: string) {
+    const where = this.getWhere(tenantId, role);
 
     const [
       totalEntities,
@@ -14,12 +21,16 @@ export class StatsService {
       totalPages,
       totalApis,
       totalUsers,
+      totalTenants,
     ] = await Promise.all([
       this.prisma.entity.count({ where }),
       this.prisma.entityData.count({ where }),
       this.prisma.page.count({ where }),
       this.prisma.customEndpoint.count({ where }),
       this.prisma.user.count({ where }),
+      role === UserRole.PLATFORM_ADMIN
+        ? this.prisma.tenant.count()
+        : Promise.resolve(0),
     ]);
 
     return {
@@ -28,16 +39,18 @@ export class StatsService {
       totalPages,
       totalApis,
       totalUsers,
+      ...(role === UserRole.PLATFORM_ADMIN ? { totalTenants } : {}),
     };
   }
 
-  async getRecordsOverTime(tenantId: string, days: number = 30) {
+  async getRecordsOverTime(tenantId: string, role: string, days: number = 30) {
     const startDate = new Date();
     startDate.setDate(startDate.getDate() - days);
 
+    const baseWhere = this.getWhere(tenantId, role);
     const records = await this.prisma.entityData.findMany({
       where: {
-        tenantId,
+        ...baseWhere,
         createdAt: { gte: startDate },
       },
       select: { createdAt: true },
@@ -71,9 +84,10 @@ export class StatsService {
     return result;
   }
 
-  async getEntitiesDistribution(tenantId: string) {
+  async getEntitiesDistribution(tenantId: string, role: string) {
+    const where = this.getWhere(tenantId, role);
     const entities = await this.prisma.entity.findMany({
-      where: { tenantId },
+      where,
       select: {
         id: true,
         name: true,
@@ -86,7 +100,7 @@ export class StatsService {
         const count = await this.prisma.entityData.count({
           where: {
             entityId: entity.id,
-            tenantId,
+            ...where,
           },
         });
 
@@ -101,12 +115,13 @@ export class StatsService {
     return distribution.filter((item) => item.records > 0);
   }
 
-  async getUsersActivity(tenantId: string, days: number = 7) {
+  async getUsersActivity(tenantId: string, role: string, days: number = 7) {
     const startDate = new Date();
     startDate.setDate(startDate.getDate() - days);
 
+    const where = this.getWhere(tenantId, role);
     const users = await this.prisma.user.findMany({
-      where: { tenantId },
+      where,
       select: {
         id: true,
         name: true,
@@ -120,8 +135,8 @@ export class StatsService {
     return users;
   }
 
-  async getRecentActivity(tenantId: string, limit: number = 10) {
-    const where = { tenantId };
+  async getRecentActivity(tenantId: string, role: string, limit: number = 10) {
+    const where = this.getWhere(tenantId, role);
 
     const [records, pages, entities] = await Promise.all([
       this.prisma.entityData.findMany({

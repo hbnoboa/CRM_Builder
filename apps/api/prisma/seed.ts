@@ -6,13 +6,24 @@ const prisma = new PrismaClient();
 async function main() {
   console.log('Iniciando seed...');
 
-  // Criar Platform Admin (Super Admin)
+  // Limpar banco antes de popular
+  console.log('Limpando banco de dados...');
+  await prisma.entityData.deleteMany();
+  await prisma.customEndpoint.deleteMany();
+  await prisma.page.deleteMany();
+  await prisma.entity.deleteMany();
+  await prisma.notification.deleteMany();
+  await prisma.auditLog.deleteMany();
+  await prisma.refreshToken.deleteMany();
+  await prisma.user.deleteMany();
+  await prisma.tenant.deleteMany();
+  console.log('Banco limpo.');
+
+  // Criar Platform Tenant + Super Admin
   const platformAdminPassword = await bcrypt.hash('superadmin123', 12);
 
-  const platformTenant = await prisma.tenant.upsert({
-    where: { slug: 'platform' },
-    update: {},
-    create: {
+  const platformTenant = await prisma.tenant.create({
+    data: {
       name: 'Platform',
       slug: 'platform',
       plan: Plan.ENTERPRISE,
@@ -20,15 +31,8 @@ async function main() {
     },
   });
 
-  const platformAdmin = await prisma.user.upsert({
-    where: {
-      tenantId_email: {
-        tenantId: platformTenant.id,
-        email: 'superadmin@platform.com',
-      },
-    },
-    update: {},
-    create: {
+  const platformAdmin = await prisma.user.create({
+    data: {
       tenantId: platformTenant.id,
       email: 'superadmin@platform.com',
       password: platformAdminPassword,
