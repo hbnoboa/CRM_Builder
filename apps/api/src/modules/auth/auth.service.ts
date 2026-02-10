@@ -79,6 +79,17 @@ export class AuthService {
             status: true,
           },
         },
+        customRole: {
+          select: {
+            id: true,
+            name: true,
+            description: true,
+            color: true,
+            permissions: true,
+            modulePermissions: true,
+            isDefault: true,
+          },
+        },
       },
     });
 
@@ -115,6 +126,8 @@ export class AuthService {
         name: user.name,
         avatar: user.avatar,
         role: user.role,
+        customRoleId: user.customRoleId,
+        customRole: user.customRole,
         tenantId: user.tenantId,
         tenant: user.tenant,
       },
@@ -179,6 +192,7 @@ export class AuthService {
         role: true,
         status: true,
         tenantId: true,
+        customRoleId: true,
         lastLoginAt: true,
         createdAt: true,
         tenant: {
@@ -186,6 +200,17 @@ export class AuthService {
             id: true,
             name: true,
             slug: true,
+          },
+        },
+        customRole: {
+          select: {
+            id: true,
+            name: true,
+            description: true,
+            color: true,
+            permissions: true,
+            modulePermissions: true,
+            isDefault: true,
           },
         },
       },

@@ -337,7 +337,7 @@ function EntitiesPageContent() {
 
 export default function EntitiesPage() {
   return (
-    <RequireRole adminOnly>
+    <RequireRole module="entities">
       <EntitiesPageContent />
     </RequireRole>
   );

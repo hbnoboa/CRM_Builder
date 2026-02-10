@@ -287,7 +287,7 @@ function UsersPageContent() {
 
 export default function UsersPage() {
   return (
-    <RequireRole roles={['PLATFORM_ADMIN', 'ADMIN', 'MANAGER']}>
+    <RequireRole module="users">
       <UsersPageContent />
     </RequireRole>
   );

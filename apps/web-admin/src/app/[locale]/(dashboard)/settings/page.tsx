@@ -295,7 +295,7 @@ function SettingsPageContent() {
 
 export default function SettingsPage() {
   return (
-    <RequireRole adminOnly>
+    <RequireRole module="settings">
       <SettingsPageContent />
     </RequireRole>
   );

@@ -165,7 +165,6 @@ export function RoleFormDialog({ open, onOpenChange, role, onSuccess }: RoleForm
       isDefault,
       permissions: permissions.map((p) => ({
         entitySlug: p.entitySlug,
-        entityName: p.entityName,
         canCreate: p.canCreate,
         canRead: p.canRead,
         canUpdate: p.canUpdate,

@@ -682,7 +682,7 @@ function ApisPageContent() {
 
 export default function ApisPage() {
   return (
-    <RequireRole adminOnly>
+    <RequireRole module="apis">
       <ApisPageContent />
     </RequireRole>
   );

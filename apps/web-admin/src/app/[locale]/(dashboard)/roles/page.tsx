@@ -15,7 +15,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Badge } from '@/components/ui/badge';
 import { useCustomRoles, useDeleteCustomRole } from '@/hooks/use-custom-roles';
-import { useAuthStore } from '@/stores/auth-store';
+import { usePermissions } from '@/hooks/use-permissions';
 import { Link } from '@/i18n/navigation';
 import { RoleFormDialog } from '@/components/roles/role-form-dialog';
 import { DeleteRoleDialog } from '@/components/roles/delete-role-dialog';
@@ -26,8 +26,8 @@ export default function RolesPage() {
   const tNav = useTranslations('navigation');
   const tCommon = useTranslations('common');
   const tAuth = useTranslations('auth');
-  const { user } = useAuthStore();
-  const isAdmin = user?.role === 'PLATFORM_ADMIN' || user?.role === 'ADMIN';
+  const { hasModuleAccess, isAdmin: isAdminUser } = usePermissions();
+  const canAccessRoles = hasModuleAccess('roles');
 
   const [search, setSearch] = useState('');
   const [formOpen, setFormOpen] = useState(false);
@@ -43,7 +43,7 @@ export default function RolesPage() {
       (role.description || '').toLowerCase().includes(search.toLowerCase())
   );
 
-  if (!isAdmin) {
+  if (!canAccessRoles) {
     return (
       <div className="max-w-3xl mx-auto mt-4 sm:mt-8 px-2 sm:px-0">
         <Card>

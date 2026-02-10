@@ -20,6 +20,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useAuthStore } from '@/stores/auth-store';
+import { usePermissions } from '@/hooks/use-permissions';
 import { TenantProvider } from '@/stores/tenant-context';
 import { NotificationProvider } from '@/providers/notification-provider';
 import { NotificationBell } from '@/components/notifications/notification-bell';
@@ -33,8 +34,8 @@ interface NavItemConfig {
   href: string;
   icon: React.ReactNode;
   badge?: string;
-  roles?: UserRole[];
-  adminOnly?: boolean;
+  /** Chave do módulo para verificar permissão (via usePermissions) */
+  moduleKey?: string;
 }
 
 const navigationConfig: NavItemConfig[] = [
@@ -42,68 +43,51 @@ const navigationConfig: NavItemConfig[] = [
     titleKey: 'dashboard',
     href: '/dashboard',
     icon: <LayoutDashboard className="h-5 w-5" />,
+    moduleKey: 'dashboard',
   },
   {
     titleKey: 'tenants',
     href: '/tenants',
     icon: <Building2 className="h-5 w-5" />,
-    roles: ['PLATFORM_ADMIN'],
+    moduleKey: 'tenants',
   },
   {
     titleKey: 'entities',
     href: '/entities',
     icon: <Database className="h-5 w-5" />,
-    adminOnly: true,
+    moduleKey: 'entities',
   },
   {
     titleKey: 'data',
     href: '/data',
     icon: <Layers className="h-5 w-5" />,
-    adminOnly: true,
+    moduleKey: 'data',
   },
   {
     titleKey: 'apis',
     href: '/apis',
     icon: <Code className="h-5 w-5" />,
-    adminOnly: true,
+    moduleKey: 'apis',
   },
   {
     titleKey: 'users',
     href: '/users',
     icon: <Users className="h-5 w-5" />,
-    roles: ['PLATFORM_ADMIN', 'ADMIN', 'MANAGER'],
+    moduleKey: 'users',
   },
   {
     titleKey: 'roles',
     href: '/roles',
     icon: <Shield className="h-5 w-5" />,
-    roles: ['PLATFORM_ADMIN', 'ADMIN'],
+    moduleKey: 'roles',
   },
   {
     titleKey: 'settings',
     href: '/settings',
     icon: <Settings className="h-5 w-5" />,
-    adminOnly: true,
+    moduleKey: 'settings',
   },
 ];
-
-function getNavigationForRole(role: UserRole | undefined): NavItemConfig[] {
-  if (!role) return [];
-
-  const isAdmin = role === 'PLATFORM_ADMIN' || role === 'ADMIN';
-
-  return navigationConfig.filter((item) => {
-    if (item.adminOnly && !isAdmin) {
-      return false;
-    }
-
-    if (item.roles && item.roles.length > 0) {
-      return item.roles.includes(role);
-    }
-
-    return true;
-  });
-}
 
 const roleColors: Record<UserRole, { color: string; bgColor: string }> = {
   PLATFORM_ADMIN: {
@@ -135,13 +119,18 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
   const tNav = useTranslations('navigation');
   const tRoles = useTranslations('roles');
   const { user, isAuthenticated, logout, getProfile, isLoading } = useAuthStore();
+  const { hasModuleAccess } = usePermissions();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
   const fetchedRef = useRef(false);
 
   const filteredNavigation = useMemo(
-    () => getNavigationForRole(user?.role),
-    [user?.role]
+    () => navigationConfig.filter((item) => {
+      if (!item.moduleKey) return true;
+      return hasModuleAccess(item.moduleKey);
+    }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [user?.role, user?.customRole, user?.customRoleId]
   );
 
   useEffect(() => {
