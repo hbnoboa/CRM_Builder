@@ -89,6 +89,15 @@ function UsersPageContent() {
     refetch();
   };
 
+  const canEditUser = (target: User) => {
+    if (!currentUser) return false;
+    if (currentUser.role === 'PLATFORM_ADMIN' || currentUser.role === 'ADMIN' || currentUser.role === 'MANAGER') return true;
+    return currentUser.id === target.id;
+  };
+  const canDeleteUser = (target: User) => {
+    if (!currentUser) return false;
+    return currentUser.role === 'PLATFORM_ADMIN' || currentUser.role === 'ADMIN' || currentUser.role === 'MANAGER';
+  };
   return (
     <div className="space-y-4 sm:space-y-6">
       {/* Breadcrumbs */}
@@ -235,31 +244,39 @@ function UsersPageContent() {
                   </div>
 
                   <div className="flex items-center gap-2 justify-end sm:justify-start flex-shrink-0">
-                    <Button variant="outline" size="sm" onClick={() => handleEditUser(user)} className="hidden sm:flex">
-                      <Pencil className="h-4 w-4 mr-1" />
-                      {tCommon('edit')}
-                    </Button>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-8 w-8">
-                          <MoreVertical className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={() => handleEditUser(user)}>
-                          <Pencil className="h-4 w-4 mr-2" />
-                          {tCommon('edit')}
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem
-                          onClick={() => handleDeleteUser(user)}
-                          className="text-destructive focus:text-destructive"
-                        >
-                          <Trash2 className="h-4 w-4 mr-2" />
-                          {tCommon('delete')}
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
+                    {canEditUser(user) && (
+                      <Button variant="outline" size="sm" onClick={() => handleEditUser(user)} className="hidden sm:flex">
+                        <Pencil className="h-4 w-4 mr-1" />
+                        {tCommon('edit')}
+                      </Button>
+                    )}
+                    {(canEditUser(user) || canDeleteUser(user)) && (
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon" className="h-8 w-8">
+                            <MoreVertical className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          {canEditUser(user) && (
+                            <DropdownMenuItem onClick={() => handleEditUser(user)}>
+                              <Pencil className="h-4 w-4 mr-2" />
+                              {tCommon('edit')}
+                            </DropdownMenuItem>
+                          )}
+                          {canEditUser(user) && canDeleteUser(user) && <DropdownMenuSeparator />}
+                          {canDeleteUser(user) && (
+                            <DropdownMenuItem
+                              onClick={() => handleDeleteUser(user)}
+                              className="text-destructive focus:text-destructive"
+                            >
+                              <Trash2 className="h-4 w-4 mr-2" />
+                              {tCommon('delete')}
+                            </DropdownMenuItem>
+                          )}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    )}
                   </div>
                 </div>
               </CardContent>
