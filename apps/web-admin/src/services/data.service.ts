@@ -44,11 +44,12 @@ export const dataService = {
   async create(
     entitySlug: string,
     data: Record<string, unknown>,
-    parentRecordId?: string
+    parentRecordId?: string,
+    tenantId?: string
   ): Promise<EntityData> {
     const response = await api.post<EntityData>(
       `/data/${entitySlug}`,
-      { data, parentRecordId }
+      { data, parentRecordId, tenantId }
     );
     return response.data;
   },
@@ -56,11 +57,12 @@ export const dataService = {
   async update(
     entitySlug: string,
     id: string,
-    data: Record<string, unknown>
+    data: Record<string, unknown>,
+    tenantId?: string
   ): Promise<EntityData> {
     const response = await api.patch<EntityData>(
       `/data/${entitySlug}/${id}`,
-      { data }
+      { data, tenantId }
     );
     return response.data;
   },

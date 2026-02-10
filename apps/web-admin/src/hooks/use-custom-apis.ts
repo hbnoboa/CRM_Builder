@@ -4,20 +4,21 @@ import {
   customApisService,
   CreateCustomApiData,
   UpdateCustomApiData,
+  QueryCustomApisParams,
 } from '@/services/custom-apis.service';
 
 export const customApiKeys = {
   all: ['custom-apis'] as const,
   lists: () => [...customApiKeys.all, 'list'] as const,
-  list: () => [...customApiKeys.lists()] as const,
+  list: (params?: QueryCustomApisParams) => [...customApiKeys.lists(), params] as const,
   details: () => [...customApiKeys.all, 'detail'] as const,
   detail: (id: string) => [...customApiKeys.details(), id] as const,
 };
 
-export function useCustomApis() {
+export function useCustomApis(params?: QueryCustomApisParams) {
   return useQuery({
-    queryKey: customApiKeys.list(),
-    queryFn: () => customApisService.getAll(),
+    queryKey: customApiKeys.list(params),
+    queryFn: () => customApisService.getAll(params),
   });
 }
 

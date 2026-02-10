@@ -186,7 +186,7 @@ interface EntityField {
 
 export default function NewApiPage() {
   const router = useRouter();
-  const { tenantId } = useTenant();
+  const { effectiveTenantId } = useTenant();
   const t = useTranslations('apis.newPage');
   const tCommon = useTranslations('common');
   const tValidation = useTranslations('validation');
@@ -258,7 +258,9 @@ export default function NewApiPage() {
   useEffect(() => {
     const fetchEntities = async () => {
       try {
-        const response = await api.get('/entities');
+        const params: Record<string, string> = {};
+        if (effectiveTenantId) params.tenantId = effectiveTenantId;
+        const response = await api.get('/entities', { params });
         const entitiesData = Array.isArray(response.data) ? response.data : response.data?.data || [];
         setEntities(entitiesData);
       } catch (err) {
@@ -268,7 +270,7 @@ export default function NewApiPage() {
       }
     };
     fetchEntities();
-  }, []);
+  }, [effectiveTenantId]);
 
   // Quando a entidade muda
   useEffect(() => {
@@ -400,6 +402,7 @@ export default function NewApiPage() {
           paramName: f.paramName,
           required: true,
         })),
+        ...(effectiveTenantId ? { tenantId: effectiveTenantId } : {}),
       };
       await api.post('/custom-apis', payload);
       router.push('/apis');

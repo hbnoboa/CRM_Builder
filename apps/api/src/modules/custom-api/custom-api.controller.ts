@@ -19,6 +19,7 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { AuthenticatedRequest } from '../../common/types';
 import { CustomApiService, QueryCustomApiDto } from './custom-api.service';
 import { CreateCustomApiDto, UpdateCustomApiDto, HttpMethod } from './dto/custom-api.dto';
+import { UserRole } from '@prisma/client';
 
 @Controller('custom-apis')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -27,16 +28,26 @@ export class CustomApiController {
 
   constructor(private readonly customApiService: CustomApiService) {}
 
+  // Helper: PLATFORM_ADMIN can target any tenant via body.tenantId or query.tenantId
+  private getEffectiveTenantId(user: any, requestedTenantId?: string): string {
+    if (user.role === UserRole.PLATFORM_ADMIN && requestedTenantId) {
+      return requestedTenantId;
+    }
+    return user.tenantId;
+  }
+
   @Post()
-  @Roles('ADMIN')
-  async create(@Body() dto: CreateCustomApiDto, @CurrentUser() user: any) {
-    this.logger.log(`Creating custom API: ${dto.name}`);
-    return this.customApiService.create(dto, user.tenantId);
+  @Roles('ADMIN', 'PLATFORM_ADMIN')
+  async create(@Body() dto: CreateCustomApiDto & { tenantId?: string }, @CurrentUser() user: any) {
+    const tenantId = this.getEffectiveTenantId(user, dto.tenantId);
+    this.logger.log(`Creating custom API: ${dto.name} (tenant: ${tenantId})`);
+    return this.customApiService.create(dto, tenantId);
   }
 
   @Get()
-  async findAll(@Query() query: QueryCustomApiDto, @CurrentUser() user: any) {
-    return this.customApiService.findAll(user.tenantId, query);
+  async findAll(@Query() query: QueryCustomApiDto & { tenantId?: string }, @CurrentUser() user: any) {
+    const tenantId = this.getEffectiveTenantId(user, query.tenantId);
+    return this.customApiService.findAll(tenantId, query);
   }
 
   @Get(':id')
@@ -45,7 +56,7 @@ export class CustomApiController {
   }
 
   @Patch(':id')
-  @Roles('ADMIN')
+  @Roles('ADMIN', 'PLATFORM_ADMIN')
   async update(
     @Param('id') id: string,
     @Body() dto: UpdateCustomApiDto,
@@ -55,25 +66,25 @@ export class CustomApiController {
   }
 
   @Patch(':id/toggle')
-  @Roles('ADMIN')
+  @Roles('ADMIN', 'PLATFORM_ADMIN')
   async toggleActive(@Param('id') id: string, @CurrentUser() user: any) {
     return this.customApiService.toggleActive(id, user.tenantId);
   }
 
   @Patch(':id/activate')
-  @Roles('ADMIN')
+  @Roles('ADMIN', 'PLATFORM_ADMIN')
   async activate(@Param('id') id: string, @CurrentUser() user: any) {
     return this.customApiService.activate(id, user.tenantId);
   }
 
   @Patch(':id/deactivate')
-  @Roles('ADMIN')
+  @Roles('ADMIN', 'PLATFORM_ADMIN')
   async deactivate(@Param('id') id: string, @CurrentUser() user: any) {
     return this.customApiService.deactivate(id, user.tenantId);
   }
 
   @Delete(':id')
-  @Roles('ADMIN')
+  @Roles('ADMIN', 'PLATFORM_ADMIN')
   async remove(@Param('id') id: string, @CurrentUser() user: any) {
     return this.customApiService.remove(id, user.tenantId);
   }

@@ -32,6 +32,7 @@ import {
 import { useCreateCustomApi, useUpdateCustomApi } from '@/hooks/use-custom-apis';
 import type { CustomApi, CreateCustomApiData } from '@/services/custom-apis.service';
 import { entitiesService } from '@/services/entities.service';
+import { useTenant } from '@/stores/tenant-context';
 import type { Entity, EntityField } from '@/types';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
@@ -264,6 +265,7 @@ export function CustomApiFormDialog({ open, onOpenChange, customApi, onSuccess }
   const tTimezones = useTranslations('apis.timezones');
   const tHttp = useTranslations('apis.httpMethod');
   const tPlaceholders = useTranslations('placeholders');
+  const { effectiveTenantId } = useTenant();
   const [entities, setEntities] = useState<Entity[]>([]);
   const [config, setConfig] = useState<ApiConfig>(defaultConfig(customApi));
   const [activeTab, setActiveTab] = useState('basic');
@@ -284,11 +286,12 @@ export function CustomApiFormDialog({ open, onOpenChange, customApi, onSuccess }
   useEffect(() => {
     (async () => {
       try {
-        const res = await entitiesService.getAll();
+        const params = effectiveTenantId ? { tenantId: effectiveTenantId } : undefined;
+        const res = await entitiesService.getAll(params);
         setEntities(res.data || []);
       } catch { setEntities([]); }
     })();
-  }, []);
+  }, [effectiveTenantId]);
 
   useEffect(() => {
     setConfig(defaultConfig(customApi));
@@ -369,6 +372,7 @@ export function CustomApiFormDialog({ open, onOpenChange, customApi, onSuccess }
       limitRecords: config.limitRecords ?? undefined,
       logic: config.mode === 'code' ? config.code : undefined,
       inputSchema,
+      ...(effectiveTenantId ? { tenantId: effectiveTenantId } : {}),
     };
 
     try {

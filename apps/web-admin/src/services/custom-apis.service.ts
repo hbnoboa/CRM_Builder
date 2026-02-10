@@ -43,6 +43,7 @@ export interface CreateCustomApiData {
   limitRecords?: number;
   logic?: string;
   inputSchema?: Record<string, unknown>;
+  tenantId?: string;
 }
 
 export interface UpdateCustomApiData {
@@ -68,6 +69,7 @@ export interface QueryCustomApisParams {
   search?: string;
   isActive?: boolean;
   method?: string;
+  tenantId?: string;
 }
 
 export const customApisService = {

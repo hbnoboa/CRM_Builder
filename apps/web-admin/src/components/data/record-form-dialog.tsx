@@ -101,7 +101,7 @@ export function RecordFormDialog({
   const isEditing = !!record;
   const createRecord = useCreateEntityData({ success: isEditing ? t('toast.updated') : t('toast.created') });
   const updateRecord = useUpdateEntityData({ success: t('toast.updated') });
-  const { tenantId } = useTenant();
+  const { tenantId, effectiveTenantId } = useTenant();
 
   const [formData, setFormData] = useState<Record<string, unknown>>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -136,10 +136,11 @@ export function RecordFormDialog({
 
   // ─── Fetch API options ──────────────────────────────────────────────────
   const fetchApiOptions = useCallback(async (field: EntityField) => {
-    if (!field.apiEndpoint || !tenantId) return;
+    const tid = effectiveTenantId || tenantId;
+    if (!field.apiEndpoint || !tid) return;
     setLoadingApiOptions(prev => ({ ...prev, [field.slug]: true }));
     try {
-      const response = await api.get(`/x/${tenantId}${field.apiEndpoint}`);
+      const response = await api.get(`/x/${tid}${field.apiEndpoint}`);
       const data = Array.isArray(response.data) ? response.data : response.data.data || [];
       const options: ApiOption[] = data.map((item: Record<string, unknown>) => {
         const valueField = field.valueField || 'id';
@@ -161,14 +162,17 @@ export function RecordFormDialog({
     } finally {
       setLoadingApiOptions(prev => ({ ...prev, [field.slug]: false }));
     }
-  }, [tenantId, t]);
+  }, [effectiveTenantId, tenantId, t]);
 
   // ─── Fetch relation options ─────────────────────────────────────────────
   const fetchRelationOptions = useCallback(async (field: EntityField) => {
-    if (!field.relatedEntitySlug || !tenantId) return;
+    const tid = effectiveTenantId || tenantId;
+    if (!field.relatedEntitySlug || !tid) return;
     setLoadingRelations(prev => ({ ...prev, [field.slug]: true }));
     try {
-      const response = await api.get(`/data/${field.relatedEntitySlug}`);
+      const params: Record<string, string> = {};
+      if (effectiveTenantId) params.tenantId = effectiveTenantId;
+      const response = await api.get(`/data/${field.relatedEntitySlug}`, { params });
       const data = Array.isArray(response.data) ? response.data : response.data?.data || [];
       const displayField = field.relatedDisplayField || '';
       const options: ApiOption[] = data.map((item: Record<string, unknown>) => {
@@ -194,7 +198,7 @@ export function RecordFormDialog({
     } finally {
       setLoadingRelations(prev => ({ ...prev, [field.slug]: false }));
     }
-  }, [tenantId, t]);
+  }, [effectiveTenantId, tenantId, t]);
 
   // Load options when dialog opens
   useEffect(() => {
@@ -321,9 +325,9 @@ export function RecordFormDialog({
 
     try {
       if (isEditing && record) {
-        await updateRecord.mutateAsync({ entitySlug: entity.slug, id: record.id, data: processedData });
+        await updateRecord.mutateAsync({ entitySlug: entity.slug, id: record.id, data: processedData, tenantId: effectiveTenantId || undefined });
       } else {
-        await createRecord.mutateAsync({ entitySlug: entity.slug, data: processedData, parentRecordId });
+        await createRecord.mutateAsync({ entitySlug: entity.slug, data: processedData, parentRecordId, tenantId: effectiveTenantId || undefined });
       }
       onOpenChange(false);
       onSuccess?.();

@@ -148,7 +148,7 @@ function TestApiDialog({
   const t = useTranslations('apis.testDialog');
   const tToast = useTranslations('apis.toast');
   const tCommon = useTranslations('common');
-  const { tenantId } = useTenant();
+  const { tenantId, effectiveTenantId } = useTenant();
   const [paramRows, setParamRows] = useState<KeyValueRow[]>([createRow()]);
   const [bodyRows, setBodyRows] = useState<KeyValueRow[]>([createRow()]);
   const [testing, setTesting] = useState(false);
@@ -177,7 +177,8 @@ function TestApiDialog({
   };
 
   const handleTest = async () => {
-    if (!customApi || !tenantId) {
+    const tid = effectiveTenantId || tenantId;
+    if (!customApi || !tid) {
       toast.error(tToast('tenantNotFound'));
       return;
     }
@@ -189,7 +190,7 @@ function TestApiDialog({
     const startTime = Date.now();
 
     try {
-      const path = `/x/${tenantId}${customApi.path}`;
+      const path = `/x/${tid}${customApi.path}`;
       const method = customApi.method.toLowerCase() as 'get' | 'post' | 'put' | 'patch' | 'delete';
 
       const params = rowsToObject(paramRows);
@@ -376,13 +377,15 @@ function ApisPageContent() {
   const t = useTranslations('apis');
   const tCommon = useTranslations('common');
   const tNav = useTranslations('navigation');
+  const { effectiveTenantId } = useTenant();
   const [search, setSearch] = useState('');
   const [formOpen, setFormOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [testOpen, setTestOpen] = useState(false);
   const [selectedApi, setSelectedApi] = useState<CustomApi | null>(null);
 
-  const { data, isLoading, refetch } = useCustomApis();
+  const queryParams = effectiveTenantId ? { tenantId: effectiveTenantId } : undefined;
+  const { data, isLoading, refetch } = useCustomApis(queryParams);
   const activateApi = useActivateCustomApi({ success: t('toast.activated') });
   const deactivateApi = useDeactivateCustomApi({ success: t('toast.deactivated') });
 

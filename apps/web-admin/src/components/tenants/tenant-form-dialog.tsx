@@ -22,7 +22,6 @@ import type { Tenant } from '@/types';
 const createTenantSchemaFn = (t: (key: string) => string) => z.object({
   name: z.string().min(2, t('nameMinLength')),
   slug: z.string().min(2, t('slugMinLength')).regex(/^[a-z0-9-]+$/, t('slugFormat')),
-  domain: z.string().optional(),
   adminEmail: z.string().email(t('emailInvalid')),
   adminName: z.string().min(2, t('adminNameMinLength')),
   adminPassword: z.string().min(8, t('passwordMinLength')),
@@ -30,7 +29,6 @@ const createTenantSchemaFn = (t: (key: string) => string) => z.object({
 
 const updateTenantSchemaFn = (t: (key: string) => string) => z.object({
   name: z.string().min(2, t('nameMinLength')),
-  domain: z.string().optional(),
 });
 
 const createTenantSchema = createTenantSchemaFn((key) => key);
@@ -59,7 +57,6 @@ export function TenantFormDialog({ open, onOpenChange, tenant, onSuccess }: Tena
     defaultValues: {
       name: '',
       slug: '',
-      domain: '',
       adminEmail: '',
       adminName: '',
       adminPassword: '',
@@ -71,13 +68,15 @@ export function TenantFormDialog({ open, onOpenChange, tenant, onSuccess }: Tena
     if (tenant) {
       form.reset({
         name: tenant.name,
-        domain: '',
+        slug: tenant.slug,
+        adminEmail: '',
+        adminName: '',
+        adminPassword: '',
       });
     } else {
       form.reset({
         name: '',
         slug: '',
-        domain: '',
         adminEmail: '',
         adminName: '',
         adminPassword: '',
@@ -86,6 +85,20 @@ export function TenantFormDialog({ open, onOpenChange, tenant, onSuccess }: Tena
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tenant, open]);
 
+  // Slug automático: gera a partir do nome
+  useEffect(() => {
+    if (!isEditing) {
+      const name = form.watch('name');
+      if (name) {
+        const autoSlug = name
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, '-')
+          .replace(/^-+|-+$/g, '')
+          .replace(/--+/g, '-');
+        form.setValue('slug', autoSlug);
+      }
+    }
+  }, [form.watch('name'), isEditing]);
   const onSubmit = async (data: CreateTenantFormData | UpdateTenantFormData) => {
     try {
       if (isEditing && tenant) {
@@ -147,21 +160,16 @@ export function TenantFormDialog({ open, onOpenChange, tenant, onSuccess }: Tena
                 id="slug"
                 placeholder={t('form.slugPlaceholder')}
                 {...form.register('slug' as keyof CreateTenantFormData)}
+                readOnly
               />
               {(form.formState.errors as Record<string, { message?: string }>).slug && (
                 <p className="text-sm text-destructive">{(form.formState.errors as Record<string, { message?: string }>).slug?.message}</p>
               )}
+              <p className="text-xs text-muted-foreground">Slug gerado automaticamente a partir do nome.</p>
             </div>
           )}
 
-          <div className="space-y-2">
-            <Label htmlFor="domain">{t('form.domain')}</Label>
-            <Input
-              id="domain"
-              placeholder={t('form.domainPlaceholder')}
-              {...form.register('domain')}
-            />
-          </div>
+          {/* Campo domínio removido: não obrigatório */}
 
           {!isEditing && (
             <>

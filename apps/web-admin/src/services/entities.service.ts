@@ -9,6 +9,7 @@ export interface CreateEntityData {
   color?: string;
   fields?: EntityField[];
   settings?: Record<string, unknown>;
+  tenantId?: string;
 }
 
 export interface UpdateEntityData {

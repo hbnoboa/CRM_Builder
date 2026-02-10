@@ -21,6 +21,7 @@ import api from '@/lib/api';
 import type { Field, FieldType } from '@/types';
 import FieldGridEditor from '@/components/entities/field-grid-editor';
 import { useTranslations } from 'next-intl';
+import { useTenant } from '@/stores/tenant-context';
 
 // Field type keys - labels come from translations
 const FIELD_TYPE_KEYS: FieldType[] = [
@@ -37,6 +38,7 @@ export default function NewEntityPage() {
   const tFieldTypes = useTranslations('fieldTypes');
   const tCommon = useTranslations('common');
   const tNav = useTranslations('navigation');
+  const { effectiveTenantId, isPlatformAdmin } = useTenant();
   const [saving, setSaving] = useState(false);
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
@@ -72,11 +74,15 @@ export default function NewEntityPage() {
 
     setSaving(true);
     try {
-      await api.post('/entities', {
+      const payload: Record<string, unknown> = {
         name,
         description,
         fields,
-      });
+      };
+      if (effectiveTenantId) {
+        payload.tenantId = effectiveTenantId;
+      }
+      await api.post('/entities', payload);
       toast.success(t('toast.created'));
       router.push('/entities');
     } catch (error) {

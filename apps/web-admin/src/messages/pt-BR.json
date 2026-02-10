@@ -1129,6 +1129,7 @@
     "select": "Seleção",
     "multiselect": "Seleção Múltipla",
     "apiSelect": "Seleção via API",
+    "api-select": "Seleção via API",
     "relation": "Relação",
     "file": "Arquivo",
     "image": "Imagem",
@@ -1141,7 +1142,9 @@
     "map": "Mapa",
     "array": "Lista",
     "subEntity": "Sub-entidade",
-    "zoneDiagram": "Diagrama de Zonas"
+    "sub-entity": "Sub-entidade",
+    "zoneDiagram": "Diagrama de Zonas",
+    "zone-diagram": "Diagrama de Zonas"
   },
   "upload": {
     "maxFilesAllowed": "Maximo de {count} arquivos permitidos",
