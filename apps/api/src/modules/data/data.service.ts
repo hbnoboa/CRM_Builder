@@ -221,8 +221,11 @@ export class DataService {
 
   // Get entity with short-lived cache to avoid duplicate queries within same request
   private async getEntityCached(entitySlug: string, currentUser: CurrentUser, tenantId?: string): Promise<Entity> {
-    const effectiveTenantId = this.getEffectiveTenantId(currentUser, tenantId);
-    const cacheKey = `${entitySlug}:${effectiveTenantId}`;
+    // Para PLATFORM_ADMIN sem tenantId especificado, buscar em qualquer tenant
+    const effectiveTenantId = currentUser.role === UserRole.PLATFORM_ADMIN && !tenantId
+      ? undefined
+      : this.getEffectiveTenantId(currentUser, tenantId);
+    const cacheKey = `${entitySlug}:${effectiveTenantId || 'any'}`;
     const cached = entityCache.get(cacheKey);
 
     if (cached && Date.now() - cached.timestamp < CACHE_TTL) {

@@ -150,13 +150,21 @@ export class EntityService {
   }
 
   async findBySlug(slug: string, currentUser: CurrentUser, tenantId?: string) {
-    const targetTenantId = this.getEffectiveTenantId(currentUser, tenantId);
-    
+    // PLATFORM_ADMIN pode buscar entidade de qualquer tenant se nao especificar tenantId
+    const where: Prisma.EntityWhereInput = { slug };
+
+    if (currentUser.role === UserRole.PLATFORM_ADMIN) {
+      // Se tenantId for especificado, filtra por ele; senao, busca em qualquer tenant
+      if (tenantId) {
+        where.tenantId = tenantId;
+      }
+    } else {
+      // Usuarios normais sempre filtram pelo proprio tenant
+      where.tenantId = currentUser.tenantId;
+    }
+
     const entity = await this.prisma.entity.findFirst({
-      where: {
-        slug,
-        tenantId: targetTenantId,
-      },
+      where,
     });
 
     if (!entity) {
