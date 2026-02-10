@@ -66,60 +66,75 @@ export function NotificationProvider({ children }: NotificationProviderProps) {
       return;
     }
 
-    const apiUrl = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001').replace(/\/api\/v1\/?$/, '');
-    const newSocket = io(
-      `${apiUrl}/notifications`,
-      {
-        auth: { token: accessToken },
-        transports: ['websocket', 'polling'],
-        reconnection: true,
-        reconnectionAttempts: 5,
-        reconnectionDelay: 1000,
-      }
-    );
+    // Small delay to avoid connecting during transient auth state changes (login redirects)
+    let cancelled = false;
+    let newSocket: Socket | null = null;
 
-    newSocket.on('connect', () => {
-      console.log('🔌 Conectado ao WebSocket');
-      setIsConnected(true);
-    });
+    const timer = setTimeout(() => {
+      if (cancelled) return;
 
-    newSocket.on('disconnect', () => {
-      console.log('❌ Desconectado do WebSocket');
-      setIsConnected(false);
-    });
+      const apiUrl = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001').replace(/\/api\/v1\/?$/, '');
+      newSocket = io(
+        `${apiUrl}/notifications`,
+        {
+          auth: { token: accessToken },
+          transports: ['polling', 'websocket'],
+          reconnection: true,
+          reconnectionAttempts: 3,
+          reconnectionDelay: 2000,
+          timeout: 10000,
+        }
+      );
 
-    newSocket.on('connected', (data) => {
-      console.log('✅ WebSocket autenticado:', data);
-    });
-
-    newSocket.on('notification', (notification: Notification) => {
-      console.log('📩 New notification:', notification);
-
-      // Add to list
-      setNotifications((prev) => [notification, ...prev].slice(0, 50)); // Keep last 50
-
-      // Mostrar toast
-      const toastFn = {
-        info: toast.info,
-        success: toast.success,
-        warning: toast.warning,
-        error: toast.error,
-      }[notification.type] || toast.info;
-
-      toastFn(notification.title, {
-        description: notification.message,
-        duration: 5000,
+      newSocket.on('connect', () => {
+        console.log('🔌 Conectado ao WebSocket');
+        setIsConnected(true);
       });
-    });
 
-    newSocket.on('error', (error) => {
-      console.error('⚠️ Error no WebSocket:', error);
-    });
+      newSocket.on('disconnect', () => {
+        if (!cancelled) {
+          console.log('❌ Desconectado do WebSocket');
+          setIsConnected(false);
+        }
+      });
 
-    setSocket(newSocket);
+      newSocket.on('connected', (data: unknown) => {
+        console.log('✅ WebSocket autenticado:', data);
+      });
+
+      newSocket.on('notification', (notification: Notification) => {
+        console.log('📩 New notification:', notification);
+
+        // Add to list
+        setNotifications((prev) => [notification, ...prev].slice(0, 50));
+
+        // Mostrar toast
+        const toastFn = {
+          info: toast.info,
+          success: toast.success,
+          warning: toast.warning,
+          error: toast.error,
+        }[notification.type] || toast.info;
+
+        toastFn(notification.title, {
+          description: notification.message,
+          duration: 5000,
+        });
+      });
+
+      newSocket.on('connect_error', (error) => {
+        console.warn('⚠️ WebSocket connection error:', error.message);
+      });
+
+      setSocket(newSocket);
+    }, 500);
 
     return () => {
-      newSocket.disconnect();
+      cancelled = true;
+      clearTimeout(timer);
+      if (newSocket) {
+        newSocket.disconnect();
+      }
     };
   }, [isAuthenticated]);
 

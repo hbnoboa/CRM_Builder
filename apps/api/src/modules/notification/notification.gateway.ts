@@ -56,26 +56,43 @@ export class NotificationGateway
     const redisUrl = this.configService.get<string>('REDIS_URL');
 
     if (redisUrl) {
-      try {
-        const pubClient = new Redis(redisUrl);
-        const subClient = pubClient.duplicate();
-
-        pubClient.on('error', (err) => {
-          this.logger.error('Redis pub client error:', err);
-        });
-
-        subClient.on('error', (err) => {
-          this.logger.error('Redis sub client error:', err);
-        });
-
-        server.adapter(createAdapter(pubClient, subClient));
-        this.logger.log('🔌 WebSocket Gateway initialized with Redis adapter');
-      } catch (error) {
-        this.logger.warn('Failed to configure Redis adapter, using default in-memory adapter:', error);
-        this.logger.log('🔌 WebSocket Gateway initialized (no Redis)');
-      }
+      this.setupRedisAdapter(server, redisUrl);
     } else {
-      this.logger.log('🔌 WebSocket Gateway initialized (no Redis URL configured)');
+      this.logger.log('🔌 WebSocket Gateway initialized (no Redis URL configured, using in-memory adapter)');
+    }
+  }
+
+  private async setupRedisAdapter(server: Server, redisUrl: string) {
+    try {
+      const pubClient = new Redis(redisUrl, {
+        maxRetriesPerRequest: 3,
+        retryStrategy(times) {
+          if (times > 3) return null; // Stop retrying after 3 attempts
+          return Math.min(times * 200, 1000);
+        },
+        lazyConnect: true,
+      });
+
+      // Test the connection before using as adapter
+      await pubClient.connect();
+      await pubClient.ping();
+
+      const subClient = pubClient.duplicate();
+      await subClient.connect();
+
+      pubClient.on('error', (err) => {
+        this.logger.error('Redis pub client error:', err.message);
+      });
+
+      subClient.on('error', (err) => {
+        this.logger.error('Redis sub client error:', err.message);
+      });
+
+      server.adapter(createAdapter(pubClient, subClient));
+      this.logger.log('🔌 WebSocket Gateway initialized with Redis adapter');
+    } catch (error) {
+      this.logger.warn(`Redis unavailable (${(error as Error).message}), using in-memory adapter`);
+      this.logger.log('🔌 WebSocket Gateway initialized (in-memory fallback)');
     }
   }
 
