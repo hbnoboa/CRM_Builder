@@ -1,20 +1,20 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { entitiesService, CreateEntityData, UpdateEntityData } from '@/services/entities.service';
+import { entitiesService, CreateEntityData, UpdateEntityData, QueryEntitiesParams } from '@/services/entities.service';
 
 export const entityKeys = {
   all: ['entities'] as const,
   lists: () => [...entityKeys.all, 'list'] as const,
-  list: () => [...entityKeys.lists()] as const,
+  list: (params?: QueryEntitiesParams) => [...entityKeys.lists(), params] as const,
   details: () => [...entityKeys.all, 'detail'] as const,
   detail: (id: string) => [...entityKeys.details(), id] as const,
   bySlug: (slug: string) => [...entityKeys.all, 'slug', slug] as const,
 };
 
-export function useEntities() {
+export function useEntities(params?: QueryEntitiesParams) {
   return useQuery({
-    queryKey: entityKeys.list(),
-    queryFn: () => entitiesService.getAll(),
+    queryKey: entityKeys.list(params),
+    queryFn: () => entitiesService.getAll(params),
   });
 }
 

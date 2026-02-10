@@ -25,6 +25,7 @@ export interface QueryEntitiesParams {
   page?: number;
   limit?: number;
   search?: string;
+  tenantId?: string;
 }
 
 export const entitiesService = {

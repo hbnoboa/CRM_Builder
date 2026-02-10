@@ -7,6 +7,7 @@ export interface QueryUsersParams {
   search?: string;
   role?: UserRole;
   status?: Status;
+  tenantId?: string;
 }
 
 export interface CreateUserData {

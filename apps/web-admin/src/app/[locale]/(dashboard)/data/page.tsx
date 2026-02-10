@@ -299,7 +299,7 @@ export default function DataPage() {
   const tCommon = useTranslations('common');
   const tNav = useTranslations('navigation');
   const { user: currentUser } = useAuthStore();
-  const { tenantId, loading: tenantLoading } = useTenant();
+  const { tenantId, effectiveTenantId, isPlatformAdmin, loading: tenantLoading } = useTenant();
   const [entities, setEntities] = useState<Entity[]>([]);
   const [selectedEntity, setSelectedEntity] = useState<Entity | null>(null);
   const [records, setRecords] = useState<DataRecord[]>([]);
@@ -321,12 +321,16 @@ export default function DataPage() {
   const deleteRecord = useDeleteEntityData();
 
   useEffect(() => {
+    setSelectedEntity(null);
+    setRecords([]);
     fetchEntities();
-  }, []);
+  }, [effectiveTenantId]);
 
   const fetchEntities = async () => {
     try {
-      const response = await api.get('/entities');
+      const params: Record<string, string> = {};
+      if (effectiveTenantId) params.tenantId = effectiveTenantId;
+      const response = await api.get('/entities', { params });
       const list = Array.isArray(response.data) ? response.data : response.data?.data || [];
       setEntities(list);
       if (list.length > 0 && !selectedEntity) {
@@ -342,10 +346,12 @@ export default function DataPage() {
   };
 
   const fetchRecords = async (entitySlug: string): Promise<DataRecord[]> => {
-    if (!tenantId) return [];
+    if (!tenantId && !isPlatformAdmin) return [];
     setLoadingRecords(true);
     try {
-      const response = await api.get(`/data/${entitySlug}`);
+      const params: Record<string, string> = {};
+      if (effectiveTenantId) params.tenantId = effectiveTenantId;
+      const response = await api.get(`/data/${entitySlug}`, { params });
       const list = Array.isArray(response.data) ? response.data : response.data?.data || [];
       setRecords(list);
       return list;
@@ -369,7 +375,7 @@ export default function DataPage() {
     setSelectedEntity(entity);
     resetFilters(); // Limpar filtros ao trocar de entidade
     const data = await fetchRecords(entity.slug);
-    if (data.length === 0 && tenantId) {
+    if (data.length === 0 && (tenantId || isPlatformAdmin)) {
       setSelectedRecord(null);
       setFormDialogOpen(true);
     }
@@ -391,7 +397,7 @@ export default function DataPage() {
   };
 
   const handleConfirmDelete = async () => {
-    if (!recordToDelete || !selectedEntity || !tenantId) return;
+    if (!recordToDelete || !selectedEntity || (!tenantId && !isPlatformAdmin)) return;
     try {
       await deleteRecord.mutateAsync({
         entitySlug: selectedEntity.slug,
@@ -538,7 +544,7 @@ export default function DataPage() {
         {selectedEntity && (
           <Button
             onClick={handleNewRecord}
-            disabled={tenantLoading || !tenantId}
+            disabled={tenantLoading || (!tenantId && !isPlatformAdmin)}
             data-testid="new-record-btn"
             className="w-full sm:w-auto"
           >
@@ -982,7 +988,7 @@ export default function DataPage() {
                     {!searchTerm && (
                       <Button
                         onClick={handleNewRecord}
-                        disabled={tenantLoading || !tenantId}
+                        disabled={tenantLoading || (!tenantId && !isPlatformAdmin)}
                         data-testid="add-record-btn"
                         size="sm"
                       >
@@ -1134,7 +1140,7 @@ export default function DataPage() {
       </div>
 
       {/* Dialog de formulario para criar/editar registro */}
-      {selectedEntity && tenantId && (
+      {selectedEntity && (tenantId || isPlatformAdmin) && (
         <RecordFormDialog
           open={formDialogOpen}
           onOpenChange={setFormDialogOpen}

@@ -66,8 +66,9 @@ export function NotificationProvider({ children }: NotificationProviderProps) {
       return;
     }
 
+    const apiUrl = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001').replace(/\/api\/v1\/?$/, '');
     const newSocket = io(
-      `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}/notifications`,
+      `${apiUrl}/notifications`,
       {
         auth: { token: accessToken },
         transports: ['websocket', 'polling'],

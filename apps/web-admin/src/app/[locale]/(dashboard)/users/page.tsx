@@ -29,6 +29,7 @@ import { useUsers } from '@/hooks/use-users';
 import { UserFormDialog } from '@/components/users/user-form-dialog';
 import { DeleteUserDialog } from '@/components/users/delete-user-dialog';
 import { useAuthStore } from '@/stores/auth-store';
+import { useTenant } from '@/stores/tenant-context';
 import type { User } from '@/types';
 
 const roleColors: Record<string, string> = {
@@ -46,12 +47,14 @@ function UsersPageContent() {
   const tNav = useTranslations('navigation');
   const tAuth = useTranslations('auth');
   const { user: currentUser } = useAuthStore();
+  const { effectiveTenantId } = useTenant();
   const [search, setSearch] = useState('');
   const [formOpen, setFormOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
 
-  const { data, isLoading, refetch } = useUsers();
+  const queryParams = effectiveTenantId ? { tenantId: effectiveTenantId } : undefined;
+  const { data, isLoading, refetch } = useUsers(queryParams);
 
   // Extrai array de users de forma segura (igual ao padrao de /roles)
   const users: User[] = (() => {

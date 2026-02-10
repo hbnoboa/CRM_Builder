@@ -1,7 +1,8 @@
 'use client';
 
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
 import { useAuthStore } from './auth-store';
+import api from '@/lib/api';
 
 interface Tenant {
   id: string;
@@ -13,6 +14,16 @@ interface TenantContextType {
   tenantId: string | null;
   loading: boolean;
   tenant: Tenant | null;
+  /** All tenants available (only for PLATFORM_ADMIN) */
+  allTenants: Tenant[];
+  /** Currently selected tenant for cross-tenant browsing (PLATFORM_ADMIN only) */
+  selectedTenantId: string | null;
+  /** The effective tenantId to use for API calls (selected or own) */
+  effectiveTenantId: string | null;
+  /** Switch to a different tenant context (PLATFORM_ADMIN only) */
+  switchTenant: (tenantId: string | null) => void;
+  /** Whether the user is a PLATFORM_ADMIN */
+  isPlatformAdmin: boolean;
   refresh: () => Promise<void>;
 }
 
@@ -21,11 +32,13 @@ const TenantContext = createContext<TenantContextType | undefined>(undefined);
 export function TenantProvider({ children }: { children: ReactNode }) {
   const { user } = useAuthStore();
   const [tenant, setTenant] = useState<Tenant | null>(null);
+  const [allTenants, setAllTenants] = useState<Tenant[]>([]);
+  const [selectedTenantId, setSelectedTenantId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const API_BASE = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001').replace(/\/api\/v1\/?$/, '');
+  const isPlatformAdmin = user?.role === 'PLATFORM_ADMIN';
 
-  const fetchTenantData = async () => {
+  const fetchTenantData = useCallback(async () => {
     const token = localStorage.getItem('accessToken');
     if (!token || !user) {
       setLoading(false);
@@ -33,28 +46,52 @@ export function TenantProvider({ children }: { children: ReactNode }) {
     }
 
     try {
-      // Fetch tenant info usando /tenants/me (acessivel por qualquer usuario autenticado)
-      const tenantRes = await fetch(`${API_BASE}/api/v1/tenants/me`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (tenantRes.ok) {
-        const tenantData = await tenantRes.json();
-        setTenant(tenantData);
+      // Fetch own tenant info
+      const tenantRes = await api.get('/tenants/me');
+      if (tenantRes.data) {
+        setTenant(tenantRes.data);
+      }
+
+      // If PLATFORM_ADMIN, also fetch all tenants for the switcher
+      if (isPlatformAdmin) {
+        const allRes = await api.get('/tenants', { params: { limit: 100 } });
+        if (allRes.data?.data) {
+          setAllTenants(allRes.data.data);
+        }
       }
     } catch (error) {
       console.error('Error fetching tenant data:', error);
     } finally {
       setLoading(false);
     }
-  };
+  }, [user, isPlatformAdmin]);
 
   useEffect(() => {
     fetchTenantData();
-  }, [user]);
+  }, [fetchTenantData]);
 
-  const refresh = async () => {
-    await fetchTenantData();
-  };
+  // Restore selected tenant from sessionStorage
+  useEffect(() => {
+    if (isPlatformAdmin) {
+      const saved = sessionStorage.getItem('selectedTenantId');
+      if (saved) {
+        setSelectedTenantId(saved);
+      }
+    }
+  }, [isPlatformAdmin]);
+
+  const switchTenant = useCallback((tenantId: string | null) => {
+    setSelectedTenantId(tenantId);
+    if (tenantId) {
+      sessionStorage.setItem('selectedTenantId', tenantId);
+    } else {
+      sessionStorage.removeItem('selectedTenantId');
+    }
+  }, []);
+
+  const effectiveTenantId = isPlatformAdmin
+    ? (selectedTenantId || null)
+    : (user?.tenantId || null);
 
   return (
     <TenantContext.Provider
@@ -62,7 +99,12 @@ export function TenantProvider({ children }: { children: ReactNode }) {
         tenantId: user?.tenantId || null,
         loading,
         tenant,
-        refresh,
+        allTenants,
+        selectedTenantId,
+        effectiveTenantId,
+        switchTenant,
+        isPlatformAdmin,
+        refresh: fetchTenantData,
       }}
     >
       {children}

@@ -8,6 +8,7 @@ export interface QueryDataParams {
   sortBy?: string;
   sortOrder?: 'asc' | 'desc';
   parentRecordId?: string;
+  tenantId?: string;
 }
 
 export interface EntityDataResponse extends PaginatedResponse<EntityData> {

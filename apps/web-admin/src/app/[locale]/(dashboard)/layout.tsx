@@ -24,6 +24,7 @@ import { TenantProvider } from '@/stores/tenant-context';
 import { NotificationProvider } from '@/providers/notification-provider';
 import { NotificationBell } from '@/components/notifications/notification-bell';
 import { LanguageSwitcher } from '@/components/language-switcher';
+import { TenantSelector } from '@/components/tenant-selector';
 import { cn } from '@/lib/utils';
 import type { UserRole } from '@/types';
 
@@ -318,6 +319,8 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
             >
               <Search className="h-5 w-5" />
             </button>
+
+            <TenantSelector />
 
             <LanguageSwitcher />
 

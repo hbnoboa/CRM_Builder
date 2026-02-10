@@ -36,6 +36,7 @@ import {
 import { RequireRole } from '@/components/auth/require-role';
 import { useEntities, useDeleteEntity } from '@/hooks/use-entities';
 import { useAuthStore } from '@/stores/auth-store';
+import { useTenant } from '@/stores/tenant-context';
 import type { Entity } from '@/types';
 
 const fieldTypeColors: Record<string, string> = {
@@ -74,11 +75,13 @@ function EntitiesPageContent() {
   const tCommon = useTranslations('common');
   const tNav = useTranslations('navigation');
   const { user: currentUser } = useAuthStore();
+  const { effectiveTenantId } = useTenant();
   const [search, setSearch] = useState('');
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [entityToDelete, setEntityToDelete] = useState<Entity | null>(null);
 
-  const { data, isLoading, refetch } = useEntities();
+  const queryParams = effectiveTenantId ? { tenantId: effectiveTenantId } : undefined;
+  const { data, isLoading, refetch } = useEntities(queryParams);
   const deleteEntity = useDeleteEntity({ success: t('toast.deleted') });
 
   // Garante que entities e sempre um array

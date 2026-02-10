@@ -36,6 +36,7 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { useAuthStore } from '@/stores/auth-store';
+import { useTenant } from '@/stores/tenant-context';
 import api from '@/lib/api';
 import { cn } from '@/lib/utils';
 
@@ -89,6 +90,7 @@ export default function DashboardPage() {
   const locale = useLocale();
   const dateLocale = dateLocales[locale] || enUS;
   const { user } = useAuthStore();
+  const { effectiveTenantId } = useTenant();
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [recordsOverTime, setRecordsOverTime] = useState<RecordOverTime[]>([]);
   const [entitiesDistribution, setEntitiesDistribution] = useState<EntityDistribution[]>([]);
@@ -99,12 +101,14 @@ export default function DashboardPage() {
 
   const fetchDashboardDate = async () => {
     try {
+      const params: Record<string, string> = {};
+      if (effectiveTenantId) params.tenantId = effectiveTenantId;
       const [statsRes, recordsRes, distributionRes, usersRes, activityRes] = await Promise.all([
-        api.get('/stats/dashboard'),
-        api.get('/stats/records-over-time?days=30'),
-        api.get('/stats/entities-distribution'),
-        api.get('/stats/users-activity?days=7'),
-        api.get('/stats/recent-activity?limit=10'),
+        api.get('/stats/dashboard', { params }),
+        api.get('/stats/records-over-time', { params: { days: 30, ...params } }),
+        api.get('/stats/entities-distribution', { params }),
+        api.get('/stats/users-activity', { params: { days: 7, ...params } }),
+        api.get('/stats/recent-activity', { params: { limit: 10, ...params } }),
       ]);
 
       setStats(statsRes.data);
@@ -130,7 +134,7 @@ export default function DashboardPage() {
 
   useEffect(() => {
     fetchDashboardDate();
-  }, []);
+  }, [effectiveTenantId]);
 
   const handleRefresh = () => {
     setRefreshing(true);
