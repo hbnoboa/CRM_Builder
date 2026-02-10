@@ -47,6 +47,8 @@ export interface CustomRole {
   updatedAt?: string;
 }
 
+export type PermissionScope = 'all' | 'own';
+
 export interface EntityPermission {
   entitySlug: string;
   entityName?: string;
@@ -54,6 +56,7 @@ export interface EntityPermission {
   canRead: boolean;
   canUpdate: boolean;
   canDelete: boolean;
+  scope?: PermissionScope; // 'all' = todos os registros, 'own' = apenas proprios
 }
 
 export interface ModulePermissions {

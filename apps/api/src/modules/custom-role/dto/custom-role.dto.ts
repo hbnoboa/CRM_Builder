@@ -1,6 +1,8 @@
-import { IsString, IsOptional, IsBoolean, IsArray, ValidateNested } from 'class-validator';
+import { IsString, IsOptional, IsBoolean, IsArray, ValidateNested, IsEnum } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional, PartialType } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
+
+export type PermissionScope = 'all' | 'own';
 
 export class EntityPermissionDto {
   @ApiProperty({ example: 'clientes' })
@@ -26,6 +28,15 @@ export class EntityPermissionDto {
   @IsBoolean()
   @IsOptional()
   canDelete?: boolean;
+
+  @ApiPropertyOptional({
+    enum: ['all', 'own'],
+    default: 'all',
+    description: 'Escopo de visibilidade: all = todos os registros, own = apenas proprios registros'
+  })
+  @IsString()
+  @IsOptional()
+  scope?: PermissionScope;
 }
 
 export class ModulePermissionsDto {

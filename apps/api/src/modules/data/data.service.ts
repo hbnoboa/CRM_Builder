@@ -327,8 +327,8 @@ export class DataService {
       where.tenantId = currentUser.tenantId;
     }
 
-    // Aplicar filtro de escopo baseado na role
-    this.applyScope(where, currentUser, 'read');
+    // Aplicar filtro de escopo baseado na CustomRole (own = apenas proprios registros)
+    await this.applyScopeFromCustomRole(where, currentUser, entitySlug);
 
     // Busca textual
     if (search) {
@@ -634,29 +634,24 @@ export class DataService {
     return { message: 'Registro excluido com sucesso' };
   }
 
-  // Aplicar filtros de escopo na query
-  private applyScope(where: Prisma.EntityDataWhereInput, user: CurrentUser, action: string) {
-    // Admin e Platform Admin veem tudo
-    if (user.role === UserRole.PLATFORM_ADMIN || user.role === UserRole.ADMIN) {
-      return;
-    }
+  /**
+   * Aplica filtros de escopo na query baseado na CustomRole
+   * @param entitySlug - slug da entidade para buscar o scope
+   */
+  private async applyScopeFromCustomRole(
+    where: Prisma.EntityDataWhereInput,
+    user: CurrentUser,
+    entitySlug: string,
+  ): Promise<void> {
+    // Buscar scope da custom role para esta entidade
+    const scope = await this.customRoleService.getEntityScope(user.id, entitySlug);
 
-    // Para leitura, todos os usuarios do tenant podem ver todos os dados do tenant
-    // O filtro por tenantId ja foi aplicado antes desta funcao
-    if (action === 'read') {
-      return;
-    }
-
-    // Para escrita (update/delete), apenas o criador pode modificar (exceto Manager)
-    if (user.role === UserRole.MANAGER) {
-      return;
-    }
-
-    // User so pode modificar proprios registros
-    // Viewer nao pode modificar (tratado em checkScope)
-    if (action !== 'read') {
+    // Se scope = 'own', filtrar apenas registros criados pelo usuario
+    if (scope === 'own') {
       where.createdById = user.id;
+      this.logger.debug(`Applying scope 'own' for user ${user.id} on entity ${entitySlug}`);
     }
+    // Se scope = 'all' ou null (ADMIN/PLATFORM_ADMIN), nao filtra por criador
   }
 
   // Verificar se usuario pode modificar o registro

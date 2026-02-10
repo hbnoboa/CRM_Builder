@@ -280,12 +280,65 @@ export class CustomRoleService {
       canRead: boolean;
       canUpdate: boolean;
       canDelete: boolean;
+      scope?: 'all' | 'own';
     }>;
 
     const entityPerm = permissions.find((p) => p.entitySlug === entitySlug);
     if (!entityPerm) return false;
 
     return entityPerm[action] === true;
+  }
+
+  /**
+   * Retorna o escopo de visibilidade do usuario para uma entidade
+   * @returns 'all' | 'own' | null (null = sem acesso)
+   */
+  async getEntityScope(
+    userId: string,
+    entitySlug: string,
+  ): Promise<'all' | 'own' | null> {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { role: true, customRoleId: true },
+    });
+
+    if (!user) return null;
+
+    // PLATFORM_ADMIN e ADMIN veem tudo
+    if (user.role === UserRole.PLATFORM_ADMIN || user.role === UserRole.ADMIN) {
+      return 'all';
+    }
+
+    // MANAGER ve tudo do tenant
+    if (user.role === UserRole.MANAGER && !user.customRoleId) {
+      return 'all';
+    }
+
+    // USER e VIEWER sem custom role = escopo proprio
+    if (!user.customRoleId) {
+      if (user.role === UserRole.USER) return 'own';
+      if (user.role === UserRole.VIEWER) return 'all'; // Viewer ve tudo mas nao edita
+      return null;
+    }
+
+    const customRole = await this.prisma.customRole.findUnique({
+      where: { id: user.customRoleId },
+      select: { permissions: true },
+    });
+
+    if (!customRole) return null;
+
+    const permissions = customRole.permissions as unknown as Array<{
+      entitySlug: string;
+      canRead: boolean;
+      scope?: 'all' | 'own';
+    }>;
+
+    const entityPerm = permissions.find((p) => p.entitySlug === entitySlug);
+    if (!entityPerm || !entityPerm.canRead) return null;
+
+    // Default scope = 'all' para manter compatibilidade
+    return entityPerm.scope || 'all';
   }
 
   /**

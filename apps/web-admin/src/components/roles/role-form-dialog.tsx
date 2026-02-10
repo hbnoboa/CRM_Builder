@@ -13,13 +13,20 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
   Eye, Plus, Pencil, Trash2, Shield, Database, Users,
-  Settings, Code, Layers, LayoutDashboard,
+  Settings, Code, Layers, LayoutDashboard, Globe, User,
 } from 'lucide-react';
 import { useCreateCustomRole, useUpdateCustomRole } from '@/hooks/use-custom-roles';
 import { useQuery } from '@tanstack/react-query';
 import api from '@/lib/api';
-import type { CustomRole, EntityPermission, ModulePermissions, Entity } from '@/types';
+import type { CustomRole, EntityPermission, ModulePermissions, Entity, PermissionScope } from '@/types';
 
 const ROLE_COLORS = [
   '#6366f1', '#8b5cf6', '#ec4899', '#ef4444', '#f97316',
@@ -102,7 +109,7 @@ export function RoleFormDialog({ open, onOpenChange, role, onSuccess }: RoleForm
       return entities.map((e) => {
         const existing = existingBySlug.get(e.slug);
         if (existing) {
-          return { ...existing, entityName: e.name };
+          return { ...existing, entityName: e.name, scope: existing.scope || 'all' };
         }
         return {
           entitySlug: e.slug,
@@ -111,6 +118,7 @@ export function RoleFormDialog({ open, onOpenChange, role, onSuccess }: RoleForm
           canRead: true,
           canUpdate: false,
           canDelete: false,
+          scope: 'all' as PermissionScope,
         };
       });
     });
@@ -138,6 +146,14 @@ export function RoleFormDialog({ open, onOpenChange, role, onSuccess }: RoleForm
     setPermissions((prev) => prev.map((p) => ({ ...p, [field]: value })));
   };
 
+  const setEntityScope = (entitySlug: string, scope: PermissionScope) => {
+    setPermissions((prev) =>
+      prev.map((p) =>
+        p.entitySlug === entitySlug ? { ...p, scope } : p
+      )
+    );
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) return;
@@ -154,6 +170,7 @@ export function RoleFormDialog({ open, onOpenChange, role, onSuccess }: RoleForm
         canRead: p.canRead,
         canUpdate: p.canUpdate,
         canDelete: p.canDelete,
+        scope: p.scope || 'all',
       })),
       modulePermissions: modulePerms,
     };
@@ -315,7 +332,7 @@ export function RoleFormDialog({ open, onOpenChange, role, onSuccess }: RoleForm
                               />
                             </div>
                           </div>
-                          <div className="flex flex-wrap gap-3">
+                          <div className="flex flex-wrap items-center gap-3">
                             {([
                               { key: 'canCreate' as const, label: t('form.create'), icon: <Plus className="h-3.5 w-3.5" /> },
                               { key: 'canRead' as const, label: t('form.read'), icon: <Eye className="h-3.5 w-3.5" /> },
@@ -339,6 +356,31 @@ export function RoleFormDialog({ open, onOpenChange, role, onSuccess }: RoleForm
                                 {label}
                               </label>
                             ))}
+                            <div className="ml-auto flex items-center gap-2">
+                              <span className="text-xs text-muted-foreground">Escopo:</span>
+                              <Select
+                                value={perm.scope || 'all'}
+                                onValueChange={(value: PermissionScope) => setEntityScope(perm.entitySlug, value)}
+                              >
+                                <SelectTrigger className="h-7 w-[130px] text-xs">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="all">
+                                    <div className="flex items-center gap-1.5">
+                                      <Globe className="h-3.5 w-3.5" />
+                                      Todos
+                                    </div>
+                                  </SelectItem>
+                                  <SelectItem value="own">
+                                    <div className="flex items-center gap-1.5">
+                                      <User className="h-3.5 w-3.5" />
+                                      Apenas meus
+                                    </div>
+                                  </SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
                           </div>
                         </div>
                       );
