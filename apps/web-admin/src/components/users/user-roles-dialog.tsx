@@ -57,7 +57,7 @@ export function UserRolesDialog({
   // Busca todas as roles disponiveis
   const { data: rolesData, isLoading: loadingRoles } = useQuery({
     queryKey: ['roles'],
-    queryFn: rolesService.getAll,
+    queryFn: () => rolesService.getAll(),
     enabled: open,
   });
 
