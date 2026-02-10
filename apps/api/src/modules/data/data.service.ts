@@ -3,7 +3,14 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { EntityService } from '../entity/entity.service';
 import { NotificationService } from '../notification/notification.service';
 import { UserRole, Prisma, EntityData, Entity } from '@prisma/client';
-import { CurrentUser } from '../../common/types';
+import {
+  CurrentUser,
+  createPaginationMeta,
+  encodeCursor,
+  decodeCursor,
+  DEFAULT_LIMIT,
+  MAX_LIMIT,
+} from '../../common/types';
 
 interface CreateDataDto {
   data: Record<string, unknown>;
@@ -32,6 +39,10 @@ interface QueryDataDto {
   sortOrder?: 'asc' | 'desc';
   tenantId?: string; // Para PLATFORM_ADMIN filtrar por tenant
   parentRecordId?: string; // Para filtrar sub-registros de um registro pai
+  // Cursor pagination (melhor performance para listas grandes)
+  cursor?: string;
+  // Sparse fieldsets - reduz payload
+  fields?: string; // Ex: "id,data,createdAt"
 }
 
 interface EntitySettings {
@@ -253,11 +264,10 @@ export class DataService {
     query: QueryDataDto,
     currentUser: CurrentUser,
   ) {
-    // Parse page and limit as integers (query params come as strings)
+    // Parse parameters
     const page = parseInt(String(query.page || '1'), 10) || 1;
-    const limit = parseInt(String(query.limit || '20'), 10) || 20;
-    const { search, sortBy = 'createdAt', sortOrder = 'desc', tenantId: queryTenantId, parentRecordId } = query;
-    const skip = (page - 1) * limit;
+    const limit = Math.min(MAX_LIMIT, Math.max(1, parseInt(String(query.limit || DEFAULT_LIMIT), 10) || DEFAULT_LIMIT));
+    const { search, sortBy = 'createdAt', sortOrder = 'desc', tenantId: queryTenantId, parentRecordId, cursor, fields } = query;
 
     const effectiveTenantId = this.getEffectiveTenantId(currentUser, queryTenantId);
 
@@ -270,7 +280,7 @@ export class DataService {
     };
 
     // Filtro de sub-entidade: se parentRecordId for passado, retorna apenas sub-registros
-    // Se não for passado, retorna apenas registros raiz (sem parentRecordId)
+    // Se nao for passado, retorna apenas registros raiz (sem parentRecordId)
     if (parentRecordId) {
       where.parentRecordId = parentRecordId;
     } else {
@@ -291,7 +301,6 @@ export class DataService {
 
     // Busca textual
     if (search) {
-      // Buscar em campos de busca configurados na entidade
       const settings = entity.settings as EntitySettings;
       const searchFields = settings?.searchFields || [];
 
@@ -306,35 +315,111 @@ export class DataService {
       }
     }
 
-    const [data, total] = await Promise.all([
-      this.prisma.entityData.findMany({
-        where,
-        skip,
-        take: limit,
-        orderBy: { [sortBy]: sortOrder },
-        include: {
-          tenant: {
-            select: { id: true, name: true, slug: true },
-          },
-          createdBy: {
-            select: { id: true, name: true, email: true },
-          },
-          updatedBy: {
-            select: { id: true, name: true, email: true },
-          },
-        },
-      }),
+    // =========================================================================
+    // CURSOR-BASED PAGINATION (mais eficiente para listas grandes)
+    // =========================================================================
+    const useCursor = !!cursor;
+    let cursorClause: { id: string } | undefined;
+    let skipClause: number | undefined;
+
+    if (useCursor) {
+      const decodedCursor = decodeCursor(cursor);
+      if (decodedCursor) {
+        cursorClause = { id: decodedCursor.id };
+        skipClause = 1; // Pula o item do cursor
+      }
+    } else {
+      // Offset pagination tradicional
+      skipClause = (page - 1) * limit;
+    }
+
+    // OrderBy com id como tiebreaker para estabilidade
+    const orderBy: Prisma.EntityDataOrderByWithRelationInput[] = [
+      { [sortBy]: sortOrder },
+    ];
+    if (sortBy !== 'id') {
+      orderBy.push({ id: sortOrder });
+    }
+
+    // =========================================================================
+    // EXECUTAR QUERIES EM PARALELO
+    // =========================================================================
+    // Para cursor pagination, buscamos limit + 1 para saber se tem mais paginas
+    const takeWithExtra = limit + 1;
+
+    // Include padrao para relacionamentos
+    const includeClause = {
+      tenant: {
+        select: { id: true, name: true, slug: true },
+      },
+      createdBy: {
+        select: { id: true, name: true, email: true },
+      },
+      updatedBy: {
+        select: { id: true, name: true, email: true },
+      },
+    };
+
+    // Construir query base
+    const findManyArgs: Prisma.EntityDataFindManyArgs = {
+      where,
+      take: takeWithExtra,
+      orderBy,
+      include: includeClause,
+    };
+
+    // Adicionar cursor ou skip
+    if (useCursor && cursorClause) {
+      findManyArgs.cursor = cursorClause;
+      findManyArgs.skip = 1;
+    } else {
+      findManyArgs.skip = skipClause;
+    }
+
+    const [rawData, total] = await Promise.all([
+      this.prisma.entityData.findMany(findManyArgs),
+      // Count pode ser custoso para datasets grandes - usar estimativa se necessario
       this.prisma.entityData.count({ where }),
     ]);
 
+    // Verificar se tem proxima pagina
+    const hasNextPage = rawData.length > limit;
+    const data = hasNextPage ? rawData.slice(0, limit) : rawData;
+    const hasPreviousPage = useCursor ? true : page > 1;
+
+    // Gerar cursores para navegacao
+    let nextCursor: string | undefined;
+    let previousCursor: string | undefined;
+
+    if (data.length > 0) {
+      const lastItem = data[data.length - 1];
+      const firstItem = data[0];
+
+      if (hasNextPage) {
+        nextCursor = encodeCursor({
+          id: lastItem.id,
+          sortField: sortBy,
+          sortValue: (lastItem as Record<string, unknown>)[sortBy] as string,
+        });
+      }
+
+      if (hasPreviousPage && useCursor) {
+        previousCursor = encodeCursor({
+          id: firstItem.id,
+          sortField: sortBy,
+          sortValue: (firstItem as Record<string, unknown>)[sortBy] as string,
+        });
+      }
+    }
+
     return {
       data,
-      meta: {
-        total,
-        page,
-        limit,
-        totalPages: Math.ceil(total / limit),
-      },
+      meta: createPaginationMeta(total, page, limit, {
+        hasNextPage,
+        hasPreviousPage,
+        nextCursor,
+        previousCursor,
+      }),
       entity: {
         id: entity.id,
         name: entity.name,

@@ -9,9 +9,27 @@ export interface QueryDataParams {
   sortOrder?: 'asc' | 'desc';
   parentRecordId?: string;
   tenantId?: string;
+  // Cursor pagination (melhor para listas grandes)
+  cursor?: string;
+  // Sparse fieldsets - reduz payload
+  fields?: string;
 }
 
-export interface EntityDataResponse extends PaginatedResponse<EntityData> {
+// Meta com suporte a cursor
+export interface PaginationMeta {
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+  hasNextPage: boolean;
+  hasPreviousPage: boolean;
+  nextCursor?: string;
+  previousCursor?: string;
+}
+
+export interface EntityDataResponse {
+  data: EntityData[];
+  meta: PaginationMeta;
   entity: Pick<Entity, 'id' | 'name' | 'namePlural' | 'slug' | 'fields' | 'settings'>;
 }
 
