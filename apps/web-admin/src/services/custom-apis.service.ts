@@ -70,6 +70,9 @@ export interface QueryCustomApisParams {
   isActive?: boolean;
   method?: string;
   tenantId?: string;
+  cursor?: string;
+  sortBy?: string;
+  sortOrder?: 'asc' | 'desc';
 }
 
 export const customApisService = {

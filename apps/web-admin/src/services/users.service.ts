@@ -8,6 +8,9 @@ export interface QueryUsersParams {
   role?: UserRole;
   status?: Status;
   tenantId?: string;
+  cursor?: string;
+  sortBy?: string;
+  sortOrder?: 'asc' | 'desc';
 }
 
 export interface CreateUserData {

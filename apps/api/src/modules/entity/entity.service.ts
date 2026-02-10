@@ -6,6 +6,10 @@ import {
   PaginationQuery,
   parsePaginationParams,
   createPaginationMeta,
+  encodeCursor,
+  decodeCursor,
+  DEFAULT_LIMIT,
+  MAX_LIMIT,
 } from '../../common/types';
 import { Prisma, UserRole } from '@prisma/client';
 
@@ -119,11 +123,11 @@ export class EntityService {
 
   async findAll(currentUser: CurrentUser, query: QueryEntityDto = {}) {
     const { page, limit, skip } = parsePaginationParams(query);
-    const { search, sortBy = 'name', sortOrder = 'asc', tenantId: queryTenantId } = query;
+    const { search, sortBy = 'name', sortOrder = 'asc', tenantId: queryTenantId, cursor } = query;
 
     // PLATFORM_ADMIN pode ver de qualquer tenant ou todos
     const where: Prisma.EntityWhereInput = {};
-    
+
     if (currentUser.role === UserRole.PLATFORM_ADMIN) {
       if (queryTenantId) {
         where.tenantId = queryTenantId;
@@ -140,27 +144,96 @@ export class EntityService {
       ];
     }
 
-    const [data, total] = await Promise.all([
-      this.prisma.entity.findMany({
-        where,
-        skip,
-        take: limit,
-        orderBy: { [sortBy]: sortOrder },
-        include: {
-          _count: {
-            select: { data: true },
-          },
-          tenant: {
-            select: { id: true, name: true, slug: true },
-          },
+    // Cursor pagination
+    const useCursor = !!cursor;
+    let cursorClause: { id: string } | undefined;
+    let skipClause: number | undefined;
+
+    if (useCursor) {
+      const decodedCursor = decodeCursor(cursor);
+      if (decodedCursor) {
+        cursorClause = { id: decodedCursor.id };
+        skipClause = 1;
+      }
+    } else {
+      skipClause = skip;
+    }
+
+    // OrderBy com id como tiebreaker
+    const orderBy: Prisma.EntityOrderByWithRelationInput[] = [
+      { [sortBy]: sortOrder },
+    ];
+    if (sortBy !== 'id') {
+      orderBy.push({ id: sortOrder });
+    }
+
+    // Buscar limit + 1 para detectar hasNextPage
+    const takeWithExtra = limit + 1;
+
+    const findManyArgs: Prisma.EntityFindManyArgs = {
+      where,
+      take: takeWithExtra,
+      orderBy,
+      include: {
+        _count: {
+          select: { data: true },
         },
-      }),
+        tenant: {
+          select: { id: true, name: true, slug: true },
+        },
+      },
+    };
+
+    if (useCursor && cursorClause) {
+      findManyArgs.cursor = cursorClause;
+      findManyArgs.skip = 1;
+    } else {
+      findManyArgs.skip = skipClause;
+    }
+
+    const [rawData, total] = await Promise.all([
+      this.prisma.entity.findMany(findManyArgs),
       this.prisma.entity.count({ where }),
     ]);
 
+    // Detectar proxima pagina
+    const hasNextPage = rawData.length > limit;
+    const data = hasNextPage ? rawData.slice(0, limit) : rawData;
+    const hasPreviousPage = useCursor ? true : page > 1;
+
+    // Gerar cursores
+    let nextCursor: string | undefined;
+    let previousCursor: string | undefined;
+
+    if (data.length > 0) {
+      const lastItem = data[data.length - 1];
+      const firstItem = data[0];
+
+      if (hasNextPage) {
+        nextCursor = encodeCursor({
+          id: lastItem.id,
+          sortField: sortBy,
+          sortValue: (lastItem as Record<string, unknown>)[sortBy] as string,
+        });
+      }
+
+      if (hasPreviousPage && useCursor) {
+        previousCursor = encodeCursor({
+          id: firstItem.id,
+          sortField: sortBy,
+          sortValue: (firstItem as Record<string, unknown>)[sortBy] as string,
+        });
+      }
+    }
+
     return {
       data,
-      meta: createPaginationMeta(total, page, limit),
+      meta: createPaginationMeta(total, page, limit, {
+        hasNextPage,
+        hasPreviousPage,
+        nextCursor,
+        previousCursor,
+      }),
     };
   }
 

@@ -12,6 +12,10 @@ import {
   PaginationQuery,
   parsePaginationParams,
   createPaginationMeta,
+  encodeCursor,
+  decodeCursor,
+  DEFAULT_LIMIT,
+  MAX_LIMIT,
 } from '../../common/types';
 import * as vm from 'vm';
 
@@ -54,6 +58,7 @@ interface InputSchema {
 export interface QueryCustomApiDto extends PaginationQuery {
   isActive?: boolean;
   method?: HttpMethod;
+  cursor?: string;
 }
 
 interface EndpointExecutionContext {
@@ -131,7 +136,7 @@ export class CustomApiService {
 
   async findAll(tenantId: string, query: QueryCustomApiDto = {}) {
     const { page, limit, skip } = parsePaginationParams(query);
-    const { search, isActive, method, sortBy = 'createdAt', sortOrder = 'desc' } = query;
+    const { search, isActive, method, sortBy = 'createdAt', sortOrder = 'desc', cursor } = query;
 
     const where: Prisma.CustomEndpointWhereInput = {
       tenantId,
@@ -153,29 +158,81 @@ export class CustomApiService {
       ];
     }
 
-    const [data, total] = await Promise.all([
-      this.prisma.customEndpoint.findMany({
-        where,
-        skip,
-        take: limit,
-        orderBy: { [sortBy]: sortOrder },
-        include: {
-          sourceEntity: {
-            select: {
-              id: true,
-              name: true,
-              slug: true,
-              fields: true,
-            },
+    // Cursor pagination
+    const useCursor = !!cursor;
+    let cursorClause: { id: string } | undefined;
+
+    if (useCursor) {
+      const decodedCursor = decodeCursor(cursor);
+      if (decodedCursor) {
+        cursorClause = { id: decodedCursor.id };
+      }
+    }
+
+    const orderBy: Prisma.CustomEndpointOrderByWithRelationInput[] = [
+      { [sortBy]: sortOrder },
+    ];
+    if (sortBy !== 'id') {
+      orderBy.push({ id: sortOrder });
+    }
+
+    const takeWithExtra = limit + 1;
+
+    const findManyArgs: Prisma.CustomEndpointFindManyArgs = {
+      where,
+      take: takeWithExtra,
+      orderBy,
+      include: {
+        sourceEntity: {
+          select: {
+            id: true,
+            name: true,
+            slug: true,
+            fields: true,
           },
         },
-      }),
+      },
+    };
+
+    if (useCursor && cursorClause) {
+      findManyArgs.cursor = cursorClause;
+      findManyArgs.skip = 1;
+    } else {
+      findManyArgs.skip = skip;
+    }
+
+    const [rawData, total] = await Promise.all([
+      this.prisma.customEndpoint.findMany(findManyArgs),
       this.prisma.customEndpoint.count({ where }),
     ]);
 
+    const hasNextPage = rawData.length > limit;
+    const data = hasNextPage ? rawData.slice(0, limit) : rawData;
+    const hasPreviousPage = useCursor ? true : page > 1;
+
+    let nextCursor: string | undefined;
+    let previousCursor: string | undefined;
+
+    if (data.length > 0) {
+      const lastItem = data[data.length - 1];
+      const firstItem = data[0];
+
+      if (hasNextPage) {
+        nextCursor = encodeCursor({ id: lastItem.id, sortField: sortBy });
+      }
+      if (hasPreviousPage && useCursor) {
+        previousCursor = encodeCursor({ id: firstItem.id, sortField: sortBy });
+      }
+    }
+
     return {
       data,
-      meta: createPaginationMeta(total, page, limit),
+      meta: createPaginationMeta(total, page, limit, {
+        hasNextPage,
+        hasPreviousPage,
+        nextCursor,
+        previousCursor,
+      }),
     };
   }
 

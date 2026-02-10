@@ -56,10 +56,25 @@ export class QueryUserDto {
   @IsOptional()
   limit?: number;
 
+  @ApiPropertyOptional({ description: 'Cursor para paginacao (melhor para listas grandes)' })
+  @IsString()
+  @IsOptional()
+  cursor?: string;
+
   @ApiPropertyOptional()
   @IsString()
   @IsOptional()
   search?: string;
+
+  @ApiPropertyOptional({ default: 'createdAt' })
+  @IsString()
+  @IsOptional()
+  sortBy?: string;
+
+  @ApiPropertyOptional({ enum: ['asc', 'desc'], default: 'desc' })
+  @IsString()
+  @IsOptional()
+  sortOrder?: 'asc' | 'desc';
 
   @ApiPropertyOptional({ enum: UserRole })
   @IsEnum(UserRole)

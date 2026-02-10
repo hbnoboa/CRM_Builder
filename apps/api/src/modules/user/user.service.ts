@@ -4,7 +4,14 @@ import { NotificationService } from '../notification/notification.service';
 import { CreateUserDto, UpdateUserDto, QueryUserDto } from './dto/user.dto';
 import { UserRole, Prisma } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
-import { CurrentUser } from '../../common/types';
+import {
+  CurrentUser,
+  createPaginationMeta,
+  encodeCursor,
+  decodeCursor,
+  DEFAULT_LIMIT,
+  MAX_LIMIT,
+} from '../../common/types';
 
 @Injectable()
 export class UserService {
@@ -76,19 +83,19 @@ export class UserService {
   }
 
   async findAll(query: QueryUserDto, currentUser: CurrentUser) {
-    const { page = 1, limit = 20, search, role, status, tenantId: queryTenantId } = query;
+    const page = Math.max(1, query.page || 1);
+    const limit = Math.min(MAX_LIMIT, Math.max(1, query.limit || DEFAULT_LIMIT));
     const skip = (page - 1) * limit;
+    const { search, role, status, tenantId: queryTenantId, cursor, sortBy = 'createdAt', sortOrder = 'desc' } = query;
 
-    // Base filter por tenant (PLATFORM_ADMIN pode filtrar por qualquer tenant ou ver todos)
+    // Base filter por tenant
     const where: Prisma.UserWhereInput = {};
-    
+
     if (currentUser.role === UserRole.PLATFORM_ADMIN) {
-      // PLATFORM_ADMIN: se especificou tenantId, filtra; senao, mostra todos
       if (queryTenantId) {
         where.tenantId = queryTenantId;
       }
     } else {
-      // Outros usuarios: apenas seu tenant
       where.tenantId = currentUser.tenantId;
     }
 
@@ -102,40 +109,95 @@ export class UserService {
       ];
     }
 
-    const [data, total] = await Promise.all([
-      this.prisma.user.findMany({
-        where,
-        skip,
-        take: limit,
-        orderBy: { createdAt: 'desc' },
-        select: {
-          id: true,
-          email: true,
-          name: true,
-          avatar: true,
-          role: true,
-          customRoleId: true,
-          status: true,
-          tenantId: true,
-          lastLoginAt: true,
-          createdAt: true,
-          customRole: { select: { id: true, name: true, color: true } },
-          tenant: {
-            select: { id: true, name: true, slug: true },
-          },
+    // Cursor pagination
+    const useCursor = !!cursor;
+    let cursorClause: { id: string } | undefined;
+
+    if (useCursor) {
+      const decodedCursor = decodeCursor(cursor);
+      if (decodedCursor) {
+        cursorClause = { id: decodedCursor.id };
+      }
+    }
+
+    // OrderBy com id como tiebreaker
+    const orderBy: Prisma.UserOrderByWithRelationInput[] = [
+      { [sortBy]: sortOrder },
+    ];
+    if (sortBy !== 'id') {
+      orderBy.push({ id: sortOrder });
+    }
+
+    const takeWithExtra = limit + 1;
+
+    const findManyArgs: Prisma.UserFindManyArgs = {
+      where,
+      take: takeWithExtra,
+      orderBy,
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        avatar: true,
+        role: true,
+        status: true,
+        tenantId: true,
+        lastLoginAt: true,
+        createdAt: true,
+        tenant: {
+          select: { id: true, name: true, slug: true },
         },
-      }),
+      },
+    };
+
+    if (useCursor && cursorClause) {
+      findManyArgs.cursor = cursorClause;
+      findManyArgs.skip = 1;
+    } else {
+      findManyArgs.skip = skip;
+    }
+
+    const [rawData, total] = await Promise.all([
+      this.prisma.user.findMany(findManyArgs),
       this.prisma.user.count({ where }),
     ]);
 
+    const hasNextPage = rawData.length > limit;
+    const data = hasNextPage ? rawData.slice(0, limit) : rawData;
+    const hasPreviousPage = useCursor ? true : page > 1;
+
+    let nextCursor: string | undefined;
+    let previousCursor: string | undefined;
+
+    if (data.length > 0) {
+      const lastItem = data[data.length - 1];
+      const firstItem = data[0];
+
+      if (hasNextPage) {
+        nextCursor = encodeCursor({
+          id: lastItem.id,
+          sortField: sortBy,
+          sortValue: (lastItem as Record<string, unknown>)[sortBy] as string,
+        });
+      }
+
+      if (hasPreviousPage && useCursor) {
+        previousCursor = encodeCursor({
+          id: firstItem.id,
+          sortField: sortBy,
+          sortValue: (firstItem as Record<string, unknown>)[sortBy] as string,
+        });
+      }
+    }
+
     return {
       data,
-      meta: {
-        total,
-        page,
-        limit,
-        totalPages: Math.ceil(total / limit),
-      },
+      meta: createPaginationMeta(total, page, limit, {
+        hasNextPage,
+        hasPreviousPage,
+        nextCursor,
+        previousCursor,
+      }),
     };
   }
 

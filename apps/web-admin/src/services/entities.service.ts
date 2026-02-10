@@ -27,6 +27,9 @@ export interface QueryEntitiesParams {
   limit?: number;
   search?: string;
   tenantId?: string;
+  cursor?: string;
+  sortBy?: string;
+  sortOrder?: 'asc' | 'desc';
 }
 
 export const entitiesService = {

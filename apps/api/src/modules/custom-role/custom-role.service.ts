@@ -2,7 +2,14 @@ import { Injectable, NotFoundException, ConflictException, Logger } from '@nestj
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateCustomRoleDto, UpdateCustomRoleDto, QueryCustomRoleDto } from './dto/custom-role.dto';
 import { UserRole, Prisma } from '@prisma/client';
-import { CurrentUser } from '../../common/types';
+import {
+  CurrentUser,
+  createPaginationMeta,
+  encodeCursor,
+  decodeCursor,
+  DEFAULT_LIMIT,
+  MAX_LIMIT,
+} from '../../common/types';
 
 @Injectable()
 export class CustomRoleService {
@@ -46,8 +53,10 @@ export class CustomRoleService {
   }
 
   async findAll(query: QueryCustomRoleDto, currentUser: CurrentUser) {
-    const { page = 1, limit = 50, search } = query;
+    const page = Math.max(1, query.page || 1);
+    const limit = Math.min(MAX_LIMIT, Math.max(1, query.limit || DEFAULT_LIMIT));
     const skip = (page - 1) * limit;
+    const { search, cursor, sortBy = 'createdAt', sortOrder = 'desc' } = query;
     const tenantId = this.getEffectiveTenantId(currentUser);
 
     const where: Prisma.CustomRoleWhereInput = { tenantId };
@@ -59,22 +68,74 @@ export class CustomRoleService {
       ];
     }
 
-    const [data, total] = await Promise.all([
-      this.prisma.customRole.findMany({
-        where,
-        skip,
-        take: limit,
-        orderBy: { createdAt: 'desc' },
-        include: {
-          _count: { select: { users: true } },
-        },
-      }),
+    // Cursor pagination
+    const useCursor = !!cursor;
+    let cursorClause: { id: string } | undefined;
+
+    if (useCursor) {
+      const decodedCursor = decodeCursor(cursor);
+      if (decodedCursor) {
+        cursorClause = { id: decodedCursor.id };
+      }
+    }
+
+    const orderBy: Prisma.CustomRoleOrderByWithRelationInput[] = [
+      { [sortBy]: sortOrder },
+    ];
+    if (sortBy !== 'id') {
+      orderBy.push({ id: sortOrder });
+    }
+
+    const takeWithExtra = limit + 1;
+
+    const findManyArgs: Prisma.CustomRoleFindManyArgs = {
+      where,
+      take: takeWithExtra,
+      orderBy,
+      include: {
+        _count: { select: { users: true } },
+      },
+    };
+
+    if (useCursor && cursorClause) {
+      findManyArgs.cursor = cursorClause;
+      findManyArgs.skip = 1;
+    } else {
+      findManyArgs.skip = skip;
+    }
+
+    const [rawData, total] = await Promise.all([
+      this.prisma.customRole.findMany(findManyArgs),
       this.prisma.customRole.count({ where }),
     ]);
 
+    const hasNextPage = rawData.length > limit;
+    const data = hasNextPage ? rawData.slice(0, limit) : rawData;
+    const hasPreviousPage = useCursor ? true : page > 1;
+
+    let nextCursor: string | undefined;
+    let previousCursor: string | undefined;
+
+    if (data.length > 0) {
+      const lastItem = data[data.length - 1];
+      const firstItem = data[0];
+
+      if (hasNextPage) {
+        nextCursor = encodeCursor({ id: lastItem.id, sortField: sortBy });
+      }
+      if (hasPreviousPage && useCursor) {
+        previousCursor = encodeCursor({ id: firstItem.id, sortField: sortBy });
+      }
+    }
+
     return {
       data,
-      meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
+      meta: createPaginationMeta(total, page, limit, {
+        hasNextPage,
+        hasPreviousPage,
+        nextCursor,
+        previousCursor,
+      }),
     };
   }
 

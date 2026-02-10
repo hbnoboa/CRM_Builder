@@ -106,8 +106,23 @@ export class QueryCustomRoleDto {
   @IsOptional()
   limit?: number;
 
+  @ApiPropertyOptional({ description: 'Cursor para paginacao' })
+  @IsString()
+  @IsOptional()
+  cursor?: string;
+
   @ApiPropertyOptional()
   @IsString()
   @IsOptional()
   search?: string;
+
+  @ApiPropertyOptional({ default: 'createdAt' })
+  @IsString()
+  @IsOptional()
+  sortBy?: string;
+
+  @ApiPropertyOptional({ enum: ['asc', 'desc'], default: 'desc' })
+  @IsString()
+  @IsOptional()
+  sortOrder?: 'asc' | 'desc';
 }

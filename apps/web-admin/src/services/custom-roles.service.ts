@@ -5,6 +5,9 @@ export interface QueryCustomRolesParams {
   page?: number;
   limit?: number;
   search?: string;
+  cursor?: string;
+  sortBy?: string;
+  sortOrder?: 'asc' | 'desc';
 }
 
 export interface CreateCustomRoleData {
