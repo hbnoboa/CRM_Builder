@@ -279,80 +279,40 @@ export function RoleFormDialog({ open, onOpenChange, role, onSuccess }: RoleForm
 
               {/* Permissões por Entidade */}
               <div className="space-y-3">
-                <Label className="text-base font-semibold">{t('form.entityPermissions')}</Label>
-                <p className="text-sm text-muted-foreground">{t('form.entityPermissionsDesc')}</p>
-                <div className="flex-1 min-h-0 overflow-y-auto border rounded-lg">
-                  {permissions.length === 0 ? (
-                    <div className="text-center py-6 text-muted-foreground text-sm">
-                      {t('form.noEntities')}
-                    </div>
-                  ) : (
-                    <div>
-                      {/* Header */}
-                      <div className="grid grid-cols-[1fr_repeat(4,60px)_40px] sm:grid-cols-[1fr_repeat(4,80px)_50px] items-center gap-1 p-2 sm:p-3 bg-muted/50 text-xs font-medium text-muted-foreground">
-                        <span>{t('form.entity')}</span>
-                        <button
-                          type="button"
-                          className="text-center hover:text-foreground transition-colors flex flex-col items-center gap-0.5"
-                          onClick={() => toggleAllForAction('canCreate', !permissions.every((p) => p.canCreate))}
-                        >
-                          <Plus className="h-3.5 w-3.5" />
-                          <span className="hidden sm:inline">{t('form.create')}</span>
-                        </button>
-                        <button
-                          type="button"
-                          className="text-center hover:text-foreground transition-colors flex flex-col items-center gap-0.5"
-                          onClick={() => toggleAllForAction('canRead', !permissions.every((p) => p.canRead))}
-                        >
-                          <Eye className="h-3.5 w-3.5" />
-                          <span className="hidden sm:inline">{t('form.read')}</span>
-                        </button>
-                        <button
-                          type="button"
-                          className="text-center hover:text-foreground transition-colors flex flex-col items-center gap-0.5"
-                          onClick={() => toggleAllForAction('canUpdate', !permissions.every((p) => p.canUpdate))}
-                        >
-                          <Pencil className="h-3.5 w-3.5" />
-                          <span className="hidden sm:inline">{t('form.update')}</span>
-                        </button>
-                        <button
-                          type="button"
-                          className="text-center hover:text-foreground transition-colors flex flex-col items-center gap-0.5"
-                          onClick={() => toggleAllForAction('canDelete', !permissions.every((p) => p.canDelete))}
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                          <span className="hidden sm:inline">{t('form.delete')}</span>
-                        </button>
-                        <span></span>
-                      </div>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <Label className="text-base font-semibold">{t('form.entityPermissions')}</Label>
+                    <p className="text-sm text-muted-foreground">{t('form.entityPermissionsDesc')}</p>
+                  </div>
+                  {permissions.length > 0 && (
+                    <Badge variant="secondary">{permissions.length} {t('form.entity').toLowerCase()}(s)</Badge>
+                  )}
+                </div>
 
-                      {/* Rows */}
-                      {permissions.map((perm, idx) => {
-                        const entity = entities.find((e) => e.slug === perm.entitySlug);
-                        const allChecked = perm.canCreate && perm.canRead && perm.canUpdate && perm.canDelete;
-                        return (
-                          <div
-                            key={perm.entitySlug}
-                            className={`grid grid-cols-[1fr_repeat(4,60px)_40px] sm:grid-cols-[1fr_repeat(4,80px)_50px] items-center gap-1 p-2 sm:p-3 ${
-                              idx % 2 === 0 ? 'bg-background' : 'bg-muted/20'
-                            }`}
-                          >
-                            <div className="flex items-center gap-2 min-w-0">
-                              <Database className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                              <span className="text-sm font-medium truncate">
+                {permissions.length === 0 ? (
+                  <div className="text-center py-6 text-muted-foreground text-sm border rounded-lg">
+                    {t('form.noEntities')}
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {permissions.map((perm) => {
+                      const entity = entities.find((e) => e.slug === perm.entitySlug);
+                      const allChecked = perm.canCreate && perm.canRead && perm.canUpdate && perm.canDelete;
+                      const noneChecked = !perm.canCreate && !perm.canRead && !perm.canUpdate && !perm.canDelete;
+                      return (
+                        <div
+                          key={perm.entitySlug}
+                          className="border rounded-lg p-3 space-y-2"
+                        >
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <Database className="h-4 w-4 text-muted-foreground" />
+                              <span className="text-sm font-semibold">
                                 {entity?.name || perm.entityName || perm.entitySlug}
                               </span>
                             </div>
-                            {(['canCreate', 'canRead', 'canUpdate', 'canDelete'] as const).map((action) => (
-                              <div key={action} className="flex justify-center">
-                                <Checkbox
-                                  checked={perm[action]}
-                                  onCheckedChange={() => togglePermission(perm.entitySlug, action)}
-                                  className="h-5 w-5"
-                                />
-                              </div>
-                            ))}
-                            <div className="flex justify-center">
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs text-muted-foreground">{noneChecked ? 'Sem acesso' : allChecked ? 'Acesso total' : 'Parcial'}</span>
                               <Checkbox
                                 checked={allChecked}
                                 onCheckedChange={(checked) => toggleAllForEntity(perm.entitySlug, !!checked)}
@@ -360,11 +320,36 @@ export function RoleFormDialog({ open, onOpenChange, role, onSuccess }: RoleForm
                               />
                             </div>
                           </div>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
+                          <div className="flex flex-wrap gap-3">
+                            {([
+                              { key: 'canCreate' as const, label: t('form.create'), icon: <Plus className="h-3.5 w-3.5" /> },
+                              { key: 'canRead' as const, label: t('form.read'), icon: <Eye className="h-3.5 w-3.5" /> },
+                              { key: 'canUpdate' as const, label: t('form.update'), icon: <Pencil className="h-3.5 w-3.5" /> },
+                              { key: 'canDelete' as const, label: t('form.delete'), icon: <Trash2 className="h-3.5 w-3.5" /> },
+                            ]).map(({ key, label, icon }) => (
+                              <label
+                                key={key}
+                                className={`flex items-center gap-1.5 cursor-pointer rounded-md border px-2.5 py-1.5 text-xs font-medium transition-colors ${
+                                  perm[key]
+                                    ? 'border-primary bg-primary/10 text-primary'
+                                    : 'border-border text-muted-foreground hover:border-muted-foreground/50'
+                                }`}
+                              >
+                                <Checkbox
+                                  checked={perm[key]}
+                                  onCheckedChange={() => togglePermission(perm.entitySlug, key)}
+                                  className="h-3.5 w-3.5"
+                                />
+                                {icon}
+                                {label}
+                              </label>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
 
               {/* Default */}
