@@ -9,6 +9,7 @@ import {
   createPaginationMeta,
 } from '../../common/types';
 import { RoleType } from '../../common/decorators/roles.decorator';
+import { getEffectiveTenantId } from '../../common/utils/tenant.util';
 
 export interface QueryPageDto extends PaginationQuery {
   isPublished?: boolean;
@@ -73,17 +74,8 @@ function cleanPuckContent(obj: unknown): unknown {
 export class PageService {
   constructor(private prisma: PrismaService) {}
 
-  // Helper para determinar o tenantId efetivo (PLATFORM_ADMIN pode acessar qualquer tenant)
-  private getEffectiveTenantId(currentUser: CurrentUser, requestedTenantId?: string): string {
-    const roleType = currentUser.customRole?.roleType as RoleType | undefined;
-    if (roleType === 'PLATFORM_ADMIN' && requestedTenantId) {
-      return requestedTenantId;
-    }
-    return currentUser.tenantId;
-  }
-
   async create(data: CreatePageDto & { tenantId?: string }, userId: string, currentUser: CurrentUser) {
-    const targetTenantId = this.getEffectiveTenantId(currentUser, data.tenantId);
+    const targetTenantId = getEffectiveTenantId(currentUser, data.tenantId);
 
     // Limpar hrefs do conteudo para remover prefixos de locale
     const cleanedContent = data.content ? cleanPuckContent(data.content) : {};

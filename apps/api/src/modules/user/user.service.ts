@@ -13,6 +13,7 @@ import {
   MAX_LIMIT,
 } from '../../common/types';
 import { RoleType } from '../../common/decorators/roles.decorator';
+import { getEffectiveTenantId } from '../../common/utils/tenant.util';
 
 @Injectable()
 export class UserService {
@@ -23,19 +24,9 @@ export class UserService {
     private notificationService: NotificationService,
   ) {}
 
-  // Helper para determinar o tenantId a ser usado (suporta PLATFORM_ADMIN)
-  private getEffectiveTenantId(currentUser: CurrentUser, requestedTenantId?: string): string {
-    const roleType = currentUser.customRole?.roleType as RoleType | undefined;
-    // PLATFORM_ADMIN pode acessar qualquer tenant
-    if (roleType === 'PLATFORM_ADMIN' && requestedTenantId) {
-      return requestedTenantId;
-    }
-    return currentUser.tenantId;
-  }
-
   async create(dto: CreateUserDto, currentUser: CurrentUser) {
     // Determinar tenantId (PLATFORM_ADMIN pode criar em outro tenant)
-    const targetTenantId = this.getEffectiveTenantId(currentUser, dto.tenantId);
+    const targetTenantId = getEffectiveTenantId(currentUser, dto.tenantId);
 
     // Verificar se email ja existe no tenant
     const existing = await this.prisma.user.findFirst({

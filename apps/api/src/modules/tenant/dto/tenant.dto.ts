@@ -31,9 +31,9 @@ export class CreateTenantDto {
   @IsString()
   adminName: string;
 
-  @ApiProperty({ example: 'senha123' })
+  @ApiProperty({ example: 'Senha123!' })
   @IsString()
-  @MinLength(6)
+  @MinLength(8, { message: 'Senha deve ter no minimo 8 caracteres' })
   adminPassword: string;
 }
 

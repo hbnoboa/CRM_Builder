@@ -122,13 +122,14 @@ export class NotificationService {
         },
       });
 
+      // Filtrar usuarios com acesso
+      const eligibleUserIds: string[] = [];
       for (const user of users) {
         const roleType = user.customRole?.roleType;
 
         // PLATFORM_ADMIN e ADMIN recebem tudo
         if (roleType === 'PLATFORM_ADMIN' || roleType === 'ADMIN') {
-          this.gateway.sendToUser(user.id, notification);
-          this.persistNotification(user.id, tenantId, notification, entitySlug);
+          eligibleUserIds.push(user.id);
           continue;
         }
 
@@ -141,12 +142,30 @@ export class NotificationService {
             (p) => p.entitySlug === entitySlug && p.canRead,
           );
           if (hasAccess) {
-            this.gateway.sendToUser(user.id, notification);
-            this.persistNotification(user.id, tenantId, notification, entitySlug);
+            eligibleUserIds.push(user.id);
           }
-        } else {
-          // Sem custom role: nao recebe (todos devem ter customRole agora)
         }
+      }
+
+      // Enviar notificacoes via WebSocket
+      for (const userId of eligibleUserIds) {
+        this.gateway.sendToUser(userId, notification);
+      }
+
+      // Persistir em batch (1 query ao inves de N)
+      if (eligibleUserIds.length > 0) {
+        await this.prisma.notification.createMany({
+          data: eligibleUserIds.map((userId) => ({
+            tenantId,
+            userId,
+            type: typeMap[notification.type] || NotificationType.INFO,
+            title: notification.title,
+            message: notification.message,
+            data: notification.data as Prisma.InputJsonValue,
+            entitySlug,
+            read: false,
+          })),
+        });
       }
     } catch (error) {
       this.logger.error(`Failed to notify users with entity access: ${error}`);

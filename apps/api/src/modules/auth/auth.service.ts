@@ -169,35 +169,39 @@ export class AuthService {
   async refreshToken(dto: RefreshTokenDto) {
     try {
       // Verificar refresh token
-      const payload = this.jwtService.verify(dto.refreshToken, {
+      this.jwtService.verify(dto.refreshToken, {
         secret: this.configService.get<string>('JWT_REFRESH_SECRET'),
       });
 
-      // Buscar refresh token no banco
-      const storedToken = await this.prisma.refreshToken.findUnique({
-        where: { token: dto.refreshToken },
-        include: {
-          user: {
-            include: {
-              tenant: true,
-              customRole: {
-                select: {
-                  id: true,
-                  roleType: true,
+      // Buscar e deletar token atomicamente para prevenir reuso
+      const storedToken = await this.prisma.$transaction(async (tx) => {
+        const token = await tx.refreshToken.findUnique({
+          where: { token: dto.refreshToken },
+          include: {
+            user: {
+              include: {
+                tenant: true,
+                customRole: {
+                  select: {
+                    id: true,
+                    roleType: true,
+                  },
                 },
               },
             },
           },
-        },
-      });
+        });
 
-      if (!storedToken || storedToken.expiresAt < new Date()) {
-        throw new UnauthorizedException('Refresh token invalido ou expirado');
-      }
+        if (!token || token.expiresAt < new Date()) {
+          throw new UnauthorizedException('Refresh token invalido ou expirado');
+        }
 
-      // Deletar token usado
-      await this.prisma.refreshToken.delete({
-        where: { id: storedToken.id },
+        // Deletar token dentro da mesma transacao
+        await tx.refreshToken.delete({
+          where: { id: token.id },
+        });
+
+        return token;
       });
 
       // Gerar novos tokens
@@ -205,6 +209,7 @@ export class AuthService {
 
       return tokens;
     } catch (error) {
+      if (error instanceof UnauthorizedException) throw error;
       throw new UnauthorizedException('Refresh token invalido');
     }
   }

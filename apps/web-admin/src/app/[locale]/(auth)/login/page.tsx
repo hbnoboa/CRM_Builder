@@ -28,7 +28,7 @@ export default function LoginPage() {
 
   const loginSchema = useMemo(() => z.object({
     email: z.string().min(1, tValidation('emailRequired')).email(tValidation('emailInvalid')),
-    password: z.string().min(6, tValidation('passwordMin', { min: 6 })),
+    password: z.string().min(8, tValidation('passwordMin', { min: 8 })),
   }), [tValidation]);
 
   const {

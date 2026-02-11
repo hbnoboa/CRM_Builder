@@ -17,6 +17,7 @@ import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import { CurrentUser as CurrentUserType } from '../../common/types';
 
 @ApiTags('Users')
 @Controller('users')
@@ -27,13 +28,13 @@ export class UserController {
 
   @Get('me')
   @ApiOperation({ summary: 'Obter perfil do usuário atual' })
-  async getMe(@CurrentUser() user: any) {
+  async getMe(@CurrentUser() user: CurrentUserType) {
     return this.userService.findOne(user.id, user);
   }
 
   @Patch('me')
   @ApiOperation({ summary: 'Atualizar perfil do usuário atual' })
-  async updateMe(@Body() dto: UpdateUserDto, @CurrentUser() user: any) {
+  async updateMe(@Body() dto: UpdateUserDto, @CurrentUser() user: CurrentUserType) {
     return this.userService.update(user.id, dto, user);
   }
 
@@ -41,21 +42,21 @@ export class UserController {
   @Roles('ADMIN', 'PLATFORM_ADMIN')
   @ApiOperation({ summary: 'Criar usuário' })
   @ApiResponse({ status: 201, description: 'Usuário criado' })
-  async create(@Body() dto: CreateUserDto, @CurrentUser() user: any) {
+  async create(@Body() dto: CreateUserDto, @CurrentUser() user: CurrentUserType) {
     return this.userService.create(dto, user);
   }
 
   @Get()
   @Roles('ADMIN', 'MANAGER', 'PLATFORM_ADMIN')
   @ApiOperation({ summary: 'Listar usuários' })
-  async findAll(@Query() query: QueryUserDto, @CurrentUser() user: any) {
+  async findAll(@Query() query: QueryUserDto, @CurrentUser() user: CurrentUserType) {
     return this.userService.findAll(query, user);
   }
 
   @Get(':id')
   @Roles('ADMIN', 'MANAGER', 'PLATFORM_ADMIN')
   @ApiOperation({ summary: 'Buscar usuário por ID' })
-  async findOne(@Param('id') id: string, @CurrentUser() user: any) {
+  async findOne(@Param('id') id: string, @CurrentUser() user: CurrentUserType) {
     return this.userService.findOne(id, user);
   }
 
@@ -65,7 +66,7 @@ export class UserController {
   async update(
     @Param('id') id: string,
     @Body() dto: UpdateUserDto,
-    @CurrentUser() user: any,
+    @CurrentUser() user: CurrentUserType,
   ) {
     return this.userService.update(id, dto, user);
   }
@@ -73,7 +74,7 @@ export class UserController {
   @Delete(':id')
   @Roles('ADMIN', 'PLATFORM_ADMIN')
   @ApiOperation({ summary: 'Excluir usuário' })
-  async remove(@Param('id') id: string, @CurrentUser() user: any) {
+  async remove(@Param('id') id: string, @CurrentUser() user: CurrentUserType) {
     return this.userService.remove(id, user);
   }
 }

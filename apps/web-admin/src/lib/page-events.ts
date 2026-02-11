@@ -800,7 +800,8 @@ export function evaluateExpression(expression: string, context: ExpressionContex
   if (singleExprMatch) {
     try {
       return evaluator.evaluate(singleExprMatch[1].trim());
-    } catch {
+    } catch (error) {
+      console.error('[PageEvents] Failed to evaluate expression:', singleExprMatch[1], error);
       return '';
     }
   }
@@ -810,7 +811,8 @@ export function evaluateExpression(expression: string, context: ExpressionContex
     try {
       const value = evaluator.evaluate(expr.trim());
       return value !== undefined && value !== null ? String(value) : '';
-    } catch {
+    } catch (error) {
+      console.error('[PageEvents] Failed to evaluate inline expression:', expr, error);
       return '';
     }
   });
@@ -827,7 +829,8 @@ export function evaluateCondition(condition: string, context: ExpressionContext)
   try {
     const result = evaluateExpression(condition, context);
     return Boolean(result);
-  } catch {
+  } catch (error) {
+    console.error('[PageEvents] Failed to evaluate condition:', condition, error);
     return false;
   }
 }

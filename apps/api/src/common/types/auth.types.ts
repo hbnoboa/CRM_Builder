@@ -29,7 +29,6 @@ export interface CurrentUser {
   tenantId: string;
   customRoleId: string;
   customRole: CurrentUserCustomRole;
-  permissions?: string[];
 }
 
 /**

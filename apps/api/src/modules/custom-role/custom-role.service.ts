@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException, ConflictException, ForbiddenException, Logger } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateCustomRoleDto, UpdateCustomRoleDto, QueryCustomRoleDto, RoleType } from './dto/custom-role.dto';
+import { getEffectiveTenantId } from '../../common/utils/tenant.util';
 import { Prisma } from '@prisma/client';
 import {
   CurrentUser,
@@ -17,16 +18,8 @@ export class CustomRoleService {
 
   constructor(private prisma: PrismaService) {}
 
-  private getEffectiveTenantId(currentUser: CurrentUser, requestedTenantId?: string): string {
-    const roleType = currentUser.customRole?.roleType as RoleType | undefined;
-    if (roleType === 'PLATFORM_ADMIN' && requestedTenantId) {
-      return requestedTenantId;
-    }
-    return currentUser.tenantId;
-  }
-
   async create(dto: CreateCustomRoleDto, currentUser: CurrentUser) {
-    const tenantId = this.getEffectiveTenantId(currentUser);
+    const tenantId = getEffectiveTenantId(currentUser);
 
     // Verificar se nome já existe no tenant
     const existing = await this.prisma.customRole.findUnique({
@@ -60,7 +53,7 @@ export class CustomRoleService {
     const limit = Math.min(MAX_LIMIT, Math.max(1, query.limit || DEFAULT_LIMIT));
     const skip = (page - 1) * limit;
     const { search, cursor, sortBy = 'createdAt', sortOrder = 'desc' } = query;
-    const tenantId = this.getEffectiveTenantId(currentUser);
+    const tenantId = getEffectiveTenantId(currentUser);
 
     const where: Prisma.CustomRoleWhereInput = { tenantId };
 
@@ -143,7 +136,7 @@ export class CustomRoleService {
   }
 
   async findOne(id: string, currentUser: CurrentUser) {
-    const tenantId = this.getEffectiveTenantId(currentUser);
+    const tenantId = getEffectiveTenantId(currentUser);
 
     const role = await this.prisma.customRole.findFirst({
       where: { id, tenantId },
@@ -164,7 +157,7 @@ export class CustomRoleService {
   }
 
   async update(id: string, dto: UpdateCustomRoleDto, currentUser: CurrentUser) {
-    const tenantId = this.getEffectiveTenantId(currentUser);
+    const tenantId = getEffectiveTenantId(currentUser);
 
     const role = await this.findOne(id, currentUser);
 
@@ -228,7 +221,7 @@ export class CustomRoleService {
   }
 
   async assignToUser(roleId: string, userId: string, currentUser: CurrentUser) {
-    const tenantId = this.getEffectiveTenantId(currentUser);
+    const tenantId = getEffectiveTenantId(currentUser);
 
     // Verificar se a role existe e pertence ao tenant
     const role = await this.prisma.customRole.findFirst({
@@ -258,7 +251,7 @@ export class CustomRoleService {
   }
 
   async removeFromUser(userId: string, currentUser: CurrentUser) {
-    const tenantId = this.getEffectiveTenantId(currentUser);
+    const tenantId = getEffectiveTenantId(currentUser);
 
     const user = await this.prisma.user.findFirst({
       where: { id: userId, tenantId },

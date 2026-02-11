@@ -1320,5 +1320,12 @@
     "noRolesFound": "No roles found",
     "system": "System",
     "noDescription": "No description"
+  },
+  "errorPage": {
+    "title": "Something went wrong",
+    "description": "An unexpected error occurred while processing your request.",
+    "hint": "If the problem persists, try refreshing the page or contact support.",
+    "tryAgain": "Try Again",
+    "backToDashboard": "Back to Dashboard"
   }
 }

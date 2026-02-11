@@ -17,6 +17,7 @@ import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import { CurrentUser as CurrentUserType } from '../../common/types';
 
 @ApiTags('Tenants')
 @Controller('tenants')
@@ -28,7 +29,7 @@ export class TenantController {
   // Endpoint para usuario autenticado obter seu proprio tenant
   @Get('me')
   @ApiOperation({ summary: 'Obter tenant do usuario atual' })
-  async getMyTenant(@CurrentUser() user: any) {
+  async getMyTenant(@CurrentUser() user: CurrentUserType) {
     return this.tenantService.findOne(user.tenantId);
   }
 

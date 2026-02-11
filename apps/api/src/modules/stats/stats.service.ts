@@ -85,33 +85,31 @@ export class StatsService {
 
   async getEntitiesDistribution(tenantId: string, role: string) {
     const where = this.getWhere(tenantId, role);
-    const entities = await this.prisma.entity.findMany({
-      where,
-      select: {
-        id: true,
-        name: true,
-        slug: true,
-      },
-    });
 
-    const distribution = await Promise.all(
-      entities.map(async (entity) => {
-        const count = await this.prisma.entityData.count({
-          where: {
-            entityId: entity.id,
-            ...where,
-          },
-        });
-
-        return {
-          name: entity.name,
-          slug: entity.slug,
-          records: count,
-        };
+    // Usar groupBy para evitar N+1 (1 query ao inves de N+1)
+    const [entities, counts] = await Promise.all([
+      this.prisma.entity.findMany({
+        where,
+        select: { id: true, name: true, slug: true },
       }),
+      this.prisma.entityData.groupBy({
+        by: ['entityId'],
+        where,
+        _count: { id: true },
+      }),
+    ]);
+
+    const countMap = new Map(
+      counts.map((c) => [c.entityId, c._count.id]),
     );
 
-    return distribution.filter((item) => item.records > 0);
+    return entities
+      .map((entity) => ({
+        name: entity.name,
+        slug: entity.slug,
+        records: countMap.get(entity.id) || 0,
+      }))
+      .filter((item) => item.records > 0);
   }
 
   async getUsersActivity(tenantId: string, role: string, days: number = 7) {

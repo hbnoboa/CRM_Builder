@@ -26,13 +26,21 @@
     "test:headed": "playwright test --headed",
     "test:api": "playwright test e2e/api.spec.ts",
     "test:e2e": "playwright test e2e/app.spec.ts",
-    "test:report": "playwright show-report"
+    "test:report": "playwright show-report",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
+  },
+  "lint-staged": {
+    "*.{ts,tsx,js,jsx}": ["prettier --write"],
+    "*.{json,md,yaml,yml,css,scss}": ["prettier --write"]
   },
   "devDependencies": {
     "@playwright/test": "^1.58.1",
     "@types/node": "^20.14.0",
     "@types/papaparse": "^5.5.2",
+    "lint-staged": "^16.2.7",
     "playwright": "^1.58.1",
+    "prettier": "^3.8.1",
     "turbo": "^2.0.0",
     "typescript": "^5.5.0"
   }

@@ -1322,5 +1322,12 @@
     "noRolesFound": "Nenhuma role encontrada",
     "system": "Sistema",
     "noDescription": "Sem descricao"
+  },
+  "errorPage": {
+    "title": "Algo deu errado",
+    "description": "Ocorreu um erro inesperado ao processar sua solicitacao.",
+    "hint": "Se o problema persistir, tente atualizar a pagina ou entre em contato com o suporte.",
+    "tryAgain": "Tentar Novamente",
+    "backToDashboard": "Voltar ao Dashboard"
   }
 }

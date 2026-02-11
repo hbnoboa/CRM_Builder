@@ -10,13 +10,15 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
-import { DataService } from './data.service';
+import { DataService, QueryDataDto } from './data.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+import { RolesGuard } from '../../common/guards/roles.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import { CurrentUser as CurrentUserType } from '../../common/types';
 
 @ApiTags('Data')
 @Controller('data')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, RolesGuard)
 @ApiBearerAuth()
 export class DataController {
   constructor(private readonly dataService: DataService) {}
@@ -26,7 +28,7 @@ export class DataController {
   async create(
     @Param('entitySlug') entitySlug: string,
     @Body() dto: { data: Record<string, any>; parentRecordId?: string },
-    @CurrentUser() user: any,
+    @CurrentUser() user: CurrentUserType,
   ) {
     return this.dataService.create(entitySlug, dto, user);
   }
@@ -35,8 +37,8 @@ export class DataController {
   @ApiOperation({ summary: 'Listar registros' })
   async findAll(
     @Param('entitySlug') entitySlug: string,
-    @Query() query: any,
-    @CurrentUser() user: any,
+    @Query() query: QueryDataDto,
+    @CurrentUser() user: CurrentUserType,
   ) {
     return this.dataService.findAll(entitySlug, query, user);
   }
@@ -46,7 +48,7 @@ export class DataController {
   async findOne(
     @Param('entitySlug') entitySlug: string,
     @Param('id') id: string,
-    @CurrentUser() user: any,
+    @CurrentUser() user: CurrentUserType,
   ) {
     return this.dataService.findOne(entitySlug, id, user);
   }
@@ -57,7 +59,7 @@ export class DataController {
     @Param('entitySlug') entitySlug: string,
     @Param('id') id: string,
     @Body() dto: { data: Record<string, any> },
-    @CurrentUser() user: any,
+    @CurrentUser() user: CurrentUserType,
   ) {
     return this.dataService.update(entitySlug, id, dto, user);
   }
@@ -67,7 +69,7 @@ export class DataController {
   async remove(
     @Param('entitySlug') entitySlug: string,
     @Param('id') id: string,
-    @CurrentUser() user: any,
+    @CurrentUser() user: CurrentUserType,
   ) {
     return this.dataService.remove(entitySlug, id, user);
   }

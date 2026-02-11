@@ -10,7 +10,9 @@ import {
   Query,
   Body,
   BadRequestException,
+  ForbiddenException,
 } from '@nestjs/common';
+import * as pathModule from 'path';
 import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express';
 import {
   ApiTags,
@@ -20,15 +22,29 @@ import {
   ApiBody,
 } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+import { RolesGuard } from '../../common/guards/roles.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import { CurrentUser as CurrentUserType } from '../../common/types';
 import { UploadService, UploadedFile as UploadedFileType } from './upload.service';
 
 @ApiTags('Upload')
 @Controller('upload')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, RolesGuard)
 @ApiBearerAuth()
 export class UploadController {
   constructor(private readonly uploadService: UploadService) {}
+
+  /** Sanitiza folder para prevenir path traversal */
+  private sanitizeFolder(folder?: string): string | undefined {
+    if (!folder) return undefined;
+    // Remove ../ e normaliza o path
+    const sanitized = pathModule.normalize(folder).replace(/^(\.\.(\/|\\|$))+/, '');
+    // Rejeita se ainda contiver ..
+    if (sanitized.includes('..')) {
+      throw new BadRequestException('Caminho de pasta invalido');
+    }
+    return sanitized;
+  }
 
   @Post('file')
   @UseInterceptors(FileInterceptor('file'))
@@ -51,13 +67,14 @@ export class UploadController {
   })
   async uploadFile(
     @UploadedFile() file: Express.Multer.File,
-    @CurrentUser() user: any,
+    @CurrentUser() user: CurrentUserType,
     @Body('folder') folder?: string,
   ): Promise<UploadedFileType> {
     if (!file) {
       throw new BadRequestException('Nenhum arquivo enviado');
     }
-    return this.uploadService.uploadFile(file, user.tenantId, folder);
+    const safeFolder = this.sanitizeFolder(folder);
+    return this.uploadService.uploadFile(file, user.tenantId, safeFolder);
   }
 
   @Post('files')
@@ -84,13 +101,14 @@ export class UploadController {
   })
   async uploadFiles(
     @UploadedFiles() files: Express.Multer.File[],
-    @CurrentUser() user: any,
+    @CurrentUser() user: CurrentUserType,
     @Body('folder') folder?: string,
   ): Promise<UploadedFileType[]> {
     if (!files || files.length === 0) {
       throw new BadRequestException('Nenhum arquivo enviado');
     }
-    return this.uploadService.uploadMultipleFiles(files, user.tenantId, folder);
+    const safeFolder = this.sanitizeFolder(folder);
+    return this.uploadService.uploadMultipleFiles(files, user.tenantId, safeFolder);
   }
 
   @Post('image')
@@ -114,27 +132,31 @@ export class UploadController {
   })
   async uploadImage(
     @UploadedFile() file: Express.Multer.File,
-    @CurrentUser() user: any,
+    @CurrentUser() user: CurrentUserType,
     @Body('folder') folder?: string,
   ): Promise<UploadedFileType> {
     if (!file) {
       throw new BadRequestException('Nenhuma imagem enviada');
     }
-    return this.uploadService.uploadImage(file, user.tenantId, { folder });
+    const safeFolder = this.sanitizeFolder(folder);
+    return this.uploadService.uploadImage(file, user.tenantId, { folder: safeFolder });
   }
 
   @Delete(':path')
   @ApiOperation({ summary: 'Deletar arquivo' })
   async deleteFile(
     @Param('path') filePath: string,
-    @CurrentUser() user: any,
+    @CurrentUser() user: CurrentUserType,
   ): Promise<{ message: string }> {
-    // Verificar se o arquivo pertence ao tenant
-    if (!filePath.startsWith(user.tenantId)) {
-      throw new BadRequestException('Você não tem permissão para deletar este arquivo');
+    // Normalizar path para prevenir path traversal (../)
+    const normalizedPath = pathModule.normalize(filePath).replace(/^(\.\.(\/|\\|$))+/, '');
+
+    // Verificar se o arquivo pertence ao tenant apos normalizacao
+    if (!normalizedPath.startsWith(user.tenantId)) {
+      throw new ForbiddenException('Voce nao tem permissao para deletar este arquivo');
     }
-    
-    await this.uploadService.deleteFile(filePath);
+
+    await this.uploadService.deleteFile(normalizedPath);
     return { message: 'Arquivo deletado com sucesso' };
   }
 }

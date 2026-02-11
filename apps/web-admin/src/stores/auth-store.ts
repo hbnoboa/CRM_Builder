@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { isAxiosError } from 'axios';
 // import Cookies from 'js-cookie';
 import type { User, AuthResponse, LoginCredentials, RegisterDate } from '@/types';
 import api from '@/lib/api';
@@ -38,11 +39,10 @@ export const useAuthStore = create<AuthState>()(
           
           set({ user, isAuthenticated: true, isLoading: false });
         } catch (error: unknown) {
-          const err = error as { response?: { data?: { message?: string } } };
-          set({ 
-            error: err.response?.data?.message || 'Login failed', 
-            isLoading: false 
-          });
+          const message = isAxiosError<{ message?: string }>(error)
+            ? error.response?.data?.message || 'Login failed'
+            : 'Login failed';
+          set({ error: message, isLoading: false });
           throw error;
         }
       },
@@ -52,17 +52,16 @@ export const useAuthStore = create<AuthState>()(
         try {
           const response = await api.post<AuthResponse>('/auth/register', data);
           const { user, accessToken, refreshToken } = response.data;
-          
+
           localStorage.setItem('accessToken', accessToken);
           localStorage.setItem('refreshToken', refreshToken);
-          
+
           set({ user, isAuthenticated: true, isLoading: false });
         } catch (error: unknown) {
-          const err = error as { response?: { data?: { message?: string } } };
-          set({ 
-            error: err.response?.data?.message || 'Registration failed', 
-            isLoading: false 
-          });
+          const message = isAxiosError<{ message?: string }>(error)
+            ? error.response?.data?.message || 'Registration failed'
+            : 'Registration failed';
+          set({ error: message, isLoading: false });
           throw error;
         }
       },

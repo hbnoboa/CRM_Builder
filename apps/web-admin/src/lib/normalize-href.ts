@@ -13,7 +13,6 @@ const SYSTEM_ROUTES = [
   '/login',
   '/register',
   '/profile',
-  '/permissions',
 ];
 
 /**

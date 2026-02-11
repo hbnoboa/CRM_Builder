@@ -8,6 +8,7 @@ import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import { CurrentUser as CurrentUserType } from '../../common/types';
 
 @ApiTags('Custom Roles')
 @Controller('custom-roles')
@@ -20,19 +21,19 @@ export class CustomRoleController {
   @Roles('ADMIN', 'PLATFORM_ADMIN')
   @ApiOperation({ summary: 'Criar role customizada' })
   @ApiResponse({ status: 201, description: 'Role criada com sucesso' })
-  async create(@Body() dto: CreateCustomRoleDto, @CurrentUser() user: any) {
+  async create(@Body() dto: CreateCustomRoleDto, @CurrentUser() user: CurrentUserType) {
     return this.customRoleService.create(dto, user);
   }
 
   @Get()
   @ApiOperation({ summary: 'Listar roles customizadas' })
-  async findAll(@Query() query: QueryCustomRoleDto, @CurrentUser() user: any) {
+  async findAll(@Query() query: QueryCustomRoleDto, @CurrentUser() user: CurrentUserType) {
     return this.customRoleService.findAll(query, user);
   }
 
   @Get('my-permissions')
   @ApiOperation({ summary: 'Obter permissões do usuário logado' })
-  async getMyPermissions(@CurrentUser() user: any) {
+  async getMyPermissions(@CurrentUser() user: CurrentUserType) {
     const [entities, modules] = await Promise.all([
       this.customRoleService.getUserAccessibleEntities(user.id),
       this.customRoleService.getUserModulePermissions(user.id),
@@ -42,21 +43,21 @@ export class CustomRoleController {
 
   @Get(':id')
   @ApiOperation({ summary: 'Buscar role por ID' })
-  async findOne(@Param('id') id: string, @CurrentUser() user: any) {
+  async findOne(@Param('id') id: string, @CurrentUser() user: CurrentUserType) {
     return this.customRoleService.findOne(id, user);
   }
 
   @Patch(':id')
   @Roles('ADMIN', 'PLATFORM_ADMIN')
   @ApiOperation({ summary: 'Atualizar role customizada' })
-  async update(@Param('id') id: string, @Body() dto: UpdateCustomRoleDto, @CurrentUser() user: any) {
+  async update(@Param('id') id: string, @Body() dto: UpdateCustomRoleDto, @CurrentUser() user: CurrentUserType) {
     return this.customRoleService.update(id, dto, user);
   }
 
   @Delete(':id')
   @Roles('ADMIN', 'PLATFORM_ADMIN')
   @ApiOperation({ summary: 'Excluir role customizada' })
-  async remove(@Param('id') id: string, @CurrentUser() user: any) {
+  async remove(@Param('id') id: string, @CurrentUser() user: CurrentUserType) {
     return this.customRoleService.remove(id, user);
   }
 
@@ -66,7 +67,7 @@ export class CustomRoleController {
   async assignToUser(
     @Param('roleId') roleId: string,
     @Param('userId') userId: string,
-    @CurrentUser() user: any,
+    @CurrentUser() user: CurrentUserType,
   ) {
     return this.customRoleService.assignToUser(roleId, userId, user);
   }
@@ -74,7 +75,7 @@ export class CustomRoleController {
   @Delete('user/:userId')
   @Roles('ADMIN', 'PLATFORM_ADMIN')
   @ApiOperation({ summary: 'Remover role de um usuário' })
-  async removeFromUser(@Param('userId') userId: string, @CurrentUser() user: any) {
+  async removeFromUser(@Param('userId') userId: string, @CurrentUser() user: CurrentUserType) {
     return this.customRoleService.removeFromUser(userId, user);
   }
 }

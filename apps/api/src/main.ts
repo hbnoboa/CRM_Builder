@@ -6,6 +6,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { AppModule } from './app.module';
+import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 
 async function bootstrap() {
   const logger = new Logger('Bootstrap');
@@ -41,6 +42,9 @@ async function bootstrap() {
     credentials: true,
   });
   
+  // Exception filter global (previne exposicao de stack traces)
+  app.useGlobalFilters(new AllExceptionsFilter());
+
   // Validação global
   app.useGlobalPipes(
     new ValidationPipe({

@@ -13,6 +13,7 @@ import {
   MAX_LIMIT,
 } from '../../common/types';
 import { RoleType } from '../../common/decorators/roles.decorator';
+import { getEffectiveTenantId } from '../../common/utils/tenant.util';
 
 interface CreateDataDto {
   data: Record<string, unknown>;
@@ -33,7 +34,7 @@ interface CustomApiInputSchema {
   selectedFields?: CustomApiFieldConfig[];
 }
 
-interface QueryDataDto {
+export interface QueryDataDto {
   page?: number;
   limit?: number;
   search?: string;
@@ -200,22 +201,13 @@ export class DataService {
     return result;
   }
 
-  // Helper para determinar o tenantId efetivo (PLATFORM_ADMIN pode acessar qualquer tenant)
-  private getEffectiveTenantId(currentUser: CurrentUser, requestedTenantId?: string): string {
-    const roleType = currentUser.customRole?.roleType as RoleType | undefined;
-    if (roleType === 'PLATFORM_ADMIN' && requestedTenantId) {
-      return requestedTenantId;
-    }
-    return currentUser.tenantId;
-  }
-
   // Get entity with short-lived cache to avoid duplicate queries within same request
   private async getEntityCached(entitySlug: string, currentUser: CurrentUser, tenantId?: string): Promise<Entity> {
     // Para PLATFORM_ADMIN sem tenantId especificado, buscar em qualquer tenant
     const roleType = currentUser.customRole?.roleType as RoleType | undefined;
     const effectiveTenantId = roleType === 'PLATFORM_ADMIN' && !tenantId
       ? undefined
-      : this.getEffectiveTenantId(currentUser, tenantId);
+      : getEffectiveTenantId(currentUser, tenantId);
     const cacheKey = `${entitySlug}:${effectiveTenantId || 'any'}`;
     const cached = entityCache.get(cacheKey);
 
@@ -243,7 +235,7 @@ export class DataService {
     // Verificar permissao de criacao na entidade
     await this.checkEntityPermission(currentUser.id, entitySlug, 'canCreate');
 
-    const targetTenantId = this.getEffectiveTenantId(currentUser, dto.tenantId);
+    const targetTenantId = getEffectiveTenantId(currentUser, dto.tenantId);
 
     // Buscar entidade (cached)
     const entity = await this.getEntityCached(entitySlug, currentUser, targetTenantId);
@@ -303,7 +295,7 @@ export class DataService {
     const limit = Math.min(MAX_LIMIT, Math.max(1, parseInt(String(query.limit || DEFAULT_LIMIT), 10) || DEFAULT_LIMIT));
     const { search, sortBy = 'createdAt', sortOrder = 'desc', tenantId: queryTenantId, parentRecordId, cursor, fields } = query;
 
-    const effectiveTenantId = this.getEffectiveTenantId(currentUser, queryTenantId);
+    const effectiveTenantId = getEffectiveTenantId(currentUser, queryTenantId);
 
     // Buscar entidade (cached)
     const entity = await this.getEntityCached(entitySlug, currentUser, effectiveTenantId);
@@ -470,7 +462,7 @@ export class DataService {
     // Verificar permissao de leitura na entidade
     await this.checkEntityPermission(currentUser.id, entitySlug, 'canRead');
 
-    const effectiveTenantId = this.getEffectiveTenantId(currentUser, tenantId);
+    const effectiveTenantId = getEffectiveTenantId(currentUser, tenantId);
     const entity = await this.getEntityCached(entitySlug, currentUser, effectiveTenantId);
 
     // PLATFORM_ADMIN pode ver registro de qualquer tenant
@@ -518,7 +510,7 @@ export class DataService {
     // Verificar permissao de edicao na entidade
     await this.checkEntityPermission(currentUser.id, entitySlug, 'canUpdate');
 
-    const effectiveTenantId = this.getEffectiveTenantId(currentUser, dto.tenantId);
+    const effectiveTenantId = getEffectiveTenantId(currentUser, dto.tenantId);
     const entity = await this.getEntityCached(entitySlug, currentUser, effectiveTenantId);
 
     // PLATFORM_ADMIN pode editar registro de qualquer tenant
@@ -595,7 +587,7 @@ export class DataService {
     // Verificar permissao de exclusao na entidade
     await this.checkEntityPermission(currentUser.id, entitySlug, 'canDelete');
 
-    const effectiveTenantId = this.getEffectiveTenantId(currentUser, tenantId);
+    const effectiveTenantId = getEffectiveTenantId(currentUser, tenantId);
     const entity = await this.getEntityCached(entitySlug, currentUser, effectiveTenantId);
 
     // PLATFORM_ADMIN pode deletar registro de qualquer tenant

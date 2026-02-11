@@ -13,6 +13,7 @@ import {
 } from '../../common/types';
 import { Prisma } from '@prisma/client';
 import { RoleType } from '../../common/decorators/roles.decorator';
+import { getEffectiveTenantId } from '../../common/utils/tenant.util';
 
 export type QueryEntityDto = PaginationQuery;
 
@@ -71,17 +72,8 @@ export class EntityService {
     private notificationService: NotificationService,
   ) {}
 
-  // Helper para determinar o tenantId a ser usado (suporta PLATFORM_ADMIN)
-  private getEffectiveTenantId(currentUser: CurrentUser, requestedTenantId?: string): string {
-    const roleType = currentUser.customRole?.roleType as RoleType | undefined;
-    if (roleType === 'PLATFORM_ADMIN' && requestedTenantId) {
-      return requestedTenantId;
-    }
-    return currentUser.tenantId;
-  }
-
   async create(dto: CreateEntityDto & { tenantId?: string }, currentUser: CurrentUser) {
-    const targetTenantId = this.getEffectiveTenantId(currentUser, dto.tenantId);
+    const targetTenantId = getEffectiveTenantId(currentUser, dto.tenantId);
 
     // Verificar se slug ja existe no tenant
     const existing = await this.prisma.entity.findFirst({

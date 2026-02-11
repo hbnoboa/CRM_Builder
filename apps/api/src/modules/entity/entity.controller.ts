@@ -10,11 +10,12 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
-import { EntityService, QueryEntityDto } from './entity.service';
+import { EntityService, QueryEntityDto, CreateEntityDto, UpdateEntityDto } from './entity.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import { CurrentUser as CurrentUserType } from '../../common/types';
 
 @ApiTags('Entities')
 @Controller('entities')
@@ -26,19 +27,19 @@ export class EntityController {
   @Post()
   @Roles('ADMIN', 'PLATFORM_ADMIN')
   @ApiOperation({ summary: 'Criar entidade' })
-  async create(@Body() dto: any, @CurrentUser() user: any) {
+  async create(@Body() dto: CreateEntityDto, @CurrentUser() user: CurrentUserType) {
     return this.entityService.create(dto, user);
   }
 
   @Get()
   @ApiOperation({ summary: 'Listar entidades do tenant' })
-  async findAll(@Query() query: QueryEntityDto, @CurrentUser() user: any) {
+  async findAll(@Query() query: QueryEntityDto, @CurrentUser() user: CurrentUserType) {
     return this.entityService.findAll(user, query);
   }
 
   @Get(':id')
   @ApiOperation({ summary: 'Buscar entidade por ID' })
-  async findOne(@Param('id') id: string, @CurrentUser() user: any) {
+  async findOne(@Param('id') id: string, @CurrentUser() user: CurrentUserType) {
     return this.entityService.findOne(id, user);
   }
 
@@ -46,7 +47,7 @@ export class EntityController {
   @ApiOperation({ summary: 'Buscar entidade por slug' })
   async findBySlug(
     @Param('slug') slug: string,
-    @CurrentUser() user: any,
+    @CurrentUser() user: CurrentUserType,
   ) {
     return this.entityService.findBySlug(slug, user);
   }
@@ -54,14 +55,14 @@ export class EntityController {
   @Patch(':id')
   @Roles('ADMIN', 'PLATFORM_ADMIN')
   @ApiOperation({ summary: 'Atualizar entidade' })
-  async update(@Param('id') id: string, @Body() dto: any, @CurrentUser() user: any) {
+  async update(@Param('id') id: string, @Body() dto: UpdateEntityDto, @CurrentUser() user: CurrentUserType) {
     return this.entityService.update(id, dto, user);
   }
 
   @Delete(':id')
   @Roles('ADMIN', 'PLATFORM_ADMIN')
   @ApiOperation({ summary: 'Excluir entidade' })
-  async remove(@Param('id') id: string, @CurrentUser() user: any) {
+  async remove(@Param('id') id: string, @CurrentUser() user: CurrentUserType) {
     return this.entityService.remove(id, user);
   }
 }

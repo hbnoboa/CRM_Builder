@@ -441,7 +441,7 @@ export class CustomApiService {
     }
 
     // GET/DELETE = leitura
-    return this.executeVisualRead(endpoint, queryParams, body);
+    return this.executeVisualRead(endpoint, queryParams, body, tenantId);
   }
 
   // Executar escrita (POST/PUT/PATCH)
@@ -548,6 +548,7 @@ export class CustomApiService {
     endpoint: any,
     queryParams: Record<string, string>,
     body: Record<string, unknown>,
+    tenantId?: string,
   ) {
     // Construir filtros
     const filters: any = {};
@@ -572,9 +573,11 @@ export class CustomApiService {
       }
     }
 
-    // Montar query
+    // Montar query com isolamento de tenant
+    const effectiveTenantId = tenantId || endpoint.tenantId;
     const where: Prisma.EntityDataWhereInput = {
       entityId: endpoint.sourceEntityId,
+      tenantId: effectiveTenantId,
     };
 
     // Aplicar filtros no campo data (JSON)

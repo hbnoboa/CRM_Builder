@@ -30,7 +30,7 @@ export default function RegisterPage() {
   const registerSchema = useMemo(() => z.object({
     name: z.string().min(2, tValidation('nameMin', { min: 2 })),
     email: z.string().min(1, tValidation('emailRequired')).email(tValidation('emailInvalid')),
-    password: z.string().min(6, tValidation('passwordMin', { min: 6 })),
+    password: z.string().min(8, tValidation('passwordMin', { min: 8 })),
     tenantName: z.string().min(2, tValidation('companyRequired')),
   }), [tValidation]);
 

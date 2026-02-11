@@ -1317,5 +1317,12 @@
     "noRolesFound": "No se encontraron roles",
     "system": "Sistema",
     "noDescription": "Sin descripcion"
+  },
+  "errorPage": {
+    "title": "Algo salio mal",
+    "description": "Ocurrio un error inesperado al procesar su solicitud.",
+    "hint": "Si el problema persiste, intente actualizar la pagina o contacte al soporte.",
+    "tryAgain": "Intentar de Nuevo",
+    "backToDashboard": "Volver al Dashboard"
   }
 }
