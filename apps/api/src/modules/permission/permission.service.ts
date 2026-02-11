@@ -144,49 +144,47 @@ export class PermissionService {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
       select: {
-        role: true,
         customRoleId: true,
+        customRole: {
+          select: { roleType: true, permissions: true, modulePermissions: true },
+        },
       },
     });
 
     if (!user) return false;
 
+    const roleType = user.customRole?.roleType;
+
     // Super admin e admin tem todas as permissões
-    if (user.role === 'PLATFORM_ADMIN' || user.role === 'ADMIN') return true;
+    if (roleType === 'PLATFORM_ADMIN' || roleType === 'ADMIN') return true;
 
-    // Verificar custom role primeiro
-    if (user.customRoleId) {
-      const customRole = await this.prisma.customRole.findUnique({
-        where: { id: user.customRoleId },
-        select: { permissions: true, modulePermissions: true },
-      });
-      if (customRole) {
-        const [category, action] = permission.split(':');
-        const modulePerms = customRole.modulePermissions as Record<string, boolean>;
+    // Verificar custom role
+    if (user.customRole) {
+      const [category, action] = permission.split(':');
+      const modulePerms = user.customRole.modulePermissions as Record<string, boolean>;
 
-        // Verificar permissão de módulo
-        if (modulePerms && modulePerms[category] !== undefined) {
-          return modulePerms[category];
-        }
+      // Verificar permissão de módulo
+      if (modulePerms && modulePerms[category] !== undefined) {
+        return modulePerms[category];
+      }
 
-        // Para data:*, verificar permissões de entidade
-        if (category === 'data') {
-          const entityPerms = customRole.permissions as unknown as Array<{
-            entitySlug: string; canCreate: boolean; canRead: boolean; canUpdate: boolean; canDelete: boolean;
-          }>;
-          return entityPerms.some((p) => {
-            if (action === 'create') return p.canCreate;
-            if (action === 'read' || action === 'export') return p.canRead;
-            if (action === 'update' || action === 'import') return p.canUpdate;
-            if (action === 'delete') return p.canDelete;
-            return false;
-          });
-        }
+      // Para data:*, verificar permissões de entidade
+      if (category === 'data') {
+        const entityPerms = user.customRole.permissions as unknown as Array<{
+          entitySlug: string; canCreate: boolean; canRead: boolean; canUpdate: boolean; canDelete: boolean;
+        }>;
+        return entityPerms.some((p) => {
+          if (action === 'create') return p.canCreate;
+          if (action === 'read' || action === 'export') return p.canRead;
+          if (action === 'update' || action === 'import') return p.canUpdate;
+          if (action === 'delete') return p.canDelete;
+          return false;
+        });
       }
     }
 
-    // Verificar permissões do papel base
-    const basePermissions = this.getDefaultPermissionsForRole(user.role);
+    // Verificar permissões do papel base (fallback para roleType)
+    const basePermissions = this.getDefaultPermissionsForRole(roleType || 'VIEWER');
     return basePermissions.includes(permission);
   }
 
@@ -197,49 +195,47 @@ export class PermissionService {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
       select: {
-        role: true,
         customRoleId: true,
+        customRole: {
+          select: { roleType: true, permissions: true, modulePermissions: true },
+        },
       },
     });
 
     if (!user) return [];
 
+    const roleType = user.customRole?.roleType;
+
     // Super admin e admin tem todas as permissões
-    if (user.role === 'PLATFORM_ADMIN' || user.role === 'ADMIN') {
+    if (roleType === 'PLATFORM_ADMIN' || roleType === 'ADMIN') {
       return Object.keys(PERMISSIONS) as PermissionKey[];
     }
 
     // Se tem custom role, construir lista de permissões
-    if (user.customRoleId) {
-      const customRole = await this.prisma.customRole.findUnique({
-        where: { id: user.customRoleId },
-        select: { permissions: true, modulePermissions: true },
-      });
-      if (customRole) {
-        const perms: PermissionKey[] = [];
-        const modulePerms = customRole.modulePermissions as Record<string, boolean>;
-        const entityPerms = customRole.permissions as unknown as Array<{
-          entitySlug: string; canCreate: boolean; canRead: boolean; canUpdate: boolean; canDelete: boolean;
-        }>;
+    if (user.customRole) {
+      const perms: PermissionKey[] = [];
+      const modulePerms = user.customRole.modulePermissions as Record<string, boolean>;
+      const entityPerms = user.customRole.permissions as unknown as Array<{
+        entitySlug: string; canCreate: boolean; canRead: boolean; canUpdate: boolean; canDelete: boolean;
+      }>;
 
-        if (modulePerms?.dashboard) perms.push('stats:read');
-        if (modulePerms?.users) { perms.push('users:read', 'users:create', 'users:update'); }
-        if (modulePerms?.settings) { perms.push('settings:read', 'settings:update', 'organization:read', 'organization:update'); }
-        if (modulePerms?.apis) { perms.push('apis:read', 'apis:create', 'apis:update', 'apis:delete', 'apis:execute'); }
-        if (modulePerms?.pages) { perms.push('pages:read', 'pages:create', 'pages:update', 'pages:delete'); }
-        if (modulePerms?.entities) { perms.push('entities:read', 'entities:create', 'entities:update', 'entities:delete'); }
+      if (modulePerms?.dashboard) perms.push('stats:read');
+      if (modulePerms?.users) { perms.push('users:read', 'users:create', 'users:update'); }
+      if (modulePerms?.settings) { perms.push('settings:read', 'settings:update', 'organization:read', 'organization:update'); }
+      if (modulePerms?.apis) { perms.push('apis:read', 'apis:create', 'apis:update', 'apis:delete', 'apis:execute'); }
+      if (modulePerms?.pages) { perms.push('pages:read', 'pages:create', 'pages:update', 'pages:delete'); }
+      if (modulePerms?.entities) { perms.push('entities:read', 'entities:create', 'entities:update', 'entities:delete'); }
 
-        if (entityPerms.some(p => p.canRead)) perms.push('data:read');
-        if (entityPerms.some(p => p.canCreate)) perms.push('data:create');
-        if (entityPerms.some(p => p.canUpdate)) perms.push('data:update');
-        if (entityPerms.some(p => p.canDelete)) perms.push('data:delete');
+      if (entityPerms.some(p => p.canRead)) perms.push('data:read');
+      if (entityPerms.some(p => p.canCreate)) perms.push('data:create');
+      if (entityPerms.some(p => p.canUpdate)) perms.push('data:update');
+      if (entityPerms.some(p => p.canDelete)) perms.push('data:delete');
 
-        perms.push('upload:create', 'organization:read');
-        return [...new Set(perms)];
-      }
+      perms.push('upload:create', 'organization:read');
+      return [...new Set(perms)];
     }
 
-    // Retorna permissões do papel base
-    return this.getDefaultPermissionsForRole(user.role);
+    // Retorna permissões do papel base (fallback para roleType)
+    return this.getDefaultPermissionsForRole(roleType || 'VIEWER');
   }
 }

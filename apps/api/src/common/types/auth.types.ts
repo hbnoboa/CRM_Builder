@@ -1,5 +1,18 @@
-import { UserRole } from '@prisma/client';
 import { Request } from 'express';
+import { RoleType } from '../decorators/roles.decorator';
+
+/**
+ * Interface para custom role no usuario autenticado
+ */
+export interface CurrentUserCustomRole {
+  id: string;
+  name: string;
+  roleType: RoleType;
+  isSystem: boolean;
+  permissions: unknown[];
+  modulePermissions: Record<string, boolean>;
+  tenantPermissions: Record<string, unknown>;
+}
 
 /**
  * Interface para o usuario autenticado
@@ -13,8 +26,9 @@ export interface CurrentUser {
   id: string;
   email: string;
   name: string;
-  role: UserRole;
   tenantId: string;
+  customRoleId: string;
+  customRole: CurrentUserCustomRole;
   permissions?: string[];
 }
 
@@ -24,8 +38,9 @@ export interface CurrentUser {
 export interface JwtPayload {
   sub: string; // userId
   email: string;
-  role: UserRole;
   tenantId: string;
+  customRoleId: string;
+  roleType: RoleType; // Para checks rapidos sem DB lookup
   iat?: number;
   exp?: number;
 }

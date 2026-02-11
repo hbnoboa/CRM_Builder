@@ -27,7 +27,7 @@ import { NotificationBell } from '@/components/notifications/notification-bell';
 import { LanguageSwitcher } from '@/components/language-switcher';
 import { TenantSelector } from '@/components/tenant-selector';
 import { cn } from '@/lib/utils';
-import type { UserRole } from '@/types';
+import type { RoleType } from '@/types';
 
 interface NavItemConfig {
   titleKey: string;
@@ -89,7 +89,7 @@ const navigationConfig: NavItemConfig[] = [
   },
 ];
 
-const roleColors: Record<UserRole, { color: string; bgColor: string }> = {
+const roleColors: Record<RoleType, { color: string; bgColor: string }> = {
   PLATFORM_ADMIN: {
     color: 'text-purple-700',
     bgColor: 'bg-purple-100',
@@ -109,6 +109,10 @@ const roleColors: Record<UserRole, { color: string; bgColor: string }> = {
   VIEWER: {
     color: 'text-gray-700',
     bgColor: 'bg-gray-100',
+  },
+  CUSTOM: {
+    color: 'text-indigo-700',
+    bgColor: 'bg-indigo-100',
   },
 };
 
@@ -130,7 +134,7 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
       return hasModuleAccess(item.moduleKey);
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [user?.role, user?.customRole, user?.customRoleId]
+    [user?.customRole?.roleType, user?.customRole?.modulePermissions, user?.customRoleId]
   );
 
   useEffect(() => {
@@ -249,15 +253,21 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium truncate">{user?.name || 'User'}</p>
-                {user?.role && (
+                {user?.customRole && (
                   <span
                     className={cn(
                       'inline-block text-xs px-1.5 py-0.5 rounded font-medium mt-0.5',
-                      roleColors[user.role]?.bgColor || 'bg-gray-100',
-                      roleColors[user.role]?.color || 'text-gray-700'
+                      user.customRole.isSystem
+                        ? roleColors[user.customRole.roleType as RoleType]?.bgColor || 'bg-gray-100'
+                        : 'bg-indigo-100',
+                      user.customRole.isSystem
+                        ? roleColors[user.customRole.roleType as RoleType]?.color || 'text-gray-700'
+                        : 'text-indigo-700'
                     )}
                   >
-                    {tRoles(user.role)}
+                    {user.customRole.isSystem
+                      ? tRoles(user.customRole.roleType)
+                      : user.customRole.name}
                   </span>
                 )}
               </div>

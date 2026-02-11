@@ -105,7 +105,7 @@ const DYNAMIC_VALUES: { value: string; labelKey: string; icon: string; types: st
   { value: '{{user.email}}', labelKey: 'userEmail', icon: '📧', types: ['text', 'email', 'hidden'] },
   { value: '{{user.name}}', labelKey: 'userName', icon: '👤', types: ['text', 'textarea', 'hidden'] },
   { value: '{{user.id}}', labelKey: 'userId', icon: '🆔', types: ['text', 'hidden', 'relation'] },
-  { value: '{{user.role}}', labelKey: 'userRole', icon: '👔', types: ['text', 'select', 'hidden'] },
+  { value: '{{user.roleType}}', labelKey: 'userRole', icon: '👔', types: ['text', 'select', 'hidden'] },
   { value: '{{now}}', labelKey: 'now', icon: '🕐', types: ['datetime', 'text', 'hidden'] },
   { value: '{{today}}', labelKey: 'today', icon: '📅', types: ['date', 'text', 'hidden'] },
   { value: '{{true}}', labelKey: 'true', icon: '✅', types: ['boolean'] },

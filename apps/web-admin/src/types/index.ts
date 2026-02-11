@@ -1,6 +1,15 @@
-export type UserRole = 'PLATFORM_ADMIN' | 'ADMIN' | 'MANAGER' | 'USER' | 'VIEWER';
+// RoleType substitui o antigo UserRole - agora baseado em CustomRole.roleType
+export type RoleType = 'PLATFORM_ADMIN' | 'ADMIN' | 'MANAGER' | 'USER' | 'VIEWER' | 'CUSTOM';
+// Manter UserRole como alias para compatibilidade
+export type UserRole = RoleType;
+
 export type Status = 'ACTIVE' | 'INACTIVE' | 'SUSPENDED' | 'PENDING';
 export type TenantStatus = 'ACTIVE' | 'INACTIVE' | 'SUSPENDED' | 'TRIAL';
+
+export interface TenantPermissions {
+  canAccessAllTenants?: boolean;
+  allowedTenantIds?: string[];
+}
 
 export interface Tenant {
   id: string;
@@ -20,9 +29,9 @@ export interface User {
   email: string;
   name: string;
   avatar?: string | null;
-  role: UserRole;
-  customRoleId?: string | null;
-  customRole?: CustomRole | null;
+  // role foi removido - usar customRole.roleType
+  customRoleId: string;
+  customRole: CustomRole;
   status: Status;
   tenantId: string;
   tenant?: Tenant;
@@ -37,8 +46,11 @@ export interface CustomRole {
   name: string;
   description?: string;
   color?: string;
+  roleType: RoleType;           // Tipo da role (PLATFORM_ADMIN, ADMIN, MANAGER, USER, VIEWER, CUSTOM)
+  isSystem: boolean;            // Se e role do sistema (nao pode deletar/renomear)
   permissions: EntityPermission[];
   modulePermissions?: ModulePermissions;
+  tenantPermissions?: TenantPermissions; // Permissoes cross-tenant (para PLATFORM_ADMIN)
   isDefault?: boolean;
   tenantId: string;
   _count?: { users: number };

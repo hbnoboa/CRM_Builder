@@ -2,7 +2,7 @@ import { Injectable, NotFoundException, ConflictException, ForbiddenException, L
 import { PrismaService } from '../../prisma/prisma.service';
 import { NotificationService } from '../notification/notification.service';
 import { CreateUserDto, UpdateUserDto, QueryUserDto } from './dto/user.dto';
-import { UserRole, Prisma } from '@prisma/client';
+import { Prisma } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
 import {
   CurrentUser,
@@ -12,6 +12,7 @@ import {
   DEFAULT_LIMIT,
   MAX_LIMIT,
 } from '../../common/types';
+import { RoleType } from '../../common/decorators/roles.decorator';
 
 @Injectable()
 export class UserService {
@@ -24,8 +25,9 @@ export class UserService {
 
   // Helper para determinar o tenantId a ser usado (suporta PLATFORM_ADMIN)
   private getEffectiveTenantId(currentUser: CurrentUser, requestedTenantId?: string): string {
+    const roleType = currentUser.customRole?.roleType as RoleType | undefined;
     // PLATFORM_ADMIN pode acessar qualquer tenant
-    if (currentUser.role === UserRole.PLATFORM_ADMIN && requestedTenantId) {
+    if (roleType === 'PLATFORM_ADMIN' && requestedTenantId) {
       return requestedTenantId;
     }
     return currentUser.tenantId;
@@ -63,12 +65,11 @@ export class UserService {
         email: true,
         name: true,
         avatar: true,
-        role: true,
         customRoleId: true,
         status: true,
         tenantId: true,
         createdAt: true,
-        customRole: { select: { id: true, name: true, color: true } },
+        customRole: { select: { id: true, name: true, color: true, roleType: true, isSystem: true } },
       },
     });
 
@@ -89,9 +90,10 @@ export class UserService {
     const { search, role, status, tenantId: queryTenantId, cursor, sortBy = 'createdAt', sortOrder = 'desc' } = query;
 
     // Base filter por tenant
+    const roleType = currentUser.customRole?.roleType as RoleType | undefined;
     const where: Prisma.UserWhereInput = {};
 
-    if (currentUser.role === UserRole.PLATFORM_ADMIN) {
+    if (roleType === 'PLATFORM_ADMIN') {
       if (queryTenantId) {
         where.tenantId = queryTenantId;
       }
@@ -100,7 +102,7 @@ export class UserService {
     }
 
     // Filtros opcionais
-    if (role) where.role = role;
+    if (role) where.customRole = { roleType: role };
     if (status) where.status = status;
     if (search) {
       where.OR = [
@@ -139,11 +141,14 @@ export class UserService {
         email: true,
         name: true,
         avatar: true,
-        role: true,
+        customRoleId: true,
         status: true,
         tenantId: true,
         lastLoginAt: true,
         createdAt: true,
+        customRole: {
+          select: { id: true, name: true, color: true, roleType: true, isSystem: true },
+        },
         tenant: {
           select: { id: true, name: true, slug: true },
         },
@@ -203,8 +208,9 @@ export class UserService {
 
   async findOne(id: string, currentUser: CurrentUser) {
     // PLATFORM_ADMIN pode ver usuario de qualquer tenant
+    const roleType = currentUser.customRole?.roleType as RoleType | undefined;
     const whereClause: Prisma.UserWhereInput = { id };
-    if (currentUser.role !== UserRole.PLATFORM_ADMIN) {
+    if (roleType !== 'PLATFORM_ADMIN') {
       whereClause.tenantId = currentUser.tenantId;
     }
 
@@ -215,7 +221,6 @@ export class UserService {
         email: true,
         name: true,
         avatar: true,
-        role: true,
         customRoleId: true,
         status: true,
         tenantId: true,
@@ -225,6 +230,7 @@ export class UserService {
         customRole: {
           select: {
             id: true, name: true, color: true,
+            roleType: true, isSystem: true,
             permissions: true, modulePermissions: true,
           },
         },
@@ -262,12 +268,11 @@ export class UserService {
         email: true,
         name: true,
         avatar: true,
-        role: true,
         customRoleId: true,
         status: true,
         tenantId: true,
         updatedAt: true,
-        customRole: { select: { id: true, name: true, color: true } },
+        customRole: { select: { id: true, name: true, color: true, roleType: true, isSystem: true } },
       },
     });
   }

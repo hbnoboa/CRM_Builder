@@ -385,7 +385,8 @@ export class CustomApiService {
     // Check role permissions
     const permissions = endpoint.permissions as string[];
     if (permissions?.length > 0 && user) {
-      if (!permissions.includes(user.role)) {
+      const roleType = user.customRole?.roleType;
+      if (!roleType || !permissions.includes(roleType)) {
         throw new BadRequestException('Acesso nao autorizado');
       }
     }
@@ -519,7 +520,7 @@ export class CustomApiService {
       'user.id': user?.id,
       'user.email': user?.email,
       'user.name': user?.name,
-      'user.role': user?.role,
+      'user.roleType': user?.customRole?.roleType,
       'user.tenantId': user?.tenantId,
       'now': now.toISOString(),
       'today': now.toISOString().split('T')[0],

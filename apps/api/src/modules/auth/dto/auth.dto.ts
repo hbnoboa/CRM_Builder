@@ -1,6 +1,5 @@
-import { IsEmail, IsString, MinLength, MaxLength, IsOptional, IsEnum, Matches } from 'class-validator';
+import { IsEmail, IsString, MinLength, MaxLength, IsOptional, Matches } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { UserRole } from '@prisma/client';
 
 export class LoginDto {
   @ApiProperty({ example: 'admin@demo.com' })
@@ -36,10 +35,10 @@ export class RegisterDto {
   @IsString()
   tenantId: string;
 
-  @ApiPropertyOptional({ enum: UserRole, default: UserRole.USER })
-  @IsEnum(UserRole)
+  @ApiPropertyOptional({ description: 'ID da custom role (se nao informado, usa role default do tenant)' })
+  @IsString()
   @IsOptional()
-  role?: UserRole;
+  customRoleId?: string;
 }
 
 export class RefreshTokenDto {
@@ -63,7 +62,13 @@ export class AuthResponseDto {
     id: string;
     email: string;
     name: string;
-    role: string;
+    customRoleId: string;
+    customRole: {
+      id: string;
+      name: string;
+      roleType: string;
+      isSystem: boolean;
+    };
     tenantId: string;
   };
 }

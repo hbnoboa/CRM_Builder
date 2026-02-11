@@ -25,15 +25,14 @@ import {
 } from '@/components/ui/select';
 import { useCreateUser, useUpdateUser } from '@/hooks/use-users';
 import { useCustomRoles } from '@/hooks/use-custom-roles';
-import type { User, UserRole, Status } from '@/types';
+import type { User, Status } from '@/types';
 
 const createUserSchema = (t: (key: string) => string) => z.object({
   name: z.string().min(2, t('nameMinLength')),
   email: z.string().email(t('emailInvalid')),
   password: z.string().min(8, t('passwordMinLength')).optional().or(z.literal('')),
-  role: z.enum(['PLATFORM_ADMIN', 'ADMIN', 'MANAGER', 'USER', 'VIEWER'] as const),
   status: z.enum(['ACTIVE', 'INACTIVE', 'SUSPENDED', 'PENDING'] as const).optional(),
-  customRoleId: z.string().optional(),
+  customRoleId: z.string().min(1, 'Role e obrigatoria'),
 });
 
 const userSchema = createUserSchema((key) => key);
@@ -57,15 +56,17 @@ export function UserFormDialog({ open, onOpenChange, user, onSuccess }: UserForm
   const { data: rolesData } = useCustomRoles();
   const customRoles = Array.isArray(rolesData?.data) ? rolesData.data : [];
 
+  // Buscar role default para novos usuarios
+  const defaultRoleId = customRoles.find((r) => r.isDefault)?.id || customRoles[0]?.id || '';
+
   const form = useForm<UserFormData>({
     resolver: zodResolver(createUserSchema(tValidation)),
     defaultValues: {
       name: '',
       email: '',
       password: '',
-      role: 'USER',
       status: 'ACTIVE',
-      customRoleId: '',
+      customRoleId: defaultRoleId,
     },
   });
 
@@ -76,7 +77,6 @@ export function UserFormDialog({ open, onOpenChange, user, onSuccess }: UserForm
         name: user.name,
         email: user.email,
         password: '',
-        role: user.role,
         status: user.status,
         customRoleId: user.customRoleId || '',
       });
@@ -85,13 +85,12 @@ export function UserFormDialog({ open, onOpenChange, user, onSuccess }: UserForm
         name: '',
         email: '',
         password: '',
-        role: 'USER',
         status: 'ACTIVE',
-        customRoleId: '',
+        customRoleId: defaultRoleId,
       });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, open]);
+  }, [user, open, defaultRoleId]);
 
   const onSubmit = async (data: UserFormData) => {
     try {
@@ -99,9 +98,8 @@ export function UserFormDialog({ open, onOpenChange, user, onSuccess }: UserForm
         const updateData: Record<string, unknown> = {
           name: data.name,
           email: data.email,
-          role: data.role,
           status: data.status,
-          customRoleId: data.customRoleId || null,
+          customRoleId: data.customRoleId,
         };
         if (data.password) {
           updateData.password = data.password;
@@ -112,8 +110,7 @@ export function UserFormDialog({ open, onOpenChange, user, onSuccess }: UserForm
           name: data.name,
           email: data.email,
           password: data.password || '',
-          role: data.role as UserRole,
-          customRoleId: data.customRoleId || undefined,
+          customRoleId: data.customRoleId,
         });
       }
       onOpenChange(false);
@@ -178,50 +175,37 @@ export function UserFormDialog({ open, onOpenChange, user, onSuccess }: UserForm
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="role">{t('form.role')}</Label>
+            <Label htmlFor="customRole">{t('form.role')} *</Label>
             <Select
-              value={form.watch('role')}
-              onValueChange={(value) => form.setValue('role', value as UserRole)}
+              value={form.watch('customRoleId') || ''}
+              onValueChange={(value) => form.setValue('customRoleId', value)}
             >
               <SelectTrigger>
                 <SelectValue placeholder={t('form.rolePlaceholder')} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="ADMIN">{tRoles('ADMIN')}</SelectItem>
-                <SelectItem value="MANAGER">{tRoles('MANAGER')}</SelectItem>
-                <SelectItem value="USER">{tRoles('USER')}</SelectItem>
-                <SelectItem value="VIEWER">{tRoles('VIEWER')}</SelectItem>
+                {customRoles.map((role) => (
+                  <SelectItem key={role.id} value={role.id}>
+                    <div className="flex items-center gap-2">
+                      <div
+                        className="w-3 h-3 rounded-full flex-shrink-0"
+                        style={{ backgroundColor: role.color || '#6366f1' }}
+                      />
+                      <span>{role.name}</span>
+                      {role.isSystem && (
+                        <span className="text-xs text-muted-foreground">
+                          ({tRoles(role.roleType)})
+                        </span>
+                      )}
+                    </div>
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
+            {form.formState.errors.customRoleId && (
+              <p className="text-sm text-destructive">{form.formState.errors.customRoleId.message}</p>
+            )}
           </div>
-
-          {customRoles.length > 0 && (
-            <div className="space-y-2">
-              <Label htmlFor="customRole">{t('form.customRole')}</Label>
-              <Select
-                value={form.watch('customRoleId') || '_none'}
-                onValueChange={(value) => form.setValue('customRoleId', value === '_none' ? '' : value)}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder={t('form.customRolePlaceholder')} />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="_none">{t('form.noCustomRole')}</SelectItem>
-                  {customRoles.map((role) => (
-                    <SelectItem key={role.id} value={role.id}>
-                      <div className="flex items-center gap-2">
-                        <div
-                          className="w-3 h-3 rounded-full flex-shrink-0"
-                          style={{ backgroundColor: role.color || '#6366f1' }}
-                        />
-                        {role.name}
-                      </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          )}
 
           {isEditing && (
             <div className="space-y-2">

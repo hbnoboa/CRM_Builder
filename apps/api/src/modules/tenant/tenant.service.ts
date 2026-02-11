@@ -1,24 +1,61 @@
-import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateTenantDto, UpdateTenantDto, QueryTenantDto } from './dto/tenant.dto';
-import { UserRole, Status, Prisma } from '@prisma/client';
+import { Status, Prisma } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
+
+// Configuracao das roles de sistema que serao criadas por tenant
+const SYSTEM_ROLES = {
+  ADMIN: {
+    name: 'Administrador',
+    description: 'Administrador do tenant com acesso completo',
+    color: '#7c3aed',
+    roleType: 'ADMIN',
+    isSystem: true,
+    modulePermissions: { dashboard: true, users: true, settings: true, apis: true, pages: true, entities: true },
+  },
+  MANAGER: {
+    name: 'Gerente',
+    description: 'Gerente com acesso a dados e equipe',
+    color: '#2563eb',
+    roleType: 'MANAGER',
+    isSystem: true,
+    modulePermissions: { dashboard: true, users: true, settings: false, apis: false, pages: false, entities: false },
+  },
+  USER: {
+    name: 'Usuario',
+    description: 'Usuario padrao com acesso a dados proprios',
+    color: '#059669',
+    roleType: 'USER',
+    isSystem: true,
+    isDefault: true,
+    modulePermissions: { dashboard: true, users: false, settings: false, apis: false, pages: false, entities: true },
+  },
+  VIEWER: {
+    name: 'Visualizador',
+    description: 'Apenas visualizacao de dados',
+    color: '#6b7280',
+    roleType: 'VIEWER',
+    isSystem: true,
+    modulePermissions: { dashboard: true, users: false, settings: false, apis: false, pages: false, entities: false },
+  },
+};
 
 @Injectable()
 export class TenantService {
   constructor(private prisma: PrismaService) {}
 
   async create(dto: CreateTenantDto) {
-    // Verificar se slug já existe
+    // Verificar se slug ja existe
     const existing = await this.prisma.tenant.findUnique({
       where: { slug: dto.slug },
     });
 
     if (existing) {
-      throw new ConflictException('Slug já está em uso');
+      throw new ConflictException('Slug ja esta em uso');
     }
 
-    // Criar tenant com admin
+    // Criar tenant com roles de sistema e admin
     const tenant = await this.prisma.$transaction(async (tx) => {
       // 1. Criar tenant
       const tenant = await tx.tenant.create({
@@ -30,7 +67,27 @@ export class TenantService {
         },
       });
 
-      // 2. Criar usuario admin
+      // 2. Criar roles de sistema para o tenant
+      const createdRoles: Record<string, { id: string }> = {};
+      for (const [key, roleConfig] of Object.entries(SYSTEM_ROLES)) {
+        const role = await tx.customRole.create({
+          data: {
+            tenantId: tenant.id,
+            name: roleConfig.name,
+            description: roleConfig.description,
+            color: roleConfig.color,
+            roleType: roleConfig.roleType,
+            isSystem: roleConfig.isSystem,
+            isDefault: roleConfig.isDefault || false,
+            modulePermissions: roleConfig.modulePermissions,
+            permissions: [],
+            tenantPermissions: {},
+          },
+        });
+        createdRoles[key] = role;
+      }
+
+      // 3. Criar usuario admin com role ADMIN
       const hashedPassword = await bcrypt.hash(dto.adminPassword, 12);
       await tx.user.create({
         data: {
@@ -38,7 +95,7 @@ export class TenantService {
           email: dto.adminEmail,
           password: hashedPassword,
           name: dto.adminName,
-          role: UserRole.ADMIN,
+          customRoleId: createdRoles.ADMIN.id,
           status: Status.ACTIVE,
         },
       });

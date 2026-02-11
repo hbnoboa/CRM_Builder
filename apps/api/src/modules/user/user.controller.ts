@@ -17,7 +17,6 @@ import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
-import { UserRole } from '@prisma/client';
 
 @ApiTags('Users')
 @Controller('users')
@@ -39,7 +38,7 @@ export class UserController {
   }
 
   @Post()
-  @Roles(UserRole.ADMIN, UserRole.PLATFORM_ADMIN)
+  @Roles('ADMIN', 'PLATFORM_ADMIN')
   @ApiOperation({ summary: 'Criar usuário' })
   @ApiResponse({ status: 201, description: 'Usuário criado' })
   async create(@Body() dto: CreateUserDto, @CurrentUser() user: any) {
@@ -47,21 +46,21 @@ export class UserController {
   }
 
   @Get()
-  @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.PLATFORM_ADMIN)
+  @Roles('ADMIN', 'MANAGER', 'PLATFORM_ADMIN')
   @ApiOperation({ summary: 'Listar usuários' })
   async findAll(@Query() query: QueryUserDto, @CurrentUser() user: any) {
     return this.userService.findAll(query, user);
   }
 
   @Get(':id')
-  @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.PLATFORM_ADMIN)
+  @Roles('ADMIN', 'MANAGER', 'PLATFORM_ADMIN')
   @ApiOperation({ summary: 'Buscar usuário por ID' })
   async findOne(@Param('id') id: string, @CurrentUser() user: any) {
     return this.userService.findOne(id, user);
   }
 
   @Patch(':id')
-  @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.PLATFORM_ADMIN)
+  @Roles('ADMIN', 'MANAGER', 'PLATFORM_ADMIN')
   @ApiOperation({ summary: 'Atualizar usuário' })
   async update(
     @Param('id') id: string,
@@ -72,7 +71,7 @@ export class UserController {
   }
 
   @Delete(':id')
-  @Roles(UserRole.ADMIN, UserRole.PLATFORM_ADMIN)
+  @Roles('ADMIN', 'PLATFORM_ADMIN')
   @ApiOperation({ summary: 'Excluir usuário' })
   async remove(@Param('id') id: string, @CurrentUser() user: any) {
     return this.userService.remove(id, user);

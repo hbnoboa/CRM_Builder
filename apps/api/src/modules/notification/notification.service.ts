@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { NotificationGateway, Notification } from './notification.gateway';
 import { PrismaService } from '../../prisma/prisma.service';
-import { NotificationType, Prisma, UserRole } from '@prisma/client';
+import { NotificationType, Prisma } from '@prisma/client';
 import { v4 as uuidv4 } from 'uuid';
 
 export interface CreateNotificationDto {
@@ -113,40 +113,39 @@ export class NotificationService {
     try {
       const users = await this.prisma.user.findMany({
         where: { tenantId, status: 'ACTIVE' },
-        select: { id: true, role: true, customRoleId: true },
+        select: {
+          id: true,
+          customRoleId: true,
+          customRole: {
+            select: { roleType: true, permissions: true },
+          },
+        },
       });
 
       for (const user of users) {
+        const roleType = user.customRole?.roleType;
+
         // PLATFORM_ADMIN e ADMIN recebem tudo
-        if (user.role === UserRole.PLATFORM_ADMIN || user.role === UserRole.ADMIN) {
+        if (roleType === 'PLATFORM_ADMIN' || roleType === 'ADMIN') {
           this.gateway.sendToUser(user.id, notification);
           this.persistNotification(user.id, tenantId, notification, entitySlug);
           continue;
         }
 
-        // Verificar custom role
-        if (user.customRoleId) {
-          const customRole = await this.prisma.customRole.findUnique({
-            where: { id: user.customRoleId },
-            select: { permissions: true },
-          });
-
-          if (customRole) {
-            const permissions = customRole.permissions as unknown as Array<{
-              entitySlug: string; canRead: boolean;
-            }>;
-            const hasAccess = permissions.some(
-              (p) => p.entitySlug === entitySlug && p.canRead,
-            );
-            if (hasAccess) {
-              this.gateway.sendToUser(user.id, notification);
-              this.persistNotification(user.id, tenantId, notification, entitySlug);
-            }
+        // Verificar permissoes da custom role
+        if (user.customRole) {
+          const permissions = user.customRole.permissions as unknown as Array<{
+            entitySlug: string; canRead: boolean;
+          }>;
+          const hasAccess = permissions.some(
+            (p) => p.entitySlug === entitySlug && p.canRead,
+          );
+          if (hasAccess) {
+            this.gateway.sendToUser(user.id, notification);
+            this.persistNotification(user.id, tenantId, notification, entitySlug);
           }
         } else {
-          // Sem custom role: MANAGER, USER e VIEWER recebem
-          this.gateway.sendToUser(user.id, notification);
-          this.persistNotification(user.id, tenantId, notification, entitySlug);
+          // Sem custom role: nao recebe (todos devem ter customRole agora)
         }
       }
     } catch (error) {

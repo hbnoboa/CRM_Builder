@@ -3,7 +3,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { EntityService } from '../entity/entity.service';
 import { NotificationService } from '../notification/notification.service';
 import { CustomRoleService } from '../custom-role/custom-role.service';
-import { UserRole, Prisma, EntityData, Entity } from '@prisma/client';
+import { Prisma, EntityData, Entity } from '@prisma/client';
 import {
   CurrentUser,
   createPaginationMeta,
@@ -12,6 +12,7 @@ import {
   DEFAULT_LIMIT,
   MAX_LIMIT,
 } from '../../common/types';
+import { RoleType } from '../../common/decorators/roles.decorator';
 
 interface CreateDataDto {
   data: Record<string, unknown>;
@@ -123,7 +124,7 @@ export class DataService {
       'user.id': user.id,
       'user.email': user.email,
       'user.name': user.name,
-      'user.role': user.role,
+      'user.roleType': user.customRole?.roleType,
       'user.tenantId': user.tenantId,
       'now': now.toISOString(),
       'today': now.toISOString().split('T')[0],
@@ -201,7 +202,8 @@ export class DataService {
 
   // Helper para determinar o tenantId efetivo (PLATFORM_ADMIN pode acessar qualquer tenant)
   private getEffectiveTenantId(currentUser: CurrentUser, requestedTenantId?: string): string {
-    if (currentUser.role === UserRole.PLATFORM_ADMIN && requestedTenantId) {
+    const roleType = currentUser.customRole?.roleType as RoleType | undefined;
+    if (roleType === 'PLATFORM_ADMIN' && requestedTenantId) {
       return requestedTenantId;
     }
     return currentUser.tenantId;
@@ -210,7 +212,8 @@ export class DataService {
   // Get entity with short-lived cache to avoid duplicate queries within same request
   private async getEntityCached(entitySlug: string, currentUser: CurrentUser, tenantId?: string): Promise<Entity> {
     // Para PLATFORM_ADMIN sem tenantId especificado, buscar em qualquer tenant
-    const effectiveTenantId = currentUser.role === UserRole.PLATFORM_ADMIN && !tenantId
+    const roleType = currentUser.customRole?.roleType as RoleType | undefined;
+    const effectiveTenantId = roleType === 'PLATFORM_ADMIN' && !tenantId
       ? undefined
       : this.getEffectiveTenantId(currentUser, tenantId);
     const cacheKey = `${entitySlug}:${effectiveTenantId || 'any'}`;
@@ -319,7 +322,8 @@ export class DataService {
     }
 
     // PLATFORM_ADMIN pode ver de qualquer tenant ou todos
-    if (currentUser.role === UserRole.PLATFORM_ADMIN) {
+    const userRoleType = currentUser.customRole?.roleType as RoleType | undefined;
+    if (userRoleType === 'PLATFORM_ADMIN') {
       if (queryTenantId) {
         where.tenantId = queryTenantId;
       }
@@ -470,12 +474,13 @@ export class DataService {
     const entity = await this.getEntityCached(entitySlug, currentUser, effectiveTenantId);
 
     // PLATFORM_ADMIN pode ver registro de qualquer tenant
+    const roleType = currentUser.customRole?.roleType as RoleType | undefined;
     const whereClause: Prisma.EntityDataWhereInput = {
       id,
       entityId: entity.id,
     };
-    
-    if (currentUser.role !== UserRole.PLATFORM_ADMIN) {
+
+    if (roleType !== 'PLATFORM_ADMIN') {
       whereClause.tenantId = currentUser.tenantId;
     }
 
@@ -517,12 +522,13 @@ export class DataService {
     const entity = await this.getEntityCached(entitySlug, currentUser, effectiveTenantId);
 
     // PLATFORM_ADMIN pode editar registro de qualquer tenant
+    const roleType = currentUser.customRole?.roleType as RoleType | undefined;
     const whereClause: Prisma.EntityDataWhereInput = {
       id,
       entityId: entity.id,
     };
 
-    if (currentUser.role !== UserRole.PLATFORM_ADMIN) {
+    if (roleType !== 'PLATFORM_ADMIN') {
       whereClause.tenantId = currentUser.tenantId;
     }
 
@@ -536,7 +542,7 @@ export class DataService {
     }
 
     // Verificar permissao de escopo (exceto PLATFORM_ADMIN)
-    if (currentUser.role !== UserRole.PLATFORM_ADMIN) {
+    if (roleType !== 'PLATFORM_ADMIN') {
       this.checkScope(record, currentUser, 'update');
     }
 
@@ -593,12 +599,13 @@ export class DataService {
     const entity = await this.getEntityCached(entitySlug, currentUser, effectiveTenantId);
 
     // PLATFORM_ADMIN pode deletar registro de qualquer tenant
+    const roleType = currentUser.customRole?.roleType as RoleType | undefined;
     const whereClause: Prisma.EntityDataWhereInput = {
       id,
       entityId: entity.id,
     };
-    
-    if (currentUser.role !== UserRole.PLATFORM_ADMIN) {
+
+    if (roleType !== 'PLATFORM_ADMIN') {
       whereClause.tenantId = currentUser.tenantId;
     }
 
@@ -611,7 +618,7 @@ export class DataService {
     }
 
     // Verificar permissao de escopo (exceto PLATFORM_ADMIN)
-    if (currentUser.role !== UserRole.PLATFORM_ADMIN) {
+    if (roleType !== 'PLATFORM_ADMIN') {
       this.checkScope(record, currentUser, 'delete');
     }
 
@@ -656,23 +663,25 @@ export class DataService {
 
   // Verificar se usuario pode modificar o registro
   private checkScope(record: EntityData, user: CurrentUser, action: string) {
+    const roleType = user.customRole?.roleType as RoleType | undefined;
+
     // Admin e Platform Admin podem tudo
-    if (user.role === UserRole.PLATFORM_ADMIN || user.role === UserRole.ADMIN) {
+    if (roleType === 'PLATFORM_ADMIN' || roleType === 'ADMIN') {
       return;
     }
 
     // Viewer nao pode modificar
-    if (user.role === UserRole.VIEWER) {
+    if (roleType === 'VIEWER') {
       throw new ForbiddenException('Voce nao tem permissao para modificar registros');
     }
 
     // Manager pode modificar registros do tenant
-    if (user.role === UserRole.MANAGER) {
+    if (roleType === 'MANAGER') {
       return;
     }
 
-    // User so pode modificar proprios registros
-    if (user.role === UserRole.USER) {
+    // User e CUSTOM so podem modificar proprios registros
+    if (roleType === 'USER' || roleType === 'CUSTOM') {
       if (record.createdById !== user.id) {
         throw new ForbiddenException('Voce so pode modificar registros criados por voce');
       }

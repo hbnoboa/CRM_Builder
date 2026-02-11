@@ -38,6 +38,7 @@ const roleColors: Record<string, string> = {
   MANAGER: 'bg-blue-100 text-blue-800',
   USER: 'bg-green-100 text-green-800',
   VIEWER: 'bg-gray-100 text-gray-800',
+  CUSTOM: 'bg-indigo-100 text-indigo-800',
 };
 
 function UsersPageContent() {
@@ -218,17 +219,19 @@ function UsersPageContent() {
                         <h3 className="font-semibold text-sm sm:text-base truncate max-w-[150px] sm:max-w-none">{user.name || user.email}</h3>
                         <span
                           className={`px-2 py-0.5 text-xs font-medium rounded whitespace-nowrap ${
-                            roleColors[user.role] || 'bg-gray-100 text-gray-800'
+                            roleColors[user.customRole?.roleType || 'VIEWER'] || 'bg-gray-100 text-gray-800'
                           }`}
                         >
-                          {tRoles(user.role)}
+                          {user.customRole?.isSystem
+                            ? tRoles(user.customRole.roleType)
+                            : user.customRole?.name || 'Sem role'}
                         </span>
                         {user.status === 'ACTIVE' ? (
                           <UserCheck className="h-4 w-4 text-green-500 flex-shrink-0" />
                         ) : (
                           <UserX className="h-4 w-4 text-gray-400 flex-shrink-0" />
                         )}
-                        {currentUser?.role === 'PLATFORM_ADMIN' && (
+                        {currentUser?.customRole?.roleType === 'PLATFORM_ADMIN' && (
                           <span className="px-2 py-0.5 text-xs rounded bg-gray-200 text-gray-700 truncate max-w-[80px] sm:max-w-[120px] md:max-w-[160px]" title={user.tenantId}>
                             {user.tenant?.name ? user.tenant.name : user.tenantId}
                           </span>

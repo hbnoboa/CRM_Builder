@@ -2,13 +2,13 @@
 
 import { useMemo } from 'react';
 import { useAuthStore } from '@/stores/auth-store';
-import type { UserRole, ModulePermissions, EntityPermission } from '@/types';
+import type { RoleType, ModulePermissions, EntityPermission } from '@/types';
 
 /**
- * Permissões de módulo padrão por role base
- * PLATFORM_ADMIN e ADMIN têm tudo, MANAGER/USER/VIEWER tem menos
+ * Permissoes de modulo padrao por roleType
+ * Usado apenas como fallback se customRole.modulePermissions nao estiver definido
  */
-const DEFAULT_MODULE_PERMISSIONS: Record<UserRole, ModulePermissions> = {
+const DEFAULT_MODULE_PERMISSIONS: Record<RoleType, ModulePermissions> = {
   PLATFORM_ADMIN: {
     dashboard: true,
     users: true,
@@ -35,16 +35,24 @@ const DEFAULT_MODULE_PERMISSIONS: Record<UserRole, ModulePermissions> = {
   },
   USER: {
     dashboard: true,
-    users: true,      // pode acessar /users
-    settings: true,   // pode acessar /settings
+    users: true,
+    settings: true,
     apis: false,
     pages: false,
-    entities: true,   // pode acessar /data
+    entities: true,
   },
   VIEWER: {
     dashboard: true,
     users: false,
-    settings: true,   // pode acessar /settings
+    settings: true,
+    apis: false,
+    pages: false,
+    entities: false,
+  },
+  CUSTOM: {
+    dashboard: true,
+    users: false,
+    settings: false,
     apis: false,
     pages: false,
     entities: false,
@@ -68,17 +76,18 @@ const MODULE_KEY_MAP: Record<string, keyof ModulePermissions> = {
 export function usePermissions() {
   const user = useAuthStore((s) => s.user);
 
+  // Obtem roleType do customRole (novo sistema unificado)
+  const roleType = user?.customRole?.roleType as RoleType | undefined;
+
   const modulePermissions = useMemo<ModulePermissions>(() => {
-    if (!user) return {};
+    if (!user || !roleType) return {};
 
-    const role = user.role;
-
-    // PLATFORM_ADMIN sempre tem tudo
-    if (role === 'PLATFORM_ADMIN') {
-      return DEFAULT_MODULE_PERMISSIONS.PLATFORM_ADMIN;
+    // PLATFORM_ADMIN e ADMIN sempre tem tudo
+    if (roleType === 'PLATFORM_ADMIN' || roleType === 'ADMIN') {
+      return DEFAULT_MODULE_PERMISSIONS[roleType];
     }
 
-    // Se tem customRole com modulePermissions, usar essas
+    // Usar modulePermissions da customRole
     if (user.customRole?.modulePermissions) {
       const mp = user.customRole.modulePermissions as ModulePermissions;
       return {
@@ -91,15 +100,15 @@ export function usePermissions() {
       };
     }
 
-    // Fallback: permissões padrão do role base
-    return DEFAULT_MODULE_PERMISSIONS[role] || DEFAULT_MODULE_PERMISSIONS.VIEWER;
-  }, [user]);
+    // Fallback: permissoes padrao do roleType
+    return DEFAULT_MODULE_PERMISSIONS[roleType] || DEFAULT_MODULE_PERMISSIONS.VIEWER;
+  }, [user, roleType]);
 
   const entityPermissions = useMemo<EntityPermission[]>(() => {
-    if (!user) return [];
+    if (!user || !roleType) return [];
 
-    // PLATFORM_ADMIN e ADMIN têm acesso total a tudo
-    if (user.role === 'PLATFORM_ADMIN' || user.role === 'ADMIN') return [];
+    // PLATFORM_ADMIN e ADMIN tem acesso total a tudo
+    if (roleType === 'PLATFORM_ADMIN' || roleType === 'ADMIN') return [];
 
     if (user.customRole?.permissions) {
       return Array.isArray(user.customRole.permissions)
@@ -108,52 +117,56 @@ export function usePermissions() {
     }
 
     return [];
-  }, [user]);
+  }, [user, roleType]);
 
   /**
-   * Verifica se o usuário tem acesso a um módulo
+   * Verifica se o usuario tem acesso a um modulo
    */
   const hasModuleAccess = (moduleKey: string): boolean => {
-    if (!user) return false;
+    if (!user || !roleType) return false;
 
     // PLATFORM_ADMIN sempre tem acesso
-    if (user.role === 'PLATFORM_ADMIN') return true;
+    if (roleType === 'PLATFORM_ADMIN') return true;
 
-    // tenants é exclusivo PLATFORM_ADMIN
+    // tenants e exclusivo PLATFORM_ADMIN
     if (moduleKey === 'tenants') return false;
 
     const permKey = MODULE_KEY_MAP[moduleKey];
-    if (!permKey) return true; // Se não mapeado, permitir por padrão
+    if (!permKey) return true; // Se nao mapeado, permitir por padrao
 
     return modulePermissions[permKey] ?? false;
   };
 
   /**
-   * Verifica permissão CRUD em uma entidade específica
+   * Verifica permissao CRUD em uma entidade especifica
    */
   const hasEntityPermission = (
     entitySlug: string,
     action: 'canCreate' | 'canRead' | 'canUpdate' | 'canDelete',
   ): boolean => {
-    if (!user) return false;
+    if (!user || !roleType) return false;
 
-    // PLATFORM_ADMIN e ADMIN têm acesso total
-    if (user.role === 'PLATFORM_ADMIN' || user.role === 'ADMIN') return true;
+    // PLATFORM_ADMIN e ADMIN tem acesso total
+    if (roleType === 'PLATFORM_ADMIN' || roleType === 'ADMIN') return true;
 
-    // Se não tem customRole, usar defaults do role base
-    if (!user.customRole) {
-      const defaults: Record<UserRole, Record<string, boolean>> = {
-        PLATFORM_ADMIN: { canCreate: true, canRead: true, canUpdate: true, canDelete: true },
-        ADMIN: { canCreate: true, canRead: true, canUpdate: true, canDelete: true },
-        MANAGER: { canCreate: true, canRead: true, canUpdate: true, canDelete: true },
-        USER: { canCreate: true, canRead: true, canUpdate: true, canDelete: false },
-        VIEWER: { canCreate: false, canRead: true, canUpdate: false, canDelete: false },
-      };
-      return defaults[user.role]?.[action] ?? false;
+    // Usar permissoes baseadas em roleType
+    const defaults: Record<RoleType, Record<string, boolean>> = {
+      PLATFORM_ADMIN: { canCreate: true, canRead: true, canUpdate: true, canDelete: true },
+      ADMIN: { canCreate: true, canRead: true, canUpdate: true, canDelete: true },
+      MANAGER: { canCreate: true, canRead: true, canUpdate: true, canDelete: true },
+      USER: { canCreate: true, canRead: true, canUpdate: true, canDelete: false },
+      VIEWER: { canCreate: false, canRead: true, canUpdate: false, canDelete: false },
+      CUSTOM: { canCreate: false, canRead: false, canUpdate: false, canDelete: false },
+    };
+
+    // Se roleType nao e CUSTOM, usar defaults
+    if (roleType !== 'CUSTOM') {
+      return defaults[roleType]?.[action] ?? false;
     }
 
+    // CUSTOM usa permissoes definidas na customRole
     const perm = entityPermissions.find((p) => p.entitySlug === entitySlug);
-    if (!perm) return false; // Se entidade não está nas permissões, sem acesso
+    if (!perm) return false; // Se entidade nao esta nas permissoes, sem acesso
 
     return perm[action] ?? false;
   };
@@ -162,25 +175,30 @@ export function usePermissions() {
    * Retorna o scope para uma entidade (all | own)
    */
   const getEntityScope = (entitySlug: string): 'all' | 'own' => {
-    if (!user) return 'own';
-    if (user.role === 'PLATFORM_ADMIN' || user.role === 'ADMIN') return 'all';
+    if (!user || !roleType) return 'own';
+    if (roleType === 'PLATFORM_ADMIN' || roleType === 'ADMIN') return 'all';
+    if (roleType === 'MANAGER' || roleType === 'VIEWER') return 'all';
+    if (roleType === 'USER') return 'own';
 
+    // CUSTOM: usar scope definido nas permissoes
     const perm = entityPermissions.find((p) => p.entitySlug === entitySlug);
     return perm?.scope || 'all';
   };
 
   /**
-   * Verifica se o user é admin (PLATFORM_ADMIN ou ADMIN)
+   * Verifica se o user e admin (PLATFORM_ADMIN ou ADMIN)
+   * IMPORTANTE: Roles CUSTOM nunca sao consideradas admin
    */
-  const isAdmin = user?.role === 'PLATFORM_ADMIN' || user?.role === 'ADMIN';
+  const isAdmin = roleType === 'PLATFORM_ADMIN' || roleType === 'ADMIN';
 
   /**
-   * Verifica se é PLATFORM_ADMIN
+   * Verifica se e PLATFORM_ADMIN
    */
-  const isPlatformAdmin = user?.role === 'PLATFORM_ADMIN';
+  const isPlatformAdmin = roleType === 'PLATFORM_ADMIN';
 
   return {
     user,
+    roleType,
     modulePermissions,
     entityPermissions,
     hasModuleAccess,

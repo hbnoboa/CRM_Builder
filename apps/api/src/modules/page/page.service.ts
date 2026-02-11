@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
-import { Prisma, UserRole } from '@prisma/client';
+import { Prisma } from '@prisma/client';
 import { CreatePageDto, UpdatePageDto } from './dto/page.dto';
 import {
   CurrentUser,
@@ -8,6 +8,7 @@ import {
   parsePaginationParams,
   createPaginationMeta,
 } from '../../common/types';
+import { RoleType } from '../../common/decorators/roles.decorator';
 
 export interface QueryPageDto extends PaginationQuery {
   isPublished?: boolean;
@@ -74,7 +75,8 @@ export class PageService {
 
   // Helper para determinar o tenantId efetivo (PLATFORM_ADMIN pode acessar qualquer tenant)
   private getEffectiveTenantId(currentUser: CurrentUser, requestedTenantId?: string): string {
-    if (currentUser.role === UserRole.PLATFORM_ADMIN && requestedTenantId) {
+    const roleType = currentUser.customRole?.roleType as RoleType | undefined;
+    if (roleType === 'PLATFORM_ADMIN' && requestedTenantId) {
       return requestedTenantId;
     }
     return currentUser.tenantId;
@@ -105,9 +107,10 @@ export class PageService {
     const { search, isPublished, sortBy = 'updatedAt', sortOrder = 'desc', tenantId: queryTenantId } = query;
 
     // PLATFORM_ADMIN pode ver de qualquer tenant ou todos
+    const roleType = currentUser.customRole?.roleType as RoleType | undefined;
     const where: Prisma.PageWhereInput = {};
-    
-    if (currentUser.role === UserRole.PLATFORM_ADMIN) {
+
+    if (roleType === 'PLATFORM_ADMIN') {
       if (queryTenantId) {
         where.tenantId = queryTenantId;
       }
@@ -150,8 +153,9 @@ export class PageService {
 
   async findOne(id: string, currentUser: CurrentUser) {
     // PLATFORM_ADMIN pode ver pagina de qualquer tenant
+    const roleType = currentUser.customRole?.roleType as RoleType | undefined;
     const whereClause: Prisma.PageWhereInput = { id };
-    if (currentUser.role !== UserRole.PLATFORM_ADMIN) {
+    if (roleType !== 'PLATFORM_ADMIN') {
       whereClause.tenantId = currentUser.tenantId;
     }
 
@@ -173,8 +177,9 @@ export class PageService {
 
   async findBySlug(slug: string, currentUser: CurrentUser) {
     // PLATFORM_ADMIN pode ver pagina de qualquer tenant
+    const roleType = currentUser.customRole?.roleType as RoleType | undefined;
     const whereClause: Prisma.PageWhereInput = { slug };
-    if (currentUser.role !== UserRole.PLATFORM_ADMIN) {
+    if (roleType !== 'PLATFORM_ADMIN') {
       whereClause.tenantId = currentUser.tenantId;
     }
 
@@ -265,8 +270,9 @@ export class PageService {
 
   // Get page for preview (authenticated - allows unpublished pages)
   async getPreviewPage(slug: string, currentUser: CurrentUser) {
+    const roleType = currentUser.customRole?.roleType as RoleType | undefined;
     const whereClause: Prisma.PageWhereInput = { slug };
-    if (currentUser.role !== UserRole.PLATFORM_ADMIN) {
+    if (roleType !== 'PLATFORM_ADMIN') {
       whereClause.tenantId = currentUser.tenantId;
     }
     

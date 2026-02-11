@@ -1,12 +1,14 @@
 import { SetMetadata } from '@nestjs/common';
-import { UserRole } from '@prisma/client';
+
+// Tipos de role do sistema (substituindo UserRole enum)
+export type RoleType = 'PLATFORM_ADMIN' | 'ADMIN' | 'MANAGER' | 'USER' | 'VIEWER' | 'CUSTOM';
 
 export const ROLES_KEY = 'roles';
 
 /**
- * Decorator para definir roles necessárias em um endpoint
- * 
+ * Decorator para definir roles necessarias em um endpoint
+ *
  * @example
- * @Roles(UserRole.ADMIN, UserRole.PLATFORM_ADMIN)
+ * @Roles('ADMIN', 'PLATFORM_ADMIN')
  */
-export const Roles = (...roles: UserRole[]) => SetMetadata(ROLES_KEY, roles);
+export const Roles = (...roles: RoleType[]) => SetMetadata(ROLES_KEY, roles);

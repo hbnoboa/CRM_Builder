@@ -14,12 +14,11 @@ import {
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
-import { Roles } from '../../common/decorators/roles.decorator';
+import { Roles, RoleType } from '../../common/decorators/roles.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { AuthenticatedRequest } from '../../common/types';
 import { CustomApiService, QueryCustomApiDto } from './custom-api.service';
 import { CreateCustomApiDto, UpdateCustomApiDto, HttpMethod } from './dto/custom-api.dto';
-import { UserRole } from '@prisma/client';
 
 @Controller('custom-apis')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -30,7 +29,8 @@ export class CustomApiController {
 
   // Helper: PLATFORM_ADMIN can target any tenant via body.tenantId or query.tenantId
   private getEffectiveTenantId(user: any, requestedTenantId?: string): string {
-    if (user.role === UserRole.PLATFORM_ADMIN && requestedTenantId) {
+    const roleType = user.customRole?.roleType as RoleType | undefined;
+    if (roleType === 'PLATFORM_ADMIN' && requestedTenantId) {
       return requestedTenantId;
     }
     return user.tenantId;

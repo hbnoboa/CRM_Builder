@@ -15,7 +15,6 @@ import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
-import { UserRole } from '@prisma/client';
 
 @ApiTags('Entities')
 @Controller('entities')
@@ -25,7 +24,7 @@ export class EntityController {
   constructor(private readonly entityService: EntityService) {}
 
   @Post()
-  @Roles(UserRole.ADMIN, UserRole.PLATFORM_ADMIN)
+  @Roles('ADMIN', 'PLATFORM_ADMIN')
   @ApiOperation({ summary: 'Criar entidade' })
   async create(@Body() dto: any, @CurrentUser() user: any) {
     return this.entityService.create(dto, user);
@@ -53,14 +52,14 @@ export class EntityController {
   }
 
   @Patch(':id')
-  @Roles(UserRole.ADMIN, UserRole.PLATFORM_ADMIN)
+  @Roles('ADMIN', 'PLATFORM_ADMIN')
   @ApiOperation({ summary: 'Atualizar entidade' })
   async update(@Param('id') id: string, @Body() dto: any, @CurrentUser() user: any) {
     return this.entityService.update(id, dto, user);
   }
 
   @Delete(':id')
-  @Roles(UserRole.ADMIN, UserRole.PLATFORM_ADMIN)
+  @Roles('ADMIN', 'PLATFORM_ADMIN')
   @ApiOperation({ summary: 'Excluir entidade' })
   async remove(@Param('id') id: string, @CurrentUser() user: any) {
     return this.entityService.remove(id, user);

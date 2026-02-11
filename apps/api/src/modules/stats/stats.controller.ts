@@ -14,8 +14,9 @@ export class StatsController {
   @Get('dashboard')
   @ApiOperation({ summary: 'Obter estatisticas do dashboard' })
   async getDashboardStats(@CurrentUser() user: any, @Query('tenantId') tenantId?: string) {
-    const effectiveTenantId = user.role === 'PLATFORM_ADMIN' && tenantId ? tenantId : user.tenantId;
-    return this.statsService.getDashboardStats(effectiveTenantId, user.role === 'PLATFORM_ADMIN' && tenantId ? 'filtered' : user.role);
+    const roleType = user.customRole?.roleType;
+    const effectiveTenantId = roleType === 'PLATFORM_ADMIN' && tenantId ? tenantId : user.tenantId;
+    return this.statsService.getDashboardStats(effectiveTenantId, roleType === 'PLATFORM_ADMIN' && tenantId ? 'filtered' : roleType);
   }
 
   @Get('records-over-time')
@@ -25,15 +26,17 @@ export class StatsController {
     @Query('days') days?: number,
     @Query('tenantId') tenantId?: string,
   ) {
-    const effectiveTenantId = user.role === 'PLATFORM_ADMIN' && tenantId ? tenantId : user.tenantId;
-    return this.statsService.getRecordsOverTime(effectiveTenantId, user.role === 'PLATFORM_ADMIN' && tenantId ? 'filtered' : user.role, days || 30);
+    const roleType = user.customRole?.roleType;
+    const effectiveTenantId = roleType === 'PLATFORM_ADMIN' && tenantId ? tenantId : user.tenantId;
+    return this.statsService.getRecordsOverTime(effectiveTenantId, roleType === 'PLATFORM_ADMIN' && tenantId ? 'filtered' : roleType, days || 30);
   }
 
   @Get('entities-distribution')
   @ApiOperation({ summary: 'Distribuicao de registros por entidade' })
   async getEntitiesDistribution(@CurrentUser() user: any, @Query('tenantId') tenantId?: string) {
-    const effectiveTenantId = user.role === 'PLATFORM_ADMIN' && tenantId ? tenantId : user.tenantId;
-    return this.statsService.getEntitiesDistribution(effectiveTenantId, user.role === 'PLATFORM_ADMIN' && tenantId ? 'filtered' : user.role);
+    const roleType = user.customRole?.roleType;
+    const effectiveTenantId = roleType === 'PLATFORM_ADMIN' && tenantId ? tenantId : user.tenantId;
+    return this.statsService.getEntitiesDistribution(effectiveTenantId, roleType === 'PLATFORM_ADMIN' && tenantId ? 'filtered' : roleType);
   }
 
   @Get('users-activity')
@@ -43,8 +46,9 @@ export class StatsController {
     @Query('days') days?: number,
     @Query('tenantId') tenantId?: string,
   ) {
-    const effectiveTenantId = user.role === 'PLATFORM_ADMIN' && tenantId ? tenantId : user.tenantId;
-    return this.statsService.getUsersActivity(effectiveTenantId, user.role === 'PLATFORM_ADMIN' && tenantId ? 'filtered' : user.role, days || 7);
+    const roleType = user.customRole?.roleType;
+    const effectiveTenantId = roleType === 'PLATFORM_ADMIN' && tenantId ? tenantId : user.tenantId;
+    return this.statsService.getUsersActivity(effectiveTenantId, roleType === 'PLATFORM_ADMIN' && tenantId ? 'filtered' : roleType, days || 7);
   }
 
   @Get('recent-activity')
@@ -54,7 +58,8 @@ export class StatsController {
     @Query('limit') limit?: number,
     @Query('tenantId') tenantId?: string,
   ) {
-    const effectiveTenantId = user.role === 'PLATFORM_ADMIN' && tenantId ? tenantId : user.tenantId;
-    return this.statsService.getRecentActivity(effectiveTenantId, user.role === 'PLATFORM_ADMIN' && tenantId ? 'filtered' : user.role, limit || 10);
+    const roleType = user.customRole?.roleType;
+    const effectiveTenantId = roleType === 'PLATFORM_ADMIN' && tenantId ? tenantId : user.tenantId;
+    return this.statsService.getRecentActivity(effectiveTenantId, roleType === 'PLATFORM_ADMIN' && tenantId ? 'filtered' : roleType, limit || 10);
   }
 }

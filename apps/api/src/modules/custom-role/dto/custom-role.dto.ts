@@ -1,8 +1,13 @@
-import { IsString, IsOptional, IsBoolean, IsArray, ValidateNested, IsEnum } from 'class-validator';
+import { IsString, IsOptional, IsBoolean, IsArray, ValidateNested, IsIn } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional, PartialType } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 
 export type PermissionScope = 'all' | 'own';
+
+// Tipos de role do sistema
+export type RoleType = 'PLATFORM_ADMIN' | 'ADMIN' | 'MANAGER' | 'USER' | 'VIEWER' | 'CUSTOM';
+
+export const ROLE_TYPES: RoleType[] = ['PLATFORM_ADMIN', 'ADMIN', 'MANAGER', 'USER', 'VIEWER', 'CUSTOM'];
 
 export class EntityPermissionDto {
   @ApiProperty({ example: 'clientes' })
@@ -71,6 +76,25 @@ export class ModulePermissionsDto {
   entities?: boolean;
 }
 
+export class TenantPermissionsDto {
+  @ApiPropertyOptional({
+    default: false,
+    description: 'Se true, pode acessar todos os tenants (apenas PLATFORM_ADMIN)'
+  })
+  @IsBoolean()
+  @IsOptional()
+  canAccessAllTenants?: boolean;
+
+  @ApiPropertyOptional({
+    type: [String],
+    description: 'Lista de IDs de tenants permitidos (se canAccessAllTenants = false)'
+  })
+  @IsArray()
+  @IsString({ each: true })
+  @IsOptional()
+  allowedTenantIds?: string[];
+}
+
 export class CreateCustomRoleDto {
   @ApiProperty({ example: 'Vendedor' })
   @IsString()
@@ -86,6 +110,24 @@ export class CreateCustomRoleDto {
   @IsOptional()
   color?: string;
 
+  @ApiPropertyOptional({
+    enum: ROLE_TYPES,
+    default: 'CUSTOM',
+    description: 'Tipo da role: PLATFORM_ADMIN, ADMIN, MANAGER, USER, VIEWER, CUSTOM'
+  })
+  @IsString()
+  @IsIn(ROLE_TYPES)
+  @IsOptional()
+  roleType?: RoleType;
+
+  @ApiPropertyOptional({
+    default: false,
+    description: 'Se true, e uma role de sistema (nome e roleType protegidos)'
+  })
+  @IsBoolean()
+  @IsOptional()
+  isSystem?: boolean;
+
   @ApiProperty({ type: [EntityPermissionDto] })
   @IsArray()
   @ValidateNested({ each: true })
@@ -97,6 +139,15 @@ export class CreateCustomRoleDto {
   @Type(() => ModulePermissionsDto)
   @IsOptional()
   modulePermissions?: ModulePermissionsDto;
+
+  @ApiPropertyOptional({
+    type: TenantPermissionsDto,
+    description: 'Permissoes de tenant (apenas para PLATFORM_ADMIN)'
+  })
+  @ValidateNested()
+  @Type(() => TenantPermissionsDto)
+  @IsOptional()
+  tenantPermissions?: TenantPermissionsDto;
 
   @ApiPropertyOptional({ default: false })
   @IsBoolean()

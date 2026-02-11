@@ -20,13 +20,8 @@ enum Status {
   SUSPENDED
 }
 
-enum UserRole {
-  PLATFORM_ADMIN // Super admin da plataforma
-  ADMIN          // Admin do tenant
-  MANAGER        // Gerente
-  USER           // Usuario padrao
-  VIEWER         // Apenas visualizacao
-}
+// UserRole enum REMOVIDO - agora usamos CustomRole.roleType
+// Tipos validos: PLATFORM_ADMIN, ADMIN, MANAGER, USER, VIEWER, CUSTOM
 
 enum HttpMethod {
   GET
@@ -85,8 +80,8 @@ model User {
   name      String
   avatar    String?
 
-  role          UserRole  @default(USER)
-  customRoleId  String?
+  // role REMOVIDO - agora usamos apenas customRole.roleType
+  customRoleId  String
   status        Status    @default(ACTIVE)
 
   lastLoginAt       DateTime?
@@ -97,7 +92,7 @@ model User {
 
   // Relacionamentos
   tenant        Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  customRole    CustomRole?    @relation(fields: [customRoleId], references: [id], onDelete: SetNull)
+  customRole    CustomRole     @relation(fields: [customRoleId], references: [id])
   refreshTokens RefreshToken[]
   notifications Notification[]
 
@@ -110,7 +105,7 @@ model User {
   @@index([email])
   @@index([status])
   @@index([tenantId, status])
-  @@index([tenantId, role])
+  @@index([customRoleId])
   @@index([tenantId, createdAt(sort: Desc)])
 }
 
@@ -336,7 +331,7 @@ model Notification {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// CUSTOM ROLES (Papéis customizáveis por tenant)
+// CUSTOM ROLES (Papeis customizaveis por tenant)
 // ═══════════════════════════════════════════════════════════════════════════
 
 model CustomRole {
@@ -346,13 +341,23 @@ model CustomRole {
   description String?
   color       String?  @default("#6366f1")
 
-  // JSON array de permissões por entidade
-  // Formato: [{ "entitySlug": "clientes", "canCreate": true, "canRead": true, "canUpdate": true, "canDelete": false }]
+  // Tipo da role: PLATFORM_ADMIN, ADMIN, MANAGER, USER, VIEWER, CUSTOM
+  roleType    String   @default("CUSTOM")
+
+  // Marca roles pre-configuradas do sistema (nome e roleType protegidos)
+  isSystem    Boolean  @default(false)
+
+  // JSON array de permissoes por entidade
+  // Formato: [{ "entitySlug": "clientes", "canCreate": true, "canRead": true, "canUpdate": true, "canDelete": false, "scope": "all"|"own" }]
   permissions Json     @default("[]")
 
-  // Permissões globais (módulos do sistema)
-  // Formato: { "dashboard": true, "users": false, "settings": false, "apis": false, "pages": false }
+  // Permissoes globais (modulos do sistema)
+  // Formato: { "dashboard": true, "users": false, "settings": false, "apis": false, "pages": false, "entities": false }
   modulePermissions Json @default("{}")
+
+  // Permissoes de tenant (apenas para PLATFORM_ADMIN)
+  // Formato: { "canAccessAllTenants": true, "allowedTenantIds": [] }
+  tenantPermissions Json @default("{}")
 
   isDefault   Boolean  @default(false)
   createdAt   DateTime @default(now())
@@ -363,4 +368,6 @@ model CustomRole {
 
   @@unique([tenantId, name])
   @@index([tenantId])
+  @@index([isSystem])
+  @@index([roleType])
 }

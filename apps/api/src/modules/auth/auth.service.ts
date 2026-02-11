@@ -4,13 +4,17 @@ import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcryptjs';
 import { PrismaService } from '../../prisma/prisma.service';
 import { LoginDto, RegisterDto, RefreshTokenDto, UpdateProfileDto, ChangePasswordDto, ForgotPasswordDto, ResetPasswordDto } from './dto/auth.dto';
-import { UserRole, Status } from '@prisma/client';
+import { Status } from '@prisma/client';
+import { RoleType } from '../../common/decorators/roles.decorator';
 
 interface UserForTokenGeneration {
   id: string;
   email: string;
-  role: UserRole;
   tenantId: string;
+  customRoleId: string;
+  customRole: {
+    roleType: string;
+  };
 }
 
 @Injectable()
@@ -36,6 +40,26 @@ export class AuthService {
       throw new ConflictException('Email ja esta em uso');
     }
 
+    // Buscar role default do tenant ou role especificada
+    let customRoleId = dto.customRoleId;
+
+    if (!customRoleId) {
+      // Buscar role default (USER) do tenant
+      const defaultRole = await this.prisma.customRole.findFirst({
+        where: {
+          tenantId: dto.tenantId,
+          isDefault: true,
+        },
+        select: { id: true },
+      });
+
+      if (!defaultRole) {
+        throw new BadRequestException('Tenant sem role default configurada');
+      }
+
+      customRoleId = defaultRole.id;
+    }
+
     // Hash da senha
     const hashedPassword = await bcrypt.hash(dto.password, 12);
 
@@ -46,15 +70,15 @@ export class AuthService {
         password: hashedPassword,
         name: dto.name,
         tenantId: dto.tenantId,
-        role: dto.role || UserRole.USER,
+        customRoleId: customRoleId,
         status: Status.ACTIVE,
       },
       select: {
         id: true,
         email: true,
         name: true,
-        role: true,
         tenantId: true,
+        customRoleId: true,
         createdAt: true,
       },
     });
@@ -85,8 +109,11 @@ export class AuthService {
             name: true,
             description: true,
             color: true,
+            roleType: true,
+            isSystem: true,
             permissions: true,
             modulePermissions: true,
+            tenantPermissions: true,
             isDefault: true,
           },
         },
@@ -95,6 +122,11 @@ export class AuthService {
 
     if (!user) {
       throw new UnauthorizedException('Credenciais invalidas');
+    }
+
+    // Verificar se usuario tem customRole
+    if (!user.customRole || !user.customRoleId) {
+      throw new UnauthorizedException('Usuario sem role definida');
     }
 
     // Verificar se tenant esta ativo
@@ -125,7 +157,6 @@ export class AuthService {
         email: user.email,
         name: user.name,
         avatar: user.avatar,
-        role: user.role,
         customRoleId: user.customRoleId,
         customRole: user.customRole,
         tenantId: user.tenantId,
@@ -149,6 +180,12 @@ export class AuthService {
           user: {
             include: {
               tenant: true,
+              customRole: {
+                select: {
+                  id: true,
+                  roleType: true,
+                },
+              },
             },
           },
         },
@@ -189,7 +226,6 @@ export class AuthService {
         email: true,
         name: true,
         avatar: true,
-        role: true,
         status: true,
         tenantId: true,
         customRoleId: true,
@@ -208,8 +244,11 @@ export class AuthService {
             name: true,
             description: true,
             color: true,
+            roleType: true,
+            isSystem: true,
             permissions: true,
             modulePermissions: true,
+            tenantPermissions: true,
             isDefault: true,
           },
         },
@@ -235,8 +274,8 @@ export class AuthService {
         email: true,
         name: true,
         avatar: true,
-        role: true,
         tenantId: true,
+        customRoleId: true,
       },
     });
 
@@ -337,8 +376,9 @@ export class AuthService {
     const payload = {
       sub: user.id,
       email: user.email,
-      role: user.role,
       tenantId: user.tenantId,
+      customRoleId: user.customRoleId,
+      roleType: user.customRole.roleType as RoleType,
     };
 
     // Access Token (curta duracao)

@@ -1,5 +1,5 @@
 import { Injectable, CanActivate, ExecutionContext, ForbiddenException } from '@nestjs/common';
-import { UserRole } from '@prisma/client';
+import { RoleType } from '../decorators/roles.decorator';
 
 /**
  * Guard que valida isolamento multi-tenant
@@ -19,8 +19,11 @@ export class TenantGuard implements CanActivate {
       throw new ForbiddenException('Usuario nao autenticado');
     }
 
+    // Obter roleType do customRole
+    const roleType = user.customRole?.roleType as RoleType | undefined;
+
     // PLATFORM_ADMIN pode acessar qualquer tenant
-    if (user.role === UserRole.PLATFORM_ADMIN) {
+    if (roleType === 'PLATFORM_ADMIN') {
       return true;
     }
 

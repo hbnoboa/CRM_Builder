@@ -1,14 +1,13 @@
 import { Injectable, CanActivate, ExecutionContext, ForbiddenException } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import { UserRole } from '@prisma/client';
-import { ROLES_KEY } from '../decorators/roles.decorator';
+import { ROLES_KEY, RoleType } from '../decorators/roles.decorator';
 
 @Injectable()
 export class RolesGuard implements CanActivate {
   constructor(private reflector: Reflector) {}
 
   canActivate(context: ExecutionContext): boolean {
-    const requiredRoles = this.reflector.getAllAndOverride<UserRole[]>(ROLES_KEY, [
+    const requiredRoles = this.reflector.getAllAndOverride<RoleType[]>(ROLES_KEY, [
       context.getHandler(),
       context.getClass(),
     ]);
@@ -20,19 +19,26 @@ export class RolesGuard implements CanActivate {
     const { user } = context.switchToHttp().getRequest();
 
     if (!user) {
-      throw new ForbiddenException('Usuário não autenticado');
+      throw new ForbiddenException('Usuario nao autenticado');
     }
 
-    // Platform Admin tem acesso a tudo
-    if (user.role === UserRole.PLATFORM_ADMIN) {
+    // Obter roleType do customRole
+    const roleType = user.customRole?.roleType as RoleType | undefined;
+
+    if (!roleType) {
+      throw new ForbiddenException('Usuario sem role definida');
+    }
+
+    // PLATFORM_ADMIN tem acesso a tudo
+    if (roleType === 'PLATFORM_ADMIN') {
       return true;
     }
 
-    const hasRole = requiredRoles.some((role) => user.role === role);
+    const hasRole = requiredRoles.some((role) => roleType === role);
 
     if (!hasRole) {
       throw new ForbiddenException(
-        `Acesso negado. Roles necessárias: ${requiredRoles.join(', ')}`,
+        `Acesso negado. Roles necessarias: ${requiredRoles.join(', ')}`,
       );
     }
 

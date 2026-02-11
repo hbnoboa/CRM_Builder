@@ -11,7 +11,8 @@ import {
   DEFAULT_LIMIT,
   MAX_LIMIT,
 } from '../../common/types';
-import { Prisma, UserRole } from '@prisma/client';
+import { Prisma } from '@prisma/client';
+import { RoleType } from '../../common/decorators/roles.decorator';
 
 export type QueryEntityDto = PaginationQuery;
 
@@ -72,7 +73,8 @@ export class EntityService {
 
   // Helper para determinar o tenantId a ser usado (suporta PLATFORM_ADMIN)
   private getEffectiveTenantId(currentUser: CurrentUser, requestedTenantId?: string): string {
-    if (currentUser.role === UserRole.PLATFORM_ADMIN && requestedTenantId) {
+    const roleType = currentUser.customRole?.roleType as RoleType | undefined;
+    if (roleType === 'PLATFORM_ADMIN' && requestedTenantId) {
       return requestedTenantId;
     }
     return currentUser.tenantId;
@@ -126,9 +128,10 @@ export class EntityService {
     const { search, sortBy = 'name', sortOrder = 'asc', tenantId: queryTenantId, cursor } = query;
 
     // PLATFORM_ADMIN pode ver de qualquer tenant ou todos
+    const roleType = currentUser.customRole?.roleType as RoleType | undefined;
     const where: Prisma.EntityWhereInput = {};
 
-    if (currentUser.role === UserRole.PLATFORM_ADMIN) {
+    if (roleType === 'PLATFORM_ADMIN') {
       if (queryTenantId) {
         where.tenantId = queryTenantId;
       }
@@ -239,9 +242,10 @@ export class EntityService {
 
   async findBySlug(slug: string, currentUser: CurrentUser, tenantId?: string) {
     // PLATFORM_ADMIN pode buscar entidade de qualquer tenant se nao especificar tenantId
+    const roleType = currentUser.customRole?.roleType as RoleType | undefined;
     const where: Prisma.EntityWhereInput = { slug };
 
-    if (currentUser.role === UserRole.PLATFORM_ADMIN) {
+    if (roleType === 'PLATFORM_ADMIN') {
       // Se tenantId for especificado, filtra por ele; senao, busca em qualquer tenant
       if (tenantId) {
         where.tenantId = tenantId;
@@ -264,8 +268,9 @@ export class EntityService {
 
   async findOne(id: string, currentUser: CurrentUser) {
     // PLATFORM_ADMIN pode ver entidade de qualquer tenant
+    const roleType = currentUser.customRole?.roleType as RoleType | undefined;
     const whereClause: Prisma.EntityWhereInput = { id };
-    if (currentUser.role !== UserRole.PLATFORM_ADMIN) {
+    if (roleType !== 'PLATFORM_ADMIN') {
       whereClause.tenantId = currentUser.tenantId;
     }
 

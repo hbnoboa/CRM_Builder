@@ -8,7 +8,6 @@ import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
-import { UserRole } from '@prisma/client';
 
 @ApiTags('Custom Roles')
 @Controller('custom-roles')
@@ -18,7 +17,7 @@ export class CustomRoleController {
   constructor(private readonly customRoleService: CustomRoleService) {}
 
   @Post()
-  @Roles(UserRole.ADMIN, UserRole.PLATFORM_ADMIN)
+  @Roles('ADMIN', 'PLATFORM_ADMIN')
   @ApiOperation({ summary: 'Criar role customizada' })
   @ApiResponse({ status: 201, description: 'Role criada com sucesso' })
   async create(@Body() dto: CreateCustomRoleDto, @CurrentUser() user: any) {
@@ -48,21 +47,21 @@ export class CustomRoleController {
   }
 
   @Patch(':id')
-  @Roles(UserRole.ADMIN, UserRole.PLATFORM_ADMIN)
+  @Roles('ADMIN', 'PLATFORM_ADMIN')
   @ApiOperation({ summary: 'Atualizar role customizada' })
   async update(@Param('id') id: string, @Body() dto: UpdateCustomRoleDto, @CurrentUser() user: any) {
     return this.customRoleService.update(id, dto, user);
   }
 
   @Delete(':id')
-  @Roles(UserRole.ADMIN, UserRole.PLATFORM_ADMIN)
+  @Roles('ADMIN', 'PLATFORM_ADMIN')
   @ApiOperation({ summary: 'Excluir role customizada' })
   async remove(@Param('id') id: string, @CurrentUser() user: any) {
     return this.customRoleService.remove(id, user);
   }
 
   @Post(':roleId/assign/:userId')
-  @Roles(UserRole.ADMIN, UserRole.PLATFORM_ADMIN)
+  @Roles('ADMIN', 'PLATFORM_ADMIN')
   @ApiOperation({ summary: 'Atribuir role a um usuário' })
   async assignToUser(
     @Param('roleId') roleId: string,
@@ -73,7 +72,7 @@ export class CustomRoleController {
   }
 
   @Delete('user/:userId')
-  @Roles(UserRole.ADMIN, UserRole.PLATFORM_ADMIN)
+  @Roles('ADMIN', 'PLATFORM_ADMIN')
   @ApiOperation({ summary: 'Remover role de um usuário' })
   async removeFromUser(@Param('userId') userId: string, @CurrentUser() user: any) {
     return this.customRoleService.removeFromUser(userId, user);

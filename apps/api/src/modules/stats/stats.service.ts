@@ -1,19 +1,18 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
-import { UserRole } from '@prisma/client';
 
 @Injectable()
 export class StatsService {
   constructor(private readonly prisma: PrismaService) {}
 
   // Helper: PLATFORM_ADMIN ve tudo, demais filtram por tenant
-  private getWhere(tenantId: string, role: string) {
-    if (role === UserRole.PLATFORM_ADMIN) return {};
+  private getWhere(tenantId: string, roleType: string) {
+    if (roleType === 'PLATFORM_ADMIN') return {};
     return { tenantId };
   }
 
-  async getDashboardStats(tenantId: string, role: string) {
-    const where = this.getWhere(tenantId, role);
+  async getDashboardStats(tenantId: string, roleType: string) {
+    const where = this.getWhere(tenantId, roleType);
 
     const [
       totalEntities,
@@ -28,7 +27,7 @@ export class StatsService {
       this.prisma.page.count({ where }),
       this.prisma.customEndpoint.count({ where }),
       this.prisma.user.count({ where }),
-      role === UserRole.PLATFORM_ADMIN
+      roleType === 'PLATFORM_ADMIN'
         ? this.prisma.tenant.count()
         : Promise.resolve(0),
     ]);
@@ -39,7 +38,7 @@ export class StatsService {
       totalPages,
       totalApis,
       totalUsers,
-      ...(role === UserRole.PLATFORM_ADMIN ? { totalTenants } : {}),
+      ...(roleType === 'PLATFORM_ADMIN' ? { totalTenants } : {}),
     };
   }
 
