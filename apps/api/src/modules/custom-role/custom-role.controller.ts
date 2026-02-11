@@ -1,5 +1,5 @@
 import {
-  Controller, Get, Post, Patch, Delete, Body, Param, Query, UseGuards,
+  Controller, Get, Post, Patch, Delete, Body, Param, Query, UseGuards, ForbiddenException,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiResponse } from '@nestjs/swagger';
 import { CustomRoleService } from './custom-role.service';
@@ -9,6 +9,15 @@ import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { CurrentUser as CurrentUserType } from '../../common/types';
+
+const ADMIN_ROLES = ['PLATFORM_ADMIN', 'ADMIN'];
+
+function assertAdminRole(user: CurrentUserType): void {
+  const roleType = user.customRole?.roleType;
+  if (!roleType || !ADMIN_ROLES.includes(roleType)) {
+    throw new ForbiddenException('Acesso negado. Roles necessarias: ADMIN, PLATFORM_ADMIN');
+  }
+}
 
 @ApiTags('Custom Roles')
 @Controller('custom-roles')
@@ -25,12 +34,6 @@ export class CustomRoleController {
     return this.customRoleService.create(dto, user);
   }
 
-  @Get()
-  @ApiOperation({ summary: 'Listar roles customizadas' })
-  async findAll(@Query() query: QueryCustomRoleDto, @CurrentUser() user: CurrentUserType) {
-    return this.customRoleService.findAll(query, user);
-  }
-
   @Get('my-permissions')
   @ApiOperation({ summary: 'Obter permissões do usuário logado' })
   async getMyPermissions(@CurrentUser() user: CurrentUserType) {
@@ -41,9 +44,19 @@ export class CustomRoleController {
     return { entities, modules };
   }
 
+  @Get()
+  @Roles('ADMIN', 'PLATFORM_ADMIN')
+  @ApiOperation({ summary: 'Listar roles customizadas' })
+  async findAll(@Query() query: QueryCustomRoleDto, @CurrentUser() user: CurrentUserType) {
+    assertAdminRole(user);
+    return this.customRoleService.findAll(query, user);
+  }
+
   @Get(':id')
+  @Roles('ADMIN', 'PLATFORM_ADMIN')
   @ApiOperation({ summary: 'Buscar role por ID' })
   async findOne(@Param('id') id: string, @CurrentUser() user: CurrentUserType) {
+    assertAdminRole(user);
     return this.customRoleService.findOne(id, user);
   }
 

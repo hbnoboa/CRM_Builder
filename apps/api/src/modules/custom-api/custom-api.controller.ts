@@ -38,13 +38,23 @@ export class CustomApiController {
   }
 
   @Get()
+  @Roles('ADMIN', 'PLATFORM_ADMIN')
   async findAll(@Query() query: QueryCustomApiDto & { tenantId?: string }, @CurrentUser() user: CurrentUserType) {
+    const roleType = user.customRole?.roleType;
+    if (!roleType || !['PLATFORM_ADMIN', 'ADMIN'].includes(roleType)) {
+      throw new ForbiddenException('Acesso negado. Roles necessarias: ADMIN, PLATFORM_ADMIN');
+    }
     const tenantId = getEffectiveTenantId(user, query.tenantId);
     return this.customApiService.findAll(tenantId, query);
   }
 
   @Get(':id')
+  @Roles('ADMIN', 'PLATFORM_ADMIN')
   async findOne(@Param('id') id: string, @CurrentUser() user: CurrentUserType) {
+    const roleType = user.customRole?.roleType;
+    if (!roleType || !['PLATFORM_ADMIN', 'ADMIN'].includes(roleType)) {
+      throw new ForbiddenException('Acesso negado. Roles necessarias: ADMIN, PLATFORM_ADMIN');
+    }
     return this.customApiService.findOne(id, user.tenantId);
   }
 
