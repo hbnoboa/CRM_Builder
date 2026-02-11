@@ -46,7 +46,7 @@ export default function TenantsPage() {
   const tAuth = useTranslations('auth');
   const locale = useLocale();
   const { user } = useAuthStore();
-  const isPlatformAdmin = user?.role === 'PLATFORM_ADMIN';
+  const isPlatformAdmin = user?.customRole?.roleType === 'PLATFORM_ADMIN';
 
   const [search, setSearch] = useState('');
   const [formOpen, setFormOpen] = useState(false);

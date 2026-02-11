@@ -36,7 +36,7 @@ export function TenantProvider({ children }: { children: ReactNode }) {
   const [selectedTenantId, setSelectedTenantId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const isPlatformAdmin = user?.role === 'PLATFORM_ADMIN';
+  const isPlatformAdmin = user?.customRole?.roleType === 'PLATFORM_ADMIN';
 
   const fetchTenantData = useCallback(async () => {
     const token = localStorage.getItem('accessToken');

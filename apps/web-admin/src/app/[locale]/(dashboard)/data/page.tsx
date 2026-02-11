@@ -1015,7 +1015,7 @@ export default function DataPage() {
                                 </th>
                               );
                             })}
-                            {currentUser?.role === 'PLATFORM_ADMIN' && (
+                            {currentUser?.customRole?.roleType === 'PLATFORM_ADMIN' && (
                               <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">
                                 {tCommon('tenant')}
                               </th>
@@ -1036,7 +1036,7 @@ export default function DataPage() {
                                   {formatCellValue(record.data[col])}
                                 </td>
                               ))}
-                              {currentUser?.role === 'PLATFORM_ADMIN' && (
+                              {currentUser?.customRole?.roleType === 'PLATFORM_ADMIN' && (
                                 <td className="px-3 py-2 text-sm">
                                   <span className="px-2 py-0.5 text-xs rounded bg-gray-200 text-gray-700" title={record.tenantId}>
                                     {record.tenant?.name || record.tenantId || '-'}

@@ -31,7 +31,7 @@ export function RequireRole({
 }: RequireRoleProps) {
   const { user } = useAuthStore();
   const { hasModuleAccess } = usePermissions();
-  const userRole = user?.role;
+  const userRole = user?.customRole?.roleType as UserRole | undefined;
 
   // Verifica se tem acesso
   const hasAccess = (() => {
@@ -47,12 +47,8 @@ export function RequireRole({
 
     // Fallback legado: se adminOnly, verificar via usePermissions
     if (adminOnly) {
-      // Para admin-only, mapear para permissões de módulo se possível
-      // ADMIN sempre tem acesso se não tem customRole
-      if (userRole === 'ADMIN' && !user?.customRole) return true;
       // Se tem customRole, verificar os módulos relevantes
       if (user?.customRole) {
-        // adminOnly geralmente significa entities/settings/apis - verificar se tem pelo menos um
         return hasModuleAccess('entities') || hasModuleAccess('settings') || hasModuleAccess('apis');
       }
       return userRole === 'ADMIN';
@@ -60,13 +56,10 @@ export function RequireRole({
 
     // Se tem roles especificas, verificar base role + customRole modulePermissions
     if (roles && roles.length > 0) {
-      // Se a base role está na lista, verificar se customRole não restringe
       if (roles.includes(userRole)) {
         return true;
       }
-      // Se não está na lista mas tem customRole, verificar modulePermissions
       if (user?.customRole) {
-        // Mapear roles para módulos (ex: users page aceita MANAGER)
         return hasModuleAccess('users') || hasModuleAccess('entities');
       }
       return false;
@@ -105,7 +98,7 @@ export function RequireRole({
 export function useHasRole(roles?: UserRole[], adminOnly?: boolean): boolean {
   const { user } = useAuthStore();
   const { hasModuleAccess, isAdmin, isPlatformAdmin } = usePermissions();
-  const userRole = user?.role;
+  const userRole = user?.customRole?.roleType as UserRole | undefined;
 
   if (!userRole) return false;
   if (isPlatformAdmin) return true;
@@ -128,11 +121,12 @@ export function useHasRole(roles?: UserRole[], adminOnly?: boolean): boolean {
 // Hook para verificar se e admin
 export function useIsAdmin(): boolean {
   const { user } = useAuthStore();
-  return user?.role === 'PLATFORM_ADMIN' || user?.role === 'ADMIN';
+  const roleType = user?.customRole?.roleType;
+  return roleType === 'PLATFORM_ADMIN' || roleType === 'ADMIN';
 }
 
 // Hook para verificar se e platform admin
 export function useIsPlatformAdmin(): boolean {
   const { user } = useAuthStore();
-  return user?.role === 'PLATFORM_ADMIN';
+  return user?.customRole?.roleType === 'PLATFORM_ADMIN';
 }

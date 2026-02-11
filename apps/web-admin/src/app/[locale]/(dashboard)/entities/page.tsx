@@ -223,7 +223,7 @@ function EntitiesPageContent() {
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-1 sm:gap-2">
                         <h3 className="font-semibold text-sm sm:text-base truncate">{entity.name}</h3>
-                        {currentUser?.role === 'PLATFORM_ADMIN' && (
+                        {currentUser?.customRole?.roleType === 'PLATFORM_ADMIN' && (
                           <span className="px-1.5 sm:px-2 py-0.5 text-xs rounded bg-gray-200 text-gray-700 truncate max-w-[80px]" title={entity.tenantId}>
                             {entity.tenant?.name ? entity.tenant.name : entity.tenantId}
                           </span>

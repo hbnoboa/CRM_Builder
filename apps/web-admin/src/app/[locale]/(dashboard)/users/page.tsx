@@ -92,12 +92,12 @@ function UsersPageContent() {
 
   const canEditUser = (target: User) => {
     if (!currentUser) return false;
-    if (currentUser.role === 'PLATFORM_ADMIN' || currentUser.role === 'ADMIN' || currentUser.role === 'MANAGER') return true;
+    if (currentUser.customRole?.roleType === 'PLATFORM_ADMIN' || currentUser.customRole?.roleType === 'ADMIN' || currentUser.customRole?.roleType === 'MANAGER') return true;
     return currentUser.id === target.id;
   };
   const canDeleteUser = (target: User) => {
     if (!currentUser) return false;
-    return currentUser.role === 'PLATFORM_ADMIN' || currentUser.role === 'ADMIN' || currentUser.role === 'MANAGER';
+    return currentUser.customRole?.roleType === 'PLATFORM_ADMIN' || currentUser.customRole?.roleType === 'ADMIN' || currentUser.customRole?.roleType === 'MANAGER';
   };
   return (
     <div className="space-y-4 sm:space-y-6">
@@ -141,7 +141,7 @@ function UsersPageContent() {
         <Card>
           <CardContent className="p-3 sm:p-4">
             <div className="text-xl sm:text-2xl font-bold text-blue-600">
-              {users.filter((u) => u.role === 'ADMIN' || u.role === 'MANAGER').length}
+              {users.filter((u) => u.customRole?.roleType === 'ADMIN' || u.customRole?.roleType === 'MANAGER').length}
             </div>
             <p className="text-xs sm:text-sm text-muted-foreground">{t('stats.administrators')}</p>
           </CardContent>
