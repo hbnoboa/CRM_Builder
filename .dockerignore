@@ -2,6 +2,7 @@
 **/.next
 **/.turbo
 **/dist
+!packages/shared/dist
 **/.cache
 .git
 *.log

@@ -53,7 +53,13 @@ npx prisma generate
 npx prisma db push
 cd ../..
 
-# 4. Build containers
+# 4. Build shared package (needed by Docker builds)
+echo -e "${YELLOW}📦 Building shared package...${NC}"
+cd packages/shared
+npx tsc
+cd ../..
+
+# 5. Build containers
 echo -e "${YELLOW}🔨 Building containers...${NC}"
 
 if [ "$FORCE_REBUILD" = true ]; then

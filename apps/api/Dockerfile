@@ -7,8 +7,13 @@ FROM base AS deps
 WORKDIR /app
 RUN apk add --no-cache openssl
 
-# Copiar apenas o package.json do API e instalar com npm (não pnpm)
-COPY apps/api/package.json ./
+# Copiar shared package (pré-compilado)
+COPY packages/shared/package.json ./shared/package.json
+COPY packages/shared/dist ./shared/dist
+
+# Copiar package.json do API e substituir workspace:* por file:
+COPY apps/api/package.json ./package.json.orig
+RUN sed 's|"workspace:\*"|"file:./shared"|g' package.json.orig > package.json
 COPY apps/api/prisma ./prisma
 
 # Instalar com npm para evitar symlinks do pnpm
@@ -21,12 +26,14 @@ RUN apk add --no-cache openssl
 
 COPY --from=deps /app/node_modules ./node_modules
 COPY --from=deps /app/prisma ./prisma
+COPY --from=deps /app/shared ./shared
 
 # Copiar arquivos do API (exceto node_modules)
 COPY apps/api/src ./src
 COPY apps/api/nest-cli.json ./
 COPY apps/api/tsconfig.json ./
-COPY apps/api/package.json ./
+COPY apps/api/package.json ./package.json.orig
+RUN sed 's|"workspace:\*"|"file:./shared"|g' package.json.orig > package.json
 
 RUN npm run build
 RUN npx prisma generate
@@ -46,6 +53,7 @@ RUN addgroup --system --gid 1001 nodejs && \
 COPY --from=builder --chown=nestjs:nodejs /app/dist ./dist
 COPY --from=builder --chown=nestjs:nodejs /app/prisma ./prisma
 COPY --from=builder --chown=nestjs:nodejs /app/package.json ./
+COPY --from=builder --chown=nestjs:nodejs /app/shared ./shared
 COPY --from=builder --chown=nestjs:nodejs /app/node_modules ./node_modules
 
 # Criar diretório de uploads com permissões corretas

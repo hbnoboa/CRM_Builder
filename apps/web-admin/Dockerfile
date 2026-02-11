@@ -8,7 +8,8 @@ FROM base AS deps
 WORKDIR /app
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY apps/web-admin/package.json ./apps/web-admin/
-RUN pnpm install --frozen-lockfile --filter web-admin
+COPY packages/shared/package.json ./packages/shared/
+RUN pnpm install --frozen-lockfile --filter web-admin --filter @crm-builder/shared
 
 # Build
 FROM base AS builder
@@ -16,6 +17,10 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY --from=deps /app/apps/web-admin/node_modules ./apps/web-admin/node_modules
 COPY . .
+
+# Build shared package first
+WORKDIR /app/packages/shared
+RUN pnpm run build
 
 # Build arguments para variáveis de ambiente em build time
 ARG NEXT_PUBLIC_API_URL
@@ -41,8 +46,11 @@ COPY --from=builder --chown=nextjs:nodejs /app/apps/web-admin/.next/standalone .
 COPY --from=builder --chown=nextjs:nodejs /app/apps/web-admin/.next/static ./.next/static
 # Copiar public
 COPY --from=builder --chown=nextjs:nodejs /app/apps/web-admin/public ./public
-# Copiar package.json e instalar dependências de produção
-COPY --from=builder --chown=nextjs:nodejs /app/apps/web-admin/package.json ./package.json
+# Copiar package.json (substituir workspace:* para npm) e instalar deps de produção
+COPY --from=builder --chown=nextjs:nodejs /app/apps/web-admin/package.json ./package.json.orig
+RUN sed 's|"workspace:\*"|"file:./shared"|g' package.json.orig > package.json && rm package.json.orig
+COPY --from=builder --chown=nextjs:nodejs /app/packages/shared/package.json ./shared/package.json
+COPY --from=builder --chown=nextjs:nodejs /app/packages/shared/dist ./shared/dist
 RUN npm install --omit=dev --legacy-peer-deps
 
 USER nextjs
