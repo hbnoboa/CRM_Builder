@@ -18,6 +18,7 @@ export interface ModulePermissions {
   apis?: boolean;
   pages?: boolean;
   entities?: boolean;
+  tenants?: boolean;
 }
 
 export interface CustomRole {

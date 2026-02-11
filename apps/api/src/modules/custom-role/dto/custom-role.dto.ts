@@ -70,6 +70,11 @@ export class ModulePermissionsDto {
   @IsBoolean()
   @IsOptional()
   entities?: boolean;
+
+  @ApiPropertyOptional({ default: false })
+  @IsBoolean()
+  @IsOptional()
+  tenants?: boolean;
 }
 
 export class TenantPermissionsDto {
@@ -183,4 +188,9 @@ export class QueryCustomRoleDto {
   @IsString()
   @IsOptional()
   sortOrder?: 'asc' | 'desc';
+
+  @ApiPropertyOptional({ description: 'Tenant ID para cross-tenant browsing (PLATFORM_ADMIN)' })
+  @IsString()
+  @IsOptional()
+  tenantId?: string;
 }

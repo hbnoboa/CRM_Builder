@@ -16,6 +16,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { useCustomRoles, useDeleteCustomRole } from '@/hooks/use-custom-roles';
 import { usePermissions } from '@/hooks/use-permissions';
+import { useTenant } from '@/stores/tenant-context';
 import { Link } from '@/i18n/navigation';
 import { RoleFormDialog } from '@/components/roles/role-form-dialog';
 import { DeleteRoleDialog } from '@/components/roles/delete-role-dialog';
@@ -28,13 +29,15 @@ export default function RolesPage() {
   const tAuth = useTranslations('auth');
   const { hasModuleAccess, isAdmin: isAdminUser } = usePermissions();
   const canAccessRoles = hasModuleAccess('roles');
+  const { effectiveTenantId } = useTenant();
 
   const [search, setSearch] = useState('');
   const [formOpen, setFormOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [selectedRole, setSelectedRole] = useState<CustomRole | null>(null);
 
-  const { data, isLoading, refetch } = useCustomRoles();
+  const queryParams = effectiveTenantId ? { tenantId: effectiveTenantId } : undefined;
+  const { data, isLoading, refetch } = useCustomRoles(queryParams);
   const roles = Array.isArray(data?.data) ? data.data : [];
 
   const filteredRoles = roles.filter(

@@ -534,7 +534,8 @@
       "settings": "Configurações",
       "apis": "APIs",
       "pages": "Páginas",
-      "entities": "Entidades"
+      "entities": "Entidades",
+      "tenants": "Tenants"
     },
     "userRoles": {
       "title": "Gerenciar Permissões",

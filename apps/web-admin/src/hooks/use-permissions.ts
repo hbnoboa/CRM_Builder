@@ -16,6 +16,7 @@ const DEFAULT_MODULE_PERMISSIONS: Record<RoleType, ModulePermissions> = {
     apis: true,
     pages: true,
     entities: true,
+    tenants: true,
   },
   ADMIN: {
     dashboard: true,
@@ -24,6 +25,7 @@ const DEFAULT_MODULE_PERMISSIONS: Record<RoleType, ModulePermissions> = {
     apis: true,
     pages: true,
     entities: true,
+    tenants: false,
   },
   MANAGER: {
     dashboard: true,
@@ -32,6 +34,7 @@ const DEFAULT_MODULE_PERMISSIONS: Record<RoleType, ModulePermissions> = {
     apis: false,
     pages: false,
     entities: false,
+    tenants: false,
   },
   USER: {
     dashboard: true,
@@ -40,6 +43,7 @@ const DEFAULT_MODULE_PERMISSIONS: Record<RoleType, ModulePermissions> = {
     apis: false,
     pages: false,
     entities: true,
+    tenants: false,
   },
   VIEWER: {
     dashboard: true,
@@ -48,6 +52,7 @@ const DEFAULT_MODULE_PERMISSIONS: Record<RoleType, ModulePermissions> = {
     apis: false,
     pages: false,
     entities: false,
+    tenants: false,
   },
   CUSTOM: {
     dashboard: true,
@@ -56,6 +61,7 @@ const DEFAULT_MODULE_PERMISSIONS: Record<RoleType, ModulePermissions> = {
     apis: false,
     pages: false,
     entities: false,
+    tenants: false,
   },
 };
 
@@ -71,6 +77,7 @@ const MODULE_KEY_MAP: Record<string, keyof ModulePermissions> = {
   roles: 'users', // /roles usa a mesma permissão de users
   settings: 'settings',
   pages: 'pages',
+  tenants: 'tenants',
 };
 
 export function usePermissions() {
@@ -97,6 +104,7 @@ export function usePermissions() {
         apis: mp.apis ?? false,
         pages: mp.pages ?? false,
         entities: mp.entities ?? false,
+        tenants: mp.tenants ?? false,
       };
     }
 
@@ -127,9 +135,6 @@ export function usePermissions() {
 
     // PLATFORM_ADMIN sempre tem acesso
     if (roleType === 'PLATFORM_ADMIN') return true;
-
-    // tenants e exclusivo PLATFORM_ADMIN
-    if (moduleKey === 'tenants') return false;
 
     const permKey = MODULE_KEY_MAP[moduleKey];
     if (!permKey) return true; // Se nao mapeado, permitir por padrao

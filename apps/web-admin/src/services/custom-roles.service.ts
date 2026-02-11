@@ -8,6 +8,7 @@ export interface QueryCustomRolesParams {
   cursor?: string;
   sortBy?: string;
   sortOrder?: 'asc' | 'desc';
+  tenantId?: string;
 }
 
 export interface CreateCustomRoleData {
@@ -17,6 +18,7 @@ export interface CreateCustomRoleData {
   permissions: EntityPermission[];
   modulePermissions?: ModulePermissions;
   isDefault?: boolean;
+  tenantId?: string;
 }
 
 export interface UpdateCustomRoleData {
@@ -26,6 +28,7 @@ export interface UpdateCustomRoleData {
   permissions?: EntityPermission[];
   modulePermissions?: ModulePermissions;
   isDefault?: boolean;
+  tenantId?: string;
 }
 
 export const customRolesService = {

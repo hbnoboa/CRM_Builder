@@ -21,11 +21,12 @@ import {
 } from '@/components/ui/select';
 import {
   Eye, Plus, Pencil, Trash2, Shield, Database, Users,
-  Settings, Code, Layers, LayoutDashboard, Globe, User,
+  Settings, Code, Layers, LayoutDashboard, Globe, User, Building2,
 } from 'lucide-react';
 import { useCreateCustomRole, useUpdateCustomRole } from '@/hooks/use-custom-roles';
 import { useQuery } from '@tanstack/react-query';
 import api from '@/lib/api';
+import { useTenant } from '@/stores/tenant-context';
 import type { CustomRole, EntityPermission, ModulePermissions, Entity, PermissionScope } from '@/types';
 
 const ROLE_COLORS = [
@@ -45,6 +46,7 @@ export function RoleFormDialog({ open, onOpenChange, role, onSuccess }: RoleForm
   const tCommon = useTranslations('common');
   const isEditing = !!role;
 
+  const { effectiveTenantId } = useTenant();
   const createRole = useCreateCustomRole({ success: t('toast.created') });
   const updateRole = useUpdateCustomRole({ success: t('toast.updated') });
 
@@ -54,14 +56,16 @@ export function RoleFormDialog({ open, onOpenChange, role, onSuccess }: RoleForm
   const [isDefault, setIsDefault] = useState(false);
   const [permissions, setPermissions] = useState<EntityPermission[]>([]);
   const [modulePerms, setModulePerms] = useState<ModulePermissions>({
-    dashboard: true, users: false, settings: false, apis: false, pages: false, entities: false,
+    dashboard: true, users: false, settings: false, apis: false, pages: false, entities: false, tenants: false,
   });
 
   // Buscar entidades do tenant - refetch sempre que abrir para garantir dados atualizados
   const { data: entitiesData } = useQuery({
-    queryKey: ['entities-for-roles'],
+    queryKey: ['entities-for-roles', effectiveTenantId],
     queryFn: async () => {
-      const res = await api.get('/entities', { params: { limit: 100 } });
+      const params: Record<string, unknown> = { limit: 100 };
+      if (effectiveTenantId) params.tenantId = effectiveTenantId;
+      const res = await api.get('/entities', { params });
       return res.data;
     },
     enabled: open,
@@ -84,7 +88,7 @@ export function RoleFormDialog({ open, onOpenChange, role, onSuccess }: RoleForm
       setIsDefault(role.isDefault || false);
       setPermissions(Array.isArray(role.permissions) ? role.permissions : []);
       setModulePerms(role.modulePermissions || {
-        dashboard: true, users: false, settings: false, apis: false, pages: false, entities: false,
+        dashboard: true, users: false, settings: false, apis: false, pages: false, entities: false, tenants: false,
       });
     } else {
       setName('');
@@ -93,7 +97,7 @@ export function RoleFormDialog({ open, onOpenChange, role, onSuccess }: RoleForm
       setIsDefault(false);
       setPermissions([]);
       setModulePerms({
-        dashboard: true, users: false, settings: false, apis: false, pages: false, entities: false,
+        dashboard: true, users: false, settings: false, apis: false, pages: false, entities: false, tenants: false,
       });
     }
   }, [role, open]);
@@ -172,6 +176,7 @@ export function RoleFormDialog({ open, onOpenChange, role, onSuccess }: RoleForm
         scope: p.scope || 'all',
       })),
       modulePermissions: modulePerms,
+      ...(effectiveTenantId ? { tenantId: effectiveTenantId } : {}),
     };
 
     try {
@@ -194,6 +199,7 @@ export function RoleFormDialog({ open, onOpenChange, role, onSuccess }: RoleForm
     apis: <Code className="h-4 w-4" />,
     pages: <Layers className="h-4 w-4" />,
     entities: <Database className="h-4 w-4" />,
+    tenants: <Building2 className="h-4 w-4" />,
   };
 
   const moduleLabels: Record<string, string> = {
@@ -203,6 +209,7 @@ export function RoleFormDialog({ open, onOpenChange, role, onSuccess }: RoleForm
     apis: 'APIs',
     pages: t('modules.pages'),
     entities: t('modules.entities'),
+    tenants: t('modules.tenants'),
   };
 
   return (

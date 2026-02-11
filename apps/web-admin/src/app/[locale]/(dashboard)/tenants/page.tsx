@@ -30,6 +30,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { useTenants, useSuspendTenant, useActivateTenant } from '@/hooks/use-tenants';
 import { TenantFormDialog, DeleteTenantDialog } from '@/components/tenants';
 import { useAuthStore } from '@/stores/auth-store';
+import { usePermissions } from '@/hooks/use-permissions';
 import { Link } from '@/i18n/navigation';
 import type { Tenant } from '@/types';
 
@@ -46,7 +47,8 @@ export default function TenantsPage() {
   const tAuth = useTranslations('auth');
   const locale = useLocale();
   const { user } = useAuthStore();
-  const isPlatformAdmin = user?.customRole?.roleType === 'PLATFORM_ADMIN';
+  const { hasModuleAccess } = usePermissions();
+  const canAccessTenants = hasModuleAccess('tenants');
 
   const [search, setSearch] = useState('');
   const [formOpen, setFormOpen] = useState(false);
@@ -69,8 +71,8 @@ export default function TenantsPage() {
       (tenant.slug || '').toLowerCase().includes(search.toLowerCase())
   );
 
-  // If not PLATFORM_ADMIN, show access denied message
-  if (!isPlatformAdmin) {
+  // If user doesn't have tenants module access, show access denied
+  if (!canAccessTenants) {
     return (
       <div className="max-w-3xl mx-auto mt-4 sm:mt-8 px-2 sm:px-0">
         <Card>

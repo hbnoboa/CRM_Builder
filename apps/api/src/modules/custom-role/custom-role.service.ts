@@ -18,8 +18,8 @@ export class CustomRoleService {
 
   constructor(private prisma: PrismaService) {}
 
-  async create(dto: CreateCustomRoleDto, currentUser: CurrentUser) {
-    const tenantId = getEffectiveTenantId(currentUser);
+  async create(dto: CreateCustomRoleDto, currentUser: CurrentUser, requestedTenantId?: string) {
+    const tenantId = getEffectiveTenantId(currentUser, requestedTenantId);
 
     // Verificar se nome já existe no tenant
     const existing = await this.prisma.customRole.findUnique({
@@ -53,7 +53,7 @@ export class CustomRoleService {
     const limit = Math.min(MAX_LIMIT, Math.max(1, query.limit || DEFAULT_LIMIT));
     const skip = (page - 1) * limit;
     const { search, cursor, sortBy = 'createdAt', sortOrder = 'desc' } = query;
-    const tenantId = getEffectiveTenantId(currentUser);
+    const tenantId = getEffectiveTenantId(currentUser, query.tenantId);
 
     const where: Prisma.CustomRoleWhereInput = { tenantId };
 
@@ -135,8 +135,8 @@ export class CustomRoleService {
     };
   }
 
-  async findOne(id: string, currentUser: CurrentUser) {
-    const tenantId = getEffectiveTenantId(currentUser);
+  async findOne(id: string, currentUser: CurrentUser, requestedTenantId?: string) {
+    const tenantId = getEffectiveTenantId(currentUser, requestedTenantId);
 
     const role = await this.prisma.customRole.findFirst({
       where: { id, tenantId },
@@ -156,10 +156,10 @@ export class CustomRoleService {
     return role;
   }
 
-  async update(id: string, dto: UpdateCustomRoleDto, currentUser: CurrentUser) {
-    const tenantId = getEffectiveTenantId(currentUser);
+  async update(id: string, dto: UpdateCustomRoleDto, currentUser: CurrentUser, requestedTenantId?: string) {
+    const tenantId = getEffectiveTenantId(currentUser, requestedTenantId);
 
-    const role = await this.findOne(id, currentUser);
+    const role = await this.findOne(id, currentUser, requestedTenantId);
 
     // Proteger roles de sistema: nome e roleType nao podem ser alterados
     if (role.isSystem) {
@@ -199,8 +199,8 @@ export class CustomRoleService {
     });
   }
 
-  async remove(id: string, currentUser: CurrentUser) {
-    const role = await this.findOne(id, currentUser);
+  async remove(id: string, currentUser: CurrentUser, requestedTenantId?: string) {
+    const role = await this.findOne(id, currentUser, requestedTenantId);
 
     // Roles de sistema nao podem ser excluidas
     if (role.isSystem) {
@@ -220,8 +220,8 @@ export class CustomRoleService {
     return { message: 'Role excluida com sucesso' };
   }
 
-  async assignToUser(roleId: string, userId: string, currentUser: CurrentUser) {
-    const tenantId = getEffectiveTenantId(currentUser);
+  async assignToUser(roleId: string, userId: string, currentUser: CurrentUser, requestedTenantId?: string) {
+    const tenantId = getEffectiveTenantId(currentUser, requestedTenantId);
 
     // Verificar se a role existe e pertence ao tenant
     const role = await this.prisma.customRole.findFirst({
@@ -250,8 +250,8 @@ export class CustomRoleService {
     });
   }
 
-  async removeFromUser(userId: string, currentUser: CurrentUser) {
-    const tenantId = getEffectiveTenantId(currentUser);
+  async removeFromUser(userId: string, currentUser: CurrentUser, requestedTenantId?: string) {
+    const tenantId = getEffectiveTenantId(currentUser, requestedTenantId);
 
     const user = await this.prisma.user.findFirst({
       where: { id: userId, tenantId },
@@ -452,7 +452,7 @@ export class CustomRoleService {
 
     // PLATFORM_ADMIN e ADMIN tem tudo
     if (roleType === 'PLATFORM_ADMIN' || roleType === 'ADMIN') {
-      return { dashboard: true, users: true, settings: true, apis: true, pages: true, entities: true };
+      return { dashboard: true, users: true, settings: true, apis: true, pages: true, entities: true, tenants: roleType === 'PLATFORM_ADMIN' };
     }
 
     // Usar modulePermissions da customRole (ja configuradas no seed/migration)

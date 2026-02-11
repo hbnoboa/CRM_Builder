@@ -534,7 +534,8 @@
       "settings": "Settings",
       "apis": "APIs",
       "pages": "Pages",
-      "entities": "Entities"
+      "entities": "Entities",
+      "tenants": "Tenants"
     },
     "userRoles": {
       "title": "Manage Permissions",

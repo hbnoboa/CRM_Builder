@@ -30,8 +30,9 @@ export class CustomRoleController {
   @Roles('ADMIN', 'PLATFORM_ADMIN')
   @ApiOperation({ summary: 'Criar role customizada' })
   @ApiResponse({ status: 201, description: 'Role criada com sucesso' })
-  async create(@Body() dto: CreateCustomRoleDto, @CurrentUser() user: CurrentUserType) {
-    return this.customRoleService.create(dto, user);
+  async create(@Body() dto: CreateCustomRoleDto & { tenantId?: string }, @CurrentUser() user: CurrentUserType) {
+    const tenantId = dto.tenantId;
+    return this.customRoleService.create(dto, user, tenantId);
   }
 
   @Get('my-permissions')
@@ -55,23 +56,36 @@ export class CustomRoleController {
   @Get(':id')
   @Roles('ADMIN', 'PLATFORM_ADMIN')
   @ApiOperation({ summary: 'Buscar role por ID' })
-  async findOne(@Param('id') id: string, @CurrentUser() user: CurrentUserType) {
+  async findOne(
+    @Param('id') id: string,
+    @Query('tenantId') tenantId: string | undefined,
+    @CurrentUser() user: CurrentUserType,
+  ) {
     assertAdminRole(user);
-    return this.customRoleService.findOne(id, user);
+    return this.customRoleService.findOne(id, user, tenantId);
   }
 
   @Patch(':id')
   @Roles('ADMIN', 'PLATFORM_ADMIN')
   @ApiOperation({ summary: 'Atualizar role customizada' })
-  async update(@Param('id') id: string, @Body() dto: UpdateCustomRoleDto, @CurrentUser() user: CurrentUserType) {
-    return this.customRoleService.update(id, dto, user);
+  async update(
+    @Param('id') id: string,
+    @Body() dto: UpdateCustomRoleDto & { tenantId?: string },
+    @CurrentUser() user: CurrentUserType,
+  ) {
+    const tenantId = dto.tenantId;
+    return this.customRoleService.update(id, dto, user, tenantId);
   }
 
   @Delete(':id')
   @Roles('ADMIN', 'PLATFORM_ADMIN')
   @ApiOperation({ summary: 'Excluir role customizada' })
-  async remove(@Param('id') id: string, @CurrentUser() user: CurrentUserType) {
-    return this.customRoleService.remove(id, user);
+  async remove(
+    @Param('id') id: string,
+    @Query('tenantId') tenantId: string | undefined,
+    @CurrentUser() user: CurrentUserType,
+  ) {
+    return this.customRoleService.remove(id, user, tenantId);
   }
 
   @Post(':roleId/assign/:userId')
@@ -80,15 +94,20 @@ export class CustomRoleController {
   async assignToUser(
     @Param('roleId') roleId: string,
     @Param('userId') userId: string,
+    @Query('tenantId') tenantId: string | undefined,
     @CurrentUser() user: CurrentUserType,
   ) {
-    return this.customRoleService.assignToUser(roleId, userId, user);
+    return this.customRoleService.assignToUser(roleId, userId, user, tenantId);
   }
 
   @Delete('user/:userId')
   @Roles('ADMIN', 'PLATFORM_ADMIN')
   @ApiOperation({ summary: 'Remover role de um usuário' })
-  async removeFromUser(@Param('userId') userId: string, @CurrentUser() user: CurrentUserType) {
-    return this.customRoleService.removeFromUser(userId, user);
+  async removeFromUser(
+    @Param('userId') userId: string,
+    @Query('tenantId') tenantId: string | undefined,
+    @CurrentUser() user: CurrentUserType,
+  ) {
+    return this.customRoleService.removeFromUser(userId, user, tenantId);
   }
 }
