@@ -9,6 +9,7 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@crm-builder/shared": "workspace:*",
     "@hookform/resolvers": "^5.2.2",
     "@measured/puck": "^0.20.2",
     "@puckeditor/core": "^0.21.1",

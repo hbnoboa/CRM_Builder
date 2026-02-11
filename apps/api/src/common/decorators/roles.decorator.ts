@@ -1,7 +1,7 @@
 import { SetMetadata } from '@nestjs/common';
+import { RoleType } from '@crm-builder/shared';
 
-// Tipos de role do sistema (substituindo UserRole enum)
-export type RoleType = 'PLATFORM_ADMIN' | 'ADMIN' | 'MANAGER' | 'USER' | 'VIEWER' | 'CUSTOM';
+export { RoleType };
 
 export const ROLES_KEY = 'roles';
 

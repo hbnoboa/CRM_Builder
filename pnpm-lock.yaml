@@ -29,6 +29,9 @@ importers:
 
   apps/api:
     dependencies:
+      '@crm-builder/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
       '@google-cloud/storage':
         specifier: ^7.18.0
         version: 7.18.0
@@ -153,6 +156,9 @@ importers:
 
   apps/web-admin:
     dependencies:
+      '@crm-builder/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
       '@hookform/resolvers':
         specifier: ^5.2.2
         version: 5.2.2(react-hook-form@7.71.1(react@18.3.1))
@@ -330,6 +336,12 @@ importers:
         version: 1.0.7(tailwindcss@3.4.19)
       typescript:
         specifier: ^5
+        version: 5.9.3
+
+  packages/shared:
+    devDependencies:
+      typescript:
+        specifier: ^5.5.0
         version: 5.9.3
 
 packages:

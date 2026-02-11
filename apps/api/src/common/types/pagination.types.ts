@@ -1,48 +1,14 @@
-// Common pagination types used across all services
+// Re-export shared pagination types
+export type {
+  PaginationQuery,
+  PaginationMeta,
+  PaginatedResponse,
+} from '@crm-builder/shared';
 
-// ============================================================================
-// QUERY TYPES
-// ============================================================================
+export { DEFAULT_PAGE, DEFAULT_LIMIT, MAX_LIMIT } from '@crm-builder/shared';
 
-export interface PaginationQuery {
-  // Offset-based pagination
-  page?: number;
-  limit?: number;
-
-  // Cursor-based pagination (para listas grandes)
-  cursor?: string;
-
-  // Filtros
-  search?: string;
-  sortBy?: string;
-  sortOrder?: 'asc' | 'desc';
-  tenantId?: string; // Para PLATFORM_ADMIN filtrar por tenant
-
-  // Sparse fieldsets - campos a retornar (reduz payload)
-  fields?: string; // Ex: "id,name,email" ou "id,name,createdAt"
-}
-
-// ============================================================================
-// RESPONSE TYPES
-// ============================================================================
-
-export interface PaginationMeta {
-  total: number;
-  page: number;
-  limit: number;
-  totalPages: number;
-
-  // Cursor pagination info
-  hasNextPage: boolean;
-  hasPreviousPage: boolean;
-  nextCursor?: string;
-  previousCursor?: string;
-}
-
-export interface PaginatedResponse<T> {
-  data: T[];
-  meta: PaginationMeta;
-}
+import type { PaginationQuery, PaginationMeta } from '@crm-builder/shared';
+import { DEFAULT_PAGE, DEFAULT_LIMIT, MAX_LIMIT } from '@crm-builder/shared';
 
 // ============================================================================
 // CURSOR UTILITIES
@@ -103,11 +69,6 @@ export function createPaginationMeta(
     previousCursor: cursorInfo?.previousCursor,
   };
 }
-
-// Default pagination values
-export const DEFAULT_PAGE = 1;
-export const DEFAULT_LIMIT = 20;
-export const MAX_LIMIT = 100;
 
 /**
  * Parse e valida parametros de paginacao (offset-based)

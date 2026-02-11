@@ -1,5 +1,5 @@
 import { Request } from 'express';
-import { RoleType } from '../decorators/roles.decorator';
+import { RoleType } from '@crm-builder/shared';
 
 /**
  * Interface para custom role no usuario autenticado

@@ -1,13 +1,9 @@
 import { IsString, IsOptional, IsBoolean, IsArray, ValidateNested, IsIn } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional, PartialType } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
+import { RoleType, PermissionScope, ROLE_TYPES } from '@crm-builder/shared';
 
-export type PermissionScope = 'all' | 'own';
-
-// Tipos de role do sistema
-export type RoleType = 'PLATFORM_ADMIN' | 'ADMIN' | 'MANAGER' | 'USER' | 'VIEWER' | 'CUSTOM';
-
-export const ROLE_TYPES: RoleType[] = ['PLATFORM_ADMIN', 'ADMIN', 'MANAGER', 'USER', 'VIEWER', 'CUSTOM'];
+export { RoleType, PermissionScope, ROLE_TYPES };
 
 export class EntityPermissionDto {
   @ApiProperty({ example: 'clientes' })

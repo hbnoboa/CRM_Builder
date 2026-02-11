@@ -17,6 +17,7 @@
     "prisma:reset": "prisma migrate reset"
   },
   "dependencies": {
+    "@crm-builder/shared": "workspace:*",
     "@google-cloud/storage": "^7.18.0",
     "@nestjs/common": "^10.4.0",
     "@nestjs/config": "^3.2.0",
