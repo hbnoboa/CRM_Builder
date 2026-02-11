@@ -35,16 +35,16 @@ const DEFAULT_MODULE_PERMISSIONS: Record<UserRole, ModulePermissions> = {
   },
   USER: {
     dashboard: true,
-    users: false,
-    settings: false,
+    users: true,      // pode acessar /users
+    settings: true,   // pode acessar /settings
     apis: false,
     pages: false,
-    entities: false,
+    entities: true,   // pode acessar /data
   },
   VIEWER: {
     dashboard: true,
     users: false,
-    settings: false,
+    settings: true,   // pode acessar /settings
     apis: false,
     pages: false,
     entities: false,
