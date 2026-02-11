@@ -5,7 +5,17 @@ import { Status, Prisma } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
 
 // Configuracao das roles de sistema que serao criadas por tenant
-const SYSTEM_ROLES = {
+interface SystemRoleConfig {
+  name: string;
+  description: string;
+  color: string;
+  roleType: string;
+  isSystem: boolean;
+  isDefault?: boolean;
+  modulePermissions: Record<string, boolean>;
+}
+
+const SYSTEM_ROLES: Record<string, SystemRoleConfig> = {
   ADMIN: {
     name: 'Administrador',
     description: 'Administrador do tenant com acesso completo',
