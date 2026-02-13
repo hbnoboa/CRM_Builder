@@ -57,8 +57,10 @@ interface EntitySettings {
 interface EntityField {
   slug: string;
   name: string;
+  label?: string;
   type: string;
   required?: boolean;
+  unique?: boolean;
 }
 
 // Cache for entity lookups within a request (reduces duplicate queries)
@@ -255,6 +257,9 @@ export class DataService {
     if (errors.length > 0) {
       throw new BadRequestException(errors);
     }
+
+    // Validar campos unicos
+    await this.validateUniqueFields(fields, dataWithCustomApi, entity.id, targetTenantId);
 
     const record = await this.prisma.entityData.create({
       data: {
@@ -554,6 +559,9 @@ export class DataService {
       throw new BadRequestException(errors);
     }
 
+    // Validar campos unicos (excluindo o proprio registro)
+    await this.validateUniqueFields(fields, dataWithCustomApi, entity.id, effectiveTenantId, id);
+
     // Merge dos dados existentes com os novos (incluindo Custom API)
     const mergedData = {
       ...(record.data as Record<string, unknown>),
@@ -651,6 +659,43 @@ export class DataService {
       this.logger.debug(`Applying scope 'own' for user ${user.id} on entity ${entitySlug}`);
     }
     // Se scope = 'all' ou null (ADMIN/PLATFORM_ADMIN), nao filtra por criador
+  }
+
+  // Validar campos marcados como unique
+  private async validateUniqueFields(
+    fields: EntityField[],
+    data: Record<string, unknown>,
+    entityId: string,
+    tenantId: string,
+    excludeRecordId?: string,
+  ) {
+    const uniqueFields = fields.filter(f => f.unique);
+    if (uniqueFields.length === 0) return;
+
+    for (const field of uniqueFields) {
+      const value = data[field.slug];
+      if (value === undefined || value === null || value === '') continue;
+
+      const duplicates = await this.prisma.entityData.findMany({
+        where: {
+          entityId,
+          tenantId,
+          ...(excludeRecordId ? { id: { not: excludeRecordId } } : {}),
+        },
+        select: { id: true, data: true },
+      });
+
+      const duplicate = duplicates.find(record => {
+        const recordData = record.data as Record<string, unknown>;
+        return String(recordData[field.slug]) === String(value);
+      });
+
+      if (duplicate) {
+        throw new BadRequestException(
+          `O campo "${field.label || field.name}" deve ser unico. O valor "${value}" ja existe.`,
+        );
+      }
+    }
   }
 
   // Verificar se usuario pode modificar o registro

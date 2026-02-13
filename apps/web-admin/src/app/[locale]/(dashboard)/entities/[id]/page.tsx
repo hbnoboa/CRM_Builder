@@ -946,6 +946,10 @@ export default function EntityDetailPage() {
                                 <div className="pt-1"><Switch checked={field.required || false} onCheckedChange={(checked) => updateField(index, { required: checked })} /></div>
                               </div>
                               <div className="space-y-1">
+                                <Label className="text-xs">{tCommon('unique')}</Label>
+                                <div className="pt-1"><Switch checked={field.unique || false} onCheckedChange={(checked) => updateField(index, { unique: checked })} /></div>
+                              </div>
+                              <div className="space-y-1">
                                 <Label className="text-xs">{tCommon('hidden')}</Label>
                                 <div className="pt-1"><Switch checked={field.hidden || false} onCheckedChange={(checked) => updateField(index, { hidden: checked })} /></div>
                                 <p className="text-[10px] text-muted-foreground">{t('fieldFilledByApi')}</p>

@@ -41,6 +41,7 @@
     "field": "Campo",
     "fields": "Campos",
     "required": "Obrigatório",
+    "unique": "Único",
     "optional": "Opcional",
     "hidden": "Oculto",
     "visible": "Visível",
