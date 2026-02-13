@@ -21,7 +21,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useAuthStore } from '@/stores/auth-store';
 import { usePermissions } from '@/hooks/use-permissions';
-import { TenantProvider } from '@/stores/tenant-context';
+import { TenantProvider, useTenant } from '@/stores/tenant-context';
 import { NotificationProvider } from '@/providers/notification-provider';
 import { NotificationBell } from '@/components/notifications/notification-bell';
 import { LanguageSwitcher } from '@/components/language-switcher';
@@ -124,6 +124,7 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
   const tRoles = useTranslations('roles');
   const { user, isAuthenticated, logout, getProfile, isLoading } = useAuthStore();
   const { hasModuleAccess } = usePermissions();
+  const { tenant } = useTenant();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
   const fetchedRef = useRef(false);
@@ -203,10 +204,14 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
       >
         <div className="flex flex-col h-full">
           <div className="flex items-center gap-3 h-16 px-4 border-b">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary to-primary/70 flex items-center justify-center">
-              <span className="text-lg font-bold text-primary-foreground">C</span>
-            </div>
-            <span className="font-semibold text-lg">CRM Builder</span>
+            {tenant?.logo ? (
+              <img src={tenant.logo} alt={tenant.name} className="h-8 w-8 flex-shrink-0 object-contain" />
+            ) : (
+              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary to-primary/70 flex items-center justify-center flex-shrink-0">
+                <span className="text-lg font-bold text-primary-foreground">{(tenant?.name || 'C')[0].toUpperCase()}</span>
+              </div>
+            )}
+            <span className="font-semibold text-lg truncate">{tenant?.name || 'CRM Builder'}</span>
             <button
               className="ml-auto lg:hidden p-2 -mr-2 rounded-lg hover:bg-muted active:bg-muted/80 transition-colors"
               onClick={() => setSidebarOpen(false)}

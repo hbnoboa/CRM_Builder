@@ -5,8 +5,8 @@ import { useParams } from 'next/navigation';
 import { Link, useRouter } from '@/i18n/navigation';
 import { useTranslations } from 'next-intl';
 import {
-  ArrowLeft, Plus, Trash2, Save, Loader2, Code, Zap, MoreHorizontal,
-  GripVertical, ChevronDown, ChevronUp, Copy, RefreshCw,
+  ArrowLeft, Plus, Trash2, Save, Loader2, MoreHorizontal,
+  GripVertical, ChevronDown, ChevronUp, Copy,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import Papa from 'papaparse';
@@ -25,14 +25,6 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
-import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -43,7 +35,7 @@ import { Switch } from '@/components/ui/switch';
 import { toast } from 'sonner';
 import api from '@/lib/api';
 import { useTenant } from '@/stores/tenant-context';
-import { customApisService, type CustomApi, type CreateCustomApiData } from '@/services/custom-apis.service';
+import type { CustomApi } from '@/services/custom-apis.service';
 import type { Entity, Field, FieldType } from '@/types';
 import FieldGridEditor from '@/components/entities/field-grid-editor';
 
@@ -139,14 +131,6 @@ const allFieldTypes = fieldTypeCategories.flatMap(c => c.types);
 const getFieldTypeInfo = (type: string) =>
   allFieldTypes.find(t => t.value === type) || { value: type, labelKey: type, icon: '?', descKey: '' };
 
-const httpMethods = [
-  { value: 'GET', label: 'GET', color: 'bg-green-500' },
-  { value: 'POST', label: 'POST', color: 'bg-blue-500' },
-  { value: 'PUT', label: 'PUT', color: 'bg-yellow-500' },
-  { value: 'PATCH', label: 'PATCH', color: 'bg-orange-500' },
-  { value: 'DELETE', label: 'DELETE', color: 'bg-red-500' },
-];
-
 interface RelatedEntity {
   id: string;
   name: string;
@@ -185,41 +169,23 @@ export default function EntityDetailPage() {
   const [expandedFieldIndex, setExpandedFieldIndex] = useState<number | null>(null);
   const [allEntities, setAllEntities] = useState<RelatedEntity[]>([]);
   const [allCustomApis, setAllCustomApis] = useState<CustomApi[]>([]);
-  const [customApis, setCustomApis] = useState<CustomApi[]>([]);
-  const [loadingApis, setLoadingApis] = useState(false);
-  const [apiDialogOpen, setApiDialogOpen] = useState(false);
-  const [editingApi, setEditingApi] = useState<CustomApi | null>(null);
-  const [apiForm, setApiForm] = useState<CreateCustomApiData>({
-    name: '', path: '', method: 'GET', description: '', logic: '',
-  });
-  const [savingApi, setSavingApi] = useState(false);
-  const { tenantId } = useTenant();
-  const [fetchingApiFields, setFetchingApiFields] = useState<number | null>(null);
+  const { tenantId, effectiveTenantId } = useTenant();
 
-  const fetchApiFields = async (fieldIndex: number, endpoint?: string) => {
-    const ep = endpoint || fields[fieldIndex]?.apiEndpoint;
-    if (!ep || !tenantId) {
-      toast.error(t('fieldFilledByApi'));
-      return;
-    }
-    setFetchingApiFields(fieldIndex);
-    try {
-      const response = await api.get(`/x/${tenantId}${ep}`);
-      const data = Array.isArray(response.data) ? response.data : response.data?.data || [];
-      if (data.length > 0) {
-        const keys = Object.keys(data[0]).filter(k => k !== '__v');
-        updateField(fieldIndex, { apiFields: keys });
-        toast.success(`${keys.length} ${tCommon('fields').toLowerCase()}`);
-      } else {
-        updateField(fieldIndex, { apiFields: [] });
-        toast.warning(t('noFieldsDefined'));
-      }
-    } catch (error) {
-      console.error('Error fetching API fields:', error);
-      toast.error(tCommon('error'));
-    } finally {
-      setFetchingApiFields(null);
-    }
+  // Derive API fields from the custom API config (sourceEntity.fields) instead of executing the endpoint
+  const getApiFields = (endpoint: string): string[] => {
+    const selectedApi = allCustomApis.find(a => a.path === endpoint);
+    if (!selectedApi) return [];
+    const entityFields = (selectedApi.sourceEntity?.fields || []) as Array<{ slug: string; name: string; type?: string }>;
+    return ['id', ...entityFields.map(f => f.slug)].filter((v, i, a) => a.indexOf(v) === i);
+  };
+
+  // Find the first text-like field for auto-defaulting labelField
+  const getDefaultLabelField = (endpoint: string): string => {
+    const selectedApi = allCustomApis.find(a => a.path === endpoint);
+    if (!selectedApi) return '';
+    const entityFields = (selectedApi.sourceEntity?.fields || []) as Array<{ slug: string; type?: string }>;
+    const textField = entityFields.find(f => !f.type || f.type === 'text' || f.type === 'email');
+    return textField?.slug || entityFields[0]?.slug || '';
   };
 
   useEffect(() => {
@@ -230,6 +196,23 @@ export default function EntityDetailPage() {
     }
   }, [params.id]);
 
+  // Auto-populate apiFields for existing api-select fields when allCustomApis loads
+  useEffect(() => {
+    if (allCustomApis.length === 0 || fields.length === 0) return;
+    let changed = false;
+    const updated = fields.map(field => {
+      if (field.type === 'api-select' && field.apiEndpoint && (!field.apiFields || field.apiFields.length === 0)) {
+        const apiFields = getApiFields(field.apiEndpoint);
+        if (apiFields.length > 0) {
+          changed = true;
+          return { ...field, apiFields };
+        }
+      }
+      return field;
+    });
+    if (changed) setFields(updated);
+  }, [allCustomApis]);
+
   const loadEntity = async (id: string) => {
     try {
       const response = await api.get(`/entities/${id}`);
@@ -238,7 +221,6 @@ export default function EntityDetailPage() {
       setName(entityData.name);
       setDescription(entityData.description || '');
       setFields(entityData.fields || []);
-      loadCustomApis(id);
     } catch (error) {
       console.error('Error loading entity:', error);
       toast.error(tToast('notFound'));
@@ -265,18 +247,6 @@ export default function EntityDetailPage() {
       setAllCustomApis(list.filter((a: CustomApi) => a.isActive && a.method === 'GET'));
     } catch (error) {
       console.error('Error loading custom APIs:', error);
-    }
-  };
-
-  const loadCustomApis = async (entityId: string) => {
-    setLoadingApis(true);
-    try {
-      const response = await customApisService.getByEntityId(entityId);
-      setCustomApis(response.data || []);
-    } catch (error) {
-      console.error('Error loading custom APIs:', error);
-    } finally {
-      setLoadingApis(false);
     }
   };
 
@@ -372,64 +342,6 @@ export default function EntityDetailPage() {
       setSaving(false);
     }
   };
-
-  const openApiDialog = (existingApi?: CustomApi) => {
-    if (existingApi) {
-      setEditingApi(existingApi);
-      setApiForm({ name: existingApi.name, path: existingApi.path, method: existingApi.method, description: existingApi.description || '', logic: (existingApi.logic as string) || '' });
-    } else {
-      setEditingApi(null);
-      setApiForm({ name: '', path: '', method: 'GET', description: '', logic: '' });
-    }
-    setApiDialogOpen(true);
-  };
-
-  const handleSaveApi = async () => {
-    if (!apiForm.name.trim() || !apiForm.path.trim()) { toast.error(tToast('nameRequired')); return; }
-    setSavingApi(true);
-    try {
-      if (editingApi) {
-        await customApisService.update(editingApi.id, apiForm);
-        toast.success(tToast('updated'));
-      } else {
-        await customApisService.create({ ...apiForm, sourceEntityId: params.id as string });
-        toast.success(tToast('created'));
-      }
-      setApiDialogOpen(false);
-      loadCustomApis(params.id as string);
-    } catch (error) {
-      console.error('Error saving API:', error);
-      toast.error(tToast('saveError'));
-    } finally {
-      setSavingApi(false);
-    }
-  };
-
-  const handleDeleteApi = async (apiToDelete: CustomApi) => {
-    if (!confirm(`${tCommon('delete')} API "${apiToDelete.name}"?`)) return;
-    try {
-      await customApisService.delete(apiToDelete.id);
-      toast.success(tToast('deleted'));
-      loadCustomApis(params.id as string);
-    } catch (error) {
-      console.error('Error deleting API:', error);
-      toast.error(tCommon('error'));
-    }
-  };
-
-  const handleToggleApi = async (apiToToggle: CustomApi) => {
-    try {
-      if (apiToToggle.isActive) await customApisService.deactivate(apiToToggle.id);
-      else await customApisService.activate(apiToToggle.id);
-      loadCustomApis(params.id as string);
-    } catch (error) {
-      console.error('Error toggling API:', error);
-      toast.error(tCommon('error'));
-    }
-  };
-
-  const getMethodColor = (method: string) =>
-    httpMethods.find(m => m.value === method)?.color || 'bg-gray-500';
 
   const getRelatedEntityFields = (entityId: string) => {
     const ent = allEntities.find(e => e.id === entityId);
@@ -688,11 +600,14 @@ export default function EntityDetailPage() {
             <Select
               value={field.apiEndpoint || ''}
               onValueChange={(val) => {
-                const endpoint = val === '__custom__' ? '' : val;
-                updateField(index, { apiEndpoint: endpoint, apiFields: [] });
-                if (endpoint) {
-                  setTimeout(() => fetchApiFields(index, endpoint), 100);
-                }
+                const apiFields = getApiFields(val);
+                const defaultLabel = getDefaultLabelField(val);
+                updateField(index, {
+                  apiEndpoint: val,
+                  apiFields,
+                  valueField: 'id',
+                  labelField: field.labelField || defaultLabel,
+                });
               }}
             >
               <SelectTrigger className="h-8 text-sm"><SelectValue placeholder={tFieldConfig('selectDataApi')} /></SelectTrigger>
@@ -706,45 +621,26 @@ export default function EntityDetailPage() {
                     </div>
                   </SelectItem>
                 ))}
-                <SelectItem value="__custom__">
-                  <span className="text-muted-foreground">{tFieldConfig('typeManually')}</span>
-                </SelectItem>
               </SelectContent>
             </Select>
-            {(!field.apiEndpoint || field.apiEndpoint === '') && (
-              <Input className="h-8 text-sm mt-1" placeholder="/my-endpoint" value={field.apiEndpoint || ''} onChange={(e) => updateField(index, { apiEndpoint: e.target.value })} />
-            )}
           </div>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div className="space-y-1">
-              <Label className="text-xs">{tFieldConfig('valueField')}</Label>
-              <Input className="h-8 text-sm" placeholder="id" value={field.valueField || ''} onChange={(e) => updateField(index, { valueField: e.target.value })} />
-              <p className="text-xs text-muted-foreground">{tFieldConfig('valueFieldHint')}</p>
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs">{tFieldConfig('labelField')}</Label>
-              <Input className="h-8 text-sm" placeholder="name" value={field.labelField || ''} onChange={(e) => updateField(index, { labelField: e.target.value })} />
-              <p className="text-xs text-muted-foreground">{tFieldConfig('labelFieldHint')}</p>
-            </div>
+          <div className="space-y-1">
+            <Label className="text-xs">{tFieldConfig('apiDisplayField')}</Label>
+            <Select value={field.labelField || ''} onValueChange={(val) => updateField(index, { labelField: val, valueField: 'id' })}>
+              <SelectTrigger className="h-8 text-sm"><SelectValue placeholder={tFieldConfig('selectField')} /></SelectTrigger>
+              <SelectContent>
+                {(field.apiFields || []).filter((f: string) => f !== 'id').map((f: string) => (
+                  <SelectItem key={f} value={f}>{f}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <Label className="text-xs font-medium">{tFieldConfig('autoFill')}</Label>
-              <div className="flex items-center gap-1">
-                <Button
-                  onClick={() => fetchApiFields(index)}
-                  size="sm"
-                  variant="outline"
-                  className="h-6 text-[10px]"
-                  disabled={!field.apiEndpoint || fetchingApiFields === index}
-                >
-                  {fetchingApiFields === index ? <Loader2 className="h-2 w-2 mr-1 animate-spin" /> : <RefreshCw className="h-2 w-2 mr-1" />}
-                  {tFieldConfig('fetchFields')}
-                </Button>
-                <Button onClick={() => addAutoFill(index)} size="sm" variant="outline" className="h-6 text-[10px]">
-                  <Plus className="h-2 w-2 mr-1" /> {tFieldConfig('rule')}
-                </Button>
-              </div>
+              <Button onClick={() => addAutoFill(index)} size="sm" variant="outline" className="h-6 text-[10px]">
+                <Plus className="h-2 w-2 mr-1" /> {tFieldConfig('rule')}
+              </Button>
             </div>
             <p className="text-xs text-muted-foreground">{tFieldConfig('autoFillDescription')}</p>
             {(field.autoFillFields || []).map((af, afIdx) => (
@@ -759,7 +655,7 @@ export default function EntityDetailPage() {
                   <SelectContent>
                     {!Array.isArray(field.apiFields) || field.apiFields.length === 0 ? (
                       <SelectItem value="__empty__" disabled>
-                        {fetchingApiFields === index ? tCommon('loading') : tFieldConfig('fetchFieldsFirst')}
+                        {tFieldConfig('selectApiFirst')}
                       </SelectItem>
                     ) : (
                       field.apiFields.map((apiField: string) => (
@@ -911,7 +807,6 @@ export default function EntityDetailPage() {
           <TabsTrigger value="info">{t('basicInfo')}</TabsTrigger>
           <TabsTrigger value="fields">{t('fieldsTab')} ({fields.length})</TabsTrigger>
           <TabsTrigger value="layout">{t('visualLayout')}</TabsTrigger>
-          <TabsTrigger value="apis">{t('customApis')} ({customApis.length})</TabsTrigger>
         </TabsList>
 
         {/* Info Tab */}
@@ -1010,12 +905,23 @@ export default function EntityDetailPage() {
                           <div className="px-3 pb-4 pt-1 border-t space-y-4">
                             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                               <div className="space-y-1">
-                                <Label className="text-xs">{t('fieldName')}</Label>
-                                <Input placeholder="nome_campo" value={field.name || ''} onChange={(e) => updateField(index, { name: e.target.value })} className="h-8 text-sm" />
-                              </div>
-                              <div className="space-y-1">
                                 <Label className="text-xs">{t('fieldLabel')}</Label>
-                                <Input placeholder="Nome do Campo" value={field.label || ''} onChange={(e) => updateField(index, { label: e.target.value })} className="h-8 text-sm" />
+                                <Input placeholder={t('fieldNamePlaceholder')} value={field.label || ''} onChange={(e) => {
+                                  const label = e.target.value;
+                                  const isExistingField = !!(field as Record<string, unknown>).id || (entity?.fields || []).some((ef: Partial<Field>) => ef.name === field.name && field.name);
+                                  if (isExistingField) {
+                                    updateField(index, { label });
+                                  } else {
+                                    const slug = label
+                                      .normalize('NFD')
+                                      .replace(/[\u0300-\u036f]/g, '')
+                                      .toLowerCase()
+                                      .replace(/[^a-z0-9]+/g, '_')
+                                      .replace(/^_+|_+$/g, '')
+                                      .replace(/__+/g, '_');
+                                    updateField(index, { label, name: slug });
+                                  }
+                                }} className="h-8 text-sm" />
                               </div>
                               <div className="space-y-1">
                                 <Label className="text-xs">{tCommon('type')}</Label>
@@ -1094,112 +1000,7 @@ export default function EntityDetailPage() {
           </Card>
         </TabsContent>
 
-        {/* Custom APIs Tab */}
-        <TabsContent value="apis">
-          <Card>
-            <CardHeader>
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <div>
-                  <CardTitle>{t('customApis')}</CardTitle>
-                  <CardDescription>{tFieldConfig('customApisDescription')}</CardDescription>
-                </div>
-                <Button onClick={() => openApiDialog()} size="sm" className="w-full sm:w-auto"><Plus className="h-4 w-4 mr-1" /> {tFieldConfig('newApi')}</Button>
-              </div>
-            </CardHeader>
-            <CardContent>
-              {loadingApis ? (
-                <div className="flex items-center justify-center py-12"><Loader2 className="h-6 w-6 animate-spin" /></div>
-              ) : customApis.length === 0 ? (
-                <div className="text-center py-8 sm:py-12 border-2 border-dashed rounded-lg px-4">
-                  <Zap className="h-10 w-10 sm:h-12 sm:w-12 mx-auto text-muted-foreground/50 mb-3 sm:mb-4" />
-                  <h3 className="font-medium mb-2 text-sm sm:text-base">{t('noCustomApis')}</h3>
-                  <p className="text-muted-foreground text-xs sm:text-sm mb-4 max-w-md mx-auto">{t('createCustomApisHint')}</p>
-                  <Button onClick={() => openApiDialog()} variant="outline"><Plus className="h-4 w-4 mr-2" /> {t('createFirstApi')}</Button>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {customApis.map((customApi) => (
-                    <div key={customApi.id} className="flex flex-wrap items-center gap-2 sm:gap-3 p-3 sm:p-4 border rounded-lg hover:bg-muted/30 transition-colors">
-                      <Badge className={`${getMethodColor(customApi.method)} text-white w-16 justify-center flex-shrink-0`}>{customApi.method}</Badge>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <span className="font-medium">{customApi.name}</span>
-                          {!customApi.isActive && <Badge variant="secondary" className="text-xs">{tCommon('inactive')}</Badge>}
-                        </div>
-                        <div className="text-sm text-muted-foreground font-mono truncate">/api/{entity.slug}/{customApi.path}</div>
-                        {customApi.description && <p className="text-xs text-muted-foreground mt-1">{customApi.description}</p>}
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Switch checked={customApi.isActive} onCheckedChange={() => handleToggleApi(customApi)} />
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild><Button variant="ghost" size="icon"><MoreHorizontal className="h-4 w-4" /></Button></DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => openApiDialog(customApi)}><Code className="h-4 w-4 mr-2" /> {tCommon('edit')}</DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => handleDeleteApi(customApi)} className="text-destructive"><Trash2 className="h-4 w-4 mr-2" /> {tCommon('delete')}</DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
       </Tabs>
-
-      {/* Custom API Dialog */}
-      <Dialog open={apiDialogOpen} onOpenChange={setApiDialogOpen}>
-        <DialogContent className="max-w-[95vw] sm:max-w-2xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>{editingApi ? tCommon('edit') : tCommon('create')} Custom API</DialogTitle>
-            <DialogDescription>{t('createCustomApisHint')}</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="space-y-2">
-                <Label>{tCommon('name')}</Label>
-                <Input value={apiForm.name} onChange={(e) => setApiForm({ ...apiForm, name: e.target.value })} placeholder="Ex: Aprovar Pedido" />
-              </div>
-              <div className="space-y-2">
-                <Label>HTTP</Label>
-                <Select value={apiForm.method} onValueChange={(value: any) => setApiForm({ ...apiForm, method: value })}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {httpMethods.map((method) => (
-                      <SelectItem key={method.value} value={method.value}>
-                        <div className="flex items-center gap-2"><Badge className={`${method.color} text-white text-xs`}>{method.label}</Badge></div>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            <div className="space-y-2">
-              <Label>Path</Label>
-              <div className="flex flex-col sm:flex-row sm:items-center gap-2">
-                <span className="text-sm text-muted-foreground flex-shrink-0">/api/{entity.slug}/</span>
-                <Input value={apiForm.path} onChange={(e) => setApiForm({ ...apiForm, path: e.target.value })} placeholder="aprovar ou :id/aprovar" className="flex-1" />
-              </div>
-            </div>
-            <div className="space-y-2">
-              <Label>{tCommon('description')}</Label>
-              <Input value={apiForm.description} onChange={(e) => setApiForm({ ...apiForm, description: e.target.value })} placeholder={t('descriptionPlaceholder')} />
-            </div>
-            <div className="space-y-2">
-              <Label>JavaScript</Label>
-              <Textarea value={apiForm.logic} onChange={(e) => setApiForm({ ...apiForm, logic: e.target.value })} placeholder={`// Contexto: ctx.params, ctx.body, ctx.user, ctx.entity\nconst { id } = ctx.params;\nconst record = await ctx.entity.findById(id);\nreturn { success: true, data: record };`} rows={10} className="font-mono text-sm" />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setApiDialogOpen(false)}>{tCommon('cancel')}</Button>
-            <Button onClick={handleSaveApi} disabled={savingApi}>
-              {savingApi ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
-              {editingApi ? tCommon('save') : tCommon('create')}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

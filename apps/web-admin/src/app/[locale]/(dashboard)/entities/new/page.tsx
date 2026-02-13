@@ -186,20 +186,21 @@ export default function NewEntityPage() {
                     key={index}
                     className="flex items-start gap-2 p-3 border rounded-lg"
                   >
-                    <div className="flex-1 grid gap-2 sm:grid-cols-3">
+                    <div className="flex-1 grid gap-2 sm:grid-cols-2">
                       <Input
                         placeholder={t('fieldNamePlaceholder')}
-                        value={field.name || ''}
-                        onChange={(e) =>
-                          updateField(index, { name: e.target.value })
-                        }
-                      />
-                      <Input
-                        placeholder={t('labelPlaceholder')}
                         value={field.label || ''}
-                        onChange={(e) =>
-                          updateField(index, { label: e.target.value })
-                        }
+                        onChange={(e) => {
+                          const label = e.target.value;
+                          const slug = label
+                            .normalize('NFD')
+                            .replace(/[\u0300-\u036f]/g, '')
+                            .toLowerCase()
+                            .replace(/[^a-z0-9]+/g, '_')
+                            .replace(/^_+|_+$/g, '')
+                            .replace(/__+/g, '_');
+                          updateField(index, { label, name: slug });
+                        }}
                       />
                       <Select
                         value={field.type || 'text'}

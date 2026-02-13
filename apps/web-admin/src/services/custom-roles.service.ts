@@ -37,8 +37,8 @@ export const customRolesService = {
     return response.data;
   },
 
-  async getById(id: string): Promise<CustomRole> {
-    const response = await api.get<CustomRole>(`/custom-roles/${id}`);
+  async getById(id: string, tenantId?: string): Promise<CustomRole> {
+    const response = await api.get<CustomRole>(`/custom-roles/${id}`, { params: tenantId ? { tenantId } : undefined });
     return response.data;
   },
 
@@ -52,16 +52,16 @@ export const customRolesService = {
     return response.data;
   },
 
-  async delete(id: string): Promise<void> {
-    await api.delete(`/custom-roles/${id}`);
+  async delete(id: string, tenantId?: string): Promise<void> {
+    await api.delete(`/custom-roles/${id}`, { params: tenantId ? { tenantId } : undefined });
   },
 
-  async assignToUser(roleId: string, userId: string): Promise<void> {
-    await api.post(`/custom-roles/${roleId}/assign/${userId}`);
+  async assignToUser(roleId: string, userId: string, tenantId?: string): Promise<void> {
+    await api.post(`/custom-roles/${roleId}/assign/${userId}`, undefined, { params: tenantId ? { tenantId } : undefined });
   },
 
-  async removeFromUser(userId: string): Promise<void> {
-    await api.delete(`/custom-roles/user/${userId}`);
+  async removeFromUser(userId: string, tenantId?: string): Promise<void> {
+    await api.delete(`/custom-roles/user/${userId}`, { params: tenantId ? { tenantId } : undefined });
   },
 
   async getMyPermissions(): Promise<{ entities: string[]; modules: Record<string, boolean> }> {

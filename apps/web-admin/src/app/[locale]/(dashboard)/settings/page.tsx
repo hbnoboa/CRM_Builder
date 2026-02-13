@@ -85,7 +85,7 @@ function SettingsPageContent() {
   };
 
   const handleLanguageChange = (langCode: string) => {
-    router.replace(pathname, { locale: langCode });
+    window.location.href = `/${langCode}${pathname}`;
   };
 
   const handleTabClick = (tabId: typeof TAB_IDS[number]) => {

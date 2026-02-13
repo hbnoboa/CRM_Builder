@@ -31,7 +31,7 @@ export class CustomApiController {
 
   @Post()
   @Roles('ADMIN', 'PLATFORM_ADMIN')
-  async create(@Body() dto: CreateCustomApiDto & { tenantId?: string }, @CurrentUser() user: CurrentUserType) {
+  async create(@Body() dto: CreateCustomApiDto, @CurrentUser() user: CurrentUserType) {
     const tenantId = getEffectiveTenantId(user, dto.tenantId);
     this.logger.log(`Creating custom API: ${dto.name} (tenant: ${tenantId})`);
     return this.customApiService.create(dto, tenantId);
@@ -39,7 +39,7 @@ export class CustomApiController {
 
   @Get()
   @Roles('ADMIN', 'PLATFORM_ADMIN')
-  async findAll(@Query() query: QueryCustomApiDto & { tenantId?: string }, @CurrentUser() user: CurrentUserType) {
+  async findAll(@Query() query: QueryCustomApiDto, @CurrentUser() user: CurrentUserType) {
     const roleType = user.customRole?.roleType;
     if (!roleType || !['PLATFORM_ADMIN', 'ADMIN'].includes(roleType)) {
       throw new ForbiddenException('Acesso negado. Roles necessarias: ADMIN, PLATFORM_ADMIN');
@@ -50,12 +50,13 @@ export class CustomApiController {
 
   @Get(':id')
   @Roles('ADMIN', 'PLATFORM_ADMIN')
-  async findOne(@Param('id') id: string, @CurrentUser() user: CurrentUserType) {
-    const roleType = user.customRole?.roleType;
-    if (!roleType || !['PLATFORM_ADMIN', 'ADMIN'].includes(roleType)) {
-      throw new ForbiddenException('Acesso negado. Roles necessarias: ADMIN, PLATFORM_ADMIN');
-    }
-    return this.customApiService.findOne(id, user.tenantId);
+  async findOne(
+    @Param('id') id: string,
+    @Query('tenantId') tenantId: string | undefined,
+    @CurrentUser() user: CurrentUserType,
+  ) {
+    const effectiveTenantId = getEffectiveTenantId(user, tenantId);
+    return this.customApiService.findOne(id, effectiveTenantId);
   }
 
   @Patch(':id')
@@ -65,31 +66,52 @@ export class CustomApiController {
     @Body() dto: UpdateCustomApiDto,
     @CurrentUser() user: CurrentUserType,
   ) {
-    return this.customApiService.update(id, dto, user.tenantId);
+    const effectiveTenantId = getEffectiveTenantId(user, dto.tenantId);
+    return this.customApiService.update(id, dto, effectiveTenantId);
   }
 
   @Patch(':id/toggle')
   @Roles('ADMIN', 'PLATFORM_ADMIN')
-  async toggleActive(@Param('id') id: string, @CurrentUser() user: CurrentUserType) {
-    return this.customApiService.toggleActive(id, user.tenantId);
+  async toggleActive(
+    @Param('id') id: string,
+    @Body() body: { tenantId?: string },
+    @CurrentUser() user: CurrentUserType,
+  ) {
+    const effectiveTenantId = getEffectiveTenantId(user, body?.tenantId);
+    return this.customApiService.toggleActive(id, effectiveTenantId);
   }
 
   @Patch(':id/activate')
   @Roles('ADMIN', 'PLATFORM_ADMIN')
-  async activate(@Param('id') id: string, @CurrentUser() user: CurrentUserType) {
-    return this.customApiService.activate(id, user.tenantId);
+  async activate(
+    @Param('id') id: string,
+    @Body() body: { tenantId?: string },
+    @CurrentUser() user: CurrentUserType,
+  ) {
+    const effectiveTenantId = getEffectiveTenantId(user, body?.tenantId);
+    return this.customApiService.activate(id, effectiveTenantId);
   }
 
   @Patch(':id/deactivate')
   @Roles('ADMIN', 'PLATFORM_ADMIN')
-  async deactivate(@Param('id') id: string, @CurrentUser() user: CurrentUserType) {
-    return this.customApiService.deactivate(id, user.tenantId);
+  async deactivate(
+    @Param('id') id: string,
+    @Body() body: { tenantId?: string },
+    @CurrentUser() user: CurrentUserType,
+  ) {
+    const effectiveTenantId = getEffectiveTenantId(user, body?.tenantId);
+    return this.customApiService.deactivate(id, effectiveTenantId);
   }
 
   @Delete(':id')
   @Roles('ADMIN', 'PLATFORM_ADMIN')
-  async remove(@Param('id') id: string, @CurrentUser() user: CurrentUserType) {
-    return this.customApiService.remove(id, user.tenantId);
+  async remove(
+    @Param('id') id: string,
+    @Query('tenantId') tenantId: string | undefined,
+    @CurrentUser() user: CurrentUserType,
+  ) {
+    const effectiveTenantId = getEffectiveTenantId(user, tenantId);
+    return this.customApiService.remove(id, effectiveTenantId);
   }
 }
 

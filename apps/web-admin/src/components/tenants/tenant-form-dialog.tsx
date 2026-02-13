@@ -1,10 +1,11 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useTranslations } from 'next-intl';
+import { Camera, X } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -17,6 +18,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useCreateTenant, useUpdateTenant } from '@/hooks/use-tenants';
+import api from '@/lib/api';
 import type { Tenant } from '@/types';
 
 const createTenantSchemaFn = (t: (key: string) => string) => z.object({
@@ -51,6 +53,9 @@ export function TenantFormDialog({ open, onOpenChange, tenant, onSuccess }: Tena
   const isEditing = !!tenant;
   const createTenant = useCreateTenant({ success: t('toast.created') });
   const updateTenant = useUpdateTenant({ success: t('toast.updated') });
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [logoPreview, setLogoPreview] = useState<string | null>(null);
 
   const form = useForm<CreateTenantFormData | UpdateTenantFormData>({
     resolver: zodResolver(isEditing ? updateTenantSchemaFn(tValidation) : createTenantSchemaFn(tValidation)),
@@ -65,6 +70,7 @@ export function TenantFormDialog({ open, onOpenChange, tenant, onSuccess }: Tena
 
   useEffect(() => {
     if (!open) return;
+    setLogoFile(null);
     if (tenant) {
       form.reset({
         name: tenant.name,
@@ -73,6 +79,7 @@ export function TenantFormDialog({ open, onOpenChange, tenant, onSuccess }: Tena
         adminName: '',
         adminPassword: '',
       });
+      setLogoPreview(tenant.logo || null);
     } else {
       form.reset({
         name: '',
@@ -81,11 +88,12 @@ export function TenantFormDialog({ open, onOpenChange, tenant, onSuccess }: Tena
         adminName: '',
         adminPassword: '',
       });
+      setLogoPreview(null);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tenant, open]);
 
-  // Slug automático: gera a partir do nome
+  // Slug automatico: gera a partir do nome
   useEffect(() => {
     if (!isEditing) {
       const name = form.watch('name');
@@ -99,14 +107,49 @@ export function TenantFormDialog({ open, onOpenChange, tenant, onSuccess }: Tena
       }
     }
   }, [form.watch('name'), isEditing]);
+
+  const handleLogoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setLogoFile(file);
+    const reader = new FileReader();
+    reader.onload = () => setLogoPreview(reader.result as string);
+    reader.readAsDataURL(file);
+  };
+
+  const handleLogoRemove = () => {
+    setLogoFile(null);
+    setLogoPreview(null);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  const uploadLogo = async (): Promise<string | null> => {
+    if (!logoFile) return null;
+    const formData = new FormData();
+    formData.append('image', logoFile);
+    formData.append('folder', 'logos');
+    const res = await api.post('/upload/image', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return res.data?.url || res.data?.publicUrl || null;
+  };
+
   const onSubmit = async (data: CreateTenantFormData | UpdateTenantFormData) => {
     try {
+      let logoUrl: string | null | undefined;
+      if (logoFile) {
+        logoUrl = await uploadLogo();
+      } else if (logoPreview === null && tenant?.logo) {
+        // User removed the logo
+        logoUrl = '';
+      }
+
       if (isEditing && tenant) {
         await updateTenant.mutateAsync({
           id: tenant.id,
           data: {
             name: data.name,
-            domain: data.domain,
+            ...(logoUrl !== undefined ? { logo: logoUrl } : {}),
           },
         });
       } else {
@@ -114,10 +157,10 @@ export function TenantFormDialog({ open, onOpenChange, tenant, onSuccess }: Tena
         await createTenant.mutateAsync({
           name: createData.name,
           slug: createData.slug,
-          domain: createData.domain,
           adminEmail: createData.adminEmail,
           adminName: createData.adminName,
           adminPassword: createData.adminPassword,
+          ...(logoUrl ? { logo: logoUrl } : {}),
         });
       }
       onOpenChange(false);
@@ -128,6 +171,8 @@ export function TenantFormDialog({ open, onOpenChange, tenant, onSuccess }: Tena
   };
 
   const isLoading = createTenant.isPending || updateTenant.isPending;
+  const nameValue = form.watch('name');
+  const initials = (nameValue || tenant?.name || '?').slice(0, 2).toUpperCase();
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -141,6 +186,45 @@ export function TenantFormDialog({ open, onOpenChange, tenant, onSuccess }: Tena
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+          {/* Logo upload */}
+          <div className="flex items-center gap-4">
+            <div className="relative group">
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="w-16 h-16 rounded-full border-2 border-dashed border-muted-foreground/30 hover:border-primary/50 flex items-center justify-center overflow-hidden transition-colors bg-muted"
+              >
+                {logoPreview ? (
+                  <img src={logoPreview} alt="Logo" className="w-full h-full object-cover" />
+                ) : (
+                  <span className="text-lg font-bold text-muted-foreground">{initials}</span>
+                )}
+                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity rounded-full flex items-center justify-center">
+                  <Camera className="h-5 w-5 text-white" />
+                </div>
+              </button>
+              {logoPreview && (
+                <button
+                  type="button"
+                  onClick={handleLogoRemove}
+                  className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-destructive text-destructive-foreground flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              )}
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={handleLogoSelect}
+              />
+            </div>
+            <div className="text-sm text-muted-foreground">
+              {t('form.logoHint')}
+            </div>
+          </div>
+
           <div className="space-y-2">
             <Label htmlFor="name">{t('form.name')}</Label>
             <Input
@@ -168,8 +252,6 @@ export function TenantFormDialog({ open, onOpenChange, tenant, onSuccess }: Tena
               <p className="text-xs text-muted-foreground">Slug gerado automaticamente a partir do nome.</p>
             </div>
           )}
-
-          {/* Campo domínio removido: não obrigatório */}
 
           {!isEditing && (
             <>

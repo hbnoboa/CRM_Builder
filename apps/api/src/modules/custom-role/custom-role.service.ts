@@ -12,6 +12,37 @@ import {
   MAX_LIMIT,
 } from '../../common/types';
 
+export interface ModulePermissionCrud {
+  canRead?: boolean;
+  canCreate?: boolean;
+  canUpdate?: boolean;
+  canDelete?: boolean;
+}
+
+export type NormalizedModulePermissions = Record<string, ModulePermissionCrud>;
+
+/**
+ * Normaliza modulePermissions: converte formato boolean antigo para CRUD
+ * - true → { canRead: true, canCreate: true, canUpdate: true, canDelete: true }
+ * - false → { canRead: false, canCreate: false, canUpdate: false, canDelete: false }
+ * - { canRead: true, ... } → mantém como está
+ */
+function normalizeModulePermissions(mp: Record<string, unknown> | null | undefined): NormalizedModulePermissions {
+  if (!mp) return {};
+
+  const result: NormalizedModulePermissions = {};
+  for (const [key, value] of Object.entries(mp)) {
+    if (typeof value === 'boolean') {
+      result[key] = { canRead: value, canCreate: value, canUpdate: value, canDelete: value };
+    } else if (value && typeof value === 'object') {
+      result[key] = value as ModulePermissionCrud;
+    }
+  }
+  return result;
+}
+
+const FULL_CRUD: ModulePermissionCrud = { canRead: true, canCreate: true, canUpdate: true, canDelete: true };
+
 @Injectable()
 export class CustomRoleService {
   private readonly logger = new Logger(CustomRoleService.name);
@@ -434,9 +465,9 @@ export class CustomRoleService {
   }
 
   /**
-   * Retorna as permissoes de modulo do usuario
+   * Retorna as permissoes de modulo do usuario (formato CRUD)
    */
-  async getUserModulePermissions(userId: string): Promise<Record<string, boolean>> {
+  async getUserModulePermissions(userId: string): Promise<NormalizedModulePermissions> {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
       select: {
@@ -450,12 +481,20 @@ export class CustomRoleService {
 
     const roleType = user.customRole.roleType as RoleType;
 
-    // PLATFORM_ADMIN e ADMIN tem tudo
-    if (roleType === 'PLATFORM_ADMIN' || roleType === 'ADMIN') {
-      return { dashboard: true, users: true, settings: true, apis: true, pages: true, entities: true, tenants: roleType === 'PLATFORM_ADMIN' };
+    // PLATFORM_ADMIN tem acesso total a tudo
+    if (roleType === 'PLATFORM_ADMIN') {
+      return {
+        dashboard: FULL_CRUD,
+        users: FULL_CRUD,
+        settings: FULL_CRUD,
+        apis: FULL_CRUD,
+        pages: FULL_CRUD,
+        entities: FULL_CRUD,
+        tenants: FULL_CRUD,
+      };
     }
 
-    // Usar modulePermissions da customRole (ja configuradas no seed/migration)
-    return user.customRole.modulePermissions as Record<string, boolean>;
+    // Demais roles: usar modulePermissions configuradas (normalizado de boolean → CRUD)
+    return normalizeModulePermissions(user.customRole.modulePermissions as Record<string, unknown>);
   }
 }

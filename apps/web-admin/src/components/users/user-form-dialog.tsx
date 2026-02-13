@@ -187,10 +187,6 @@ export function UserFormDialog({ open, onOpenChange, user, onSuccess }: UserForm
                 {customRoles.map((role) => (
                   <SelectItem key={role.id} value={role.id}>
                     <div className="flex items-center gap-2">
-                      <div
-                        className="w-3 h-3 rounded-full flex-shrink-0"
-                        style={{ backgroundColor: role.color || '#6366f1' }}
-                      />
                       <span>{role.name}</span>
                       {role.isSystem && (
                         <span className="text-xs text-muted-foreground">

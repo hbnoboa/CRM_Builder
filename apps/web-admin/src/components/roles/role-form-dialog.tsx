@@ -27,12 +27,41 @@ import { useCreateCustomRole, useUpdateCustomRole } from '@/hooks/use-custom-rol
 import { useQuery } from '@tanstack/react-query';
 import api from '@/lib/api';
 import { useTenant } from '@/stores/tenant-context';
-import type { CustomRole, EntityPermission, ModulePermissions, Entity, PermissionScope } from '@/types';
+import type { CustomRole, EntityPermission, ModulePermission, ModulePermissions, Entity, PermissionScope } from '@/types';
 
 const ROLE_COLORS = [
   '#6366f1', '#8b5cf6', '#ec4899', '#ef4444', '#f97316',
   '#eab308', '#22c55e', '#14b8a6', '#3b82f6', '#6b7280',
 ];
+
+const EMPTY_MODULE_PERM: ModulePermission = { canRead: false, canCreate: false, canUpdate: false, canDelete: false };
+
+function normalizeModulePermToRecord(mp: Record<string, unknown> | null | undefined): Record<string, ModulePermission> {
+  if (!mp) return {};
+  const result: Record<string, ModulePermission> = {};
+  for (const [key, value] of Object.entries(mp)) {
+    if (typeof value === 'boolean') {
+      result[key] = { canRead: value, canCreate: value, canUpdate: value, canDelete: value };
+    } else if (value && typeof value === 'object') {
+      result[key] = value as ModulePermission;
+    } else {
+      result[key] = { ...EMPTY_MODULE_PERM };
+    }
+  }
+  return result;
+}
+
+const MODULE_KEYS = ['dashboard', 'users', 'settings', 'apis', 'pages', 'entities', 'tenants'] as const;
+
+function getDefaultModulePerms(): Record<string, ModulePermission> {
+  const result: Record<string, ModulePermission> = {};
+  for (const key of MODULE_KEYS) {
+    result[key] = key === 'dashboard'
+      ? { canRead: true, canCreate: false, canUpdate: false, canDelete: false }
+      : { ...EMPTY_MODULE_PERM };
+  }
+  return result;
+}
 
 interface RoleFormDialogProps {
   open: boolean;
@@ -55,11 +84,9 @@ export function RoleFormDialog({ open, onOpenChange, role, onSuccess }: RoleForm
   const [color, setColor] = useState('#6366f1');
   const [isDefault, setIsDefault] = useState(false);
   const [permissions, setPermissions] = useState<EntityPermission[]>([]);
-  const [modulePerms, setModulePerms] = useState<ModulePermissions>({
-    dashboard: true, users: false, settings: false, apis: false, pages: false, entities: false, tenants: false,
-  });
+  const [modulePerms, setModulePerms] = useState<Record<string, ModulePermission>>(getDefaultModulePerms);
 
-  // Buscar entidades do tenant - refetch sempre que abrir para garantir dados atualizados
+  // Buscar entidades do tenant
   const { data: entitiesData } = useQuery({
     queryKey: ['entities-for-roles', effectiveTenantId],
     queryFn: async () => {
@@ -69,7 +96,7 @@ export function RoleFormDialog({ open, onOpenChange, role, onSuccess }: RoleForm
       return res.data;
     },
     enabled: open,
-    staleTime: 0, // Sempre refetch quando abrir
+    staleTime: 0,
     refetchOnMount: 'always',
   });
 
@@ -77,7 +104,7 @@ export function RoleFormDialog({ open, onOpenChange, role, onSuccess }: RoleForm
     return Array.isArray(entitiesData?.data) ? entitiesData.data : [];
   }, [entitiesData]);
 
-  // Inicializar formulário quando abre (apenas no open/role, NÃO no entities)
+  // Inicializar formulário quando abre
   useEffect(() => {
     if (!open) return;
 
@@ -87,29 +114,32 @@ export function RoleFormDialog({ open, onOpenChange, role, onSuccess }: RoleForm
       setColor(role.color || '#6366f1');
       setIsDefault(role.isDefault || false);
       setPermissions(Array.isArray(role.permissions) ? role.permissions : []);
-      setModulePerms(role.modulePermissions || {
-        dashboard: true, users: false, settings: false, apis: false, pages: false, entities: false, tenants: false,
-      });
+
+      // Normalizar modulePermissions (backward compat: boolean → CRUD)
+      const normalized = normalizeModulePermToRecord(role.modulePermissions as Record<string, unknown>);
+      const perms: Record<string, ModulePermission> = {};
+      for (const key of MODULE_KEYS) {
+        perms[key] = normalized[key] || (key === 'dashboard'
+          ? { canRead: true, canCreate: false, canUpdate: false, canDelete: false }
+          : { ...EMPTY_MODULE_PERM });
+      }
+      setModulePerms(perms);
     } else {
       setName('');
       setDescription('');
       setColor('#6366f1');
       setIsDefault(false);
       setPermissions([]);
-      setModulePerms({
-        dashboard: true, users: false, settings: false, apis: false, pages: false, entities: false, tenants: false,
-      });
+      setModulePerms(getDefaultModulePerms());
     }
   }, [role, open]);
 
-  // Sincronizar TODAS as entidades nas permissões (adiciona faltantes, mantém existentes)
+  // Sincronizar entidades nas permissões
   useEffect(() => {
     if (!open || !entities.length) return;
 
     setPermissions((prev) => {
       const existingBySlug = new Map(prev.map((p) => [p.entitySlug, p]));
-
-      // Montar lista completa: manter permissões existentes + adicionar novas entidades
       return entities.map((e) => {
         const existing = existingBySlug.get(e.slug);
         if (existing) {
@@ -128,7 +158,7 @@ export function RoleFormDialog({ open, onOpenChange, role, onSuccess }: RoleForm
     });
   }, [entities, open]);
 
-  const togglePermission = (entitySlug: string, field: keyof EntityPermission) => {
+  const toggleEntityPermission = (entitySlug: string, field: keyof EntityPermission) => {
     setPermissions((prev) =>
       prev.map((p) =>
         p.entitySlug === entitySlug ? { ...p, [field]: !p[field] } : p
@@ -146,16 +176,29 @@ export function RoleFormDialog({ open, onOpenChange, role, onSuccess }: RoleForm
     );
   };
 
-  const toggleAllForAction = (field: 'canCreate' | 'canRead' | 'canUpdate' | 'canDelete', value: boolean) => {
-    setPermissions((prev) => prev.map((p) => ({ ...p, [field]: value })));
-  };
-
   const setEntityScope = (entitySlug: string, scope: PermissionScope) => {
     setPermissions((prev) =>
       prev.map((p) =>
         p.entitySlug === entitySlug ? { ...p, scope } : p
       )
     );
+  };
+
+  const toggleModulePerm = (moduleKey: string, action: keyof ModulePermission) => {
+    setModulePerms((prev) => ({
+      ...prev,
+      [moduleKey]: {
+        ...prev[moduleKey],
+        [action]: !(prev[moduleKey]?.[action] ?? false),
+      },
+    }));
+  };
+
+  const toggleAllForModule = (moduleKey: string, value: boolean) => {
+    setModulePerms((prev) => ({
+      ...prev,
+      [moduleKey]: { canRead: value, canCreate: value, canUpdate: value, canDelete: value },
+    }));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -175,7 +218,7 @@ export function RoleFormDialog({ open, onOpenChange, role, onSuccess }: RoleForm
         canDelete: p.canDelete,
         scope: p.scope || 'all',
       })),
-      modulePermissions: modulePerms,
+      modulePermissions: modulePerms as ModulePermissions,
       ...(effectiveTenantId ? { tenantId: effectiveTenantId } : {}),
     };
 
@@ -212,12 +255,18 @@ export function RoleFormDialog({ open, onOpenChange, role, onSuccess }: RoleForm
     tenants: t('modules.tenants'),
   };
 
+  const crudActions = [
+    { key: 'canRead' as const, label: t('form.read'), icon: <Eye className="h-3.5 w-3.5" /> },
+    { key: 'canCreate' as const, label: t('form.create'), icon: <Plus className="h-3.5 w-3.5" /> },
+    { key: 'canUpdate' as const, label: t('form.update'), icon: <Pencil className="h-3.5 w-3.5" /> },
+    { key: 'canDelete' as const, label: t('form.delete'), icon: <Trash2 className="h-3.5 w-3.5" /> },
+  ];
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[900px] max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Shield className="h-5 w-5" style={{ color }} />
             {isEditing ? t('editRole') : t('newRole')}
           </DialogTitle>
           <DialogDescription>
@@ -247,49 +296,68 @@ export function RoleFormDialog({ open, onOpenChange, role, onSuccess }: RoleForm
                 </div>
               </div>
 
-              {/* Cor */}
-              <div className="space-y-2">
-                <Label>{t('form.color')}</Label>
-                <div className="flex gap-2 flex-wrap">
-                  {ROLE_COLORS.map((c) => (
-                    <button
-                      key={c}
-                      type="button"
-                      className={`w-8 h-8 rounded-full border-2 transition-all ${color === c ? 'border-foreground scale-110' : 'border-transparent'}`}
-                      style={{ backgroundColor: c }}
-                      onClick={() => setColor(c)}
-                    />
-                  ))}
-                </div>
-              </div>
-
               <Separator />
 
-              {/* Módulos do Sistema */}
+              {/* Módulos do Sistema - CRUD Grid */}
               <div className="space-y-3">
                 <Label className="text-base font-semibold">{t('form.systemModules')}</Label>
                 <p className="text-sm text-muted-foreground">{t('form.systemModulesDesc')}</p>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                  {Object.entries(modulePerms).map(([key, value]) => (
-                    <label
-                      key={key}
-                      className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
-                        value ? 'border-primary bg-primary/5' : 'border-border hover:border-muted-foreground/30'
-                      }`}
-                    >
-                      <Checkbox
-                        checked={value || false}
-                        onCheckedChange={(checked) => {
-                          setModulePerms((prev) => ({ ...prev, [key]: !!checked }));
-                        }}
-                        className="h-4 w-4"
-                      />
-                      <div className={`${value ? 'text-primary' : 'text-muted-foreground'}`}>
-                        {moduleIcons[key]}
+
+                <div className="space-y-2">
+                  {MODULE_KEYS.map((key) => {
+                    const perm = modulePerms[key] || EMPTY_MODULE_PERM;
+                    const allChecked = perm.canRead && perm.canCreate && perm.canUpdate && perm.canDelete;
+                    const noneChecked = !perm.canRead && !perm.canCreate && !perm.canUpdate && !perm.canDelete;
+                    const hasAny = perm.canRead || perm.canCreate || perm.canUpdate || perm.canDelete;
+
+                    return (
+                      <div
+                        key={key}
+                        className={`border rounded-lg p-3 space-y-2 transition-colors ${
+                          hasAny ? 'border-primary/40 bg-primary/5' : 'border-border'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <div className={hasAny ? 'text-primary' : 'text-muted-foreground'}>
+                              {moduleIcons[key]}
+                            </div>
+                            <span className="text-sm font-semibold">{moduleLabels[key] || key}</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs text-muted-foreground">
+                              {noneChecked ? t('form.noAccess') : allChecked ? t('form.fullAccess') : t('form.partial')}
+                            </span>
+                            <Checkbox
+                              checked={allChecked || false}
+                              onCheckedChange={(checked) => toggleAllForModule(key, !!checked)}
+                              className="h-4 w-4"
+                            />
+                          </div>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          {crudActions.map(({ key: action, label, icon }) => (
+                            <label
+                              key={action}
+                              className={`flex items-center gap-1.5 cursor-pointer rounded-md border px-2.5 py-1.5 text-xs font-medium transition-colors ${
+                                perm[action]
+                                  ? 'border-primary bg-primary/10 text-primary'
+                                  : 'border-border text-muted-foreground hover:border-muted-foreground/50'
+                              }`}
+                            >
+                              <Checkbox
+                                checked={perm[action] || false}
+                                onCheckedChange={() => toggleModulePerm(key, action)}
+                                className="h-3.5 w-3.5"
+                              />
+                              {icon}
+                              {label}
+                            </label>
+                          ))}
+                        </div>
                       </div>
-                      <span className="text-sm font-medium flex-1">{moduleLabels[key] || key}</span>
-                    </label>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
 
@@ -330,7 +398,9 @@ export function RoleFormDialog({ open, onOpenChange, role, onSuccess }: RoleForm
                               </span>
                             </div>
                             <div className="flex items-center gap-2">
-                              <span className="text-xs text-muted-foreground">{noneChecked ? 'Sem acesso' : allChecked ? 'Acesso total' : 'Parcial'}</span>
+                              <span className="text-xs text-muted-foreground">
+                                {noneChecked ? t('form.noAccess') : allChecked ? t('form.fullAccess') : t('form.partial')}
+                              </span>
                               <Checkbox
                                 checked={allChecked}
                                 onCheckedChange={(checked) => toggleAllForEntity(perm.entitySlug, !!checked)}
@@ -339,23 +409,18 @@ export function RoleFormDialog({ open, onOpenChange, role, onSuccess }: RoleForm
                             </div>
                           </div>
                           <div className="flex flex-wrap items-center gap-3">
-                            {([
-                              { key: 'canCreate' as const, label: t('form.create'), icon: <Plus className="h-3.5 w-3.5" /> },
-                              { key: 'canRead' as const, label: t('form.read'), icon: <Eye className="h-3.5 w-3.5" /> },
-                              { key: 'canUpdate' as const, label: t('form.update'), icon: <Pencil className="h-3.5 w-3.5" /> },
-                              { key: 'canDelete' as const, label: t('form.delete'), icon: <Trash2 className="h-3.5 w-3.5" /> },
-                            ]).map(({ key, label, icon }) => (
+                            {crudActions.map(({ key: action, label, icon }) => (
                               <label
-                                key={key}
+                                key={action}
                                 className={`flex items-center gap-1.5 cursor-pointer rounded-md border px-2.5 py-1.5 text-xs font-medium transition-colors ${
-                                  perm[key]
+                                  perm[action]
                                     ? 'border-primary bg-primary/10 text-primary'
                                     : 'border-border text-muted-foreground hover:border-muted-foreground/50'
                                 }`}
                               >
                                 <Checkbox
-                                  checked={perm[key]}
-                                  onCheckedChange={() => togglePermission(perm.entitySlug, key)}
+                                  checked={perm[action]}
+                                  onCheckedChange={() => toggleEntityPermission(perm.entitySlug, action)}
                                   className="h-3.5 w-3.5"
                                 />
                                 {icon}
@@ -363,7 +428,7 @@ export function RoleFormDialog({ open, onOpenChange, role, onSuccess }: RoleForm
                               </label>
                             ))}
                             <div className="ml-auto flex items-center gap-2">
-                              <span className="text-xs text-muted-foreground">Escopo:</span>
+                              <span className="text-xs text-muted-foreground">{t('form.scope')}:</span>
                               <Select
                                 value={perm.scope || 'all'}
                                 onValueChange={(value: PermissionScope) => setEntityScope(perm.entitySlug, value)}
@@ -375,13 +440,13 @@ export function RoleFormDialog({ open, onOpenChange, role, onSuccess }: RoleForm
                                   <SelectItem value="all">
                                     <div className="flex items-center gap-1.5">
                                       <Globe className="h-3.5 w-3.5" />
-                                      Todos
+                                      {t('form.scopeAll')}
                                     </div>
                                   </SelectItem>
                                   <SelectItem value="own">
                                     <div className="flex items-center gap-1.5">
                                       <User className="h-3.5 w-3.5" />
-                                      Apenas meus
+                                      {t('form.scopeOwn')}
                                     </div>
                                   </SelectItem>
                                 </SelectContent>
@@ -394,6 +459,8 @@ export function RoleFormDialog({ open, onOpenChange, role, onSuccess }: RoleForm
                   </div>
                 )}
               </div>
+
+              <Separator />
 
               {/* Default */}
               <div className="flex items-center gap-3 p-3 rounded-lg border">

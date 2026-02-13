@@ -195,19 +195,11 @@ function EntitiesPageContent() {
           <CardContent className="p-6 sm:p-12 text-center">
             <Database className="h-10 w-10 sm:h-12 sm:w-12 mx-auto text-muted-foreground mb-3 sm:mb-4" />
             <h3 className="text-base sm:text-lg font-semibold mb-2">{t('noEntitiesFound')}</h3>
-            <p className="text-muted-foreground mb-4">
+            <p className="text-muted-foreground">
               {search
                 ? t('noEntitiesMatchSearch')
                 : t('createEntitiesToStart')}
             </p>
-            {!search && (
-              <Link href="/entities/new">
-                <Button>
-                  <Plus className="h-4 w-4 mr-2" />
-                  {t('createFirstEntity')}
-                </Button>
-              </Link>
-            )}
           </CardContent>
         </Card>
       ) : (
@@ -217,9 +209,6 @@ function EntitiesPageContent() {
               <CardContent className="p-4 sm:p-6">
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-                    <div className="p-1.5 sm:p-2 rounded-lg bg-primary/10 flex-shrink-0">
-                      <Database className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />
-                    </div>
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-1 sm:gap-2">
                         <h3 className="font-semibold text-sm sm:text-base truncate">{entity.name}</h3>

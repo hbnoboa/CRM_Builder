@@ -138,7 +138,8 @@ export function useUpdateCustomRole(messages?: MutationMessages) {
 export function useDeleteCustomRole(messages?: MutationMessages) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (id: string) => customRolesService.delete(id),
+    mutationFn: ({ id, tenantId }: { id: string; tenantId?: string }) =>
+      customRolesService.delete(id, tenantId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: customRoleKeys.lists() });
       if (messages?.success) toast.success(messages.success);

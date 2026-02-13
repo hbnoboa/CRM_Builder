@@ -6,6 +6,7 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { useDeleteCustomRole } from '@/hooks/use-custom-roles';
+import { useTenant } from '@/stores/tenant-context';
 import type { CustomRole } from '@/types';
 
 interface DeleteRoleDialogProps {
@@ -18,12 +19,13 @@ interface DeleteRoleDialogProps {
 export function DeleteRoleDialog({ open, onOpenChange, role, onSuccess }: DeleteRoleDialogProps) {
   const t = useTranslations('rolesPage');
   const tCommon = useTranslations('common');
+  const { effectiveTenantId } = useTenant();
   const deleteRole = useDeleteCustomRole({ success: t('toast.deleted') });
 
   const handleDelete = async () => {
     if (!role) return;
     try {
-      await deleteRole.mutateAsync(role.id);
+      await deleteRole.mutateAsync({ id: role.id, tenantId: effectiveTenantId || undefined });
       onOpenChange(false);
       onSuccess?.();
     } catch (error) { /* handled by hook */ }

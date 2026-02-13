@@ -3,6 +3,11 @@ import * as bcrypt from 'bcryptjs';
 
 const prisma = new PrismaClient();
 
+// CRUD module permission helpers
+const FULL = { canRead: true, canCreate: true, canUpdate: true, canDelete: true };
+const READ_ONLY = { canRead: true, canCreate: false, canUpdate: false, canDelete: false };
+const NONE = { canRead: false, canCreate: false, canUpdate: false, canDelete: false };
+
 // Configuracao de roles de sistema
 const SYSTEM_ROLES = {
   PLATFORM_ADMIN: {
@@ -11,7 +16,7 @@ const SYSTEM_ROLES = {
     color: '#dc2626',
     roleType: 'PLATFORM_ADMIN',
     isSystem: true,
-    modulePermissions: { dashboard: true, users: true, settings: true, apis: true, pages: true, entities: true },
+    modulePermissions: { dashboard: FULL, users: FULL, settings: FULL, apis: FULL, pages: FULL, entities: FULL, tenants: FULL },
     tenantPermissions: { canAccessAllTenants: true },
   },
   ADMIN: {
@@ -20,7 +25,7 @@ const SYSTEM_ROLES = {
     color: '#7c3aed',
     roleType: 'ADMIN',
     isSystem: true,
-    modulePermissions: { dashboard: true, users: true, settings: true, apis: true, pages: true, entities: true },
+    modulePermissions: { dashboard: FULL, users: FULL, settings: FULL, apis: FULL, pages: FULL, entities: FULL, tenants: NONE },
   },
   MANAGER: {
     name: 'Gerente',
@@ -28,7 +33,7 @@ const SYSTEM_ROLES = {
     color: '#2563eb',
     roleType: 'MANAGER',
     isSystem: true,
-    modulePermissions: { dashboard: true, users: true, settings: false, apis: false, pages: false, entities: false },
+    modulePermissions: { dashboard: READ_ONLY, users: READ_ONLY, settings: NONE, apis: NONE, pages: NONE, entities: NONE, tenants: NONE },
   },
   USER: {
     name: 'Usuario',
@@ -37,7 +42,7 @@ const SYSTEM_ROLES = {
     roleType: 'USER',
     isSystem: true,
     isDefault: true,
-    modulePermissions: { dashboard: true, users: false, settings: false, apis: false, pages: false, entities: true },
+    modulePermissions: { dashboard: READ_ONLY, users: NONE, settings: NONE, apis: NONE, pages: NONE, entities: { canRead: true, canCreate: true, canUpdate: true, canDelete: false }, tenants: NONE },
   },
   VIEWER: {
     name: 'Visualizador',
@@ -45,7 +50,7 @@ const SYSTEM_ROLES = {
     color: '#6b7280',
     roleType: 'VIEWER',
     isSystem: true,
-    modulePermissions: { dashboard: true, users: false, settings: false, apis: false, pages: false, entities: false },
+    modulePermissions: { dashboard: READ_ONLY, users: NONE, settings: NONE, apis: NONE, pages: NONE, entities: NONE, tenants: NONE },
   },
 };
 

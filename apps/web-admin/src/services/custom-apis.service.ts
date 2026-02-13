@@ -70,6 +70,7 @@ export interface QueryCustomApisParams {
   isActive?: boolean;
   method?: string;
   tenantId?: string;
+  sourceEntityId?: string;
   cursor?: string;
   sortBy?: string;
   sortOrder?: 'asc' | 'desc';

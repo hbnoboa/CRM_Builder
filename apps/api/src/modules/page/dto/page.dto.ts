@@ -2,6 +2,10 @@ import { IsString, IsOptional, IsBoolean, IsObject, IsArray, MinLength, Matches 
 
 export class CreatePageDto {
   @IsString()
+  @IsOptional()
+  tenantId?: string;
+
+  @IsString()
   @MinLength(1)
   title: string;
 
@@ -34,6 +38,10 @@ export class CreatePageDto {
 }
 
 export class UpdatePageDto {
+  @IsString()
+  @IsOptional()
+  tenantId?: string;
+
   @IsString()
   @MinLength(1)
   @IsOptional()

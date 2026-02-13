@@ -189,17 +189,11 @@ function UsersPageContent() {
           <CardContent className="p-6 sm:p-12 text-center">
             <UsersIcon className="h-10 w-10 sm:h-12 sm:w-12 mx-auto text-muted-foreground mb-3 sm:mb-4" />
             <h3 className="text-base sm:text-lg font-semibold mb-2">{t('noUsersFound')}</h3>
-            <p className="text-muted-foreground mb-4">
+            <p className="text-muted-foreground">
               {search
                 ? t('noUsersMatchSearch')
                 : t('createUsersToStart')}
             </p>
-            {!search && (
-              <Button onClick={handleCreateUser}>
-                <Plus className="h-4 w-4 mr-2" />
-                {t('newUser')}
-              </Button>
-            )}
           </CardContent>
         </Card>
       ) : (

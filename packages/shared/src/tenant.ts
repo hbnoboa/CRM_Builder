@@ -4,6 +4,7 @@ export interface Tenant {
   id: string;
   name: string;
   slug: string;
+  logo?: string;
   status: TenantStatus;
   settings?: Record<string, unknown>;
   createdAt?: string;

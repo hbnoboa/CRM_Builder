@@ -11,14 +11,21 @@ export interface EntityPermission {
   scope?: PermissionScope;
 }
 
+export interface ModulePermission {
+  canRead?: boolean;
+  canCreate?: boolean;
+  canUpdate?: boolean;
+  canDelete?: boolean;
+}
+
 export interface ModulePermissions {
-  dashboard?: boolean;
-  users?: boolean;
-  settings?: boolean;
-  apis?: boolean;
-  pages?: boolean;
-  entities?: boolean;
-  tenants?: boolean;
+  dashboard?: ModulePermission;
+  users?: ModulePermission;
+  settings?: ModulePermission;
+  apis?: ModulePermission;
+  pages?: ModulePermission;
+  entities?: ModulePermission;
+  tenants?: ModulePermission;
 }
 
 export interface CustomRole {

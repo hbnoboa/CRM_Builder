@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { Link } from '@/i18n/navigation';
 import {
@@ -298,6 +299,8 @@ export default function DataPage() {
   const t = useTranslations('data');
   const tCommon = useTranslations('common');
   const tNav = useTranslations('navigation');
+  const searchParams = useSearchParams();
+  const entityParam = searchParams.get('entity');
   const { user: currentUser } = useAuthStore();
   const { tenantId, effectiveTenantId, isPlatformAdmin, loading: tenantLoading } = useTenant();
   const [entities, setEntities] = useState<Entity[]>([]);
@@ -334,8 +337,11 @@ export default function DataPage() {
       const list = Array.isArray(response.data) ? response.data : response.data?.data || [];
       setEntities(list);
       if (list.length > 0 && !selectedEntity) {
-        setSelectedEntity(list[0]);
-        fetchRecords(list[0].slug);
+        const target = entityParam
+          ? list.find((e: Entity) => e.slug === entityParam) || list[0]
+          : list[0];
+        setSelectedEntity(target);
+        fetchRecords(target.slug);
       }
     } catch (error) {
       console.error('Erro ao carregar entidades:', error);
@@ -374,11 +380,7 @@ export default function DataPage() {
     }
     setSelectedEntity(entity);
     resetFilters(); // Limpar filtros ao trocar de entidade
-    const data = await fetchRecords(entity.slug);
-    if (data.length === 0 && (tenantId || isPlatformAdmin)) {
-      setSelectedRecord(null);
-      setFormDialogOpen(true);
-    }
+    await fetchRecords(entity.slug);
   };
 
   const handleNewRecord = () => {
@@ -993,7 +995,7 @@ export default function DataPage() {
                         size="sm"
                       >
                         <Plus className="h-4 w-4 mr-2" />
-                        {t('addRecord')}
+                        {t('newRecord')}
                       </Button>
                     )}
                   </div>

@@ -8,6 +8,7 @@ interface Tenant {
   id: string;
   name: string;
   slug: string;
+  logo?: string;
 }
 
 interface TenantContextType {

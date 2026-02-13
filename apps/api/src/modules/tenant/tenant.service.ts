@@ -4,7 +4,14 @@ import { CreateTenantDto, UpdateTenantDto, QueryTenantDto } from './dto/tenant.d
 import { Status, Prisma } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
 
+// CRUD module permission helpers
+const FULL = { canRead: true, canCreate: true, canUpdate: true, canDelete: true };
+const READ_ONLY = { canRead: true, canCreate: false, canUpdate: false, canDelete: false };
+const NONE = { canRead: false, canCreate: false, canUpdate: false, canDelete: false };
+
 // Configuracao das roles de sistema que serao criadas por tenant
+interface ModulePerm { canRead: boolean; canCreate: boolean; canUpdate: boolean; canDelete: boolean }
+
 interface SystemRoleConfig {
   name: string;
   description: string;
@@ -12,7 +19,7 @@ interface SystemRoleConfig {
   roleType: string;
   isSystem: boolean;
   isDefault?: boolean;
-  modulePermissions: Record<string, boolean>;
+  modulePermissions: Record<string, ModulePerm>;
 }
 
 const SYSTEM_ROLES: Record<string, SystemRoleConfig> = {
@@ -22,7 +29,7 @@ const SYSTEM_ROLES: Record<string, SystemRoleConfig> = {
     color: '#7c3aed',
     roleType: 'ADMIN',
     isSystem: true,
-    modulePermissions: { dashboard: true, users: true, settings: true, apis: true, pages: true, entities: true },
+    modulePermissions: { dashboard: FULL, users: FULL, settings: FULL, apis: FULL, pages: FULL, entities: FULL, tenants: NONE },
   },
   MANAGER: {
     name: 'Gerente',
@@ -30,7 +37,7 @@ const SYSTEM_ROLES: Record<string, SystemRoleConfig> = {
     color: '#2563eb',
     roleType: 'MANAGER',
     isSystem: true,
-    modulePermissions: { dashboard: true, users: true, settings: false, apis: false, pages: false, entities: false },
+    modulePermissions: { dashboard: READ_ONLY, users: READ_ONLY, settings: NONE, apis: NONE, pages: NONE, entities: NONE, tenants: NONE },
   },
   USER: {
     name: 'Usuario',
@@ -39,7 +46,7 @@ const SYSTEM_ROLES: Record<string, SystemRoleConfig> = {
     roleType: 'USER',
     isSystem: true,
     isDefault: true,
-    modulePermissions: { dashboard: true, users: false, settings: false, apis: false, pages: false, entities: true },
+    modulePermissions: { dashboard: READ_ONLY, users: NONE, settings: NONE, apis: NONE, pages: NONE, entities: { canRead: true, canCreate: true, canUpdate: true, canDelete: false }, tenants: NONE },
   },
   VIEWER: {
     name: 'Visualizador',
@@ -47,7 +54,7 @@ const SYSTEM_ROLES: Record<string, SystemRoleConfig> = {
     color: '#6b7280',
     roleType: 'VIEWER',
     isSystem: true,
-    modulePermissions: { dashboard: true, users: false, settings: false, apis: false, pages: false, entities: false },
+    modulePermissions: { dashboard: READ_ONLY, users: NONE, settings: NONE, apis: NONE, pages: NONE, entities: NONE, tenants: NONE },
   },
 };
 
@@ -89,7 +96,7 @@ export class TenantService {
             roleType: roleConfig.roleType,
             isSystem: roleConfig.isSystem,
             isDefault: roleConfig.isDefault || false,
-            modulePermissions: roleConfig.modulePermissions,
+            modulePermissions: roleConfig.modulePermissions as unknown as Prisma.InputJsonValue,
             permissions: [],
             tenantPermissions: {},
           },

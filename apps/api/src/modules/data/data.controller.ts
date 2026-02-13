@@ -27,7 +27,7 @@ export class DataController {
   @ApiOperation({ summary: 'Criar registro' })
   async create(
     @Param('entitySlug') entitySlug: string,
-    @Body() dto: { data: Record<string, any>; parentRecordId?: string },
+    @Body() dto: { data: Record<string, any>; parentRecordId?: string; tenantId?: string },
     @CurrentUser() user: CurrentUserType,
   ) {
     return this.dataService.create(entitySlug, dto, user);
@@ -48,9 +48,10 @@ export class DataController {
   async findOne(
     @Param('entitySlug') entitySlug: string,
     @Param('id') id: string,
+    @Query('tenantId') tenantId: string | undefined,
     @CurrentUser() user: CurrentUserType,
   ) {
-    return this.dataService.findOne(entitySlug, id, user);
+    return this.dataService.findOne(entitySlug, id, user, tenantId);
   }
 
   @Patch(':entitySlug/:id')
@@ -58,7 +59,7 @@ export class DataController {
   async update(
     @Param('entitySlug') entitySlug: string,
     @Param('id') id: string,
-    @Body() dto: { data: Record<string, any> },
+    @Body() dto: { data: Record<string, any>; tenantId?: string },
     @CurrentUser() user: CurrentUserType,
   ) {
     return this.dataService.update(entitySlug, id, dto, user);
@@ -69,8 +70,9 @@ export class DataController {
   async remove(
     @Param('entitySlug') entitySlug: string,
     @Param('id') id: string,
+    @Query('tenantId') tenantId: string | undefined,
     @CurrentUser() user: CurrentUserType,
   ) {
-    return this.dataService.remove(entitySlug, id, user);
+    return this.dataService.remove(entitySlug, id, user, tenantId);
   }
 }

@@ -40,41 +40,70 @@ export class EntityPermissionDto {
   scope?: PermissionScope;
 }
 
+export class ModulePermissionDto {
+  @ApiPropertyOptional({ default: false })
+  @IsBoolean()
+  @IsOptional()
+  canRead?: boolean;
+
+  @ApiPropertyOptional({ default: false })
+  @IsBoolean()
+  @IsOptional()
+  canCreate?: boolean;
+
+  @ApiPropertyOptional({ default: false })
+  @IsBoolean()
+  @IsOptional()
+  canUpdate?: boolean;
+
+  @ApiPropertyOptional({ default: false })
+  @IsBoolean()
+  @IsOptional()
+  canDelete?: boolean;
+}
+
 export class ModulePermissionsDto {
-  @ApiPropertyOptional({ default: true })
-  @IsBoolean()
+  @ApiPropertyOptional({ type: ModulePermissionDto })
+  @ValidateNested()
+  @Type(() => ModulePermissionDto)
   @IsOptional()
-  dashboard?: boolean;
+  dashboard?: ModulePermissionDto;
 
-  @ApiPropertyOptional({ default: false })
-  @IsBoolean()
+  @ApiPropertyOptional({ type: ModulePermissionDto })
+  @ValidateNested()
+  @Type(() => ModulePermissionDto)
   @IsOptional()
-  users?: boolean;
+  users?: ModulePermissionDto;
 
-  @ApiPropertyOptional({ default: false })
-  @IsBoolean()
+  @ApiPropertyOptional({ type: ModulePermissionDto })
+  @ValidateNested()
+  @Type(() => ModulePermissionDto)
   @IsOptional()
-  settings?: boolean;
+  settings?: ModulePermissionDto;
 
-  @ApiPropertyOptional({ default: false })
-  @IsBoolean()
+  @ApiPropertyOptional({ type: ModulePermissionDto })
+  @ValidateNested()
+  @Type(() => ModulePermissionDto)
   @IsOptional()
-  apis?: boolean;
+  apis?: ModulePermissionDto;
 
-  @ApiPropertyOptional({ default: false })
-  @IsBoolean()
+  @ApiPropertyOptional({ type: ModulePermissionDto })
+  @ValidateNested()
+  @Type(() => ModulePermissionDto)
   @IsOptional()
-  pages?: boolean;
+  pages?: ModulePermissionDto;
 
-  @ApiPropertyOptional({ default: false })
-  @IsBoolean()
+  @ApiPropertyOptional({ type: ModulePermissionDto })
+  @ValidateNested()
+  @Type(() => ModulePermissionDto)
   @IsOptional()
-  entities?: boolean;
+  entities?: ModulePermissionDto;
 
-  @ApiPropertyOptional({ default: false })
-  @IsBoolean()
+  @ApiPropertyOptional({ type: ModulePermissionDto })
+  @ValidateNested()
+  @Type(() => ModulePermissionDto)
   @IsOptional()
-  tenants?: boolean;
+  tenants?: ModulePermissionDto;
 }
 
 export class TenantPermissionsDto {
@@ -97,6 +126,11 @@ export class TenantPermissionsDto {
 }
 
 export class CreateCustomRoleDto {
+  @ApiPropertyOptional({ description: 'Tenant ID (apenas PLATFORM_ADMIN pode especificar)' })
+  @IsString()
+  @IsOptional()
+  tenantId?: string;
+
   @ApiProperty({ example: 'Vendedor' })
   @IsString()
   name: string;

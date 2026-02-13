@@ -30,7 +30,7 @@ export class CustomRoleController {
   @Roles('ADMIN', 'PLATFORM_ADMIN')
   @ApiOperation({ summary: 'Criar role customizada' })
   @ApiResponse({ status: 201, description: 'Role criada com sucesso' })
-  async create(@Body() dto: CreateCustomRoleDto & { tenantId?: string }, @CurrentUser() user: CurrentUserType) {
+  async create(@Body() dto: CreateCustomRoleDto, @CurrentUser() user: CurrentUserType) {
     const tenantId = dto.tenantId;
     return this.customRoleService.create(dto, user, tenantId);
   }
@@ -70,7 +70,7 @@ export class CustomRoleController {
   @ApiOperation({ summary: 'Atualizar role customizada' })
   async update(
     @Param('id') id: string,
-    @Body() dto: UpdateCustomRoleDto & { tenantId?: string },
+    @Body() dto: UpdateCustomRoleDto,
     @CurrentUser() user: CurrentUserType,
   ) {
     const tenantId = dto.tenantId;

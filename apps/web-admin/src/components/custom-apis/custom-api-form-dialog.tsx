@@ -249,12 +249,13 @@ interface CustomApiFormDialogProps {
   onOpenChange: (open: boolean) => void;
   customApi?: CustomApi | null;
   onSuccess?: () => void;
+  defaultEntityId?: string;
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
 // MAIN COMPONENT
 // ═════════════════════════════════════════════════════════════════════════════
-export function CustomApiFormDialog({ open, onOpenChange, customApi, onSuccess }: CustomApiFormDialogProps) {
+export function CustomApiFormDialog({ open, onOpenChange, customApi, onSuccess, defaultEntityId }: CustomApiFormDialogProps) {
   const t = useTranslations('apis');
   const tCommon = useTranslations('common');
   const tDynamic = useTranslations('apis.dynamicValues');
@@ -267,8 +268,13 @@ export function CustomApiFormDialog({ open, onOpenChange, customApi, onSuccess }
   const tPlaceholders = useTranslations('placeholders');
   const { effectiveTenantId } = useTenant();
   const [entities, setEntities] = useState<Entity[]>([]);
-  const [config, setConfig] = useState<ApiConfig>(defaultConfig(customApi));
+  const [config, setConfig] = useState<ApiConfig>(() => {
+    const cfg = defaultConfig(customApi);
+    if (defaultEntityId && !cfg.sourceEntityId) cfg.sourceEntityId = defaultEntityId;
+    return cfg;
+  });
   const [activeTab, setActiveTab] = useState('basic');
+  const entityLocked = !!defaultEntityId;
 
   const isEditing = !!customApi;
   const createCustomApi = useCreateCustomApi({ success: t('toast.created') });
@@ -294,9 +300,11 @@ export function CustomApiFormDialog({ open, onOpenChange, customApi, onSuccess }
   }, [effectiveTenantId]);
 
   useEffect(() => {
-    setConfig(defaultConfig(customApi));
+    const cfg = defaultConfig(customApi);
+    if (defaultEntityId && !cfg.sourceEntityId) cfg.sourceEntityId = defaultEntityId;
+    setConfig(cfg);
     setActiveTab('basic');
-  }, [customApi, open]);
+  }, [customApi, open, defaultEntityId]);
 
   useEffect(() => {
     if (config.sourceEntityId && entityFields.length > 0 && config.selectedFields.length === 0) {
@@ -598,7 +606,7 @@ export function CustomApiFormDialog({ open, onOpenChange, customApi, onSuccess }
 
             <div className="space-y-2">
               <Label>{tLabels('entity')}</Label>
-              <Select value={config.sourceEntityId} onValueChange={v => update({ sourceEntityId: v, selectedFields: [], filters: [], orderBy: [], groupBy: [] })}>
+              <Select value={config.sourceEntityId} onValueChange={v => update({ sourceEntityId: v, selectedFields: [], filters: [], orderBy: [], groupBy: [] })} disabled={entityLocked}>
                 <SelectTrigger><SelectValue placeholder={tLabels('selectEntity')} /></SelectTrigger>
                 <SelectContent>
                   {entities.map(e => (

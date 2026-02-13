@@ -2,66 +2,91 @@
 
 import { useMemo } from 'react';
 import { useAuthStore } from '@/stores/auth-store';
-import type { RoleType, ModulePermissions, EntityPermission } from '@/types';
+import type { RoleType, ModulePermission, ModulePermissions, EntityPermission } from '@/types';
+
+const FULL_CRUD: ModulePermission = { canRead: true, canCreate: true, canUpdate: true, canDelete: true };
+const NO_CRUD: ModulePermission = { canRead: false, canCreate: false, canUpdate: false, canDelete: false };
 
 /**
- * Permissoes de modulo padrao por roleType
+ * Normaliza modulePermissions: converte formato boolean antigo para CRUD
+ */
+function normalizeModulePermission(value: unknown): ModulePermission {
+  if (typeof value === 'boolean') {
+    return value ? { ...FULL_CRUD } : { ...NO_CRUD };
+  }
+  if (value && typeof value === 'object') {
+    return value as ModulePermission;
+  }
+  return { ...NO_CRUD };
+}
+
+function normalizeModulePermissions(mp: Record<string, unknown> | null | undefined): ModulePermissions {
+  if (!mp) return {};
+  const result: Record<string, ModulePermission> = {};
+  for (const [key, value] of Object.entries(mp)) {
+    result[key] = normalizeModulePermission(value);
+  }
+  return result as ModulePermissions;
+}
+
+/**
+ * Permissoes de modulo padrao por roleType (formato CRUD)
  * Usado apenas como fallback se customRole.modulePermissions nao estiver definido
  */
 const DEFAULT_MODULE_PERMISSIONS: Record<RoleType, ModulePermissions> = {
   PLATFORM_ADMIN: {
-    dashboard: true,
-    users: true,
-    settings: true,
-    apis: true,
-    pages: true,
-    entities: true,
-    tenants: true,
+    dashboard: FULL_CRUD,
+    users: FULL_CRUD,
+    settings: FULL_CRUD,
+    apis: FULL_CRUD,
+    pages: FULL_CRUD,
+    entities: FULL_CRUD,
+    tenants: FULL_CRUD,
   },
   ADMIN: {
-    dashboard: true,
-    users: true,
-    settings: true,
-    apis: true,
-    pages: true,
-    entities: true,
-    tenants: false,
+    dashboard: FULL_CRUD,
+    users: FULL_CRUD,
+    settings: FULL_CRUD,
+    apis: FULL_CRUD,
+    pages: FULL_CRUD,
+    entities: FULL_CRUD,
+    tenants: NO_CRUD,
   },
   MANAGER: {
-    dashboard: true,
-    users: true,
-    settings: false,
-    apis: false,
-    pages: false,
-    entities: false,
-    tenants: false,
+    dashboard: { canRead: true, canCreate: false, canUpdate: false, canDelete: false },
+    users: { canRead: true, canCreate: false, canUpdate: false, canDelete: false },
+    settings: NO_CRUD,
+    apis: NO_CRUD,
+    pages: NO_CRUD,
+    entities: NO_CRUD,
+    tenants: NO_CRUD,
   },
   USER: {
-    dashboard: true,
-    users: true,
-    settings: true,
-    apis: false,
-    pages: false,
-    entities: true,
-    tenants: false,
+    dashboard: { canRead: true, canCreate: false, canUpdate: false, canDelete: false },
+    users: { canRead: true, canCreate: false, canUpdate: false, canDelete: false },
+    settings: { canRead: true, canCreate: false, canUpdate: false, canDelete: false },
+    apis: NO_CRUD,
+    pages: NO_CRUD,
+    entities: { canRead: true, canCreate: true, canUpdate: true, canDelete: false },
+    tenants: NO_CRUD,
   },
   VIEWER: {
-    dashboard: true,
-    users: false,
-    settings: true,
-    apis: false,
-    pages: false,
-    entities: false,
-    tenants: false,
+    dashboard: { canRead: true, canCreate: false, canUpdate: false, canDelete: false },
+    users: NO_CRUD,
+    settings: { canRead: true, canCreate: false, canUpdate: false, canDelete: false },
+    apis: NO_CRUD,
+    pages: NO_CRUD,
+    entities: NO_CRUD,
+    tenants: NO_CRUD,
   },
   CUSTOM: {
-    dashboard: true,
-    users: false,
-    settings: false,
-    apis: false,
-    pages: false,
-    entities: false,
-    tenants: false,
+    dashboard: { canRead: true, canCreate: false, canUpdate: false, canDelete: false },
+    users: NO_CRUD,
+    settings: NO_CRUD,
+    apis: NO_CRUD,
+    pages: NO_CRUD,
+    entities: NO_CRUD,
+    tenants: NO_CRUD,
   },
 };
 
@@ -71,7 +96,6 @@ const DEFAULT_MODULE_PERMISSIONS: Record<RoleType, ModulePermissions> = {
 const MODULE_KEY_MAP: Record<string, keyof ModulePermissions> = {
   dashboard: 'dashboard',
   entities: 'entities',
-  data: 'entities', // /data usa a mesma permissão de entities
   apis: 'apis',
   users: 'users',
   roles: 'users', // /roles usa a mesma permissão de users
@@ -79,6 +103,8 @@ const MODULE_KEY_MAP: Record<string, keyof ModulePermissions> = {
   pages: 'pages',
   tenants: 'tenants',
 };
+
+const MODULE_KEYS: (keyof ModulePermissions)[] = ['dashboard', 'users', 'settings', 'apis', 'pages', 'entities', 'tenants'];
 
 export function usePermissions() {
   const user = useAuthStore((s) => s.user);
@@ -89,23 +115,19 @@ export function usePermissions() {
   const modulePermissions = useMemo<ModulePermissions>(() => {
     if (!user || !roleType) return {};
 
-    // PLATFORM_ADMIN e ADMIN sempre tem tudo
-    if (roleType === 'PLATFORM_ADMIN' || roleType === 'ADMIN') {
-      return DEFAULT_MODULE_PERMISSIONS[roleType];
+    // PLATFORM_ADMIN sempre tem tudo
+    if (roleType === 'PLATFORM_ADMIN') {
+      return DEFAULT_MODULE_PERMISSIONS.PLATFORM_ADMIN;
     }
 
-    // Usar modulePermissions da customRole
+    // Usar modulePermissions da customRole (normalizado de boolean → CRUD)
     if (user.customRole?.modulePermissions) {
-      const mp = user.customRole.modulePermissions as ModulePermissions;
-      return {
-        dashboard: mp.dashboard ?? true,
-        users: mp.users ?? false,
-        settings: mp.settings ?? false,
-        apis: mp.apis ?? false,
-        pages: mp.pages ?? false,
-        entities: mp.entities ?? false,
-        tenants: mp.tenants ?? false,
-      };
+      const normalized = normalizeModulePermissions(user.customRole.modulePermissions as Record<string, unknown>);
+      const result: Record<string, ModulePermission> = {};
+      for (const key of MODULE_KEYS) {
+        result[key] = normalized[key] ?? { ...NO_CRUD };
+      }
+      return result as ModulePermissions;
     }
 
     // Fallback: permissoes padrao do roleType
@@ -115,8 +137,8 @@ export function usePermissions() {
   const entityPermissions = useMemo<EntityPermission[]>(() => {
     if (!user || !roleType) return [];
 
-    // PLATFORM_ADMIN e ADMIN tem acesso total a tudo
-    if (roleType === 'PLATFORM_ADMIN' || roleType === 'ADMIN') return [];
+    // PLATFORM_ADMIN tem acesso total a tudo
+    if (roleType === 'PLATFORM_ADMIN') return [];
 
     if (user.customRole?.permissions) {
       return Array.isArray(user.customRole.permissions)
@@ -128,7 +150,7 @@ export function usePermissions() {
   }, [user, roleType]);
 
   /**
-   * Verifica se o usuario tem acesso a um modulo
+   * Verifica se o usuario tem acesso a um modulo (canRead)
    */
   const hasModuleAccess = (moduleKey: string): boolean => {
     if (!user || !roleType) return false;
@@ -139,7 +161,29 @@ export function usePermissions() {
     const permKey = MODULE_KEY_MAP[moduleKey];
     if (!permKey) return true; // Se nao mapeado, permitir por padrao
 
-    return modulePermissions[permKey] ?? false;
+    const perm = modulePermissions[permKey];
+    if (!perm) return false;
+
+    return perm.canRead ?? false;
+  };
+
+  /**
+   * Verifica permissao CRUD em um modulo especifico
+   */
+  const hasModulePermission = (
+    moduleKey: string,
+    action: 'canRead' | 'canCreate' | 'canUpdate' | 'canDelete',
+  ): boolean => {
+    if (!user || !roleType) return false;
+
+    // PLATFORM_ADMIN sempre tem acesso
+    if (roleType === 'PLATFORM_ADMIN') return true;
+
+    const permKey = MODULE_KEY_MAP[moduleKey] || moduleKey as keyof ModulePermissions;
+    const perm = modulePermissions[permKey];
+    if (!perm) return false;
+
+    return perm[action] ?? false;
   };
 
   /**
@@ -151,8 +195,11 @@ export function usePermissions() {
   ): boolean => {
     if (!user || !roleType) return false;
 
-    // PLATFORM_ADMIN e ADMIN tem acesso total
-    if (roleType === 'PLATFORM_ADMIN' || roleType === 'ADMIN') return true;
+    // PLATFORM_ADMIN tem acesso total
+    if (roleType === 'PLATFORM_ADMIN') return true;
+
+    // ADMIN: usar permissoes baseadas em roleType defaults
+    if (roleType === 'ADMIN') return true;
 
     // Usar permissoes baseadas em roleType
     const defaults: Record<RoleType, Record<string, boolean>> = {
@@ -171,7 +218,7 @@ export function usePermissions() {
 
     // CUSTOM usa permissoes definidas na customRole
     const perm = entityPermissions.find((p) => p.entitySlug === entitySlug);
-    if (!perm) return false; // Se entidade nao esta nas permissoes, sem acesso
+    if (!perm) return false;
 
     return perm[action] ?? false;
   };
@@ -207,6 +254,7 @@ export function usePermissions() {
     modulePermissions,
     entityPermissions,
     hasModuleAccess,
+    hasModulePermission,
     hasEntityPermission,
     getEntityScope,
     isAdmin,

@@ -10,13 +10,36 @@ export const api = axios.create({
   },
 });
 
-// Request interceptor - add auth token
+// Request interceptor - add auth token + tenant context
 api.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('accessToken');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
+
+    // Auto-inject tenantId for PLATFORM_ADMIN cross-tenant browsing
+    if (typeof window !== 'undefined') {
+      const selectedTenantId = sessionStorage.getItem('selectedTenantId');
+      if (selectedTenantId) {
+        // Query param (for GET, DELETE, and backend @Query('tenantId'))
+        if (!config.params?.tenantId) {
+          config.params = { ...config.params, tenantId: selectedTenantId };
+        }
+        // Body (for POST, PUT, PATCH — backend reads dto.tenantId)
+        const method = config.method?.toLowerCase();
+        if (method === 'post' || method === 'put' || method === 'patch') {
+          if (config.data && typeof config.data === 'object' && !(config.data instanceof FormData)) {
+            if (!config.data.tenantId) {
+              config.data = { ...config.data, tenantId: selectedTenantId };
+            }
+          } else if (!config.data) {
+            config.data = { tenantId: selectedTenantId };
+          }
+        }
+      }
+    }
+
     return config;
   },
   (error) => {

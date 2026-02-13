@@ -80,6 +80,10 @@ export class OrderByDto {
 
 export class CreateCustomApiDto {
   @IsString()
+  @IsOptional()
+  tenantId?: string;
+
+  @IsString()
   @MinLength(1)
   name: string;
 
@@ -179,6 +183,10 @@ export class CreateCustomApiDto {
 }
 
 export class UpdateCustomApiDto {
+  @IsString()
+  @IsOptional()
+  tenantId?: string;
+
   @IsString()
   @MinLength(1)
   @IsOptional()

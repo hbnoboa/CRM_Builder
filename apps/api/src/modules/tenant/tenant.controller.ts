@@ -20,12 +20,18 @@ import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { CurrentUser as CurrentUserType } from '../../common/types';
 
-function assertTenantAccess(user: CurrentUserType): void {
+function assertTenantAccess(user: CurrentUserType, action: 'canRead' | 'canCreate' | 'canUpdate' | 'canDelete' = 'canRead'): void {
   const roleType = user.customRole?.roleType;
   if (roleType === 'PLATFORM_ADMIN') return;
 
-  const mp = user.customRole?.modulePermissions as Record<string, boolean> | undefined;
-  if (mp?.tenants === true) return;
+  const mp = user.customRole?.modulePermissions as Record<string, unknown> | undefined;
+  const tenantPerm = mp?.tenants;
+
+  // Backward compat: boolean true = acesso total
+  if (tenantPerm === true) return;
+
+  // CRUD format
+  if (tenantPerm && typeof tenantPerm === 'object' && (tenantPerm as Record<string, boolean>)[action] === true) return;
 
   throw new ForbiddenException('Acesso negado. Permissao de tenants necessaria.');
 }
@@ -49,7 +55,7 @@ export class TenantController {
   @ApiOperation({ summary: 'Criar novo tenant' })
   @ApiResponse({ status: 201, description: 'Tenant criado' })
   async create(@Body() dto: CreateTenantDto, @CurrentUser() user: CurrentUserType) {
-    assertTenantAccess(user);
+    assertTenantAccess(user, 'canCreate');
     return this.tenantService.create(dto);
   }
 
@@ -81,7 +87,7 @@ export class TenantController {
   @Roles('PLATFORM_ADMIN', 'ADMIN')
   @ApiOperation({ summary: 'Atualizar tenant' })
   async update(@Param('id') id: string, @Body() dto: UpdateTenantDto, @CurrentUser() user: CurrentUserType) {
-    assertTenantAccess(user);
+    assertTenantAccess(user, 'canUpdate');
     return this.tenantService.update(id, dto);
   }
 
@@ -89,7 +95,7 @@ export class TenantController {
   @Roles('PLATFORM_ADMIN', 'ADMIN')
   @ApiOperation({ summary: 'Suspender tenant' })
   async suspend(@Param('id') id: string, @CurrentUser() user: CurrentUserType) {
-    assertTenantAccess(user);
+    assertTenantAccess(user, 'canUpdate');
     return this.tenantService.suspend(id);
   }
 
@@ -97,7 +103,7 @@ export class TenantController {
   @Roles('PLATFORM_ADMIN', 'ADMIN')
   @ApiOperation({ summary: 'Ativar tenant' })
   async activate(@Param('id') id: string, @CurrentUser() user: CurrentUserType) {
-    assertTenantAccess(user);
+    assertTenantAccess(user, 'canUpdate');
     return this.tenantService.activate(id);
   }
 
@@ -105,7 +111,7 @@ export class TenantController {
   @Roles('PLATFORM_ADMIN', 'ADMIN')
   @ApiOperation({ summary: 'Excluir tenant' })
   async remove(@Param('id') id: string, @CurrentUser() user: CurrentUserType) {
-    assertTenantAccess(user);
+    assertTenantAccess(user, 'canDelete');
     return this.tenantService.remove(id);
   }
 }

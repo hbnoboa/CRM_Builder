@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useTranslations } from 'next-intl';
 import {
   Plus, Search, MoreVertical, Pencil, Trash2, Shield,
-  ArrowLeft, Users, Check, X as XIcon,
+  ArrowLeft, Users,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -138,30 +138,17 @@ export default function RolesPage() {
         <Card><CardContent className="p-6 sm:p-12 text-center">
           <Shield className="h-10 w-10 sm:h-12 sm:w-12 mx-auto text-muted-foreground mb-4" />
           <h3 className="text-base sm:text-lg font-semibold mb-2">{t('rolesPage.noRolesFound')}</h3>
-          <p className="text-muted-foreground mb-4 text-sm sm:text-base">
+          <p className="text-muted-foreground text-sm sm:text-base">
             {search ? t('rolesPage.noRolesMatchSearch') : t('rolesPage.createRolesToStart')}
           </p>
-          {!search && (
-            <Button onClick={handleCreate}>
-              <Plus className="h-4 w-4 mr-2" />{t('rolesPage.newRole')}
-            </Button>
-          )}
         </CardContent></Card>
       ) : (
         <div className="space-y-3">
-          {filteredRoles.map((role: CustomRole) => {
-            const permissions = Array.isArray(role.permissions) ? role.permissions : [];
-            return (
+          {filteredRoles.map((role: CustomRole) => (
               <Card key={role.id} className="hover:border-primary/50 transition-colors">
                 <CardContent className="p-3 sm:p-4">
                   <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
                     <div className="flex items-center gap-3 sm:gap-4 min-w-0">
-                      <div
-                        className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0"
-                        style={{ backgroundColor: (role.color || '#6366f1') + '20' }}
-                      >
-                        <Shield className="h-5 w-5" style={{ color: role.color || '#6366f1' }} />
-                      </div>
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
                           <h3 className="font-semibold text-sm sm:text-base">{role.name}</h3>
@@ -181,22 +168,6 @@ export default function RolesPage() {
                             <Users className="h-3 w-3" />
                             {role._count?.users || 0} {t('rolesPage.usersCount')}
                           </span>
-                          <span className="text-xs text-muted-foreground">•</span>
-                          <span className="text-xs text-muted-foreground">
-                            {permissions.length} {t('rolesPage.entitiesCount')}
-                          </span>
-                          <div className="hidden sm:flex gap-1 ml-1">
-                            {permissions.slice(0, 4).map((p) => (
-                              <Badge key={p.entitySlug} variant="outline" className="text-[10px] py-0">
-                                {p.entityName || p.entitySlug}
-                              </Badge>
-                            ))}
-                            {permissions.length > 4 && (
-                              <Badge variant="outline" className="text-[10px] py-0">
-                                +{permissions.length - 4}
-                              </Badge>
-                            )}
-                          </div>
                         </div>
                       </div>
                     </div>
@@ -224,8 +195,7 @@ export default function RolesPage() {
                   </div>
                 </CardContent>
               </Card>
-            );
-          })}
+          ))}
         </div>
       )}
 
