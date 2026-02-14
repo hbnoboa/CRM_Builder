@@ -48,9 +48,10 @@ export class AutoFillFieldDto {
 }
 
 export class FieldDto {
-  @ApiProperty({ description: 'Slug/identificador do campo' })
+  @ApiPropertyOptional({ description: 'Slug/identificador do campo' })
   @IsString()
-  slug: string;
+  @IsOptional()
+  slug?: string;
 
   @ApiProperty({ description: 'Nome do campo' })
   @IsString()
@@ -128,6 +129,11 @@ export class FieldDto {
   @IsOptional()
   subEntityDisplayFields?: string[];
 
+  @ApiPropertyOptional({ description: 'Campo do pai para identificar o registro (fallback: id)' })
+  @IsString()
+  @IsOptional()
+  parentDisplayField?: string;
+
   // Campos específicos para zone-diagram
   @ApiPropertyOptional({ description: 'URL da imagem de fundo do diagrama' })
   @IsString()
@@ -191,4 +197,11 @@ export class QueryEntityDto {
   @IsString()
   @IsOptional()
   search?: string;
+}
+
+export class UpdateColumnConfigDto {
+  @ApiProperty({ description: 'Slugs dos campos visiveis na ordem desejada' })
+  @IsArray()
+  @IsString({ each: true })
+  visibleColumns: string[];
 }

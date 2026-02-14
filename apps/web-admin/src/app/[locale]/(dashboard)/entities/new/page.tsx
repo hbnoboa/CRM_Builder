@@ -7,6 +7,7 @@ import {
   ArrowLeft, Plus, Trash2, Save, Loader2, MoreHorizontal,
   GripVertical, ChevronDown, ChevronUp, Copy,
 } from 'lucide-react';
+import { RequireRole } from '@/components/auth/require-role';
 import { Button } from '@/components/ui/button';
 import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
@@ -145,7 +146,7 @@ const slugify = (value: string) =>
     .replace(/^_+|_+$/g, '')
     .replace(/__+/g, '_');
 
-export default function NewEntityPage() {
+function NewEntityPageContent() {
   const router = useRouter();
   const t = useTranslations('entities');
   const tDetail = useTranslations('entities.detail');
@@ -514,9 +515,31 @@ export default function NewEntityPage() {
             )}
           </div>
           {field.subEntityId && (
-            <div className="text-xs text-violet-600 dark:text-violet-400 bg-violet-100 dark:bg-violet-900/30 rounded p-2">
-              {tFieldConfig('subEntityHint')}
-            </div>
+            <>
+              <div className="space-y-1">
+                <Label className="text-xs">{tFieldConfig('parentDisplayField')}</Label>
+                <Select
+                  value={field.parentDisplayField || ''}
+                  onValueChange={(val) => updateField(index, { parentDisplayField: val || undefined })}
+                >
+                  <SelectTrigger className="h-8 text-sm"><SelectValue placeholder={tFieldConfig('parentDisplayFieldPlaceholder')} /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">{tFieldConfig('parentDisplayFieldDefault')}</SelectItem>
+                    {fields
+                      .filter((f) => !['sub-entity', 'zone-diagram', 'file', 'image', 'json', 'map'].includes(f.type))
+                      .map((f) => (
+                        <SelectItem key={f.name} value={f.name}>
+                          {f.label || f.name}
+                        </SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">{tFieldConfig('parentDisplayFieldHint')}</p>
+              </div>
+              <div className="text-xs text-violet-600 dark:text-violet-400 bg-violet-100 dark:bg-violet-900/30 rounded p-2">
+                {tFieldConfig('subEntityHint')}
+              </div>
+            </>
           )}
         </div>
       );
@@ -880,5 +903,13 @@ export default function NewEntityPage() {
         </TabsContent>
       </Tabs>
     </div>
+  );
+}
+
+export default function NewEntityPage() {
+  return (
+    <RequireRole module="entities">
+      <NewEntityPageContent />
+    </RequireRole>
   );
 }

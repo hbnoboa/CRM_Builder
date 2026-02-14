@@ -260,6 +260,7 @@
     "createFirstEntity": "Crear Primera Entidad",
     "fields": "campos",
     "viewData": "Ver Datos",
+    "subEntityOf": "Sub-entidad de {parent}",
     "deleteConfirm": {
       "title": "¿Eliminar entidad?",
       "message": "¿Estás seguro de que deseas eliminar la entidad \"{name}\"?",
@@ -374,6 +375,10 @@
       "selectChildEntity": "Selecciona la entidad hija",
       "fieldsToShow": "Campos a Mostrar en Tabla",
       "clickToToggle": "Clic para seleccionar/deseleccionar campos visibles",
+      "parentDisplayField": "Campo de Identificación del Padre",
+      "parentDisplayFieldPlaceholder": "Seleccione un campo...",
+      "parentDisplayFieldDefault": "Usar ID del registro",
+      "parentDisplayFieldHint": "Campo usado para identificar el registro padre al crear sub-registros",
       "subEntityHint": "💡 Los registros hijos serán creados/gestionados dentro del formulario de edición de cada registro de esta entidad. Registros hijos eliminados junto con el padre (cascada).",
       "apiSelectConfig": "⚡ Configuración de API Select",
       "customApiEndpoint": "API Personalizada (Endpoint)",
@@ -425,19 +430,30 @@
     "noEntitiesCreated": "No hay entidades creadas",
     "createEntity": "Crear Entidad",
     "selectEntity": "Selecciona una Entidad",
+    "subEntityOf": "Sub-entidad de {parent}",
     "selectEntityHint": "Elige una entidad para visualizar y gestionar sus registros",
+    "selectParentRecord": "Registro de {parent}",
+    "selectParentRecordPlaceholder": "Seleccione un registro de {parent}",
+    "selectParentFirst": "Seleccione un registro padre para ver los datos",
+    "noParentRecords": "No se encontraron registros de {parent}",
+    "filterByParent": "Filtrar por {parent}",
+    "filteredByParent": "filtrado por padre",
     "noRecords": "Sin registros",
     "noSearchResults": "Sin resultados de búsqueda",
     "startAddingData": "Comienza agregando datos a esta entidad",
     "recordsCount": "{filtered} de {total} registro(s)",
     "filtersActive": "{count} filtro(s) activo(s)",
     "moreFields": "+{count} campos",
+    "moreResults": "+{count} resultados más (escriba para filtrar)",
     "loadingOptions": "Cargando...",
     "noOptionsAvailable": "No hay opciones disponibles",
     "noRecordFound": "No se encontró registro",
     "noName": "Sin nombre",
     "subEntitySaveFirst": "Guarda el registro primero para agregar {name}",
     "subEntityNote": "Los sub-registros solo pueden agregarse después de crear el registro padre.",
+    "pagination": {
+      "showing": "Mostrando {from}-{to} de {total}"
+    },
     "deleteConfirm": {
       "title": "¿Eliminar registro?",
       "message": "¿Estás seguro de que deseas eliminar este registro? Esta acción no se puede deshacer."
@@ -458,6 +474,10 @@
       "columns": "Columnas",
       "visibleColumns": "Columnas visibles",
       "noColumns": "Sin columnas",
+      "restoreDefault": "Restaurar Predeterminado",
+      "saveForAll": "Guardar",
+      "columnsSaved": "Configuración de columnas guardada",
+      "columnsRestored": "Columnas restauradas al predeterminado",
       "operators": {
         "contains": "Contiene",
         "equals": "Igual a",
@@ -478,7 +498,20 @@
       "labels": {
         "empty": "vacío",
         "filled": "completado"
-      }
+      },
+      "mapSubField": "Filtrar por",
+      "mapFields": {
+        "mapAddress": "Dirección",
+        "mapCity": "Ciudad",
+        "mapState": "Estado",
+        "mapLatitude": "Latitud",
+        "mapLongitude": "Longitud"
+      },
+      "parentRecord": "Registro Padre",
+      "viewSubRecords": "Ver registros",
+      "filteredByParentLabel": "{entity}: {display}",
+      "clearParentFilter": "Limpiar filtro",
+      "searchParent": "Buscar {entity}"
     }
   },
   "rolesPage": {
@@ -526,6 +559,7 @@
       "read": "Leer",
       "update": "Editar",
       "delete": "Eliminar",
+      "access": "Acceso",
       "noAccess": "Sin acceso",
       "fullAccess": "Acceso total",
       "partial": "Parcial",
@@ -536,16 +570,31 @@
       "isDefaultDesc": "Asignar automáticamente a nuevos usuarios",
       "customRole": "Rol Personalizado",
       "customRolePlaceholder": "Selecciona un rol personalizado",
-      "noCustomRole": "Sin rol personalizado"
+      "noCustomRole": "Sin rol personalizado",
+      "fieldPermissions": "Permisos por Campo",
+      "field": "Campo",
+      "view": "Ver",
+      "editField": "Editar"
     },
     "modules": {
-      "dashboard": "Dashboard",
+      "dashboard": "Panel",
+      "dashboardDesc": "Vista general y estadísticas",
       "users": "Usuarios",
+      "usersDesc": "Gestionar cuentas de usuarios",
       "settings": "Configuración",
-      "apis": "APIs",
+      "settingsDesc": "Ajustes generales del sistema",
+      "apis": "APIs Personalizadas",
+      "apisDesc": "Endpoints HTTP personalizados",
       "pages": "Páginas",
+      "pagesDesc": "Page Builder visual",
       "entities": "Entidades",
-      "tenants": "Tenants"
+      "entitiesDesc": "Definir estructura de datos",
+      "tenants": "Tenants",
+      "tenantsDesc": "Gestionar empresas y clientes",
+      "data": "Datos",
+      "dataDesc": "Registros de cada entidad",
+      "roles": "Perfiles de Acceso",
+      "rolesDesc": "Configurar roles y permisos"
     },
     "userRoles": {
       "title": "Gestionar Permisos",
@@ -592,7 +641,24 @@
         "canRead": "Leer",
         "canUpdate": "Actualizar",
         "canDelete": "Eliminar"
-      }
+      },
+      "specialActions": "Acciones Específicas",
+      "canActivate": "Activar / Desactivar",
+      "canTest": "Probar Endpoint",
+      "canPublish": "Publicar / Despublicar",
+      "canDuplicate": "Duplicar Página",
+      "canSuspend": "Suspender",
+      "canAssignRole": "Asignar Rol",
+      "canChangeStatus": "Cambiar Estado del Usuario",
+      "canSetDefault": "Definir como Predeterminado",
+      "canManagePermissions": "Gestionar Permisos",
+      "canUpdateLayout": "Editar Layout (Grid)",
+      "canCreateField": "Agregar Campos",
+      "canDeleteField": "Eliminar Campos",
+      "canUpdateField": "Editar Configuración de Campos",
+      "canConfigureColumns": "Configurar Columnas Visibles",
+      "canExport": "Exportar Registros",
+      "canImport": "Importar Registros"
     },
     "permissionCategories": {
       "entities": "Entidades",
@@ -919,6 +985,9 @@
       "offset": "Offset",
       "noLimit": "Sin límite",
       "distinctOnly": "Solo únicos",
+      "responseType": "Tipo de respuesta",
+      "responseTypeRecords": "Registros",
+      "responseTypeCount": "Conteo",
       "schedule": "Programación",
       "scheduleDesc": "Ejecuta esta API automáticamente en intervalos programados.",
       "cronExpression": "Expresión Cron",

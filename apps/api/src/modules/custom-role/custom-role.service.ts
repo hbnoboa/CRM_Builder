@@ -428,6 +428,44 @@ export class CustomRoleService {
   }
 
   /**
+   * Retorna as permissoes por campo para uma entidade.
+   * Retorna null se nao houver restricoes (PLATFORM_ADMIN, ADMIN, ou fieldPermissions vazio).
+   */
+  async getFieldPermissions(
+    userId: string,
+    entitySlug: string,
+  ): Promise<Array<{ fieldSlug: string; canView: boolean; canEdit: boolean }> | null> {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        customRole: {
+          select: { roleType: true, permissions: true },
+        },
+      },
+    });
+
+    if (!user || !user.customRole) return null;
+
+    const roleType = user.customRole.roleType as RoleType;
+
+    // PLATFORM_ADMIN e ADMIN veem todos os campos
+    if (roleType === 'PLATFORM_ADMIN' || roleType === 'ADMIN') return null;
+
+    // Para roles nao-CUSTOM sem fieldPermissions definidas, retornar null (sem restricao)
+    if (roleType !== 'CUSTOM') return null;
+
+    const permissions = user.customRole.permissions as unknown as Array<{
+      entitySlug: string;
+      fieldPermissions?: Array<{ fieldSlug: string; canView: boolean; canEdit: boolean }>;
+    }>;
+
+    const entityPerm = permissions.find((p) => p.entitySlug === entitySlug);
+    if (!entityPerm?.fieldPermissions || entityPerm.fieldPermissions.length === 0) return null;
+
+    return entityPerm.fieldPermissions;
+  }
+
+  /**
    * Retorna todas as entidades que o usuario pode acessar
    */
   async getUserAccessibleEntities(userId: string): Promise<string[]> {

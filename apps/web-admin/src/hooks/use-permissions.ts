@@ -33,6 +33,8 @@ function normalizeModulePermissions(mp: Record<string, unknown> | null | undefin
  * Permissoes de modulo padrao por roleType (formato CRUD)
  * Usado apenas como fallback se customRole.modulePermissions nao estiver definido
  */
+const READ_ONLY: ModulePermission = { canRead: true, canCreate: false, canUpdate: false, canDelete: false };
+
 const DEFAULT_MODULE_PERMISSIONS: Record<RoleType, ModulePermissions> = {
   PLATFORM_ADMIN: {
     dashboard: FULL_CRUD,
@@ -42,6 +44,8 @@ const DEFAULT_MODULE_PERMISSIONS: Record<RoleType, ModulePermissions> = {
     pages: FULL_CRUD,
     entities: FULL_CRUD,
     tenants: FULL_CRUD,
+    data: FULL_CRUD,
+    roles: FULL_CRUD,
   },
   ADMIN: {
     dashboard: FULL_CRUD,
@@ -51,42 +55,52 @@ const DEFAULT_MODULE_PERMISSIONS: Record<RoleType, ModulePermissions> = {
     pages: FULL_CRUD,
     entities: FULL_CRUD,
     tenants: NO_CRUD,
+    data: FULL_CRUD,
+    roles: FULL_CRUD,
   },
   MANAGER: {
-    dashboard: { canRead: true, canCreate: false, canUpdate: false, canDelete: false },
-    users: { canRead: true, canCreate: false, canUpdate: false, canDelete: false },
+    dashboard: READ_ONLY,
+    users: READ_ONLY,
     settings: NO_CRUD,
     apis: NO_CRUD,
     pages: NO_CRUD,
     entities: NO_CRUD,
     tenants: NO_CRUD,
+    data: { canRead: true, canCreate: true, canUpdate: true, canDelete: false },
+    roles: READ_ONLY,
   },
   USER: {
-    dashboard: { canRead: true, canCreate: false, canUpdate: false, canDelete: false },
-    users: { canRead: true, canCreate: false, canUpdate: false, canDelete: false },
-    settings: { canRead: true, canCreate: false, canUpdate: false, canDelete: false },
+    dashboard: READ_ONLY,
+    users: READ_ONLY,
+    settings: READ_ONLY,
     apis: NO_CRUD,
     pages: NO_CRUD,
     entities: { canRead: true, canCreate: true, canUpdate: true, canDelete: false },
     tenants: NO_CRUD,
+    data: { canRead: true, canCreate: true, canUpdate: true, canDelete: false },
+    roles: NO_CRUD,
   },
   VIEWER: {
-    dashboard: { canRead: true, canCreate: false, canUpdate: false, canDelete: false },
+    dashboard: READ_ONLY,
     users: NO_CRUD,
-    settings: { canRead: true, canCreate: false, canUpdate: false, canDelete: false },
+    settings: READ_ONLY,
     apis: NO_CRUD,
     pages: NO_CRUD,
     entities: NO_CRUD,
     tenants: NO_CRUD,
+    data: READ_ONLY,
+    roles: NO_CRUD,
   },
   CUSTOM: {
-    dashboard: { canRead: true, canCreate: false, canUpdate: false, canDelete: false },
+    dashboard: READ_ONLY,
     users: NO_CRUD,
     settings: NO_CRUD,
     apis: NO_CRUD,
     pages: NO_CRUD,
     entities: NO_CRUD,
     tenants: NO_CRUD,
+    data: NO_CRUD,
+    roles: NO_CRUD,
   },
 };
 
@@ -98,13 +112,14 @@ const MODULE_KEY_MAP: Record<string, keyof ModulePermissions> = {
   entities: 'entities',
   apis: 'apis',
   users: 'users',
-  roles: 'users', // /roles usa a mesma permissão de users
+  roles: 'roles',
   settings: 'settings',
   pages: 'pages',
   tenants: 'tenants',
+  data: 'data',
 };
 
-const MODULE_KEYS: (keyof ModulePermissions)[] = ['dashboard', 'users', 'settings', 'apis', 'pages', 'entities', 'tenants'];
+const MODULE_KEYS: (keyof ModulePermissions)[] = ['dashboard', 'users', 'settings', 'apis', 'pages', 'entities', 'tenants', 'data', 'roles'];
 
 export function usePermissions() {
   const user = useAuthStore((s) => s.user);
@@ -238,6 +253,33 @@ export function usePermissions() {
   };
 
   /**
+   * Verifica permissao sub-granular (acoes especiais) em um modulo
+   */
+  const hasModuleAction = (moduleKey: string, action: string): boolean => {
+    if (!user || !roleType) return false;
+    if (roleType === 'PLATFORM_ADMIN' || roleType === 'ADMIN') return true;
+
+    const permKey = MODULE_KEY_MAP[moduleKey] || moduleKey as keyof ModulePermissions;
+    const perm = modulePermissions[permKey] as Record<string, unknown> | undefined;
+    if (!perm) return false;
+
+    return perm[action] === true;
+  };
+
+  /**
+   * Verifica permissao sub-granular em uma entidade especifica
+   */
+  const hasEntityAction = (entitySlug: string, action: string): boolean => {
+    if (!user || !roleType) return false;
+    if (roleType === 'PLATFORM_ADMIN' || roleType === 'ADMIN') return true;
+
+    const perm = entityPermissions.find((p) => p.entitySlug === entitySlug) as Record<string, unknown> | undefined;
+    if (!perm) return false;
+
+    return perm[action] === true;
+  };
+
+  /**
    * Verifica se o user e admin (PLATFORM_ADMIN ou ADMIN)
    * IMPORTANTE: Roles CUSTOM nunca sao consideradas admin
    */
@@ -256,6 +298,8 @@ export function usePermissions() {
     hasModuleAccess,
     hasModulePermission,
     hasEntityPermission,
+    hasModuleAction,
+    hasEntityAction,
     getEntityScope,
     isAdmin,
     isPlatformAdmin,

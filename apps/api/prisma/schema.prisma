@@ -243,11 +243,12 @@ model CustomEndpoint {
   sourceEntityId String?
   sourceEntity   Entity? @relation(fields: [sourceEntityId], references: [id], onDelete: SetNull)
 
-  selectedFields Json @default("[]")
-  filters        Json @default("[]")
-  queryParams    Json @default("[]")
+  selectedFields Json    @default("[]")
+  filters        Json    @default("[]")
+  queryParams    Json    @default("[]")
   orderBy        Json?
   limitRecords   Int?
+  responseType   String  @default("records") // "records" | "count"
 
   logic       Json     @default("[]")
   auth        AuthType @default(JWT)

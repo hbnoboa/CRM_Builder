@@ -58,6 +58,7 @@ interface RecordFormDialogProps {
   record?: RecordData | null;
   onSuccess?: () => void;
   parentRecordId?: string;
+  editableFields?: string[];
 }
 
 // ─── Masks ──────────────────────────────────────────────────────────────────
@@ -93,6 +94,7 @@ export function RecordFormDialog({
   record,
   onSuccess,
   parentRecordId,
+  editableFields,
 }: RecordFormDialogProps) {
   const t = useTranslations('data');
   const tCommon = useTranslations('common');
@@ -311,6 +313,8 @@ export function RecordFormDialog({
     entity.fields?.forEach((field) => {
       // Sub-entity fields store data separately, skip them
       if (field.type === 'sub-entity') return;
+      // Skip fields the user cannot edit (field-level permissions)
+      if (editableFields && !editableFields.includes(field.slug)) return;
       const value = formData[field.slug];
       if (value !== undefined && value !== '') {
         if (field.type === 'number' || field.type === 'rating' || field.type === 'slider') {
@@ -368,11 +372,13 @@ export function RecordFormDialog({
     const value = formData[field.slug];
     const error = errors[field.slug];
     const helpText = field.helpText;
+    const isFieldDisabled = editableFields ? !editableFields.includes(field.slug) : false;
 
     const fieldLabel = (
-      <Label htmlFor={field.slug}>
+      <Label htmlFor={field.slug} className={isFieldDisabled ? 'opacity-60' : ''}>
         {field.label || field.name}
         {field.required && <span className="text-destructive ml-1">*</span>}
+        {isFieldDisabled && <span className="text-muted-foreground ml-1 text-xs">(readonly)</span>}
       </Label>
     );
     const errorEl = error ? <p className="text-sm text-destructive">{error}</p> : null;
@@ -773,11 +779,13 @@ export function RecordFormDialog({
 
       case 'zone-diagram': {
         const ZoneDiagramField = require('@/components/form/zone-diagram-field').default;
+        const isTextMode = field.diagramSaveMode === 'text';
         return (
           <div key={field.slug} className="col-span-full space-y-2">
             <ZoneDiagramField
-              value={(value as Record<string, string>) || {}}
-              onChange={(val: Record<string, string>) => handleFieldChange(field.slug, val)}
+              value={isTextMode ? (value as string) || '' : (value as Record<string, string>) || {}}
+              onChange={(val: Record<string, string> | string) => handleFieldChange(field.slug, val)}
+              saveMode={field.diagramSaveMode || 'object'}
               diagramImage={field.diagramImage}
               zones={field.diagramZones}
               label={field.label || field.name}
@@ -798,6 +806,18 @@ export function RecordFormDialog({
           </div>
         );
     }
+  };
+
+  // Wrapper para campos desabilitados (field-level permissions)
+  const renderFieldWithPermission = (field: EntityField) => {
+    const isDisabled = editableFields ? !editableFields.includes(field.slug) : false;
+    const rendered = renderField(field);
+    if (!isDisabled) return rendered;
+    return (
+      <div key={field.slug} className="pointer-events-none opacity-60">
+        {rendered}
+      </div>
+    );
   };
 
   // ─── Render ──────────────────────────────────────────────────────────────
@@ -823,7 +843,7 @@ export function RecordFormDialog({
                       const colStart = field.gridColStart;
                       return (
                         <div key={field.slug} style={{ gridColumn: colStart ? `${colStart} / span ${colSpan}` : `span ${colSpan} / span ${colSpan}` }}>
-                          {renderField(field)}
+                          {renderFieldWithPermission(field)}
                         </div>
                       );
                     })}
@@ -831,7 +851,7 @@ export function RecordFormDialog({
                 ))}
               </div>
             ) : (
-              entity.fields.map((field) => renderField(field))
+              entity.fields.map((field) => renderFieldWithPermission(field))
             )
           ) : (
             <p className="text-sm text-muted-foreground text-center py-4">{tCommon('noResults')}</p>

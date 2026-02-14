@@ -19,6 +19,7 @@ import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { CurrentUser as CurrentUserType } from '../../common/types';
+import { checkModulePermission } from '../../common/utils/check-module-permission';
 
 function assertTenantAccess(user: CurrentUserType, action: 'canRead' | 'canCreate' | 'canUpdate' | 'canDelete' = 'canRead'): void {
   const roleType = user.customRole?.roleType;
@@ -96,6 +97,7 @@ export class TenantController {
   @ApiOperation({ summary: 'Suspender tenant' })
   async suspend(@Param('id') id: string, @CurrentUser() user: CurrentUserType) {
     assertTenantAccess(user, 'canUpdate');
+    checkModulePermission(user, 'tenants', 'canSuspend');
     return this.tenantService.suspend(id);
   }
 
@@ -104,6 +106,7 @@ export class TenantController {
   @ApiOperation({ summary: 'Ativar tenant' })
   async activate(@Param('id') id: string, @CurrentUser() user: CurrentUserType) {
     assertTenantAccess(user, 'canUpdate');
+    checkModulePermission(user, 'tenants', 'canActivate');
     return this.tenantService.activate(id);
   }
 

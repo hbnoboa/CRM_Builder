@@ -21,6 +21,7 @@ import { AuthenticatedRequest, CurrentUser as CurrentUserType } from '../../comm
 import { CustomApiService, QueryCustomApiDto } from './custom-api.service';
 import { CreateCustomApiDto, UpdateCustomApiDto, HttpMethod } from './dto/custom-api.dto';
 import { getEffectiveTenantId } from '../../common/utils/tenant.util';
+import { checkModulePermission } from '../../common/utils/check-module-permission';
 
 @Controller('custom-apis')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -78,6 +79,7 @@ export class CustomApiController {
     @CurrentUser() user: CurrentUserType,
   ) {
     const effectiveTenantId = getEffectiveTenantId(user, body?.tenantId);
+    checkModulePermission(user, 'apis', 'canActivate');
     return this.customApiService.toggleActive(id, effectiveTenantId);
   }
 
@@ -89,6 +91,7 @@ export class CustomApiController {
     @CurrentUser() user: CurrentUserType,
   ) {
     const effectiveTenantId = getEffectiveTenantId(user, body?.tenantId);
+    checkModulePermission(user, 'apis', 'canActivate');
     return this.customApiService.activate(id, effectiveTenantId);
   }
 
@@ -100,6 +103,7 @@ export class CustomApiController {
     @CurrentUser() user: CurrentUserType,
   ) {
     const effectiveTenantId = getEffectiveTenantId(user, body?.tenantId);
+    checkModulePermission(user, 'apis', 'canActivate');
     return this.customApiService.deactivate(id, effectiveTenantId);
   }
 

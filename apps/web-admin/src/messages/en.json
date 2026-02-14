@@ -260,6 +260,7 @@
     "createFirstEntity": "Create First Entity",
     "fields": "fields",
     "viewData": "View Data",
+    "subEntityOf": "Sub-entity of {parent}",
     "deleteConfirm": {
       "title": "Delete entity?",
       "message": "Are you sure you want to delete entity \"{name}\"?",
@@ -374,6 +375,10 @@
       "selectChildEntity": "Select child entity",
       "fieldsToShow": "Fields to Show in Table",
       "clickToToggle": "Click to select/deselect visible fields",
+      "parentDisplayField": "Parent Identification Field",
+      "parentDisplayFieldPlaceholder": "Select a field...",
+      "parentDisplayFieldDefault": "Use record ID",
+      "parentDisplayFieldHint": "Field used to identify the parent record when creating sub-records",
       "subEntityHint": "💡 Child records will be created/managed within the edit form of each record of this entity. Child records are deleted along with the parent (cascade).",
       "apiSelectConfig": "⚡ API Select Configuration",
       "customApiEndpoint": "Custom API (Endpoint)",
@@ -425,19 +430,30 @@
     "noEntitiesCreated": "No entities created",
     "createEntity": "Create Entity",
     "selectEntity": "Select an Entity",
+    "subEntityOf": "Sub-entity of {parent}",
     "selectEntityHint": "Choose an entity to view and manage its records",
+    "selectParentRecord": "{parent} record",
+    "selectParentRecordPlaceholder": "Select a {parent} record",
+    "selectParentFirst": "Select a parent record to view data",
+    "noParentRecords": "No {parent} records found",
+    "filterByParent": "Filter by {parent}",
+    "filteredByParent": "filtered by parent",
     "noRecords": "No records",
     "noSearchResults": "No search results",
     "startAddingData": "Start adding data to this entity",
     "recordsCount": "{filtered} of {total} record(s)",
     "filtersActive": "{count} filter(s) active",
     "moreFields": "+{count} fields",
+    "moreResults": "+{count} more results (type to filter)",
     "loadingOptions": "Loading...",
     "noOptionsAvailable": "No options available",
     "noRecordFound": "No record found",
     "noName": "No name",
     "subEntitySaveFirst": "Save the record first to add {name}",
     "subEntityNote": "Sub-records can only be added after creating the parent record.",
+    "pagination": {
+      "showing": "Showing {from}-{to} of {total}"
+    },
     "deleteConfirm": {
       "title": "Delete record?",
       "message": "Are you sure you want to delete this record? This action cannot be undone."
@@ -458,6 +474,10 @@
       "columns": "Columns",
       "visibleColumns": "Visible columns",
       "noColumns": "No columns",
+      "restoreDefault": "Restore Default",
+      "saveForAll": "Save",
+      "columnsSaved": "Column configuration saved",
+      "columnsRestored": "Columns restored to default",
       "operators": {
         "contains": "Contains",
         "equals": "Equals",
@@ -478,7 +498,20 @@
       "labels": {
         "empty": "empty",
         "filled": "filled"
-      }
+      },
+      "mapSubField": "Filter by",
+      "mapFields": {
+        "mapAddress": "Address",
+        "mapCity": "City",
+        "mapState": "State",
+        "mapLatitude": "Latitude",
+        "mapLongitude": "Longitude"
+      },
+      "parentRecord": "Parent Record",
+      "viewSubRecords": "View records",
+      "filteredByParentLabel": "{entity}: {display}",
+      "clearParentFilter": "Clear filter",
+      "searchParent": "Search {entity}"
     }
   },
   "rolesPage": {
@@ -526,6 +559,7 @@
       "read": "Read",
       "update": "Edit",
       "delete": "Delete",
+      "access": "Access",
       "noAccess": "No access",
       "fullAccess": "Full access",
       "partial": "Partial",
@@ -536,16 +570,31 @@
       "isDefaultDesc": "Automatically assign to new users",
       "customRole": "Custom Role",
       "customRolePlaceholder": "Select a custom role",
-      "noCustomRole": "No custom role"
+      "noCustomRole": "No custom role",
+      "fieldPermissions": "Field Permissions",
+      "field": "Field",
+      "view": "View",
+      "editField": "Edit"
     },
     "modules": {
       "dashboard": "Dashboard",
+      "dashboardDesc": "Overview and statistics",
       "users": "Users",
+      "usersDesc": "Manage user accounts",
       "settings": "Settings",
-      "apis": "APIs",
+      "settingsDesc": "General system settings",
+      "apis": "Custom APIs",
+      "apisDesc": "Custom HTTP endpoints",
       "pages": "Pages",
+      "pagesDesc": "Visual Page Builder",
       "entities": "Entities",
-      "tenants": "Tenants"
+      "entitiesDesc": "Define data structure",
+      "tenants": "Tenants",
+      "tenantsDesc": "Manage companies and clients",
+      "data": "Data",
+      "dataDesc": "Records for each entity",
+      "roles": "Access Roles",
+      "rolesDesc": "Configure roles and permissions"
     },
     "userRoles": {
       "title": "Manage Permissions",
@@ -592,7 +641,24 @@
         "canRead": "Read",
         "canUpdate": "Update",
         "canDelete": "Delete"
-      }
+      },
+      "specialActions": "Special Actions",
+      "canActivate": "Activate / Deactivate",
+      "canTest": "Test Endpoint",
+      "canPublish": "Publish / Unpublish",
+      "canDuplicate": "Duplicate Page",
+      "canSuspend": "Suspend",
+      "canAssignRole": "Assign Role",
+      "canChangeStatus": "Change User Status",
+      "canSetDefault": "Set as Default",
+      "canManagePermissions": "Manage Permissions",
+      "canUpdateLayout": "Edit Layout (Grid)",
+      "canCreateField": "Add Fields",
+      "canDeleteField": "Remove Fields",
+      "canUpdateField": "Edit Field Configuration",
+      "canConfigureColumns": "Configure Visible Columns",
+      "canExport": "Export Records",
+      "canImport": "Import Records"
     },
     "permissionCategories": {
       "entities": "Entities",
@@ -919,6 +985,9 @@
       "offset": "Offset",
       "noLimit": "No limit",
       "distinctOnly": "Unique only",
+      "responseType": "Response type",
+      "responseTypeRecords": "Records",
+      "responseTypeCount": "Count",
       "schedule": "Schedule",
       "scheduleDesc": "Run this API automatically at scheduled intervals.",
       "cronExpression": "Cron Expression",

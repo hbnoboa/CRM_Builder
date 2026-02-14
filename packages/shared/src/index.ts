@@ -41,6 +41,7 @@ export type { EntityData } from './data';
 export type {
   CustomRole,
   EntityPermission,
+  FieldPermission,
   ModulePermission,
   ModulePermissions,
 } from './custom-role';

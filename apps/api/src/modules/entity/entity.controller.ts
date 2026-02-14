@@ -11,11 +11,13 @@ import {
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { EntityService, QueryEntityDto, CreateEntityDto, UpdateEntityDto } from './entity.service';
+import { UpdateColumnConfigDto } from './dto/entity.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { CurrentUser as CurrentUserType } from '../../common/types';
+import { checkModulePermission } from '../../common/utils/check-module-permission';
 
 @ApiTags('Entities')
 @Controller('entities')
@@ -50,6 +52,17 @@ export class EntityController {
     @CurrentUser() user: CurrentUserType,
   ) {
     return this.entityService.findBySlug(slug, user);
+  }
+
+  @Patch(':id/column-config')
+  @ApiOperation({ summary: 'Atualizar configuracao de colunas' })
+  async updateColumnConfig(
+    @Param('id') id: string,
+    @Body() dto: UpdateColumnConfigDto,
+    @CurrentUser() user: CurrentUserType,
+  ) {
+    checkModulePermission(user, 'data', 'canConfigureColumns');
+    return this.entityService.updateColumnConfig(id, dto.visibleColumns, user);
   }
 
   @Patch(':id')

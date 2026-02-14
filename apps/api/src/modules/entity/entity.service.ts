@@ -44,7 +44,7 @@ export interface FieldDefinition {
 export interface CreateEntityDto {
   name: string;
   namePlural?: string;
-  slug: string;
+  slug?: string;
   description?: string;
   icon?: string;
   color?: string;
@@ -75,11 +75,20 @@ export class EntityService {
   async create(dto: CreateEntityDto & { tenantId?: string }, currentUser: CurrentUser) {
     const targetTenantId = getEffectiveTenantId(currentUser, dto.tenantId);
 
+    // Gerar slug a partir do nome se nao fornecido
+    const slug = (dto.slug || dto.name)
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+      .replace(/--+/g, '-');
+
     // Verificar se slug ja existe no tenant
     const existing = await this.prisma.entity.findFirst({
       where: {
         tenantId: targetTenantId,
-        slug: dto.slug,
+        slug,
       },
     });
 
@@ -90,16 +99,22 @@ export class EntityService {
     // Gerar namePlural se nao fornecido
     const namePlural = dto.namePlural || `${dto.name}s`;
 
+    // Garantir que cada campo tenha slug (usa name como fallback)
+    const processedFields = (dto.fields || []).map(f => ({
+      ...f,
+      slug: f.slug || f.name,
+    }));
+
     const entity = await this.prisma.entity.create({
       data: {
         name: dto.name,
         namePlural,
-        slug: dto.slug,
+        slug,
         description: dto.description,
         icon: dto.icon,
         color: dto.color,
         tenantId: targetTenantId,
-        fields: (dto.fields || []) as unknown as Prisma.InputJsonValue,
+        fields: processedFields as unknown as Prisma.InputJsonValue,
         settings: (dto.settings || {}) as Prisma.InputJsonValue,
         isSystem: dto.isSystem || false,
       },
@@ -294,7 +309,11 @@ export class EntityService {
     };
 
     if (dto.fields !== undefined) {
-      updateData.fields = dto.fields as unknown as Prisma.InputJsonValue;
+      const processedFields = dto.fields.map((f: any) => ({
+        ...f,
+        slug: f.slug || f.name,
+      }));
+      updateData.fields = processedFields as unknown as Prisma.InputJsonValue;
     }
     if (dto.settings !== undefined) {
       updateData.settings = dto.settings as Prisma.InputJsonValue;
@@ -303,6 +322,17 @@ export class EntityService {
     return this.prisma.entity.update({
       where: { id },
       data: updateData,
+    });
+  }
+
+  async updateColumnConfig(id: string, visibleColumns: string[], currentUser: CurrentUser) {
+    const entity = await this.findOne(id, currentUser);
+    const currentSettings = (entity.settings as Record<string, unknown>) || {};
+    const settings = { ...currentSettings, columnConfig: { visibleColumns } };
+
+    return this.prisma.entity.update({
+      where: { id },
+      data: { settings: settings as Prisma.InputJsonValue },
     });
   }
 

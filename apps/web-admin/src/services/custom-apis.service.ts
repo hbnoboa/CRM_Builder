@@ -20,6 +20,7 @@ export interface CustomApi {
   queryParams?: unknown[];
   orderBy?: unknown;
   limitRecords?: number;
+  responseType?: string;
   logic?: string;
   code?: string;
   requestSchema?: unknown;
@@ -41,6 +42,7 @@ export interface CreateCustomApiData {
   queryParams?: unknown[];
   orderBy?: unknown;
   limitRecords?: number;
+  responseType?: string;
   logic?: string;
   inputSchema?: Record<string, unknown>;
   tenantId?: string;

@@ -81,6 +81,7 @@ interface ApiConfig {
   limitRecords: number | null;
   offset: number | null;
   distinct: boolean;
+  responseType: 'records' | 'count';
   schedule: ScheduleConfig;
 }
 
@@ -173,6 +174,7 @@ function defaultConfig(customApi?: CustomApi | null): ApiConfig {
         limitRecords: customApi.limitRecords ?? null,
         offset: null,
         distinct: false,
+        responseType: (customApi.responseType as 'records' | 'count') || 'records',
         schedule: { enabled: false },
       };
     }
@@ -232,13 +234,14 @@ function defaultConfig(customApi?: CustomApi | null): ApiConfig {
       limitRecords: customApi.limitRecords ?? null,
       offset: null,
       distinct: false,
+      responseType: (customApi.responseType as 'records' | 'count') || 'records',
       schedule: { enabled: false },
     };
   }
   return {
     name: '', method: 'GET', sourceEntityId: '', description: '', mode: 'visual', code: '',
     selectedFields: [], filters: [], orderBy: [], groupBy: [],
-    limitRecords: null, offset: null, distinct: false,
+    limitRecords: null, offset: null, distinct: false, responseType: 'records',
     schedule: { enabled: false },
   };
 }
@@ -326,7 +329,7 @@ export function CustomApiFormDialog({ open, onOpenChange, customApi, onSuccess, 
 
     const entity = entities.find(e => e.id === config.sourceEntityId);
     const slug = entity?.slug || 'api';
-    const path = `/${slug}-${config.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/-+$/, '')}`;
+    const path = `/${slug}-${config.name.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/-+$/, '')}`;
 
     // Map frontend operator names to backend FilterOperator enum values
     const mapOp = (op: FilterOperator): string => {
@@ -378,6 +381,7 @@ export function CustomApiFormDialog({ open, onOpenChange, customApi, onSuccess, 
       queryParams,
       orderBy,
       limitRecords: config.limitRecords ?? undefined,
+      responseType: config.responseType || 'records',
       logic: config.mode === 'code' ? config.code : undefined,
       inputSchema,
       ...(effectiveTenantId ? { tenantId: effectiveTenantId } : {}),
@@ -537,7 +541,7 @@ export function CustomApiFormDialog({ open, onOpenChange, customApi, onSuccess, 
   const generatedPath = useMemo(() => {
     if (!selectedEntity || !config.name) return '';
     const slug = selectedEntity.slug;
-    const namePart = config.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/-+$/, '');
+    const namePart = config.name.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/-+$/, '');
     return `/api/x/[org]/${slug}-${namePart}`;
   }, [selectedEntity, config.name]);
 
@@ -955,11 +959,15 @@ export function CustomApiFormDialog({ open, onOpenChange, customApi, onSuccess, 
                           onChange={e => update({ offset: e.target.value ? Number(e.target.value) : null })}
                         />
                       </div>
-                      <div className="flex items-end">
-                        <div className="flex items-center gap-2 pb-1">
-                          <Switch checked={config.distinct} onCheckedChange={v => update({ distinct: v })} />
-                          <Label className="text-xs">{tLabels('distinctOnly')}</Label>
-                        </div>
+                      <div className="space-y-1.5">
+                        <Label className="text-xs">{tLabels('responseType')}</Label>
+                        <Select value={config.responseType} onValueChange={v => update({ responseType: v as 'records' | 'count' })}>
+                          <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="records">{tLabels('responseTypeRecords')}</SelectItem>
+                            <SelectItem value="count">{tLabels('responseTypeCount')}</SelectItem>
+                          </SelectContent>
+                        </Select>
                       </div>
                     </div>
                   </>
@@ -1069,6 +1077,7 @@ export function CustomApiFormDialog({ open, onOpenChange, customApi, onSuccess, 
                 <p><strong>{tLabels('fields')}:</strong> {enabledFieldsCount} {tCommon('of')} {entityFields.length}</p>
                 <p><strong>{tLabels('filters')}:</strong> {config.filters.length}</p>
                 {!isWriteMethod && <p><strong>{tLabels('ordering')}:</strong> {config.orderBy.length || tLabels('default')}</p>}
+                {!isWriteMethod && <p><strong>{tLabels('responseType')}:</strong> {config.responseType === 'count' ? tLabels('responseTypeCount') : tLabels('responseTypeRecords')}</p>}
                 {!isWriteMethod && <p><strong>{tLabels('grouping')}:</strong> {config.groupBy.length || tLabels('noneValue')}</p>}
                 {config.limitRecords && <p><strong>{tLabels('limit')}:</strong> {config.limitRecords}</p>}
                 {config.schedule.enabled && <p><strong>{tLabels('schedule')}:</strong> {config.schedule.cron}</p>}

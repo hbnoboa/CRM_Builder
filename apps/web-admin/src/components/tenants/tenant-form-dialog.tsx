@@ -99,6 +99,8 @@ export function TenantFormDialog({ open, onOpenChange, tenant, onSuccess }: Tena
       const name = form.watch('name');
       if (name) {
         const autoSlug = name
+          .normalize('NFD')
+          .replace(/[\u0300-\u036f]/g, '')
           .toLowerCase()
           .replace(/[^a-z0-9]+/g, '-')
           .replace(/^-+|-+$/g, '')

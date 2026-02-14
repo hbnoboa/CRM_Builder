@@ -47,7 +47,7 @@ export default function TenantsPage() {
   const tAuth = useTranslations('auth');
   const locale = useLocale();
   const { user } = useAuthStore();
-  const { hasModuleAccess } = usePermissions();
+  const { hasModuleAccess, hasModulePermission, hasModuleAction } = usePermissions();
   const canAccessTenants = hasModuleAccess('tenants');
 
   const [search, setSearch] = useState('');
@@ -146,10 +146,12 @@ export default function TenantsPage() {
             {t('subtitle')}
           </p>
         </div>
+        {hasModulePermission('tenants', 'canCreate') && (
         <Button onClick={handleCreateTenant} className="w-full sm:w-auto">
           <Plus className="h-4 w-4 mr-2" />
           {t('newTenant')}
         </Button>
+        )}
       </div>
 
       {/* Stats */}
@@ -263,10 +265,12 @@ export default function TenantsPage() {
                   </div>
 
                   <div className="flex items-center gap-2 justify-end sm:justify-start flex-shrink-0">
+                    {hasModulePermission('tenants', 'canUpdate') && (
                     <Button variant="outline" size="sm" onClick={() => handleEditTenant(tenant)} className="hidden sm:flex">
                       <Pencil className="h-4 w-4 mr-1" />
                       {tCommon('edit')}
                     </Button>
+                    )}
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
                         <Button variant="ghost" size="icon" className="h-8 w-8">
@@ -274,12 +278,16 @@ export default function TenantsPage() {
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
+                        {hasModulePermission('tenants', 'canUpdate') && (
                         <DropdownMenuItem onClick={() => handleEditTenant(tenant)}>
                           <Pencil className="h-4 w-4 mr-2" />
                           {tCommon('edit')}
                         </DropdownMenuItem>
-                        <DropdownMenuSeparator />
+                        )}
                         {tenant.status === 'ACTIVE' ? (
+                          hasModuleAction('tenants', 'canSuspend') && (
+                          <>
+                          <DropdownMenuSeparator />
                           <DropdownMenuItem
                             onClick={() => handleSuspendTenant(tenant)}
                             className="text-yellow-600 focus:text-yellow-600"
@@ -287,7 +295,12 @@ export default function TenantsPage() {
                             <PauseCircle className="h-4 w-4 mr-2" />
                             {t('suspend')}
                           </DropdownMenuItem>
+                          </>
+                          )
                         ) : (
+                          hasModuleAction('tenants', 'canActivate') && (
+                          <>
+                          <DropdownMenuSeparator />
                           <DropdownMenuItem
                             onClick={() => handleActivateTenant(tenant)}
                             className="text-green-600 focus:text-green-600"
@@ -295,7 +308,11 @@ export default function TenantsPage() {
                             <PlayCircle className="h-4 w-4 mr-2" />
                             {t('activate')}
                           </DropdownMenuItem>
+                          </>
+                          )
                         )}
+                        {hasModulePermission('tenants', 'canDelete') && (
+                        <>
                         <DropdownMenuSeparator />
                         <DropdownMenuItem
                           onClick={() => handleDeleteTenant(tenant)}
@@ -304,6 +321,8 @@ export default function TenantsPage() {
                           <Trash2 className="h-4 w-4 mr-2" />
                           {tCommon('delete')}
                         </DropdownMenuItem>
+                        </>
+                        )}
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </div>

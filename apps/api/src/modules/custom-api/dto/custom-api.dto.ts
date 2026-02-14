@@ -142,6 +142,10 @@ export class CreateCustomApiDto {
   @IsOptional()
   limitRecords?: number; // Limite de registros
 
+  @IsString()
+  @IsOptional()
+  responseType?: string; // "records" | "count"
+
   // ═══════════════════════════════════════════════════════════════════════════
   // MODO CODE - JavaScript customizado (avancado)
   // ═══════════════════════════════════════════════════════════════════════════
@@ -248,6 +252,10 @@ export class UpdateCustomApiDto {
   @IsNumber()
   @IsOptional()
   limitRecords?: number;
+
+  @IsString()
+  @IsOptional()
+  responseType?: string;
 
   // ═══════════════════════════════════════════════════════════════════════════
   // MODO CODE

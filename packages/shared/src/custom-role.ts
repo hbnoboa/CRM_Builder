@@ -1,6 +1,12 @@
 import { RoleType, PermissionScope } from './enums';
 import { TenantPermissions } from './tenant';
 
+export interface FieldPermission {
+  fieldSlug: string;
+  canView: boolean;
+  canEdit: boolean;
+}
+
 export interface EntityPermission {
   entitySlug: string;
   entityName?: string;
@@ -9,6 +15,11 @@ export interface EntityPermission {
   canUpdate: boolean;
   canDelete: boolean;
   scope?: PermissionScope;
+  fieldPermissions?: FieldPermission[];
+  // Sub-granular actions per entity (data module)
+  canExport?: boolean;
+  canImport?: boolean;
+  canConfigureColumns?: boolean;
 }
 
 export interface ModulePermission {
@@ -16,6 +27,23 @@ export interface ModulePermission {
   canCreate?: boolean;
   canUpdate?: boolean;
   canDelete?: boolean;
+  // Sub-granular actions (each module uses its relevant fields)
+  canActivate?: boolean;      // apis, tenants
+  canTest?: boolean;           // apis
+  canPublish?: boolean;        // pages
+  canDuplicate?: boolean;      // pages
+  canSuspend?: boolean;        // tenants
+  canAssignRole?: boolean;     // users
+  canChangeStatus?: boolean;   // users
+  canSetDefault?: boolean;     // roles
+  canManagePermissions?: boolean; // roles
+  canUpdateLayout?: boolean;   // entities
+  canCreateField?: boolean;    // entities
+  canDeleteField?: boolean;    // entities
+  canUpdateField?: boolean;    // entities
+  canConfigureColumns?: boolean; // data
+  canExport?: boolean;         // data
+  canImport?: boolean;         // data
 }
 
 export interface ModulePermissions {
@@ -26,6 +54,8 @@ export interface ModulePermissions {
   pages?: ModulePermission;
   entities?: ModulePermission;
   tenants?: ModulePermission;
+  data?: ModulePermission;
+  roles?: ModulePermission;
 }
 
 export interface CustomRole {

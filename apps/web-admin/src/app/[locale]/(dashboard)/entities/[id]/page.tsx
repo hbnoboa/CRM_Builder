@@ -8,6 +8,7 @@ import {
   ArrowLeft, Plus, Trash2, Save, Loader2, MoreHorizontal,
   GripVertical, ChevronDown, ChevronUp, Copy,
 } from 'lucide-react';
+import { RequireRole } from '@/components/auth/require-role';
 import { Button } from '@/components/ui/button';
 import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
@@ -37,6 +38,7 @@ import api from '@/lib/api';
 import { useTenant } from '@/stores/tenant-context';
 import type { CustomApi } from '@/services/custom-apis.service';
 import type { Entity, Field, FieldType } from '@/types';
+import { usePermissions } from '@/hooks/use-permissions';
 import FieldGridEditor from '@/components/entities/field-grid-editor';
 
 // ─── Field Type Definitions ────────────────────────────────────────────────
@@ -138,7 +140,7 @@ interface RelatedEntity {
   fields?: { name: string; slug: string; type: string; label?: string }[];
 }
 
-export default function EntityDetailPage() {
+function EntityDetailPageContent() {
   const t = useTranslations('entities.detail');
   const tCommon = useTranslations('common');
   const tNav = useTranslations('navigation');
@@ -148,6 +150,7 @@ export default function EntityDetailPage() {
   const tFieldDesc = useTranslations('fieldDesc');
   const tFieldConfig = useTranslations('entities.fieldConfig');
   const tImport = useTranslations('entities.import');
+  const { hasModuleAction } = usePermissions();
 
   // Helper to get translated field type label
   const getFieldTypeLabel = (type: string): string => {
@@ -571,9 +574,31 @@ export default function EntityDetailPage() {
             )}
           </div>
           {field.subEntityId && (
-            <div className="text-xs text-violet-600 dark:text-violet-400 bg-violet-100 dark:bg-violet-900/30 rounded p-2">
-              {tFieldConfig('subEntityHint')}
-            </div>
+            <>
+              <div className="space-y-1">
+                <Label className="text-xs">{tFieldConfig('parentDisplayField')}</Label>
+                <Select
+                  value={field.parentDisplayField || ''}
+                  onValueChange={(val) => updateField(index, { parentDisplayField: val || undefined })}
+                >
+                  <SelectTrigger className="h-8 text-sm"><SelectValue placeholder={tFieldConfig('parentDisplayFieldPlaceholder')} /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">{tFieldConfig('parentDisplayFieldDefault')}</SelectItem>
+                    {(entity?.fields || [])
+                      .filter((f: any) => !['sub-entity', 'zone-diagram', 'file', 'image', 'json', 'map'].includes(f.type))
+                      .map((f: any) => (
+                        <SelectItem key={f.slug || f.name} value={f.slug || f.name}>
+                          {f.label || f.name}
+                        </SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">{tFieldConfig('parentDisplayFieldHint')}</p>
+              </div>
+              <div className="text-xs text-violet-600 dark:text-violet-400 bg-violet-100 dark:bg-violet-900/30 rounded p-2">
+                {tFieldConfig('subEntityHint')}
+              </div>
+            </>
           )}
         </div>
       );
@@ -862,14 +887,18 @@ export default function EntityDetailPage() {
                   <CardTitle>{tCommon('fields')}</CardTitle>
                   <CardDescription>{t('fieldsTab')}</CardDescription>
                 </div>
+                {hasModuleAction('entities', 'canCreateField') && (
                 <Button onClick={addField} size="sm" className="w-full sm:w-auto"><Plus className="h-4 w-4 mr-1" /> {t('addField')}</Button>
+                )}
               </div>
             </CardHeader>
             <CardContent>
               {fields.length === 0 ? (
                 <div className="text-center py-8 sm:py-12 border-2 border-dashed rounded-lg px-4">
                   <p className="text-muted-foreground mb-4 text-sm sm:text-base">{t('noFieldsDefined')}</p>
+                  {hasModuleAction('entities', 'canCreateField') && (
                   <Button onClick={addField} variant="outline"><Plus className="h-4 w-4 mr-2" /> {t('addFirstField')}</Button>
+                  )}
                 </div>
               ) : (
                 <div className="space-y-2">
@@ -896,7 +925,9 @@ export default function EntityDetailPage() {
                               <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="h-7 w-7" onClick={(e) => e.stopPropagation()}><MoreHorizontal className="h-3 w-3" /></Button></DropdownMenuTrigger>
                               <DropdownMenuContent align="end">
                                 <DropdownMenuItem onClick={() => duplicateField(index)}><Copy className="h-4 w-4 mr-2" /> {tCommon('duplicate')}</DropdownMenuItem>
+                                {hasModuleAction('entities', 'canDeleteField') && (
                                 <DropdownMenuItem onClick={() => removeField(index)} className="text-destructive"><Trash2 className="h-4 w-4 mr-2" /> {tCommon('delete')}</DropdownMenuItem>
+                                )}
                               </DropdownMenuContent>
                             </DropdownMenu>
                           </div>
@@ -991,10 +1022,10 @@ export default function EntityDetailPage() {
                   <Button onClick={() => { addField(); }} variant="outline"><Plus className="h-4 w-4 mr-2" /> {t('addFirstField')}</Button>
                 </div>
               ) : (
-                <div className="pl-0 sm:pl-8">
+                <div className={`pl-0 sm:pl-8 ${!hasModuleAction('entities', 'canUpdateLayout') ? 'pointer-events-none opacity-60' : ''}`}>
                   <FieldGridEditor
                     fields={fields}
-                    onFieldsChange={setFields}
+                    onFieldsChange={hasModuleAction('entities', 'canUpdateLayout') ? setFields : () => {}}
                     onFieldSelect={(idx) => setExpandedFieldIndex(idx)}
                     selectedFieldIndex={expandedFieldIndex}
                   />
@@ -1009,4 +1040,11 @@ export default function EntityDetailPage() {
   );
 }
 
+export default function EntityDetailPage() {
+  return (
+    <RequireRole module="entities">
+      <EntityDetailPageContent />
+    </RequireRole>
+  );
+}
 

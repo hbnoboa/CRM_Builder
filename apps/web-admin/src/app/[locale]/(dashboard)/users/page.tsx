@@ -15,6 +15,7 @@ import {
   UserX,
 } from 'lucide-react';
 import { RequireRole } from '@/components/auth/require-role';
+import { usePermissions } from '@/hooks/use-permissions';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
@@ -48,6 +49,7 @@ function UsersPageContent() {
   const tNav = useTranslations('navigation');
   const tAuth = useTranslations('auth');
   const { user: currentUser } = useAuthStore();
+  const { hasModulePermission } = usePermissions();
   const { effectiveTenantId } = useTenant();
   const [search, setSearch] = useState('');
   const [formOpen, setFormOpen] = useState(false);
@@ -92,12 +94,11 @@ function UsersPageContent() {
 
   const canEditUser = (target: User) => {
     if (!currentUser) return false;
-    if (currentUser.customRole?.roleType === 'PLATFORM_ADMIN' || currentUser.customRole?.roleType === 'ADMIN' || currentUser.customRole?.roleType === 'MANAGER') return true;
+    if (hasModulePermission('users', 'canUpdate')) return true;
     return currentUser.id === target.id;
   };
-  const canDeleteUser = (target: User) => {
-    if (!currentUser) return false;
-    return currentUser.customRole?.roleType === 'PLATFORM_ADMIN' || currentUser.customRole?.roleType === 'ADMIN' || currentUser.customRole?.roleType === 'MANAGER';
+  const canDeleteUser = () => {
+    return hasModulePermission('users', 'canDelete');
   };
   return (
     <div className="space-y-4 sm:space-y-6">
@@ -116,10 +117,12 @@ function UsersPageContent() {
             {t('subtitle')}
           </p>
         </div>
+        {hasModulePermission('users', 'canCreate') && (
         <Button onClick={handleCreateUser} className="w-full sm:w-auto">
           <Plus className="h-4 w-4 mr-2" />
           {t('newUser')}
         </Button>
+        )}
       </div>
 
       {/* Stats */}
@@ -247,7 +250,7 @@ function UsersPageContent() {
                         {tCommon('edit')}
                       </Button>
                     )}
-                    {(canEditUser(user) || canDeleteUser(user)) && (
+                    {(canEditUser(user) || canDeleteUser()) && (
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                           <Button variant="ghost" size="icon" className="h-8 w-8">
@@ -261,8 +264,8 @@ function UsersPageContent() {
                               {tCommon('edit')}
                             </DropdownMenuItem>
                           )}
-                          {canEditUser(user) && canDeleteUser(user) && <DropdownMenuSeparator />}
-                          {canDeleteUser(user) && (
+                          {canEditUser(user) && canDeleteUser() && <DropdownMenuSeparator />}
+                          {canDeleteUser() && (
                             <DropdownMenuItem
                               onClick={() => handleDeleteUser(user)}
                               className="text-destructive focus:text-destructive"

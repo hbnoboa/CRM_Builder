@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { Link } from '@/i18n/navigation';
 import { useTranslations } from 'next-intl';
 import { RequireRole } from '@/components/auth/require-role';
+import { usePermissions } from '@/hooks/use-permissions';
 import {
   Plus, Search, MoreVertical, Pencil, Trash2,
   Code, Play, Copy, Zap, PlayCircle, PauseCircle,
@@ -35,6 +36,7 @@ function ApisPageContent() {
   const tCommon = useTranslations('common');
   const tNav = useTranslations('navigation');
   const { effectiveTenantId } = useTenant();
+  const { hasModulePermission, hasModuleAction } = usePermissions();
   const [search, setSearch] = useState('');
   const [formOpen, setFormOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -118,10 +120,12 @@ function ApisPageContent() {
             {t('subtitle')}
           </p>
         </div>
+        {hasModulePermission('apis', 'canCreate') && (
         <Button onClick={handleCreateApi} className="w-full sm:w-auto">
           <Plus className="h-4 w-4 mr-2" />
           {t('newApi')}
         </Button>
+        )}
       </div>
 
       {/* Stats */}
@@ -243,14 +247,18 @@ function ApisPageContent() {
                   </div>
 
                   <div className="flex items-center gap-2 justify-end sm:justify-start flex-shrink-0">
+                    {hasModuleAction('apis', 'canTest') && (
                     <Button variant="ghost" size="sm" className="hidden md:flex" onClick={() => handleTestApi(apiItem)}>
                       <Play className="h-4 w-4 mr-1" />
                       {t('test')}
                     </Button>
+                    )}
+                    {hasModulePermission('apis', 'canUpdate') && (
                     <Button variant="outline" size="sm" onClick={() => handleEditApi(apiItem)} className="hidden sm:flex">
                       <Pencil className="h-4 w-4 mr-1" />
                       {tCommon('edit')}
                     </Button>
+                    )}
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
                         <Button variant="ghost" size="icon" className="h-8 w-8">
@@ -258,18 +266,24 @@ function ApisPageContent() {
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
+                        {hasModuleAction('apis', 'canTest') && (
                         <DropdownMenuItem onClick={() => handleTestApi(apiItem)}>
                           <Play className="h-4 w-4 mr-2" />
                           {t('test')}
                         </DropdownMenuItem>
+                        )}
+                        {hasModulePermission('apis', 'canUpdate') && (
                         <DropdownMenuItem onClick={() => handleEditApi(apiItem)}>
                           <Pencil className="h-4 w-4 mr-2" />
                           {tCommon('edit')}
                         </DropdownMenuItem>
+                        )}
                         <DropdownMenuItem onClick={() => handleCopyPath(apiItem.path)}>
                           <Copy className="h-4 w-4 mr-2" />
                           {t('copyPath')}
                         </DropdownMenuItem>
+                        {hasModuleAction('apis', 'canActivate') && (
+                        <>
                         <DropdownMenuSeparator />
                         {apiItem.isActive ? (
                           <DropdownMenuItem
@@ -288,6 +302,10 @@ function ApisPageContent() {
                             {t('activate')}
                           </DropdownMenuItem>
                         )}
+                        </>
+                        )}
+                        {hasModulePermission('apis', 'canDelete') && (
+                        <>
                         <DropdownMenuSeparator />
                         <DropdownMenuItem
                           onClick={() => handleDeleteApi(apiItem)}
@@ -296,6 +314,8 @@ function ApisPageContent() {
                           <Trash2 className="h-4 w-4 mr-2" />
                           {tCommon('delete')}
                         </DropdownMenuItem>
+                        </>
+                        )}
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </div>

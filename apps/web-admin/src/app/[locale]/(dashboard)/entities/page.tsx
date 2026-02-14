@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { Link } from '@/i18n/navigation';
 import { useTranslations } from 'next-intl';
 import {
@@ -12,7 +12,9 @@ import {
   Eye,
   Database,
   Loader2,
+  GitBranch,
 } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -34,6 +36,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { RequireRole } from '@/components/auth/require-role';
+import { usePermissions } from '@/hooks/use-permissions';
 import { useEntities, useDeleteEntity } from '@/hooks/use-entities';
 import { useAuthStore } from '@/stores/auth-store';
 import { useTenant } from '@/stores/tenant-context';
@@ -75,6 +78,7 @@ function EntitiesPageContent() {
   const tCommon = useTranslations('common');
   const tNav = useTranslations('navigation');
   const { user: currentUser } = useAuthStore();
+  const { hasModulePermission } = usePermissions();
   const { effectiveTenantId } = useTenant();
   const [search, setSearch] = useState('');
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -91,6 +95,19 @@ function EntitiesPageContent() {
     if (data.data && Array.isArray(data.data)) return data.data;
     return [];
   })();
+
+  // Mapa: entityId -> { parentName, parentSlug } para sub-entidades
+  const subEntityMap = useMemo(() => {
+    const map = new Map<string, { parentName: string; parentSlug: string }>();
+    for (const entity of entities) {
+      for (const field of entity.fields || []) {
+        if (field.type === 'sub-entity' && field.subEntityId) {
+          map.set(field.subEntityId, { parentName: entity.name, parentSlug: entity.slug });
+        }
+      }
+    }
+    return map;
+  }, [entities]);
 
   const filteredEntities = entities.filter((entity) =>
     (entity.name || '').toLowerCase().includes(search.toLowerCase())
@@ -132,12 +149,14 @@ function EntitiesPageContent() {
             {t('subtitle')}
           </p>
         </div>
+        {hasModulePermission('entities', 'canCreate') && (
         <Link href="/entities/new" className="w-full sm:w-auto">
           <Button className="w-full sm:w-auto">
             <Plus className="h-4 w-4 mr-2" />
             {t('newEntity')}
           </Button>
         </Link>
+        )}
       </div>
 
       {/* Stats */}
@@ -204,14 +223,22 @@ function EntitiesPageContent() {
         </Card>
       ) : (
         <div className="grid gap-3 sm:gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {filteredEntities.map((entity) => (
-            <Card key={entity.id} className="group hover:border-primary/50 transition-colors">
+          {filteredEntities.map((entity) => {
+            const subInfo = subEntityMap.get(entity.id);
+            return (
+            <Card key={entity.id} className={`group transition-colors ${subInfo ? 'border-violet-200 dark:border-violet-800 hover:border-violet-400 dark:hover:border-violet-600' : 'hover:border-primary/50'}`}>
               <CardContent className="p-4 sm:p-6">
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex items-center gap-2 sm:gap-3 min-w-0">
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-1 sm:gap-2">
                         <h3 className="font-semibold text-sm sm:text-base truncate">{entity.name}</h3>
+                        {subInfo && (
+                          <Badge variant="outline" className="text-[10px] h-5 border-violet-300 text-violet-700 dark:border-violet-700 dark:text-violet-300 gap-1">
+                            <GitBranch className="h-3 w-3" />
+                            {t('subEntityOf', { parent: subInfo.parentName })}
+                          </Badge>
+                        )}
                         {currentUser?.customRole?.roleType === 'PLATFORM_ADMIN' && (
                           <span className="px-1.5 sm:px-2 py-0.5 text-xs rounded bg-gray-200 text-gray-700 truncate max-w-[80px]" title={entity.tenantId}>
                             {entity.tenant?.name ? entity.tenant.name : entity.tenantId}
@@ -221,6 +248,7 @@ function EntitiesPageContent() {
                       <p className="text-xs sm:text-sm text-muted-foreground truncate">/{entity.slug}</p>
                     </div>
                   </div>
+                  {(hasModulePermission('entities', 'canUpdate') || hasModulePermission('entities', 'canDelete')) && (
                   <div className="opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity flex-shrink-0">
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
@@ -229,13 +257,16 @@ function EntitiesPageContent() {
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
+                        {hasModulePermission('entities', 'canUpdate') && (
                         <DropdownMenuItem asChild>
                           <Link href={`/entities/${entity.id}`}>
                             <Pencil className="h-4 w-4 mr-2" />
                             {tCommon('edit')}
                           </Link>
                         </DropdownMenuItem>
-                        <DropdownMenuSeparator />
+                        )}
+                        {hasModulePermission('entities', 'canUpdate') && hasModulePermission('entities', 'canDelete') && <DropdownMenuSeparator />}
+                        {hasModulePermission('entities', 'canDelete') && (
                         <DropdownMenuItem
                           onClick={() => handleDeleteEntity(entity)}
                           className="text-destructive focus:text-destructive"
@@ -243,9 +274,11 @@ function EntitiesPageContent() {
                           <Trash className="h-4 w-4 mr-2" />
                           {tCommon('delete')}
                         </DropdownMenuItem>
+                        )}
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </div>
+                  )}
                 </div>
 
                 {entity.description && (
@@ -284,16 +317,19 @@ function EntitiesPageContent() {
                       {t('viewData')}
                     </Button>
                   </Link>
+                  {hasModulePermission('entities', 'canUpdate') && (
                   <Link href={`/entities/${entity.id}`} className="flex-1">
                     <Button variant="outline" size="sm" className="w-full text-xs sm:text-sm">
                       <Pencil className="h-3 w-3 mr-1" />
                       {tCommon('edit')}
                     </Button>
                   </Link>
+                  )}
                 </div>
               </CardContent>
             </Card>
-          ))}
+            );
+          })}
         </div>
       )}
 

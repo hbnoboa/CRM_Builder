@@ -25,6 +25,7 @@ import {
 } from '@/components/ui/select';
 import { useCreateUser, useUpdateUser } from '@/hooks/use-users';
 import { useCustomRoles } from '@/hooks/use-custom-roles';
+import { usePermissions } from '@/hooks/use-permissions';
 import type { User, Status } from '@/types';
 
 const createUserSchema = (t: (key: string) => string) => z.object({
@@ -55,6 +56,7 @@ export function UserFormDialog({ open, onOpenChange, user, onSuccess }: UserForm
   const updateUser = useUpdateUser({ success: t('toast.updated') });
   const { data: rolesData } = useCustomRoles();
   const customRoles = Array.isArray(rolesData?.data) ? rolesData.data : [];
+  const { hasModuleAction } = usePermissions();
 
   // Buscar role default para novos usuarios
   const defaultRoleId = customRoles.find((r) => r.isDefault)?.id || customRoles[0]?.id || '';
@@ -174,6 +176,7 @@ export function UserFormDialog({ open, onOpenChange, user, onSuccess }: UserForm
             )}
           </div>
 
+          {(!isEditing || hasModuleAction('users', 'canAssignRole')) && (
           <div className="space-y-2">
             <Label htmlFor="customRole">{t('form.role')} *</Label>
             <Select
@@ -202,8 +205,9 @@ export function UserFormDialog({ open, onOpenChange, user, onSuccess }: UserForm
               <p className="text-sm text-destructive">{form.formState.errors.customRoleId.message}</p>
             )}
           </div>
+          )}
 
-          {isEditing && (
+          {isEditing && hasModuleAction('users', 'canChangeStatus') && (
             <div className="space-y-2">
               <Label htmlFor="status">{t('form.status')}</Label>
               <Select

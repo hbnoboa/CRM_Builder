@@ -117,6 +117,7 @@ export class CustomApiService {
         queryParams: (data.queryParams || []) as unknown as Prisma.InputJsonValue,
         orderBy: data.orderBy ? (data.orderBy as unknown as Prisma.InputJsonValue) : Prisma.JsonNull,
         limitRecords: data.limitRecords,
+        responseType: data.responseType || 'records',
         // Configuracao codigo (legado)
         requestSchema: data.inputSchema,
         responseSchema: data.outputSchema,
@@ -305,6 +306,7 @@ export class CustomApiService {
         queryParams: data.queryParams ? (data.queryParams as unknown as Prisma.InputJsonValue) : undefined,
         orderBy: data.orderBy ? (data.orderBy as unknown as Prisma.InputJsonValue) : undefined,
         limitRecords: data.limitRecords,
+        responseType: data.responseType,
         // Configuracao codigo
         requestSchema: data.inputSchema,
         responseSchema: data.outputSchema,
@@ -597,6 +599,12 @@ export class CustomApiService {
       orderBy = { createdAt: orderConfig.direction };
     } else {
       orderBy = { createdAt: 'desc' };
+    }
+
+    // Se responseType = count, retornar apenas a contagem
+    if (endpoint.responseType === 'count') {
+      const count = await this.prisma.entityData.count({ where });
+      return { count };
     }
 
     // Executar query

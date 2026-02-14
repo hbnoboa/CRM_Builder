@@ -5,6 +5,20 @@ import { RoleType, PermissionScope, ROLE_TYPES } from '@crm-builder/shared';
 
 export { RoleType, PermissionScope, ROLE_TYPES };
 
+export class FieldPermissionDto {
+  @ApiProperty({ example: 'email' })
+  @IsString()
+  fieldSlug: string;
+
+  @ApiPropertyOptional({ default: true })
+  @IsBoolean()
+  canView: boolean;
+
+  @ApiPropertyOptional({ default: true })
+  @IsBoolean()
+  canEdit: boolean;
+}
+
 export class EntityPermissionDto {
   @ApiProperty({ example: 'clientes' })
   @IsString()
@@ -38,6 +52,17 @@ export class EntityPermissionDto {
   @IsString()
   @IsOptional()
   scope?: PermissionScope;
+
+  @ApiPropertyOptional({ type: [FieldPermissionDto], description: 'Permissoes por campo (opcional)' })
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => FieldPermissionDto)
+  @IsOptional()
+  fieldPermissions?: FieldPermissionDto[];
+
+  @IsBoolean() @IsOptional() canExport?: boolean;
+  @IsBoolean() @IsOptional() canImport?: boolean;
+  @IsBoolean() @IsOptional() canConfigureColumns?: boolean;
 }
 
 export class ModulePermissionDto {
@@ -60,6 +85,24 @@ export class ModulePermissionDto {
   @IsBoolean()
   @IsOptional()
   canDelete?: boolean;
+
+  // Sub-granular actions
+  @IsBoolean() @IsOptional() canActivate?: boolean;
+  @IsBoolean() @IsOptional() canTest?: boolean;
+  @IsBoolean() @IsOptional() canPublish?: boolean;
+  @IsBoolean() @IsOptional() canDuplicate?: boolean;
+  @IsBoolean() @IsOptional() canSuspend?: boolean;
+  @IsBoolean() @IsOptional() canAssignRole?: boolean;
+  @IsBoolean() @IsOptional() canChangeStatus?: boolean;
+  @IsBoolean() @IsOptional() canSetDefault?: boolean;
+  @IsBoolean() @IsOptional() canManagePermissions?: boolean;
+  @IsBoolean() @IsOptional() canUpdateLayout?: boolean;
+  @IsBoolean() @IsOptional() canCreateField?: boolean;
+  @IsBoolean() @IsOptional() canDeleteField?: boolean;
+  @IsBoolean() @IsOptional() canUpdateField?: boolean;
+  @IsBoolean() @IsOptional() canConfigureColumns?: boolean;
+  @IsBoolean() @IsOptional() canExport?: boolean;
+  @IsBoolean() @IsOptional() canImport?: boolean;
 }
 
 export class ModulePermissionsDto {
@@ -104,6 +147,18 @@ export class ModulePermissionsDto {
   @Type(() => ModulePermissionDto)
   @IsOptional()
   tenants?: ModulePermissionDto;
+
+  @ApiPropertyOptional({ type: ModulePermissionDto })
+  @ValidateNested()
+  @Type(() => ModulePermissionDto)
+  @IsOptional()
+  data?: ModulePermissionDto;
+
+  @ApiPropertyOptional({ type: ModulePermissionDto })
+  @ValidateNested()
+  @Type(() => ModulePermissionDto)
+  @IsOptional()
+  roles?: ModulePermissionDto;
 }
 
 export class TenantPermissionsDto {

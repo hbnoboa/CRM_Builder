@@ -55,8 +55,10 @@ export interface EntityField {
   subEntityId?: string;
   subEntitySlug?: string;
   subEntityDisplayFields?: string[];
+  parentDisplayField?: string; // Campo do pai para identificar o registro (fallback: id)
 
   // zone-diagram specific
+  diagramSaveMode?: 'object' | 'text'; // 'text' salva só o valor selecionado como string
   diagramImage?: string;
   diagramZones?: Array<{
     id: string;

@@ -18,6 +18,7 @@ import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { CurrentUser as CurrentUserType } from '../../common/types';
+import { checkModulePermission } from '../../common/utils/check-module-permission';
 
 @ApiTags('Users')
 @Controller('users')
@@ -68,6 +69,12 @@ export class UserController {
     @Body() dto: UpdateUserDto,
     @CurrentUser() user: CurrentUserType,
   ) {
+    if (dto.customRoleId) {
+      checkModulePermission(user, 'users', 'canAssignRole');
+    }
+    if (dto.status) {
+      checkModulePermission(user, 'users', 'canChangeStatus');
+    }
     return this.userService.update(id, dto, user);
   }
 

@@ -61,4 +61,9 @@ export const entitiesService = {
   async delete(id: string): Promise<void> {
     await api.delete(`/entities/${id}`);
   },
+
+  async updateColumnConfig(id: string, visibleColumns: string[]): Promise<Entity> {
+    const response = await api.patch<Entity>(`/entities/${id}/column-config`, { visibleColumns });
+    return response.data;
+  },
 };

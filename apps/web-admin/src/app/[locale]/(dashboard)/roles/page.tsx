@@ -27,7 +27,7 @@ export default function RolesPage() {
   const tNav = useTranslations('navigation');
   const tCommon = useTranslations('common');
   const tAuth = useTranslations('auth');
-  const { hasModuleAccess, isAdmin: isAdminUser } = usePermissions();
+  const { hasModuleAccess, hasModulePermission, isAdmin: isAdminUser } = usePermissions();
   const canAccessRoles = hasModuleAccess('roles');
   const { effectiveTenantId } = useTenant();
 
@@ -86,9 +86,11 @@ export default function RolesPage() {
           <h1 className="text-2xl sm:text-3xl font-bold">{t('rolesPage.title')}</h1>
           <p className="text-muted-foreground mt-1 text-sm sm:text-base">{t('rolesPage.subtitle')}</p>
         </div>
+        {hasModulePermission('roles', 'canCreate') && (
         <Button onClick={handleCreate} className="w-full sm:w-auto">
           <Plus className="h-4 w-4 mr-2" />{t('rolesPage.newRole')}
         </Button>
+        )}
       </div>
 
       <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3">
@@ -172,9 +174,12 @@ export default function RolesPage() {
                       </div>
                     </div>
                     <div className="flex items-center gap-2 justify-end sm:justify-start flex-shrink-0">
+                      {hasModulePermission('roles', 'canUpdate') && (
                       <Button variant="outline" size="sm" onClick={() => handleEdit(role)} className="hidden sm:flex">
                         <Pencil className="h-4 w-4 mr-1" />{tCommon('edit')}
                       </Button>
+                      )}
+                      {(hasModulePermission('roles', 'canUpdate') || hasModulePermission('roles', 'canDelete')) && (
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                           <Button variant="ghost" size="icon" className="h-8 w-8">
@@ -182,15 +187,20 @@ export default function RolesPage() {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
+                          {hasModulePermission('roles', 'canUpdate') && (
                           <DropdownMenuItem onClick={() => handleEdit(role)}>
                             <Pencil className="h-4 w-4 mr-2" />{tCommon('edit')}
                           </DropdownMenuItem>
-                          <DropdownMenuSeparator />
+                          )}
+                          {hasModulePermission('roles', 'canUpdate') && hasModulePermission('roles', 'canDelete') && <DropdownMenuSeparator />}
+                          {hasModulePermission('roles', 'canDelete') && (
                           <DropdownMenuItem onClick={() => handleDelete(role)} className="text-destructive focus:text-destructive">
                             <Trash2 className="h-4 w-4 mr-2" />{tCommon('delete')}
                           </DropdownMenuItem>
+                          )}
                         </DropdownMenuContent>
                       </DropdownMenu>
+                      )}
                     </div>
                   </div>
                 </CardContent>
