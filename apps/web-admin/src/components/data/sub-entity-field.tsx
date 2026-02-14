@@ -217,6 +217,7 @@ export default function SubEntityField({
         </div>
         {!readOnly && (
           <Button
+            type="button"
             size="sm"
             variant="outline"
             className="h-7 text-xs"
@@ -245,7 +246,7 @@ export default function SubEntityField({
                 {t('noRecords', { name: subEntity?.name || t('subRecords') })}
               </p>
               {!readOnly && (
-                <Button size="sm" variant="outline" onClick={handleCreate}>
+                <Button type="button" size="sm" variant="outline" onClick={handleCreate}>
                   <Plus className="h-3.5 w-3.5 mr-1" />
                   {t('addRecord', { name: subEntity?.name || '' })}
                 </Button>
@@ -288,6 +289,7 @@ export default function SubEntityField({
                           <td className="px-3 py-2 text-right">
                             <div className="flex items-center justify-end gap-1">
                               <Button
+                                type="button"
                                 variant="ghost"
                                 size="icon"
                                 className="h-7 w-7"
@@ -296,6 +298,7 @@ export default function SubEntityField({
                                 <Pencil className="h-3 w-3" />
                               </Button>
                               <Button
+                                type="button"
                                 variant="ghost"
                                 size="icon"
                                 className="h-7 w-7 text-destructive"
@@ -332,6 +335,7 @@ export default function SubEntityField({
                       {!readOnly && (
                         <div className="flex items-center gap-1 shrink-0">
                           <Button
+                            type="button"
                             variant="ghost"
                             size="icon"
                             className="h-7 w-7"
@@ -340,6 +344,7 @@ export default function SubEntityField({
                             <Pencil className="h-3 w-3" />
                           </Button>
                           <Button
+                            type="button"
                             variant="ghost"
                             size="icon"
                             className="h-7 w-7 text-destructive"
