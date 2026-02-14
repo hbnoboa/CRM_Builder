@@ -413,6 +413,12 @@
       "defaultCenterLng": "Centro predeterminado (Lng)",
       "defaultZoom": "Zoom predeterminado (1-18)",
       "mapHeight": "Altura del mapa (px)",
+      "imageConfig": "📷 Configuración de Imagen",
+      "imageSource": "Fuente de Imagen",
+      "imageSourceBoth": "Cámara + Galería",
+      "imageSourceCamera": "Solo Cámara",
+      "imageSourceGallery": "Solo Galería",
+      "imageSourceHint": "Define si el usuario puede tomar una foto con la cámara, elegir de la galería o ambos",
       "placeholderHint": "Texto de ayuda en el campo",
       "helpTextHint": "Sugerencia mostrada debajo del campo",
       "layoutDescription": "Arrastra los campos para reordenarlos. Arrastra el borde derecho para redimensionar. Usa los botones de % para anchos rápidos.",
@@ -1231,7 +1237,9 @@
     "dragImage": "Arrastre una imagen o haga clic para seleccionar",
     "dragFile": "Arrastre un archivo o haga clic para seleccionar",
     "chooseFile": "Elegir archivo",
-    "pasteUrlButton": "Pegar URL"
+    "pasteUrlButton": "Pegar URL",
+    "takePhoto": "Tomar foto",
+    "takePhotoHint": "Use la cámara del dispositivo para capturar una imagen"
   },
   "placeholders": {
     "email": "email@ejemplo.com",

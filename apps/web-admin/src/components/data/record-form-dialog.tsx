@@ -711,6 +711,7 @@ export function RecordFormDialog({
               mode={field.type === 'image' ? 'image' : 'file'}
               placeholder={field.placeholder}
               folder={field.type === 'image' ? 'images' : 'files'}
+              imageSource={field.type === 'image' ? field.imageSource : undefined}
             />
             {helpEl}{errorEl}
           </div>

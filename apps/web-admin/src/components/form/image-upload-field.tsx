@@ -26,6 +26,8 @@ interface ImageUploadFieldProps {
   disabled?: boolean;
   /** Upload folder on server */
   folder?: string;
+  /** Image source: 'camera' = only camera, 'gallery' = only gallery/URL, 'both' = all */
+  imageSource?: 'camera' | 'gallery' | 'both';
 }
 
 interface UploadingFile {
@@ -44,6 +46,7 @@ export default function ImageUploadField({
   placeholder,
   disabled = false,
   folder = 'uploads',
+  imageSource = 'both',
 }: ImageUploadFieldProps) {
   const t = useTranslations('upload');
   const [isDragOver, setIsDragOver] = useState(false);
@@ -51,6 +54,10 @@ export default function ImageUploadField({
   const [urlMode, setUrlMode] = useState(false);
   const [urlInput, setUrlInput] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
+  const cameraRef = useRef<HTMLInputElement>(null);
+
+  const showCamera = mode === 'image' && imageSource !== 'gallery';
+  const showGallery = imageSource !== 'camera';
 
   // Normalize value to array for internal handling
   const values: string[] = Array.isArray(value)
@@ -144,6 +151,7 @@ export default function ImageUploadField({
     }
     // Reset input so the same file can be selected again
     if (inputRef.current) inputRef.current.value = '';
+    if (cameraRef.current) cameraRef.current.value = '';
   }, [handleFiles]);
 
   const handleRemove = useCallback((index: number) => {
@@ -248,6 +256,19 @@ export default function ImageUploadField({
         </div>
       )}
 
+      {/* Hidden camera input */}
+      {showCamera && (
+        <input
+          ref={cameraRef}
+          type="file"
+          className="hidden"
+          accept="image/*"
+          capture="environment"
+          onChange={handleFileInput}
+          disabled={disabled}
+        />
+      )}
+
       {/* Drop zone */}
       {showDropZone && !disabled && (
         <>
@@ -263,6 +284,21 @@ export default function ImageUploadField({
               <Button type="button" size="sm" onClick={handleUrlSubmit}>{t('ok')}</Button>
               <Button type="button" size="sm" variant="ghost" onClick={() => setUrlMode(false)}>
                 <X className="h-4 w-4" />
+              </Button>
+            </div>
+          ) : imageSource === 'camera' ? (
+            /* Camera-only mode: just a button, no drag-drop */
+            <div className="flex flex-col items-center gap-2 py-4">
+              <Camera className="h-8 w-8 text-muted-foreground/50" />
+              <p className="text-sm text-muted-foreground">{t('takePhotoHint')}</p>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => cameraRef.current?.click()}
+              >
+                <Camera className="h-3.5 w-3.5 mr-1" />
+                {t('takePhoto')}
               </Button>
             </div>
           ) : (
@@ -299,7 +335,21 @@ export default function ImageUploadField({
                     ? t('dragImage')
                     : t('dragFile'))}
                 </p>
-                <div className="flex gap-2 mt-1">
+                <div className="flex flex-wrap gap-2 mt-1">
+                  {showCamera && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        cameraRef.current?.click();
+                      }}
+                    >
+                      <Camera className="h-3.5 w-3.5 mr-1" />
+                      {t('takePhoto')}
+                    </Button>
+                  )}
                   <Button
                     type="button"
                     variant="outline"

@@ -413,6 +413,12 @@
       "defaultCenterLng": "Default center (Lng)",
       "defaultZoom": "Default zoom (1-18)",
       "mapHeight": "Map height (px)",
+      "imageConfig": "📷 Image Configuration",
+      "imageSource": "Image Source",
+      "imageSourceBoth": "Camera + Gallery",
+      "imageSourceCamera": "Camera Only",
+      "imageSourceGallery": "Gallery Only",
+      "imageSourceHint": "Defines whether the user can take a photo with the camera, choose from the gallery, or both",
       "placeholderHint": "Help text in the field",
       "helpTextHint": "Hint displayed below the field",
       "layoutDescription": "Drag fields to reorder. Drag the right edge to resize. Use the % buttons for quick widths.",
@@ -1234,7 +1240,9 @@
     "dragImage": "Drag an image or click to select",
     "dragFile": "Drag a file or click to select",
     "chooseFile": "Choose file",
-    "pasteUrlButton": "Paste URL"
+    "pasteUrlButton": "Paste URL",
+    "takePhoto": "Take photo",
+    "takePhotoHint": "Use the device camera to capture an image"
   },
   "placeholders": {
     "email": "email@example.com",

@@ -784,6 +784,26 @@ function EntityDetailPageContent() {
       );
     }
 
+    if (type === 'image') {
+      return (
+        <div className="space-y-3 mt-3 p-3 bg-pink-50 dark:bg-pink-950/20 rounded-lg border border-pink-200 dark:border-pink-800">
+          <Label className="text-sm font-medium text-pink-700 dark:text-pink-300">{tFieldConfig('imageConfig')}</Label>
+          <div className="space-y-1">
+            <Label className="text-xs">{tFieldConfig('imageSource')}</Label>
+            <Select value={field.imageSource || 'both'} onValueChange={(val) => updateField(index, { imageSource: val as 'camera' | 'gallery' | 'both' })}>
+              <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="both">{tFieldConfig('imageSourceBoth')}</SelectItem>
+                <SelectItem value="camera">{tFieldConfig('imageSourceCamera')}</SelectItem>
+                <SelectItem value="gallery">{tFieldConfig('imageSourceGallery')}</SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">{tFieldConfig('imageSourceHint')}</p>
+          </div>
+        </div>
+      );
+    }
+
     return null;
   };
 
