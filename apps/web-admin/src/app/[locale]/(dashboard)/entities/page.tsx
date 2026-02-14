@@ -78,7 +78,7 @@ function EntitiesPageContent() {
   const tCommon = useTranslations('common');
   const tNav = useTranslations('navigation');
   const { user: currentUser } = useAuthStore();
-  const { hasModulePermission } = usePermissions();
+  const { hasModulePermission, hasModuleAccess } = usePermissions();
   const { effectiveTenantId } = useTenant();
   const [search, setSearch] = useState('');
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -311,12 +311,14 @@ function EntitiesPageContent() {
                 </div>
 
                 <div className="flex gap-2 mt-3 sm:mt-4 pt-3 sm:pt-4 border-t">
+                  {hasModuleAccess('data') && (
                   <Link href={`/data?entity=${entity.slug}`} className="flex-1">
                     <Button variant="outline" size="sm" className="w-full text-xs sm:text-sm">
                       <Eye className="h-3 w-3 mr-1" />
                       {t('viewData')}
                     </Button>
                   </Link>
+                  )}
                   {hasModulePermission('entities', 'canUpdate') && (
                   <Link href={`/entities/${entity.id}`} className="flex-1">
                     <Button variant="outline" size="sm" className="w-full text-xs sm:text-sm">

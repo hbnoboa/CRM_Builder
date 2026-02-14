@@ -176,7 +176,7 @@ export function UserFormDialog({ open, onOpenChange, user, onSuccess }: UserForm
             )}
           </div>
 
-          {(!isEditing || hasModuleAction('users', 'canAssignRole')) && (
+          {hasModuleAction('users', 'canAssignRole') && (
           <div className="space-y-2">
             <Label htmlFor="customRole">{t('form.role')} *</Label>
             <Select

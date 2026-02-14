@@ -17,6 +17,7 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { CurrentUser as CurrentUserType } from '../../common/types';
 import { PageService, QueryPageDto } from './page.service';
 import { CreatePageDto, UpdatePageDto } from './dto/page.dto';
+import { checkModulePermission } from '../../common/utils/check-module-permission';
 
 @Controller('pages')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -73,18 +74,21 @@ export class PageController {
   @Patch(':id/publish')
   @Roles('ADMIN', 'MANAGER', 'PLATFORM_ADMIN')
   async publish(@Param('id') id: string, @CurrentUser() user: CurrentUserType) {
+    checkModulePermission(user, 'pages', 'canPublish');
     return this.pageService.publish(id, user);
   }
 
   @Patch(':id/unpublish')
   @Roles('ADMIN', 'MANAGER', 'PLATFORM_ADMIN')
   async unpublish(@Param('id') id: string, @CurrentUser() user: CurrentUserType) {
+    checkModulePermission(user, 'pages', 'canPublish');
     return this.pageService.unpublish(id, user);
   }
 
   @Post(':id/duplicate')
   @Roles('ADMIN', 'MANAGER', 'PLATFORM_ADMIN')
   async duplicate(@Param('id') id: string, @CurrentUser() user: CurrentUserType) {
+    checkModulePermission(user, 'pages', 'canDuplicate');
     return this.pageService.duplicate(id, user);
   }
 

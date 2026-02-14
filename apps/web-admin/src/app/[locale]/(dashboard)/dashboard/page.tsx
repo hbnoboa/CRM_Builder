@@ -37,6 +37,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { useAuthStore } from '@/stores/auth-store';
 import { useTenant } from '@/stores/tenant-context';
+import { usePermissions } from '@/hooks/use-permissions';
 import api from '@/lib/api';
 import { cn } from '@/lib/utils';
 
@@ -91,6 +92,7 @@ export default function DashboardPage() {
   const dateLocale = dateLocales[locale] || enUS;
   const { user } = useAuthStore();
   const { effectiveTenantId } = useTenant();
+  const { hasModuleAccess, hasModulePermission } = usePermissions();
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [recordsOverTime, setRecordsOverTime] = useState<RecordOverTime[]>([]);
   const [entitiesDistribution, setEntitiesDistribution] = useState<EntityDistribution[]>([]);
@@ -149,6 +151,7 @@ export default function DashboardPage() {
       color: 'text-blue-500',
       bgColor: 'bg-blue-500/10',
       href: '/entities',
+      moduleKey: 'entities',
     },
     {
       title: t('stats.records'),
@@ -157,6 +160,7 @@ export default function DashboardPage() {
       color: 'text-green-500',
       bgColor: 'bg-green-500/10',
       href: '/data',
+      moduleKey: 'data',
     },
     {
       title: t('stats.apis'),
@@ -165,6 +169,7 @@ export default function DashboardPage() {
       color: 'text-purple-500',
       bgColor: 'bg-purple-500/10',
       href: '/apis',
+      moduleKey: 'apis',
     },
     {
       title: t('stats.users'),
@@ -173,8 +178,9 @@ export default function DashboardPage() {
       color: 'text-pink-500',
       bgColor: 'bg-pink-500/10',
       href: '/users',
+      moduleKey: 'users',
     },
-  ];
+  ].filter((stat) => hasModuleAccess(stat.moduleKey));
 
   const getActivityIcon = (type: string) => {
     switch (type) {
@@ -509,77 +515,85 @@ export default function DashboardPage() {
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
-            <Link href="/entities/new">
-              <Card className="hover:border-primary/50 transition-colors cursor-pointer h-full">
-                <CardContent className="p-4 sm:p-6">
-                  <div className="flex items-center gap-3 sm:gap-4">
-                    <div className="p-2 sm:p-3 rounded-lg bg-blue-500/10 flex-shrink-0">
-                      <Database className="h-5 w-5 sm:h-6 sm:w-6 text-blue-500" />
+            {hasModulePermission('entities', 'canCreate') && (
+              <Link href="/entities/new">
+                <Card className="hover:border-primary/50 transition-colors cursor-pointer h-full">
+                  <CardContent className="p-4 sm:p-6">
+                    <div className="flex items-center gap-3 sm:gap-4">
+                      <div className="p-2 sm:p-3 rounded-lg bg-blue-500/10 flex-shrink-0">
+                        <Database className="h-5 w-5 sm:h-6 sm:w-6 text-blue-500" />
+                      </div>
+                      <div className="min-w-0">
+                        <h3 className="font-semibold text-sm sm:text-base">{t('quickActions.newEntity')}</h3>
+                        <p className="text-xs sm:text-sm text-muted-foreground truncate">
+                          {t('quickActions.newEntityDesc')}
+                        </p>
+                      </div>
                     </div>
-                    <div className="min-w-0">
-                      <h3 className="font-semibold text-sm sm:text-base">{t('quickActions.newEntity')}</h3>
-                      <p className="text-xs sm:text-sm text-muted-foreground truncate">
-                        {t('quickActions.newEntityDesc')}
-                      </p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </Link>
+                  </CardContent>
+                </Card>
+              </Link>
+            )}
 
-            <Link href="/data">
-              <Card className="hover:border-primary/50 transition-colors cursor-pointer h-full">
-                <CardContent className="p-4 sm:p-6">
-                  <div className="flex items-center gap-3 sm:gap-4">
-                    <div className="p-2 sm:p-3 rounded-lg bg-orange-500/10 flex-shrink-0">
-                      <Layers className="h-5 w-5 sm:h-6 sm:w-6 text-orange-500" />
+            {hasModuleAccess('data') && (
+              <Link href="/data">
+                <Card className="hover:border-primary/50 transition-colors cursor-pointer h-full">
+                  <CardContent className="p-4 sm:p-6">
+                    <div className="flex items-center gap-3 sm:gap-4">
+                      <div className="p-2 sm:p-3 rounded-lg bg-orange-500/10 flex-shrink-0">
+                        <Layers className="h-5 w-5 sm:h-6 sm:w-6 text-orange-500" />
+                      </div>
+                      <div className="min-w-0">
+                        <h3 className="font-semibold text-sm sm:text-base">{tNav('data')}</h3>
+                        <p className="text-xs sm:text-sm text-muted-foreground truncate">
+                          {t('quickActions.newPageDesc')}
+                        </p>
+                      </div>
                     </div>
-                    <div className="min-w-0">
-                      <h3 className="font-semibold text-sm sm:text-base">{tNav('data')}</h3>
-                      <p className="text-xs sm:text-sm text-muted-foreground truncate">
-                        {t('quickActions.newPageDesc')}
-                      </p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </Link>
+                  </CardContent>
+                </Card>
+              </Link>
+            )}
 
-            <Link href="/apis/new">
-              <Card className="hover:border-primary/50 transition-colors cursor-pointer h-full">
-                <CardContent className="p-4 sm:p-6">
-                  <div className="flex items-center gap-3 sm:gap-4">
-                    <div className="p-2 sm:p-3 rounded-lg bg-purple-500/10 flex-shrink-0">
-                      <Code className="h-5 w-5 sm:h-6 sm:w-6 text-purple-500" />
+            {hasModulePermission('apis', 'canCreate') && (
+              <Link href="/apis/new">
+                <Card className="hover:border-primary/50 transition-colors cursor-pointer h-full">
+                  <CardContent className="p-4 sm:p-6">
+                    <div className="flex items-center gap-3 sm:gap-4">
+                      <div className="p-2 sm:p-3 rounded-lg bg-purple-500/10 flex-shrink-0">
+                        <Code className="h-5 w-5 sm:h-6 sm:w-6 text-purple-500" />
+                      </div>
+                      <div className="min-w-0">
+                        <h3 className="font-semibold text-sm sm:text-base">{t('quickActions.newApi')}</h3>
+                        <p className="text-xs sm:text-sm text-muted-foreground truncate">
+                          {t('quickActions.newApiDesc')}
+                        </p>
+                      </div>
                     </div>
-                    <div className="min-w-0">
-                      <h3 className="font-semibold text-sm sm:text-base">{t('quickActions.newApi')}</h3>
-                      <p className="text-xs sm:text-sm text-muted-foreground truncate">
-                        {t('quickActions.newApiDesc')}
-                      </p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </Link>
+                  </CardContent>
+                </Card>
+              </Link>
+            )}
 
-            <Link href="/users">
-              <Card className="hover:border-primary/50 transition-colors cursor-pointer h-full">
-                <CardContent className="p-4 sm:p-6">
-                  <div className="flex items-center gap-3 sm:gap-4">
-                    <div className="p-2 sm:p-3 rounded-lg bg-pink-500/10 flex-shrink-0">
-                      <Users className="h-5 w-5 sm:h-6 sm:w-6 text-pink-500" />
+            {hasModuleAccess('users') && (
+              <Link href="/users">
+                <Card className="hover:border-primary/50 transition-colors cursor-pointer h-full">
+                  <CardContent className="p-4 sm:p-6">
+                    <div className="flex items-center gap-3 sm:gap-4">
+                      <div className="p-2 sm:p-3 rounded-lg bg-pink-500/10 flex-shrink-0">
+                        <Users className="h-5 w-5 sm:h-6 sm:w-6 text-pink-500" />
+                      </div>
+                      <div className="min-w-0">
+                        <h3 className="font-semibold text-sm sm:text-base">{t('quickActions.manageUsers')}</h3>
+                        <p className="text-xs sm:text-sm text-muted-foreground truncate">
+                          {t('quickActions.manageUsersDesc')}
+                        </p>
+                      </div>
                     </div>
-                    <div className="min-w-0">
-                      <h3 className="font-semibold text-sm sm:text-base">{t('quickActions.manageUsers')}</h3>
-                      <p className="text-xs sm:text-sm text-muted-foreground truncate">
-                        {t('quickActions.manageUsersDesc')}
-                      </p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </Link>
+                  </CardContent>
+                </Card>
+              </Link>
+            )}
           </div>
         </CardContent>
       </Card>

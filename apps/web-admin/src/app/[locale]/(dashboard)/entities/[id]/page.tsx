@@ -150,7 +150,7 @@ function EntityDetailPageContent() {
   const tFieldDesc = useTranslations('fieldDesc');
   const tFieldConfig = useTranslations('entities.fieldConfig');
   const tImport = useTranslations('entities.import');
-  const { hasModuleAction } = usePermissions();
+  const { hasModuleAction, hasModulePermission } = usePermissions();
 
   // Helper to get translated field type label
   const getFieldTypeLabel = (type: string): string => {
@@ -821,10 +821,12 @@ function EntityDetailPageContent() {
           <h1 className="text-xl sm:text-2xl font-bold truncate">{entity.name}</h1>
           <p className="text-xs sm:text-sm text-muted-foreground truncate">/{entity.slug} — {entity._count?.data || 0} {tCommon('fields').toLowerCase()}</p>
         </div>
-        <Button onClick={handleSave} disabled={saving} className="w-full sm:w-auto">
-          {saving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
-          {tCommon('save')}
-        </Button>
+        {hasModulePermission('entities', 'canUpdate') && (
+          <Button onClick={handleSave} disabled={saving} className="w-full sm:w-auto">
+            {saving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
+            {tCommon('save')}
+          </Button>
+        )}
       </div>
 
       <Tabs defaultValue="fields" className="space-y-4">

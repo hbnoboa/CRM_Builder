@@ -8,6 +8,7 @@ import {
   GripVertical, ChevronDown, ChevronUp, Copy,
 } from 'lucide-react';
 import { RequireRole } from '@/components/auth/require-role';
+import { usePermissions } from '@/hooks/use-permissions';
 import { Button } from '@/components/ui/button';
 import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
@@ -156,6 +157,7 @@ function NewEntityPageContent() {
   const tImport = useTranslations('entities.import');
   const tCommon = useTranslations('common');
   const tNav = useTranslations('navigation');
+  const { hasModulePermission } = usePermissions();
   const { effectiveTenantId } = useTenant();
 
   const [saving, setSaving] = useState(false);
@@ -730,10 +732,12 @@ function NewEntityPageContent() {
           <h1 className="text-xl sm:text-2xl font-bold truncate">{t('newEntity')}</h1>
           <p className="text-xs sm:text-sm text-muted-foreground">{t('newEntityDescription')}</p>
         </div>
-        <Button onClick={handleSave} disabled={saving} className="w-full sm:w-auto">
-          {saving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
-          {t('createEntity')}
-        </Button>
+        {hasModulePermission('entities', 'canCreate') && (
+          <Button onClick={handleSave} disabled={saving} className="w-full sm:w-auto">
+            {saving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
+            {t('createEntity')}
+          </Button>
+        )}
       </div>
 
       <Tabs defaultValue="info" className="space-y-4">

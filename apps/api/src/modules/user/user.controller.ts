@@ -36,6 +36,9 @@ export class UserController {
   @Patch('me')
   @ApiOperation({ summary: 'Atualizar perfil do usuário atual' })
   async updateMe(@Body() dto: UpdateUserDto, @CurrentUser() user: CurrentUserType) {
+    // Impedir auto-escalacao de privilegio
+    delete dto.customRoleId;
+    delete dto.status;
     return this.userService.update(user.id, dto, user);
   }
 

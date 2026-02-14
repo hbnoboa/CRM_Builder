@@ -6,6 +6,7 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { CurrentUser as CurrentUserType } from '../../common/types';
 import { StatsService } from './stats.service';
 import { getEffectiveTenantId } from '../../common/utils/tenant.util';
+import { checkModulePermission } from '../../common/utils/check-module-permission';
 
 @ApiTags('Stats')
 @Controller('stats')
@@ -17,6 +18,7 @@ export class StatsController {
   @Get('dashboard')
   @ApiOperation({ summary: 'Obter estatisticas do dashboard' })
   async getDashboardStats(@CurrentUser() user: CurrentUserType, @Query('tenantId') tenantId?: string) {
+    checkModulePermission(user, 'dashboard', 'canRead');
     const roleType = user.customRole?.roleType;
     const effectiveTenantId = getEffectiveTenantId(user, tenantId);
     return this.statsService.getDashboardStats(effectiveTenantId, roleType === 'PLATFORM_ADMIN' && tenantId ? 'filtered' : roleType);
@@ -29,6 +31,7 @@ export class StatsController {
     @Query('days') days?: number,
     @Query('tenantId') tenantId?: string,
   ) {
+    checkModulePermission(user, 'dashboard', 'canRead');
     const roleType = user.customRole?.roleType;
     const effectiveTenantId = getEffectiveTenantId(user, tenantId);
     return this.statsService.getRecordsOverTime(effectiveTenantId, roleType === 'PLATFORM_ADMIN' && tenantId ? 'filtered' : roleType, days || 30);
@@ -37,6 +40,7 @@ export class StatsController {
   @Get('entities-distribution')
   @ApiOperation({ summary: 'Distribuicao de registros por entidade' })
   async getEntitiesDistribution(@CurrentUser() user: CurrentUserType, @Query('tenantId') tenantId?: string) {
+    checkModulePermission(user, 'dashboard', 'canRead');
     const roleType = user.customRole?.roleType;
     const effectiveTenantId = getEffectiveTenantId(user, tenantId);
     return this.statsService.getEntitiesDistribution(effectiveTenantId, roleType === 'PLATFORM_ADMIN' && tenantId ? 'filtered' : roleType);
@@ -49,6 +53,7 @@ export class StatsController {
     @Query('days') days?: number,
     @Query('tenantId') tenantId?: string,
   ) {
+    checkModulePermission(user, 'dashboard', 'canRead');
     const roleType = user.customRole?.roleType;
     const effectiveTenantId = getEffectiveTenantId(user, tenantId);
     return this.statsService.getUsersActivity(effectiveTenantId, roleType === 'PLATFORM_ADMIN' && tenantId ? 'filtered' : roleType, days || 7);
@@ -61,6 +66,7 @@ export class StatsController {
     @Query('limit') limit?: number,
     @Query('tenantId') tenantId?: string,
   ) {
+    checkModulePermission(user, 'dashboard', 'canRead');
     const roleType = user.customRole?.roleType;
     const effectiveTenantId = getEffectiveTenantId(user, tenantId);
     return this.statsService.getRecentActivity(effectiveTenantId, roleType === 'PLATFORM_ADMIN' && tenantId ? 'filtered' : roleType, limit || 10);

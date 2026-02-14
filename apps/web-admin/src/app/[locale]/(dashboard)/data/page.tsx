@@ -771,7 +771,7 @@ function DataPageContent() {
       if (records.length === 0) return [];
       return Object.keys(records[0].data || {});
     }
-    let fieldSlugs = selectedEntity.fields.map(f => f.slug);
+    let fieldSlugs = selectedEntity.fields.filter(f => f && f.slug).map(f => f.slug);
     // Se o backend retornou visibleFields, filtrar apenas esses
     if (serverVisibleFields) {
       const visibleSet = new Set(serverVisibleFields);
@@ -1680,7 +1680,7 @@ function DataPageContent() {
                             {visibleColumns.map(col => {
                               const field = getFieldBySlug(col);
                               const sortKey = col === '_parent' ? '_parentDisplay' : col;
-                              const isSortActive = sortConfig?.field === sortKey;
+                              const isSortActive = sortConfig != null && sortConfig.field === sortKey;
                               return (
                                 <th
                                   key={col}
