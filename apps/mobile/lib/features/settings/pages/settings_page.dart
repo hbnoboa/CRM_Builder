@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:local_auth/local_auth.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:crm_mobile/core/auth/secure_storage.dart';
+import 'package:crm_mobile/core/database/app_database.dart';
+import 'package:crm_mobile/core/theme/app_colors.dart';
 import 'package:crm_mobile/core/theme/app_typography.dart';
 import 'package:crm_mobile/core/theme/theme_provider.dart';
 
@@ -83,6 +85,16 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
           ),
           const Divider(),
 
+          // Data
+          const _SectionHeader(title: 'Dados'),
+          ListTile(
+            leading: Icon(Icons.cached, color: AppColors.warning),
+            title: const Text('Limpar cache local'),
+            subtitle: const Text('Remove dados locais e re-sincroniza'),
+            onTap: () => _confirmClearCache(context),
+          ),
+          const Divider(),
+
           // About
           const _SectionHeader(title: 'Sobre'),
           ListTile(
@@ -111,6 +123,49 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
       ThemeMode.light => 'Claro',
       ThemeMode.dark => 'Escuro',
     };
+  }
+
+  Future<void> _confirmClearCache(BuildContext context) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Limpar cache'),
+        content: const Text(
+          'Todos os dados locais serao removidos e re-sincronizados do servidor. Deseja continuar?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancelar'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            style: TextButton.styleFrom(
+              foregroundColor: AppColors.destructive,
+            ),
+            child: const Text('Limpar'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true && mounted) {
+      try {
+        await AppDatabase.instance.db.disconnectAndClear();
+        await AppDatabase.instance.connect();
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Cache limpo com sucesso')),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Erro ao limpar cache: $e')),
+          );
+        }
+      }
+    }
   }
 
   void _showThemePicker(BuildContext context) {

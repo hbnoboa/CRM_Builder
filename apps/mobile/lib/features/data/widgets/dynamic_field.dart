@@ -1347,7 +1347,7 @@ class _RelationFieldInputState extends State<_RelationFieldInput> {
 
     final db = AppDatabase.instance.db;
     final records = await db.getAll(
-      'SELECT id, data FROM EntityData WHERE entityId = ? AND parentRecordId IS NULL ORDER BY createdAt DESC LIMIT 100',
+      'SELECT id, data FROM EntityData WHERE entityId = ? AND parentRecordId IS NULL AND deletedAt IS NULL ORDER BY createdAt DESC LIMIT 100',
       [relatedEntityId],
     );
 

@@ -72,7 +72,7 @@ class DataDetailPage extends ConsumerWidget {
           // Use StreamBuilder for real-time record updates
           return StreamBuilder<List<Map<String, dynamic>>>(
             stream: AppDatabase.instance.db.watch(
-              'SELECT * FROM EntityData WHERE id = ?',
+              'SELECT * FROM EntityData WHERE id = ? AND deletedAt IS NULL',
               parameters: [recordId],
             ),
             builder: (context, recordSnapshot) {
@@ -133,7 +133,7 @@ class DataDetailPage extends ConsumerWidget {
                     // Field values (excluding sub-entity fields)
                     ...fields
                         .where((f) =>
-                            (f as Map<String, dynamic>)['type'] != 'sub-entity')
+                            (f as Map<String, dynamic>)['type']?.toString().toUpperCase() != 'SUB_ENTITY')
                         .map<Widget>((field) {
                       final fieldMap = field as Map<String, dynamic>;
                       final slug = fieldMap['slug'] as String? ?? '';
@@ -163,7 +163,7 @@ class DataDetailPage extends ConsumerWidget {
   List<Widget> _buildSubEntitySections(
       List<dynamic> fields, String parentRecordId) {
     final subFields = fields.where(
-      (f) => (f as Map<String, dynamic>)['type'] == 'sub-entity',
+      (f) => (f as Map<String, dynamic>)['type']?.toString().toUpperCase() == 'SUB_ENTITY',
     );
 
     if (subFields.isEmpty) return [];

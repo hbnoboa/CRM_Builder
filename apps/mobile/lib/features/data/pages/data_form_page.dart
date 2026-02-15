@@ -100,6 +100,9 @@ class _DataFormPageState extends ConsumerState<DataFormPage> {
       return;
     }
 
+    // Dismiss keyboard before submitting
+    FocusScope.of(context).unfocus();
+
     setState(() => _isLoading = true);
 
     try {

@@ -25,7 +25,7 @@ class EntitiesListPage extends ConsumerWidget {
       ),
       body: StreamBuilder<List<Map<String, dynamic>>>(
         stream: db.watch(
-          'SELECT e.*, (SELECT COUNT(*) FROM EntityData WHERE entityId = e.id AND parentRecordId IS NULL) as recordCount '
+          'SELECT e.*, (SELECT COUNT(*) FROM EntityData WHERE entityId = e.id AND parentRecordId IS NULL AND deletedAt IS NULL) as recordCount '
           'FROM Entity e ORDER BY e.name ASC',
         ),
         builder: (context, snapshot) {

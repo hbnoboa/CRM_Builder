@@ -29,7 +29,7 @@ class DataRepository {
     final db = AppDatabase.instance.db;
 
     var query =
-        'SELECT * FROM EntityData WHERE entityId = ? AND parentRecordId IS NULL';
+        'SELECT * FROM EntityData WHERE entityId = ? AND parentRecordId IS NULL AND deletedAt IS NULL';
     final params = <dynamic>[entityId];
 
     if (search != null && search.isNotEmpty) {
@@ -47,7 +47,7 @@ class DataRepository {
   Future<Map<String, dynamic>?> getRecord(String recordId) async {
     final db = AppDatabase.instance.db;
     final results = await db.getAll(
-      'SELECT * FROM EntityData WHERE id = ?',
+      'SELECT * FROM EntityData WHERE id = ? AND deletedAt IS NULL',
       [recordId],
     );
     return results.isNotEmpty ? results.first : null;
@@ -60,7 +60,7 @@ class DataRepository {
   }) {
     final db = AppDatabase.instance.db;
     return db.watch(
-      'SELECT * FROM EntityData WHERE parentRecordId = ? AND entityId = ? ORDER BY createdAt DESC',
+      'SELECT * FROM EntityData WHERE parentRecordId = ? AND entityId = ? AND deletedAt IS NULL ORDER BY createdAt DESC',
       parameters: [parentRecordId, entityId],
     );
   }

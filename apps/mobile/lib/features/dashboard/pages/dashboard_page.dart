@@ -52,7 +52,7 @@ class DashboardPage extends ConsumerWidget {
               stream: db.watch(
                 'SELECT '
                 '(SELECT COUNT(*) FROM Entity) as entityCount, '
-                '(SELECT COUNT(*) FROM EntityData) as dataCount, '
+                '(SELECT COUNT(*) FROM EntityData WHERE deletedAt IS NULL) as dataCount, '
                 '(SELECT COUNT(*) FROM Notification WHERE read = 0) as unreadCount',
               ),
               builder: (context, snapshot) {
@@ -111,7 +111,7 @@ class DashboardPage extends ConsumerWidget {
             // Quick access - entities list
             StreamBuilder<List<Map<String, dynamic>>>(
               stream: db.watch(
-                'SELECT e.*, (SELECT COUNT(*) FROM EntityData WHERE entityId = e.id) as recordCount '
+                'SELECT e.*, (SELECT COUNT(*) FROM EntityData WHERE entityId = e.id AND deletedAt IS NULL) as recordCount '
                 'FROM Entity e ORDER BY e.name ASC',
               ),
               builder: (context, snapshot) {
@@ -203,7 +203,7 @@ class DashboardPage extends ConsumerWidget {
                 'SELECT ed.*, e.name as entityName, e.slug as entitySlug, e.color as entityColor, e.fields as entityFields '
                 'FROM EntityData ed '
                 'JOIN Entity e ON ed.entityId = e.id '
-                'WHERE ed.parentRecordId IS NULL '
+                'WHERE ed.parentRecordId IS NULL AND ed.deletedAt IS NULL '
                 'ORDER BY ed.updatedAt DESC LIMIT 10',
               ),
               builder: (context, snapshot) {
