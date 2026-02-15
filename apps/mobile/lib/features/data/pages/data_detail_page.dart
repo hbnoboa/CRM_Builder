@@ -76,9 +76,37 @@ class DataDetailPage extends ConsumerWidget {
               parameters: [recordId],
             ),
             builder: (context, recordSnapshot) {
+              // Distinguish loading vs deleted
+              if (recordSnapshot.connectionState == ConnectionState.waiting &&
+                  !recordSnapshot.hasData) {
+                return const Center(child: CircularProgressIndicator());
+              }
+
               final record = recordSnapshot.data?.firstOrNull;
               if (record == null) {
-                return const Center(child: CircularProgressIndicator());
+                return Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.delete_outline,
+                          size: 48, color: AppColors.mutedForeground),
+                      const SizedBox(height: 16),
+                      Text('Registro nao encontrado',
+                          style: AppTypography.h4),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Este registro pode ter sido removido.',
+                        style: AppTypography.bodySmall
+                            .copyWith(color: AppColors.mutedForeground),
+                      ),
+                      const SizedBox(height: 24),
+                      OutlinedButton(
+                        onPressed: () => context.pop(),
+                        child: const Text('Voltar'),
+                      ),
+                    ],
+                  ),
+                );
               }
 
               Map<String, dynamic> data = {};

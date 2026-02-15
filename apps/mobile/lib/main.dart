@@ -8,10 +8,18 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   // Initialize PowerSync database
-  await AppDatabase.instance.initialize();
+  try {
+    await AppDatabase.instance.initialize();
+  } catch (e) {
+    debugPrint('Failed to initialize database: $e');
+  }
 
-  // Initialize Firebase & push notifications
-  await PushNotificationService.instance.initialize();
+  // Initialize Firebase & push notifications (non-blocking)
+  try {
+    await PushNotificationService.instance.initialize();
+  } catch (e) {
+    debugPrint('Failed to initialize push notifications: $e');
+  }
 
   runApp(
     const ProviderScope(

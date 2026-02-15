@@ -301,28 +301,54 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
   }
 
   Future<void> _showChangePassword(BuildContext context) async {
+    final formKey = GlobalKey<FormState>();
     final currentCtrl = TextEditingController();
     final newCtrl = TextEditingController();
+    final confirmCtrl = TextEditingController();
 
     final result = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Alterar senha'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: currentCtrl,
-              obscureText: true,
-              decoration: const InputDecoration(labelText: 'Senha atual'),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: newCtrl,
-              obscureText: true,
-              decoration: const InputDecoration(labelText: 'Nova senha'),
-            ),
-          ],
+        content: Form(
+          key: formKey,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextFormField(
+                controller: currentCtrl,
+                obscureText: true,
+                decoration:
+                    const InputDecoration(labelText: 'Senha atual'),
+                validator: (v) => (v == null || v.isEmpty)
+                    ? 'Senha atual obrigatoria'
+                    : null,
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: newCtrl,
+                obscureText: true,
+                decoration:
+                    const InputDecoration(labelText: 'Nova senha'),
+                validator: (v) {
+                  if (v == null || v.isEmpty) return 'Nova senha obrigatoria';
+                  if (v.length < 8) return 'Minimo 8 caracteres';
+                  return null;
+                },
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: confirmCtrl,
+                obscureText: true,
+                decoration: const InputDecoration(
+                    labelText: 'Confirmar nova senha'),
+                validator: (v) {
+                  if (v != newCtrl.text) return 'Senhas nao conferem';
+                  return null;
+                },
+              ),
+            ],
+          ),
         ),
         actions: [
           TextButton(
@@ -330,7 +356,11 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
             child: const Text('Cancelar'),
           ),
           TextButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
+            onPressed: () {
+              if (formKey.currentState!.validate()) {
+                Navigator.of(ctx).pop(true);
+              }
+            },
             child: const Text('Alterar'),
           ),
         ],
