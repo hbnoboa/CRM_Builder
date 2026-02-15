@@ -173,6 +173,9 @@ model EntityData {
   createdById String?
   updatedById String?
 
+  // Soft delete for PowerSync sync (tracks deletions for mobile)
+  deletedAt   DateTime?
+
   entity       Entity      @relation(fields: [entityId], references: [id], onDelete: Cascade)
   tenant       Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   createdBy    User?       @relation("CreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
@@ -192,6 +195,7 @@ model EntityData {
   @@index([entityId, parentRecordId])
   @@index([updatedById])
   @@index([updatedAt])
+  @@index([deletedAt])
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

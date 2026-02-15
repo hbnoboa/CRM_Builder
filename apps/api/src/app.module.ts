@@ -14,6 +14,7 @@ import { UploadModule } from './modules/upload/upload.module';
 import { NotificationModule } from './modules/notification/notification.module';
 import { HealthModule } from './modules/health/health.module';
 import { CustomRoleModule } from './modules/custom-role/custom-role.module';
+import { SyncModule } from './modules/sync/sync.module';
 
 @Module({
   imports: [
@@ -47,6 +48,7 @@ import { CustomRoleModule } from './modules/custom-role/custom-role.module';
     StatsModule,
     UploadModule,
     NotificationModule,
+    SyncModule,
   ],
 })
 export class AppModule {}

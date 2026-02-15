@@ -1,0 +1,60 @@
+# PowerSync configuration for CRM Builder
+# This file configures the self-hosted PowerSync service
+# to sync data from PostgreSQL to Flutter mobile devices.
+
+# PostgreSQL logical replication connection
+replication:
+  type: postgresql
+  uri: !env POWERSYNC_REPLICATION_URI
+  # Example: postgresql://user:pass@postgres:5432/crmbuilder
+
+# Token authentication (validates Flutter app JWTs)
+api:
+  tokens:
+    - type: jwt
+      # Use the same JWT secret as the NestJS API
+      jwt_secret: !env JWT_SECRET
+      # OR use JWKS endpoint:
+      # jwks_uri: https://api.yourdomain.com/.well-known/jwks.json
+
+# Storage backend for PowerSync internal state
+storage:
+  type: memory
+  # For production with persistence, use MongoDB:
+  # type: mongodb
+  # uri: !env POWERSYNC_STORAGE_URI
+
+# Sync rules: define which data each user can access
+bucket_definitions:
+  # Tenant-scoped data (entities, records, roles)
+  tenant_data:
+    parameters: SELECT token_parameters.tenant_id as tenant_id
+    data:
+      # Entity definitions (schema)
+      - SELECT id, "tenantId", name, "namePlural", slug, description, icon, color, fields, settings, "isSystem", "createdAt", "updatedAt"
+        FROM "Entity"
+        WHERE "tenantId" = bucket.tenant_id
+
+      # Entity data records (exclude soft-deleted)
+      - SELECT id, "tenantId", "entityId", data, "parentRecordId", "createdById", "updatedById", "createdAt", "updatedAt"
+        FROM "EntityData"
+        WHERE "tenantId" = bucket.tenant_id AND "deletedAt" IS NULL
+
+      # Custom roles (for permission checks)
+      - SELECT id, "tenantId", name, description, color, "roleType", "isSystem", permissions, "modulePermissions", "tenantPermissions", "isDefault", "createdAt", "updatedAt"
+        FROM "CustomRole"
+        WHERE "tenantId" = bucket.tenant_id
+
+  # User-specific data
+  user_data:
+    parameters: SELECT token_parameters.user_id as user_id, token_parameters.tenant_id as tenant_id
+    data:
+      # Current user profile
+      - SELECT id, "tenantId", email, name, avatar, "customRoleId", status, "createdAt"
+        FROM "User"
+        WHERE id = bucket.user_id
+
+      # User's notifications
+      - SELECT id, "tenantId", "userId", type, title, message, data, "entitySlug", read, "readAt", "createdAt"
+        FROM "Notification"
+        WHERE "userId" = bucket.user_id AND "tenantId" = bucket.tenant_id
