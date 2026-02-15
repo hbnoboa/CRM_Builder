@@ -1,8 +1,14 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import dynamic from 'next/dynamic';
 import { Link, useRouter } from '@/i18n/navigation';
 import { useTranslations } from 'next-intl';
+
+const ZoneDiagramEditor = dynamic(
+  () => import('@/components/form/zone-diagram-editor'),
+  { ssr: false, loading: () => <div className="h-32 flex items-center justify-center text-muted-foreground">Carregando editor...</div> },
+);
 import {
   ArrowLeft, Plus, Trash2, Save, Loader2, MoreHorizontal,
   GripVertical, ChevronDown, ChevronUp, Copy,
@@ -548,7 +554,6 @@ function NewEntityPageContent() {
     }
 
     if (type === 'zone-diagram') {
-      const ZoneDiagramEditor = require('@/components/form/zone-diagram-editor').default;
       return (
         <ZoneDiagramEditor
           diagramImage={field.diagramImage}

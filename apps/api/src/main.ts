@@ -8,8 +8,26 @@ import { NestExpressApplication } from '@nestjs/platform-express';
 import { AppModule } from './app.module';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 
+function validateSecrets(logger: Logger) {
+  const jwtSecret = process.env.JWT_SECRET;
+  const jwtRefreshSecret = process.env.JWT_REFRESH_SECRET;
+
+  if (!jwtSecret || jwtSecret.length < 32) {
+    logger.error('JWT_SECRET is missing or too short (minimum 32 characters). Set a strong secret in .env');
+    process.exit(1);
+  }
+  if (!jwtRefreshSecret || jwtRefreshSecret.length < 32) {
+    logger.error('JWT_REFRESH_SECRET is missing or too short (minimum 32 characters). Set a strong secret in .env');
+    process.exit(1);
+  }
+}
+
 async function bootstrap() {
   const logger = new Logger('Bootstrap');
+
+  // Validate critical security configuration before starting
+  validateSecrets(logger);
+
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
 
   // Security headers (Helmet)

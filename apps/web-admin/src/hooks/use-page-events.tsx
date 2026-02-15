@@ -363,6 +363,9 @@ export function usePageEvents(initialState?: Partial<PageState>) {
           // Executa em paralelo (nao espera)
           executeAction(action, context).then((result) => {
             results.push(result);
+          }).catch((error) => {
+            console.error('[PageEvents] Async action failed:', error);
+            results.push({ success: false, error });
           });
         } else {
           // Executa em sequencia (espera terminar)
@@ -439,7 +442,9 @@ export function usePageEvents(initialState?: Partial<PageState>) {
         onClick: (value?: unknown) => {
           const event = events.find((e) => e.type === 'onClick');
           if (event) {
-            triggerEvent(componentId, event, { value });
+            triggerEvent(componentId, event, { value }).catch((error) => {
+              console.error('[PageEvents] onClick failed:', error);
+            });
           }
         },
         onChange: (value: unknown) => {
@@ -448,7 +453,9 @@ export function usePageEvents(initialState?: Partial<PageState>) {
 
           const event = events.find((e) => e.type === 'onChange');
           if (event) {
-            triggerEvent(componentId, event, { value });
+            triggerEvent(componentId, event, { value }).catch((error) => {
+              console.error('[PageEvents] onChange failed:', error);
+            });
           }
         },
         onSubmit: (formData: Record<string, unknown>) => {
@@ -460,13 +467,17 @@ export function usePageEvents(initialState?: Partial<PageState>) {
 
           const event = events.find((e) => e.type === 'onSubmit');
           if (event) {
-            triggerEvent(componentId, event, { value: formData });
+            triggerEvent(componentId, event, { value: formData }).catch((error) => {
+              console.error('[PageEvents] onSubmit failed:', error);
+            });
           }
         },
         onLoad: () => {
           const event = events.find((e) => e.type === 'onLoad');
           if (event) {
-            triggerEvent(componentId, event);
+            triggerEvent(componentId, event).catch((error) => {
+              console.error('[PageEvents] onLoad failed:', error);
+            });
           }
         },
       };

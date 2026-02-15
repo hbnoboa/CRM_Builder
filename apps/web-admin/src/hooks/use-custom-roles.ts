@@ -1,20 +1,13 @@
 import { useQuery, useMutation, useQueryClient, useInfiniteQuery } from '@tanstack/react-query';
 import { useCallback, useMemo } from 'react';
 import { toast } from 'sonner';
-import { AxiosError } from 'axios';
 import {
   customRolesService,
   QueryCustomRolesParams,
   CreateCustomRoleData,
   UpdateCustomRoleData,
 } from '@/services/custom-roles.service';
-
-function getErrorMessage(error: unknown, fallback?: string): string {
-  if (error instanceof AxiosError)
-    return error.response?.data?.message || error.message || fallback || 'Error';
-  if (error instanceof Error) return error.message || fallback || 'Error';
-  return fallback || 'Error';
-}
+import { getErrorMessage } from '@/lib/get-error-message';
 
 export const customRoleKeys = {
   all: ['custom-roles'] as const,

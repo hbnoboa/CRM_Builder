@@ -7,6 +7,7 @@ import {
   UpdateTenantData,
 } from '@/services/tenants.service';
 import { CACHE_TIMES } from '@/providers/query-provider';
+import { getErrorMessage } from '@/lib/get-error-message';
 
 export const tenantKeys = {
   all: ['tenants'] as const,
@@ -59,8 +60,8 @@ export function useCreateTenant(messages?: MutationMessages) {
       queryClient.invalidateQueries({ queryKey: tenantKeys.stats() });
       if (messages?.success) toast.success(messages.success);
     },
-    onError: (error: Error) => {
-      toast.error(messages?.error || error.message);
+    onError: (error: unknown) => {
+      toast.error(getErrorMessage(error, messages?.error));
     },
   });
 }
@@ -76,8 +77,8 @@ export function useUpdateTenant(messages?: MutationMessages) {
       queryClient.invalidateQueries({ queryKey: tenantKeys.detail(id) });
       if (messages?.success) toast.success(messages.success);
     },
-    onError: (error: Error) => {
-      toast.error(messages?.error || error.message);
+    onError: (error: unknown) => {
+      toast.error(getErrorMessage(error, messages?.error));
     },
   });
 }
@@ -92,8 +93,8 @@ export function useDeleteTenant(messages?: MutationMessages) {
       queryClient.invalidateQueries({ queryKey: tenantKeys.stats() });
       if (messages?.success) toast.success(messages.success);
     },
-    onError: (error: Error) => {
-      toast.error(messages?.error || error.message);
+    onError: (error: unknown) => {
+      toast.error(getErrorMessage(error, messages?.error));
     },
   });
 }
@@ -109,8 +110,8 @@ export function useSuspendTenant(messages?: MutationMessages) {
       queryClient.invalidateQueries({ queryKey: tenantKeys.stats() });
       if (messages?.success) toast.success(messages.success);
     },
-    onError: (error: Error) => {
-      toast.error(messages?.error || error.message);
+    onError: (error: unknown) => {
+      toast.error(getErrorMessage(error, messages?.error));
     },
   });
 }
@@ -126,8 +127,8 @@ export function useActivateTenant(messages?: MutationMessages) {
       queryClient.invalidateQueries({ queryKey: tenantKeys.stats() });
       if (messages?.success) toast.success(messages.success);
     },
-    onError: (error: Error) => {
-      toast.error(messages?.error || error.message);
+    onError: (error: unknown) => {
+      toast.error(getErrorMessage(error, messages?.error));
     },
   });
 }

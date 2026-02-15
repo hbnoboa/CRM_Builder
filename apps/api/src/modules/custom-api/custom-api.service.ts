@@ -700,35 +700,91 @@ export class CustomApiService {
     }
   }
 
+  // Dangerous patterns that could be used to escape the VM sandbox
+  private static readonly BLOCKED_PATTERNS = [
+    /\bconstructor\b/i,
+    /\b__proto__\b/i,
+    /\bprototype\b/i,
+    /\bprocess\b/i,
+    /\brequire\b/i,
+    /\bimport\b/i,
+    /\bglobal\b/i,
+    /\bglobalThis\b/i,
+    /\bFunction\b/,
+    /\beval\b/,
+    /\bchild_process\b/i,
+    /\bexecSync\b/i,
+    /\bexecFile\b/i,
+    /\bspawn\b/i,
+    /\bBinding\b/,
+    /\bsetTimeout\b/,
+    /\bsetInterval\b/,
+    /\bsetImmediate\b/,
+  ];
+
+  private static readonly MAX_CODE_LENGTH = 10000;
+
+  private validateCode(code: string): void {
+    if (code.length > CustomApiService.MAX_CODE_LENGTH) {
+      throw new BadRequestException(
+        `Codigo excede o limite de ${CustomApiService.MAX_CODE_LENGTH} caracteres`,
+      );
+    }
+
+    for (const pattern of CustomApiService.BLOCKED_PATTERNS) {
+      if (pattern.test(code)) {
+        throw new BadRequestException(
+          `Codigo contem padrao bloqueado: ${pattern.source}`,
+        );
+      }
+    }
+  }
+
   private async executeLogic(
     code: string,
     context: EndpointExecutionContext,
   ) {
+    // Validate code before execution
+    this.validateCode(code);
+
     try {
-      // Create a sandboxed context
+      const tenantId = context.tenantId;
+
+      // Create a sandboxed context with tenant-enforced db access
       const sandbox = {
         body: context.body,
         query: context.query,
         headers: context.headers,
-        user: context.user,
-        tenantId: context.tenantId,
-        // Limited Prisma access
+        user: context.user ? {
+          id: context.user.id,
+          email: context.user.email,
+          name: context.user.name,
+          tenantId: context.user.tenantId,
+        } : null,
+        tenantId,
+        // Limited Prisma access - always enforce tenantId
         db: {
           entityData: {
             findMany: (args: Prisma.EntityDataFindManyArgs) =>
               context.prisma.entityData.findMany({
                 ...args,
-                where: { ...args.where, entity: { tenantId: context.tenantId } },
+                where: { ...args.where, entity: { tenantId } },
               }),
             findFirst: (args: Prisma.EntityDataFindFirstArgs) =>
               context.prisma.entityData.findFirst({
                 ...args,
-                where: { ...args.where, entity: { tenantId: context.tenantId } },
+                where: { ...args.where, entity: { tenantId } },
               }),
             create: (args: Prisma.EntityDataCreateArgs) =>
               context.prisma.entityData.create(args),
             update: (args: Prisma.EntityDataUpdateArgs) =>
-              context.prisma.entityData.update(args),
+              context.prisma.entityData.update({
+                ...args,
+                where: {
+                  ...args.where,
+                  entity: { tenantId },
+                },
+              }),
           },
         },
         console: {
@@ -738,6 +794,15 @@ export class CustomApiService {
         JSON,
         Date,
         Math,
+        Array,
+        Object: { keys: Object.keys, values: Object.values, entries: Object.entries, assign: Object.assign, fromEntries: Object.fromEntries },
+        String,
+        Number,
+        Boolean,
+        parseInt,
+        parseFloat,
+        isNaN,
+        isFinite,
         result: null as unknown,
       };
 

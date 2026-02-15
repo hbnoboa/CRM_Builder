@@ -1,4 +1,4 @@
-import { IsString, IsOptional, IsBoolean, IsObject, IsEnum, IsArray, MinLength, Matches, IsNumber, ValidateNested } from 'class-validator';
+import { IsString, IsOptional, IsBoolean, IsObject, IsEnum, IsArray, MinLength, MaxLength, Matches, IsNumber, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export enum HttpMethod {
@@ -152,7 +152,8 @@ export class CreateCustomApiDto {
 
   @IsString()
   @IsOptional()
-  logic?: string; // JavaScript/TypeScript code to execute
+  @MaxLength(10000, { message: 'Codigo nao pode exceder 10000 caracteres' })
+  logic?: string; // JavaScript code to execute (sandboxed)
 
   // ═══════════════════════════════════════════════════════════════════════════
   // Configuracoes comuns

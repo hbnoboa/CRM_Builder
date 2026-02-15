@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient, useInfiniteQuery } from '@tansta
 import { useCallback, useMemo } from 'react';
 import { toast } from 'sonner';
 import { dataService, QueryDataParams, EntityDataResponse } from '@/services/data.service';
+import { getErrorMessage } from '@/lib/get-error-message';
 
 export const dataKeys = {
   all: ['entityData'] as const,
@@ -127,8 +128,8 @@ export function useCreateEntityData(messages?: MutationMessages) {
       });
       if (messages?.success) toast.success(messages.success);
     },
-    onError: (error: Error) => {
-      toast.error(messages?.error || error.message);
+    onError: (error: unknown) => {
+      toast.error(getErrorMessage(error, messages?.error));
     },
   });
 }
@@ -157,8 +158,8 @@ export function useUpdateEntityData(messages?: MutationMessages) {
       });
       if (messages?.success) toast.success(messages.success);
     },
-    onError: (error: Error) => {
-      toast.error(messages?.error || error.message);
+    onError: (error: unknown) => {
+      toast.error(getErrorMessage(error, messages?.error));
     },
   });
 }
@@ -180,8 +181,8 @@ export function useDeleteEntityData(messages?: MutationMessages) {
       });
       if (messages?.success) toast.success(messages.success);
     },
-    onError: (error: Error) => {
-      toast.error(messages?.error || error.message);
+    onError: (error: unknown) => {
+      toast.error(getErrorMessage(error, messages?.error));
     },
   });
 }

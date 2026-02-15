@@ -7,6 +7,7 @@ import {
   UpdateCustomApiData,
   QueryCustomApisParams,
 } from '@/services/custom-apis.service';
+import { getErrorMessage } from '@/lib/get-error-message';
 
 export const customApiKeys = {
   all: ['custom-apis'] as const,
@@ -98,8 +99,8 @@ export function useCreateCustomApi(messages?: MutationMessages) {
       queryClient.invalidateQueries({ queryKey: customApiKeys.lists() });
       if (messages?.success) toast.success(messages.success);
     },
-    onError: (error: Error) => {
-      toast.error(messages?.error || error.message);
+    onError: (error: unknown) => {
+      toast.error(getErrorMessage(error, messages?.error));
     },
   });
 }
@@ -115,8 +116,8 @@ export function useUpdateCustomApi(messages?: MutationMessages) {
       queryClient.invalidateQueries({ queryKey: customApiKeys.detail(id) });
       if (messages?.success) toast.success(messages.success);
     },
-    onError: (error: Error) => {
-      toast.error(messages?.error || error.message);
+    onError: (error: unknown) => {
+      toast.error(getErrorMessage(error, messages?.error));
     },
   });
 }
@@ -130,8 +131,8 @@ export function useDeleteCustomApi(messages?: MutationMessages) {
       queryClient.invalidateQueries({ queryKey: customApiKeys.lists() });
       if (messages?.success) toast.success(messages.success);
     },
-    onError: (error: Error) => {
-      toast.error(messages?.error || error.message);
+    onError: (error: unknown) => {
+      toast.error(getErrorMessage(error, messages?.error));
     },
   });
 }
@@ -146,8 +147,8 @@ export function useActivateCustomApi(messages?: MutationMessages) {
       queryClient.invalidateQueries({ queryKey: customApiKeys.detail(id) });
       if (messages?.success) toast.success(messages.success);
     },
-    onError: (error: Error) => {
-      toast.error(messages?.error || error.message);
+    onError: (error: unknown) => {
+      toast.error(getErrorMessage(error, messages?.error));
     },
   });
 }
@@ -162,8 +163,8 @@ export function useDeactivateCustomApi(messages?: MutationMessages) {
       queryClient.invalidateQueries({ queryKey: customApiKeys.detail(id) });
       if (messages?.success) toast.success(messages.success);
     },
-    onError: (error: Error) => {
-      toast.error(messages?.error || error.message);
+    onError: (error: unknown) => {
+      toast.error(getErrorMessage(error, messages?.error));
     },
   });
 }
@@ -175,8 +176,8 @@ export function useTestCustomApi(messages?: MutationMessages) {
     onSuccess: () => {
       if (messages?.success) toast.success(messages.success);
     },
-    onError: (error: Error) => {
-      toast.error(messages?.error || error.message);
+    onError: (error: unknown) => {
+      toast.error(getErrorMessage(error, messages?.error));
     },
   });
 }

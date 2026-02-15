@@ -32,6 +32,10 @@ import type { EntityField, FieldType } from '@/types';
 import type { MapFieldValue } from '@/components/form/map-field';
 
 const MapField = dynamic(() => import('@/components/form/map-field'), { ssr: false });
+const ZoneDiagramField = dynamic(
+  () => import('@/components/form/zone-diagram-field'),
+  { ssr: false, loading: () => <div className="h-32 flex items-center justify-center text-muted-foreground">Carregando...</div> },
+);
 
 interface ApiOption {
   value: string;
@@ -779,7 +783,6 @@ export function RecordFormDialog({
       }
 
       case 'zone-diagram': {
-        const ZoneDiagramField = require('@/components/form/zone-diagram-field').default;
         const isTextMode = field.diagramSaveMode === 'text';
         return (
           <div key={field.slug} className="col-span-full space-y-2">

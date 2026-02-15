@@ -1,6 +1,7 @@
 import { Controller, Post, UseGuards, Request } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+import { RolesGuard } from '../../common/guards/roles.guard';
 
 /**
  * Sync credentials endpoint for PowerSync.
@@ -11,12 +12,12 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
  * which PowerSync sync rules use to filter data per user.
  */
 @Controller('sync')
+@UseGuards(JwtAuthGuard, RolesGuard)
 export class SyncController {
   constructor(private readonly jwtService: JwtService) {}
 
   @Post('credentials')
-  @UseGuards(JwtAuthGuard)
-  async getCredentials(@Request() req) {
+  async getCredentials(@Request() req: { user: { id: string; tenantId: string } }) {
     const user = req.user;
 
     // Generate a PowerSync-specific token with sync-relevant claims.

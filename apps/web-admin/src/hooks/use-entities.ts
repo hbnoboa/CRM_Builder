@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient, useInfiniteQuery } from '@tansta
 import { useCallback, useMemo } from 'react';
 import { toast } from 'sonner';
 import { entitiesService, CreateEntityData, UpdateEntityData, QueryEntitiesParams } from '@/services/entities.service';
+import { getErrorMessage } from '@/lib/get-error-message';
 
 export const entityKeys = {
   all: ['entities'] as const,
@@ -102,8 +103,8 @@ export function useCreateEntity(messages?: MutationMessages) {
       queryClient.invalidateQueries({ queryKey: entityKeys.list() });
       if (messages?.success) toast.success(messages.success);
     },
-    onError: (error: Error) => {
-      toast.error(messages?.error || error.message);
+    onError: (error: unknown) => {
+      toast.error(getErrorMessage(error, messages?.error));
     },
   });
 }
@@ -119,8 +120,8 @@ export function useUpdateEntity(messages?: MutationMessages) {
       queryClient.invalidateQueries({ queryKey: entityKeys.detail(id) });
       if (messages?.success) toast.success(messages.success);
     },
-    onError: (error: Error) => {
-      toast.error(messages?.error || error.message);
+    onError: (error: unknown) => {
+      toast.error(getErrorMessage(error, messages?.error));
     },
   });
 }
@@ -134,8 +135,8 @@ export function useDeleteEntity(messages?: MutationMessages) {
       queryClient.invalidateQueries({ queryKey: entityKeys.lists() });
       if (messages?.success) toast.success(messages.success);
     },
-    onError: (error: Error) => {
-      toast.error(messages?.error || error.message);
+    onError: (error: unknown) => {
+      toast.error(getErrorMessage(error, messages?.error));
     },
   });
 }
