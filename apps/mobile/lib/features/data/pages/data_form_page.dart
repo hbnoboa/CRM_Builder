@@ -72,7 +72,6 @@ class _DataFormPageState extends ConsumerState<DataFormPage> {
 
   Future<void> _handleSubmit() async {
     if (!_formKey.currentState!.validate()) return;
-    _formKey.currentState!.save();
 
     setState(() => _isLoading = true);
 
@@ -152,7 +151,11 @@ class _DataFormPageState extends ConsumerState<DataFormPage> {
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
-            ..._fields.map<Widget>((field) {
+            ..._fields
+                .where((f) =>
+                    (f as Map<String, dynamic>)['type']?.toString().toUpperCase() !=
+                    'SUB_ENTITY')
+                .map<Widget>((field) {
               final fieldMap = field as Map<String, dynamic>;
               return Padding(
                 padding: const EdgeInsets.only(bottom: 16),

@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:local_auth/local_auth.dart';
 import 'package:crm_mobile/core/auth/auth_provider.dart';
+import 'package:crm_mobile/core/auth/secure_storage.dart';
 import 'package:crm_mobile/core/theme/app_colors.dart';
 import 'package:crm_mobile/core/theme/app_typography.dart';
 
@@ -17,6 +19,60 @@ class _LoginPageState extends ConsumerState<LoginPage> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _obscurePassword = true;
+  bool _biometricAvailable = false;
+  bool _biometricEnabled = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkBiometric();
+  }
+
+  Future<void> _checkBiometric() async {
+    final enabled = await SecureStorage.isBiometricEnabled();
+    if (!enabled) return;
+
+    // Only show biometric if user has a saved session (token exists)
+    final token = await SecureStorage.getAccessToken();
+    if (token == null) return;
+
+    final localAuth = LocalAuthentication();
+    final canCheck = await localAuth.canCheckBiometrics;
+    final isSupported = await localAuth.isDeviceSupported();
+
+    if (mounted) {
+      setState(() {
+        _biometricAvailable = canCheck && isSupported;
+        _biometricEnabled = enabled;
+      });
+    }
+
+    // Auto-prompt biometric on page load
+    if (canCheck && isSupported && mounted) {
+      _handleBiometricLogin();
+    }
+  }
+
+  Future<void> _handleBiometricLogin() async {
+    final localAuth = LocalAuthentication();
+
+    try {
+      final authenticated = await localAuth.authenticate(
+        localizedReason: 'Desbloqueie para acessar o CRM Builder',
+        options: const AuthenticationOptions(
+          stickyAuth: true,
+          biometricOnly: true,
+        ),
+      );
+
+      if (authenticated) {
+        // User authenticated biometrically, restore session via getProfile
+        await ref.read(authProvider.notifier).getProfile();
+      }
+    } catch (_) {
+      // Biometric failed, user can still login with email/password
+    }
+  }
 
   @override
   void dispose() {
@@ -187,6 +243,21 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                           : const Text('Entrar'),
                     ),
                   ),
+
+                  // Biometric login button
+                  if (_biometricAvailable && _biometricEnabled) ...[
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      height: 48,
+                      child: OutlinedButton.icon(
+                        onPressed:
+                            authState.isLoading ? null : _handleBiometricLogin,
+                        icon: const Icon(Icons.fingerprint),
+                        label: const Text('Entrar com biometria'),
+                      ),
+                    ),
+                  ],
+
                   const SizedBox(height: 16),
 
                   // Register link

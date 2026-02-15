@@ -1,3 +1,4 @@
+import 'package:dio/dio.dart';
 import 'package:powersync/powersync.dart';
 import 'package:crm_mobile/core/auth/secure_storage.dart';
 import 'package:crm_mobile/core/config/env.dart';
@@ -69,6 +70,15 @@ class CrmPowerSyncConnector extends PowerSyncBackendConnector {
         }
       } catch (e) {
         _logger.e('Failed to upload mutation: ${op.table} ${op.op}', error: e);
+        // Check if it's a client error (4xx) - skip and continue
+        // For server errors (5xx) or network errors - rethrow to retry later
+        if (e is DioException &&
+            e.response?.statusCode != null &&
+            e.response!.statusCode! >= 400 &&
+            e.response!.statusCode! < 500) {
+          _logger.w('Skipping failed mutation (client error ${e.response!.statusCode})');
+          continue;
+        }
         rethrow;
       }
     }

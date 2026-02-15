@@ -221,6 +221,14 @@ class DynamicFieldInput extends StatelessWidget {
           onChanged: onChanged,
         );
 
+      case 'DATETIME':
+        return _DateTimeFieldInput(
+          label: name,
+          value: value?.toString(),
+          required: required,
+          onChanged: onChanged,
+        );
+
       case 'EMAIL':
         return TextFormField(
           initialValue: value?.toString(),
@@ -407,6 +415,81 @@ class _DateFieldInput extends StatelessWidget {
         if (date != null) {
           onChanged(date.toIso8601String().split('T').first);
         }
+      },
+    );
+  }
+}
+
+class _DateTimeFieldInput extends StatelessWidget {
+  const _DateTimeFieldInput({
+    required this.label,
+    this.value,
+    required this.required,
+    required this.onChanged,
+  });
+
+  final String label;
+  final String? value;
+  final bool required;
+  final ValueChanged<dynamic> onChanged;
+
+  String _formatDisplay(String? val) {
+    if (val == null || val.isEmpty) return '';
+    try {
+      final dt = DateTime.parse(val);
+      final date =
+          '${dt.day.toString().padLeft(2, '0')}/${dt.month.toString().padLeft(2, '0')}/${dt.year}';
+      final time =
+          '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+      return '$date $time';
+    } catch (_) {
+      return val;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return TextFormField(
+      readOnly: true,
+      controller: TextEditingController(text: _formatDisplay(value)),
+      decoration: InputDecoration(
+        labelText: label,
+        suffixIcon: const Icon(Icons.calendar_month),
+      ),
+      validator: required
+          ? (v) => (v == null || v.isEmpty) ? '$label obrigatorio' : null
+          : null,
+      onTap: () async {
+        final now = DateTime.now();
+        DateTime initial = now;
+        if (value != null && value!.isNotEmpty) {
+          try {
+            initial = DateTime.parse(value!);
+          } catch (_) {}
+        }
+
+        final date = await showDatePicker(
+          context: context,
+          initialDate: initial,
+          firstDate: DateTime(2000),
+          lastDate: DateTime(2100),
+        );
+        if (date == null || !context.mounted) return;
+
+        final time = await showTimePicker(
+          context: context,
+          initialTime: TimeOfDay.fromDateTime(initial),
+        );
+        if (time == null) return;
+
+        final combined = DateTime(
+          date.year,
+          date.month,
+          date.day,
+          time.hour,
+          time.minute,
+        );
+        onChanged(combined.toIso8601String());
       },
     );
   }

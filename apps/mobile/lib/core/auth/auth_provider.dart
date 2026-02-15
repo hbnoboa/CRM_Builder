@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:crm_mobile/core/auth/secure_storage.dart';
+import 'package:crm_mobile/core/database/app_database.dart';
 import 'package:crm_mobile/core/network/api_client.dart';
 import 'package:crm_mobile/core/push/push_notification_service.dart';
 
@@ -173,6 +174,9 @@ class Auth extends _$Auth {
         isLoading: false,
       );
 
+      // Connect PowerSync to start syncing data
+      await AppDatabase.instance.connect();
+
       // Register device for push notifications
       PushNotificationService.instance.registerDeviceToken();
     } catch (e) {
@@ -221,6 +225,9 @@ class Auth extends _$Auth {
         isLoading: false,
       );
 
+      // Connect PowerSync to start syncing data
+      await AppDatabase.instance.connect();
+
       // Register device for push notifications
       PushNotificationService.instance.registerDeviceToken();
     } catch (e) {
@@ -244,6 +251,7 @@ class Auth extends _$Auth {
     } catch (_) {
       // Ignore logout errors (same as web-admin)
     } finally {
+      await AppDatabase.instance.clearData();
       await SecureStorage.clearAll();
       state = const AuthState();
     }
@@ -264,10 +272,14 @@ class Auth extends _$Auth {
         isLoading: false,
       );
 
+      // Connect PowerSync if not already connected
+      await AppDatabase.instance.connect();
+
       // Re-register device token on profile refresh
       PushNotificationService.instance.registerDeviceToken();
     } catch (_) {
       await SecureStorage.clearAll();
+      await AppDatabase.instance.clearData();
       state = const AuthState(isLoading: false);
     }
   }

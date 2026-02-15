@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:local_auth/local_auth.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:crm_mobile/core/auth/secure_storage.dart';
 import 'package:crm_mobile/core/theme/app_typography.dart';
 import 'package:crm_mobile/core/theme/theme_provider.dart';
@@ -13,6 +15,8 @@ class SettingsPage extends ConsumerStatefulWidget {
 
 class _SettingsPageState extends ConsumerState<SettingsPage> {
   bool _biometricEnabled = false;
+  bool _biometricSupported = false;
+  String _appVersion = '';
 
   @override
   void initState() {
@@ -22,7 +26,20 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
 
   Future<void> _loadSettings() async {
     final bio = await SecureStorage.isBiometricEnabled();
-    setState(() => _biometricEnabled = bio);
+    final info = await PackageInfo.fromPlatform();
+
+    // Check if biometric is supported on this device
+    final localAuth = LocalAuthentication();
+    final canCheck = await localAuth.canCheckBiometrics;
+    final isSupported = await localAuth.isDeviceSupported();
+
+    if (mounted) {
+      setState(() {
+        _biometricEnabled = bio;
+        _biometricSupported = canCheck && isSupported;
+        _appVersion = '${info.version}+${info.buildNumber}';
+      });
+    }
   }
 
   @override
@@ -51,21 +68,29 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
           SwitchListTile(
             secondary: const Icon(Icons.fingerprint),
             title: const Text('Biometria'),
-            subtitle: const Text('Desbloquear com digital/face'),
+            subtitle: Text(
+              _biometricSupported
+                  ? 'Desbloquear com digital/face'
+                  : 'Nao suportado neste dispositivo',
+            ),
             value: _biometricEnabled,
-            onChanged: (value) async {
-              await SecureStorage.setBiometricEnabled(value);
-              setState(() => _biometricEnabled = value);
-            },
+            onChanged: _biometricSupported
+                ? (value) async {
+                    await SecureStorage.setBiometricEnabled(value);
+                    setState(() => _biometricEnabled = value);
+                  }
+                : null,
           ),
           const Divider(),
 
           // About
           const _SectionHeader(title: 'Sobre'),
-          const ListTile(
-            leading: Icon(Icons.info_outline),
-            title: Text('Versao'),
-            trailing: Text('1.0.0'),
+          ListTile(
+            leading: const Icon(Icons.info_outline),
+            title: const Text('Versao'),
+            trailing: Text(
+              _appVersion.isNotEmpty ? _appVersion : '...',
+            ),
           ),
         ],
       ),

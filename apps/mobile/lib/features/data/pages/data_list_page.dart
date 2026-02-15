@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:crm_mobile/core/permissions/permission_provider.dart';
+import 'package:crm_mobile/core/config/constants.dart';
 import 'package:crm_mobile/core/theme/app_colors.dart';
 import 'package:crm_mobile/core/theme/app_typography.dart';
 import 'package:crm_mobile/features/data/data/data_repository.dart';
@@ -21,12 +21,29 @@ class DataListPage extends ConsumerStatefulWidget {
 
 class _DataListPageState extends ConsumerState<DataListPage> {
   final _searchController = TextEditingController();
+  final _scrollController = ScrollController();
   String _search = '';
+  int _limit = AppConstants.defaultPageSize;
+
+  @override
+  void initState() {
+    super.initState();
+    _scrollController.addListener(_onScroll);
+  }
 
   @override
   void dispose() {
     _searchController.dispose();
+    _scrollController.dispose();
     super.dispose();
+  }
+
+  void _onScroll() {
+    if (_scrollController.position.pixels >=
+        _scrollController.position.maxScrollExtent - 200) {
+      // Near bottom - load more
+      setState(() => _limit += AppConstants.defaultPageSize);
+    }
   }
 
   @override
@@ -59,16 +76,22 @@ class _DataListPageState extends ConsumerState<DataListPage> {
                         icon: const Icon(Icons.clear),
                         onPressed: () {
                           _searchController.clear();
-                          setState(() => _search = '');
+                          setState(() {
+                            _search = '';
+                            _limit = AppConstants.defaultPageSize;
+                          });
                         },
                       )
                     : null,
               ),
-              onChanged: (value) => setState(() => _search = value),
+              onChanged: (value) => setState(() {
+                _search = value;
+                _limit = AppConstants.defaultPageSize;
+              }),
             ),
           ),
 
-          // Records list with pull-to-refresh
+          // Records list with pull-to-refresh + infinite scroll
           Expanded(
             child: FutureBuilder<Map<String, dynamic>?>(
               future: repo.getEntity(widget.entitySlug),
@@ -84,6 +107,7 @@ class _DataListPageState extends ConsumerState<DataListPage> {
                   stream: repo.watchRecords(
                     entityId: entityId,
                     search: _search.isNotEmpty ? _search : null,
+                    limit: _limit,
                   ),
                   builder: (context, snapshot) {
                     final records = snapshot.data ?? [];
@@ -91,7 +115,6 @@ class _DataListPageState extends ConsumerState<DataListPage> {
                     if (records.isEmpty) {
                       return RefreshIndicator(
                         onRefresh: () async {
-                          // Trigger PowerSync sync check
                           await Future.delayed(
                             const Duration(milliseconds: 500),
                           );
@@ -112,7 +135,8 @@ class _DataListPageState extends ConsumerState<DataListPage> {
                                       _search.isNotEmpty
                                           ? 'Nenhum resultado para "$_search"'
                                           : 'Nenhum registro encontrado',
-                                      style: AppTypography.bodyMedium.copyWith(
+                                      style:
+                                          AppTypography.bodyMedium.copyWith(
                                         color: AppColors.mutedForeground,
                                       ),
                                     ),
@@ -128,20 +152,43 @@ class _DataListPageState extends ConsumerState<DataListPage> {
                     // Parse entity fields for display
                     List<dynamic> fields = [];
                     try {
-                      fields = jsonDecode(entity['fields'] as String? ?? '[]');
+                      fields =
+                          jsonDecode(entity['fields'] as String? ?? '[]');
                     } catch (_) {}
+
+                    final hasMore =
+                        records.length >= _limit;
 
                     return RefreshIndicator(
                       onRefresh: () async {
-                        // Trigger PowerSync sync check
+                        setState(
+                            () => _limit = AppConstants.defaultPageSize);
                         await Future.delayed(
                           const Duration(milliseconds: 500),
                         );
                       },
                       child: ListView.builder(
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                        itemCount: records.length,
+                        controller: _scrollController,
+                        padding:
+                            const EdgeInsets.symmetric(horizontal: 16),
+                        itemCount: records.length + (hasMore ? 1 : 0),
                         itemBuilder: (context, index) {
+                          if (index >= records.length) {
+                            // Loading indicator at bottom
+                            return const Padding(
+                              padding: EdgeInsets.symmetric(vertical: 16),
+                              child: Center(
+                                child: SizedBox(
+                                  width: 24,
+                                  height: 24,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                ),
+                              ),
+                            );
+                          }
+
                           final record = records[index];
                           return DataCard(
                             record: record,
