@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import 'package:logger/logger.dart';
 
 import 'package:crm_mobile/core/auth/secure_storage.dart';
@@ -28,6 +29,10 @@ class PushNotificationService {
   FirebaseMessaging? _messaging;
   String? _currentToken;
   bool _initialized = false;
+
+  /// Global key for showing SnackBars from push service.
+  static final GlobalKey<ScaffoldMessengerState> scaffoldMessengerKey =
+      GlobalKey<ScaffoldMessengerState>();
 
   /// Initialize Firebase and FCM. Call once at app startup.
   Future<void> initialize() async {
@@ -135,11 +140,31 @@ class PushNotificationService {
   }
 
   /// Handle foreground messages (app is open).
+  /// Shows a SnackBar so the user knows a notification arrived.
   void _handleForegroundMessage(RemoteMessage message) {
     _logger.d('Foreground message: ${message.notification?.title}');
-    // PowerSync will sync the notification from the database,
-    // so we don't need to do anything special here.
-    // The notification list page will update automatically via stream.
+
+    final messenger = scaffoldMessengerKey.currentState;
+    if (messenger == null) return;
+
+    final title = message.notification?.title ?? 'Nova notificacao';
+    final body = message.notification?.body;
+
+    messenger.showSnackBar(
+      SnackBar(
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
+            if (body != null && body.isNotEmpty)
+              Text(body, maxLines: 2, overflow: TextOverflow.ellipsis),
+          ],
+        ),
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 4),
+      ),
+    );
   }
 
   /// Handle notification tap (user tapped the notification).

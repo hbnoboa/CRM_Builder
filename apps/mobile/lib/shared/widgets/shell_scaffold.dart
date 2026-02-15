@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:crm_mobile/core/database/app_database.dart';
 import 'package:crm_mobile/shared/widgets/offline_banner.dart';
-import 'package:crm_mobile/shared/widgets/sync_status_indicator.dart';
 
 /// Main shell scaffold with bottom navigation bar.
 /// Mirrors web-admin's dashboard layout sidebar as bottom nav.
@@ -38,18 +38,49 @@ class ShellScaffold extends StatelessWidget {
           Expanded(child: child),
         ],
       ),
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: index,
-        onTap: (i) => context.go(_tabs[i].path),
-        items: _tabs
-            .map(
-              (t) => BottomNavigationBarItem(
+      bottomNavigationBar: StreamBuilder<List<Map<String, dynamic>>>(
+        stream: AppDatabase.instance.db.watch(
+          'SELECT COUNT(*) as count FROM Notification WHERE read = 0',
+        ),
+        builder: (context, snapshot) {
+          final unreadCount = snapshot.data?.firstOrNull?['count'] as int? ?? 0;
+
+          return BottomNavigationBar(
+            currentIndex: index,
+            onTap: (i) => context.go(_tabs[i].path),
+            items: _tabs.asMap().entries.map((entry) {
+              final i = entry.key;
+              final t = entry.value;
+
+              // Notifications tab (index 2) gets a badge
+              if (i == 2 && unreadCount > 0) {
+                return BottomNavigationBarItem(
+                  icon: Badge(
+                    label: Text(
+                      unreadCount > 99 ? '99+' : '$unreadCount',
+                      style: const TextStyle(fontSize: 10),
+                    ),
+                    child: Icon(t.icon),
+                  ),
+                  activeIcon: Badge(
+                    label: Text(
+                      unreadCount > 99 ? '99+' : '$unreadCount',
+                      style: const TextStyle(fontSize: 10),
+                    ),
+                    child: Icon(t.activeIcon),
+                  ),
+                  label: t.label,
+                );
+              }
+
+              return BottomNavigationBarItem(
                 icon: Icon(t.icon),
                 activeIcon: Icon(t.activeIcon),
                 label: t.label,
-              ),
-            )
-            .toList(),
+              );
+            }).toList(),
+          );
+        },
       ),
     );
   }

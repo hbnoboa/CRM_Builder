@@ -73,6 +73,33 @@ class _DataFormPageState extends ConsumerState<DataFormPage> {
   Future<void> _handleSubmit() async {
     if (!_formKey.currentState!.validate()) return;
 
+    // Check required fields have values
+    final missingFields = <String>[];
+    for (final field in _fields) {
+      final f = field as Map<String, dynamic>;
+      final type = (f['type'] as String? ?? '').toUpperCase();
+      if (type == 'SUB_ENTITY') continue;
+      final required = f['required'] == true;
+      if (!required) continue;
+
+      final slug = f['slug'] as String? ?? '';
+      final value = _values[slug];
+      if (value == null || value.toString().trim().isEmpty) {
+        missingFields.add(f['label'] as String? ?? f['name'] as String? ?? slug);
+      }
+    }
+
+    if (missingFields.isNotEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Campos obrigatorios: ${missingFields.join(', ')}'),
+          ),
+        );
+      }
+      return;
+    }
+
     setState(() => _isLoading = true);
 
     try {

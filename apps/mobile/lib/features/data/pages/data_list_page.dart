@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -34,6 +35,7 @@ class DataListPage extends ConsumerStatefulWidget {
 class _DataListPageState extends ConsumerState<DataListPage> {
   final _searchController = TextEditingController();
   final _scrollController = ScrollController();
+  Timer? _debounce;
   String _search = '';
   int _limit = AppConstants.defaultPageSize;
   SortOption _sort = SortOption.newestFirst;
@@ -46,6 +48,7 @@ class _DataListPageState extends ConsumerState<DataListPage> {
 
   @override
   void dispose() {
+    _debounce?.cancel();
     _searchController.dispose();
     _scrollController.dispose();
     super.dispose();
@@ -134,10 +137,15 @@ class _DataListPageState extends ConsumerState<DataListPage> {
                       )
                     : null,
               ),
-              onChanged: (value) => setState(() {
-                _search = value;
-                _limit = AppConstants.defaultPageSize;
-              }),
+              onChanged: (value) {
+                _debounce?.cancel();
+                _debounce = Timer(const Duration(milliseconds: 400), () {
+                  setState(() {
+                    _search = value;
+                    _limit = AppConstants.defaultPageSize;
+                  });
+                });
+              },
             ),
           ),
 

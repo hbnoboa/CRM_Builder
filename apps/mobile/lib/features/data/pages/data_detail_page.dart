@@ -2,12 +2,14 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:crm_mobile/core/database/app_database.dart';
 import 'package:crm_mobile/core/permissions/permission_provider.dart';
 import 'package:crm_mobile/core/theme/app_colors.dart';
 import 'package:crm_mobile/core/theme/app_typography.dart';
 import 'package:crm_mobile/features/data/data/data_repository.dart';
 import 'package:crm_mobile/features/data/widgets/dynamic_field.dart';
 import 'package:crm_mobile/features/data/widgets/sub_entity_section.dart';
+import 'package:crm_mobile/shared/utils/formatters.dart';
 import 'package:crm_mobile/shared/widgets/permission_gate.dart';
 
 class DataDetailPage extends ConsumerWidget {
@@ -67,10 +69,14 @@ class DataDetailPage extends ConsumerWidget {
             fields = jsonDecode(entity['fields'] as String? ?? '[]');
           } catch (_) {}
 
-          return FutureBuilder<Map<String, dynamic>?>(
-            future: repo.getRecord(recordId),
+          // Use StreamBuilder for real-time record updates
+          return StreamBuilder<List<Map<String, dynamic>>>(
+            stream: AppDatabase.instance.db.watch(
+              'SELECT * FROM EntityData WHERE id = ?',
+              parameters: [recordId],
+            ),
             builder: (context, recordSnapshot) {
-              final record = recordSnapshot.data;
+              final record = recordSnapshot.data?.firstOrNull;
               if (record == null) {
                 return const Center(child: CircularProgressIndicator());
               }
@@ -80,44 +86,72 @@ class DataDetailPage extends ConsumerWidget {
                 data = jsonDecode(record['data'] as String? ?? '{}');
               } catch (_) {}
 
-              return ListView(
-                padding: const EdgeInsets.all(16),
-                children: [
-                  // Record title (first text field value)
-                  Text(
-                    _getTitle(data, fields),
-                    style: AppTypography.h3,
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Criado em ${record['createdAt'] ?? ''}',
-                    style: AppTypography.caption.copyWith(
-                      color: AppColors.mutedForeground,
+              return RefreshIndicator(
+                onRefresh: () async {
+                  await Future.delayed(const Duration(milliseconds: 500));
+                },
+                child: ListView(
+                  padding: const EdgeInsets.all(16),
+                  children: [
+                    // Record title (first text field value)
+                    Text(
+                      _getTitle(data, fields),
+                      style: AppTypography.h3,
                     ),
-                  ),
-                  const Divider(height: 32),
-
-                  // Field values (excluding sub-entity fields)
-                  ...fields
-                      .where((f) =>
-                          (f as Map<String, dynamic>)['type'] != 'sub-entity')
-                      .map<Widget>((field) {
-                    final fieldMap = field as Map<String, dynamic>;
-                    final slug = fieldMap['slug'] as String? ?? '';
-                    final value = data[slug];
-
-                    return Padding(
-                      padding: const EdgeInsets.only(bottom: 16),
-                      child: DynamicFieldDisplay(
-                        field: fieldMap,
-                        value: value,
+                    const SizedBox(height: 8),
+                    // Timestamps
+                    Row(
+                      children: [
+                        Icon(Icons.access_time, size: 14, color: AppColors.mutedForeground),
+                        const SizedBox(width: 4),
+                        Text(
+                          'Criado ${Formatters.dateTime(record['createdAt'] as String?)}',
+                          style: AppTypography.caption.copyWith(
+                            color: AppColors.mutedForeground,
+                          ),
+                        ),
+                      ],
+                    ),
+                    if (record['updatedAt'] != null &&
+                        record['updatedAt'] != record['createdAt']) ...[
+                      const SizedBox(height: 4),
+                      Row(
+                        children: [
+                          Icon(Icons.edit_outlined, size: 14, color: AppColors.mutedForeground),
+                          const SizedBox(width: 4),
+                          Text(
+                            'Atualizado ${Formatters.dateTime(record['updatedAt'] as String?)}',
+                            style: AppTypography.caption.copyWith(
+                              color: AppColors.mutedForeground,
+                            ),
+                          ),
+                        ],
                       ),
-                    );
-                  }),
+                    ],
+                    const Divider(height: 32),
 
-                  // Sub-entity sections
-                  ..._buildSubEntitySections(fields, recordId),
-                ],
+                    // Field values (excluding sub-entity fields)
+                    ...fields
+                        .where((f) =>
+                            (f as Map<String, dynamic>)['type'] != 'sub-entity')
+                        .map<Widget>((field) {
+                      final fieldMap = field as Map<String, dynamic>;
+                      final slug = fieldMap['slug'] as String? ?? '';
+                      final value = data[slug];
+
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 16),
+                        child: DynamicFieldDisplay(
+                          field: fieldMap,
+                          value: value,
+                        ),
+                      );
+                    }),
+
+                    // Sub-entity sections
+                    ..._buildSubEntitySections(fields, recordId),
+                  ],
+                ),
               );
             },
           );
