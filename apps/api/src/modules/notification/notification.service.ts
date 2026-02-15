@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { NotificationGateway, Notification } from './notification.gateway';
 import { PrismaService } from '../../prisma/prisma.service';
+import { PushService } from '../push/push.service';
 import { NotificationType, Prisma } from '@prisma/client';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -32,6 +33,7 @@ export class NotificationService {
   constructor(
     private readonly gateway: NotificationGateway,
     private readonly prisma: PrismaService,
+    private readonly pushService: PushService,
   ) {}
 
   /**
@@ -52,6 +54,15 @@ export class NotificationService {
 
     // Enviar via WebSocket
     this.gateway.sendToUser(userId, fullNotification);
+
+    // Enviar push notification (mobile)
+    this.pushService.sendToUser(userId, {
+      title: notification.title,
+      body: notification.message,
+      data: { type: notification.type, notificationId: fullNotification.id },
+    }).catch((err) => {
+      this.logger.warn(`Push notification failed for user ${userId}: ${err}`);
+    });
 
     // Salvar no banco de dados
     if (persist && tenantId) {

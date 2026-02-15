@@ -15,6 +15,7 @@ import { NotificationModule } from './modules/notification/notification.module';
 import { HealthModule } from './modules/health/health.module';
 import { CustomRoleModule } from './modules/custom-role/custom-role.module';
 import { SyncModule } from './modules/sync/sync.module';
+import { PushModule } from './modules/push/push.module';
 
 @Module({
   imports: [
@@ -49,6 +50,7 @@ import { SyncModule } from './modules/sync/sync.module';
     UploadModule,
     NotificationModule,
     SyncModule,
+    PushModule,
   ],
 })
 export class AppModule {}

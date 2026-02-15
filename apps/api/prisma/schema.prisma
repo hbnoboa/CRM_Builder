@@ -95,6 +95,7 @@ model User {
   customRole    CustomRole     @relation(fields: [customRoleId], references: [id])
   refreshTokens RefreshToken[]
   notifications Notification[]
+  deviceTokens  DeviceToken[]
 
   // Dados criados por este usuario
   createdData EntityData[] @relation("CreatedBy")
@@ -120,6 +121,18 @@ model RefreshToken {
 
   @@index([userId])
   @@index([token])
+}
+
+model DeviceToken {
+  id        String   @id @default(cuid())
+  userId    String
+  token     String   @unique
+  platform  String   // "android" | "ios" | "web"
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

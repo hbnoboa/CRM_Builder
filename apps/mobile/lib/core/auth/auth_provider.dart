@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:crm_mobile/core/auth/secure_storage.dart';
 import 'package:crm_mobile/core/network/api_client.dart';
+import 'package:crm_mobile/core/push/push_notification_service.dart';
 
 part 'auth_provider.g.dart';
 
@@ -171,6 +172,9 @@ class Auth extends _$Auth {
         isAuthenticated: true,
         isLoading: false,
       );
+
+      // Register device for push notifications
+      PushNotificationService.instance.registerDeviceToken();
     } catch (e) {
       final message = _extractErrorMessage(e, 'Falha no login');
       state = state.copyWith(
@@ -216,6 +220,9 @@ class Auth extends _$Auth {
         isAuthenticated: true,
         isLoading: false,
       );
+
+      // Register device for push notifications
+      PushNotificationService.instance.registerDeviceToken();
     } catch (e) {
       final message = _extractErrorMessage(e, 'Falha no registro');
       state = state.copyWith(
@@ -228,6 +235,9 @@ class Auth extends _$Auth {
 
   /// Logout. Mirrors auth-store.ts logout().
   Future<void> logout() async {
+    // Unregister push token before logout
+    await PushNotificationService.instance.unregisterDeviceToken();
+
     try {
       final dio = ref.read(apiClientProvider);
       await dio.post('/auth/logout');
@@ -253,6 +263,9 @@ class Auth extends _$Auth {
         isAuthenticated: true,
         isLoading: false,
       );
+
+      // Re-register device token on profile refresh
+      PushNotificationService.instance.registerDeviceToken();
     } catch (_) {
       await SecureStorage.clearAll();
       state = const AuthState(isLoading: false);
