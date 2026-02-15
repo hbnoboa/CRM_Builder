@@ -6,6 +6,7 @@ import 'package:crm_mobile/core/database/app_database.dart';
 import 'package:crm_mobile/core/permissions/permission_provider.dart';
 import 'package:crm_mobile/core/theme/app_colors.dart';
 import 'package:crm_mobile/core/theme/app_typography.dart';
+import 'package:crm_mobile/shared/utils/icon_mapper.dart';
 import 'package:crm_mobile/shared/widgets/sync_status_indicator.dart';
 
 /// Lists all entities the user has access to.
@@ -83,7 +84,7 @@ class EntitiesListPage extends ConsumerWidget {
                             int.parse(color.replaceFirst('#', '0xFF')))
                         : AppColors.primary,
                     child: Icon(
-                      Icons.folder_outlined,
+                      IconMapper.fromString(icon),
                       color: AppColors.primaryForeground,
                       size: 20,
                     ),

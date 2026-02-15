@@ -26,18 +26,47 @@ class DynamicFieldDisplay extends StatelessWidget {
     final name = field['name'] as String? ?? field['slug'] as String? ?? '';
     final type = (field['type'] as String? ?? 'text').toUpperCase();
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          name,
-          style: AppTypography.labelMedium.copyWith(
-            color: AppColors.mutedForeground,
+    return GestureDetector(
+      onLongPress: () => _copyValue(context, type),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            name,
+            style: AppTypography.labelMedium.copyWith(
+              color: AppColors.mutedForeground,
+            ),
           ),
-        ),
-        const SizedBox(height: 4),
-        _buildValue(type, context),
-      ],
+          const SizedBox(height: 4),
+          _buildValue(type, context),
+        ],
+      ),
+    );
+  }
+
+  void _copyValue(BuildContext context, String type) {
+    if (value == null || (value is String && value.toString().isEmpty)) return;
+
+    // Skip non-text types
+    const skipTypes = {'IMAGE', 'FILE', 'BOOLEAN', 'RATING', 'SLIDER', 'COLOR', 'SUB_ENTITY'};
+    if (skipTypes.contains(type)) return;
+
+    String text;
+    if (value is List) {
+      text = (value as List).join(', ');
+    } else if (value is Map) {
+      text = value.toString();
+    } else {
+      text = value.toString();
+    }
+
+    Clipboard.setData(ClipboardData(text: text));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: const Text('Copiado'),
+        duration: const Duration(seconds: 1),
+        behavior: SnackBarBehavior.floating,
+      ),
     );
   }
 

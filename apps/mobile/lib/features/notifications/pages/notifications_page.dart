@@ -36,24 +36,40 @@ class NotificationsPage extends ConsumerWidget {
           final notifications = snapshot.data ?? [];
 
           if (notifications.isEmpty) {
-            return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
+            return RefreshIndicator(
+              onRefresh: () async {
+                await Future.delayed(const Duration(milliseconds: 500));
+              },
+              child: ListView(
                 children: [
-                  Icon(Icons.notifications_none,
-                      size: 64, color: AppColors.mutedForeground),
-                  const SizedBox(height: 16),
-                  Text(
-                    'Nenhuma notificacao',
-                    style: AppTypography.bodyMedium
-                        .copyWith(color: AppColors.mutedForeground),
+                  SizedBox(
+                    height: MediaQuery.of(context).size.height * 0.6,
+                    child: Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.notifications_none,
+                              size: 64, color: AppColors.mutedForeground),
+                          const SizedBox(height: 16),
+                          Text(
+                            'Nenhuma notificacao',
+                            style: AppTypography.bodyMedium
+                                .copyWith(color: AppColors.mutedForeground),
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
                 ],
               ),
             );
           }
 
-          return ListView.separated(
+          return RefreshIndicator(
+            onRefresh: () async {
+              await Future.delayed(const Duration(milliseconds: 500));
+            },
+            child: ListView.separated(
             itemCount: notifications.length,
             separatorBuilder: (_, __) => const Divider(height: 1),
             itemBuilder: (context, index) {
@@ -150,6 +166,7 @@ class NotificationsPage extends ConsumerWidget {
                 },
               );
             },
+          ),
           );
         },
       ),

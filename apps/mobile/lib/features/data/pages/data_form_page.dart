@@ -30,8 +30,10 @@ class DataFormPage extends ConsumerStatefulWidget {
 class _DataFormPageState extends ConsumerState<DataFormPage> {
   final _formKey = GlobalKey<FormState>();
   final Map<String, dynamic> _values = {};
+  Map<String, dynamic> _initialValues = {};
   bool _isLoading = false;
   bool _isInitialized = false;
+  bool _saved = false;
   List<dynamic> _fields = [];
   String _entityName = '';
 
@@ -77,7 +79,19 @@ class _DataFormPageState extends ConsumerState<DataFormPage> {
       }
     }
 
+    _initialValues = Map<String, dynamic>.from(_values);
     setState(() => _isInitialized = true);
+  }
+
+  bool get _hasUnsavedChanges {
+    if (_saved) return false;
+    if (_initialValues.length != _values.length) return true;
+    for (final key in _values.keys) {
+      if (_values[key]?.toString() != _initialValues[key]?.toString()) {
+        return true;
+      }
+    }
+    return false;
   }
 
   Future<void> _handleSubmit() async {
@@ -132,6 +146,7 @@ class _DataFormPageState extends ConsumerState<DataFormPage> {
         );
       }
 
+      _saved = true;
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -164,14 +179,51 @@ class _DataFormPageState extends ConsumerState<DataFormPage> {
       );
     }
 
-    return Scaffold(
+    return PopScope(
+      canPop: !_hasUnsavedChanges,
+      onPopInvokedWithResult: (didPop, _) async {
+        if (didPop) return;
+        final discard = await showDialog<bool>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: const Text('Descartar alteracoes?'),
+            content: const Text(
+              'Voce tem alteracoes nao salvas. Deseja descarta-las?',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(ctx).pop(false),
+                child: const Text('Continuar editando'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.of(ctx).pop(true),
+                style: TextButton.styleFrom(
+                  foregroundColor: AppColors.destructive,
+                ),
+                child: const Text('Descartar'),
+              ),
+            ],
+          ),
+        );
+        if (discard == true && context.mounted) {
+          Navigator.of(context).pop();
+        }
+      },
+      child: Scaffold(
       appBar: AppBar(
         title: Text(
           widget.isEditing ? 'Editar $_entityName' : 'Novo $_entityName',
         ),
         leading: IconButton(
           icon: const Icon(Icons.close),
-          onPressed: () => context.pop(),
+          onPressed: () {
+            if (_hasUnsavedChanges) {
+              // Trigger the PopScope handler
+              Navigator.of(context).maybePop();
+            } else {
+              context.pop();
+            }
+          },
         ),
         actions: [
           TextButton(
@@ -228,6 +280,7 @@ class _DataFormPageState extends ConsumerState<DataFormPage> {
           ],
         ),
       ),
+    ),
     );
   }
 }

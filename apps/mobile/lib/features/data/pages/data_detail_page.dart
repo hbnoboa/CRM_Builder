@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:crm_mobile/core/database/app_database.dart';
@@ -34,6 +35,12 @@ class DataDetailPage extends ConsumerWidget {
           onPressed: () => context.pop(),
         ),
         actions: [
+          // Share button
+          IconButton(
+            icon: const Icon(Icons.share_outlined),
+            tooltip: 'Compartilhar',
+            onPressed: () => _shareRecord(context, ref),
+          ),
           // Edit button
           PermissionGate(
             entitySlug: entitySlug,
@@ -239,6 +246,51 @@ class DataDetailPage extends ConsumerWidget {
       }
     }
     return 'Registro';
+  }
+
+  Future<void> _shareRecord(BuildContext context, WidgetRef ref) async {
+    try {
+      final repo = ref.read(dataRepositoryProvider);
+      final entity = await repo.getEntity(entitySlug);
+      final record = await repo.getRecord(recordId);
+
+      if (entity == null || record == null) return;
+
+      List<dynamic> fields = [];
+      try {
+        fields = jsonDecode(entity['fields'] as String? ?? '[]');
+      } catch (_) {}
+
+      Map<String, dynamic> data = {};
+      try {
+        data = jsonDecode(record['data'] as String? ?? '{}');
+      } catch (_) {}
+
+      final entityName = entity['name'] as String? ?? entitySlug;
+      final buffer = StringBuffer();
+      buffer.writeln('$entityName - ${_getTitle(data, fields)}');
+      buffer.writeln('---');
+
+      for (final field in fields) {
+        final f = field as Map<String, dynamic>;
+        final type = (f['type'] as String? ?? '').toUpperCase();
+        if (type == 'SUB_ENTITY' || type == 'IMAGE' || type == 'FILE') continue;
+
+        final slug = f['slug'] as String? ?? '';
+        final name = f['name'] as String? ?? f['label'] as String? ?? slug;
+        final val = data[slug];
+        if (val != null && val.toString().isNotEmpty) {
+          buffer.writeln('$name: $val');
+        }
+      }
+
+      await Clipboard.setData(ClipboardData(text: buffer.toString()));
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Registro copiado para area de transferencia')),
+        );
+      }
+    } catch (_) {}
   }
 
   Future<void> _confirmDelete(BuildContext context, WidgetRef ref) async {

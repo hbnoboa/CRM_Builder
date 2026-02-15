@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import 'package:crm_mobile/core/config/constants.dart';
 import 'package:crm_mobile/core/theme/app_colors.dart';
 import 'package:crm_mobile/core/theme/app_typography.dart';
+import 'package:crm_mobile/core/permissions/permission_provider.dart';
 import 'package:crm_mobile/features/data/data/data_repository.dart';
 import 'package:crm_mobile/features/data/widgets/data_card.dart';
 import 'package:crm_mobile/shared/widgets/permission_gate.dart';
@@ -59,6 +60,55 @@ class _DataListPageState extends ConsumerState<DataListPage> {
         _scrollController.position.maxScrollExtent - 200) {
       // Near bottom - load more
       setState(() => _limit += AppConstants.defaultPageSize);
+    }
+  }
+
+  Future<bool> _confirmDelete(BuildContext context) async {
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Excluir registro'),
+        content: const Text('Tem certeza que deseja excluir este registro?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancelar'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            style: TextButton.styleFrom(
+              foregroundColor: AppColors.destructive,
+            ),
+            child: const Text('Excluir'),
+          ),
+        ],
+      ),
+    );
+    return result == true;
+  }
+
+  Future<void> _deleteRecord(
+    BuildContext context,
+    WidgetRef ref,
+    String recordId,
+  ) async {
+    try {
+      final repo = ref.read(dataRepositoryProvider);
+      await repo.deleteRecord(
+        entitySlug: widget.entitySlug,
+        recordId: recordId,
+      );
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Registro excluido')),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erro ao excluir: $e')),
+        );
+      }
     }
   }
 
@@ -267,7 +317,10 @@ class _DataListPageState extends ConsumerState<DataListPage> {
                           }
 
                           final record = records[index];
-                          return DataCard(
+                          final canDelete = ref.read(permissionsProvider)
+                              .hasEntityPermission(widget.entitySlug, 'canDelete');
+
+                          final card = DataCard(
                             record: record,
                             fields: fields,
                             onTap: () {
@@ -275,6 +328,32 @@ class _DataListPageState extends ConsumerState<DataListPage> {
                                 '/data/${widget.entitySlug}/${record['id']}',
                               );
                             },
+                          );
+
+                          if (!canDelete) return card;
+
+                          return Dismissible(
+                            key: ValueKey(record['id']),
+                            direction: DismissDirection.endToStart,
+                            confirmDismiss: (_) => _confirmDelete(context),
+                            onDismissed: (_) => _deleteRecord(
+                              context,
+                              ref,
+                              record['id'] as String,
+                            ),
+                            background: Container(
+                              alignment: Alignment.centerRight,
+                              padding: const EdgeInsets.only(right: 20),
+                              margin: const EdgeInsets.only(bottom: 8),
+                              decoration: BoxDecoration(
+                                color: AppColors.destructive,
+                                borderRadius:
+                                    BorderRadius.circular(AppColors.radius),
+                              ),
+                              child: const Icon(Icons.delete_outlined,
+                                  color: Colors.white),
+                            ),
+                            child: card,
                           );
                         },
                       ),
