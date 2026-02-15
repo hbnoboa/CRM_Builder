@@ -20,8 +20,8 @@ android/local.properties
 android/key.properties
 android/**/*.jks
 
-# Generated
-*.g.dart
+# Generated (keep .g.dart tracked since build_runner may not be available)
+# *.g.dart
 *.freezed.dart
 *.mocks.dart
 
