@@ -38,6 +38,7 @@ class ImageFieldInput extends ConsumerStatefulWidget {
 class _ImageFieldInputState extends ConsumerState<ImageFieldInput> {
   final _picker = ImagePicker();
   bool _isUploading = false;
+  double _uploadProgress = 0;
   String? _currentUrl;
   File? _localPreview;
   String? _error;
@@ -61,6 +62,7 @@ class _ImageFieldInputState extends ConsumerState<ImageFieldInput> {
       setState(() {
         _localPreview = File(picked.path);
         _isUploading = true;
+        _uploadProgress = 0;
         _error = null;
       });
 
@@ -80,12 +82,17 @@ class _ImageFieldInputState extends ConsumerState<ImageFieldInput> {
       final fileToUpload = compressed != null ? File(compressed.path) : File(picked.path);
       final fileName = '${const Uuid().v4()}.jpg';
 
-      // Upload to API
+      // Upload to API with progress
       final repo = ref.read(dataRepositoryProvider);
       final url = await repo.uploadFile(
         filePath: fileToUpload.path,
         fileName: fileName,
         folder: 'data',
+        onProgress: (sent, total) {
+          if (total > 0 && mounted) {
+            setState(() => _uploadProgress = sent / total);
+          }
+        },
       );
 
       setState(() {
@@ -312,17 +319,23 @@ class _ImageFieldInputState extends ConsumerState<ImageFieldInput> {
                 ),
               ),
             ),
-          const Padding(
-            padding: EdgeInsets.all(16),
+          Padding(
+            padding: const EdgeInsets.all(16),
             child: Column(
               children: [
                 SizedBox(
-                  width: 24,
-                  height: 24,
-                  child: CircularProgressIndicator(strokeWidth: 2),
+                  width: 120,
+                  child: LinearProgressIndicator(
+                    value: _uploadProgress > 0 ? _uploadProgress : null,
+                    minHeight: 4,
+                  ),
                 ),
-                SizedBox(height: 8),
-                Text('Enviando...'),
+                const SizedBox(height: 8),
+                Text(
+                  _uploadProgress > 0
+                      ? 'Enviando ${(_uploadProgress * 100).toInt()}%'
+                      : 'Preparando...',
+                ),
               ],
             ),
           ),

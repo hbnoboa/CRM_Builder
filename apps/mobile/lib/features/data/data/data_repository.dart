@@ -134,13 +134,18 @@ class DataRepository {
     required String filePath,
     required String fileName,
     String folder = 'data',
+    void Function(int sent, int total)? onProgress,
   }) async {
     final formData = FormData.fromMap({
       'file': await MultipartFile.fromFile(filePath, filename: fileName),
       'folder': folder,
     });
 
-    final response = await _dio.post('/upload/file', data: formData);
+    final response = await _dio.post(
+      '/upload/file',
+      data: formData,
+      onSendProgress: onProgress,
+    );
     return response.data['url'] as String;
   }
 }

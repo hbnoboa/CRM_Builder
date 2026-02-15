@@ -14,6 +14,7 @@ import 'package:crm_mobile/features/data/pages/data_form_page.dart';
 import 'package:crm_mobile/features/notifications/pages/notifications_page.dart';
 import 'package:crm_mobile/features/profile/pages/profile_page.dart';
 import 'package:crm_mobile/features/settings/pages/settings_page.dart';
+import 'package:crm_mobile/core/push/push_notification_service.dart';
 import 'package:crm_mobile/shared/widgets/shell_scaffold.dart';
 
 part 'router.g.dart';
@@ -23,6 +24,8 @@ final _shellNavigatorKey = GlobalKey<NavigatorState>();
 
 @riverpod
 GoRouter router(Ref ref) {
+  // Wire navigator key for push notification deep linking
+  PushNotificationService.navigatorKey = _rootNavigatorKey;
   final authState = ref.watch(authProvider);
 
   return GoRouter(

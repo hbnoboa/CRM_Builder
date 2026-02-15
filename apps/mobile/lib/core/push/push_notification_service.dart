@@ -8,6 +8,7 @@ import 'package:logger/logger.dart';
 
 import 'package:crm_mobile/core/auth/secure_storage.dart';
 import 'package:crm_mobile/core/network/api_client.dart';
+import 'package:go_router/go_router.dart';
 
 final _logger = Logger(printer: SimplePrinter());
 
@@ -29,6 +30,10 @@ class PushNotificationService {
   FirebaseMessaging? _messaging;
   String? _currentToken;
   bool _initialized = false;
+  DateTime? _lastTokenRegistration;
+
+  /// Set by router to enable push notification deep linking.
+  static GlobalKey<NavigatorState>? navigatorKey;
 
   /// Global key for showing SnackBars from push service.
   static final GlobalKey<ScaffoldMessengerState> scaffoldMessengerKey =
@@ -85,9 +90,15 @@ class PushNotificationService {
   }
 
   /// Get the current FCM token and register it with the backend.
-  /// Call after successful login.
+  /// Call after successful login. Debounced to avoid repeated calls.
   Future<void> registerDeviceToken() async {
     if (_messaging == null) return;
+
+    // Debounce: skip if registered within last 5 minutes
+    if (_lastTokenRegistration != null &&
+        DateTime.now().difference(_lastTokenRegistration!).inMinutes < 5) {
+      return;
+    }
 
     try {
       final token = await _messaging!.getToken();
@@ -103,6 +114,7 @@ class PushNotificationService {
         'platform': platform,
       });
 
+      _lastTokenRegistration = DateTime.now();
       _logger.d('Device token registered: ${token.substring(0, 20)}...');
     } catch (e) {
       _logger.e('Failed to register device token: $e');
@@ -168,9 +180,19 @@ class PushNotificationService {
   }
 
   /// Handle notification tap (user tapped the notification).
+  /// Navigates to the relevant record if entitySlug and recordId are present.
   void _handleNotificationTap(RemoteMessage message) {
     _logger.d('Notification tapped: ${message.data}');
-    // Navigation to specific screen can be handled here
-    // based on message.data (e.g., navigate to a specific record)
+
+    final data = message.data;
+    final entitySlug = data['entitySlug'] as String?;
+    final recordId = data['recordId'] as String?;
+
+    if (entitySlug != null && recordId != null && navigatorKey?.currentContext != null) {
+      GoRouter.of(navigatorKey!.currentContext!).push('/data/$entitySlug/$recordId');
+    } else if (navigatorKey?.currentContext != null) {
+      // No deep link data: go to notifications page
+      GoRouter.of(navigatorKey!.currentContext!).go('/notifications');
+    }
   }
 }

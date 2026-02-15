@@ -18,6 +18,7 @@ class AutoLogoutWrapper extends ConsumerStatefulWidget {
 class _AutoLogoutWrapperState extends ConsumerState<AutoLogoutWrapper>
     with WidgetsBindingObserver {
   Timer? _logoutTimer;
+  DateTime? _pausedAt;
 
   @override
   void initState() {
@@ -35,13 +36,26 @@ class _AutoLogoutWrapperState extends ConsumerState<AutoLogoutWrapper>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) {
+    if (state == AppLifecycleState.paused) {
+      // Record when app went to background
+      _pausedAt = DateTime.now();
+      _logoutTimer?.cancel();
+    } else if (state == AppLifecycleState.resumed) {
+      // Check if background time exceeded the timeout
+      if (_pausedAt != null) {
+        final elapsed = DateTime.now().difference(_pausedAt!);
+        if (elapsed.inMinutes >= Env.autoLogoutMinutes) {
+          _handleAutoLogout();
+          return;
+        }
+      }
       _resetTimer();
     }
   }
 
   void _resetTimer() {
     _logoutTimer?.cancel();
+    _pausedAt = null;
     _logoutTimer = Timer(
       Duration(minutes: Env.autoLogoutMinutes),
       _handleAutoLogout,
