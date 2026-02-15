@@ -215,8 +215,9 @@ class _DataListPageState extends ConsumerState<DataListPage> {
                           jsonDecode(entity['fields'] as String? ?? '[]');
                     } catch (_) {}
 
-                    final hasMore =
-                        records.length >= _limit;
+                    final hasMore = records.length >= _limit;
+                    final showEndIndicator =
+                        !hasMore && records.length > AppConstants.defaultPageSize;
 
                     return RefreshIndicator(
                       onRefresh: () async {
@@ -230,9 +231,11 @@ class _DataListPageState extends ConsumerState<DataListPage> {
                         controller: _scrollController,
                         padding:
                             const EdgeInsets.symmetric(horizontal: 16),
-                        itemCount: records.length + (hasMore ? 1 : 0),
+                        itemCount: records.length +
+                            (hasMore ? 1 : 0) +
+                            (showEndIndicator ? 1 : 0),
                         itemBuilder: (context, index) {
-                          if (index >= records.length) {
+                          if (hasMore && index >= records.length) {
                             // Loading indicator at bottom
                             return const Padding(
                               padding: EdgeInsets.symmetric(vertical: 16),
@@ -242,6 +245,21 @@ class _DataListPageState extends ConsumerState<DataListPage> {
                                   height: 24,
                                   child: CircularProgressIndicator(
                                     strokeWidth: 2,
+                                  ),
+                                ),
+                              ),
+                            );
+                          }
+
+                          if (!hasMore && index >= records.length) {
+                            // End of list indicator
+                            return Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 16),
+                              child: Center(
+                                child: Text(
+                                  '${records.length} registros',
+                                  style: AppTypography.caption.copyWith(
+                                    color: AppColors.mutedForeground,
                                   ),
                                 ),
                               ),

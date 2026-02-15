@@ -47,9 +47,11 @@ class _LoginPageState extends ConsumerState<LoginPage> {
       });
     }
 
-    // Auto-prompt biometric on page load
+    // Auto-prompt biometric after UI is ready
     if (canCheck && isSupported && mounted) {
-      _handleBiometricLogin();
+      Future.delayed(const Duration(milliseconds: 300), () {
+        if (mounted) _handleBiometricLogin();
+      });
     }
   }
 
