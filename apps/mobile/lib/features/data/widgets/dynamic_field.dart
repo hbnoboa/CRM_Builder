@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:crm_mobile/core/theme/app_colors.dart';
 import 'package:crm_mobile/core/theme/app_typography.dart';
 import 'package:crm_mobile/features/data/widgets/image_field_input.dart';
+import 'package:crm_mobile/shared/utils/formatters.dart';
 
 /// Renders a field value in read-only mode (detail page).
 /// Handles all field types from Entity.fields JSON.
@@ -106,12 +108,32 @@ class DynamicFieldDisplay extends StatelessWidget {
         return Text(value.toString(), style: AppTypography.bodyMedium);
 
       case 'DATE':
+        return Text(
+          Formatters.date(value.toString()),
+          style: AppTypography.bodyMedium,
+        );
+
       case 'DATETIME':
+        return Text(
+          Formatters.dateTime(value.toString()),
+          style: AppTypography.bodyMedium,
+        );
+
+      case 'TIME':
         return Text(value.toString(), style: AppTypography.bodyMedium);
 
       case 'NUMBER':
-      case 'CURRENCY':
         return Text(value.toString(), style: AppTypography.bodyMedium);
+
+      case 'CURRENCY':
+        final num? numVal = num.tryParse(value.toString());
+        return Text(
+          numVal != null ? Formatters.currency(numVal) : value.toString(),
+          style: AppTypography.bodyMedium,
+        );
+
+      case 'PERCENTAGE':
+        return Text('${value}%', style: AppTypography.bodyMedium);
 
       case 'TEXTAREA':
       case 'RICH_TEXT':
@@ -132,9 +154,66 @@ class DynamicFieldDisplay extends StatelessWidget {
           style: AppTypography.bodyMedium.copyWith(color: AppColors.info),
         );
 
+      case 'PHONE':
+        return Row(
+          children: [
+            const Icon(Icons.phone, size: 16, color: AppColors.info),
+            const SizedBox(width: 6),
+            Text(
+              value.toString(),
+              style: AppTypography.bodyMedium.copyWith(color: AppColors.info),
+            ),
+          ],
+        );
+
+      case 'CPF':
+      case 'CNPJ':
+      case 'CEP':
+        return Text(value.toString(), style: AppTypography.bodyMedium);
+
+      case 'RATING':
+        final rating = (num.tryParse(value.toString()) ?? 0).toInt();
+        return Row(
+          mainAxisSize: MainAxisSize.min,
+          children: List.generate(5, (i) => Icon(
+            i < rating ? Icons.star : Icons.star_border,
+            color: AppColors.warning,
+            size: 20,
+          )),
+        );
+
+      case 'COLOR':
+        final hex = value.toString();
+        return Row(
+          children: [
+            Container(
+              width: 24,
+              height: 24,
+              decoration: BoxDecoration(
+                color: _parseColor(hex),
+                borderRadius: BorderRadius.circular(4),
+                border: Border.all(color: AppColors.border),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Text(hex, style: AppTypography.bodyMedium),
+          ],
+        );
+
+      case 'HIDDEN':
+        return const SizedBox.shrink();
+
       default:
         return Text(value.toString(), style: AppTypography.bodyMedium);
     }
+  }
+}
+
+Color _parseColor(String hex) {
+  try {
+    return Color(int.parse(hex.replaceFirst('#', '0xFF')));
+  } catch (_) {
+    return AppColors.muted;
   }
 }
 
@@ -275,6 +354,134 @@ class DynamicFieldInput extends StatelessWidget {
           isRequired: required,
           onChanged: onChanged,
         );
+
+      case 'PHONE':
+        return TextFormField(
+          initialValue: value?.toString(),
+          keyboardType: TextInputType.phone,
+          decoration: InputDecoration(
+            labelText: name,
+            prefixIcon: const Icon(Icons.phone),
+          ),
+          inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[\d\s\-\+\(\)]+'))],
+          validator: required
+              ? (v) => (v == null || v.isEmpty) ? '$name obrigatorio' : null
+              : null,
+          onChanged: onChanged,
+        );
+
+      case 'CPF':
+        return TextFormField(
+          initialValue: value?.toString(),
+          keyboardType: TextInputType.number,
+          decoration: InputDecoration(
+            labelText: name,
+            hintText: '000.000.000-00',
+          ),
+          inputFormatters: [
+            FilteringTextInputFormatter.digitsOnly,
+            LengthLimitingTextInputFormatter(11),
+            _CpfInputFormatter(),
+          ],
+          validator: (v) {
+            if (required && (v == null || v.isEmpty)) return '$name obrigatorio';
+            if (v != null && v.isNotEmpty) {
+              final digits = v.replaceAll(RegExp(r'\D'), '');
+              if (digits.length != 11) return 'CPF deve ter 11 digitos';
+            }
+            return null;
+          },
+          onChanged: onChanged,
+        );
+
+      case 'CNPJ':
+        return TextFormField(
+          initialValue: value?.toString(),
+          keyboardType: TextInputType.number,
+          decoration: InputDecoration(
+            labelText: name,
+            hintText: '00.000.000/0000-00',
+          ),
+          inputFormatters: [
+            FilteringTextInputFormatter.digitsOnly,
+            LengthLimitingTextInputFormatter(14),
+            _CnpjInputFormatter(),
+          ],
+          validator: (v) {
+            if (required && (v == null || v.isEmpty)) return '$name obrigatorio';
+            if (v != null && v.isNotEmpty) {
+              final digits = v.replaceAll(RegExp(r'\D'), '');
+              if (digits.length != 14) return 'CNPJ deve ter 14 digitos';
+            }
+            return null;
+          },
+          onChanged: onChanged,
+        );
+
+      case 'CEP':
+        return TextFormField(
+          initialValue: value?.toString(),
+          keyboardType: TextInputType.number,
+          decoration: InputDecoration(
+            labelText: name,
+            hintText: '00000-000',
+          ),
+          inputFormatters: [
+            FilteringTextInputFormatter.digitsOnly,
+            LengthLimitingTextInputFormatter(8),
+            _CepInputFormatter(),
+          ],
+          validator: (v) {
+            if (required && (v == null || v.isEmpty)) return '$name obrigatorio';
+            if (v != null && v.isNotEmpty) {
+              final digits = v.replaceAll(RegExp(r'\D'), '');
+              if (digits.length != 8) return 'CEP deve ter 8 digitos';
+            }
+            return null;
+          },
+          onChanged: onChanged,
+        );
+
+      case 'PERCENTAGE':
+        return TextFormField(
+          initialValue: value?.toString(),
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          decoration: InputDecoration(
+            labelText: name,
+            suffixText: '%',
+          ),
+          validator: required
+              ? (v) => (v == null || v.isEmpty) ? '$name obrigatorio' : null
+              : null,
+          onChanged: (v) => onChanged(num.tryParse(v) ?? v),
+        );
+
+      case 'TIME':
+        return _TimeFieldInput(
+          label: name,
+          value: value?.toString(),
+          required: required,
+          onChanged: onChanged,
+        );
+
+      case 'RATING':
+        return _RatingFieldInput(
+          label: name,
+          value: (num.tryParse(value?.toString() ?? '') ?? 0).toInt(),
+          required: required,
+          onChanged: onChanged,
+        );
+
+      case 'COLOR':
+        return _ColorFieldInput(
+          label: name,
+          value: value?.toString(),
+          required: required,
+          onChanged: onChanged,
+        );
+
+      case 'HIDDEN':
+        return const SizedBox.shrink();
 
       // Default: text input
       default:
@@ -491,6 +698,264 @@ class _DateTimeFieldInput extends StatelessWidget {
         );
         onChanged(combined.toIso8601String());
       },
+    );
+  }
+}
+
+class _TimeFieldInput extends StatelessWidget {
+  const _TimeFieldInput({
+    required this.label,
+    this.value,
+    required this.required,
+    required this.onChanged,
+  });
+
+  final String label;
+  final String? value;
+  final bool required;
+  final ValueChanged<dynamic> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return TextFormField(
+      readOnly: true,
+      controller: TextEditingController(text: value ?? ''),
+      decoration: InputDecoration(
+        labelText: label,
+        suffixIcon: const Icon(Icons.access_time),
+      ),
+      validator: required
+          ? (v) => (v == null || v.isEmpty) ? '$label obrigatorio' : null
+          : null,
+      onTap: () async {
+        TimeOfDay initial = TimeOfDay.now();
+        if (value != null && value!.contains(':')) {
+          final parts = value!.split(':');
+          initial = TimeOfDay(
+            hour: int.tryParse(parts[0]) ?? 0,
+            minute: int.tryParse(parts[1]) ?? 0,
+          );
+        }
+
+        final time = await showTimePicker(
+          context: context,
+          initialTime: initial,
+        );
+        if (time != null) {
+          final formatted =
+              '${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}';
+          onChanged(formatted);
+        }
+      },
+    );
+  }
+}
+
+class _RatingFieldInput extends StatefulWidget {
+  const _RatingFieldInput({
+    required this.label,
+    required this.value,
+    required this.required,
+    required this.onChanged,
+  });
+
+  final String label;
+  final int value;
+  final bool required;
+  final ValueChanged<dynamic> onChanged;
+
+  @override
+  State<_RatingFieldInput> createState() => _RatingFieldInputState();
+}
+
+class _RatingFieldInputState extends State<_RatingFieldInput> {
+  late int _rating;
+
+  @override
+  void initState() {
+    super.initState();
+    _rating = widget.value;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FormField<int>(
+      initialValue: _rating,
+      validator: widget.required
+          ? (v) => (v == null || v == 0) ? '${widget.label} obrigatorio' : null
+          : null,
+      builder: (fieldState) => Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(widget.label, style: AppTypography.labelLarge),
+          const SizedBox(height: 8),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: List.generate(5, (i) {
+              final starIndex = i + 1;
+              return GestureDetector(
+                onTap: () {
+                  setState(() => _rating = starIndex);
+                  widget.onChanged(starIndex);
+                },
+                child: Icon(
+                  starIndex <= _rating ? Icons.star : Icons.star_border,
+                  color: AppColors.warning,
+                  size: 32,
+                ),
+              );
+            }),
+          ),
+          if (fieldState.hasError)
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Text(
+                fieldState.errorText!,
+                style: AppTypography.caption.copyWith(color: AppColors.error),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ColorFieldInput extends StatelessWidget {
+  const _ColorFieldInput({
+    required this.label,
+    this.value,
+    required this.required,
+    required this.onChanged,
+  });
+
+  final String label;
+  final String? value;
+  final bool required;
+  final ValueChanged<dynamic> onChanged;
+
+  static const _presetColors = [
+    '#EF4444', '#F97316', '#EAB308', '#22C55E',
+    '#06B6D4', '#3B82F6', '#8B5CF6', '#EC4899',
+    '#1E293B', '#64748B', '#FFFFFF',
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label, style: AppTypography.labelLarge),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: value != null ? _parseColor(value!) : AppColors.muted,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: AppColors.border),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: TextFormField(
+                initialValue: value,
+                decoration: const InputDecoration(hintText: '#000000'),
+                validator: required
+                    ? (v) => (v == null || v.isEmpty)
+                        ? '$label obrigatorio'
+                        : null
+                    : null,
+                onChanged: onChanged,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 6,
+          runSpacing: 6,
+          children: _presetColors.map((hex) => GestureDetector(
+            onTap: () => onChanged(hex),
+            child: Container(
+              width: 28,
+              height: 28,
+              decoration: BoxDecoration(
+                color: _parseColor(hex),
+                borderRadius: BorderRadius.circular(4),
+                border: Border.all(
+                  color: value == hex ? AppColors.primary : AppColors.border,
+                  width: value == hex ? 2 : 1,
+                ),
+              ),
+            ),
+          )).toList(),
+        ),
+      ],
+    );
+  }
+}
+
+/// Brazilian CPF mask: 000.000.000-00
+class _CpfInputFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    final digits = newValue.text.replaceAll(RegExp(r'\D'), '');
+    final buf = StringBuffer();
+    for (var i = 0; i < digits.length && i < 11; i++) {
+      if (i == 3 || i == 6) buf.write('.');
+      if (i == 9) buf.write('-');
+      buf.write(digits[i]);
+    }
+    return TextEditingValue(
+      text: buf.toString(),
+      selection: TextSelection.collapsed(offset: buf.length),
+    );
+  }
+}
+
+/// Brazilian CNPJ mask: 00.000.000/0000-00
+class _CnpjInputFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    final digits = newValue.text.replaceAll(RegExp(r'\D'), '');
+    final buf = StringBuffer();
+    for (var i = 0; i < digits.length && i < 14; i++) {
+      if (i == 2 || i == 5) buf.write('.');
+      if (i == 8) buf.write('/');
+      if (i == 12) buf.write('-');
+      buf.write(digits[i]);
+    }
+    return TextEditingValue(
+      text: buf.toString(),
+      selection: TextSelection.collapsed(offset: buf.length),
+    );
+  }
+}
+
+/// Brazilian CEP mask: 00000-000
+class _CepInputFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    final digits = newValue.text.replaceAll(RegExp(r'\D'), '');
+    final buf = StringBuffer();
+    for (var i = 0; i < digits.length && i < 8; i++) {
+      if (i == 5) buf.write('-');
+      buf.write(digits[i]);
+    }
+    return TextEditingValue(
+      text: buf.toString(),
+      selection: TextSelection.collapsed(offset: buf.length),
     );
   }
 }

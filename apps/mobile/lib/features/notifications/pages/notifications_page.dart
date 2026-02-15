@@ -1,9 +1,12 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:crm_mobile/core/database/app_database.dart';
 import 'package:crm_mobile/core/network/api_client.dart';
 import 'package:crm_mobile/core/theme/app_colors.dart';
 import 'package:crm_mobile/core/theme/app_typography.dart';
+import 'package:crm_mobile/shared/utils/formatters.dart';
 import 'package:crm_mobile/shared/widgets/sync_status_indicator.dart';
 
 class NotificationsPage extends ConsumerWidget {
@@ -50,12 +53,26 @@ class NotificationsPage extends ConsumerWidget {
             );
           }
 
-          return ListView.builder(
+          return ListView.separated(
             itemCount: notifications.length,
+            separatorBuilder: (_, __) => const Divider(height: 1),
             itemBuilder: (context, index) {
               final notif = notifications[index];
               final isRead = notif['read'] == 1 || notif['read'] == true;
               final type = notif['type'] as String? ?? 'INFO';
+              final createdAt = notif['createdAt'] as String?;
+
+              // Parse metadata for deep linking
+              String? entitySlug;
+              String? recordId;
+              try {
+                final metadata = notif['metadata'];
+                if (metadata is String && metadata.isNotEmpty) {
+                  final meta = jsonDecode(metadata) as Map<String, dynamic>;
+                  entitySlug = meta['entitySlug'] as String?;
+                  recordId = meta['recordId'] as String?;
+                }
+              } catch (_) {}
 
               IconData icon;
               Color iconColor;
@@ -74,6 +91,8 @@ class NotificationsPage extends ConsumerWidget {
                   iconColor = AppColors.info;
               }
 
+              final hasLink = entitySlug != null && recordId != null;
+
               return ListTile(
                 leading: Icon(icon, color: iconColor),
                 title: Text(
@@ -82,27 +101,51 @@ class NotificationsPage extends ConsumerWidget {
                     fontWeight: isRead ? FontWeight.w400 : FontWeight.w600,
                   ),
                 ),
-                subtitle: Text(
-                  notif['message'] as String? ?? '',
-                  style: AppTypography.bodySmall.copyWith(
-                    color: AppColors.mutedForeground,
-                  ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
+                subtitle: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      notif['message'] as String? ?? '',
+                      style: AppTypography.bodySmall.copyWith(
+                        color: AppColors.mutedForeground,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      Formatters.timeAgo(createdAt),
+                      style: AppTypography.caption.copyWith(
+                        color: AppColors.mutedForeground,
+                        fontSize: 11,
+                      ),
+                    ),
+                  ],
                 ),
-                trailing: !isRead
-                    ? Container(
+                trailing: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (!isRead)
+                      Container(
                         width: 8,
                         height: 8,
                         decoration: const BoxDecoration(
                           color: AppColors.info,
                           shape: BoxShape.circle,
                         ),
-                      )
-                    : null,
+                      ),
+                    if (hasLink) ...[
+                      const SizedBox(width: 8),
+                      const Icon(Icons.chevron_right, size: 18),
+                    ],
+                  ],
+                ),
                 onTap: () {
                   if (!isRead) {
                     _markRead(ref, notif['id'] as String);
+                  }
+                  if (hasLink) {
+                    context.push('/data/$entitySlug/$recordId');
                   }
                 },
               );

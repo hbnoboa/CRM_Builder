@@ -147,7 +147,7 @@ class _SubEntitySectionState extends ConsumerState<SubEntitySection> {
   }
 }
 
-class _ChildRecordTile extends StatelessWidget {
+class _ChildRecordTile extends ConsumerWidget {
   const _ChildRecordTile({
     required this.record,
     required this.fields,
@@ -161,7 +161,8 @@ class _ChildRecordTile extends StatelessWidget {
   final String entitySlug;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final perms = ref.watch(permissionsProvider);
     Map<String, dynamic> data = {};
     try {
       data = jsonDecode(record['data'] as String? ?? '{}');
@@ -179,6 +180,7 @@ class _ChildRecordTile extends StatelessWidget {
 
     final title = values.isNotEmpty ? values.first : 'Registro';
     final subtitle = values.length > 1 ? values.sublist(1).join(' · ') : null;
+    final recordId = record['id'] as String;
 
     return Card(
       margin: const EdgeInsets.only(bottom: 4),
@@ -195,12 +197,76 @@ class _ChildRecordTile extends StatelessWidget {
                 overflow: TextOverflow.ellipsis,
               )
             : null,
-        trailing: const Icon(Icons.chevron_right, size: 20),
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (perms.hasEntityPermission(entitySlug, 'canUpdate'))
+              IconButton(
+                icon: const Icon(Icons.edit_outlined, size: 18),
+                visualDensity: VisualDensity.compact,
+                onPressed: () =>
+                    context.push('/data/$entitySlug/$recordId/edit'),
+              ),
+            if (perms.hasEntityPermission(entitySlug, 'canDelete'))
+              IconButton(
+                icon: Icon(Icons.delete_outlined,
+                    size: 18, color: AppColors.destructive),
+                visualDensity: VisualDensity.compact,
+                onPressed: () => _confirmDelete(context, ref, recordId),
+              ),
+            const Icon(Icons.chevron_right, size: 20),
+          ],
+        ),
         onTap: () {
-          context.push('/data/$entitySlug/${record['id']}');
+          context.push('/data/$entitySlug/$recordId');
         },
       ),
     );
+  }
+
+  Future<void> _confirmDelete(
+      BuildContext context, WidgetRef ref, String recordId) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Excluir registro'),
+        content: const Text('Tem certeza que deseja excluir este registro?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancelar'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            style: TextButton.styleFrom(
+              foregroundColor: AppColors.destructive,
+            ),
+            child: const Text('Excluir'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true && context.mounted) {
+      try {
+        final repo = ref.read(dataRepositoryProvider);
+        await repo.deleteRecord(
+          entitySlug: entitySlug,
+          recordId: recordId,
+        );
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Registro excluido')),
+          );
+        }
+      } catch (e) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Erro ao excluir: $e')),
+          );
+        }
+      }
+    }
   }
 
   List<String> _defaultDisplayFields() {
