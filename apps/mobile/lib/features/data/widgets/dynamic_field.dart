@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:crm_mobile/core/database/app_database.dart';
 import 'package:crm_mobile/core/theme/app_colors.dart';
 import 'package:crm_mobile/core/theme/app_typography.dart';
@@ -142,30 +143,46 @@ class DynamicFieldDisplay extends StatelessWidget {
         return Text(value.toString(), style: AppTypography.bodyMedium);
 
       case 'URL':
-        return Text(
-          value.toString(),
-          style: AppTypography.bodyMedium.copyWith(
-            color: AppColors.info,
-            decoration: TextDecoration.underline,
+        return GestureDetector(
+          onTap: () => _launchUrl(value.toString()),
+          child: Text(
+            value.toString(),
+            style: AppTypography.bodyMedium.copyWith(
+              color: AppColors.info,
+              decoration: TextDecoration.underline,
+            ),
           ),
         );
 
       case 'EMAIL':
-        return Text(
-          value.toString(),
-          style: AppTypography.bodyMedium.copyWith(color: AppColors.info),
+        return GestureDetector(
+          onTap: () => _launchUrl('mailto:${value.toString()}'),
+          child: Text(
+            value.toString(),
+            style: AppTypography.bodyMedium.copyWith(
+              color: AppColors.info,
+              decoration: TextDecoration.underline,
+            ),
+          ),
         );
 
       case 'PHONE':
-        return Row(
-          children: [
-            const Icon(Icons.phone, size: 16, color: AppColors.info),
-            const SizedBox(width: 6),
-            Text(
-              value.toString(),
-              style: AppTypography.bodyMedium.copyWith(color: AppColors.info),
-            ),
-          ],
+        return GestureDetector(
+          onTap: () => _launchUrl('tel:${value.toString()}'),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.phone, size: 16, color: AppColors.info),
+              const SizedBox(width: 6),
+              Text(
+                value.toString(),
+                style: AppTypography.bodyMedium.copyWith(
+                  color: AppColors.info,
+                  decoration: TextDecoration.underline,
+                ),
+              ),
+            ],
+          ),
         );
 
       case 'CPF':
@@ -272,6 +289,15 @@ class DynamicFieldDisplay extends StatelessWidget {
   }
 }
 
+Future<void> _launchUrl(String url) async {
+  try {
+    final uri = Uri.parse(url);
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    }
+  } catch (_) {}
+}
+
 Color _parseColor(String hex) {
   try {
     return Color(int.parse(hex.replaceFirst('#', '0xFF')));
@@ -300,6 +326,8 @@ class DynamicFieldInput extends StatelessWidget {
     final type = (field['type'] as String? ?? 'text').toUpperCase();
     final required = field['required'] == true;
     final options = field['options'] as List<dynamic>?;
+    final helpText = field['helpText'] as String?;
+    final placeholder = field['placeholder'] as String?;
 
     switch (type) {
       case 'TEXTAREA':
@@ -310,6 +338,8 @@ class DynamicFieldInput extends StatelessWidget {
           decoration: InputDecoration(
             labelText: name,
             alignLabelWithHint: true,
+            hintText: placeholder,
+            helperText: helpText,
           ),
           validator: required
               ? (v) => (v == null || v.isEmpty) ? '$name obrigatorio' : null
@@ -322,7 +352,7 @@ class DynamicFieldInput extends StatelessWidget {
         return TextFormField(
           initialValue: value?.toString(),
           keyboardType: const TextInputType.numberWithOptions(decimal: true),
-          decoration: InputDecoration(labelText: name),
+          decoration: InputDecoration(labelText: name, hintText: placeholder, helperText: helpText),
           validator: required
               ? (v) => (v == null || v.isEmpty) ? '$name obrigatorio' : null
               : null,
@@ -345,7 +375,7 @@ class DynamicFieldInput extends StatelessWidget {
 
         return DropdownButtonFormField<String>(
           value: value?.toString(),
-          decoration: InputDecoration(labelText: name),
+          decoration: InputDecoration(labelText: name, hintText: placeholder, helperText: helpText),
           items: opts.map((o) {
             return DropdownMenuItem(value: o, child: Text(o));
           }).toList(),
@@ -375,7 +405,7 @@ class DynamicFieldInput extends StatelessWidget {
         return TextFormField(
           initialValue: value?.toString(),
           keyboardType: TextInputType.emailAddress,
-          decoration: InputDecoration(labelText: name),
+          decoration: InputDecoration(labelText: name, hintText: placeholder ?? 'email@exemplo.com', helperText: helpText),
           validator: (v) {
             if (required && (v == null || v.isEmpty)) {
               return '$name obrigatorio';
@@ -392,7 +422,7 @@ class DynamicFieldInput extends StatelessWidget {
         return TextFormField(
           initialValue: value?.toString(),
           keyboardType: TextInputType.url,
-          decoration: InputDecoration(labelText: name),
+          decoration: InputDecoration(labelText: name, hintText: placeholder ?? 'https://', helperText: helpText),
           validator: required
               ? (v) => (v == null || v.isEmpty) ? '$name obrigatorio' : null
               : null,
@@ -425,6 +455,8 @@ class DynamicFieldInput extends StatelessWidget {
           decoration: InputDecoration(
             labelText: name,
             prefixIcon: const Icon(Icons.phone),
+            hintText: placeholder,
+            helperText: helpText,
           ),
           inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[\d\s\-\+\(\)]+'))],
           validator: required
@@ -512,6 +544,8 @@ class DynamicFieldInput extends StatelessWidget {
           decoration: InputDecoration(
             labelText: name,
             suffixText: '%',
+            hintText: placeholder,
+            helperText: helpText,
           ),
           validator: required
               ? (v) => (v == null || v.isEmpty) ? '$name obrigatorio' : null
@@ -609,7 +643,7 @@ class DynamicFieldInput extends StatelessWidget {
       default:
         return TextFormField(
           initialValue: value?.toString(),
-          decoration: InputDecoration(labelText: name),
+          decoration: InputDecoration(labelText: name, hintText: placeholder, helperText: helpText),
           validator: required
               ? (v) => (v == null || v.isEmpty) ? '$name obrigatorio' : null
               : null,
@@ -1372,6 +1406,31 @@ class _RelationFieldInputState extends State<_RelationFieldInput> {
     return record['id'] as String? ?? 'Registro';
   }
 
+  String? get _selectedLabel {
+    if (_selectedId == null) return null;
+    for (final r in _options) {
+      if (r['id'] == _selectedId) return _getRecordLabel(r);
+    }
+    return _selectedId;
+  }
+
+  Future<void> _showSearchPicker(BuildContext context) async {
+    final result = await showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      builder: (ctx) => _RelationSearchSheet(
+        options: _options,
+        selectedId: _selectedId,
+        getLabel: _getRecordLabel,
+        label: widget.label,
+      ),
+    );
+    if (result != null) {
+      setState(() => _selectedId = result);
+      widget.onChanged(result);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     if (!_loaded) {
@@ -1384,32 +1443,146 @@ class _RelationFieldInputState extends State<_RelationFieldInput> {
       );
     }
 
-    final items = _options.map((r) {
-      final id = r['id'] as String;
-      return DropdownMenuItem(
-        value: id,
-        child: Text(
-          _getRecordLabel(r),
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-        ),
-      );
-    }).toList();
+    // For few items use simple dropdown, for many use searchable sheet
+    if (_options.length <= 10) {
+      final items = _options.map((r) {
+        final id = r['id'] as String;
+        return DropdownMenuItem(
+          value: id,
+          child: Text(
+            _getRecordLabel(r),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        );
+      }).toList();
 
-    return DropdownButtonFormField<String>(
-      value: _selectedId,
-      decoration: InputDecoration(labelText: widget.label),
-      isExpanded: true,
-      items: items,
+      return DropdownButtonFormField<String>(
+        value: _selectedId,
+        decoration: InputDecoration(labelText: widget.label),
+        isExpanded: true,
+        items: items,
+        validator: widget.required
+            ? (v) => (v == null || v.isEmpty)
+                ? '${widget.label} obrigatorio'
+                : null
+            : null,
+        onChanged: (v) {
+          setState(() => _selectedId = v);
+          widget.onChanged(v);
+        },
+      );
+    }
+
+    // Searchable picker for many items
+    return FormField<String>(
+      initialValue: _selectedId,
       validator: widget.required
           ? (v) => (v == null || v.isEmpty)
               ? '${widget.label} obrigatorio'
               : null
           : null,
-      onChanged: (v) {
-        setState(() => _selectedId = v);
-        widget.onChanged(v);
-      },
+      builder: (fieldState) => Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          InkWell(
+            onTap: () => _showSearchPicker(context),
+            child: InputDecorator(
+              decoration: InputDecoration(
+                labelText: widget.label,
+                suffixIcon: const Icon(Icons.search),
+                errorText: fieldState.errorText,
+              ),
+              child: Text(
+                _selectedLabel ?? 'Selecionar...',
+                style: _selectedLabel != null
+                    ? AppTypography.bodyMedium
+                    : AppTypography.bodyMedium.copyWith(color: AppColors.mutedForeground),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _RelationSearchSheet extends StatefulWidget {
+  const _RelationSearchSheet({
+    required this.options,
+    this.selectedId,
+    required this.getLabel,
+    required this.label,
+  });
+
+  final List<Map<String, dynamic>> options;
+  final String? selectedId;
+  final String Function(Map<String, dynamic>) getLabel;
+  final String label;
+
+  @override
+  State<_RelationSearchSheet> createState() => _RelationSearchSheetState();
+}
+
+class _RelationSearchSheetState extends State<_RelationSearchSheet> {
+  String _search = '';
+
+  List<Map<String, dynamic>> get _filtered {
+    if (_search.isEmpty) return widget.options;
+    final q = _search.toLowerCase();
+    return widget.options.where((r) {
+      return widget.getLabel(r).toLowerCase().contains(q);
+    }).toList();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return DraggableScrollableSheet(
+      initialChildSize: 0.6,
+      minChildSize: 0.3,
+      maxChildSize: 0.9,
+      expand: false,
+      builder: (context, scrollController) => Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+            child: TextField(
+              autofocus: true,
+              decoration: InputDecoration(
+                hintText: 'Buscar ${widget.label}...',
+                prefixIcon: const Icon(Icons.search),
+                isDense: true,
+              ),
+              onChanged: (v) => setState(() => _search = v),
+            ),
+          ),
+          Expanded(
+            child: ListView.builder(
+              controller: scrollController,
+              itemCount: _filtered.length,
+              itemBuilder: (context, index) {
+                final record = _filtered[index];
+                final id = record['id'] as String;
+                final isSelected = id == widget.selectedId;
+                return ListTile(
+                  title: Text(
+                    widget.getLabel(record),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  trailing: isSelected
+                      ? const Icon(Icons.check, color: AppColors.primary)
+                      : null,
+                  selected: isSelected,
+                  onTap: () => Navigator.of(context).pop(id),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

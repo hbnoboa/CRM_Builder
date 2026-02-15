@@ -65,6 +65,16 @@ class _DataFormPageState extends ConsumerState<DataFormPage> {
           }
         } catch (_) {}
       }
+    } else {
+      // Initialize new records with field default values
+      for (final field in _fields) {
+        final f = field as Map<String, dynamic>;
+        final slug = f['slug'] as String? ?? '';
+        final defaultValue = f['default'];
+        if (slug.isNotEmpty && defaultValue != null && !_values.containsKey(slug)) {
+          _values[slug] = defaultValue;
+        }
+      }
     }
 
     setState(() => _isInitialized = true);
