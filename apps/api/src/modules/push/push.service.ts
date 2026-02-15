@@ -35,7 +35,8 @@ export class PushService implements OnModuleInit {
         return;
       }
 
-      const admin = await import('firebase-admin');
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const admin = await (import('firebase-admin' as string) as Promise<any>);
       const serviceAccount = JSON.parse(serviceAccountKey);
 
       this.firebaseApp = admin.default.initializeApp({
@@ -44,9 +45,8 @@ export class PushService implements OnModuleInit {
 
       this.logger.log('Firebase Admin SDK initialized for push notifications');
     } catch (error) {
-      this.logger.warn(
-        `Firebase initialization skipped: ${error.message}`,
-      );
+      const msg = error instanceof Error ? error.message : String(error);
+      this.logger.warn(`Firebase initialization skipped: ${msg}`);
     }
   }
 
@@ -117,7 +117,8 @@ export class PushService implements OnModuleInit {
     const tokens = devices.map((d) => d.token);
 
     try {
-      const admin = await import('firebase-admin');
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const admin = await (import('firebase-admin' as string) as Promise<any>);
       const messaging = admin.default.messaging();
 
       const message = {
@@ -134,7 +135,7 @@ export class PushService implements OnModuleInit {
       // Clean up invalid tokens
       if (response.failureCount > 0) {
         const invalidTokens: string[] = [];
-        response.responses.forEach((resp, idx) => {
+        response.responses.forEach((resp: any, idx: number) => {
           if (!resp.success) {
             const errorCode = resp.error?.code;
             if (
