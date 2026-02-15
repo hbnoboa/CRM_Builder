@@ -88,6 +88,18 @@ class SecureStorage {
   }
 
   // ═══════════════════════════════════════════════════════
+  // GENERIC KEY-VALUE
+  // ═══════════════════════════════════════════════════════
+
+  static Future<String?> getString(String key) async {
+    return _storage.read(key: key);
+  }
+
+  static Future<void> setString(String key, String value) async {
+    await _storage.write(key: key, value: value);
+  }
+
+  // ═══════════════════════════════════════════════════════
   // CLEAR ALL (on logout)
   // ═══════════════════════════════════════════════════════
 

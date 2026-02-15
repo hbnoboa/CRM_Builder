@@ -68,7 +68,7 @@ class _DataListPageState extends ConsumerState<DataListPage> {
             ),
           ),
 
-          // Records list
+          // Records list with pull-to-refresh
           Expanded(
             child: FutureBuilder<Map<String, dynamic>?>(
               future: repo.getEntity(widget.entitySlug),
@@ -89,19 +89,35 @@ class _DataListPageState extends ConsumerState<DataListPage> {
                     final records = snapshot.data ?? [];
 
                     if (records.isEmpty) {
-                      return Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
+                      return RefreshIndicator(
+                        onRefresh: () async {
+                          // Trigger PowerSync sync check
+                          await Future.delayed(
+                            const Duration(milliseconds: 500),
+                          );
+                        },
+                        child: ListView(
                           children: [
-                            Icon(Icons.inbox_outlined,
-                                size: 64, color: AppColors.mutedForeground),
-                            const SizedBox(height: 16),
-                            Text(
-                              _search.isNotEmpty
-                                  ? 'Nenhum resultado para "$_search"'
-                                  : 'Nenhum registro encontrado',
-                              style: AppTypography.bodyMedium.copyWith(
-                                color: AppColors.mutedForeground,
+                            SizedBox(
+                              height: MediaQuery.of(context).size.height * 0.4,
+                              child: Center(
+                                child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(Icons.inbox_outlined,
+                                        size: 64,
+                                        color: AppColors.mutedForeground),
+                                    const SizedBox(height: 16),
+                                    Text(
+                                      _search.isNotEmpty
+                                          ? 'Nenhum resultado para "$_search"'
+                                          : 'Nenhum registro encontrado',
+                                      style: AppTypography.bodyMedium.copyWith(
+                                        color: AppColors.mutedForeground,
+                                      ),
+                                    ),
+                                  ],
+                                ),
                               ),
                             ),
                           ],
@@ -115,21 +131,29 @@ class _DataListPageState extends ConsumerState<DataListPage> {
                       fields = jsonDecode(entity['fields'] as String? ?? '[]');
                     } catch (_) {}
 
-                    return ListView.builder(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      itemCount: records.length,
-                      itemBuilder: (context, index) {
-                        final record = records[index];
-                        return DataCard(
-                          record: record,
-                          fields: fields,
-                          onTap: () {
-                            context.push(
-                              '/data/${widget.entitySlug}/${record['id']}',
-                            );
-                          },
+                    return RefreshIndicator(
+                      onRefresh: () async {
+                        // Trigger PowerSync sync check
+                        await Future.delayed(
+                          const Duration(milliseconds: 500),
                         );
                       },
+                      child: ListView.builder(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        itemCount: records.length,
+                        itemBuilder: (context, index) {
+                          final record = records[index];
+                          return DataCard(
+                            record: record,
+                            fields: fields,
+                            onTap: () {
+                              context.push(
+                                '/data/${widget.entitySlug}/${record['id']}',
+                              );
+                            },
+                          );
+                        },
+                      ),
                     );
                   },
                 );

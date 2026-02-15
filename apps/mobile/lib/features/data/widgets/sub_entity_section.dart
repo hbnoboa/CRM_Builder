@@ -1,0 +1,219 @@
+import 'dart:convert';
+
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+
+import 'package:crm_mobile/core/permissions/permission_provider.dart';
+import 'package:crm_mobile/core/theme/app_colors.dart';
+import 'package:crm_mobile/core/theme/app_typography.dart';
+import 'package:crm_mobile/features/data/data/data_repository.dart';
+import 'package:crm_mobile/shared/widgets/permission_gate.dart';
+
+/// Displays child records (sub-entity) within a parent record detail page.
+/// Shows an expandable list of child records with create button.
+class SubEntitySection extends ConsumerStatefulWidget {
+  const SubEntitySection({
+    super.key,
+    required this.parentRecordId,
+    required this.subEntitySlug,
+    required this.subEntityId,
+    this.subEntityDisplayFields,
+    required this.label,
+  });
+
+  final String parentRecordId;
+  final String subEntitySlug;
+  final String subEntityId;
+  final List<String>? subEntityDisplayFields;
+  final String label;
+
+  @override
+  ConsumerState<SubEntitySection> createState() => _SubEntitySectionState();
+}
+
+class _SubEntitySectionState extends ConsumerState<SubEntitySection> {
+  bool _isExpanded = true;
+
+  @override
+  Widget build(BuildContext context) {
+    final repo = ref.watch(dataRepositoryProvider);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Header with expand toggle and create button
+        InkWell(
+          onTap: () => setState(() => _isExpanded = !_isExpanded),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: Row(
+              children: [
+                Icon(
+                  _isExpanded
+                      ? Icons.keyboard_arrow_down
+                      : Icons.keyboard_arrow_right,
+                  color: AppColors.mutedForeground,
+                ),
+                const SizedBox(width: 4),
+                Expanded(
+                  child: StreamBuilder<List<Map<String, dynamic>>>(
+                    stream: repo.watchChildRecords(
+                      parentRecordId: widget.parentRecordId,
+                      entityId: widget.subEntityId,
+                    ),
+                    builder: (context, snapshot) {
+                      final count = snapshot.data?.length ?? 0;
+                      return Text(
+                        '${widget.label} ($count)',
+                        style: AppTypography.labelLarge.copyWith(
+                          color: AppColors.foreground,
+                        ),
+                      );
+                    },
+                  ),
+                ),
+                PermissionGate(
+                  entitySlug: widget.subEntitySlug,
+                  entityAction: 'canCreate',
+                  child: IconButton(
+                    icon: const Icon(Icons.add_circle_outline, size: 20),
+                    onPressed: () {
+                      context.push(
+                        '/data/${widget.subEntitySlug}/new?parentRecordId=${widget.parentRecordId}',
+                      );
+                    },
+                    tooltip: 'Adicionar ${widget.label}',
+                    visualDensity: VisualDensity.compact,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+
+        // Child records list
+        if (_isExpanded)
+          StreamBuilder<List<Map<String, dynamic>>>(
+            stream: repo.watchChildRecords(
+              parentRecordId: widget.parentRecordId,
+              entityId: widget.subEntityId,
+            ),
+            builder: (context, snapshot) {
+              final records = snapshot.data ?? [];
+
+              if (records.isEmpty) {
+                return Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  child: Center(
+                    child: Text(
+                      'Nenhum registro',
+                      style: AppTypography.bodySmall.copyWith(
+                        color: AppColors.mutedForeground,
+                      ),
+                    ),
+                  ),
+                );
+              }
+
+              return FutureBuilder<Map<String, dynamic>?>(
+                future: repo.getEntity(widget.subEntitySlug),
+                builder: (context, entitySnap) {
+                  List<dynamic> childFields = [];
+                  if (entitySnap.data != null) {
+                    try {
+                      childFields = jsonDecode(
+                        entitySnap.data!['fields'] as String? ?? '[]',
+                      );
+                    } catch (_) {}
+                  }
+
+                  return Column(
+                    children: records.map((record) {
+                      return _ChildRecordTile(
+                        record: record,
+                        fields: childFields,
+                        displayFields: widget.subEntityDisplayFields,
+                        entitySlug: widget.subEntitySlug,
+                      );
+                    }).toList(),
+                  );
+                },
+              );
+            },
+          ),
+      ],
+    );
+  }
+}
+
+class _ChildRecordTile extends StatelessWidget {
+  const _ChildRecordTile({
+    required this.record,
+    required this.fields,
+    this.displayFields,
+    required this.entitySlug,
+  });
+
+  final Map<String, dynamic> record;
+  final List<dynamic> fields;
+  final List<String>? displayFields;
+  final String entitySlug;
+
+  @override
+  Widget build(BuildContext context) {
+    Map<String, dynamic> data = {};
+    try {
+      data = jsonDecode(record['data'] as String? ?? '{}');
+    } catch (_) {}
+
+    // Get display values based on displayFields or fallback to first 2 fields
+    final fieldsToShow = displayFields ?? _defaultDisplayFields();
+    final values = <String>[];
+    for (final slug in fieldsToShow) {
+      final val = data[slug];
+      if (val != null && val.toString().isNotEmpty) {
+        values.add(val.toString());
+      }
+    }
+
+    final title = values.isNotEmpty ? values.first : 'Registro';
+    final subtitle = values.length > 1 ? values.sublist(1).join(' · ') : null;
+
+    return Card(
+      margin: const EdgeInsets.only(bottom: 4),
+      child: ListTile(
+        dense: true,
+        title: Text(title, style: AppTypography.bodyMedium),
+        subtitle: subtitle != null
+            ? Text(
+                subtitle,
+                style: AppTypography.caption.copyWith(
+                  color: AppColors.mutedForeground,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              )
+            : null,
+        trailing: const Icon(Icons.chevron_right, size: 20),
+        onTap: () {
+          context.push('/data/$entitySlug/${record['id']}');
+        },
+      ),
+    );
+  }
+
+  List<String> _defaultDisplayFields() {
+    // Use first 2 text/number fields as default display
+    final result = <String>[];
+    for (final field in fields) {
+      final f = field as Map<String, dynamic>;
+      final type = (f['type'] as String? ?? '').toUpperCase();
+      if (['TEXT', 'NUMBER', 'EMAIL', 'SELECT'].contains(type)) {
+        result.add(f['slug'] as String? ?? '');
+        if (result.length >= 2) break;
+      }
+    }
+    return result;
+  }
+}

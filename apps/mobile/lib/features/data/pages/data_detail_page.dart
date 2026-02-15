@@ -7,6 +7,7 @@ import 'package:crm_mobile/core/theme/app_colors.dart';
 import 'package:crm_mobile/core/theme/app_typography.dart';
 import 'package:crm_mobile/features/data/data/data_repository.dart';
 import 'package:crm_mobile/features/data/widgets/dynamic_field.dart';
+import 'package:crm_mobile/features/data/widgets/sub_entity_section.dart';
 import 'package:crm_mobile/shared/widgets/permission_gate.dart';
 
 class DataDetailPage extends ConsumerWidget {
@@ -96,8 +97,11 @@ class DataDetailPage extends ConsumerWidget {
                   ),
                   const Divider(height: 32),
 
-                  // Field values
-                  ...fields.map<Widget>((field) {
+                  // Field values (excluding sub-entity fields)
+                  ...fields
+                      .where((f) =>
+                          (f as Map<String, dynamic>)['type'] != 'sub-entity')
+                      .map<Widget>((field) {
                     final fieldMap = field as Map<String, dynamic>;
                     final slug = fieldMap['slug'] as String? ?? '';
                     final value = data[slug];
@@ -110,6 +114,9 @@ class DataDetailPage extends ConsumerWidget {
                       ),
                     );
                   }),
+
+                  // Sub-entity sections
+                  ..._buildSubEntitySections(fields, recordId),
                 ],
               );
             },
@@ -117,6 +124,43 @@ class DataDetailPage extends ConsumerWidget {
         },
       ),
     );
+  }
+
+  List<Widget> _buildSubEntitySections(
+      List<dynamic> fields, String parentRecordId) {
+    final subFields = fields.where(
+      (f) => (f as Map<String, dynamic>)['type'] == 'sub-entity',
+    );
+
+    if (subFields.isEmpty) return [];
+
+    return [
+      const Divider(height: 32),
+      ...subFields.map<Widget>((field) {
+        final f = field as Map<String, dynamic>;
+        final subEntitySlug = f['subEntitySlug'] as String? ?? '';
+        final subEntityId = f['subEntityId'] as String? ?? '';
+        final label = f['label'] as String? ?? f['name'] as String? ?? '';
+        final displayFields = (f['subEntityDisplayFields'] as List<dynamic>?)
+            ?.map((e) => e.toString())
+            .toList();
+
+        if (subEntitySlug.isEmpty || subEntityId.isEmpty) {
+          return const SizedBox.shrink();
+        }
+
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: SubEntitySection(
+            parentRecordId: parentRecordId,
+            subEntitySlug: subEntitySlug,
+            subEntityId: subEntityId,
+            subEntityDisplayFields: displayFields,
+            label: label,
+          ),
+        );
+      }),
+    ];
   }
 
   String _getTitle(Map<String, dynamic> data, List<dynamic> fields) {

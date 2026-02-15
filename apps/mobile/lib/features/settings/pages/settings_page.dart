@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:crm_mobile/core/auth/secure_storage.dart';
 import 'package:crm_mobile/core/theme/app_typography.dart';
+import 'package:crm_mobile/core/theme/theme_provider.dart';
 
 class SettingsPage extends ConsumerStatefulWidget {
   const SettingsPage({super.key});
@@ -26,13 +27,29 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
 
   @override
   Widget build(BuildContext context) {
+    final themeMode = ref.watch(themeModeNotifierProvider);
+
     return Scaffold(
       appBar: AppBar(title: const Text('Configuracoes')),
       body: ListView(
         children: [
           const SizedBox(height: 8),
-          _SectionHeader(title: 'Seguranca'),
+
+          // Appearance
+          const _SectionHeader(title: 'Aparencia'),
+          ListTile(
+            leading: Icon(_themeIcon(themeMode)),
+            title: const Text('Tema'),
+            subtitle: Text(_themeLabel(themeMode)),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => _showThemePicker(context),
+          ),
+          const Divider(),
+
+          // Security
+          const _SectionHeader(title: 'Seguranca'),
           SwitchListTile(
+            secondary: const Icon(Icons.fingerprint),
             title: const Text('Biometria'),
             subtitle: const Text('Desbloquear com digital/face'),
             value: _biometricEnabled,
@@ -43,12 +60,84 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
           ),
           const Divider(),
 
-          _SectionHeader(title: 'Sobre'),
+          // About
+          const _SectionHeader(title: 'Sobre'),
           const ListTile(
+            leading: Icon(Icons.info_outline),
             title: Text('Versao'),
             trailing: Text('1.0.0'),
           ),
         ],
+      ),
+    );
+  }
+
+  IconData _themeIcon(ThemeMode mode) {
+    return switch (mode) {
+      ThemeMode.system => Icons.brightness_auto,
+      ThemeMode.light => Icons.light_mode,
+      ThemeMode.dark => Icons.dark_mode,
+    };
+  }
+
+  String _themeLabel(ThemeMode mode) {
+    return switch (mode) {
+      ThemeMode.system => 'Sistema',
+      ThemeMode.light => 'Claro',
+      ThemeMode.dark => 'Escuro',
+    };
+  }
+
+  void _showThemePicker(BuildContext context) {
+    final themeMode = ref.read(themeModeNotifierProvider);
+
+    showModalBottomSheet(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Text('Tema', style: AppTypography.h4),
+            ),
+            RadioListTile<ThemeMode>(
+              title: const Text('Sistema'),
+              subtitle: const Text('Segue a configuracao do dispositivo'),
+              value: ThemeMode.system,
+              groupValue: themeMode,
+              onChanged: (v) {
+                ref
+                    .read(themeModeNotifierProvider.notifier)
+                    .setThemeMode(v!);
+                Navigator.of(ctx).pop();
+              },
+            ),
+            RadioListTile<ThemeMode>(
+              title: const Text('Claro'),
+              value: ThemeMode.light,
+              groupValue: themeMode,
+              onChanged: (v) {
+                ref
+                    .read(themeModeNotifierProvider.notifier)
+                    .setThemeMode(v!);
+                Navigator.of(ctx).pop();
+              },
+            ),
+            RadioListTile<ThemeMode>(
+              title: const Text('Escuro'),
+              value: ThemeMode.dark,
+              groupValue: themeMode,
+              onChanged: (v) {
+                ref
+                    .read(themeModeNotifierProvider.notifier)
+                    .setThemeMode(v!);
+                Navigator.of(ctx).pop();
+              },
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
       ),
     );
   }

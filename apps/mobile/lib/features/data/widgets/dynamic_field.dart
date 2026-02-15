@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:crm_mobile/core/theme/app_colors.dart';
 import 'package:crm_mobile/core/theme/app_typography.dart';
+import 'package:crm_mobile/features/data/widgets/image_field_input.dart';
 
 /// Renders a field value in read-only mode (detail page).
 /// Handles all field types from Entity.fields JSON.
@@ -248,32 +249,23 @@ class DynamicFieldInput extends StatelessWidget {
           onChanged: onChanged,
         );
 
+      case 'MULTI_SELECT':
+        return _MultiSelectFieldInput(
+          label: name,
+          options: options,
+          value: value is List ? List<String>.from(value) : null,
+          required: required,
+          onChanged: onChanged,
+        );
+
       case 'IMAGE':
       case 'FILE':
-        // TODO: Implement image/file picker widget
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(name, style: AppTypography.labelLarge),
-            const SizedBox(height: 8),
-            OutlinedButton.icon(
-              onPressed: () {
-                // Will be implemented with image_picker
-              },
-              icon: Icon(type == 'IMAGE'
-                  ? Icons.camera_alt_outlined
-                  : Icons.attach_file),
-              label: Text(type == 'IMAGE' ? 'Adicionar imagem' : 'Anexar arquivo'),
-            ),
-            if (value != null && value.toString().isNotEmpty)
-              Padding(
-                padding: const EdgeInsets.only(top: 8),
-                child: Text(
-                  value.toString().split('/').last,
-                  style: AppTypography.caption,
-                ),
-              ),
-          ],
+        return ImageFieldInput(
+          label: name,
+          value: value?.toString(),
+          fieldType: type,
+          isRequired: required,
+          onChanged: onChanged,
         );
 
       // Default: text input
@@ -287,6 +279,96 @@ class DynamicFieldInput extends StatelessWidget {
           onChanged: onChanged,
         );
     }
+  }
+}
+
+class _MultiSelectFieldInput extends StatefulWidget {
+  const _MultiSelectFieldInput({
+    required this.label,
+    this.options,
+    this.value,
+    required this.required,
+    required this.onChanged,
+  });
+
+  final String label;
+  final List<dynamic>? options;
+  final List<String>? value;
+  final bool required;
+  final ValueChanged<dynamic> onChanged;
+
+  @override
+  State<_MultiSelectFieldInput> createState() => _MultiSelectFieldInputState();
+}
+
+class _MultiSelectFieldInputState extends State<_MultiSelectFieldInput> {
+  late List<String> _selected;
+
+  @override
+  void initState() {
+    super.initState();
+    _selected = List<String>.from(widget.value ?? []);
+  }
+
+  List<String> get _opts {
+    return widget.options?.map((o) {
+      if (o is Map) return o['value']?.toString() ?? o.toString();
+      return o.toString();
+    }).toList() ?? [];
+  }
+
+  void _toggle(String option) {
+    setState(() {
+      if (_selected.contains(option)) {
+        _selected.remove(option);
+      } else {
+        _selected.add(option);
+      }
+    });
+    widget.onChanged(List<String>.from(_selected));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FormField<List<String>>(
+      initialValue: _selected,
+      validator: widget.required
+          ? (v) => (v == null || v.isEmpty)
+              ? '${widget.label} obrigatorio'
+              : null
+          : null,
+      builder: (fieldState) {
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(widget.label, style: AppTypography.labelLarge),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 4,
+              children: _opts.map((opt) {
+                final isSelected = _selected.contains(opt);
+                return FilterChip(
+                  label: Text(opt),
+                  selected: isSelected,
+                  onSelected: (_) => _toggle(opt),
+                  selectedColor: AppColors.primary.withValues(alpha: 0.15),
+                  checkmarkColor: AppColors.primary,
+                );
+              }).toList(),
+            ),
+            if (fieldState.hasError)
+              Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Text(
+                  fieldState.errorText!,
+                  style: AppTypography.caption.copyWith(color: AppColors.error),
+                ),
+              ),
+          ],
+        );
+      },
+    );
   }
 }
 

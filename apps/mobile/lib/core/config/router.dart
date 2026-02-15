@@ -109,6 +109,7 @@ GoRouter router(Ref ref) {
         path: '/data/:entitySlug/new',
         builder: (context, state) => DataFormPage(
           entitySlug: state.pathParameters['entitySlug']!,
+          parentRecordId: state.uri.queryParameters['parentRecordId'],
         ),
       ),
       GoRoute(
