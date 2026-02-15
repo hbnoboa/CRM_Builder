@@ -62,14 +62,14 @@ class NotificationsPage extends ConsumerWidget {
               final type = notif['type'] as String? ?? 'INFO';
               final createdAt = notif['createdAt'] as String?;
 
-              // Parse metadata for deep linking
-              String? entitySlug;
+              // Parse data/metadata for deep linking
+              String? entitySlug = notif['entitySlug'] as String?;
               String? recordId;
               try {
-                final metadata = notif['metadata'];
-                if (metadata is String && metadata.isNotEmpty) {
-                  final meta = jsonDecode(metadata) as Map<String, dynamic>;
-                  entitySlug = meta['entitySlug'] as String?;
+                final dataJson = notif['data'];
+                if (dataJson is String && dataJson.isNotEmpty) {
+                  final meta = jsonDecode(dataJson) as Map<String, dynamic>;
+                  entitySlug ??= meta['entitySlug'] as String?;
                   recordId = meta['recordId'] as String?;
                 }
               } catch (_) {}

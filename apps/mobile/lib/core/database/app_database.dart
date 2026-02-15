@@ -29,6 +29,7 @@ final schema = Schema([
     Column.text('updatedById'),
     Column.text('createdAt'),
     Column.text('updatedAt'),
+    Column.text('deletedAt'),
   ]),
   Table('CustomRole', [
     Column.text('tenantId'),

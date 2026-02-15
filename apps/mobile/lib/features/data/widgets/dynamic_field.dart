@@ -1,6 +1,8 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:crm_mobile/core/database/app_database.dart';
 import 'package:crm_mobile/core/theme/app_colors.dart';
 import 'package:crm_mobile/core/theme/app_typography.dart';
 import 'package:crm_mobile/features/data/widgets/image_field_input.dart';
@@ -199,6 +201,67 @@ class DynamicFieldDisplay extends StatelessWidget {
             Text(hex, style: AppTypography.bodyMedium),
           ],
         );
+
+      case 'PASSWORD':
+        return Text(
+          '••••••••',
+          style: AppTypography.bodyMedium.copyWith(
+            color: AppColors.mutedForeground,
+          ),
+        );
+
+      case 'SLIDER':
+        final num numVal = num.tryParse(value.toString()) ?? 0;
+        return Row(
+          children: [
+            Expanded(
+              child: LinearProgressIndicator(
+                value: (numVal / 100).clamp(0.0, 1.0).toDouble(),
+                backgroundColor: AppColors.muted,
+              ),
+            ),
+            const SizedBox(width: 8),
+            Text('$numVal', style: AppTypography.bodyMedium),
+          ],
+        );
+
+      case 'JSON':
+        return Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: AppColors.muted,
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Text(
+            value.toString(),
+            style: AppTypography.bodySmall.copyWith(
+              fontFamily: 'monospace',
+            ),
+            maxLines: 8,
+            overflow: TextOverflow.ellipsis,
+          ),
+        );
+
+      case 'ARRAY':
+        if (value is List) {
+          return Wrap(
+            spacing: 6,
+            runSpacing: 4,
+            children: (value as List).map<Widget>((v) {
+              return Chip(
+                label: Text(v.toString(), style: AppTypography.bodySmall),
+                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                visualDensity: VisualDensity.compact,
+              );
+            }).toList(),
+          );
+        }
+        return Text(value.toString(), style: AppTypography.bodyMedium);
+
+      case 'RELATION':
+        // Show related record name if stored as string, or ID
+        return Text(value.toString(), style: AppTypography.bodyMedium);
 
       case 'HIDDEN':
         return const SizedBox.shrink();
@@ -477,6 +540,65 @@ class DynamicFieldInput extends StatelessWidget {
           label: name,
           value: value?.toString(),
           required: required,
+          onChanged: onChanged,
+        );
+
+      case 'PASSWORD':
+        return _PasswordFieldInput(
+          label: name,
+          value: value?.toString(),
+          required: required,
+          onChanged: onChanged,
+        );
+
+      case 'SLIDER':
+        return _SliderFieldInput(
+          label: name,
+          value: (num.tryParse(value?.toString() ?? '') ?? 0).toDouble(),
+          min: (field['min'] as num?)?.toDouble() ?? 0,
+          max: (field['max'] as num?)?.toDouble() ?? 100,
+          required: required,
+          onChanged: onChanged,
+        );
+
+      case 'JSON':
+        return TextFormField(
+          initialValue: value is String ? value?.toString() : _prettyJson(value),
+          maxLines: 6,
+          decoration: InputDecoration(
+            labelText: name,
+            alignLabelWithHint: true,
+            hintText: '{"key": "value"}',
+          ),
+          style: AppTypography.bodySmall.copyWith(fontFamily: 'monospace'),
+          validator: (v) {
+            if (required && (v == null || v.isEmpty)) return '$name obrigatorio';
+            if (v != null && v.isNotEmpty) {
+              try {
+                jsonDecode(v);
+              } catch (_) {
+                return 'JSON invalido';
+              }
+            }
+            return null;
+          },
+          onChanged: onChanged,
+        );
+
+      case 'ARRAY':
+        return _ArrayFieldInput(
+          label: name,
+          value: value is List ? List<String>.from(value.map((e) => e.toString())) : null,
+          required: required,
+          onChanged: onChanged,
+        );
+
+      case 'RELATION':
+        return _RelationFieldInput(
+          label: name,
+          value: value?.toString(),
+          required: required,
+          field: field,
           onChanged: onChanged,
         );
 
@@ -956,6 +1078,338 @@ class _CepInputFormatter extends TextInputFormatter {
     return TextEditingValue(
       text: buf.toString(),
       selection: TextSelection.collapsed(offset: buf.length),
+    );
+  }
+}
+
+String _prettyJson(dynamic value) {
+  if (value == null) return '';
+  try {
+    const encoder = JsonEncoder.withIndent('  ');
+    if (value is String) return encoder.convert(jsonDecode(value));
+    return encoder.convert(value);
+  } catch (_) {
+    return value.toString();
+  }
+}
+
+class _PasswordFieldInput extends StatefulWidget {
+  const _PasswordFieldInput({
+    required this.label,
+    this.value,
+    required this.required,
+    required this.onChanged,
+  });
+
+  final String label;
+  final String? value;
+  final bool required;
+  final ValueChanged<dynamic> onChanged;
+
+  @override
+  State<_PasswordFieldInput> createState() => _PasswordFieldInputState();
+}
+
+class _PasswordFieldInputState extends State<_PasswordFieldInput> {
+  bool _obscure = true;
+
+  @override
+  Widget build(BuildContext context) {
+    return TextFormField(
+      initialValue: widget.value,
+      obscureText: _obscure,
+      decoration: InputDecoration(
+        labelText: widget.label,
+        suffixIcon: IconButton(
+          icon: Icon(_obscure ? Icons.visibility_off : Icons.visibility),
+          onPressed: () => setState(() => _obscure = !_obscure),
+        ),
+      ),
+      validator: widget.required
+          ? (v) => (v == null || v.isEmpty)
+              ? '${widget.label} obrigatorio'
+              : null
+          : null,
+      onChanged: widget.onChanged,
+    );
+  }
+}
+
+class _SliderFieldInput extends StatefulWidget {
+  const _SliderFieldInput({
+    required this.label,
+    required this.value,
+    required this.min,
+    required this.max,
+    required this.required,
+    required this.onChanged,
+  });
+
+  final String label;
+  final double value;
+  final double min;
+  final double max;
+  final bool required;
+  final ValueChanged<dynamic> onChanged;
+
+  @override
+  State<_SliderFieldInput> createState() => _SliderFieldInputState();
+}
+
+class _SliderFieldInputState extends State<_SliderFieldInput> {
+  late double _value;
+
+  @override
+  void initState() {
+    super.initState();
+    _value = widget.value.clamp(widget.min, widget.max);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(widget.label, style: AppTypography.labelLarge),
+            Text(
+              _value.round().toString(),
+              style: AppTypography.bodyMedium.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+        Slider(
+          value: _value,
+          min: widget.min,
+          max: widget.max,
+          divisions: (widget.max - widget.min).round(),
+          onChanged: (v) {
+            setState(() => _value = v);
+            widget.onChanged(v.round());
+          },
+        ),
+      ],
+    );
+  }
+}
+
+class _ArrayFieldInput extends StatefulWidget {
+  const _ArrayFieldInput({
+    required this.label,
+    this.value,
+    required this.required,
+    required this.onChanged,
+  });
+
+  final String label;
+  final List<String>? value;
+  final bool required;
+  final ValueChanged<dynamic> onChanged;
+
+  @override
+  State<_ArrayFieldInput> createState() => _ArrayFieldInputState();
+}
+
+class _ArrayFieldInputState extends State<_ArrayFieldInput> {
+  late List<String> _items;
+  final _controller = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    _items = List<String>.from(widget.value ?? []);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _addItem() {
+    final text = _controller.text.trim();
+    if (text.isEmpty) return;
+    setState(() => _items.add(text));
+    _controller.clear();
+    widget.onChanged(List<String>.from(_items));
+  }
+
+  void _removeItem(int index) {
+    setState(() => _items.removeAt(index));
+    widget.onChanged(List<String>.from(_items));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FormField<List<String>>(
+      initialValue: _items,
+      validator: widget.required
+          ? (v) => (v == null || v.isEmpty)
+              ? '${widget.label} obrigatorio'
+              : null
+          : null,
+      builder: (fieldState) => Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(widget.label, style: AppTypography.labelLarge),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _controller,
+                  decoration: const InputDecoration(
+                    hintText: 'Adicionar item...',
+                    isDense: true,
+                  ),
+                  onSubmitted: (_) => _addItem(),
+                ),
+              ),
+              const SizedBox(width: 8),
+              IconButton(
+                icon: const Icon(Icons.add_circle_outline),
+                onPressed: _addItem,
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          ...List.generate(_items.length, (i) => Padding(
+            padding: const EdgeInsets.only(bottom: 4),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Chip(
+                    label: Text(_items[i]),
+                    deleteIcon: const Icon(Icons.close, size: 16),
+                    onDeleted: () => _removeItem(i),
+                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                ),
+              ],
+            ),
+          )),
+          if (fieldState.hasError)
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Text(
+                fieldState.errorText!,
+                style: AppTypography.caption.copyWith(color: AppColors.error),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Relation field: searches and selects a record from another entity.
+class _RelationFieldInput extends StatefulWidget {
+  const _RelationFieldInput({
+    required this.label,
+    this.value,
+    required this.required,
+    required this.field,
+    required this.onChanged,
+  });
+
+  final String label;
+  final String? value;
+  final bool required;
+  final Map<String, dynamic> field;
+  final ValueChanged<dynamic> onChanged;
+
+  @override
+  State<_RelationFieldInput> createState() => _RelationFieldInputState();
+}
+
+class _RelationFieldInputState extends State<_RelationFieldInput> {
+  List<Map<String, dynamic>> _options = [];
+  String? _selectedId;
+  bool _loaded = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedId = widget.value;
+    _loadRelatedRecords();
+  }
+
+  Future<void> _loadRelatedRecords() async {
+    final relatedEntityId = widget.field['relationEntityId'] as String?;
+    if (relatedEntityId == null) {
+      setState(() => _loaded = true);
+      return;
+    }
+
+    final db = AppDatabase.instance.db;
+    final records = await db.getAll(
+      'SELECT id, data FROM EntityData WHERE entityId = ? AND parentRecordId IS NULL ORDER BY createdAt DESC LIMIT 100',
+      [relatedEntityId],
+    );
+
+    setState(() {
+      _options = records;
+      _loaded = true;
+    });
+  }
+
+  String _getRecordLabel(Map<String, dynamic> record) {
+    try {
+      final data = jsonDecode(record['data'] as String? ?? '{}');
+      if (data is Map) {
+        // Use first non-empty value as label
+        for (final v in data.values) {
+          if (v != null && v.toString().isNotEmpty) {
+            return v.toString();
+          }
+        }
+      }
+    } catch (_) {}
+    return record['id'] as String? ?? 'Registro';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_loaded) {
+      return InputDecorator(
+        decoration: InputDecoration(labelText: widget.label),
+        child: const SizedBox(
+          height: 20,
+          child: LinearProgressIndicator(minHeight: 2),
+        ),
+      );
+    }
+
+    final items = _options.map((r) {
+      final id = r['id'] as String;
+      return DropdownMenuItem(
+        value: id,
+        child: Text(
+          _getRecordLabel(r),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+      );
+    }).toList();
+
+    return DropdownButtonFormField<String>(
+      value: _selectedId,
+      decoration: InputDecoration(labelText: widget.label),
+      isExpanded: true,
+      items: items,
+      validator: widget.required
+          ? (v) => (v == null || v.isEmpty)
+              ? '${widget.label} obrigatorio'
+              : null
+          : null,
+      onChanged: (v) {
+        setState(() => _selectedId = v);
+        widget.onChanged(v);
+      },
     );
   }
 }
