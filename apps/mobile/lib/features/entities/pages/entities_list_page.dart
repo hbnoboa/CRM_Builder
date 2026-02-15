@@ -25,7 +25,8 @@ class EntitiesListPage extends ConsumerWidget {
       ),
       body: StreamBuilder<List<Map<String, dynamic>>>(
         stream: db.watch(
-          'SELECT * FROM Entity ORDER BY name ASC',
+          'SELECT e.*, (SELECT COUNT(*) FROM EntityData WHERE entityId = e.id AND parentRecordId IS NULL) as recordCount '
+          'FROM Entity e ORDER BY e.name ASC',
         ),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting &&
@@ -71,6 +72,8 @@ class EntitiesListPage extends ConsumerWidget {
                 return const SizedBox.shrink();
               }
 
+              final recordCount = entity['recordCount'] ?? 0;
+
               return Card(
                 margin: const EdgeInsets.only(bottom: 8),
                 child: ListTile(
@@ -86,15 +89,15 @@ class EntitiesListPage extends ConsumerWidget {
                     ),
                   ),
                   title: Text(namePlural, style: AppTypography.labelLarge),
-                  subtitle: description != null
-                      ? Text(
-                          description,
-                          style: AppTypography.caption
-                              .copyWith(color: AppColors.mutedForeground),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        )
-                      : null,
+                  subtitle: Text(
+                    description != null && description.isNotEmpty
+                        ? '$description · $recordCount registros'
+                        : '$recordCount registros',
+                    style: AppTypography.caption
+                        .copyWith(color: AppColors.mutedForeground),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                   trailing: const Icon(Icons.chevron_right),
                   onTap: () => context.push('/data/$slug'),
                 ),

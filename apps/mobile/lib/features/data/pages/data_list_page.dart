@@ -10,6 +10,18 @@ import 'package:crm_mobile/features/data/widgets/data_card.dart';
 import 'package:crm_mobile/shared/widgets/permission_gate.dart';
 import 'package:crm_mobile/shared/widgets/sync_status_indicator.dart';
 
+enum SortOption {
+  newestFirst('Mais recentes', 'createdAt DESC'),
+  oldestFirst('Mais antigos', 'createdAt ASC'),
+  updatedFirst('Ultima atualizacao', 'updatedAt DESC'),
+  nameAZ('A → Z', 'data ASC'),
+  nameZA('Z → A', 'data DESC');
+
+  const SortOption(this.label, this.sql);
+  final String label;
+  final String sql;
+}
+
 class DataListPage extends ConsumerStatefulWidget {
   const DataListPage({super.key, required this.entitySlug});
 
@@ -24,6 +36,7 @@ class _DataListPageState extends ConsumerState<DataListPage> {
   final _scrollController = ScrollController();
   String _search = '';
   int _limit = AppConstants.defaultPageSize;
+  SortOption _sort = SortOption.newestFirst;
 
   @override
   void initState() {
@@ -46,6 +59,36 @@ class _DataListPageState extends ConsumerState<DataListPage> {
     }
   }
 
+  void _showSortPicker() {
+    showModalBottomSheet(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Text('Ordenar por', style: AppTypography.h4),
+            ),
+            ...SortOption.values.map((option) => RadioListTile<SortOption>(
+                  title: Text(option.label),
+                  value: option,
+                  groupValue: _sort,
+                  onChanged: (v) {
+                    setState(() {
+                      _sort = v!;
+                      _limit = AppConstants.defaultPageSize;
+                    });
+                    Navigator.of(ctx).pop();
+                  },
+                )),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final repo = ref.watch(dataRepositoryProvider);
@@ -59,7 +102,14 @@ class _DataListPageState extends ConsumerState<DataListPage> {
             return Text(entity?['namePlural'] as String? ?? widget.entitySlug);
           },
         ),
-        actions: const [SyncStatusIndicator()],
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.sort),
+            tooltip: 'Ordenar',
+            onPressed: _showSortPicker,
+          ),
+          const SyncStatusIndicator(),
+        ],
       ),
       body: Column(
         children: [
@@ -107,6 +157,7 @@ class _DataListPageState extends ConsumerState<DataListPage> {
                   stream: repo.watchRecords(
                     entityId: entityId,
                     search: _search.isNotEmpty ? _search : null,
+                    orderBy: _sort.sql,
                     limit: _limit,
                   ),
                   builder: (context, snapshot) {

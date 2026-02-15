@@ -22,6 +22,7 @@ class DataRepository {
   Stream<List<Map<String, dynamic>>> watchRecords({
     required String entityId,
     String? search,
+    String orderBy = 'createdAt DESC',
     int limit = 20,
     int offset = 0,
   }) {
@@ -36,7 +37,7 @@ class DataRepository {
       params.add('%$search%');
     }
 
-    query += ' ORDER BY createdAt DESC LIMIT ? OFFSET ?';
+    query += ' ORDER BY $orderBy LIMIT ? OFFSET ?';
     params.addAll([limit, offset]);
 
     return db.watch(query, parameters: params);
