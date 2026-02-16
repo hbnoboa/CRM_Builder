@@ -11,6 +11,7 @@ import 'package:crm_mobile/core/network/api_client.dart';
 import 'package:crm_mobile/core/theme/app_colors.dart';
 import 'package:crm_mobile/core/theme/app_typography.dart';
 import 'package:crm_mobile/features/data/widgets/image_field_input.dart';
+import 'package:crm_mobile/features/data/widgets/map_field_input.dart';
 import 'package:crm_mobile/shared/utils/formatters.dart';
 
 /// Renders a field value in read-only mode (detail page).
@@ -319,6 +320,12 @@ class DynamicFieldDisplay extends StatelessWidget {
       case 'RELATION':
         // Show related record name if stored as string, or ID
         return Text(value.toString(), style: AppTypography.bodyMedium);
+
+      case 'MAP':
+        return MapFieldDisplay(
+          value: value,
+          fieldName: '',
+        );
 
       case 'HIDDEN':
         return const SizedBox.shrink();
@@ -798,6 +805,14 @@ class DynamicFieldInput extends StatelessWidget {
           required: required,
           field: field,
           onChanged: onChanged,
+        );
+
+      case 'MAP':
+        return MapFieldInput(
+          field: field,
+          value: value,
+          onChanged: onChanged,
+          enabled: enabled,
         );
 
       case 'HIDDEN':

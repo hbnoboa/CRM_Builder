@@ -44,6 +44,10 @@
 	<key>UIStatusBarHidden</key>
 	<false/>
 
+	<!-- Location permission (geolocator / map fields) -->
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>O CRM Builder usa sua localizacao para posicionar o mapa em campos de endereco.</string>
+
 	<!-- Camera permission (image_picker) -->
 	<key>NSCameraUsageDescription</key>
 	<string>O CRM Builder precisa da camera para capturar fotos de registros.</string>
