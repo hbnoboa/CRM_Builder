@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "35661851099",
+    "project_id": "ios-forms-299fb",
+    "storage_bucket": "ios-forms-299fb.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:35661851099:android:3ef1d4059341ba3b2b1ffe",
+        "android_client_info": {
+          "package_name": "com.crmbuilder.mobile"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBOchTOWeeNuqy8tF6b8-SpEDNInizSFSQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
