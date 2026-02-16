@@ -22,8 +22,8 @@ import { test, expect, Page, APIRequestContext } from '@playwright/test';
 // Configurar apenas chromium para testes de UI
 test.use({ browserName: 'chromium' });
 
-const API_URL = 'http://localhost:3001/api/v1';
-const WEB_URL = 'http://localhost:3000';
+const API_URL = process.env.API_URL || 'http://localhost:3001/api/v1';
+const WEB_URL = process.env.WEB_URL || 'http://localhost:3000';
 
 // Credenciais de teste
 const PLATFORM_ADMIN = {
