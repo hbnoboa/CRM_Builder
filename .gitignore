@@ -50,6 +50,9 @@ Thumbs.db
 uploads/
 !uploads/.gitkeep
 
+# Migration scripts (contain credentials)
+apps/api/scripts/
+
 # Google Cloud SDK
 google-cloud-sdk/
 google-cloud-sdk-*.tar.gz
