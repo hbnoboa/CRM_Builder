@@ -18,7 +18,7 @@ final _logger = Logger(printer: SimplePrinter());
 Dio createApiClient() {
   final dio = Dio(
     BaseOptions(
-      baseURL: Env.apiUrl,
+      baseUrl: Env.apiUrl,
       connectTimeout: const Duration(milliseconds: Env.apiTimeout),
       receiveTimeout: const Duration(milliseconds: Env.apiTimeout),
       headers: {

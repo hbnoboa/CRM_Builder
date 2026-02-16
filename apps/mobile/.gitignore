@@ -1,7 +1,7 @@
 # Flutter
 .dart_tool/
 .packages
-build/
+# build/ (removed to allow APK distribution via git)
 .flutter-plugins
 .flutter-plugins-dependencies
 

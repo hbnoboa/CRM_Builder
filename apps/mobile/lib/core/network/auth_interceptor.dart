@@ -43,7 +43,7 @@ class AuthInterceptor extends QueuedInterceptor {
       }
 
       // Call refresh endpoint (use a clean Dio to avoid interceptor loop)
-      final refreshDio = Dio(BaseOptions(baseURL: Env.apiUrl));
+      final refreshDio = Dio(BaseOptions(baseUrl: Env.apiUrl));
       final response = await refreshDio.post(
         '/auth/refresh',
         data: {'refreshToken': refreshToken},

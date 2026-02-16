@@ -69,7 +69,7 @@ class IconMapper {
     // Data / Analytics
     'bar-chart': Icons.bar_chart,
     'bar-chart-2': Icons.assessment_outlined,
-    'pie-chart': Icons.pie_chart_outlined,
+    'pie-chart': Icons.pie_chart_outline,
     'trending-up': Icons.trending_up,
     'activity': Icons.show_chart,
     'database': Icons.storage_outlined,
