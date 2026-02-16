@@ -1,34 +1,40 @@
 # PowerSync configuration for CRM Builder
 # This file configures the self-hosted PowerSync service
 # to sync data from PostgreSQL to Flutter mobile devices.
+#
+# Schema ref: https://unpkg.com/@powersync/service-schema@latest/json-schema/powersync-config.json
 
 # PostgreSQL logical replication connection
 replication:
   type: postgresql
-  uri: !env POWERSYNC_REPLICATION_URI
-  # Example: postgresql://user:pass@postgres:5432/crmbuilder
+  uri: !env PS_REPLICATION_URI
 
-# Token authentication (validates Flutter app JWTs)
+# Admin API tokens (for health checks, diagnostics)
 api:
   tokens:
-    - type: jwt
-      # Use the same JWT secret as the NestJS API
-      jwt_secret: !env JWT_SECRET
-      # OR use JWKS endpoint:
-      # jwks_uri: https://api.yourdomain.com/.well-known/jwks.json
+    - !env PS_API_TOKEN
 
-# Storage backend for PowerSync internal state
+# Client authentication (validates Flutter app JWTs using HS256)
+# JWT claims: sub (user id), tenantId, email, customRoleId, roleType
+client_auth:
+  jwks:
+    keys:
+      - kty: oct
+        alg: HS256
+        kid: crm-builder
+        k: !env PS_JWT_SECRET_B64
+
+# Storage backend for PowerSync internal state (MongoDB required by v1.19+)
 storage:
-  type: memory
-  # For production with persistence, use MongoDB:
-  # type: mongodb
-  # uri: !env POWERSYNC_STORAGE_URI
+  type: mongodb
+  uri: !env PS_MONGO_URI
 
 # Sync rules: define which data each user can access
+# JWT payload: { sub: "userId", tenantId: "tenantId", ... }
 bucket_definitions:
   # Tenant-scoped data (entities, records, roles)
   tenant_data:
-    parameters: SELECT token_parameters.tenant_id as tenant_id
+    parameters: SELECT token_parameters.tenantId as tenant_id
     data:
       # Entity definitions (schema)
       - SELECT id, "tenantId", name, "namePlural", slug, description, icon, color, fields, settings, "isSystem", "createdAt", "updatedAt"
@@ -47,7 +53,7 @@ bucket_definitions:
 
   # User-specific data
   user_data:
-    parameters: SELECT token_parameters.user_id as user_id, token_parameters.tenant_id as tenant_id
+    parameters: SELECT token_parameters.sub as user_id, token_parameters.tenantId as tenant_id
     data:
       # Current user profile
       - SELECT id, "tenantId", email, name, avatar, "customRoleId", status, "createdAt"

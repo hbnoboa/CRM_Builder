@@ -2,28 +2,44 @@
 # Provides real-time sync between PostgreSQL and Flutter (SQLite).
 #
 # Usage:
-#   docker compose -f docker-compose.powersync.yml up -d
+#   docker compose -f docker-compose.powersync.yml --env-file .env.production up -d
 #
 # Prerequisites:
 #   - PostgreSQL must have wal_level=logical enabled
 #   - JWT_SECRET must match the NestJS API JWT secret
 
 services:
+  powersync-mongo:
+    image: mongo:7
+    container_name: crm-powersync-mongo
+    restart: unless-stopped
+    volumes:
+      - powersync-mongo-data:/data/db
+    networks:
+      - crm-network
+
   powersync:
     image: journeyapps/powersync-service:latest
+    container_name: crm-powersync
     restart: unless-stopped
     ports:
-      - "8080:8080"
+      - "8081:8080"
     environment:
-      POWERSYNC_CONFIG: /config/powersync.yaml
-      POWERSYNC_REPLICATION_URI: ${DATABASE_URL}
-      JWT_SECRET: ${JWT_SECRET}
-      # If using MongoDB for storage:
-      # POWERSYNC_STORAGE_URI: mongodb://mongo:27017/powersync
+      PS_REPLICATION_URI: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-crm_builder}
+      PS_MONGO_URI: mongodb://powersync-mongo:27017/powersync
+      PS_JWT_SECRET_B64: Q3JtQnVpbGRlcjIwMjZTdXBlclNlY3JldEtleUZvckpXVFRva2VuR2VuZXJhdGlvblBsZWFzZUNoYW5nZUluUHJvZHVjdGlvbjY0Y2hhcnM
+      PS_API_TOKEN: powersync-crm-admin-token
     volumes:
-      - ./apps/mobile/powersync.yaml:/config/powersync.yaml:ro
-    # If running alongside existing docker-compose:
-    # network_mode: host
-    # OR use the same network:
-    # networks:
-    #   - crm-network
+      - ./apps/mobile/powersync.yaml:/app/powersync.yaml:ro
+    depends_on:
+      - powersync-mongo
+    networks:
+      - crm-network
+
+volumes:
+  powersync-mongo-data:
+
+networks:
+  crm-network:
+    external: true
+    name: crm-builder_crm-network

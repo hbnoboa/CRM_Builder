@@ -10,7 +10,7 @@ class Env {
 
   static const String powerSyncUrl = String.fromEnvironment(
     'POWERSYNC_URL',
-    defaultValue: 'http://136.114.109.222:8080',
+    defaultValue: 'http://136.114.109.222:8081',
   );
 
   /// Timeout for API calls in milliseconds.
