@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:crm_mobile/core/theme/app_colors.dart';
+import 'package:crm_mobile/core/permissions/permission_provider.dart';
 import 'package:crm_mobile/features/data/data/data_repository.dart';
 import 'package:crm_mobile/features/data/widgets/dynamic_field.dart';
 
@@ -96,16 +97,21 @@ class _DataFormPageState extends ConsumerState<DataFormPage> {
   Future<void> _handleSubmit() async {
     if (!_formKey.currentState!.validate()) return;
 
-    // Check required fields have values
+    final perms = ref.read(permissionsProvider);
+    final editableFields = perms.getEditableFields(widget.entitySlug);
+
+    // Check required fields have values (skip non-editable fields)
     final missingFields = <String>[];
     for (final field in _fields) {
       final f = field as Map<String, dynamic>;
       final type = (f['type'] as String? ?? '').toUpperCase();
       if (type == 'SUB_ENTITY') continue;
+      final slug = f['slug'] as String? ?? '';
+      // Skip required check for fields the user cannot edit
+      if (editableFields != null && !editableFields.contains(slug)) continue;
       final required = f['required'] == true;
       if (!required) continue;
 
-      final slug = f['slug'] as String? ?? '';
       final value = _values[slug];
       if (value == null || value.toString().trim().isEmpty) {
         missingFields.add(f['label'] as String? ?? f['name'] as String? ?? slug);
@@ -131,16 +137,23 @@ class _DataFormPageState extends ConsumerState<DataFormPage> {
     try {
       final repo = ref.read(dataRepositoryProvider);
 
+      // Only send editable fields to avoid overwriting restricted data
+      final dataToSend = editableFields != null
+          ? Map<String, dynamic>.fromEntries(
+              _values.entries.where((e) => editableFields.contains(e.key)),
+            )
+          : _values;
+
       if (widget.isEditing) {
         await repo.updateRecord(
           entitySlug: widget.entitySlug,
           recordId: widget.recordId!,
-          data: _values,
+          data: dataToSend,
         );
       } else {
         await repo.createRecord(
           entitySlug: widget.entitySlug,
-          data: _values,
+          data: dataToSend,
           parentRecordId: widget.parentRecordId,
         );
       }
@@ -237,28 +250,49 @@ class _DataFormPageState extends ConsumerState<DataFormPage> {
           ),
         ],
       ),
-      body: Form(
-        key: _formKey,
-        child: ListView(
-          padding: const EdgeInsets.all(16),
-          children: [
-            ..._fields
-                .where((f) =>
-                    (f as Map<String, dynamic>)['type']?.toString().toUpperCase() !=
-                    'SUB_ENTITY')
-                .map<Widget>((field) {
-              final fieldMap = field as Map<String, dynamic>;
-              return Padding(
-                padding: const EdgeInsets.only(bottom: 16),
-                child: DynamicFieldInput(
-                  field: fieldMap,
-                  value: _values[fieldMap['slug']],
-                  onChanged: (value) {
-                    _values[fieldMap['slug'] as String] = value;
-                  },
-                ),
-              );
-            }),
+      body: Builder(
+        builder: (context) {
+          final perms = ref.watch(permissionsProvider);
+          final visibleFields = perms.getVisibleFields(widget.entitySlug);
+          final editableFields = perms.getEditableFields(widget.entitySlug);
+
+          return Form(
+            key: _formKey,
+            child: ListView(
+              padding: const EdgeInsets.all(16),
+              children: [
+                ..._fields
+                    .where((f) {
+                      final fieldMap = f as Map<String, dynamic>;
+                      final type = fieldMap['type']?.toString().toUpperCase() ?? '';
+                      if (type == 'SUB_ENTITY') return false;
+                      // Field-level permissions: hide non-visible fields
+                      if (visibleFields != null) {
+                        final slug = fieldMap['slug'] as String? ?? '';
+                        return visibleFields.contains(slug);
+                      }
+                      return true;
+                    })
+                    .map<Widget>((field) {
+                  final fieldMap = field as Map<String, dynamic>;
+                  final slug = fieldMap['slug'] as String? ?? '';
+                  final canEdit = editableFields == null || editableFields.contains(slug);
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 16),
+                    child: DynamicFieldInput(
+                      field: fieldMap,
+                      value: _values[slug],
+                      enabled: canEdit,
+                      allFields: _fields,
+                      onChanged: (value) {
+                        setState(() => _values[slug] = value);
+                      },
+                      onAutoFill: (updates) {
+                        setState(() => _values.addAll(updates));
+                      },
+                    ),
+                  );
+                }),
             const SizedBox(height: 16),
             SizedBox(
               height: 48,
@@ -276,8 +310,10 @@ class _DataFormPageState extends ConsumerState<DataFormPage> {
                     : Text(widget.isEditing ? 'Salvar alteracoes' : 'Criar'),
               ),
             ),
-          ],
-        ),
+              ],
+            ),
+          );
+        },
       ),
     ),
     );

@@ -66,4 +66,9 @@ export const entitiesService = {
     const response = await api.patch<Entity>(`/entities/${id}/column-config`, { visibleColumns });
     return response.data;
   },
+
+  async updateGlobalFilters(id: string, globalFilters: unknown[]): Promise<Entity> {
+    const response = await api.patch<Entity>(`/entities/${id}/global-filters`, { globalFilters });
+    return response.data;
+  },
 };

@@ -24,6 +24,7 @@ import {
   ArrowUpDown,
   Check,
   RotateCcw,
+  Globe,
 } from 'lucide-react';
 import { RequireRole } from '@/components/auth/require-role';
 import { usePermissions } from '@/hooks/use-permissions';
@@ -380,6 +381,8 @@ function DataPageContent() {
 
   // Estados de filtro e colunas
   const [activeFilters, setActiveFilters] = useState<ActiveFilter[]>([]);
+  const [globalFilters, setGlobalFilters] = useState<ActiveFilter[]>([]);
+  const [savingGlobalFilter, setSavingGlobalFilter] = useState(false);
   const [hiddenColumns, setHiddenColumns] = useState<Set<string>>(new Set());
   const [columnOrder, setColumnOrder] = useState<string[]>([]);
   const [columnConfigOpen, setColumnConfigOpen] = useState(false);
@@ -387,6 +390,7 @@ function DataPageContent() {
   const [savingColumnConfig, setSavingColumnConfig] = useState(false);
   const [filterPopoverOpen, setFilterPopoverOpen] = useState(false);
   const [newFilter, setNewFilter] = useState<Partial<ActiveFilter>>({});
+  const [saveAsGlobal, setSaveAsGlobal] = useState(false);
 
   // Filtro por entidade pai (quando clica no badge de sub-entidade)
   const [parentFilter, setParentFilter] = useState<{ parentRecordId: string; parentDisplay: string; parentEntityName: string } | null>(null);
@@ -665,6 +669,8 @@ function DataPageContent() {
   // Resetar filtros ao trocar de entidade
   const resetFilters = useCallback(() => {
     setActiveFilters([]);
+    setGlobalFilters([]);
+    setSaveAsGlobal(false);
     setHiddenColumns(new Set());
     setColumnOrder([]);
     setSearchTerm('');
@@ -675,7 +681,7 @@ function DataPageContent() {
     setSortConfig(null);
   }, []);
 
-  // Carregar config de colunas salva quando entidade muda
+  // Carregar config de colunas e filtros globais quando entidade muda
   useEffect(() => {
     if (!selectedEntity) return;
     const settings = selectedEntity.settings as Record<string, unknown> | null;
@@ -691,7 +697,11 @@ function DataPageContent() {
       setColumnOrder([]);
       setHiddenColumns(new Set());
     }
-  }, [selectedEntity?.id]);
+
+    // Carregar filtros globais de entity.settings
+    const savedGlobalFilters = settings?.globalFilters as ActiveFilter[] | undefined;
+    setGlobalFilters(Array.isArray(savedGlobalFilters) ? savedGlobalFilters : []);
+  }, [selectedEntity?.id, selectedEntity?.settings]);
 
   // Debounce de busca - envia pro backend apos 400ms
   useEffect(() => {
@@ -716,28 +726,45 @@ function DataPageContent() {
     fetchRecords(selectedEntity.slug, target, debouncedSearch);
   }, [selectedEntity, paginationMeta, debouncedSearch]);
 
-  // Handler para adicionar filtro
-  const handleAddFilter = useCallback(() => {
+  // Handler para adicionar filtro (local ou global)
+  const handleAddFilter = useCallback(async () => {
     if (!newFilter.fieldSlug || !newFilter.operator) return;
 
     // Para operadores que nao precisam de valor
-    if (newFilter.operator === 'isEmpty' || newFilter.operator === 'isNotEmpty') {
-      setActiveFilters(prev => [...prev, newFilter as ActiveFilter]);
-      setNewFilter({});
-      setFilterPopoverOpen(false);
-      return;
+    if (newFilter.operator !== 'isEmpty' && newFilter.operator !== 'isNotEmpty') {
+      if (newFilter.value === undefined || newFilter.value === '') return;
+      if (newFilter.operator === 'between' && (newFilter.value2 === undefined || newFilter.value2 === '')) return;
     }
 
-    // Para outros operadores, precisa de valor
-    if (newFilter.value === undefined || newFilter.value === '') return;
+    const filter = newFilter as ActiveFilter;
 
-    // Para between, precisa de value2
-    if (newFilter.operator === 'between' && (newFilter.value2 === undefined || newFilter.value2 === '')) return;
+    if (saveAsGlobal && selectedEntity) {
+      // Salvar como filtro global via API
+      setSavingGlobalFilter(true);
+      try {
+        const updatedFilters = [...globalFilters, filter];
+        await entitiesService.updateGlobalFilters(selectedEntity.id, updatedFilters);
+        setGlobalFilters(updatedFilters);
+        // Atualizar entity settings localmente
+        setSelectedEntity(prev => prev ? {
+          ...prev,
+          settings: { ...((prev.settings as Record<string, unknown>) || {}), globalFilters: updatedFilters },
+        } as Entity : null);
+        toast.success('Filtro global salvo');
+      } catch {
+        toast.error('Erro ao salvar filtro global');
+      } finally {
+        setSavingGlobalFilter(false);
+      }
+    } else {
+      // Filtro local (sessao)
+      setActiveFilters(prev => [...prev, filter]);
+    }
 
-    setActiveFilters(prev => [...prev, newFilter as ActiveFilter]);
     setNewFilter({});
+    setSaveAsGlobal(false);
     setFilterPopoverOpen(false);
-  }, [newFilter]);
+  }, [newFilter, saveAsGlobal, selectedEntity, globalFilters]);
 
   // Handler para remover filtro
   const handleRemoveFilter = useCallback((index: number) => {
@@ -825,7 +852,7 @@ function DataPageContent() {
     return record.data[col];
   }, [getFieldBySlug]);
 
-  // Filtro de busca e filtros ativos
+  // Filtro de busca e filtros ativos (globais + locais)
   const filteredRecords = useMemo(() => {
     let result = records;
 
@@ -837,7 +864,20 @@ function DataPageContent() {
       );
     }
 
-    // Aplicar filtros ativos
+    // Aplicar filtros globais
+    if (globalFilters.length > 0) {
+      result = result.filter(record => {
+        return globalFilters.every(filter => {
+          const field = getFieldBySlug(filter.fieldSlug);
+          const value = field?.type === 'sub-entity'
+            ? record._childCounts?.[filter.fieldSlug] ?? 0
+            : record.data[filter.fieldSlug];
+          return evaluateFilter(value, filter);
+        });
+      });
+    }
+
+    // Aplicar filtros locais ativos
     if (activeFilters.length > 0) {
       result = result.filter(record => {
         return activeFilters.every(filter => {
@@ -851,7 +891,7 @@ function DataPageContent() {
     }
 
     return result;
-  }, [records, searchTerm, allColumns, activeFilters, getCellValue, getFieldBySlug]);
+  }, [records, searchTerm, allColumns, activeFilters, globalFilters, getCellValue, getFieldBySlug]);
 
   return (
     <div className="space-y-4 sm:space-y-6">
@@ -1005,7 +1045,7 @@ function DataPageContent() {
                         ? t('recordsCount', { filtered: filteredRecords.length, total: paginationMeta.total })
                         : t('recordsCount', { filtered: filteredRecords.length, total: records.length })
                       }
-                      {activeFilters.length > 0 && ` (${t('filtersActive', { count: activeFilters.length })})`}
+                      {(activeFilters.length + globalFilters.length) > 0 && ` (${t('filtersActive', { count: activeFilters.length + globalFilters.length })})`}
                     </CardDescription>
                   </div>
                   <div className="flex items-center gap-2 flex-wrap">
@@ -1026,9 +1066,9 @@ function DataPageContent() {
                         <Button variant="outline" size="sm" className="gap-1">
                           <Filter className="h-4 w-4" />
                           <span className="hidden sm:inline">{t('filter.title')}</span>
-                          {activeFilters.length > 0 && (
+                          {(activeFilters.length + globalFilters.length) > 0 && (
                             <Badge variant="secondary" className="ml-1 px-1.5 py-0 text-xs">
-                              {activeFilters.length}
+                              {activeFilters.length + globalFilters.length}
                             </Badge>
                           )}
                         </Button>
@@ -1348,14 +1388,33 @@ function DataPageContent() {
                             </div>
                           )}
 
+                          {/* Switch salvar como global */}
+                          {selectedEntity && hasEntityPermission(selectedEntity.slug, 'canUpdate') && (
+                            <div className="flex items-center gap-3 pt-1 border-t">
+                              <Switch
+                                id="save-global"
+                                checked={saveAsGlobal}
+                                onCheckedChange={setSaveAsGlobal}
+                              />
+                              <Label htmlFor="save-global" className="text-xs flex items-center gap-1.5 cursor-pointer">
+                                <Globe className="h-3.5 w-3.5" />
+                                Salvar como filtro global
+                              </Label>
+                            </div>
+                          )}
+
                           {/* Botao adicionar */}
                           <Button
                             onClick={handleAddFilter}
                             className="w-full"
-                            disabled={!newFilter.fieldSlug || !newFilter.operator}
+                            disabled={!newFilter.fieldSlug || !newFilter.operator || savingGlobalFilter}
                           >
-                            <Plus className="h-4 w-4 mr-2" />
-                            {t('filter.addFilter')}
+                            {savingGlobalFilter ? (
+                              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                            ) : (
+                              <Plus className="h-4 w-4 mr-2" />
+                            )}
+                            {saveAsGlobal ? 'Salvar filtro global' : t('filter.addFilter')}
                           </Button>
                         </div>
                       </PopoverContent>
@@ -1617,7 +1676,44 @@ function DataPageContent() {
                   </div>
                 )}
 
-                {/* Filtros ativos (pills) */}
+                {/* Filtros globais (pills com icone globe) */}
+                {globalFilters.length > 0 && (
+                  <div className="flex flex-wrap gap-2 items-center">
+                    {globalFilters.map((filter, index) => (
+                      <Badge
+                        key={`global-${filter.fieldSlug}-${index}`}
+                        variant="outline"
+                        className="gap-1 pl-2 pr-1 py-1 border-primary/30 bg-primary/5"
+                      >
+                        <Globe className="h-3 w-3 text-primary/70" />
+                        <span className="text-xs">{formatFilterLabel(filter, t, tCommon)}</span>
+                        {selectedEntity && hasEntityPermission(selectedEntity.slug, 'canUpdate') && (
+                          <button
+                            onClick={async () => {
+                              const updated = globalFilters.filter((_, i) => i !== index);
+                              try {
+                                await entitiesService.updateGlobalFilters(selectedEntity.id, updated);
+                                setGlobalFilters(updated);
+                                setSelectedEntity(prev => prev ? {
+                                  ...prev,
+                                  settings: { ...((prev.settings as Record<string, unknown>) || {}), globalFilters: updated },
+                                } as Entity : null);
+                                toast.success('Filtro global removido');
+                              } catch {
+                                toast.error('Erro ao remover filtro global');
+                              }
+                            }}
+                            className="ml-1 rounded-full hover:bg-muted p-0.5"
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        )}
+                      </Badge>
+                    ))}
+                  </div>
+                )}
+
+                {/* Filtros locais ativos (pills) */}
                 {activeFilters.length > 0 && (
                   <div className="flex flex-wrap gap-2 items-center">
                     {activeFilters.map((filter, index) => (

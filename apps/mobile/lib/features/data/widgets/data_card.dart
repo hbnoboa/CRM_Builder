@@ -12,11 +12,13 @@ class DataCard extends StatelessWidget {
     required this.record,
     required this.fields,
     this.onTap,
+    this.visibleFieldSlugs,
   });
 
   final Map<String, dynamic> record;
   final List<dynamic> fields;
   final VoidCallback? onTap;
+  final Set<String>? visibleFieldSlugs;
 
   @override
   Widget build(BuildContext context) {
@@ -29,22 +31,26 @@ class DataCard extends StatelessWidget {
     String title = 'Registro';
     String? subtitle;
 
-    for (int i = 0; i < fields.length && i < 3; i++) {
+    int displayed = 0;
+    for (int i = 0; i < fields.length && displayed < 3; i++) {
       final field = fields[i] as Map<String, dynamic>;
       final slug = field['slug'] as String? ?? '';
       final type = (field['type'] as String? ?? 'text').toUpperCase();
+      if (type == 'SUB_ENTITY' || type == 'HIDDEN') continue;
+      // Field-level permissions: skip non-visible fields
+      if (visibleFieldSlugs != null && !visibleFieldSlugs!.contains(slug)) continue;
+
       final value = data[slug];
       if (value == null || value.toString().isEmpty) continue;
 
-      if (type == 'SUB_ENTITY' || type == 'HIDDEN') continue;
-
       final formatted = _formatValue(value, type);
 
-      if (i == 0) {
+      if (displayed == 0) {
         title = formatted;
       } else if (subtitle == null) {
         subtitle = '${field['name']}: $formatted';
       }
+      displayed++;
     }
 
     return Card(

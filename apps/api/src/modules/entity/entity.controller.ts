@@ -12,6 +12,7 @@ import {
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { EntityService, QueryEntityDto, CreateEntityDto, UpdateEntityDto } from './entity.service';
 import { UpdateColumnConfigDto } from './dto/entity.dto';
+import { UpdateGlobalFiltersDto } from './dto/update-global-filters.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
@@ -63,6 +64,17 @@ export class EntityController {
   ) {
     checkModulePermission(user, 'data', 'canConfigureColumns');
     return this.entityService.updateColumnConfig(id, dto.visibleColumns, user);
+  }
+
+  @Patch(':id/global-filters')
+  @ApiOperation({ summary: 'Atualizar filtros globais da entidade' })
+  async updateGlobalFilters(
+    @Param('id') id: string,
+    @Body() dto: UpdateGlobalFiltersDto,
+    @CurrentUser() user: CurrentUserType,
+  ) {
+    checkModulePermission(user, 'entities', 'canUpdate');
+    return this.entityService.updateGlobalFilters(id, dto.globalFilters, user);
   }
 
   @Patch(':id')

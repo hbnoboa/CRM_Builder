@@ -3,7 +3,7 @@ class AppConstants {
   AppConstants._();
 
   static const String appName = 'CRM Builder';
-  static const int defaultPageSize = 20;
+  static const int defaultPageSize = 10;
 
   // Secure storage keys
   static const String keyAccessToken = 'accessToken';

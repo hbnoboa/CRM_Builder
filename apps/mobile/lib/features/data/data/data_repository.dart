@@ -1,7 +1,10 @@
+import 'dart:convert';
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:crm_mobile/core/database/app_database.dart';
+import 'package:crm_mobile/core/filters/filter_models.dart';
+import 'package:crm_mobile/core/filters/filter_sql_builder.dart';
 import 'package:crm_mobile/core/network/api_client.dart';
 
 part 'data_repository.g.dart';
@@ -22,14 +25,35 @@ class DataRepository {
     required String entityId,
     String? search,
     String orderBy = 'createdAt DESC',
-    int limit = 20,
+    int limit = 10,
     int offset = 0,
+    List<GlobalFilter> globalFilters = const [],
+    List<LocalFilter> localFilters = const [],
+    String? createdById,
   }) {
     final db = AppDatabase.instance.db;
 
     var query =
         'SELECT * FROM EntityData WHERE entityId = ? AND parentRecordId IS NULL AND deletedAt IS NULL';
     final params = <dynamic>[entityId];
+
+    // Scope 'own': only show records created by this user
+    if (createdById != null) {
+      query += ' AND createdById = ?';
+      params.add(createdById);
+    }
+
+    // Apply global + local filters via json_extract
+    if (globalFilters.isNotEmpty || localFilters.isNotEmpty) {
+      final filterResult = FilterSqlBuilder.buildFilterClauses(
+        globalFilters,
+        localFilters,
+      );
+      if (filterResult.where.isNotEmpty) {
+        query += filterResult.where;
+        params.addAll(filterResult.params);
+      }
+    }
 
     if (search != null && search.isNotEmpty) {
       query += ' AND data LIKE ?';
@@ -40,6 +64,23 @@ class DataRepository {
     params.addAll([limit, offset]);
 
     return db.watch(query, parameters: params);
+  }
+
+  /// Extract global filters from Entity.settings JSON.
+  List<GlobalFilter> extractGlobalFilters(Map<String, dynamic> entity) {
+    try {
+      final settingsStr = entity['settings'] as String?;
+      if (settingsStr == null || settingsStr.isEmpty) return [];
+      final settings = jsonDecode(settingsStr) as Map<String, dynamic>;
+      final filtersJson = settings['globalFilters'] as List<dynamic>?;
+      if (filtersJson == null) return [];
+      return filtersJson
+          .whereType<Map<String, dynamic>>()
+          .map((json) => GlobalFilter.fromJson(json))
+          .toList();
+    } catch (_) {
+      return [];
+    }
   }
 
   /// Get a single record by ID (local).

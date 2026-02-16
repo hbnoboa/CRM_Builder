@@ -51,6 +51,25 @@ class ModulePermission {
   static const readOnly = ModulePermission(canRead: true);
 }
 
+class FieldPermission {
+  const FieldPermission({
+    required this.fieldSlug,
+    this.canView = true,
+    this.canEdit = true,
+  });
+
+  final String fieldSlug;
+  final bool canView;
+  final bool canEdit;
+
+  factory FieldPermission.fromJson(Map<String, dynamic> json) =>
+      FieldPermission(
+        fieldSlug: json['fieldSlug'] as String,
+        canView: json['canView'] as bool? ?? true,
+        canEdit: json['canEdit'] as bool? ?? true,
+      );
+}
+
 class EntityPermission {
   const EntityPermission({
     required this.entitySlug,
@@ -59,6 +78,7 @@ class EntityPermission {
     this.canUpdate = false,
     this.canDelete = false,
     this.scope = 'all',
+    this.fieldPermissions = const [],
   });
 
   final String entitySlug;
@@ -67,16 +87,24 @@ class EntityPermission {
   final bool canUpdate;
   final bool canDelete;
   final String scope;
+  final List<FieldPermission> fieldPermissions;
 
-  factory EntityPermission.fromJson(Map<String, dynamic> json) =>
-      EntityPermission(
-        entitySlug: json['entitySlug'] as String,
-        canCreate: json['canCreate'] as bool? ?? false,
-        canRead: json['canRead'] as bool? ?? false,
-        canUpdate: json['canUpdate'] as bool? ?? false,
-        canDelete: json['canDelete'] as bool? ?? false,
-        scope: json['scope'] as String? ?? 'all',
-      );
+  factory EntityPermission.fromJson(Map<String, dynamic> json) {
+    final fpList = json['fieldPermissions'] as List<dynamic>?;
+    return EntityPermission(
+      entitySlug: json['entitySlug'] as String,
+      canCreate: json['canCreate'] as bool? ?? false,
+      canRead: json['canRead'] as bool? ?? false,
+      canUpdate: json['canUpdate'] as bool? ?? false,
+      canDelete: json['canDelete'] as bool? ?? false,
+      scope: json['scope'] as String? ?? 'all',
+      fieldPermissions: fpList
+              ?.whereType<Map<String, dynamic>>()
+              .map(FieldPermission.fromJson)
+              .toList() ??
+          const [],
+    );
+  }
 }
 
 // ═══════════════════════════════════════════════════════
@@ -271,6 +299,37 @@ class PermissionsState {
       default:
         return false;
     }
+  }
+
+  /// Get field-level permissions for an entity.
+  /// Returns null if no restrictions (ADMIN/PLATFORM_ADMIN or no fieldPermissions defined).
+  /// Returns the list of FieldPermission otherwise.
+  List<FieldPermission>? getFieldPermissions(String entitySlug) {
+    if (roleType == null) return null;
+    if (isPlatformAdmin || isAdmin) return null;
+    if (roleType != 'CUSTOM') return null;
+
+    final perm = entityPermissions
+        .where((p) => p.entitySlug == entitySlug)
+        .firstOrNull;
+    if (perm == null || perm.fieldPermissions.isEmpty) return null;
+    return perm.fieldPermissions;
+  }
+
+  /// Get visible field slugs for an entity.
+  /// Returns null if no restrictions (all fields visible).
+  Set<String>? getVisibleFields(String entitySlug) {
+    final fp = getFieldPermissions(entitySlug);
+    if (fp == null) return null;
+    return fp.where((f) => f.canView).map((f) => f.fieldSlug).toSet();
+  }
+
+  /// Get editable field slugs for an entity.
+  /// Returns null if no restrictions (all fields editable).
+  Set<String>? getEditableFields(String entitySlug) {
+    final fp = getFieldPermissions(entitySlug);
+    if (fp == null) return null;
+    return fp.where((f) => f.canEdit).map((f) => f.fieldSlug).toSet();
   }
 
   /// Get scope for an entity (all | own).

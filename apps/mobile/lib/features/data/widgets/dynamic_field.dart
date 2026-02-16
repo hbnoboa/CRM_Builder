@@ -4,8 +4,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:crm_mobile/core/auth/secure_storage.dart';
 import 'package:crm_mobile/core/cache/crm_cache_manager.dart';
 import 'package:crm_mobile/core/database/app_database.dart';
+import 'package:crm_mobile/core/network/api_client.dart';
 import 'package:crm_mobile/core/theme/app_colors.dart';
 import 'package:crm_mobile/core/theme/app_typography.dart';
 import 'package:crm_mobile/features/data/widgets/image_field_input.dart';
@@ -132,6 +134,8 @@ class DynamicFieldDisplay extends StatelessWidget {
         );
 
       case 'SELECT':
+      case 'API-SELECT':
+      case 'API_SELECT':
         return Chip(label: Text(value.toString()));
 
       case 'MULTI_SELECT':
@@ -441,14 +445,33 @@ class DynamicFieldInput extends StatelessWidget {
     required this.field,
     this.value,
     required this.onChanged,
+    this.enabled = true,
+    this.onAutoFill,
+    this.allFields,
   });
 
   final Map<String, dynamic> field;
   final dynamic value;
   final ValueChanged<dynamic> onChanged;
+  final bool enabled;
+
+  /// Callback to auto-fill other form fields (used by api-select).
+  /// Receives a map of { fieldSlug: value } to update.
+  final void Function(Map<String, dynamic>)? onAutoFill;
+
+  /// All entity fields (needed for api-select to resolve autoFillFields targets).
+  final List<dynamic>? allFields;
 
   @override
   Widget build(BuildContext context) {
+    // If disabled (field-level permissions), show read-only display instead
+    if (!enabled) {
+      return Opacity(
+        opacity: 0.6,
+        child: DynamicFieldDisplay(field: field, value: value),
+      );
+    }
+
     final name = field['name'] as String? ?? field['slug'] as String? ?? '';
     final type = (field['type'] as String? ?? 'text').toUpperCase();
     final required = field['required'] == true;
@@ -752,6 +775,20 @@ class DynamicFieldInput extends StatelessWidget {
           value: value is List ? List<String>.from(value.map((e) => e.toString())) : null,
           required: required,
           onChanged: onChanged,
+        );
+
+      case 'API-SELECT':
+      case 'API_SELECT':
+        return _ApiSelectFieldInput(
+          label: name,
+          value: value?.toString(),
+          required: required,
+          field: field,
+          onChanged: onChanged,
+          onAutoFill: onAutoFill,
+          allFields: allFields,
+          placeholder: placeholder,
+          helpText: helpText,
         );
 
       case 'RELATION':
@@ -1704,6 +1741,383 @@ class _RelationSearchSheetState extends State<_RelationSearchSheet> {
                       : null,
                   selected: isSelected,
                   onTap: () => Navigator.of(context).pop(id),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════
+// API-SELECT FIELD (fetches options from custom API endpoint)
+// ═══════════════════════════════════════════════════════
+
+class _ApiSelectOption {
+  const _ApiSelectOption({
+    required this.value,
+    required this.label,
+    required this.data,
+  });
+
+  final String value;
+  final String label;
+  final Map<String, dynamic> data;
+}
+
+class _ApiSelectFieldInput extends StatefulWidget {
+  const _ApiSelectFieldInput({
+    required this.label,
+    this.value,
+    required this.required,
+    required this.field,
+    required this.onChanged,
+    this.onAutoFill,
+    this.allFields,
+    this.placeholder,
+    this.helpText,
+  });
+
+  final String label;
+  final String? value;
+  final bool required;
+  final Map<String, dynamic> field;
+  final ValueChanged<dynamic> onChanged;
+  final void Function(Map<String, dynamic>)? onAutoFill;
+  final List<dynamic>? allFields;
+  final String? placeholder;
+  final String? helpText;
+
+  @override
+  State<_ApiSelectFieldInput> createState() => _ApiSelectFieldInputState();
+}
+
+class _ApiSelectFieldInputState extends State<_ApiSelectFieldInput> {
+  List<_ApiSelectOption> _options = [];
+  String? _selectedValue;
+  bool _loading = true;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedValue = widget.value;
+    _fetchOptions();
+  }
+
+  Future<void> _fetchOptions() async {
+    final apiEndpoint = widget.field['apiEndpoint'] as String?;
+    if (apiEndpoint == null || apiEndpoint.isEmpty) {
+      setState(() {
+        _loading = false;
+        _error = 'Sem endpoint configurado';
+      });
+      return;
+    }
+
+    try {
+      // Get tenantId for the /x/{tenantId} prefix
+      final tenantId = await SecureStorage.getSelectedTenantId() ??
+          await SecureStorage.getTenantId();
+      if (tenantId == null) {
+        setState(() {
+          _loading = false;
+          _error = 'Tenant nao encontrado';
+        });
+        return;
+      }
+
+      final dio = createApiClient();
+      final response = await dio.get('/x/$tenantId$apiEndpoint');
+
+      final responseData = response.data;
+      final List<dynamic> items;
+      if (responseData is List) {
+        items = responseData;
+      } else if (responseData is Map && responseData['data'] is List) {
+        items = responseData['data'] as List;
+      } else {
+        items = [];
+      }
+
+      final valueField = widget.field['valueField'] as String? ?? 'id';
+      final labelField = widget.field['labelField'] as String? ?? 'name';
+
+      final options = items.map((item) {
+        if (item is! Map<String, dynamic>) return null;
+
+        final value = (item[valueField] ?? item['id'] ?? '').toString();
+
+        // Find label: use labelField, fallback to first string field
+        var label = item[labelField]?.toString();
+        if (label == null || label.isEmpty) {
+          for (final entry in item.entries) {
+            if (entry.value is String &&
+                entry.key != 'id' &&
+                entry.key != 'createdAt' &&
+                entry.key != 'updatedAt') {
+              label = entry.value as String;
+              break;
+            }
+          }
+        }
+
+        return _ApiSelectOption(
+          value: value,
+          label: label ?? value,
+          data: item,
+        );
+      }).whereType<_ApiSelectOption>().toList();
+
+      if (mounted) {
+        setState(() {
+          _options = options;
+          _loading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _loading = false;
+          _error = 'Erro ao carregar opcoes';
+        });
+      }
+    }
+  }
+
+  void _onSelectionChanged(String? value) {
+    if (value == null) return;
+    setState(() => _selectedValue = value);
+    widget.onChanged(value);
+
+    // Handle autoFillFields
+    final autoFillFields = widget.field['autoFillFields'] as List<dynamic>?;
+    if (autoFillFields == null ||
+        autoFillFields.isEmpty ||
+        widget.onAutoFill == null) {
+      return;
+    }
+
+    final selectedOption = _options.where((o) => o.value == value).firstOrNull;
+    if (selectedOption == null) return;
+
+    // Build slug lookup: name -> slug, slug -> slug
+    final slugLookup = <String, String>{};
+    if (widget.allFields != null) {
+      for (final f in widget.allFields!) {
+        if (f is Map<String, dynamic>) {
+          final slug = f['slug'] as String?;
+          final name = f['name'] as String?;
+          if (slug != null) slugLookup[slug] = slug;
+          if (name != null && slug != null) slugLookup[name] = slug;
+        }
+      }
+    }
+
+    final updates = <String, dynamic>{};
+    for (final rule in autoFillFields) {
+      if (rule is! Map<String, dynamic>) continue;
+      final sourceField = rule['sourceField'] as String?;
+      final targetField = rule['targetField'] as String?;
+      if (sourceField == null || targetField == null) continue;
+
+      final sourceValue = selectedOption.data[sourceField];
+      if (sourceValue == null) continue;
+
+      final resolvedTarget = slugLookup[targetField] ?? targetField;
+      updates[resolvedTarget] = sourceValue;
+    }
+
+    if (updates.isNotEmpty) {
+      widget.onAutoFill!(updates);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_loading) {
+      return InputDecorator(
+        decoration: InputDecoration(
+          labelText: widget.label,
+          helperText: widget.helpText,
+        ),
+        child: Row(
+          children: [
+            const SizedBox(
+              width: 16,
+              height: 16,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+            const SizedBox(width: 12),
+            Text(
+              'Carregando opcoes...',
+              style: AppTypography.bodyMedium.copyWith(
+                color: AppColors.mutedForeground,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (_error != null) {
+      return InputDecorator(
+        decoration: InputDecoration(
+          labelText: widget.label,
+          errorText: _error,
+        ),
+        child: Text(
+          _error!,
+          style: AppTypography.bodyMedium.copyWith(color: AppColors.error),
+        ),
+      );
+    }
+
+    if (_options.length <= 10) {
+      return DropdownButtonFormField<String>(
+        value: _selectedValue,
+        decoration: InputDecoration(
+          labelText: widget.label,
+          hintText: widget.placeholder,
+          helperText: widget.helpText,
+        ),
+        isExpanded: true,
+        items: _options
+            .map((o) => DropdownMenuItem(
+                  value: o.value,
+                  child: Text(
+                    o.label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ))
+            .toList(),
+        validator: widget.required
+            ? (v) =>
+                (v == null || v.isEmpty) ? '${widget.label} obrigatorio' : null
+            : null,
+        onChanged: _onSelectionChanged,
+      );
+    }
+
+    // For many options, use a searchable bottom sheet
+    return InkWell(
+      onTap: () => _showSearchSheet(context),
+      child: InputDecorator(
+        decoration: InputDecoration(
+          labelText: widget.label,
+          hintText: widget.placeholder,
+          helperText: widget.helpText,
+          suffixIcon: const Icon(Icons.arrow_drop_down),
+        ),
+        child: Text(
+          _selectedLabel ?? 'Selecionar...',
+          style: _selectedLabel != null
+              ? null
+              : TextStyle(color: AppColors.mutedForeground),
+        ),
+      ),
+    );
+  }
+
+  String? get _selectedLabel {
+    if (_selectedValue == null) return null;
+    return _options
+        .where((o) => o.value == _selectedValue)
+        .firstOrNull
+        ?.label;
+  }
+
+  Future<void> _showSearchSheet(BuildContext context) async {
+    final result = await showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      builder: (ctx) => _ApiSelectSearchSheet(
+        options: _options,
+        selectedValue: _selectedValue,
+        label: widget.label,
+      ),
+    );
+    if (result != null) {
+      _onSelectionChanged(result);
+    }
+  }
+}
+
+class _ApiSelectSearchSheet extends StatefulWidget {
+  const _ApiSelectSearchSheet({
+    required this.options,
+    this.selectedValue,
+    required this.label,
+  });
+
+  final List<_ApiSelectOption> options;
+  final String? selectedValue;
+  final String label;
+
+  @override
+  State<_ApiSelectSearchSheet> createState() => _ApiSelectSearchSheetState();
+}
+
+class _ApiSelectSearchSheetState extends State<_ApiSelectSearchSheet> {
+  final _searchController = TextEditingController();
+  String _query = '';
+
+  List<_ApiSelectOption> get _filtered {
+    if (_query.isEmpty) return widget.options;
+    final q = _query.toLowerCase();
+    return widget.options
+        .where((o) => o.label.toLowerCase().contains(q))
+        .toList();
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return DraggableScrollableSheet(
+      initialChildSize: 0.6,
+      maxChildSize: 0.9,
+      minChildSize: 0.3,
+      expand: false,
+      builder: (context, scrollController) => Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: TextField(
+              controller: _searchController,
+              autofocus: true,
+              decoration: InputDecoration(
+                hintText: 'Buscar ${widget.label}...',
+                prefixIcon: const Icon(Icons.search),
+              ),
+              onChanged: (v) => setState(() => _query = v),
+            ),
+          ),
+          Expanded(
+            child: ListView.builder(
+              controller: scrollController,
+              itemCount: _filtered.length,
+              itemBuilder: (context, index) {
+                final opt = _filtered[index];
+                final isSelected = opt.value == widget.selectedValue;
+                return ListTile(
+                  title: Text(
+                    opt.label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  trailing: isSelected
+                      ? const Icon(Icons.check, color: AppColors.primary)
+                      : null,
+                  selected: isSelected,
+                  onTap: () => Navigator.of(context).pop(opt.value),
                 );
               },
             ),

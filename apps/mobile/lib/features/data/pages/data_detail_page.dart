@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:crm_mobile/core/database/app_database.dart';
+import 'package:crm_mobile/core/permissions/permission_provider.dart';
 import 'package:crm_mobile/core/theme/app_colors.dart';
 import 'package:crm_mobile/core/theme/app_typography.dart';
 import 'package:crm_mobile/features/data/data/data_repository.dart';
@@ -163,10 +164,21 @@ class DataDetailPage extends ConsumerWidget {
                     ],
                     const Divider(height: 32),
 
-                    // Field values (excluding sub-entity fields)
+                    // Field values (excluding sub-entity and non-visible fields)
                     ...fields
-                        .where((f) =>
-                            (f as Map<String, dynamic>)['type']?.toString().toUpperCase() != 'SUB_ENTITY')
+                        .where((f) {
+                          final fieldMap = f as Map<String, dynamic>;
+                          final type = fieldMap['type']?.toString().toUpperCase() ?? '';
+                          if (type == 'SUB_ENTITY') return false;
+                          // Field-level permissions
+                          final visibleFields = ref.read(permissionsProvider)
+                              .getVisibleFields(entitySlug);
+                          if (visibleFields != null) {
+                            final slug = fieldMap['slug'] as String? ?? '';
+                            return visibleFields.contains(slug);
+                          }
+                          return true;
+                        })
                         .map<Widget>((field) {
                       final fieldMap = field as Map<String, dynamic>;
                       final slug = fieldMap['slug'] as String? ?? '';
@@ -265,6 +277,8 @@ class DataDetailPage extends ConsumerWidget {
       } catch (_) {}
 
       final entityName = entity['name'] as String? ?? entitySlug;
+      final visibleFields = ref.read(permissionsProvider)
+          .getVisibleFields(entitySlug);
       final buffer = StringBuffer();
       buffer.writeln('$entityName - ${_getTitle(data, fields)}');
       buffer.writeln('---');
@@ -275,6 +289,9 @@ class DataDetailPage extends ConsumerWidget {
         if (type == 'SUB_ENTITY' || type == 'IMAGE' || type == 'FILE') continue;
 
         final slug = f['slug'] as String? ?? '';
+        // Respect field-level visibility
+        if (visibleFields != null && !visibleFields.contains(slug)) continue;
+
         final name = f['name'] as String? ?? f['label'] as String? ?? slug;
         final val = data[slug];
         if (val != null && val.toString().isNotEmpty) {

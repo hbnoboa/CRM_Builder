@@ -336,6 +336,17 @@ export class EntityService {
     });
   }
 
+  async updateGlobalFilters(id: string, globalFilters: Record<string, unknown>[], currentUser: CurrentUser) {
+    const entity = await this.findOne(id, currentUser);
+    const currentSettings = (entity.settings as Record<string, unknown>) || {};
+    const settings = { ...currentSettings, globalFilters };
+
+    return this.prisma.entity.update({
+      where: { id },
+      data: { settings: settings as Prisma.InputJsonValue },
+    });
+  }
+
   async remove(id: string, currentUser: CurrentUser) {
     await this.findOne(id, currentUser);
 

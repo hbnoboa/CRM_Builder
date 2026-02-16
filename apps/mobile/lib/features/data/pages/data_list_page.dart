@@ -3,12 +3,16 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:crm_mobile/core/auth/auth_provider.dart';
 import 'package:crm_mobile/core/config/constants.dart';
+import 'package:crm_mobile/core/filters/filter_models.dart';
 import 'package:crm_mobile/core/theme/app_colors.dart';
 import 'package:crm_mobile/core/theme/app_typography.dart';
 import 'package:crm_mobile/core/permissions/permission_provider.dart';
 import 'package:crm_mobile/features/data/data/data_repository.dart';
+import 'package:crm_mobile/features/data/providers/filter_provider.dart';
 import 'package:crm_mobile/features/data/widgets/data_card.dart';
+import 'package:crm_mobile/features/data/widgets/filter_bottom_sheet.dart';
 import 'package:crm_mobile/shared/widgets/permission_gate.dart';
 import 'package:crm_mobile/shared/widgets/sync_status_indicator.dart';
 
@@ -40,6 +44,11 @@ class _DataListPageState extends ConsumerState<DataListPage> {
   String _search = '';
   int _limit = AppConstants.defaultPageSize;
   SortOption _sort = SortOption.newestFirst;
+
+  // Filter state
+  List<GlobalFilter> _globalFilters = [];
+  String? _entityId;
+  List<dynamic> _fields = [];
 
   @override
   void initState() {
@@ -142,9 +151,45 @@ class _DataListPageState extends ConsumerState<DataListPage> {
     );
   }
 
+  void _showFilterSheet() {
+    if (_entityId == null) return;
+    final canManage = ref.read(permissionsProvider)
+        .hasEntityPermission(widget.entitySlug, 'canUpdate');
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => FilterBottomSheet(
+        entitySlug: widget.entitySlug,
+        entityId: _entityId!,
+        globalFilters: _globalFilters,
+        fields: _fields,
+        canManageGlobal: canManage,
+        onGlobalFiltersChanged: _onGlobalFiltersChanged,
+      ),
+    );
+  }
+
+  void _onGlobalFiltersChanged(List<GlobalFilter> updated) {
+    setState(() {
+      _globalFilters = updated;
+      _limit = AppConstants.defaultPageSize;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final repo = ref.watch(dataRepositoryProvider);
+    final localFilters =
+        ref.watch(entityLocalFiltersProvider)[widget.entitySlug] ?? [];
+    final totalFilterCount = _globalFilters.length + localFilters.length;
+
+    // Scope 'own': filter by createdById
+    final perms = ref.watch(permissionsProvider);
+    final scope = perms.getEntityScope(widget.entitySlug);
+    final scopeUserId = scope == 'own'
+        ? ref.watch(authProvider).user?.id
+        : null;
 
     return Scaffold(
       appBar: AppBar(
@@ -156,6 +201,42 @@ class _DataListPageState extends ConsumerState<DataListPage> {
           },
         ),
         actions: [
+          // Filter button with badge
+          Stack(
+            alignment: Alignment.center,
+            children: [
+              IconButton(
+                icon: const Icon(Icons.filter_list),
+                tooltip: 'Filtros',
+                onPressed: _showFilterSheet,
+              ),
+              if (totalFilterCount > 0)
+                Positioned(
+                  top: 6,
+                  right: 6,
+                  child: Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary,
+                      shape: BoxShape.circle,
+                    ),
+                    constraints: const BoxConstraints(
+                      minWidth: 16,
+                      minHeight: 16,
+                    ),
+                    child: Text(
+                      '$totalFilterCount',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                ),
+            ],
+          ),
           IconButton(
             icon: const Icon(Icons.sort),
             tooltip: 'Ordenar',
@@ -199,6 +280,48 @@ class _DataListPageState extends ConsumerState<DataListPage> {
             ),
           ),
 
+          // Active filter chips
+          if (_globalFilters.isNotEmpty || localFilters.isNotEmpty)
+            SizedBox(
+              height: 40,
+              child: ListView(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                children: [
+                  ..._globalFilters.map((f) => Padding(
+                        padding: const EdgeInsets.only(right: 6),
+                        child: Chip(
+                          avatar: Icon(Icons.public,
+                              size: 14, color: AppColors.primary),
+                          label: Text(f.displayLabel,
+                              style: const TextStyle(fontSize: 12)),
+                          visualDensity: VisualDensity.compact,
+                          materialTapTargetSize:
+                              MaterialTapTargetSize.shrinkWrap,
+                        ),
+                      )),
+                  ...localFilters.map((f) => Padding(
+                        padding: const EdgeInsets.only(right: 6),
+                        child: Chip(
+                          label: Text(f.displayLabel,
+                              style: const TextStyle(fontSize: 12)),
+                          visualDensity: VisualDensity.compact,
+                          materialTapTargetSize:
+                              MaterialTapTargetSize.shrinkWrap,
+                          onDeleted: () {
+                            ref
+                                .read(entityLocalFiltersProvider.notifier)
+                                .removeFilter(widget.entitySlug, f.id);
+                            setState(
+                                () => _limit = AppConstants.defaultPageSize);
+                          },
+                          deleteIconColor: AppColors.mutedForeground,
+                        ),
+                      )),
+                ],
+              ),
+            ),
+
           // Records list with pull-to-refresh + infinite scroll
           Expanded(
             child: FutureBuilder<Map<String, dynamic>?>(
@@ -211,12 +334,32 @@ class _DataListPageState extends ConsumerState<DataListPage> {
 
                 final entityId = entity['id'] as String;
 
+                // Cache entity metadata for filter sheet
+                if (_entityId != entityId) {
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    if (!mounted) return;
+                    setState(() {
+                      _entityId = entityId;
+                      _globalFilters = repo.extractGlobalFilters(entity);
+                      try {
+                        _fields = jsonDecode(
+                            entity['fields'] as String? ?? '[]');
+                      } catch (_) {
+                        _fields = [];
+                      }
+                    });
+                  });
+                }
+
                 return StreamBuilder<List<Map<String, dynamic>>>(
                   stream: repo.watchRecords(
                     entityId: entityId,
                     search: _search.isNotEmpty ? _search : null,
                     orderBy: _sort.sql,
                     limit: _limit,
+                    globalFilters: _globalFilters,
+                    localFilters: localFilters,
+                    createdById: scopeUserId,
                   ),
                   builder: (context, snapshot) {
                     final records = snapshot.data ?? [];
@@ -243,7 +386,9 @@ class _DataListPageState extends ConsumerState<DataListPage> {
                                     Text(
                                       _search.isNotEmpty
                                           ? 'Nenhum resultado para "$_search"'
-                                          : 'Nenhum registro encontrado',
+                                          : totalFilterCount > 0
+                                              ? 'Nenhum registro com estes filtros'
+                                              : 'Nenhum registro encontrado',
                                       style:
                                           AppTypography.bodyMedium.copyWith(
                                         color: AppColors.mutedForeground,
@@ -257,13 +402,6 @@ class _DataListPageState extends ConsumerState<DataListPage> {
                         ),
                       );
                     }
-
-                    // Parse entity fields for display
-                    List<dynamic> fields = [];
-                    try {
-                      fields =
-                          jsonDecode(entity['fields'] as String? ?? '[]');
-                    } catch (_) {}
 
                     final hasMore = records.length >= _limit;
                     final showEndIndicator =
@@ -322,7 +460,8 @@ class _DataListPageState extends ConsumerState<DataListPage> {
 
                           final card = DataCard(
                             record: record,
-                            fields: fields,
+                            fields: _fields,
+                            visibleFieldSlugs: perms.getVisibleFields(widget.entitySlug),
                             onTap: () {
                               context.push(
                                 '/data/${widget.entitySlug}/${record['id']}',
