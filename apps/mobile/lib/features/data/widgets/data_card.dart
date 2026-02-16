@@ -13,12 +13,42 @@ class DataCard extends StatelessWidget {
     required this.fields,
     this.onTap,
     this.visibleFieldSlugs,
+    this.columnOrder,
   });
 
   final Map<String, dynamic> record;
   final List<dynamic> fields;
   final VoidCallback? onTap;
   final Set<String>? visibleFieldSlugs;
+  final List<String>? columnOrder;
+
+  /// Returns fields ordered by columnConfig (if set), filtering hidden/sub-entity.
+  List<Map<String, dynamic>> _getOrderedFields() {
+    final allFields = fields
+        .cast<Map<String, dynamic>>()
+        .where((f) {
+          final type = (f['type'] as String? ?? 'text').toUpperCase();
+          if (type == 'SUB_ENTITY' || type == 'HIDDEN') return false;
+          final slug = f['slug'] as String? ?? '';
+          if (visibleFieldSlugs != null && !visibleFieldSlugs!.contains(slug)) return false;
+          return true;
+        })
+        .toList();
+
+    if (columnOrder == null || columnOrder!.isEmpty) return allFields;
+
+    // Build slug→field map for fast lookup
+    final fieldMap = <String, Map<String, dynamic>>{};
+    for (final f in allFields) {
+      fieldMap[f['slug'] as String? ?? ''] = f;
+    }
+
+    // Return fields in columnConfig order (only those that exist and are visible)
+    return columnOrder!
+        .where((slug) => fieldMap.containsKey(slug))
+        .map((slug) => fieldMap[slug]!)
+        .toList();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -27,22 +57,19 @@ class DataCard extends StatelessWidget {
       data = jsonDecode(record['data'] as String? ?? '{}');
     } catch (_) {}
 
-    // Get title from first text field
     String title = 'Registro';
     String? subtitle;
 
+    final orderedFields = _getOrderedFields();
     int displayed = 0;
-    for (int i = 0; i < fields.length && displayed < 3; i++) {
-      final field = fields[i] as Map<String, dynamic>;
+    for (int i = 0; i < orderedFields.length && displayed < 3; i++) {
+      final field = orderedFields[i];
       final slug = field['slug'] as String? ?? '';
-      final type = (field['type'] as String? ?? 'text').toUpperCase();
-      if (type == 'SUB_ENTITY' || type == 'HIDDEN') continue;
-      // Field-level permissions: skip non-visible fields
-      if (visibleFieldSlugs != null && !visibleFieldSlugs!.contains(slug)) continue;
 
       final value = data[slug];
       if (value == null || value.toString().isEmpty) continue;
 
+      final type = (field['type'] as String? ?? 'text').toUpperCase();
       final formatted = _formatValue(value, type);
 
       if (displayed == 0) {

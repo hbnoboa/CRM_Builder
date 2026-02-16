@@ -83,6 +83,21 @@ class DataRepository {
     }
   }
 
+  /// Extract visible column slugs (ordered) from Entity.settings JSON.
+  List<String> extractVisibleColumns(Map<String, dynamic> entity) {
+    try {
+      final settingsStr = entity['settings'] as String?;
+      if (settingsStr == null || settingsStr.isEmpty) return [];
+      final settings = jsonDecode(settingsStr) as Map<String, dynamic>;
+      final columnConfig = settings['columnConfig'] as Map<String, dynamic>?;
+      final visibleColumns = columnConfig?['visibleColumns'] as List<dynamic>?;
+      if (visibleColumns == null) return [];
+      return visibleColumns.cast<String>().toList();
+    } catch (_) {
+      return [];
+    }
+  }
+
   /// Get a single record by ID (local).
   Future<Map<String, dynamic>?> getRecord(String recordId) async {
     final db = AppDatabase.instance.db;

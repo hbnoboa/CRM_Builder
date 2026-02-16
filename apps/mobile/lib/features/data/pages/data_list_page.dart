@@ -49,6 +49,7 @@ class _DataListPageState extends ConsumerState<DataListPage> {
   List<GlobalFilter> _globalFilters = [];
   String? _entityId;
   List<dynamic> _fields = [];
+  List<String> _columnOrder = [];
 
   @override
   void initState() {
@@ -341,6 +342,7 @@ class _DataListPageState extends ConsumerState<DataListPage> {
                     setState(() {
                       _entityId = entityId;
                       _globalFilters = repo.extractGlobalFilters(entity);
+                      _columnOrder = repo.extractVisibleColumns(entity);
                       try {
                         _fields = jsonDecode(
                             entity['fields'] as String? ?? '[]');
@@ -462,6 +464,7 @@ class _DataListPageState extends ConsumerState<DataListPage> {
                             record: record,
                             fields: _fields,
                             visibleFieldSlugs: perms.getVisibleFields(widget.entitySlug),
+                            columnOrder: _columnOrder.isNotEmpty ? _columnOrder : null,
                             onTap: () {
                               context.push(
                                 '/data/${widget.entitySlug}/${record['id']}',
