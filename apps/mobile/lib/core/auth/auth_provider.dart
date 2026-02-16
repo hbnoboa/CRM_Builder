@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:crm_mobile/core/auth/secure_storage.dart';
@@ -251,13 +252,16 @@ class Auth extends _$Auth {
         isLoading: false,
       );
 
-      // Connect PowerSync to start syncing data
-      await AppDatabase.instance.connect();
-
-      // Register device for push notifications
-      PushNotificationService.instance.registerDeviceToken();
-
       _manualAuthInProgress = false;
+
+      // Connect PowerSync to start syncing data (non-blocking)
+      AppDatabase.instance.connect().catchError((e) {
+        // PowerSync connection failure should not block login
+        debugPrint('[Auth] PowerSync connect failed: $e');
+      });
+
+      // Register device for push notifications (non-blocking)
+      PushNotificationService.instance.registerDeviceToken();
     } catch (e) {
       _manualAuthInProgress = false;
       final message = _extractErrorMessage(e, 'Falha no login');
@@ -307,13 +311,15 @@ class Auth extends _$Auth {
         isLoading: false,
       );
 
-      // Connect PowerSync to start syncing data
-      await AppDatabase.instance.connect();
-
-      // Register device for push notifications
-      PushNotificationService.instance.registerDeviceToken();
-
       _manualAuthInProgress = false;
+
+      // Connect PowerSync to start syncing data (non-blocking)
+      AppDatabase.instance.connect().catchError((e) {
+        debugPrint('[Auth] PowerSync connect failed: $e');
+      });
+
+      // Register device for push notifications (non-blocking)
+      PushNotificationService.instance.registerDeviceToken();
     } catch (e) {
       _manualAuthInProgress = false;
       final message = _extractErrorMessage(e, 'Falha no registro');
