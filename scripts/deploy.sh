@@ -65,27 +65,27 @@ echo -e "${YELLOW}🔨 Building containers...${NC}"
 if [ "$FORCE_REBUILD" = true ]; then
     echo -e "${GREEN}Force rebuild enabled - building without cache...${NC}"
     # Build without cache to ensure fresh build
-    docker compose -f docker-compose.prod.yml build --no-cache --pull api web
+    docker compose -f docker-compose.prod.yml --env-file .env.production build --no-cache --pull api web
 else
     # Normal build (uses cache)
-    docker compose -f docker-compose.prod.yml build api web
+    docker compose -f docker-compose.prod.yml --env-file .env.production build api web
 fi
 
 # 5. Stop old containers
 echo -e "${YELLOW}🛑 Stopping old containers...${NC}"
-docker compose -f docker-compose.prod.yml stop api web
+docker compose -f docker-compose.prod.yml --env-file .env.production stop api web
 
 # 6. Remove old containers to ensure fresh start
-docker compose -f docker-compose.prod.yml rm -f api web
+docker compose -f docker-compose.prod.yml --env-file .env.production rm -f api web
 
 
 # 7. Start new containers
 echo -e "${YELLOW}🚢 Starting new containers...${NC}"
-docker compose -f docker-compose.prod.yml up -d api web
+docker compose -f docker-compose.prod.yml --env-file .env.production up -d api web
 
 # 7.1. Restart nginx to apply config changes
 echo -e "${YELLOW}🔄 Restarting nginx...${NC}"
-docker compose -f docker-compose.prod.yml restart nginx
+docker compose -f docker-compose.prod.yml --env-file .env.production restart nginx
 
 # 8. Clean up old images
 echo -e "${YELLOW}🧹 Cleaning up old images...${NC}"
@@ -96,7 +96,7 @@ echo -e "${YELLOW}⏳ Waiting for services to be healthy...${NC}"
 sleep 15
 
 echo -e "${YELLOW}🔍 Checking services...${NC}"
-docker compose -f docker-compose.prod.yml ps
+docker compose -f docker-compose.prod.yml --env-file .env.production ps
 
 # 10. Verify API health
 echo ""
@@ -112,10 +112,10 @@ fi
 if [ "$API_HEALTH" != "200" ]; then
     echo ""
     echo -e "${YELLOW}📋 Recent API logs:${NC}"
-    docker compose -f docker-compose.prod.yml logs --tail=20 api
+    docker compose -f docker-compose.prod.yml --env-file .env.production logs --tail=20 api
     echo ""
     echo -e "${YELLOW}📋 Recent Web logs:${NC}"
-    docker compose -f docker-compose.prod.yml logs --tail=20 web
+    docker compose -f docker-compose.prod.yml --env-file .env.production logs --tail=20 web
 fi
 
 echo ""
