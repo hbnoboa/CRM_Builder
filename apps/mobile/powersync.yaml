@@ -6,8 +6,10 @@
 
 # PostgreSQL logical replication connection
 replication:
-  type: postgresql
-  uri: !env PS_REPLICATION_URI
+  connections:
+    - type: postgresql
+      uri: !env PS_REPLICATION_URI
+      sslmode: disable
 
 # Admin API tokens (for health checks, diagnostics)
 api:
@@ -17,11 +19,11 @@ api:
 # Client authentication (validates Flutter app JWTs using HS256)
 # JWT claims: sub (user id), tenantId, email, customRoleId, roleType
 client_auth:
+  audience: ["powersync"]
   jwks:
     keys:
       - kty: oct
         alg: HS256
-        kid: crm-builder
         k: !env PS_JWT_SECRET_B64
 
 # Storage backend for PowerSync internal state (MongoDB required by v1.19+)
@@ -31,36 +33,38 @@ storage:
 
 # Sync rules: define which data each user can access
 # JWT payload: { sub: "userId", tenantId: "tenantId", ... }
-bucket_definitions:
-  # Tenant-scoped data (entities, records, roles)
-  tenant_data:
-    parameters: SELECT token_parameters.tenantId as tenant_id
-    data:
-      # Entity definitions (schema)
-      - SELECT id, "tenantId", name, "namePlural", slug, description, icon, color, fields, settings, "isSystem", "createdAt", "updatedAt"
-        FROM "Entity"
-        WHERE "tenantId" = bucket.tenant_id
+sync_rules:
+  content: |
+    bucket_definitions:
+      # Tenant-scoped data (entities, records, roles)
+      tenant_data:
+        parameters: SELECT request.jwt() ->> 'tenantId' as tenant_id
+        data:
+          # Entity definitions (schema)
+          - SELECT id, "tenantId", name, "namePlural", slug, description, icon, color, fields, settings, "isSystem", "createdAt", "updatedAt"
+            FROM "Entity"
+            WHERE "tenantId" = bucket.tenant_id
 
-      # Entity data records (exclude soft-deleted)
-      - SELECT id, "tenantId", "entityId", data, "parentRecordId", "createdById", "updatedById", "createdAt", "updatedAt"
-        FROM "EntityData"
-        WHERE "tenantId" = bucket.tenant_id AND "deletedAt" IS NULL
+          # Entity data records (exclude soft-deleted)
+          - SELECT id, "tenantId", "entityId", data, "parentRecordId", "createdById", "updatedById", "createdAt", "updatedAt"
+            FROM "EntityData"
+            WHERE "tenantId" = bucket.tenant_id AND "deletedAt" IS NULL
 
-      # Custom roles (for permission checks)
-      - SELECT id, "tenantId", name, description, color, "roleType", "isSystem", permissions, "modulePermissions", "tenantPermissions", "isDefault", "createdAt", "updatedAt"
-        FROM "CustomRole"
-        WHERE "tenantId" = bucket.tenant_id
+          # Custom roles (for permission checks)
+          - SELECT id, "tenantId", name, description, color, "roleType", "isSystem", permissions, "modulePermissions", "tenantPermissions", "isDefault", "createdAt", "updatedAt"
+            FROM "CustomRole"
+            WHERE "tenantId" = bucket.tenant_id
 
-  # User-specific data
-  user_data:
-    parameters: SELECT token_parameters.sub as user_id, token_parameters.tenantId as tenant_id
-    data:
-      # Current user profile
-      - SELECT id, "tenantId", email, name, avatar, "customRoleId", status, "createdAt"
-        FROM "User"
-        WHERE id = bucket.user_id
+      # User-specific data
+      user_data:
+        parameters: SELECT request.user_id() as user_id, request.jwt() ->> 'tenantId' as tenant_id
+        data:
+          # Current user profile
+          - SELECT id, "tenantId", email, name, avatar, "customRoleId", status, "createdAt"
+            FROM "User"
+            WHERE id = bucket.user_id AND "tenantId" = bucket.tenant_id
 
-      # User's notifications
-      - SELECT id, "tenantId", "userId", type, title, message, data, "entitySlug", read, "readAt", "createdAt"
-        FROM "Notification"
-        WHERE "userId" = bucket.user_id AND "tenantId" = bucket.tenant_id
+          # User's notifications
+          - SELECT id, "tenantId", "userId", type, title, message, data, "entitySlug", read, "readAt", "createdAt"
+            FROM "Notification"
+            WHERE "userId" = bucket.user_id AND "tenantId" = bucket.tenant_id

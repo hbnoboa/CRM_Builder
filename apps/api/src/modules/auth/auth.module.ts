@@ -16,6 +16,7 @@ import { UserModule } from '../user/user.module';
         secret: configService.get<string>('JWT_SECRET'),
         signOptions: {
           expiresIn: configService.get<string>('JWT_EXPIRATION') || '15m',
+          audience: 'powersync',
         },
       }),
       inject: [ConfigService],
