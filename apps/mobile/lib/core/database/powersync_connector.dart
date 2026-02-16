@@ -10,26 +10,49 @@ import 'package:logger/logger.dart';
 final _logger = Logger(printer: SimplePrinter());
 
 /// Connects PowerSync to the backend:
-/// - fetchCredentials: provides JWT for PowerSync Service auth
+/// - fetchCredentials: calls /sync/credentials to get a PowerSync-specific JWT
+///   that includes the effective tenantId (supports PLATFORM_ADMIN tenant switching)
 /// - uploadData: sends offline mutations to NestJS API
 class CrmPowerSyncConnector extends PowerSyncBackendConnector {
   CrmPowerSyncConnector();
 
   @override
   Future<PowerSyncCredentials?> fetchCredentials() async {
-    var token = await SecureStorage.getAccessToken();
-    if (token == null) return null;
+    final accessToken = await SecureStorage.getAccessToken();
+    if (accessToken == null) return null;
 
-    // Check if token is expired or about to expire (within 30s)
+    // Ensure access token is fresh for the API call
+    var token = accessToken;
     if (_isTokenExpired(token)) {
-      token = await _refreshToken();
-      if (token == null) return null;
+      final refreshed = await _refreshToken();
+      if (refreshed == null) return null;
+      token = refreshed;
     }
 
-    return PowerSyncCredentials(
-      endpoint: Env.powerSyncUrl,
-      token: token,
-    );
+    try {
+      // Call /sync/credentials to get a PowerSync-specific JWT.
+      // This endpoint returns a token with the effective tenantId
+      // (supports PLATFORM_ADMIN tenant override via selectedTenantId).
+      final dio = createApiClient();
+      final selectedTenantId = await SecureStorage.getSelectedTenantId();
+
+      final response = await dio.post('/sync/credentials', data: {
+        if (selectedTenantId != null) 'tenantId': selectedTenantId,
+      });
+
+      final data = response.data as Map<String, dynamic>;
+      return PowerSyncCredentials(
+        endpoint: data['endpoint'] as String? ?? Env.powerSyncUrl,
+        token: data['token'] as String,
+      );
+    } catch (e) {
+      _logger.e('PowerSync: failed to get sync credentials', error: e);
+      // Fallback: use access token directly (won't have tenant override)
+      return PowerSyncCredentials(
+        endpoint: Env.powerSyncUrl,
+        token: token,
+      );
+    }
   }
 
   /// Decode JWT and check if it's expired or expiring within 30 seconds.

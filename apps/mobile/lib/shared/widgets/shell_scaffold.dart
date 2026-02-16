@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:crm_mobile/core/database/app_database.dart';
+import 'package:crm_mobile/features/tenants/widgets/tenant_banner.dart';
 import 'package:crm_mobile/shared/widgets/offline_banner.dart';
 
 /// Main shell scaffold with bottom navigation bar.
@@ -34,6 +35,7 @@ class ShellScaffold extends StatelessWidget {
     return Scaffold(
       body: Column(
         children: [
+          const TenantBanner(),
           const OfflineBanner(),
           Expanded(child: child),
         ],

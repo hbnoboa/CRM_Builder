@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:crm_mobile/core/auth/auth_provider.dart';
 import 'package:crm_mobile/core/database/app_database.dart';
+import 'package:crm_mobile/core/permissions/permission_provider.dart';
 import 'package:crm_mobile/core/theme/app_colors.dart';
 import 'package:crm_mobile/core/theme/app_typography.dart';
 import 'package:crm_mobile/features/dashboard/widgets/stat_card.dart';
@@ -17,6 +18,7 @@ class DashboardPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final authState = ref.watch(authProvider);
     final user = authState.user;
+    final permissions = ref.watch(permissionsProvider);
     final db = AppDatabase.instance.db;
 
     return Scaffold(
@@ -36,8 +38,15 @@ class DashboardPage extends ConsumerWidget {
             ),
           ],
         ),
-        actions: const [
-          SyncStatusIndicator(),
+        actions: [
+          // Tenant switch button (PLATFORM_ADMIN only)
+          if (permissions.isPlatformAdmin)
+            IconButton(
+              icon: const Icon(Icons.swap_horiz),
+              tooltip: 'Trocar tenant',
+              onPressed: () => context.push('/tenants'),
+            ),
+          const SyncStatusIndicator(),
         ],
       ),
       body: RefreshIndicator(

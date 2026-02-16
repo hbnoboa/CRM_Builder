@@ -6,7 +6,7 @@ part of 'permission_provider.dart';
 // RiverpodGenerator
 // **************************************************************************
 
-String _$permissionsHash() => r'30d40965bd242a6bdf62d84b4b20f7c1f9127fed';
+String _$permissionsHash() => r'e7b9d84508d7f7f12fd470ed6d661e56933dec36';
 
 /// See also [permissions].
 @ProviderFor(permissions)

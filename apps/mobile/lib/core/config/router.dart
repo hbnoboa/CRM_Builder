@@ -14,6 +14,7 @@ import 'package:crm_mobile/features/data/pages/data_form_page.dart';
 import 'package:crm_mobile/features/notifications/pages/notifications_page.dart';
 import 'package:crm_mobile/features/profile/pages/profile_page.dart';
 import 'package:crm_mobile/features/settings/pages/settings_page.dart';
+import 'package:crm_mobile/features/tenants/pages/tenant_selector_page.dart';
 import 'package:crm_mobile/core/push/push_notification_service.dart';
 import 'package:crm_mobile/shared/widgets/shell_scaffold.dart';
 
@@ -133,6 +134,10 @@ GoRouter router(Ref ref) {
           GoRoute(
             path: '/settings',
             builder: (context, state) => const SettingsPage(),
+          ),
+          GoRoute(
+            path: '/tenants',
+            builder: (context, state) => const TenantSelectorPage(),
           ),
         ],
       ),
