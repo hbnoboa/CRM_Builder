@@ -23,13 +23,11 @@ void main() {
     };
 
     testWidgets('renders record data', (tester) async {
-      bool tapped = false;
-
       await tester.pumpWidget(createTestApp(
         DataCard(
           record: sampleRecord,
           fields: sampleFields,
-          onTap: () => tapped = true,
+          onTap: () {},
         ),
       ));
       await tester.pumpAndSettle();

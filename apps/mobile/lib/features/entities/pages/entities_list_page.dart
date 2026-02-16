@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -61,7 +60,6 @@ class EntitiesListPage extends ConsumerWidget {
             itemBuilder: (context, index) {
               final entity = entities[index];
               final slug = entity['slug'] as String;
-              final name = entity['name'] as String;
               final namePlural = entity['namePlural'] as String;
               final description = entity['description'] as String?;
               final icon = entity['icon'] as String?;

@@ -1,5 +1,5 @@
 import 'dart:async';
-import 'dart:math';
+
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -138,15 +138,8 @@ class UploadQueueService {
     final fieldSlug = item['field_slug'] as String;
     final retryCount = (item['retry_count'] as num?)?.toInt() ?? 0;
 
-    // Apply exponential backoff
-    if (retryCount > 0) {
-      final backoffSeconds = pow(2, retryCount).toInt();
-      final createdAt = item['created_at'] as String?;
-      if (createdAt != null) {
-        // Simple backoff: skip if not enough time has passed since last attempt
-        // (We don't track last_attempt, so we use a simple heuristic)
-      }
-    }
+    // TODO: Apply exponential backoff when last_attempt tracking is implemented
+    // For now, we process items immediately regardless of retry count
 
     try {
       // Mark as uploading
@@ -208,28 +201,15 @@ class UploadQueueService {
       final rawData = currentRecord.first['data'] as String?;
       if (rawData == null) return;
 
-      final localPlaceholder = 'local://$queueId';
-      if (rawData.contains(localPlaceholder)) {
-        final updatedData = rawData.replaceAll(localPlaceholder, remoteUrl);
+      // Update the field with remote URL via API
+      await _dio.patch(
+        '/data/$entitySlug/$recordId',
+        data: {
+          'data': {fieldSlug: remoteUrl},
+        },
+      );
 
-        // Parse as map to send via API
-        await _dio.patch(
-          '/data/$entitySlug/$recordId',
-          data: {
-            'data': {fieldSlug: remoteUrl},
-          },
-        );
-
-        _logger.i('Updated EntityData $recordId field $fieldSlug with remote URL');
-      } else {
-        // Data might already have the field set differently; just patch it
-        await _dio.patch(
-          '/data/$entitySlug/$recordId',
-          data: {
-            'data': {fieldSlug: remoteUrl},
-          },
-        );
-      }
+      _logger.i('Updated EntityData $recordId field $fieldSlug with remote URL');
     } catch (e) {
       _logger.e('Failed to update EntityData: $e');
       // Don't fail the upload - the URL is stored in the queue item

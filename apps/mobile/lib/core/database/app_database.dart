@@ -1,7 +1,6 @@
 import 'package:powersync/powersync.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:crm_mobile/core/database/powersync_connector.dart';
-import 'package:crm_mobile/core/config/env.dart';
 
 /// PowerSync schema matching the Prisma models we sync.
 /// Reads happen from local SQLite. Writes go through API.

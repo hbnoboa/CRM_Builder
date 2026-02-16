@@ -281,18 +281,19 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
     );
 
     if (result != null && result.trim().isNotEmpty && mounted) {
+      final messenger = ScaffoldMessenger.of(context);
       try {
         final repo = ref.read(authRepositoryProvider);
         await repo.updateProfile(name: result.trim());
         await ref.read(authProvider.notifier).getProfile();
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
+          messenger.showSnackBar(
             const SnackBar(content: Text('Nome atualizado')),
           );
         }
       } catch (e) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
+          messenger.showSnackBar(
             SnackBar(content: Text('Erro: $e')),
           );
         }
@@ -368,6 +369,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
     );
 
     if (result == true && mounted) {
+      final messenger = ScaffoldMessenger.of(context);
       try {
         final repo = ref.read(authRepositoryProvider);
         await repo.changePassword(
@@ -375,13 +377,13 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
           newPassword: newCtrl.text,
         );
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
+          messenger.showSnackBar(
             const SnackBar(content: Text('Senha alterada')),
           );
         }
       } catch (e) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
+          messenger.showSnackBar(
             SnackBar(content: Text('Erro: $e')),
           );
         }

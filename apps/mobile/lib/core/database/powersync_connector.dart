@@ -50,21 +50,21 @@ class CrmPowerSyncConnector extends PowerSyncBackendConnector {
             case UpdateType.patch:
               // Update existing record
               final entitySlug = data?['entitySlug'] as String?;
-              if (entitySlug != null && op.id != null) {
+              if (entitySlug != null) {
                 await dio.patch('/data/$entitySlug/${op.id}', data: data);
               }
               break;
             case UpdateType.delete:
               // Delete record
               final entitySlug = data?['entitySlug'] as String?;
-              if (entitySlug != null && op.id != null) {
+              if (entitySlug != null) {
                 await dio.delete('/data/$entitySlug/${op.id}');
               }
               break;
           }
         } else if (table == 'Notification') {
           // Mark notification as read
-          if (op.op == UpdateType.patch && op.id != null) {
+          if (op.op == UpdateType.patch) {
             await dio.patch('/notifications/${op.id}/read');
           }
         }

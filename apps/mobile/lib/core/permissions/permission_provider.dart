@@ -324,7 +324,7 @@ PermissionsState permissions(Ref ref) {
   // Build entity permissions
   List<EntityPermission> entityPerms = [];
   if (user.customRole?.permissions != null) {
-    entityPerms = (user.customRole!.permissions! as List)
+    entityPerms = user.customRole!.permissions!
         .whereType<Map<String, dynamic>>()
         .map(EntityPermission.fromJson)
         .toList();
