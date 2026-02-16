@@ -124,20 +124,16 @@ class Auth extends _$Auth {
   /// Flag to prevent race condition between _checkExistingSession and login/register
   bool _manualAuthInProgress = false;
 
-  /// Flag to indicate if session check has completed
-  bool _sessionCheckComplete = false;
-
   @override
   AuthState build() {
-    // Check for existing session on startup
-    _checkExistingSession();
+    // Schedule session check after state is initialized
+    Future.microtask(() => _checkExistingSession());
     return const AuthState(isLoading: true);
   }
 
   Future<void> _checkExistingSession() async {
     // If a manual auth action (login/register) already happened, skip
     if (_manualAuthInProgress || state.isAuthenticated) {
-      _sessionCheckComplete = true;
       return;
     }
 
@@ -147,14 +143,12 @@ class Auth extends _$Auth {
       if (!_manualAuthInProgress && !state.isAuthenticated) {
         state = const AuthState(isLoading: false);
       }
-      _sessionCheckComplete = true;
       return;
     }
 
     try {
       // Double-check before calling getProfile
       if (_manualAuthInProgress || state.isAuthenticated) {
-        _sessionCheckComplete = true;
         return;
       }
       await _restoreSession();
@@ -164,7 +158,6 @@ class Auth extends _$Auth {
         state = const AuthState(isLoading: false);
       }
     }
-    _sessionCheckComplete = true;
   }
 
   /// Restore session from stored token (used by _checkExistingSession and biometric login)

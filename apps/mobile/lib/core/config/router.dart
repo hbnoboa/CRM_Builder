@@ -22,25 +22,42 @@ part 'router.g.dart';
 final _rootNavigatorKey = GlobalKey<NavigatorState>();
 final _shellNavigatorKey = GlobalKey<NavigatorState>();
 
+/// Listenable that notifies GoRouter when auth state changes
+class _AuthStateListenable extends ChangeNotifier {
+  _AuthStateListenable(this._ref) {
+    _ref.listen(authProvider, (_, __) => notifyListeners());
+  }
+  final Ref _ref;
+}
+
 @riverpod
 GoRouter router(Ref ref) {
   // Wire navigator key for push notification deep linking
   PushNotificationService.navigatorKey = _rootNavigatorKey;
-  final authState = ref.watch(authProvider);
+
+  // Create a listenable that notifies when auth changes
+  final authListenable = _AuthStateListenable(ref);
+  ref.onDispose(() => authListenable.dispose());
 
   return GoRouter(
     navigatorKey: _rootNavigatorKey,
-    initialLocation: '/dashboard',
+    initialLocation: '/login',
     debugLogDiagnostics: true,
+    refreshListenable: authListenable,
     redirect: (context, state) {
+      // Read auth state fresh on each redirect
+      final authState = ref.read(authProvider);
       final isAuthenticated = authState.isAuthenticated;
       final isLoading = authState.isLoading;
       final isAuthRoute = state.matchedLocation.startsWith('/login') ||
           state.matchedLocation.startsWith('/register') ||
           state.matchedLocation.startsWith('/forgot-password');
 
-      // Still loading auth state
-      if (isLoading) return null;
+      // Still loading auth state - stay on auth routes or redirect to login
+      if (isLoading) {
+        if (!isAuthRoute) return '/login';
+        return null;
+      }
 
       // Not authenticated → go to login
       if (!isAuthenticated && !isAuthRoute) return '/login';
