@@ -140,8 +140,8 @@ export class AuthService {
       throw new UnauthorizedException('Credenciais invalidas');
     }
 
-    // Gerar tokens
-    const tokens = await this.generateTokens(user);
+    // Gerar tokens (com TTL estendido se rememberMe)
+    const tokens = await this.generateTokens(user, dto.rememberMe);
 
     // Atualizar ultimo login
     await this.prisma.user.update({
@@ -149,7 +149,7 @@ export class AuthService {
       data: { lastLoginAt: new Date() },
     });
 
-    this.logger.log(`Login: ${user.email}`);
+    this.logger.log(`Login: ${user.email}${dto.rememberMe ? ' (remember me)' : ''}`);
 
     return {
       user: {
@@ -377,7 +377,7 @@ export class AuthService {
     return { message: 'Senha redefinida com sucesso' };
   }
 
-  private async generateTokens(user: UserForTokenGeneration) {
+  private async generateTokens(user: UserForTokenGeneration, rememberMe = false) {
     const payload = {
       sub: user.id,
       email: user.email,
@@ -386,18 +386,19 @@ export class AuthService {
       roleType: user.customRole.roleType as RoleType,
     };
 
-    // Access Token (curta duracao)
+    // Access Token (curta duracao - sempre 15m)
     const accessToken = this.jwtService.sign(payload);
+
+    // Refresh Token TTL: 30 dias se rememberMe, 7 dias padrao
+    const refreshDays = rememberMe ? 30 : 7;
+    const refreshExpiration = new Date();
+    refreshExpiration.setDate(refreshExpiration.getDate() + refreshDays);
 
     // Refresh Token (longa duracao)
     const refreshToken = this.jwtService.sign(payload, {
       secret: this.configService.get<string>('JWT_REFRESH_SECRET'),
-      expiresIn: this.configService.get<string>('JWT_REFRESH_EXPIRATION') || '7d',
+      expiresIn: rememberMe ? '30d' : (this.configService.get<string>('JWT_REFRESH_EXPIRATION') || '7d'),
     });
-
-    // Calcular expiracao
-    const refreshExpiration = new Date();
-    refreshExpiration.setDate(refreshExpiration.getDate() + 7);
 
     // Salvar refresh token no banco
     await this.prisma.refreshToken.create({

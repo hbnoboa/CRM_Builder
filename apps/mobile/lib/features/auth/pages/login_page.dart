@@ -19,6 +19,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _obscurePassword = true;
+  bool _rememberMe = false;
   bool _biometricAvailable = false;
   bool _biometricEnabled = false;
 
@@ -68,8 +69,8 @@ class _LoginPageState extends ConsumerState<LoginPage> {
       );
 
       if (authenticated) {
-        // User authenticated biometrically, restore session via getProfile
-        await ref.read(authProvider.notifier).getProfile();
+        // User authenticated biometrically, restore session
+        await ref.read(authProvider.notifier).restoreSessionWithBiometrics();
       }
     } catch (_) {
       // Biometric failed, user can still login with email/password
@@ -90,6 +91,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
       await ref.read(authProvider.notifier).login(
             email: _emailController.text.trim(),
             password: _passwordController.text,
+            rememberMe: _rememberMe,
           );
     } catch (_) {
       // Error is handled by auth state
@@ -213,18 +215,55 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                   ),
                   const SizedBox(height: 8),
 
-                  // Forgot password link
-                  Align(
-                    alignment: Alignment.centerRight,
-                    child: TextButton(
-                      onPressed: () => context.push('/forgot-password'),
-                      child: Text(
-                        'Esqueceu a senha?',
-                        style: AppTypography.bodySmall.copyWith(
-                          color: AppColors.mutedForeground,
+                  // Remember me and Forgot password row
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      // Remember me checkbox
+                      GestureDetector(
+                        onTap: () {
+                          setState(() {
+                            _rememberMe = !_rememberMe;
+                          });
+                        },
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            SizedBox(
+                              width: 24,
+                              height: 24,
+                              child: Checkbox(
+                                value: _rememberMe,
+                                onChanged: (value) {
+                                  setState(() {
+                                    _rememberMe = value ?? false;
+                                  });
+                                },
+                                materialTapTargetSize:
+                                    MaterialTapTargetSize.shrinkWrap,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              'Lembrar de mim',
+                              style: AppTypography.bodySmall.copyWith(
+                                color: AppColors.mutedForeground,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
-                    ),
+                      // Forgot password link
+                      TextButton(
+                        onPressed: () => context.push('/forgot-password'),
+                        child: Text(
+                          'Esqueceu a senha?',
+                          style: AppTypography.bodySmall.copyWith(
+                            color: AppColors.mutedForeground,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                   const SizedBox(height: 16),
 

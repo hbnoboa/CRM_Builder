@@ -1,4 +1,4 @@
-import { IsEmail, IsString, MinLength, MaxLength, IsOptional, Matches } from 'class-validator';
+import { IsEmail, IsString, MinLength, MaxLength, IsOptional, Matches, IsBoolean } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class LoginDto {
@@ -11,6 +11,11 @@ export class LoginDto {
   @MinLength(8, { message: 'Senha deve ter no minimo 8 caracteres' })
   @MaxLength(128, { message: 'Senha deve ter no maximo 128 caracteres' })
   password: string;
+
+  @ApiPropertyOptional({ example: true, description: 'Manter sessao por mais tempo (30 dias em vez de 7)' })
+  @IsBoolean()
+  @IsOptional()
+  rememberMe?: boolean;
 }
 
 export class RegisterDto {

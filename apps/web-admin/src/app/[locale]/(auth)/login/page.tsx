@@ -17,6 +17,7 @@ import { LanguageSwitcher } from '@/components/language-switcher';
 type LoginForm = {
   email: string;
   password: string;
+  rememberMe: boolean;
 };
 
 export default function LoginPage() {
@@ -29,6 +30,7 @@ export default function LoginPage() {
   const loginSchema = useMemo(() => z.object({
     email: z.string().min(1, tValidation('emailRequired')).email(tValidation('emailInvalid')),
     password: z.string().min(8, tValidation('passwordMin', { min: 8 })),
+    rememberMe: z.boolean().default(false),
   }), [tValidation]);
 
   const {
@@ -37,6 +39,9 @@ export default function LoginPage() {
     formState: { errors },
   } = useForm<LoginForm>({
     resolver: zodResolver(loginSchema),
+    defaultValues: {
+      rememberMe: false,
+    },
   });
 
   const onSubmit = async (data: LoginForm) => {
@@ -120,8 +125,12 @@ export default function LoginPage() {
             </div>
 
             <div className="flex items-center justify-between">
-              <label className="flex items-center gap-2 text-sm">
-                <input type="checkbox" className="rounded border-gray-300" />
+              <label className="flex items-center gap-2 text-sm cursor-pointer">
+                <input
+                  type="checkbox"
+                  className="rounded border-gray-300"
+                  {...register('rememberMe')}
+                />
                 <span>{t('rememberMe')}</span>
               </label>
               <Link

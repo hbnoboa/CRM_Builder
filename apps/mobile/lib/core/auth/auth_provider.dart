@@ -121,6 +121,12 @@ class AuthState {
 
 @riverpod
 class Auth extends _$Auth {
+  /// Flag to prevent race condition between _checkExistingSession and login/register
+  bool _manualAuthInProgress = false;
+
+  /// Flag to indicate if session check has completed
+  bool _sessionCheckComplete = false;
+
   @override
   AuthState build() {
     // Check for existing session on startup
@@ -129,16 +135,86 @@ class Auth extends _$Auth {
   }
 
   Future<void> _checkExistingSession() async {
+    // If a manual auth action (login/register) already happened, skip
+    if (_manualAuthInProgress || state.isAuthenticated) {
+      _sessionCheckComplete = true;
+      return;
+    }
+
     final token = await SecureStorage.getAccessToken();
     if (token == null) {
-      state = const AuthState(isLoading: false);
+      // Only update state if no manual auth happened meanwhile
+      if (!_manualAuthInProgress && !state.isAuthenticated) {
+        state = const AuthState(isLoading: false);
+      }
+      _sessionCheckComplete = true;
       return;
     }
 
     try {
-      await getProfile();
+      // Double-check before calling getProfile
+      if (_manualAuthInProgress || state.isAuthenticated) {
+        _sessionCheckComplete = true;
+        return;
+      }
+      await _restoreSession();
     } catch (_) {
+      // Only update state if no manual auth happened meanwhile
+      if (!_manualAuthInProgress && !state.isAuthenticated) {
+        state = const AuthState(isLoading: false);
+      }
+    }
+    _sessionCheckComplete = true;
+  }
+
+  /// Restore session from stored token (used by _checkExistingSession and biometric login)
+  Future<void> _restoreSession() async {
+    try {
+      final dio = ref.read(apiClientProvider);
+      final response = await dio.get('/auth/me');
+      final user = User.fromJson(response.data as Map<String, dynamic>);
+
+      // Only update if no manual auth happened meanwhile
+      if (!_manualAuthInProgress) {
+        state = AuthState(
+          user: user,
+          isAuthenticated: true,
+          isLoading: false,
+        );
+
+        // Connect PowerSync if not already connected
+        await AppDatabase.instance.connect();
+
+        // Re-register device token on session restore
+        PushNotificationService.instance.registerDeviceToken();
+      }
+    } catch (_) {
+      // Only clear if no manual auth happened
+      if (!_manualAuthInProgress && !state.isAuthenticated) {
+        await SecureStorage.clearAll();
+        await AppDatabase.instance.clearData();
+        state = const AuthState(isLoading: false);
+      }
+      rethrow;
+    }
+  }
+
+  /// Restore session using biometric authentication
+  Future<bool> restoreSessionWithBiometrics() async {
+    final token = await SecureStorage.getAccessToken();
+    if (token == null) return false;
+
+    _manualAuthInProgress = true;
+    state = state.copyWith(isLoading: true, clearError: true);
+
+    try {
+      await _restoreSession();
+      _manualAuthInProgress = false;
+      return true;
+    } catch (_) {
+      _manualAuthInProgress = false;
       state = const AuthState(isLoading: false);
+      return false;
     }
   }
 
@@ -146,7 +222,10 @@ class Auth extends _$Auth {
   Future<void> login({
     required String email,
     required String password,
+    bool rememberMe = false,
   }) async {
+    // Set flag to prevent race condition with _checkExistingSession
+    _manualAuthInProgress = true;
     state = state.copyWith(isLoading: true, clearError: true);
 
     try {
@@ -168,6 +247,11 @@ class Auth extends _$Auth {
       await SecureStorage.setUserId(user.id);
       await SecureStorage.setTenantId(user.tenantId);
 
+      // Save remember me preference for biometric login
+      if (rememberMe) {
+        await SecureStorage.setBiometricEnabled(true);
+      }
+
       state = AuthState(
         user: user,
         isAuthenticated: true,
@@ -179,7 +263,10 @@ class Auth extends _$Auth {
 
       // Register device for push notifications
       PushNotificationService.instance.registerDeviceToken();
+
+      _manualAuthInProgress = false;
     } catch (e) {
+      _manualAuthInProgress = false;
       final message = _extractErrorMessage(e, 'Falha no login');
       state = state.copyWith(
         isLoading: false,
@@ -196,6 +283,8 @@ class Auth extends _$Auth {
     required String password,
     required String tenantName,
   }) async {
+    // Set flag to prevent race condition with _checkExistingSession
+    _manualAuthInProgress = true;
     state = state.copyWith(isLoading: true, clearError: true);
 
     try {
@@ -230,7 +319,10 @@ class Auth extends _$Auth {
 
       // Register device for push notifications
       PushNotificationService.instance.registerDeviceToken();
+
+      _manualAuthInProgress = false;
     } catch (e) {
+      _manualAuthInProgress = false;
       final message = _extractErrorMessage(e, 'Falha no registro');
       state = state.copyWith(
         isLoading: false,
