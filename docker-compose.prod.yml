@@ -63,6 +63,7 @@ services:
       GCS_KEY_FILE: ${GCS_KEY_FILE:-}
       GCS_CREDENTIALS: ${GCS_CREDENTIALS:-}
       GCS_BASE_URL: ${GCS_BASE_URL:-}
+      POWERSYNC_URL: ${POWERSYNC_URL:-http://localhost:8080}
     depends_on:
       postgres:
         condition: service_healthy
