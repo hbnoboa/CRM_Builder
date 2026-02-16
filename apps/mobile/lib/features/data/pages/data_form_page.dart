@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:crm_mobile/core/location/geolocation_service.dart';
 import 'package:crm_mobile/core/theme/app_colors.dart';
 import 'package:crm_mobile/core/permissions/permission_provider.dart';
 import 'package:crm_mobile/features/data/data/data_repository.dart';
@@ -133,6 +134,22 @@ class _DataFormPageState extends ConsumerState<DataFormPage> {
     FocusScope.of(context).unfocus();
 
     setState(() => _isLoading = true);
+
+    // Auto-capture geolocation for fields with captureLocation: true
+    for (final field in _fields) {
+      final f = field as Map<String, dynamic>;
+      if (f['captureLocation'] == true) {
+        try {
+          final locationData = await GeolocationService.captureLocation();
+          final slug = f['slug'] as String? ?? '';
+          if (slug.isNotEmpty) {
+            _values[slug] = locationData;
+          }
+        } catch (e) {
+          debugPrint('[DataForm] Falha ao capturar localizacao: $e');
+        }
+      }
+    }
 
     try {
       final repo = ref.read(dataRepositoryProvider);

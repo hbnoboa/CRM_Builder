@@ -313,6 +313,45 @@ export function RecordFormDialog({
     e.preventDefault();
     if (!validateForm()) return;
 
+    // Auto-capture geolocation for fields with captureLocation: true
+    const captureFields = entity.fields?.filter(f => f.captureLocation) || [];
+    if (captureFields.length > 0 && typeof navigator !== 'undefined' && navigator.geolocation) {
+      try {
+        const pos = await new Promise<GeolocationPosition>((resolve, reject) => {
+          navigator.geolocation.getCurrentPosition(resolve, reject, {
+            enableHighAccuracy: true,
+            timeout: 10000,
+            maximumAge: 0,
+          });
+        });
+        const lat = parseFloat(pos.coords.latitude.toFixed(6));
+        const lng = parseFloat(pos.coords.longitude.toFixed(6));
+        let addressData: Record<string, unknown> = { lat, lng, uf: '', city: '', address: '', number: '' };
+        try {
+          const res = await fetch(
+            `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&addressdetails=1`,
+            { headers: { 'Accept-Language': 'pt-BR,pt,en', 'User-Agent': 'CRM-Builder/1.0' } }
+          );
+          const data = await res.json();
+          if (data?.address) {
+            addressData = {
+              lat, lng,
+              uf: data.address.state || '',
+              city: data.address.city || data.address.town || data.address.village || '',
+              address: data.address.road || '',
+              number: data.address.house_number || '',
+            };
+          }
+        } catch { /* best-effort reverse geocode */ }
+        for (const field of captureFields) {
+          setFormData(prev => ({ ...prev, [field.slug]: addressData }));
+          formData[field.slug] = addressData;
+        }
+      } catch (e) {
+        console.warn('Geolocation capture failed:', e);
+      }
+    }
+
     const processedData: Record<string, unknown> = {};
     entity.fields?.forEach((field) => {
       // Sub-entity fields store data separately, skip them

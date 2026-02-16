@@ -51,6 +51,9 @@ export interface EntityField {
   mapDefaultZoom?: number;
   mapHeight?: number;
 
+  // auto-capture geolocation on form submit (for hidden fields)
+  captureLocation?: boolean;
+
   // sub-entity specific
   subEntityId?: string;
   subEntitySlug?: string;

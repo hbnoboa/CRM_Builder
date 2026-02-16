@@ -11,6 +11,7 @@ class AppConstants {
   static const String keyUserId = 'userId';
   static const String keyTenantId = 'tenantId';
   static const String keyBiometricEnabled = 'biometricEnabled';
+  static const String keyPermissionsOnboarding = 'permissionsOnboardingCompleted';
 
   // Upload
   static const int maxUploadSizeMb = 10;

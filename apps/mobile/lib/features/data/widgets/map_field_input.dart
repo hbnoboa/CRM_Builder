@@ -1,72 +1,12 @@
 import 'dart:async';
-import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:crm_mobile/core/location/nominatim_helpers.dart';
 import 'package:crm_mobile/core/theme/app_colors.dart';
 import 'package:crm_mobile/core/theme/app_typography.dart';
-
-// ─── Nominatim helpers ──────────────────────────────────────────────────────
-
-const _nominatimBase = 'https://nominatim.openstreetmap.org';
-
-final _nominatimDio = Dio(BaseOptions(
-  baseUrl: _nominatimBase,
-  headers: {
-    'Accept-Language': 'pt-BR,pt,en',
-    'User-Agent': 'CRM-Builder-Mobile/1.0',
-  },
-  connectTimeout: const Duration(seconds: 10),
-  receiveTimeout: const Duration(seconds: 10),
-));
-
-Map<String, String> _extractAddressParts(Map<String, dynamic>? addr) {
-  if (addr == null) return {'uf': '', 'city': '', 'address': '', 'number': ''};
-  final uf = (addr['state'] ?? '') as String;
-  final city = (addr['city'] ?? addr['town'] ?? addr['village'] ??
-      addr['municipality'] ?? addr['city_district'] ?? '') as String;
-  final address =
-      (addr['road'] ?? addr['neighbourhood'] ?? addr['suburb'] ?? '') as String;
-  final number = (addr['house_number'] ?? '') as String;
-  return {'uf': uf, 'city': city, 'address': address, 'number': number};
-}
-
-String _formatAddress(Map<String, String> parts) {
-  return [parts['uf'], parts['city'], parts['address'], parts['number']]
-      .where((s) => s != null && s.isNotEmpty)
-      .join(', ');
-}
-
-Future<List<Map<String, dynamic>>> _geocodeAddress(String query) async {
-  try {
-    final res = await _nominatimDio.get('/search', queryParameters: {
-      'q': query,
-      'format': 'json',
-      'limit': '5',
-      'countrycodes': 'br',
-      'addressdetails': '1',
-    });
-    final list = res.data;
-    if (list is List) return list.cast<Map<String, dynamic>>();
-  } catch (_) {}
-  return [];
-}
-
-Future<Map<String, dynamic>?> _reverseGeocode(
-    double lat, double lng) async {
-  try {
-    final res = await _nominatimDio.get('/reverse', queryParameters: {
-      'lat': lat.toString(),
-      'lon': lng.toString(),
-      'format': 'json',
-      'addressdetails': '1',
-    });
-    return res.data as Map<String, dynamic>?;
-  } catch (_) {}
-  return null;
-}
 
 // ─── MapFieldInput ──────────────────────────────────────────────────────────
 
@@ -175,11 +115,11 @@ class _MapFieldInputState extends State<MapFieldInput> {
       if (!mounted) return;
       setState(() => _isReversing = true);
       try {
-        final data = await _reverseGeocode(lat, lng);
+        final data = await reverseGeocode(lat, lng);
         if (data != null && mounted) {
-          final parts = _extractAddressParts(
+          final parts = extractAddressParts(
               data['address'] as Map<String, dynamic>?);
-          final formatted = _formatAddress(parts);
+          final formatted = formatAddress(parts);
           _updateValue({
             'lat': lat,
             'lng': lng,
@@ -201,7 +141,7 @@ class _MapFieldInputState extends State<MapFieldInput> {
       _searchResults = [];
     });
     try {
-      final results = await _geocodeAddress(query);
+      final results = await geocodeAddress(query);
       if (mounted) setState(() => _searchResults = results);
     } catch (_) {}
     if (mounted) setState(() => _isSearching = false);
@@ -213,9 +153,9 @@ class _MapFieldInputState extends State<MapFieldInput> {
     final lng =
         double.parse(double.parse(result['lon'].toString()).toStringAsFixed(6));
     final parts =
-        _extractAddressParts(result['address'] as Map<String, dynamic>?);
+        extractAddressParts(result['address'] as Map<String, dynamic>?);
     final formatted =
-        _formatAddress(parts).isNotEmpty ? _formatAddress(parts) : (result['display_name'] ?? '');
+        formatAddress(parts).isNotEmpty ? formatAddress(parts) : (result['display_name'] ?? '');
 
     _updateValue({
       'lat': lat,
@@ -394,9 +334,9 @@ class _MapFieldInputState extends State<MapFieldInput> {
                     Divider(height: 1, color: AppColors.border),
                 itemBuilder: (_, i) {
                   final r = _searchResults[i];
-                  final parts = _extractAddressParts(
+                  final parts = extractAddressParts(
                       r['address'] as Map<String, dynamic>?);
-                  final formatted = _formatAddress(parts);
+                  final formatted = formatAddress(parts);
                   return ListTile(
                     dense: true,
                     leading: Icon(Icons.place,
