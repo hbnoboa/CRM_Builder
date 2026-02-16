@@ -20,9 +20,9 @@ class User {
     required this.name,
     this.avatar,
     this.customRole,
-    required this.status,
+    this.status,
     this.lastLoginAt,
-    required this.createdAt,
+    this.createdAt,
   });
 
   final String id;
@@ -31,9 +31,9 @@ class User {
   final String name;
   final String? avatar;
   final CustomRole? customRole;
-  final String status;
+  final String? status;
   final String? lastLoginAt;
-  final String createdAt;
+  final String? createdAt;
 
   factory User.fromJson(Map<String, dynamic> json) => User(
         id: json['id'] as String,
@@ -44,9 +44,9 @@ class User {
         customRole: json['customRole'] != null
             ? CustomRole.fromJson(json['customRole'] as Map<String, dynamic>)
             : null,
-        status: json['status'] as String,
+        status: json['status'] as String?,
         lastLoginAt: json['lastLoginAt'] as String?,
-        createdAt: json['createdAt'] as String,
+        createdAt: json['createdAt'] as String?,
       );
 }
 
@@ -246,11 +246,13 @@ class Auth extends _$Auth {
         await SecureStorage.setBiometricEnabled(true);
       }
 
+      debugPrint('[Auth] Login success, setting state isAuthenticated=true');
       state = AuthState(
         user: user,
         isAuthenticated: true,
         isLoading: false,
       );
+      debugPrint('[Auth] State updated: isAuthenticated=${state.isAuthenticated}');
 
       _manualAuthInProgress = false;
 

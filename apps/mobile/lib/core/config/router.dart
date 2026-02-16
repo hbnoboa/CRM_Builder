@@ -25,7 +25,10 @@ final _shellNavigatorKey = GlobalKey<NavigatorState>();
 /// Listenable that notifies GoRouter when auth state changes
 class _AuthStateListenable extends ChangeNotifier {
   _AuthStateListenable(this._ref) {
-    _ref.listen(authProvider, (_, __) => notifyListeners());
+    _ref.listen(authProvider, (prev, next) {
+      debugPrint('[Router] Auth state changed: isAuth=${next.isAuthenticated}, isLoading=${next.isLoading}');
+      notifyListeners();
+    });
   }
   final Ref _ref;
 }
@@ -53,18 +56,28 @@ GoRouter router(Ref ref) {
           state.matchedLocation.startsWith('/register') ||
           state.matchedLocation.startsWith('/forgot-password');
 
+      debugPrint('[Router] redirect called: location=${state.matchedLocation}, isAuth=$isAuthenticated, isLoading=$isLoading');
+
       // Still loading auth state - stay on auth routes or redirect to login
       if (isLoading) {
+        debugPrint('[Router] Still loading, staying on auth route');
         if (!isAuthRoute) return '/login';
         return null;
       }
 
       // Not authenticated → go to login
-      if (!isAuthenticated && !isAuthRoute) return '/login';
+      if (!isAuthenticated && !isAuthRoute) {
+        debugPrint('[Router] Not authenticated, redirecting to /login');
+        return '/login';
+      }
 
       // Authenticated but on auth route → go to dashboard
-      if (isAuthenticated && isAuthRoute) return '/dashboard';
+      if (isAuthenticated && isAuthRoute) {
+        debugPrint('[Router] Authenticated on auth route, redirecting to /dashboard');
+        return '/dashboard';
+      }
 
+      debugPrint('[Router] No redirect needed');
       return null;
     },
     routes: [
