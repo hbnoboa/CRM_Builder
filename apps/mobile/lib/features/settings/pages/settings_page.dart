@@ -3,10 +3,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:local_auth/local_auth.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:crm_mobile/core/auth/secure_storage.dart';
+import 'package:crm_mobile/core/cache/crm_cache_manager.dart';
 import 'package:crm_mobile/core/database/app_database.dart';
 import 'package:crm_mobile/core/theme/app_colors.dart';
 import 'package:crm_mobile/core/theme/app_typography.dart';
 import 'package:crm_mobile/core/theme/theme_provider.dart';
+import 'package:crm_mobile/core/upload/local_file_storage.dart';
+import 'package:crm_mobile/core/upload/upload_queue_service.dart';
 
 class SettingsPage extends ConsumerStatefulWidget {
   const SettingsPage({super.key});
@@ -19,6 +22,8 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   bool _biometricEnabled = false;
   bool _biometricSupported = false;
   String _appVersion = '';
+  int _pendingUploads = 0;
+  String _uploadQueueSize = '...';
 
   @override
   void initState() {
@@ -35,13 +40,37 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     final canCheck = await localAuth.canCheckBiometrics;
     final isSupported = await localAuth.isDeviceSupported();
 
+    // Load upload queue info
+    final pendingCount = await _getPendingUploadCount();
+    final queueSize = await LocalFileStorage.instance.getQueueSize();
+
     if (mounted) {
       setState(() {
         _biometricEnabled = bio;
         _biometricSupported = canCheck && isSupported;
         _appVersion = '${info.version}+${info.buildNumber}';
+        _pendingUploads = pendingCount;
+        _uploadQueueSize = _formatBytes(queueSize);
       });
     }
+  }
+
+  Future<int> _getPendingUploadCount() async {
+    try {
+      final db = AppDatabase.instance.db;
+      final result = await db.getAll(
+        "SELECT COUNT(*) as count FROM file_upload_queue WHERE status IN ('pending', 'failed', 'uploading')",
+      );
+      return (result.first['count'] as num?)?.toInt() ?? 0;
+    } catch (_) {
+      return 0;
+    }
+  }
+
+  String _formatBytes(int bytes) {
+    if (bytes < 1024) return '$bytes B';
+    if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
+    return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
   }
 
   @override
@@ -85,6 +114,34 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
           ),
           const Divider(),
 
+          // Uploads
+          const _SectionHeader(title: 'Uploads'),
+          ListTile(
+            leading: const Icon(Icons.cloud_upload_outlined),
+            title: const Text('Uploads pendentes'),
+            subtitle: Text('$_pendingUploads pendentes ($_uploadQueueSize)'),
+            trailing: _pendingUploads > 0
+                ? TextButton(
+                    onPressed: _retryUploads,
+                    child: const Text('Tentar'),
+                  )
+                : null,
+          ),
+          const Divider(),
+
+          // Cache
+          const _SectionHeader(title: 'Cache de Imagens'),
+          ListTile(
+            leading: const Icon(Icons.photo_library_outlined),
+            title: const Text('Cache de imagens'),
+            subtitle: const Text('Imagens baixadas para acesso offline'),
+            trailing: TextButton(
+              onPressed: _clearImageCache,
+              child: const Text('Limpar'),
+            ),
+          ),
+          const Divider(),
+
           // Data
           const _SectionHeader(title: 'Dados'),
           ListTile(
@@ -123,6 +180,44 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
       ThemeMode.light => 'Claro',
       ThemeMode.dark => 'Escuro',
     };
+  }
+
+  Future<void> _retryUploads() async {
+    try {
+      final queueService = ref.read(uploadQueueServiceProvider);
+      await queueService.retryAll();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Tentando enviar uploads...')),
+        );
+        // Refresh counts
+        final count = await _getPendingUploadCount();
+        setState(() => _pendingUploads = count);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erro: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _clearImageCache() async {
+    try {
+      await CrmCacheManager().clearCache();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Cache de imagens limpo')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erro ao limpar cache: $e')),
+        );
+      }
+    }
   }
 
   Future<void> _confirmClearCache(BuildContext context) async {

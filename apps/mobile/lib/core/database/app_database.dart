@@ -66,6 +66,22 @@ final schema = Schema([
     Column.text('status'),
     Column.text('createdAt'),
   ]),
+  // Local-only table for offline upload queue (never synced to server)
+  Table.localOnly('file_upload_queue', [
+    Column.text('local_path'),
+    Column.text('file_name'),
+    Column.text('folder'),
+    Column.text('entity_slug'),
+    Column.text('record_id'),
+    Column.text('field_slug'),
+    Column.text('status'),       // pending | uploading | completed | failed
+    Column.text('remote_url'),
+    Column.integer('retry_count'),
+    Column.text('error'),
+    Column.text('mime_type'),
+    Column.integer('file_size'),
+    Column.text('created_at'),
+  ]),
 ]);
 
 /// Singleton PowerSync database instance.

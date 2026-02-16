@@ -1,8 +1,10 @@
 import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:crm_mobile/core/cache/crm_cache_manager.dart';
 import 'package:crm_mobile/core/database/app_database.dart';
 import 'package:crm_mobile/core/theme/app_colors.dart';
 import 'package:crm_mobile/core/theme/app_typography.dart';
@@ -84,11 +86,16 @@ class DynamicFieldDisplay extends StatelessWidget {
       case 'IMAGE':
       case 'FILE':
         final url = value.toString();
+        if (url.startsWith('local://')) {
+          // Pending upload: show local file preview
+          return _LocalImagePreview(queueId: url.replaceFirst('local://', ''));
+        }
         if (url.startsWith('http')) {
           return ClipRRect(
             borderRadius: BorderRadius.circular(AppColors.radius),
             child: CachedNetworkImage(
               imageUrl: url,
+              cacheManager: CrmCacheManager(),
               height: 200,
               width: double.infinity,
               fit: BoxFit.cover,
@@ -315,6 +322,97 @@ class DynamicFieldDisplay extends StatelessWidget {
       default:
         return Text(value.toString(), style: AppTypography.bodyMedium);
     }
+  }
+}
+
+/// Shows a local image from the upload queue with a "pending upload" badge.
+class _LocalImagePreview extends StatefulWidget {
+  const _LocalImagePreview({required this.queueId});
+
+  final String queueId;
+
+  @override
+  State<_LocalImagePreview> createState() => _LocalImagePreviewState();
+}
+
+class _LocalImagePreviewState extends State<_LocalImagePreview> {
+  File? _file;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadLocalFile();
+  }
+
+  Future<void> _loadLocalFile() async {
+    try {
+      final db = AppDatabase.instance.db;
+      final results = await db.getAll(
+        'SELECT local_path FROM file_upload_queue WHERE id = ?',
+        [widget.queueId],
+      );
+      if (results.isNotEmpty) {
+        final path = results.first['local_path'] as String?;
+        if (path != null) {
+          final file = File(path);
+          if (await file.exists() && mounted) {
+            setState(() => _file = file);
+          }
+        }
+      }
+    } catch (_) {}
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      children: [
+        ClipRRect(
+          borderRadius: BorderRadius.circular(AppColors.radius),
+          child: _file != null
+              ? Image.file(
+                  _file!,
+                  height: 200,
+                  width: double.infinity,
+                  fit: BoxFit.cover,
+                )
+              : Container(
+                  height: 200,
+                  width: double.infinity,
+                  color: AppColors.muted,
+                  child: const Center(
+                    child: Icon(Icons.image_outlined, size: 48),
+                  ),
+                ),
+        ),
+        Positioned(
+          top: 8,
+          left: 8,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: AppColors.warning,
+              borderRadius: BorderRadius.circular(4),
+            ),
+            child: const Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.cloud_upload_outlined, size: 14, color: Colors.white),
+                SizedBox(width: 4),
+                Text(
+                  'Pendente upload',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
   }
 }
 

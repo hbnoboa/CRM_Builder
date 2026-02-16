@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -8,13 +9,16 @@ import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:uuid/uuid.dart';
 
+import 'package:crm_mobile/core/database/app_database.dart';
 import 'package:crm_mobile/core/theme/app_colors.dart';
 import 'package:crm_mobile/core/theme/app_typography.dart';
+import 'package:crm_mobile/core/upload/local_file_storage.dart';
+import 'package:crm_mobile/core/upload/upload_queue_service.dart';
 import 'package:crm_mobile/features/data/data/data_repository.dart';
 
 /// Image/file picker + upload widget for entity data forms.
-/// Picks from camera or gallery, compresses, uploads to API,
-/// and calls onChanged with the returned URL.
+/// Picks from camera or gallery, compresses, uploads to API.
+/// When offline, enqueues upload and returns a local:// URL placeholder.
 class ImageFieldInput extends ConsumerStatefulWidget {
   const ImageFieldInput({
     super.key,
@@ -23,6 +27,9 @@ class ImageFieldInput extends ConsumerStatefulWidget {
     required this.fieldType,
     required this.isRequired,
     required this.onChanged,
+    this.entitySlug = '',
+    this.recordId = '',
+    this.fieldSlug = '',
   });
 
   final String label;
@@ -30,6 +37,11 @@ class ImageFieldInput extends ConsumerStatefulWidget {
   final String fieldType; // 'IMAGE' or 'FILE'
   final bool isRequired;
   final ValueChanged<dynamic> onChanged;
+
+  /// Context for offline queue (needed to PATCH record after upload).
+  final String entitySlug;
+  final String recordId;
+  final String fieldSlug;
 
   @override
   ConsumerState<ImageFieldInput> createState() => _ImageFieldInputState();
@@ -42,11 +54,37 @@ class _ImageFieldInputState extends ConsumerState<ImageFieldInput> {
   String? _currentUrl;
   File? _localPreview;
   String? _error;
+  bool _isPendingUpload = false;
 
   @override
   void initState() {
     super.initState();
     _currentUrl = widget.value;
+    _isPendingUpload = widget.value?.startsWith('local://') ?? false;
+    // If we have a local:// URL, try to resolve the local file for preview
+    if (_isPendingUpload && widget.value != null) {
+      _resolveLocalPreview(widget.value!);
+    }
+  }
+
+  Future<void> _resolveLocalPreview(String localUrl) async {
+    final queueId = localUrl.replaceFirst('local://', '');
+    try {
+      final db = AppDatabase.instance.db;
+      final results = await db.getAll(
+        'SELECT local_path FROM file_upload_queue WHERE id = ?',
+        [queueId],
+      );
+      if (results.isNotEmpty) {
+        final localPath = results.first['local_path'] as String?;
+        if (localPath != null) {
+          final file = File(localPath);
+          if (await file.exists() && mounted) {
+            setState(() => _localPreview = file);
+          }
+        }
+      }
+    } catch (_) {}
   }
 
   Future<void> _pickImage(ImageSource source) async {
@@ -64,6 +102,7 @@ class _ImageFieldInputState extends ConsumerState<ImageFieldInput> {
         _isUploading = true;
         _uploadProgress = 0;
         _error = null;
+        _isPendingUpload = false;
       });
 
       // Compress image
@@ -82,24 +121,55 @@ class _ImageFieldInputState extends ConsumerState<ImageFieldInput> {
       final fileToUpload = compressed != null ? File(compressed.path) : File(picked.path);
       final fileName = '${const Uuid().v4()}.jpg';
 
-      // Upload to API with progress
-      final repo = ref.read(dataRepositoryProvider);
-      final url = await repo.uploadFile(
-        filePath: fileToUpload.path,
-        fileName: fileName,
-        folder: 'data',
-        onProgress: (sent, total) {
-          if (total > 0 && mounted) {
-            setState(() => _uploadProgress = sent / total);
-          }
-        },
-      );
+      // Check connectivity
+      final connectivityResult = await Connectivity().checkConnectivity();
+      final isOnline = !connectivityResult.contains(ConnectivityResult.none) &&
+          connectivityResult.isNotEmpty;
 
-      setState(() {
-        _currentUrl = url;
-        _isUploading = false;
-      });
-      widget.onChanged(url);
+      if (isOnline) {
+        // Online: upload directly (fast path)
+        final repo = ref.read(dataRepositoryProvider);
+        final url = await repo.uploadFile(
+          filePath: fileToUpload.path,
+          fileName: fileName,
+          folder: 'data',
+          onProgress: (sent, total) {
+            if (total > 0 && mounted) {
+              setState(() => _uploadProgress = sent / total);
+            }
+          },
+        );
+
+        setState(() {
+          _currentUrl = url;
+          _isUploading = false;
+          _isPendingUpload = false;
+        });
+        widget.onChanged(url);
+      } else {
+        // Offline: stage file and enqueue for later upload
+        final stagedPath = await LocalFileStorage.instance.stageFile(fileToUpload.path);
+        final fileSize = await File(stagedPath).length();
+        final queueService = ref.read(uploadQueueServiceProvider);
+        final queueId = await queueService.enqueue(
+          localPath: stagedPath,
+          fileName: fileName,
+          folder: 'data',
+          entitySlug: widget.entitySlug,
+          recordId: widget.recordId,
+          fieldSlug: widget.fieldSlug,
+          mimeType: 'image/jpeg',
+          fileSize: fileSize,
+        );
+
+        final localUrl = 'local://$queueId';
+        setState(() {
+          _currentUrl = localUrl;
+          _isUploading = false;
+          _isPendingUpload = true;
+        });
+        widget.onChanged(localUrl);
+      }
     } catch (e) {
       setState(() {
         _isUploading = false;
@@ -248,23 +318,60 @@ class _ImageFieldInputState extends ConsumerState<ImageFieldInput> {
                     width: double.infinity,
                     fit: BoxFit.cover,
                   )
-                : CachedNetworkImage(
-                    imageUrl: _currentUrl!,
-                    height: 200,
-                    width: double.infinity,
-                    fit: BoxFit.cover,
-                    placeholder: (_, __) => Container(
-                      height: 200,
-                      color: AppColors.muted,
-                      child: const Center(child: CircularProgressIndicator()),
-                    ),
-                    errorWidget: (_, __, ___) => Container(
-                      height: 200,
-                      color: AppColors.muted,
-                      child: const Icon(Icons.broken_image_outlined, size: 48),
-                    ),
-                  ),
+                : (_currentUrl != null && _currentUrl!.startsWith('http'))
+                    ? CachedNetworkImage(
+                        imageUrl: _currentUrl!,
+                        cacheManager: CrmCacheManager(),
+                        height: 200,
+                        width: double.infinity,
+                        fit: BoxFit.cover,
+                        placeholder: (_, __) => Container(
+                          height: 200,
+                          color: AppColors.muted,
+                          child: const Center(child: CircularProgressIndicator()),
+                        ),
+                        errorWidget: (_, __, ___) => Container(
+                          height: 200,
+                          color: AppColors.muted,
+                          child: const Icon(Icons.broken_image_outlined, size: 48),
+                        ),
+                      )
+                    : Container(
+                        height: 200,
+                        color: AppColors.muted,
+                        child: const Center(
+                          child: Icon(Icons.image_outlined, size: 48),
+                        ),
+                      ),
           ),
+          // Pending upload indicator
+          if (_isPendingUpload)
+            Positioned(
+              top: 8,
+              left: 8,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: AppColors.warning,
+                  borderRadius: BorderRadius.circular(AppColors.radiusSm),
+                ),
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.cloud_upload_outlined, size: 14, color: Colors.white),
+                    SizedBox(width: 4),
+                    Text(
+                      'Pendente',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
           // Change button overlay
           Positioned(
             bottom: 8,
