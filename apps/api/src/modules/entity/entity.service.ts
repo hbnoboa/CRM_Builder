@@ -14,6 +14,7 @@ import {
 import { Prisma } from '@prisma/client';
 import { RoleType } from '../../common/decorators/roles.decorator';
 import { getEffectiveTenantId } from '../../common/utils/tenant.util';
+import { GlobalFilterDto } from './dto/update-global-filters.dto';
 
 export type QueryEntityDto = PaginationQuery;
 
@@ -336,14 +337,14 @@ export class EntityService {
     });
   }
 
-  async updateGlobalFilters(id: string, globalFilters: Record<string, unknown>[], currentUser: CurrentUser) {
+  async updateGlobalFilters(id: string, globalFilters: GlobalFilterDto[], currentUser: CurrentUser) {
     const entity = await this.findOne(id, currentUser);
     const currentSettings = (entity.settings as Record<string, unknown>) || {};
     const settings = { ...currentSettings, globalFilters };
 
     return this.prisma.entity.update({
       where: { id },
-      data: { settings: settings as Prisma.InputJsonValue },
+      data: { settings: settings as unknown as Prisma.InputJsonValue },
     });
   }
 
