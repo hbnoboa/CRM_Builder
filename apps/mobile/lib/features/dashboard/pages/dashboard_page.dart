@@ -1,15 +1,11 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:crm_mobile/core/auth/auth_provider.dart';
 import 'package:crm_mobile/core/database/app_database.dart';
-import 'package:crm_mobile/core/permissions/permission_provider.dart';
 import 'package:crm_mobile/core/theme/app_colors.dart';
 import 'package:crm_mobile/core/theme/app_typography.dart';
 import 'package:crm_mobile/features/dashboard/widgets/stat_card.dart';
-import 'package:crm_mobile/shared/utils/formatters.dart';
-import 'package:crm_mobile/shared/widgets/sync_status_indicator.dart';
 
 class DashboardPage extends ConsumerWidget {
   const DashboardPage({super.key});
@@ -18,44 +14,22 @@ class DashboardPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final authState = ref.watch(authProvider);
     final user = authState.user;
-    final permissions = ref.watch(permissionsProvider);
     final db = AppDatabase.instance.db;
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Ola, ${user?.name.split(' ').first ?? ''}',
-              style: AppTypography.h4,
-            ),
-            Text(
-              user?.customRole?.name ?? '',
-              style: AppTypography.caption.copyWith(
-                color: AppColors.mutedForeground,
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          // Tenant switch button (PLATFORM_ADMIN only)
-          if (permissions.isPlatformAdmin)
-            IconButton(
-              icon: const Icon(Icons.swap_horiz),
-              tooltip: 'Trocar tenant',
-              onPressed: () => context.push('/tenants'),
-            ),
-          const SyncStatusIndicator(),
-        ],
-      ),
-      body: RefreshIndicator(
+    return RefreshIndicator(
         onRefresh: () async {
           await ref.read(authProvider.notifier).getProfile();
         },
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
+            // Greeting
+            Text(
+              'Ola, ${user?.name.split(' ').first ?? 'Usuario'}!',
+              style: AppTypography.h3,
+            ),
+            const SizedBox(height: 16),
+
             // Stats row
             StreamBuilder<List<Map<String, dynamic>>>(
               stream: db.watch(
@@ -204,104 +178,8 @@ class DashboardPage extends ConsumerWidget {
               },
             ),
 
-            const SizedBox(height: 24),
-
-            // Recent records
-            StreamBuilder<List<Map<String, dynamic>>>(
-              stream: db.watch(
-                'SELECT ed.*, e.name as entityName, e.slug as entitySlug, e.color as entityColor, e.fields as entityFields '
-                'FROM EntityData ed '
-                'JOIN Entity e ON ed.entityId = e.id '
-                'WHERE ed.parentRecordId IS NULL AND ed.deletedAt IS NULL '
-                'ORDER BY ed.updatedAt DESC LIMIT 10',
-              ),
-              builder: (context, snapshot) {
-                final records = snapshot.data ?? [];
-                if (records.isEmpty) return const SizedBox.shrink();
-
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('Atividade recente', style: AppTypography.h3),
-                    const SizedBox(height: 12),
-                    ...records.map((record) {
-                      final entityName =
-                          record['entityName'] as String? ?? '';
-                      final entitySlug =
-                          record['entitySlug'] as String? ?? '';
-                      final entityColor =
-                          record['entityColor'] as String?;
-                      final recordId = record['id'] as String;
-                      final updatedAt = record['updatedAt'] as String?;
-
-                      // Parse record data to get display name
-                      String displayName = 'Registro';
-                      try {
-                        final fields = jsonDecode(
-                            record['entityFields'] as String? ?? '[]');
-                        final data = jsonDecode(
-                            record['data'] as String? ?? '{}');
-                        if (fields is List && fields.isNotEmpty && data is Map) {
-                          final firstField = fields.first as Map<String, dynamic>;
-                          final slug = firstField['slug'] as String? ??
-                              firstField['name'] as String? ??
-                              '';
-                          final val = data[slug];
-                          if (val != null && val.toString().isNotEmpty) {
-                            displayName = val.toString();
-                          }
-                        }
-                      } catch (_) {}
-
-                      return Card(
-                        margin: const EdgeInsets.only(bottom: 8),
-                        child: ListTile(
-                          dense: true,
-                          leading: CircleAvatar(
-                            radius: 18,
-                            backgroundColor: entityColor != null
-                                ? Color(int.parse(entityColor
-                                        .replaceFirst('#', '0xFF')))
-                                    .withValues(alpha: 0.15)
-                                : AppColors.muted,
-                            child: Icon(
-                              Icons.article_outlined,
-                              size: 18,
-                              color: entityColor != null
-                                  ? Color(int.parse(entityColor
-                                      .replaceFirst('#', '0xFF')))
-                                  : AppColors.primary,
-                            ),
-                          ),
-                          title: Text(
-                            displayName,
-                            style: AppTypography.labelMedium,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          subtitle: Text(
-                            '$entityName · ${Formatters.timeAgo(updatedAt)}',
-                            style: AppTypography.caption.copyWith(
-                              color: AppColors.mutedForeground,
-                            ),
-                          ),
-                          trailing: const Icon(
-                            Icons.chevron_right,
-                            size: 18,
-                          ),
-                          onTap: () => context.push(
-                            '/data/$entitySlug/$recordId',
-                          ),
-                        ),
-                      );
-                    }),
-                  ],
-                );
-              },
-            ),
           ],
         ),
-      ),
     );
   }
 }
