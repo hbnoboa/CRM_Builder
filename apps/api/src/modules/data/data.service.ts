@@ -1102,7 +1102,7 @@ export class DataService {
         OR: [
           { data: { path: [fieldSlug], equals: Prisma.DbNull } },
           { data: { path: [fieldSlug], equals: '' } },
-          { data: { path: [fieldSlug], equals: null } },
+          { data: { path: [fieldSlug], equals: Prisma.JsonNull } },
         ],
       };
     }
@@ -1112,7 +1112,7 @@ export class DataService {
         AND: [
           { NOT: { data: { path: [fieldSlug], equals: Prisma.DbNull } } },
           { NOT: { data: { path: [fieldSlug], equals: '' } } },
-          { NOT: { data: { path: [fieldSlug], equals: null } } },
+          { NOT: { data: { path: [fieldSlug], equals: Prisma.JsonNull } } },
         ],
       };
     }
@@ -1204,7 +1204,7 @@ export class DataService {
 
     // Fallback para texto
     if (operator === 'equals') {
-      return { data: { path: [fieldSlug], equals: value } };
+      return { data: { path: [fieldSlug], equals: value as Prisma.InputJsonValue } };
     }
     if (operator === 'contains') {
       return { data: { path: [fieldSlug], string_contains: String(value || '') } };
