@@ -908,7 +908,7 @@ export class DataService {
 
     // Verificar permissao de escopo (exceto PLATFORM_ADMIN)
     if (roleType !== 'PLATFORM_ADMIN') {
-      this.checkScope(record, currentUser, 'update');
+      await this.checkScope(record, currentUser, entitySlug);
     }
 
     // Field-level permissions: validar que o usuario so edita campos permitidos
@@ -999,7 +999,7 @@ export class DataService {
 
     // Verificar permissao de escopo (exceto PLATFORM_ADMIN)
     if (roleType !== 'PLATFORM_ADMIN') {
-      this.checkScope(record, currentUser, 'delete');
+      await this.checkScope(record, currentUser, entitySlug);
     }
 
     // Extrair nome do registro antes de deletar
@@ -1079,7 +1079,7 @@ export class DataService {
   }
 
   // Verificar se usuario pode modificar o registro
-  private checkScope(record: EntityData, user: CurrentUser, action: string) {
+  private async checkScope(record: EntityData, user: CurrentUser, entitySlug: string) {
     const roleType = user.customRole?.roleType as RoleType | undefined;
 
     // Admin e Platform Admin podem tudo
@@ -1097,8 +1097,19 @@ export class DataService {
       return;
     }
 
-    // User e CUSTOM so podem modificar proprios registros
-    if (roleType === 'USER' || roleType === 'CUSTOM') {
+    // CUSTOM: respeitar o scope da permissao (all ou own)
+    if (roleType === 'CUSTOM') {
+      const scope = await this.customRoleService.getEntityScope(user.id, entitySlug);
+      if (scope === 'all') return;
+      // scope === 'own' ou null: so pode modificar proprios registros
+      if (record.createdById !== user.id) {
+        throw new ForbiddenException('Voce so pode modificar registros criados por voce');
+      }
+      return;
+    }
+
+    // USER so pode modificar proprios registros
+    if (roleType === 'USER') {
       if (record.createdById !== user.id) {
         throw new ForbiddenException('Voce so pode modificar registros criados por voce');
       }
