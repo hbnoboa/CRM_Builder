@@ -236,7 +236,10 @@ function evaluateFilter(value: unknown, filter: ActiveFilter): boolean {
   switch (operator) {
     case 'equals':
       if (filter.fieldType === 'boolean') {
-        return value === filterValue;
+        // Normalizar ambos para boolean antes de comparar
+        const boolValue = value === true || value === 'true' || value === 1 || value === '1';
+        const boolFilter = filterValue === true || filterValue === 'true' || filterValue === 1 || filterValue === '1';
+        return boolValue === boolFilter;
       }
       return normalizedValue === normalizedFilterValue;
 
