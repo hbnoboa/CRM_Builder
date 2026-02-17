@@ -756,6 +756,14 @@ function DataPageContent() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hasChildrenFilter]);
 
+  // Quando globalFilters mudar, re-buscar com os filtros aplicados no backend
+  useEffect(() => {
+    if (!selectedEntity) return;
+    setCurrentPage(1);
+    fetchRecords(selectedEntity.slug, 1, debouncedSearch);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [globalFilters]);
+
   // Handlers de paginacao
   const goToPage = useCallback((page: number) => {
     if (!selectedEntity || !paginationMeta) return;
