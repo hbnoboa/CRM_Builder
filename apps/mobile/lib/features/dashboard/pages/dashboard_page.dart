@@ -427,7 +427,7 @@ class DashboardPage extends ConsumerWidget {
         ],
         lineTouchData: LineTouchData(
           touchTooltipData: LineTouchTooltipData(
-            getTooltipColor: (touchedSpot) => AppColors.darkCard,
+            getTooltipColor: (touchedSpot) => AppColors.foreground,
             getTooltipItems: (touchedSpots) {
               return touchedSpots.map((spot) {
                 return LineTooltipItem(

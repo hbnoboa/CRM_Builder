@@ -4,7 +4,6 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:crm_mobile/core/push/push_notification_service.dart';
 import 'package:crm_mobile/core/startup/startup_service.dart';
 import 'package:crm_mobile/core/theme/app_theme.dart';
-import 'package:crm_mobile/core/theme/theme_provider.dart';
 import 'package:crm_mobile/core/config/router.dart';
 import 'package:crm_mobile/shared/widgets/auto_logout_wrapper.dart';
 
@@ -14,7 +13,6 @@ class CrmApp extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final router = ref.watch(routerProvider);
-    final themeMode = ref.watch(themeModeNotifierProvider);
 
     // Initialize startup service (handles background sync on auth/connectivity changes)
     initializeStartupService(ref);
@@ -25,8 +23,6 @@ class CrmApp extends ConsumerWidget {
         debugShowCheckedModeBanner: false,
         scaffoldMessengerKey: PushNotificationService.scaffoldMessengerKey,
         theme: AppTheme.light,
-        darkTheme: AppTheme.dark,
-        themeMode: themeMode,
         routerConfig: router,
         localizationsDelegates: const [
           GlobalMaterialLocalizations.delegate,

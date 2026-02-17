@@ -1,12 +1,11 @@
 import 'package:flutter/material.dart';
 
-/// Modern design system colors based on 2025-2026 trends.
-/// Vibrant, accessible, with proper contrast ratios.
+/// Modern design system colors.
 class AppColors {
   AppColors._();
 
   // ═══════════════════════════════════════════════════════
-  // BRAND COLORS (Vibrant Modern Palette)
+  // BRAND COLORS
   // ═══════════════════════════════════════════════════════
 
   /// Primary brand color - Vibrant Blue
@@ -26,7 +25,7 @@ class AppColors {
   static const Color accentForeground = Color(0xFFFFFFFF);
 
   // ═══════════════════════════════════════════════════════
-  // LIGHT THEME
+  // THEME COLORS
   // ═══════════════════════════════════════════════════════
 
   static const Color background = Color(0xFFF8FAFC);
@@ -47,27 +46,7 @@ class AppColors {
   static const Color ring = Color(0xFF3B82F6);
 
   // ═══════════════════════════════════════════════════════
-  // DARK THEME
-  // ═══════════════════════════════════════════════════════
-
-  static const Color darkBackground = Color(0xFF0F172A);
-  static const Color darkForeground = Color(0xFFF8FAFC);
-
-  static const Color darkCard = Color(0xFF1E293B);
-  static const Color darkCardForeground = Color(0xFFF1F5F9);
-
-  static const Color darkSurface = Color(0xFF1E293B);
-  static const Color darkSurfaceVariant = Color(0xFF334155);
-
-  static const Color darkMuted = Color(0xFF334155);
-  static const Color darkMutedForeground = Color(0xFF94A3B8);
-
-  static const Color darkBorder = Color(0xFF334155);
-  static const Color darkInput = Color(0xFF475569);
-  static const Color darkRing = Color(0xFF60A5FA);
-
-  // ═══════════════════════════════════════════════════════
-  // SEMANTIC COLORS (Vibrant)
+  // SEMANTIC COLORS
   // ═══════════════════════════════════════════════════════
 
   static const Color success = Color(0xFF10B981);
@@ -99,7 +78,7 @@ class AppColors {
   static const Color syncOffline = error;
 
   // ═══════════════════════════════════════════════════════
-  // CHART COLORS (Vibrant palette for data viz)
+  // CHART COLORS
   // ═══════════════════════════════════════════════════════
 
   static const List<Color> chartPalette = [
