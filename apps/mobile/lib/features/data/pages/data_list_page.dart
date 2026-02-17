@@ -5,7 +5,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:crm_mobile/core/auth/auth_provider.dart';
 import 'package:crm_mobile/core/config/constants.dart';
-import 'package:crm_mobile/core/filters/filter_models.dart';
 import 'package:crm_mobile/core/theme/app_colors.dart';
 import 'package:crm_mobile/core/theme/app_typography.dart';
 import 'package:crm_mobile/core/permissions/permission_provider.dart';
@@ -13,18 +12,6 @@ import 'package:crm_mobile/features/data/data/data_repository.dart';
 import 'package:crm_mobile/features/data/widgets/data_card.dart';
 import 'package:crm_mobile/shared/widgets/permission_gate.dart';
 import 'package:crm_mobile/shared/widgets/sync_status_indicator.dart';
-
-enum SortOption {
-  newestFirst('Mais recentes', 'createdAt DESC'),
-  oldestFirst('Mais antigos', 'createdAt ASC'),
-  updatedFirst('Ultima atualizacao', 'updatedAt DESC'),
-  nameAZ('A → Z', 'data ASC'),
-  nameZA('Z → A', 'data DESC');
-
-  const SortOption(this.label, this.sql);
-  final String label;
-  final String sql;
-}
 
 class DataListPage extends ConsumerStatefulWidget {
   const DataListPage({super.key, required this.entitySlug});
@@ -41,13 +28,6 @@ class _DataListPageState extends ConsumerState<DataListPage> {
   Timer? _debounce;
   String _search = '';
   int _limit = AppConstants.defaultPageSize;
-  SortOption _sort = SortOption.newestFirst;
-
-  // Filter state
-  List<GlobalFilter> _globalFilters = [];
-  String? _entityId;
-  List<dynamic> _fields = [];
-  List<String> _columnOrder = [];
 
   @override
   void initState() {
@@ -120,52 +100,9 @@ class _DataListPageState extends ConsumerState<DataListPage> {
     }
   }
 
-  void _showSortPicker() {
-    showModalBottomSheet(
-      context: context,
-      builder: (ctx) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Padding(
-              padding: EdgeInsets.all(16),
-              child: Text('Ordenar por', style: AppTypography.h4),
-            ),
-            // ignore: deprecated_member_use - Radio groupValue/onChanged deprecated in Flutter 3.32
-            ...SortOption.values.map((option) => ListTile(
-                  title: Text(option.label),
-                  leading: Radio<SortOption>(
-                    value: option,
-                    // ignore: deprecated_member_use
-                    groupValue: _sort,
-                    // ignore: deprecated_member_use
-                    onChanged: (v) {
-                      setState(() {
-                        _sort = v!;
-                        _limit = AppConstants.defaultPageSize;
-                      });
-                      Navigator.of(ctx).pop();
-                    },
-                  ),
-                  onTap: () {
-                    setState(() {
-                      _sort = option;
-                      _limit = AppConstants.defaultPageSize;
-                    });
-                    Navigator.of(ctx).pop();
-                  },
-                ),),
-            const SizedBox(height: 8),
-          ],
-        ),
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final repo = ref.watch(dataRepositoryProvider);
-    final totalFilterCount = _globalFilters.length;
 
     // Scope 'own': filter by createdById
     final perms = ref.watch(permissionsProvider);
@@ -183,110 +120,98 @@ class _DataListPageState extends ConsumerState<DataListPage> {
             return Text(entity?['name'] as String? ?? widget.entitySlug);
           },
         ),
-        actions: [
-          const SyncStatusIndicator(),
-          IconButton(
-            icon: const Icon(Icons.sort),
-            onPressed: _showSortPicker,
-          ),
+        actions: const [
+          SyncStatusIndicator(),
         ],
       ),
-      body: Column(
-        children: [
-          // Search bar
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: TextField(
-              controller: _searchController,
-              decoration: InputDecoration(
-                hintText: 'Buscar...',
-                prefixIcon: const Icon(Icons.search),
-                suffixIcon: _search.isNotEmpty
-                    ? IconButton(
-                        icon: const Icon(Icons.clear),
-                        onPressed: () {
-                          _searchController.clear();
-                          setState(() {
-                            _search = '';
-                            _limit = AppConstants.defaultPageSize;
-                          });
-                        },
-                      )
-                    : null,
-              ),
-              onChanged: (value) {
-                _debounce?.cancel();
-                _debounce = Timer(const Duration(milliseconds: 400), () {
-                  setState(() {
-                    _search = value;
-                    _limit = AppConstants.defaultPageSize;
-                  });
-                });
-              },
-            ),
-          ),
+      body: FutureBuilder<Map<String, dynamic>?>(
+        future: repo.getEntity(widget.entitySlug),
+        builder: (context, entitySnapshot) {
+          final entity = entitySnapshot.data;
+          if (entity == null) {
+            return const Center(child: CircularProgressIndicator());
+          }
 
-          // Global filter chips (read-only indicators)
-          if (_globalFilters.isNotEmpty)
-            SizedBox(
-              height: 40,
-              child: ListView(
-                scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                children: [
-                  ..._globalFilters.map((f) => Padding(
-                        padding: const EdgeInsets.only(right: 6),
-                        child: Chip(
-                          avatar: const Icon(Icons.public,
-                              size: 14, color: AppColors.primary,),
-                          label: Text(f.displayLabel,
-                              style: const TextStyle(fontSize: 12),),
-                          visualDensity: VisualDensity.compact,
-                          materialTapTargetSize:
-                              MaterialTapTargetSize.shrinkWrap,
-                        ),
-                      ),),
-                ],
-              ),
-            ),
+          final entityId = entity['id'] as String;
 
-          // Records list with pull-to-refresh + infinite scroll
-          Expanded(
-            child: FutureBuilder<Map<String, dynamic>?>(
-              future: repo.getEntity(widget.entitySlug),
-              builder: (context, entitySnapshot) {
-                final entity = entitySnapshot.data;
-                if (entity == null) {
-                  return const Center(child: CircularProgressIndicator());
-                }
+          // Extract global filters and fields from entity (synchronously)
+          final globalFilters = repo.extractGlobalFilters(entity);
+          final columnOrder = repo.extractVisibleColumns(entity);
+          List<dynamic> fields = [];
+          try {
+            fields = jsonDecode(entity['fields'] as String? ?? '[]');
+          } catch (_) {}
 
-                final entityId = entity['id'] as String;
+          final totalFilterCount = globalFilters.length;
 
-                // Cache entity metadata for filter sheet
-                if (_entityId != entityId) {
-                  WidgetsBinding.instance.addPostFrameCallback((_) {
-                    if (!mounted) return;
-                    setState(() {
-                      _entityId = entityId;
-                      _globalFilters = repo.extractGlobalFilters(entity);
-                      _columnOrder = repo.extractVisibleColumns(entity);
-                      try {
-                        _fields = jsonDecode(
-                            entity['fields'] as String? ?? '[]',);
-                      } catch (_) {
-                        _fields = [];
-                      }
+          return Column(
+            children: [
+              // Search bar
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: TextField(
+                  controller: _searchController,
+                  decoration: InputDecoration(
+                    hintText: 'Buscar...',
+                    prefixIcon: const Icon(Icons.search),
+                    suffixIcon: _search.isNotEmpty
+                        ? IconButton(
+                            icon: const Icon(Icons.clear),
+                            onPressed: () {
+                              _searchController.clear();
+                              setState(() {
+                                _search = '';
+                                _limit = AppConstants.defaultPageSize;
+                              });
+                            },
+                          )
+                        : null,
+                  ),
+                  onChanged: (value) {
+                    _debounce?.cancel();
+                    _debounce = Timer(const Duration(milliseconds: 400), () {
+                      setState(() {
+                        _search = value;
+                        _limit = AppConstants.defaultPageSize;
+                      });
                     });
-                  });
-                }
+                  },
+                ),
+              ),
 
-                return StreamBuilder<List<Map<String, dynamic>>>(
+              // Global filter chips (read-only indicators)
+              if (globalFilters.isNotEmpty)
+                SizedBox(
+                  height: 40,
+                  child: ListView(
+                    scrollDirection: Axis.horizontal,
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    children: [
+                      ...globalFilters.map((f) => Padding(
+                            padding: const EdgeInsets.only(right: 6),
+                            child: Chip(
+                              avatar: const Icon(Icons.public,
+                                  size: 14, color: AppColors.primary),
+                              label: Text(f.displayLabel,
+                                  style: const TextStyle(fontSize: 12)),
+                              visualDensity: VisualDensity.compact,
+                              materialTapTargetSize:
+                                  MaterialTapTargetSize.shrinkWrap,
+                            ),
+                          )),
+                    ],
+                  ),
+                ),
+
+              // Records list with pull-to-refresh + infinite scroll
+              Expanded(
+                child: StreamBuilder<List<Map<String, dynamic>>>(
                   stream: repo.watchRecords(
                     entityId: entityId,
                     search: _search.isNotEmpty ? _search : null,
-                    orderBy: _sort.sql,
+                    orderBy: 'createdAt DESC',
                     limit: _limit,
-                    globalFilters: _globalFilters,
+                    globalFilters: globalFilters,
                     createdById: scopeUserId,
                   ),
                   builder: (context, snapshot) {
@@ -294,7 +219,7 @@ class _DataListPageState extends ConsumerState<DataListPage> {
 
                     if (records.isEmpty) {
                       final canCreate = perms.hasEntityPermission(
-                        widget.entitySlug, 'canCreate',);
+                        widget.entitySlug, 'canCreate');
                       final showCreateButton = canCreate &&
                           _search.isEmpty &&
                           totalFilterCount == 0;
@@ -356,7 +281,7 @@ class _DataListPageState extends ConsumerState<DataListPage> {
                                         const SizedBox(height: 24),
                                         ElevatedButton.icon(
                                           onPressed: () => context.push(
-                                            '/data/${widget.entitySlug}/new',),
+                                            '/data/${widget.entitySlug}/new'),
                                           icon: const Icon(Icons.add),
                                           label: const Text('Criar Primeiro'),
                                           style: ElevatedButton.styleFrom(
@@ -384,7 +309,7 @@ class _DataListPageState extends ConsumerState<DataListPage> {
                     return RefreshIndicator(
                       onRefresh: () async {
                         setState(
-                            () => _limit = AppConstants.defaultPageSize,);
+                            () => _limit = AppConstants.defaultPageSize);
                         await Future.delayed(
                           const Duration(milliseconds: 500),
                         );
@@ -435,9 +360,9 @@ class _DataListPageState extends ConsumerState<DataListPage> {
                           final canEdit = perms.hasEntityPermission(widget.entitySlug, 'canUpdate');
                           final card = DataCard(
                             record: record,
-                            fields: _fields,
+                            fields: fields,
                             visibleFieldSlugs: perms.getVisibleFields(widget.entitySlug),
-                            columnOrder: _columnOrder.isNotEmpty ? _columnOrder : null,
+                            columnOrder: columnOrder.isNotEmpty ? columnOrder : null,
                             onTap: () {
                               // Vai direto para edicao se tem permissao, senao visualizacao
                               final path = canEdit
@@ -468,7 +393,7 @@ class _DataListPageState extends ConsumerState<DataListPage> {
                                     BorderRadius.circular(AppColors.radius),
                               ),
                               child: const Icon(Icons.delete_outlined,
-                                  color: Colors.white,),
+                                  color: Colors.white),
                             ),
                             child: card,
                           );
@@ -476,11 +401,11 @@ class _DataListPageState extends ConsumerState<DataListPage> {
                       ),
                     );
                   },
-                );
-              },
-            ),
-          ),
-        ],
+                ),
+              ),
+            ],
+          );
+        },
       ),
       floatingActionButton: PermissionGate(
         entitySlug: widget.entitySlug,

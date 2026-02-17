@@ -45,10 +45,13 @@ sync_rules:
             FROM "Entity"
             WHERE "tenantId" = bucket.tenant_id
 
-          # Entity data records (exclude soft-deleted)
-          - SELECT id, "tenantId", "entityId", data, "parentRecordId", "createdById", "updatedById", "createdAt", "updatedAt", "deletedAt"
-            FROM "EntityData"
-            WHERE "tenantId" = bucket.tenant_id AND "deletedAt" IS NULL
+          # Entity data records (exclude soft-deleted, apply global filters)
+          - SELECT ed.id, ed."tenantId", ed."entityId", ed.data, ed."parentRecordId", ed."createdById", ed."updatedById", ed."createdAt", ed."updatedAt", ed."deletedAt"
+            FROM "EntityData" ed
+            LEFT JOIN "Entity" e ON ed."entityId" = e.id
+            WHERE ed."tenantId" = bucket.tenant_id
+              AND ed."deletedAt" IS NULL
+              AND check_global_filters(ed.data::jsonb, (e.settings::jsonb->'globalFilters'))
 
           # Custom roles (for permission checks)
           - SELECT id, "tenantId", name, description, color, "roleType", "isSystem", permissions, "modulePermissions", "tenantPermissions", "isDefault", "createdAt", "updatedAt"

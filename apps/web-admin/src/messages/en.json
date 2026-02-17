@@ -450,6 +450,7 @@
     "noSearchResults": "No search results",
     "startAddingData": "Start adding data to this entity",
     "recordsCount": "{filtered} of {total} record(s)",
+    "recordsFiltered": "{count} record(s) filtered ({filters} filter(s) active)",
     "filtersActive": "{count} filter(s) active",
     "moreFields": "+{count} fields",
     "moreResults": "+{count} more results (type to filter)",

@@ -1077,11 +1077,12 @@ function DataPageContent() {
                   <div>
                     <CardTitle className="text-lg sm:text-xl">{selectedEntity.name}</CardTitle>
                     <CardDescription>
-                      {paginationMeta
-                        ? t('recordsCount', { filtered: filteredRecords.length, total: paginationMeta.total })
-                        : t('recordsCount', { filtered: filteredRecords.length, total: records.length })
+                      {(activeFilters.length + globalFilters.length) > 0
+                        ? t('recordsFiltered', { count: filteredRecords.length, filters: activeFilters.length + globalFilters.length })
+                        : paginationMeta
+                          ? t('recordsCount', { filtered: filteredRecords.length, total: paginationMeta.total })
+                          : t('recordsCount', { filtered: filteredRecords.length, total: records.length })
                       }
-                      {(activeFilters.length + globalFilters.length) > 0 && ` (${t('filtersActive', { count: activeFilters.length + globalFilters.length })})`}
                     </CardDescription>
                   </div>
                   <div className="flex items-center gap-2 flex-wrap">

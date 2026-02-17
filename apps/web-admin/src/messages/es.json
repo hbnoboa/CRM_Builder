@@ -450,6 +450,7 @@
     "noSearchResults": "Sin resultados de búsqueda",
     "startAddingData": "Comienza agregando datos a esta entidad",
     "recordsCount": "{filtered} de {total} registro(s)",
+    "recordsFiltered": "{count} registro(s) filtrado(s) ({filters} filtro(s) activo(s))",
     "filtersActive": "{count} filtro(s) activo(s)",
     "moreFields": "+{count} campos",
     "moreResults": "+{count} resultados más (escriba para filtrar)",

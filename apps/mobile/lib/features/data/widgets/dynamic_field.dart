@@ -633,6 +633,31 @@ class DynamicFieldInput extends StatelessWidget {
 
       case 'IMAGE':
       case 'FILE':
+        // Parse image source configuration from field settings
+        // Supports: imageSource ('camera'/'gallery'/'both'), cameraOnly, allowCamera, allowGallery
+        final imageSource = (field['imageSource'] as String?)?.toLowerCase();
+        final cameraOnly = field['cameraOnly'] == true;
+        var allowCamera = field['allowCamera'] != false; // Default true
+        var allowGallery = field['allowGallery'] != false; // Default true
+
+        // imageSource takes precedence
+        if (imageSource == 'camera') {
+          allowCamera = true;
+          allowGallery = false;
+        } else if (imageSource == 'gallery') {
+          allowCamera = false;
+          allowGallery = true;
+        } else if (imageSource == 'both') {
+          allowCamera = true;
+          allowGallery = true;
+        }
+
+        // cameraOnly flag overrides
+        if (cameraOnly) {
+          allowCamera = true;
+          allowGallery = false;
+        }
+
         return ImageFieldInput(
           label: name,
           value: value?.toString(),
@@ -642,6 +667,8 @@ class DynamicFieldInput extends StatelessWidget {
           entitySlug: entitySlug,
           recordId: recordId,
           fieldSlug: slug,
+          allowCamera: allowCamera,
+          allowGallery: allowGallery,
         );
 
       case 'PHONE':

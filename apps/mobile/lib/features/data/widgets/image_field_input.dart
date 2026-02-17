@@ -31,6 +31,8 @@ class ImageFieldInput extends ConsumerStatefulWidget {
     this.entitySlug = '',
     this.recordId = '',
     this.fieldSlug = '',
+    this.allowCamera = true,
+    this.allowGallery = true,
   });
 
   final String label;
@@ -43,6 +45,12 @@ class ImageFieldInput extends ConsumerStatefulWidget {
   final String entitySlug;
   final String recordId;
   final String fieldSlug;
+
+  /// Whether to allow camera input (default: true).
+  final bool allowCamera;
+
+  /// Whether to allow gallery input (default: true).
+  final bool allowGallery;
 
   @override
   ConsumerState<ImageFieldInput> createState() => _ImageFieldInputState();
@@ -180,28 +188,40 @@ class _ImageFieldInputState extends ConsumerState<ImageFieldInput> {
   }
 
   void _showPickerSheet() {
+    // If only one source is allowed, pick directly without showing sheet
+    if (widget.allowCamera && !widget.allowGallery) {
+      _pickImage(ImageSource.camera);
+      return;
+    }
+    if (widget.allowGallery && !widget.allowCamera) {
+      _pickImage(ImageSource.gallery);
+      return;
+    }
+
     showModalBottomSheet(
       context: context,
       builder: (ctx) => SafeArea(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            ListTile(
-              leading: const Icon(Icons.camera_alt_outlined),
-              title: const Text('Camera'),
-              onTap: () {
-                Navigator.of(ctx).pop();
-                _pickImage(ImageSource.camera);
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.photo_library_outlined),
-              title: const Text('Galeria'),
-              onTap: () {
-                Navigator.of(ctx).pop();
-                _pickImage(ImageSource.gallery);
-              },
-            ),
+            if (widget.allowCamera)
+              ListTile(
+                leading: const Icon(Icons.camera_alt_outlined),
+                title: const Text('Camera'),
+                onTap: () {
+                  Navigator.of(ctx).pop();
+                  _pickImage(ImageSource.camera);
+                },
+              ),
+            if (widget.allowGallery)
+              ListTile(
+                leading: const Icon(Icons.photo_library_outlined),
+                title: const Text('Galeria'),
+                onTap: () {
+                  Navigator.of(ctx).pop();
+                  _pickImage(ImageSource.gallery);
+                },
+              ),
             if (_currentUrl != null)
               ListTile(
                 leading: const Icon(Icons.delete_outlined, color: AppColors.destructive),
