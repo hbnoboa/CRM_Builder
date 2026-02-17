@@ -179,30 +179,6 @@ class _DataListPageState extends ConsumerState<DataListPage> {
                 ),
               ),
 
-              // Global filter chips (read-only indicators)
-              if (globalFilters.isNotEmpty)
-                SizedBox(
-                  height: 40,
-                  child: ListView(
-                    scrollDirection: Axis.horizontal,
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    children: [
-                      ...globalFilters.map((f) => Padding(
-                            padding: const EdgeInsets.only(right: 6),
-                            child: Chip(
-                              avatar: const Icon(Icons.public,
-                                  size: 14, color: AppColors.primary),
-                              label: Text(f.displayLabel,
-                                  style: const TextStyle(fontSize: 12)),
-                              visualDensity: VisualDensity.compact,
-                              materialTapTargetSize:
-                                  MaterialTapTargetSize.shrinkWrap,
-                            ),
-                          )),
-                    ],
-                  ),
-                ),
-
               // Records list with pull-to-refresh + infinite scroll
               // Se tiver filtros globais, usa API (backend filtra)
               // Se nao tiver, usa SQLite local (PowerSync)
@@ -317,7 +293,26 @@ class _DataListPageState extends ConsumerState<DataListPage> {
                     final showEndIndicator =
                         !hasMore && records.length > AppConstants.defaultPageSize;
 
-                    return RefreshIndicator(
+                    return Column(
+                      children: [
+                        // Contador de registros
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                          child: Row(
+                            children: [
+                              Text(
+                                totalFilterCount > 0
+                                    ? '${records.length} registro${records.length != 1 ? 's' : ''} (filtrado)'
+                                    : '${records.length} registro${records.length != 1 ? 's' : ''}',
+                                style: AppTypography.caption.copyWith(
+                                  color: AppColors.mutedForeground,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Expanded(
+                          child: RefreshIndicator(
                       onRefresh: () async {
                         setState(
                             () => _limit = AppConstants.defaultPageSize);
@@ -410,7 +405,10 @@ class _DataListPageState extends ConsumerState<DataListPage> {
                           );
                         },
                       ),
-                    );
+                    ),
+                  ),
+                        ],
+                      );
                   },
                 ),
               ),
