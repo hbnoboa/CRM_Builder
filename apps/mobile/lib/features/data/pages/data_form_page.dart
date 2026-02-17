@@ -114,7 +114,7 @@ class _DataFormPageState extends ConsumerState<DataFormPage> {
     final missingFields = <String>[];
     for (final field in _fields) {
       final f = field as Map<String, dynamic>;
-      final type = (f['type'] as String? ?? '').toUpperCase();
+      final type = (f['type'] as String? ?? '').toUpperCase().replaceAll('-', '_');
       if (type == 'SUB_ENTITY') continue;
       final slug = f['slug'] as String? ?? '';
       // Skip required check for fields the user cannot edit
@@ -205,7 +205,7 @@ class _DataFormPageState extends ConsumerState<DataFormPage> {
 
   List<Widget> _buildSubEntitySections() {
     final subFields = _fields.where(
-      (f) => (f as Map<String, dynamic>)['type']?.toString().toUpperCase() == 'SUB_ENTITY',
+      (f) => (f as Map<String, dynamic>)['type']?.toString().toUpperCase().replaceAll('-', '_') == 'SUB_ENTITY',
     );
     if (subFields.isEmpty) return [];
 
@@ -320,7 +320,7 @@ class _DataFormPageState extends ConsumerState<DataFormPage> {
                 ..._fields
                     .where((f) {
                       final fieldMap = f as Map<String, dynamic>;
-                      final type = fieldMap['type']?.toString().toUpperCase() ?? '';
+                      final type = (fieldMap['type']?.toString().toUpperCase() ?? '').replaceAll('-', '_');
                       if (type == 'SUB_ENTITY') return false;
                       // Field-level permissions: hide non-visible fields
                       if (visibleFields != null) {

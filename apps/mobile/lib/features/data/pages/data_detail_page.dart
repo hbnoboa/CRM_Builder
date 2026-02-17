@@ -168,7 +168,7 @@ class DataDetailPage extends ConsumerWidget {
                     ...fields
                         .where((f) {
                           final fieldMap = f as Map<String, dynamic>;
-                          final type = fieldMap['type']?.toString().toUpperCase() ?? '';
+                          final type = (fieldMap['type']?.toString().toUpperCase() ?? '').replaceAll('-', '_');
                           if (type == 'SUB_ENTITY') return false;
                           // Field-level permissions
                           final visibleFields = ref.read(permissionsProvider)
@@ -208,7 +208,7 @@ class DataDetailPage extends ConsumerWidget {
   List<Widget> _buildSubEntitySections(
       List<dynamic> fields, String parentRecordId,) {
     final subFields = fields.where(
-      (f) => (f as Map<String, dynamic>)['type']?.toString().toUpperCase() == 'SUB_ENTITY',
+      (f) => (f as Map<String, dynamic>)['type']?.toString().toUpperCase().replaceAll('-', '_') == 'SUB_ENTITY',
     );
 
     if (subFields.isEmpty) return [];
@@ -285,7 +285,7 @@ class DataDetailPage extends ConsumerWidget {
 
       for (final field in fields) {
         final f = field as Map<String, dynamic>;
-        final type = (f['type'] as String? ?? '').toUpperCase();
+        final type = (f['type'] as String? ?? '').toUpperCase().replaceAll('-', '_');
         if (type == 'SUB_ENTITY' || type == 'IMAGE' || type == 'FILE') continue;
 
         final slug = f['slug'] as String? ?? '';

@@ -28,8 +28,16 @@ class DynamicFieldDisplay extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final name = field['name'] as String? ?? field['slug'] as String? ?? '';
-    final type = (field['type'] as String? ?? 'text').toUpperCase();
+    // Prioridade: label > name > slug formatado
+    final slug = field['slug'] as String? ?? '';
+    var name = field['label'] as String? ?? field['name'] as String?;
+    if (name == null || name.isEmpty) {
+      name = slug.replaceAll('_', ' ');
+      if (name.isNotEmpty) {
+        name = name[0].toUpperCase() + name.substring(1);
+      }
+    }
+    final type = (field['type'] as String? ?? 'text').toUpperCase().replaceAll('-', '_');
 
     return GestureDetector(
       onLongPress: () => _copyValue(context, type),
@@ -479,8 +487,17 @@ class DynamicFieldInput extends StatelessWidget {
       );
     }
 
-    final name = field['name'] as String? ?? field['slug'] as String? ?? '';
-    final type = (field['type'] as String? ?? 'text').toUpperCase();
+    // Prioridade: label > name > slug formatado
+    final slug = field['slug'] as String? ?? '';
+    var name = field['label'] as String? ?? field['name'] as String?;
+    if (name == null || name.isEmpty) {
+      // Converte slug para formato legivel: nao_conformidade -> Nao conformidade
+      name = slug.replaceAll('_', ' ');
+      if (name.isNotEmpty) {
+        name = name[0].toUpperCase() + name.substring(1);
+      }
+    }
+    final type = (field['type'] as String? ?? 'text').toUpperCase().replaceAll('-', '_');
     final required = field['required'] == true;
     final options = field['options'] as List<dynamic>?;
     final helpText = field['helpText'] as String?;

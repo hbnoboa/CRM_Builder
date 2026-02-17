@@ -27,7 +27,7 @@ class DataCard extends StatelessWidget {
     final allFields = fields
         .cast<Map<String, dynamic>>()
         .where((f) {
-          final type = (f['type'] as String? ?? 'text').toUpperCase();
+          final type = (f['type'] as String? ?? 'text').toUpperCase().replaceAll('-', '_');
           if (type == 'SUB_ENTITY' || type == 'HIDDEN') return false;
           final slug = f['slug'] as String? ?? '';
           if (visibleFieldSlugs != null && !visibleFieldSlugs!.contains(slug)) return false;

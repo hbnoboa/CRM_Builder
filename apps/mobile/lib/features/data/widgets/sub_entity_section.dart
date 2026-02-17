@@ -43,54 +43,69 @@ class _SubEntitySectionState extends ConsumerState<SubEntitySection> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         // Header with expand toggle and create button
-        InkWell(
-          onTap: () => setState(() => _isExpanded = !_isExpanded),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 8),
-            child: Row(
-              children: [
-                Icon(
-                  _isExpanded
-                      ? Icons.keyboard_arrow_down
-                      : Icons.keyboard_arrow_right,
-                  color: AppColors.mutedForeground,
-                ),
-                const SizedBox(width: 4),
-                Expanded(
-                  child: StreamBuilder<List<Map<String, dynamic>>>(
-                    stream: repo.watchChildRecords(
-                      parentRecordId: widget.parentRecordId,
-                      entityId: widget.subEntityId,
+        Container(
+          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+          decoration: BoxDecoration(
+            color: AppColors.primary.withValues(alpha: 0.05),
+            borderRadius: BorderRadius.circular(AppColors.radiusSm),
+            border: Border.all(color: AppColors.primary.withValues(alpha: 0.2)),
+          ),
+          child: Row(
+            children: [
+              InkWell(
+                onTap: () => setState(() => _isExpanded = !_isExpanded),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      _isExpanded
+                          ? Icons.keyboard_arrow_down
+                          : Icons.keyboard_arrow_right,
+                      color: AppColors.primary,
                     ),
-                    builder: (context, snapshot) {
-                      final count = snapshot.data?.length ?? 0;
-                      return Text(
-                        '${widget.label} ($count)',
-                        style: AppTypography.labelLarge.copyWith(
-                          color: AppColors.foreground,
-                        ),
-                      );
-                    },
-                  ),
+                    const SizedBox(width: 4),
+                    StreamBuilder<List<Map<String, dynamic>>>(
+                      stream: repo.watchChildRecords(
+                        parentRecordId: widget.parentRecordId,
+                        entityId: widget.subEntityId,
+                      ),
+                      builder: (context, snapshot) {
+                        final count = snapshot.data?.length ?? 0;
+                        return Text(
+                          '${widget.label} ($count)',
+                          style: AppTypography.labelLarge.copyWith(
+                            color: AppColors.primary,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        );
+                      },
+                    ),
+                  ],
                 ),
-                PermissionGate(
-                  entitySlug: widget.subEntitySlug,
-                  entityAction: 'canCreate',
-                  child: IconButton(
-                    icon: const Icon(Icons.add_circle_outline, size: 20),
-                    onPressed: () {
-                      context.push(
-                        '/data/${widget.subEntitySlug}/new?parentRecordId=${widget.parentRecordId}',
-                      );
-                    },
-                    tooltip: 'Adicionar ${widget.label}',
+              ),
+              const Spacer(),
+              PermissionGate(
+                entitySlug: widget.subEntitySlug,
+                entityAction: 'canCreate',
+                child: TextButton.icon(
+                  onPressed: () {
+                    context.push(
+                      '/data/${widget.subEntitySlug}/new?parentRecordId=${widget.parentRecordId}',
+                    );
+                  },
+                  icon: const Icon(Icons.add, size: 18),
+                  label: const Text('Adicionar'),
+                  style: TextButton.styleFrom(
+                    foregroundColor: AppColors.primary,
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
                     visualDensity: VisualDensity.compact,
                   ),
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
+        const SizedBox(height: 8),
 
         // Child records list
         if (_isExpanded)
@@ -103,15 +118,46 @@ class _SubEntitySectionState extends ConsumerState<SubEntitySection> {
               final records = snapshot.data ?? [];
 
               if (records.isEmpty) {
-                return Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                  child: Center(
-                    child: Text(
-                      'Nenhum registro',
-                      style: AppTypography.bodySmall.copyWith(
+                return Container(
+                  padding: const EdgeInsets.all(24),
+                  decoration: BoxDecoration(
+                    color: AppColors.surfaceVariant,
+                    borderRadius: BorderRadius.circular(AppColors.radiusMd),
+                    border: Border.all(color: AppColors.border),
+                  ),
+                  child: Column(
+                    children: [
+                      Icon(
+                        Icons.inbox_outlined,
+                        size: 40,
                         color: AppColors.mutedForeground,
                       ),
-                    ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Nenhum registro',
+                        style: AppTypography.bodyMedium.copyWith(
+                          color: AppColors.mutedForeground,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      PermissionGate(
+                        entitySlug: widget.subEntitySlug,
+                        entityAction: 'canCreate',
+                        child: ElevatedButton.icon(
+                          onPressed: () {
+                            context.push(
+                              '/data/${widget.subEntitySlug}/new?parentRecordId=${widget.parentRecordId}',
+                            );
+                          },
+                          icon: const Icon(Icons.add, size: 18),
+                          label: Text('Adicionar ${widget.label}'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.primary,
+                            foregroundColor: Colors.white,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 );
               }
