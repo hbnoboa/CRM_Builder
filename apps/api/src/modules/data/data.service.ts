@@ -364,10 +364,14 @@ export class DataService {
     // Aplicar filtros passados via query parameter (suporta multiplos filtros)
     if (query.filters) {
       try {
+        this.logger.debug(`Raw filters param: ${query.filters}`);
         const filters = JSON.parse(query.filters) as GlobalFilter[];
         if (Array.isArray(filters) && filters.length > 0) {
+          for (const f of filters) {
+            this.logger.log(`Filter: ${f.fieldSlug} (${f.fieldType}) ${f.operator} = ${JSON.stringify(f.value)}`);
+          }
           this.applyGlobalFilters(where, filters);
-          this.logger.log(`Applied ${filters.length} filters from query param for entity ${entitySlug}`);
+          this.logger.log(`Applied ${filters.length} filters for entity ${entitySlug}`);
         }
       } catch (e) {
         this.logger.warn(`Failed to parse filters param: ${e}`);
@@ -1136,8 +1140,17 @@ export class DataService {
 
     if (type === 'boolean') {
       if (operator === 'equals') {
-        // Boolean: converter para valor real
-        const boolValue = value === true || value === 'true' || value === 1;
+        // Boolean: converter explicitamente para true ou false
+        // Aceita: true, 'true', 1, '1' -> true
+        // Aceita: false, 'false', 0, '0' -> false
+        let boolValue: boolean;
+        if (value === true || value === 'true' || value === 1 || value === '1') {
+          boolValue = true;
+        } else {
+          // Qualquer outro valor (false, 'false', 0, '0', null, undefined) -> false
+          boolValue = false;
+        }
+        this.logger.debug(`Boolean filter: ${fieldSlug} = ${boolValue} (raw value: ${value}, type: ${typeof value})`);
         return { data: { path: [fieldSlug], equals: boolValue } };
       }
     }

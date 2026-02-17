@@ -151,18 +151,27 @@ class GlobalFilter {
   final String? createdByName;
   final String? createdAt;
 
-  Map<String, dynamic> toJson() => {
-        'fieldSlug': fieldSlug,
-        'fieldName': fieldName,
-        'fieldType': fieldType,
-        'operator': operator.toJson(),
-        if (value != null) 'value': value,
-        if (value2 != null) 'value2': value2,
-        if (subField != null) 'subField': subField,
-        if (createdBy != null) 'createdBy': createdBy,
-        if (createdByName != null) 'createdByName': createdByName,
-        if (createdAt != null) 'createdAt': createdAt,
-      };
+  Map<String, dynamic> toJson() {
+    final json = <String, dynamic>{
+      'fieldSlug': fieldSlug,
+      'fieldName': fieldName,
+      'fieldType': fieldType,
+      'operator': operator.toJson(),
+    };
+    // Para boolean, SEMPRE incluir value (mesmo false)
+    // Para outros tipos, incluir se != null
+    if (fieldType.toLowerCase() == 'boolean') {
+      json['value'] = value == true; // Normaliza para true/false
+    } else if (value != null) {
+      json['value'] = value;
+    }
+    if (value2 != null) json['value2'] = value2;
+    if (subField != null) json['subField'] = subField;
+    if (createdBy != null) json['createdBy'] = createdBy;
+    if (createdByName != null) json['createdByName'] = createdByName;
+    if (createdAt != null) json['createdAt'] = createdAt;
+    return json;
+  }
 
   String get displayLabel {
     if (operator == FilterOperator.isEmpty || operator == FilterOperator.isNotEmpty) {
