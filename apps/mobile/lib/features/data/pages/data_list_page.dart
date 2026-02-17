@@ -215,13 +215,14 @@ class _DataListPageState extends ConsumerState<DataListPage> {
                           sortBy: 'createdAt',
                           sortOrder: 'desc',
                           limit: _limit,
+                          filters: globalFilters, // Passa filtros pro backend
                         )
                       : repo.watchRecords(
                           entityId: entityId,
                           search: _search.isNotEmpty ? _search : null,
                           orderBy: 'createdAt DESC',
                           limit: _limit,
-                          globalFilters: const [], // Backend ja filtrou
+                          globalFilters: const [],
                           createdById: scopeUserId,
                         ),
                   builder: (context, snapshot) {

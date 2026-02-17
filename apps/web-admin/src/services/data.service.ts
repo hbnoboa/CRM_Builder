@@ -13,6 +13,9 @@ export interface QueryDataParams {
   cursor?: string;
   // Sparse fieldsets - reduz payload
   fields?: string;
+  // Filtros - JSON stringified array de filtros
+  // Ex: '[{"fieldSlug":"status","operator":"equals","value":"ativo","fieldType":"text"}]'
+  filters?: string;
 }
 
 // Meta com suporte a cursor

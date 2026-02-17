@@ -461,7 +461,7 @@ function DataPageContent() {
     }
   };
 
-  const fetchRecords = async (entitySlug: string, page = 1, search = '', parentRecordIdOverride?: string | null, sortOverride?: { field: string; order: 'asc' | 'desc' } | null): Promise<DataRecord[]> => {
+  const fetchRecords = async (entitySlug: string, page = 1, search = '', parentRecordIdOverride?: string | null, sortOverride?: { field: string; order: 'asc' | 'desc' } | null, filtersOverride?: ActiveFilter[]): Promise<DataRecord[]> => {
     if (!tenantId && !isPlatformAdmin) return [];
     const requestId = ++fetchCounterRef.current;
     setLoadingRecords(true);
@@ -487,6 +487,11 @@ function DataPageContent() {
       if (effectiveSort) {
         params.sortBy = effectiveSort.field;
         params.sortOrder = effectiveSort.order;
+      }
+      // Filtros: globalFilters + activeFilters (ou override)
+      const effectiveFilters = filtersOverride ?? [...globalFilters, ...activeFilters];
+      if (effectiveFilters.length > 0) {
+        params.filters = JSON.stringify(effectiveFilters);
       }
       const response = await api.get(`/data/${entitySlug}`, { params });
       const list = Array.isArray(response.data) ? response.data : response.data?.data || [];

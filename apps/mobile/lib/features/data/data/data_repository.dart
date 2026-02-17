@@ -308,8 +308,8 @@ class DataRepository {
   // Backend aplica os filtros automaticamente
   // ═══════════════════════════════════════════════════════
 
-  /// Fetch records from API (backend applies global filters automatically).
-  /// Use this when entity has globalFilters defined.
+  /// Fetch records from API with filters passed as parameter.
+  /// Backend applies the filters and returns filtered data.
   Future<List<Map<String, dynamic>>> fetchRecordsFromApi({
     required String entitySlug,
     String? search,
@@ -318,6 +318,7 @@ class DataRepository {
     int page = 1,
     int limit = 50,
     String? parentRecordId,
+    List<GlobalFilter> filters = const [],
   }) async {
     try {
       final queryParams = <String, dynamic>{
@@ -332,6 +333,12 @@ class DataRepository {
       if (parentRecordId != null) {
         queryParams['parentRecordId'] = parentRecordId;
       }
+      // Passar filtros como JSON para o backend
+      if (filters.isNotEmpty) {
+        final filtersJson = filters.map((f) => f.toJson()).toList();
+        queryParams['filters'] = jsonEncode(filtersJson);
+        debugPrint('[DataRepo] fetchRecordsFromApi - filters: $filtersJson');
+      }
 
       debugPrint('[DataRepo] fetchRecordsFromApi - GET /data/$entitySlug with params: $queryParams');
 
@@ -345,7 +352,7 @@ class DataRepository {
           ?.map((e) => e as Map<String, dynamic>)
           .toList() ?? [];
 
-      debugPrint('[DataRepo] fetchRecordsFromApi - received ${records.length} records (filtered by backend)');
+      debugPrint('[DataRepo] fetchRecordsFromApi - received ${records.length} records');
 
       return records;
     } catch (e) {
@@ -354,14 +361,15 @@ class DataRepository {
     }
   }
 
-  /// Stream that fetches from API periodically (for entities with global filters).
-  /// Polls every [pollInterval] seconds.
+  /// Stream that fetches from API periodically.
+  /// Passes filters to backend for server-side filtering.
   Stream<List<Map<String, dynamic>>> watchRecordsFromApi({
     required String entitySlug,
     String? search,
     String sortBy = 'createdAt',
     String sortOrder = 'desc',
     int limit = 50,
+    List<GlobalFilter> filters = const [],
     Duration pollInterval = const Duration(seconds: 30),
   }) async* {
     // Emit immediately
@@ -372,6 +380,7 @@ class DataRepository {
         sortBy: sortBy,
         sortOrder: sortOrder,
         limit: limit,
+        filters: filters,
       );
       yield records;
     } catch (e) {
@@ -388,6 +397,7 @@ class DataRepository {
           sortBy: sortBy,
           sortOrder: sortOrder,
           limit: limit,
+          filters: filters,
         );
         yield records;
       } catch (e) {

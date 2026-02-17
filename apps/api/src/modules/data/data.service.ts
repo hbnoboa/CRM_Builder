@@ -48,6 +48,8 @@ export interface QueryDataDto {
   cursor?: string;
   // Sparse fieldsets - reduz payload
   fields?: string; // Ex: "id,data,createdAt"
+  // Filtros - JSON stringified array de GlobalFilter
+  filters?: string; // Ex: '[{"fieldSlug":"status","operator":"equals","value":"ativo"}]'
 }
 
 interface EntitySettings {
@@ -359,11 +361,17 @@ export class DataService {
     // Aplicar filtro de escopo baseado na CustomRole (own = apenas proprios registros)
     await this.applyScopeFromCustomRole(where, currentUser, entitySlug);
 
-    // Aplicar filtros globais da entidade (definidos em entity.settings.globalFilters)
-    const settings = entity.settings as EntitySettings;
-    if (settings?.globalFilters && settings.globalFilters.length > 0) {
-      this.applyGlobalFilters(where, settings.globalFilters);
-      this.logger.log(`Applied ${settings.globalFilters.length} global filters for entity ${entitySlug}`);
+    // Aplicar filtros passados via query parameter (suporta multiplos filtros)
+    if (query.filters) {
+      try {
+        const filters = JSON.parse(query.filters) as GlobalFilter[];
+        if (Array.isArray(filters) && filters.length > 0) {
+          this.applyGlobalFilters(where, filters);
+          this.logger.log(`Applied ${filters.length} filters from query param for entity ${entitySlug}`);
+        }
+      } catch (e) {
+        this.logger.warn(`Failed to parse filters param: ${e}`);
+      }
     }
 
     // Busca textual
