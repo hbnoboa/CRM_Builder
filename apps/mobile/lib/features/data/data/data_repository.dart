@@ -2,6 +2,8 @@ import 'dart:convert';
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
+import 'package:uuid/uuid.dart';
+import 'package:crm_mobile/core/auth/secure_storage.dart';
 import 'package:crm_mobile/core/database/app_database.dart';
 import 'package:crm_mobile/core/filters/filter_models.dart';
 import 'package:crm_mobile/core/filters/filter_sql_builder.dart';
@@ -9,8 +11,14 @@ import 'package:crm_mobile/core/network/api_client.dart';
 
 part 'data_repository.g.dart';
 
-/// Data repository that reads from local PowerSync DB
-/// and writes through the API (mirrors data.service.ts).
+const _uuid = Uuid();
+
+/// Data repository - 100% offline-first via PowerSync.
+///
+/// Leituras: SQLite local (real-time via streams)
+/// Escritas: SQLite local → PowerSync enfileira → uploadData() envia para API
+///
+/// Excecao: uploadFile() usa API diretamente (arquivos nao passam pelo PowerSync)
 class DataRepository {
   DataRepository(this._dio);
 
@@ -140,51 +148,109 @@ class DataRepository {
   }
 
   // ═══════════════════════════════════════════════════════
-  // REMOTE WRITES (API)
+  // OFFLINE-FIRST WRITES (100% PowerSync)
+  // Todas as escritas vao para SQLite local.
+  // PowerSync enfileira e sincroniza via uploadData() quando online.
   // ═══════════════════════════════════════════════════════
 
-  /// Create a record via API (mirrors data.service.ts create).
+  /// Create a record - saves to local SQLite, PowerSync syncs to API.
   Future<Map<String, dynamic>> createRecord({
     required String entitySlug,
     required Map<String, dynamic> data,
     String? parentRecordId,
   }) async {
-    final response = await _dio.post(
-      '/data/$entitySlug',
-      data: {
-        'data': data,
-        if (parentRecordId != null) 'parentRecordId': parentRecordId,
-      },
+    final db = AppDatabase.instance.db;
+    final entity = await getEntity(entitySlug);
+    if (entity == null) throw Exception('Entity not found: $entitySlug');
+
+    final id = _uuid.v4();
+    final now = DateTime.now().toIso8601String();
+    final tenantId = await _getTenantId();
+    final userId = await _getCurrentUserId();
+
+    // Salva localmente - PowerSync enfileira automaticamente para sync
+    await db.execute(
+      '''INSERT INTO EntityData (id, tenantId, entityId, data, parentRecordId, createdById, updatedById, createdAt, updatedAt, deletedAt)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)''',
+      [id, tenantId, entity['id'], jsonEncode(data), parentRecordId, userId, userId, now, now],
     );
-    return response.data as Map<String, dynamic>;
+
+    return {'id': id, 'data': data, 'createdAt': now};
   }
 
-  /// Update a record via API.
+  /// Update a record - saves to local SQLite, PowerSync syncs to API.
   Future<Map<String, dynamic>> updateRecord({
     required String entitySlug,
     required String recordId,
     required Map<String, dynamic> data,
   }) async {
-    final response = await _dio.patch(
-      '/data/$entitySlug/$recordId',
-      data: {'data': data},
+    final db = AppDatabase.instance.db;
+    final now = DateTime.now().toIso8601String();
+    final userId = await _getCurrentUserId();
+
+    // Atualiza localmente - PowerSync enfileira automaticamente
+    await db.execute(
+      '''UPDATE EntityData SET data = ?, updatedById = ?, updatedAt = ? WHERE id = ?''',
+      [jsonEncode(data), userId, now, recordId],
     );
-    return response.data as Map<String, dynamic>;
+
+    return {'id': recordId, 'data': data, 'updatedAt': now};
   }
 
-  /// Delete a record via API.
+  /// Delete a record - soft delete in local SQLite, PowerSync syncs to API.
   Future<void> deleteRecord({
     required String entitySlug,
     required String recordId,
   }) async {
-    await _dio.delete('/data/$entitySlug/$recordId');
+    final db = AppDatabase.instance.db;
+    final now = DateTime.now().toIso8601String();
+
+    // Soft delete localmente - PowerSync enfileira automaticamente
+    await db.execute(
+      '''UPDATE EntityData SET deletedAt = ? WHERE id = ?''',
+      [now, recordId],
+    );
+  }
+
+  Future<String> _getTenantId() async {
+    // Primeiro tenta o tenant selecionado (para PLATFORM_ADMIN)
+    final selected = await SecureStorage.getSelectedTenantId();
+    if (selected != null && selected.isNotEmpty) return selected;
+
+    // Senao, pega do token
+    final token = await SecureStorage.getAccessToken();
+    if (token == null) return '';
+    try {
+      final parts = token.split('.');
+      if (parts.length != 3) return '';
+      final payload = utf8.decode(base64Url.decode(base64Url.normalize(parts[1])));
+      final map = jsonDecode(payload) as Map<String, dynamic>;
+      return map['tenantId'] as String? ?? '';
+    } catch (_) {
+      return '';
+    }
+  }
+
+  Future<String?> _getCurrentUserId() async {
+    final token = await SecureStorage.getAccessToken();
+    if (token == null) return null;
+    try {
+      final parts = token.split('.');
+      if (parts.length != 3) return null;
+      final payload = utf8.decode(base64Url.decode(base64Url.normalize(parts[1])));
+      final map = jsonDecode(payload) as Map<String, dynamic>;
+      return map['sub'] as String?;
+    } catch (_) {
+      return null;
+    }
   }
 
   // ═══════════════════════════════════════════════════════
-  // FILE UPLOAD
+  // FILE UPLOAD (usa API diretamente - arquivos nao passam pelo PowerSync)
   // ═══════════════════════════════════════════════════════
 
-  /// Upload a file via API (mirrors upload service).
+  /// Upload a file via API.
+  /// Usado apenas quando ONLINE. Se offline, usar UploadQueueService.
   Future<String> uploadFile({
     required String filePath,
     required String fileName,

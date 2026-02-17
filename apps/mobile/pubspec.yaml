@@ -64,7 +64,7 @@ dependencies:
 
   # Utils
   path_provider: ^2.1.5
-  uuid: ^4.5.1
+  uuid: ^4.5.2
   json_annotation: ^4.9.0
   equatable: ^2.0.7
   # workmanager: ^0.5.2 # Removido temporariamente - incompativel com Kotlin 2.1

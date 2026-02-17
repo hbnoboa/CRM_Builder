@@ -14,6 +14,7 @@ import 'package:crm_mobile/features/data/providers/filter_provider.dart';
 import 'package:crm_mobile/features/data/widgets/data_card.dart';
 import 'package:crm_mobile/features/data/widgets/filter_bottom_sheet.dart';
 import 'package:crm_mobile/shared/widgets/permission_gate.dart';
+import 'package:crm_mobile/shared/widgets/sync_status_indicator.dart';
 
 enum SortOption {
   newestFirst('Mais recentes', 'createdAt DESC'),
@@ -201,6 +202,7 @@ class _DataListPageState extends ConsumerState<DataListPage> {
           },
         ),
         actions: [
+          const SyncStatusIndicator(),
           IconButton(
             icon: const Icon(Icons.filter_list),
             onPressed: _showFilterSheet,
@@ -332,6 +334,12 @@ class _DataListPageState extends ConsumerState<DataListPage> {
                     final records = snapshot.data ?? [];
 
                     if (records.isEmpty) {
+                      final canCreate = perms.hasEntityPermission(
+                        widget.entitySlug, 'canCreate');
+                      final showCreateButton = canCreate &&
+                          _search.isEmpty &&
+                          totalFilterCount == 0;
+
                       return RefreshIndicator(
                         onRefresh: () async {
                           await Future.delayed(
@@ -341,27 +349,67 @@ class _DataListPageState extends ConsumerState<DataListPage> {
                         child: ListView(
                           children: [
                             SizedBox(
-                              height: MediaQuery.of(context).size.height * 0.4,
+                              height: MediaQuery.of(context).size.height * 0.5,
                               child: Center(
-                                child: Column(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    Icon(Icons.inbox_outlined,
-                                        size: 64,
-                                        color: AppColors.mutedForeground),
-                                    const SizedBox(height: 16),
-                                    Text(
-                                      _search.isNotEmpty
-                                          ? 'Nenhum resultado para "$_search"'
-                                          : totalFilterCount > 0
-                                              ? 'Nenhum registro com estes filtros'
-                                              : 'Nenhum registro encontrado',
-                                      style:
-                                          AppTypography.bodyMedium.copyWith(
-                                        color: AppColors.mutedForeground,
+                                child: Padding(
+                                  padding: const EdgeInsets.all(32),
+                                  child: Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Container(
+                                        width: 80,
+                                        height: 80,
+                                        decoration: BoxDecoration(
+                                          color: AppColors.primary.withValues(alpha: 0.1),
+                                          borderRadius: BorderRadius.circular(40),
+                                        ),
+                                        child: Icon(
+                                          Icons.inbox_outlined,
+                                          size: 40,
+                                          color: AppColors.primary,
+                                        ),
                                       ),
-                                    ),
-                                  ],
+                                      const SizedBox(height: 24),
+                                      Text(
+                                        _search.isNotEmpty
+                                            ? 'Nenhum resultado para "$_search"'
+                                            : totalFilterCount > 0
+                                                ? 'Nenhum registro com estes filtros'
+                                                : 'Nenhum registro ainda',
+                                        style: AppTypography.h4.copyWith(
+                                          color: AppColors.foreground,
+                                        ),
+                                        textAlign: TextAlign.center,
+                                      ),
+                                      const SizedBox(height: 8),
+                                      Text(
+                                        _search.isNotEmpty
+                                            ? 'Tente outra busca'
+                                            : totalFilterCount > 0
+                                                ? 'Remova filtros para ver mais'
+                                                : 'Comece criando seu primeiro registro',
+                                        style: AppTypography.bodyMedium.copyWith(
+                                          color: AppColors.mutedForeground,
+                                        ),
+                                        textAlign: TextAlign.center,
+                                      ),
+                                      if (showCreateButton) ...[
+                                        const SizedBox(height: 24),
+                                        ElevatedButton.icon(
+                                          onPressed: () => context.push(
+                                            '/data/${widget.entitySlug}/new'),
+                                          icon: const Icon(Icons.add),
+                                          label: const Text('Criar Primeiro'),
+                                          style: ElevatedButton.styleFrom(
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 24,
+                                              vertical: 12,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ],
+                                  ),
                                 ),
                               ),
                             ),

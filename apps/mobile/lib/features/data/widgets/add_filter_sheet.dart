@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 import 'package:crm_mobile/core/filters/filter_models.dart';
-import 'package:crm_mobile/core/network/api_client.dart';
+import 'package:crm_mobile/core/filters/global_filter_sync_service.dart';
 import 'package:crm_mobile/core/theme/app_colors.dart';
 import 'package:crm_mobile/core/theme/app_typography.dart';
 import 'package:crm_mobile/features/data/providers/filter_provider.dart';
@@ -96,24 +96,26 @@ class _AddFilterSheetState extends ConsumerState<AddFilterSheet> {
           createdAt: DateTime.now().toIso8601String(),
         );
         final updated = [...widget.currentGlobalFilters, newFilter];
-        final dio = ref.read(apiClientProvider);
-        await dio.patch(
-          '/entities/${widget.entityId}/global-filters',
-          data: {
-            'globalFilters': updated.map((f) => f.toJson()).toList(),
-          },
+
+        // Queue for sync - will sync immediately if online, or later if offline
+        final syncService = ref.read(globalFilterSyncServiceProvider);
+        await syncService.queueFilterUpdate(
+          entityId: widget.entityId,
+          filters: updated,
         );
+
+        // Sempre aplica localmente
         widget.onGlobalFiltersChanged?.call(updated);
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Filtro global salvo')),
+            const SnackBar(content: Text('Filtro aplicado')),
           );
           Navigator.of(context).pop();
         }
       } catch (e) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Erro ao salvar: $e')),
+            SnackBar(content: Text('Erro: $e')),
           );
         }
       } finally {

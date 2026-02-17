@@ -1832,35 +1832,25 @@ class _ApiSelectFieldInputState extends State<_ApiSelectFieldInput> {
       return;
     }
 
-    try {
-      // Get tenantId for the /x/{tenantId} prefix
-      final tenantId = await SecureStorage.getSelectedTenantId() ??
-          await SecureStorage.getTenantId();
-      if (tenantId == null) {
-        setState(() {
-          _loading = false;
-          _error = 'Tenant nao encontrado';
-        });
-        return;
-      }
+    // Get tenantId for the /x/{tenantId} prefix
+    final tenantId = await SecureStorage.getSelectedTenantId() ??
+        await SecureStorage.getTenantId();
+    if (tenantId == null) {
+      setState(() {
+        _loading = false;
+        _error = 'Tenant nao encontrado';
+      });
+      return;
+    }
 
-      final dio = createApiClient();
-      final response = await dio.get('/x/$tenantId$apiEndpoint');
+    final cacheKey = '$tenantId:$apiEndpoint';
+    final db = AppDatabase.instance.db;
+    final valueField = widget.field['valueField'] as String? ?? 'id';
+    final labelField = widget.field['labelField'] as String? ?? 'name';
 
-      final responseData = response.data;
-      final List<dynamic> items;
-      if (responseData is List) {
-        items = responseData;
-      } else if (responseData is Map && responseData['data'] is List) {
-        items = responseData['data'] as List;
-      } else {
-        items = [];
-      }
-
-      final valueField = widget.field['valueField'] as String? ?? 'id';
-      final labelField = widget.field['labelField'] as String? ?? 'name';
-
-      final options = items.map((item) {
+    // Helper to parse items into options
+    List<_ApiSelectOption> parseItems(List<dynamic> items) {
+      return items.map((item) {
         if (item is! Map<String, dynamic>) return null;
 
         final value = (item[valueField] ?? item['id'] ?? '').toString();
@@ -1885,19 +1875,81 @@ class _ApiSelectFieldInputState extends State<_ApiSelectFieldInput> {
           data: item,
         );
       }).whereType<_ApiSelectOption>().toList();
+    }
+
+    // Try to load from cache first (for instant offline display)
+    try {
+      final cached = await db.getAll(
+        'SELECT options_json FROM api_select_cache WHERE cache_key = ?',
+        [cacheKey],
+      );
+      if (cached.isNotEmpty) {
+        final optionsJson = cached.first['options_json'] as String?;
+        if (optionsJson != null) {
+          final items = jsonDecode(optionsJson) as List<dynamic>;
+          final cachedOptions = parseItems(items);
+          if (cachedOptions.isNotEmpty && mounted) {
+            setState(() {
+              _options = cachedOptions;
+              _loading = false;
+            });
+          }
+        }
+      }
+    } catch (_) {
+      // Cache read failed, continue to API fetch
+    }
+
+    // Try to fetch fresh data from API
+    try {
+      final dio = createApiClient();
+      final response = await dio.get('/x/$tenantId$apiEndpoint');
+
+      final responseData = response.data;
+      final List<dynamic> items;
+      if (responseData is List) {
+        items = responseData;
+      } else if (responseData is Map && responseData['data'] is List) {
+        items = responseData['data'] as List;
+      } else {
+        items = [];
+      }
+
+      final options = parseItems(items);
+
+      // Save to cache for offline use
+      try {
+        final now = DateTime.now().toIso8601String();
+        await db.execute(
+          'INSERT OR REPLACE INTO api_select_cache (id, cache_key, options_json, updated_at) VALUES (?, ?, ?, ?)',
+          [cacheKey, cacheKey, jsonEncode(items), now],
+        );
+      } catch (_) {
+        // Cache write failed, not critical
+      }
 
       if (mounted) {
         setState(() {
           _options = options;
           _loading = false;
+          _error = null; // Clear any previous error
         });
       }
     } catch (e) {
+      // Offline or network error
       if (mounted) {
-        setState(() {
-          _loading = false;
-          _error = 'Erro ao carregar opcoes';
-        });
+        // If we have cached options, use them silently
+        if (_options.isNotEmpty) {
+          setState(() {
+            _loading = false;
+            // Don't show error if we have cached data
+          });
+        } else {
+          setState(() {
+            _loading = false;
+            _error = 'Offline - opcoes indisponiveis';
+          });
+        }
       }
     }
   }
@@ -1977,16 +2029,24 @@ class _ApiSelectFieldInputState extends State<_ApiSelectFieldInput> {
       );
     }
 
-    if (_error != null) {
-      return InputDecorator(
+    if (_error != null && _options.isEmpty) {
+      // Show text input as fallback when offline and no cached options
+      return TextFormField(
+        initialValue: _selectedValue,
         decoration: InputDecoration(
           labelText: widget.label,
-          errorText: _error,
+          hintText: widget.placeholder ?? 'Digite o valor...',
+          helperText: _error,
+          helperStyle: AppTypography.caption.copyWith(color: AppColors.warning),
         ),
-        child: Text(
-          _error!,
-          style: AppTypography.bodyMedium.copyWith(color: AppColors.error),
-        ),
+        validator: widget.required
+            ? (v) =>
+                (v == null || v.isEmpty) ? '${widget.label} obrigatorio' : null
+            : null,
+        onChanged: (v) {
+          setState(() => _selectedValue = v);
+          widget.onChanged(v);
+        },
       );
     }
 

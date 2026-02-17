@@ -81,6 +81,24 @@ final schema = Schema([
     Column.integer('file_size'),
     Column.text('created_at'),
   ]),
+  // Local-only table for API-SELECT field options cache
+  Table.localOnly('api_select_cache', [
+    Column.text('cache_key'),    // unique key: tenantId + apiEndpoint
+    Column.text('options_json'), // JSON array of options
+    Column.text('updated_at'),   // last fetch timestamp
+  ]),
+  // Local-only table for pending global filter updates
+  // Entity.settings is read-only (synced from server), so we queue
+  // global filter updates and send them when online
+  Table.localOnly('global_filter_queue', [
+    Column.text('entity_id'),        // Entity ID to update
+    Column.text('filters_json'),     // JSON array of GlobalFilter objects
+    Column.text('status'),           // pending | syncing | completed | failed
+    Column.integer('retry_count'),
+    Column.text('error'),
+    Column.text('created_at'),
+    Column.text('updated_at'),
+  ]),
 ]);
 
 /// Singleton PowerSync database instance.
@@ -105,9 +123,15 @@ class AppDatabase {
 
   /// Connect PowerSync to the sync service.
   /// Call after successful login.
+  /// Errors are silently ignored - offline-first means we continue with local data.
   Future<void> connect() async {
-    final connector = CrmPowerSyncConnector();
-    await db.connect(connector: connector);
+    try {
+      final connector = CrmPowerSyncConnector();
+      await db.connect(connector: connector);
+    } catch (e) {
+      // Silently ignore connection errors - we work offline-first
+      // The sync will automatically retry when connection is available
+    }
   }
 
   /// Disconnect from sync service.

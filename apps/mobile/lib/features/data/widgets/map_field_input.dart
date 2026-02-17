@@ -5,6 +5,7 @@ import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:crm_mobile/core/location/nominatim_helpers.dart';
+import 'package:crm_mobile/core/map/cached_tile_provider.dart';
 import 'package:crm_mobile/core/theme/app_colors.dart';
 import 'package:crm_mobile/core/theme/app_typography.dart';
 
@@ -385,6 +386,7 @@ class _MapFieldInputState extends State<MapFieldInput> {
                   urlTemplate:
                       'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                   userAgentPackageName: 'com.crmbuilder.mobile',
+                  tileProvider: CachedTileProvider(),
                 ),
                 if (_hasCoords)
                   MarkerLayer(

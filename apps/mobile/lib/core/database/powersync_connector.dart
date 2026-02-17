@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:math' as math;
 
 import 'package:dio/dio.dart';
 import 'package:powersync/powersync.dart';
@@ -8,6 +9,39 @@ import 'package:crm_mobile/core/network/api_client.dart';
 import 'package:logger/logger.dart';
 
 final _logger = Logger(printer: SimplePrinter());
+
+/// Exponential backoff helper for retries
+class _ExponentialBackoff {
+  _ExponentialBackoff({
+    this.initialDelay = const Duration(milliseconds: 500),
+    this.maxDelay = const Duration(seconds: 30),
+    this.maxRetries = 5,
+  });
+
+  final Duration initialDelay;
+  final Duration maxDelay;
+  final int maxRetries;
+  int _retryCount = 0;
+
+  /// Calculate delay with exponential backoff + jitter
+  Duration get nextDelay {
+    final exponentialDelay = initialDelay * math.pow(2, _retryCount);
+    final jitter = Duration(
+      milliseconds: (math.Random().nextDouble() * 500).toInt(),
+    );
+    final delay = exponentialDelay + jitter;
+    return delay > maxDelay ? maxDelay : delay;
+  }
+
+  /// Returns true if we should retry, false if max retries exceeded
+  bool shouldRetry() {
+    if (_retryCount >= maxRetries) return false;
+    _retryCount++;
+    return true;
+  }
+
+  void reset() => _retryCount = 0;
+}
 
 /// Connects PowerSync to the backend:
 /// - fetchCredentials: calls /sync/credentials to get a PowerSync-specific JWT
@@ -117,64 +151,127 @@ class CrmPowerSyncConnector extends PowerSyncBackendConnector {
   }
 
   /// Called when the app has offline mutations to upload.
-  /// Sends each operation to the NestJS API.
+  /// Sends each operation to the NestJS API with exponential backoff retry.
   @override
   Future<void> uploadData(PowerSyncDatabase database) async {
     final tx = await database.getCrudBatch();
     if (tx == null) return;
 
     final dio = createApiClient();
+    final backoff = _ExponentialBackoff();
+
+    // Cache de entityId -> slug para evitar queries repetidas
+    final entitySlugCache = <String, String>{};
 
     for (final op in tx.crud) {
-      try {
-        final table = op.table;
-        final data = op.opData;
+      backoff.reset();
+      var success = false;
 
-        if (table == 'EntityData') {
-          switch (op.op) {
-            case UpdateType.put:
-              // Create new record
-              final entitySlug = data?['entitySlug'] as String?;
-              if (entitySlug != null) {
-                await dio.post('/data/$entitySlug', data: data);
+      while (!success) {
+        try {
+          final table = op.table;
+          final opData = op.opData ?? {};
+
+          _logger.i('PowerSync upload: $table ${op.op} ${op.id}');
+
+          if (table == 'EntityData') {
+            // Busca o slug da entidade a partir do entityId
+            final entityId = opData['entityId'] as String?;
+            if (entityId == null) {
+              _logger.w('EntityData without entityId, skipping');
+              success = true;
+              continue;
+            }
+
+            // Cache do slug
+            if (!entitySlugCache.containsKey(entityId)) {
+              final entities = await database.getAll(
+                'SELECT slug FROM Entity WHERE id = ?',
+                [entityId],
+              );
+              if (entities.isNotEmpty) {
+                entitySlugCache[entityId] = entities.first['slug'] as String;
               }
-              break;
-            case UpdateType.patch:
-              // Update existing record
-              final entitySlug = data?['entitySlug'] as String?;
-              if (entitySlug != null) {
-                await dio.patch('/data/$entitySlug/${op.id}', data: data);
-              }
-              break;
-            case UpdateType.delete:
-              // Delete record
-              final entitySlug = data?['entitySlug'] as String?;
-              if (entitySlug != null) {
+            }
+
+            final entitySlug = entitySlugCache[entityId];
+            if (entitySlug == null) {
+              _logger.w('Entity not found for id $entityId, skipping');
+              success = true;
+              continue;
+            }
+
+            // Prepara os dados para a API
+            final recordData = opData['data'];
+            final parsedData = recordData is String ? jsonDecode(recordData) : recordData;
+
+            switch (op.op) {
+              case UpdateType.put:
+                // Create new record
+                await dio.post('/data/$entitySlug', data: {
+                  'id': op.id,
+                  'data': parsedData,
+                  if (opData['parentRecordId'] != null) 'parentRecordId': opData['parentRecordId'],
+                });
+                _logger.i('Created record ${op.id} in $entitySlug');
+                break;
+              case UpdateType.patch:
+                // Update existing record
+                await dio.patch('/data/$entitySlug/${op.id}', data: {
+                  'data': parsedData,
+                });
+                _logger.i('Updated record ${op.id} in $entitySlug');
+                break;
+              case UpdateType.delete:
+                // Delete record (soft delete via deletedAt)
                 await dio.delete('/data/$entitySlug/${op.id}');
-              }
-              break;
+                _logger.i('Deleted record ${op.id} from $entitySlug');
+                break;
+            }
+            success = true;
+          } else if (table == 'Notification') {
+            // Mark notification as read
+            if (op.op == UpdateType.patch) {
+              await dio.patch('/notifications/${op.id}/read');
+            }
+            success = true;
+          } else {
+            // Log unhandled tables - Entity, CustomRole, User are read-only (sync from server)
+            // If mutations happen on these tables, they're likely client bugs
+            _logger.w('Unhandled table for upload: $table ${op.op} ${op.id}');
+            // Skip but don't fail - these tables are server-managed
+            success = true;
+            continue;
           }
-        } else if (table == 'Notification') {
-          // Mark notification as read
-          if (op.op == UpdateType.patch) {
-            await dio.patch('/notifications/${op.id}/read');
+        } catch (e) {
+          _logger.e('Failed to upload mutation: ${op.table} ${op.op}', error: e);
+
+          // Check if it's a client error (4xx) - skip and continue (no retry)
+          if (e is DioException &&
+              e.response?.statusCode != null &&
+              e.response!.statusCode! >= 400 &&
+              e.response!.statusCode! < 500) {
+            _logger.w('Skipping failed mutation (client error ${e.response!.statusCode})');
+            success = true;
+            continue;
+          }
+
+          // Server errors (5xx) or network errors - retry with exponential backoff
+          if (backoff.shouldRetry()) {
+            final delay = backoff.nextDelay;
+            _logger.w('Retrying in ${delay.inMilliseconds}ms...');
+            await Future.delayed(delay);
+            // Continue to retry
+          } else {
+            // Max retries exceeded - rethrow to let PowerSync handle
+            _logger.e('Max retries exceeded for ${op.table} ${op.op} ${op.id}');
+            rethrow;
           }
         }
-      } catch (e) {
-        _logger.e('Failed to upload mutation: ${op.table} ${op.op}', error: e);
-        // Check if it's a client error (4xx) - skip and continue
-        // For server errors (5xx) or network errors - rethrow to retry later
-        if (e is DioException &&
-            e.response?.statusCode != null &&
-            e.response!.statusCode! >= 400 &&
-            e.response!.statusCode! < 500) {
-          _logger.w('Skipping failed mutation (client error ${e.response!.statusCode})');
-          continue;
-        }
-        rethrow;
       }
     }
 
     await tx.complete();
+    _logger.i('PowerSync: batch upload complete');
   }
 }

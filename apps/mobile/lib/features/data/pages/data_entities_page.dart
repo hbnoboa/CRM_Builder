@@ -7,6 +7,7 @@ import 'package:crm_mobile/core/permissions/permission_provider.dart';
 import 'package:crm_mobile/core/theme/app_colors.dart';
 import 'package:crm_mobile/core/theme/app_typography.dart';
 import 'package:crm_mobile/shared/utils/icon_mapper.dart';
+import 'package:crm_mobile/shared/widgets/sync_status_indicator.dart';
 
 /// Data entities selector page - shows only parent entities.
 /// If only one parent entity is available, navigates directly to its list.
@@ -51,6 +52,10 @@ class _DataEntitiesPageState extends ConsumerState<DataEntitiesPage> {
       appBar: AppBar(
         title: const Text('Dados'),
         automaticallyImplyLeading: false,
+        actions: const [
+          SyncStatusIndicator(),
+          SizedBox(width: 8),
+        ],
       ),
       body: Column(
         children: [

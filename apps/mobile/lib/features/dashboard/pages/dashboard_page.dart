@@ -8,6 +8,7 @@ import 'package:crm_mobile/core/permissions/permission_provider.dart';
 import 'package:crm_mobile/core/theme/app_colors.dart';
 import 'package:crm_mobile/core/theme/app_typography.dart';
 import 'package:crm_mobile/features/dashboard/widgets/stat_card.dart';
+import 'package:crm_mobile/shared/widgets/sync_status_indicator.dart';
 
 /// Dashboard page - statistics and charts overview.
 /// Shows only if user has dashboard permission.
@@ -25,6 +26,10 @@ class DashboardPage extends ConsumerWidget {
       appBar: AppBar(
         title: const Text('Dashboard'),
         automaticallyImplyLeading: false,
+        actions: const [
+          SyncStatusIndicator(),
+          SizedBox(width: 8),
+        ],
       ),
       body: RefreshIndicator(
         onRefresh: () async {
