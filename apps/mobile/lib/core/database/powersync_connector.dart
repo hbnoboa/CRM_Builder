@@ -170,10 +170,23 @@ class CrmPowerSyncConnector extends PowerSyncBackendConnector {
           _logger.i('PowerSync upload: $table ${op.op} ${op.id}');
 
           if (table == 'EntityData') {
-            // Busca o slug da entidade a partir do entityId
-            final entityId = opData['entityId'] as String?;
+            // Busca o entityId - pode estar no opData (PUT) ou precisamos buscar do banco (PATCH/DELETE)
+            var entityId = opData['entityId'] as String?;
+
+            // Para PATCH e DELETE, entityId nao vem no opData pois nao foi alterado
+            // Precisamos buscar do registro local
             if (entityId == null) {
-              _logger.w('EntityData without entityId, skipping');
+              final record = await database.getAll(
+                'SELECT entityId FROM EntityData WHERE id = ?',
+                [op.id],
+              );
+              if (record.isNotEmpty) {
+                entityId = record.first['entityId'] as String?;
+              }
+            }
+
+            if (entityId == null) {
+              _logger.w('EntityData without entityId (record ${op.id}), skipping');
               success = true;
               continue;
             }
@@ -197,7 +210,19 @@ class CrmPowerSyncConnector extends PowerSyncBackendConnector {
             }
 
             // Prepara os dados para a API
-            final recordData = opData['data'];
+            var recordData = opData['data'];
+
+            // Para PATCH, se data nao vier no opData, busca do registro local
+            if (recordData == null && op.op == UpdateType.patch) {
+              final record = await database.getAll(
+                'SELECT data FROM EntityData WHERE id = ?',
+                [op.id],
+              );
+              if (record.isNotEmpty) {
+                recordData = record.first['data'];
+              }
+            }
+
             final parsedData = recordData is String ? jsonDecode(recordData) : recordData;
 
             switch (op.op) {
@@ -212,6 +237,11 @@ class CrmPowerSyncConnector extends PowerSyncBackendConnector {
                 break;
               case UpdateType.patch:
                 // Update existing record
+                if (parsedData == null) {
+                  _logger.w('No data found for PATCH on record ${op.id}, skipping');
+                  success = true;
+                  continue;
+                }
                 await dio.patch('/data/$entitySlug/${op.id}', data: {
                   'data': parsedData,
                 },);
