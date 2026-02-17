@@ -21,13 +21,18 @@ class DashboardPage extends ConsumerWidget {
     final permissions = ref.watch(permissionsProvider);
     final db = AppDatabase.instance.db;
 
-    return RefreshIndicator(
-      onRefresh: () async {
-        await ref.read(authProvider.notifier).getProfile();
-      },
-      child: ListView(
-        padding: const EdgeInsets.all(AppColors.spaceMd),
-        children: [
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Dashboard'),
+        automaticallyImplyLeading: false,
+      ),
+      body: RefreshIndicator(
+        onRefresh: () async {
+          await ref.read(authProvider.notifier).getProfile();
+        },
+        child: ListView(
+          padding: const EdgeInsets.all(AppColors.spaceMd),
+          children: [
           // Welcome header with gradient
           _buildWelcomeHeader(user),
           const SizedBox(height: AppColors.spaceLg),
@@ -52,7 +57,8 @@ class DashboardPage extends ConsumerWidget {
           // Recent activity
           _buildRecentActivitySection(context, db),
           const SizedBox(height: AppColors.spaceMd),
-        ],
+          ],
+        ),
       ),
     );
   }

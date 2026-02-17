@@ -7,7 +7,6 @@ import 'package:crm_mobile/core/tenant/tenant_provider.dart';
 import 'package:crm_mobile/core/theme/app_colors.dart';
 import 'package:crm_mobile/core/theme/app_typography.dart';
 import 'package:crm_mobile/shared/widgets/offline_banner.dart';
-import 'package:crm_mobile/shared/widgets/sync_status_indicator.dart';
 
 /// Main shell scaffold with bottom navigation.
 /// Shows only Dashboard (if permitted) and Data modules.
@@ -48,7 +47,6 @@ class ShellScaffold extends ConsumerWidget {
 
     return Scaffold(
       backgroundColor: AppColors.background,
-      appBar: _buildAppBar(context, ref, currentPath, user, tenantState),
       body: Column(
         children: [
           // Tenant banner for PLATFORM_ADMIN
@@ -85,68 +83,6 @@ class ShellScaffold extends ConsumerWidget {
               ),
             )
           : null,
-    );
-  }
-
-  PreferredSizeWidget _buildAppBar(
-    BuildContext context,
-    WidgetRef ref,
-    String currentPath,
-    dynamic user,
-    TenantSwitchState tenantState,
-  ) {
-    return AppBar(
-      automaticallyImplyLeading: false,
-      centerTitle: false,
-      title: _buildTitle(currentPath),
-      actions: [
-        const SyncStatusIndicator(),
-        const SizedBox(width: AppColors.spaceSm),
-        _UserMenuButton(user: user, ref: ref, tenantState: tenantState),
-        const SizedBox(width: AppColors.spaceSm),
-      ],
-    );
-  }
-
-  Widget _buildTitle(String currentPath) {
-    String title = 'CRM Builder';
-    IconData? icon;
-
-    if (currentPath.startsWith('/dashboard')) {
-      title = 'Dashboard';
-      icon = Icons.dashboard_rounded;
-    } else if (currentPath.startsWith('/data')) {
-      final segments = currentPath.split('/');
-      if (segments.length > 2 && segments[2].isNotEmpty) {
-        title = 'Dados';
-      } else {
-        title = 'Dados';
-      }
-      icon = Icons.folder_rounded;
-    }
-
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        if (icon != null) ...[
-          Container(
-            width: 32,
-            height: 32,
-            decoration: BoxDecoration(
-              gradient: AppColors.primaryGradient,
-              borderRadius: BorderRadius.circular(AppColors.radiusSm),
-            ),
-            child: Icon(icon, size: 18, color: Colors.white),
-          ),
-          const SizedBox(width: AppColors.spaceSm),
-        ],
-        Text(
-          title,
-          style: AppTypography.h4.copyWith(
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-      ],
     );
   }
 

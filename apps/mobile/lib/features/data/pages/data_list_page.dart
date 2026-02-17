@@ -14,7 +14,6 @@ import 'package:crm_mobile/features/data/providers/filter_provider.dart';
 import 'package:crm_mobile/features/data/widgets/data_card.dart';
 import 'package:crm_mobile/features/data/widgets/filter_bottom_sheet.dart';
 import 'package:crm_mobile/shared/widgets/permission_gate.dart';
-import 'package:crm_mobile/shared/widgets/sync_status_indicator.dart';
 
 enum SortOption {
   newestFirst('Mais recentes', 'createdAt DESC'),
@@ -198,52 +197,18 @@ class _DataListPageState extends ConsumerState<DataListPage> {
           stream: repo.watchEntity(widget.entitySlug),
           builder: (context, snapshot) {
             final entity = snapshot.data?.firstOrNull;
-            return Text(entity?['namePlural'] as String? ?? widget.entitySlug);
+            return Text(entity?['name'] as String? ?? widget.entitySlug);
           },
         ),
         actions: [
-          // Filter button with badge
-          Stack(
-            alignment: Alignment.center,
-            children: [
-              IconButton(
-                icon: const Icon(Icons.filter_list),
-                tooltip: 'Filtros',
-                onPressed: _showFilterSheet,
-              ),
-              if (totalFilterCount > 0)
-                Positioned(
-                  top: 6,
-                  right: 6,
-                  child: Container(
-                    padding: const EdgeInsets.all(4),
-                    decoration: BoxDecoration(
-                      color: AppColors.primary,
-                      shape: BoxShape.circle,
-                    ),
-                    constraints: const BoxConstraints(
-                      minWidth: 16,
-                      minHeight: 16,
-                    ),
-                    child: Text(
-                      '$totalFilterCount',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 10,
-                        fontWeight: FontWeight.bold,
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                  ),
-                ),
-            ],
+          IconButton(
+            icon: const Icon(Icons.filter_list),
+            onPressed: _showFilterSheet,
           ),
           IconButton(
             icon: const Icon(Icons.sort),
-            tooltip: 'Ordenar',
             onPressed: _showSortPicker,
           ),
-          const SyncStatusIndicator(),
         ],
       ),
       body: Column(
@@ -460,15 +425,18 @@ class _DataListPageState extends ConsumerState<DataListPage> {
                           final canDelete = ref.read(permissionsProvider)
                               .hasEntityPermission(widget.entitySlug, 'canDelete');
 
+                          final canEdit = perms.hasEntityPermission(widget.entitySlug, 'canUpdate');
                           final card = DataCard(
                             record: record,
                             fields: _fields,
                             visibleFieldSlugs: perms.getVisibleFields(widget.entitySlug),
                             columnOrder: _columnOrder.isNotEmpty ? _columnOrder : null,
                             onTap: () {
-                              context.push(
-                                '/data/${widget.entitySlug}/${record['id']}',
-                              );
+                              // Vai direto para edicao se tem permissao, senao visualizacao
+                              final path = canEdit
+                                  ? '/data/${widget.entitySlug}/${record['id']}/edit'
+                                  : '/data/${widget.entitySlug}/${record['id']}';
+                              context.push(path);
                             },
                           );
 

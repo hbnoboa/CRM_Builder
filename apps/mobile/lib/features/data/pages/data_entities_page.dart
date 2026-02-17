@@ -47,17 +47,22 @@ class _DataEntitiesPageState extends ConsumerState<DataEntitiesPage> {
     final perms = ref.watch(permissionsProvider);
     final db = AppDatabase.instance.db;
 
-    return Column(
-      children: [
-        // Header with search
-        Container(
-          padding: const EdgeInsets.all(AppColors.spaceMd),
-          decoration: BoxDecoration(
-            color: AppColors.card,
-            boxShadow: [
-              BoxShadow(
-                color: AppColors.foreground.withValues(alpha: 0.03),
-                blurRadius: 10,
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Dados'),
+        automaticallyImplyLeading: false,
+      ),
+      body: Column(
+        children: [
+          // Search
+          Container(
+            padding: const EdgeInsets.all(AppColors.spaceMd),
+            decoration: BoxDecoration(
+              color: AppColors.card,
+              boxShadow: [
+                BoxShadow(
+                  color: AppColors.foreground.withValues(alpha: 0.03),
+                  blurRadius: 10,
                 offset: const Offset(0, 2),
               ),
             ],
@@ -183,7 +188,8 @@ class _DataEntitiesPageState extends ConsumerState<DataEntitiesPage> {
             },
           ),
         ),
-      ],
+        ],
+      ),
     );
   }
 
