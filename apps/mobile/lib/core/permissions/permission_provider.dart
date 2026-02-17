@@ -128,7 +128,7 @@ const Map<String, Map<String, ModulePermission>> _defaultModulePermissions = {
     'users': _fullCrud,
     'settings': _fullCrud,
     'apis': _fullCrud,
-    'pages': _fullCrud,
+
     'entities': _fullCrud,
     'tenants': _fullCrud,
     'data': _fullCrud,
@@ -139,7 +139,7 @@ const Map<String, Map<String, ModulePermission>> _defaultModulePermissions = {
     'users': _fullCrud,
     'settings': _fullCrud,
     'apis': _fullCrud,
-    'pages': _fullCrud,
+
     'entities': _fullCrud,
     'tenants': _noCrud,
     'data': _fullCrud,
@@ -150,7 +150,7 @@ const Map<String, Map<String, ModulePermission>> _defaultModulePermissions = {
     'users': _readOnly,
     'settings': _noCrud,
     'apis': _noCrud,
-    'pages': _noCrud,
+
     'entities': _noCrud,
     'tenants': _noCrud,
     'data': _dataReadCreate,
@@ -161,7 +161,7 @@ const Map<String, Map<String, ModulePermission>> _defaultModulePermissions = {
     'users': _readOnly,
     'settings': _readOnly,
     'apis': _noCrud,
-    'pages': _noCrud,
+
     'entities': _dataReadCreate,
     'tenants': _noCrud,
     'data': _dataReadCreate,
@@ -172,7 +172,7 @@ const Map<String, Map<String, ModulePermission>> _defaultModulePermissions = {
     'users': _noCrud,
     'settings': _readOnly,
     'apis': _noCrud,
-    'pages': _noCrud,
+
     'entities': _noCrud,
     'tenants': _noCrud,
     'data': _readOnly,
@@ -183,7 +183,7 @@ const Map<String, Map<String, ModulePermission>> _defaultModulePermissions = {
     'users': _noCrud,
     'settings': _noCrud,
     'apis': _noCrud,
-    'pages': _noCrud,
+
     'entities': _noCrud,
     'tenants': _noCrud,
     'data': _noCrud,
@@ -196,7 +196,6 @@ const _moduleKeys = [
   'users',
   'settings',
   'apis',
-  'pages',
   'entities',
   'tenants',
   'data',
@@ -387,6 +386,20 @@ PermissionsState permissions(Ref ref) {
         .whereType<Map<String, dynamic>>()
         .map(EntityPermission.fromJson)
         .toList();
+  }
+
+  // CUSTOM roles: if any entity has canRead, grant data module access
+  if (roleType == 'CUSTOM' && entityPerms.any((e) => e.canRead)) {
+    final currentData = modulePerms['data'] ?? _noCrud;
+    if (!currentData.canRead) {
+      modulePerms = Map<String, ModulePermission>.from(modulePerms);
+      modulePerms['data'] = ModulePermission(
+        canRead: true,
+        canCreate: entityPerms.any((e) => e.canCreate),
+        canUpdate: entityPerms.any((e) => e.canUpdate),
+        canDelete: entityPerms.any((e) => e.canDelete),
+      );
+    }
   }
 
   return PermissionsState(

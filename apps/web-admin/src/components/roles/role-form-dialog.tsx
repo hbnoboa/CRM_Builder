@@ -23,7 +23,7 @@ import {
 } from '@/components/ui/select';
 import {
   Eye, Plus, Pencil, Trash2, Shield, Database, Users,
-  Settings, Code, Layers, LayoutDashboard, Globe, User, Building2,
+  Settings, Code, LayoutDashboard, Globe, User, Building2,
   ChevronRight,
 } from 'lucide-react';
 import { useCreateCustomRole, useUpdateCustomRole } from '@/hooks/use-custom-roles';
@@ -50,7 +50,7 @@ function normalizeModulePermToRecord(mp: Record<string, unknown> | null | undefi
   return result;
 }
 
-const MODULE_KEYS = ['dashboard', 'users', 'roles', 'entities', 'data', 'apis', 'pages', 'settings', 'tenants'] as const;
+const MODULE_KEYS = ['dashboard', 'users', 'roles', 'entities', 'data', 'apis', 'settings', 'tenants'] as const;
 
 function getDefaultModulePerms(): Record<string, ModulePermission> {
   const result: Record<string, ModulePermission> = {};
@@ -286,7 +286,6 @@ export function RoleFormDialog({ open, onOpenChange, role, onSuccess }: RoleForm
     users: <Users className="h-4 w-4" />,
     settings: <Settings className="h-4 w-4" />,
     apis: <Code className="h-4 w-4" />,
-    pages: <Layers className="h-4 w-4" />,
     entities: <Database className="h-4 w-4" />,
     tenants: <Building2 className="h-4 w-4" />,
     data: <Globe className="h-4 w-4" />,
@@ -322,10 +321,6 @@ export function RoleFormDialog({ open, onOpenChange, role, onSuccess }: RoleForm
     tenants: [
       { key: 'canSuspend', label: t('permissions.canSuspend') },
       { key: 'canActivate', label: t('permissions.canActivate') },
-    ],
-    pages: [
-      { key: 'canPublish', label: t('permissions.canPublish') },
-      { key: 'canDuplicate', label: t('permissions.canDuplicate') },
     ],
     data: [
       { key: 'canConfigureColumns', label: t('permissions.canConfigureColumns') },

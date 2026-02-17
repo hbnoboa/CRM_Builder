@@ -41,7 +41,7 @@ const DEFAULT_MODULE_PERMISSIONS: Record<RoleType, ModulePermissions> = {
     users: FULL_CRUD,
     settings: FULL_CRUD,
     apis: FULL_CRUD,
-    pages: FULL_CRUD,
+
     entities: FULL_CRUD,
     tenants: FULL_CRUD,
     data: FULL_CRUD,
@@ -52,7 +52,7 @@ const DEFAULT_MODULE_PERMISSIONS: Record<RoleType, ModulePermissions> = {
     users: FULL_CRUD,
     settings: FULL_CRUD,
     apis: FULL_CRUD,
-    pages: FULL_CRUD,
+
     entities: FULL_CRUD,
     tenants: NO_CRUD,
     data: FULL_CRUD,
@@ -63,7 +63,7 @@ const DEFAULT_MODULE_PERMISSIONS: Record<RoleType, ModulePermissions> = {
     users: READ_ONLY,
     settings: NO_CRUD,
     apis: NO_CRUD,
-    pages: NO_CRUD,
+
     entities: NO_CRUD,
     tenants: NO_CRUD,
     data: { canRead: true, canCreate: true, canUpdate: true, canDelete: false },
@@ -74,7 +74,7 @@ const DEFAULT_MODULE_PERMISSIONS: Record<RoleType, ModulePermissions> = {
     users: READ_ONLY,
     settings: READ_ONLY,
     apis: NO_CRUD,
-    pages: NO_CRUD,
+
     entities: { canRead: true, canCreate: true, canUpdate: true, canDelete: false },
     tenants: NO_CRUD,
     data: { canRead: true, canCreate: true, canUpdate: true, canDelete: false },
@@ -85,7 +85,7 @@ const DEFAULT_MODULE_PERMISSIONS: Record<RoleType, ModulePermissions> = {
     users: NO_CRUD,
     settings: READ_ONLY,
     apis: NO_CRUD,
-    pages: NO_CRUD,
+
     entities: NO_CRUD,
     tenants: NO_CRUD,
     data: READ_ONLY,
@@ -96,7 +96,7 @@ const DEFAULT_MODULE_PERMISSIONS: Record<RoleType, ModulePermissions> = {
     users: NO_CRUD,
     settings: NO_CRUD,
     apis: NO_CRUD,
-    pages: NO_CRUD,
+
     entities: NO_CRUD,
     tenants: NO_CRUD,
     data: NO_CRUD,
@@ -114,12 +114,11 @@ const MODULE_KEY_MAP: Record<string, keyof ModulePermissions> = {
   users: 'users',
   roles: 'roles',
   settings: 'settings',
-  pages: 'pages',
   tenants: 'tenants',
   data: 'data',
 };
 
-const MODULE_KEYS: (keyof ModulePermissions)[] = ['dashboard', 'users', 'settings', 'apis', 'pages', 'entities', 'tenants', 'data', 'roles'];
+const MODULE_KEYS: (keyof ModulePermissions)[] = ['dashboard', 'users', 'settings', 'apis', 'entities', 'tenants', 'data', 'roles'];
 
 export function usePermissions() {
   const user = useAuthStore((s) => s.user);
@@ -164,6 +163,27 @@ export function usePermissions() {
     return [];
   }, [user, roleType]);
 
+  // CUSTOM roles: se tem entidades com canRead, garantir acesso ao modulo data
+  const adjustedModulePermissions = useMemo<ModulePermissions>(() => {
+    if (roleType !== 'CUSTOM' || entityPermissions.length === 0) return modulePermissions;
+
+    const hasAnyEntityRead = entityPermissions.some((e) => e.canRead);
+    if (!hasAnyEntityRead) return modulePermissions;
+
+    const currentData = modulePermissions.data;
+    if (currentData?.canRead) return modulePermissions;
+
+    return {
+      ...modulePermissions,
+      data: {
+        canRead: true,
+        canCreate: entityPermissions.some((e) => e.canCreate),
+        canUpdate: entityPermissions.some((e) => e.canUpdate),
+        canDelete: entityPermissions.some((e) => e.canDelete),
+      },
+    };
+  }, [roleType, modulePermissions, entityPermissions]);
+
   /**
    * Verifica se o usuario tem acesso a um modulo (canRead)
    */
@@ -176,7 +196,7 @@ export function usePermissions() {
     const permKey = MODULE_KEY_MAP[moduleKey];
     if (!permKey) return true; // Se nao mapeado, permitir por padrao
 
-    const perm = modulePermissions[permKey];
+    const perm = adjustedModulePermissions[permKey];
     if (!perm) return false;
 
     return perm.canRead ?? false;
@@ -195,7 +215,7 @@ export function usePermissions() {
     if (roleType === 'PLATFORM_ADMIN') return true;
 
     const permKey = MODULE_KEY_MAP[moduleKey] || moduleKey as keyof ModulePermissions;
-    const perm = modulePermissions[permKey];
+    const perm = adjustedModulePermissions[permKey];
     if (!perm) return false;
 
     return perm[action] ?? false;
@@ -260,7 +280,7 @@ export function usePermissions() {
     if (roleType === 'PLATFORM_ADMIN' || roleType === 'ADMIN') return true;
 
     const permKey = MODULE_KEY_MAP[moduleKey] || moduleKey as keyof ModulePermissions;
-    const perm = modulePermissions[permKey] as Record<string, unknown> | undefined;
+    const perm = adjustedModulePermissions[permKey] as Record<string, unknown> | undefined;
     if (!perm) return false;
 
     return perm[action] === true;
@@ -293,7 +313,7 @@ export function usePermissions() {
   return {
     user,
     roleType,
-    modulePermissions,
+    modulePermissions: adjustedModulePermissions,
     entityPermissions,
     hasModuleAccess,
     hasModulePermission,
