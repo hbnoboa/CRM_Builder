@@ -511,6 +511,11 @@ class DynamicFieldInput extends StatelessWidget {
     final helpText = field['helpText'] as String?;
     final placeholder = field['placeholder'] as String?;
 
+    // Debug: print field type for zone-diagram fields
+    if (slug == 'peca' || type == 'ZONE_DIAGRAM') {
+      debugPrint('[DynamicFieldInput] slug=$slug, type=$type, rawType=${field['type']}, hasZones=${field['diagramZones'] != null}');
+    }
+
     switch (type) {
       case 'TEXTAREA':
       case 'RICH_TEXT':

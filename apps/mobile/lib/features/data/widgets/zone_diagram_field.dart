@@ -90,7 +90,17 @@ class _ZoneDiagramFieldInputState extends State<ZoneDiagramFieldInput> {
   }
 
   void _parseZones() {
-    final zonesRaw = widget.field['diagramZones'];
+    var zonesRaw = widget.field['diagramZones'];
+
+    // Handle case where diagramZones is a JSON string
+    if (zonesRaw is String && zonesRaw.isNotEmpty) {
+      try {
+        zonesRaw = jsonDecode(zonesRaw);
+      } catch (_) {
+        zonesRaw = null;
+      }
+    }
+
     if (zonesRaw is List) {
       _zones = zonesRaw
           .whereType<Map<String, dynamic>>()
@@ -99,6 +109,8 @@ class _ZoneDiagramFieldInputState extends State<ZoneDiagramFieldInput> {
     } else {
       _zones = [];
     }
+
+    debugPrint('[ZoneDiagram] Parsed ${_zones.length} zones from field: ${widget.field['slug']}');
   }
 
   void _parseValue() {
