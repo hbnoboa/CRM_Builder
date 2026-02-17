@@ -157,15 +157,24 @@ class FilterSqlBuilder {
     String jsonPath, FilterOperator op, dynamic value,
   ) {
     if (op == FilterOperator.equals) {
-      // json_extract returns 0/1 for booleans in SQLite
-      // We need to compare as INTEGER only (SQLite stores JSON booleans as 0/1)
+      // JSON boolean can be stored as:
+      // 1. Literal boolean: {"field": true} -> json_extract returns 1 or 0
+      // 2. String: {"field": "true"} -> json_extract returns "true" or "false"
+      // We need to support BOTH formats
       final isTrueValue = value == true || value == 'true' || value == 1 || value == '1';
-      final numValue = isTrueValue ? 1 : 0;
-      // Use ONLY numeric comparison - json_extract returns 0 or 1 for booleans
-      return (
-        clause: '$jsonPath = ?',
-        params: <dynamic>[numValue],
-      );
+      if (isTrueValue) {
+        // Looking for TRUE: check 1, 'true', "true"
+        return (
+          clause: '($jsonPath = 1 OR $jsonPath = ? OR $jsonPath = ?)',
+          params: <dynamic>['true', '"true"'],
+        );
+      } else {
+        // Looking for FALSE: check 0, 'false', "false"
+        return (
+          clause: '($jsonPath = 0 OR $jsonPath = ? OR $jsonPath = ?)',
+          params: <dynamic>['false', '"false"'],
+        );
+      }
     }
     return (clause: '', params: <dynamic>[]);
   }
