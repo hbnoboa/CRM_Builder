@@ -12,6 +12,7 @@ import 'package:crm_mobile/core/theme/app_colors.dart';
 import 'package:crm_mobile/core/theme/app_typography.dart';
 import 'package:crm_mobile/features/data/widgets/image_field_input.dart';
 import 'package:crm_mobile/features/data/widgets/map_field_input.dart';
+import 'package:crm_mobile/features/data/widgets/zone_diagram_field.dart';
 import 'package:crm_mobile/shared/utils/formatters.dart';
 
 /// Renders a field value in read-only mode (detail page).
@@ -333,6 +334,13 @@ class DynamicFieldDisplay extends StatelessWidget {
         return MapFieldDisplay(
           value: value,
           fieldName: '',
+        );
+
+      case 'ZONE-DIAGRAM':
+      case 'ZONE_DIAGRAM':
+        return ZoneDiagramFieldDisplay(
+          field: field,
+          value: value,
         );
 
       case 'HIDDEN':
@@ -826,6 +834,15 @@ class DynamicFieldInput extends StatelessWidget {
 
       case 'MAP':
         return MapFieldInput(
+          field: field,
+          value: value,
+          onChanged: onChanged,
+          enabled: enabled,
+        );
+
+      case 'ZONE-DIAGRAM':
+      case 'ZONE_DIAGRAM':
+        return ZoneDiagramFieldInput(
           field: field,
           value: value,
           onChanged: onChanged,
