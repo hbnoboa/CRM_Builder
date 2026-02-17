@@ -29,8 +29,7 @@ services:
       PS_REPLICATION_URI: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-crm_builder}?sslmode=disable
       PS_MONGO_URI: mongodb://powersync-mongo:27017/powersync?replicaSet=rs0
       # IMPORTANTE: Este valor deve ser o base64 do JWT_SECRET do backend NestJS
-      # JWT_SECRET=crm-builder-jwt-secret-2026-secure-key -> base64 -> valor abaixo
-      PS_JWT_SECRET_B64: Y3JtLWJ1aWxkZXItand0LXNlY3JldC0yMDI2LXNlY3VyZS1rZXk=
+      PS_JWT_SECRET_B64: RmV4UGpCbFYyaElFTzJoUk93V0tOOW1ManVRNmJaaTBxL1NPNExCdjNFST0=
       PS_API_TOKEN: powersync-crm-admin-token
     volumes:
       - ./apps/mobile/powersync.yaml:/app/powersync.yaml:ro
