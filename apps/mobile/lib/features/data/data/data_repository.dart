@@ -336,23 +336,29 @@ class DataRepository {
       // Passar filtros como JSON para o backend
       if (filters.isNotEmpty) {
         final filtersJson = filters.map((f) => f.toJson()).toList();
-        queryParams['filters'] = jsonEncode(filtersJson);
-        debugPrint('[DataRepo] fetchRecordsFromApi - filters: $filtersJson');
+        final filtersStr = jsonEncode(filtersJson);
+        queryParams['filters'] = filtersStr;
+        debugPrint('[DataRepo] fetchRecordsFromApi - filters JSON: $filtersStr');
       }
 
-      debugPrint('[DataRepo] fetchRecordsFromApi - GET /data/$entitySlug with params: $queryParams');
+      debugPrint('[DataRepo] fetchRecordsFromApi - GET /data/$entitySlug');
+      debugPrint('[DataRepo] fetchRecordsFromApi - params: $queryParams');
 
       final response = await _dio.get(
         '/data/$entitySlug',
         queryParameters: queryParams,
       );
 
+      debugPrint('[DataRepo] fetchRecordsFromApi - response status: ${response.statusCode}');
+
       final data = response.data;
+      debugPrint('[DataRepo] fetchRecordsFromApi - response data type: ${data.runtimeType}');
+
       final records = (data['data'] as List<dynamic>?)
           ?.map((e) => e as Map<String, dynamic>)
           .toList() ?? [];
 
-      debugPrint('[DataRepo] fetchRecordsFromApi - received ${records.length} records');
+      debugPrint('[DataRepo] fetchRecordsFromApi - received ${records.length} records (filtered by backend)');
 
       return records;
     } catch (e) {
