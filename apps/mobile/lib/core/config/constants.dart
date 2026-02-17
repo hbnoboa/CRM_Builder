@@ -13,6 +13,11 @@ class AppConstants {
   static const String keyBiometricEnabled = 'biometricEnabled';
   static const String keyPermissionsOnboarding = 'permissionsOnboardingCompleted';
 
+  // Offline auth cache keys
+  static const String keyCachedEmail = 'cachedEmail';
+  static const String keyCachedPasswordHash = 'cachedPasswordHash';
+  static const String keyCachedUserJson = 'cachedUserJson';
+
   // Upload
   static const int maxUploadSizeMb = 10;
   static const List<String> allowedImageTypes = [

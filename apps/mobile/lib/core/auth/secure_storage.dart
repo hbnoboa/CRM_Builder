@@ -100,9 +100,62 @@ class SecureStorage {
   }
 
   // ═══════════════════════════════════════════════════════
+  // OFFLINE AUTH CACHE
+  // ═══════════════════════════════════════════════════════
+
+  /// Cache credentials for offline login.
+  /// Stores email and password hash (SHA-256).
+  static Future<void> cacheCredentials({
+    required String email,
+    required String passwordHash,
+    required String userJson,
+  }) async {
+    await Future.wait([
+      _storage.write(key: AppConstants.keyCachedEmail, value: email.toLowerCase()),
+      _storage.write(key: AppConstants.keyCachedPasswordHash, value: passwordHash),
+      _storage.write(key: AppConstants.keyCachedUserJson, value: userJson),
+    ]);
+  }
+
+  /// Get cached email for offline login.
+  static Future<String?> getCachedEmail() async {
+    return _storage.read(key: AppConstants.keyCachedEmail);
+  }
+
+  /// Get cached password hash for offline verification.
+  static Future<String?> getCachedPasswordHash() async {
+    return _storage.read(key: AppConstants.keyCachedPasswordHash);
+  }
+
+  /// Get cached user JSON for offline login.
+  static Future<String?> getCachedUserJson() async {
+    return _storage.read(key: AppConstants.keyCachedUserJson);
+  }
+
+  /// Check if offline credentials are cached.
+  static Future<bool> hasOfflineCredentials() async {
+    final email = await getCachedEmail();
+    final hash = await getCachedPasswordHash();
+    final user = await getCachedUserJson();
+    return email != null && hash != null && user != null;
+  }
+
+  // ═══════════════════════════════════════════════════════
   // CLEAR ALL (on logout)
   // ═══════════════════════════════════════════════════════
 
+  /// Clear session data (tokens) but KEEP offline credentials cache.
+  /// Used for normal logout so user can login again offline.
+  static Future<void> clearSession() async {
+    await Future.wait([
+      _storage.delete(key: AppConstants.keyAccessToken),
+      _storage.delete(key: AppConstants.keyRefreshToken),
+      _storage.delete(key: _keySelectedTenantId),
+    ]);
+  }
+
+  /// Clear ALL data including offline credentials.
+  /// Used when user explicitly wants to remove all cached data.
   static Future<void> clearAll() async {
     await _storage.deleteAll();
   }

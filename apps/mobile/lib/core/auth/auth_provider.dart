@@ -1,3 +1,8 @@
+import 'dart:convert';
+
+import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:crypto/crypto.dart';
+import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:crm_mobile/core/auth/secure_storage.dart';
@@ -6,6 +11,13 @@ import 'package:crm_mobile/core/network/api_client.dart';
 import 'package:crm_mobile/core/push/push_notification_service.dart';
 
 part 'auth_provider.g.dart';
+
+/// Hash password for offline storage (SHA-256).
+/// Note: This is for offline verification only, not for production auth.
+String _hashPassword(String password, String salt) {
+  final bytes = utf8.encode('$password:$salt');
+  return sha256.convert(bytes).toString();
+}
 
 // ═══════════════════════════════════════════════════════
 // USER MODEL (matches web-admin User type)
@@ -211,7 +223,7 @@ class Auth extends _$Auth {
     }
   }
 
-  /// Login with email/password. Mirrors auth-store.ts login().
+  /// Login with email/password. Supports offline login with cached credentials.
   Future<void> login({
     required String email,
     required String password,
@@ -220,6 +232,18 @@ class Auth extends _$Auth {
     // Set flag to prevent race condition with _checkExistingSession
     _manualAuthInProgress = true;
     state = state.copyWith(isLoading: true, clearError: true);
+
+    // Check connectivity first
+    final connectivity = await Connectivity().checkConnectivity();
+    final isOnline = !connectivity.contains(ConnectivityResult.none) &&
+        connectivity.isNotEmpty;
+
+    // If offline, try offline login directly
+    if (!isOnline) {
+      debugPrint('[Auth] Offline - attempting offline login');
+      await _offlineLogin(email: email, password: password);
+      return;
+    }
 
     try {
       final dio = ref.read(apiClientProvider);
@@ -239,6 +263,14 @@ class Auth extends _$Auth {
       );
       await SecureStorage.setUserId(user.id);
       await SecureStorage.setTenantId(user.tenantId);
+
+      // Cache credentials for offline login (use tenantId as salt)
+      final passwordHash = _hashPassword(password, user.tenantId);
+      await SecureStorage.cacheCredentials(
+        email: email,
+        passwordHash: passwordHash,
+        userJson: jsonEncode(data['user']),
+      );
 
       // Save remember me preference for biometric login
       if (rememberMe) {
@@ -263,6 +295,21 @@ class Auth extends _$Auth {
 
       // Register device for push notifications (non-blocking)
       PushNotificationService.instance.registerDeviceToken();
+    } on DioException catch (e) {
+      // Network error - try offline login as fallback
+      if (_isNetworkError(e)) {
+        debugPrint('[Auth] Network error - attempting offline login fallback');
+        await _offlineLogin(email: email, password: password);
+        return;
+      }
+
+      _manualAuthInProgress = false;
+      final message = _extractErrorMessage(e, 'Falha no login');
+      state = state.copyWith(
+        isLoading: false,
+        error: message,
+      );
+      rethrow;
     } catch (e) {
       _manualAuthInProgress = false;
       final message = _extractErrorMessage(e, 'Falha no login');
@@ -271,6 +318,98 @@ class Auth extends _$Auth {
         error: message,
       );
       rethrow;
+    }
+  }
+
+  /// Check if error is a network-related error.
+  bool _isNetworkError(DioException e) {
+    return e.type == DioExceptionType.connectionError ||
+        e.type == DioExceptionType.connectionTimeout ||
+        e.type == DioExceptionType.sendTimeout ||
+        e.type == DioExceptionType.receiveTimeout ||
+        e.error.toString().contains('SocketException') ||
+        e.error.toString().contains('Network is unreachable');
+  }
+
+  /// Offline login using cached credentials.
+  Future<void> _offlineLogin({
+    required String email,
+    required String password,
+  }) async {
+    try {
+      // Check if we have cached credentials
+      final hasCache = await SecureStorage.hasOfflineCredentials();
+      if (!hasCache) {
+        _manualAuthInProgress = false;
+        state = state.copyWith(
+          isLoading: false,
+          error: 'Sem conexao e sem credenciais salvas. Faca login online primeiro.',
+        );
+        return;
+      }
+
+      // Verify email matches
+      final cachedEmail = await SecureStorage.getCachedEmail();
+      if (cachedEmail?.toLowerCase() != email.toLowerCase()) {
+        _manualAuthInProgress = false;
+        state = state.copyWith(
+          isLoading: false,
+          error: 'Email nao corresponde ao usuario salvo offline.',
+        );
+        return;
+      }
+
+      // Get cached user data to extract tenantId for hash verification
+      final cachedUserJson = await SecureStorage.getCachedUserJson();
+      if (cachedUserJson == null) {
+        _manualAuthInProgress = false;
+        state = state.copyWith(
+          isLoading: false,
+          error: 'Dados do usuario nao encontrados.',
+        );
+        return;
+      }
+
+      final userData = jsonDecode(cachedUserJson) as Map<String, dynamic>;
+      final tenantId = userData['tenantId'] as String;
+
+      // Verify password hash
+      final cachedHash = await SecureStorage.getCachedPasswordHash();
+      final inputHash = _hashPassword(password, tenantId);
+
+      if (cachedHash != inputHash) {
+        _manualAuthInProgress = false;
+        state = state.copyWith(
+          isLoading: false,
+          error: 'Senha incorreta.',
+        );
+        return;
+      }
+
+      // Password verified - restore user from cache
+      final user = User.fromJson(userData);
+
+      await SecureStorage.setUserId(user.id);
+      await SecureStorage.setTenantId(user.tenantId);
+
+      debugPrint('[Auth] Offline login success for ${user.email}');
+      state = AuthState(
+        user: user,
+        isAuthenticated: true,
+        isLoading: false,
+      );
+
+      _manualAuthInProgress = false;
+
+      // Database already has local data from previous sync
+      // PowerSync will auto-sync when connection is restored
+    } catch (e) {
+      _manualAuthInProgress = false;
+      debugPrint('[Auth] Offline login error: $e');
+      state = state.copyWith(
+        isLoading: false,
+        error: 'Falha no login offline.',
+      );
     }
   }
 
@@ -332,20 +471,33 @@ class Auth extends _$Auth {
     }
   }
 
-  /// Logout. Mirrors auth-store.ts logout().
-  Future<void> logout() async {
-    // Unregister push token before logout
-    await PushNotificationService.instance.unregisterDeviceToken();
+  /// Logout. Works offline - clears session but keeps credential cache.
+  Future<void> logout({bool clearOfflineCache = false}) async {
+    // Unregister push token before logout (non-blocking, may fail offline)
+    PushNotificationService.instance.unregisterDeviceToken().catchError((_) {});
 
     try {
       final dio = ref.read(apiClientProvider);
       await dio.post('/auth/logout');
     } catch (_) {
-      // Ignore logout errors (same as web-admin)
+      // Ignore logout errors - works offline
+      debugPrint('[Auth] Logout API call failed (offline mode)');
     } finally {
-      await AppDatabase.instance.clearData();
-      await SecureStorage.clearAll();
+      // Disconnect PowerSync
+      await AppDatabase.instance.disconnect();
+
+      if (clearOfflineCache) {
+        // Full clear - remove everything including offline credentials
+        await AppDatabase.instance.clearData();
+        await SecureStorage.clearAll();
+      } else {
+        // Normal logout - keep offline credentials for future offline login
+        // Keep local database so user can view data offline after re-login
+        await SecureStorage.clearSession();
+      }
+
       state = const AuthState();
+      debugPrint('[Auth] Logout complete (clearOfflineCache=$clearOfflineCache)');
     }
   }
 
