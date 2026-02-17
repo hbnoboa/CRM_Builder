@@ -80,6 +80,7 @@ const schema = Schema([
     Column.text('mime_type'),
     Column.integer('file_size'),
     Column.text('created_at'),
+    Column.text('last_attempt'), // ISO8601 timestamp of last upload attempt
   ]),
   // Local-only table for API-SELECT field options cache
   Table.localOnly('api_select_cache', [

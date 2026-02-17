@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:dio/dio.dart';
@@ -14,6 +15,37 @@ import 'package:crm_mobile/core/upload/local_file_storage.dart';
 part 'upload_queue_service.g.dart';
 
 final _logger = Logger(printer: SimplePrinter());
+
+/// Exponential backoff calculator for upload retries.
+/// Delay increases: 500ms, 1s, 2s, 4s, 8s (capped at 30s with jitter).
+class _UploadBackoff {
+  static const _initialDelay = Duration(milliseconds: 500);
+  static const _maxDelay = Duration(seconds: 30);
+
+  /// Calculate the delay for a given retry count.
+  static Duration getDelay(int retryCount) {
+    final exponentialDelay = _initialDelay * math.pow(2, retryCount);
+    final jitter = Duration(
+      milliseconds: (math.Random().nextDouble() * 500).toInt(),
+    );
+    final delay = exponentialDelay + jitter;
+    return delay > _maxDelay ? _maxDelay : delay;
+  }
+
+  /// Check if enough time has passed since last attempt based on retry count.
+  static bool shouldRetryNow(int retryCount, String? lastAttemptStr) {
+    if (lastAttemptStr == null || lastAttemptStr.isEmpty) return true;
+
+    try {
+      final lastAttempt = DateTime.parse(lastAttemptStr);
+      final requiredDelay = getDelay(retryCount - 1); // -1 because retry already incremented
+      final nextAttemptTime = lastAttempt.add(requiredDelay);
+      return DateTime.now().isAfter(nextAttemptTime);
+    } catch (_) {
+      return true; // If parsing fails, allow retry
+    }
+  }
+}
 
 /// Manages the offline upload queue.
 /// Files are enqueued locally, then uploaded when online.
@@ -74,8 +106,8 @@ class UploadQueueService {
     await db.execute(
       '''INSERT INTO file_upload_queue
          (id, local_path, file_name, folder, entity_slug, record_id, field_slug,
-          status, remote_url, retry_count, error, mime_type, file_size, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', '', 0, '', ?, ?, ?)''',
+          status, remote_url, retry_count, error, mime_type, file_size, created_at, last_attempt)
+         VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', '', 0, '', ?, ?, ?, '')''',
       [id, localPath, fileName, folder, entitySlug, recordId, fieldSlug,
        mimeType, fileSize, now,],
     );
@@ -137,15 +169,22 @@ class UploadQueueService {
     final recordId = item['record_id'] as String;
     final fieldSlug = item['field_slug'] as String;
     final retryCount = (item['retry_count'] as num?)?.toInt() ?? 0;
+    final lastAttempt = item['last_attempt'] as String?;
 
-    // TODO: Apply exponential backoff when last_attempt tracking is implemented
-    // For now, we process items immediately regardless of retry count
+    // Apply exponential backoff for failed items
+    if (retryCount > 0 && !_UploadBackoff.shouldRetryNow(retryCount, lastAttempt)) {
+      final delay = _UploadBackoff.getDelay(retryCount - 1);
+      _logger.d('Skipping $fileName - waiting for backoff (${delay.inSeconds}s since last attempt)');
+      return;
+    }
+
+    final now = DateTime.now().toIso8601String();
 
     try {
-      // Mark as uploading
+      // Mark as uploading and record attempt timestamp
       await db.execute(
-        "UPDATE file_upload_queue SET status = 'uploading' WHERE id = ?",
-        [id],
+        "UPDATE file_upload_queue SET status = 'uploading', last_attempt = ? WHERE id = ?",
+        [now, id],
       );
 
       // Upload via API
@@ -219,6 +258,7 @@ class UploadQueueService {
   /// Handle upload error with retry logic.
   Future<void> _handleError(String id, int retryCount, dynamic error) async {
     final db = AppDatabase.instance.db;
+    final now = DateTime.now().toIso8601String();
     String errorMessage = error.toString();
     String newStatus = 'failed';
 
@@ -235,21 +275,23 @@ class UploadQueueService {
         newStatus = 'failed';
         // Set retry_count to max so it won't be retried
         await db.execute(
-          'UPDATE file_upload_queue SET status = ?, error = ?, retry_count = ? WHERE id = ?',
-          [newStatus, errorMessage, _maxRetries, id],
+          'UPDATE file_upload_queue SET status = ?, error = ?, retry_count = ?, last_attempt = ? WHERE id = ?',
+          [newStatus, errorMessage, _maxRetries, now, id],
         );
         _logger.e('Upload permanently failed (HTTP $statusCode): $errorMessage');
         return;
       }
     }
 
-    // Retryable error: increment retry count
+    // Retryable error: increment retry count and set last_attempt for backoff
+    final newRetryCount = retryCount + 1;
+    final nextDelay = _UploadBackoff.getDelay(newRetryCount - 1);
     await db.execute(
-      'UPDATE file_upload_queue SET status = ?, error = ?, retry_count = ? WHERE id = ?',
-      [newStatus, errorMessage, retryCount + 1, id],
+      'UPDATE file_upload_queue SET status = ?, error = ?, retry_count = ?, last_attempt = ? WHERE id = ?',
+      [newStatus, errorMessage, newRetryCount, now, id],
     );
 
-    _logger.w('Upload failed (attempt ${retryCount + 1}/$_maxRetries): $errorMessage');
+    _logger.w('Upload failed (attempt $newRetryCount/$_maxRetries): $errorMessage - next retry in ${nextDelay.inSeconds}s');
   }
 
   /// Reset items stuck in 'uploading' state (from app crash/restart).
