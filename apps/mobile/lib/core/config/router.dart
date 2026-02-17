@@ -4,19 +4,16 @@ import 'package:go_router/go_router.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:crm_mobile/core/auth/auth_provider.dart';
 import 'package:crm_mobile/core/permissions/device_permissions_provider.dart';
+import 'package:crm_mobile/core/permissions/permission_provider.dart';
 import 'package:crm_mobile/features/auth/pages/login_page.dart';
 import 'package:crm_mobile/features/auth/pages/register_page.dart';
 import 'package:crm_mobile/features/auth/pages/forgot_password_page.dart';
 import 'package:crm_mobile/features/auth/pages/permissions_onboarding_page.dart';
 import 'package:crm_mobile/features/dashboard/pages/dashboard_page.dart';
-import 'package:crm_mobile/features/entities/pages/entities_list_page.dart';
+import 'package:crm_mobile/features/data/pages/data_entities_page.dart';
 import 'package:crm_mobile/features/data/pages/data_list_page.dart';
 import 'package:crm_mobile/features/data/pages/data_detail_page.dart';
 import 'package:crm_mobile/features/data/pages/data_form_page.dart';
-import 'package:crm_mobile/features/notifications/pages/notifications_page.dart';
-import 'package:crm_mobile/features/profile/pages/profile_page.dart';
-import 'package:crm_mobile/features/settings/pages/settings_page.dart';
-import 'package:crm_mobile/features/tenants/pages/tenant_selector_page.dart';
 import 'package:crm_mobile/core/push/push_notification_service.dart';
 import 'package:crm_mobile/shared/widgets/shell_scaffold.dart';
 
@@ -34,6 +31,10 @@ class _AuthStateListenable extends ChangeNotifier {
     });
     _ref.listen(devicePermissionsProvider, (prev, next) {
       debugPrint('[Router] Device permissions changed: allGranted=${next.allGranted}, onboarding=${next.onboardingCompleted}');
+      notifyListeners();
+    });
+    _ref.listen(permissionsProvider, (prev, next) {
+      debugPrint('[Router] User permissions changed');
       notifyListeners();
     });
   }
@@ -57,6 +58,7 @@ GoRouter router(Ref ref) {
     redirect: (context, state) {
       // Read auth state fresh on each redirect
       final authState = ref.read(authProvider);
+      final permissions = ref.read(permissionsProvider);
       final isAuthenticated = authState.isAuthenticated;
       final isLoading = authState.isLoading;
       final isAuthRoute = state.matchedLocation.startsWith('/login') ||
@@ -74,36 +76,48 @@ GoRouter router(Ref ref) {
         return null;
       }
 
-      // Not authenticated → go to login (allow auth routes + onboarding)
+      // Not authenticated -> go to login (allow auth routes + onboarding)
       if (!isAuthenticated && !isAuthRoute && !isOnboardingRoute) {
         debugPrint('[Router] Not authenticated, redirecting to /login');
         return '/login';
       }
 
-      // Authenticated → check permissions onboarding
+      // Authenticated -> check permissions onboarding
       if (isAuthenticated) {
         final devicePerms = ref.read(devicePermissionsProvider);
         final needsOnboarding = !devicePerms.onboardingCompleted;
 
-        // Needs onboarding and not on that page → redirect
+        // Needs onboarding and not on that page -> redirect
         if (needsOnboarding && !isOnboardingRoute && !isAuthRoute) {
           debugPrint('[Router] Needs permissions onboarding, redirecting');
           return '/permissions-onboarding';
         }
 
-        // Completed onboarding but still on that page → go to dashboard
+        // Completed onboarding but still on that page -> go based on permissions
         if (!needsOnboarding && isOnboardingRoute) {
-          debugPrint('[Router] Onboarding done, redirecting to /dashboard');
-          return '/dashboard';
+          return _getDefaultRoute(permissions);
         }
 
-        // On auth route → go to dashboard (or onboarding if needed)
+        // On auth route -> go based on permissions
         if (isAuthRoute) {
           if (needsOnboarding) {
             debugPrint('[Router] Authenticated, needs onboarding');
             return '/permissions-onboarding';
           }
-          debugPrint('[Router] Authenticated on auth route, redirecting to /dashboard');
+          return _getDefaultRoute(permissions);
+        }
+
+        // Check permission for dashboard access
+        if (state.matchedLocation == '/dashboard' &&
+            !permissions.hasModuleAccess('dashboard')) {
+          debugPrint('[Router] No dashboard permission, redirecting to /data');
+          return '/data';
+        }
+
+        // Check permission for data access
+        if (state.matchedLocation.startsWith('/data') &&
+            !permissions.hasModuleAccess('data')) {
+          debugPrint('[Router] No data permission, redirecting to /dashboard');
           return '/dashboard';
         }
       }
@@ -126,56 +140,39 @@ GoRouter router(Ref ref) {
         builder: (context, state) => const ForgotPasswordPage(),
       ),
 
+      // Permissions onboarding (full-screen, no bottom nav)
+      GoRoute(
+        path: '/permissions-onboarding',
+        builder: (context, state) => const PermissionsOnboardingPage(),
+      ),
+
       // Main app shell with bottom navigation
       ShellRoute(
         navigatorKey: _shellNavigatorKey,
         builder: (context, state, child) => ShellScaffold(child: child),
         routes: [
+          // Dashboard - shows only if user has dashboard permission
           GoRoute(
             path: '/dashboard',
             pageBuilder: (context, state) => const NoTransitionPage(
               child: DashboardPage(),
             ),
           ),
+          // Data entities selector
           GoRoute(
-            path: '/entities',
+            path: '/data',
             pageBuilder: (context, state) => const NoTransitionPage(
-              child: EntitiesListPage(),
+              child: DataEntitiesPage(),
             ),
           ),
+          // Data list for specific entity
           GoRoute(
             path: '/data/:entitySlug',
             builder: (context, state) => DataListPage(
               entitySlug: state.pathParameters['entitySlug']!,
             ),
           ),
-          GoRoute(
-            path: '/notifications',
-            pageBuilder: (context, state) => const NoTransitionPage(
-              child: NotificationsPage(),
-            ),
-          ),
-          GoRoute(
-            path: '/profile',
-            pageBuilder: (context, state) => const NoTransitionPage(
-              child: ProfilePage(),
-            ),
-          ),
-          GoRoute(
-            path: '/settings',
-            builder: (context, state) => const SettingsPage(),
-          ),
-          GoRoute(
-            path: '/tenants',
-            builder: (context, state) => const TenantSelectorPage(),
-          ),
         ],
-      ),
-
-      // Permissions onboarding (full-screen, no bottom nav)
-      GoRoute(
-        path: '/permissions-onboarding',
-        builder: (context, state) => const PermissionsOnboardingPage(),
       ),
 
       // Full-screen routes (outside shell, no bottom nav)
@@ -202,4 +199,21 @@ GoRouter router(Ref ref) {
       ),
     ],
   );
+}
+
+/// Get default route based on user permissions
+String _getDefaultRoute(PermissionsState permissions) {
+  // Prefer dashboard if user has access
+  if (permissions.hasModuleAccess('dashboard')) {
+    debugPrint('[Router] Has dashboard permission, redirecting to /dashboard');
+    return '/dashboard';
+  }
+  // Fallback to data if user has access
+  if (permissions.hasModuleAccess('data')) {
+    debugPrint('[Router] Has data permission, redirecting to /data');
+    return '/data';
+  }
+  // No permissions - stay on login (edge case)
+  debugPrint('[Router] No module permissions, staying on /login');
+  return '/login';
 }

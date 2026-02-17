@@ -1,0 +1,334 @@
+import 'dart:convert';
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import 'package:crm_mobile/core/database/app_database.dart';
+import 'package:crm_mobile/core/permissions/permission_provider.dart';
+import 'package:crm_mobile/core/theme/app_colors.dart';
+import 'package:crm_mobile/core/theme/app_typography.dart';
+import 'package:crm_mobile/shared/utils/icon_mapper.dart';
+
+/// Data entities selector page - shows entities to select for viewing data
+class DataEntitiesPage extends ConsumerStatefulWidget {
+  const DataEntitiesPage({super.key});
+
+  @override
+  ConsumerState<DataEntitiesPage> createState() => _DataEntitiesPageState();
+}
+
+class _DataEntitiesPageState extends ConsumerState<DataEntitiesPage> {
+  String _searchQuery = '';
+
+  @override
+  Widget build(BuildContext context) {
+    final perms = ref.watch(permissionsProvider);
+    final db = AppDatabase.instance.db;
+
+    return Column(
+      children: [
+        // Header with search
+        Container(
+          padding: const EdgeInsets.all(AppColors.spaceMd),
+          decoration: BoxDecoration(
+            color: AppColors.card,
+            boxShadow: [
+              BoxShadow(
+                color: AppColors.foreground.withValues(alpha: 0.03),
+                blurRadius: 10,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Selecione uma entidade',
+                style: AppTypography.bodySmall.copyWith(
+                  color: AppColors.mutedForeground,
+                ),
+              ),
+              const SizedBox(height: AppColors.spaceSm),
+              // Search bar
+              TextField(
+                decoration: InputDecoration(
+                  hintText: 'Buscar entidade...',
+                  hintStyle: AppTypography.bodyMedium.copyWith(
+                    color: AppColors.mutedForeground,
+                  ),
+                  prefixIcon: Icon(
+                    Icons.search,
+                    color: AppColors.mutedForeground,
+                  ),
+                  filled: true,
+                  fillColor: AppColors.surfaceVariant,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(AppColors.radiusFull),
+                    borderSide: BorderSide.none,
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(AppColors.radiusFull),
+                    borderSide: BorderSide.none,
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(AppColors.radiusFull),
+                    borderSide: BorderSide(color: AppColors.primary, width: 2),
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: AppColors.spaceMd,
+                    vertical: AppColors.spaceSm,
+                  ),
+                ),
+                onChanged: (value) => setState(() => _searchQuery = value),
+              ),
+            ],
+          ),
+        ),
+
+        // Entities list
+        Expanded(
+          child: StreamBuilder<List<Map<String, dynamic>>>(
+            stream: db.watch(
+              'SELECT e.*, '
+              '(SELECT COUNT(*) FROM EntityData WHERE entityId = e.id AND deletedAt IS NULL) as recordCount '
+              'FROM Entity e ORDER BY e.name ASC',
+            ),
+            builder: (context, snapshot) {
+              final entities = snapshot.data ?? [];
+
+              // Filter by permission and search
+              final filteredEntities = entities.where((e) {
+                final slug = e['slug'] as String;
+                final name = (e['name'] as String? ?? '').toLowerCase();
+                final namePlural = (e['namePlural'] as String? ?? '').toLowerCase();
+                final search = _searchQuery.toLowerCase();
+
+                final hasPermission = perms.hasEntityPermission(slug, 'canRead') ||
+                    perms.hasModuleAccess('data');
+
+                final matchesSearch = search.isEmpty ||
+                    name.contains(search) ||
+                    namePlural.contains(search) ||
+                    slug.contains(search);
+
+                return hasPermission && matchesSearch;
+              }).toList();
+
+              if (snapshot.connectionState == ConnectionState.waiting &&
+                  !snapshot.hasData) {
+                return const Center(child: CircularProgressIndicator());
+              }
+
+              if (filteredEntities.isEmpty) {
+                return _buildEmptyState();
+              }
+
+              return ListView.builder(
+                padding: const EdgeInsets.all(AppColors.spaceMd),
+                itemCount: filteredEntities.length,
+                itemBuilder: (context, index) {
+                  return _buildEntityCard(filteredEntities[index], index);
+                },
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildEmptyState() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(AppColors.spaceLg),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              width: 80,
+              height: 80,
+              decoration: BoxDecoration(
+                color: AppColors.surfaceVariant,
+                borderRadius: BorderRadius.circular(AppColors.radiusFull),
+              ),
+              child: Icon(
+                Icons.table_chart_outlined,
+                size: 40,
+                color: AppColors.mutedForeground,
+              ),
+            ),
+            const SizedBox(height: AppColors.spaceLg),
+            Text(
+              _searchQuery.isEmpty
+                  ? 'Nenhuma entidade disponivel'
+                  : 'Nenhuma entidade encontrada',
+              style: AppTypography.labelLarge.copyWith(
+                color: AppColors.foreground,
+              ),
+            ),
+            const SizedBox(height: AppColors.spaceSm),
+            Text(
+              _searchQuery.isEmpty
+                  ? 'Crie entidades no painel web'
+                  : 'Tente uma busca diferente',
+              style: AppTypography.bodySmall.copyWith(
+                color: AppColors.mutedForeground,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEntityCard(Map<String, dynamic> entity, int index) {
+    final slug = entity['slug'] as String;
+    final namePlural = entity['namePlural'] as String;
+    final icon = entity['icon'] as String?;
+    final color = entity['color'] as String?;
+    final recordCount = entity['recordCount'] as int? ?? 0;
+
+    Color entityColor;
+    try {
+      entityColor = color != null
+          ? Color(int.parse(color.replaceFirst('#', '0xFF')))
+          : AppColors.chartPalette[index % AppColors.chartPalette.length];
+    } catch (_) {
+      entityColor = AppColors.chartPalette[index % AppColors.chartPalette.length];
+    }
+
+    // Parse fields count
+    int fieldCount = 0;
+    try {
+      final fields = entity['fields'] as String?;
+      if (fields != null) {
+        final list = jsonDecode(fields) as List?;
+        fieldCount = list?.length ?? 0;
+      }
+    } catch (_) {}
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AppColors.spaceMd),
+      child: GestureDetector(
+        onTap: () => context.push('/data/$slug'),
+        child: Container(
+          decoration: BoxDecoration(
+            color: AppColors.card,
+            borderRadius: BorderRadius.circular(AppColors.radiusLg),
+            boxShadow: AppColors.cardShadow,
+          ),
+          child: Row(
+            children: [
+              // Colored left accent
+              Container(
+                width: 4,
+                height: 80,
+                decoration: BoxDecoration(
+                  color: entityColor,
+                  borderRadius: const BorderRadius.only(
+                    topLeft: Radius.circular(AppColors.radiusLg),
+                    bottomLeft: Radius.circular(AppColors.radiusLg),
+                  ),
+                ),
+              ),
+              // Content
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.all(AppColors.spaceMd),
+                  child: Row(
+                    children: [
+                      // Icon
+                      Container(
+                        width: 48,
+                        height: 48,
+                        decoration: BoxDecoration(
+                          color: entityColor.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(AppColors.radiusMd),
+                        ),
+                        child: Icon(
+                          IconMapper.fromString(icon),
+                          color: entityColor,
+                          size: 24,
+                        ),
+                      ),
+                      const SizedBox(width: AppColors.spaceMd),
+                      // Details
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              namePlural,
+                              style: AppTypography.labelLarge.copyWith(
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Row(
+                              children: [
+                                _buildChip(
+                                  Icons.layers_outlined,
+                                  '$recordCount',
+                                  entityColor,
+                                ),
+                                const SizedBox(width: 8),
+                                _buildChip(
+                                  Icons.list_alt_outlined,
+                                  '$fieldCount campos',
+                                  AppColors.mutedForeground,
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                      // Arrow
+                      Container(
+                        width: 32,
+                        height: 32,
+                        decoration: BoxDecoration(
+                          color: AppColors.surfaceVariant,
+                          borderRadius: BorderRadius.circular(AppColors.radiusSm),
+                        ),
+                        child: Icon(
+                          Icons.chevron_right,
+                          size: 20,
+                          color: AppColors.mutedForeground,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildChip(IconData icon, String label, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(AppColors.radiusFull),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 12, color: color),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: AppTypography.caption.copyWith(
+              color: color,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}

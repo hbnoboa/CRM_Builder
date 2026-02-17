@@ -34,7 +34,7 @@ class DataRepository {
     final db = AppDatabase.instance.db;
 
     var query =
-        'SELECT * FROM EntityData WHERE entityId = ? AND parentRecordId IS NULL AND deletedAt IS NULL';
+        'SELECT * FROM EntityData WHERE entityId = ? AND deletedAt IS NULL';
     final params = <dynamic>[entityId];
 
     // Scope 'own': only show records created by this user

@@ -46,7 +46,7 @@ sync_rules:
             WHERE "tenantId" = bucket.tenant_id
 
           # Entity data records (exclude soft-deleted)
-          - SELECT id, "tenantId", "entityId", data, "parentRecordId", "createdById", "updatedById", "createdAt", "updatedAt"
+          - SELECT id, "tenantId", "entityId", data, "parentRecordId", "createdById", "updatedById", "createdAt", "updatedAt", "deletedAt"
             FROM "EntityData"
             WHERE "tenantId" = bucket.tenant_id AND "deletedAt" IS NULL
 
