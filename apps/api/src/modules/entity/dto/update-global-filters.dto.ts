@@ -3,9 +3,10 @@ import { IsString, IsOptional, IsArray, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class GlobalFilterDto {
-  @ApiProperty({ description: 'ID unico do filtro' })
+  @ApiPropertyOptional({ description: 'ID unico do filtro' })
+  @IsOptional()
   @IsString()
-  id: string;
+  id?: string;
 
   @ApiProperty({ description: 'Slug do campo a filtrar' })
   @IsString()

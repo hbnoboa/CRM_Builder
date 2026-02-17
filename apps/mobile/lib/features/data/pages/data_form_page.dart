@@ -70,6 +70,27 @@ class _DataFormPageState extends ConsumerState<DataFormPage> {
       final settings = jsonDecode(entity['settings'] as String? ?? '{}');
       if (settings is Map<String, dynamic>) {
         _captureLocation = settings['captureLocation'] == true;
+
+        // Reorder fields by columnConfig if set
+        final columnConfig = settings['columnConfig'] as Map<String, dynamic>?;
+        final visibleColumns = (columnConfig?['visibleColumns'] as List<dynamic>?)
+            ?.cast<String>()
+            .toList();
+        if (visibleColumns != null && visibleColumns.isNotEmpty) {
+          final fieldMap = <String, dynamic>{};
+          for (final f in _fields) {
+            final slug = (f as Map<String, dynamic>)['slug'] as String? ?? '';
+            if (slug.isNotEmpty) fieldMap[slug] = f;
+          }
+          final ordered = <dynamic>[];
+          for (final slug in visibleColumns) {
+            if (fieldMap.containsKey(slug)) {
+              ordered.add(fieldMap.remove(slug));
+            }
+          }
+          ordered.addAll(fieldMap.values);
+          _fields = ordered;
+        }
       }
     } catch (_) {}
 

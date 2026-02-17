@@ -10,9 +10,7 @@ import 'package:crm_mobile/core/theme/app_colors.dart';
 import 'package:crm_mobile/core/theme/app_typography.dart';
 import 'package:crm_mobile/core/permissions/permission_provider.dart';
 import 'package:crm_mobile/features/data/data/data_repository.dart';
-import 'package:crm_mobile/features/data/providers/filter_provider.dart';
 import 'package:crm_mobile/features/data/widgets/data_card.dart';
-import 'package:crm_mobile/features/data/widgets/filter_bottom_sheet.dart';
 import 'package:crm_mobile/shared/widgets/permission_gate.dart';
 import 'package:crm_mobile/shared/widgets/sync_status_indicator.dart';
 
@@ -164,38 +162,10 @@ class _DataListPageState extends ConsumerState<DataListPage> {
     );
   }
 
-  void _showFilterSheet() {
-    if (_entityId == null) return;
-    final canManage = ref.read(permissionsProvider)
-        .hasEntityPermission(widget.entitySlug, 'canUpdate');
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) => FilterBottomSheet(
-        entitySlug: widget.entitySlug,
-        entityId: _entityId!,
-        globalFilters: _globalFilters,
-        fields: _fields,
-        canManageGlobal: canManage,
-        onGlobalFiltersChanged: _onGlobalFiltersChanged,
-      ),
-    );
-  }
-
-  void _onGlobalFiltersChanged(List<GlobalFilter> updated) {
-    setState(() {
-      _globalFilters = updated;
-      _limit = AppConstants.defaultPageSize;
-    });
-  }
-
   @override
   Widget build(BuildContext context) {
     final repo = ref.watch(dataRepositoryProvider);
-    final localFilters =
-        ref.watch(entityLocalFiltersProvider)[widget.entitySlug] ?? [];
-    final totalFilterCount = _globalFilters.length + localFilters.length;
+    final totalFilterCount = _globalFilters.length;
 
     // Scope 'own': filter by createdById
     final perms = ref.watch(permissionsProvider);
@@ -215,10 +185,6 @@ class _DataListPageState extends ConsumerState<DataListPage> {
         ),
         actions: [
           const SyncStatusIndicator(),
-          IconButton(
-            icon: const Icon(Icons.filter_list),
-            onPressed: _showFilterSheet,
-          ),
           IconButton(
             icon: const Icon(Icons.sort),
             onPressed: _showSortPicker,
@@ -260,8 +226,8 @@ class _DataListPageState extends ConsumerState<DataListPage> {
             ),
           ),
 
-          // Active filter chips
-          if (_globalFilters.isNotEmpty || localFilters.isNotEmpty)
+          // Global filter chips (read-only indicators)
+          if (_globalFilters.isNotEmpty)
             SizedBox(
               height: 40,
               child: ListView(
@@ -278,24 +244,6 @@ class _DataListPageState extends ConsumerState<DataListPage> {
                           visualDensity: VisualDensity.compact,
                           materialTapTargetSize:
                               MaterialTapTargetSize.shrinkWrap,
-                        ),
-                      ),),
-                  ...localFilters.map((f) => Padding(
-                        padding: const EdgeInsets.only(right: 6),
-                        child: Chip(
-                          label: Text(f.displayLabel,
-                              style: const TextStyle(fontSize: 12),),
-                          visualDensity: VisualDensity.compact,
-                          materialTapTargetSize:
-                              MaterialTapTargetSize.shrinkWrap,
-                          onDeleted: () {
-                            ref
-                                .read(entityLocalFiltersProvider.notifier)
-                                .removeFilter(widget.entitySlug, f.id);
-                            setState(
-                                () => _limit = AppConstants.defaultPageSize,);
-                          },
-                          deleteIconColor: AppColors.mutedForeground,
                         ),
                       ),),
                 ],
@@ -339,7 +287,6 @@ class _DataListPageState extends ConsumerState<DataListPage> {
                     orderBy: _sort.sql,
                     limit: _limit,
                     globalFilters: _globalFilters,
-                    localFilters: localFilters,
                     createdById: scopeUserId,
                   ),
                   builder: (context, snapshot) {
@@ -398,7 +345,7 @@ class _DataListPageState extends ConsumerState<DataListPage> {
                                         _search.isNotEmpty
                                             ? 'Tente outra busca'
                                             : totalFilterCount > 0
-                                                ? 'Remova filtros para ver mais'
+                                                ? 'Filtros globais ativos'
                                                 : 'Comece criando seu primeiro registro',
                                         style: AppTypography.bodyMedium.copyWith(
                                           color: AppColors.mutedForeground,

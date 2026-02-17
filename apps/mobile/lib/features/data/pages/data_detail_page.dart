@@ -75,6 +75,28 @@ class DataDetailPage extends ConsumerWidget {
             fields = jsonDecode(entity['fields'] as String? ?? '[]');
           } catch (_) {}
 
+          // Extract visible column order from entity settings
+          final columnOrder = repo.extractVisibleColumns(entity);
+
+          // Reorder fields by columnConfig if set
+          if (columnOrder.isNotEmpty) {
+            final fieldMap = <String, dynamic>{};
+            for (final f in fields) {
+              final slug = (f as Map<String, dynamic>)['slug'] as String? ?? '';
+              if (slug.isNotEmpty) fieldMap[slug] = f;
+            }
+            final ordered = <dynamic>[];
+            for (final slug in columnOrder) {
+              if (fieldMap.containsKey(slug)) {
+                ordered.add(fieldMap.remove(slug));
+              }
+            }
+            // Append remaining fields not in columnOrder
+            ordered.addAll(fieldMap.values);
+            fields = ordered;
+          }
+
+
           // Use StreamBuilder for real-time record updates
           return StreamBuilder<List<Map<String, dynamic>>>(
             stream: AppDatabase.instance.db.watch(
