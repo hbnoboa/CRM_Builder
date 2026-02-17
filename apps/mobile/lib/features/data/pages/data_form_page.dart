@@ -37,6 +37,7 @@ class _DataFormPageState extends ConsumerState<DataFormPage> {
   bool _saved = false;
   List<dynamic> _fields = [];
   String _entityName = '';
+  bool _captureLocation = false;
 
   @override
   void initState() {
@@ -55,6 +56,13 @@ class _DataFormPageState extends ConsumerState<DataFormPage> {
 
     try {
       _fields = jsonDecode(entity['fields'] as String? ?? '[]');
+    } catch (_) {}
+
+    try {
+      final settings = jsonDecode(entity['settings'] as String? ?? '{}');
+      if (settings is Map<String, dynamic>) {
+        _captureLocation = settings['captureLocation'] == true;
+      }
     } catch (_) {}
 
     // If editing, load existing record
@@ -135,22 +143,6 @@ class _DataFormPageState extends ConsumerState<DataFormPage> {
 
     setState(() => _isLoading = true);
 
-    // Auto-capture geolocation for fields with captureLocation: true
-    for (final field in _fields) {
-      final f = field as Map<String, dynamic>;
-      if (f['captureLocation'] == true) {
-        try {
-          final locationData = await GeolocationService.captureLocation();
-          final slug = f['slug'] as String? ?? '';
-          if (slug.isNotEmpty) {
-            _values[slug] = locationData;
-          }
-        } catch (e) {
-          debugPrint('[DataForm] Falha ao capturar localizacao: $e');
-        }
-      }
-    }
-
     try {
       final repo = ref.read(dataRepositoryProvider);
 
@@ -159,7 +151,18 @@ class _DataFormPageState extends ConsumerState<DataFormPage> {
           ? Map<String, dynamic>.fromEntries(
               _values.entries.where((e) => editableFields.contains(e.key)),
             )
-          : _values;
+          : Map<String, dynamic>.from(_values);
+
+      // Auto-capture geolocation if entity has captureLocation enabled
+      // Injected after permission filtering so _geolocation is always included
+      if (_captureLocation) {
+        try {
+          final locationData = await GeolocationService.captureLocation();
+          dataToSend['_geolocation'] = locationData;
+        } catch (e) {
+          debugPrint('[DataForm] Falha ao capturar localizacao: $e');
+        }
+      }
 
       if (widget.isEditing) {
         await repo.updateRecord(

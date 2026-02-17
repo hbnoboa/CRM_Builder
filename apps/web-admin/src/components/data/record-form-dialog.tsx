@@ -313,9 +313,10 @@ export function RecordFormDialog({
     e.preventDefault();
     if (!validateForm()) return;
 
-    // Auto-capture geolocation for fields with captureLocation: true
-    const captureFields = entity.fields?.filter(f => f.captureLocation) || [];
-    if (captureFields.length > 0 && typeof navigator !== 'undefined' && navigator.geolocation) {
+    const processedData: Record<string, unknown> = {};
+
+    // Auto-capture geolocation if entity has captureLocation enabled
+    if (entity.settings?.captureLocation && typeof navigator !== 'undefined' && navigator.geolocation) {
       try {
         const pos = await new Promise<GeolocationPosition>((resolve, reject) => {
           navigator.geolocation.getCurrentPosition(resolve, reject, {
@@ -326,7 +327,7 @@ export function RecordFormDialog({
         });
         const lat = parseFloat(pos.coords.latitude.toFixed(6));
         const lng = parseFloat(pos.coords.longitude.toFixed(6));
-        let addressData: Record<string, unknown> = { lat, lng, uf: '', city: '', address: '', number: '' };
+        const geoData: Record<string, unknown> = { lat, lng, uf: '', city: '', address: '', number: '' };
         try {
           const res = await fetch(
             `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&addressdetails=1`,
@@ -334,25 +335,17 @@ export function RecordFormDialog({
           );
           const data = await res.json();
           if (data?.address) {
-            addressData = {
-              lat, lng,
-              uf: data.address.state || '',
-              city: data.address.city || data.address.town || data.address.village || '',
-              address: data.address.road || '',
-              number: data.address.house_number || '',
-            };
+            geoData.uf = data.address.state || '';
+            geoData.city = data.address.city || data.address.town || data.address.village || '';
+            geoData.address = data.address.road || '';
+            geoData.number = data.address.house_number || '';
           }
         } catch { /* best-effort reverse geocode */ }
-        for (const field of captureFields) {
-          setFormData(prev => ({ ...prev, [field.slug]: addressData }));
-          formData[field.slug] = addressData;
-        }
+        processedData._geolocation = geoData;
       } catch (e) {
         console.warn('Geolocation capture failed:', e);
       }
     }
-
-    const processedData: Record<string, unknown> = {};
     entity.fields?.forEach((field) => {
       // Sub-entity fields store data separately, skip them
       if (field.type === 'sub-entity') return;

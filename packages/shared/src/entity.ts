@@ -51,9 +51,6 @@ export interface EntityField {
   mapDefaultZoom?: number;
   mapHeight?: number;
 
-  // auto-capture geolocation on form submit (for hidden fields)
-  captureLocation?: boolean;
-
   // sub-entity specific
   subEntityId?: string;
   subEntitySlug?: string;
@@ -84,6 +81,8 @@ export interface EntitySettings {
   allowDelete?: boolean;
   enableAudit?: boolean;
   softDelete?: boolean;
+  /** Auto-capture GPS geolocation on every form submit */
+  captureLocation?: boolean;
 }
 
 export interface Entity {

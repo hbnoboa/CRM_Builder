@@ -274,6 +274,8 @@
       "namePlaceholder": "Nome da entidade",
       "slugPlaceholder": "slug-da-entidade",
       "descriptionPlaceholder": "Descrição da entidade...",
+      "captureLocation": "Capturar geolocalização",
+      "captureLocationDesc": "Captura automaticamente a localização GPS ao salvar um registro",
       "autoEndpoints": "Endpoints Automáticos (CRUD)",
       "listAll": "Listar todos",
       "findOne": "Buscar um",

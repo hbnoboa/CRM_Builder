@@ -274,6 +274,8 @@
       "namePlaceholder": "Entity name",
       "slugPlaceholder": "entity-slug",
       "descriptionPlaceholder": "Entity description...",
+      "captureLocation": "Capture geolocation",
+      "captureLocationDesc": "Automatically captures GPS location when saving a record",
       "autoEndpoints": "Automatic Endpoints (CRUD)",
       "listAll": "List all",
       "findOne": "Find one",

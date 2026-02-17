@@ -12,7 +12,7 @@ const ZoneDiagramEditor = dynamic(
 );
 import {
   ArrowLeft, Plus, Trash2, Save, Loader2, MoreHorizontal,
-  GripVertical, ChevronDown, ChevronUp, Copy,
+  GripVertical, ChevronDown, ChevronUp, Copy, MapPin,
 } from 'lucide-react';
 import { RequireRole } from '@/components/auth/require-role';
 import { Button } from '@/components/ui/button';
@@ -174,6 +174,7 @@ function EntityDetailPageContent() {
   const [saving, setSaving] = useState(false);
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
+  const [captureLocation, setCaptureLocation] = useState(false);
   const [fields, setFields] = useState<Partial<Field>[]>([]);
   const [expandedFieldIndex, setExpandedFieldIndex] = useState<number | null>(null);
   const [allEntities, setAllEntities] = useState<RelatedEntity[]>([]);
@@ -229,6 +230,7 @@ function EntityDetailPageContent() {
       setEntity(entityData);
       setName(entityData.name);
       setDescription(entityData.description || '');
+      setCaptureLocation(entityData.settings?.captureLocation || false);
       setFields(entityData.fields || []);
     } catch (error) {
       console.error('Error loading entity:', error);
@@ -341,7 +343,8 @@ function EntityDetailPageContent() {
     if (!name.trim()) { toast.error(tToast('nameRequired')); return; }
     setSaving(true);
     try {
-      await api.patch(`/entities/${params.id}`, { name, description, fields });
+      const settings = { ...(entity?.settings || {}), captureLocation };
+      await api.patch(`/entities/${params.id}`, { name, description, fields, settings });
       toast.success(tToast('updated'));
       router.push('/entities');
     } catch (error) {
@@ -882,6 +885,16 @@ function EntityDetailPageContent() {
               <div className="space-y-2">
                 <Label htmlFor="description">{tCommon('description')}</Label>
                 <Textarea id="description" value={description} onChange={(e) => setDescription(e.target.value)} placeholder={t('descriptionPlaceholder')} rows={3} />
+              </div>
+              <div className="flex items-center justify-between pt-4 border-t">
+                <div className="flex items-center gap-3">
+                  <MapPin className="h-5 w-5 text-muted-foreground" />
+                  <div>
+                    <Label htmlFor="captureLocation" className="text-sm font-medium">{t('captureLocation')}</Label>
+                    <p className="text-xs text-muted-foreground">{t('captureLocationDesc')}</p>
+                  </div>
+                </div>
+                <Switch id="captureLocation" checked={captureLocation} onCheckedChange={setCaptureLocation} />
               </div>
               <div className="pt-4 border-t">
                 <h4 className="text-sm font-medium mb-3">{t('autoEndpoints')}</h4>
