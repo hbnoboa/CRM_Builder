@@ -7,6 +7,7 @@ import 'package:crm_mobile/core/theme/app_colors.dart';
 import 'package:crm_mobile/core/permissions/permission_provider.dart';
 import 'package:crm_mobile/features/data/data/data_repository.dart';
 import 'package:crm_mobile/features/data/widgets/dynamic_field.dart';
+import 'package:crm_mobile/features/data/widgets/sub_entity_section.dart';
 
 /// Dynamic form for creating/editing entity data records.
 /// Renders form fields based on entity.fields JSON schema.
@@ -202,6 +203,41 @@ class _DataFormPageState extends ConsumerState<DataFormPage> {
     }
   }
 
+  List<Widget> _buildSubEntitySections() {
+    final subFields = _fields.where(
+      (f) => (f as Map<String, dynamic>)['type']?.toString().toUpperCase() == 'SUB_ENTITY',
+    );
+    if (subFields.isEmpty) return [];
+
+    return [
+      const Divider(height: 32),
+      ...subFields.map<Widget>((field) {
+        final f = field as Map<String, dynamic>;
+        final subEntitySlug = f['subEntitySlug'] as String? ?? '';
+        final subEntityId = f['subEntityId'] as String? ?? '';
+        final label = f['label'] as String? ?? f['name'] as String? ?? '';
+        final displayFields = (f['subEntityDisplayFields'] as List<dynamic>?)
+            ?.map((e) => e.toString())
+            .toList();
+
+        if (subEntitySlug.isEmpty || subEntityId.isEmpty) {
+          return const SizedBox.shrink();
+        }
+
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: SubEntitySection(
+            parentRecordId: widget.recordId!,
+            subEntitySlug: subEntitySlug,
+            subEntityId: subEntityId,
+            subEntityDisplayFields: displayFields,
+            label: label,
+          ),
+        );
+      }),
+    ];
+  }
+
   @override
   Widget build(BuildContext context) {
     if (!_isInitialized) {
@@ -313,6 +349,9 @@ class _DataFormPageState extends ConsumerState<DataFormPage> {
                     ),
                   );
                 }),
+            // Sub-entity sections (only when editing - child records need parent to exist)
+            if (widget.isEditing)
+              ..._buildSubEntitySections(),
             const SizedBox(height: 16),
             SizedBox(
               height: 48,
