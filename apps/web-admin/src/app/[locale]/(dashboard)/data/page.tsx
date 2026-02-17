@@ -25,6 +25,7 @@ import {
   Check,
   RotateCcw,
   Globe,
+  ListFilter,
 } from 'lucide-react';
 import { RequireRole } from '@/components/auth/require-role';
 import { usePermissions } from '@/hooks/use-permissions';
@@ -405,6 +406,9 @@ function DataPageContent() {
   const [parentSearchLoading, setParentSearchLoading] = useState(false);
   const parentSearchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Filtro: apenas registros com filhos (sub-entidade)
+  const [hasChildrenFilter, setHasChildrenFilter] = useState<string | null>(null);
+
   // Ordenacao por coluna
   const [sortConfig, setSortConfig] = useState<{ field: string; order: 'asc' | 'desc' } | null>(null);
 
@@ -477,6 +481,7 @@ function DataPageContent() {
       }
       if (effectiveTenantId) params.tenantId = effectiveTenantId;
       if (search.trim()) params.search = search.trim();
+      if (hasChildrenFilter) params.hasChildrenIn = hasChildrenFilter;
       // Ordenacao: null = explicitamente sem sort; undefined = usar state
       const effectiveSort = sortOverride === null ? null : (sortOverride ?? sortConfig);
       if (effectiveSort) {
@@ -695,6 +700,7 @@ function DataPageContent() {
     setParentFilter(null);
     setParentEntityMeta(null);
     setSortConfig(null);
+    setHasChildrenFilter(null);
   }, []);
 
   // Carregar config de colunas e filtros globais quando entidade muda
@@ -733,6 +739,14 @@ function DataPageContent() {
     setCurrentPage(1);
     fetchRecords(selectedEntity.slug, 1, debouncedSearch);
   }, [debouncedSearch]);
+
+  // Quando filtro de filhos muda, resetar pagina e buscar
+  useEffect(() => {
+    if (!selectedEntity) return;
+    setCurrentPage(1);
+    fetchRecords(selectedEntity.slug, 1, debouncedSearch);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasChildrenFilter]);
 
   // Handlers de paginacao
   const goToPage = useCallback((page: number) => {
@@ -797,6 +811,12 @@ function DataPageContent() {
   const isSubEntity = useMemo(() => {
     return records.some(r => r.parentRecordId) || parentFilter !== null;
   }, [records, parentFilter]);
+
+  // Detectar campos sub-entity da entidade selecionada (para filtro "apenas com filhos")
+  const subEntityFields = useMemo(() => {
+    if (!selectedEntity?.fields) return [];
+    return selectedEntity.fields.filter(f => f.type === 'sub-entity' && f.subEntityId);
+  }, [selectedEntity?.fields]);
 
   // Nome da entidade pai para exibir na coluna
   const parentEntityDisplayName = useMemo(() => {
@@ -1657,6 +1677,28 @@ function DataPageContent() {
                           </div>
                         </PopoverContent>
                       </Popover>
+                    )}
+
+                    {/* Filtro: apenas com sub-entidades */}
+                    {subEntityFields.length > 0 && (
+                      <Button
+                        variant={hasChildrenFilter ? 'default' : 'outline'}
+                        size="sm"
+                        className="gap-1"
+                        onClick={() => {
+                          if (hasChildrenFilter) {
+                            setHasChildrenFilter(null);
+                          } else {
+                            setHasChildrenFilter(subEntityFields[0].subEntityId!);
+                          }
+                        }}
+                        title={hasChildrenFilter ? t('filter.showAll') : t('filter.onlyWithChildren')}
+                      >
+                        <ListFilter className="h-4 w-4" />
+                        <span className="hidden sm:inline">
+                          {hasChildrenFilter ? t('filter.withChildren') : t('filter.onlyWithChildren')}
+                        </span>
+                      </Button>
                     )}
 
                     {/* Botao Refresh */}

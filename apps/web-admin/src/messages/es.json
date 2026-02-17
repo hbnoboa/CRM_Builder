@@ -517,7 +517,10 @@
       "viewSubRecords": "Ver registros",
       "filteredByParentLabel": "{entity}: {display}",
       "clearParentFilter": "Limpiar filtro",
-      "searchParent": "Buscar {entity}"
+      "searchParent": "Buscar {entity}",
+      "onlyWithChildren": "Con registros",
+      "withChildren": "Con registros",
+      "showAll": "Mostrar todos"
     }
   },
   "rolesPage": {

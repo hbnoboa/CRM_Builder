@@ -395,7 +395,11 @@ export class DataService {
     // =========================================================================
     const TOP_LEVEL_SORT_FIELDS = new Set(['createdAt', 'updatedAt', 'id', 'parentRecordId']);
     const isParentDisplaySort = sortBy === '_parentDisplay';
-    const isJsonFieldSort = !isParentDisplaySort && !TOP_LEVEL_SORT_FIELDS.has(sortBy);
+    // Detectar se o sortBy e um campo sub-entity (ordenar por contagem de filhos)
+    const entityFields = (entity.fields as unknown) as EntityField[];
+    const sortSubEntityField = entityFields.find(f => f.slug === sortBy && f.type === 'sub-entity' && f.subEntityId);
+    const isSubEntitySort = !!sortSubEntityField;
+    const isJsonFieldSort = !isParentDisplaySort && !isSubEntitySort && !TOP_LEVEL_SORT_FIELDS.has(sortBy);
 
     // Include padrao para relacionamentos
     const includeClause = {
@@ -483,6 +487,56 @@ export class DataService {
       const paginatedIds = allItems.slice(offset, offset + limit).map(r => r.id);
 
       // Buscar registros completos
+      const fullRecords = paginatedIds.length > 0
+        ? await this.prisma.entityData.findMany({
+            where: { id: { in: paginatedIds } },
+            include: includeClause,
+          })
+        : [];
+
+      const idOrder = new Map(paginatedIds.map((id, i) => [id, i]));
+      data = fullRecords.sort((a, b) => (idOrder.get(a.id) ?? 0) - (idOrder.get(b.id) ?? 0));
+      total = totalCount;
+      hasNextPage = offset + limit < totalCount;
+      hasPreviousPage = page > 1;
+    } else if (isSubEntitySort && !useCursor) {
+      // Ordenacao por contagem de filhos (sub-entity): contar filhos, ordenar em memoria, paginar
+      const [allIds, totalCount, childCounts] = await Promise.all([
+        this.prisma.entityData.findMany({
+          where,
+          select: { id: true },
+        }),
+        this.prisma.entityData.count({ where }),
+        // Buscar TODAS as contagens de filhos da sub-entidade (sem IN clause)
+        this.prisma.entityData.groupBy({
+          by: ['parentRecordId'],
+          where: {
+            entityId: sortSubEntityField.subEntityId!,
+            parentRecordId: { not: null },
+          },
+          _count: { id: true },
+        }),
+      ]);
+
+      const countMap = new Map<string, number>();
+      for (const c of childCounts) {
+        if (c.parentRecordId) {
+          countMap.set(c.parentRecordId, c._count.id);
+        }
+      }
+
+      // Ordenar por contagem de filhos
+      allIds.sort((a, b) => {
+        const aCount = countMap.get(a.id) ?? 0;
+        const bCount = countMap.get(b.id) ?? 0;
+        const comp = aCount - bCount;
+        return sortOrder === 'desc' ? -comp : comp;
+      });
+
+      // Paginar
+      const offset = skipClause || (page - 1) * limit;
+      const paginatedIds = allIds.slice(offset, offset + limit).map(r => r.id);
+
       const fullRecords = paginatedIds.length > 0
         ? await this.prisma.entityData.findMany({
             where: { id: { in: paginatedIds } },
