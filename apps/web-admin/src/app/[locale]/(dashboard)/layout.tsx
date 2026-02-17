@@ -123,7 +123,7 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
   const tNav = useTranslations('navigation');
   const tRoles = useTranslations('roles');
   const { user, isAuthenticated, logout, getProfile, isLoading } = useAuthStore();
-  const { hasModuleAccess } = usePermissions();
+  const { hasModuleAccess, getDefaultRoute } = usePermissions();
   const { tenant } = useTenant();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
@@ -166,6 +166,20 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
       }
     }
   }, [mounted, isLoading, isAuthenticated, router]);
+
+  // Redirect if user doesn't have access to the current module
+  useEffect(() => {
+    if (!mounted || isLoading || !isAuthenticated || !user) return;
+
+    // Map pathname to moduleKey
+    const segment = pathname.split('/').filter(Boolean)[0];
+    if (segment && !hasModuleAccess(segment)) {
+      const defaultRoute = getDefaultRoute();
+      if (defaultRoute !== `/${segment}`) {
+        router.replace(defaultRoute);
+      }
+    }
+  }, [mounted, isLoading, isAuthenticated, user, pathname, hasModuleAccess, getDefaultRoute, router]);
 
   const handleLogout = async () => {
     await logout();

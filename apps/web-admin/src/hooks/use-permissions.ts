@@ -310,6 +310,31 @@ export function usePermissions() {
    */
   const isPlatformAdmin = roleType === 'PLATFORM_ADMIN';
 
+  /**
+   * Retorna a rota padrao baseada nas permissoes do usuario.
+   * Prioridade: dashboard > data > entities > users > settings
+   */
+  const getDefaultRoute = (): string => {
+    const routePriority: { moduleKey: string; href: string }[] = [
+      { moduleKey: 'dashboard', href: '/dashboard' },
+      { moduleKey: 'data', href: '/data' },
+      { moduleKey: 'entities', href: '/entities' },
+      { moduleKey: 'users', href: '/users' },
+      { moduleKey: 'roles', href: '/roles' },
+      { moduleKey: 'apis', href: '/apis' },
+      { moduleKey: 'tenants', href: '/tenants' },
+      { moduleKey: 'settings', href: '/settings' },
+    ];
+
+    for (const route of routePriority) {
+      if (hasModuleAccess(route.moduleKey)) {
+        return route.href;
+      }
+    }
+
+    return '/dashboard';
+  };
+
   return {
     user,
     roleType,
@@ -321,7 +346,45 @@ export function usePermissions() {
     hasModuleAction,
     hasEntityAction,
     getEntityScope,
+    getDefaultRoute,
     isAdmin,
     isPlatformAdmin,
   };
+}
+
+/**
+ * Funcao pura para determinar rota padrao baseada no user.
+ * Usada no login (onSubmit) onde o hook ainda nao re-renderizou.
+ */
+export function getDefaultRouteForUser(user: { customRole?: { roleType?: string; modulePermissions?: Record<string, unknown> } | null } | null): string {
+  if (!user?.customRole?.roleType) return '/dashboard';
+
+  const roleType = user.customRole.roleType as RoleType;
+
+  if (roleType === 'PLATFORM_ADMIN') return '/dashboard';
+
+  let modulePerms: ModulePermissions;
+  if (user.customRole.modulePermissions) {
+    modulePerms = normalizeModulePermissions(user.customRole.modulePermissions) as ModulePermissions;
+  } else {
+    modulePerms = DEFAULT_MODULE_PERMISSIONS[roleType] || DEFAULT_MODULE_PERMISSIONS.VIEWER;
+  }
+
+  const routePriority: { moduleKey: keyof ModulePermissions; href: string }[] = [
+    { moduleKey: 'dashboard', href: '/dashboard' },
+    { moduleKey: 'data', href: '/data' },
+    { moduleKey: 'entities', href: '/entities' },
+    { moduleKey: 'users', href: '/users' },
+    { moduleKey: 'roles', href: '/roles' },
+    { moduleKey: 'apis', href: '/apis' },
+    { moduleKey: 'tenants', href: '/tenants' },
+    { moduleKey: 'settings', href: '/settings' },
+  ];
+
+  for (const route of routePriority) {
+    const perm = modulePerms[route.moduleKey];
+    if (perm?.canRead) return route.href;
+  }
+
+  return '/dashboard';
 }

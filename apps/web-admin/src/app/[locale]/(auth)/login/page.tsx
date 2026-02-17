@@ -12,6 +12,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
 import { useAuthStore } from '@/stores/auth-store';
+import { getDefaultRouteForUser } from '@/hooks/use-permissions';
 import { LanguageSwitcher } from '@/components/language-switcher';
 
 type LoginForm = {
@@ -47,7 +48,8 @@ export default function LoginPage() {
   const onSubmit = async (data: LoginForm) => {
     try {
       await login(data);
-      router.push('/dashboard');
+      const user = useAuthStore.getState().user;
+      router.push(getDefaultRouteForUser(user));
     } catch (err) {
       // Error is handled by the store
     }
