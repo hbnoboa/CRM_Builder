@@ -21,16 +21,16 @@ class _ZoneConfig {
   });
 
   factory _ZoneConfig.fromJson(Map<String, dynamic> json) => _ZoneConfig(
-        id: json['id'] as String? ?? '',
-        label: json['label'] as String? ?? '',
+        id: json['id']?.toString() ?? '',
+        label: json['label']?.toString() ?? '',
         x: (json['x'] as num?)?.toDouble() ?? 0,
         y: (json['y'] as num?)?.toDouble() ?? 0,
-        optionsSource: json['optionsSource'] as String? ?? 'manual',
+        optionsSource: json['optionsSource']?.toString() ?? 'manual',
         options: (json['options'] as List<dynamic>?)
             ?.map((e) => e.toString())
             .toList(),
-        sourceEntitySlug: json['sourceEntitySlug'] as String?,
-        sourceFieldSlug: json['sourceFieldSlug'] as String?,
+        sourceEntitySlug: json['sourceEntitySlug']?.toString(),
+        sourceFieldSlug: json['sourceFieldSlug']?.toString(),
       );
 
   final String id;
