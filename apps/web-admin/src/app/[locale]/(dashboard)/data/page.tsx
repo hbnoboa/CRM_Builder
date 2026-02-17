@@ -540,7 +540,14 @@ function DataPageContent() {
     resetFilters();
     setCurrentPage(1);
     setDebouncedSearch('');
-    await fetchRecords(entity.slug, 1, '');
+
+    // Extrair globalFilters ANTES de buscar (evita busca dupla)
+    const settings = entity.settings as Record<string, unknown> | null;
+    const entityGlobalFilters = (settings?.globalFilters as ActiveFilter[]) || [];
+    setGlobalFilters(entityGlobalFilters);
+
+    // Buscar ja com os filtros aplicados
+    await fetchRecords(entity.slug, 1, '', undefined, undefined, entityGlobalFilters);
   };
 
   // Navegar para sub-entidade filtrada por pai (ao clicar no badge de sub-entity)
@@ -755,14 +762,6 @@ function DataPageContent() {
     fetchRecords(selectedEntity.slug, 1, debouncedSearch);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hasChildrenFilter]);
-
-  // Quando globalFilters mudar, re-buscar com os filtros aplicados no backend
-  useEffect(() => {
-    if (!selectedEntity) return;
-    setCurrentPage(1);
-    fetchRecords(selectedEntity.slug, 1, debouncedSearch);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [globalFilters]);
 
   // Handlers de paginacao
   const goToPage = useCallback((page: number) => {
