@@ -8,7 +8,8 @@ import 'package:crm_mobile/core/theme/app_colors.dart';
 import 'package:crm_mobile/core/theme/app_typography.dart';
 import 'package:crm_mobile/shared/utils/icon_mapper.dart';
 
-/// Data entities selector page - shows entities to select for viewing data
+/// Data entities selector page - shows only parent entities.
+/// If only one parent entity is available, navigates directly to its list.
 class DataEntitiesPage extends ConsumerStatefulWidget {
   const DataEntitiesPage({super.key});
 
@@ -18,6 +19,28 @@ class DataEntitiesPage extends ConsumerStatefulWidget {
 
 class _DataEntitiesPageState extends ConsumerState<DataEntitiesPage> {
   String _searchQuery = '';
+  bool _autoNavigated = false;
+
+  /// Collect all slugs that are referenced as SUB_ENTITY by other entities.
+  Set<String> _getSubEntitySlugs(List<Map<String, dynamic>> allEntities) {
+    final subSlugs = <String>{};
+    for (final entity in allEntities) {
+      try {
+        final fieldsJson = entity['fields'] as String?;
+        if (fieldsJson == null) continue;
+        final fields = jsonDecode(fieldsJson) as List?;
+        if (fields == null) continue;
+        for (final field in fields) {
+          if (field is Map<String, dynamic> &&
+              field['type'] == 'sub-entity' &&
+              field['subEntitySlug'] is String) {
+            subSlugs.add(field['subEntitySlug'] as String);
+          }
+        }
+      } catch (_) {}
+    }
+    return subSlugs;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -94,17 +117,27 @@ class _DataEntitiesPageState extends ConsumerState<DataEntitiesPage> {
               'FROM Entity e ORDER BY e.name ASC',
             ),
             builder: (context, snapshot) {
-              final entities = snapshot.data ?? [];
+              final allEntities = snapshot.data ?? [];
 
-              // Filter by permission and search
-              final filteredEntities = entities.where((e) {
+              // Identify sub-entity slugs
+              final subSlugs = _getSubEntitySlugs(allEntities);
+
+              // Filter: only parent entities (not referenced as sub-entity),
+              // with permission, and matching search
+              final filteredEntities = allEntities.where((e) {
                 final slug = e['slug'] as String;
+
+                // Exclude sub-entities
+                if (subSlugs.contains(slug)) return false;
+
                 final name = (e['name'] as String? ?? '').toLowerCase();
-                final namePlural = (e['namePlural'] as String? ?? '').toLowerCase();
+                final namePlural =
+                    (e['namePlural'] as String? ?? '').toLowerCase();
                 final search = _searchQuery.toLowerCase();
 
-                final hasPermission = perms.hasEntityPermission(slug, 'canRead') ||
-                    perms.hasModuleAccess('data');
+                final hasPermission =
+                    perms.hasEntityPermission(slug, 'canRead') ||
+                        perms.hasModuleAccess('data');
 
                 final matchesSearch = search.isEmpty ||
                     name.contains(search) ||
@@ -117,6 +150,23 @@ class _DataEntitiesPageState extends ConsumerState<DataEntitiesPage> {
               if (snapshot.connectionState == ConnectionState.waiting &&
                   !snapshot.hasData) {
                 return const Center(child: CircularProgressIndicator());
+              }
+
+              // Auto-navigate if only 1 parent entity (and no search active)
+              if (filteredEntities.length == 1 &&
+                  _searchQuery.isEmpty &&
+                  !_autoNavigated) {
+                _autoNavigated = true;
+                final slug = filteredEntities[0]['slug'] as String;
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  if (mounted) context.go('/data/$slug');
+                });
+                return const Center(child: CircularProgressIndicator());
+              }
+
+              // Reset flag if we're back to showing multiple entities
+              if (filteredEntities.length != 1) {
+                _autoNavigated = false;
               }
 
               if (filteredEntities.isEmpty) {

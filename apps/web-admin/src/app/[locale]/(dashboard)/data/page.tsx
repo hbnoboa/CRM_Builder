@@ -424,7 +424,23 @@ function DataPageContent() {
       const params: Record<string, string> = {};
       if (effectiveTenantId) params.tenantId = effectiveTenantId;
       const response = await api.get('/entities', { params });
-      const list = Array.isArray(response.data) ? response.data : response.data?.data || [];
+      const allEntities: Entity[] = Array.isArray(response.data) ? response.data : response.data?.data || [];
+
+      // Identify sub-entity slugs (entities referenced via SUB_ENTITY fields)
+      const subEntitySlugs = new Set<string>();
+      for (const entity of allEntities) {
+        if (entity.fields) {
+          for (const field of entity.fields) {
+            if (field.type === 'sub-entity' && field.subEntitySlug) {
+              subEntitySlugs.add(field.subEntitySlug);
+            }
+          }
+        }
+      }
+
+      // Filter out sub-entities - show only parent entities
+      const list = allEntities.filter(e => !subEntitySlugs.has(e.slug));
+
       setEntities(list);
       if (list.length > 0 && !selectedEntity) {
         const target = entityParam
