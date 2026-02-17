@@ -89,7 +89,7 @@ class _DataEntitiesPageState extends ConsumerState<DataEntitiesPage> {
                   hintStyle: AppTypography.bodyMedium.copyWith(
                     color: AppColors.mutedForeground,
                   ),
-                  prefixIcon: Icon(
+                  prefixIcon: const Icon(
                     Icons.search,
                     color: AppColors.mutedForeground,
                   ),
@@ -105,7 +105,7 @@ class _DataEntitiesPageState extends ConsumerState<DataEntitiesPage> {
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(AppColors.radiusFull),
-                    borderSide: BorderSide(color: AppColors.primary, width: 2),
+                    borderSide: const BorderSide(color: AppColors.primary, width: 2),
                   ),
                   contentPadding: const EdgeInsets.symmetric(
                     horizontal: AppColors.spaceMd,
@@ -212,7 +212,7 @@ class _DataEntitiesPageState extends ConsumerState<DataEntitiesPage> {
                 color: AppColors.surfaceVariant,
                 borderRadius: BorderRadius.circular(AppColors.radiusFull),
               ),
-              child: Icon(
+              child: const Icon(
                 Icons.table_chart_outlined,
                 size: 40,
                 color: AppColors.mutedForeground,
@@ -352,7 +352,7 @@ class _DataEntitiesPageState extends ConsumerState<DataEntitiesPage> {
                           color: AppColors.surfaceVariant,
                           borderRadius: BorderRadius.circular(AppColors.radiusSm),
                         ),
-                        child: Icon(
+                        child: const Icon(
                           Icons.chevron_right,
                           size: 20,
                           color: AppColors.mutedForeground,

@@ -77,7 +77,7 @@ class UploadQueueService {
           status, remote_url, retry_count, error, mime_type, file_size, created_at)
          VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', '', 0, '', ?, ?, ?)''',
       [id, localPath, fileName, folder, entitySlug, recordId, fieldSlug,
-       mimeType, fileSize, now],
+       mimeType, fileSize, now,],
     );
 
     _logger.i('Enqueued upload: $fileName (queue id: $id)');
@@ -235,7 +235,7 @@ class UploadQueueService {
         newStatus = 'failed';
         // Set retry_count to max so it won't be retried
         await db.execute(
-          "UPDATE file_upload_queue SET status = ?, error = ?, retry_count = ? WHERE id = ?",
+          'UPDATE file_upload_queue SET status = ?, error = ?, retry_count = ? WHERE id = ?',
           [newStatus, errorMessage, _maxRetries, id],
         );
         _logger.e('Upload permanently failed (HTTP $statusCode): $errorMessage');
@@ -245,7 +245,7 @@ class UploadQueueService {
 
     // Retryable error: increment retry count
     await db.execute(
-      "UPDATE file_upload_queue SET status = ?, error = ?, retry_count = ? WHERE id = ?",
+      'UPDATE file_upload_queue SET status = ?, error = ?, retry_count = ? WHERE id = ?',
       [newStatus, errorMessage, retryCount + 1, id],
     );
 

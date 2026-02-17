@@ -56,7 +56,7 @@ class DataDetailPage extends ConsumerWidget {
             entityAction: 'canDelete',
             child: IconButton(
               icon: const Icon(Icons.delete_outlined,
-                  color: AppColors.destructive),
+                  color: AppColors.destructive,),
               onPressed: () => _confirmDelete(context, ref),
             ),
           ),
@@ -94,11 +94,11 @@ class DataDetailPage extends ConsumerWidget {
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(Icons.delete_outline,
-                          size: 48, color: AppColors.mutedForeground),
+                      const Icon(Icons.delete_outline,
+                          size: 48, color: AppColors.mutedForeground,),
                       const SizedBox(height: 16),
-                      Text('Registro nao encontrado',
-                          style: AppTypography.h4),
+                      const Text('Registro nao encontrado',
+                          style: AppTypography.h4,),
                       const SizedBox(height: 8),
                       Text(
                         'Este registro pode ter sido removido.',
@@ -136,7 +136,7 @@ class DataDetailPage extends ConsumerWidget {
                     // Timestamps
                     Row(
                       children: [
-                        Icon(Icons.access_time, size: 14, color: AppColors.mutedForeground),
+                        const Icon(Icons.access_time, size: 14, color: AppColors.mutedForeground),
                         const SizedBox(width: 4),
                         Text(
                           'Criado ${Formatters.dateTime(record['createdAt'] as String?)}',
@@ -151,7 +151,7 @@ class DataDetailPage extends ConsumerWidget {
                       const SizedBox(height: 4),
                       Row(
                         children: [
-                          Icon(Icons.edit_outlined, size: 14, color: AppColors.mutedForeground),
+                          const Icon(Icons.edit_outlined, size: 14, color: AppColors.mutedForeground),
                           const SizedBox(width: 4),
                           Text(
                             'Atualizado ${Formatters.dateTime(record['updatedAt'] as String?)}',
@@ -206,7 +206,7 @@ class DataDetailPage extends ConsumerWidget {
   }
 
   List<Widget> _buildSubEntitySections(
-      List<dynamic> fields, String parentRecordId) {
+      List<dynamic> fields, String parentRecordId,) {
     final subFields = fields.where(
       (f) => (f as Map<String, dynamic>)['type']?.toString().toUpperCase() == 'SUB_ENTITY',
     );

@@ -4,7 +4,7 @@ import 'package:crm_mobile/core/database/powersync_connector.dart';
 
 /// PowerSync schema matching the Prisma models we sync.
 /// Reads happen from local SQLite. Writes go through API.
-final schema = Schema([
+const schema = Schema([
   Table('Entity', [
     Column.text('tenantId'),
     Column.text('name'),

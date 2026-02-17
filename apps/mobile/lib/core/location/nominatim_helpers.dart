@@ -10,7 +10,7 @@ final nominatimDio = Dio(BaseOptions(
   },
   connectTimeout: const Duration(seconds: 10),
   receiveTimeout: const Duration(seconds: 10),
-));
+),);
 
 Map<String, String> extractAddressParts(Map<String, dynamic>? addr) {
   if (addr == null) {
@@ -39,7 +39,7 @@ Future<List<Map<String, dynamic>>> geocodeAddress(String query) async {
       'limit': '5',
       'countrycodes': 'br',
       'addressdetails': '1',
-    });
+    },);
     final list = res.data;
     if (list is List) return list.cast<Map<String, dynamic>>();
   } catch (_) {}
@@ -53,7 +53,7 @@ Future<Map<String, dynamic>?> reverseGeocode(double lat, double lng) async {
       'lon': lng.toString(),
       'format': 'json',
       'addressdetails': '1',
-    });
+    },);
     return res.data as Map<String, dynamic>?;
   } catch (_) {}
   return null;

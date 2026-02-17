@@ -12,17 +12,6 @@ part 'permission_provider.g.dart';
 // ═══════════════════════════════════════════════════════
 
 class ModulePermission {
-  const ModulePermission({
-    this.canRead = false,
-    this.canCreate = false,
-    this.canUpdate = false,
-    this.canDelete = false,
-  });
-
-  final bool canRead;
-  final bool canCreate;
-  final bool canUpdate;
-  final bool canDelete;
 
   factory ModulePermission.fromJson(dynamic value) {
     if (value is bool) {
@@ -38,6 +27,17 @@ class ModulePermission {
     }
     return noCrud;
   }
+  const ModulePermission({
+    this.canRead = false,
+    this.canCreate = false,
+    this.canUpdate = false,
+    this.canDelete = false,
+  });
+
+  final bool canRead;
+  final bool canCreate;
+  final bool canUpdate;
+  final bool canDelete;
 
   static const fullCrud = ModulePermission(
     canRead: true,
@@ -52,6 +52,13 @@ class ModulePermission {
 }
 
 class FieldPermission {
+
+  factory FieldPermission.fromJson(Map<String, dynamic> json) =>
+      FieldPermission(
+        fieldSlug: json['fieldSlug'] as String,
+        canView: json['canView'] as bool? ?? true,
+        canEdit: json['canEdit'] as bool? ?? true,
+      );
   const FieldPermission({
     required this.fieldSlug,
     this.canView = true,
@@ -61,33 +68,9 @@ class FieldPermission {
   final String fieldSlug;
   final bool canView;
   final bool canEdit;
-
-  factory FieldPermission.fromJson(Map<String, dynamic> json) =>
-      FieldPermission(
-        fieldSlug: json['fieldSlug'] as String,
-        canView: json['canView'] as bool? ?? true,
-        canEdit: json['canEdit'] as bool? ?? true,
-      );
 }
 
 class EntityPermission {
-  const EntityPermission({
-    required this.entitySlug,
-    this.canCreate = false,
-    this.canRead = false,
-    this.canUpdate = false,
-    this.canDelete = false,
-    this.scope = 'all',
-    this.fieldPermissions = const [],
-  });
-
-  final String entitySlug;
-  final bool canCreate;
-  final bool canRead;
-  final bool canUpdate;
-  final bool canDelete;
-  final String scope;
-  final List<FieldPermission> fieldPermissions;
 
   factory EntityPermission.fromJson(Map<String, dynamic> json) {
     final fpList = json['fieldPermissions'] as List<dynamic>?;
@@ -105,6 +88,23 @@ class EntityPermission {
           const [],
     );
   }
+  const EntityPermission({
+    required this.entitySlug,
+    this.canCreate = false,
+    this.canRead = false,
+    this.canUpdate = false,
+    this.canDelete = false,
+    this.scope = 'all',
+    this.fieldPermissions = const [],
+  });
+
+  final String entitySlug;
+  final bool canCreate;
+  final bool canRead;
+  final bool canUpdate;
+  final bool canDelete;
+  final String scope;
+  final List<FieldPermission> fieldPermissions;
 }
 
 // ═══════════════════════════════════════════════════════

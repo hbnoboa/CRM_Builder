@@ -36,9 +36,9 @@ class FilterBottomSheet extends ConsumerWidget {
       maxChildSize: 0.9,
       minChildSize: 0.35,
       builder: (context, scrollController) => Container(
-        decoration: BoxDecoration(
+        decoration: const BoxDecoration(
           color: AppColors.background,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
         ),
         child: Column(
           children: [
@@ -62,12 +62,12 @@ class FilterBottomSheet extends ConsumerWidget {
                 children: [
                   const Icon(Icons.filter_list, size: 20),
                   const SizedBox(width: 8),
-                  Text('Filtros', style: AppTypography.h4),
+                  const Text('Filtros', style: AppTypography.h4),
                   if (totalCount > 0) ...[
                     const SizedBox(width: 8),
                     Container(
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 8, vertical: 2),
+                          horizontal: 8, vertical: 2,),
                       decoration: BoxDecoration(
                         color: AppColors.primary,
                         borderRadius: BorderRadius.circular(10),
@@ -100,11 +100,11 @@ class FilterBottomSheet extends ConsumerWidget {
                   if (globalFilters.isNotEmpty) ...[
                     Row(
                       children: [
-                        Icon(Icons.public, size: 16, color: AppColors.primary),
+                        const Icon(Icons.public, size: 16, color: AppColors.primary),
                         const SizedBox(width: 6),
                         Text('Filtros Globais',
                             style: AppTypography.labelMedium.copyWith(
-                                color: AppColors.primary)),
+                                color: AppColors.primary,),),
                       ],
                     ),
                     const SizedBox(height: 8),
@@ -132,12 +132,12 @@ class FilterBottomSheet extends ConsumerWidget {
                   // Local filters section
                   Row(
                     children: [
-                      Icon(Icons.person_outline,
-                          size: 16, color: AppColors.mutedForeground),
+                      const Icon(Icons.person_outline,
+                          size: 16, color: AppColors.mutedForeground,),
                       const SizedBox(width: 6),
                       Text('Meus Filtros',
                           style: AppTypography.labelMedium
-                              .copyWith(color: AppColors.mutedForeground)),
+                              .copyWith(color: AppColors.mutedForeground),),
                     ],
                   ),
                   const SizedBox(height: 8),
@@ -164,7 +164,7 @@ class FilterBottomSheet extends ConsumerWidget {
                                 .read(entityLocalFiltersProvider.notifier)
                                 .removeFilter(entitySlug, filter.id);
                           },
-                        )),
+                        ),),
 
                   const SizedBox(height: 16),
 
@@ -199,7 +199,7 @@ class FilterBottomSheet extends ConsumerWidget {
                               .read(entityLocalFiltersProvider.notifier)
                               .clearFilters(entitySlug);
                         },
-                        child: Text(
+                        child: const Text(
                           'Limpar filtros locais',
                           style: TextStyle(color: AppColors.mutedForeground),
                         ),
@@ -250,14 +250,14 @@ class _FilterCard extends StatelessWidget {
                   if (subtitle != null)
                     Text(subtitle!,
                         style: AppTypography.caption
-                            .copyWith(color: AppColors.mutedForeground)),
+                            .copyWith(color: AppColors.mutedForeground),),
                 ],
               ),
             ),
             if (canRemove)
               IconButton(
-                icon: Icon(Icons.close,
-                    size: 18, color: AppColors.mutedForeground),
+                icon: const Icon(Icons.close,
+                    size: 18, color: AppColors.mutedForeground,),
                 onPressed: onRemove,
                 constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
                 padding: EdgeInsets.zero,

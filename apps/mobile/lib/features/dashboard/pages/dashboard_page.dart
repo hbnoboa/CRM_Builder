@@ -193,7 +193,7 @@ class DashboardPage extends ConsumerWidget {
                   ),
                 ),
                 const SizedBox(width: 8),
-                Text('Resumo', style: AppTypography.h4),
+                const Text('Resumo', style: AppTypography.h4),
               ],
             ),
             const SizedBox(height: AppColors.spaceMd),
@@ -244,12 +244,12 @@ class DashboardPage extends ConsumerWidget {
   Widget _buildAreaChartSection(BuildContext context, dynamic db) {
     return StreamBuilder<List<Map<String, dynamic>>>(
       stream: db.watch(
-        "SELECT date(createdAt) as date, COUNT(*) as count "
-        "FROM EntityData "
-        "WHERE deletedAt IS NULL "
+        'SELECT date(createdAt) as date, COUNT(*) as count '
+        'FROM EntityData '
+        'WHERE deletedAt IS NULL '
         "AND createdAt >= date('now', '-30 days') "
-        "GROUP BY date(createdAt) "
-        "ORDER BY date ASC",
+        'GROUP BY date(createdAt) '
+        'ORDER BY date ASC',
       ),
       builder: (context, snapshot) {
         final data = snapshot.data ?? [];
@@ -642,7 +642,7 @@ class DashboardPage extends ConsumerWidget {
                 color: AppColors.muted,
                 borderRadius: BorderRadius.circular(AppColors.radiusFull),
               ),
-              child: Icon(
+              child: const Icon(
                 Icons.pie_chart_outline,
                 size: 32,
                 color: AppColors.mutedForeground,
@@ -683,7 +683,7 @@ class DashboardPage extends ConsumerWidget {
                   ),
                 ),
                 const SizedBox(width: 8),
-                Text('Acoes Rapidas', style: AppTypography.h4),
+                const Text('Acoes Rapidas', style: AppTypography.h4),
               ],
             ),
             const SizedBox(height: AppColors.spaceMd),
@@ -756,7 +756,7 @@ class DashboardPage extends ConsumerWidget {
                       ),
                     ),
                     const SizedBox(width: 8),
-                    Text('Atividade Recente', style: AppTypography.h4),
+                    const Text('Atividade Recente', style: AppTypography.h4),
                   ],
                 ),
                 TextButton(
@@ -781,7 +781,7 @@ class DashboardPage extends ConsumerWidget {
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
                 itemCount: activities.length,
-                separatorBuilder: (_, __) => Divider(
+                separatorBuilder: (_, __) => const Divider(
                   height: 1,
                   indent: 68,
                   color: AppColors.border,
@@ -873,7 +873,7 @@ class DashboardPage extends ConsumerWidget {
           color: AppColors.surfaceVariant,
           borderRadius: BorderRadius.circular(AppColors.radiusSm),
         ),
-        child: Icon(
+        child: const Icon(
           Icons.chevron_right,
           size: 20,
           color: AppColors.mutedForeground,

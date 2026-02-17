@@ -74,8 +74,8 @@ class DataCard extends StatelessWidget {
 
       if (displayed == 0) {
         title = formatted;
-      } else if (subtitle == null) {
-        subtitle = '${field['name']}: $formatted';
+      } else {
+        subtitle ??= '${field['name']}: $formatted';
       }
       displayed++;
     }
@@ -115,7 +115,7 @@ class DataCard extends StatelessWidget {
         final num? numVal = num.tryParse(value.toString());
         return numVal != null ? Formatters.currency(numVal) : value.toString();
       case 'PERCENTAGE':
-        return '${value}%';
+        return '$value%';
       case 'BOOLEAN':
         return (value == true || value == 'true') ? 'Sim' : 'Nao';
       case 'MULTI_SELECT':

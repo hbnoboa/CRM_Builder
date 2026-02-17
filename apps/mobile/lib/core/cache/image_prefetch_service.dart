@@ -65,7 +65,7 @@ class ImagePrefetchService {
       final toPrefetch = urls
           .where((url) =>
               url.startsWith('http') &&
-              !_cachedUrls.contains(url))
+              !_cachedUrls.contains(url),)
           .toList();
 
       if (toPrefetch.isEmpty) return;

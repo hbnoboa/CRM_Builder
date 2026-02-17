@@ -139,7 +139,7 @@ void main() {
             return _MockAuthNotifier('Credenciais invalidas');
           }),
         ],
-      ));
+      ),);
       await tester.pumpAndSettle();
 
       expect(find.text('Credenciais invalidas'), findsOneWidget);
@@ -152,7 +152,7 @@ void main() {
             return _MockAuthNotifier(null, isLoading: true);
           }),
         ],
-      ));
+      ),);
       await tester.pumpAndSettle();
 
       // Should show CircularProgressIndicator instead of text
@@ -164,10 +164,10 @@ void main() {
 
 /// Mock Auth notifier for testing.
 class _MockAuthNotifier extends Auth {
-  final String? errorMessage;
-  final bool isLoading;
 
   _MockAuthNotifier(this.errorMessage, {this.isLoading = false});
+  final String? errorMessage;
+  final bool isLoading;
 
   @override
   AuthState build() {

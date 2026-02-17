@@ -45,7 +45,7 @@ class AppTheme {
           shadowColor: AppColors.foreground.withValues(alpha: 0.1),
           systemOverlayStyle: SystemUiOverlayStyle.dark,
           centerTitle: false,
-          titleTextStyle: TextStyle(
+          titleTextStyle: const TextStyle(
             fontFamily: AppTypography.fontFamily,
             fontSize: 20,
             fontWeight: FontWeight.w600,
@@ -387,7 +387,7 @@ class AppTheme {
           shadowColor: Colors.black.withValues(alpha: 0.3),
           systemOverlayStyle: SystemUiOverlayStyle.light,
           centerTitle: false,
-          titleTextStyle: TextStyle(
+          titleTextStyle: const TextStyle(
             fontFamily: AppTypography.fontFamily,
             fontSize: 20,
             fontWeight: FontWeight.w600,

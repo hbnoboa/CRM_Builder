@@ -111,7 +111,7 @@ class PushNotificationService {
       await dio.post('/push/register-device', data: {
         'token': token,
         'platform': platform,
-      });
+      },);
 
       _lastTokenRegistration = DateTime.now();
       _logger.d('Device token registered: ${token.substring(0, 20)}...');
@@ -129,7 +129,7 @@ class PushNotificationService {
       final dio = createApiClient();
       await dio.delete('/push/unregister-device', data: {
         'token': _currentToken,
-      });
+      },);
       _logger.d('Device token unregistered');
     } catch (e) {
       _logger.e('Failed to unregister device token: $e');

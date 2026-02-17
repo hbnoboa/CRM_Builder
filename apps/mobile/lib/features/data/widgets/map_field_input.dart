@@ -119,7 +119,7 @@ class _MapFieldInputState extends State<MapFieldInput> {
         final data = await reverseGeocode(lat, lng);
         if (data != null && mounted) {
           final parts = extractAddressParts(
-              data['address'] as Map<String, dynamic>?);
+              data['address'] as Map<String, dynamic>?,);
           final formatted = formatAddress(parts);
           _updateValue({
             'lat': lat,
@@ -240,7 +240,7 @@ class _MapFieldInputState extends State<MapFieldInput> {
   Future<void> _openInMaps() async {
     if (!_hasCoords) return;
     final url = Uri.parse(
-        'https://www.google.com/maps/search/?api=1&query=$_lat,$_lng');
+        'https://www.google.com/maps/search/?api=1&query=$_lat,$_lng',);
     if (await canLaunchUrl(url)) {
       await launchUrl(url, mode: LaunchMode.externalApplication);
     }
@@ -332,16 +332,16 @@ class _MapFieldInputState extends State<MapFieldInput> {
                 shrinkWrap: true,
                 itemCount: _searchResults.length,
                 separatorBuilder: (_, __) =>
-                    Divider(height: 1, color: AppColors.border),
+                    const Divider(height: 1, color: AppColors.border),
                 itemBuilder: (_, i) {
                   final r = _searchResults[i];
                   final parts = extractAddressParts(
-                      r['address'] as Map<String, dynamic>?);
+                      r['address'] as Map<String, dynamic>?,);
                   final formatted = formatAddress(parts);
                   return ListTile(
                     dense: true,
-                    leading: Icon(Icons.place,
-                        size: 18, color: AppColors.mutedForeground),
+                    leading: const Icon(Icons.place,
+                        size: 18, color: AppColors.mutedForeground,),
                     title: Text(
                       formatted.isNotEmpty
                           ? formatted
@@ -355,9 +355,9 @@ class _MapFieldInputState extends State<MapFieldInput> {
                             r['display_name']?.toString() ?? '',
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
+                            style: const TextStyle(
                                 fontSize: 11,
-                                color: AppColors.mutedForeground),
+                                color: AppColors.mutedForeground,),
                           )
                         : null,
                     onTap: () => _selectSearchResult(r),
@@ -459,7 +459,7 @@ class _MapFieldInputState extends State<MapFieldInput> {
                   keyboardType:
                       const TextInputType.numberWithOptions(decimal: true, signed: true),
                   controller: TextEditingController(
-                      text: _lat?.toStringAsFixed(6) ?? ''),
+                      text: _lat?.toStringAsFixed(6) ?? '',),
                   onChanged: (v) {
                     final lat = double.tryParse(v);
                     if (lat != null) {
@@ -483,7 +483,7 @@ class _MapFieldInputState extends State<MapFieldInput> {
                   keyboardType:
                       const TextInputType.numberWithOptions(decimal: true, signed: true),
                   controller: TextEditingController(
-                      text: _lng?.toStringAsFixed(6) ?? ''),
+                      text: _lng?.toStringAsFixed(6) ?? '',),
                   onChanged: (v) {
                     final lng = double.tryParse(v);
                     if (lng != null) {
@@ -504,19 +504,19 @@ class _MapFieldInputState extends State<MapFieldInput> {
         if (showAddressFields && _hasCoords) ...[
           const SizedBox(height: 8),
           _ReadonlyField(
-              label: 'Endereco', value: _val['address']?.toString()),
+              label: 'Endereco', value: _val['address']?.toString(),),
           const SizedBox(height: 4),
           Row(
             children: [
               Expanded(
                 child: _ReadonlyField(
-                    label: 'Cidade', value: _val['city']?.toString()),
+                    label: 'Cidade', value: _val['city']?.toString(),),
               ),
               const SizedBox(width: 12),
               SizedBox(
                 width: 80,
                 child: _ReadonlyField(
-                    label: 'UF', value: _val['uf']?.toString()),
+                    label: 'UF', value: _val['uf']?.toString(),),
               ),
             ],
           ),
@@ -573,11 +573,11 @@ class MapFieldDisplay extends StatelessWidget {
           if (fieldName.isNotEmpty)
             Text(fieldName, style: AppTypography.caption.copyWith(
               color: AppColors.mutedForeground,
-            )),
+            ),),
           if (fieldName.isNotEmpty) const SizedBox(height: 4),
           Text('Sem localizacao', style: AppTypography.bodySmall.copyWith(
             color: AppColors.mutedForeground,
-          )),
+          ),),
         ],
       );
     }
@@ -596,7 +596,7 @@ class MapFieldDisplay extends StatelessWidget {
         if (fieldName.isNotEmpty)
           Text(fieldName, style: AppTypography.caption.copyWith(
             color: AppColors.mutedForeground,
-          )),
+          ),),
         if (fieldName.isNotEmpty) const SizedBox(height: 4),
         if (locationParts.isNotEmpty)
           Text(locationParts.join('\n'), style: AppTypography.bodyMedium),
@@ -604,7 +604,7 @@ class MapFieldDisplay extends StatelessWidget {
           const SizedBox(height: 4),
           Row(
             children: [
-              Icon(Icons.place, size: 14, color: AppColors.mutedForeground),
+              const Icon(Icons.place, size: 14, color: AppColors.mutedForeground),
               const SizedBox(width: 4),
               Text(
                 '${_lat!.toStringAsFixed(6)}, ${_lng!.toStringAsFixed(6)}',
@@ -806,7 +806,7 @@ class _ReadonlyField extends StatelessWidget {
         Text(label, style: AppTypography.caption.copyWith(
           color: AppColors.mutedForeground,
           fontSize: 10,
-        )),
+        ),),
         Text(value!, style: const TextStyle(fontSize: 13)),
       ],
     );

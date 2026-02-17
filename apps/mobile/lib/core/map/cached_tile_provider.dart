@@ -24,10 +24,9 @@ class MapTileCacheManager {
   }
 
   /// Get cache statistics (approximate)
+  /// Note: Returns 0 as placeholder - actual implementation would need
+  /// to iterate through all cached files
   static Future<int> getCacheSize() async {
-    final cacheInfo = await instance.getFileFromCache('__dummy__');
-    // This is a rough approximation - actual implementation would need
-    // to iterate through all cached files
     return 0;
   }
 }

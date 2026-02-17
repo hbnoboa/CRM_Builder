@@ -209,8 +209,8 @@ class _ChildRecordTile extends ConsumerWidget {
               ),
             if (perms.hasEntityPermission(entitySlug, 'canDelete'))
               IconButton(
-                icon: Icon(Icons.delete_outlined,
-                    size: 18, color: AppColors.destructive),
+                icon: const Icon(Icons.delete_outlined,
+                    size: 18, color: AppColors.destructive,),
                 visualDensity: VisualDensity.compact,
                 onPressed: () => _confirmDelete(context, ref, recordId),
               ),
@@ -225,7 +225,7 @@ class _ChildRecordTile extends ConsumerWidget {
   }
 
   Future<void> _confirmDelete(
-      BuildContext context, WidgetRef ref, String recordId) async {
+      BuildContext context, WidgetRef ref, String recordId,) async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(

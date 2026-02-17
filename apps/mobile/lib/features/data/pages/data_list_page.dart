@@ -129,22 +129,34 @@ class _DataListPageState extends ConsumerState<DataListPage> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Padding(
-              padding: const EdgeInsets.all(16),
+            const Padding(
+              padding: EdgeInsets.all(16),
               child: Text('Ordenar por', style: AppTypography.h4),
             ),
-            ...SortOption.values.map((option) => RadioListTile<SortOption>(
+            // ignore: deprecated_member_use - Radio groupValue/onChanged deprecated in Flutter 3.32
+            ...SortOption.values.map((option) => ListTile(
                   title: Text(option.label),
-                  value: option,
-                  groupValue: _sort,
-                  onChanged: (v) {
+                  leading: Radio<SortOption>(
+                    value: option,
+                    // ignore: deprecated_member_use
+                    groupValue: _sort,
+                    // ignore: deprecated_member_use
+                    onChanged: (v) {
+                      setState(() {
+                        _sort = v!;
+                        _limit = AppConstants.defaultPageSize;
+                      });
+                      Navigator.of(ctx).pop();
+                    },
+                  ),
+                  onTap: () {
                     setState(() {
-                      _sort = v!;
+                      _sort = option;
                       _limit = AppConstants.defaultPageSize;
                     });
                     Navigator.of(ctx).pop();
                   },
-                )),
+                ),),
             const SizedBox(height: 8),
           ],
         ),
@@ -259,20 +271,20 @@ class _DataListPageState extends ConsumerState<DataListPage> {
                   ..._globalFilters.map((f) => Padding(
                         padding: const EdgeInsets.only(right: 6),
                         child: Chip(
-                          avatar: Icon(Icons.public,
-                              size: 14, color: AppColors.primary),
+                          avatar: const Icon(Icons.public,
+                              size: 14, color: AppColors.primary,),
                           label: Text(f.displayLabel,
-                              style: const TextStyle(fontSize: 12)),
+                              style: const TextStyle(fontSize: 12),),
                           visualDensity: VisualDensity.compact,
                           materialTapTargetSize:
                               MaterialTapTargetSize.shrinkWrap,
                         ),
-                      )),
+                      ),),
                   ...localFilters.map((f) => Padding(
                         padding: const EdgeInsets.only(right: 6),
                         child: Chip(
                           label: Text(f.displayLabel,
-                              style: const TextStyle(fontSize: 12)),
+                              style: const TextStyle(fontSize: 12),),
                           visualDensity: VisualDensity.compact,
                           materialTapTargetSize:
                               MaterialTapTargetSize.shrinkWrap,
@@ -281,11 +293,11 @@ class _DataListPageState extends ConsumerState<DataListPage> {
                                 .read(entityLocalFiltersProvider.notifier)
                                 .removeFilter(widget.entitySlug, f.id);
                             setState(
-                                () => _limit = AppConstants.defaultPageSize);
+                                () => _limit = AppConstants.defaultPageSize,);
                           },
                           deleteIconColor: AppColors.mutedForeground,
                         ),
-                      )),
+                      ),),
                 ],
               ),
             ),
@@ -312,7 +324,7 @@ class _DataListPageState extends ConsumerState<DataListPage> {
                       _columnOrder = repo.extractVisibleColumns(entity);
                       try {
                         _fields = jsonDecode(
-                            entity['fields'] as String? ?? '[]');
+                            entity['fields'] as String? ?? '[]',);
                       } catch (_) {
                         _fields = [];
                       }
@@ -335,7 +347,7 @@ class _DataListPageState extends ConsumerState<DataListPage> {
 
                     if (records.isEmpty) {
                       final canCreate = perms.hasEntityPermission(
-                        widget.entitySlug, 'canCreate');
+                        widget.entitySlug, 'canCreate',);
                       final showCreateButton = canCreate &&
                           _search.isEmpty &&
                           totalFilterCount == 0;
@@ -363,7 +375,7 @@ class _DataListPageState extends ConsumerState<DataListPage> {
                                           color: AppColors.primary.withValues(alpha: 0.1),
                                           borderRadius: BorderRadius.circular(40),
                                         ),
-                                        child: Icon(
+                                        child: const Icon(
                                           Icons.inbox_outlined,
                                           size: 40,
                                           color: AppColors.primary,
@@ -397,7 +409,7 @@ class _DataListPageState extends ConsumerState<DataListPage> {
                                         const SizedBox(height: 24),
                                         ElevatedButton.icon(
                                           onPressed: () => context.push(
-                                            '/data/${widget.entitySlug}/new'),
+                                            '/data/${widget.entitySlug}/new',),
                                           icon: const Icon(Icons.add),
                                           label: const Text('Criar Primeiro'),
                                           style: ElevatedButton.styleFrom(
@@ -425,7 +437,7 @@ class _DataListPageState extends ConsumerState<DataListPage> {
                     return RefreshIndicator(
                       onRefresh: () async {
                         setState(
-                            () => _limit = AppConstants.defaultPageSize);
+                            () => _limit = AppConstants.defaultPageSize,);
                         await Future.delayed(
                           const Duration(milliseconds: 500),
                         );
@@ -509,7 +521,7 @@ class _DataListPageState extends ConsumerState<DataListPage> {
                                     BorderRadius.circular(AppColors.radius),
                               ),
                               child: const Icon(Icons.delete_outlined,
-                                  color: Colors.white),
+                                  color: Colors.white,),
                             ),
                             child: card,
                           );

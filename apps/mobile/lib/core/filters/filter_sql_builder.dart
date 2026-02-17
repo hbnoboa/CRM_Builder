@@ -89,13 +89,13 @@ class FilterSqlBuilder {
     final v = '$value';
     switch (op) {
       case FilterOperator.contains:
-        return (clause: "$jsonPath LIKE ?", params: <dynamic>['%$v%']);
+        return (clause: '$jsonPath LIKE ?', params: <dynamic>['%$v%']);
       case FilterOperator.equals:
-        return (clause: "$jsonPath = ?", params: <dynamic>[v]);
+        return (clause: '$jsonPath = ?', params: <dynamic>[v]);
       case FilterOperator.startsWith:
-        return (clause: "$jsonPath LIKE ?", params: <dynamic>['$v%']);
+        return (clause: '$jsonPath LIKE ?', params: <dynamic>['$v%']);
       case FilterOperator.endsWith:
-        return (clause: "$jsonPath LIKE ?", params: <dynamic>['%$v']);
+        return (clause: '$jsonPath LIKE ?', params: <dynamic>['%$v']);
       default:
         return (clause: '', params: <dynamic>[]);
     }
@@ -104,21 +104,21 @@ class FilterSqlBuilder {
   static ({String clause, List<dynamic> params}) _numericClause(
     String jsonPath, FilterOperator op, dynamic value, dynamic value2,
   ) {
-    final cast = "CAST($jsonPath AS REAL)";
+    final cast = 'CAST($jsonPath AS REAL)';
     final v = _toNum(value);
     switch (op) {
       case FilterOperator.equals:
-        return (clause: "$cast = ?", params: <dynamic>[v]);
+        return (clause: '$cast = ?', params: <dynamic>[v]);
       case FilterOperator.gt:
-        return (clause: "$cast > ?", params: <dynamic>[v]);
+        return (clause: '$cast > ?', params: <dynamic>[v]);
       case FilterOperator.gte:
-        return (clause: "$cast >= ?", params: <dynamic>[v]);
+        return (clause: '$cast >= ?', params: <dynamic>[v]);
       case FilterOperator.lt:
-        return (clause: "$cast < ?", params: <dynamic>[v]);
+        return (clause: '$cast < ?', params: <dynamic>[v]);
       case FilterOperator.lte:
-        return (clause: "$cast <= ?", params: <dynamic>[v]);
+        return (clause: '$cast <= ?', params: <dynamic>[v]);
       case FilterOperator.between:
-        return (clause: "$cast BETWEEN ? AND ?", params: <dynamic>[v, _toNum(value2)]);
+        return (clause: '$cast BETWEEN ? AND ?', params: <dynamic>[v, _toNum(value2)]);
       default:
         return (clause: '', params: <dynamic>[]);
     }
@@ -130,17 +130,17 @@ class FilterSqlBuilder {
     final v = '$value';
     switch (op) {
       case FilterOperator.equals:
-        return (clause: "$jsonPath = ?", params: <dynamic>[v]);
+        return (clause: '$jsonPath = ?', params: <dynamic>[v]);
       case FilterOperator.gt:
-        return (clause: "$jsonPath > ?", params: <dynamic>[v]);
+        return (clause: '$jsonPath > ?', params: <dynamic>[v]);
       case FilterOperator.gte:
-        return (clause: "$jsonPath >= ?", params: <dynamic>[v]);
+        return (clause: '$jsonPath >= ?', params: <dynamic>[v]);
       case FilterOperator.lt:
-        return (clause: "$jsonPath < ?", params: <dynamic>[v]);
+        return (clause: '$jsonPath < ?', params: <dynamic>[v]);
       case FilterOperator.lte:
-        return (clause: "$jsonPath <= ?", params: <dynamic>[v]);
+        return (clause: '$jsonPath <= ?', params: <dynamic>[v]);
       case FilterOperator.between:
-        return (clause: "$jsonPath BETWEEN ? AND ?", params: <dynamic>[v, '$value2']);
+        return (clause: '$jsonPath BETWEEN ? AND ?', params: <dynamic>[v, '$value2']);
       default:
         return (clause: '', params: <dynamic>[]);
     }
@@ -153,7 +153,7 @@ class FilterSqlBuilder {
       // SQLite stores JSON booleans as 1/0 or "true"/"false"
       final boolStr = (value == true || value == 'true') ? 'true' : 'false';
       return (
-        clause: "($jsonPath = ? OR $jsonPath = ?)",
+        clause: '($jsonPath = ? OR $jsonPath = ?)',
         params: <dynamic>[boolStr, (value == true || value == 'true') ? 1 : 0],
       );
     }
@@ -166,7 +166,7 @@ class FilterSqlBuilder {
     if (op == FilterOperator.equals) {
       // Select values may be stored as string or as {value, label} object
       // json_extract will return the raw JSON string
-      return (clause: "($jsonPath = ? OR $jsonPath LIKE ?)",
+      return (clause: '($jsonPath = ? OR $jsonPath LIKE ?)',
               params: <dynamic>['$value', '%"value":"$value"%']);
     }
     return (clause: '', params: <dynamic>[]);

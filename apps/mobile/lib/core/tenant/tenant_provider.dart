@@ -110,7 +110,7 @@ class TenantSwitch extends _$TenantSwitch {
       final dio = ref.read(apiClientProvider);
       final response = await dio.get('/tenants', queryParameters: {
         'limit': 100,
-      });
+      },);
 
       final data = response.data['data'] as List;
       final tenants = data

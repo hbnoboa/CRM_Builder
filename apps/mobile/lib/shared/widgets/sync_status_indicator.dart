@@ -54,17 +54,6 @@ class SyncStatusIndicator extends StatelessWidget {
     return results;
   }
 
-  Future<String?> _getLastError() async {
-    try {
-      // Check if there's any error in the database status
-      final db = AppDatabase.instance.db;
-      // Try to get sync status details
-      return null;
-    } catch (e) {
-      return e.toString();
-    }
-  }
-
   void _showDebugDialog(BuildContext context, SyncStatus? status) async {
     final counts = await _getTableCounts();
 
@@ -89,14 +78,14 @@ class SyncStatusIndicator extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // URLs de configuracao
-              Text('Configuracao:', style: AppTypography.labelMedium),
+              const Text('Configuracao:', style: AppTypography.labelMedium),
               const SizedBox(height: 4),
               _buildStatusRow('API URL', Env.apiUrl, AppColors.mutedForeground),
               _buildStatusRow('PowerSync URL', Env.powerSyncUrl, AppColors.mutedForeground),
               const Divider(height: 24),
 
               // Status de conexao
-              Text('Status:', style: AppTypography.labelMedium),
+              const Text('Status:', style: AppTypography.labelMedium),
               const SizedBox(height: 4),
               _buildStatusRow('Conectado', status?.connected == true ? 'Sim' : 'Nao'),
               _buildStatusRow('Uploading', status?.uploading == true ? 'Sim' : 'Nao'),
@@ -106,13 +95,13 @@ class SyncStatusIndicator extends StatelessWidget {
               const Divider(height: 24),
 
               // Contagem de tabelas
-              Text('Tabelas Locais:', style: AppTypography.labelMedium),
+              const Text('Tabelas Locais:', style: AppTypography.labelMedium),
               const SizedBox(height: 8),
               ...counts.entries.map((e) => _buildStatusRow(
                 e.key,
                 e.value >= 0 ? '${e.value} registros' : 'Erro',
                 e.value == 0 ? AppColors.warning : null,
-              )),
+              ),),
               const Divider(height: 24),
 
               // Alerta se sem dados
@@ -128,7 +117,7 @@ class SyncStatusIndicator extends StatelessWidget {
                     children: [
                       Row(
                         children: [
-                          Icon(Icons.warning, color: AppColors.warning, size: 20),
+                          const Icon(Icons.warning, color: AppColors.warning, size: 20),
                           const SizedBox(width: 8),
                           Text(
                             'Nenhum dado sincronizado!',

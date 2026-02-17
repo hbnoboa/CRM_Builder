@@ -12,30 +12,25 @@ final _logger = Logger(printer: SimplePrinter());
 
 /// Exponential backoff helper for retries
 class _ExponentialBackoff {
-  _ExponentialBackoff({
-    this.initialDelay = const Duration(milliseconds: 500),
-    this.maxDelay = const Duration(seconds: 30),
-    this.maxRetries = 5,
-  });
+  static const _initialDelay = Duration(milliseconds: 500);
+  static const _maxDelay = Duration(seconds: 30);
+  static const _maxRetries = 5;
 
-  final Duration initialDelay;
-  final Duration maxDelay;
-  final int maxRetries;
   int _retryCount = 0;
 
   /// Calculate delay with exponential backoff + jitter
   Duration get nextDelay {
-    final exponentialDelay = initialDelay * math.pow(2, _retryCount);
+    final exponentialDelay = _initialDelay * math.pow(2, _retryCount);
     final jitter = Duration(
       milliseconds: (math.Random().nextDouble() * 500).toInt(),
     );
     final delay = exponentialDelay + jitter;
-    return delay > maxDelay ? maxDelay : delay;
+    return delay > _maxDelay ? _maxDelay : delay;
   }
 
   /// Returns true if we should retry, false if max retries exceeded
   bool shouldRetry() {
-    if (_retryCount >= maxRetries) return false;
+    if (_retryCount >= _maxRetries) return false;
     _retryCount++;
     return true;
   }
@@ -72,7 +67,7 @@ class CrmPowerSyncConnector extends PowerSyncBackendConnector {
 
       final response = await dio.post('/sync/credentials', data: {
         if (selectedTenantId != null) 'tenantId': selectedTenantId,
-      });
+      },);
 
       final data = response.data as Map<String, dynamic>;
 
@@ -212,14 +207,14 @@ class CrmPowerSyncConnector extends PowerSyncBackendConnector {
                   'id': op.id,
                   'data': parsedData,
                   if (opData['parentRecordId'] != null) 'parentRecordId': opData['parentRecordId'],
-                });
+                },);
                 _logger.i('Created record ${op.id} in $entitySlug');
                 break;
               case UpdateType.patch:
                 // Update existing record
                 await dio.patch('/data/$entitySlug/${op.id}', data: {
                   'data': parsedData,
-                });
+                },);
                 _logger.i('Updated record ${op.id} in $entitySlug');
                 break;
               case UpdateType.delete:

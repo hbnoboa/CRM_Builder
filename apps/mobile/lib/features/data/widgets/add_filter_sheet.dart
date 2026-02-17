@@ -146,9 +146,9 @@ class _AddFilterSheetState extends ConsumerState<AddFilterSheet> {
       padding:
           EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
       child: Container(
-        decoration: BoxDecoration(
+        decoration: const BoxDecoration(
           color: AppColors.background,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
         ),
         padding: const EdgeInsets.all(16),
         child: SingleChildScrollView(
@@ -169,7 +169,7 @@ class _AddFilterSheetState extends ConsumerState<AddFilterSheet> {
               ),
               const SizedBox(height: 16),
 
-              Text('Adicionar Filtro', style: AppTypography.h4),
+              const Text('Adicionar Filtro', style: AppTypography.h4),
               const SizedBox(height: 16),
 
               // Field picker
@@ -180,7 +180,7 @@ class _AddFilterSheetState extends ConsumerState<AddFilterSheet> {
                   contentPadding:
                       EdgeInsets.symmetric(horizontal: 12, vertical: 12),
                 ),
-                value: _selectedFieldSlug,
+                initialValue: _selectedFieldSlug,
                 items: _filterableFields.map((f) {
                   final slug = f['slug'] as String? ?? '';
                   final name = f['name'] as String? ?? slug;
@@ -210,10 +210,10 @@ class _AddFilterSheetState extends ConsumerState<AddFilterSheet> {
                     contentPadding:
                         EdgeInsets.symmetric(horizontal: 12, vertical: 12),
                   ),
-                  value: _selectedOperator,
+                  initialValue: _selectedOperator,
                   items: _availableOperators
                       .map((op) => DropdownMenuItem(
-                          value: op, child: Text(op.label)))
+                          value: op, child: Text(op.label),),)
                       .toList(),
                   onChanged: (value) {
                     setState(() {
@@ -251,7 +251,7 @@ class _AddFilterSheetState extends ConsumerState<AddFilterSheet> {
                   secondary: Icon(Icons.public,
                       color: _saveAsGlobal
                           ? AppColors.primary
-                          : AppColors.mutedForeground),
+                          : AppColors.mutedForeground,),
                   contentPadding: EdgeInsets.zero,
                 ),
                 const SizedBox(height: 8),
@@ -268,7 +268,7 @@ class _AddFilterSheetState extends ConsumerState<AddFilterSheet> {
                       )
                     : Text(_saveAsGlobal
                         ? 'Salvar filtro global'
-                        : 'Adicionar filtro'),
+                        : 'Adicionar filtro',),
               ),
               const SizedBox(height: 8),
             ],
@@ -289,7 +289,7 @@ class _AddFilterSheetState extends ConsumerState<AddFilterSheet> {
           border: OutlineInputBorder(),
           contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
         ),
-        value: _value as bool?,
+        initialValue: _value as bool?,
         items: const [
           DropdownMenuItem(value: true, child: Text('Sim')),
           DropdownMenuItem(value: false, child: Text('Nao')),
@@ -337,7 +337,7 @@ class _AddFilterSheetState extends ConsumerState<AddFilterSheet> {
           ),
           child: Text(
             _value != null ? '$_value' : 'Selecionar data',
-            style: _value != null ? null : TextStyle(color: AppColors.mutedForeground),
+            style: _value != null ? null : const TextStyle(color: AppColors.mutedForeground),
           ),
         ),
       );
@@ -352,7 +352,7 @@ class _AddFilterSheetState extends ConsumerState<AddFilterSheet> {
           border: OutlineInputBorder(),
           contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
         ),
-        value: _value as String?,
+        initialValue: _value as String?,
         items: options.map((opt) {
           final String value;
           final String label;
@@ -423,7 +423,7 @@ class _AddFilterSheetState extends ConsumerState<AddFilterSheet> {
           ),
           child: Text(
             _value2 != null ? '$_value2' : 'Selecionar data',
-            style: _value2 != null ? null : TextStyle(color: AppColors.mutedForeground),
+            style: _value2 != null ? null : const TextStyle(color: AppColors.mutedForeground),
           ),
         ),
       );

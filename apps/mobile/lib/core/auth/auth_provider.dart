@@ -12,6 +12,20 @@ part 'auth_provider.g.dart';
 // ═══════════════════════════════════════════════════════
 
 class User {
+
+  factory User.fromJson(Map<String, dynamic> json) => User(
+        id: json['id'] as String,
+        tenantId: json['tenantId'] as String,
+        email: json['email'] as String,
+        name: json['name'] as String,
+        avatar: json['avatar'] as String?,
+        customRole: json['customRole'] != null
+            ? CustomRole.fromJson(json['customRole'] as Map<String, dynamic>)
+            : null,
+        status: json['status'] as String?,
+        lastLoginAt: json['lastLoginAt'] as String?,
+        createdAt: json['createdAt'] as String?,
+      );
   const User({
     required this.id,
     required this.tenantId,
@@ -33,23 +47,20 @@ class User {
   final String? status;
   final String? lastLoginAt;
   final String? createdAt;
-
-  factory User.fromJson(Map<String, dynamic> json) => User(
-        id: json['id'] as String,
-        tenantId: json['tenantId'] as String,
-        email: json['email'] as String,
-        name: json['name'] as String,
-        avatar: json['avatar'] as String?,
-        customRole: json['customRole'] != null
-            ? CustomRole.fromJson(json['customRole'] as Map<String, dynamic>)
-            : null,
-        status: json['status'] as String?,
-        lastLoginAt: json['lastLoginAt'] as String?,
-        createdAt: json['createdAt'] as String?,
-      );
 }
 
 class CustomRole {
+
+  factory CustomRole.fromJson(Map<String, dynamic> json) => CustomRole(
+        id: json['id'] as String,
+        name: json['name'] as String,
+        description: json['description'] as String?,
+        color: json['color'] as String?,
+        roleType: json['roleType'] as String,
+        isSystem: json['isSystem'] as bool? ?? false,
+        permissions: json['permissions'] as List<dynamic>?,
+        modulePermissions: json['modulePermissions'] as Map<String, dynamic>?,
+      );
   const CustomRole({
     required this.id,
     required this.name,
@@ -69,17 +80,6 @@ class CustomRole {
   final bool isSystem;
   final List<dynamic>? permissions;
   final Map<String, dynamic>? modulePermissions;
-
-  factory CustomRole.fromJson(Map<String, dynamic> json) => CustomRole(
-        id: json['id'] as String,
-        name: json['name'] as String,
-        description: json['description'] as String?,
-        color: json['color'] as String?,
-        roleType: json['roleType'] as String,
-        isSystem: json['isSystem'] as bool? ?? false,
-        permissions: json['permissions'] as List<dynamic>?,
-        modulePermissions: json['modulePermissions'] as Map<String, dynamic>?,
-      );
 }
 
 // ═══════════════════════════════════════════════════════
@@ -226,7 +226,7 @@ class Auth extends _$Auth {
       final response = await dio.post('/auth/login', data: {
         'email': email,
         'password': password,
-      });
+      },);
 
       final data = response.data as Map<String, dynamic>;
       final user = User.fromJson(data['user'] as Map<String, dynamic>);
@@ -292,7 +292,7 @@ class Auth extends _$Auth {
         'email': email,
         'password': password,
         'tenantName': tenantName,
-      });
+      },);
 
       final data = response.data as Map<String, dynamic>;
       final user = User.fromJson(data['user'] as Map<String, dynamic>);

@@ -194,7 +194,7 @@ class _PermissionsOnboardingPageState
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(Icons.check_circle, color: AppColors.primary),
+                        const Icon(Icons.check_circle, color: AppColors.primary),
                         const SizedBox(width: 8),
                         Text(
                           'Todas as permissoes concedidas!',

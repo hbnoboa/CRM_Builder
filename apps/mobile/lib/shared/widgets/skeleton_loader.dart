@@ -116,7 +116,7 @@ class SkeletonCircle extends StatelessWidget {
     return Container(
       width: size,
       height: size,
-      decoration: BoxDecoration(
+      decoration: const BoxDecoration(
         color: AppColors.muted,
         shape: BoxShape.circle,
       ),
@@ -138,28 +138,28 @@ class SkeletonCard extends StatelessWidget {
           borderRadius: BorderRadius.circular(12),
           border: Border.all(color: AppColors.border),
         ),
-        child: Column(
+        child: const Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
               children: [
-                const SkeletonCircle(size: 40),
-                const SizedBox(width: 12),
+                SkeletonCircle(size: 40),
+                SizedBox(width: 12),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       SkeletonBox(width: 120, height: 14),
-                      const SizedBox(height: 8),
+                      SizedBox(height: 8),
                       SkeletonBox(width: 80, height: 12),
                     ],
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 16),
+            SizedBox(height: 16),
             SkeletonBox(height: 12),
-            const SizedBox(height: 8),
+            SizedBox(height: 8),
             SkeletonBox(width: 200, height: 12),
           ],
         ),
@@ -173,19 +173,19 @@ class SkeletonListTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SkeletonLoader(
+    return const SkeletonLoader(
       child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+        padding: EdgeInsets.symmetric(vertical: 8, horizontal: 16),
         child: Row(
           children: [
-            const SkeletonCircle(size: 48),
-            const SizedBox(width: 16),
+            SkeletonCircle(size: 48),
+            SizedBox(width: 16),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   SkeletonBox(width: 150, height: 14),
-                  const SizedBox(height: 8),
+                  SizedBox(height: 8),
                   SkeletonBox(width: 100, height: 12),
                 ],
               ),
@@ -211,14 +211,14 @@ class SkeletonStatCard extends StatelessWidget {
           borderRadius: BorderRadius.circular(12),
           border: Border.all(color: AppColors.border),
         ),
-        child: Column(
+        child: const Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             SkeletonBox(width: 32, height: 32, borderRadius: 8),
-            const SizedBox(height: 12),
+            SizedBox(height: 12),
             SkeletonBox(width: 60, height: 24),
-            const SizedBox(height: 4),
+            SizedBox(height: 4),
             SkeletonBox(width: 80, height: 12),
           ],
         ),

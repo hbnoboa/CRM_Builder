@@ -38,7 +38,7 @@ class _ForgotPasswordPageState extends ConsumerState<ForgotPasswordPage> {
       final dio = ref.read(apiClientProvider);
       await dio.post('/auth/forgot-password', data: {
         'email': _emailController.text.trim(),
-      });
+      },);
       setState(() => _emailSent = true);
     } catch (e) {
       setState(() => _error = 'Erro ao enviar email. Tente novamente.');
@@ -72,7 +72,7 @@ class _ForgotPasswordPageState extends ConsumerState<ForgotPasswordPage> {
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
         const Icon(Icons.mark_email_read_outlined,
-            size: 64, color: AppColors.success),
+            size: 64, color: AppColors.success,),
         const SizedBox(height: 16),
         Text(
           'Email enviado!',

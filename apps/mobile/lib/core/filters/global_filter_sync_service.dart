@@ -99,7 +99,7 @@ class GlobalFilterSyncService {
 
         // Mark as completed and delete
         await db.execute(
-          "DELETE FROM global_filter_queue WHERE id = ?",
+          'DELETE FROM global_filter_queue WHERE id = ?',
           [id],
         );
         _logger.i('Synced global filter update for entity $entityId');

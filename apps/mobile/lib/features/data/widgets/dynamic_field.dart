@@ -67,9 +67,9 @@ class DynamicFieldDisplay extends StatelessWidget {
 
     Clipboard.setData(ClipboardData(text: text));
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: const Text('Copiado'),
-        duration: const Duration(seconds: 1),
+      const SnackBar(
+        content: Text('Copiado'),
+        duration: Duration(seconds: 1),
         behavior: SnackBarBehavior.floating,
       ),
     );
@@ -177,7 +177,7 @@ class DynamicFieldDisplay extends StatelessWidget {
         );
 
       case 'PERCENTAGE':
-        return Text('${value}%', style: AppTypography.bodyMedium);
+        return Text('$value%', style: AppTypography.bodyMedium);
 
       case 'TEXTAREA':
       case 'RICH_TEXT':
@@ -239,7 +239,7 @@ class DynamicFieldDisplay extends StatelessWidget {
             i < rating ? Icons.star : Icons.star_border,
             color: AppColors.warning,
             size: 20,
-          )),
+          ),),
         );
 
       case 'COLOR':
@@ -531,7 +531,7 @@ class DynamicFieldInput extends StatelessWidget {
         }).toList() ?? [];
 
         return DropdownButtonFormField<String>(
-          value: value?.toString(),
+          initialValue: value?.toString(),
           decoration: InputDecoration(labelText: name, hintText: placeholder, helperText: helpText),
           items: opts.map((o) {
             return DropdownMenuItem(value: o, child: Text(o));
@@ -1225,7 +1225,7 @@ class _ColorFieldInput extends StatelessWidget {
                 ),
               ),
             ),
-          )).toList(),
+          ),).toList(),
         ),
       ],
     );
@@ -1504,7 +1504,7 @@ class _ArrayFieldInputState extends State<_ArrayFieldInput> {
                 ),
               ],
             ),
-          )),
+          ),),
           if (fieldState.hasError)
             Padding(
               padding: const EdgeInsets.only(top: 4),
@@ -1637,7 +1637,7 @@ class _RelationFieldInputState extends State<_RelationFieldInput> {
       }).toList();
 
       return DropdownButtonFormField<String>(
-        value: _selectedId,
+        initialValue: _selectedId,
         decoration: InputDecoration(labelText: widget.label),
         isExpanded: true,
         items: items,
@@ -2052,7 +2052,7 @@ class _ApiSelectFieldInputState extends State<_ApiSelectFieldInput> {
 
     if (_options.length <= 10) {
       return DropdownButtonFormField<String>(
-        value: _selectedValue,
+        initialValue: _selectedValue,
         decoration: InputDecoration(
           labelText: widget.label,
           hintText: widget.placeholder,
@@ -2067,7 +2067,7 @@ class _ApiSelectFieldInputState extends State<_ApiSelectFieldInput> {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
-                ))
+                ),)
             .toList(),
         validator: widget.required
             ? (v) =>
@@ -2091,7 +2091,7 @@ class _ApiSelectFieldInputState extends State<_ApiSelectFieldInput> {
           _selectedLabel ?? 'Selecionar...',
           style: _selectedLabel != null
               ? null
-              : TextStyle(color: AppColors.mutedForeground),
+              : const TextStyle(color: AppColors.mutedForeground),
         ),
       ),
     );

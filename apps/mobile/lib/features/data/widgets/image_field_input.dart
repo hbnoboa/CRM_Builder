@@ -204,8 +204,8 @@ class _ImageFieldInputState extends ConsumerState<ImageFieldInput> {
             ),
             if (_currentUrl != null)
               ListTile(
-                leading: Icon(Icons.delete_outlined, color: AppColors.destructive),
-                title: Text('Remover', style: TextStyle(color: AppColors.destructive)),
+                leading: const Icon(Icons.delete_outlined, color: AppColors.destructive),
+                title: const Text('Remover', style: TextStyle(color: AppColors.destructive)),
                 onTap: () {
                   Navigator.of(ctx).pop();
                   setState(() {

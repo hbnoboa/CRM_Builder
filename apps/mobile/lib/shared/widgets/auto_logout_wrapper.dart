@@ -57,7 +57,7 @@ class _AutoLogoutWrapperState extends ConsumerState<AutoLogoutWrapper>
     _logoutTimer?.cancel();
     _pausedAt = null;
     _logoutTimer = Timer(
-      Duration(minutes: Env.autoLogoutMinutes),
+      const Duration(minutes: Env.autoLogoutMinutes),
       _handleAutoLogout,
     );
   }

@@ -5,9 +5,6 @@ import 'package:crm_mobile/core/config/env.dart';
 /// Custom cache manager for CRM images/files.
 /// Long TTL (365 days), auth headers, max 1000 files.
 class CrmCacheManager extends CacheManager with ImageCacheManager {
-  static const key = 'crmCacheManager';
-
-  static final CrmCacheManager _instance = CrmCacheManager._();
 
   factory CrmCacheManager() => _instance;
 
@@ -20,6 +17,9 @@ class CrmCacheManager extends CacheManager with ImageCacheManager {
             fileService: _AuthenticatedHttpFileService(),
           ),
         );
+  static const key = 'crmCacheManager';
+
+  static final CrmCacheManager _instance = CrmCacheManager._();
 
   /// Clear all cached files.
   Future<void> clearCache() async {
@@ -33,7 +33,7 @@ class _AuthenticatedHttpFileService extends HttpFileService {
 
   @override
   Future<FileServiceResponse> get(String url,
-      {Map<String, String>? headers}) async {
+      {Map<String, String>? headers,}) async {
     final mergedHeaders = <String, String>{...?headers};
 
     // Only add auth header for our own API URLs

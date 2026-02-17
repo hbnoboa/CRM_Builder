@@ -29,7 +29,7 @@ void main() {
           fields: sampleFields,
           onTap: () {},
         ),
-      ));
+      ),);
       await tester.pumpAndSettle();
 
       // Should show some record data
@@ -45,7 +45,7 @@ void main() {
           fields: sampleFields,
           onTap: () => tapped = true,
         ),
-      ));
+      ),);
       await tester.pumpAndSettle();
 
       await tester.tap(find.byType(DataCard));
@@ -66,7 +66,7 @@ void main() {
           fields: sampleFields,
           onTap: () {},
         ),
-      ));
+      ),);
       await tester.pumpAndSettle();
 
       expect(find.byType(DataCard), findsOneWidget);
@@ -86,7 +86,7 @@ void main() {
           fields: sampleFields,
           onTap: () {},
         ),
-      ));
+      ),);
       await tester.pumpAndSettle();
 
       // Should not crash

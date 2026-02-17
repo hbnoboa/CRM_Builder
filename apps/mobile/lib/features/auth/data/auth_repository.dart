@@ -19,7 +19,7 @@ class AuthRepository {
     await _dio.patch('/auth/profile', data: {
       'name': name,
       if (avatar != null) 'avatar': avatar,
-    });
+    },);
   }
 
   Future<void> changePassword({
@@ -29,7 +29,7 @@ class AuthRepository {
     await _dio.post('/auth/change-password', data: {
       'currentPassword': currentPassword,
       'newPassword': newPassword,
-    });
+    },);
   }
 }
 

@@ -33,7 +33,7 @@ class ShellScaffold extends ConsumerWidget {
         activeIcon: Icons.dashboard_rounded,
         label: 'Dashboard',
         path: '/dashboard',
-      ));
+      ),);
     }
 
     if (permissions.hasModuleAccess('data')) {
@@ -42,7 +42,7 @@ class ShellScaffold extends ConsumerWidget {
         activeIcon: Icons.folder_rounded,
         label: 'Dados',
         path: '/data',
-      ));
+      ),);
     }
 
     return Scaffold(
@@ -156,7 +156,7 @@ class _TenantBanner extends StatelessWidget {
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(
+                  const Icon(
                     Icons.close,
                     size: 14,
                     color: Colors.white,
@@ -176,314 +176,6 @@ class _TenantBanner extends StatelessWidget {
         ],
       ),
     );
-  }
-}
-
-/// User menu button in app bar
-class _UserMenuButton extends StatelessWidget {
-  const _UserMenuButton({
-    required this.user,
-    required this.ref,
-    required this.tenantState,
-  });
-
-  final dynamic user;
-  final WidgetRef ref;
-  final TenantSwitchState tenantState;
-
-  @override
-  Widget build(BuildContext context) {
-    final userName = user?.name ?? 'Usuario';
-    final initials = userName.isNotEmpty ? userName[0].toUpperCase() : 'U';
-    final roleType = user?.customRole?.roleType;
-    final roleName = user?.customRole?.name;
-    final isPlatformAdmin = roleType == 'PLATFORM_ADMIN';
-
-    return PopupMenuButton<String>(
-      offset: const Offset(0, 52),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(AppColors.radiusMd),
-      ),
-      elevation: 8,
-      shadowColor: AppColors.foreground.withValues(alpha: 0.15),
-      child: Container(
-        padding: const EdgeInsets.symmetric(
-          horizontal: AppColors.spaceSm,
-          vertical: AppColors.spaceXs,
-        ),
-        decoration: BoxDecoration(
-          color: AppColors.surfaceVariant,
-          borderRadius: BorderRadius.circular(AppColors.radiusFull),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 32,
-              height: 32,
-              decoration: BoxDecoration(
-                gradient: AppColors.primaryGradient,
-                borderRadius: BorderRadius.circular(AppColors.radiusFull),
-              ),
-              child: Center(
-                child: Text(
-                  initials,
-                  style: AppTypography.labelSmall.copyWith(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(width: AppColors.spaceSm),
-            Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  _truncateName(userName),
-                  style: AppTypography.labelSmall.copyWith(
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.foreground,
-                  ),
-                ),
-                if (roleName != null)
-                  Text(
-                    roleName,
-                    style: AppTypography.caption.copyWith(
-                      color: _getRoleColor(roleType ?? ''),
-                      fontWeight: FontWeight.w500,
-                      fontSize: 10,
-                    ),
-                  ),
-              ],
-            ),
-            const SizedBox(width: AppColors.spaceXs),
-            Icon(
-              Icons.keyboard_arrow_down_rounded,
-              size: 20,
-              color: AppColors.mutedForeground,
-            ),
-          ],
-        ),
-      ),
-      itemBuilder: (context) => [
-        // User info header
-        PopupMenuItem<String>(
-          enabled: false,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Container(
-                    width: 40,
-                    height: 40,
-                    decoration: BoxDecoration(
-                      gradient: AppColors.primaryGradient,
-                      borderRadius: BorderRadius.circular(AppColors.radiusFull),
-                    ),
-                    child: Center(
-                      child: Text(
-                        initials,
-                        style: AppTypography.labelMedium.copyWith(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: AppColors.spaceMd),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          userName,
-                          style: AppTypography.labelMedium.copyWith(
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        if (user?.email != null)
-                          Text(
-                            user!.email!,
-                            style: AppTypography.caption.copyWith(
-                              color: AppColors.mutedForeground,
-                            ),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-              if (roleName != null) ...[
-                const SizedBox(height: AppColors.spaceSm),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 4,
-                  ),
-                  decoration: BoxDecoration(
-                    color: _getRoleBgColor(roleType ?? ''),
-                    borderRadius: BorderRadius.circular(AppColors.radiusFull),
-                  ),
-                  child: Text(
-                    roleName,
-                    style: AppTypography.caption.copyWith(
-                      fontWeight: FontWeight.w600,
-                      color: _getRoleColor(roleType ?? ''),
-                    ),
-                  ),
-                ),
-              ],
-            ],
-          ),
-        ),
-        const PopupMenuDivider(),
-
-        // Tenant selector for PLATFORM_ADMIN
-        if (isPlatformAdmin) ...[
-          PopupMenuItem<String>(
-            value: 'switch_tenant',
-            child: Row(
-              children: [
-                Container(
-                  width: 32,
-                  height: 32,
-                  decoration: BoxDecoration(
-                    color: AppColors.secondary.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(AppColors.radiusSm),
-                  ),
-                  child: Icon(
-                    Icons.business_rounded,
-                    size: 18,
-                    color: AppColors.secondary,
-                  ),
-                ),
-                const SizedBox(width: AppColors.spaceMd),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Trocar Tenant',
-                        style: AppTypography.labelMedium.copyWith(
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                      if (tenantState.selectedTenantName != null)
-                        Text(
-                          tenantState.selectedTenantName!,
-                          style: AppTypography.caption.copyWith(
-                            color: AppColors.secondary,
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
-                Icon(
-                  Icons.chevron_right,
-                  size: 20,
-                  color: AppColors.mutedForeground,
-                ),
-              ],
-            ),
-          ),
-          const PopupMenuDivider(),
-        ],
-
-        // Logout
-        PopupMenuItem<String>(
-          value: 'logout',
-          child: Row(
-            children: [
-              Container(
-                width: 32,
-                height: 32,
-                decoration: BoxDecoration(
-                  color: AppColors.error.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(AppColors.radiusSm),
-                ),
-                child: Icon(
-                  Icons.logout_rounded,
-                  size: 18,
-                  color: AppColors.error,
-                ),
-              ),
-              const SizedBox(width: AppColors.spaceMd),
-              Text(
-                'Sair da conta',
-                style: AppTypography.labelMedium.copyWith(
-                  color: AppColors.error,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
-      onSelected: (value) async {
-        if (value == 'logout') {
-          await ref.read(authProvider.notifier).logout();
-          if (context.mounted) {
-            context.go('/login');
-          }
-        } else if (value == 'switch_tenant') {
-          if (context.mounted) {
-            _showTenantSelector(context);
-          }
-        }
-      },
-    );
-  }
-
-  void _showTenantSelector(BuildContext context) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => _TenantSelectorSheet(ref: ref),
-    );
-  }
-
-  String _truncateName(String name) {
-    if (name.length <= 12) return name;
-    return '${name.substring(0, 10)}...';
-  }
-
-  Color _getRoleColor(String roleType) {
-    switch (roleType) {
-      case 'PLATFORM_ADMIN':
-        return AppColors.secondary;
-      case 'ADMIN':
-        return AppColors.error;
-      case 'MANAGER':
-        return AppColors.info;
-      case 'USER':
-        return AppColors.success;
-      case 'VIEWER':
-        return AppColors.mutedForeground;
-      default:
-        return AppColors.primary;
-    }
-  }
-
-  Color _getRoleBgColor(String roleType) {
-    switch (roleType) {
-      case 'PLATFORM_ADMIN':
-        return AppColors.secondary.withValues(alpha: 0.1);
-      case 'ADMIN':
-        return AppColors.error.withValues(alpha: 0.1);
-      case 'MANAGER':
-        return AppColors.info.withValues(alpha: 0.1);
-      case 'USER':
-        return AppColors.success.withValues(alpha: 0.1);
-      case 'VIEWER':
-        return AppColors.muted;
-      default:
-        return AppColors.primary.withValues(alpha: 0.1);
-    }
   }
 }
 
@@ -521,9 +213,9 @@ class _TenantSelectorSheetState extends ConsumerState<_TenantSelectorSheet> {
 
     return Container(
       height: MediaQuery.of(context).size.height * 0.7,
-      decoration: BoxDecoration(
+      decoration: const BoxDecoration(
         color: AppColors.card,
-        borderRadius: const BorderRadius.vertical(
+        borderRadius: BorderRadius.vertical(
           top: Radius.circular(AppColors.radiusXl),
         ),
       ),
@@ -554,7 +246,7 @@ class _TenantSelectorSheetState extends ConsumerState<_TenantSelectorSheet> {
                       width: 40,
                       height: 40,
                       decoration: BoxDecoration(
-                        gradient: LinearGradient(
+                        gradient: const LinearGradient(
                           colors: [AppColors.secondary, AppColors.primary],
                         ),
                         borderRadius: BorderRadius.circular(AppColors.radiusMd),
@@ -594,7 +286,7 @@ class _TenantSelectorSheetState extends ConsumerState<_TenantSelectorSheet> {
                     hintStyle: AppTypography.bodyMedium.copyWith(
                       color: AppColors.mutedForeground,
                     ),
-                    prefixIcon: Icon(
+                    prefixIcon: const Icon(
                       Icons.search,
                       color: AppColors.mutedForeground,
                     ),
@@ -639,7 +331,7 @@ class _TenantSelectorSheetState extends ConsumerState<_TenantSelectorSheet> {
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(
+                      const Icon(
                         Icons.undo_rounded,
                         size: 18,
                         color: AppColors.warning,
@@ -685,7 +377,7 @@ class _TenantSelectorSheetState extends ConsumerState<_TenantSelectorSheet> {
                             child: Column(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
-                                Icon(
+                                const Icon(
                                   Icons.search_off,
                                   size: 48,
                                   color: AppColors.mutedForeground,
@@ -815,7 +507,7 @@ class _TenantCard extends StatelessWidget {
                           ),
                         ),
                         const SizedBox(width: 8),
-                        Icon(
+                        const Icon(
                           Icons.people_outline,
                           size: 12,
                           color: AppColors.mutedForeground,
