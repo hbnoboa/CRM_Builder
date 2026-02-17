@@ -41,8 +41,18 @@ class CrmPowerSyncConnector extends PowerSyncBackendConnector {
       });
 
       final data = response.data as Map<String, dynamic>;
+
+      // Get endpoint from response, but fallback to Env.powerSyncUrl if localhost
+      // (server may not have POWERSYNC_URL configured)
+      var endpoint = data['endpoint'] as String? ?? Env.powerSyncUrl;
+      if (endpoint.contains('localhost')) {
+        _logger.w('PowerSync: backend returned localhost, using Env.powerSyncUrl instead');
+        endpoint = Env.powerSyncUrl;
+      }
+
+      _logger.i('PowerSync: connecting to $endpoint');
       return PowerSyncCredentials(
-        endpoint: data['endpoint'] as String? ?? Env.powerSyncUrl,
+        endpoint: endpoint,
         token: data['token'] as String,
       );
     } catch (e) {
