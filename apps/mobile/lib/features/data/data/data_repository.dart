@@ -154,16 +154,18 @@ class DataRepository {
   // ═══════════════════════════════════════════════════════
 
   /// Create a record - saves to local SQLite, PowerSync syncs to API.
+  /// Optionally accepts a pre-generated [id] (used when images are queued before save).
   Future<Map<String, dynamic>> createRecord({
     required String entitySlug,
     required Map<String, dynamic> data,
     String? parentRecordId,
+    String? id,
   }) async {
     final db = AppDatabase.instance.db;
     final entity = await getEntity(entitySlug);
     if (entity == null) throw Exception('Entity not found: $entitySlug');
 
-    final id = _uuid.v4();
+    final recordId = id ?? _uuid.v4();
     final now = DateTime.now().toIso8601String();
     final tenantId = await _getTenantId();
     final userId = await _getCurrentUserId();
@@ -172,10 +174,10 @@ class DataRepository {
     await db.execute(
       '''INSERT INTO EntityData (id, tenantId, entityId, data, parentRecordId, createdById, updatedById, createdAt, updatedAt, deletedAt)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)''',
-      [id, tenantId, entity['id'], jsonEncode(data), parentRecordId, userId, userId, now, now],
+      [recordId, tenantId, entity['id'], jsonEncode(data), parentRecordId, userId, userId, now, now],
     );
 
-    return {'id': id, 'data': data, 'createdAt': now};
+    return {'id': recordId, 'data': data, 'createdAt': now};
   }
 
   /// Update a record - saves to local SQLite, PowerSync syncs to API.

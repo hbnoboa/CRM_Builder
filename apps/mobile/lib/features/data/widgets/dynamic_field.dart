@@ -471,6 +471,8 @@ class DynamicFieldInput extends StatelessWidget {
     this.enabled = true,
     this.onAutoFill,
     this.allFields,
+    this.entitySlug = '',
+    this.recordId = '',
   });
 
   final Map<String, dynamic> field;
@@ -484,6 +486,10 @@ class DynamicFieldInput extends StatelessWidget {
 
   /// All entity fields (needed for api-select to resolve autoFillFields targets).
   final List<dynamic>? allFields;
+
+  /// Context for image upload queue (needed to update record after upload).
+  final String entitySlug;
+  final String recordId;
 
   @override
   Widget build(BuildContext context) {
@@ -633,6 +639,9 @@ class DynamicFieldInput extends StatelessWidget {
           fieldType: type,
           isRequired: required,
           onChanged: onChanged,
+          entitySlug: entitySlug,
+          recordId: recordId,
+          fieldSlug: slug,
         );
 
       case 'PHONE':

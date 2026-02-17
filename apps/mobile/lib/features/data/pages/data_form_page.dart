@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:uuid/uuid.dart';
 import 'package:crm_mobile/core/location/geolocation_service.dart';
 import 'package:crm_mobile/core/theme/app_colors.dart';
 import 'package:crm_mobile/core/permissions/permission_provider.dart';
@@ -40,9 +41,15 @@ class _DataFormPageState extends ConsumerState<DataFormPage> {
   String _entityName = '';
   bool _captureLocation = false;
 
+  /// Record ID - either from widget (editing) or pre-generated UUID (new record).
+  /// Pre-generating allows image uploads to reference the correct record.
+  late final String _recordId;
+
   @override
   void initState() {
     super.initState();
+    // Generate record ID upfront so image uploads can reference it
+    _recordId = widget.recordId ?? const Uuid().v4();
     _loadData();
   }
 
@@ -176,6 +183,7 @@ class _DataFormPageState extends ConsumerState<DataFormPage> {
           entitySlug: widget.entitySlug,
           data: dataToSend,
           parentRecordId: widget.parentRecordId,
+          id: _recordId, // Use pre-generated ID so image uploads can reference it
         );
       }
 
@@ -340,6 +348,8 @@ class _DataFormPageState extends ConsumerState<DataFormPage> {
                       value: _values[slug],
                       enabled: canEdit,
                       allFields: _fields,
+                      entitySlug: widget.entitySlug,
+                      recordId: _recordId,
                       onChanged: (value) {
                         setState(() => _values[slug] = value);
                       },
