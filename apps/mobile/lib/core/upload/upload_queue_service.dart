@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:math' as math;
 
 import 'package:connectivity_plus/connectivity_plus.dart';
@@ -217,6 +218,7 @@ class UploadQueueService {
   }
 
   /// Update the EntityData record, replacing the local:// placeholder with the real URL.
+  /// Updates LOCAL database so PowerSync syncs the change to the API.
   Future<void> _updateEntityData(
     String entitySlug,
     String recordId,
@@ -225,8 +227,10 @@ class UploadQueueService {
     String remoteUrl,
   ) async {
     try {
-      // PATCH the record via API so PowerSync propagates the change
-      final currentRecord = await AppDatabase.instance.db.getAll(
+      final db = AppDatabase.instance.db;
+
+      // Get current record data from local DB
+      final currentRecord = await db.getAll(
         'SELECT data FROM EntityData WHERE id = ?',
         [recordId],
       );
@@ -236,22 +240,39 @@ class UploadQueueService {
         return;
       }
 
-      // Parse current data, replace local:// URL with remote URL
       final rawData = currentRecord.first['data'] as String?;
-      if (rawData == null) return;
+      if (rawData == null) {
+        _logger.w('Record $recordId has no data - skipping EntityData update');
+        return;
+      }
 
-      // Update the field with remote URL via API
-      await _dio.patch(
-        '/data/$entitySlug/$recordId',
-        data: {
-          'data': {fieldSlug: remoteUrl},
-        },
-      );
+      // Parse current data and replace local:// URL with remote URL
+      Map<String, dynamic> data;
+      try {
+        data = jsonDecode(rawData) as Map<String, dynamic>;
+      } catch (e) {
+        _logger.e('Failed to parse record data: $e');
+        return;
+      }
 
-      _logger.i('Updated EntityData $recordId field $fieldSlug with remote URL');
+      // Check if field has local:// URL that needs replacing
+      final currentValue = data[fieldSlug];
+      if (currentValue is String && currentValue.startsWith('local://')) {
+        data[fieldSlug] = remoteUrl;
+
+        // Update LOCAL database - PowerSync will sync this to the API
+        final now = DateTime.now().toIso8601String();
+        await db.execute(
+          'UPDATE EntityData SET data = ?, updatedAt = ? WHERE id = ?',
+          [jsonEncode(data), now, recordId],
+        );
+
+        _logger.i('Updated local EntityData $recordId.$fieldSlug: local:// → $remoteUrl');
+      } else {
+        _logger.w('Field $fieldSlug does not have local:// URL, current: $currentValue');
+      }
     } catch (e) {
       _logger.e('Failed to update EntityData: $e');
-      // Don't fail the upload - the URL is stored in the queue item
     }
   }
 
