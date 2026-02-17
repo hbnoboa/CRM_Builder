@@ -304,6 +304,100 @@ class DataRepository {
   }
 
   // ═══════════════════════════════════════════════════════
+  // API READS (quando filtros globais estao ativos)
+  // Backend aplica os filtros automaticamente
+  // ═══════════════════════════════════════════════════════
+
+  /// Fetch records from API (backend applies global filters automatically).
+  /// Use this when entity has globalFilters defined.
+  Future<List<Map<String, dynamic>>> fetchRecordsFromApi({
+    required String entitySlug,
+    String? search,
+    String sortBy = 'createdAt',
+    String sortOrder = 'desc',
+    int page = 1,
+    int limit = 50,
+    String? parentRecordId,
+  }) async {
+    try {
+      final queryParams = <String, dynamic>{
+        'page': page,
+        'limit': limit,
+        'sortBy': sortBy,
+        'sortOrder': sortOrder,
+      };
+      if (search != null && search.isNotEmpty) {
+        queryParams['search'] = search;
+      }
+      if (parentRecordId != null) {
+        queryParams['parentRecordId'] = parentRecordId;
+      }
+
+      debugPrint('[DataRepo] fetchRecordsFromApi - GET /data/$entitySlug with params: $queryParams');
+
+      final response = await _dio.get(
+        '/data/$entitySlug',
+        queryParameters: queryParams,
+      );
+
+      final data = response.data;
+      final records = (data['data'] as List<dynamic>?)
+          ?.map((e) => e as Map<String, dynamic>)
+          .toList() ?? [];
+
+      debugPrint('[DataRepo] fetchRecordsFromApi - received ${records.length} records (filtered by backend)');
+
+      return records;
+    } catch (e) {
+      debugPrint('[DataRepo] fetchRecordsFromApi ERROR: $e');
+      rethrow;
+    }
+  }
+
+  /// Stream that fetches from API periodically (for entities with global filters).
+  /// Polls every [pollInterval] seconds.
+  Stream<List<Map<String, dynamic>>> watchRecordsFromApi({
+    required String entitySlug,
+    String? search,
+    String sortBy = 'createdAt',
+    String sortOrder = 'desc',
+    int limit = 50,
+    Duration pollInterval = const Duration(seconds: 30),
+  }) async* {
+    // Emit immediately
+    try {
+      final records = await fetchRecordsFromApi(
+        entitySlug: entitySlug,
+        search: search,
+        sortBy: sortBy,
+        sortOrder: sortOrder,
+        limit: limit,
+      );
+      yield records;
+    } catch (e) {
+      debugPrint('[DataRepo] watchRecordsFromApi initial fetch error: $e');
+      yield [];
+    }
+
+    // Then poll periodically
+    await for (final _ in Stream.periodic(pollInterval)) {
+      try {
+        final records = await fetchRecordsFromApi(
+          entitySlug: entitySlug,
+          search: search,
+          sortBy: sortBy,
+          sortOrder: sortOrder,
+          limit: limit,
+        );
+        yield records;
+      } catch (e) {
+        debugPrint('[DataRepo] watchRecordsFromApi poll error: $e');
+        // Don't yield on error, keep previous data
+      }
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════
   // FILE UPLOAD (usa API diretamente - arquivos nao passam pelo PowerSync)
   // ═══════════════════════════════════════════════════════
 
