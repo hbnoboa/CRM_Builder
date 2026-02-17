@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:uuid/uuid.dart';
@@ -53,10 +54,13 @@ class DataRepository {
 
     // Apply global + local filters via json_extract
     if (globalFilters.isNotEmpty || localFilters.isNotEmpty) {
+      debugPrint('[DataRepo] watchRecords - applying ${globalFilters.length} global filters');
       final filterResult = FilterSqlBuilder.buildFilterClauses(
         globalFilters,
         localFilters,
       );
+      debugPrint('[DataRepo] watchRecords - filterResult.where: ${filterResult.where}');
+      debugPrint('[DataRepo] watchRecords - filterResult.params: ${filterResult.params}');
       if (filterResult.where.isNotEmpty) {
         query += filterResult.where;
         params.addAll(filterResult.params);
@@ -71,6 +75,38 @@ class DataRepository {
     query += ' ORDER BY $orderBy LIMIT ? OFFSET ?';
     params.addAll([limit, offset]);
 
+    debugPrint('[DataRepo] Final SQL: $query');
+    debugPrint('[DataRepo] Final params: $params');
+
+    // Debug: count total records vs filtered records
+    db.getAll('SELECT COUNT(*) as total FROM EntityData WHERE entityId = ? AND deletedAt IS NULL', [entityId]).then((countResult) {
+      final total = countResult.first['total'];
+      debugPrint('[DataRepo] DEBUG - Total records (no filter): $total');
+    });
+
+    // Debug: test json_extract on first record
+    if (globalFilters.isNotEmpty) {
+      final testField = globalFilters.first.fieldSlug;
+      final testValue = globalFilters.first.value;
+      db.getAll('''
+        SELECT id,
+               json_extract(data, '\$.$testField') as extracted_value,
+               CASE
+                 WHEN json_extract(data, '\$.$testField') = '$testValue' THEN 'MATCH_UNQUOTED'
+                 WHEN json_extract(data, '\$.$testField') = '"$testValue"' THEN 'MATCH_QUOTED'
+                 ELSE 'NO_MATCH'
+               END as match_type
+        FROM EntityData
+        WHERE entityId = ?
+        LIMIT 5
+      ''', [entityId]).then((rows) {
+        debugPrint('[DataRepo] DEBUG - Testing filter on field: $testField = $testValue');
+        for (final row in rows) {
+          debugPrint('[DataRepo] DEBUG - extracted: ${row['extracted_value']} | match: ${row['match_type']}');
+        }
+      });
+    }
+
     return db.watch(query, parameters: params);
   }
 
@@ -78,15 +114,35 @@ class DataRepository {
   List<GlobalFilter> extractGlobalFilters(Map<String, dynamic> entity) {
     try {
       final settingsStr = entity['settings'] as String?;
-      if (settingsStr == null || settingsStr.isEmpty) return [];
+      final settingsPreview = settingsStr != null && settingsStr.length > 200
+          ? '${settingsStr.substring(0, 200)}...'
+          : settingsStr ?? '(null)';
+      debugPrint('[DataRepo] extractGlobalFilters - entity name: ${entity['name']}');
+      debugPrint('[DataRepo] extractGlobalFilters - settingsStr preview: $settingsPreview');
+      if (settingsStr == null || settingsStr.isEmpty) {
+        debugPrint('[DataRepo] extractGlobalFilters - NO SETTINGS, returning empty');
+        return [];
+      }
       final settings = jsonDecode(settingsStr) as Map<String, dynamic>;
+      debugPrint('[DataRepo] extractGlobalFilters - settings keys: ${settings.keys.toList()}');
       final filtersJson = settings['globalFilters'] as List<dynamic>?;
-      if (filtersJson == null) return [];
-      return filtersJson
+      debugPrint('[DataRepo] extractGlobalFilters - globalFilters raw: $filtersJson');
+      if (filtersJson == null || filtersJson.isEmpty) {
+        debugPrint('[DataRepo] extractGlobalFilters - NO GLOBAL FILTERS in settings');
+        return [];
+      }
+      final filters = filtersJson
           .whereType<Map<String, dynamic>>()
           .map((json) => GlobalFilter.fromJson(json))
           .toList();
-    } catch (_) {
+      debugPrint('[DataRepo] extractGlobalFilters - PARSED ${filters.length} filters:');
+      for (final f in filters) {
+        debugPrint('[DataRepo]   -> ${f.fieldSlug} (${f.fieldType}) ${f.operator.name} "${f.value}"');
+      }
+      return filters;
+    } catch (e, stack) {
+      debugPrint('[DataRepo] extractGlobalFilters ERROR: $e');
+      debugPrint('[DataRepo] extractGlobalFilters STACK: $stack');
       return [];
     }
   }

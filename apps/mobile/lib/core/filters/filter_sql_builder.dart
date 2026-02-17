@@ -87,15 +87,22 @@ class FilterSqlBuilder {
     String jsonPath, FilterOperator op, dynamic value,
   ) {
     final v = '$value';
+    // json_extract returns strings WITH quotes for text values, e.g. "ativo" not ativo
+    // So we need to compare against the quoted version OR use LIKE for contains
     switch (op) {
       case FilterOperator.contains:
+        // LIKE works with json_extract result (quotes don't affect middle chars)
         return (clause: '$jsonPath LIKE ?', params: <dynamic>['%$v%']);
       case FilterOperator.equals:
-        return (clause: '$jsonPath = ?', params: <dynamic>[v]);
+        // json_extract returns "value" (with quotes) for strings
+        // Compare against both quoted and unquoted versions for safety
+        return (clause: '($jsonPath = ? OR $jsonPath = ?)', params: <dynamic>[v, '"$v"']);
       case FilterOperator.startsWith:
-        return (clause: '$jsonPath LIKE ?', params: <dynamic>['$v%']);
+        // Account for leading quote in json_extract result
+        return (clause: '($jsonPath LIKE ? OR $jsonPath LIKE ?)', params: <dynamic>['$v%', '"$v%']);
       case FilterOperator.endsWith:
-        return (clause: '$jsonPath LIKE ?', params: <dynamic>['%$v']);
+        // Account for trailing quote in json_extract result
+        return (clause: '($jsonPath LIKE ? OR $jsonPath LIKE ?)', params: <dynamic>['%$v', '%$v"']);
       default:
         return (clause: '', params: <dynamic>[]);
     }
