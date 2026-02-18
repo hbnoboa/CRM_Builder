@@ -37,19 +37,6 @@ enum AuthType {
   API_KEY
 }
 
-enum ReportVisibility {
-  PRIVATE      // Apenas criador
-  TEAM         // Time do criador
-  ORGANIZATION // Toda organizacao
-  PUBLIC       // Todos no tenant
-}
-
-enum TenantScope {
-  CURRENT      // Apenas tenant atual
-  ALL          // Todos os tenants (Platform Admin)
-  SELECTED     // Tenants selecionados
-}
-
 // ═══════════════════════════════════════════════════════════════════════════
 // TENANT (Empresa)
 // ═══════════════════════════════════════════════════════════════════════════
@@ -72,7 +59,6 @@ model Tenant {
   entities        Entity[]
   entityData      EntityData[]
   pages           Page[]
-  reports         Report[]
   customEndpoints CustomEndpoint[]
   customRoles     CustomRole[]
   notifications   Notification[]
@@ -114,9 +100,6 @@ model User {
   // Dados criados por este usuario
   createdData EntityData[] @relation("CreatedBy")
   updatedData EntityData[] @relation("UpdatedBy")
-
-  // Relatorios criados
-  reports     Report[]
 
   @@unique([tenantId, email])
   @@index([tenantId])
@@ -263,65 +246,6 @@ model Page {
   @@index([tenantId])
   @@index([isPublished])
   @@index([tenantId, isPublished])
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// REPORTS (Central de Relatorios)
-// ═══════════════════════════════════════════════════════════════════════════
-
-model Report {
-  id          String   @id @default(cuid())
-  tenantId    String
-
-  name        String
-  description String?
-  icon        String?
-  color       String?
-
-  // Componentes do relatorio (JSON array)
-  // Formato: [{ id, type, order, width, title, dataSource, config }]
-  components  Json     @default("[]")
-
-  // Layout dos componentes
-  // Formato: { columns: 2, gaps: 4 }
-  layoutConfig Json?
-
-  // Quem criou
-  createdById String
-
-  // Permissoes de visualizacao
-  visibility  ReportVisibility @default(PRIVATE)
-
-  // Compartilhamento explicito
-  // Formato: { canView: string[], canEdit: string[] }
-  sharedWith  Json?
-
-  // Multi-tenant (Platform Admin)
-  tenantScope     TenantScope @default(CURRENT)
-  selectedTenants String[]    @default([])
-
-  // Mostrar no dashboard do usuario
-  showInDashboard Boolean @default(false)
-
-  // Ordem no dashboard (menor = primeiro)
-  dashboardOrder  Int     @default(0)
-
-  // Agendamento (futuro)
-  // Formato: { enabled: boolean, cron: string, recipients: string[] }
-  schedule    Json?
-
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  // Relacionamentos
-  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  createdBy   User     @relation(fields: [createdById], references: [id], onDelete: Cascade)
-
-  @@index([tenantId])
-  @@index([createdById])
-  @@index([visibility])
-  @@index([tenantId, visibility])
-  @@index([tenantId, createdById])
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

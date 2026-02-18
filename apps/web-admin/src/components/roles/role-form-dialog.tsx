@@ -24,7 +24,7 @@ import {
 import {
   Eye, Plus, Pencil, Trash2, Shield, Database, Users,
   Settings, Code, LayoutDashboard, Globe, User, Building2,
-  ChevronRight, BarChart3,
+  ChevronRight,
 } from 'lucide-react';
 import { useCreateCustomRole, useUpdateCustomRole } from '@/hooks/use-custom-roles';
 import { useQuery } from '@tanstack/react-query';
@@ -50,7 +50,7 @@ function normalizeModulePermToRecord(mp: Record<string, unknown> | null | undefi
   return result;
 }
 
-const MODULE_KEYS = ['dashboard', 'users', 'roles', 'entities', 'data', 'apis', 'reports', 'settings', 'tenants'] as const;
+const MODULE_KEYS = ['dashboard', 'users', 'roles', 'entities', 'data', 'apis', 'settings', 'tenants'] as const;
 
 function getDefaultModulePerms(): Record<string, ModulePermission> {
   const result: Record<string, ModulePermission> = {};
@@ -290,7 +290,6 @@ export function RoleFormDialog({ open, onOpenChange, role, onSuccess }: RoleForm
     tenants: <Building2 className="h-4 w-4" />,
     data: <Globe className="h-4 w-4" />,
     roles: <Shield className="h-4 w-4" />,
-    reports: <BarChart3 className="h-4 w-4" />,
   };
 
   const crudActions = [
@@ -327,11 +326,6 @@ export function RoleFormDialog({ open, onOpenChange, role, onSuccess }: RoleForm
       { key: 'canConfigureColumns', label: t('permissions.canConfigureColumns') },
       { key: 'canExport', label: t('permissions.canExport') },
       { key: 'canImport', label: t('permissions.canImport') },
-    ],
-    reports: [
-      { key: 'canExecute', label: t('permissions.canExecute') },
-      { key: 'canExport', label: t('permissions.canExport') },
-      { key: 'canDuplicate', label: t('permissions.canDuplicate') },
     ],
   };
 

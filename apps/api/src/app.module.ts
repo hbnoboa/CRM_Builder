@@ -16,7 +16,6 @@ import { HealthModule } from './modules/health/health.module';
 import { CustomRoleModule } from './modules/custom-role/custom-role.module';
 import { SyncModule } from './modules/sync/sync.module';
 import { PushModule } from './modules/push/push.module';
-import { ReportsModule } from './modules/reports/reports.module';
 
 @Module({
   imports: [
@@ -48,7 +47,6 @@ import { ReportsModule } from './modules/reports/reports.module';
     CustomApiModule,
     CustomRoleModule,
     StatsModule,
-    ReportsModule,
     UploadModule,
     NotificationModule,
     SyncModule,

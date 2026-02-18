@@ -606,9 +606,7 @@
       "data": "Dados",
       "dataDesc": "Registros de cada entidade",
       "roles": "Perfis de Acesso",
-      "rolesDesc": "Configurar cargos e permissões",
-      "reports": "Relatorios",
-      "reportsDesc": "Criar e visualizar relatorios analiticos"
+      "rolesDesc": "Configurar cargos e permissões"
     },
     "userRoles": {
       "title": "Gerenciar Permissões",
@@ -672,9 +670,7 @@
       "canUpdateField": "Editar Configuração de Campos",
       "canConfigureColumns": "Configurar Colunas Visíveis",
       "canExport": "Exportar Registros",
-      "canImport": "Importar Registros",
-      "canExecute": "Executar Relatorio",
-      "canDuplicate": "Duplicar Relatorio"
+      "canImport": "Importar Registros"
     },
     "permissionCategories": {
       "entities": "Entidades",
