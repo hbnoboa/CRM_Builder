@@ -180,27 +180,18 @@ class _DataListPageState extends ConsumerState<DataListPage> {
               ),
 
               // Records list with pull-to-refresh + infinite scroll
-              // Se tiver filtros globais, usa API (backend filtra)
-              // Se nao tiver, usa SQLite local (PowerSync)
+              // Sempre usa SQLite local (PowerSync) com filtros aplicados localmente
+              // Funciona offline - dados ja sincronizados pelo PowerSync
               Expanded(
                 child: StreamBuilder<List<Map<String, dynamic>>>(
-                  stream: globalFilters.isNotEmpty
-                      ? repo.watchRecordsFromApi(
-                          entitySlug: widget.entitySlug,
-                          search: _search.isNotEmpty ? _search : null,
-                          sortBy: 'createdAt',
-                          sortOrder: 'desc',
-                          limit: _limit,
-                          filters: globalFilters, // Passa filtros pro backend
-                        )
-                      : repo.watchRecords(
-                          entityId: entityId,
-                          search: _search.isNotEmpty ? _search : null,
-                          orderBy: 'createdAt DESC',
-                          limit: _limit,
-                          globalFilters: const [],
-                          createdById: scopeUserId,
-                        ),
+                  stream: repo.watchRecords(
+                    entityId: entityId,
+                    search: _search.isNotEmpty ? _search : null,
+                    orderBy: 'createdAt DESC',
+                    limit: _limit,
+                    globalFilters: globalFilters,
+                    createdById: scopeUserId,
+                  ),
                   builder: (context, snapshot) {
                     final records = snapshot.data ?? [];
 
