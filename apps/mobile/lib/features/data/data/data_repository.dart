@@ -36,7 +36,6 @@ class DataRepository {
     String orderBy = 'createdAt DESC',
     int limit = 10,
     int offset = 0,
-    List<GlobalFilter> globalFilters = const [],
     List<LocalFilter> localFilters = const [],
     String? createdById,
   }) {
@@ -52,10 +51,10 @@ class DataRepository {
       params.add(createdById);
     }
 
-    // Apply global + local filters via json_extract
-    if (globalFilters.isNotEmpty || localFilters.isNotEmpty) {
+    // Apply local filters via json_extract (global filters are applied by backend/PowerSync)
+    if (localFilters.isNotEmpty) {
       final filterResult = FilterSqlBuilder.buildFilterClauses(
-        globalFilters,
+        const [],
         localFilters,
       );
       if (filterResult.where.isNotEmpty) {

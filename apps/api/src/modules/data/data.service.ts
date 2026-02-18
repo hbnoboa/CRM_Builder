@@ -361,6 +361,14 @@ export class DataService {
     // Aplicar filtro de escopo baseado na CustomRole (own = apenas proprios registros)
     await this.applyScopeFromCustomRole(where, currentUser, entitySlug);
 
+    // Aplicar filtros globais da entidade automaticamente (SEMPRE)
+    const entitySettings = entity.settings as Record<string, unknown> | null;
+    const entityGlobalFilters = (entitySettings?.globalFilters || []) as GlobalFilter[];
+    if (entityGlobalFilters.length > 0) {
+      this.applyGlobalFilters(where, entityGlobalFilters);
+      this.logger.log(`Auto-applied ${entityGlobalFilters.length} global filters for ${entitySlug}`);
+    }
+
     // Aplicar filtros passados via query parameter (suporta multiplos filtros)
     if (query.filters) {
       try {

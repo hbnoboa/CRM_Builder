@@ -142,15 +142,12 @@ class _DataListPageState extends ConsumerState<DataListPage> {
 
           final entityId = entity['id'] as String;
 
-          // Extract global filters and fields from entity (synchronously)
-          final globalFilters = repo.extractGlobalFilters(entity);
+          // Extract fields from entity (globalFilters are applied by backend/PowerSync)
           final columnOrder = repo.extractVisibleColumns(entity);
           List<dynamic> fields = [];
           try {
             fields = jsonDecode(entity['fields'] as String? ?? '[]');
           } catch (_) {}
-
-          final totalFilterCount = globalFilters.length;
 
           return Column(
             children: [
@@ -197,7 +194,6 @@ class _DataListPageState extends ConsumerState<DataListPage> {
                     search: _search.isNotEmpty ? _search : null,
                     orderBy: 'createdAt DESC',
                     limit: _limit,
-                    globalFilters: globalFilters,
                     createdById: scopeUserId,
                   ),
                   builder: (context, snapshot) {
@@ -207,8 +203,7 @@ class _DataListPageState extends ConsumerState<DataListPage> {
                       final canCreate = perms.hasEntityPermission(
                         widget.entitySlug, 'canCreate');
                       final showCreateButton = canCreate &&
-                          _search.isEmpty &&
-                          totalFilterCount == 0;
+                          _search.isEmpty;
 
                       return RefreshIndicator(
                         onRefresh: () async {
@@ -243,9 +238,7 @@ class _DataListPageState extends ConsumerState<DataListPage> {
                                       Text(
                                         _search.isNotEmpty
                                             ? 'Nenhum resultado para "$_search"'
-                                            : totalFilterCount > 0
-                                                ? 'Nenhum registro com estes filtros'
-                                                : 'Nenhum registro ainda',
+                                            : 'Nenhum registro ainda',
                                         style: AppTypography.h4.copyWith(
                                           color: AppColors.foreground,
                                         ),
@@ -255,9 +248,7 @@ class _DataListPageState extends ConsumerState<DataListPage> {
                                       Text(
                                         _search.isNotEmpty
                                             ? 'Tente outra busca'
-                                            : totalFilterCount > 0
-                                                ? 'Filtros globais ativos'
-                                                : 'Comece criando seu primeiro registro',
+                                            : 'Comece criando seu primeiro registro',
                                         style: AppTypography.bodyMedium.copyWith(
                                           color: AppColors.mutedForeground,
                                         ),
@@ -300,9 +291,7 @@ class _DataListPageState extends ConsumerState<DataListPage> {
                           child: Row(
                             children: [
                               Text(
-                                totalFilterCount > 0
-                                    ? '${records.length} registro${records.length != 1 ? 's' : ''} (filtrado)'
-                                    : '${records.length} registro${records.length != 1 ? 's' : ''}',
+                                '${records.length} registro${records.length != 1 ? 's' : ''}',
                                 style: AppTypography.caption.copyWith(
                                   color: AppColors.mutedForeground,
                                 ),

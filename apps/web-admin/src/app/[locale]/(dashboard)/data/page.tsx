@@ -458,7 +458,7 @@ function DataPageContent() {
         const settings = target.settings as Record<string, unknown> | null;
         const entityGlobalFilters = (settings?.globalFilters as ActiveFilter[]) || [];
         setGlobalFilters(entityGlobalFilters);
-        fetchRecords(target.slug, 1, '', undefined, undefined, entityGlobalFilters);
+        fetchRecords(target.slug, 1, '');
       }
     } catch (error) {
       console.error('Erro ao carregar entidades:', error);
@@ -495,8 +495,8 @@ function DataPageContent() {
         params.sortBy = effectiveSort.field;
         params.sortOrder = effectiveSort.order;
       }
-      // Filtros: globalFilters + activeFilters (ou override)
-      const effectiveFilters = filtersOverride ?? [...globalFilters, ...activeFilters];
+      // Filtros: apenas activeFilters do usuario (globalFilters sao aplicados automaticamente no backend)
+      const effectiveFilters = filtersOverride ?? [...activeFilters];
       if (effectiveFilters.length > 0) {
         params.filters = JSON.stringify(effectiveFilters);
       }
@@ -551,7 +551,7 @@ function DataPageContent() {
     setGlobalFilters(entityGlobalFilters);
 
     // Buscar ja com os filtros aplicados
-    await fetchRecords(entity.slug, 1, '', undefined, undefined, entityGlobalFilters);
+    await fetchRecords(entity.slug, 1, '');
   };
 
   // Navegar para sub-entidade filtrada por pai (ao clicar no badge de sub-entity)
@@ -810,7 +810,7 @@ function DataPageContent() {
         toast.success('Filtro global salvo');
         // Re-buscar dados com os novos filtros aplicados no backend
         setCurrentPage(1);
-        await fetchRecords(selectedEntity.slug, 1, debouncedSearch, undefined, undefined, updatedFilters);
+        await fetchRecords(selectedEntity.slug, 1, debouncedSearch);
       } catch {
         toast.error('Erro ao salvar filtro global');
       } finally {
@@ -1765,7 +1765,7 @@ function DataPageContent() {
                                 toast.success('Filtro global removido');
                                 // Re-buscar dados com os filtros atualizados no backend
                                 setCurrentPage(1);
-                                await fetchRecords(selectedEntity.slug, 1, debouncedSearch, undefined, undefined, updated);
+                                await fetchRecords(selectedEntity.slug, 1, debouncedSearch);
                               } catch {
                                 toast.error('Erro ao remover filtro global');
                               }
