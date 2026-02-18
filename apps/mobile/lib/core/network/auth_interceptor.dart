@@ -72,7 +72,9 @@ class AuthInterceptor extends QueuedInterceptor {
   }
 
   Future<void> _forceLogout() async {
-    await SecureStorage.clearAll();
+    // Clear session tokens but KEEP offline credentials cache
+    // This allows user to login offline with cached credentials
+    await SecureStorage.clearSession();
     // Navigation to login is handled by the auth state listener in the router
   }
 }

@@ -194,10 +194,10 @@ class Auth extends _$Auth {
         PushNotificationService.instance.registerDeviceToken();
       }
     } catch (_) {
-      // Only clear if no manual auth happened
+      // Only clear session if no manual auth happened
+      // Keep offline credentials and local data for offline login
       if (!_manualAuthInProgress && !state.isAuthenticated) {
-        await SecureStorage.clearAll();
-        await AppDatabase.instance.clearData();
+        await SecureStorage.clearSession();
         state = const AuthState(isLoading: false);
       }
       rethrow;
@@ -522,8 +522,8 @@ class Auth extends _$Auth {
       // Re-register device token on profile refresh
       PushNotificationService.instance.registerDeviceToken();
     } catch (_) {
-      await SecureStorage.clearAll();
-      await AppDatabase.instance.clearData();
+      // Clear session but keep offline credentials and local data
+      await SecureStorage.clearSession();
       state = const AuthState(isLoading: false);
     }
   }
