@@ -193,6 +193,10 @@ model EntityData {
   // Used by PowerSync sync rules to filter at sync time
   matchesGlobalFilter Boolean @default(true) @map("_matchesGlobalFilter")
 
+  // Trigger-maintained: true if parent record passes filters (for sub-entities)
+  // Sub-entities only sync if parent also passes
+  parentMatchesFilter Boolean @default(true) @map("_parentMatchesFilter")
+
   entity       Entity      @relation(fields: [entityId], references: [id], onDelete: Cascade)
   tenant       Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   createdBy    User?       @relation("CreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
