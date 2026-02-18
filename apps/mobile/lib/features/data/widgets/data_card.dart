@@ -59,9 +59,9 @@ class DataCard extends StatelessWidget {
 
     final orderedFields = _getOrderedFields();
 
-    // Collect up to 4 fields with values
+    // Collect up to 3 fields with values
     final displayFields = <({String name, String value, String type})>[];
-    for (int i = 0; i < orderedFields.length && displayFields.length < 4; i++) {
+    for (int i = 0; i < orderedFields.length && displayFields.length < 3; i++) {
       final field = orderedFields[i];
       final slug = field['slug'] as String? ?? '';
       final value = data[slug];
@@ -75,50 +75,56 @@ class DataCard extends StatelessWidget {
       ));
     }
 
-    // First field is the title (larger, bold)
+    // First field is the title
     final title = displayFields.isNotEmpty ? displayFields[0].value : 'Registro';
 
-    // Remaining fields shown as label: value rows
+    // Remaining fields shown as chips
     final detailFields = displayFields.length > 1
         ? displayFields.sublist(1)
         : <({String name, String value, String type})>[];
 
     return Card(
-      margin: const EdgeInsets.only(bottom: 8),
+      margin: const EdgeInsets.only(bottom: 6),
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(AppColors.radius),
+        side: BorderSide(color: AppColors.border.withValues(alpha: 0.5)),
+      ),
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(AppColors.radius),
         child: Padding(
-          padding: const EdgeInsets.all(12),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
           child: Row(
             children: [
               // Content
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    // Title (first field)
+                    // Title
                     Text(
                       title,
-                      style: AppTypography.labelLarge.copyWith(
+                      style: AppTypography.labelMedium.copyWith(
                         fontWeight: FontWeight.w600,
                       ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
                     if (detailFields.isNotEmpty) ...[
-                      const SizedBox(height: 6),
-                      // Detail fields in a wrap or column
-                      ...detailFields.map((f) => Padding(
-                        padding: const EdgeInsets.only(top: 2),
-                        child: _buildFieldRow(f.name, f.value, f.type),
-                      )),
+                      const SizedBox(height: 4),
+                      // Detail fields in horizontal wrap
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 4,
+                        children: detailFields.map((f) => _buildFieldChip(f.name, f.value, f.type)).toList(),
+                      ),
                     ],
                   ],
                 ),
               ),
-              const SizedBox(width: 8),
-              const Icon(Icons.chevron_right, size: 20, color: AppColors.mutedForeground),
+              const Icon(Icons.chevron_right, size: 18, color: AppColors.mutedForeground),
             ],
           ),
         ),
@@ -126,47 +132,38 @@ class DataCard extends StatelessWidget {
     );
   }
 
-  Widget _buildFieldRow(String name, String value, String type) {
+  Widget _buildFieldChip(String name, String value, String type) {
     // Special styling for boolean fields
     if (type == 'BOOLEAN') {
       final isTrue = value == 'Sim';
       return Row(
+        mainAxisSize: MainAxisSize.min,
         children: [
           Icon(
             isTrue ? Icons.check_circle : Icons.cancel,
-            size: 14,
+            size: 12,
             color: isTrue ? AppColors.success : AppColors.mutedForeground,
           ),
-          const SizedBox(width: 4),
+          const SizedBox(width: 3),
           Text(
             name,
             style: AppTypography.caption.copyWith(
               color: AppColors.mutedForeground,
+              fontSize: 11,
             ),
           ),
         ],
       );
     }
 
-    return Row(
-      children: [
-        Text(
-          '$name: ',
-          style: AppTypography.caption.copyWith(
-            color: AppColors.mutedForeground,
-          ),
-        ),
-        Expanded(
-          child: Text(
-            value,
-            style: AppTypography.caption.copyWith(
-              color: AppColors.foreground,
-            ),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
-        ),
-      ],
+    return Text(
+      '$name: $value',
+      style: AppTypography.caption.copyWith(
+        color: AppColors.mutedForeground,
+        fontSize: 11,
+      ),
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
     );
   }
 

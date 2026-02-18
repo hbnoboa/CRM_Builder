@@ -25,12 +25,18 @@ class DashboardPage extends ConsumerWidget {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Dashboard'),
-        automaticallyImplyLeading: false,
+        leading: Builder(
+          builder: (context) => IconButton(
+            icon: const Icon(Icons.menu),
+            onPressed: () => Scaffold.of(context).openDrawer(),
+          ),
+        ),
         actions: const [
           SyncStatusIndicator(),
           SizedBox(width: 8),
         ],
       ),
+      drawer: _buildDrawer(context, ref, user),
       body: RefreshIndicator(
         onRefresh: () async {
           await ref.read(authProvider.notifier).getProfile();
@@ -880,6 +886,197 @@ class DashboardPage extends ConsumerWidget {
         ),
       ),
       onTap: () => context.push('/data/$slug/$id'),
+    );
+  }
+
+  Widget _buildDrawer(BuildContext context, WidgetRef ref, dynamic user) {
+    return Drawer(
+      child: SafeArea(
+        child: Column(
+          children: [
+            // Header
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(AppColors.spaceLg),
+              decoration: const BoxDecoration(
+                gradient: AppColors.primaryGradient,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Avatar
+                  Container(
+                    width: 64,
+                    height: 64,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.2),
+                      borderRadius: BorderRadius.circular(32),
+                    ),
+                    child: Center(
+                      child: Text(
+                        (user?.name?.isNotEmpty == true)
+                            ? user.name[0].toUpperCase()
+                            : 'U',
+                        style: AppTypography.h2.copyWith(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    user?.name ?? 'Usuario',
+                    style: AppTypography.labelLarge.copyWith(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    user?.email ?? '',
+                    style: AppTypography.bodySmall.copyWith(
+                      color: Colors.white.withValues(alpha: 0.8),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            // Menu items
+            Expanded(
+              child: ListView(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                children: [
+                  ListTile(
+                    leading: const Icon(Icons.dashboard_outlined),
+                    title: const Text('Dashboard'),
+                    selected: true,
+                    onTap: () => Navigator.pop(context),
+                  ),
+                  ListTile(
+                    leading: const Icon(Icons.folder_outlined),
+                    title: const Text('Dados'),
+                    onTap: () {
+                      Navigator.pop(context);
+                      context.go('/data');
+                    },
+                  ),
+                  const Divider(),
+                  ListTile(
+                    leading: const Icon(Icons.sync),
+                    title: const Text('Status de Sincronizacao'),
+                    onTap: () {
+                      Navigator.pop(context);
+                      _showSyncDialog(context);
+                    },
+                  ),
+                ],
+              ),
+            ),
+
+            // Logout button
+            const Divider(height: 1),
+            ListTile(
+              leading: const Icon(Icons.logout, color: AppColors.destructive),
+              title: Text(
+                'Sair',
+                style: AppTypography.labelMedium.copyWith(
+                  color: AppColors.destructive,
+                ),
+              ),
+              onTap: () async {
+                Navigator.pop(context);
+                final confirm = await showDialog<bool>(
+                  context: context,
+                  builder: (ctx) => AlertDialog(
+                    title: const Text('Sair'),
+                    content: const Text('Deseja realmente sair da sua conta?'),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(ctx, false),
+                        child: const Text('Cancelar'),
+                      ),
+                      TextButton(
+                        onPressed: () => Navigator.pop(ctx, true),
+                        style: TextButton.styleFrom(
+                          foregroundColor: AppColors.destructive,
+                        ),
+                        child: const Text('Sair'),
+                      ),
+                    ],
+                  ),
+                );
+                if (confirm == true) {
+                  await ref.read(authProvider.notifier).logout();
+                }
+              },
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showSyncDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Row(
+          children: [
+            Icon(Icons.sync, color: AppColors.primary),
+            const SizedBox(width: 8),
+            const Text('PowerSync'),
+          ],
+        ),
+        content: StreamBuilder<List<Map<String, dynamic>>>(
+          stream: AppDatabase.instance.db.watch(
+            "SELECT "
+            "(SELECT COUNT(*) FROM Entity) as entityCount, "
+            "(SELECT COUNT(*) FROM EntityData WHERE deletedAt IS NULL) as dataCount, "
+            "(SELECT COUNT(*) FROM CustomRole) as roleCount, "
+            "(SELECT COUNT(*) FROM User) as userCount",
+          ),
+          builder: (context, snapshot) {
+            final row = snapshot.data?.firstOrNull;
+            return Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildSyncRow('Entity', row?['entityCount'] ?? 0),
+                _buildSyncRow('EntityData', row?['dataCount'] ?? 0),
+                _buildSyncRow('CustomRole', row?['roleCount'] ?? 0),
+                _buildSyncRow('User', row?['userCount'] ?? 0),
+              ],
+            );
+          },
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Fechar'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSyncRow(String name, int count) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(name, style: AppTypography.bodyMedium),
+          Text(
+            '$count registros',
+            style: AppTypography.bodyMedium.copyWith(
+              color: AppColors.mutedForeground,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
