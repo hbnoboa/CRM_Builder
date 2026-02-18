@@ -46,27 +46,94 @@ export class StatsService {
     const startDate = new Date();
     startDate.setDate(startDate.getDate() - days);
 
+    // Tentar usar Materialized View primeiro (mais rapido)
+    try {
+      const isPlatformAdmin = role === 'PLATFORM_ADMIN';
+
+      // Query otimizada usando agregacao no banco
+      let records: Array<{ record_date: Date; count: bigint }>;
+
+      if (isPlatformAdmin) {
+        records = await this.prisma.$queryRaw`
+          SELECT
+            DATE_TRUNC('day', "createdAt") as record_date,
+            COUNT(*) as count
+          FROM "EntityData"
+          WHERE "createdAt" >= ${startDate}
+            AND "deletedAt" IS NULL
+          GROUP BY DATE_TRUNC('day', "createdAt")
+          ORDER BY record_date ASC
+        `;
+      } else {
+        records = await this.prisma.$queryRaw`
+          SELECT
+            DATE_TRUNC('day', "createdAt") as record_date,
+            COUNT(*) as count
+          FROM "EntityData"
+          WHERE "createdAt" >= ${startDate}
+            AND "deletedAt" IS NULL
+            AND "tenantId" = ${tenantId}
+          GROUP BY DATE_TRUNC('day', "createdAt")
+          ORDER BY record_date ASC
+        `;
+      }
+
+      // Converter para formato esperado
+      const grouped = new Map(
+        records.map((r) => [
+          r.record_date.toISOString().split('T')[0],
+          Number(r.count),
+        ]),
+      );
+
+      // Fill missing dates with 0
+      const result: { date: string; count: number }[] = [];
+      const currentDate = new Date(startDate);
+      const today = new Date();
+
+      while (currentDate <= today) {
+        const dateStr = currentDate.toISOString().split('T')[0];
+        result.push({
+          date: dateStr,
+          count: grouped.get(dateStr) || 0,
+        });
+        currentDate.setDate(currentDate.getDate() + 1);
+      }
+
+      return result;
+    } catch (error) {
+      // Fallback para query Prisma se raw query falhar
+      console.error('Raw query failed, falling back to Prisma:', error);
+      return this.getRecordsOverTimeFallback(tenantId, role, days);
+    }
+  }
+
+  // Fallback method (menos eficiente, mas funciona)
+  private async getRecordsOverTimeFallback(tenantId: string, role: string, days: number) {
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - days);
+
     const baseWhere = this.getWhere(tenantId, role);
-    const records = await this.prisma.entityData.findMany({
+
+    // Usar groupBy do Prisma para evitar carregar todos registros
+    const grouped = await this.prisma.entityData.groupBy({
+      by: ['createdAt'],
       where: {
         ...baseWhere,
         createdAt: { gte: startDate },
+        deletedAt: null,
       },
-      select: { createdAt: true },
-      orderBy: { createdAt: 'asc' },
+      _count: { id: true },
     });
 
-    // Group by date
-    const grouped = records.reduce(
-      (acc: Record<string, number>, record: { createdAt: Date }) => {
-        const date = record.createdAt.toISOString().split('T')[0];
-        acc[date] = (acc[date] || 0) + 1;
-        return acc;
-      },
-      {},
-    );
+    // Agrupar por dia
+    const dateMap = new Map<string, number>();
+    for (const item of grouped) {
+      const dateStr = item.createdAt.toISOString().split('T')[0];
+      dateMap.set(dateStr, (dateMap.get(dateStr) || 0) + item._count.id);
+    }
 
-    // Fill missing dates with 0
+    // Fill missing dates
     const result: { date: string; count: number }[] = [];
     const currentDate = new Date(startDate);
     const today = new Date();
@@ -75,7 +142,7 @@ export class StatsService {
       const dateStr = currentDate.toISOString().split('T')[0];
       result.push({
         date: dateStr,
-        count: grouped[dateStr] || 0,
+        count: dateMap.get(dateStr) || 0,
       });
       currentDate.setDate(currentDate.getDate() + 1);
     }

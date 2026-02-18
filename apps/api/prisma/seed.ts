@@ -9,6 +9,9 @@ const READ_ONLY = { canRead: true, canCreate: false, canUpdate: false, canDelete
 const NONE = { canRead: false, canCreate: false, canUpdate: false, canDelete: false };
 
 // Configuracao de roles de sistema
+// Permissao de criar/editar mas nao deletar
+const CREATE_UPDATE = { canRead: true, canCreate: true, canUpdate: true, canDelete: false };
+
 const SYSTEM_ROLES = {
   PLATFORM_ADMIN: {
     name: 'Super Admin',
@@ -16,7 +19,7 @@ const SYSTEM_ROLES = {
     color: '#dc2626',
     roleType: 'PLATFORM_ADMIN',
     isSystem: true,
-    modulePermissions: { dashboard: FULL, users: FULL, settings: FULL, apis: FULL, pages: FULL, entities: FULL, tenants: FULL },
+    modulePermissions: { dashboard: FULL, users: FULL, settings: FULL, apis: FULL, pages: FULL, entities: FULL, tenants: FULL, reports: FULL },
     tenantPermissions: { canAccessAllTenants: true },
   },
   ADMIN: {
@@ -25,7 +28,7 @@ const SYSTEM_ROLES = {
     color: '#7c3aed',
     roleType: 'ADMIN',
     isSystem: true,
-    modulePermissions: { dashboard: FULL, users: FULL, settings: FULL, apis: FULL, pages: FULL, entities: FULL, tenants: NONE },
+    modulePermissions: { dashboard: FULL, users: FULL, settings: FULL, apis: FULL, pages: FULL, entities: FULL, tenants: NONE, reports: FULL },
   },
   MANAGER: {
     name: 'Gerente',
@@ -33,7 +36,7 @@ const SYSTEM_ROLES = {
     color: '#2563eb',
     roleType: 'MANAGER',
     isSystem: true,
-    modulePermissions: { dashboard: READ_ONLY, users: READ_ONLY, settings: NONE, apis: NONE, pages: NONE, entities: NONE, tenants: NONE },
+    modulePermissions: { dashboard: READ_ONLY, users: READ_ONLY, settings: NONE, apis: NONE, pages: NONE, entities: NONE, tenants: NONE, reports: CREATE_UPDATE },
   },
   USER: {
     name: 'Usuario',
@@ -42,7 +45,7 @@ const SYSTEM_ROLES = {
     roleType: 'USER',
     isSystem: true,
     isDefault: true,
-    modulePermissions: { dashboard: READ_ONLY, users: NONE, settings: NONE, apis: NONE, pages: NONE, entities: { canRead: true, canCreate: true, canUpdate: true, canDelete: false }, tenants: NONE },
+    modulePermissions: { dashboard: READ_ONLY, users: NONE, settings: NONE, apis: NONE, pages: NONE, entities: { canRead: true, canCreate: true, canUpdate: true, canDelete: false }, tenants: NONE, reports: CREATE_UPDATE },
   },
   VIEWER: {
     name: 'Visualizador',
@@ -50,7 +53,7 @@ const SYSTEM_ROLES = {
     color: '#6b7280',
     roleType: 'VIEWER',
     isSystem: true,
-    modulePermissions: { dashboard: READ_ONLY, users: NONE, settings: NONE, apis: NONE, pages: NONE, entities: NONE, tenants: NONE },
+    modulePermissions: { dashboard: READ_ONLY, users: NONE, settings: NONE, apis: NONE, pages: NONE, entities: NONE, tenants: NONE, reports: READ_ONLY },
   },
 };
 

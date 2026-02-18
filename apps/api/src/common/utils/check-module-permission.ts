@@ -12,17 +12,20 @@ const DEFAULT_MODULE_PERMISSIONS: Record<string, Record<string, Record<string, b
     data: { canRead: true, canCreate: true, canUpdate: true },
     users: { canRead: true },
     roles: { canRead: true },
+    reports: { canRead: true, canCreate: true, canUpdate: true, canDelete: false },
   },
   USER: {
     dashboard: { canRead: true },
     entities: { canRead: true, canCreate: true, canUpdate: true },
     data: { canRead: true, canCreate: true, canUpdate: true },
     users: { canRead: true },
+    reports: { canRead: true, canCreate: true, canUpdate: true, canDelete: false },
   },
   VIEWER: {
     dashboard: { canRead: true },
     data: { canRead: true },
     settings: { canRead: true },
+    reports: { canRead: true, canCreate: false, canUpdate: false, canDelete: false },
   },
 };
 

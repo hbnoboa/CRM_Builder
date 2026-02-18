@@ -606,7 +606,9 @@
       "data": "Data",
       "dataDesc": "Records for each entity",
       "roles": "Access Roles",
-      "rolesDesc": "Configure roles and permissions"
+      "rolesDesc": "Configure roles and permissions",
+      "reports": "Reports",
+      "reportsDesc": "Create and view analytical reports"
     },
     "userRoles": {
       "title": "Manage Permissions",
@@ -670,7 +672,9 @@
       "canUpdateField": "Edit Field Configuration",
       "canConfigureColumns": "Configure Visible Columns",
       "canExport": "Export Records",
-      "canImport": "Import Records"
+      "canImport": "Import Records",
+      "canExecute": "Execute Report",
+      "canDuplicate": "Duplicate Report"
     },
     "permissionCategories": {
       "entities": "Entities",
