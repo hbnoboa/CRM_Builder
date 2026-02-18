@@ -454,7 +454,11 @@ function DataPageContent() {
           ? list.find((e: Entity) => e.slug === entityParam) || list[0]
           : list[0];
         setSelectedEntity(target);
-        fetchRecords(target.slug, 1, '');
+        // Extrair globalFilters antes de buscar (mesmo padrao do handleEntityClick)
+        const settings = target.settings as Record<string, unknown> | null;
+        const entityGlobalFilters = (settings?.globalFilters as ActiveFilter[]) || [];
+        setGlobalFilters(entityGlobalFilters);
+        fetchRecords(target.slug, 1, '', undefined, undefined, entityGlobalFilters);
       }
     } catch (error) {
       console.error('Erro ao carregar entidades:', error);
