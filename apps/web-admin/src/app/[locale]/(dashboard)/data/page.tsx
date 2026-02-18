@@ -763,6 +763,14 @@ function DataPageContent() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hasChildrenFilter]);
 
+  // Quando filtros ativos mudam, resetar pagina e buscar no backend
+  useEffect(() => {
+    if (!selectedEntity) return;
+    setCurrentPage(1);
+    fetchRecords(selectedEntity.slug, 1, debouncedSearch);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeFilters]);
+
   // Handlers de paginacao
   const goToPage = useCallback((page: number) => {
     if (!selectedEntity || !paginationMeta) return;
@@ -796,6 +804,9 @@ function DataPageContent() {
           settings: { ...((prev.settings as Record<string, unknown>) || {}), globalFilters: updatedFilters },
         } as Entity : null);
         toast.success('Filtro global salvo');
+        // Re-buscar dados com os novos filtros aplicados no backend
+        setCurrentPage(1);
+        await fetchRecords(selectedEntity.slug, 1, debouncedSearch, undefined, undefined, updatedFilters);
       } catch {
         toast.error('Erro ao salvar filtro global');
       } finally {
@@ -903,11 +914,12 @@ function DataPageContent() {
     return record.data[col];
   }, [getFieldBySlug]);
 
-  // Filtro de busca e filtros ativos (globais + locais)
+  // Filtro de busca local (feedback visual enquanto digita)
+  // Nota: globalFilters e activeFilters sao aplicados no backend, nao aqui
   const filteredRecords = useMemo(() => {
     let result = records;
 
-    // Aplicar busca textual
+    // Aplicar busca textual local (feedback enquanto digita, antes do debounce)
     if (searchTerm.trim()) {
       const term = searchTerm.toLowerCase();
       result = result.filter(r =>
@@ -915,34 +927,8 @@ function DataPageContent() {
       );
     }
 
-    // Aplicar filtros globais
-    if (globalFilters.length > 0) {
-      result = result.filter(record => {
-        return globalFilters.every(filter => {
-          const field = getFieldBySlug(filter.fieldSlug);
-          const value = field?.type === 'sub-entity'
-            ? record._childCounts?.[filter.fieldSlug] ?? 0
-            : record.data[filter.fieldSlug];
-          return evaluateFilter(value, filter);
-        });
-      });
-    }
-
-    // Aplicar filtros locais ativos
-    if (activeFilters.length > 0) {
-      result = result.filter(record => {
-        return activeFilters.every(filter => {
-          const field = getFieldBySlug(filter.fieldSlug);
-          const value = field?.type === 'sub-entity'
-            ? record._childCounts?.[filter.fieldSlug] ?? 0
-            : record.data[filter.fieldSlug];
-          return evaluateFilter(value, filter);
-        });
-      });
-    }
-
     return result;
-  }, [records, searchTerm, allColumns, activeFilters, globalFilters, getCellValue, getFieldBySlug]);
+  }, [records, searchTerm, allColumns, getCellValue]);
 
   return (
     <div className="space-y-4 sm:space-y-6">
@@ -1773,6 +1759,9 @@ function DataPageContent() {
                                   settings: { ...((prev.settings as Record<string, unknown>) || {}), globalFilters: updated },
                                 } as Entity : null);
                                 toast.success('Filtro global removido');
+                                // Re-buscar dados com os filtros atualizados no backend
+                                setCurrentPage(1);
+                                await fetchRecords(selectedEntity.slug, 1, debouncedSearch, undefined, undefined, updated);
                               } catch {
                                 toast.error('Erro ao remover filtro global');
                               }
