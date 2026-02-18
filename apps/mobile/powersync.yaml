@@ -32,35 +32,18 @@ storage:
   uri: !env PS_MONGO_URI
 
 # Sync rules: define which data each user can access
-# JWT payload: { sub: "userId", tenantId: "tenantId", ... }
+# JWT payload: { sub: "userId", tenantId: "tenantId", customRoleId: "...", roleType: "..." }
 sync_rules:
   content: |
     bucket_definitions:
-      # Tenant-scoped data (entities, records, roles)
-      tenant_data:
-        parameters: SELECT request.jwt() ->> 'tenantId' as tenant_id
-        data:
-          # Entity definitions (schema)
-          - SELECT id, "tenantId", name, "namePlural", slug, description, icon, color, fields, settings, "isSystem", "createdAt", "updatedAt"
-            FROM "Entity"
-            WHERE "tenantId" = bucket.tenant_id
-
-          # Entity data records (exclude soft-deleted, apply global filters)
-          - SELECT ed.id, ed."tenantId", ed."entityId", ed.data, ed."parentRecordId", ed."createdById", ed."updatedById", ed."createdAt", ed."updatedAt", ed."deletedAt"
-            FROM "EntityData" ed
-            LEFT JOIN "Entity" e ON ed."entityId" = e.id
-            WHERE ed."tenantId" = bucket.tenant_id
-              AND ed."deletedAt" IS NULL
-              AND check_global_filters(ed.data::jsonb, (e.settings::jsonb->'globalFilters'))
-
-          # Custom roles (for permission checks)
-          - SELECT id, "tenantId", name, description, color, "roleType", "isSystem", permissions, "modulePermissions", "tenantPermissions", "isDefault", "createdAt", "updatedAt"
-            FROM "CustomRole"
-            WHERE "tenantId" = bucket.tenant_id
-
-      # User-specific data
+      # User-specific data (must be first to get user info)
       user_data:
-        parameters: SELECT request.user_id() as user_id, request.jwt() ->> 'tenantId' as tenant_id
+        parameters: |
+          SELECT
+            request.user_id() as user_id,
+            request.jwt() ->> 'tenantId' as tenant_id,
+            (request.jwt() ->> 'customRoleId')::uuid as custom_role_id,
+            request.jwt() ->> 'roleType' as role_type
         data:
           # Current user profile
           - SELECT id, "tenantId", email, name, avatar, "customRoleId", status, "createdAt"
@@ -71,3 +54,38 @@ sync_rules:
           - SELECT id, "tenantId", "userId", type, title, message, data, "entitySlug", read, "readAt", "createdAt"
             FROM "Notification"
             WHERE "userId" = bucket.user_id AND "tenantId" = bucket.tenant_id
+
+          # Custom roles (for permission checks)
+          - SELECT id, "tenantId", name, description, color, "roleType", "isSystem", permissions, "modulePermissions", "tenantPermissions", "isDefault", "createdAt", "updatedAt"
+            FROM "CustomRole"
+            WHERE "tenantId" = bucket.tenant_id
+
+          # Entity definitions - only entities user can read (or all for ADMIN/PLATFORM_ADMIN)
+          - SELECT id, "tenantId", name, "namePlural", slug, description, icon, color, fields, settings, "isSystem", "createdAt", "updatedAt"
+            FROM "Entity"
+            WHERE "tenantId" = bucket.tenant_id
+              AND (
+                bucket.role_type IN ('PLATFORM_ADMIN', 'ADMIN')
+                OR user_can_read_entity(bucket.custom_role_id, slug)
+              )
+
+          # Entity data records:
+          # - Apply global filters from entity settings
+          # - Only sync entities user can read
+          # - For 'own' scope: only sync user's own records
+          - SELECT ed.id, ed."tenantId", ed."entityId", ed.data, ed."parentRecordId", ed."createdById", ed."updatedById", ed."createdAt", ed."updatedAt", ed."deletedAt"
+            FROM "EntityData" ed
+            JOIN "Entity" e ON ed."entityId" = e.id
+            WHERE ed."tenantId" = bucket.tenant_id
+              AND ed."deletedAt" IS NULL
+              AND check_global_filters(ed.data::jsonb, (e.settings::jsonb->'globalFilters'))
+              AND (
+                bucket.role_type IN ('PLATFORM_ADMIN', 'ADMIN')
+                OR (
+                  user_can_read_entity(bucket.custom_role_id, e.slug)
+                  AND (
+                    NOT user_has_own_scope(bucket.custom_role_id, e.slug)
+                    OR ed."createdById" = bucket.user_id
+                  )
+                )
+              )

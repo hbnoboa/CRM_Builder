@@ -34,12 +34,14 @@ export class SyncController {
         : user.tenantId;
 
     // Generate a PowerSync-specific token with sync-relevant claims.
-    // PowerSync reads these via request.jwt() ->> 'tenantId' in sync rules.
+    // PowerSync reads these via request.jwt() ->> 'key' in sync rules.
     const token = this.jwtService.sign(
       {
         sub: user.id,
         user_id: user.id,
         tenantId: effectiveTenantId,
+        customRoleId: user.customRoleId,
+        roleType: user.customRole?.roleType || 'USER',
       },
       { expiresIn: '1h' },
     );
