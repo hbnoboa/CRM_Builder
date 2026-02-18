@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:powersync/powersync.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:crm_mobile/core/database/powersync_connector.dart';
@@ -141,8 +142,10 @@ class AppDatabase {
     await db.disconnect();
   }
 
-  /// Clear all local data (on logout).
+  /// Clear all local data (on user change/logout).
   Future<void> clearData() async {
+    debugPrint('[AppDatabase] Disconnecting and clearing all local data...');
     await db.disconnectAndClear();
+    debugPrint('[AppDatabase] Local data cleared successfully');
   }
 }

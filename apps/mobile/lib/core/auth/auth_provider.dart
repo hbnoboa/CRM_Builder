@@ -149,12 +149,23 @@ class Auth extends _$Auth {
       return;
     }
 
+    // Check connectivity
+    final connectivity = await Connectivity().checkConnectivity();
+    final isOnline = !connectivity.contains(ConnectivityResult.none) &&
+        connectivity.isNotEmpty;
+
+    // If offline, try to restore from cached user data
+    if (!isOnline) {
+      debugPrint('[Auth] Offline - attempting auto login from cache');
+      await _restoreFromCache();
+      return;
+    }
+
     final token = await SecureStorage.getAccessToken();
     if (token == null) {
-      // Only update state if no manual auth happened meanwhile
-      if (!_manualAuthInProgress && !state.isAuthenticated) {
-        state = const AuthState(isLoading: false);
-      }
+      // No token - try cache as fallback
+      debugPrint('[Auth] No token - trying cache fallback');
+      await _restoreFromCache();
       return;
     }
 
@@ -165,7 +176,50 @@ class Auth extends _$Auth {
       }
       await _restoreSession();
     } catch (_) {
-      // Only update state if no manual auth happened meanwhile
+      // API failed - try offline cache as fallback
+      debugPrint('[Auth] API restore failed - trying cache fallback');
+      await _restoreFromCache();
+    }
+  }
+
+  /// Restore session from cached user data (offline auto login)
+  Future<void> _restoreFromCache() async {
+    try {
+      final hasCache = await SecureStorage.hasOfflineCredentials();
+      if (!hasCache) {
+        debugPrint('[Auth] No cached credentials for offline auto login');
+        if (!_manualAuthInProgress && !state.isAuthenticated) {
+          state = const AuthState(isLoading: false);
+        }
+        return;
+      }
+
+      final cachedUserJson = await SecureStorage.getCachedUserJson();
+      if (cachedUserJson == null) {
+        if (!_manualAuthInProgress && !state.isAuthenticated) {
+          state = const AuthState(isLoading: false);
+        }
+        return;
+      }
+
+      final userData = jsonDecode(cachedUserJson) as Map<String, dynamic>;
+      final user = User.fromJson(userData);
+
+      // Set user context
+      await SecureStorage.setUserId(user.id);
+      await SecureStorage.setTenantId(user.tenantId);
+
+      debugPrint('[Auth] Auto login from cache success for ${user.email}');
+      state = AuthState(
+        user: user,
+        isAuthenticated: true,
+        isLoading: false,
+      );
+
+      // Database already has local data from previous sync
+      // PowerSync will auto-sync when connection is restored
+    } catch (e) {
+      debugPrint('[Auth] Auto login from cache failed: $e');
       if (!_manualAuthInProgress && !state.isAuthenticated) {
         state = const AuthState(isLoading: false);
       }
@@ -261,6 +315,20 @@ class Auth extends _$Auth {
         accessToken: accessToken,
         refreshToken: refreshToken,
       );
+
+      // Check if user changed - if so, clear local data before setting new user
+      final previousUserId = await SecureStorage.getUserId();
+      final previousTenantId = await SecureStorage.getTenantId();
+      if (previousUserId != null && previousUserId != user.id) {
+        debugPrint('[Auth] User changed from $previousUserId to ${user.id}, clearing local data');
+        await AppDatabase.instance.clearData();
+        debugPrint('[Auth] Local data cleared, ready for new sync');
+      } else if (previousTenantId != null && previousTenantId != user.tenantId) {
+        debugPrint('[Auth] Tenant changed from $previousTenantId to ${user.tenantId}, clearing local data');
+        await AppDatabase.instance.clearData();
+        debugPrint('[Auth] Local data cleared, ready for new sync');
+      }
+
       await SecureStorage.setUserId(user.id);
       await SecureStorage.setTenantId(user.tenantId);
 
@@ -287,11 +355,18 @@ class Auth extends _$Auth {
 
       _manualAuthInProgress = false;
 
-      // Connect PowerSync to start syncing data (non-blocking)
-      AppDatabase.instance.connect().catchError((e) {
+      // Connect PowerSync to start syncing data
+      debugPrint('[Auth] Connecting PowerSync...');
+      try {
+        await AppDatabase.instance.connect();
+        debugPrint('[Auth] PowerSync connected, waiting for initial sync...');
+        // Wait a bit for initial sync to complete
+        await Future.delayed(const Duration(milliseconds: 1500));
+        debugPrint('[Auth] Initial sync delay complete');
+      } catch (e) {
         // PowerSync connection failure should not block login
         debugPrint('[Auth] PowerSync connect failed: $e');
-      });
+      }
 
       // Register device for push notifications (non-blocking)
       PushNotificationService.instance.registerDeviceToken();

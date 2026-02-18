@@ -10,6 +10,7 @@ import 'package:crm_mobile/core/theme/app_typography.dart';
 import 'package:crm_mobile/core/permissions/permission_provider.dart';
 import 'package:crm_mobile/features/data/data/data_repository.dart';
 import 'package:crm_mobile/features/data/widgets/data_card.dart';
+import 'package:crm_mobile/shared/widgets/app_drawer.dart';
 import 'package:crm_mobile/shared/widgets/permission_gate.dart';
 import 'package:crm_mobile/shared/widgets/sync_status_indicator.dart';
 
@@ -120,10 +121,17 @@ class _DataListPageState extends ConsumerState<DataListPage> {
             return Text(entity?['name'] as String? ?? widget.entitySlug);
           },
         ),
+        leading: Builder(
+          builder: (context) => IconButton(
+            icon: const Icon(Icons.menu),
+            onPressed: () => Scaffold.of(context).openDrawer(),
+          ),
+        ),
         actions: const [
           SyncStatusIndicator(),
         ],
       ),
+      drawer: const AppDrawer(),
       body: FutureBuilder<Map<String, dynamic>?>(
         future: repo.getEntity(widget.entitySlug),
         builder: (context, entitySnapshot) {
