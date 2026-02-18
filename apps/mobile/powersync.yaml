@@ -33,17 +33,20 @@ storage:
 
 # Sync rules: define which data each user can access
 # JWT payload: { sub: "userId", tenantId: "tenantId", customRoleId: "...", roleType: "..." }
+#
+# PowerSync limitations:
+# - No JOINs, no custom PG functions, no CASTs
+# - Each data query must reference ALL bucket parameters
+# So we split into 2 buckets and do permission/filter logic client-side
 sync_rules:
   content: |
     bucket_definitions:
-      # User-specific data (must be first to get user info)
+      # Bucket 1: user-specific data (requires user_id + tenant_id)
       user_data:
         parameters: |
           SELECT
             request.user_id() as user_id,
-            request.jwt() ->> 'tenantId' as tenant_id,
-            (request.jwt() ->> 'customRoleId')::uuid as custom_role_id,
-            request.jwt() ->> 'roleType' as role_type
+            request.jwt() ->> 'tenantId' as tenant_id
         data:
           # Current user profile
           - SELECT id, "tenantId", email, name, avatar, "customRoleId", status, "createdAt"
@@ -55,37 +58,25 @@ sync_rules:
             FROM "Notification"
             WHERE "userId" = bucket.user_id AND "tenantId" = bucket.tenant_id
 
-          # Custom roles (for permission checks)
+      # Bucket 2: tenant-level data (requires tenant_id only)
+      # Permission filtering (entity visibility, global filters, own scope)
+      # is handled client-side by permission_provider.dart
+      tenant_data:
+        parameters: |
+          SELECT
+            request.jwt() ->> 'tenantId' as tenant_id
+        data:
+          # Custom roles (for client-side permission checks)
           - SELECT id, "tenantId", name, description, color, "roleType", "isSystem", permissions, "modulePermissions", "tenantPermissions", "isDefault", "createdAt", "updatedAt"
             FROM "CustomRole"
             WHERE "tenantId" = bucket.tenant_id
 
-          # Entity definitions - only entities user can read (or all for ADMIN/PLATFORM_ADMIN)
+          # All entity definitions for tenant (client filters by role)
           - SELECT id, "tenantId", name, "namePlural", slug, description, icon, color, fields, settings, "isSystem", "createdAt", "updatedAt"
             FROM "Entity"
             WHERE "tenantId" = bucket.tenant_id
-              AND (
-                bucket.role_type IN ('PLATFORM_ADMIN', 'ADMIN')
-                OR user_can_read_entity(bucket.custom_role_id, slug)
-              )
 
-          # Entity data records:
-          # - Apply global filters from entity settings
-          # - Only sync entities user can read
-          # - For 'own' scope: only sync user's own records
-          - SELECT ed.id, ed."tenantId", ed."entityId", ed.data, ed."parentRecordId", ed."createdById", ed."updatedById", ed."createdAt", ed."updatedAt", ed."deletedAt"
-            FROM "EntityData" ed
-            JOIN "Entity" e ON ed."entityId" = e.id
-            WHERE ed."tenantId" = bucket.tenant_id
-              AND ed."deletedAt" IS NULL
-              AND check_global_filters(ed.data::jsonb, (e.settings::jsonb->'globalFilters'))
-              AND (
-                bucket.role_type IN ('PLATFORM_ADMIN', 'ADMIN')
-                OR (
-                  user_can_read_entity(bucket.custom_role_id, e.slug)
-                  AND (
-                    NOT user_has_own_scope(bucket.custom_role_id, e.slug)
-                    OR ed."createdById" = bucket.user_id
-                  )
-                )
-              )
+          # Entity data: only records passing global filters (trigger-maintained column)
+          - SELECT id, "tenantId", "entityId", data, "parentRecordId", "createdById", "updatedById", "createdAt", "updatedAt", "deletedAt"
+            FROM "EntityData"
+            WHERE "tenantId" = bucket.tenant_id AND "deletedAt" IS NULL AND "_matchesGlobalFilter" = true

@@ -189,6 +189,10 @@ model EntityData {
   // Soft delete for PowerSync sync (tracks deletions for mobile)
   deletedAt   DateTime?
 
+  // Trigger-maintained: true if record passes entity's globalFilters
+  // Used by PowerSync sync rules to filter at sync time
+  matchesGlobalFilter Boolean @default(true) @map("_matchesGlobalFilter")
+
   entity       Entity      @relation(fields: [entityId], references: [id], onDelete: Cascade)
   tenant       Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   createdBy    User?       @relation("CreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
