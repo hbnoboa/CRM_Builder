@@ -63,7 +63,9 @@
     "none": "Ninguno",
     "tenant": "Tenant",
     "new": "Nuevo",
-    "unexpectedError": "Ocurrio un error inesperado."
+    "unexpectedError": "Ocurrio un error inesperado.",
+    "confirmDelete": "¿Estás seguro?",
+    "confirmDeleteDesc": "Esta acción no se puede deshacer. El elemento será eliminado permanentemente."
   },
   "metadata": {
     "title": "CRM Builder - Panel Admin",

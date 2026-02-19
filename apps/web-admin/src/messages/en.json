@@ -63,7 +63,9 @@
     "none": "None",
     "tenant": "Tenant",
     "new": "New",
-    "unexpectedError": "An unexpected error occurred."
+    "unexpectedError": "An unexpected error occurred.",
+    "confirmDelete": "Are you sure?",
+    "confirmDeleteDesc": "This action cannot be undone. The item will be permanently deleted."
   },
   "metadata": {
     "title": "CRM Builder - Admin Panel",
