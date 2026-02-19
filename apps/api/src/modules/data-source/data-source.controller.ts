@@ -30,10 +30,11 @@ export class DataSourceController {
   @ApiOperation({ summary: 'Criar fonte de dados' })
   async create(
     @Body() dto: CreateDataSourceDto,
+    @Query('tenantId') tenantId: string | undefined,
     @CurrentUser() user: CurrentUserType,
   ) {
     checkModulePermission(user, 'data-sources', 'canCreate');
-    const effectiveTenantId = getEffectiveTenantId(user, (dto as any).tenantId);
+    const effectiveTenantId = getEffectiveTenantId(user, tenantId);
     return this.dataSourceService.create(dto, user, effectiveTenantId);
   }
 
@@ -53,11 +54,12 @@ export class DataSourceController {
   @Post('preview')
   @ApiOperation({ summary: 'Preview de uma definicao (sem salvar)' })
   async preview(
-    @Body() body: { definition: Record<string, unknown>; limit?: number; tenantId?: string },
+    @Body() body: { definition: Record<string, unknown>; limit?: number },
+    @Query('tenantId') tenantId: string | undefined,
     @CurrentUser() user: CurrentUserType,
   ) {
     checkModulePermission(user, 'data-sources', 'canRead');
-    const effectiveTenantId = getEffectiveTenantId(user, body.tenantId);
+    const effectiveTenantId = getEffectiveTenantId(user, tenantId);
     return this.dataSourceService.preview(body.definition as any, effectiveTenantId, { limit: body.limit || 10 });
   }
 
@@ -91,10 +93,11 @@ export class DataSourceController {
   async update(
     @Param('id') id: string,
     @Body() dto: UpdateDataSourceDto,
+    @Query('tenantId') tenantId: string | undefined,
     @CurrentUser() user: CurrentUserType,
   ) {
     checkModulePermission(user, 'data-sources', 'canUpdate');
-    const effectiveTenantId = getEffectiveTenantId(user, (dto as any).tenantId);
+    const effectiveTenantId = getEffectiveTenantId(user, tenantId);
     return this.dataSourceService.update(id, dto, user, effectiveTenantId);
   }
 
@@ -115,10 +118,11 @@ export class DataSourceController {
   async execute(
     @Param('id') id: string,
     @Body() dto: ExecuteDataSourceDto,
+    @Query('tenantId') tenantId: string | undefined,
     @CurrentUser() user: CurrentUserType,
   ) {
     checkModulePermission(user, 'data-sources', 'canRead');
-    const effectiveTenantId = getEffectiveTenantId(user, (dto as any).tenantId);
+    const effectiveTenantId = getEffectiveTenantId(user, tenantId);
     return this.dataSourceService.execute(id, effectiveTenantId, {
       runtimeFilters: dto.runtimeFilters,
       page: dto.page,
