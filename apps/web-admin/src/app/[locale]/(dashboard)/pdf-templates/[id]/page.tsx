@@ -436,8 +436,8 @@ function PdfTemplateEditorContent() {
                         <FormItem>
                           <FormLabel>{t('form.category')}</FormLabel>
                           <Select
-                            onValueChange={field.onChange}
-                            value={field.value}
+                            onValueChange={(v) => field.onChange(v === 'none' ? '' : v)}
+                            value={field.value || 'none'}
                             disabled={!canUpdate}
                           >
                             <FormControl>
@@ -446,7 +446,7 @@ function PdfTemplateEditorContent() {
                               </SelectTrigger>
                             </FormControl>
                             <SelectContent>
-                              <SelectItem value="">{t('form.noCategory')}</SelectItem>
+                              <SelectItem value="none">{t('form.noCategory')}</SelectItem>
                               {CATEGORIES.map((category) => (
                                 <SelectItem key={category.value} value={category.value}>
                                   {category.label}
@@ -466,8 +466,8 @@ function PdfTemplateEditorContent() {
                         <FormItem>
                           <FormLabel>{t('form.linkedEntity')}</FormLabel>
                           <Select
-                            onValueChange={field.onChange}
-                            value={field.value}
+                            onValueChange={(v) => field.onChange(v === 'none' ? '' : v)}
+                            value={field.value || 'none'}
                             disabled={!canUpdate}
                           >
                             <FormControl>
@@ -476,7 +476,7 @@ function PdfTemplateEditorContent() {
                               </SelectTrigger>
                             </FormControl>
                             <SelectContent>
-                              <SelectItem value="">{t('form.noEntity')}</SelectItem>
+                              <SelectItem value="none">{t('form.noEntity')}</SelectItem>
                               {entities.map((entity) => (
                                 <SelectItem key={entity.id} value={entity.slug}>
                                   {entity.name}

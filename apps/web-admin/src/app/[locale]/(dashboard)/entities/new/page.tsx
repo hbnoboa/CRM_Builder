@@ -527,12 +527,12 @@ function NewEntityPageContent() {
               <div className="space-y-1">
                 <Label className="text-xs">{tFieldConfig('parentDisplayField')}</Label>
                 <Select
-                  value={field.parentDisplayField || ''}
-                  onValueChange={(val) => updateField(index, { parentDisplayField: val || undefined })}
+                  value={field.parentDisplayField || 'none'}
+                  onValueChange={(val) => updateField(index, { parentDisplayField: val === 'none' ? undefined : val })}
                 >
                   <SelectTrigger className="h-8 text-sm"><SelectValue placeholder={tFieldConfig('parentDisplayFieldPlaceholder')} /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">{tFieldConfig('parentDisplayFieldDefault')}</SelectItem>
+                    <SelectItem value="none">{tFieldConfig('parentDisplayFieldDefault')}</SelectItem>
                     {fields
                       .filter((f) => !['sub-entity', 'zone-diagram', 'file', 'image', 'json', 'map'].includes(f.type))
                       .map((f) => (

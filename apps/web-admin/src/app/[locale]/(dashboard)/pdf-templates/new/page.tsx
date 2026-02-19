@@ -242,14 +242,17 @@ function NewPdfTemplatePageContent() {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>{t('form.linkedEntity')}</FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value}>
+                      <Select
+                        onValueChange={(v) => field.onChange(v === 'none' ? '' : v)}
+                        value={field.value || 'none'}
+                      >
                         <FormControl>
                           <SelectTrigger>
                             <SelectValue placeholder={t('form.linkedEntityPlaceholder')} />
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          <SelectItem value="">{t('form.noEntity')}</SelectItem>
+                          <SelectItem value="none">{t('form.noEntity')}</SelectItem>
                           {entities.map((entity) => (
                             <SelectItem key={entity.id} value={entity.slug}>
                               {entity.name}

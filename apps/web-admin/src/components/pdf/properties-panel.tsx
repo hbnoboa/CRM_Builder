@@ -167,14 +167,14 @@ export function PropertiesPanel({ element, entityFields = [], className }: Prope
               <div>
                 <Label className="text-xs">{t('fieldBinding')}</Label>
                 <Select
-                  value={element.fieldSlug || ''}
-                  onValueChange={(value) => handleChange('fieldSlug', value || undefined)}
+                  value={element.fieldSlug || 'none'}
+                  onValueChange={(value) => handleChange('fieldSlug', value === 'none' ? undefined : value)}
                 >
                   <SelectTrigger className="h-8">
                     <SelectValue placeholder={t('selectField')} />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">{t('none')}</SelectItem>
+                    <SelectItem value="none">{t('none')}</SelectItem>
                     {entityFields.map((field) => (
                       <SelectItem key={field.slug} value={field.slug}>
                         {field.label || field.slug}
