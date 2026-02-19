@@ -10,6 +10,7 @@ import 'package:crm_mobile/core/config/env.dart';
 import 'package:crm_mobile/core/database/app_database.dart';
 import 'package:crm_mobile/core/network/api_client.dart';
 import 'package:crm_mobile/core/push/push_notification_service.dart';
+import 'package:crm_mobile/core/theme/theme_provider.dart';
 
 part 'auth_provider.g.dart';
 
@@ -232,6 +233,10 @@ class Auth extends _$Auth {
       await SecureStorage.setUserId(user.id);
       await SecureStorage.setTenantId(user.tenantId);
 
+      // Apply cached brand color for theming
+      final brandColor = await SecureStorage.getString('brandColor');
+      ref.read(tenantThemeProvider.notifier).applyBrandColor(brandColor);
+
       debugPrint('[Auth] Auto login from cache success for ${user.email}');
       state = AuthState(
         user: user,
@@ -280,10 +285,20 @@ class Auth extends _$Auth {
     try {
       final dio = ref.read(apiClientProvider);
       final response = await dio.get('/auth/me');
-      final user = User.fromJson(response.data as Map<String, dynamic>);
+      final meData = response.data as Map<String, dynamic>;
+      final user = User.fromJson(meData);
 
       // Only update if no manual auth happened meanwhile
       if (!_manualAuthInProgress) {
+        // Extract and cache brand color from /auth/me response
+        final tenantData = meData['tenant'] as Map<String, dynamic>?;
+        final tenantSettings = tenantData?['settings'] as Map<String, dynamic>?;
+        final brandColor = (tenantSettings?['theme'] as Map<String, dynamic>?)?['brandColor'] as String?;
+        if (brandColor != null && brandColor.isNotEmpty) {
+          await SecureStorage.setString('brandColor', brandColor);
+        }
+        ref.read(tenantThemeProvider.notifier).applyBrandColor(brandColor);
+
         state = AuthState(
           user: user,
           isAuthenticated: true,
@@ -393,6 +408,17 @@ class Auth extends _$Auth {
       if (rememberMe) {
         await SecureStorage.setBiometricEnabled(true);
       }
+
+      // Extract and apply tenant brand color for theming
+      final tenantData = data['user']?['tenant'] as Map<String, dynamic>?;
+      final tenantSettings = tenantData?['settings'] as Map<String, dynamic>?;
+      final brandColor = (tenantSettings?['theme'] as Map<String, dynamic>?)?['brandColor'] as String?;
+      if (brandColor != null && brandColor.isNotEmpty) {
+        await SecureStorage.setString('brandColor', brandColor);
+      } else {
+        await SecureStorage.setString('brandColor', '');
+      }
+      ref.read(tenantThemeProvider.notifier).applyBrandColor(brandColor);
 
       debugPrint('[Auth] Login success, setting state isAuthenticated=true');
       state = AuthState(
@@ -515,6 +541,10 @@ class Auth extends _$Auth {
 
       await SecureStorage.setUserId(user.id);
       await SecureStorage.setTenantId(user.tenantId);
+
+      // Apply cached brand color for theming
+      final brandColor = await SecureStorage.getString('brandColor');
+      ref.read(tenantThemeProvider.notifier).applyBrandColor(brandColor);
 
       debugPrint('[Auth] Offline login success for ${user.email}');
       state = AuthState(

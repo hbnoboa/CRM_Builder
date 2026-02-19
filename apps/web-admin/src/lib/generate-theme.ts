@@ -87,7 +87,8 @@ export function generateThemeVariables(hex: string): ThemeVariables {
   const s = brand.s;
 
   // ---- LIGHT MODE ----
-  const lightBg: HSL = { h: 0, s: 0, l: 100 };
+  // Background: very light gray with ~5% brand color tint
+  const lightBg: HSL = { h, s: clamp(s * 0.05, 1, 4), l: 98.5 };
   const lightPrimary = ensureContrast(
     { h, s: clamp(s, 40, 90), l: clamp(brand.l, 15, 45) },
     lightBg,
@@ -95,29 +96,30 @@ export function generateThemeVariables(hex: string): ThemeVariables {
   );
 
   const light: Record<string, string> = {
-    '--background': hsl(0, 0, 100),
-    '--foreground': hsl(h, clamp(s, 30, 80), 5),
-    '--card': hsl(0, 0, 100),
-    '--card-foreground': hsl(h, clamp(s, 30, 80), 5),
-    '--popover': hsl(0, 0, 100),
-    '--popover-foreground': hsl(h, clamp(s, 30, 80), 5),
+    '--background': hsl(h, clamp(s * 0.05, 1, 4), 98.5),
+    '--foreground': hsl(h, clamp(s * 0.1, 3, 10), 8),
+    '--card': hsl(h, clamp(s * 0.05, 1, 4), 99),
+    '--card-foreground': hsl(h, clamp(s * 0.1, 3, 10), 8),
+    '--popover': hsl(h, clamp(s * 0.05, 1, 4), 99),
+    '--popover-foreground': hsl(h, clamp(s * 0.1, 3, 10), 8),
     '--primary': hsl(lightPrimary.h, lightPrimary.s, lightPrimary.l),
     '--primary-foreground': lightPrimary.l < 50 ? hsl(0, 0, 100) : hsl(h, clamp(s, 40, 80), 5),
-    '--secondary': hsl(h, clamp(s * 0.4, 20, 40), 96),
+    '--secondary': hsl(h, clamp(s * 0.08, 2, 8), 95.5),
     '--secondary-foreground': hsl(lightPrimary.h, lightPrimary.s, lightPrimary.l),
-    '--muted': hsl(h, clamp(s * 0.25, 10, 25), 96.5),
-    '--muted-foreground': hsl(h, clamp(s * 0.2, 10, 20), 46),
-    '--accent': hsl((h + 15) % 360, clamp(s * 0.4, 25, 40), 96),
+    '--muted': hsl(h, clamp(s * 0.06, 1, 6), 96),
+    '--muted-foreground': hsl(h, clamp(s * 0.08, 3, 10), 46),
+    '--accent': hsl((h + 15) % 360, clamp(s * 0.08, 2, 8), 95.5),
     '--accent-foreground': hsl(lightPrimary.h, lightPrimary.s, lightPrimary.l),
     '--destructive': hsl(0, 84.2, 60.2),
     '--destructive-foreground': hsl(0, 0, 100),
-    '--border': hsl(h, clamp(s * 0.35, 15, 32), 91),
-    '--input': hsl(h, clamp(s * 0.35, 15, 32), 91),
+    '--border': hsl(h, clamp(s * 0.06, 2, 6), 91),
+    '--input': hsl(h, clamp(s * 0.06, 2, 6), 91),
     '--ring': hsl(lightPrimary.h, lightPrimary.s, lightPrimary.l),
   };
 
   // ---- DARK MODE ----
-  const darkBg: HSL = { h, s: clamp(s, 30, 80), l: 5 };
+  // Background: very dark gray (almost black) with ~5% brand color tint
+  const darkBg: HSL = { h, s: clamp(s * 0.05, 1, 4), l: 6 };
   const darkPrimary = ensureContrast(
     { h, s: clamp(s * 0.85, 35, 85), l: clamp(brand.l > 50 ? brand.l : 100 - brand.l, 55, 75) },
     darkBg,
@@ -125,24 +127,24 @@ export function generateThemeVariables(hex: string): ThemeVariables {
   );
 
   const dark: Record<string, string> = {
-    '--background': hsl(h, clamp(s, 30, 80), 5),
-    '--foreground': hsl(h, clamp(s * 0.4, 15, 40), 98),
-    '--card': hsl(h, clamp(s, 30, 80), 5),
-    '--card-foreground': hsl(h, clamp(s * 0.4, 15, 40), 98),
-    '--popover': hsl(h, clamp(s, 30, 80), 5),
-    '--popover-foreground': hsl(h, clamp(s * 0.4, 15, 40), 98),
+    '--background': hsl(h, clamp(s * 0.05, 1, 4), 6),
+    '--foreground': hsl(h, clamp(s * 0.05, 1, 4), 98),
+    '--card': hsl(h, clamp(s * 0.05, 1, 4), 7),
+    '--card-foreground': hsl(h, clamp(s * 0.05, 1, 4), 98),
+    '--popover': hsl(h, clamp(s * 0.05, 1, 4), 7),
+    '--popover-foreground': hsl(h, clamp(s * 0.05, 1, 4), 98),
     '--primary': hsl(darkPrimary.h, darkPrimary.s, darkPrimary.l),
     '--primary-foreground': hsl(h, clamp(s, 40, 80), 8),
-    '--secondary': hsl(h, clamp(s * 0.35, 18, 35), 17),
-    '--secondary-foreground': hsl(h, clamp(s * 0.4, 15, 40), 98),
-    '--muted': hsl(h, clamp(s * 0.35, 18, 35), 17),
-    '--muted-foreground': hsl(h, clamp(s * 0.2, 10, 22), 65),
-    '--accent': hsl((h + 15) % 360, clamp(s * 0.35, 18, 35), 17),
-    '--accent-foreground': hsl(h, clamp(s * 0.4, 15, 40), 98),
+    '--secondary': hsl(h, clamp(s * 0.08, 2, 8), 14),
+    '--secondary-foreground': hsl(h, clamp(s * 0.05, 1, 4), 98),
+    '--muted': hsl(h, clamp(s * 0.06, 1, 6), 14),
+    '--muted-foreground': hsl(h, clamp(s * 0.05, 2, 6), 65),
+    '--accent': hsl((h + 15) % 360, clamp(s * 0.08, 2, 8), 14),
+    '--accent-foreground': hsl(h, clamp(s * 0.05, 1, 4), 98),
     '--destructive': hsl(0, 62.8, 30.6),
     '--destructive-foreground': hsl(0, 0, 98),
-    '--border': hsl(h, clamp(s * 0.35, 18, 35), 17),
-    '--input': hsl(h, clamp(s * 0.35, 18, 35), 17),
+    '--border': hsl(h, clamp(s * 0.06, 2, 6), 16),
+    '--input': hsl(h, clamp(s * 0.06, 2, 6), 16),
     '--ring': hsl(darkPrimary.h, clamp(darkPrimary.s * 0.6, 15, 30), 83),
   };
 

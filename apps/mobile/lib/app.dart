@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:crm_mobile/core/push/push_notification_service.dart';
 import 'package:crm_mobile/core/startup/startup_service.dart';
-import 'package:crm_mobile/core/theme/app_theme.dart';
+import 'package:crm_mobile/core/theme/theme_provider.dart';
 import 'package:crm_mobile/core/config/router.dart';
 import 'package:crm_mobile/shared/widgets/auto_logout_wrapper.dart';
 
@@ -22,7 +22,7 @@ class CrmApp extends ConsumerWidget {
         title: 'CRM Builder',
         debugShowCheckedModeBanner: false,
         scaffoldMessengerKey: PushNotificationService.scaffoldMessengerKey,
-        theme: AppTheme.light,
+        theme: ref.watch(tenantThemeProvider),
         routerConfig: router,
         localizationsDelegates: const [
           GlobalMaterialLocalizations.delegate,
