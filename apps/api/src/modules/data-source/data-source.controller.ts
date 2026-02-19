@@ -17,6 +17,7 @@ import { RolesGuard } from '../../common/guards/roles.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { CurrentUser as CurrentUserType } from '../../common/types';
 import { checkModulePermission } from '../../common/utils/check-module-permission';
+import { getEffectiveTenantId } from '../../common/utils/tenant.util';
 
 @ApiTags('Data Sources')
 @Controller('data-sources')
@@ -39,31 +40,36 @@ export class DataSourceController {
   @ApiOperation({ summary: 'Listar fontes de dados' })
   async findAll(
     @Query('search') search: string,
+    @Query('tenantId') tenantId: string | undefined,
     @CurrentUser() user: CurrentUserType,
   ) {
     checkModulePermission(user, 'data-sources', 'canRead');
-    return this.dataSourceService.findAll(user.tenantId, search);
+    const effectiveTenantId = getEffectiveTenantId(user, tenantId);
+    return this.dataSourceService.findAll(effectiveTenantId, search);
   }
 
   // Static routes BEFORE :id routes
   @Post('preview')
   @ApiOperation({ summary: 'Preview de uma definicao (sem salvar)' })
   async preview(
-    @Body() body: { definition: Record<string, unknown>; limit?: number },
+    @Body() body: { definition: Record<string, unknown>; limit?: number; tenantId?: string },
     @CurrentUser() user: CurrentUserType,
   ) {
     checkModulePermission(user, 'data-sources', 'canRead');
-    return this.dataSourceService.preview(body.definition as any, user.tenantId, { limit: body.limit || 10 });
+    const effectiveTenantId = getEffectiveTenantId(user, body.tenantId);
+    return this.dataSourceService.preview(body.definition as any, effectiveTenantId, { limit: body.limit || 10 });
   }
 
   @Get('related/:entitySlug')
   @ApiOperation({ summary: 'Buscar entidades relacionadas a uma entidade' })
   async getRelatedEntities(
     @Param('entitySlug') entitySlug: string,
+    @Query('tenantId') tenantId: string | undefined,
     @CurrentUser() user: CurrentUserType,
   ) {
     checkModulePermission(user, 'data-sources', 'canRead');
-    return this.dataSourceService.getRelatedEntities(entitySlug, user.tenantId);
+    const effectiveTenantId = getEffectiveTenantId(user, tenantId);
+    return this.dataSourceService.getRelatedEntities(entitySlug, effectiveTenantId);
   }
 
   // Parameterized routes
@@ -71,10 +77,12 @@ export class DataSourceController {
   @ApiOperation({ summary: 'Buscar fonte de dados por ID' })
   async findOne(
     @Param('id') id: string,
+    @Query('tenantId') tenantId: string | undefined,
     @CurrentUser() user: CurrentUserType,
   ) {
     checkModulePermission(user, 'data-sources', 'canRead');
-    return this.dataSourceService.findOne(id, user.tenantId);
+    const effectiveTenantId = getEffectiveTenantId(user, tenantId);
+    return this.dataSourceService.findOne(id, effectiveTenantId);
   }
 
   @Patch(':id')
@@ -92,10 +100,12 @@ export class DataSourceController {
   @ApiOperation({ summary: 'Excluir fonte de dados' })
   async remove(
     @Param('id') id: string,
+    @Query('tenantId') tenantId: string | undefined,
     @CurrentUser() user: CurrentUserType,
   ) {
     checkModulePermission(user, 'data-sources', 'canDelete');
-    return this.dataSourceService.remove(id, user.tenantId);
+    const effectiveTenantId = getEffectiveTenantId(user, tenantId);
+    return this.dataSourceService.remove(id, effectiveTenantId);
   }
 
   @Post(':id/execute')
@@ -106,7 +116,8 @@ export class DataSourceController {
     @CurrentUser() user: CurrentUserType,
   ) {
     checkModulePermission(user, 'data-sources', 'canRead');
-    return this.dataSourceService.execute(id, user.tenantId, {
+    const effectiveTenantId = getEffectiveTenantId(user, (dto as any).tenantId);
+    return this.dataSourceService.execute(id, effectiveTenantId, {
       runtimeFilters: dto.runtimeFilters,
       page: dto.page,
       limit: dto.limit,
