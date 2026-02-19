@@ -6,6 +6,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:crm_mobile/core/auth/secure_storage.dart';
+import 'package:crm_mobile/core/config/env.dart';
 import 'package:crm_mobile/core/database/app_database.dart';
 import 'package:crm_mobile/core/network/api_client.dart';
 import 'package:crm_mobile/core/push/push_notification_service.dart';
@@ -183,6 +184,7 @@ class Auth extends _$Auth {
   }
 
   /// Restore session from cached user data (offline auto login)
+  /// If online, tries to refresh token first for PowerSync to work.
   Future<void> _restoreFromCache() async {
     try {
       final hasCache = await SecureStorage.hasOfflineCredentials();
@@ -205,6 +207,27 @@ class Auth extends _$Auth {
       final userData = jsonDecode(cachedUserJson) as Map<String, dynamic>;
       final user = User.fromJson(userData);
 
+      // Check if we're online - if so, try to refresh token for PowerSync
+      final connectivity = await Connectivity().checkConnectivity();
+      final isOnline = !connectivity.contains(ConnectivityResult.none) &&
+          connectivity.isNotEmpty;
+
+      if (isOnline) {
+        // Try to refresh token so PowerSync can sync
+        final refreshToken = await SecureStorage.getRefreshToken();
+        if (refreshToken != null) {
+          debugPrint('[Auth] Online with refresh token - attempting token refresh');
+          final refreshed = await _tryRefreshToken(refreshToken);
+          if (refreshed) {
+            debugPrint('[Auth] Token refreshed successfully');
+            // Now restore session normally with valid token
+            await _restoreSession();
+            return;
+          }
+        }
+        debugPrint('[Auth] Online but no valid refresh token - using cache only');
+      }
+
       // Set user context
       await SecureStorage.setUserId(user.id);
       await SecureStorage.setTenantId(user.tenantId);
@@ -217,12 +240,38 @@ class Auth extends _$Auth {
       );
 
       // Database already has local data from previous sync
-      // PowerSync will auto-sync when connection is restored
+      // PowerSync will auto-sync when connection is restored and token is available
     } catch (e) {
       debugPrint('[Auth] Auto login from cache failed: $e');
       if (!_manualAuthInProgress && !state.isAuthenticated) {
         state = const AuthState(isLoading: false);
       }
+    }
+  }
+
+  /// Try to refresh access token using refresh token.
+  /// Returns true if successful.
+  Future<bool> _tryRefreshToken(String refreshToken) async {
+    try {
+      final refreshDio = Dio(BaseOptions(baseUrl: Env.apiUrl));
+      final response = await refreshDio.post(
+        '/auth/refresh',
+        data: {'refreshToken': refreshToken},
+      );
+
+      final newAccessToken = response.data['accessToken'] as String;
+      final newRefreshToken = response.data['refreshToken'] as String;
+
+      await SecureStorage.setTokens(
+        accessToken: newAccessToken,
+        refreshToken: newRefreshToken,
+      );
+
+      debugPrint('[Auth] Token refresh successful');
+      return true;
+    } catch (e) {
+      debugPrint('[Auth] Token refresh failed: $e');
+      return false;
     }
   }
 

@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:math' as math;
 
+import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:dio/dio.dart';
 import 'package:powersync/powersync.dart';
 import 'package:crm_mobile/core/auth/secure_storage.dart';
@@ -47,14 +48,30 @@ class CrmPowerSyncConnector extends PowerSyncBackendConnector {
 
   @override
   Future<PowerSyncCredentials?> fetchCredentials() async {
+    // Check connectivity first - if offline, don't try to get credentials
+    final connectivity = await Connectivity().checkConnectivity();
+    final isOffline = connectivity.contains(ConnectivityResult.none) ||
+        connectivity.isEmpty;
+
+    if (isOffline) {
+      _logger.i('PowerSync: offline - skipping credential fetch');
+      return null;
+    }
+
     final accessToken = await SecureStorage.getAccessToken();
-    if (accessToken == null) return null;
+    if (accessToken == null) {
+      _logger.i('PowerSync: no access token available');
+      return null;
+    }
 
     // Ensure access token is fresh for the API call
     var token = accessToken;
     if (_isTokenExpired(token)) {
       final refreshed = await _refreshToken();
-      if (refreshed == null) return null;
+      if (refreshed == null) {
+        _logger.w('PowerSync: token expired and refresh failed');
+        return null;
+      }
       token = refreshed;
     }
 
