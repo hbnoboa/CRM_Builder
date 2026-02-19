@@ -1,14 +1,19 @@
 'use client';
 
 import { useEffect, useCallback } from 'react';
+import dynamic from 'next/dynamic';
 import { DndContext, DragEndEvent, DragOverlay, useSensor, useSensors, PointerSensor } from '@dnd-kit/core';
 import { usePdfEditorStore, generateElementId, defaultElements } from '@/stores/pdf-editor-store';
 import { ElementPalette } from './element-palette';
 import { FieldMapper } from './field-mapper';
 import { PropertiesPanel } from './properties-panel';
-import { PdfCanvas } from './pdf-canvas';
 import { EditorToolbar } from './editor-toolbar';
 import type { PdfTemplate, PdfElement, Entity } from '@/types';
+
+const PdfCanvas = dynamic(() => import('./pdf-canvas').then((mod) => mod.PdfCanvas), {
+  ssr: false,
+  loading: () => <div className="flex-1 flex items-center justify-center bg-muted/30">Carregando canvas...</div>,
+});
 
 interface PdfTemplateDesignerProps {
   template: PdfTemplate;

@@ -28,6 +28,14 @@ const nextConfig = {
       },
     ],
   },
+
+  // Excluir canvas (dependencia nativa do Konva) do bundle server-side
+  webpack: (config, { isServer }) => {
+    if (isServer) {
+      config.externals = [...(config.externals || []), 'canvas'];
+    }
+    return config;
+  },
 };
 
 export default withNextIntl(nextConfig);
