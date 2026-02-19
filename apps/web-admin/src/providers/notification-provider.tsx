@@ -120,6 +120,15 @@ export function NotificationProvider({ children }: NotificationProviderProps) {
           description: notification.message,
           duration: 5000,
         });
+
+        // Emit custom event for data pages to listen and refetch
+        if (notification.data?.entitySlug) {
+          window.dispatchEvent(
+            new CustomEvent('entity-data-changed', {
+              detail: { entitySlug: notification.data.entitySlug },
+            })
+          );
+        }
       });
 
       newSocket.on('connect_error', (error) => {

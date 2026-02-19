@@ -775,6 +775,18 @@ function DataPageContent() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeFilters]);
 
+  // Real-time: refetch quando outro dispositivo/usuario altera dados (via WebSocket)
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const { entitySlug } = (e as CustomEvent).detail;
+      if (selectedEntity && entitySlug === selectedEntity.slug) {
+        fetchRecords(selectedEntity.slug, currentPage, debouncedSearch);
+      }
+    };
+    window.addEventListener('entity-data-changed', handler);
+    return () => window.removeEventListener('entity-data-changed', handler);
+  }, [selectedEntity, currentPage, debouncedSearch]);
+
   // Handlers de paginacao
   const goToPage = useCallback((page: number) => {
     if (!selectedEntity || !paginationMeta) return;
