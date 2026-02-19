@@ -131,6 +131,15 @@ export function NotificationProvider({ children }: NotificationProviderProps) {
         }
       });
 
+      // Dedicated lightweight event for real-time data refresh
+      newSocket.on('data-changed', (payload: { entitySlug: string }) => {
+        window.dispatchEvent(
+          new CustomEvent('entity-data-changed', {
+            detail: { entitySlug: payload.entitySlug },
+          })
+        );
+      });
+
       newSocket.on('connect_error', (error) => {
         console.warn('⚠️ WebSocket connection error:', error.message);
       });

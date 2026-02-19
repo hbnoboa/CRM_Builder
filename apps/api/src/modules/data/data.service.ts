@@ -301,6 +301,9 @@ export class DataService {
       currentUser.name,
     ).catch((err) => this.logger.error('Failed to send notification', err));
 
+    // Real-time: notify all tenant clients to refresh data
+    this.notificationService.emitDataChanged(targetTenantId, entitySlug);
+
     return record;
   }
 
@@ -1005,6 +1008,9 @@ export class DataService {
       currentUser.name,
     ).catch((err) => this.logger.error('Failed to send notification', err));
 
+    // Real-time: notify all tenant clients to refresh data
+    this.notificationService.emitDataChanged(effectiveTenantId, entitySlug);
+
     return updatedRecord;
   }
 
@@ -1054,6 +1060,9 @@ export class DataService {
       recordName,
       currentUser.name,
     ).catch((err) => this.logger.error('Failed to send notification', err));
+
+    // Real-time: notify all tenant clients to refresh data
+    this.notificationService.emitDataChanged(effectiveTenantId, entitySlug);
 
     return { message: 'Registro excluido com sucesso' };
   }

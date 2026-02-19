@@ -206,6 +206,14 @@ export class NotificationGateway
   }
 
   /**
+   * Emit lightweight data-changed event to all tenant users (no DB, no permissions).
+   * Used for real-time UI refresh when entity data is created/updated/deleted.
+   */
+  emitDataChanged(tenantId: string, entitySlug: string) {
+    this.server.to(`tenant:${tenantId}`).emit('data-changed', { entitySlug });
+  }
+
+  /**
    * Broadcast para todos os clientes conectados
    */
   broadcast(notification: Notification) {

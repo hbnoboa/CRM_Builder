@@ -304,6 +304,14 @@ export class NotificationService {
   }
 
   /**
+   * Emit lightweight data-changed event for real-time UI refresh.
+   * No DB queries, no permissions - just a WebSocket broadcast to the tenant.
+   */
+  emitDataChanged(tenantId: string, entitySlug: string) {
+    this.gateway.emitDataChanged(tenantId, entitySlug);
+  }
+
+  /**
    * Verificar se usuário está online
    */
   isUserOnline(userId: string): boolean {
