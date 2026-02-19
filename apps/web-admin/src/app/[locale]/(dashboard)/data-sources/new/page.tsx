@@ -26,9 +26,6 @@ import { Link } from '@/i18n/navigation';
 
 const formSchema = z.object({
   name: z.string().min(2, 'Nome deve ter pelo menos 2 caracteres'),
-  slug: z.string()
-    .min(2, 'Identificador deve ter pelo menos 2 caracteres')
-    .regex(/^[a-z0-9-]+$/, 'Identificador deve conter apenas letras minúsculas, números e hífens'),
   description: z.string().optional(),
 });
 
@@ -48,7 +45,6 @@ function NewDataSourcePageContent() {
     resolver: zodResolver(formSchema),
     defaultValues: {
       name: '',
-      slug: '',
       description: '',
     },
   });
@@ -62,22 +58,12 @@ function NewDataSourcePageContent() {
       .replace(/^-|-$/g, '');
   };
 
-  const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const name = e.target.value;
-    form.setValue('name', name);
-    const currentSlug = form.getValues('slug');
-    const previousName = form.getValues('name');
-    if (!currentSlug || currentSlug === generateSlug(previousName)) {
-      form.setValue('slug', generateSlug(name));
-    }
-  };
-
   const onSubmit = async (data: FormData) => {
     setIsSubmitting(true);
     try {
       const result = await createDataSource.mutateAsync({
         name: data.name,
-        slug: data.slug,
+        slug: generateSlug(data.name),
         description: data.description || undefined,
         definition: { sources: [] },
       });
@@ -127,25 +113,9 @@ function NewDataSourcePageContent() {
                     <FormControl>
                       <Input
                         {...field}
-                        onChange={handleNameChange}
                         placeholder={t('form.namePlaceholder')}
                       />
                     </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="slug"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>{t('form.slug')}</FormLabel>
-                    <FormControl>
-                      <Input {...field} placeholder={t('form.slugPlaceholder')} />
-                    </FormControl>
-                    <FormDescription>{t('form.slugDesc')}</FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}
