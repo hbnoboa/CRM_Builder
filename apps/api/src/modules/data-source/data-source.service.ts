@@ -56,9 +56,10 @@ export class DataSourceService {
 
   // ==================== CRUD ====================
 
-  async create(dto: CreateDataSourceDto, user: CurrentUser) {
+  async create(dto: CreateDataSourceDto, user: CurrentUser, tenantId?: string) {
+    const effectiveTenantId = tenantId || user.tenantId;
     const existing = await this.prisma.dataSource.findUnique({
-      where: { tenantId_slug: { tenantId: user.tenantId, slug: dto.slug } },
+      where: { tenantId_slug: { tenantId: effectiveTenantId, slug: dto.slug } },
     });
     if (existing) {
       throw new ConflictException(`DataSource com slug "${dto.slug}" ja existe`);
@@ -70,7 +71,7 @@ export class DataSourceService {
         slug: dto.slug,
         description: dto.description,
         definition: (dto.definition as Prisma.InputJsonValue) || {},
-        tenantId: user.tenantId,
+        tenantId: effectiveTenantId,
         createdById: user.id,
       },
     });
@@ -107,12 +108,13 @@ export class DataSourceService {
     return ds;
   }
 
-  async update(id: string, dto: UpdateDataSourceDto, user: CurrentUser) {
-    await this.findOne(id, user.tenantId);
+  async update(id: string, dto: UpdateDataSourceDto, user: CurrentUser, tenantId?: string) {
+    const effectiveTenantId = tenantId || user.tenantId;
+    await this.findOne(id, effectiveTenantId);
 
     if (dto.slug) {
       const existing = await this.prisma.dataSource.findFirst({
-        where: { tenantId: user.tenantId, slug: dto.slug, id: { not: id } },
+        where: { tenantId: effectiveTenantId, slug: dto.slug, id: { not: id } },
       });
       if (existing) {
         throw new ConflictException(`DataSource com slug "${dto.slug}" ja existe`);

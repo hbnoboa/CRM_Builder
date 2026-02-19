@@ -33,7 +33,8 @@ export class DataSourceController {
     @CurrentUser() user: CurrentUserType,
   ) {
     checkModulePermission(user, 'data-sources', 'canCreate');
-    return this.dataSourceService.create(dto, user);
+    const effectiveTenantId = getEffectiveTenantId(user, (dto as any).tenantId);
+    return this.dataSourceService.create(dto, user, effectiveTenantId);
   }
 
   @Get()
@@ -93,7 +94,8 @@ export class DataSourceController {
     @CurrentUser() user: CurrentUserType,
   ) {
     checkModulePermission(user, 'data-sources', 'canUpdate');
-    return this.dataSourceService.update(id, dto, user);
+    const effectiveTenantId = getEffectiveTenantId(user, (dto as any).tenantId);
+    return this.dataSourceService.update(id, dto, user, effectiveTenantId);
   }
 
   @Delete(':id')
