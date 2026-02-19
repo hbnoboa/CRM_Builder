@@ -71,6 +71,7 @@ dependencies:
   # workmanager: ^0.5.2 # Removido temporariamente - incompativel com Kotlin 2.1
   logger: ^2.5.0
   url_launcher: ^6.3.1
+  share_plus: ^10.1.4
   package_info_plus: ^8.1.3
   fl_chart: ^1.1.1
 

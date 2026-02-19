@@ -5,11 +5,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:crm_mobile/core/database/app_database.dart';
 import 'package:crm_mobile/core/permissions/permission_provider.dart';
-import 'package:crm_mobile/core/theme/app_colors.dart';
+import 'package:crm_mobile/core/theme/app_colors_extension.dart';
 import 'package:crm_mobile/core/theme/app_typography.dart';
 import 'package:crm_mobile/features/data/data/data_repository.dart';
 import 'package:crm_mobile/features/data/widgets/dynamic_field.dart';
 import 'package:crm_mobile/features/data/widgets/sub_entity_section.dart';
+import 'package:crm_mobile/features/pdf/presentation/widgets/generate_pdf_button.dart';
 import 'package:crm_mobile/shared/utils/formatters.dart';
 import 'package:crm_mobile/shared/widgets/permission_gate.dart';
 
@@ -34,6 +35,11 @@ class DataDetailPage extends ConsumerWidget {
           onPressed: () => context.pop(),
         ),
         actions: [
+          // PDF generation button
+          GeneratePdfAction(
+            entitySlug: entitySlug,
+            recordId: recordId,
+          ),
           // Share button
           IconButton(
             icon: const Icon(Icons.share_outlined),
@@ -55,8 +61,8 @@ class DataDetailPage extends ConsumerWidget {
             entitySlug: entitySlug,
             entityAction: 'canDelete',
             child: IconButton(
-              icon: const Icon(Icons.delete_outlined,
-                  color: AppColors.destructive,),
+              icon: Icon(Icons.delete_outlined,
+                  color: context.colors.destructive,),
               onPressed: () => _confirmDelete(context, ref),
             ),
           ),
@@ -116,8 +122,8 @@ class DataDetailPage extends ConsumerWidget {
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      const Icon(Icons.delete_outline,
-                          size: 48, color: AppColors.mutedForeground,),
+                      Icon(Icons.delete_outline,
+                          size: 48, color: context.colors.mutedForeground,),
                       const SizedBox(height: 16),
                       const Text('Registro nao encontrado',
                           style: AppTypography.h4,),
@@ -125,7 +131,7 @@ class DataDetailPage extends ConsumerWidget {
                       Text(
                         'Este registro pode ter sido removido.',
                         style: AppTypography.bodySmall
-                            .copyWith(color: AppColors.mutedForeground),
+                            .copyWith(color: context.colors.mutedForeground),
                       ),
                       const SizedBox(height: 24),
                       OutlinedButton(
@@ -158,12 +164,12 @@ class DataDetailPage extends ConsumerWidget {
                     // Timestamps
                     Row(
                       children: [
-                        const Icon(Icons.access_time, size: 14, color: AppColors.mutedForeground),
+                        Icon(Icons.access_time, size: 14, color: context.colors.mutedForeground),
                         const SizedBox(width: 4),
                         Text(
                           'Criado ${Formatters.dateTime(record['createdAt'] as String?)}',
                           style: AppTypography.caption.copyWith(
-                            color: AppColors.mutedForeground,
+                            color: context.colors.mutedForeground,
                           ),
                         ),
                       ],
@@ -173,12 +179,12 @@ class DataDetailPage extends ConsumerWidget {
                       const SizedBox(height: 4),
                       Row(
                         children: [
-                          const Icon(Icons.edit_outlined, size: 14, color: AppColors.mutedForeground),
+                          Icon(Icons.edit_outlined, size: 14, color: context.colors.mutedForeground),
                           const SizedBox(width: 4),
                           Text(
                             'Atualizado ${Formatters.dateTime(record['updatedAt'] as String?)}',
                             style: AppTypography.caption.copyWith(
-                              color: AppColors.mutedForeground,
+                              color: context.colors.mutedForeground,
                             ),
                           ),
                         ],
@@ -344,7 +350,7 @@ class DataDetailPage extends ConsumerWidget {
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(true),
             style: TextButton.styleFrom(
-              foregroundColor: AppColors.destructive,
+              foregroundColor: ctx.colors.destructive,
             ),
             child: const Text('Excluir'),
           ),

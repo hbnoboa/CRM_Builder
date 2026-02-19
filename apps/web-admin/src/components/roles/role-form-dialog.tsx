@@ -50,7 +50,7 @@ function normalizeModulePermToRecord(mp: Record<string, unknown> | null | undefi
   return result;
 }
 
-const MODULE_KEYS = ['dashboard', 'users', 'roles', 'entities', 'data', 'apis', 'settings', 'tenants'] as const;
+const MODULE_KEYS = ['dashboard', 'users', 'roles', 'entities', 'data', 'apis', 'pdf', 'settings', 'tenants'] as const;
 
 function getDefaultModulePerms(): Record<string, ModulePermission> {
   const result: Record<string, ModulePermission> = {};
@@ -326,6 +326,11 @@ export function RoleFormDialog({ open, onOpenChange, role, onSuccess }: RoleForm
       { key: 'canConfigureColumns', label: t('permissions.canConfigureColumns') },
       { key: 'canExport', label: t('permissions.canExport') },
       { key: 'canImport', label: t('permissions.canImport') },
+    ],
+    pdf: [
+      { key: 'canGenerate', label: t('permissions.canGenerate') },
+      { key: 'canPublish', label: t('permissions.canPublish') },
+      { key: 'canClone', label: t('permissions.canClone') },
     ],
   };
 

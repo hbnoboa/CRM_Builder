@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
-import { ConfigModule } from '@nestjs/config';
+import { ConfigModule, ConfigService } from '@nestjs/config';
 import { ThrottlerModule } from '@nestjs/throttler';
+import { BullModule } from '@nestjs/bullmq';
 import { PrismaModule } from './prisma/prisma.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { UserModule } from './modules/user/user.module';
@@ -16,6 +17,7 @@ import { HealthModule } from './modules/health/health.module';
 import { CustomRoleModule } from './modules/custom-role/custom-role.module';
 import { SyncModule } from './modules/sync/sync.module';
 import { PushModule } from './modules/push/push.module';
+import { PdfModule } from './modules/pdf/pdf.module';
 
 @Module({
   imports: [
@@ -30,6 +32,19 @@ import { PushModule } from './modules/push/push.module';
       ttl: parseInt(process.env.THROTTLE_TTL || '60') * 1000,
       limit: parseInt(process.env.THROTTLE_LIMIT || '100'),
     }]),
+
+    // BullMQ Queue (Redis)
+    BullModule.forRootAsync({
+      imports: [ConfigModule],
+      inject: [ConfigService],
+      useFactory: (configService: ConfigService) => ({
+        connection: {
+          host: configService.get('REDIS_HOST', 'localhost'),
+          port: configService.get('REDIS_PORT', 6379),
+          password: configService.get('REDIS_PASSWORD', undefined),
+        },
+      }),
+    }),
 
     // Database
     PrismaModule,
@@ -51,6 +66,7 @@ import { PushModule } from './modules/push/push.module';
     NotificationModule,
     SyncModule,
     PushModule,
+    PdfModule,
   ],
 })
 export class AppModule {}

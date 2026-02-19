@@ -41,66 +41,66 @@ const DEFAULT_MODULE_PERMISSIONS: Record<RoleType, ModulePermissions> = {
     users: FULL_CRUD,
     settings: FULL_CRUD,
     apis: FULL_CRUD,
-
     entities: FULL_CRUD,
     tenants: FULL_CRUD,
     data: FULL_CRUD,
     roles: FULL_CRUD,
+    pdf: { ...FULL_CRUD, canGenerate: true, canPublish: true, canClone: true },
   },
   ADMIN: {
     dashboard: FULL_CRUD,
     users: FULL_CRUD,
     settings: FULL_CRUD,
     apis: FULL_CRUD,
-
     entities: FULL_CRUD,
     tenants: NO_CRUD,
     data: FULL_CRUD,
     roles: FULL_CRUD,
+    pdf: { ...FULL_CRUD, canGenerate: true, canPublish: true, canClone: true },
   },
   MANAGER: {
     dashboard: READ_ONLY,
     users: READ_ONLY,
     settings: NO_CRUD,
     apis: NO_CRUD,
-
     entities: NO_CRUD,
     tenants: NO_CRUD,
     data: { canRead: true, canCreate: true, canUpdate: true, canDelete: false },
     roles: READ_ONLY,
+    pdf: { canRead: true, canCreate: false, canUpdate: false, canDelete: false, canGenerate: true, canClone: true },
   },
   USER: {
     dashboard: READ_ONLY,
     users: READ_ONLY,
     settings: READ_ONLY,
     apis: NO_CRUD,
-
     entities: { canRead: true, canCreate: true, canUpdate: true, canDelete: false },
     tenants: NO_CRUD,
     data: { canRead: true, canCreate: true, canUpdate: true, canDelete: false },
     roles: NO_CRUD,
+    pdf: { canRead: true, canCreate: false, canUpdate: false, canDelete: false, canGenerate: true },
   },
   VIEWER: {
     dashboard: READ_ONLY,
     users: NO_CRUD,
     settings: READ_ONLY,
     apis: NO_CRUD,
-
     entities: NO_CRUD,
     tenants: NO_CRUD,
     data: READ_ONLY,
     roles: NO_CRUD,
+    pdf: READ_ONLY,
   },
   CUSTOM: {
     dashboard: READ_ONLY,
     users: NO_CRUD,
     settings: NO_CRUD,
     apis: NO_CRUD,
-
     entities: NO_CRUD,
     tenants: NO_CRUD,
     data: NO_CRUD,
     roles: NO_CRUD,
+    pdf: NO_CRUD,
   },
 };
 
@@ -116,9 +116,10 @@ const MODULE_KEY_MAP: Record<string, keyof ModulePermissions> = {
   settings: 'settings',
   tenants: 'tenants',
   data: 'data',
+  pdf: 'pdf',
 };
 
-const MODULE_KEYS: (keyof ModulePermissions)[] = ['dashboard', 'users', 'settings', 'apis', 'entities', 'tenants', 'data', 'roles'];
+const MODULE_KEYS: (keyof ModulePermissions)[] = ['dashboard', 'users', 'settings', 'apis', 'entities', 'tenants', 'data', 'roles', 'pdf'];
 
 export function usePermissions() {
   const user = useAuthStore((s) => s.user);
