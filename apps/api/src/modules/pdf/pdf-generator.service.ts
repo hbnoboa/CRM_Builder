@@ -1,8 +1,9 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import * as PDFDocument from 'pdfkit';
 import { PrismaService } from '../../prisma/prisma.service';
 import { NotificationService } from '../notification/notification.service';
+import { DataSourceService } from '../data-source/data-source.service';
 
 /**
  * Tipos de elementos do template PDF
@@ -66,8 +67,9 @@ interface PdfElement {
   borderWidth?: number;
   condition?: PdfElementCondition;
   // Para tabelas
-  dataSource?: 'record' | 'subEntity';
+  dataSource?: 'record' | 'subEntity' | 'dataSource';
   subEntitySlug?: string;
+  dataSourceId?: string;
   columns?: PdfTableColumn[];
   footer?: PdfTableFooterItem[];
   headerStyle?: {
@@ -114,6 +116,7 @@ export class PdfGeneratorService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly notificationService: NotificationService,
+    @Optional() private readonly dataSourceService?: DataSourceService,
   ) {}
 
   /**
@@ -512,7 +515,16 @@ export class PdfGeneratorService {
     // Obter dados para a tabela
     let tableData: Record<string, unknown>[] = [];
 
-    if (element.dataSource === 'subEntity' && element.subEntitySlug) {
+    if (element.dataSource === 'dataSource' && element.dataSourceId && this.dataSourceService) {
+      // Buscar dados de uma Fonte de Dados
+      try {
+        const result = await this.dataSourceService.execute(element.dataSourceId, tenantId);
+        tableData = result.rows;
+      } catch (err) {
+        this.logger.error(`Error executing DataSource ${element.dataSourceId}: ${err}`);
+        tableData = [];
+      }
+    } else if (element.dataSource === 'subEntity' && element.subEntitySlug) {
       // Buscar dados da sub-entidade
       const subEntityData = data[element.subEntitySlug];
       if (Array.isArray(subEntityData)) {

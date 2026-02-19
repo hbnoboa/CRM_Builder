@@ -16,6 +16,7 @@ import { Separator } from '@/components/ui/separator';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
 import { usePdfEditorStore } from '@/stores/pdf-editor-store';
+import { useDataSources } from '@/hooks/use-data-sources';
 import type { PdfElement, EntityField } from '@/types';
 
 interface PropertiesPanelProps {
@@ -28,6 +29,8 @@ export function PropertiesPanel({ element, entityFields = [], className }: Prope
   const t = useTranslations('pdfTemplates.editor');
   const tFormat = useTranslations('pdfTemplates.formatTypes');
   const { updateElement, removeElement, duplicateElement, moveElementUp, moveElementDown } = usePdfEditorStore();
+  const { data: dataSourcesData } = useDataSources();
+  const dataSources = dataSourcesData?.data ?? [];
 
   if (!element) {
     return (
@@ -201,6 +204,35 @@ export function PropertiesPanel({ element, entityFields = [], className }: Prope
                   className="h-8"
                 />
               </div>
+              {element.type === 'table' && dataSources.length > 0 && (
+                <div>
+                  <Label className="text-xs">Fonte de Dados</Label>
+                  <Select
+                    value={element.dataSourceId || 'none'}
+                    onValueChange={(value) => {
+                      if (value === 'none') {
+                        handleChange('dataSourceId', undefined);
+                        handleChange('dataSource', undefined);
+                      } else {
+                        handleChange('dataSourceId', value);
+                        handleChange('dataSource', 'dataSource');
+                      }
+                    }}
+                  >
+                    <SelectTrigger className="h-8">
+                      <SelectValue placeholder="Selecione uma fonte de dados" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Nenhuma</SelectItem>
+                      {dataSources.map((ds) => (
+                        <SelectItem key={ds.id} value={ds.id}>
+                          {ds.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
             </div>
           </div>
 

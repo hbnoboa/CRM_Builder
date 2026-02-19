@@ -64,6 +64,7 @@ model Tenant {
   notifications   Notification[]
   pdfTemplates    PdfTemplate[]
   pdfGenerations  PdfGeneration[]
+  dataSources     DataSource[]
 
   @@index([slug])
   @@index([status])
@@ -106,6 +107,9 @@ model User {
   // PDFs criados por este usuario
   pdfTemplatesCreated   PdfTemplate[]   @relation("PdfTemplatesCreated")
   pdfGenerationsCreated PdfGeneration[] @relation("PdfGenerationsCreated")
+
+  // Data Sources
+  dataSourcesCreated DataSource[] @relation("DataSourceCreator")
 
   @@unique([tenantId, email])
   @@index([tenantId])
@@ -516,4 +520,33 @@ model PdfGeneration {
   @@index([expiresAt])
   @@index([tenantId, status])
   @@index([tenantId, templateId])
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DATA SOURCES (Fontes de Dados)
+// ═══════════════════════════════════════════════════════════════════════════
+
+model DataSource {
+  id          String  @id @default(cuid())
+  tenantId    String
+  name        String
+  slug        String
+  description String?
+
+  // Definicao completa em JSON
+  // { sources, filters, orderBy, limit, aggregations }
+  definition Json @default("{}")
+
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  createdById String?
+
+  tenant    Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  createdBy User?  @relation("DataSourceCreator", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@unique([tenantId, slug])
+  @@index([tenantId])
+  @@index([isActive])
+  @@index([createdById])
 }

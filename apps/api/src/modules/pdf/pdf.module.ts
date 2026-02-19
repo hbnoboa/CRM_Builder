@@ -8,11 +8,13 @@ import { PdfQueueService } from './pdf-queue.service';
 import { PdfWorkerProcessor, PDF_QUEUE_NAME } from './pdf-worker.processor';
 import { PrismaModule } from '../../prisma/prisma.module';
 import { NotificationModule } from '../notification/notification.module';
+import { DataSourceModule } from '../data-source/data-source.module';
 
 @Module({
   imports: [
     PrismaModule,
     NotificationModule,
+    DataSourceModule,
     BullModule.registerQueue({
       name: PDF_QUEUE_NAME,
       defaultJobOptions: {

@@ -58,6 +58,7 @@ export interface ModulePermissions {
   data?: ModulePermission;
   roles?: ModulePermission;
   pdf?: ModulePermission;
+  'data-sources'?: ModulePermission;
 }
 
 export interface CustomRole {

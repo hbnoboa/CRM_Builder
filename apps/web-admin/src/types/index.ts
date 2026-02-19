@@ -118,8 +118,9 @@ export interface PdfElement {
   borderWidth?: number;
   condition?: PdfElementCondition;
   // Table specific
-  dataSource?: 'record' | 'subEntity';
+  dataSource?: 'record' | 'subEntity' | 'dataSource';
   subEntitySlug?: string;
+  dataSourceId?: string;
   columns?: PdfTableColumn[];
   footer?: PdfTableFooterItem[];
   headerStyle?: {

@@ -18,6 +18,7 @@ import { CustomRoleModule } from './modules/custom-role/custom-role.module';
 import { SyncModule } from './modules/sync/sync.module';
 import { PushModule } from './modules/push/push.module';
 import { PdfModule } from './modules/pdf/pdf.module';
+import { DataSourceModule } from './modules/data-source/data-source.module';
 
 @Module({
   imports: [
@@ -67,6 +68,7 @@ import { PdfModule } from './modules/pdf/pdf.module';
     SyncModule,
     PushModule,
     PdfModule,
+    DataSourceModule,
   ],
 })
 export class AppModule {}

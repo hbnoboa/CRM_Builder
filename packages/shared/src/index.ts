@@ -59,3 +59,13 @@ export type { Notification } from './notification';
 
 // Page
 export type { Page } from './page';
+
+// Data Source
+export type {
+  DataSource,
+  DataSourceDefinition,
+  DataSourceSource,
+  DataSourceFilter,
+  DataSourceAggregation,
+  DataSourceResult,
+} from './data-source';
