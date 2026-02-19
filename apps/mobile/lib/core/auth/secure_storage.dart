@@ -103,18 +103,25 @@ class SecureStorage {
   // OFFLINE AUTH CACHE
   // ═══════════════════════════════════════════════════════
 
-  /// Cache credentials for offline login.
-  /// Stores email and password hash (SHA-256).
+  /// Cache credentials for offline login and silent re-auth.
+  /// Stores email, password (encrypted by Keychain/Keystore), hash, and user JSON.
   static Future<void> cacheCredentials({
     required String email,
+    required String password,
     required String passwordHash,
     required String userJson,
   }) async {
     await Future.wait([
       _storage.write(key: AppConstants.keyCachedEmail, value: email.toLowerCase()),
+      _storage.write(key: AppConstants.keyCachedPassword, value: password),
       _storage.write(key: AppConstants.keyCachedPasswordHash, value: passwordHash),
       _storage.write(key: AppConstants.keyCachedUserJson, value: userJson),
     ]);
+  }
+
+  /// Get cached password for silent re-authentication.
+  static Future<String?> getCachedPassword() async {
+    return _storage.read(key: AppConstants.keyCachedPassword);
   }
 
   /// Get cached email for offline login.

@@ -214,22 +214,88 @@ class Auth extends _$Auth {
           connectivity.isNotEmpty;
 
       if (isOnline) {
-        // Try to refresh token so PowerSync can sync
+        // Online: try to refresh token for a full session restore
         final refreshToken = await SecureStorage.getRefreshToken();
         if (refreshToken != null) {
           debugPrint('[Auth] Online with refresh token - attempting token refresh');
           final refreshed = await _tryRefreshToken(refreshToken);
           if (refreshed) {
             debugPrint('[Auth] Token refreshed successfully');
-            // Now restore session normally with valid token
             await _restoreSession();
             return;
           }
         }
-        debugPrint('[Auth] Online but no valid refresh token - using cache only');
+        // Refresh failed or no token - try silent re-login with cached password
+        final cachedEmail = await SecureStorage.getCachedEmail();
+        final cachedPassword = await SecureStorage.getCachedPassword();
+        if (cachedEmail != null && cachedPassword != null) {
+          debugPrint('[Auth] Attempting silent re-login with cached credentials');
+          try {
+            final dio = ref.read(apiClientProvider);
+            final response = await dio.post('/auth/login', data: {
+              'email': cachedEmail,
+              'password': cachedPassword,
+            });
+            final data = response.data as Map<String, dynamic>;
+            final freshUser = User.fromJson(data['user'] as Map<String, dynamic>);
+            final accessToken = data['accessToken'] as String;
+            final newRefreshToken = data['refreshToken'] as String;
+
+            await SecureStorage.setTokens(
+              accessToken: accessToken,
+              refreshToken: newRefreshToken,
+            );
+            await SecureStorage.setUserId(freshUser.id);
+            await SecureStorage.setTenantId(freshUser.tenantId);
+
+            // Update cached user data
+            final passwordHash = _hashPassword(cachedPassword, freshUser.tenantId);
+            await SecureStorage.cacheCredentials(
+              email: cachedEmail,
+              password: cachedPassword,
+              passwordHash: passwordHash,
+              userJson: jsonEncode(data['user']),
+            );
+
+            // Apply brand color
+            final tenantData = data['user']?['tenant'] as Map<String, dynamic>?;
+            final tenantSettings = tenantData?['settings'] as Map<String, dynamic>?;
+            final brandColor = (tenantSettings?['theme'] as Map<String, dynamic>?)?['brandColor'] as String?;
+            if (brandColor != null && brandColor.isNotEmpty) {
+              await SecureStorage.setString('brandColor', brandColor);
+            }
+            ref.read(tenantThemeProvider.notifier).applyBrandColor(brandColor);
+
+            debugPrint('[Auth] Silent re-login success for ${freshUser.email}');
+            state = AuthState(
+              user: freshUser,
+              isAuthenticated: true,
+              isLoading: false,
+            );
+
+            // Connect PowerSync with fresh token
+            try {
+              await AppDatabase.instance.connect();
+            } catch (e) {
+              debugPrint('[Auth] PowerSync connect failed after silent login: $e');
+            }
+
+            PushNotificationService.instance.registerDeviceToken();
+            return;
+          } catch (e) {
+            debugPrint('[Auth] Silent re-login failed: $e');
+          }
+        }
+        // All online attempts failed - send to login screen
+        debugPrint('[Auth] Online but all auth attempts failed - redirecting to login');
+        await AppDatabase.instance.disconnect();
+        if (!_manualAuthInProgress && !state.isAuthenticated) {
+          state = const AuthState(isLoading: false);
+        }
+        return;
       }
 
-      // Set user context
+      // Offline: restore from cache so user can see local data
       await SecureStorage.setUserId(user.id);
       await SecureStorage.setTenantId(user.tenantId);
 
@@ -237,15 +303,12 @@ class Auth extends _$Auth {
       final brandColor = await SecureStorage.getString('brandColor');
       ref.read(tenantThemeProvider.notifier).applyBrandColor(brandColor);
 
-      debugPrint('[Auth] Auto login from cache success for ${user.email}');
+      debugPrint('[Auth] Offline auto login from cache for ${user.email}');
       state = AuthState(
         user: user,
         isAuthenticated: true,
         isLoading: false,
       );
-
-      // Database already has local data from previous sync
-      // PowerSync will auto-sync when connection is restored and token is available
     } catch (e) {
       debugPrint('[Auth] Auto login from cache failed: $e');
       if (!_manualAuthInProgress && !state.isAuthenticated) {
@@ -396,10 +459,11 @@ class Auth extends _$Auth {
       await SecureStorage.setUserId(user.id);
       await SecureStorage.setTenantId(user.tenantId);
 
-      // Cache credentials for offline login (use tenantId as salt)
+      // Cache credentials for offline login and silent re-auth
       final passwordHash = _hashPassword(password, user.tenantId);
       await SecureStorage.cacheCredentials(
         email: email,
+        password: password,
         passwordHash: passwordHash,
         userJson: jsonEncode(data['user']),
       );

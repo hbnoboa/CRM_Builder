@@ -15,6 +15,7 @@ class AppConstants {
 
   // Offline auth cache keys
   static const String keyCachedEmail = 'cachedEmail';
+  static const String keyCachedPassword = 'cachedPassword';
   static const String keyCachedPasswordHash = 'cachedPasswordHash';
   static const String keyCachedUserJson = 'cachedUserJson';
 
