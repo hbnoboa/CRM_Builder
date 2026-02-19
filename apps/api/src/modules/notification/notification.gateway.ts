@@ -8,7 +8,7 @@ import {
   ConnectedSocket,
   MessageBody,
 } from '@nestjs/websockets';
-import { Server, Socket } from 'socket.io';
+import { Server, Socket, Namespace } from 'socket.io';
 import { Logger } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
@@ -51,29 +51,31 @@ export class NotificationGateway
     private readonly configService: ConfigService,
   ) {}
 
-  afterInit(server: Server) {
-    // Configure Redis adapter for horizontal scaling
+  afterInit(nsOrServer: Server) {
+    // When using @WebSocketGateway({ namespace: ... }), afterInit receives the
+    // Namespace object, not the Server. We need the parent Server for adapter setup.
+    const ioServer: Server = (nsOrServer as unknown as Namespace).server ?? nsOrServer;
+
     const redisUrl = this.configService.get<string>('REDIS_URL');
 
     if (redisUrl) {
-      this.setupRedisAdapter(server, redisUrl);
+      this.setupRedisAdapter(ioServer, redisUrl);
     } else {
-      this.logger.log('🔌 WebSocket Gateway initialized (no Redis URL configured, using in-memory adapter)');
+      this.logger.log('🔌 WebSocket Gateway initialized (no Redis, in-memory adapter)');
     }
   }
 
-  private async setupRedisAdapter(server: Server, redisUrl: string) {
+  private async setupRedisAdapter(ioServer: Server, redisUrl: string) {
     try {
       const pubClient = new Redis(redisUrl, {
         maxRetriesPerRequest: 3,
         retryStrategy(times) {
-          if (times > 3) return null; // Stop retrying after 3 attempts
+          if (times > 3) return null;
           return Math.min(times * 200, 1000);
         },
         lazyConnect: true,
       });
 
-      // Test the connection before using as adapter
       await pubClient.connect();
       await pubClient.ping();
 
@@ -88,7 +90,7 @@ export class NotificationGateway
         this.logger.error('Redis sub client error:', err.message);
       });
 
-      server.adapter(createAdapter(pubClient, subClient));
+      ioServer.adapter(createAdapter(pubClient, subClient));
       this.logger.log('🔌 WebSocket Gateway initialized with Redis adapter');
     } catch (error) {
       this.logger.warn(`Redis unavailable (${(error as Error).message}), using in-memory adapter`);
@@ -128,7 +130,7 @@ export class NotificationGateway
       client.join(`user:${payload.sub}`);
 
       this.logger.log(
-        `✅ Cliente conectado: ${payload.sub} (${this.getConnectionCount()} total)`,
+        `✅ Cliente conectado: ${payload.sub} tenant:${payload.tenantId} (${this.getConnectionCount()} total)`,
       );
 
       // Enviar confirmação
@@ -206,11 +208,14 @@ export class NotificationGateway
   }
 
   /**
-   * Emit lightweight data-changed event to all tenant users (no DB, no permissions).
-   * Used for real-time UI refresh when entity data is created/updated/deleted.
+   * Emit data-changed event with operation details for granular frontend updates.
+   * Payload includes operation type, record data, and userId so the frontend
+   * can surgically update/remove/add records without a full page refetch.
    */
-  emitDataChanged(tenantId: string, entitySlug: string) {
-    this.server.to(`tenant:${tenantId}`).emit('data-changed', { entitySlug });
+  emitDataChanged(tenantId: string, payload: { operation: string; entitySlug: string; [key: string]: unknown }) {
+    const room = `tenant:${tenantId}`;
+    this.server.to(room).emit('data-changed', payload);
+    this.logger.log(`📡 data-changed: ${payload.operation} ${payload.entitySlug} → ${room}`);
   }
 
   /**

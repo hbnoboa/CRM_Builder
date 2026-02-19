@@ -100,6 +100,14 @@ export function NotificationProvider({ children }: NotificationProviderProps) {
 
       newSocket.on('connected', (data: unknown) => {
         console.log('✅ WebSocket autenticado:', data);
+
+        // PLATFORM_ADMIN: also join the selected tenant's room so we receive
+        // data-changed events for the tenant we're currently browsing
+        const selectedTenant = sessionStorage.getItem('selectedTenantId');
+        if (selectedTenant) {
+          newSocket!.emit('subscribe', { channel: `tenant:${selectedTenant}` });
+          console.log('📡 Subscribed to tenant room:', selectedTenant);
+        }
       });
 
       newSocket.on('notification', (notification: Notification) => {
@@ -121,22 +129,20 @@ export function NotificationProvider({ children }: NotificationProviderProps) {
           duration: 5000,
         });
 
-        // Emit custom event for data pages to listen and refetch
+        // Emit custom event for data pages (fallback refresh since notifications don't carry record data)
         if (notification.data?.entitySlug) {
           window.dispatchEvent(
             new CustomEvent('entity-data-changed', {
-              detail: { entitySlug: notification.data.entitySlug },
+              detail: { operation: 'refresh', entitySlug: notification.data.entitySlug },
             })
           );
         }
       });
 
-      // Dedicated lightweight event for real-time data refresh
-      newSocket.on('data-changed', (payload: { entitySlug: string }) => {
+      // Granular data-changed events (create/update/delete with record data)
+      newSocket.on('data-changed', (payload: Record<string, unknown>) => {
         window.dispatchEvent(
-          new CustomEvent('entity-data-changed', {
-            detail: { entitySlug: payload.entitySlug },
-          })
+          new CustomEvent('entity-data-changed', { detail: payload })
         );
       });
 
@@ -155,6 +161,23 @@ export function NotificationProvider({ children }: NotificationProviderProps) {
       }
     };
   }, [isAuthenticated]);
+
+  // PLATFORM_ADMIN: re-subscribe when selected tenant changes
+  useEffect(() => {
+    if (!socket || !isConnected) return;
+
+    const handleTenantChange = () => {
+      const selectedTenant = sessionStorage.getItem('selectedTenantId');
+      if (selectedTenant) {
+        socket.emit('subscribe', { channel: `tenant:${selectedTenant}` });
+        console.log('📡 Tenant changed, subscribed to:', selectedTenant);
+      }
+    };
+
+    // Listen for custom event dispatched when tenant selector changes
+    window.addEventListener('tenant-changed', handleTenantChange);
+    return () => window.removeEventListener('tenant-changed', handleTenantChange);
+  }, [socket, isConnected]);
 
   const unreadCount = notifications.filter((n) => !n.read).length;
 

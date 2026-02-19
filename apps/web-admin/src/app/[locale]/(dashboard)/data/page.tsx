@@ -420,6 +420,10 @@ function DataPageContent() {
   // Counter para evitar race conditions entre requests concorrentes
   const fetchCounterRef = useRef(0);
 
+  // Debounced toast for burst creates via WebSocket
+  const newRecordCountRef = useRef(0);
+  const newRecordTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   useEffect(() => {
     setSelectedEntity(null);
     setRecords([]);
@@ -775,12 +779,49 @@ function DataPageContent() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeFilters]);
 
-  // Real-time: refetch quando outro dispositivo/usuario altera dados (via WebSocket)
+  // Real-time: granular updates via WebSocket (update/delete/create without full refetch)
   useEffect(() => {
     const handler = (e: Event) => {
-      const { entitySlug } = (e as CustomEvent).detail;
-      if (selectedEntity && entitySlug === selectedEntity.slug) {
-        fetchRecords(selectedEntity.slug, currentPage, debouncedSearch);
+      const detail = (e as CustomEvent).detail;
+      if (!selectedEntity || detail.entitySlug !== selectedEntity.slug) return;
+
+      switch (detail.operation) {
+        case 'updated':
+          setRecords(prev => prev.map(r =>
+            r.id === detail.record.id
+              ? { ...r, data: detail.record.data, updatedAt: detail.record.updatedAt }
+              : r
+          ));
+          break;
+
+        case 'deleted':
+          setRecords(prev => prev.filter(r => r.id !== detail.recordId));
+          setPaginationMeta(prev => prev ? {
+            ...prev,
+            total: Math.max(0, prev.total - 1),
+            totalPages: Math.max(1, Math.ceil((prev.total - 1) / prev.limit)),
+          } : prev);
+          break;
+
+        case 'created':
+          setPaginationMeta(prev => prev ? {
+            ...prev,
+            total: prev.total + 1,
+            totalPages: Math.ceil((prev.total + 1) / prev.limit),
+          } : prev);
+          // Debounced toast — groups burst creates into one message
+          newRecordCountRef.current++;
+          if (newRecordTimerRef.current) clearTimeout(newRecordTimerRef.current);
+          newRecordTimerRef.current = setTimeout(() => {
+            const count = newRecordCountRef.current;
+            newRecordCountRef.current = 0;
+            toast.info(count === 1 ? 'Novo registro adicionado' : `${count} novos registros adicionados`);
+          }, 1500);
+          break;
+
+        default: // 'refresh' or legacy payload
+          fetchRecords(selectedEntity.slug, currentPage, debouncedSearch);
+          break;
       }
     };
     window.addEventListener('entity-data-changed', handler);

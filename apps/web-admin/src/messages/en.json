@@ -734,7 +734,23 @@
       "adminPasswordPlaceholder": "Secure password",
       "createDescription": "Fill in the details to create a new tenant.",
       "editDescription": "Update tenant information.",
-      "logoHint": "Click to add the company logo"
+      "logoHint": "Click to add the company logo",
+      "themeTitle": "Theme",
+      "themeReset": "Reset",
+      "brandColor": "Brand Color",
+      "presetColors": "Preset colors",
+      "darkModePreference": "Default dark mode",
+      "darkMode": {
+        "light": "Light",
+        "dark": "Dark",
+        "system": "System"
+      },
+      "themePreview": "Preview",
+      "previewButton": "Button",
+      "previewSecondary": "Secondary",
+      "previewDelete": "Delete",
+      "previewMutedText": "Sample muted text",
+      "previewCard": "Sample card with border"
     },
     "deleteConfirm": {
       "title": "Delete Tenant",

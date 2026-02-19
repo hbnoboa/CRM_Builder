@@ -101,6 +101,7 @@ export class AuthService {
             name: true,
             slug: true,
             status: true,
+            settings: true,
           },
         },
         customRole: {
@@ -241,6 +242,7 @@ export class AuthService {
             id: true,
             name: true,
             slug: true,
+            settings: true,
           },
         },
         customRole: {

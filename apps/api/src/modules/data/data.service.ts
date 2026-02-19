@@ -301,8 +301,19 @@ export class DataService {
       currentUser.name,
     ).catch((err) => this.logger.error('Failed to send notification', err));
 
-    // Real-time: notify all tenant clients to refresh data
-    this.notificationService.emitDataChanged(targetTenantId, entitySlug);
+    // Real-time: granular update for all tenant clients
+    this.notificationService.emitDataChanged(targetTenantId, {
+      operation: 'created',
+      entitySlug,
+      record: {
+        id: record.id,
+        data: record.data as Record<string, unknown>,
+        parentRecordId: record.parentRecordId || null,
+        createdAt: record.createdAt.toISOString(),
+        updatedAt: record.updatedAt.toISOString(),
+      },
+      userId: currentUser.id,
+    });
 
     return record;
   }
@@ -1008,8 +1019,17 @@ export class DataService {
       currentUser.name,
     ).catch((err) => this.logger.error('Failed to send notification', err));
 
-    // Real-time: notify all tenant clients to refresh data
-    this.notificationService.emitDataChanged(effectiveTenantId, entitySlug);
+    // Real-time: granular update for all tenant clients
+    this.notificationService.emitDataChanged(effectiveTenantId, {
+      operation: 'updated',
+      entitySlug,
+      record: {
+        id: updatedRecord.id,
+        data: mergedData as Record<string, unknown>,
+        updatedAt: updatedRecord.updatedAt.toISOString(),
+      },
+      userId: currentUser.id,
+    });
 
     return updatedRecord;
   }
@@ -1061,8 +1081,13 @@ export class DataService {
       currentUser.name,
     ).catch((err) => this.logger.error('Failed to send notification', err));
 
-    // Real-time: notify all tenant clients to refresh data
-    this.notificationService.emitDataChanged(effectiveTenantId, entitySlug);
+    // Real-time: granular update for all tenant clients
+    this.notificationService.emitDataChanged(effectiveTenantId, {
+      operation: 'deleted',
+      entitySlug,
+      recordId: id,
+      userId: currentUser.id,
+    });
 
     return { message: 'Registro excluido com sucesso' };
   }

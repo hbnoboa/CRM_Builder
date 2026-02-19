@@ -23,7 +23,9 @@ import { useAuthStore } from '@/stores/auth-store';
 import { usePermissions } from '@/hooks/use-permissions';
 import { TenantProvider, useTenant } from '@/stores/tenant-context';
 import { NotificationProvider } from '@/providers/notification-provider';
+import { TenantThemeProvider } from '@/providers/tenant-theme-provider';
 import { NotificationBell } from '@/components/notifications/notification-bell';
+import { ThemeToggle } from '@/components/theme-toggle';
 import { LanguageSwitcher } from '@/components/language-switcher';
 import { TenantSelector } from '@/components/tenant-selector';
 import { cn } from '@/lib/utils';
@@ -342,6 +344,8 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
 
             <LanguageSwitcher />
 
+            <ThemeToggle />
+
             <NotificationBell />
 
             <div className="hidden sm:flex items-center gap-2 text-sm pl-2 border-l">
@@ -366,9 +370,11 @@ export default function DashboardLayout({
 }) {
   return (
     <TenantProvider>
-      <NotificationProvider>
-        <DashboardContent>{children}</DashboardContent>
-      </NotificationProvider>
+      <TenantThemeProvider>
+        <NotificationProvider>
+          <DashboardContent>{children}</DashboardContent>
+        </NotificationProvider>
+      </TenantThemeProvider>
     </TenantProvider>
   );
 }

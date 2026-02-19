@@ -304,11 +304,10 @@ export class NotificationService {
   }
 
   /**
-   * Emit lightweight data-changed event for real-time UI refresh.
-   * No DB queries, no permissions - just a WebSocket broadcast to the tenant.
+   * Emit data-changed event with operation details for granular frontend updates.
    */
-  emitDataChanged(tenantId: string, entitySlug: string) {
-    this.gateway.emitDataChanged(tenantId, entitySlug);
+  emitDataChanged(tenantId: string, payload: { operation: string; entitySlug: string; [key: string]: unknown }) {
+    this.gateway.emitDataChanged(tenantId, payload);
   }
 
   /**

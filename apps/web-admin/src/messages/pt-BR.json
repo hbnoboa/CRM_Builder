@@ -734,7 +734,23 @@
       "adminPasswordPlaceholder": "Senha segura",
       "createDescription": "Preencha os dados para criar um novo tenant.",
       "editDescription": "Atualize as informações do tenant.",
-      "logoHint": "Clique para adicionar o logo da empresa"
+      "logoHint": "Clique para adicionar o logo da empresa",
+      "themeTitle": "Tema",
+      "themeReset": "Resetar",
+      "brandColor": "Cor Principal",
+      "presetColors": "Cores predefinidas",
+      "darkModePreference": "Modo escuro padrão",
+      "darkMode": {
+        "light": "Claro",
+        "dark": "Escuro",
+        "system": "Sistema"
+      },
+      "themePreview": "Pré-visualização",
+      "previewButton": "Botão",
+      "previewSecondary": "Secundário",
+      "previewDelete": "Excluir",
+      "previewMutedText": "Texto secundário de exemplo",
+      "previewCard": "Card de exemplo com borda"
     },
     "deleteConfirm": {
       "title": "Excluir Tenant",

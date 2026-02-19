@@ -9,6 +9,13 @@ interface Tenant {
   name: string;
   slug: string;
   logo?: string;
+  settings?: {
+    theme?: {
+      brandColor?: string;
+      darkMode?: 'light' | 'dark' | 'system';
+    };
+    [key: string]: unknown;
+  };
 }
 
 interface TenantContextType {
@@ -88,6 +95,8 @@ export function TenantProvider({ children }: { children: ReactNode }) {
     } else {
       sessionStorage.removeItem('selectedTenantId');
     }
+    // Notify WebSocket provider to subscribe to the new tenant's room
+    window.dispatchEvent(new CustomEvent('tenant-changed'));
   }, []);
 
   const effectiveTenantId = isPlatformAdmin
