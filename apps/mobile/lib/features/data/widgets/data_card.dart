@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:crm_mobile/core/theme/app_colors.dart';
+import 'package:crm_mobile/core/theme/app_colors_extension.dart';
 import 'package:crm_mobile/core/theme/app_typography.dart';
 import 'package:crm_mobile/shared/utils/formatters.dart';
 
@@ -88,7 +89,7 @@ class DataCard extends StatelessWidget {
       elevation: 0,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(AppColors.radius),
-        side: BorderSide(color: AppColors.border.withValues(alpha: 0.5)),
+        side: BorderSide(color: context.colors.border.withValues(alpha: 0.5)),
       ),
       child: InkWell(
         onTap: onTap,
@@ -118,13 +119,13 @@ class DataCard extends StatelessWidget {
                       Wrap(
                         spacing: 8,
                         runSpacing: 4,
-                        children: detailFields.map((f) => _buildFieldChip(f.name, f.value, f.type)).toList(),
+                        children: detailFields.map((f) => _buildFieldChip(context, f.name, f.value, f.type)).toList(),
                       ),
                     ],
                   ],
                 ),
               ),
-              const Icon(Icons.chevron_right, size: 18, color: AppColors.mutedForeground),
+              Icon(Icons.chevron_right, size: 18, color: context.colors.mutedForeground),
             ],
           ),
         ),
@@ -132,7 +133,7 @@ class DataCard extends StatelessWidget {
     );
   }
 
-  Widget _buildFieldChip(String name, String value, String type) {
+  Widget _buildFieldChip(BuildContext context, String name, String value, String type) {
     // Special styling for boolean fields
     if (type == 'BOOLEAN') {
       final isTrue = value == 'Sim';
@@ -142,13 +143,13 @@ class DataCard extends StatelessWidget {
           Icon(
             isTrue ? Icons.check_circle : Icons.cancel,
             size: 12,
-            color: isTrue ? AppColors.success : AppColors.mutedForeground,
+            color: isTrue ? context.colors.success : context.colors.mutedForeground,
           ),
           const SizedBox(width: 3),
           Text(
             name,
             style: AppTypography.caption.copyWith(
-              color: AppColors.mutedForeground,
+              color: context.colors.mutedForeground,
               fontSize: 11,
             ),
           ),
@@ -159,7 +160,7 @@ class DataCard extends StatelessWidget {
     return Text(
       '$name: $value',
       style: AppTypography.caption.copyWith(
-        color: AppColors.mutedForeground,
+        color: context.colors.mutedForeground,
         fontSize: 11,
       ),
       maxLines: 1,

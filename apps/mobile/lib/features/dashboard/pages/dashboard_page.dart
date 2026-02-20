@@ -6,6 +6,7 @@ import 'package:crm_mobile/core/auth/auth_provider.dart';
 import 'package:crm_mobile/core/database/app_database.dart';
 import 'package:crm_mobile/core/permissions/permission_provider.dart';
 import 'package:crm_mobile/core/theme/app_colors.dart';
+import 'package:crm_mobile/core/theme/app_colors_extension.dart';
 import 'package:crm_mobile/core/theme/app_typography.dart';
 import 'package:crm_mobile/features/dashboard/widgets/stat_card.dart';
 import 'package:crm_mobile/shared/widgets/sync_status_indicator.dart';
@@ -45,7 +46,7 @@ class DashboardPage extends ConsumerWidget {
           padding: const EdgeInsets.all(AppColors.spaceMd),
           children: [
           // Welcome header with gradient
-          _buildWelcomeHeader(user),
+          _buildWelcomeHeader(context, user),
           const SizedBox(height: AppColors.spaceLg),
 
           // Stats cards
@@ -74,7 +75,8 @@ class DashboardPage extends ConsumerWidget {
     );
   }
 
-  Widget _buildWelcomeHeader(dynamic user) {
+  Widget _buildWelcomeHeader(BuildContext context, dynamic user) {
+    final primaryColor = Theme.of(context).colorScheme.primary;
     final firstName = user?.name?.split(' ').first ?? 'Usuario';
     final hour = DateTime.now().hour;
     String greeting;
@@ -93,11 +95,15 @@ class DashboardPage extends ConsumerWidget {
     return Container(
       padding: const EdgeInsets.all(AppColors.spaceLg),
       decoration: BoxDecoration(
-        gradient: AppColors.primaryGradient,
+        gradient: LinearGradient(
+          colors: [primaryColor, primaryColor.withValues(alpha: 0.8)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
         borderRadius: BorderRadius.circular(AppColors.radiusXl),
         boxShadow: [
           BoxShadow(
-            color: AppColors.primary.withValues(alpha: 0.3),
+            color: primaryColor.withValues(alpha: 0.3),
             blurRadius: 20,
             offset: const Offset(0, 8),
           ),
@@ -170,6 +176,10 @@ class DashboardPage extends ConsumerWidget {
     dynamic db,
     String? userId,
   ) {
+    final primaryColor = Theme.of(context).colorScheme.primary;
+    final secondaryColor = Theme.of(context).colorScheme.secondary;
+    final colors = context.colors;
+
     return StreamBuilder<List<Map<String, dynamic>>>(
       stream: db.watch(
         'SELECT '
@@ -194,7 +204,11 @@ class DashboardPage extends ConsumerWidget {
                   width: 4,
                   height: 20,
                   decoration: BoxDecoration(
-                    gradient: AppColors.primaryGradient,
+                    gradient: LinearGradient(
+                      colors: [primaryColor, primaryColor.withValues(alpha: 0.8)],
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                    ),
                     borderRadius: BorderRadius.circular(2),
                   ),
                 ),
@@ -215,28 +229,28 @@ class DashboardPage extends ConsumerWidget {
                   title: 'Entidades',
                   value: '$entityCount',
                   icon: Icons.storage_outlined,
-                  color: AppColors.info,
+                  color: colors.info,
                   onTap: () => context.go('/data'),
                 ),
                 StatCard(
                   title: 'Registros',
                   value: '$dataCount',
                   icon: Icons.layers_outlined,
-                  color: AppColors.success,
+                  color: colors.success,
                   onTap: () => context.go('/data'),
                 ),
                 StatCard(
                   title: 'Meus Registros',
                   value: '$myDataCount',
                   icon: Icons.person_outline,
-                  color: AppColors.secondary,
+                  color: secondaryColor,
                   onTap: () => context.go('/data'),
                 ),
                 StatCard(
                   title: 'Pendentes Sync',
                   value: '$pendingCount',
                   icon: Icons.cloud_upload_outlined,
-                  color: pendingCount > 0 ? AppColors.warning : AppColors.mutedForeground,
+                  color: pendingCount > 0 ? colors.warning : colors.mutedForeground,
                   subtitle: pendingCount > 0 ? 'Sincronizando...' : null,
                 ),
               ],
@@ -248,6 +262,9 @@ class DashboardPage extends ConsumerWidget {
   }
 
   Widget _buildAreaChartSection(BuildContext context, dynamic db) {
+    final primaryColor = Theme.of(context).colorScheme.primary;
+    final colors = context.colors;
+
     return StreamBuilder<List<Map<String, dynamic>>>(
       stream: db.watch(
         'SELECT date(createdAt) as date, COUNT(*) as count '
@@ -264,9 +281,15 @@ class DashboardPage extends ConsumerWidget {
         return Container(
           padding: const EdgeInsets.all(AppColors.spaceMd),
           decoration: BoxDecoration(
-            color: AppColors.card,
+            color: colors.card,
             borderRadius: BorderRadius.circular(AppColors.radiusLg),
-            boxShadow: AppColors.cardShadow,
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.05),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              ),
+            ],
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -287,7 +310,7 @@ class DashboardPage extends ConsumerWidget {
                       Text(
                         'Ultimos 30 dias',
                         style: AppTypography.caption.copyWith(
-                          color: AppColors.mutedForeground,
+                          color: colors.mutedForeground,
                         ),
                       ),
                     ],
@@ -299,13 +322,13 @@ class DashboardPage extends ConsumerWidget {
                         vertical: 6,
                       ),
                       decoration: BoxDecoration(
-                        color: AppColors.primary.withValues(alpha: 0.1),
+                        color: primaryColor.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(AppColors.radiusFull),
                       ),
                       child: Text(
                         '$total total',
                         style: AppTypography.labelSmall.copyWith(
-                          color: AppColors.primary,
+                          color: primaryColor,
                           fontWeight: FontWeight.w600,
                         ),
                       ),
@@ -323,19 +346,19 @@ class DashboardPage extends ConsumerWidget {
                             Icon(
                               Icons.show_chart,
                               size: 40,
-                              color: AppColors.mutedForeground.withValues(alpha: 0.5),
+                              color: colors.mutedForeground.withValues(alpha: 0.5),
                             ),
                             const SizedBox(height: 8),
                             Text(
                               'Sem dados no periodo',
                               style: AppTypography.bodySmall.copyWith(
-                                color: AppColors.mutedForeground,
+                                color: colors.mutedForeground,
                               ),
                             ),
                           ],
                         ),
                       )
-                    : _buildAreaChart(data),
+                    : _buildAreaChart(context, data),
               ),
             ],
           ),
@@ -344,7 +367,12 @@ class DashboardPage extends ConsumerWidget {
     );
   }
 
-  Widget _buildAreaChart(List<Map<String, dynamic>> data) {
+  Widget _buildAreaChart(BuildContext context, List<Map<String, dynamic>> data) {
+    final primaryColor = Theme.of(context).colorScheme.primary;
+    final secondaryColor = Theme.of(context).colorScheme.secondary;
+    final onSurfaceColor = Theme.of(context).colorScheme.onSurface;
+    final colors = context.colors;
+
     final spots = <FlSpot>[];
     double maxY = 0;
 
@@ -361,7 +389,7 @@ class DashboardPage extends ConsumerWidget {
           drawVerticalLine: false,
           horizontalInterval: maxY > 0 ? maxY / 4 : 1,
           getDrawingHorizontalLine: (value) => FlLine(
-            color: AppColors.border.withValues(alpha: 0.5),
+            color: colors.border.withValues(alpha: 0.5),
             strokeWidth: 1,
             dashArray: [5, 5],
           ),
@@ -376,7 +404,7 @@ class DashboardPage extends ConsumerWidget {
                   return Text(
                     value.toInt().toString(),
                     style: AppTypography.caption.copyWith(
-                      color: AppColors.mutedForeground,
+                      color: colors.mutedForeground,
                     ),
                   );
                 }
@@ -404,7 +432,11 @@ class DashboardPage extends ConsumerWidget {
             spots: spots,
             isCurved: true,
             curveSmoothness: 0.35,
-            gradient: AppColors.primaryGradient,
+            gradient: LinearGradient(
+              colors: [primaryColor, primaryColor.withValues(alpha: 0.8)],
+              begin: Alignment.centerLeft,
+              end: Alignment.centerRight,
+            ),
             barWidth: 3,
             isStrokeCapRound: true,
             dotData: FlDotData(
@@ -412,9 +444,9 @@ class DashboardPage extends ConsumerWidget {
               getDotPainter: (spot, percent, barData, index) {
                 return FlDotCirclePainter(
                   radius: 4,
-                  color: AppColors.card,
+                  color: colors.card,
                   strokeWidth: 2,
-                  strokeColor: AppColors.primary,
+                  strokeColor: primaryColor,
                 );
               },
             ),
@@ -422,8 +454,8 @@ class DashboardPage extends ConsumerWidget {
               show: true,
               gradient: LinearGradient(
                 colors: [
-                  AppColors.primary.withValues(alpha: 0.25),
-                  AppColors.secondary.withValues(alpha: 0.05),
+                  primaryColor.withValues(alpha: 0.25),
+                  secondaryColor.withValues(alpha: 0.05),
                 ],
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
@@ -433,7 +465,7 @@ class DashboardPage extends ConsumerWidget {
         ],
         lineTouchData: LineTouchData(
           touchTooltipData: LineTouchTooltipData(
-            getTooltipColor: (touchedSpot) => AppColors.foreground,
+            getTooltipColor: (touchedSpot) => onSurfaceColor,
             getTooltipItems: (touchedSpots) {
               return touchedSpots.map((spot) {
                 return LineTooltipItem(
@@ -452,6 +484,8 @@ class DashboardPage extends ConsumerWidget {
   }
 
   Widget _buildPieChartSection(BuildContext context, dynamic db) {
+    final colors = context.colors;
+
     return StreamBuilder<List<Map<String, dynamic>>>(
       stream: db.watch(
         'SELECT e.name, e.color, COUNT(ed.id) as count '
@@ -464,7 +498,7 @@ class DashboardPage extends ConsumerWidget {
       builder: (context, snapshot) {
         final data = snapshot.data ?? [];
         if (data.isEmpty) {
-          return _buildEmptyChart('Nenhuma entidade encontrada');
+          return _buildEmptyChart(context, 'Nenhuma entidade encontrada');
         }
 
         final total = data.fold<int>(
@@ -473,15 +507,21 @@ class DashboardPage extends ConsumerWidget {
         );
 
         if (total == 0) {
-          return _buildEmptyChart('Nenhum registro encontrado');
+          return _buildEmptyChart(context, 'Nenhum registro encontrado');
         }
 
         return Container(
           padding: const EdgeInsets.all(AppColors.spaceMd),
           decoration: BoxDecoration(
-            color: AppColors.card,
+            color: colors.card,
             borderRadius: BorderRadius.circular(AppColors.radiusLg),
-            boxShadow: AppColors.cardShadow,
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.05),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              ),
+            ],
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -492,7 +532,11 @@ class DashboardPage extends ConsumerWidget {
                     width: 4,
                     height: 20,
                     decoration: BoxDecoration(
-                      gradient: AppColors.successGradient,
+                      gradient: LinearGradient(
+                        colors: [colors.success, colors.success.withValues(alpha: 0.8)],
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                      ),
                       borderRadius: BorderRadius.circular(2),
                     ),
                   ),
@@ -521,7 +565,7 @@ class DashboardPage extends ConsumerWidget {
                     ),
                     const SizedBox(width: AppColors.spaceMd),
                     Expanded(
-                      child: _buildChartLegend(data, total),
+                      child: _buildChartLegend(context, data, total),
                     ),
                   ],
                 ),
@@ -571,7 +615,10 @@ class DashboardPage extends ConsumerWidget {
     }).toList();
   }
 
-  Widget _buildChartLegend(List<Map<String, dynamic>> data, int total) {
+  Widget _buildChartLegend(BuildContext context, List<Map<String, dynamic>> data, int total) {
+    final onSurfaceColor = Theme.of(context).colorScheme.onSurface;
+    final colors = context.colors;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisAlignment: MainAxisAlignment.center,
@@ -611,7 +658,7 @@ class DashboardPage extends ConsumerWidget {
                 child: Text(
                   name,
                   style: AppTypography.bodySmall.copyWith(
-                    color: AppColors.foreground,
+                    color: onSurfaceColor,
                   ),
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -620,7 +667,7 @@ class DashboardPage extends ConsumerWidget {
                 '${percentage.toStringAsFixed(0)}%',
                 style: AppTypography.labelSmall.copyWith(
                   fontWeight: FontWeight.w600,
-                  color: AppColors.mutedForeground,
+                  color: colors.mutedForeground,
                 ),
               ),
             ],
@@ -630,11 +677,13 @@ class DashboardPage extends ConsumerWidget {
     );
   }
 
-  Widget _buildEmptyChart(String message) {
+  Widget _buildEmptyChart(BuildContext context, String message) {
+    final colors = context.colors;
+
     return Container(
       height: 200,
       decoration: BoxDecoration(
-        color: AppColors.surfaceVariant,
+        color: colors.muted,
         borderRadius: BorderRadius.circular(AppColors.radiusLg),
       ),
       child: Center(
@@ -645,20 +694,20 @@ class DashboardPage extends ConsumerWidget {
               width: 64,
               height: 64,
               decoration: BoxDecoration(
-                color: AppColors.muted,
+                color: colors.muted,
                 borderRadius: BorderRadius.circular(AppColors.radiusFull),
               ),
-              child: const Icon(
+              child: Icon(
                 Icons.pie_chart_outline,
                 size: 32,
-                color: AppColors.mutedForeground,
+                color: colors.mutedForeground,
               ),
             ),
             const SizedBox(height: AppColors.spaceMd),
             Text(
               message,
               style: AppTypography.bodyMedium.copyWith(
-                color: AppColors.mutedForeground,
+                color: colors.mutedForeground,
               ),
             ),
           ],
@@ -668,6 +717,10 @@ class DashboardPage extends ConsumerWidget {
   }
 
   Widget _buildQuickActionsSection(BuildContext context, dynamic db) {
+    final primaryColor = Theme.of(context).colorScheme.primary;
+    final secondaryColor = Theme.of(context).colorScheme.secondary;
+    final colors = context.colors;
+
     return StreamBuilder<List<Map<String, dynamic>>>(
       stream: db.watch(
         'SELECT slug, namePlural, color FROM Entity ORDER BY name ASC LIMIT 4',
@@ -684,7 +737,7 @@ class DashboardPage extends ConsumerWidget {
                   width: 4,
                   height: 20,
                   decoration: BoxDecoration(
-                    color: AppColors.accent,
+                    color: colors.info,
                     borderRadius: BorderRadius.circular(2),
                   ),
                 ),
@@ -700,7 +753,7 @@ class DashboardPage extends ConsumerWidget {
                 _QuickActionChip(
                   icon: Icons.folder_open_outlined,
                   label: 'Ver Dados',
-                  color: AppColors.primary,
+                  color: primaryColor,
                   onTap: () => context.go('/data'),
                 ),
                 ...entities.map((e) {
@@ -708,7 +761,7 @@ class DashboardPage extends ConsumerWidget {
                   final name = e['namePlural'] as String;
                   final colorStr = e['color'] as String?;
 
-                  Color color = AppColors.secondary;
+                  Color color = secondaryColor;
                   if (colorStr != null && colorStr.isNotEmpty) {
                     try {
                       color = Color(int.parse(colorStr.replaceFirst('#', '0xFF')));
@@ -731,6 +784,9 @@ class DashboardPage extends ConsumerWidget {
   }
 
   Widget _buildRecentActivitySection(BuildContext context, dynamic db) {
+    final primaryColor = Theme.of(context).colorScheme.primary;
+    final colors = context.colors;
+
     return StreamBuilder<List<Map<String, dynamic>>>(
       stream: db.watch(
         'SELECT ed.id, ed.data, ed.createdAt, ed.updatedAt, '
@@ -757,7 +813,7 @@ class DashboardPage extends ConsumerWidget {
                       width: 4,
                       height: 20,
                       decoration: BoxDecoration(
-                        color: AppColors.warning,
+                        color: colors.warning,
                         borderRadius: BorderRadius.circular(2),
                       ),
                     ),
@@ -770,7 +826,7 @@ class DashboardPage extends ConsumerWidget {
                   child: Text(
                     'Ver tudo',
                     style: AppTypography.labelSmall.copyWith(
-                      color: AppColors.primary,
+                      color: primaryColor,
                     ),
                   ),
                 ),
@@ -779,18 +835,24 @@ class DashboardPage extends ConsumerWidget {
             const SizedBox(height: AppColors.spaceSm),
             Container(
               decoration: BoxDecoration(
-                color: AppColors.card,
+                color: colors.card,
                 borderRadius: BorderRadius.circular(AppColors.radiusLg),
-                boxShadow: AppColors.cardShadow,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.05),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
               ),
               child: ListView.separated(
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
                 itemCount: activities.length,
-                separatorBuilder: (_, __) => const Divider(
+                separatorBuilder: (context, __) => Divider(
                   height: 1,
                   indent: 68,
-                  color: AppColors.border,
+                  color: context.colors.border,
                 ),
                 itemBuilder: (context, index) {
                   final activity = activities[index];
@@ -808,6 +870,9 @@ class DashboardPage extends ConsumerWidget {
     BuildContext context,
     Map<String, dynamic> activity,
   ) {
+    final primaryColor = Theme.of(context).colorScheme.primary;
+    final colors = context.colors;
+
     final entityName = activity['entityName'] as String? ?? 'Registro';
     final slug = activity['entitySlug'] as String? ?? '';
     final id = activity['id'] as String? ?? '';
@@ -821,7 +886,7 @@ class DashboardPage extends ConsumerWidget {
     final icon = isNew ? Icons.add_circle_outline : Icons.edit_outlined;
 
     // Parse color
-    Color color = AppColors.primary;
+    Color color = primaryColor;
     if (colorStr != null && colorStr.isNotEmpty) {
       try {
         color = Color(int.parse(colorStr.replaceFirst('#', '0xFF')));
@@ -869,20 +934,20 @@ class DashboardPage extends ConsumerWidget {
       subtitle: Text(
         timeAgo,
         style: AppTypography.caption.copyWith(
-          color: AppColors.mutedForeground,
+          color: colors.mutedForeground,
         ),
       ),
       trailing: Container(
         width: 32,
         height: 32,
         decoration: BoxDecoration(
-          color: AppColors.surfaceVariant,
+          color: colors.muted,
           borderRadius: BorderRadius.circular(AppColors.radiusSm),
         ),
-        child: const Icon(
+        child: Icon(
           Icons.chevron_right,
           size: 20,
-          color: AppColors.mutedForeground,
+          color: colors.mutedForeground,
         ),
       ),
       onTap: () => context.push('/data/$slug/$id'),
@@ -890,6 +955,9 @@ class DashboardPage extends ConsumerWidget {
   }
 
   Widget _buildDrawer(BuildContext context, WidgetRef ref, dynamic user) {
+    final primaryColor = Theme.of(context).colorScheme.primary;
+    final colors = context.colors;
+
     return Drawer(
       child: SafeArea(
         child: Column(
@@ -898,8 +966,12 @@ class DashboardPage extends ConsumerWidget {
             Container(
               width: double.infinity,
               padding: const EdgeInsets.all(AppColors.spaceLg),
-              decoration: const BoxDecoration(
-                gradient: AppColors.primaryGradient,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [primaryColor, primaryColor.withValues(alpha: 0.8)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -978,11 +1050,11 @@ class DashboardPage extends ConsumerWidget {
             // Logout button
             const Divider(height: 1),
             ListTile(
-              leading: const Icon(Icons.logout, color: AppColors.destructive),
+              leading: Icon(Icons.logout, color: colors.destructive),
               title: Text(
                 'Sair',
                 style: AppTypography.labelMedium.copyWith(
-                  color: AppColors.destructive,
+                  color: colors.destructive,
                 ),
               ),
               onTap: () async {
@@ -1000,7 +1072,7 @@ class DashboardPage extends ConsumerWidget {
                       TextButton(
                         onPressed: () => Navigator.pop(ctx, true),
                         style: TextButton.styleFrom(
-                          foregroundColor: AppColors.destructive,
+                          foregroundColor: colors.destructive,
                         ),
                         child: const Text('Sair'),
                       ),
@@ -1020,12 +1092,14 @@ class DashboardPage extends ConsumerWidget {
   }
 
   void _showSyncDialog(BuildContext context) {
+    final primaryColor = Theme.of(context).colorScheme.primary;
+
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
         title: Row(
           children: [
-            Icon(Icons.sync, color: AppColors.primary),
+            Icon(Icons.sync, color: primaryColor),
             const SizedBox(width: 8),
             const Text('PowerSync'),
           ],
@@ -1044,10 +1118,10 @@ class DashboardPage extends ConsumerWidget {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _buildSyncRow('Entity', row?['entityCount'] ?? 0),
-                _buildSyncRow('EntityData', row?['dataCount'] ?? 0),
-                _buildSyncRow('CustomRole', row?['roleCount'] ?? 0),
-                _buildSyncRow('User', row?['userCount'] ?? 0),
+                _buildSyncRow(context, 'Entity', row?['entityCount'] ?? 0),
+                _buildSyncRow(context, 'EntityData', row?['dataCount'] ?? 0),
+                _buildSyncRow(context, 'CustomRole', row?['roleCount'] ?? 0),
+                _buildSyncRow(context, 'User', row?['userCount'] ?? 0),
               ],
             );
           },
@@ -1062,7 +1136,9 @@ class DashboardPage extends ConsumerWidget {
     );
   }
 
-  Widget _buildSyncRow(String name, int count) {
+  Widget _buildSyncRow(BuildContext context, String name, int count) {
+    final colors = context.colors;
+
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
@@ -1072,7 +1148,7 @@ class DashboardPage extends ConsumerWidget {
           Text(
             '$count registros',
             style: AppTypography.bodyMedium.copyWith(
-              color: AppColors.mutedForeground,
+              color: colors.mutedForeground,
             ),
           ),
         ],

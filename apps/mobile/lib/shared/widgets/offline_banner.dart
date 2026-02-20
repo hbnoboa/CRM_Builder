@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
-import 'package:crm_mobile/core/theme/app_colors.dart';
+import 'package:crm_mobile/core/theme/app_colors_extension.dart';
 
 /// Shows a banner at the top when the device is offline.
 class OfflineBanner extends StatelessWidget {
@@ -20,7 +20,7 @@ class OfflineBanner extends StatelessWidget {
         return Container(
           width: double.infinity,
           padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 16),
-          color: AppColors.warning,
+          color: context.colors.warning,
           child: const SafeArea(
             bottom: false,
             child: Row(

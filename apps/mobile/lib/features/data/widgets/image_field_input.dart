@@ -12,6 +12,7 @@ import 'package:uuid/uuid.dart';
 import 'package:crm_mobile/core/cache/crm_cache_manager.dart';
 import 'package:crm_mobile/core/database/app_database.dart';
 import 'package:crm_mobile/core/theme/app_colors.dart';
+import 'package:crm_mobile/core/theme/app_colors_extension.dart';
 import 'package:crm_mobile/core/theme/app_typography.dart';
 import 'package:crm_mobile/core/upload/local_file_storage.dart';
 import 'package:crm_mobile/core/upload/upload_queue_service.dart';
@@ -224,8 +225,8 @@ class _ImageFieldInputState extends ConsumerState<ImageFieldInput> {
               ),
             if (_currentUrl != null)
               ListTile(
-                leading: const Icon(Icons.delete_outlined, color: AppColors.destructive),
-                title: const Text('Remover', style: TextStyle(color: AppColors.destructive)),
+                leading: Icon(Icons.delete_outlined, color: context.colors.destructive),
+                title: Text('Remover', style: TextStyle(color: context.colors.destructive)),
                 onTap: () {
                   Navigator.of(ctx).pop();
                   setState(() {
@@ -272,7 +273,7 @@ class _ImageFieldInputState extends ConsumerState<ImageFieldInput> {
                 padding: const EdgeInsets.only(top: 4),
                 child: Text(
                   _error!,
-                  style: AppTypography.caption.copyWith(color: AppColors.error),
+                  style: AppTypography.caption.copyWith(color: context.colors.destructive),
                 ),
               ),
             if (fieldState.hasError)
@@ -280,7 +281,7 @@ class _ImageFieldInputState extends ConsumerState<ImageFieldInput> {
                 padding: const EdgeInsets.only(top: 4),
                 child: Text(
                   fieldState.errorText!,
-                  style: AppTypography.caption.copyWith(color: AppColors.error),
+                  style: AppTypography.caption.copyWith(color: context.colors.destructive),
                 ),
               ),
           ],
@@ -296,9 +297,9 @@ class _ImageFieldInputState extends ConsumerState<ImageFieldInput> {
         height: 150,
         width: double.infinity,
         decoration: BoxDecoration(
-          border: Border.all(color: AppColors.border, width: 1.5),
+          border: Border.all(color: context.colors.border, width: 1.5),
           borderRadius: BorderRadius.circular(AppColors.radius),
-          color: AppColors.muted,
+          color: context.colors.muted,
         ),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -308,7 +309,7 @@ class _ImageFieldInputState extends ConsumerState<ImageFieldInput> {
                   ? Icons.add_a_photo_outlined
                   : Icons.attach_file,
               size: 36,
-              color: AppColors.mutedForeground,
+              color: context.colors.mutedForeground,
             ),
             const SizedBox(height: 8),
             Text(
@@ -316,7 +317,7 @@ class _ImageFieldInputState extends ConsumerState<ImageFieldInput> {
                   ? 'Toque para adicionar imagem'
                   : 'Toque para anexar arquivo',
               style: AppTypography.bodySmall.copyWith(
-                color: AppColors.mutedForeground,
+                color: context.colors.mutedForeground,
               ),
             ),
           ],
@@ -348,18 +349,18 @@ class _ImageFieldInputState extends ConsumerState<ImageFieldInput> {
                         fit: BoxFit.cover,
                         placeholder: (_, __) => Container(
                           height: 200,
-                          color: AppColors.muted,
+                          color: context.colors.muted,
                           child: const Center(child: CircularProgressIndicator()),
                         ),
                         errorWidget: (_, __, ___) => Container(
                           height: 200,
-                          color: AppColors.muted,
+                          color: context.colors.muted,
                           child: const Icon(Icons.broken_image_outlined, size: 48),
                         ),
                       )
                     : Container(
                         height: 200,
-                        color: AppColors.muted,
+                        color: context.colors.muted,
                         child: const Center(
                           child: Icon(Icons.image_outlined, size: 48),
                         ),
@@ -373,7 +374,7 @@ class _ImageFieldInputState extends ConsumerState<ImageFieldInput> {
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
-                  color: AppColors.warning,
+                  color: context.colors.warning,
                   borderRadius: BorderRadius.circular(AppColors.radiusSm),
                 ),
                 child: const Row(
@@ -426,9 +427,9 @@ class _ImageFieldInputState extends ConsumerState<ImageFieldInput> {
       height: 150,
       width: double.infinity,
       decoration: BoxDecoration(
-        border: Border.all(color: AppColors.border),
+        border: Border.all(color: context.colors.border),
         borderRadius: BorderRadius.circular(AppColors.radius),
-        color: AppColors.muted,
+        color: context.colors.muted,
       ),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,

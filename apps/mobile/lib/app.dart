@@ -13,6 +13,8 @@ class CrmApp extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final router = ref.watch(routerProvider);
+    final themeState = ref.watch(tenantThemeProvider);
+    final themeMode = ref.watch(themeModeNotifierProvider);
 
     // Initialize startup service (handles background sync on auth/connectivity changes)
     initializeStartupService(ref);
@@ -22,7 +24,9 @@ class CrmApp extends ConsumerWidget {
         title: 'CRM Builder',
         debugShowCheckedModeBanner: false,
         scaffoldMessengerKey: PushNotificationService.scaffoldMessengerKey,
-        theme: ref.watch(tenantThemeProvider),
+        theme: themeState.light,
+        darkTheme: themeState.dark,
+        themeMode: themeMode,
         routerConfig: router,
         localizationsDelegates: const [
           GlobalMaterialLocalizations.delegate,

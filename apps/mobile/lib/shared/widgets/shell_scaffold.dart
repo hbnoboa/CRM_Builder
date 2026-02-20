@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:crm_mobile/core/permissions/permission_provider.dart';
-import 'package:crm_mobile/core/theme/app_colors.dart';
+import 'package:crm_mobile/core/theme/app_colors_extension.dart';
 import 'package:crm_mobile/shared/widgets/offline_banner.dart';
 
 /// Main shell scaffold with bottom navigation.
@@ -15,6 +15,8 @@ class ShellScaffold extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final colors = context.colors;
     final permissions = ref.watch(permissionsProvider);
     final currentPath = GoRouterState.of(context).matchedLocation;
 
@@ -40,7 +42,7 @@ class ShellScaffold extends ConsumerWidget {
     }
 
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: theme.scaffoldBackgroundColor,
       body: Column(
         children: [
           const OfflineBanner(),
@@ -50,8 +52,14 @@ class ShellScaffold extends ConsumerWidget {
       bottomNavigationBar: navItems.length > 1
           ? Container(
               decoration: BoxDecoration(
-                color: AppColors.card,
-                boxShadow: AppColors.navShadow,
+                color: colors.card,
+                boxShadow: [
+                  BoxShadow(
+                    color: theme.shadowColor.withValues(alpha: 0.1),
+                    blurRadius: 8,
+                    offset: const Offset(0, -2),
+                  ),
+                ],
               ),
               child: SafeArea(
                 child: NavigationBar(

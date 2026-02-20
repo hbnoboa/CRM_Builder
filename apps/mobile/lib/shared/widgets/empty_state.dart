@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:crm_mobile/core/theme/app_colors.dart';
+import 'package:crm_mobile/core/theme/app_colors_extension.dart';
 import 'package:crm_mobile/core/theme/app_typography.dart';
 
 class EmptyState extends StatelessWidget {
@@ -24,12 +24,12 @@ class EmptyState extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(icon, size: 64, color: AppColors.mutedForeground),
+            Icon(icon, size: 64, color: context.colors.mutedForeground),
             const SizedBox(height: 16),
             Text(
               message,
               style: AppTypography.bodyMedium.copyWith(
-                color: AppColors.mutedForeground,
+                color: context.colors.mutedForeground,
               ),
               textAlign: TextAlign.center,
             ),

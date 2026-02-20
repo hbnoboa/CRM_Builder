@@ -5,16 +5,18 @@ import 'package:crm_mobile/core/auth/auth_provider.dart';
 import 'package:crm_mobile/core/database/app_database.dart';
 import 'package:crm_mobile/core/permissions/permission_provider.dart';
 import 'package:crm_mobile/core/tenant/tenant_provider.dart';
-import 'package:crm_mobile/core/theme/app_colors.dart';
+import 'package:crm_mobile/core/theme/app_colors_extension.dart';
 import 'package:crm_mobile/core/theme/app_typography.dart';
+import 'package:crm_mobile/core/theme/theme_provider.dart';
 
 /// Drawer compartilhado com menu e logout.
-/// Pode ser usado em qualquer pagina do app.
 class AppDrawer extends ConsumerWidget {
   const AppDrawer({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final colors = context.colors;
     final authState = ref.watch(authProvider);
     final user = authState.user;
     final permissions = ref.watch(permissionsProvider);
@@ -22,7 +24,6 @@ class AppDrawer extends ConsumerWidget {
     final tenantState = ref.watch(tenantSwitchProvider);
     final isPlatformAdmin = user?.customRole?.roleType == 'PLATFORM_ADMIN';
 
-    // Get current tenant name (from switch or from user's own tenant)
     final currentTenantName = tenantState.selectedTenantName ??
         (user != null ? _getUserTenantName(user) : null);
 
@@ -30,12 +31,12 @@ class AppDrawer extends ConsumerWidget {
       child: SafeArea(
         child: Column(
           children: [
-            // Header
+            // Header with primary color
             Container(
               width: double.infinity,
-              padding: const EdgeInsets.all(AppColors.spaceLg),
-              decoration: const BoxDecoration(
-                gradient: AppColors.primaryGradient,
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: theme.colorScheme.primary,
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -45,7 +46,7 @@ class AppDrawer extends ConsumerWidget {
                     width: 56,
                     height: 56,
                     decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.2),
+                      color: theme.colorScheme.onPrimary.withValues(alpha: 0.2),
                       borderRadius: BorderRadius.circular(28),
                     ),
                     child: Center(
@@ -54,7 +55,7 @@ class AppDrawer extends ConsumerWidget {
                             ? user!.name[0].toUpperCase()
                             : 'U',
                         style: AppTypography.h3.copyWith(
-                          color: Colors.white,
+                          color: theme.colorScheme.onPrimary,
                           fontWeight: FontWeight.w700,
                         ),
                       ),
@@ -64,7 +65,7 @@ class AppDrawer extends ConsumerWidget {
                   Text(
                     user?.name ?? 'Usuario',
                     style: AppTypography.labelLarge.copyWith(
-                      color: Colors.white,
+                      color: theme.colorScheme.onPrimary,
                       fontWeight: FontWeight.w600,
                     ),
                     maxLines: 1,
@@ -74,7 +75,7 @@ class AppDrawer extends ConsumerWidget {
                   Text(
                     user?.email ?? '',
                     style: AppTypography.bodySmall.copyWith(
-                      color: Colors.white.withValues(alpha: 0.8),
+                      color: theme.colorScheme.onPrimary.withValues(alpha: 0.8),
                     ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
@@ -84,13 +85,13 @@ class AppDrawer extends ConsumerWidget {
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                       decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.2),
+                        color: theme.colorScheme.onPrimary.withValues(alpha: 0.2),
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: Text(
                         user!.customRole!.name,
                         style: AppTypography.caption.copyWith(
-                          color: Colors.white,
+                          color: theme.colorScheme.onPrimary,
                           fontWeight: FontWeight.w500,
                         ),
                       ),
@@ -100,11 +101,11 @@ class AppDrawer extends ConsumerWidget {
               ),
             ),
 
-            // Tenant selector (PLATFORM_ADMIN only) - compact version
+            // Tenant selector (PLATFORM_ADMIN only)
             if (isPlatformAdmin)
               ListTile(
                 dense: true,
-                leading: const Icon(Icons.swap_horiz, size: 20),
+                leading: Icon(Icons.swap_horiz, size: 20, color: colors.mutedForeground),
                 title: Text(
                   currentTenantName ?? 'Meu tenant',
                   style: AppTypography.bodySmall.copyWith(
@@ -119,7 +120,7 @@ class AppDrawer extends ConsumerWidget {
                         height: 14,
                         child: CircularProgressIndicator(strokeWidth: 2),
                       )
-                    : const Icon(Icons.unfold_more, size: 18, color: AppColors.mutedForeground),
+                    : Icon(Icons.unfold_more, size: 18, color: colors.mutedForeground),
                 onTap: () => _showTenantSelector(context, ref),
               ),
 
@@ -157,6 +158,7 @@ class AppDrawer extends ConsumerWidget {
                       _showSyncDialog(context);
                     },
                   ),
+                  _ThemeToggleItem(),
                 ],
               ),
             ),
@@ -166,8 +168,7 @@ class AppDrawer extends ConsumerWidget {
             _MenuItem(
               icon: Icons.logout,
               label: 'Sair',
-              iconColor: AppColors.destructive,
-              labelColor: AppColors.destructive,
+              isDestructive: true,
               onTap: () => _confirmLogout(context, ref),
             ),
             const SizedBox(height: 8),
@@ -177,17 +178,9 @@ class AppDrawer extends ConsumerWidget {
     );
   }
 
-  /// Get the tenant name from user's login data.
-  /// The user object may have tenant info embedded.
-  String? _getUserTenantName(User user) {
-    // User's own tenant - we don't have the name in the User model directly
-    // Return the tenantId as fallback, or null to show "Meu Tenant"
-    return null;
-  }
+  String? _getUserTenantName(User user) => null;
 
-  /// Show tenant selector dialog for PLATFORM_ADMIN.
   Future<void> _showTenantSelector(BuildContext context, WidgetRef ref) async {
-    // Load tenants if not already loaded
     final tenantNotifier = ref.read(tenantSwitchProvider.notifier);
     final tenantState = ref.read(tenantSwitchProvider);
 
@@ -204,8 +197,8 @@ class AppDrawer extends ConsumerWidget {
   }
 
   Future<void> _confirmLogout(BuildContext context, WidgetRef ref) async {
-    // Capture notifier BEFORE any navigation to avoid "ref after dispose" error
     final authNotifier = ref.read(authProvider.notifier);
+    final colors = context.colors;
 
     Navigator.pop(context);
     final confirm = await showDialog<bool>(
@@ -220,9 +213,7 @@ class AppDrawer extends ConsumerWidget {
           ),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
-            style: TextButton.styleFrom(
-              foregroundColor: AppColors.destructive,
-            ),
+            style: TextButton.styleFrom(foregroundColor: colors.destructive),
             child: const Text('Sair'),
           ),
         ],
@@ -234,14 +225,15 @@ class AppDrawer extends ConsumerWidget {
   }
 
   void _showSyncDialog(BuildContext context) {
+    final theme = Theme.of(context);
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Row(
+        title: Row(
           children: [
-            Icon(Icons.sync, color: AppColors.primary),
-            SizedBox(width: 8),
-            Text('Sincronizacao'),
+            Icon(Icons.sync, color: theme.colorScheme.primary),
+            const SizedBox(width: 8),
+            const Text('Sincronizacao'),
           ],
         ),
         content: StreamBuilder<List<Map<String, dynamic>>>(
@@ -283,28 +275,40 @@ class _MenuItem extends StatelessWidget {
     required this.label,
     required this.onTap,
     this.selected = false,
-    this.iconColor,
-    this.labelColor,
+    this.isDestructive = false,
   });
 
   final IconData icon;
   final String label;
   final VoidCallback onTap;
   final bool selected;
-  final Color? iconColor;
-  final Color? labelColor;
+  final bool isDestructive;
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = context.colors;
+
+    final Color iconColor;
+    final Color textColor;
+
+    if (isDestructive) {
+      iconColor = colors.destructive;
+      textColor = colors.destructive;
+    } else if (selected) {
+      iconColor = theme.colorScheme.primary;
+      textColor = theme.colorScheme.primary;
+    } else {
+      iconColor = colors.mutedForeground;
+      textColor = theme.colorScheme.onSurface;
+    }
+
     return ListTile(
-      leading: Icon(
-        icon,
-        color: iconColor ?? (selected ? AppColors.primary : null),
-      ),
+      leading: Icon(icon, color: iconColor),
       title: Text(
         label,
         style: TextStyle(
-          color: labelColor ?? (selected ? AppColors.primary : null),
+          color: textColor,
           fontWeight: selected ? FontWeight.w600 : null,
         ),
       ),
@@ -322,6 +326,7 @@ class _SyncRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.colors;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
@@ -330,9 +335,7 @@ class _SyncRow extends StatelessWidget {
           Text(name, style: AppTypography.bodyMedium),
           Text(
             '$count',
-            style: AppTypography.bodyMedium.copyWith(
-              color: AppColors.mutedForeground,
-            ),
+            style: AppTypography.bodyMedium.copyWith(color: colors.mutedForeground),
           ),
         ],
       ),
@@ -356,7 +359,6 @@ class _TenantSelectorSheetState extends ConsumerState<_TenantSelectorSheet> {
   @override
   void initState() {
     super.initState();
-    // Load tenants if needed
     final state = ref.read(tenantSwitchProvider);
     if (state.tenants.isEmpty && !state.isLoading) {
       ref.read(tenantSwitchProvider.notifier).loadTenants();
@@ -365,6 +367,8 @@ class _TenantSelectorSheetState extends ConsumerState<_TenantSelectorSheet> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = context.colors;
     final tenantState = ref.watch(tenantSwitchProvider);
     final filteredTenants = tenantState.tenants.where((t) {
       if (_search.isEmpty) return true;
@@ -377,9 +381,9 @@ class _TenantSelectorSheetState extends ConsumerState<_TenantSelectorSheet> {
       constraints: BoxConstraints(
         maxHeight: MediaQuery.of(context).size.height * 0.7,
       ),
-      decoration: const BoxDecoration(
-        color: AppColors.card,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      decoration: BoxDecoration(
+        color: colors.card,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -391,7 +395,7 @@ class _TenantSelectorSheetState extends ConsumerState<_TenantSelectorSheet> {
               width: 40,
               height: 4,
               decoration: BoxDecoration(
-                color: AppColors.border,
+                color: colors.border,
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
@@ -402,12 +406,9 @@ class _TenantSelectorSheetState extends ConsumerState<_TenantSelectorSheet> {
             padding: const EdgeInsets.all(16),
             child: Row(
               children: [
-                const Icon(Icons.business, color: AppColors.primary),
+                Icon(Icons.business, color: theme.colorScheme.primary),
                 const SizedBox(width: 12),
-const Text(
-                  'Selecionar Tenant',
-                  style: AppTypography.h4,
-                ),
+                const Text('Selecionar Tenant', style: AppTypography.h4),
                 const Spacer(),
                 if (tenantState.selectedTenantId != null)
                   TextButton(
@@ -429,15 +430,12 @@ const Text(
                 hintText: 'Buscar tenant...',
                 prefixIcon: const Icon(Icons.search),
                 filled: true,
-                fillColor: AppColors.surfaceVariant,
+                fillColor: colors.muted,
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
                   borderSide: BorderSide.none,
                 ),
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 12,
-                ),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               ),
               onChanged: (v) => setState(() => _search = v),
             ),
@@ -461,11 +459,7 @@ const Text(
                           child: Column(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              const Icon(
-                                Icons.error_outline,
-                                color: AppColors.destructive,
-                                size: 48,
-                              ),
+                              Icon(Icons.error_outline, color: colors.destructive, size: 48),
                               const SizedBox(height: 16),
                               Text(
                                 tenantState.error!,
@@ -492,7 +486,7 @@ const Text(
                                     ? 'Nenhum tenant disponivel'
                                     : 'Nenhum tenant encontrado',
                                 style: AppTypography.bodyMedium.copyWith(
-                                  color: AppColors.mutedForeground,
+                                  color: colors.mutedForeground,
                                 ),
                               ),
                             ),
@@ -503,8 +497,7 @@ const Text(
                             itemCount: filteredTenants.length,
                             itemBuilder: (ctx, index) {
                               final tenant = filteredTenants[index];
-                              final isSelected =
-                                  tenant.id == tenantState.selectedTenantId;
+                              final isSelected = tenant.id == tenantState.selectedTenantId;
 
                               return ListTile(
                                 leading: Container(
@@ -512,8 +505,8 @@ const Text(
                                   height: 40,
                                   decoration: BoxDecoration(
                                     color: isSelected
-                                        ? AppColors.primary.withValues(alpha: 0.1)
-                                        : AppColors.surfaceVariant,
+                                        ? theme.colorScheme.primary.withValues(alpha: 0.1)
+                                        : colors.muted,
                                     borderRadius: BorderRadius.circular(8),
                                   ),
                                   child: Center(
@@ -523,8 +516,8 @@ const Text(
                                           : 'T',
                                       style: AppTypography.labelLarge.copyWith(
                                         color: isSelected
-                                            ? AppColors.primary
-                                            : AppColors.mutedForeground,
+                                            ? theme.colorScheme.primary
+                                            : colors.mutedForeground,
                                         fontWeight: FontWeight.w600,
                                       ),
                                     ),
@@ -533,29 +526,23 @@ const Text(
                                 title: Text(
                                   tenant.name,
                                   style: TextStyle(
-                                    fontWeight:
-                                        isSelected ? FontWeight.w600 : null,
-                                    color: isSelected ? AppColors.primary : null,
+                                    fontWeight: isSelected ? FontWeight.w600 : null,
+                                    color: isSelected ? theme.colorScheme.primary : null,
                                   ),
                                 ),
                                 subtitle: Text(
                                   tenant.slug,
                                   style: AppTypography.caption.copyWith(
-                                    color: AppColors.mutedForeground,
+                                    color: colors.mutedForeground,
                                   ),
                                 ),
                                 trailing: isSelected
-                                    ? const Icon(
-                                        Icons.check_circle,
-                                        color: AppColors.primary,
-                                      )
+                                    ? Icon(Icons.check_circle, color: theme.colorScheme.primary)
                                     : tenantState.isSwitching
                                         ? const SizedBox(
                                             width: 20,
                                             height: 20,
-                                            child: CircularProgressIndicator(
-                                              strokeWidth: 2,
-                                            ),
+                                            child: CircularProgressIndicator(strokeWidth: 2),
                                           )
                                         : null,
                                 onTap: tenantState.isSwitching
@@ -574,6 +561,125 @@ const Text(
           ),
         ],
       ),
+    );
+  }
+}
+
+/// Theme toggle item for light/dark/system mode.
+class _ThemeToggleItem extends ConsumerWidget {
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final colors = context.colors;
+    final themeMode = ref.watch(themeModeNotifierProvider);
+
+    final IconData icon;
+    final String label;
+
+    switch (themeMode) {
+      case ThemeMode.light:
+        icon = Icons.light_mode;
+        label = 'Tema Claro';
+      case ThemeMode.dark:
+        icon = Icons.dark_mode;
+        label = 'Tema Escuro';
+      case ThemeMode.system:
+        icon = Icons.brightness_auto;
+        label = 'Tema do Sistema';
+    }
+
+    return ListTile(
+      leading: Icon(icon, color: colors.mutedForeground),
+      title: Text(label),
+      trailing: PopupMenuButton<ThemeMode>(
+        icon: Icon(Icons.arrow_drop_down, color: colors.mutedForeground),
+        onSelected: (mode) {
+          ref.read(themeModeNotifierProvider.notifier).setThemeMode(mode);
+        },
+        itemBuilder: (context) => [
+          PopupMenuItem(
+            value: ThemeMode.light,
+            child: Row(
+              children: [
+                Icon(
+                  Icons.light_mode,
+                  color: themeMode == ThemeMode.light
+                      ? theme.colorScheme.primary
+                      : colors.mutedForeground,
+                  size: 20,
+                ),
+                const SizedBox(width: 12),
+                Text(
+                  'Claro',
+                  style: TextStyle(
+                    color: themeMode == ThemeMode.light
+                        ? theme.colorScheme.primary
+                        : null,
+                    fontWeight: themeMode == ThemeMode.light
+                        ? FontWeight.w600
+                        : null,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          PopupMenuItem(
+            value: ThemeMode.dark,
+            child: Row(
+              children: [
+                Icon(
+                  Icons.dark_mode,
+                  color: themeMode == ThemeMode.dark
+                      ? theme.colorScheme.primary
+                      : colors.mutedForeground,
+                  size: 20,
+                ),
+                const SizedBox(width: 12),
+                Text(
+                  'Escuro',
+                  style: TextStyle(
+                    color: themeMode == ThemeMode.dark
+                        ? theme.colorScheme.primary
+                        : null,
+                    fontWeight: themeMode == ThemeMode.dark
+                        ? FontWeight.w600
+                        : null,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          PopupMenuItem(
+            value: ThemeMode.system,
+            child: Row(
+              children: [
+                Icon(
+                  Icons.brightness_auto,
+                  color: themeMode == ThemeMode.system
+                      ? theme.colorScheme.primary
+                      : colors.mutedForeground,
+                  size: 20,
+                ),
+                const SizedBox(width: 12),
+                Text(
+                  'Sistema',
+                  style: TextStyle(
+                    color: themeMode == ThemeMode.system
+                        ? theme.colorScheme.primary
+                        : null,
+                    fontWeight: themeMode == ThemeMode.system
+                        ? FontWeight.w600
+                        : null,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+      onTap: () {
+        ref.read(themeModeNotifierProvider.notifier).toggleTheme();
+      },
     );
   }
 }

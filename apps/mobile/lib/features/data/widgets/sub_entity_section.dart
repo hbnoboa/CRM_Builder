@@ -5,7 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:crm_mobile/core/permissions/permission_provider.dart';
-import 'package:crm_mobile/core/theme/app_colors.dart';
+import 'package:crm_mobile/core/theme/app_colors_extension.dart';
 import 'package:crm_mobile/core/theme/app_typography.dart';
 import 'package:crm_mobile/features/data/data/data_repository.dart';
 
@@ -63,7 +63,7 @@ class _SubEntitySectionState extends ConsumerState<SubEntitySection> {
                     Icon(
                       _isExpanded ? Icons.expand_more : Icons.chevron_right,
                       size: 20,
-                      color: AppColors.mutedForeground,
+                      color: context.colors.mutedForeground,
                     ),
                     const SizedBox(width: 4),
                     Text(
@@ -78,14 +78,14 @@ class _SubEntitySectionState extends ConsumerState<SubEntitySection> {
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                       decoration: BoxDecoration(
                         color: count > 0
-                            ? AppColors.primary.withValues(alpha: 0.1)
-                            : AppColors.muted,
+                            ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.1)
+                            : context.colors.muted,
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: Text(
                         '$count',
                         style: AppTypography.caption.copyWith(
-                          color: count > 0 ? AppColors.primary : AppColors.mutedForeground,
+                          color: count > 0 ? Theme.of(context).colorScheme.primary : context.colors.mutedForeground,
                           fontWeight: FontWeight.w600,
                         ),
                       ),
@@ -95,7 +95,7 @@ class _SubEntitySectionState extends ConsumerState<SubEntitySection> {
                     if (canCreate)
                       IconButton(
                         icon: const Icon(Icons.add_circle_outline, size: 22),
-                        color: AppColors.primary,
+                        color: Theme.of(context).colorScheme.primary,
                         visualDensity: VisualDensity.compact,
                         padding: EdgeInsets.zero,
                         constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
@@ -119,7 +119,7 @@ class _SubEntitySectionState extends ConsumerState<SubEntitySection> {
                   child: Text(
                     'Nenhum registro',
                     style: AppTypography.bodySmall.copyWith(
-                      color: AppColors.mutedForeground,
+                      color: context.colors.mutedForeground,
                       fontStyle: FontStyle.italic,
                     ),
                   ),
@@ -196,9 +196,9 @@ class _ChildRecordTile extends ConsumerWidget {
       child: Container(
         margin: const EdgeInsets.only(bottom: 4),
         decoration: BoxDecoration(
-          color: AppColors.card,
+          color: context.colors.card,
           borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: AppColors.border),
+          border: Border.all(color: context.colors.border),
         ),
         child: InkWell(
           onTap: () => context.push('/data/$entitySlug/$recordId'),
@@ -222,7 +222,7 @@ class _ChildRecordTile extends ConsumerWidget {
                         Text(
                           subtitle,
                           style: AppTypography.caption.copyWith(
-                            color: AppColors.mutedForeground,
+                            color: context.colors.mutedForeground,
                           ),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
@@ -239,13 +239,13 @@ class _ChildRecordTile extends ConsumerWidget {
                 if (perms.hasEntityPermission(entitySlug, 'canDelete'))
                   _SmallIconButton(
                     icon: Icons.delete_outline,
-                    color: AppColors.destructive,
+                    color: context.colors.destructive,
                     onPressed: () => _confirmDelete(context, ref, recordId),
                   ),
                 Icon(
                   Icons.chevron_right,
                   size: 18,
-                  color: AppColors.mutedForeground,
+                  color: context.colors.mutedForeground,
                 ),
               ],
             ),
@@ -269,7 +269,7 @@ class _ChildRecordTile extends ConsumerWidget {
           ),
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(true),
-            style: TextButton.styleFrom(foregroundColor: AppColors.destructive),
+            style: TextButton.styleFrom(foregroundColor: ctx.colors.destructive),
             child: const Text('Excluir'),
           ),
         ],
@@ -327,7 +327,7 @@ class _SmallIconButton extends StatelessWidget {
       height: 28,
       child: IconButton(
         icon: Icon(icon, size: 16),
-        color: color ?? AppColors.mutedForeground,
+        color: color ?? context.colors.mutedForeground,
         padding: EdgeInsets.zero,
         visualDensity: VisualDensity.compact,
         onPressed: onPressed,

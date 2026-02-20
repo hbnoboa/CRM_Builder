@@ -5,6 +5,7 @@ import 'package:local_auth/local_auth.dart';
 import 'package:crm_mobile/core/auth/auth_provider.dart';
 import 'package:crm_mobile/core/auth/secure_storage.dart';
 import 'package:crm_mobile/core/theme/app_colors.dart';
+import 'package:crm_mobile/core/theme/app_colors_extension.dart';
 import 'package:crm_mobile/core/theme/app_typography.dart';
 
 class LoginPage extends ConsumerStatefulWidget {
@@ -114,16 +115,16 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   // Logo / Title
-                  const Icon(
+                  Icon(
                     Icons.hub_outlined,
                     size: 48,
-                    color: AppColors.primary,
+                    color: Theme.of(context).colorScheme.primary,
                   ),
                   const SizedBox(height: 16),
                   Text(
                     'CRM Builder',
                     style: AppTypography.h2.copyWith(
-                      color: AppColors.foreground,
+                      color: Theme.of(context).colorScheme.onSurface,
                     ),
                     textAlign: TextAlign.center,
                   ),
@@ -131,7 +132,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                   Text(
                     'Entre na sua conta',
                     style: AppTypography.bodyMedium.copyWith(
-                      color: AppColors.mutedForeground,
+                      color: context.colors.mutedForeground,
                     ),
                     textAlign: TextAlign.center,
                   ),
@@ -142,16 +143,16 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                     Container(
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
-                        color: AppColors.destructive.withValues(alpha: 0.1),
+                        color: context.colors.destructive.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(AppColors.radius),
                         border: Border.all(
-                          color: AppColors.destructive.withValues(alpha: 0.3),
+                          color: context.colors.destructive.withValues(alpha: 0.3),
                         ),
                       ),
                       child: Text(
                         authState.error!,
                         style: AppTypography.bodySmall.copyWith(
-                          color: AppColors.destructive,
+                          color: context.colors.destructive,
                         ),
                       ),
                     ),
@@ -247,7 +248,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                             Text(
                               'Lembrar de mim',
                               style: AppTypography.bodySmall.copyWith(
-                                color: AppColors.mutedForeground,
+                                color: context.colors.mutedForeground,
                               ),
                             ),
                           ],
@@ -259,7 +260,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                         child: Text(
                           'Esqueceu a senha?',
                           style: AppTypography.bodySmall.copyWith(
-                            color: AppColors.mutedForeground,
+                            color: context.colors.mutedForeground,
                           ),
                         ),
                       ),
@@ -273,12 +274,12 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                     child: ElevatedButton(
                       onPressed: authState.isLoading ? null : _handleLogin,
                       child: authState.isLoading
-                          ? const SizedBox(
+                          ? SizedBox(
                               height: 20,
                               width: 20,
                               child: CircularProgressIndicator(
                                 strokeWidth: 2,
-                                color: AppColors.primaryForeground,
+                                color: Theme.of(context).colorScheme.onPrimary,
                               ),
                             )
                           : const Text('Entrar'),
@@ -308,7 +309,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                       Text(
                         'Nao tem conta? ',
                         style: AppTypography.bodySmall.copyWith(
-                          color: AppColors.mutedForeground,
+                          color: context.colors.mutedForeground,
                         ),
                       ),
                       GestureDetector(
@@ -316,7 +317,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                         child: Text(
                           'Registre-se',
                           style: AppTypography.bodySmall.copyWith(
-                            color: AppColors.primary,
+                            color: Theme.of(context).colorScheme.primary,
                             fontWeight: FontWeight.w600,
                           ),
                         ),

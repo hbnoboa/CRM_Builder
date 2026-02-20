@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:crm_mobile/core/auth/auth_provider.dart';
 import 'package:crm_mobile/core/theme/app_colors.dart';
+import 'package:crm_mobile/core/theme/app_colors_extension.dart';
 import 'package:crm_mobile/core/theme/app_typography.dart';
 
 class RegisterPage extends ConsumerStatefulWidget {
@@ -67,7 +68,7 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
                   Text(
                     'Criar conta',
                     style: AppTypography.h2.copyWith(
-                      color: AppColors.foreground,
+                      color: Theme.of(context).colorScheme.onSurface,
                     ),
                     textAlign: TextAlign.center,
                   ),
@@ -75,7 +76,7 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
                   Text(
                     'Preencha os dados para comecar',
                     style: AppTypography.bodyMedium.copyWith(
-                      color: AppColors.mutedForeground,
+                      color: context.colors.mutedForeground,
                     ),
                     textAlign: TextAlign.center,
                   ),
@@ -85,13 +86,13 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
                     Container(
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
-                        color: AppColors.destructive.withValues(alpha: 0.1),
+                        color: context.colors.destructive.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(AppColors.radius),
                       ),
                       child: Text(
                         authState.error!,
                         style: AppTypography.bodySmall.copyWith(
-                          color: AppColors.destructive,
+                          color: context.colors.destructive,
                         ),
                       ),
                     ),
@@ -192,12 +193,12 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
                       onPressed:
                           authState.isLoading ? null : _handleRegister,
                       child: authState.isLoading
-                          ? const SizedBox(
+                          ? SizedBox(
                               height: 20,
                               width: 20,
                               child: CircularProgressIndicator(
                                 strokeWidth: 2,
-                                color: AppColors.primaryForeground,
+                                color: Theme.of(context).colorScheme.onPrimary,
                               ),
                             )
                           : const Text('Criar conta'),
@@ -211,7 +212,7 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
                       Text(
                         'Ja tem conta? ',
                         style: AppTypography.bodySmall.copyWith(
-                          color: AppColors.mutedForeground,
+                          color: context.colors.mutedForeground,
                         ),
                       ),
                       GestureDetector(
@@ -219,7 +220,7 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
                         child: Text(
                           'Entrar',
                           style: AppTypography.bodySmall.copyWith(
-                            color: AppColors.primary,
+                            color: Theme.of(context).colorScheme.primary,
                             fontWeight: FontWeight.w600,
                           ),
                         ),

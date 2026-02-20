@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:crm_mobile/core/theme/app_colors.dart';
+import 'package:crm_mobile/core/theme/app_colors_extension.dart';
 import 'package:crm_mobile/core/theme/app_typography.dart';
 
 class StatCard extends StatelessWidget {
@@ -27,9 +28,15 @@ class StatCard extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.all(AppColors.spaceMd),
         decoration: BoxDecoration(
-          color: AppColors.card,
+          color: context.colors.card,
           borderRadius: BorderRadius.circular(AppColors.radiusLg),
-          boxShadow: AppColors.cardShadow,
+          boxShadow: [
+            BoxShadow(
+              color: Theme.of(context).shadowColor.withValues(alpha: 0.08),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -49,7 +56,7 @@ class StatCard extends StatelessWidget {
             Text(
               value,
               style: AppTypography.h2.copyWith(
-                color: AppColors.foreground,
+                color: Theme.of(context).colorScheme.onSurface,
                 fontWeight: FontWeight.w700,
               ),
               overflow: TextOverflow.ellipsis,
@@ -59,7 +66,7 @@ class StatCard extends StatelessWidget {
             Text(
               title,
               style: AppTypography.bodySmall.copyWith(
-                color: AppColors.mutedForeground,
+                color: context.colors.mutedForeground,
               ),
               overflow: TextOverflow.ellipsis,
             ),

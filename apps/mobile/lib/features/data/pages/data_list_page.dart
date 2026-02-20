@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import 'package:crm_mobile/core/auth/auth_provider.dart';
 import 'package:crm_mobile/core/config/constants.dart';
 import 'package:crm_mobile/core/theme/app_colors.dart';
+import 'package:crm_mobile/core/theme/app_colors_extension.dart';
 import 'package:crm_mobile/core/theme/app_typography.dart';
 import 'package:crm_mobile/core/permissions/permission_provider.dart';
 import 'package:crm_mobile/features/data/data/data_repository.dart';
@@ -66,7 +67,7 @@ class _DataListPageState extends ConsumerState<DataListPage> {
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(true),
             style: TextButton.styleFrom(
-              foregroundColor: AppColors.destructive,
+              foregroundColor: context.colors.destructive,
             ),
             child: const Text('Excluir'),
           ),
@@ -225,13 +226,13 @@ class _DataListPageState extends ConsumerState<DataListPage> {
                                         width: 80,
                                         height: 80,
                                         decoration: BoxDecoration(
-                                          color: AppColors.primary.withValues(alpha: 0.1),
+                                          color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
                                           borderRadius: BorderRadius.circular(40),
                                         ),
-                                        child: const Icon(
+                                        child: Icon(
                                           Icons.inbox_outlined,
                                           size: 40,
-                                          color: AppColors.primary,
+                                          color: Theme.of(context).colorScheme.primary,
                                         ),
                                       ),
                                       const SizedBox(height: 24),
@@ -240,7 +241,7 @@ class _DataListPageState extends ConsumerState<DataListPage> {
                                             ? 'Nenhum resultado para "$_search"'
                                             : 'Nenhum registro ainda',
                                         style: AppTypography.h4.copyWith(
-                                          color: AppColors.foreground,
+                                          color: Theme.of(context).colorScheme.onSurface,
                                         ),
                                         textAlign: TextAlign.center,
                                       ),
@@ -250,7 +251,7 @@ class _DataListPageState extends ConsumerState<DataListPage> {
                                             ? 'Tente outra busca'
                                             : 'Comece criando seu primeiro registro',
                                         style: AppTypography.bodyMedium.copyWith(
-                                          color: AppColors.mutedForeground,
+                                          color: context.colors.mutedForeground,
                                         ),
                                         textAlign: TextAlign.center,
                                       ),
@@ -293,7 +294,7 @@ class _DataListPageState extends ConsumerState<DataListPage> {
                               Text(
                                 '${records.length} registro${records.length != 1 ? 's' : ''}',
                                 style: AppTypography.caption.copyWith(
-                                  color: AppColors.mutedForeground,
+                                  color: context.colors.mutedForeground,
                                 ),
                               ),
                             ],
@@ -340,7 +341,7 @@ class _DataListPageState extends ConsumerState<DataListPage> {
                                 child: Text(
                                   '${records.length} registros',
                                   style: AppTypography.caption.copyWith(
-                                    color: AppColors.mutedForeground,
+                                    color: context.colors.mutedForeground,
                                   ),
                                 ),
                               ),
@@ -382,7 +383,7 @@ class _DataListPageState extends ConsumerState<DataListPage> {
                               padding: const EdgeInsets.only(right: 20),
                               margin: const EdgeInsets.only(bottom: 8),
                               decoration: BoxDecoration(
-                                color: AppColors.destructive,
+                                color: context.colors.destructive,
                                 borderRadius:
                                     BorderRadius.circular(AppColors.radius),
                               ),

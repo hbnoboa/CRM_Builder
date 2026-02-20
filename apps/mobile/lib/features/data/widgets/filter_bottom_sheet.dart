@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:crm_mobile/core/filters/filter_models.dart';
-import 'package:crm_mobile/core/theme/app_colors.dart';
+import 'package:crm_mobile/core/theme/app_colors_extension.dart';
 import 'package:crm_mobile/core/theme/app_typography.dart';
 import 'package:crm_mobile/features/data/providers/filter_provider.dart';
 import 'package:crm_mobile/features/data/widgets/add_filter_sheet.dart';
@@ -36,9 +36,9 @@ class FilterBottomSheet extends ConsumerWidget {
       maxChildSize: 0.9,
       minChildSize: 0.35,
       builder: (context, scrollController) => Container(
-        decoration: const BoxDecoration(
-          color: AppColors.background,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+        decoration: BoxDecoration(
+          color: Theme.of(context).scaffoldBackgroundColor,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
         ),
         child: Column(
           children: [
@@ -49,7 +49,7 @@ class FilterBottomSheet extends ConsumerWidget {
                 width: 40,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: AppColors.border,
+                  color: context.colors.border,
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
@@ -69,7 +69,7 @@ class FilterBottomSheet extends ConsumerWidget {
                       padding: const EdgeInsets.symmetric(
                           horizontal: 8, vertical: 2,),
                       decoration: BoxDecoration(
-                        color: AppColors.primary,
+                        color: Theme.of(context).colorScheme.primary,
                         borderRadius: BorderRadius.circular(10),
                       ),
                       child: Text(
@@ -100,11 +100,11 @@ class FilterBottomSheet extends ConsumerWidget {
                   if (globalFilters.isNotEmpty) ...[
                     Row(
                       children: [
-                        const Icon(Icons.public, size: 16, color: AppColors.primary),
+                        Icon(Icons.public, size: 16, color: Theme.of(context).colorScheme.primary),
                         const SizedBox(width: 6),
                         Text('Filtros Globais',
                             style: AppTypography.labelMedium.copyWith(
-                                color: AppColors.primary,),),
+                                color: Theme.of(context).colorScheme.primary,),),
                       ],
                     ),
                     const SizedBox(height: 8),
@@ -117,7 +117,7 @@ class FilterBottomSheet extends ConsumerWidget {
                             ? 'Por ${filter.createdByName}'
                             : null,
                         icon: Icons.public,
-                        iconColor: AppColors.primary,
+                        iconColor: Theme.of(context).colorScheme.primary,
                         canRemove: canManageGlobal,
                         onRemove: () {
                           final updated = List<GlobalFilter>.from(globalFilters)
@@ -132,12 +132,12 @@ class FilterBottomSheet extends ConsumerWidget {
                   // Local filters section
                   Row(
                     children: [
-                      const Icon(Icons.person_outline,
-                          size: 16, color: AppColors.mutedForeground,),
+                      Icon(Icons.person_outline,
+                          size: 16, color: context.colors.mutedForeground,),
                       const SizedBox(width: 6),
                       Text('Meus Filtros',
                           style: AppTypography.labelMedium
-                              .copyWith(color: AppColors.mutedForeground),),
+                              .copyWith(color: context.colors.mutedForeground),),
                     ],
                   ),
                   const SizedBox(height: 8),
@@ -149,7 +149,7 @@ class FilterBottomSheet extends ConsumerWidget {
                         child: Text(
                           'Nenhum filtro local ativo',
                           style: AppTypography.bodyMedium
-                              .copyWith(color: AppColors.mutedForeground),
+                              .copyWith(color: context.colors.mutedForeground),
                         ),
                       ),
                     )
@@ -157,7 +157,7 @@ class FilterBottomSheet extends ConsumerWidget {
                     ...localFilters.map((filter) => _FilterCard(
                           label: filter.displayLabel,
                           icon: Icons.person_outline,
-                          iconColor: AppColors.mutedForeground,
+                          iconColor: context.colors.mutedForeground,
                           canRemove: true,
                           onRemove: () {
                             ref
@@ -199,9 +199,9 @@ class FilterBottomSheet extends ConsumerWidget {
                               .read(entityLocalFiltersProvider.notifier)
                               .clearFilters(entitySlug);
                         },
-                        child: const Text(
+                        child: Text(
                           'Limpar filtros locais',
-                          style: TextStyle(color: AppColors.mutedForeground),
+                          style: TextStyle(color: context.colors.mutedForeground),
                         ),
                       ),
                     ),
@@ -250,14 +250,14 @@ class _FilterCard extends StatelessWidget {
                   if (subtitle != null)
                     Text(subtitle!,
                         style: AppTypography.caption
-                            .copyWith(color: AppColors.mutedForeground),),
+                            .copyWith(color: context.colors.mutedForeground),),
                 ],
               ),
             ),
             if (canRemove)
               IconButton(
-                icon: const Icon(Icons.close,
-                    size: 18, color: AppColors.mutedForeground,),
+                icon: Icon(Icons.close,
+                    size: 18, color: context.colors.mutedForeground,),
                 onPressed: onRemove,
                 constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
                 padding: EdgeInsets.zero,

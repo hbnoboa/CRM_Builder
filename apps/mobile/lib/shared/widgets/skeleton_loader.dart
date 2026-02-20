@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:crm_mobile/core/theme/app_colors.dart';
+import 'package:crm_mobile/core/theme/app_colors_extension.dart';
 
 /// Skeleton loader widget for showing loading placeholders.
 /// Uses shimmer animation to indicate loading state.
@@ -49,6 +49,8 @@ class _SkeletonLoaderState extends State<SkeletonLoader>
       return widget.child;
     }
 
+    final mutedColor = context.colors.muted;
+
     return AnimatedBuilder(
       animation: _animation,
       builder: (context, child) {
@@ -58,9 +60,9 @@ class _SkeletonLoaderState extends State<SkeletonLoader>
               begin: Alignment.centerLeft,
               end: Alignment.centerRight,
               colors: [
-                AppColors.muted,
-                AppColors.muted.withValues(alpha: 0.5),
-                AppColors.muted,
+                mutedColor,
+                mutedColor.withValues(alpha: 0.5),
+                mutedColor,
               ],
               stops: [
                 _animation.value - 1,
@@ -96,7 +98,7 @@ class SkeletonBox extends StatelessWidget {
       width: width,
       height: height,
       decoration: BoxDecoration(
-        color: AppColors.muted,
+        color: context.colors.muted,
         borderRadius: BorderRadius.circular(borderRadius),
       ),
     );
@@ -116,8 +118,8 @@ class SkeletonCircle extends StatelessWidget {
     return Container(
       width: size,
       height: size,
-      decoration: const BoxDecoration(
-        color: AppColors.muted,
+      decoration: BoxDecoration(
+        color: context.colors.muted,
         shape: BoxShape.circle,
       ),
     );
@@ -134,9 +136,9 @@ class SkeletonCard extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: AppColors.card,
+          color: context.colors.card,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: AppColors.border),
+          border: Border.all(color: context.colors.border),
         ),
         child: const Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -207,9 +209,9 @@ class SkeletonStatCard extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: AppColors.card,
+          color: context.colors.card,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: AppColors.border),
+          border: Border.all(color: context.colors.border),
         ),
         child: const Column(
           crossAxisAlignment: CrossAxisAlignment.start,

@@ -4,7 +4,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:crm_mobile/core/cache/crm_cache_manager.dart';
 import 'package:crm_mobile/core/database/app_database.dart';
-import 'package:crm_mobile/core/theme/app_colors.dart';
+import 'package:crm_mobile/core/theme/app_colors_extension.dart';
 import 'package:crm_mobile/core/theme/app_typography.dart';
 
 /// Zone configuration from entity field definition.
@@ -297,22 +297,22 @@ class _ZoneDiagramFieldInputState extends State<ZoneDiagramFieldInput> {
       return Container(
         padding: const EdgeInsets.all(24),
         decoration: BoxDecoration(
-          border: Border.all(color: AppColors.border, width: 2),
+          border: Border.all(color: context.colors.border, width: 2),
           borderRadius: BorderRadius.circular(12),
-          color: AppColors.muted.withValues(alpha: 0.2),
+          color: context.colors.muted.withValues(alpha: 0.2),
         ),
         child: Column(
           children: [
-            const Icon(Icons.location_on_outlined,
-                size: 32, color: AppColors.mutedForeground),
+            Icon(Icons.location_on_outlined,
+                size: 32, color: context.colors.mutedForeground),
             const SizedBox(height: 8),
             Text(_label,
                 style: AppTypography.labelLarge
-                    .copyWith(color: AppColors.mutedForeground)),
+                    .copyWith(color: context.colors.mutedForeground)),
             const SizedBox(height: 4),
             Text('Nenhuma zona configurada',
                 style: AppTypography.caption
-                    .copyWith(color: AppColors.mutedForeground)),
+                    .copyWith(color: context.colors.mutedForeground)),
           ],
         ),
       );
@@ -324,15 +324,15 @@ class _ZoneDiagramFieldInputState extends State<ZoneDiagramFieldInput> {
         // Header
         Row(
           children: [
-            const Icon(Icons.location_on_outlined,
-                size: 18, color: AppColors.mutedForeground),
+            Icon(Icons.location_on_outlined,
+                size: 18, color: context.colors.mutedForeground),
             const SizedBox(width: 6),
             Text(_label, style: AppTypography.labelLarge),
             const SizedBox(width: 8),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
               decoration: BoxDecoration(
-                color: AppColors.muted,
+                color: context.colors.muted,
                 borderRadius: BorderRadius.circular(10),
               ),
               child: Text(
@@ -347,11 +347,11 @@ class _ZoneDiagramFieldInputState extends State<ZoneDiagramFieldInput> {
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Icon(Icons.refresh, size: 14, color: AppColors.mutedForeground),
+                    Icon(Icons.refresh, size: 14, color: context.colors.mutedForeground),
                     const SizedBox(width: 2),
                     Text('Limpar',
                         style: AppTypography.caption
-                            .copyWith(color: AppColors.mutedForeground)),
+                            .copyWith(color: context.colors.mutedForeground)),
                   ],
                 ),
               ),
@@ -370,7 +370,7 @@ class _ZoneDiagramFieldInputState extends State<ZoneDiagramFieldInput> {
           const SizedBox(height: 12),
           Text('Selecoes',
               style: AppTypography.caption
-                  .copyWith(color: AppColors.mutedForeground)),
+                  .copyWith(color: context.colors.mutedForeground)),
           const SizedBox(height: 4),
           Wrap(
             spacing: 6,
@@ -422,7 +422,7 @@ class _ZoneDiagramFieldInputState extends State<ZoneDiagramFieldInput> {
       borderRadius: BorderRadius.circular(12),
       child: Container(
         decoration: BoxDecoration(
-          border: Border.all(color: AppColors.border, width: 2),
+          border: Border.all(color: context.colors.border, width: 2),
           borderRadius: BorderRadius.circular(12),
         ),
         child: LayoutBuilder(
@@ -437,13 +437,13 @@ class _ZoneDiagramFieldInputState extends State<ZoneDiagramFieldInput> {
                   fit: BoxFit.fitWidth,
                   placeholder: (_, __) => Container(
                     height: 250,
-                    color: AppColors.muted,
+                    color: context.colors.muted,
                     child:
                         const Center(child: CircularProgressIndicator()),
                   ),
                   errorWidget: (_, __, ___) => Container(
                     height: 250,
-                    color: AppColors.muted,
+                    color: context.colors.muted,
                     child: const Center(
                         child: Icon(Icons.broken_image_outlined, size: 48)),
                   ),
@@ -486,7 +486,7 @@ class _ZoneDiagramFieldInputState extends State<ZoneDiagramFieldInput> {
                                   border: Border.all(
                                     color: isSelected
                                         ? const Color(0xFF059669)
-                                        : AppColors.border,
+                                        : context.colors.border,
                                     width: 2,
                                   ),
                                   boxShadow: [
@@ -532,7 +532,7 @@ class _ZoneDiagramFieldInputState extends State<ZoneDiagramFieldInput> {
   Widget _buildListMode() {
     return Container(
       decoration: BoxDecoration(
-        border: Border.all(color: AppColors.border),
+        border: Border.all(color: context.colors.border),
         borderRadius: BorderRadius.circular(8),
       ),
       child: Column(
@@ -551,7 +551,7 @@ class _ZoneDiagramFieldInputState extends State<ZoneDiagramFieldInput> {
                     ? const Icon(Icons.check_circle,
                         color: Color(0xFF10B981), size: 20)
                     : Icon(Icons.radio_button_unchecked,
-                        color: AppColors.mutedForeground.withValues(alpha: 0.3),
+                        color: context.colors.mutedForeground.withValues(alpha: 0.3),
                         size: 20),
                 title: Row(
                   children: [
@@ -573,10 +573,10 @@ class _ZoneDiagramFieldInputState extends State<ZoneDiagramFieldInput> {
                   children: [
                     Text('${options.length}',
                         style: AppTypography.caption
-                            .copyWith(color: AppColors.mutedForeground)),
+                            .copyWith(color: context.colors.mutedForeground)),
                     const SizedBox(width: 4),
-                    const Icon(Icons.chevron_right,
-                        size: 18, color: AppColors.mutedForeground),
+                    Icon(Icons.chevron_right,
+                        size: 18, color: context.colors.mutedForeground),
                   ],
                 ),
                 onTap: widget.enabled ? () => _showZoneOptions(zone) : null,
@@ -660,7 +660,7 @@ class _ZoneOptionsSheetState extends State<_ZoneOptionsSheet> {
                     icon: const Icon(Icons.close, size: 16),
                     label: const Text('Limpar'),
                     style: TextButton.styleFrom(
-                      foregroundColor: AppColors.destructive,
+                      foregroundColor: context.colors.destructive,
                     ),
                   ),
               ],
@@ -699,7 +699,7 @@ class _ZoneOptionsSheetState extends State<_ZoneOptionsSheet> {
                           padding: const EdgeInsets.all(24),
                           child: Text('Nenhuma opcao disponivel',
                               style: AppTypography.bodyMedium
-                                  .copyWith(color: AppColors.mutedForeground)),
+                                  .copyWith(color: context.colors.mutedForeground)),
                         ),
                       )
                     : ListView.builder(
@@ -721,7 +721,7 @@ class _ZoneOptionsSheetState extends State<_ZoneOptionsSheet> {
                                 border: Border.all(
                                   color: isSelected
                                       ? const Color(0xFF059669)
-                                      : AppColors.mutedForeground
+                                      : context.colors.mutedForeground
                                           .withValues(alpha: 0.3),
                                 ),
                               ),
@@ -782,11 +782,11 @@ class ZoneDiagramFieldDisplay extends StatelessWidget {
         children: [
           Text(name,
               style: AppTypography.labelMedium
-                  .copyWith(color: AppColors.mutedForeground)),
+                  .copyWith(color: context.colors.mutedForeground)),
           const SizedBox(height: 4),
           Text('-',
               style: AppTypography.bodyMedium
-                  .copyWith(color: AppColors.mutedForeground)),
+                  .copyWith(color: context.colors.mutedForeground)),
         ],
       );
     }
@@ -796,7 +796,7 @@ class ZoneDiagramFieldDisplay extends StatelessWidget {
       children: [
         Text(name,
             style: AppTypography.labelMedium
-                .copyWith(color: AppColors.mutedForeground)),
+                .copyWith(color: context.colors.mutedForeground)),
         const SizedBox(height: 8),
         Wrap(
           spacing: 6,

@@ -6,7 +6,7 @@ import 'package:latlong2/latlong.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:crm_mobile/core/location/nominatim_helpers.dart';
 import 'package:crm_mobile/core/map/cached_tile_provider.dart';
-import 'package:crm_mobile/core/theme/app_colors.dart';
+import 'package:crm_mobile/core/theme/app_colors_extension.dart';
 import 'package:crm_mobile/core/theme/app_typography.dart';
 
 // ─── MapFieldInput ──────────────────────────────────────────────────────────
@@ -267,7 +267,7 @@ class _MapFieldInputState extends State<MapFieldInput> {
           Text(
             widget.field['helpText'] as String,
             style: AppTypography.caption
-                .copyWith(color: AppColors.mutedForeground),
+                .copyWith(color: context.colors.mutedForeground),
           ),
         ],
         const SizedBox(height: 8),
@@ -313,7 +313,7 @@ class _MapFieldInputState extends State<MapFieldInput> {
                         )
                       : const Icon(Icons.search, size: 20),
                   style: IconButton.styleFrom(
-                    backgroundColor: AppColors.muted,
+                    backgroundColor: context.colors.muted,
                   ),
                 ),
               ),
@@ -325,14 +325,14 @@ class _MapFieldInputState extends State<MapFieldInput> {
               margin: const EdgeInsets.only(top: 4),
               constraints: const BoxConstraints(maxHeight: 180),
               decoration: BoxDecoration(
-                border: Border.all(color: AppColors.border),
+                border: Border.all(color: context.colors.border),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: ListView.separated(
                 shrinkWrap: true,
                 itemCount: _searchResults.length,
                 separatorBuilder: (_, __) =>
-                    const Divider(height: 1, color: AppColors.border),
+                    Divider(height: 1, color: context.colors.border),
                 itemBuilder: (_, i) {
                   final r = _searchResults[i];
                   final parts = extractAddressParts(
@@ -340,8 +340,8 @@ class _MapFieldInputState extends State<MapFieldInput> {
                   final formatted = formatAddress(parts);
                   return ListTile(
                     dense: true,
-                    leading: const Icon(Icons.place,
-                        size: 18, color: AppColors.mutedForeground,),
+                    leading: Icon(Icons.place,
+                        size: 18, color: context.colors.mutedForeground,),
                     title: Text(
                       formatted.isNotEmpty
                           ? formatted
@@ -355,9 +355,9 @@ class _MapFieldInputState extends State<MapFieldInput> {
                             r['display_name']?.toString() ?? '',
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
+                            style: TextStyle(
                                 fontSize: 11,
-                                color: AppColors.mutedForeground,),
+                                color: context.colors.mutedForeground,),
                           )
                         : null,
                     onTap: () => _selectSearchResult(r),
@@ -572,11 +572,11 @@ class MapFieldDisplay extends StatelessWidget {
         children: [
           if (fieldName.isNotEmpty)
             Text(fieldName, style: AppTypography.caption.copyWith(
-              color: AppColors.mutedForeground,
+              color: context.colors.mutedForeground,
             ),),
           if (fieldName.isNotEmpty) const SizedBox(height: 4),
           Text('Sem localizacao', style: AppTypography.bodySmall.copyWith(
-            color: AppColors.mutedForeground,
+            color: context.colors.mutedForeground,
           ),),
         ],
       );
@@ -595,7 +595,7 @@ class MapFieldDisplay extends StatelessWidget {
       children: [
         if (fieldName.isNotEmpty)
           Text(fieldName, style: AppTypography.caption.copyWith(
-            color: AppColors.mutedForeground,
+            color: context.colors.mutedForeground,
           ),),
         if (fieldName.isNotEmpty) const SizedBox(height: 4),
         if (locationParts.isNotEmpty)
@@ -604,12 +604,12 @@ class MapFieldDisplay extends StatelessWidget {
           const SizedBox(height: 4),
           Row(
             children: [
-              const Icon(Icons.place, size: 14, color: AppColors.mutedForeground),
+              Icon(Icons.place, size: 14, color: context.colors.mutedForeground),
               const SizedBox(width: 4),
               Text(
                 '${_lat!.toStringAsFixed(6)}, ${_lng!.toStringAsFixed(6)}',
                 style: AppTypography.caption.copyWith(
-                  color: AppColors.mutedForeground,
+                  color: context.colors.mutedForeground,
                 ),
               ),
               const SizedBox(width: 8),
@@ -625,7 +625,7 @@ class MapFieldDisplay extends StatelessWidget {
                 child: Text(
                   'Abrir no mapa',
                   style: AppTypography.caption.copyWith(
-                    color: AppColors.primary,
+                    color: Theme.of(context).colorScheme.primary,
                     decoration: TextDecoration.underline,
                   ),
                 ),
@@ -768,14 +768,14 @@ class _ActionChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = destructive ? AppColors.destructive : AppColors.foreground;
+    final color = destructive ? context.colors.destructive : Theme.of(context).colorScheme.onSurface;
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(16),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
         decoration: BoxDecoration(
-          border: Border.all(color: AppColors.border),
+          border: Border.all(color: context.colors.border),
           borderRadius: BorderRadius.circular(16),
         ),
         child: Row(
@@ -804,7 +804,7 @@ class _ReadonlyField extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(label, style: AppTypography.caption.copyWith(
-          color: AppColors.mutedForeground,
+          color: context.colors.mutedForeground,
           fontSize: 10,
         ),),
         Text(value!, style: const TextStyle(fontSize: 13)),

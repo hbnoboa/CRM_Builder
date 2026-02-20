@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:crm_mobile/core/permissions/device_permissions_provider.dart';
 import 'package:crm_mobile/core/theme/app_colors.dart';
+import 'package:crm_mobile/core/theme/app_colors_extension.dart';
 import 'package:crm_mobile/core/theme/app_typography.dart';
 
 class PermissionsOnboardingPage extends ConsumerStatefulWidget {
@@ -54,10 +55,10 @@ class _PermissionsOnboardingPageState
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 // Icon
-                const Icon(
+                Icon(
                   Icons.security_outlined,
                   size: 48,
-                  color: AppColors.primary,
+                  color: Theme.of(context).colorScheme.primary,
                 ),
                 const SizedBox(height: 16),
 
@@ -65,7 +66,7 @@ class _PermissionsOnboardingPageState
                 Text(
                   'Permissoes necessarias',
                   style: AppTypography.h2.copyWith(
-                    color: AppColors.foreground,
+                    color: Theme.of(context).colorScheme.onSurface,
                   ),
                   textAlign: TextAlign.center,
                 ),
@@ -73,7 +74,7 @@ class _PermissionsOnboardingPageState
                 Text(
                   'Para funcionar corretamente, precisamos das seguintes permissoes:',
                   style: AppTypography.bodyMedium.copyWith(
-                    color: AppColors.mutedForeground,
+                    color: context.colors.mutedForeground,
                   ),
                   textAlign: TextAlign.center,
                 ),
@@ -117,12 +118,12 @@ class _PermissionsOnboardingPageState
                                   .requestAll();
                             },
                       child: permsState.isChecking
-                          ? const SizedBox(
+                          ? SizedBox(
                               height: 20,
                               width: 20,
                               child: CircularProgressIndicator(
                                 strokeWidth: 2,
-                                color: AppColors.primaryForeground,
+                                color: Theme.of(context).colorScheme.onPrimary,
                               ),
                             )
                           : const Text('Conceder Permissoes'),
@@ -148,7 +149,7 @@ class _PermissionsOnboardingPageState
                     Text(
                       'Algumas permissoes foram negadas permanentemente. Abra as configuracoes para concede-las manualmente.',
                       style: AppTypography.caption.copyWith(
-                        color: AppColors.mutedForeground,
+                        color: context.colors.mutedForeground,
                       ),
                       textAlign: TextAlign.center,
                     ),
@@ -174,7 +175,7 @@ class _PermissionsOnboardingPageState
                     child: Text(
                       'Sair',
                       style: AppTypography.bodySmall.copyWith(
-                        color: AppColors.mutedForeground,
+                        color: context.colors.mutedForeground,
                       ),
                     ),
                   ),
@@ -185,21 +186,21 @@ class _PermissionsOnboardingPageState
                   Container(
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
-                      color: AppColors.primary.withValues(alpha: 0.1),
+                      color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(AppColors.radius),
                       border: Border.all(
-                        color: AppColors.primary.withValues(alpha: 0.3),
+                        color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.3),
                       ),
                     ),
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        const Icon(Icons.check_circle, color: AppColors.primary),
+                        Icon(Icons.check_circle, color: Theme.of(context).colorScheme.primary),
                         const SizedBox(width: 8),
                         Text(
                           'Todas as permissoes concedidas!',
                           style: AppTypography.bodyMedium.copyWith(
-                            color: AppColors.primary,
+                            color: Theme.of(context).colorScheme.primary,
                             fontWeight: FontWeight.w600,
                           ),
                         ),
@@ -239,15 +240,17 @@ class _PermissionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final primaryColor = Theme.of(context).colorScheme.primary;
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppColors.card,
+        color: context.colors.card,
         borderRadius: BorderRadius.circular(AppColors.radius),
         border: Border.all(
           color: granted
-              ? AppColors.primary.withValues(alpha: 0.3)
-              : AppColors.border,
+              ? primaryColor.withValues(alpha: 0.3)
+              : context.colors.border,
         ),
       ),
       child: Row(
@@ -256,13 +259,13 @@ class _PermissionCard extends StatelessWidget {
             width: 44,
             height: 44,
             decoration: BoxDecoration(
-              color: (granted ? AppColors.primary : AppColors.muted)
+              color: (granted ? primaryColor : context.colors.muted)
                   .withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(AppColors.radius),
             ),
             child: Icon(
               icon,
-              color: granted ? AppColors.primary : AppColors.mutedForeground,
+              color: granted ? primaryColor : context.colors.mutedForeground,
             ),
           ),
           const SizedBox(width: 12),
@@ -273,14 +276,14 @@ class _PermissionCard extends StatelessWidget {
                 Text(
                   title,
                   style: AppTypography.labelLarge.copyWith(
-                    color: AppColors.foreground,
+                    color: Theme.of(context).colorScheme.onSurface,
                   ),
                 ),
                 const SizedBox(height: 2),
                 Text(
                   description,
                   style: AppTypography.caption.copyWith(
-                    color: AppColors.mutedForeground,
+                    color: context.colors.mutedForeground,
                   ),
                 ),
               ],
@@ -288,7 +291,7 @@ class _PermissionCard extends StatelessWidget {
           ),
           Icon(
             granted ? Icons.check_circle : Icons.circle_outlined,
-            color: granted ? AppColors.primary : AppColors.mutedForeground,
+            color: granted ? primaryColor : context.colors.mutedForeground,
             size: 24,
           ),
         ],

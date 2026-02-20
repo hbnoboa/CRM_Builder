@@ -259,8 +259,18 @@ class Auth extends _$Auth {
 
             // Apply brand color
             final tenantData = data['user']?['tenant'] as Map<String, dynamic>?;
-            final tenantSettings = tenantData?['settings'] as Map<String, dynamic>?;
-            final brandColor = (tenantSettings?['theme'] as Map<String, dynamic>?)?['brandColor'] as String?;
+            debugPrint('[Auth] Silent re-login tenant data: $tenantData');
+            final tenantSettings = tenantData?['settings'];
+            debugPrint('[Auth] Silent re-login settings (${tenantSettings.runtimeType}): $tenantSettings');
+            String? brandColor;
+            if (tenantSettings is Map<String, dynamic>) {
+              final themeData = tenantSettings['theme'];
+              debugPrint('[Auth] Silent re-login theme (${themeData.runtimeType}): $themeData');
+              if (themeData is Map<String, dynamic>) {
+                brandColor = themeData['brandColor'] as String?;
+              }
+            }
+            debugPrint('[Auth] Silent re-login brandColor: "$brandColor"');
             if (brandColor != null && brandColor.isNotEmpty) {
               await SecureStorage.setString('brandColor', brandColor);
             }
@@ -355,8 +365,18 @@ class Auth extends _$Auth {
       if (!_manualAuthInProgress) {
         // Extract and cache brand color from /auth/me response
         final tenantData = meData['tenant'] as Map<String, dynamic>?;
-        final tenantSettings = tenantData?['settings'] as Map<String, dynamic>?;
-        final brandColor = (tenantSettings?['theme'] as Map<String, dynamic>?)?['brandColor'] as String?;
+        debugPrint('[Auth] RestoreSession tenant data: $tenantData');
+        final tenantSettings = tenantData?['settings'];
+        debugPrint('[Auth] RestoreSession settings (${tenantSettings.runtimeType}): $tenantSettings');
+        String? brandColor;
+        if (tenantSettings is Map<String, dynamic>) {
+          final themeData = tenantSettings['theme'];
+          debugPrint('[Auth] RestoreSession theme (${themeData.runtimeType}): $themeData');
+          if (themeData is Map<String, dynamic>) {
+            brandColor = themeData['brandColor'] as String?;
+          }
+        }
+        debugPrint('[Auth] RestoreSession brandColor: "$brandColor"');
         if (brandColor != null && brandColor.isNotEmpty) {
           await SecureStorage.setString('brandColor', brandColor);
         }
@@ -475,8 +495,18 @@ class Auth extends _$Auth {
 
       // Extract and apply tenant brand color for theming
       final tenantData = data['user']?['tenant'] as Map<String, dynamic>?;
-      final tenantSettings = tenantData?['settings'] as Map<String, dynamic>?;
-      final brandColor = (tenantSettings?['theme'] as Map<String, dynamic>?)?['brandColor'] as String?;
+      debugPrint('[Auth] Login tenant data: $tenantData');
+      final tenantSettings = tenantData?['settings'];
+      debugPrint('[Auth] Login tenant settings (${tenantSettings.runtimeType}): $tenantSettings');
+      String? brandColor;
+      if (tenantSettings is Map<String, dynamic>) {
+        final themeData = tenantSettings['theme'];
+        debugPrint('[Auth] Login theme data (${themeData.runtimeType}): $themeData');
+        if (themeData is Map<String, dynamic>) {
+          brandColor = themeData['brandColor'] as String?;
+        }
+      }
+      debugPrint('[Auth] Login extracted brandColor: "$brandColor"');
       if (brandColor != null && brandColor.isNotEmpty) {
         await SecureStorage.setString('brandColor', brandColor);
       } else {

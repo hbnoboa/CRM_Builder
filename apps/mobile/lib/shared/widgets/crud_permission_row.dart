@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:crm_mobile/core/theme/app_colors.dart';
+import 'package:crm_mobile/core/theme/app_colors_extension.dart';
 
 /// Row widget for displaying CRUD permission toggles.
 /// Used in role form for module and entity permissions.
@@ -143,9 +143,9 @@ class CrudPermissionRow extends StatelessWidget {
             size: 20,
             color: enabled
                 ? (_allSelected
-                    ? AppColors.primary
-                    : AppColors.mutedForeground)
-                : AppColors.mutedForeground.withValues(alpha: 0.5),
+                    ? Theme.of(context).colorScheme.primary
+                    : context.colors.mutedForeground)
+                : context.colors.mutedForeground.withValues(alpha: 0.5),
           ),
           const SizedBox(width: 4),
           Text(
@@ -153,8 +153,8 @@ class CrudPermissionRow extends StatelessWidget {
             style: TextStyle(
               fontSize: 12,
               color: enabled
-                  ? AppColors.mutedForeground
-                  : AppColors.mutedForeground.withValues(alpha: 0.5),
+                  ? context.colors.mutedForeground
+                  : context.colors.mutedForeground.withValues(alpha: 0.5),
             ),
           ),
         ],
@@ -186,10 +186,10 @@ class _PermissionChip extends StatelessWidget {
         duration: const Duration(milliseconds: 150),
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
         decoration: BoxDecoration(
-          color: isActive ? color.withValues(alpha: 0.15) : AppColors.muted,
+          color: isActive ? color.withValues(alpha: 0.15) : context.colors.muted,
           borderRadius: BorderRadius.circular(6),
           border: Border.all(
-            color: isActive ? color : AppColors.border,
+            color: isActive ? color : context.colors.border,
           ),
         ),
         child: Text(
@@ -197,7 +197,7 @@ class _PermissionChip extends StatelessWidget {
           style: TextStyle(
             fontSize: 12,
             fontWeight: FontWeight.w500,
-            color: isActive ? color : AppColors.mutedForeground,
+            color: isActive ? color : context.colors.mutedForeground,
           ),
         ),
       ),
@@ -230,7 +230,7 @@ class _CompactPermissionChip extends StatelessWidget {
           color: isActive ? color.withValues(alpha: 0.15) : Colors.transparent,
           borderRadius: BorderRadius.circular(4),
           border: Border.all(
-            color: isActive ? color : AppColors.border,
+            color: isActive ? color : context.colors.border,
           ),
         ),
         child: Center(
@@ -239,7 +239,7 @@ class _CompactPermissionChip extends StatelessWidget {
             style: TextStyle(
               fontSize: 11,
               fontWeight: FontWeight.w600,
-              color: isActive ? color : AppColors.mutedForeground,
+              color: isActive ? color : context.colors.mutedForeground,
             ),
           ),
         ),
@@ -271,7 +271,7 @@ class PermissionCountBadge extends StatelessWidget {
             ? Colors.green.shade100
             : hasAny
                 ? Colors.amber.shade100
-                : AppColors.muted,
+                : context.colors.muted,
         borderRadius: BorderRadius.circular(12),
       ),
       child: Text(
@@ -283,7 +283,7 @@ class PermissionCountBadge extends StatelessWidget {
               ? Colors.green.shade700
               : hasAny
                   ? Colors.amber.shade700
-                  : AppColors.mutedForeground,
+                  : context.colors.mutedForeground,
         ),
       ),
     );

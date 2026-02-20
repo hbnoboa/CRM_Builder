@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:crm_mobile/core/database/app_database.dart';
 import 'package:crm_mobile/core/config/env.dart';
-import 'package:crm_mobile/core/theme/app_colors.dart';
+import 'package:crm_mobile/core/theme/app_colors_extension.dart';
 import 'package:crm_mobile/core/theme/app_typography.dart';
 import 'package:powersync/powersync.dart' hide Column;
 
@@ -61,108 +61,114 @@ class SyncStatusIndicator extends StatelessWidget {
 
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: Row(
-          children: [
-            Icon(
-              status?.connected == true ? Icons.cloud_done : Icons.cloud_off,
-              color: status?.connected == true ? AppColors.success : AppColors.error,
-            ),
-            const SizedBox(width: 8),
-            const Text('PowerSync Debug'),
-          ],
-        ),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
+      builder: (ctx) {
+        final colors = ctx.colors;
+
+        return AlertDialog(
+          title: Row(
             children: [
-              // URLs de configuracao
-              const Text('Configuracao:', style: AppTypography.labelMedium),
-              const SizedBox(height: 4),
-              _buildStatusRow('API URL', Env.apiUrl, AppColors.mutedForeground),
-              _buildStatusRow('PowerSync URL', Env.powerSyncUrl, AppColors.mutedForeground),
-              const Divider(height: 24),
-
-              // Status de conexao
-              const Text('Status:', style: AppTypography.labelMedium),
-              const SizedBox(height: 4),
-              _buildStatusRow('Conectado', status?.connected == true ? 'Sim' : 'Nao'),
-              _buildStatusRow('Uploading', status?.uploading == true ? 'Sim' : 'Nao'),
-              _buildStatusRow('Downloading', status?.downloading == true ? 'Sim' : 'Nao'),
-              if (status?.lastSyncedAt != null)
-                _buildStatusRow('Ultimo sync', _formatDate(status!.lastSyncedAt!)),
-              const Divider(height: 24),
-
-              // Contagem de tabelas
-              const Text('Tabelas Locais:', style: AppTypography.labelMedium),
-              const SizedBox(height: 8),
-              ...counts.entries.map((e) => _buildStatusRow(
-                e.key,
-                e.value >= 0 ? '${e.value} registros' : 'Erro',
-                e.value == 0 ? AppColors.warning : null,
-              ),),
-              const Divider(height: 24),
-
-              // Alerta se sem dados
-              if (counts.values.every((v) => v == 0))
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: AppColors.warning.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          const Icon(Icons.warning, color: AppColors.warning, size: 20),
-                          const SizedBox(width: 8),
-                          Text(
-                            'Nenhum dado sincronizado!',
-                            style: AppTypography.labelSmall.copyWith(
-                              color: AppColors.warning,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        'Possiveis causas:\n'
-                        '- PowerSync service offline\n'
-                        '- JWT secret incorreto\n'
-                        '- Sync rules com erro\n'
-                        '- Sem dados no tenant',
-                        style: AppTypography.caption.copyWith(color: AppColors.warning),
-                      ),
-                    ],
-                  ),
-                ),
+              Icon(
+                status?.connected == true ? Icons.cloud_done : Icons.cloud_off,
+                color: status?.connected == true ? colors.success : colors.destructive,
+              ),
+              const SizedBox(width: 8),
+              const Text('PowerSync Debug'),
             ],
           ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () async {
-              Navigator.pop(ctx);
-              // Force reconnect
-              await AppDatabase.instance.db.disconnect();
-              await AppDatabase.instance.connect();
-            },
-            child: const Text('Reconectar'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // URLs de configuracao
+                const Text('Configuracao:', style: AppTypography.labelMedium),
+                const SizedBox(height: 4),
+                _buildStatusRow(ctx, 'API URL', Env.apiUrl, colors.mutedForeground),
+                _buildStatusRow(ctx, 'PowerSync URL', Env.powerSyncUrl, colors.mutedForeground),
+                const Divider(height: 24),
+
+                // Status de conexao
+                const Text('Status:', style: AppTypography.labelMedium),
+                const SizedBox(height: 4),
+                _buildStatusRow(ctx, 'Conectado', status?.connected == true ? 'Sim' : 'Nao'),
+                _buildStatusRow(ctx, 'Uploading', status?.uploading == true ? 'Sim' : 'Nao'),
+                _buildStatusRow(ctx, 'Downloading', status?.downloading == true ? 'Sim' : 'Nao'),
+                if (status?.lastSyncedAt != null)
+                  _buildStatusRow(ctx, 'Ultimo sync', _formatDate(status!.lastSyncedAt!)),
+                const Divider(height: 24),
+
+                // Contagem de tabelas
+                const Text('Tabelas Locais:', style: AppTypography.labelMedium),
+                const SizedBox(height: 8),
+                ...counts.entries.map((e) => _buildStatusRow(
+                  ctx,
+                  e.key,
+                  e.value >= 0 ? '${e.value} registros' : 'Erro',
+                  e.value == 0 ? colors.warning : null,
+                ),),
+                const Divider(height: 24),
+
+                // Alerta se sem dados
+                if (counts.values.every((v) => v == 0))
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: colors.warning.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Icon(Icons.warning, color: colors.warning, size: 20),
+                            const SizedBox(width: 8),
+                            Text(
+                              'Nenhum dado sincronizado!',
+                              style: AppTypography.labelSmall.copyWith(
+                                color: colors.warning,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Possiveis causas:\n'
+                          '- PowerSync service offline\n'
+                          '- JWT secret incorreto\n'
+                          '- Sync rules com erro\n'
+                          '- Sem dados no tenant',
+                          style: AppTypography.caption.copyWith(color: colors.warning),
+                        ),
+                      ],
+                    ),
+                  ),
+              ],
+            ),
           ),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Fechar'),
-          ),
-        ],
-      ),
+          actions: [
+            TextButton(
+              onPressed: () async {
+                Navigator.pop(ctx);
+                // Force reconnect
+                await AppDatabase.instance.db.disconnect();
+                await AppDatabase.instance.connect();
+              },
+              child: const Text('Reconectar'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Fechar'),
+            ),
+          ],
+        );
+      },
     );
   }
 
-  Widget _buildStatusRow(String label, String value, [Color? valueColor]) {
+  Widget _buildStatusRow(BuildContext context, String label, String value, [Color? valueColor]) {
+    final onSurface = Theme.of(context).colorScheme.onSurface;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
@@ -172,7 +178,7 @@ class SyncStatusIndicator extends StatelessWidget {
           Text(
             value,
             style: AppTypography.labelSmall.copyWith(
-              color: valueColor ?? AppColors.foreground,
+              color: valueColor ?? onSurface,
               fontWeight: FontWeight.w600,
             ),
           ),
@@ -195,20 +201,22 @@ class SyncStatusIndicator extends StatelessWidget {
         final uploading = status?.uploading ?? false;
         final downloading = status?.downloading ?? false;
 
+        final colors = context.colors;
+
         Color color;
         IconData icon;
         String tooltip;
 
         if (!connected) {
-          color = AppColors.syncOffline;
+          color = colors.destructive;
           icon = Icons.cloud_off;
           tooltip = 'Offline';
         } else if (uploading || downloading) {
-          color = AppColors.syncSyncing;
+          color = colors.warning;
           icon = Icons.sync;
           tooltip = 'Sincronizando...';
         } else {
-          color = AppColors.syncOnline;
+          color = colors.success;
           icon = Icons.cloud_done;
           tooltip = 'Sincronizado';
         }
@@ -238,8 +246,8 @@ class SyncStatusIndicator extends StatelessWidget {
                         right: 2,
                         child: Container(
                           padding: const EdgeInsets.all(3),
-                          decoration: const BoxDecoration(
-                            color: AppColors.warning,
+                          decoration: BoxDecoration(
+                            color: colors.warning,
                             shape: BoxShape.circle,
                           ),
                           constraints: const BoxConstraints(
@@ -248,8 +256,8 @@ class SyncStatusIndicator extends StatelessWidget {
                           ),
                           child: Text(
                             pendingCount > 9 ? '9+' : '$pendingCount',
-                            style: const TextStyle(
-                              color: Colors.white,
+                            style: TextStyle(
+                              color: colors.warningForeground,
                               fontSize: 9,
                               fontWeight: FontWeight.bold,
                             ),

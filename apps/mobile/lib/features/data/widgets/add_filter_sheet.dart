@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 import 'package:crm_mobile/core/filters/filter_models.dart';
 import 'package:crm_mobile/core/filters/global_filter_sync_service.dart';
-import 'package:crm_mobile/core/theme/app_colors.dart';
+import 'package:crm_mobile/core/theme/app_colors_extension.dart';
 import 'package:crm_mobile/core/theme/app_typography.dart';
 import 'package:crm_mobile/features/data/providers/filter_provider.dart';
 
@@ -146,9 +146,9 @@ class _AddFilterSheetState extends ConsumerState<AddFilterSheet> {
       padding:
           EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
       child: Container(
-        decoration: const BoxDecoration(
-          color: AppColors.background,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+        decoration: BoxDecoration(
+          color: Theme.of(context).scaffoldBackgroundColor,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
         ),
         padding: const EdgeInsets.all(16),
         child: SingleChildScrollView(
@@ -162,7 +162,7 @@ class _AddFilterSheetState extends ConsumerState<AddFilterSheet> {
                   width: 40,
                   height: 4,
                   decoration: BoxDecoration(
-                    color: AppColors.border,
+                    color: context.colors.border,
                     borderRadius: BorderRadius.circular(2),
                   ),
                 ),
@@ -250,8 +250,8 @@ class _AddFilterSheetState extends ConsumerState<AddFilterSheet> {
                   subtitle: const Text('Aplica a todos os usuarios'),
                   secondary: Icon(Icons.public,
                       color: _saveAsGlobal
-                          ? AppColors.primary
-                          : AppColors.mutedForeground,),
+                          ? Theme.of(context).colorScheme.primary
+                          : context.colors.mutedForeground,),
                   contentPadding: EdgeInsets.zero,
                 ),
                 const SizedBox(height: 8),
@@ -337,7 +337,7 @@ class _AddFilterSheetState extends ConsumerState<AddFilterSheet> {
           ),
           child: Text(
             _value != null ? '$_value' : 'Selecionar data',
-            style: _value != null ? null : const TextStyle(color: AppColors.mutedForeground),
+            style: _value != null ? null : TextStyle(color: context.colors.mutedForeground),
           ),
         ),
       );
@@ -423,7 +423,7 @@ class _AddFilterSheetState extends ConsumerState<AddFilterSheet> {
           ),
           child: Text(
             _value2 != null ? '$_value2' : 'Selecionar data',
-            style: _value2 != null ? null : const TextStyle(color: AppColors.mutedForeground),
+            style: _value2 != null ? null : TextStyle(color: context.colors.mutedForeground),
           ),
         ),
       );

@@ -9,6 +9,7 @@ import 'package:crm_mobile/core/cache/crm_cache_manager.dart';
 import 'package:crm_mobile/core/database/app_database.dart';
 import 'package:crm_mobile/core/network/api_client.dart';
 import 'package:crm_mobile/core/theme/app_colors.dart';
+import 'package:crm_mobile/core/theme/app_colors_extension.dart';
 import 'package:crm_mobile/core/theme/app_typography.dart';
 import 'package:crm_mobile/features/data/widgets/image_field_input.dart';
 import 'package:crm_mobile/features/data/widgets/map_field_input.dart';
@@ -48,7 +49,7 @@ class DynamicFieldDisplay extends StatelessWidget {
           Text(
             name,
             style: AppTypography.labelMedium.copyWith(
-              color: AppColors.mutedForeground,
+              color: context.colors.mutedForeground,
             ),
           ),
           const SizedBox(height: 4),
@@ -89,7 +90,7 @@ class DynamicFieldDisplay extends StatelessWidget {
       return Text(
         '-',
         style: AppTypography.bodyMedium.copyWith(
-          color: AppColors.mutedForeground,
+          color: context.colors.mutedForeground,
         ),
       );
     }
@@ -111,14 +112,14 @@ class DynamicFieldDisplay extends StatelessWidget {
               height: 200,
               width: double.infinity,
               fit: BoxFit.cover,
-              placeholder: (_, __) => Container(
+              placeholder: (ctx, __) => Container(
                 height: 200,
-                color: AppColors.muted,
+                color: ctx.colors.muted,
                 child: const Center(child: CircularProgressIndicator()),
               ),
-              errorWidget: (_, __, ___) => Container(
+              errorWidget: (ctx, __, ___) => Container(
                 height: 200,
-                color: AppColors.muted,
+                color: ctx.colors.muted,
                 child: const Icon(Icons.broken_image_outlined, size: 48),
               ),
             ),
@@ -132,7 +133,7 @@ class DynamicFieldDisplay extends StatelessWidget {
           children: [
             Icon(
               boolVal ? Icons.check_circle : Icons.cancel,
-              color: boolVal ? AppColors.success : AppColors.mutedForeground,
+              color: boolVal ? context.colors.success : context.colors.mutedForeground,
               size: 20,
             ),
             const SizedBox(width: 8),
@@ -198,7 +199,7 @@ class DynamicFieldDisplay extends StatelessWidget {
           child: Text(
             value.toString(),
             style: AppTypography.bodyMedium.copyWith(
-              color: AppColors.info,
+              color: context.colors.info,
               decoration: TextDecoration.underline,
             ),
           ),
@@ -210,7 +211,7 @@ class DynamicFieldDisplay extends StatelessWidget {
           child: Text(
             value.toString(),
             style: AppTypography.bodyMedium.copyWith(
-              color: AppColors.info,
+              color: context.colors.info,
               decoration: TextDecoration.underline,
             ),
           ),
@@ -222,12 +223,12 @@ class DynamicFieldDisplay extends StatelessWidget {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.phone, size: 16, color: AppColors.info),
+              Icon(Icons.phone, size: 16, color: context.colors.info),
               const SizedBox(width: 6),
               Text(
                 value.toString(),
                 style: AppTypography.bodyMedium.copyWith(
-                  color: AppColors.info,
+                  color: context.colors.info,
                   decoration: TextDecoration.underline,
                 ),
               ),
@@ -246,7 +247,7 @@ class DynamicFieldDisplay extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: List.generate(5, (i) => Icon(
             i < rating ? Icons.star : Icons.star_border,
-            color: AppColors.warning,
+            color: context.colors.warning,
             size: 20,
           ),),
         );
@@ -261,7 +262,7 @@ class DynamicFieldDisplay extends StatelessWidget {
               decoration: BoxDecoration(
                 color: _parseColor(hex),
                 borderRadius: BorderRadius.circular(4),
-                border: Border.all(color: AppColors.border),
+                border: Border.all(color: context.colors.border),
               ),
             ),
             const SizedBox(width: 8),
@@ -273,7 +274,7 @@ class DynamicFieldDisplay extends StatelessWidget {
         return Text(
           '••••••••',
           style: AppTypography.bodyMedium.copyWith(
-            color: AppColors.mutedForeground,
+            color: context.colors.mutedForeground,
           ),
         );
 
@@ -284,7 +285,7 @@ class DynamicFieldDisplay extends StatelessWidget {
             Expanded(
               child: LinearProgressIndicator(
                 value: (numVal / 100).clamp(0.0, 1.0).toDouble(),
-                backgroundColor: AppColors.muted,
+                backgroundColor: context.colors.muted,
               ),
             ),
             const SizedBox(width: 8),
@@ -297,7 +298,7 @@ class DynamicFieldDisplay extends StatelessWidget {
           width: double.infinity,
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
-            color: AppColors.muted,
+            color: context.colors.muted,
             borderRadius: BorderRadius.circular(8),
           ),
           child: Text(
@@ -406,7 +407,7 @@ class _LocalImagePreviewState extends State<_LocalImagePreview> {
               : Container(
                   height: 200,
                   width: double.infinity,
-                  color: AppColors.muted,
+                  color: context.colors.muted,
                   child: const Center(
                     child: Icon(Icons.image_outlined, size: 48),
                   ),
@@ -418,7 +419,7 @@ class _LocalImagePreviewState extends State<_LocalImagePreview> {
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
             decoration: BoxDecoration(
-              color: AppColors.warning,
+              color: context.colors.warning,
               borderRadius: BorderRadius.circular(4),
             ),
             child: const Row(
@@ -452,11 +453,11 @@ Future<void> _launchUrl(String url) async {
   } catch (_) {}
 }
 
-Color _parseColor(String hex) {
+Color _parseColor(String hex, [BuildContext? context]) {
   try {
     return Color(int.parse(hex.replaceFirst('#', '0xFF')));
   } catch (_) {
-    return AppColors.muted;
+    return context?.colors.muted ?? AppColors.muted;
   }
 }
 
@@ -977,8 +978,8 @@ class _MultiSelectFieldInputState extends State<_MultiSelectFieldInput> {
                   label: Text(opt),
                   selected: isSelected,
                   onSelected: (_) => _toggle(opt),
-                  selectedColor: AppColors.primary.withValues(alpha: 0.15),
-                  checkmarkColor: AppColors.primary,
+                  selectedColor: Theme.of(context).colorScheme.primary.withValues(alpha: 0.15),
+                  checkmarkColor: Theme.of(context).colorScheme.primary,
                 );
               }).toList(),
             ),
@@ -987,7 +988,7 @@ class _MultiSelectFieldInputState extends State<_MultiSelectFieldInput> {
                 padding: const EdgeInsets.only(top: 4),
                 child: Text(
                   fieldState.errorText!,
-                  style: AppTypography.caption.copyWith(color: AppColors.error),
+                  style: AppTypography.caption.copyWith(color: context.colors.destructive),
                 ),
               ),
           ],
@@ -1210,7 +1211,7 @@ class _RatingFieldInputState extends State<_RatingFieldInput> {
                 },
                 child: Icon(
                   starIndex <= _rating ? Icons.star : Icons.star_border,
-                  color: AppColors.warning,
+                  color: context.colors.warning,
                   size: 32,
                 ),
               );
@@ -1221,7 +1222,7 @@ class _RatingFieldInputState extends State<_RatingFieldInput> {
               padding: const EdgeInsets.only(top: 4),
               child: Text(
                 fieldState.errorText!,
-                style: AppTypography.caption.copyWith(color: AppColors.error),
+                style: AppTypography.caption.copyWith(color: context.colors.destructive),
               ),
             ),
         ],
@@ -1262,9 +1263,9 @@ class _ColorFieldInput extends StatelessWidget {
               width: 40,
               height: 40,
               decoration: BoxDecoration(
-                color: value != null ? _parseColor(value!) : AppColors.muted,
+                color: value != null ? _parseColor(value!, context) : context.colors.muted,
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: AppColors.border),
+                border: Border.all(color: context.colors.border),
               ),
             ),
             const SizedBox(width: 12),
@@ -1292,10 +1293,10 @@ class _ColorFieldInput extends StatelessWidget {
               width: 28,
               height: 28,
               decoration: BoxDecoration(
-                color: _parseColor(hex),
+                color: _parseColor(hex, context),
                 borderRadius: BorderRadius.circular(4),
                 border: Border.all(
-                  color: value == hex ? AppColors.primary : AppColors.border,
+                  color: value == hex ? Theme.of(context).colorScheme.primary : context.colors.border,
                   width: value == hex ? 2 : 1,
                 ),
               ),
@@ -1585,7 +1586,7 @@ class _ArrayFieldInputState extends State<_ArrayFieldInput> {
               padding: const EdgeInsets.only(top: 4),
               child: Text(
                 fieldState.errorText!,
-                style: AppTypography.caption.copyWith(color: AppColors.error),
+                style: AppTypography.caption.copyWith(color: context.colors.destructive),
               ),
             ),
         ],
@@ -1751,7 +1752,7 @@ class _RelationFieldInputState extends State<_RelationFieldInput> {
                 _selectedLabel ?? 'Selecionar...',
                 style: _selectedLabel != null
                     ? AppTypography.bodyMedium
-                    : AppTypography.bodyMedium.copyWith(color: AppColors.mutedForeground),
+                    : AppTypography.bodyMedium.copyWith(color: context.colors.mutedForeground),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
@@ -1827,7 +1828,7 @@ class _RelationSearchSheetState extends State<_RelationSearchSheet> {
                     overflow: TextOverflow.ellipsis,
                   ),
                   trailing: isSelected
-                      ? const Icon(Icons.check, color: AppColors.primary)
+                      ? Icon(Icons.check, color: Theme.of(context).colorScheme.primary)
                       : null,
                   selected: isSelected,
                   onTap: () => Navigator.of(context).pop(id),
@@ -2096,7 +2097,7 @@ class _ApiSelectFieldInputState extends State<_ApiSelectFieldInput> {
             Text(
               'Carregando opcoes...',
               style: AppTypography.bodyMedium.copyWith(
-                color: AppColors.mutedForeground,
+                color: context.colors.mutedForeground,
               ),
             ),
           ],
@@ -2112,7 +2113,7 @@ class _ApiSelectFieldInputState extends State<_ApiSelectFieldInput> {
           labelText: widget.label,
           hintText: widget.placeholder ?? 'Digite o valor...',
           helperText: _error,
-          helperStyle: AppTypography.caption.copyWith(color: AppColors.warning),
+          helperStyle: AppTypography.caption.copyWith(color: context.colors.warning),
         ),
         validator: widget.required
             ? (v) =>
@@ -2166,7 +2167,7 @@ class _ApiSelectFieldInputState extends State<_ApiSelectFieldInput> {
           _selectedLabel ?? 'Selecionar...',
           style: _selectedLabel != null
               ? null
-              : const TextStyle(color: AppColors.mutedForeground),
+              : TextStyle(color: context.colors.mutedForeground),
         ),
       ),
     );
@@ -2264,7 +2265,7 @@ class _ApiSelectSearchSheetState extends State<_ApiSelectSearchSheet> {
                     overflow: TextOverflow.ellipsis,
                   ),
                   trailing: isSelected
-                      ? const Icon(Icons.check, color: AppColors.primary)
+                      ? Icon(Icons.check, color: Theme.of(context).colorScheme.primary)
                       : null,
                   selected: isSelected,
                   onTap: () => Navigator.of(context).pop(opt.value),

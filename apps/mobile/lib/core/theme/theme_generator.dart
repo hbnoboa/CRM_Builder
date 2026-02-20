@@ -145,10 +145,48 @@ HSL _ensureContrast(HSL primary, HSL bg, bool darken) {
 
 /// Generate a complete color palette from a single brand hex color.
 /// Port of web-admin's generateThemeVariables().
-TenantThemeColors generateThemeColors(String hex) {
+/// Set [isDark] to true for dark mode palette.
+TenantThemeColors generateThemeColors(String hex, {bool isDark = false}) {
   final brand = hexToHSL(hex);
   final h = brand.h;
   final s = brand.s;
+
+  if (isDark) {
+    // ---- DARK MODE ----
+    final darkBg = HSL(h, _clamp(s * 0.15, 5, 15), 7);
+    final darkPrimary = _ensureContrast(
+      HSL(h, _clamp(s, 50, 85), _clamp(brand.l, 55, 75)),
+      darkBg,
+      false,
+    );
+
+    final primaryColor = hslToColor(darkPrimary.h, darkPrimary.s, darkPrimary.l);
+    final primaryFg = darkPrimary.l > 60
+        ? hslToColor(h, _clamp(s, 40, 80), 10)
+        : const Color(0xFFFFFFFF);
+
+    return TenantThemeColors(
+      primary: primaryColor,
+      primaryForeground: primaryFg,
+      secondary: hslToColor(h, _clamp(s * 0.15, 5, 15), 16),
+      secondaryForeground: hslToColor(h, _clamp(s * 0.1, 3, 10), 92),
+      background: hslToColor(h, _clamp(s * 0.15, 5, 15), 7),
+      foreground: hslToColor(h, _clamp(s * 0.1, 3, 10), 96),
+      card: hslToColor(h, _clamp(s * 0.12, 4, 12), 10),
+      cardForeground: hslToColor(h, _clamp(s * 0.1, 3, 10), 96),
+      surface: hslToColor(h, _clamp(s * 0.12, 4, 12), 12),
+      surfaceVariant: hslToColor(h, _clamp(s * 0.1, 3, 10), 18),
+      muted: hslToColor(h, _clamp(s * 0.1, 3, 10), 18),
+      mutedForeground: hslToColor(h, _clamp(s * 0.08, 3, 10), 60),
+      accent: hslToColor((h + 15) % 360, _clamp(s * 0.15, 5, 15), 16),
+      accentForeground: hslToColor(h, _clamp(s * 0.1, 3, 10), 92),
+      border: hslToColor(h, _clamp(s * 0.1, 3, 10), 20),
+      input: hslToColor(h, _clamp(s * 0.1, 3, 10), 20),
+      ring: primaryColor,
+      destructive: const Color(0xFFDC2626),
+      destructiveForeground: const Color(0xFFFEF2F2),
+    );
+  }
 
   // ---- LIGHT MODE ----
   final lightBg = HSL(h, _clamp(s * 0.05, 1, 4), 98.5);

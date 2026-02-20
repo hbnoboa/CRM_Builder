@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:crm_mobile/core/network/api_client.dart';
 import 'package:crm_mobile/core/theme/app_colors.dart';
+import 'package:crm_mobile/core/theme/app_colors_extension.dart';
 import 'package:crm_mobile/core/theme/app_typography.dart';
 
 class ForgotPasswordPage extends ConsumerStatefulWidget {
@@ -71,18 +72,18 @@ class _ForgotPasswordPageState extends ConsumerState<ForgotPasswordPage> {
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        const Icon(Icons.mark_email_read_outlined,
-            size: 64, color: AppColors.success,),
+        Icon(Icons.mark_email_read_outlined,
+            size: 64, color: context.colors.success,),
         const SizedBox(height: 16),
         Text(
           'Email enviado!',
-          style: AppTypography.h3.copyWith(color: AppColors.foreground),
+          style: AppTypography.h3.copyWith(color: Theme.of(context).colorScheme.onSurface),
         ),
         const SizedBox(height: 8),
         Text(
           'Verifique sua caixa de entrada para redefinir sua senha.',
           style: AppTypography.bodyMedium
-              .copyWith(color: AppColors.mutedForeground),
+              .copyWith(color: context.colors.mutedForeground),
           textAlign: TextAlign.center,
         ),
         const SizedBox(height: 24),
@@ -106,14 +107,14 @@ class _ForgotPasswordPageState extends ConsumerState<ForgotPasswordPage> {
         children: [
           Text(
             'Esqueceu a senha?',
-            style: AppTypography.h2.copyWith(color: AppColors.foreground),
+            style: AppTypography.h2.copyWith(color: Theme.of(context).colorScheme.onSurface),
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 8),
           Text(
             'Digite seu email para receber um link de recuperacao.',
             style: AppTypography.bodyMedium
-                .copyWith(color: AppColors.mutedForeground),
+                .copyWith(color: context.colors.mutedForeground),
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 32),
@@ -122,13 +123,13 @@ class _ForgotPasswordPageState extends ConsumerState<ForgotPasswordPage> {
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: AppColors.destructive.withValues(alpha: 0.1),
+                color: context.colors.destructive.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(AppColors.radius),
               ),
               child: Text(
                 _error!,
                 style: AppTypography.bodySmall
-                    .copyWith(color: AppColors.destructive),
+                    .copyWith(color: context.colors.destructive),
               ),
             ),
             const SizedBox(height: 16),
@@ -158,12 +159,12 @@ class _ForgotPasswordPageState extends ConsumerState<ForgotPasswordPage> {
             child: ElevatedButton(
               onPressed: _isLoading ? null : _handleSubmit,
               child: _isLoading
-                  ? const SizedBox(
+                  ? SizedBox(
                       height: 20,
                       width: 20,
                       child: CircularProgressIndicator(
                         strokeWidth: 2,
-                        color: AppColors.primaryForeground,
+                        color: Theme.of(context).colorScheme.onPrimary,
                       ),
                     )
                   : const Text('Enviar link'),

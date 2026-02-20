@@ -4,7 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:uuid/uuid.dart';
 import 'package:crm_mobile/core/location/geolocation_service.dart';
-import 'package:crm_mobile/core/theme/app_colors.dart';
+import 'package:crm_mobile/core/theme/app_colors_extension.dart';
 import 'package:crm_mobile/core/permissions/permission_provider.dart';
 import 'package:crm_mobile/features/data/data/data_repository.dart';
 import 'package:crm_mobile/features/data/widgets/dynamic_field.dart';
@@ -295,7 +295,7 @@ class _DataFormPageState extends ConsumerState<DataFormPage> {
               TextButton(
                 onPressed: () => Navigator.of(ctx).pop(true),
                 style: TextButton.styleFrom(
-                  foregroundColor: AppColors.destructive,
+                  foregroundColor: ctx.colors.destructive,
                 ),
                 child: const Text('Descartar'),
               ),
@@ -389,12 +389,12 @@ class _DataFormPageState extends ConsumerState<DataFormPage> {
               child: ElevatedButton(
                 onPressed: _isLoading ? null : _handleSubmit,
                 child: _isLoading
-                    ? const SizedBox(
+                    ? SizedBox(
                         width: 20,
                         height: 20,
                         child: CircularProgressIndicator(
                           strokeWidth: 2,
-                          color: AppColors.primaryForeground,
+                          color: Theme.of(context).colorScheme.onPrimary,
                         ),
                       )
                     : Text(widget.isEditing ? 'Salvar alteracoes' : 'Criar'),

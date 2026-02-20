@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:crm_mobile/core/database/app_database.dart';
 import 'package:crm_mobile/core/permissions/permission_provider.dart';
 import 'package:crm_mobile/core/theme/app_colors.dart';
+import 'package:crm_mobile/core/theme/app_colors_extension.dart';
 import 'package:crm_mobile/core/theme/app_typography.dart';
 import 'package:crm_mobile/shared/utils/icon_mapper.dart';
 import 'package:crm_mobile/shared/widgets/app_drawer.dart';
@@ -67,63 +68,67 @@ class _DataEntitiesPageState extends ConsumerState<DataEntitiesPage> {
       body: Column(
         children: [
           // Search
-          Container(
-            padding: const EdgeInsets.all(AppColors.spaceMd),
-            decoration: BoxDecoration(
-              color: AppColors.card,
-              boxShadow: [
-                BoxShadow(
-                  color: AppColors.foreground.withValues(alpha: 0.03),
-                  blurRadius: 10,
-                offset: const Offset(0, 2),
-              ),
-            ],
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Selecione uma entidade',
-                style: AppTypography.bodySmall.copyWith(
-                  color: AppColors.mutedForeground,
+          Builder(
+            builder: (context) {
+              return Container(
+                padding: const EdgeInsets.all(AppColors.spaceMd),
+                decoration: BoxDecoration(
+                  color: context.colors.card,
+                  boxShadow: [
+                    BoxShadow(
+                      color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.03),
+                      blurRadius: 10,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
                 ),
-              ),
-              const SizedBox(height: AppColors.spaceSm),
-              // Search bar
-              TextField(
-                decoration: InputDecoration(
-                  hintText: 'Buscar entidade...',
-                  hintStyle: AppTypography.bodyMedium.copyWith(
-                    color: AppColors.mutedForeground,
-                  ),
-                  prefixIcon: const Icon(
-                    Icons.search,
-                    color: AppColors.mutedForeground,
-                  ),
-                  filled: true,
-                  fillColor: AppColors.surfaceVariant,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(AppColors.radiusFull),
-                    borderSide: BorderSide.none,
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(AppColors.radiusFull),
-                    borderSide: BorderSide.none,
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(AppColors.radiusFull),
-                    borderSide: const BorderSide(color: AppColors.primary, width: 2),
-                  ),
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: AppColors.spaceMd,
-                    vertical: AppColors.spaceSm,
-                  ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Selecione uma entidade',
+                      style: AppTypography.bodySmall.copyWith(
+                        color: context.colors.mutedForeground,
+                      ),
+                    ),
+                    const SizedBox(height: AppColors.spaceSm),
+                    // Search bar
+                    TextField(
+                      decoration: InputDecoration(
+                        hintText: 'Buscar entidade...',
+                        hintStyle: AppTypography.bodyMedium.copyWith(
+                          color: context.colors.mutedForeground,
+                        ),
+                        prefixIcon: Icon(
+                          Icons.search,
+                          color: context.colors.mutedForeground,
+                        ),
+                        filled: true,
+                        fillColor: context.colors.muted,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(AppColors.radiusFull),
+                          borderSide: BorderSide.none,
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(AppColors.radiusFull),
+                          borderSide: BorderSide.none,
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(AppColors.radiusFull),
+                          borderSide: BorderSide(color: Theme.of(context).colorScheme.primary, width: 2),
+                        ),
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: AppColors.spaceMd,
+                          vertical: AppColors.spaceSm,
+                        ),
+                      ),
+                      onChanged: (value) => setState(() => _searchQuery = value),
+                    ),
+                  ],
                 ),
-                onChanged: (value) => setState(() => _searchQuery = value),
-              ),
-            ],
+              );
+            },
           ),
-        ),
 
         // Entities list
         Expanded(
@@ -216,13 +221,13 @@ class _DataEntitiesPageState extends ConsumerState<DataEntitiesPage> {
               width: 80,
               height: 80,
               decoration: BoxDecoration(
-                color: AppColors.surfaceVariant,
+                color: context.colors.muted,
                 borderRadius: BorderRadius.circular(AppColors.radiusFull),
               ),
-              child: const Icon(
+              child: Icon(
                 Icons.table_chart_outlined,
                 size: 40,
-                color: AppColors.mutedForeground,
+                color: context.colors.mutedForeground,
               ),
             ),
             const SizedBox(height: AppColors.spaceLg),
@@ -231,7 +236,7 @@ class _DataEntitiesPageState extends ConsumerState<DataEntitiesPage> {
                   ? 'Nenhuma entidade disponivel'
                   : 'Nenhuma entidade encontrada',
               style: AppTypography.labelLarge.copyWith(
-                color: AppColors.foreground,
+                color: Theme.of(context).colorScheme.onSurface,
               ),
             ),
             const SizedBox(height: AppColors.spaceSm),
@@ -240,7 +245,7 @@ class _DataEntitiesPageState extends ConsumerState<DataEntitiesPage> {
                   ? 'Crie entidades no painel web'
                   : 'Tente uma busca diferente',
               style: AppTypography.bodySmall.copyWith(
-                color: AppColors.mutedForeground,
+                color: context.colors.mutedForeground,
               ),
               textAlign: TextAlign.center,
             ),
@@ -282,9 +287,15 @@ class _DataEntitiesPageState extends ConsumerState<DataEntitiesPage> {
         onTap: () => context.push('/data/$slug'),
         child: Container(
           decoration: BoxDecoration(
-            color: AppColors.card,
+            color: context.colors.card,
             borderRadius: BorderRadius.circular(AppColors.radiusLg),
-            boxShadow: AppColors.cardShadow,
+            boxShadow: [
+              BoxShadow(
+                color: Theme.of(context).shadowColor.withValues(alpha: 0.08),
+                blurRadius: 10,
+                offset: const Offset(0, 2),
+              ),
+            ],
           ),
           child: Row(
             children: [
@@ -344,7 +355,7 @@ class _DataEntitiesPageState extends ConsumerState<DataEntitiesPage> {
                                 _buildChip(
                                   Icons.list_alt_outlined,
                                   '$fieldCount campos',
-                                  AppColors.mutedForeground,
+                                  context.colors.mutedForeground,
                                 ),
                               ],
                             ),
@@ -356,13 +367,13 @@ class _DataEntitiesPageState extends ConsumerState<DataEntitiesPage> {
                         width: 32,
                         height: 32,
                         decoration: BoxDecoration(
-                          color: AppColors.surfaceVariant,
+                          color: context.colors.muted,
                           borderRadius: BorderRadius.circular(AppColors.radiusSm),
                         ),
-                        child: const Icon(
+                        child: Icon(
                           Icons.chevron_right,
                           size: 20,
-                          color: AppColors.mutedForeground,
+                          color: context.colors.mutedForeground,
                         ),
                       ),
                     ],
