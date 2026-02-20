@@ -2,7 +2,7 @@ import { Prisma } from '@prisma/client';
 
 /**
  * Constroi uma clausula Prisma WHERE para um filtro sobre campo JSON de EntityData.
- * Reutilizado por DataService e DataSourceService.
+ * Reutilizado por DataService.
  */
 export function buildFilterClause(
   fieldSlug: string,

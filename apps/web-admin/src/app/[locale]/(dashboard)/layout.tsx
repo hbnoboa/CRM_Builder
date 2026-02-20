@@ -16,8 +16,6 @@ import {
   Search,
   Building2,
   Shield,
-  FileText,
-  TableProperties,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -72,18 +70,6 @@ const navigationConfig: NavItemConfig[] = [
     href: '/apis',
     icon: <Code className="h-5 w-5" />,
     moduleKey: 'apis',
-  },
-  {
-    titleKey: 'dataSources',
-    href: '/data-sources',
-    icon: <TableProperties className="h-5 w-5" />,
-    moduleKey: 'data-sources',
-  },
-  {
-    titleKey: 'pdfTemplates',
-    href: '/pdf-templates',
-    icon: <FileText className="h-5 w-5" />,
-    moduleKey: 'pdf',
   },
   {
     titleKey: 'users',

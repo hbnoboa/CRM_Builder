@@ -12,23 +12,17 @@ const DEFAULT_MODULE_PERMISSIONS: Record<string, Record<string, Record<string, b
     data: { canRead: true, canCreate: true, canUpdate: true },
     users: { canRead: true },
     roles: { canRead: true },
-    pdf: { canRead: true, canGenerate: true, canClone: true },
-    'data-sources': { canRead: true, canCreate: true, canUpdate: true, canDelete: true },
   },
   USER: {
     dashboard: { canRead: true },
     entities: { canRead: true, canCreate: true, canUpdate: true },
     data: { canRead: true, canCreate: true, canUpdate: true },
     users: { canRead: true },
-    pdf: { canRead: true, canGenerate: true },
-    'data-sources': { canRead: true },
   },
   VIEWER: {
     dashboard: { canRead: true },
     data: { canRead: true },
     settings: { canRead: true },
-    pdf: { canRead: true },
-    'data-sources': { canRead: true },
   },
 };
 

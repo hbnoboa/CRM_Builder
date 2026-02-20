@@ -10,7 +10,6 @@ import 'package:crm_mobile/core/theme/app_typography.dart';
 import 'package:crm_mobile/features/data/data/data_repository.dart';
 import 'package:crm_mobile/features/data/widgets/dynamic_field.dart';
 import 'package:crm_mobile/features/data/widgets/sub_entity_section.dart';
-import 'package:crm_mobile/features/pdf/presentation/widgets/generate_pdf_button.dart';
 import 'package:crm_mobile/shared/utils/formatters.dart';
 import 'package:crm_mobile/shared/widgets/permission_gate.dart';
 
@@ -35,11 +34,6 @@ class DataDetailPage extends ConsumerWidget {
           onPressed: () => context.pop(),
         ),
         actions: [
-          // PDF generation button
-          GeneratePdfAction(
-            entitySlug: entitySlug,
-            recordId: recordId,
-          ),
           // Share button
           IconButton(
             icon: const Icon(Icons.share_outlined),

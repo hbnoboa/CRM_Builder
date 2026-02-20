@@ -62,10 +62,6 @@ model Tenant {
   customEndpoints CustomEndpoint[]
   customRoles     CustomRole[]
   notifications   Notification[]
-  pdfTemplates    PdfTemplate[]
-  pdfGenerations  PdfGeneration[]
-  dataSources     DataSource[]
-
   @@index([slug])
   @@index([status])
 }
@@ -103,13 +99,6 @@ model User {
   // Dados criados por este usuario
   createdData EntityData[] @relation("CreatedBy")
   updatedData EntityData[] @relation("UpdatedBy")
-
-  // PDFs criados por este usuario
-  pdfTemplatesCreated   PdfTemplate[]   @relation("PdfTemplatesCreated")
-  pdfGenerationsCreated PdfGeneration[] @relation("PdfGenerationsCreated")
-
-  // Data Sources
-  dataSourcesCreated DataSource[] @relation("DataSourceCreator")
 
   @@unique([tenantId, email])
   @@index([tenantId])
@@ -171,7 +160,6 @@ model Entity {
   tenant          Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   data            EntityData[]
   customEndpoints CustomEndpoint[]
-  pdfTemplates    PdfTemplate[]
 
   @@unique([tenantId, slug])
   @@index([tenantId])
@@ -414,139 +402,3 @@ model CustomRole {
   @@index([tenantId, roleType])
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-// PDF TEMPLATES (Gerador de PDF)
-// ═══════════════════════════════════════════════════════════════════════════
-
-model PdfTemplate {
-  id       String @id @default(cuid())
-  tenantId String
-
-  name        String
-  slug        String
-  description String?
-  icon        String?
-  category    String? // "relatorio", "ficha", "etiqueta", etc
-
-  // Tipo do template
-  isSystem Boolean @default(false) // Templates padrao (nao podem ser deletados)
-  isGlobal Boolean @default(false) // Disponivel para todos tenants (PLATFORM_ADMIN)
-
-  // Entidade associada (dados vem dela)
-  entityId   String?
-  entitySlug String?
-
-  // Conteudo do template (JSON schema)
-  // basePdf: { width, height, padding }
-  basePdf Json @default("{}")
-
-  // schemas: Array de elementos posicionados por pagina
-  // [{ name, type, position, width, height, fieldSlug, staticValue, expression, format, condition, ... }]
-  schemas Json @default("[]")
-
-  // Configuracoes
-  // { pageSize, orientation, margins, headerHeight, footerHeight, ... }
-  settings Json @default("{}")
-
-  // Workflow
-  isPublished Boolean   @default(false)
-  publishedAt DateTime?
-  version     Int       @default(1)
-
-  // Clonagem
-  clonedFromId String? // Se foi clonado de outro template
-
-  // Audit
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  createdById String?
-
-  // Relacionamentos
-  tenant     Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  entity     Entity?       @relation(fields: [entityId], references: [id])
-  createdBy  User?         @relation("PdfTemplatesCreated", fields: [createdById], references: [id], onDelete: SetNull)
-  clonedFrom PdfTemplate?  @relation("TemplateClones", fields: [clonedFromId], references: [id], onDelete: SetNull)
-  clones     PdfTemplate[] @relation("TemplateClones")
-
-  generations PdfGeneration[]
-
-  @@unique([tenantId, slug])
-  @@index([tenantId])
-  @@index([tenantId, entitySlug])
-  @@index([isPublished])
-  @@index([isSystem])
-  @@index([isGlobal])
-  @@index([category])
-  @@index([createdById])
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// PDF GENERATIONS (Historico de Geracoes)
-// ═══════════════════════════════════════════════════════════════════════════
-
-model PdfGeneration {
-  id         String @id @default(cuid())
-  tenantId   String
-  templateId String
-
-  // Dados usados na geracao
-  recordId  String? // ID do registro da entidade
-  inputData Json    @default("{}")
-
-  // Resultado
-  status    String  @default("pending") // pending, processing, completed, failed
-  fileUrl   String?
-  fileSize  Int?
-  pageCount Int?
-  error     String?
-
-  // Timestamps
-  createdAt   DateTime  @default(now())
-  completedAt DateTime?
-  expiresAt   DateTime? // Para cleanup automatico
-
-  // Relacoes
-  createdById String?
-
-  tenant    Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  template  PdfTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
-  createdBy User?       @relation("PdfGenerationsCreated", fields: [createdById], references: [id], onDelete: SetNull)
-
-  @@index([tenantId])
-  @@index([templateId])
-  @@index([status])
-  @@index([createdById])
-  @@index([createdAt])
-  @@index([expiresAt])
-  @@index([tenantId, status])
-  @@index([tenantId, templateId])
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// DATA SOURCES (Fontes de Dados)
-// ═══════════════════════════════════════════════════════════════════════════
-
-model DataSource {
-  id          String  @id @default(cuid())
-  tenantId    String
-  name        String
-  slug        String
-  description String?
-
-  // Definicao completa em JSON
-  // { sources, filters, orderBy, limit, aggregations }
-  definition Json @default("{}")
-
-  isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  createdById String?
-
-  tenant    Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  createdBy User?  @relation("DataSourceCreator", fields: [createdById], references: [id], onDelete: SetNull)
-
-  @@unique([tenantId, slug])
-  @@index([tenantId])
-  @@index([isActive])
-  @@index([createdById])
-}

@@ -42,10 +42,6 @@ export interface ModulePermission {
   canConfigureColumns?: boolean; // data
   canExport?: boolean;         // data
   canImport?: boolean;         // data
-  // PDF module actions
-  canGenerate?: boolean;       // pdf - gerar PDFs
-  canPublish?: boolean;        // pdf - publicar templates
-  canClone?: boolean;          // pdf - clonar templates
 }
 
 export interface ModulePermissions {
@@ -57,8 +53,6 @@ export interface ModulePermissions {
   tenants?: ModulePermission;
   data?: ModulePermission;
   roles?: ModulePermission;
-  pdf?: ModulePermission;
-  'data-sources'?: ModulePermission;
 }
 
 export interface CustomRole {
