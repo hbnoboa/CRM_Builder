@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, use } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Link } from '@/i18n/navigation';
 import { useTranslations } from 'next-intl';
@@ -31,11 +31,11 @@ import { FooterTab } from '@/components/pdf/template-editor/footer-tab';
 import { PdfPreview } from '@/components/pdf/preview/pdf-preview';
 
 interface PageProps {
-  params: Promise<{ id: string }>;
+  params: { id: string };
 }
 
 function EditPdfTemplatePageContent({ params }: PageProps) {
-  const { id } = use(params);
+  const { id } = params;
   const router = useRouter();
   const tNav = useTranslations('navigation');
 

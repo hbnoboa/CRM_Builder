@@ -65,16 +65,24 @@ export class PdfController {
 
   @Get(':id')
   @ApiOperation({ summary: 'Buscar template por ID' })
-  async findOne(@Param('id') id: string, @CurrentUser() user: CurrentUserType) {
+  async findOne(
+    @Param('id') id: string,
+    @Query('tenantId') tenantId: string | undefined,
+    @CurrentUser() user: CurrentUserType,
+  ) {
     checkModulePermission(user, 'pdfTemplates', 'canRead');
-    return this.templateService.findOne(id, user);
+    return this.templateService.findOne(id, user, tenantId);
   }
 
   @Get('slug/:slug')
   @ApiOperation({ summary: 'Buscar template por slug' })
-  async findBySlug(@Param('slug') slug: string, @CurrentUser() user: CurrentUserType) {
+  async findBySlug(
+    @Param('slug') slug: string,
+    @Query('tenantId') tenantId: string | undefined,
+    @CurrentUser() user: CurrentUserType,
+  ) {
     checkModulePermission(user, 'pdfTemplates', 'canRead');
-    return this.templateService.findBySlug(slug, user);
+    return this.templateService.findBySlug(slug, user, tenantId);
   }
 
   @Patch(':id')
@@ -83,42 +91,59 @@ export class PdfController {
   async update(
     @Param('id') id: string,
     @Body() dto: UpdatePdfTemplateDto,
+    @Query('tenantId') tenantId: string | undefined,
     @CurrentUser() user: CurrentUserType,
   ) {
     checkModulePermission(user, 'pdfTemplates', 'canUpdate');
-    return this.templateService.update(id, dto, user);
+    return this.templateService.update(id, { ...dto, tenantId: tenantId || dto.tenantId }, user);
   }
 
   @Delete(':id')
   @Roles('ADMIN', 'PLATFORM_ADMIN')
   @ApiOperation({ summary: 'Excluir template' })
-  async remove(@Param('id') id: string, @CurrentUser() user: CurrentUserType) {
+  async remove(
+    @Param('id') id: string,
+    @Query('tenantId') tenantId: string | undefined,
+    @CurrentUser() user: CurrentUserType,
+  ) {
     checkModulePermission(user, 'pdfTemplates', 'canDelete');
-    return this.templateService.remove(id, user);
+    return this.templateService.remove(id, user, tenantId);
   }
 
   @Post(':id/duplicate')
   @Roles('ADMIN', 'PLATFORM_ADMIN')
   @ApiOperation({ summary: 'Duplicar template' })
-  async duplicate(@Param('id') id: string, @CurrentUser() user: CurrentUserType) {
+  async duplicate(
+    @Param('id') id: string,
+    @Query('tenantId') tenantId: string | undefined,
+    @CurrentUser() user: CurrentUserType,
+  ) {
     checkModulePermission(user, 'pdfTemplates', 'canCreate');
-    return this.templateService.duplicate(id, user);
+    return this.templateService.duplicate(id, user, tenantId);
   }
 
   @Post(':id/publish')
   @Roles('ADMIN', 'PLATFORM_ADMIN')
   @ApiOperation({ summary: 'Publicar template' })
-  async publish(@Param('id') id: string, @CurrentUser() user: CurrentUserType) {
+  async publish(
+    @Param('id') id: string,
+    @Query('tenantId') tenantId: string | undefined,
+    @CurrentUser() user: CurrentUserType,
+  ) {
     checkModulePermission(user, 'pdfTemplates', 'canUpdate');
-    return this.templateService.publish(id, user);
+    return this.templateService.publish(id, user, tenantId);
   }
 
   @Post(':id/unpublish')
   @Roles('ADMIN', 'PLATFORM_ADMIN')
   @ApiOperation({ summary: 'Despublicar template' })
-  async unpublish(@Param('id') id: string, @CurrentUser() user: CurrentUserType) {
+  async unpublish(
+    @Param('id') id: string,
+    @Query('tenantId') tenantId: string | undefined,
+    @CurrentUser() user: CurrentUserType,
+  ) {
     checkModulePermission(user, 'pdfTemplates', 'canUpdate');
-    return this.templateService.unpublish(id, user);
+    return this.templateService.unpublish(id, user, tenantId);
   }
 
   // ================= GERACAO DE PDF =================
@@ -129,6 +154,7 @@ export class PdfController {
   async generateSingle(
     @Param('id') templateId: string,
     @Body() dto: GenerateSinglePdfDto,
+    @Query('tenantId') tenantId: string | undefined,
     @CurrentUser() user: CurrentUserType,
     @Res() res: Response,
   ) {
@@ -139,6 +165,7 @@ export class PdfController {
       dto.recordId,
       user,
       dto.overrideData,
+      tenantId,
     );
 
     res.set({
@@ -155,10 +182,11 @@ export class PdfController {
   async generateBatch(
     @Param('id') templateId: string,
     @Body() dto: GenerateBatchPdfDto,
+    @Query('tenantId') tenantId: string | undefined,
     @CurrentUser() user: CurrentUserType,
   ) {
     checkModulePermission(user, 'pdfTemplates', 'canGenerateBatch');
-    return this.generatorService.generateBatch(templateId, dto.recordIds, user, dto.mergePdfs);
+    return this.generatorService.generateBatch(templateId, dto.recordIds, user, dto.mergePdfs, tenantId);
   }
 
   @Post(':id/preview')
@@ -167,12 +195,13 @@ export class PdfController {
   async preview(
     @Param('id') templateId: string,
     @Body() dto: PreviewPdfDto,
+    @Query('tenantId') tenantId: string | undefined,
     @CurrentUser() user: CurrentUserType,
     @Res() res: Response,
   ) {
     checkModulePermission(user, 'pdfTemplates', 'canRead');
 
-    const buffer = await this.generatorService.preview(templateId, user, dto);
+    const buffer = await this.generatorService.preview(templateId, user, dto, tenantId);
 
     res.set({
       'Content-Type': 'application/pdf',
@@ -197,9 +226,13 @@ export class PdfController {
 
   @Get('generations/:id')
   @ApiOperation({ summary: 'Buscar geracao por ID' })
-  async getGeneration(@Param('id') id: string, @CurrentUser() user: CurrentUserType) {
+  async getGeneration(
+    @Param('id') id: string,
+    @Query('tenantId') tenantId: string | undefined,
+    @CurrentUser() user: CurrentUserType,
+  ) {
     checkModulePermission(user, 'pdfTemplates', 'canRead');
-    return this.generatorService.getGeneration(id, user);
+    return this.generatorService.getGeneration(id, user, tenantId);
   }
 
   @Get('generations/:id/download')
@@ -207,12 +240,13 @@ export class PdfController {
   @ApiProduces('application/pdf', 'application/zip')
   async downloadGeneration(
     @Param('id') id: string,
+    @Query('tenantId') tenantId: string | undefined,
     @CurrentUser() user: CurrentUserType,
     @Res() res: Response,
   ) {
     checkModulePermission(user, 'pdfTemplates', 'canRead');
 
-    const generation = await this.generatorService.getGeneration(id, user);
+    const generation = await this.generatorService.getGeneration(id, user, tenantId);
 
     if (!generation.fileUrl) {
       res.status(404).json({ message: 'Arquivo nao disponivel' });

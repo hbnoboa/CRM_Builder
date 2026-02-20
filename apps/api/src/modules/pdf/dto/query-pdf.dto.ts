@@ -4,6 +4,11 @@ import { Transform } from 'class-transformer';
 import { PdfGenerationStatus } from '@prisma/client';
 
 export class QueryPdfTemplateDto {
+  @ApiPropertyOptional({ description: 'Tenant ID (PLATFORM_ADMIN cross-tenant)' })
+  @IsString()
+  @IsOptional()
+  tenantId?: string;
+
   @ApiPropertyOptional({ description: 'Busca por nome' })
   @IsString()
   @IsOptional()
@@ -37,6 +42,11 @@ export class QueryPdfTemplateDto {
 }
 
 export class QueryPdfGenerationDto {
+  @ApiPropertyOptional({ description: 'Tenant ID (PLATFORM_ADMIN cross-tenant)' })
+  @IsString()
+  @IsOptional()
+  tenantId?: string;
+
   @ApiPropertyOptional({ description: 'Filtrar por template' })
   @IsString()
   @IsOptional()

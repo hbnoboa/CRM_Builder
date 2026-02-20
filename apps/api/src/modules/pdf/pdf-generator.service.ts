@@ -49,8 +49,9 @@ export class PdfGeneratorService {
     recordId: string,
     currentUser: CurrentUser,
     overrideData?: Record<string, unknown>,
+    tenantId?: string,
   ): Promise<{ buffer: Buffer; fileName: string }> {
-    const targetTenantId = getEffectiveTenantId(currentUser, undefined);
+    const targetTenantId = getEffectiveTenantId(currentUser, tenantId);
 
     // Buscar template
     const template = await this.prisma.pdfTemplate.findFirst({
@@ -125,8 +126,9 @@ export class PdfGeneratorService {
     recordIds: string[],
     currentUser: CurrentUser,
     mergePdfs?: boolean,
+    tenantId?: string,
   ): Promise<PdfGeneration> {
-    const targetTenantId = getEffectiveTenantId(currentUser, undefined);
+    const targetTenantId = getEffectiveTenantId(currentUser, tenantId);
 
     // Verificar template existe
     const template = await this.prisma.pdfTemplate.findFirst({
@@ -175,8 +177,9 @@ export class PdfGeneratorService {
     templateId: string,
     currentUser: CurrentUser,
     dto: PreviewPdfDto,
+    tenantId?: string,
   ): Promise<Buffer> {
-    const targetTenantId = getEffectiveTenantId(currentUser, undefined);
+    const targetTenantId = getEffectiveTenantId(currentUser, tenantId);
 
     // Buscar template
     const template = await this.prisma.pdfTemplate.findFirst({
@@ -226,7 +229,7 @@ export class PdfGeneratorService {
    * Lista historico de geracoes
    */
   async getGenerations(currentUser: CurrentUser, query: QueryPdfGenerationDto) {
-    const targetTenantId = getEffectiveTenantId(currentUser, undefined);
+    const targetTenantId = getEffectiveTenantId(currentUser, query.tenantId);
     const limit = Math.min(parseInt(query.limit || String(DEFAULT_LIMIT)), MAX_LIMIT);
 
     const where: Prisma.PdfGenerationWhereInput = {
@@ -290,8 +293,8 @@ export class PdfGeneratorService {
   /**
    * Buscar geracao por ID
    */
-  async getGeneration(id: string, currentUser: CurrentUser): Promise<PdfGeneration> {
-    const targetTenantId = getEffectiveTenantId(currentUser, undefined);
+  async getGeneration(id: string, currentUser: CurrentUser, tenantId?: string): Promise<PdfGeneration> {
+    const targetTenantId = getEffectiveTenantId(currentUser, tenantId);
 
     const generation = await this.prisma.pdfGeneration.findFirst({
       where: {

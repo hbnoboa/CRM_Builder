@@ -95,7 +95,7 @@ export class PdfTemplateService {
    * Listar templates do tenant
    */
   async findAll(currentUser: CurrentUser, query: QueryPdfTemplateDto) {
-    const targetTenantId = getEffectiveTenantId(currentUser, undefined);
+    const targetTenantId = getEffectiveTenantId(currentUser, query.tenantId);
     const limit = Math.min(parseInt(query.limit || String(DEFAULT_LIMIT)), MAX_LIMIT);
 
     const where: Prisma.PdfTemplateWhereInput = {
@@ -177,8 +177,8 @@ export class PdfTemplateService {
   /**
    * Buscar template por ID
    */
-  async findOne(id: string, currentUser: CurrentUser): Promise<PdfTemplate> {
-    const targetTenantId = getEffectiveTenantId(currentUser, undefined);
+  async findOne(id: string, currentUser: CurrentUser, tenantId?: string): Promise<PdfTemplate> {
+    const targetTenantId = getEffectiveTenantId(currentUser, tenantId);
 
     const template = await this.prisma.pdfTemplate.findFirst({
       where: {
@@ -207,8 +207,8 @@ export class PdfTemplateService {
   /**
    * Buscar template por slug
    */
-  async findBySlug(slug: string, currentUser: CurrentUser): Promise<PdfTemplate> {
-    const targetTenantId = getEffectiveTenantId(currentUser, undefined);
+  async findBySlug(slug: string, currentUser: CurrentUser, tenantId?: string): Promise<PdfTemplate> {
+    const targetTenantId = getEffectiveTenantId(currentUser, tenantId);
 
     const template = await this.prisma.pdfTemplate.findFirst({
       where: {
@@ -321,8 +321,8 @@ export class PdfTemplateService {
   /**
    * Excluir template
    */
-  async remove(id: string, currentUser: CurrentUser): Promise<void> {
-    const targetTenantId = getEffectiveTenantId(currentUser, undefined);
+  async remove(id: string, currentUser: CurrentUser, tenantId?: string): Promise<void> {
+    const targetTenantId = getEffectiveTenantId(currentUser, tenantId);
 
     const template = await this.prisma.pdfTemplate.findFirst({
       where: {
@@ -345,8 +345,8 @@ export class PdfTemplateService {
   /**
    * Duplicar template
    */
-  async duplicate(id: string, currentUser: CurrentUser): Promise<PdfTemplate> {
-    const targetTenantId = getEffectiveTenantId(currentUser, undefined);
+  async duplicate(id: string, currentUser: CurrentUser, tenantId?: string): Promise<PdfTemplate> {
+    const targetTenantId = getEffectiveTenantId(currentUser, tenantId);
 
     const original = await this.prisma.pdfTemplate.findFirst({
       where: {
@@ -407,8 +407,8 @@ export class PdfTemplateService {
   /**
    * Publicar template
    */
-  async publish(id: string, currentUser: CurrentUser): Promise<PdfTemplate> {
-    const targetTenantId = getEffectiveTenantId(currentUser, undefined);
+  async publish(id: string, currentUser: CurrentUser, tenantId?: string): Promise<PdfTemplate> {
+    const targetTenantId = getEffectiveTenantId(currentUser, tenantId);
 
     const template = await this.prisma.pdfTemplate.findFirst({
       where: {
@@ -442,8 +442,8 @@ export class PdfTemplateService {
   /**
    * Despublicar template
    */
-  async unpublish(id: string, currentUser: CurrentUser): Promise<PdfTemplate> {
-    const targetTenantId = getEffectiveTenantId(currentUser, undefined);
+  async unpublish(id: string, currentUser: CurrentUser, tenantId?: string): Promise<PdfTemplate> {
+    const targetTenantId = getEffectiveTenantId(currentUser, tenantId);
 
     const template = await this.prisma.pdfTemplate.findFirst({
       where: {
