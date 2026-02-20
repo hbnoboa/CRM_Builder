@@ -109,7 +109,7 @@ export class PdfGeneratorService {
         progress: 100,
         recordIds: [recordId],
         fileSize: buffer.length,
-        requestedById: currentUser.userId,
+        requestedById: currentUser.id,
         completedAt: new Date(),
       },
     });
@@ -149,7 +149,7 @@ export class PdfGeneratorService {
         progress: 0,
         recordIds,
         metadata: { mergePdfs: mergePdfs || false },
-        requestedById: currentUser.userId,
+        requestedById: currentUser.id,
       },
     });
 
@@ -245,7 +245,7 @@ export class PdfGeneratorService {
     if (query.cursor) {
       const decodedCursor = decodeCursor(query.cursor);
       if (decodedCursor) {
-        cursor = { id: decodedCursor };
+        cursor = { id: decodedCursor.id };
       }
     }
 
@@ -279,11 +279,11 @@ export class PdfGeneratorService {
     const hasMore = data.length > limit;
     if (hasMore) data.pop();
 
-    const nextCursor = hasMore && data.length > 0 ? encodeCursor(data[data.length - 1].id) : null;
+    const nextCursor = hasMore && data.length > 0 ? encodeCursor({ id: data[data.length - 1].id }) : null;
 
     return {
       data,
-      meta: createPaginationMeta(total, limit, nextCursor),
+      meta: createPaginationMeta(total, 1, limit, { hasNextPage: hasMore, hasPreviousPage: !!cursor, nextCursor: nextCursor || undefined }),
     };
   }
 
@@ -909,7 +909,7 @@ export class PdfGeneratorService {
    * Gera dados de exemplo para preview
    */
   private generateSampleData(template: PdfTemplate): Record<string, unknown> {
-    const entity = template.sourceEntity as { fields?: Array<{ slug: string; type: string; name: string }> };
+    const entity = (template as Record<string, unknown>).sourceEntity as { fields?: Array<{ slug: string; type: string; name: string }> } | undefined;
     const sampleData: Record<string, unknown> = {};
 
     if (entity?.fields) {

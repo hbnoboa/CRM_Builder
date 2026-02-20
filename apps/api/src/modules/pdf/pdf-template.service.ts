@@ -68,8 +68,8 @@ export class PdfTemplateService {
         icon: dto.icon,
         pageSize: dto.pageSize || PdfPageSize.A4,
         orientation: dto.orientation || PdfOrientation.PORTRAIT,
-        margins: dto.margins || { top: 70, right: 70, bottom: 70, left: 70 },
-        content: (dto.content || { body: [] }) as Prisma.InputJsonValue,
+        margins: (dto.margins || { top: 70, right: 70, bottom: 70, left: 70 }) as unknown as Prisma.InputJsonValue,
+        content: (dto.content || { body: [] }) as unknown as Prisma.InputJsonValue,
         sourceEntityId: dto.sourceEntityId,
         selectedFields: dto.selectedFields || [],
         logoUrl: dto.logoUrl,
@@ -130,7 +130,7 @@ export class PdfTemplateService {
     if (query.cursor) {
       const decodedCursor = decodeCursor(query.cursor);
       if (decodedCursor) {
-        cursor = { id: decodedCursor };
+        cursor = { id: decodedCursor.id };
       }
     }
 
@@ -162,11 +162,15 @@ export class PdfTemplateService {
     const hasMore = data.length > limit;
     if (hasMore) data.pop();
 
-    const nextCursor = hasMore && data.length > 0 ? encodeCursor(data[data.length - 1].id) : null;
+    const nextCursor = hasMore && data.length > 0 ? encodeCursor({ id: data[data.length - 1].id }) : null;
 
     return {
       data,
-      meta: createPaginationMeta(total, limit, nextCursor),
+      meta: createPaginationMeta(total, 1, limit, {
+        hasNextPage: hasMore,
+        hasPreviousPage: !!cursor,
+        nextCursor: nextCursor || undefined,
+      }),
     };
   }
 
@@ -290,8 +294,8 @@ export class PdfTemplateService {
         icon: dto.icon,
         pageSize: dto.pageSize,
         orientation: dto.orientation,
-        margins: dto.margins as Prisma.InputJsonValue,
-        content: dto.content as Prisma.InputJsonValue,
+        margins: dto.margins as unknown as Prisma.InputJsonValue,
+        content: dto.content as unknown as Prisma.InputJsonValue,
         sourceEntityId: dto.sourceEntityId,
         selectedFields: dto.selectedFields,
         logoUrl: dto.logoUrl,
