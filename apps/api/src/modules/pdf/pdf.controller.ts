@@ -47,9 +47,13 @@ export class PdfController {
   @Post()
   @Roles('ADMIN', 'PLATFORM_ADMIN')
   @ApiOperation({ summary: 'Criar template de PDF' })
-  async create(@Body() dto: CreatePdfTemplateDto, @CurrentUser() user: CurrentUserType) {
+  async create(
+    @Body() dto: CreatePdfTemplateDto,
+    @Query('tenantId') tenantId: string | undefined,
+    @CurrentUser() user: CurrentUserType,
+  ) {
     checkModulePermission(user, 'pdfTemplates', 'canCreate');
-    return this.templateService.create(dto, user);
+    return this.templateService.create({ ...dto, tenantId: tenantId || dto.tenantId }, user);
   }
 
   @Get()
