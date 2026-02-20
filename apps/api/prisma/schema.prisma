@@ -38,6 +38,28 @@ enum AuthType {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+// PDF TEMPLATES - Enums
+// ═══════════════════════════════════════════════════════════════════════════
+
+enum PdfPageSize {
+  A4
+  LETTER
+  LEGAL
+}
+
+enum PdfOrientation {
+  PORTRAIT
+  LANDSCAPE
+}
+
+enum PdfGenerationStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // TENANT (Empresa)
 // ═══════════════════════════════════════════════════════════════════════════
 
@@ -62,6 +84,9 @@ model Tenant {
   customEndpoints CustomEndpoint[]
   customRoles     CustomRole[]
   notifications   Notification[]
+  pdfTemplates    PdfTemplate[]
+  pdfGenerations  PdfGeneration[]
+
   @@index([slug])
   @@index([status])
 }
@@ -99,6 +124,9 @@ model User {
   // Dados criados por este usuario
   createdData EntityData[] @relation("CreatedBy")
   updatedData EntityData[] @relation("UpdatedBy")
+
+  // PDFs solicitados por este usuario
+  pdfGenerations PdfGeneration[]
 
   @@unique([tenantId, email])
   @@index([tenantId])
@@ -160,6 +188,7 @@ model Entity {
   tenant          Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   data            EntityData[]
   customEndpoints CustomEndpoint[]
+  pdfTemplates    PdfTemplate[]
 
   @@unique([tenantId, slug])
   @@index([tenantId])
@@ -400,5 +429,107 @@ model CustomRole {
   @@index([roleType])
   @@index([tenantId, isDefault])
   @@index([tenantId, roleType])
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// PDF TEMPLATES (Templates de PDF customizaveis)
+// ═══════════════════════════════════════════════════════════════════════════
+
+model PdfTemplate {
+  id       String @id @default(cuid())
+  tenantId String
+
+  name        String
+  slug        String
+  description String?
+  icon        String?
+
+  // Configuracoes de pagina
+  pageSize    PdfPageSize    @default(A4)
+  orientation PdfOrientation @default(PORTRAIT)
+  margins     Json           @default("{\"top\":70,\"right\":70,\"bottom\":70,\"left\":70}")
+
+  // Conteudo do template (estrutura JSON do editor visual)
+  // Formato: { header: {...}, body: [...], footer: {...} }
+  content Json @default("{}")
+
+  // Entidade fonte de dados principal
+  sourceEntityId String?
+  sourceEntity   Entity? @relation(fields: [sourceEntityId], references: [id], onDelete: SetNull)
+
+  // Campos selecionados da entidade
+  selectedFields Json @default("[]")
+
+  // Logo padrao do template
+  logoUrl String?
+
+  // Tipo de template: "single" (1 registro) ou "batch" (multiplos)
+  templateType String @default("single")
+
+  // Controle de versao e publicacao
+  isPublished Boolean   @default(false)
+  publishedAt DateTime?
+  version     Int       @default(1)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relacionamentos
+  tenant      Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  generations PdfGeneration[]
+
+  @@unique([tenantId, slug])
+  @@index([tenantId])
+  @@index([sourceEntityId])
+  @@index([isPublished])
+  @@index([tenantId, isPublished])
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// PDF GENERATION (Historico de PDFs gerados)
+// ═══════════════════════════════════════════════════════════════════════════
+
+model PdfGeneration {
+  id         String @id @default(cuid())
+  tenantId   String
+  templateId String
+
+  // Status e progresso
+  status   PdfGenerationStatus @default(PENDING)
+  progress Int                 @default(0) // 0-100
+
+  // IDs dos registros fonte
+  recordIds Json @default("[]")
+
+  // Resultado
+  fileUrl   String?
+  fileName  String?
+  fileSize  Int?
+  pageCount Int?
+
+  // Erro (se houver)
+  errorMessage String?
+
+  // Metadados adicionais
+  metadata Json?
+
+  // Quem solicitou
+  requestedById String?
+  requestedBy   User?   @relation(fields: [requestedById], references: [id], onDelete: SetNull)
+
+  createdAt   DateTime  @default(now())
+  completedAt DateTime?
+
+  // Relacionamentos
+  tenant   Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  template PdfTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([templateId])
+  @@index([status])
+  @@index([requestedById])
+  @@index([createdAt])
+  @@index([tenantId, createdAt(sort: Desc)])
+  @@index([tenantId, status])
 }
 

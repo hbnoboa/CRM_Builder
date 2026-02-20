@@ -1,36 +1,28 @@
-import * as React from 'react';
+"use client"
 
-export interface SliderProps {
-  value: number[];
-  min?: number;
-  max?: number;
-  step?: number;
-  onValueChange?: (value: number[]) => void;
-  className?: string;
-}
+import * as React from "react"
+import * as SliderPrimitive from "@radix-ui/react-slider"
 
-export const Slider: React.FC<SliderProps> = ({
-  value,
-  min = 0,
-  max = 100,
-  step = 1,
-  onValueChange,
-  className,
-}) => {
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const newValue = [Number(e.target.value)];
-    onValueChange?.(newValue);
-  };
+import { cn } from "@/lib/utils"
 
-  return (
-    <input
-      type="range"
-      min={min}
-      max={max}
-      step={step}
-      value={value[0]}
-      onChange={handleChange}
-      className={className}
-    />
-  );
-};
+const Slider = React.forwardRef<
+  React.ElementRef<typeof SliderPrimitive.Root>,
+  React.ComponentPropsWithoutRef<typeof SliderPrimitive.Root>
+>(({ className, ...props }, ref) => (
+  <SliderPrimitive.Root
+    ref={ref}
+    className={cn(
+      "relative flex w-full touch-none select-none items-center",
+      className
+    )}
+    {...props}
+  >
+    <SliderPrimitive.Track className="relative h-2 w-full grow overflow-hidden rounded-full bg-secondary">
+      <SliderPrimitive.Range className="absolute h-full bg-primary" />
+    </SliderPrimitive.Track>
+    <SliderPrimitive.Thumb className="block h-5 w-5 rounded-full border-2 border-primary bg-background ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50" />
+  </SliderPrimitive.Root>
+))
+Slider.displayName = SliderPrimitive.Root.displayName
+
+export { Slider }

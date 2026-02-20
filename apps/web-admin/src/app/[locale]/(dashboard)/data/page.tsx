@@ -65,6 +65,7 @@ import { api } from '@/lib/api';
 import { useTenant } from '@/stores/tenant-context';
 import { useAuthStore } from '@/stores/auth-store';
 import { RecordFormDialog } from '@/components/data/record-form-dialog';
+import { GeneratePdfButton } from '@/components/pdf/generate-pdf-button';
 import { useDeleteEntityData } from '@/hooks/use-data';
 import type { EntityField } from '@/types';
 
@@ -2012,6 +2013,10 @@ function DataPageContent() {
                               {selectedEntity && (hasEntityPermission(selectedEntity.slug, 'canUpdate') || hasEntityPermission(selectedEntity.slug, 'canDelete')) && (
                               <td className="px-3 py-2 text-right">
                                 <div className="flex items-center justify-end gap-1">
+                                  <GeneratePdfButton
+                                    entityId={selectedEntity.id}
+                                    recordId={record.id}
+                                  />
                                   {hasEntityPermission(selectedEntity.slug, 'canUpdate') && (
                                   <Button
                                     variant="ghost"
@@ -2078,6 +2083,12 @@ function DataPageContent() {
                               </div>
                             </div>
                             <div className="flex items-center gap-1 flex-shrink-0">
+                              {selectedEntity && (
+                                <GeneratePdfButton
+                                  entityId={selectedEntity.id}
+                                  recordId={record.id}
+                                />
+                              )}
                               {selectedEntity && hasEntityPermission(selectedEntity.slug, 'canUpdate') && (
                               <Button
                                 variant="ghost"

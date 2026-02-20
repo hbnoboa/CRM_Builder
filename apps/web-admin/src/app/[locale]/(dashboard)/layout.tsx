@@ -16,6 +16,7 @@ import {
   Search,
   Building2,
   Shield,
+  FileText,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -82,6 +83,12 @@ const navigationConfig: NavItemConfig[] = [
     href: '/roles',
     icon: <Shield className="h-5 w-5" />,
     moduleKey: 'roles',
+  },
+  {
+    titleKey: 'pdfTemplates',
+    href: '/pdf-templates',
+    icon: <FileText className="h-5 w-5" />,
+    moduleKey: 'pdfTemplates',
   },
   {
     titleKey: 'settings',

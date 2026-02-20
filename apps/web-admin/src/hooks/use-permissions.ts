@@ -45,6 +45,7 @@ const DEFAULT_MODULE_PERMISSIONS: Record<RoleType, ModulePermissions> = {
     tenants: FULL_CRUD,
     data: FULL_CRUD,
     roles: FULL_CRUD,
+    pdfTemplates: { ...FULL_CRUD, canGenerate: true } as ModulePermission,
   },
   ADMIN: {
     dashboard: FULL_CRUD,
@@ -55,6 +56,7 @@ const DEFAULT_MODULE_PERMISSIONS: Record<RoleType, ModulePermissions> = {
     tenants: NO_CRUD,
     data: FULL_CRUD,
     roles: FULL_CRUD,
+    pdfTemplates: { ...FULL_CRUD, canGenerate: true } as ModulePermission,
   },
   MANAGER: {
     dashboard: READ_ONLY,
@@ -65,6 +67,7 @@ const DEFAULT_MODULE_PERMISSIONS: Record<RoleType, ModulePermissions> = {
     tenants: NO_CRUD,
     data: { canRead: true, canCreate: true, canUpdate: true, canDelete: false },
     roles: READ_ONLY,
+    pdfTemplates: { canRead: true, canCreate: false, canUpdate: false, canDelete: false, canGenerate: true } as ModulePermission,
   },
   USER: {
     dashboard: READ_ONLY,
@@ -75,6 +78,7 @@ const DEFAULT_MODULE_PERMISSIONS: Record<RoleType, ModulePermissions> = {
     tenants: NO_CRUD,
     data: { canRead: true, canCreate: true, canUpdate: true, canDelete: false },
     roles: NO_CRUD,
+    pdfTemplates: { canRead: true, canCreate: false, canUpdate: false, canDelete: false, canGenerate: true } as ModulePermission,
   },
   VIEWER: {
     dashboard: READ_ONLY,
@@ -85,6 +89,7 @@ const DEFAULT_MODULE_PERMISSIONS: Record<RoleType, ModulePermissions> = {
     tenants: NO_CRUD,
     data: READ_ONLY,
     roles: NO_CRUD,
+    pdfTemplates: { canRead: true, canCreate: false, canUpdate: false, canDelete: false, canGenerate: true } as ModulePermission,
   },
   CUSTOM: {
     dashboard: READ_ONLY,
@@ -95,6 +100,7 @@ const DEFAULT_MODULE_PERMISSIONS: Record<RoleType, ModulePermissions> = {
     tenants: NO_CRUD,
     data: NO_CRUD,
     roles: NO_CRUD,
+    pdfTemplates: NO_CRUD,
   },
 };
 
@@ -110,9 +116,10 @@ const MODULE_KEY_MAP: Record<string, keyof ModulePermissions> = {
   settings: 'settings',
   tenants: 'tenants',
   data: 'data',
+  pdfTemplates: 'pdfTemplates',
 };
 
-const MODULE_KEYS: (keyof ModulePermissions)[] = ['dashboard', 'users', 'settings', 'apis', 'entities', 'tenants', 'data', 'roles'];
+const MODULE_KEYS: (keyof ModulePermissions)[] = ['dashboard', 'users', 'settings', 'apis', 'entities', 'tenants', 'data', 'roles', 'pdfTemplates'];
 
 export function usePermissions() {
   const user = useAuthStore((s) => s.user);
