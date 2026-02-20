@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Upload, Trash2, X } from 'lucide-react';
+import { Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -15,14 +15,16 @@ import {
 } from '@/components/ui/select';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Slider } from '@/components/ui/slider';
+import { ImageUpload } from '@/components/ui/file-upload';
 import type { PdfHeader } from '@/services/pdf-templates.service';
 
 interface HeaderTabProps {
   header?: PdfHeader;
   onChange: (header: PdfHeader) => void;
+  availableFields?: Array<{ slug: string; name: string; label?: string; type: string }>;
 }
 
-export function HeaderTab({ header, onChange }: HeaderTabProps) {
+export function HeaderTab({ header, onChange, availableFields = [] }: HeaderTabProps) {
   const [localHeader, setLocalHeader] = useState<PdfHeader>(
     header || {
       showOnAllPages: true,
@@ -82,6 +84,15 @@ export function HeaderTab({ header, onChange }: HeaderTabProps) {
             </p>
           </div>
 
+          <div className="space-y-2">
+            <Label>Ou envie uma imagem</Label>
+            <ImageUpload
+              value={localHeader.logo?.url && !localHeader.logo.url.includes('{{') ? localHeader.logo.url : undefined}
+              onChange={(url) => handleLogoChange({ url })}
+              onRemove={() => handleChange({ logo: undefined })}
+            />
+          </div>
+
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
               <Label>Largura (px)</Label>
@@ -89,8 +100,8 @@ export function HeaderTab({ header, onChange }: HeaderTabProps) {
                 <Slider
                   value={[localHeader.logo?.width || 100]}
                   onValueChange={([value]) => handleLogoChange({ width: value })}
-                  min={50}
-                  max={300}
+                  min={30}
+                  max={500}
                   step={10}
                   className="flex-1"
                 />
@@ -100,6 +111,25 @@ export function HeaderTab({ header, onChange }: HeaderTabProps) {
               </div>
             </div>
 
+            <div className="space-y-2">
+              <Label>Altura (px)</Label>
+              <div className="flex items-center gap-4">
+                <Slider
+                  value={[localHeader.logo?.height || 60]}
+                  onValueChange={([value]) => handleLogoChange({ height: value })}
+                  min={20}
+                  max={300}
+                  step={10}
+                  className="flex-1"
+                />
+                <span className="w-12 text-sm text-muted-foreground">
+                  {localHeader.logo?.height || 60}px
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
               <Label>Posicao</Label>
               <Select
@@ -188,13 +218,32 @@ export function HeaderTab({ header, onChange }: HeaderTabProps) {
 
           <div className="space-y-2">
             <Label>Campo de Binding (alternativo)</Label>
-            <Input
-              placeholder="Ex: chassi"
-              value={localHeader.subtitle?.binding || ''}
-              onChange={(e) => handleSubtitleChange({ binding: e.target.value })}
-            />
+            {availableFields.length > 0 ? (
+              <Select
+                value={localHeader.subtitle?.binding || '_none'}
+                onValueChange={(value) => handleSubtitleChange({ binding: value === '_none' ? '' : value })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione um campo" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="_none">Nenhum</SelectItem>
+                  {availableFields.map((f) => (
+                    <SelectItem key={f.slug} value={f.slug}>
+                      {f.label || f.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            ) : (
+              <Input
+                placeholder="Ex: chassi"
+                value={localHeader.subtitle?.binding || ''}
+                onChange={(e) => handleSubtitleChange({ binding: e.target.value })}
+              />
+            )}
             <p className="text-xs text-muted-foreground">
-              Nome do campo que sera exibido diretamente
+              Campo que sera exibido diretamente no subtitulo
             </p>
           </div>
         </CardContent>

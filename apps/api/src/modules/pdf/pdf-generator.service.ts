@@ -29,11 +29,13 @@ import {
   StatisticsElement,
 } from './interfaces/pdf-element.interface';
 
-// Importar PDFKit
+// pdfkit-table estende pdfkit e deve ser usado como construtor
 // eslint-disable-next-line @typescript-eslint/no-var-requires
-const PDFDocument = require('pdfkit');
+const PDFDocument = require('pdfkit-table');
 // eslint-disable-next-line @typescript-eslint/no-var-requires
-require('pdfkit-table');
+const https = require('https');
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const http = require('http');
 
 @Injectable()
 export class PdfGeneratorService {
@@ -81,9 +83,15 @@ export class PdfGeneratorService {
       throw new NotFoundException('Registro nao encontrado');
     }
 
-    // Enriquecer dados com sub-entidades
+    // Enriquecer dados com sub-entidades e campos do sistema
+    const baseData = {
+      ...(record.data as Record<string, unknown>),
+      id: record.id,
+      createdAt: record.createdAt,
+      updatedAt: record.updatedAt,
+    };
     const data = await this.enrichDataWithSubEntities(
-      record.data as Record<string, unknown>,
+      baseData,
       template.sourceEntity?.fields as Array<{ slug: string; type: string; subEntityId?: string }>,
       record.id,
       targetTenantId,
@@ -208,8 +216,14 @@ export class PdfGeneratorService {
       });
 
       if (record) {
+        const baseData = {
+          ...(record.data as Record<string, unknown>),
+          id: record.id,
+          createdAt: record.createdAt,
+          updatedAt: record.updatedAt,
+        };
         data = await this.enrichDataWithSubEntities(
-          record.data as Record<string, unknown>,
+          baseData,
           template.sourceEntity?.fields as Array<{ slug: string; type: string; subEntityId?: string }>,
           record.id,
           targetTenantId,
@@ -398,6 +412,7 @@ export class PdfGeneratorService {
     if (header?.logo?.url || defaultLogoUrl) {
       const logoUrl = header?.logo?.url || defaultLogoUrl;
       const logoWidth = header?.logo?.width || 100;
+      const logoHeight = header?.logo?.height || 60;
       const position = header?.logo?.position || 'left';
 
       let logoX = doc.page.margins.left;
@@ -407,9 +422,23 @@ export class PdfGeneratorService {
         logoX = doc.page.width - doc.page.margins.right - logoWidth;
       }
 
-      // TODO: Implementar fetch de imagem remota
-      // Por enquanto, apenas reservar espaco
-      doc.y = startY + 60;
+      // Resolver bindings na URL (ex: {{tenant.logo}})
+      const resolvedUrl = this.resolveBindings(String(logoUrl), data);
+
+      if (resolvedUrl && !resolvedUrl.includes('{{')) {
+        try {
+          const buffer = await this.fetchImageBuffer(resolvedUrl);
+          doc.image(buffer, logoX, startY, {
+            fit: [logoWidth, logoHeight],
+          });
+          doc.y = startY + logoHeight;
+        } catch (err) {
+          this.logger.warn(`Falha ao carregar logo: ${(err as Error).message}`);
+          doc.y = startY + logoHeight;
+        }
+      } else {
+        doc.y = startY + logoHeight;
+      }
     }
 
     // Renderizar titulo
@@ -482,7 +511,7 @@ export class PdfGeneratorService {
         break;
 
       case 'statistics':
-        this.renderStatistics(doc, element as StatisticsElement, data);
+        await this.renderStatistics(doc, element as StatisticsElement, data);
         break;
     }
 
@@ -589,35 +618,38 @@ export class PdfGeneratorService {
       }
     }
 
-    // Headers
-    const headers = element.columns.map((col) => col.header);
-    const widths = element.columns.map((col) => col.width || 100);
+    // Headers no formato pdfkit-table
+    const headers = element.columns.map((col) => ({
+      label: col.header,
+      width: col.width || 100,
+      align: 'center' as const,
+    }));
 
-    // Renderizar header
-    if (element.showHeader !== false) {
-      doc.font('Helvetica-Bold').fontSize(element.headerStyle?.fontSize || 8);
-      doc.table({
-        rowStyles: [{ height: 20 }],
-        columnStyles: { width: widths, padding: [7, 5], align: 'center' },
-        data: [headers],
-      });
-    }
+    // Linhas de dados (suporta dot notation: ex: _geolocation.lat)
+    const tableRows = rows.map((row) =>
+      element.columns.map((col) => {
+        const value = this.getNestedValue(row, col.field);
+        return this.formatValue(value, col.format);
+      }),
+    );
 
-    // Renderizar linhas de dados
-    if (rows.length > 0) {
-      const tableData = rows.map((row) =>
-        element.columns.map((col) => {
-          const value = row[col.field];
-          return this.formatValue(value, col.format);
-        }),
+    if (tableRows.length > 0 || element.showHeader !== false) {
+      await doc.table(
+        {
+          headers,
+          rows: tableRows,
+        },
+        {
+          hideHeader: element.showHeader === false,
+          padding: 5,
+          prepareHeader: () => {
+            doc.font('Helvetica-Bold').fontSize(element.headerStyle?.fontSize || 8);
+          },
+          prepareRow: () => {
+            doc.font('Helvetica').fontSize(element.cellStyle?.fontSize || 8);
+          },
+        },
       );
-
-      doc.font('Helvetica').fontSize(element.cellStyle?.fontSize || 8);
-      doc.table({
-        rowStyles: [{ height: 20 }],
-        columnStyles: { width: widths, padding: [7, 5], align: 'center' },
-        data: tableData,
-      });
     } else if (element.emptyMessage) {
       doc
         .font('Helvetica')
@@ -668,31 +700,40 @@ export class PdfGeneratorService {
       return;
     }
 
-    // TODO: Implementar renderizacao de imagens
-    // Por enquanto, apenas placeholder
     const imageWidth = element.imageWidth || 90;
     const imageHeight = element.imageHeight || 68;
     const columnWidth = (doc.page.width - doc.page.margins.left - doc.page.margins.right) / element.columns;
 
+    // Fazer fetch de todas as imagens em paralelo
+    const imageUrls = images.map((img) => (typeof img === 'string' ? img : (img as Record<string, unknown>)?.url || ''));
+    const imageResults = await Promise.allSettled(
+      imageUrls.map((url) => (url ? this.fetchImageBuffer(String(url)) : Promise.reject(new Error('URL vazia')))),
+    );
+
     let col = 0;
     let rowY = doc.y;
 
-    for (const img of images) {
+    for (let i = 0; i < imageResults.length; i++) {
       const x = doc.page.margins.left + col * columnWidth + (columnWidth - imageWidth) / 2;
+      const result = imageResults[i];
 
-      // Placeholder de imagem
-      doc
-        .rect(x, rowY, imageWidth, imageHeight)
-        .strokeColor('#CCCCCC')
-        .stroke();
-      doc
-        .font('Helvetica')
-        .fontSize(6)
-        .fillColor('#999999')
-        .text('[IMG]', x, rowY + imageHeight / 2 - 3, {
-          width: imageWidth,
-          align: 'center',
-        });
+      if (result.status === 'fulfilled') {
+        try {
+          doc.image(result.value, x, rowY, {
+            fit: [imageWidth, imageHeight],
+          });
+        } catch {
+          // Fallback se PDFKit nao conseguir processar a imagem
+          doc.rect(x, rowY, imageWidth, imageHeight).strokeColor('#CCCCCC').stroke();
+          doc.font('Helvetica').fontSize(6).fillColor('#999999')
+            .text('[Erro]', x, rowY + imageHeight / 2 - 3, { width: imageWidth, align: 'center' });
+        }
+      } else {
+        // Fallback: imagem nao carregou
+        doc.rect(x, rowY, imageWidth, imageHeight).strokeColor('#CCCCCC').stroke();
+        doc.font('Helvetica').fontSize(6).fillColor('#999999')
+          .text('[Erro]', x, rowY + imageHeight / 2 - 3, { width: imageWidth, align: 'center' });
+      }
 
       col++;
       if (col >= element.columns) {
@@ -707,6 +748,8 @@ export class PdfGeneratorService {
       }
     }
 
+    // Resetar fillColor para preto
+    doc.fillColor('#000000');
     doc.y = rowY + imageHeight + 10;
   }
 
@@ -733,11 +776,11 @@ export class PdfGeneratorService {
   /**
    * Renderiza estatisticas (agrupamento)
    */
-  private renderStatistics(
+  private async renderStatistics(
     doc: typeof PDFDocument,
     element: StatisticsElement,
     data: Record<string, unknown>,
-  ): void {
+  ): Promise<void> {
     // Titulo
     doc
       .font('Helvetica-Bold')
@@ -777,17 +820,9 @@ export class PdfGeneratorService {
     }
 
     // Renderizar tabela de estatisticas
-    const headers = [...element.groupBy, ...element.metrics.map((m) => m.label)];
-    const widths = headers.map(() => 80);
+    const statsHeaders = [...element.groupBy, ...element.metrics.map((m) => m.label)];
+    const headers = statsHeaders.map((h) => ({ label: h, width: 80, align: 'center' as const }));
 
-    doc.font('Helvetica-Bold').fontSize(8);
-    doc.table({
-      rowStyles: [{ height: 20 }],
-      columnStyles: { width: widths, padding: [5, 3], align: 'center' },
-      data: [headers],
-    });
-
-    doc.font('Helvetica').fontSize(8);
     const rows: string[][] = [];
 
     for (const [key, stats] of groups) {
@@ -805,16 +840,48 @@ export class PdfGeneratorService {
       rows.push(row);
     }
 
-    doc.table({
-      rowStyles: [{ height: 20 }],
-      columnStyles: { width: widths, padding: [5, 3], align: 'center' },
-      data: rows,
-    });
+    await doc.table(
+      { headers, rows },
+      {
+        padding: 5,
+        prepareHeader: () => doc.font('Helvetica-Bold').fontSize(8),
+        prepareRow: () => doc.font('Helvetica').fontSize(8),
+      },
+    );
 
     doc.moveDown(0.5);
   }
 
   // ================= HELPERS =================
+
+  /**
+   * Faz fetch de uma imagem remota e retorna como Buffer
+   */
+  private fetchImageBuffer(url: string): Promise<Buffer> {
+    return new Promise((resolve, reject) => {
+      const client = url.startsWith('https') ? https : http;
+      const request = client.get(url, { timeout: 10000 }, (res: typeof http.IncomingMessage) => {
+        // Seguir redirects
+        if ((res.statusCode === 301 || res.statusCode === 302) && res.headers.location) {
+          return this.fetchImageBuffer(res.headers.location).then(resolve).catch(reject);
+        }
+
+        if (res.statusCode !== 200) {
+          return reject(new Error(`HTTP ${res.statusCode} ao buscar imagem`));
+        }
+
+        const chunks: Buffer[] = [];
+        res.on('data', (chunk: Buffer) => chunks.push(chunk));
+        res.on('end', () => resolve(Buffer.concat(chunks)));
+        res.on('error', reject);
+      });
+      request.on('error', reject);
+      request.on('timeout', () => {
+        request.destroy();
+        reject(new Error('Timeout ao buscar imagem'));
+      });
+    });
+  }
 
   /**
    * Resolve bindings {{campo}} no texto
@@ -901,7 +968,12 @@ export class PdfGeneratorService {
           orderBy: { createdAt: 'asc' },
         });
 
-        enrichedData[field.slug] = childRecords.map((r) => r.data);
+        enrichedData[field.slug] = childRecords.map((r) => ({
+          ...(r.data as Record<string, unknown>),
+          id: r.id,
+          createdAt: r.createdAt,
+          updatedAt: r.updatedAt,
+        }));
       }
     }
 

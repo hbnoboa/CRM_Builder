@@ -19,13 +19,35 @@ interface TableElementEditorProps {
   element: TableElement;
   onChange: (updates: Partial<TableElement>) => void;
   availableFields: Array<{ slug: string; name: string; label?: string; type: string }>;
+  subEntities?: Record<string, {
+    id: string;
+    name: string;
+    slug: string;
+    fields?: Array<{ slug: string; name: string; label?: string; type: string }>;
+  }>;
 }
 
 export function TableElementEditor({
   element,
   onChange,
   availableFields,
+  subEntities,
 }: TableElementEditorProps) {
+  // Campos do sistema disponiveis em qualquer registro
+  const SYSTEM_FIELDS = [
+    { slug: 'createdAt', name: 'Data de Criacao', label: 'Data de Criacao', type: 'datetime' },
+    { slug: 'updatedAt', name: 'Data de Atualizacao', label: 'Data de Atualizacao', type: 'datetime' },
+    { slug: '_geolocation.lat', name: 'Latitude', label: 'Latitude', type: 'number' },
+    { slug: '_geolocation.lng', name: 'Longitude', label: 'Longitude', type: 'number' },
+    { slug: '_geolocation.city', name: 'Cidade (GPS)', label: 'Cidade (GPS)', type: 'text' },
+    { slug: '_geolocation.uf', name: 'Estado (GPS)', label: 'Estado (GPS)', type: 'text' },
+    { slug: '_geolocation.address', name: 'Endereco (GPS)', label: 'Endereco (GPS)', type: 'text' },
+  ];
+
+  // Quando uma sub-entidade e selecionada como dataSource, usar seus campos
+  const columnFields = (element.dataSource && subEntities?.[element.dataSource]?.fields)
+    ? [...subEntities[element.dataSource].fields!, ...SYSTEM_FIELDS]
+    : availableFields;
   const handleColumnChange = (index: number, updates: Partial<TableColumn>) => {
     const newColumns = [...element.columns];
     newColumns[index] = { ...newColumns[index], ...updates };
@@ -71,7 +93,7 @@ export function TableElementEditor({
             <SelectContent>
               <SelectItem value="_self">Registro Principal</SelectItem>
               {availableFields
-                .filter((f) => f.type === 'relation' || f.type === 'array')
+                .filter((f) => f.type === 'relation' || f.type === 'array' || f.type === 'sub-entity')
                 .map((f) => (
                   <SelectItem key={f.slug} value={f.slug}>
                     {f.label || f.name}
@@ -82,6 +104,11 @@ export function TableElementEditor({
           <p className="text-xs text-muted-foreground">
             Campo que contem os dados da tabela (array ou relacao)
           </p>
+          {element.dataSource && subEntities?.[element.dataSource] && (
+            <p className="text-xs text-blue-600">
+              Campos da sub-entidade: {subEntities[element.dataSource].name}
+            </p>
+          )}
         </div>
       </div>
 
@@ -97,12 +124,29 @@ export function TableElementEditor({
         <div className="space-y-2">
           {element.columns.map((column, index) => (
             <div key={index} className="grid grid-cols-12 gap-2 p-2 border rounded-md">
-              <Input
-                placeholder="Campo"
-                value={column.field}
-                onChange={(e) => handleColumnChange(index, { field: e.target.value })}
-                className="col-span-3"
-              />
+              <Select
+                value={column.field || '_empty'}
+                onValueChange={(value) => {
+                  const f = columnFields.find((af) => af.slug === value);
+                  const updates: Partial<TableColumn> = { field: value === '_empty' ? '' : value };
+                  if (f && (!column.header || column.header === 'Nova Coluna')) {
+                    updates.header = f.label || f.name;
+                  }
+                  handleColumnChange(index, updates);
+                }}
+              >
+                <SelectTrigger className="col-span-3">
+                  <SelectValue placeholder="Campo" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="_empty">Selecione...</SelectItem>
+                  {columnFields.map((f) => (
+                    <SelectItem key={f.slug} value={f.slug}>
+                      {f.label || f.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
               <Input
                 placeholder="Cabecalho"
                 value={column.header}

@@ -177,7 +177,7 @@ export class PdfTemplateService {
   /**
    * Buscar template por ID
    */
-  async findOne(id: string, currentUser: CurrentUser, tenantId?: string): Promise<PdfTemplate> {
+  async findOne(id: string, currentUser: CurrentUser, tenantId?: string) {
     const targetTenantId = getEffectiveTenantId(currentUser, tenantId);
 
     const template = await this.prisma.pdfTemplate.findFirst({
@@ -199,6 +199,33 @@ export class PdfTemplateService {
 
     if (!template) {
       throw new NotFoundException('Template nao encontrado');
+    }
+
+    // Carregar campos das sub-entidades referenciadas
+    const fields = (template.sourceEntity?.fields as Array<{ type: string; slug: string; subEntityId?: string }>) || [];
+    const subEntityFields = fields.filter(f => f.type === 'sub-entity' && f.subEntityId);
+
+    if (subEntityFields.length > 0) {
+      const subEntityIds = subEntityFields.map(f => f.subEntityId as string);
+      const subEntities = await this.prisma.entity.findMany({
+        where: { id: { in: subEntityIds }, tenantId: targetTenantId },
+        select: { id: true, name: true, slug: true, fields: true },
+      });
+
+      const subEntitiesMap: Record<string, { id: string; name: string; slug: string; fields: unknown }> = {};
+      for (const sef of subEntityFields) {
+        const subEntity = subEntities.find(se => se.id === sef.subEntityId);
+        if (subEntity) {
+          subEntitiesMap[sef.slug] = {
+            id: subEntity.id,
+            name: subEntity.name,
+            slug: subEntity.slug,
+            fields: subEntity.fields,
+          };
+        }
+      }
+
+      return { ...template, subEntities: subEntitiesMap };
     }
 
     return template;

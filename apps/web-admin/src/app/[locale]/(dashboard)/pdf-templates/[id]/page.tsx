@@ -45,7 +45,7 @@ function EditPdfTemplatePageContent({ params }: PageProps) {
 
   const [localContent, setLocalContent] = useState<PdfTemplateContent | null>(null);
   const [hasChanges, setHasChanges] = useState(false);
-  const [showPreview, setShowPreview] = useState(false);
+  const [showPreview, setShowPreview] = useState(true);
 
   useEffect(() => {
     if (template?.content) {
@@ -224,6 +224,7 @@ function EditPdfTemplatePageContent({ params }: PageProps) {
                 <HeaderTab
                   header={localContent.header}
                   onChange={(header) => handleContentChange({ header })}
+                  availableFields={template.sourceEntity?.fields || []}
                 />
               )}
             </TabsContent>
@@ -233,6 +234,7 @@ function EditPdfTemplatePageContent({ params }: PageProps) {
                 <ElementsTab
                   elements={localContent.body || []}
                   sourceEntity={template.sourceEntity}
+                  subEntities={template.subEntities}
                   onChange={(body) => handleContentChange({ body })}
                 />
               )}

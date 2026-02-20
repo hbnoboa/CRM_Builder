@@ -13,6 +13,7 @@ export interface PdfHeader {
   logo?: {
     url: string;
     width?: number;
+    height?: number;
     position?: 'left' | 'center' | 'right';
   };
   title?: {
@@ -161,8 +162,14 @@ export interface PdfTemplate {
     id: string;
     name: string;
     slug: string;
-    fields?: Array<{ slug: string; name: string; label?: string; type: string }>;
+    fields?: Array<{ slug: string; name: string; label?: string; type: string; subEntityId?: string; subEntitySlug?: string }>;
   };
+  subEntities?: Record<string, {
+    id: string;
+    name: string;
+    slug: string;
+    fields?: Array<{ slug: string; name: string; label?: string; type: string }>;
+  }>;
   selectedFields: string[];
   logoUrl?: string;
   templateType: 'single' | 'batch';

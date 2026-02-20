@@ -47,6 +47,12 @@ interface ElementsTabProps {
     slug: string;
     fields?: Array<{ slug: string; name: string; label?: string; type: string }>;
   };
+  subEntities?: Record<string, {
+    id: string;
+    name: string;
+    slug: string;
+    fields?: Array<{ slug: string; name: string; label?: string; type: string }>;
+  }>;
   onChange: (elements: PdfElement[]) => void;
 }
 
@@ -152,7 +158,7 @@ function getElementLabel(type: string) {
   return found ? found.label : type;
 }
 
-export function ElementsTab({ elements, sourceEntity, onChange }: ElementsTabProps) {
+export function ElementsTab({ elements, sourceEntity, subEntities, onChange }: ElementsTabProps) {
   const [expandedElements, setExpandedElements] = useState<Set<string>>(new Set());
 
   const handleAddElement = (type: string) => {
@@ -200,7 +206,16 @@ export function ElementsTab({ elements, sourceEntity, onChange }: ElementsTabPro
     });
   };
 
-  const availableFields = sourceEntity?.fields || [];
+  const SYSTEM_FIELDS = [
+    { slug: 'createdAt', name: 'Data de Criacao', label: 'Data de Criacao', type: 'datetime' },
+    { slug: 'updatedAt', name: 'Data de Atualizacao', label: 'Data de Atualizacao', type: 'datetime' },
+    { slug: '_geolocation.lat', name: 'Latitude', label: 'Latitude', type: 'number' },
+    { slug: '_geolocation.lng', name: 'Longitude', label: 'Longitude', type: 'number' },
+    { slug: '_geolocation.city', name: 'Cidade (GPS)', label: 'Cidade (GPS)', type: 'text' },
+    { slug: '_geolocation.uf', name: 'Estado (GPS)', label: 'Estado (GPS)', type: 'text' },
+    { slug: '_geolocation.address', name: 'Endereco (GPS)', label: 'Endereco (GPS)', type: 'text' },
+  ];
+  const availableFields = [...(sourceEntity?.fields || []), ...SYSTEM_FIELDS];
 
   return (
     <div className="space-y-4">
@@ -337,6 +352,7 @@ export function ElementsTab({ elements, sourceEntity, onChange }: ElementsTabPro
                           element={element}
                           onChange={(updates) => handleUpdateElement(element.id, updates)}
                           availableFields={availableFields}
+                          subEntities={subEntities}
                         />
                       )}
                       {element.type === 'image-grid' && (

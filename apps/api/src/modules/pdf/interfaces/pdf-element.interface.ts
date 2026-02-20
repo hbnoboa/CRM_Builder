@@ -134,6 +134,7 @@ export interface PdfHeader {
   logo?: {
     url: string;
     width?: number;
+    height?: number;
     position?: 'left' | 'center' | 'right';
   };
   title?: {
