@@ -286,19 +286,33 @@ class _DataListPageState extends ConsumerState<DataListPage> {
 
                     return Column(
                       children: [
-                        // Contador de registros
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                          child: Row(
-                            children: [
-                              Text(
-                                '${records.length} registro${records.length != 1 ? 's' : ''}',
-                                style: AppTypography.caption.copyWith(
-                                  color: context.colors.mutedForeground,
-                                ),
-                              ),
-                            ],
+                        // Contador de registros (X de Y)
+                        StreamBuilder<int>(
+                          stream: repo.watchRecordCount(
+                            entityId: entityId,
+                            search: _search.isNotEmpty ? _search : null,
+                            createdById: scopeUserId,
                           ),
+                          builder: (context, countSnapshot) {
+                            final totalCount = countSnapshot.data ?? records.length;
+                            final displayCount = records.length;
+
+                            return Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                              child: Row(
+                                children: [
+                                  Text(
+                                    displayCount == totalCount
+                                        ? '$displayCount registro${displayCount != 1 ? 's' : ''}'
+                                        : '$displayCount de $totalCount registro${totalCount != 1 ? 's' : ''}',
+                                    style: AppTypography.caption.copyWith(
+                                      color: context.colors.mutedForeground,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          },
                         ),
                         Expanded(
                           child: RefreshIndicator(
@@ -339,7 +353,7 @@ class _DataListPageState extends ConsumerState<DataListPage> {
                               padding: const EdgeInsets.symmetric(vertical: 16),
                               child: Center(
                                 child: Text(
-                                  '${records.length} registros',
+                                  'Fim da lista',
                                   style: AppTypography.caption.copyWith(
                                     color: context.colors.mutedForeground,
                                   ),

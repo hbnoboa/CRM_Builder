@@ -74,6 +74,48 @@ class DataRepository {
     return db.watch(query, parameters: params);
   }
 
+  /// Watch total count of records for an entity (real-time from SQLite).
+  Stream<int> watchRecordCount({
+    required String entityId,
+    String? search,
+    List<LocalFilter> localFilters = const [],
+    String? createdById,
+  }) {
+    final db = AppDatabase.instance.db;
+
+    var query =
+        'SELECT COUNT(*) as count FROM EntityData WHERE entityId = ? AND deletedAt IS NULL';
+    final params = <dynamic>[entityId];
+
+    // Scope 'own': only show records created by this user
+    if (createdById != null) {
+      query += ' AND createdById = ?';
+      params.add(createdById);
+    }
+
+    // Apply local filters
+    if (localFilters.isNotEmpty) {
+      final filterResult = FilterSqlBuilder.buildFilterClauses(
+        const [],
+        localFilters,
+      );
+      if (filterResult.where.isNotEmpty) {
+        query += filterResult.where;
+        params.addAll(filterResult.params);
+      }
+    }
+
+    if (search != null && search.isNotEmpty) {
+      query += ' AND data LIKE ?';
+      params.add('%$search%');
+    }
+
+    return db.watch(query, parameters: params).map((rows) {
+      if (rows.isEmpty) return 0;
+      return (rows.first['count'] as int?) ?? 0;
+    });
+  }
+
   /// Extract global filters from Entity.settings JSON.
   List<GlobalFilter> extractGlobalFilters(Map<String, dynamic> entity) {
     try {
