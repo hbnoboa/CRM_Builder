@@ -9,7 +9,9 @@ import { Switch } from '@/components/ui/switch';
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
@@ -26,46 +28,70 @@ const BATCH_SOURCES = [
 
 const BATCH_META_FIELDS = [
   { value: '_totalRecords', label: 'Total de registros', type: 'number' },
-  { value: '_totalDamaged', label: 'Total com avarias', type: 'number' },
+  { value: '_totalDamaged', label: 'Total com sub-registros', type: 'number' },
   { value: '_timestamp', label: 'Data/hora da geracao', type: 'datetime' },
   { value: '_firstUpdatedAt', label: 'Primeira atualizacao', type: 'datetime' },
   { value: '_lastUpdatedAt', label: 'Ultima atualizacao', type: 'datetime' },
 ];
 
-const FORMATS_BY_TYPE: Record<string, Array<{ value: string; label: string }>> = {
-  date: [
-    { value: 'date', label: 'Data (20/02/2026)' },
-    { value: 'datetime', label: 'Data e Hora' },
-    { value: 'time', label: 'Apenas Hora' },
-  ],
-  datetime: [
-    { value: 'datetime', label: 'Data e Hora' },
-    { value: 'date', label: 'Apenas Data' },
-    { value: 'time', label: 'Apenas Hora' },
-  ],
-  number: [
-    { value: 'number', label: 'Numero (1.234)' },
-    { value: 'currency', label: 'Moeda (R$ 1.234,56)' },
-    { value: 'percentage', label: 'Percentual (45.67%)' },
-  ],
-  integer: [
-    { value: 'number', label: 'Numero (1.234)' },
-    { value: 'currency', label: 'Moeda (R$ 1.234,56)' },
-  ],
-  float: [
-    { value: 'number', label: 'Numero (1.234)' },
-    { value: 'currency', label: 'Moeda (R$ 1.234,56)' },
-    { value: 'percentage', label: 'Percentual (45.67%)' },
-  ],
-  currency: [
-    { value: 'currency', label: 'Moeda (R$ 1.234,56)' },
-    { value: 'number', label: 'Numero (1.234)' },
-  ],
-};
-
-function getFormatsForType(fieldType: string | undefined): Array<{ value: string; label: string }> {
+function getFormatsForFieldType(fieldType: string | undefined): Array<{ value: string; label: string; group?: string }> {
   if (!fieldType) return [];
-  return FORMATS_BY_TYPE[fieldType] || [];
+
+  const formats: Array<{ value: string; label: string; group?: string }> = [];
+
+  // Texto
+  if (['text', 'string', 'textarea', 'select', 'radio'].includes(fieldType)) {
+    formats.push(
+      { value: 'uppercase', label: 'MAIUSCULAS', group: 'Texto' },
+      { value: 'lowercase', label: 'minusculas', group: 'Texto' },
+      { value: 'titlecase', label: 'Primeira Maiuscula', group: 'Texto' },
+    );
+  }
+
+  // Documentos
+  if (['text', 'string', 'cpf'].includes(fieldType)) {
+    formats.push({ value: 'cpf', label: 'CPF (123.456.789-00)', group: 'Documentos' });
+  }
+  if (['text', 'string', 'cnpj'].includes(fieldType)) {
+    formats.push({ value: 'cnpj', label: 'CNPJ', group: 'Documentos' });
+  }
+  if (['text', 'string', 'cep'].includes(fieldType)) {
+    formats.push({ value: 'cep', label: 'CEP (01234-567)', group: 'Documentos' });
+  }
+  if (['text', 'string', 'phone'].includes(fieldType)) {
+    formats.push({ value: 'phone', label: 'Telefone', group: 'Documentos' });
+  }
+
+  // Boolean
+  if (['boolean', 'checkbox'].includes(fieldType)) {
+    formats.push({ value: 'boolean', label: 'Sim / Nao', group: 'Outros' });
+  }
+
+  // Data/Hora
+  if (['date', 'datetime'].includes(fieldType)) {
+    formats.push(
+      { value: 'date', label: 'Data (20/02/2026)', group: 'Data / Hora' },
+      { value: 'datetime', label: 'Data e Hora', group: 'Data / Hora' },
+      { value: 'time', label: 'Apenas Hora', group: 'Data / Hora' },
+    );
+  }
+  if (fieldType === 'time') {
+    formats.push(
+      { value: 'time', label: 'Hora (14:30)', group: 'Data / Hora' },
+      { value: 'datetime', label: 'Data e Hora', group: 'Data / Hora' },
+    );
+  }
+
+  // Numeros
+  if (['number', 'integer', 'float', 'currency', 'percentage', 'slider', 'rating'].includes(fieldType)) {
+    formats.push(
+      { value: 'number', label: 'Numero (1.234)', group: 'Numeros' },
+      { value: 'currency', label: 'Moeda (R$ 1.234,56)', group: 'Numeros' },
+      { value: 'percentage', label: 'Percentual (45,67%)', group: 'Numeros' },
+    );
+  }
+
+  return formats;
 }
 
 function parseBinding(slug: string): { source: string; field: string } {
@@ -100,21 +126,24 @@ export function FieldGroupDataEditor({
   isBatch,
   computedFields,
 }: FieldGroupDataEditorProps) {
+  const entityFields = useMemo(
+    () => availableFields.filter((f) => !['image', 'images', 'sub-entity', 'array'].includes(f.type)),
+    [availableFields],
+  );
+
+  const calcFields = useMemo(
+    () => (computedFields || []).map((cf) => ({
+      slug: `_calc.${cf.slug}`,
+      name: cf.label,
+      label: cf.label,
+      type: 'text',
+    })),
+    [computedFields],
+  );
+
   const selectableFields = useMemo(
-    () => {
-      const base = availableFields.filter((f) => !['image', 'images', 'sub-entity', 'array'].includes(f.type));
-      if (computedFields?.length) {
-        const calcFields = computedFields.map((cf) => ({
-          slug: `_calc.${cf.slug}`,
-          name: cf.label,
-          label: `[Calc] ${cf.label}`,
-          type: 'text',
-        }));
-        return [...base, ...calcFields];
-      }
-      return base;
-    },
-    [availableFields, computedFields],
+    () => [...entityFields, ...calcFields],
+    [entityFields, calcFields],
   );
 
   const handleFieldChange = (index: number, updates: Partial<FieldGroupElement['fields'][0]>) => {
@@ -146,10 +175,10 @@ export function FieldGroupDataEditor({
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <Label>Campos</Label>
+        <Label>Campos do grupo</Label>
         <Button variant="outline" size="sm" onClick={handleAddField}>
           <Plus className="h-4 w-4 mr-1" />
-          Adicionar
+          Campo
         </Button>
       </div>
 
@@ -166,13 +195,20 @@ export function FieldGroupDataEditor({
               || availableFields.find((f) => f.slug === parsed.field)?.type;
           }
 
-          const formatOptions = getFormatsForType(fieldType);
+          const formatOptions = getFormatsForFieldType(fieldType);
+          const formatGroups = formatOptions.reduce((acc, opt) => {
+            const group = opt.group || 'Outros';
+            if (!acc[group]) acc[group] = [];
+            acc[group].push(opt);
+            return acc;
+          }, {} as Record<string, typeof formatOptions>);
 
           return (
             <div key={index} className="p-3 border rounded-md space-y-2">
+              {/* Linha 1: Label + Negrito + Remover */}
               <div className="flex items-center gap-2">
                 <Input
-                  placeholder="Label (ex: Navio:)"
+                  placeholder="Nome que aparece no PDF (ex: Navio:)"
                   value={field.label}
                   onChange={(e) => handleFieldChange(index, { label: e.target.value })}
                   className="flex-1"
@@ -187,14 +223,15 @@ export function FieldGroupDataEditor({
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="h-8 w-8 text-destructive"
+                  className="h-8 w-8 text-destructive flex-shrink-0"
                   onClick={() => handleRemoveField(index)}
                 >
                   <Trash2 className="h-4 w-4" />
                 </Button>
               </div>
 
-              <div className="flex flex-wrap items-center gap-2">
+              {/* Linha 2: Fonte (batch) + Campo + Formato */}
+              <div className="flex items-center gap-2">
                 {isBatch && (
                   <Select
                     value={parsed.source}
@@ -240,8 +277,8 @@ export function FieldGroupDataEditor({
                       });
                     }}
                   >
-                    <SelectTrigger className="flex-1 min-w-[140px]">
-                      <SelectValue placeholder="Info..." />
+                    <SelectTrigger className="flex-1 min-w-0">
+                      <SelectValue placeholder="Informacao..." />
                     </SelectTrigger>
                     <SelectContent>
                       {BATCH_META_FIELDS.map((m) => (
@@ -262,15 +299,28 @@ export function FieldGroupDataEditor({
                       });
                     }}
                   >
-                    <SelectTrigger className="flex-1 min-w-[140px]">
-                      <SelectValue placeholder="Campo..." />
+                    <SelectTrigger className="flex-1 min-w-0">
+                      <SelectValue placeholder="Selecionar campo..." />
                     </SelectTrigger>
                     <SelectContent>
-                      {selectableFields.map((f) => (
-                        <SelectItem key={f.slug} value={f.slug}>
-                          {f.label || f.name}
-                        </SelectItem>
-                      ))}
+                      <SelectGroup>
+                        <SelectLabel>Campos da entidade</SelectLabel>
+                        {entityFields.map((f) => (
+                          <SelectItem key={f.slug} value={f.slug}>
+                            {f.label || f.name}
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
+                      {calcFields.length > 0 && (
+                        <SelectGroup>
+                          <SelectLabel>Campos calculados</SelectLabel>
+                          {calcFields.map((f) => (
+                            <SelectItem key={f.slug} value={f.slug}>
+                              {f.label}
+                            </SelectItem>
+                          ))}
+                        </SelectGroup>
+                      )}
                     </SelectContent>
                   </Select>
                 )}
@@ -280,20 +330,53 @@ export function FieldGroupDataEditor({
                     value={field.format || '_none'}
                     onValueChange={(value) => handleFieldChange(index, { format: value === '_none' ? undefined : value })}
                   >
-                    <SelectTrigger className="w-40">
+                    <SelectTrigger className="w-44">
                       <SelectValue placeholder="Formato" />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="_none">Sem formato</SelectItem>
-                      {formatOptions.map((opt) => (
-                        <SelectItem key={opt.value} value={opt.value}>
-                          {opt.label}
-                        </SelectItem>
+                      {Object.entries(formatGroups).map(([group, opts]) => (
+                        <SelectGroup key={group}>
+                          <SelectLabel>{group}</SelectLabel>
+                          {opts.map((opt) => (
+                            <SelectItem key={opt.value} value={opt.value}>
+                              {opt.label}
+                            </SelectItem>
+                          ))}
+                        </SelectGroup>
                       ))}
                     </SelectContent>
                   </Select>
                 )}
               </div>
+
+              {/* Linha 3: Texto quando vazio (progressive disclosure) */}
+              {field.defaultValue !== undefined && field.defaultValue !== '' ? (
+                <div className="flex items-center gap-2">
+                  <Input
+                    placeholder="Texto quando vazio (ex: -, N/A)"
+                    value={field.defaultValue || ''}
+                    onChange={(e) => handleFieldChange(index, { defaultValue: e.target.value || undefined })}
+                    className="flex-1 text-xs h-7"
+                  />
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-xs h-7 text-muted-foreground"
+                    onClick={() => handleFieldChange(index, { defaultValue: undefined })}
+                  >
+                    Limpar
+                  </Button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+                  onClick={() => handleFieldChange(index, { defaultValue: '' })}
+                >
+                  + Definir texto para campo vazio
+                </button>
+              )}
             </div>
           );
         })}

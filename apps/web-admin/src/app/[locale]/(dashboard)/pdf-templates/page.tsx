@@ -29,7 +29,6 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
-import { Checkbox } from '@/components/ui/checkbox';
 import {
   Select,
   SelectContent,
@@ -63,7 +62,6 @@ import {
   useDuplicatePdfTemplate,
   usePublishPdfTemplate,
   useUnpublishPdfTemplate,
-  useGeneratePdf,
   useGenerateBatchPdf,
 } from '@/hooks/use-pdf-templates';
 import { useEntityData } from '@/hooks/use-data';
@@ -79,18 +77,17 @@ function GenerateModal({
   onOpenChange: (open: boolean) => void;
 }) {
   const [recordSearch, setRecordSearch] = useState('');
-  const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [activeFilters, setActiveFilters] = useState<
     Array<{ fieldSlug: string; fieldName: string; fieldType: string; operator: string; value: string }>
   >([]);
 
   const entitySlug = template?.sourceEntity?.slug || '';
-  const isBatch = template?.templateType === 'batch';
 
+  // Busca apenas para contar registros e popular filtros
   const { data: recordsData, isLoading: loadingRecords } = useEntityData(
     entitySlug,
     {
-      limit: 50,
+      limit: 10,
       search: recordSearch || undefined,
       filters: activeFilters.length > 0
         ? JSON.stringify(activeFilters)
@@ -98,21 +95,12 @@ function GenerateModal({
     }
   );
 
-  const generateSingle = useGeneratePdf();
   const generateBatch = useGenerateBatchPdf();
-  const isGenerating = generateSingle.isPending || generateBatch.isPending;
+  const isGenerating = generateBatch.isPending;
 
   const records = recordsData?.data || [];
+  const totalRecords = recordsData?.meta?.total ?? records.length;
   const entityFields = recordsData?.entity?.fields || template?.sourceEntity?.fields || [];
-
-  // Campos de texto para exibir no label de cada registro
-  const displayFields = useMemo(() => {
-    return entityFields
-      .filter((f: { type: string }) =>
-        ['text', 'short_text', 'string'].includes(f.type)
-      )
-      .slice(0, 3);
-  }, [entityFields]);
 
   // Campos filtraveis (text, select, short_text)
   const filterableFields = useMemo(() => {
@@ -191,53 +179,17 @@ function GenerateModal({
     });
   }, []);
 
-  const getRecordLabel = (record: { id: string; data: Record<string, unknown> }) => {
-    for (const field of displayFields) {
-      const val = record.data[(field as { slug: string }).slug];
-      if (val && typeof val === 'string') return val;
-    }
-    // Fallback: first string value
-    for (const val of Object.values(record.data)) {
-      if (val && typeof val === 'string' && val.length > 2 && val.length < 100) return val;
-    }
-    return record.id.slice(-8);
-  };
-
-  const handleToggleRecord = (id: string) => {
-    if (isBatch) {
-      setSelectedIds((prev) =>
-        prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
-      );
-    } else {
-      setSelectedIds([id]);
-    }
-  };
-
-  const handleSelectAll = () => {
-    if (selectedIds.length === records.length) {
-      setSelectedIds([]);
-    } else {
-      setSelectedIds(records.map((r) => r.id));
-    }
-  };
-
   const handleGenerate = async () => {
-    if (!template || selectedIds.length === 0) return;
+    if (!template) return;
     try {
-      if (isBatch) {
-        await generateBatch.mutateAsync({
-          templateId: template.id,
-          recordIds: selectedIds,
-          mergePdfs: true,
-        });
-      } else {
-        await generateSingle.mutateAsync({
-          templateId: template.id,
-          recordId: selectedIds[0],
-        });
-      }
+      await generateBatch.mutateAsync({
+        templateId: template.id,
+        useAllRecords: true,
+        filters: activeFilters.length > 0 ? JSON.stringify(activeFilters) : undefined,
+        search: recordSearch || undefined,
+        mergePdfs: true,
+      });
       onOpenChange(false);
-      setSelectedIds([]);
       setRecordSearch('');
       setActiveFilters([]);
     } catch {
@@ -247,7 +199,6 @@ function GenerateModal({
 
   const handleClose = (value: boolean) => {
     if (!value) {
-      setSelectedIds([]);
       setRecordSearch('');
       setActiveFilters([]);
     }
@@ -260,10 +211,7 @@ function GenerateModal({
         <DialogHeader>
           <DialogTitle>Gerar PDF</DialogTitle>
           <DialogDescription>
-            {template?.name} &mdash;{' '}
-            {isBatch
-              ? 'Selecione os registros para gerar o PDF em lote'
-              : 'Selecione um registro para gerar o PDF'}
+            {template?.name} &mdash; Use filtros e busca para definir quais registros incluir no PDF
           </DialogDescription>
         </DialogHeader>
 
@@ -278,8 +226,8 @@ function GenerateModal({
           />
         </div>
 
-        {/* Filters for batch */}
-        {isBatch && filterableFields.length > 0 && (
+        {/* Filters */}
+        {filterableFields.length > 0 && (
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <span className="text-xs font-medium text-muted-foreground flex items-center gap-1">
@@ -353,62 +301,21 @@ function GenerateModal({
           </div>
         )}
 
-        {/* Select all for batch */}
-        {isBatch && records.length > 0 && (
-          <div className="flex items-center justify-between px-1">
-            <label className="flex items-center gap-2 text-sm cursor-pointer">
-              <Checkbox
-                checked={records.length > 0 && selectedIds.length === records.length}
-                onCheckedChange={handleSelectAll}
-              />
-              Selecionar todos ({records.length})
-            </label>
-            {selectedIds.length > 0 && (
-              <span className="text-xs text-muted-foreground">
-                {selectedIds.length} selecionado{selectedIds.length !== 1 ? 's' : ''}
-              </span>
-            )}
-          </div>
-        )}
-
-        {/* Records list */}
-        <div className="flex-1 overflow-y-auto min-h-[200px] max-h-[400px] border rounded-md divide-y">
+        {/* Record count summary */}
+        <div className="px-3 py-2.5 rounded-md border bg-muted/50 text-sm">
           {loadingRecords ? (
-            <div className="flex items-center justify-center py-8">
-              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-            </div>
-          ) : records.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
-              <FileText className="h-8 w-8 mb-2 opacity-50" />
-              <p className="text-sm">
-                {recordSearch ? 'Nenhum registro encontrado' : 'Nenhum registro disponivel'}
-              </p>
-            </div>
+            <span className="text-muted-foreground flex items-center gap-2">
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              Calculando registros...
+            </span>
           ) : (
-            records.map((record) => {
-              const isSelected = selectedIds.includes(record.id);
-              return (
-                <label
-                  key={record.id}
-                  className={`flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-accent transition-colors ${
-                    isSelected ? 'bg-accent/50' : ''
-                  }`}
-                >
-                  <Checkbox
-                    checked={isSelected}
-                    onCheckedChange={() => handleToggleRecord(record.id)}
-                  />
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-medium truncate">
-                      {getRecordLabel(record)}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      {new Date(record.createdAt).toLocaleDateString('pt-BR')}
-                    </p>
-                  </div>
-                </label>
-              );
-            })
+            <span>
+              <strong>{totalRecords.toLocaleString('pt-BR')}</strong>{' '}
+              registro{totalRecords !== 1 ? 's' : ''}{' '}
+              {activeFilters.length > 0 || recordSearch
+                ? 'correspondem aos filtros'
+                : 'serao incluidos'}
+            </span>
           )}
         </div>
 
@@ -418,7 +325,7 @@ function GenerateModal({
           </Button>
           <Button
             onClick={handleGenerate}
-            disabled={selectedIds.length === 0 || isGenerating}
+            disabled={isGenerating || totalRecords === 0}
           >
             {isGenerating ? (
               <>
@@ -428,8 +335,7 @@ function GenerateModal({
             ) : (
               <>
                 <Download className="h-4 w-4 mr-2" />
-                Gerar PDF
-                {isBatch && selectedIds.length > 0 && ` (${selectedIds.length})`}
+                Gerar PDF ({totalRecords.toLocaleString('pt-BR')} registro{totalRecords !== 1 ? 's' : ''})
               </>
             )}
           </Button>

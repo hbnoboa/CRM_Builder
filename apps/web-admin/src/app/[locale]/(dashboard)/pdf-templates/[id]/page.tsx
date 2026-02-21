@@ -232,15 +232,9 @@ function EditPdfTemplatePageContent({ params }: PageProps) {
                   onChange={(computedFields) => handleContentChange({ computedFields })}
                   availableFields={template.sourceEntity?.fields || []}
                   templateType={template.templateType}
-                  elements={localContent.body || []}
-                  onElementChange={(elementId, updates) => {
-                    handleContentChange({
-                      body: (localContent.body || []).map((el) =>
-                        el.id === elementId ? { ...el, ...updates } : el
-                      ),
-                    });
-                  }}
                   subEntities={template.subEntities}
+                  settings={localContent.settings}
+                  onSettingsChange={(settings) => handleContentChange({ settings })}
                 />
               )}
             </TabsContent>
@@ -261,6 +255,9 @@ function EditPdfTemplatePageContent({ params }: PageProps) {
                   elements={localContent.body || []}
                   sourceEntity={template.sourceEntity}
                   onChange={(body) => handleContentChange({ body })}
+                  subEntities={template.subEntities}
+                  computedFields={localContent.computedFields || []}
+                  templateType={template.templateType}
                 />
               )}
             </TabsContent>

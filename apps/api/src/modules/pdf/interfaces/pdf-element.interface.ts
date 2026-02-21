@@ -2,6 +2,12 @@
  * Interfaces para elementos de template PDF
  */
 
+// Formato unificado de campos
+export type FieldFormat =
+  | 'text' | 'number' | 'currency' | 'date' | 'datetime' | 'time' | 'percentage'
+  | 'cpf' | 'cnpj' | 'cep' | 'phone' | 'boolean'
+  | 'uppercase' | 'lowercase' | 'titlecase';
+
 // Tipos de elementos suportados
 export type PdfElementType =
   | 'text'
@@ -13,12 +19,21 @@ export type PdfElementType =
   | 'spacer'
   | 'statistics';
 
+// Condicao de visibilidade
+export interface VisibilityCondition {
+  field: string;
+  operator: 'equals' | 'not_equals' | 'greater' | 'less' | 'contains' | 'not_empty' | 'has_items' | 'no_items';
+  value?: string;
+}
+
 // Elemento base
 export interface BasePdfElement {
   id: string;
   type: PdfElementType;
   marginTop?: number;
   marginBottom?: number;
+  visibility?: VisibilityCondition;
+  repeatPerRecord?: boolean; // Para batch: renderizar para cada registro
 }
 
 // Elemento de texto
@@ -43,8 +58,9 @@ export interface FieldGroupElement extends BasePdfElement {
   fields: {
     label: string;
     binding: string; // {{campo}}
-    format?: 'text' | 'number' | 'currency' | 'date' | 'datetime';
+    format?: FieldFormat;
     labelBold?: boolean;
+    defaultValue?: string;
   }[];
 }
 
@@ -54,7 +70,21 @@ export interface TableColumn {
   header: string;
   width?: number;
   align?: 'left' | 'center' | 'right';
-  format?: 'text' | 'number' | 'currency' | 'date' | 'datetime' | 'percentage';
+  format?: FieldFormat;
+  defaultValue?: string;
+}
+
+// Filtro de linha de tabela
+export interface TableRowFilter {
+  field: string;
+  operator: 'equals' | 'not_equals' | 'greater' | 'less' | 'contains' | 'not_empty' | 'has_items' | 'no_items';
+  value: string;
+}
+
+// Regra de ordenacao de tabela
+export interface TableSortRule {
+  field: string;
+  direction: 'asc' | 'desc';
 }
 
 // Elemento de tabela
@@ -73,6 +103,9 @@ export interface TableElement extends BasePdfElement {
     fontSize?: number;
   };
   emptyMessage?: string;
+  filters?: TableRowFilter[];
+  filterLogic?: 'and' | 'or';
+  sorting?: TableSortRule[];
 }
 
 // Elemento de imagem
@@ -124,8 +157,13 @@ export interface StatisticsElement extends BasePdfElement {
   headerFill?: string | null; // Cor de fundo do header (null = sem fill)
   metrics: {
     field: string;
-    aggregation: 'count' | 'sum' | 'avg' | 'percentage';
+    aggregation: 'count' | 'sum' | 'avg' | 'percentage' | 'min' | 'max';
     label: string;
+    percentageFilter?: {
+      field: string;
+      operator: string;
+      value: string;
+    };
   }[];
 }
 
@@ -198,14 +236,32 @@ export interface ConcatConfig {
   separator: string;
 }
 
-export type ComputedFieldType = 'arithmetic' | 'conditional' | 'filtered-count' | 'concat';
+export interface MapConfig {
+  field: string;
+  mappings: Array<{ from: string; to: string }>;
+  defaultMapping?: string;
+}
+
+export interface SubEntityAggregateConfig {
+  subEntityField: string;
+  aggregation: 'count' | 'sum' | 'avg' | 'min' | 'max';
+  field?: string; // Necessario para sum/avg/min/max
+  filters?: FilteredCountFilter[];
+}
+
+export type ComputedFieldType = 'arithmetic' | 'conditional' | 'filtered-count' | 'concat' | 'map' | 'sub-entity-aggregate';
 
 export interface ComputedField {
   id: string;
   slug: string;
   label: string;
   type: ComputedFieldType;
-  config: ArithmeticConfig | ConditionalConfig | FilteredCountConfig | ConcatConfig;
+  config: ArithmeticConfig | ConditionalConfig | FilteredCountConfig | ConcatConfig | MapConfig | SubEntityAggregateConfig;
+}
+
+// Configuracoes globais do template
+export interface PdfTemplateSettings {
+  emptyFieldDefault?: string; // Texto padrao para campos vazios (ex: "-", "N/A")
 }
 
 // Conteudo completo do template
@@ -214,6 +270,7 @@ export interface PdfTemplateContent {
   body: PdfElement[];
   footer?: PdfFooter;
   computedFields?: ComputedField[];
+  settings?: PdfTemplateSettings;
 }
 
 // Margens do PDF

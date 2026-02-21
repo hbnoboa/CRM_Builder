@@ -177,11 +177,23 @@ export function useGenerateBatchPdf() {
       templateId,
       recordIds,
       mergePdfs,
+      useAllRecords,
+      filters,
+      search,
     }: {
       templateId: string;
-      recordIds: string[];
+      recordIds?: string[];
       mergePdfs?: boolean;
-    }) => pdfTemplatesService.generateBatch(templateId, recordIds, mergePdfs),
+      useAllRecords?: boolean;
+      filters?: string;
+      search?: string;
+    }) => pdfTemplatesService.generateBatch(templateId, {
+      recordIds,
+      mergePdfs,
+      useAllRecords,
+      filters,
+      search,
+    }),
     onSuccess: (blob) => {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');

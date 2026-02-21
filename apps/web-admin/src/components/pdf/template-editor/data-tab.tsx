@@ -10,12 +10,10 @@ import {
   GitBranch,
   Hash,
   Link2,
+  Replace,
+  Sigma,
   Info,
   Copy,
-  LayoutGrid,
-  Table,
-  Image,
-  BarChart3,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -47,28 +45,17 @@ import type {
   ConditionalConfig,
   FilteredCountConfig,
   ConcatConfig,
-  PdfElement,
+  MapConfig,
+  SubEntityAggregateConfig,
+  PdfTemplateSettings,
 } from '@/services/pdf-templates.service';
 
 import { ArithmeticBuilder } from './computed-fields/arithmetic-builder';
 import { ConditionalBuilder } from './computed-fields/conditional-builder';
 import { FilteredCountBuilder } from './computed-fields/filtered-count-builder';
 import { ConcatBuilder } from './computed-fields/concat-builder';
-
-import { FieldGroupDataEditor } from './data-editors/field-group-data-editor';
-import { TableDataEditor } from './data-editors/table-data-editor';
-import { ImageGridDataEditor } from './data-editors/image-grid-data-editor';
-import { StatisticsDataEditor } from './data-editors/statistics-data-editor';
-
-const SYSTEM_FIELDS = [
-  { slug: 'createdAt', name: 'Data de Criacao', label: 'Data de Criacao', type: 'datetime' },
-  { slug: 'updatedAt', name: 'Data de Atualizacao', label: 'Data de Atualizacao', type: 'datetime' },
-  { slug: '_geolocation.lat', name: 'Latitude', label: 'Latitude', type: 'number' },
-  { slug: '_geolocation.lng', name: 'Longitude', label: 'Longitude', type: 'number' },
-  { slug: '_geolocation.city', name: 'Cidade (GPS)', label: 'Cidade (GPS)', type: 'text' },
-  { slug: '_geolocation.uf', name: 'Estado (GPS)', label: 'Estado (GPS)', type: 'text' },
-  { slug: '_geolocation.address', name: 'Endereco (GPS)', label: 'Endereco (GPS)', type: 'text' },
-];
+import { MapBuilder } from './computed-fields/map-builder';
+import { SubEntityAggregateBuilder } from './computed-fields/sub-entity-aggregate-builder';
 
 const FIELD_TYPES: Array<{
   type: ComputedFieldType;
@@ -76,38 +63,13 @@ const FIELD_TYPES: Array<{
   icon: typeof Calculator;
   description: string;
 }> = [
-  { type: 'arithmetic', label: 'Calculo', icon: Calculator, description: 'Operacoes matematicas entre campos' },
-  { type: 'conditional', label: 'Texto condicional', icon: GitBranch, description: 'Se/entao/senao baseado em campo' },
-  { type: 'filtered-count', label: 'Contagem filtrada', icon: Hash, description: 'Conta registros com filtro (lote)' },
-  { type: 'concat', label: 'Concatenar', icon: Link2, description: 'Juntar campos com separador' },
+  { type: 'arithmetic', label: 'Calculo', icon: Calculator, description: 'Somar, subtrair, multiplicar campos' },
+  { type: 'conditional', label: 'Texto condicional', icon: GitBranch, description: 'Mostrar texto A ou B conforme campo' },
+  { type: 'filtered-count', label: 'Contagem filtrada', icon: Hash, description: 'Contar registros do lote com filtro' },
+  { type: 'concat', label: 'Juntar campos', icon: Link2, description: 'Combinar campos em um so texto' },
+  { type: 'map', label: 'Substituir valores', icon: Replace, description: 'Trocar valores por textos (ex: A → Aprovado)' },
+  { type: 'sub-entity-aggregate', label: 'Resumo de registros', icon: Sigma, description: 'Contar ou somar itens vinculados' },
 ];
-
-const DATA_ELEMENT_TYPES = ['field-group', 'table', 'image-grid', 'statistics'] as const;
-
-function getElementIcon(type: string) {
-  switch (type) {
-    case 'field-group': return LayoutGrid;
-    case 'table': return Table;
-    case 'image-grid': return Image;
-    case 'statistics': return BarChart3;
-    default: return LayoutGrid;
-  }
-}
-
-function getElementLabel(type: string) {
-  switch (type) {
-    case 'field-group': return 'Grupo de Campos';
-    case 'table': return 'Tabela';
-    case 'image-grid': return 'Grade de Imagens';
-    case 'statistics': return 'Estatisticas';
-    default: return type;
-  }
-}
-
-function getElementTitle(element: PdfElement): string {
-  if ('title' in element && element.title) return element.title;
-  return '';
-}
 
 function generateId(): string {
   return `cf_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
@@ -154,6 +116,16 @@ function createDefaultConfig(type: ComputedFieldType): ArithmeticConfig | Condit
         ],
         separator: ' - ',
       } as ConcatConfig;
+    case 'map':
+      return {
+        field: '',
+        mappings: [{ from: '', to: '' }],
+      } as MapConfig;
+    case 'sub-entity-aggregate':
+      return {
+        subEntityField: '',
+        aggregation: 'count',
+      } as SubEntityAggregateConfig;
   }
 }
 
@@ -162,14 +134,14 @@ interface DataTabProps {
   onChange: (computedFields: ComputedField[]) => void;
   availableFields: Array<{ slug: string; name: string; label?: string; type: string }>;
   templateType?: string;
-  elements: PdfElement[];
-  onElementChange: (elementId: string, updates: Partial<PdfElement>) => void;
   subEntities?: Record<string, {
     id: string;
     name: string;
     slug: string;
     fields?: Array<{ slug: string; name: string; label?: string; type: string }>;
   }>;
+  settings?: PdfTemplateSettings;
+  onSettingsChange?: (settings: PdfTemplateSettings) => void;
 }
 
 export function DataTab({
@@ -177,19 +149,11 @@ export function DataTab({
   onChange,
   availableFields,
   templateType,
-  elements,
-  onElementChange,
   subEntities,
+  settings,
+  onSettingsChange,
 }: DataTabProps) {
   const [expandedFields, setExpandedFields] = useState<Set<string>>(new Set());
-  const [expandedElements, setExpandedElements] = useState<Set<string>>(new Set());
-
-  const allFields = [...availableFields, ...SYSTEM_FIELDS];
-
-  // Elementos que tem configuracao de dados
-  const dataElements = elements.filter((el) =>
-    (DATA_ELEMENT_TYPES as readonly string[]).includes(el.type)
-  );
 
   // ==================== Computed Fields ====================
 
@@ -262,20 +226,31 @@ export function DataTab({
     return found ? found.label : type;
   };
 
-  const toggleElementExpanded = (id: string) => {
-    setExpandedElements((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) {
-        next.delete(id);
-      } else {
-        next.add(id);
-      }
-      return next;
-    });
-  };
-
   return (
     <div className="space-y-6">
+      {/* ==================== Configuracoes Gerais ==================== */}
+      {onSettingsChange && (
+        <div className="space-y-2">
+          <h3 className="font-medium">Quando um campo esta vazio</h3>
+          <div className="space-y-1">
+            <Label className="text-sm">Texto a exibir no PDF</Label>
+            <Input
+              placeholder="Ex: -, N/A, Nao informado"
+              value={settings?.emptyFieldDefault || ''}
+              onChange={(e) =>
+                onSettingsChange({
+                  ...settings,
+                  emptyFieldDefault: e.target.value || undefined,
+                })
+              }
+            />
+            <p className="text-xs text-muted-foreground">
+              Aparece no lugar de campos sem dados. Cada campo pode ter seu proprio texto.
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* ==================== Campos Calculados ==================== */}
       <div className="space-y-4">
         {/* Info */}
@@ -283,10 +258,10 @@ export function DataTab({
           <div className="flex items-start gap-2">
             <Info className="h-4 w-4 mt-0.5 flex-shrink-0" />
             <div>
-              <p className="font-medium">Campos Calculados</p>
+              <p className="font-medium">Como funciona</p>
               <p className="mt-1 opacity-80">
-                Crie campos derivados dos dados originais. Cada campo fica disponivel
-                nos elementos do template como <code className="bg-blue-100 dark:bg-blue-900 px-1 rounded">{'{{_calc.nome}}'}</code>.
+                Campos calculados criam novos valores a partir dos dados existentes.
+                Use-os nos elementos do template como <code className="bg-blue-100 dark:bg-blue-900 px-1 rounded">{'{{_calc.nome}}'}</code>.
               </p>
             </div>
           </div>
@@ -297,7 +272,7 @@ export function DataTab({
           <div>
             <h3 className="font-medium">Campos Calculados</h3>
             <p className="text-sm text-muted-foreground">
-              {computedFields.length === 0 ? 'Nenhum campo criado' : `${computedFields.length} campo(s)`}
+              {computedFields.length === 0 ? 'Nenhum campo criado' : `${computedFields.length} campo(s) criado(s)`}
             </p>
           </div>
           <DropdownMenu>
@@ -477,6 +452,21 @@ export function DataTab({
                               availableFields={availableFields}
                             />
                           )}
+                          {cf.type === 'map' && (
+                            <MapBuilder
+                              config={cf.config as MapConfig}
+                              onChange={(config) => handleUpdate(cf.id, { config })}
+                              availableFields={availableFields}
+                            />
+                          )}
+                          {cf.type === 'sub-entity-aggregate' && (
+                            <SubEntityAggregateBuilder
+                              config={cf.config as SubEntityAggregateConfig}
+                              onChange={(config) => handleUpdate(cf.id, { config })}
+                              availableFields={availableFields}
+                              subEntities={subEntities}
+                            />
+                          )}
                         </div>
                       </CardContent>
                     </CollapsibleContent>
@@ -488,87 +478,6 @@ export function DataTab({
         )}
       </div>
 
-      {/* ==================== Dados dos Elementos ==================== */}
-      {dataElements.length > 0 && (
-        <div className="space-y-4">
-          <div className="border-t pt-4">
-            <h3 className="font-medium">Dados dos Elementos</h3>
-            <p className="text-sm text-muted-foreground">
-              Configure quais campos e fontes de dados cada elemento usa
-            </p>
-          </div>
-
-          <div className="space-y-2">
-            {dataElements.map((element, _idx) => {
-              const Icon = getElementIcon(element.type);
-              const isExpanded = expandedElements.has(element.id);
-              const title = getElementTitle(element);
-              const globalIndex = elements.findIndex((el) => el.id === element.id);
-
-              return (
-                <Card key={element.id}>
-                  <Collapsible open={isExpanded} onOpenChange={() => toggleElementExpanded(element.id)}>
-                    <CollapsibleTrigger asChild>
-                      <CardHeader className="p-3 cursor-pointer hover:bg-muted/50">
-                        <div className="flex items-center gap-3">
-                          <Icon className="h-4 w-4 flex-shrink-0" />
-                          <div className="flex-1 text-left min-w-0">
-                            <span className="font-medium">{getElementLabel(element.type)}</span>
-                            {title && (
-                              <span className="ml-2 text-sm text-muted-foreground">
-                                {title}
-                              </span>
-                            )}
-                          </div>
-                          <Badge variant="outline" className="text-xs flex-shrink-0">
-                            #{globalIndex + 1}
-                          </Badge>
-                        </div>
-                      </CardHeader>
-                    </CollapsibleTrigger>
-                    <CollapsibleContent>
-                      <CardContent className="pt-0 pb-4">
-                        {element.type === 'field-group' && (
-                          <FieldGroupDataEditor
-                            element={element}
-                            onChange={(updates) => onElementChange(element.id, updates)}
-                            availableFields={allFields}
-                            isBatch={templateType === 'batch'}
-                            computedFields={computedFields}
-                          />
-                        )}
-                        {element.type === 'table' && (
-                          <TableDataEditor
-                            element={element}
-                            onChange={(updates) => onElementChange(element.id, updates)}
-                            availableFields={allFields}
-                            subEntities={subEntities}
-                          />
-                        )}
-                        {element.type === 'image-grid' && (
-                          <ImageGridDataEditor
-                            element={element}
-                            onChange={(updates) => onElementChange(element.id, updates)}
-                            availableFields={allFields}
-                            subEntities={subEntities}
-                          />
-                        )}
-                        {element.type === 'statistics' && (
-                          <StatisticsDataEditor
-                            element={element}
-                            onChange={(updates) => onElementChange(element.id, updates)}
-                            availableFields={allFields}
-                          />
-                        )}
-                      </CardContent>
-                    </CollapsibleContent>
-                  </Collapsible>
-                </Card>
-              );
-            })}
-          </div>
-        </div>
-      )}
     </div>
   );
 }

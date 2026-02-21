@@ -33,6 +33,8 @@ import {
   ConditionalConfig,
   FilteredCountConfig,
   ConcatConfig,
+  MapConfig,
+  SubEntityAggregateConfig,
 } from './interfaces/pdf-element.interface';
 
 // pdfkit-table estende pdfkit e deve ser usado como construtor
@@ -46,6 +48,7 @@ const http = require('http');
 @Injectable()
 export class PdfGeneratorService {
   private readonly logger = new Logger(PdfGeneratorService.name);
+  private emptyFieldDefault = '';
 
   constructor(
     private prisma: PrismaService,
@@ -164,6 +167,9 @@ export class PdfGeneratorService {
     currentUser: CurrentUser,
     mergePdfs?: boolean,
     tenantId?: string,
+    useAllRecords?: boolean,
+    filters?: string,
+    search?: string,
   ): Promise<{ buffer: Buffer; fileName: string }> {
     const targetTenantId = getEffectiveTenantId(currentUser, tenantId);
 
@@ -182,33 +188,119 @@ export class PdfGeneratorService {
       throw new NotFoundException('Template nao encontrado');
     }
 
-    // Buscar todos os registros
-    const records = await this.prisma.entityData.findMany({
-      where: {
-        id: { in: recordIds },
+    // Buscar registros
+    let records: { id: string; data: unknown; createdAt: Date; updatedAt: Date; parentRecordId: string | null }[];
+
+    if (useAllRecords) {
+      const where: { tenantId: string; entityId?: string; deletedAt: null; parentRecordId: null; AND?: unknown[] } = {
         tenantId: targetTenantId,
         entityId: template.sourceEntityId || undefined,
-      },
-      orderBy: { createdAt: 'asc' },
-    });
+        deletedAt: null,
+        parentRecordId: null,
+      };
+
+      if (filters) {
+        try {
+          const parsed = JSON.parse(filters);
+          if (Array.isArray(parsed)) {
+            const andClauses: unknown[] = [];
+            for (const f of parsed) {
+              if (!f.fieldSlug || !f.value) continue;
+              andClauses.push({
+                data: { path: [f.fieldSlug], string_contains: String(f.value) },
+              });
+            }
+            if (andClauses.length > 0) {
+              where.AND = andClauses;
+            }
+          }
+        } catch {
+          this.logger.warn('Failed to parse batch filters');
+        }
+      }
+
+      if (search) {
+        if (!where.AND) where.AND = [];
+        (where.AND as unknown[]).push({
+          OR: [
+            { data: { string_contains: search } },
+            { data: { string_contains: search.toUpperCase() } },
+            { data: { string_contains: search.toLowerCase() } },
+          ],
+        });
+      }
+
+      records = await this.prisma.entityData.findMany({
+        where: where as any,
+        orderBy: { createdAt: 'asc' },
+      });
+    } else {
+      records = await this.prisma.entityData.findMany({
+        where: {
+          id: { in: recordIds },
+          tenantId: targetTenantId,
+          entityId: template.sourceEntityId || undefined,
+        },
+        orderBy: { createdAt: 'asc' },
+      });
+    }
 
     if (records.length === 0) {
       throw new NotFoundException('Nenhum registro encontrado');
     }
 
-    // Enriquecer cada registro com sub-entidades
+    // Enriquecer registros com sub-entidades (batch para performance)
     const fields = template.sourceEntity?.fields as Array<{ slug: string; type: string; subEntityId?: string }> | null;
     const enrichedRecords: Record<string, unknown>[] = [];
+    const subEntityFields = (fields || []).filter((f) => f.type === 'sub-entity' && f.subEntityId);
 
-    for (const record of records) {
-      const baseData = {
-        ...(record.data as Record<string, unknown>),
-        id: record.id,
-        createdAt: record.createdAt,
-        updatedAt: record.updatedAt,
-      };
-      const enriched = await this.enrichDataWithSubEntities(baseData, fields, record.id, targetTenantId);
-      enrichedRecords.push(enriched);
+    if (subEntityFields.length > 0) {
+      const allRecordIds = records.map((r) => r.id);
+      const subData: Record<string, Record<string, unknown>[]> = {};
+
+      for (const subField of subEntityFields) {
+        const children = await this.prisma.entityData.findMany({
+          where: {
+            entityId: subField.subEntityId!,
+            parentRecordId: { in: allRecordIds },
+            tenantId: targetTenantId,
+            deletedAt: null,
+          },
+          orderBy: { createdAt: 'asc' },
+        });
+        for (const child of children) {
+          const key = `${child.parentRecordId}_${subField.slug}`;
+          if (!subData[key]) subData[key] = [];
+          subData[key].push({
+            ...(child.data as Record<string, unknown>),
+            id: child.id,
+            createdAt: child.createdAt,
+            updatedAt: child.updatedAt,
+          });
+        }
+      }
+
+      for (const record of records) {
+        const enriched: Record<string, unknown> = {
+          ...(record.data as Record<string, unknown>),
+          id: record.id,
+          createdAt: record.createdAt,
+          updatedAt: record.updatedAt,
+        };
+        for (const subField of subEntityFields) {
+          enriched[subField.slug] = subData[`${record.id}_${subField.slug}`] || [];
+        }
+        enrichedRecords.push(enriched);
+      }
+    } else {
+      for (const record of records) {
+        enrichedRecords.push({
+          ...(record.data as Record<string, unknown>),
+          id: record.id,
+          createdAt: record.createdAt,
+          updatedAt: record.updatedAt,
+        });
+      }
     }
 
     // Contar veiculos avariados (que tem sub-entidade com dados)
@@ -303,13 +395,14 @@ export class PdfGeneratorService {
     }
 
     // Registrar geracao
+    const finalRecordIds = useAllRecords ? records.map((r) => r.id) : recordIds;
     await this.prisma.pdfGeneration.create({
       data: {
         tenantId: targetTenantId,
         templateId,
         status: PdfGenerationStatus.COMPLETED,
         progress: 100,
-        recordIds,
+        recordIds: finalRecordIds,
         fileUrl,
         fileName,
         fileSize: buffer.length,
@@ -522,6 +615,9 @@ export class PdfGeneratorService {
 
     const content = template.content as unknown as PdfTemplateContent || { body: [] };
 
+    // Configurar valor padrao para campos vazios
+    this.emptyFieldDefault = content.settings?.emptyFieldDefault || '';
+
     // Renderizar header
     if (content.header) {
       await this.renderHeader(doc, content.header, data, template.logoUrl);
@@ -576,6 +672,9 @@ export class PdfGeneratorService {
 
     const content = template.content as unknown as PdfTemplateContent || { body: [] };
 
+    // Configurar valor padrao para campos vazios
+    this.emptyFieldDefault = content.settings?.emptyFieldDefault || '';
+
     // Pre-fetch logo para uso sincrono em paginas seguintes
     let logoBuffer: Buffer | null = null;
     const logoUrl = content.header?.logo?.url || template.logoUrl;
@@ -602,82 +701,96 @@ export class PdfGeneratorService {
       }
     };
 
-    // Renderizar header completo na primeira pagina
-    if (content.header) {
-      await this.renderHeader(doc, content.header, batchData, template.logoUrl);
-    }
-
     // NAO usar pageAdded event (problemas com async) - renderizar manualmente
 
     // Separar elementos: normais vs repeat (por item)
     const normalElements: PdfElement[] = [];
     const repeatElements: PdfElement[] = [];
-    let inRepeatSection = false;
+    const hasRepeatProperty = (content.body || []).some((el) => el.repeatPerRecord);
 
-    for (const element of content.body || []) {
-      if (element.type === 'text' && (element as TextElement).content === '_repeat_start') {
-        inRepeatSection = true;
-        continue;
+    if (hasRepeatProperty) {
+      // Nova abordagem: propriedade repeatPerRecord
+      for (const element of content.body || []) {
+        (element.repeatPerRecord ? repeatElements : normalElements).push(element);
       }
-      if (element.type === 'text' && (element as TextElement).content === '_repeat_end') {
-        inRepeatSection = false;
-        continue;
-      }
-
-      if (inRepeatSection) {
-        repeatElements.push(element);
-      } else {
-        normalElements.push(element);
+    } else {
+      // Legacy: marcadores _repeat_start / _repeat_end
+      let inRepeatSection = false;
+      for (const element of content.body || []) {
+        if (element.type === 'text' && (element as TextElement).content === '_repeat_start') {
+          inRepeatSection = true;
+          continue;
+        }
+        if (element.type === 'text' && (element as TextElement).content === '_repeat_end') {
+          inRepeatSection = false;
+          continue;
+        }
+        (inRepeatSection ? repeatElements : normalElements).push(element);
       }
     }
 
-    // Renderizar elementos normais (estatisticas, headers, etc)
-    for (const element of normalElements) {
-      await this.renderElement(doc, element, batchData);
-    }
+    // Template "single" usado via batch: cada registro gera o template completo em pagina separada
+    const isSingleTemplate = template.templateType === 'single';
+    if (isSingleTemplate && repeatElements.length === 0 && normalElements.length > 0) {
+      for (let recIdx = 0; recIdx < allRecords.length; recIdx++) {
+        if (recIdx > 0) doc.addPage();
 
-    // Renderizar secao repetida para cada registro com sub-entidades (avariados)
-    if (repeatElements.length > 0) {
-      const recordsWithSubEntities = allRecords.filter((record) =>
-        Object.values(record).some((v) => Array.isArray(v) && v.length > 0),
-      );
+        if (content.header) {
+          await this.renderHeader(doc, content.header, allRecords[recIdx], template.logoUrl);
+        }
 
-      // Encontrar titulo da secao 4 e elemento image-grid nos repeatElements
-      const sectionTitle = normalElements.find(
-        (el) => el.type === 'text' && (el as TextElement).content?.includes('IMAGENS'),
-      ) as TextElement | undefined;
+        for (const element of normalElements) {
+          await this.renderElement(doc, element, allRecords[recIdx]);
+        }
+      }
+    } else {
+      // Template "batch": header uma vez, elementos normais com dados agregados, repeat por registro
+      if (content.header) {
+        await this.renderHeader(doc, content.header, batchData, template.logoUrl);
+      }
 
-      for (let recIdx = 0; recIdx < recordsWithSubEntities.length; recIdx++) {
-        const record = recordsWithSubEntities[recIdx];
-        const isFirstVehicle = recIdx === 0;
+      // Renderizar elementos normais (estatisticas, headers, etc) uma vez
+      for (const element of normalElements) {
+        await this.renderElement(doc, element, batchData);
+      }
 
-        // Renderizar cada elemento repeat com dados do registro
-        for (const element of repeatElements) {
-          // Para image-grid, passar callback de page break
-          if (element.type === 'image-grid') {
-            const imgGrid = element as ImageGridElement;
-            const imageWidth = imgGrid.imageWidth || 90;
-            const imageHeight = imgGrid.imageHeight || 76;
-            const columnWidth = (doc.page.width - margins.left - margins.right) / imgGrid.columns;
+      // Renderizar secao repetida para cada registro
+      if (repeatElements.length > 0) {
+        const recordsWithSubEntities = allRecords.filter((record) =>
+          Object.values(record).some((v) => Array.isArray(v) && v.length > 0),
+        );
 
-            if (isFirstVehicle && element.marginTop) doc.y += element.marginTop;
+        // Encontrar titulo da secao 4 e elemento image-grid nos repeatElements
+        const sectionTitle = normalElements.find(
+          (el) => el.type === 'text' && (el as TextElement).content?.includes('IMAGENS'),
+        ) as TextElement | undefined;
 
-            // Titulo do grid apenas no primeiro veiculo
-            if (isFirstVehicle && imgGrid.title) {
-              doc.font('Helvetica-Bold').fontSize(10).text(imgGrid.title, { align: 'center' });
-              doc.moveDown(0.5);
-            }
+        for (let recIdx = 0; recIdx < recordsWithSubEntities.length; recIdx++) {
+          const record = recordsWithSubEntities[recIdx];
+          const isFirstRecord = recIdx === 0;
 
-            // Renderizar mixed grid com callback de page break (continuo)
-            await this.renderMixedImageGridBatch(
-              doc, imgGrid, record, imageWidth, imageHeight, columnWidth,
-              renderLogoOnly, sectionTitle, isFirstVehicle,
-            );
+          // Renderizar cada elemento repeat com dados do registro
+          for (const element of repeatElements) {
+            if (element.type === 'image-grid') {
+              const imgGrid = element as ImageGridElement;
+              const imageWidth = imgGrid.imageWidth || 90;
+              const imageHeight = imgGrid.imageHeight || 76;
+              const columnWidth = (doc.page.width - margins.left - margins.right) / imgGrid.columns;
 
-            if (element.marginBottom) doc.y += element.marginBottom;
-          } else {
-            // Outros elementos repeat apenas no primeiro veiculo
-            if (isFirstVehicle) {
+              if (isFirstRecord && element.marginTop) doc.y += element.marginTop;
+
+              if (isFirstRecord && imgGrid.title) {
+                doc.font('Helvetica-Bold').fontSize(10).text(imgGrid.title, { align: 'center' });
+                doc.moveDown(0.5);
+              }
+
+              await this.renderMixedImageGridBatch(
+                doc, imgGrid, record, imageWidth, imageHeight, columnWidth,
+                renderLogoOnly, sectionTitle, isFirstRecord,
+              );
+
+              if (element.marginBottom) doc.y += element.marginBottom;
+            } else {
               await this.renderElement(doc, element, record);
             }
           }
@@ -784,6 +897,17 @@ export class PdfGeneratorService {
     element: PdfElement,
     data: Record<string, unknown>,
   ): Promise<void> {
+    // Verificar visibilidade condicional
+    if (element.visibility) {
+      const fieldValue = this.getNestedValue(data, element.visibility.field);
+      const isVisible = this.evaluateCondition(
+        fieldValue,
+        element.visibility.operator,
+        element.visibility.value || '',
+      );
+      if (!isVisible) return;
+    }
+
     // Margem superior
     if (element.marginTop) {
       doc.y += element.marginTop;
@@ -893,7 +1017,7 @@ export class PdfGeneratorService {
           const field = fields[i + c];
           const label = field.label;
           const value = this.resolveBindings(field.binding, data);
-          const formattedValue = this.formatValue(value, field.format);
+          const formattedValue = this.formatValue(value, field.format, field.defaultValue);
           const x = doc.page.margins.left + c * colWidth;
 
           // Renderizar label em bold e valor em regular como chamadas separadas
@@ -911,7 +1035,7 @@ export class PdfGeneratorService {
       for (const field of element.fields) {
         const label = field.label;
         const value = this.resolveBindings(field.binding, data);
-        const formattedValue = this.formatValue(value, field.format);
+        const formattedValue = this.formatValue(value, field.format, field.defaultValue);
 
         if (lineSpacing) {
           // Posicionamento fixo com lineSpacing
@@ -942,7 +1066,7 @@ export class PdfGeneratorService {
       for (const field of element.fields) {
         const label = field.label;
         const value = this.resolveBindings(field.binding, data);
-        const formattedValue = this.formatValue(value, field.format);
+        const formattedValue = this.formatValue(value, field.format, field.defaultValue);
 
         doc
           .font(field.labelBold ? 'Helvetica-Bold' : 'Helvetica')
@@ -993,6 +1117,40 @@ export class PdfGeneratorService {
       rows = [data];
     }
 
+    // Aplicar filtros
+    if (element.filters?.length) {
+      const logic = element.filterLogic || 'and';
+      rows = rows.filter((row) => {
+        const results = element.filters!.map((f) => {
+          const val = this.getNestedValue(row, f.field);
+          return this.evaluateCondition(val, f.operator, f.value);
+        });
+        return logic === 'and'
+          ? results.every(Boolean)
+          : results.some(Boolean);
+      });
+    }
+
+    // Aplicar ordenacao
+    if (element.sorting?.length) {
+      rows = [...rows].sort((a, b) => {
+        for (const rule of element.sorting!) {
+          const aVal = this.getNestedValue(a, rule.field);
+          const bVal = this.getNestedValue(b, rule.field);
+          const aNum = Number(aVal);
+          const bNum = Number(bVal);
+          let cmp: number;
+          if (!isNaN(aNum) && !isNaN(bNum)) {
+            cmp = aNum - bNum;
+          } else {
+            cmp = String(aVal ?? '').localeCompare(String(bVal ?? ''), 'pt-BR');
+          }
+          if (cmp !== 0) return rule.direction === 'desc' ? -cmp : cmp;
+        }
+        return 0;
+      });
+    }
+
     // Headers no formato pdfkit-table
     const headers = element.columns.map((col) => ({
       label: col.header,
@@ -1004,7 +1162,7 @@ export class PdfGeneratorService {
     const tableRows = rows.map((row) =>
       element.columns.map((col) => {
         const value = this.getNestedValue(row, col.field);
-        return this.formatValue(value, col.format);
+        return this.formatValue(value, col.format, col.defaultValue);
       }),
     );
 
@@ -1510,19 +1668,27 @@ export class PdfGeneratorService {
       damaged: number;
       fieldSums: Record<string, number>;
       fieldCounts: Record<string, number>;
+      fieldMins: Record<string, number>;
+      fieldMaxs: Record<string, number>;
+      percentageFilterCounts: Record<string, number>;
     }>();
 
     for (const item of items) {
       const key = element.groupBy.map((field) => item[field] || 'N/A').join(' | ');
 
       if (!groups.has(key)) {
-        groups.set(key, { total: 0, damaged: 0, fieldSums: {}, fieldCounts: {} });
+        groups.set(key, {
+          total: 0, damaged: 0,
+          fieldSums: {}, fieldCounts: {},
+          fieldMins: {}, fieldMaxs: {},
+          percentageFilterCounts: {},
+        });
       }
 
       const group = groups.get(key)!;
       group.total++;
 
-      // Verificar se tem nao-conformidades (busca qualquer array de sub-entidade)
+      // Verificar se tem sub-entidade (fallback para percentage sem filtro)
       const hasSubEntityData = Object.values(item).some(
         (v) => Array.isArray(v) && v.length > 0,
       );
@@ -1530,13 +1696,28 @@ export class PdfGeneratorService {
         group.damaged++;
       }
 
-      // Acumular somas para campos numericos (sum/avg)
+      // Acumular valores para campos numericos (sum/avg/min/max)
       for (const metric of element.metrics) {
-        if (metric.aggregation === 'sum' || metric.aggregation === 'avg') {
-          const val = Number(item[metric.field]);
+        if (['sum', 'avg', 'min', 'max'].includes(metric.aggregation)) {
+          const val = Number(this.getNestedValue(item, metric.field));
           if (!isNaN(val)) {
             group.fieldSums[metric.field] = (group.fieldSums[metric.field] || 0) + val;
             group.fieldCounts[metric.field] = (group.fieldCounts[metric.field] || 0) + 1;
+            if (group.fieldMins[metric.field] === undefined || val < group.fieldMins[metric.field]) {
+              group.fieldMins[metric.field] = val;
+            }
+            if (group.fieldMaxs[metric.field] === undefined || val > group.fieldMaxs[metric.field]) {
+              group.fieldMaxs[metric.field] = val;
+            }
+          }
+        }
+
+        // Contagem para percentageFilter
+        if (metric.aggregation === 'percentage' && metric.percentageFilter) {
+          const filterKey = `${metric.field}_${metric.label}`;
+          const filterVal = this.getNestedValue(item, metric.percentageFilter.field);
+          if (this.evaluateCondition(filterVal, metric.percentageFilter.operator, metric.percentageFilter.value)) {
+            group.percentageFilterCounts[filterKey] = (group.percentageFilterCounts[filterKey] || 0) + 1;
           }
         }
       }
@@ -1570,26 +1751,50 @@ export class PdfGeneratorService {
     for (const [key, stats] of groups) {
       const row = key.split(' | ');
       for (const metric of element.metrics) {
-        if (metric.aggregation === 'count') {
-          row.push(String(stats.total));
-        } else if (metric.aggregation === 'percentage') {
-          const pct = stats.total > 0 ? ((stats.damaged / stats.total) * 100).toFixed(2) : '0.00';
-          row.push(`${pct}%`);
-        } else if (metric.aggregation === 'sum') {
-          // Campo especial _damaged: conta itens avariados no grupo
-          if (metric.field === '_damaged') {
-            row.push(String(stats.damaged));
-          } else {
-            const sum = stats.fieldSums[metric.field] || 0;
-            row.push(sum % 1 === 0 ? String(sum) : sum.toFixed(2));
+        switch (metric.aggregation) {
+          case 'count':
+            row.push(String(stats.total));
+            break;
+          case 'percentage': {
+            let matchCount: number;
+            if (metric.percentageFilter) {
+              const filterKey = `${metric.field}_${metric.label}`;
+              matchCount = stats.percentageFilterCounts[filterKey] || 0;
+            } else {
+              matchCount = stats.damaged;
+            }
+            const pct = stats.total > 0 ? ((matchCount / stats.total) * 100).toFixed(2) : '0.00';
+            row.push(`${pct}%`);
+            break;
           }
-        } else if (metric.aggregation === 'avg') {
-          const sum = stats.fieldSums[metric.field] || 0;
-          const count = stats.fieldCounts[metric.field] || 1;
-          const avg = sum / count;
-          row.push(avg % 1 === 0 ? String(avg) : avg.toFixed(2));
-        } else {
-          row.push(String(stats.damaged));
+          case 'sum': {
+            if (metric.field === '_damaged') {
+              row.push(String(stats.damaged));
+            } else {
+              const sum = stats.fieldSums[metric.field] || 0;
+              row.push(sum % 1 === 0 ? String(sum) : sum.toFixed(2));
+            }
+            break;
+          }
+          case 'avg': {
+            const sum = stats.fieldSums[metric.field] || 0;
+            const count = stats.fieldCounts[metric.field] || 1;
+            const avg = sum / count;
+            row.push(avg % 1 === 0 ? String(avg) : avg.toFixed(2));
+            break;
+          }
+          case 'min': {
+            const minVal = stats.fieldMins[metric.field];
+            row.push(minVal !== undefined ? (minVal % 1 === 0 ? String(minVal) : minVal.toFixed(2)) : '-');
+            break;
+          }
+          case 'max': {
+            const maxVal = stats.fieldMaxs[metric.field];
+            row.push(maxVal !== undefined ? (maxVal % 1 === 0 ? String(maxVal) : maxVal.toFixed(2)) : '-');
+            break;
+          }
+          default:
+            row.push(String(stats.damaged));
         }
       }
       rows.push(row);
@@ -1742,6 +1947,55 @@ export class PdfGeneratorService {
             calc[cf.slug] = parts.filter(Boolean).join(config.separator || '');
             break;
           }
+
+          case 'map': {
+            const config = cf.config as MapConfig;
+            const rawValue = String(this.getNestedValue(data, config.field) ?? '');
+            const mapping = config.mappings.find((m) => m.from === rawValue);
+            calc[cf.slug] = mapping ? mapping.to : (config.defaultMapping ?? rawValue);
+            break;
+          }
+
+          case 'sub-entity-aggregate': {
+            const config = cf.config as SubEntityAggregateConfig;
+            let items = data[config.subEntityField];
+            if (!Array.isArray(items)) { calc[cf.slug] = 0; break; }
+            // Aplicar filtros opcionais
+            if (config.filters?.length) {
+              items = items.filter((item) =>
+                config.filters!.every((f) => {
+                  const val = this.getNestedValue(item as Record<string, unknown>, f.field);
+                  return this.evaluateCondition(val, f.operator, f.value);
+                }),
+              );
+            }
+            const arr = items as Record<string, unknown>[];
+            switch (config.aggregation) {
+              case 'count':
+                calc[cf.slug] = arr.length;
+                break;
+              case 'sum': {
+                calc[cf.slug] = arr.reduce((s, item) => s + (Number(this.getNestedValue(item, config.field || '') || 0)), 0);
+                break;
+              }
+              case 'avg': {
+                const sum = arr.reduce((s, item) => s + (Number(this.getNestedValue(item, config.field || '') || 0)), 0);
+                calc[cf.slug] = arr.length > 0 ? sum / arr.length : 0;
+                break;
+              }
+              case 'min': {
+                const vals = arr.map((item) => Number(this.getNestedValue(item, config.field || '') || 0));
+                calc[cf.slug] = vals.length > 0 ? Math.min(...vals) : 0;
+                break;
+              }
+              case 'max': {
+                const vals = arr.map((item) => Number(this.getNestedValue(item, config.field || '') || 0));
+                calc[cf.slug] = vals.length > 0 ? Math.max(...vals) : 0;
+                break;
+              }
+            }
+            break;
+          }
         }
       } catch (err) {
         this.logger.warn(`Erro ao calcular campo ${cf.slug}: ${(err as Error).message}`);
@@ -1813,9 +2067,9 @@ export class PdfGeneratorService {
   /**
    * Formata valor baseado no tipo
    */
-  private formatValue(value: unknown, format?: string): string {
-    if (value === undefined || value === null) {
-      return '-';
+  private formatValue(value: unknown, format?: string, defaultValue?: string): string {
+    if (value === undefined || value === null || value === '') {
+      return defaultValue || this.emptyFieldDefault || '-';
     }
 
     switch (format) {
@@ -1845,6 +2099,42 @@ export class PdfGeneratorService {
 
       case 'percentage':
         return `${Number(value).toFixed(2)}%`;
+
+      case 'cpf': {
+        const cpfDigits = String(value).replace(/\D/g, '').padStart(11, '0');
+        return `${cpfDigits.slice(0,3)}.${cpfDigits.slice(3,6)}.${cpfDigits.slice(6,9)}-${cpfDigits.slice(9,11)}`;
+      }
+
+      case 'cnpj': {
+        const cnpjDigits = String(value).replace(/\D/g, '').padStart(14, '0');
+        return `${cnpjDigits.slice(0,2)}.${cnpjDigits.slice(2,5)}.${cnpjDigits.slice(5,8)}/${cnpjDigits.slice(8,12)}-${cnpjDigits.slice(12,14)}`;
+      }
+
+      case 'cep': {
+        const cepDigits = String(value).replace(/\D/g, '').padStart(8, '0');
+        return `${cepDigits.slice(0,5)}-${cepDigits.slice(5,8)}`;
+      }
+
+      case 'phone': {
+        const phoneDigits = String(value).replace(/\D/g, '');
+        if (phoneDigits.length === 11) return `(${phoneDigits.slice(0,2)}) ${phoneDigits.slice(2,7)}-${phoneDigits.slice(7)}`;
+        if (phoneDigits.length === 10) return `(${phoneDigits.slice(0,2)}) ${phoneDigits.slice(2,6)}-${phoneDigits.slice(6)}`;
+        return String(value);
+      }
+
+      case 'boolean': {
+        const boolVal = value === true || value === 'true' || value === '1' || value === 1;
+        return boolVal ? 'Sim' : 'Nao';
+      }
+
+      case 'uppercase':
+        return String(value).toUpperCase();
+
+      case 'lowercase':
+        return String(value).toLowerCase();
+
+      case 'titlecase':
+        return String(value).replace(/\b\w/g, (c) => c.toUpperCase());
 
       default:
         return String(value);

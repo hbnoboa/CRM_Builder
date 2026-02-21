@@ -10,6 +10,7 @@ import {
   Res,
   UseGuards,
   StreamableFile,
+  BadRequestException,
 } from '@nestjs/common';
 import { Response } from 'express';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiProduces } from '@nestjs/swagger';
@@ -187,10 +188,15 @@ export class PdfController {
     @CurrentUser() user: CurrentUserType,
     @Res() res: Response,
   ) {
-    checkModulePermission(user, 'pdfTemplates', 'canGenerateBatch');
+    checkModulePermission(user, 'pdfTemplates', 'canGenerate');
+
+    if (!dto.useAllRecords && (!dto.recordIds || dto.recordIds.length === 0)) {
+      throw new BadRequestException('Informe recordIds ou use useAllRecords: true');
+    }
 
     const { buffer, fileName } = await this.generatorService.generateBatch(
-      templateId, dto.recordIds, user, dto.mergePdfs, tenantId,
+      templateId, dto.recordIds || [], user, dto.mergePdfs, tenantId,
+      dto.useAllRecords, dto.filters, dto.search,
     );
 
     res.set({

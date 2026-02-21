@@ -2,6 +2,11 @@ import api from '@/lib/api';
 
 // ================= TYPES =================
 
+export type FieldFormat =
+  | 'text' | 'number' | 'currency' | 'date' | 'datetime' | 'time' | 'percentage'
+  | 'cpf' | 'cnpj' | 'cep' | 'phone' | 'boolean'
+  | 'uppercase' | 'lowercase' | 'titlecase';
+
 export interface PdfMargins {
   top: number;
   right: number;
@@ -39,7 +44,8 @@ export interface TableColumn {
   header: string;
   width?: number;
   align?: 'left' | 'center' | 'right';
-  format?: 'text' | 'number' | 'currency' | 'date' | 'datetime' | 'percentage';
+  format?: FieldFormat;
+  defaultValue?: string;
 }
 
 export type PdfElementType =
@@ -52,11 +58,19 @@ export type PdfElementType =
   | 'spacer'
   | 'statistics';
 
+export interface VisibilityCondition {
+  field: string;
+  operator: 'equals' | 'not_equals' | 'greater' | 'less' | 'contains' | 'not_empty' | 'has_items' | 'no_items';
+  value?: string;
+}
+
 export interface BasePdfElement {
   id: string;
   type: PdfElementType;
   marginTop?: number;
   marginBottom?: number;
+  visibility?: VisibilityCondition;
+  repeatPerRecord?: boolean;
 }
 
 export interface TextElement extends BasePdfElement {
@@ -79,9 +93,21 @@ export interface FieldGroupElement extends BasePdfElement {
   fields: {
     label: string;
     binding: string;
-    format?: string;
+    format?: FieldFormat;
     labelBold?: boolean;
+    defaultValue?: string;
   }[];
+}
+
+export interface TableRowFilter {
+  field: string;
+  operator: 'equals' | 'not_equals' | 'greater' | 'less' | 'contains' | 'not_empty' | 'has_items' | 'no_items';
+  value: string;
+}
+
+export interface TableSortRule {
+  field: string;
+  direction: 'asc' | 'desc';
 }
 
 export interface TableElement extends BasePdfElement {
@@ -99,6 +125,9 @@ export interface TableElement extends BasePdfElement {
     fontSize?: number;
   };
   emptyMessage?: string;
+  filters?: TableRowFilter[];
+  filterLogic?: 'and' | 'or';
+  sorting?: TableSortRule[];
 }
 
 export interface ImageGridElement extends BasePdfElement {
@@ -137,8 +166,13 @@ export interface StatisticsElement extends BasePdfElement {
   headerFill?: string | null;
   metrics: {
     field: string;
-    aggregation: 'count' | 'sum' | 'avg' | 'percentage';
+    aggregation: 'count' | 'sum' | 'avg' | 'percentage' | 'min' | 'max';
     label: string;
+    percentageFilter?: {
+      field: string;
+      operator: string;
+      value: string;
+    };
   }[];
 }
 
@@ -181,14 +215,31 @@ export interface ConcatConfig {
   separator: string;
 }
 
-export type ComputedFieldType = 'arithmetic' | 'conditional' | 'filtered-count' | 'concat';
+export interface MapConfig {
+  field: string;
+  mappings: Array<{ from: string; to: string }>;
+  defaultMapping?: string;
+}
+
+export interface SubEntityAggregateConfig {
+  subEntityField: string;
+  aggregation: 'count' | 'sum' | 'avg' | 'min' | 'max';
+  field?: string;
+  filters?: FilteredCountFilter[];
+}
+
+export type ComputedFieldType = 'arithmetic' | 'conditional' | 'filtered-count' | 'concat' | 'map' | 'sub-entity-aggregate';
 
 export interface ComputedField {
   id: string;
   slug: string;
   label: string;
   type: ComputedFieldType;
-  config: ArithmeticConfig | ConditionalConfig | FilteredCountConfig | ConcatConfig;
+  config: ArithmeticConfig | ConditionalConfig | FilteredCountConfig | ConcatConfig | MapConfig | SubEntityAggregateConfig;
+}
+
+export interface PdfTemplateSettings {
+  emptyFieldDefault?: string;
 }
 
 export interface PdfTemplateContent {
@@ -196,6 +247,7 @@ export interface PdfTemplateContent {
   body: PdfElement[];
   footer?: PdfFooter;
   computedFields?: ComputedField[];
+  settings?: PdfTemplateSettings;
 }
 
 export interface PdfTemplate {
@@ -363,13 +415,18 @@ export const pdfTemplatesService = {
 
   async generateBatch(
     templateId: string,
-    recordIds: string[],
-    mergePdfs?: boolean,
+    options: {
+      recordIds?: string[];
+      useAllRecords?: boolean;
+      filters?: string;
+      search?: string;
+      mergePdfs?: boolean;
+    },
   ): Promise<Blob> {
     const response = await api.post(
       `/pdf-templates/${templateId}/generate-batch`,
-      { recordIds, mergePdfs },
-      { responseType: 'blob' },
+      options,
+      { responseType: 'blob', timeout: 600000 },
     );
     return response.data;
   },

@@ -4,7 +4,6 @@ import {
   IsOptional,
   IsBoolean,
   IsObject,
-  ArrayMinSize,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
@@ -20,11 +19,26 @@ export class GenerateSinglePdfDto {
 }
 
 export class GenerateBatchPdfDto {
-  @ApiProperty({ description: 'IDs dos registros para gerar PDFs' })
+  @ApiPropertyOptional({ description: 'IDs dos registros para gerar PDFs (modo selecao manual)' })
   @IsArray()
-  @ArrayMinSize(1)
   @IsString({ each: true })
-  recordIds: string[];
+  @IsOptional()
+  recordIds?: string[];
+
+  @ApiPropertyOptional({ description: 'Se true, gera PDF com todos os registros da entidade', default: false })
+  @IsBoolean()
+  @IsOptional()
+  useAllRecords?: boolean;
+
+  @ApiPropertyOptional({ description: 'Filtros JSON para usar com useAllRecords' })
+  @IsString()
+  @IsOptional()
+  filters?: string;
+
+  @ApiPropertyOptional({ description: 'Busca textual para usar com useAllRecords' })
+  @IsString()
+  @IsOptional()
+  search?: string;
 
   @ApiPropertyOptional({ description: 'Se true, gera um unico PDF com todos os registros', default: false })
   @IsBoolean()

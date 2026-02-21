@@ -15,7 +15,7 @@ import {
   LayoutGrid,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -28,9 +28,10 @@ import {
   CollapsibleTrigger,
 } from '@/components/ui/collapsible';
 import { Badge } from '@/components/ui/badge';
-import type { PdfElement } from '@/services/pdf-templates.service';
+import { Switch } from '@/components/ui/switch';
+import type { PdfElement, ComputedField } from '@/services/pdf-templates.service';
 
-// Element editors
+// Element editors (appearance)
 import { TextElementEditor } from './elements/text-element-editor';
 import { FieldGroupElementEditor } from './elements/field-group-element-editor';
 import { TableElementEditor } from './elements/table-element-editor';
@@ -38,6 +39,13 @@ import { ImageGridElementEditor } from './elements/image-grid-element-editor';
 import { DividerElementEditor } from './elements/divider-element-editor';
 import { SpacerElementEditor } from './elements/spacer-element-editor';
 import { StatisticsElementEditor } from './elements/statistics-element-editor';
+
+// Data editors
+import { FieldGroupDataEditor } from './data-editors/field-group-data-editor';
+import { TableDataEditor } from './data-editors/table-data-editor';
+import { ImageGridDataEditor } from './data-editors/image-grid-data-editor';
+import { StatisticsDataEditor } from './data-editors/statistics-data-editor';
+import { VisibilityEditor } from './data-editors/visibility-editor';
 
 interface ElementsTabProps {
   elements: PdfElement[];
@@ -48,6 +56,14 @@ interface ElementsTabProps {
     fields?: Array<{ slug: string; name: string; label?: string; type: string }>;
   };
   onChange: (elements: PdfElement[]) => void;
+  subEntities?: Record<string, {
+    id: string;
+    name: string;
+    slug: string;
+    fields?: Array<{ slug: string; name: string; label?: string; type: string }>;
+  }>;
+  computedFields?: ComputedField[];
+  templateType?: string;
 }
 
 const ELEMENT_TYPES = [
@@ -59,6 +75,16 @@ const ELEMENT_TYPES = [
   { type: 'divider', label: 'Divisor', icon: Minus, description: 'Linha horizontal' },
   { type: 'spacer', label: 'Espacador', icon: ChevronDown, description: 'Espaco em branco' },
 ] as const;
+
+const SYSTEM_FIELDS = [
+  { slug: 'createdAt', name: 'Data de Criacao', label: 'Data de Criacao', type: 'datetime' },
+  { slug: 'updatedAt', name: 'Data de Atualizacao', label: 'Data de Atualizacao', type: 'datetime' },
+  { slug: '_geolocation.lat', name: 'Latitude', label: 'Latitude', type: 'number' },
+  { slug: '_geolocation.lng', name: 'Longitude', label: 'Longitude', type: 'number' },
+  { slug: '_geolocation.city', name: 'Cidade (GPS)', label: 'Cidade (GPS)', type: 'text' },
+  { slug: '_geolocation.uf', name: 'Estado (GPS)', label: 'Estado (GPS)', type: 'text' },
+  { slug: '_geolocation.address', name: 'Endereco (GPS)', label: 'Endereco (GPS)', type: 'text' },
+];
 
 function generateId(): string {
   return `el_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
@@ -152,8 +178,23 @@ function getElementLabel(type: string) {
   return found ? found.label : type;
 }
 
-export function ElementsTab({ elements, sourceEntity, onChange }: ElementsTabProps) {
+const DATA_ELEMENT_TYPES = ['field-group', 'table', 'image-grid', 'statistics'] as const;
+
+function hasDataEditor(type: string): boolean {
+  return DATA_ELEMENT_TYPES.includes(type as (typeof DATA_ELEMENT_TYPES)[number]);
+}
+
+export function ElementsTab({
+  elements,
+  sourceEntity,
+  onChange,
+  subEntities,
+  computedFields,
+  templateType,
+}: ElementsTabProps) {
   const [expandedElements, setExpandedElements] = useState<Set<string>>(new Set());
+
+  const availableFields = [...(sourceEntity?.fields || []), ...SYSTEM_FIELDS];
 
   const handleAddElement = (type: string) => {
     const newElement = createDefaultElement(type);
@@ -200,32 +241,21 @@ export function ElementsTab({ elements, sourceEntity, onChange }: ElementsTabPro
     });
   };
 
-  const SYSTEM_FIELDS = [
-    { slug: 'createdAt', name: 'Data de Criacao', label: 'Data de Criacao', type: 'datetime' },
-    { slug: 'updatedAt', name: 'Data de Atualizacao', label: 'Data de Atualizacao', type: 'datetime' },
-    { slug: '_geolocation.lat', name: 'Latitude', label: 'Latitude', type: 'number' },
-    { slug: '_geolocation.lng', name: 'Longitude', label: 'Longitude', type: 'number' },
-    { slug: '_geolocation.city', name: 'Cidade (GPS)', label: 'Cidade (GPS)', type: 'text' },
-    { slug: '_geolocation.uf', name: 'Estado (GPS)', label: 'Estado (GPS)', type: 'text' },
-    { slug: '_geolocation.address', name: 'Endereco (GPS)', label: 'Endereco (GPS)', type: 'text' },
-  ];
-  const availableFields = [...(sourceEntity?.fields || []), ...SYSTEM_FIELDS];
-
   return (
     <div className="space-y-4">
       {/* Header com botao de adicionar */}
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="font-medium">Elementos do Corpo</h3>
+          <h3 className="font-medium">Elementos do PDF</h3>
           <p className="text-sm text-muted-foreground">
-            Arraste para reordenar, clique para editar
+            Cada elemento vira uma secao do documento
           </p>
         </div>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button>
               <Plus className="h-4 w-4 mr-2" />
-              Adicionar Elemento
+              Adicionar
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-56">
@@ -251,7 +281,7 @@ export function ElementsTab({ elements, sourceEntity, onChange }: ElementsTabPro
         <Card>
           <CardContent className="p-8 text-center">
             <p className="text-muted-foreground mb-4">
-              Nenhum elemento adicionado ainda. Clique em &quot;Adicionar Elemento&quot; para comecar.
+              Nenhum elemento adicionado ainda. Clique em &quot;Adicionar&quot; para comecar.
             </p>
           </CardContent>
         </Card>
@@ -269,7 +299,7 @@ export function ElementsTab({ elements, sourceEntity, onChange }: ElementsTabPro
                       <div className="flex items-center gap-3">
                         <GripVertical className="h-4 w-4 text-muted-foreground cursor-grab" />
                         <Icon className="h-4 w-4" />
-                        <div className="flex-1 text-left">
+                        <div className="flex-1 text-left min-w-0">
                           <span className="font-medium">{getElementLabel(element.type)}</span>
                           {element.type === 'text' && (
                             <span className="ml-2 text-sm text-muted-foreground truncate">
@@ -282,6 +312,16 @@ export function ElementsTab({ elements, sourceEntity, onChange }: ElementsTabPro
                             </span>
                           )}
                         </div>
+                        {element.visibility && (
+                          <Badge variant="secondary" className="text-xs flex-shrink-0">
+                            Condicional
+                          </Badge>
+                        )}
+                        {templateType === 'batch' && element.repeatPerRecord && (
+                          <Badge variant="secondary" className="text-xs flex-shrink-0 bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300">
+                            Repete
+                          </Badge>
+                        )}
                         <Badge variant="outline" className="text-xs">
                           #{index + 1}
                         </Badge>
@@ -326,7 +366,8 @@ export function ElementsTab({ elements, sourceEntity, onChange }: ElementsTabPro
                     </CardHeader>
                   </CollapsibleTrigger>
                   <CollapsibleContent>
-                    <CardContent className="pt-0 pb-4">
+                    <CardContent className="pt-0 pb-4 space-y-4">
+                      {/* Aparencia */}
                       {element.type === 'text' && (
                         <TextElementEditor
                           element={element}
@@ -370,6 +411,75 @@ export function ElementsTab({ elements, sourceEntity, onChange }: ElementsTabPro
                           onChange={(updates) => handleUpdateElement(element.id, updates)}
                         />
                       )}
+
+                      {/* Dados - separados por divider */}
+                      {hasDataEditor(element.type) && (
+                        <div className="border-t pt-4 space-y-4">
+                          <h4 className="text-sm font-medium text-muted-foreground">Dados</h4>
+
+                          {element.type === 'field-group' && (
+                            <FieldGroupDataEditor
+                              element={element}
+                              onChange={(updates) => handleUpdateElement(element.id, updates)}
+                              availableFields={availableFields}
+                              isBatch={templateType === 'batch'}
+                              computedFields={computedFields}
+                            />
+                          )}
+                          {element.type === 'table' && (
+                            <TableDataEditor
+                              element={element}
+                              onChange={(updates) => handleUpdateElement(element.id, updates)}
+                              availableFields={availableFields}
+                              subEntities={subEntities}
+                            />
+                          )}
+                          {element.type === 'image-grid' && (
+                            <ImageGridDataEditor
+                              element={element}
+                              onChange={(updates) => handleUpdateElement(element.id, updates)}
+                              availableFields={availableFields}
+                              subEntities={subEntities}
+                            />
+                          )}
+                          {element.type === 'statistics' && (
+                            <StatisticsDataEditor
+                              element={element}
+                              onChange={(updates) => handleUpdateElement(element.id, updates)}
+                              availableFields={availableFields}
+                            />
+                          )}
+                        </div>
+                      )}
+
+                      {/* Visibilidade condicional - para todos os elementos */}
+                      <div className="border-t pt-4">
+                        <VisibilityEditor
+                          visibility={element.visibility}
+                          onChange={(v) => handleUpdateElement(element.id, { visibility: v } as Partial<PdfElement>)}
+                          availableFields={availableFields}
+                        />
+                      </div>
+
+                      {/* Repetir por registro - apenas para batch */}
+                      {templateType === 'batch' && (
+                        <div className="border-t pt-4">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <h4 className="text-sm font-medium">Repetir por registro</h4>
+                              <p className="text-xs text-muted-foreground">
+                                Renderiza este elemento para cada registro do lote
+                              </p>
+                            </div>
+                            <Switch
+                              checked={!!element.repeatPerRecord}
+                              onCheckedChange={(checked) =>
+                                handleUpdateElement(element.id, { repeatPerRecord: checked } as Partial<PdfElement>)
+                              }
+                            />
+                          </div>
+                        </div>
+                      )}
                     </CardContent>
                   </CollapsibleContent>
                 </Collapsible>
@@ -383,10 +493,10 @@ export function ElementsTab({ elements, sourceEntity, onChange }: ElementsTabPro
       {availableFields.length > 0 && (
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm">Campos Disponiveis</CardTitle>
-            <CardDescription>
-              Clique em um campo para copiar o binding
-            </CardDescription>
+            <div className="text-sm font-medium">Campos Disponiveis</div>
+            <p className="text-xs text-muted-foreground">
+              Clique para copiar o codigo do campo
+            </p>
           </CardHeader>
           <CardContent>
             <div className="flex flex-wrap gap-1">
