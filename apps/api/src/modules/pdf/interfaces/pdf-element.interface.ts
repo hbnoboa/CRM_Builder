@@ -37,6 +37,9 @@ export interface FieldGroupElement extends BasePdfElement {
   title?: string;
   layout: 'horizontal' | 'vertical' | 'grid';
   columns?: number;
+  labelFontSize?: number;
+  valueFontSize?: number;
+  lineSpacing?: number; // Espacamento entre linhas em pt
   fields: {
     label: string;
     binding: string; // {{campo}}
@@ -89,8 +92,13 @@ export interface ImageGridElement extends BasePdfElement {
   dataSource: string; // Campo com array de imagens
   imageWidth?: number;
   imageHeight?: number;
+  cellHeight?: number; // Altura da celula (para controle de layout)
   showCaptions?: boolean;
   captionFields?: string[];
+  captionFontSize?: number;
+  captionDataFields?: string[]; // Campos dos dados para captions dinamicos (ex: ["chassi", "modelo", "local", "medida"])
+  imageFields?: string[]; // Campos de imagem para extrair de sub-entidades
+  parentImageFields?: string[]; // Campos de imagem do registro principal (foto_chassi, foto_perfil)
 }
 
 // Linha divisoria
@@ -111,6 +119,9 @@ export interface StatisticsElement extends BasePdfElement {
   type: 'statistics';
   title: string;
   groupBy: string[]; // Campos para agrupar (ex: ["marca", "modelo"])
+  columnWidths?: number[]; // Larguras customizadas para cada coluna (groupBy + metrics)
+  rowHeight?: number; // Altura das linhas (default 20)
+  headerFill?: string | null; // Cor de fundo do header (null = sem fill)
   metrics: {
     field: string;
     aggregation: 'count' | 'sum' | 'avg' | 'percentage';
@@ -147,6 +158,7 @@ export interface PdfHeader {
     binding?: string;
   };
   showOnAllPages?: boolean;
+  showDivider?: boolean; // Mostrar linha divisoria apos header (default true)
 }
 
 // Estrutura do footer
@@ -156,11 +168,52 @@ export interface PdfFooter {
   position?: 'left' | 'center' | 'right';
 }
 
+// =============== Computed Fields ===============
+
+export interface ArithmeticConfig {
+  operands: Array<{ type: 'field' | 'number'; value: string }>;
+  operators: Array<'+' | '-' | '*' | '/'>;
+}
+
+export interface ConditionalConfig {
+  field: string;
+  operator: 'equals' | 'not_equals' | 'greater' | 'less' | 'contains' | 'not_empty';
+  compareValue: string;
+  trueResult: { type: 'text' | 'field'; value: string };
+  falseResult: { type: 'text' | 'field'; value: string };
+}
+
+export interface FilteredCountFilter {
+  field: string;
+  operator: 'equals' | 'not_equals' | 'greater' | 'less' | 'contains' | 'not_empty';
+  value: string;
+}
+
+export interface FilteredCountConfig {
+  filters: FilteredCountFilter[];
+}
+
+export interface ConcatConfig {
+  parts: Array<{ type: 'field' | 'text'; value: string }>;
+  separator: string;
+}
+
+export type ComputedFieldType = 'arithmetic' | 'conditional' | 'filtered-count' | 'concat';
+
+export interface ComputedField {
+  id: string;
+  slug: string;
+  label: string;
+  type: ComputedFieldType;
+  config: ArithmeticConfig | ConditionalConfig | FilteredCountConfig | ConcatConfig;
+}
+
 // Conteudo completo do template
 export interface PdfTemplateContent {
   header?: PdfHeader;
   body: PdfElement[];
   footer?: PdfFooter;
+  computedFields?: ComputedField[];
 }
 
 // Margens do PDF

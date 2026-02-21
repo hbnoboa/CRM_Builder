@@ -14,6 +14,7 @@ import {
   FileText,
   LayoutList,
   Image,
+  Calculator,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -28,6 +29,7 @@ import { GeneralTab } from '@/components/pdf/template-editor/general-tab';
 import { HeaderTab } from '@/components/pdf/template-editor/header-tab';
 import { ElementsTab } from '@/components/pdf/template-editor/elements-tab';
 import { FooterTab } from '@/components/pdf/template-editor/footer-tab';
+import { DataTab } from '@/components/pdf/template-editor/data-tab';
 import { PdfPreview } from '@/components/pdf/preview/pdf-preview';
 
 interface PageProps {
@@ -195,6 +197,10 @@ function EditPdfTemplatePageContent({ params }: PageProps) {
                 <Settings className="h-4 w-4" />
                 Geral
               </TabsTrigger>
+              <TabsTrigger value="data" className="gap-2">
+                <Calculator className="h-4 w-4" />
+                Dados
+              </TabsTrigger>
               <TabsTrigger value="header" className="gap-2">
                 <Image className="h-4 w-4" />
                 Header
@@ -219,6 +225,17 @@ function EditPdfTemplatePageContent({ params }: PageProps) {
               />
             </TabsContent>
 
+            <TabsContent value="data" className="mt-4">
+              {localContent && (
+                <DataTab
+                  computedFields={localContent.computedFields || []}
+                  onChange={(computedFields) => handleContentChange({ computedFields })}
+                  availableFields={template.sourceEntity?.fields || []}
+                  templateType={template.templateType}
+                />
+              )}
+            </TabsContent>
+
             <TabsContent value="header" className="mt-4">
               {localContent && (
                 <HeaderTab
@@ -235,6 +252,8 @@ function EditPdfTemplatePageContent({ params }: PageProps) {
                   elements={localContent.body || []}
                   sourceEntity={template.sourceEntity}
                   subEntities={template.subEntities}
+                  templateType={template.templateType}
+                  computedFields={localContent.computedFields}
                   onChange={(body) => handleContentChange({ body })}
                 />
               )}

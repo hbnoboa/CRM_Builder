@@ -52,6 +52,7 @@ export function PdfPreview({ template, content }: PdfPreviewProps) {
       const blob = await previewPdf.mutateAsync({
         templateId: template.id,
         sampleData: SAMPLE_DATA,
+        content: content || undefined,
       });
       const url = URL.createObjectURL(blob);
       setPdfUrl((prev) => {

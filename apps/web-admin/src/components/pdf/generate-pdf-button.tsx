@@ -16,7 +16,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { usePdfTemplates, useGeneratePdf } from '@/hooks/use-pdf-templates';
+import { usePdfTemplates, useGeneratePdf, useGenerateBatchPdf } from '@/hooks/use-pdf-templates';
 import type { PdfTemplate } from '@/services/pdf-templates.service';
 
 interface GeneratePdfButtonProps {
@@ -134,6 +134,7 @@ export function GenerateBatchPdfButton({
     templateType: 'batch',
   });
 
+  const generateBatchPdf = useGenerateBatchPdf();
   const templates = templatesData?.data || [];
 
   // Se nao houver templates de lote publicados, nao mostrar
@@ -141,15 +142,27 @@ export function GenerateBatchPdfButton({
     return null;
   }
 
+  const handleGenerate = async (templateId: string) => {
+    try {
+      await generateBatchPdf.mutateAsync({ templateId, recordIds });
+    } catch {
+      // Error handled by hook
+    }
+  };
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button
           variant="outline"
           size="sm"
-          disabled={disabled || recordIds.length === 0 || isLoadingTemplates}
+          disabled={disabled || recordIds.length === 0 || isLoadingTemplates || generateBatchPdf.isPending}
         >
-          <FileText className="h-4 w-4 mr-2" />
+          {generateBatchPdf.isPending ? (
+            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+          ) : (
+            <FileText className="h-4 w-4 mr-2" />
+          )}
           Gerar PDF ({recordIds.length})
         </Button>
       </DropdownMenuTrigger>
@@ -157,10 +170,7 @@ export function GenerateBatchPdfButton({
         {templates.map((template) => (
           <DropdownMenuItem
             key={template.id}
-            onClick={() => {
-              // TODO: Implementar geracao em lote quando BullMQ estiver pronto
-              console.log('Generate batch PDF:', template.id, recordIds);
-            }}
+            onClick={() => handleGenerate(template.id)}
           >
             <Download className="h-4 w-4 mr-2" />
             {template.name}

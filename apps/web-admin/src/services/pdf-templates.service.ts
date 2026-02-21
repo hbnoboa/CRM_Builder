@@ -73,6 +73,9 @@ export interface FieldGroupElement extends BasePdfElement {
   title?: string;
   layout: 'horizontal' | 'vertical' | 'grid';
   columns?: number;
+  labelFontSize?: number;
+  valueFontSize?: number;
+  lineSpacing?: number;
   fields: {
     label: string;
     binding: string;
@@ -105,8 +108,13 @@ export interface ImageGridElement extends BasePdfElement {
   dataSource: string;
   imageWidth?: number;
   imageHeight?: number;
+  cellHeight?: number;
   showCaptions?: boolean;
   captionFields?: string[];
+  captionFontSize?: number;
+  captionDataFields?: string[];
+  imageFields?: string[];
+  parentImageFields?: string[];
 }
 
 export interface DividerElement extends BasePdfElement {
@@ -124,6 +132,9 @@ export interface StatisticsElement extends BasePdfElement {
   type: 'statistics';
   title: string;
   groupBy: string[];
+  columnWidths?: number[];
+  rowHeight?: number;
+  headerFill?: string | null;
   metrics: {
     field: string;
     aggregation: 'count' | 'sum' | 'avg' | 'percentage';
@@ -140,10 +151,51 @@ export type PdfElement =
   | SpacerElement
   | StatisticsElement;
 
+// =============== Computed Fields ===============
+
+export interface ArithmeticConfig {
+  operands: Array<{ type: 'field' | 'number'; value: string }>;
+  operators: Array<'+' | '-' | '*' | '/'>;
+}
+
+export interface ConditionalConfig {
+  field: string;
+  operator: 'equals' | 'not_equals' | 'greater' | 'less' | 'contains' | 'not_empty';
+  compareValue: string;
+  trueResult: { type: 'text' | 'field'; value: string };
+  falseResult: { type: 'text' | 'field'; value: string };
+}
+
+export interface FilteredCountFilter {
+  field: string;
+  operator: 'equals' | 'not_equals' | 'greater' | 'less' | 'contains' | 'not_empty';
+  value: string;
+}
+
+export interface FilteredCountConfig {
+  filters: FilteredCountFilter[];
+}
+
+export interface ConcatConfig {
+  parts: Array<{ type: 'field' | 'text'; value: string }>;
+  separator: string;
+}
+
+export type ComputedFieldType = 'arithmetic' | 'conditional' | 'filtered-count' | 'concat';
+
+export interface ComputedField {
+  id: string;
+  slug: string;
+  label: string;
+  type: ComputedFieldType;
+  config: ArithmeticConfig | ConditionalConfig | FilteredCountConfig | ConcatConfig;
+}
+
 export interface PdfTemplateContent {
   header?: PdfHeader;
   body: PdfElement[];
   footer?: PdfFooter;
+  computedFields?: ComputedField[];
 }
 
 export interface PdfTemplate {
@@ -313,11 +365,12 @@ export const pdfTemplatesService = {
     templateId: string,
     recordIds: string[],
     mergePdfs?: boolean,
-  ): Promise<PdfGeneration> {
-    const response = await api.post(`/pdf-templates/${templateId}/generate-batch`, {
-      recordIds,
-      mergePdfs,
-    });
+  ): Promise<Blob> {
+    const response = await api.post(
+      `/pdf-templates/${templateId}/generate-batch`,
+      { recordIds, mergePdfs },
+      { responseType: 'blob' },
+    );
     return response.data;
   },
 
@@ -325,10 +378,11 @@ export const pdfTemplatesService = {
     templateId: string,
     sampleData?: Record<string, unknown>,
     recordId?: string,
+    content?: PdfTemplateContent,
   ): Promise<Blob> {
     const response = await api.post(
       `/pdf-templates/${templateId}/preview`,
-      { sampleData, recordId },
+      { sampleData, recordId, content },
       { responseType: 'blob' },
     );
     return response.data;

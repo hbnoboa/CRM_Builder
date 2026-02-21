@@ -65,7 +65,7 @@ import { api } from '@/lib/api';
 import { useTenant } from '@/stores/tenant-context';
 import { useAuthStore } from '@/stores/auth-store';
 import { RecordFormDialog } from '@/components/data/record-form-dialog';
-import { GeneratePdfButton } from '@/components/pdf/generate-pdf-button';
+import { GeneratePdfButton, GenerateBatchPdfButton } from '@/components/pdf/generate-pdf-button';
 import { useDeleteEntityData } from '@/hooks/use-data';
 import type { EntityField } from '@/types';
 
@@ -416,6 +416,9 @@ function DataPageContent() {
   // Ordenacao por coluna
   const [sortConfig, setSortConfig] = useState<{ field: string; order: 'asc' | 'desc' } | null>(null);
 
+  // Selecao de registros para operacoes em lote
+  const [selectedRecordIds, setSelectedRecordIds] = useState<Set<string>>(new Set());
+
   const deleteRecord = useDeleteEntityData();
 
   // Counter para evitar race conditions entre requests concorrentes
@@ -428,6 +431,7 @@ function DataPageContent() {
   useEffect(() => {
     setSelectedEntity(null);
     setRecords([]);
+    setSelectedRecordIds(new Set());
     fetchEntities();
   }, [effectiveTenantId]);
 
@@ -1005,17 +1009,25 @@ function DataPageContent() {
             {t('subtitle')}
           </p>
         </div>
-        {selectedEntity && hasEntityPermission(selectedEntity.slug, 'canCreate') && (
-          <Button
-            onClick={handleNewRecord}
-            disabled={tenantLoading || (!tenantId && !isPlatformAdmin)}
-            data-testid="new-record-btn"
-            className="w-full sm:w-auto"
-          >
-            <Plus className="h-4 w-4 mr-2" />
-            {t('newRecord')}
-          </Button>
-        )}
+        <div className="flex items-center gap-2 w-full sm:w-auto">
+          {selectedEntity && selectedRecordIds.size > 0 && (
+            <GenerateBatchPdfButton
+              entityId={selectedEntity.id}
+              recordIds={Array.from(selectedRecordIds)}
+            />
+          )}
+          {selectedEntity && hasEntityPermission(selectedEntity.slug, 'canCreate') && (
+            <Button
+              onClick={handleNewRecord}
+              disabled={tenantLoading || (!tenantId && !isPlatformAdmin)}
+              data-testid="new-record-btn"
+              className="w-full sm:w-auto"
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              {t('newRecord')}
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Mobile: Select de Entidades */}
@@ -1894,6 +1906,18 @@ function DataPageContent() {
                       <table className="w-full table-auto">
                         <thead className="bg-muted/50">
                           <tr>
+                            <th className="px-3 py-2 w-8">
+                              <Checkbox
+                                checked={filteredRecords.length > 0 && selectedRecordIds.size === filteredRecords.length}
+                                onCheckedChange={(checked) => {
+                                  if (checked) {
+                                    setSelectedRecordIds(new Set(filteredRecords.map(r => r.id)));
+                                  } else {
+                                    setSelectedRecordIds(new Set());
+                                  }
+                                }}
+                              />
+                            </th>
                             {visibleColumns.map(col => {
                               const field = getFieldBySlug(col);
                               const sortKey = col === '_parent' ? '_parentDisplay' : col;
@@ -1958,7 +1982,23 @@ function DataPageContent() {
                         </thead>
                         <tbody className="divide-y">
                           {filteredRecords.map(record => (
-                            <tr key={record.id} className="hover:bg-muted/30">
+                            <tr key={record.id} className={`hover:bg-muted/30 ${selectedRecordIds.has(record.id) ? 'bg-muted/20' : ''}`}>
+                              <td className="px-3 py-2 w-8">
+                                <Checkbox
+                                  checked={selectedRecordIds.has(record.id)}
+                                  onCheckedChange={(checked) => {
+                                    setSelectedRecordIds(prev => {
+                                      const next = new Set(prev);
+                                      if (checked) {
+                                        next.add(record.id);
+                                      } else {
+                                        next.delete(record.id);
+                                      }
+                                      return next;
+                                    });
+                                  }}
+                                />
+                              </td>
                               {visibleColumns.map(col => {
                                 const field = getFieldBySlug(col);
                                 const isSubEntity = field?.type === 'sub-entity';

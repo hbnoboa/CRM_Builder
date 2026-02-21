@@ -172,8 +172,6 @@ export function useGeneratePdf() {
 }
 
 export function useGenerateBatchPdf() {
-  const queryClient = useQueryClient();
-
   return useMutation({
     mutationFn: ({
       templateId,
@@ -184,12 +182,19 @@ export function useGenerateBatchPdf() {
       recordIds: string[];
       mergePdfs?: boolean;
     }) => pdfTemplatesService.generateBatch(templateId, recordIds, mergePdfs),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: pdfTemplateKeys.generations() });
-      toast.success('Geracao em lote iniciada! Voce sera notificado quando concluir.');
+    onSuccess: (blob) => {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'relatorio-lote.pdf';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      toast.success('PDF em lote gerado com sucesso!');
     },
     onError: (error: unknown) => {
-      const message = error instanceof Error ? error.message : 'Erro ao iniciar geracao em lote';
+      const message = error instanceof Error ? error.message : 'Erro ao gerar PDF em lote';
       toast.error(message);
     },
   });
@@ -201,11 +206,13 @@ export function usePreviewPdf() {
       templateId,
       sampleData,
       recordId,
+      content,
     }: {
       templateId: string;
       sampleData?: Record<string, unknown>;
       recordId?: string;
-    }) => pdfTemplatesService.preview(templateId, sampleData, recordId),
+      content?: import('@/services/pdf-templates.service').PdfTemplateContent;
+    }) => pdfTemplatesService.preview(templateId, sampleData, recordId, content),
     onError: (error: unknown) => {
       const message = error instanceof Error ? error.message : 'Erro ao gerar preview';
       toast.error(message);

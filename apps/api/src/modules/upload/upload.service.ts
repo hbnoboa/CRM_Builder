@@ -217,6 +217,83 @@ export class UploadService {
     }
   }
 
+  /**
+   * Upload de buffer direto (para PDFs gerados, etc.)
+   */
+  async uploadBuffer(
+    buffer: Buffer,
+    fileName: string,
+    mimeType: string,
+    tenantId: string,
+    folder: string = 'uploads',
+  ): Promise<UploadedFile> {
+    const filePath = `${tenantId}/${folder}/${fileName}`;
+
+    if (!this.storage) {
+      this.logger.warn('GCS não configurado - salvando buffer localmente');
+
+      const uploadsDir = path.join(process.cwd(), 'uploads', tenantId, folder);
+      fs.mkdirSync(uploadsDir, { recursive: true });
+
+      const localPath = path.join(uploadsDir, fileName);
+      fs.writeFileSync(localPath, buffer);
+
+      const publicUrl = `/uploads/${filePath}`;
+
+      this.logger.log(`✅ Buffer salvo localmente: ${publicUrl}`);
+
+      return {
+        url: publicUrl,
+        publicUrl,
+        fileName,
+        originalName: fileName,
+        mimeType,
+        size: buffer.length,
+        bucket: 'local',
+        path: filePath,
+      };
+    }
+
+    try {
+      const bucketInstance = this.storage.bucket(this.bucket);
+      const blob = bucketInstance.file(filePath);
+
+      await blob.save(buffer, {
+        metadata: {
+          contentType: mimeType,
+          metadata: {
+            tenantId,
+            uploadedAt: new Date().toISOString(),
+          },
+        },
+      });
+
+      try {
+        await blob.makePublic();
+      } catch (publicError) {
+        this.logger.warn('Não foi possível tornar público individualmente (Uniform Bucket-Level Access ativado).');
+      }
+
+      const publicUrl = `${this.baseUrl}/${filePath}`;
+
+      this.logger.log(`✅ Buffer enviado para GCS: ${publicUrl}`);
+
+      return {
+        url: publicUrl,
+        publicUrl,
+        fileName,
+        originalName: fileName,
+        mimeType,
+        size: buffer.length,
+        bucket: this.bucket,
+        path: filePath,
+      };
+    } catch (error) {
+      this.logger.error('Erro ao fazer upload de buffer:', error);
+      throw new BadRequestException('Erro ao fazer upload do arquivo');
+    }
+  }
+
   // Upload de imagem com redimensionamento (requer sharp)
   async uploadImage(
     file: Express.Multer.File,

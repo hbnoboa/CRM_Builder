@@ -1,11 +1,12 @@
 'use client';
 
-import { Plus, Trash2 } from 'lucide-react';
+import { Plus, Trash2, ImageIcon, Info, Type } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Slider } from '@/components/ui/slider';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   Select,
   SelectContent,
@@ -19,35 +20,89 @@ interface ImageGridElementEditorProps {
   element: ImageGridElement;
   onChange: (updates: Partial<ImageGridElement>) => void;
   availableFields: Array<{ slug: string; name: string; label?: string; type: string }>;
+  subEntities?: Record<string, {
+    id: string;
+    name: string;
+    slug: string;
+    fields?: Array<{ slug: string; name: string; label?: string; type: string }>;
+  }>;
 }
 
 export function ImageGridElementEditor({
   element,
   onChange,
   availableFields,
+  subEntities,
 }: ImageGridElementEditorProps) {
-  const handleAddCaption = () => {
-    onChange({
-      captionFields: [...(element.captionFields || []), ''],
-    });
+  const selectedSubEntity = element.dataSource && subEntities?.[element.dataSource];
+  const subEntityImageFields = selectedSubEntity?.fields?.filter(
+    (f) => f.type === 'image'
+  ) || [];
+  const subEntityAllFields = selectedSubEntity?.fields || [];
+
+  // Campos de imagem do registro principal
+  const parentImageFields = availableFields.filter((f) => f.type === 'image' || f.type === 'images');
+
+  // Fontes de dados disponiveis (sub-entidades e campos de imagem do principal)
+  const subEntityOptions = availableFields.filter(
+    (f) => f.type === 'sub-entity' || f.type === 'array'
+  );
+  const imageFieldOptions = availableFields.filter(
+    (f) => f.type === 'image' || f.type === 'images'
+  );
+
+  const handleToggleImageField = (slug: string, checked: boolean) => {
+    const current = element.imageFields || [];
+    if (checked) {
+      onChange({ imageFields: [...current, slug] });
+    } else {
+      onChange({ imageFields: current.filter((f) => f !== slug) });
+    }
   };
 
-  const handleRemoveCaption = (index: number) => {
-    onChange({
-      captionFields: (element.captionFields || []).filter((_, i) => i !== index),
-    });
+  const handleToggleParentImageField = (slug: string, checked: boolean) => {
+    const current = element.parentImageFields || [];
+    if (checked) {
+      onChange({ parentImageFields: [...current, slug] });
+    } else {
+      onChange({ parentImageFields: current.filter((f) => f !== slug) });
+    }
   };
 
-  const handleCaptionChange = (index: number, value: string) => {
-    const newCaptions = [...(element.captionFields || [])];
+  // Total de colunas usadas (parent + child)
+  const parentCols = element.parentImageFields?.length || 0;
+  const childCols = element.imageFields?.length || 0;
+  const totalCols = parentCols + childCols;
+
+  // Headers (captionFields) management
+  const handleHeaderChange = (index: number, value: string) => {
+    const newHeaders = [...(element.captionFields || [])];
+    newHeaders[index] = value;
+    onChange({ captionFields: newHeaders });
+  };
+
+  // Data captions (captionDataFields) management
+  const handleDataCaptionChange = (index: number, value: string) => {
+    const newCaptions = [...(element.captionDataFields || [])];
     newCaptions[index] = value;
-    onChange({ captionFields: newCaptions });
+    onChange({ captionDataFields: newCaptions });
   };
+
+  // Initialize headers/captions to match total columns
+  const ensureArraySize = (arr: string[] | undefined, size: number): string[] => {
+    const result = [...(arr || [])];
+    while (result.length < size) result.push('');
+    return result.slice(0, size);
+  };
+
+  const headers = ensureArraySize(element.captionFields, totalCols);
+  const dataCaptions = ensureArraySize(element.captionDataFields, totalCols);
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
+      {/* Titulo da secao */}
       <div className="space-y-2">
-        <Label>Titulo (opcional)</Label>
+        <Label className="text-sm font-medium">Titulo da Secao</Label>
         <Input
           placeholder="Ex: Fotos das Avarias"
           value={element.title || ''}
@@ -55,152 +110,420 @@ export function ImageGridElementEditor({
         />
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2">
-        <div className="space-y-2">
-          <Label>Fonte de Dados (array de imagens)</Label>
-          <Select
-            value={element.dataSource}
-            onValueChange={(value) => onChange({ dataSource: value })}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="Selecione" />
-            </SelectTrigger>
-            <SelectContent>
-              {availableFields
-                .filter((f) => f.type === 'image' || f.type === 'images' || f.type === 'array')
-                .map((f) => (
+      {/* Fonte de dados - separada em categorias claras */}
+      <div className="space-y-3 rounded-lg border p-4 bg-muted/30">
+        <div className="flex items-center gap-2">
+          <ImageIcon className="h-4 w-4 text-primary" />
+          <Label className="text-sm font-semibold">Fonte das Imagens</Label>
+        </div>
+
+        {/* Opcao 1: Sub-entidade (loop) */}
+        {subEntityOptions.length > 0 && (
+          <div className="space-y-2">
+            <Label className="text-xs text-muted-foreground">
+              Repetir imagens de uma sub-entidade (loop por registro)
+            </Label>
+            <Select
+              value={element.dataSource || '_empty'}
+              onValueChange={(value) => onChange({
+                dataSource: value === '_empty' ? '' : value,
+                imageFields: [],
+                parentImageFields: [],
+                captionFields: [],
+                captionDataFields: [],
+              })}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Selecione a sub-entidade..." />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="_empty">Nenhuma (usar campos diretos)</SelectItem>
+                {subEntityOptions.map((f) => (
                   <SelectItem key={f.slug} value={f.slug}>
                     {f.label || f.name}
                   </SelectItem>
                 ))}
-              <SelectItem value="_imagensGrid">_imagensGrid (especial)</SelectItem>
-              <SelectItem value="_damagedVehiclesImages">_damagedVehiclesImages (especial)</SelectItem>
-            </SelectContent>
-          </Select>
-          <p className="text-xs text-muted-foreground">
-            Campo que contem o array de URLs de imagens
-          </p>
-        </div>
-
-        <div className="space-y-2">
-          <Label>Numero de Colunas</Label>
-          <Select
-            value={String(element.columns)}
-            onValueChange={(value) => onChange({ columns: parseInt(value) })}
-          >
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="2">2 colunas</SelectItem>
-              <SelectItem value="3">3 colunas</SelectItem>
-              <SelectItem value="4">4 colunas</SelectItem>
-              <SelectItem value="5">5 colunas</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
-
-      <div className="grid gap-4 sm:grid-cols-2">
-        <div className="space-y-2">
-          <Label>Largura da Imagem (px)</Label>
-          <div className="flex items-center gap-4">
-            <Slider
-              value={[element.imageWidth || 90]}
-              onValueChange={([value]) => onChange({ imageWidth: value })}
-              min={50}
-              max={200}
-              step={5}
-              className="flex-1"
-            />
-            <span className="w-12 text-sm text-muted-foreground">
-              {element.imageWidth || 90}px
-            </span>
+              </SelectContent>
+            </Select>
           </div>
-        </div>
+        )}
 
-        <div className="space-y-2">
-          <Label>Altura da Imagem (px)</Label>
-          <div className="flex items-center gap-4">
-            <Slider
-              value={[element.imageHeight || 68]}
-              onValueChange={([value]) => onChange({ imageHeight: value })}
-              min={50}
-              max={200}
-              step={5}
-              className="flex-1"
-            />
-            <span className="w-12 text-sm text-muted-foreground">
-              {element.imageHeight || 68}px
-            </span>
-          </div>
-        </div>
-      </div>
-
-      <div className="flex items-center gap-2">
-        <Switch
-          checked={element.showCaptions || false}
-          onCheckedChange={(checked) => onChange({ showCaptions: checked })}
-        />
-        <Label>Mostrar Legendas</Label>
-      </div>
-
-      {element.showCaptions && (
-        <div className="space-y-2">
-          <div className="flex items-center justify-between">
-            <Label>Campos das Legendas</Label>
-            <Button variant="outline" size="sm" onClick={handleAddCaption}>
-              <Plus className="h-4 w-4 mr-1" />
-              Adicionar
-            </Button>
-          </div>
-          <p className="text-xs text-muted-foreground">
-            Textos que aparecerao abaixo de cada imagem (na ordem)
-          </p>
-
+        {/* Se nao tem sub-entidade selecionada, mostrar campos de imagem diretos */}
+        {!selectedSubEntity && imageFieldOptions.length > 0 && (
           <div className="space-y-2">
-            {(element.captionFields || []).map((caption, index) => (
-              <div key={index} className="flex items-center gap-2">
-                <Input
-                  placeholder={`Legenda ${index + 1}`}
-                  value={caption}
-                  onChange={(e) => handleCaptionChange(index, e.target.value)}
-                  className="flex-1"
-                />
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="text-destructive"
-                  onClick={() => handleRemoveCaption(index)}
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
-              </div>
-            ))}
+            <Label className="text-xs text-muted-foreground">
+              Ou use campos de imagem do registro principal
+            </Label>
+            <Select
+              value={element.dataSource || '_empty'}
+              onValueChange={(value) => onChange({
+                dataSource: value === '_empty' ? '' : value,
+                imageFields: [],
+                parentImageFields: [],
+              })}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Campo de imagem..." />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="_empty">Selecione...</SelectItem>
+                {imageFieldOptions.map((f) => (
+                  <SelectItem key={f.slug} value={f.slug}>
+                    {f.label || f.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
+        )}
+
+        {/* Sub-entidade selecionada: info + checkboxes */}
+        {selectedSubEntity && (
+          <>
+            <div className="rounded-md bg-blue-50 border border-blue-200 p-3 text-sm text-blue-800 dark:bg-blue-950 dark:border-blue-800 dark:text-blue-200">
+              <p className="font-medium">Loop: {selectedSubEntity.name}</p>
+              <p className="text-xs mt-1 opacity-80">
+                Para cada registro, as imagens selecionadas abaixo serao exibidas como colunas.
+              </p>
+            </div>
+
+            {/* Campos de imagem da sub-entidade */}
+            {subEntityImageFields.length > 0 ? (
+              <div className="space-y-2">
+                <Label className="text-sm">Colunas de imagem (por registro)</Label>
+                <div className="grid gap-2">
+                  {subEntityImageFields.map((f) => (
+                    <label
+                      key={f.slug}
+                      className="flex items-center gap-3 rounded-md border p-3 cursor-pointer hover:bg-accent transition-colors"
+                    >
+                      <Checkbox
+                        checked={(element.imageFields || []).includes(f.slug)}
+                        onCheckedChange={(checked) => handleToggleImageField(f.slug, !!checked)}
+                      />
+                      <span className="text-sm">{f.label || f.name}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <div className="rounded-md bg-amber-50 border border-amber-200 p-3 text-sm text-amber-800 dark:bg-amber-950 dark:border-amber-800 dark:text-amber-200">
+                <div className="flex items-center gap-2">
+                  <Info className="h-4 w-4" />
+                  <span>Esta sub-entidade nao tem campos de imagem.</span>
+                </div>
+              </div>
+            )}
+
+            {/* Imagens fixas do registro principal */}
+            {parentImageFields.length > 0 && (
+              <div className="space-y-2 pt-2 border-t">
+                <Label className="text-sm">Colunas fixas (do registro principal)</Label>
+                <p className="text-xs text-muted-foreground">
+                  Aparecem nas primeiras colunas de cada linha, repetidas em todos os registros.
+                </p>
+                <div className="grid gap-2">
+                  {parentImageFields.map((f) => (
+                    <label
+                      key={f.slug}
+                      className="flex items-center gap-3 rounded-md border p-3 cursor-pointer hover:bg-accent transition-colors"
+                    >
+                      <Checkbox
+                        checked={(element.parentImageFields || []).includes(f.slug)}
+                        onCheckedChange={(checked) => handleToggleParentImageField(f.slug, !!checked)}
+                      />
+                      <span className="text-sm">{f.label || f.name}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+
+      {/* Layout do Grid */}
+      <div className="space-y-3">
+        <Label className="text-sm font-semibold">Layout</Label>
+        <div className="grid gap-4 sm:grid-cols-3">
+          <div className="space-y-2">
+            <Label className="text-xs text-muted-foreground">Colunas</Label>
+            <Select
+              value={String(element.columns)}
+              onValueChange={(value) => onChange({ columns: parseInt(value) })}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="2">2</SelectItem>
+                <SelectItem value="3">3</SelectItem>
+                <SelectItem value="4">4</SelectItem>
+                <SelectItem value="5">5</SelectItem>
+                <SelectItem value="6">6</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label className="text-xs text-muted-foreground">Largura img (px)</Label>
+            <div className="flex items-center gap-2">
+              <Slider
+                value={[element.imageWidth || 90]}
+                onValueChange={([value]) => onChange({ imageWidth: value })}
+                min={40}
+                max={200}
+                step={5}
+                className="flex-1"
+              />
+              <span className="w-10 text-xs text-muted-foreground text-right">
+                {element.imageWidth || 90}
+              </span>
+            </div>
+          </div>
+          <div className="space-y-2">
+            <Label className="text-xs text-muted-foreground">Altura img (px)</Label>
+            <div className="flex items-center gap-2">
+              <Slider
+                value={[element.imageHeight || 68]}
+                onValueChange={([value]) => onChange({ imageHeight: value })}
+                min={40}
+                max={200}
+                step={5}
+                className="flex-1"
+              />
+              <span className="w-10 text-xs text-muted-foreground text-right">
+                {element.imageHeight || 68}
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Cabecalhos e Legendas - visivel quando ha colunas configuradas */}
+      {selectedSubEntity && totalCols > 0 && (
+        <div className="space-y-4 rounded-lg border p-4">
+          <div className="flex items-center gap-2">
+            <Type className="h-4 w-4 text-primary" />
+            <Label className="text-sm font-semibold">Cabecalhos e Legendas</Label>
+          </div>
+
+          <p className="text-xs text-muted-foreground">
+            Configure o texto acima (cabecalho) e abaixo (legenda dinamica) de cada coluna de imagem.
+          </p>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="border-b">
+                  <th className="text-left py-1.5 pr-2 font-medium text-muted-foreground w-20">Coluna</th>
+                  <th className="text-left py-1.5 px-2 font-medium text-muted-foreground">Cabecalho</th>
+                  <th className="text-left py-1.5 pl-2 font-medium text-muted-foreground">Legenda (campo)</th>
+                </tr>
+              </thead>
+              <tbody>
+                {/* Parent columns */}
+                {(element.parentImageFields || []).map((slug, i) => {
+                  const field = parentImageFields.find((f) => f.slug === slug);
+                  return (
+                    <tr key={`p-${slug}`} className="border-b last:border-0">
+                      <td className="py-1.5 pr-2">
+                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded text-[10px] dark:bg-blue-900 dark:text-blue-300">
+                          {field?.label || field?.name || slug}
+                        </span>
+                      </td>
+                      <td className="py-1.5 px-2">
+                        <Input
+                          placeholder={`Ex: ${field?.label || field?.name || 'Foto'}`}
+                          value={headers[i] || ''}
+                          onChange={(e) => {
+                            handleHeaderChange(i, e.target.value);
+                          }}
+                          className="h-7 text-xs"
+                        />
+                      </td>
+                      <td className="py-1.5 pl-2">
+                        <Select
+                          value={dataCaptions[i] || '_none'}
+                          onValueChange={(value) => handleDataCaptionChange(i, value === '_none' ? '' : value)}
+                        >
+                          <SelectTrigger className="h-7 text-xs">
+                            <SelectValue placeholder="Nenhum" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="_none">Nenhum</SelectItem>
+                            {availableFields
+                              .filter((f) => f.type !== 'image' && f.type !== 'images')
+                              .map((f) => (
+                                <SelectItem key={f.slug} value={f.slug}>
+                                  {f.label || f.name}
+                                </SelectItem>
+                              ))}
+                          </SelectContent>
+                        </Select>
+                      </td>
+                    </tr>
+                  );
+                })}
+                {/* Child columns */}
+                {(element.imageFields || []).map((slug, i) => {
+                  const field = subEntityImageFields.find((f) => f.slug === slug);
+                  const colIdx = parentCols + i;
+                  return (
+                    <tr key={`c-${slug}`} className="border-b last:border-0">
+                      <td className="py-1.5 pr-2">
+                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-green-100 text-green-700 rounded text-[10px] dark:bg-green-900 dark:text-green-300">
+                          {field?.label || field?.name || slug}
+                        </span>
+                      </td>
+                      <td className="py-1.5 px-2">
+                        <Input
+                          placeholder={`Ex: ${field?.label || field?.name || 'Foto'}`}
+                          value={headers[colIdx] || ''}
+                          onChange={(e) => handleHeaderChange(colIdx, e.target.value)}
+                          className="h-7 text-xs"
+                        />
+                      </td>
+                      <td className="py-1.5 pl-2">
+                        <Select
+                          value={dataCaptions[colIdx] || '_none'}
+                          onValueChange={(value) => handleDataCaptionChange(colIdx, value === '_none' ? '' : value)}
+                        >
+                          <SelectTrigger className="h-7 text-xs">
+                            <SelectValue placeholder="Nenhum" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="_none">Nenhum</SelectItem>
+                            {subEntityAllFields
+                              .filter((f) => f.type !== 'image' && f.type !== 'images')
+                              .map((f) => (
+                                <SelectItem key={f.slug} value={f.slug}>
+                                  {f.label || f.name}
+                                </SelectItem>
+                              ))}
+                          </SelectContent>
+                        </Select>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          {totalCols === 0 && (
+            <p className="text-xs text-muted-foreground text-center py-2">
+              Selecione campos de imagem acima para configurar cabecalhos e legendas.
+            </p>
+          )}
         </div>
       )}
 
-      <div className="grid gap-4 sm:grid-cols-2">
-        <div className="space-y-2">
-          <Label>Margem Superior (px)</Label>
-          <Slider
-            value={[element.marginTop || 0]}
-            onValueChange={([value]) => onChange({ marginTop: value })}
-            min={0}
-            max={50}
-            step={5}
-          />
+      {/* Captions para modo simples (sem sub-entidade - lista de imagens) */}
+      {!selectedSubEntity && (
+        <div className="space-y-3">
+          <div className="flex items-center gap-2">
+            <Switch
+              checked={element.showCaptions || false}
+              onCheckedChange={(checked) => onChange({ showCaptions: checked })}
+            />
+            <Label className="text-sm">Mostrar legendas</Label>
+          </div>
+
+          {element.showCaptions && (
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label className="text-xs text-muted-foreground">Textos (na ordem das imagens)</Label>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => onChange({ captionFields: [...(element.captionFields || []), ''] })}
+                  className="h-7 text-xs"
+                >
+                  <Plus className="h-3 w-3 mr-1" />
+                  Adicionar
+                </Button>
+              </div>
+              {(element.captionFields || []).map((caption, index) => (
+                <div key={index} className="flex items-center gap-2">
+                  <Input
+                    placeholder={`Legenda ${index + 1}`}
+                    value={caption}
+                    onChange={(e) => {
+                      const newCaptions = [...(element.captionFields || [])];
+                      newCaptions[index] = e.target.value;
+                      onChange({ captionFields: newCaptions });
+                    }}
+                    className="flex-1 h-8 text-sm"
+                  />
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 text-destructive"
+                    onClick={() => {
+                      onChange({ captionFields: (element.captionFields || []).filter((_, i) => i !== index) });
+                    }}
+                  >
+                    <Trash2 className="h-3 w-3" />
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
-        <div className="space-y-2">
-          <Label>Margem Inferior (px)</Label>
-          <Slider
-            value={[element.marginBottom || 0]}
-            onValueChange={([value]) => onChange({ marginBottom: value })}
-            min={0}
-            max={50}
-            step={5}
-          />
+      )}
+
+      {/* Margens e tamanho de fonte */}
+      <div className="space-y-3">
+        <Label className="text-xs font-medium text-muted-foreground">Espacamento</Label>
+        <div className="grid gap-4 sm:grid-cols-3">
+          <div className="space-y-1">
+            <Label className="text-xs text-muted-foreground">Margem superior</Label>
+            <div className="flex items-center gap-2">
+              <Slider
+                value={[element.marginTop || 0]}
+                onValueChange={([value]) => onChange({ marginTop: value })}
+                min={0}
+                max={50}
+                step={5}
+                className="flex-1"
+              />
+              <span className="w-8 text-xs text-muted-foreground text-right">
+                {element.marginTop || 0}
+              </span>
+            </div>
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs text-muted-foreground">Margem inferior</Label>
+            <div className="flex items-center gap-2">
+              <Slider
+                value={[element.marginBottom || 0]}
+                onValueChange={([value]) => onChange({ marginBottom: value })}
+                min={0}
+                max={50}
+                step={5}
+                className="flex-1"
+              />
+              <span className="w-8 text-xs text-muted-foreground text-right">
+                {element.marginBottom || 0}
+              </span>
+            </div>
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs text-muted-foreground">Fonte legenda</Label>
+            <div className="flex items-center gap-2">
+              <Slider
+                value={[element.captionFontSize || 7]}
+                onValueChange={([value]) => onChange({ captionFontSize: value })}
+                min={5}
+                max={12}
+                step={1}
+                className="flex-1"
+              />
+              <span className="w-8 text-xs text-muted-foreground text-right">
+                {element.captionFontSize || 7}pt
+              </span>
+            </div>
+          </div>
         </div>
       </div>
     </div>

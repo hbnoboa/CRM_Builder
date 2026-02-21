@@ -42,4 +42,9 @@ export class PreviewPdfDto {
   @IsString()
   @IsOptional()
   recordId?: string;
+
+  @ApiPropertyOptional({ description: 'Conteudo do template para override (preview em tempo real)' })
+  @IsObject()
+  @IsOptional()
+  content?: Record<string, unknown>;
 }

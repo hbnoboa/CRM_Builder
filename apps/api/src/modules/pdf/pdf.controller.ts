@@ -178,15 +178,28 @@ export class PdfController {
   }
 
   @Post(':id/generate-batch')
-  @ApiOperation({ summary: 'Gerar PDFs em lote (assincrono)' })
+  @ApiOperation({ summary: 'Gerar PDF agregado em lote' })
+  @ApiProduces('application/pdf')
   async generateBatch(
     @Param('id') templateId: string,
     @Body() dto: GenerateBatchPdfDto,
     @Query('tenantId') tenantId: string | undefined,
     @CurrentUser() user: CurrentUserType,
+    @Res() res: Response,
   ) {
     checkModulePermission(user, 'pdfTemplates', 'canGenerateBatch');
-    return this.generatorService.generateBatch(templateId, dto.recordIds, user, dto.mergePdfs, tenantId);
+
+    const { buffer, fileName } = await this.generatorService.generateBatch(
+      templateId, dto.recordIds, user, dto.mergePdfs, tenantId,
+    );
+
+    res.set({
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': `attachment; filename="${fileName}"`,
+      'Content-Length': buffer.length,
+    });
+
+    res.send(buffer);
   }
 
   @Post(':id/preview')
