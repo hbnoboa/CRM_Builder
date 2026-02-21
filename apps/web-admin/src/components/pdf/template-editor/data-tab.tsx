@@ -369,6 +369,8 @@ export function DataTab({
                             config={cf.config as ArithmeticConfig}
                             onChange={(config) => handleUpdate(cf.id, { config })}
                             availableFields={availableFields}
+                            computedFields={computedFields}
+                            currentFieldId={cf.id}
                           />
                         )}
                         {cf.type === 'conditional' && (

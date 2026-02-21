@@ -23,12 +23,31 @@ interface ArithmeticBuilderProps {
   config: ArithmeticConfig;
   onChange: (config: ArithmeticConfig) => void;
   availableFields: Array<{ slug: string; name: string; label?: string; type: string }>;
+  /** Campos calculados ja criados (para referenciar em calculos subsequentes) */
+  computedFields?: Array<{ id: string; slug: string; label: string; type: string }>;
+  /** ID do campo atual (para evitar auto-referencia) */
+  currentFieldId?: string;
 }
 
-export function ArithmeticBuilder({ config, onChange, availableFields }: ArithmeticBuilderProps) {
-  const numericFields = availableFields.filter(
+export function ArithmeticBuilder({ config, onChange, availableFields, computedFields, currentFieldId }: ArithmeticBuilderProps) {
+  // Campos numericos da entidade
+  const entityNumericFields = availableFields.filter(
     (f) => ['number', 'integer', 'float', 'currency'].includes(f.type),
   );
+
+  // Campos calculados que produzem valores numericos (arithmetic e filtered-count)
+  // Exclui o campo atual para evitar auto-referencia
+  const numericComputedFields = (computedFields || [])
+    .filter((cf) => cf.id !== currentFieldId && ['arithmetic', 'filtered-count'].includes(cf.type))
+    .map((cf) => ({
+      slug: `_calc.${cf.slug}`,
+      name: cf.label,
+      label: `[Calc] ${cf.label}`,
+      type: 'number',
+    }));
+
+  // Combinar campos da entidade + campos calculados
+  const numericFields = [...entityNumericFields, ...numericComputedFields];
 
   const handleOperandChange = (index: number, updates: Partial<ArithmeticConfig['operands'][0]>) => {
     const newOperands = [...config.operands];
@@ -114,7 +133,8 @@ export function ArithmeticBuilder({ config, onChange, availableFields }: Arithme
   for (let i = 0; i < config.operands.length; i++) {
     const op = config.operands[i];
     if (op.type === 'field') {
-      const field = availableFields.find((f) => f.slug === op.value);
+      // Procurar primeiro nos campos da entidade, depois nos calculados
+      const field = numericFields.find((f) => f.slug === op.value);
       formulaParts.push(field?.label || field?.name || op.value);
     } else {
       formulaParts.push(op.value);
