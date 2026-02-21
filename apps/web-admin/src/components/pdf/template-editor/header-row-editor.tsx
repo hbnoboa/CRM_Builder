@@ -13,6 +13,8 @@ import {
   Loader2,
   AlertCircle,
   X,
+  Lock,
+  Unlock,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -57,6 +59,16 @@ export function HeaderRowEditor({ rows, onChange, availableFields = [] }: Header
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const [uploadingElement, setUploadingElement] = useState<string | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [lockRatios, setLockRatios] = useState<Record<string, boolean>>({});
+  const aspectRatios = useRef<Record<string, number>>({});
+
+  const updateAspectRatio = (elementId: string, url: string) => {
+    const img = new window.Image();
+    img.onload = () => {
+      aspectRatios.current[elementId] = img.naturalWidth / img.naturalHeight;
+    };
+    img.src = url;
+  };
 
   const handleAddRow = () => {
     const newRow: HeaderRow = {
@@ -132,6 +144,8 @@ export function HeaderRowEditor({ rows, onChange, availableFields = [] }: Header
         headers: { 'Content-Type': 'multipart/form-data' },
       });
       const url = response.data.publicUrl || response.data.url;
+      updateAspectRatio(elementId, url);
+      setLockRatios((prev) => ({ ...prev, [elementId]: true }));
       handleUpdateElement(rowId, elementId, { url });
     } catch {
       setUploadError('Erro ao enviar imagem');
@@ -356,15 +370,21 @@ export function HeaderRowEditor({ rows, onChange, availableFields = [] }: Header
                                     )}
 
                                     {/* Tamanho */}
-                                    <div className="grid grid-cols-2 gap-2">
-                                      <div className="space-y-1">
+                                    <div className="flex items-center gap-2">
+                                      <div className="flex-1 space-y-1">
                                         <Label className="text-xs">Largura</Label>
                                         <div className="flex items-center gap-2">
                                           <Slider
                                             value={[element.width || 100]}
-                                            onValueChange={([value]) =>
-                                              handleUpdateElement(row.id, element.id, { width: value })
-                                            }
+                                            onValueChange={([value]) => {
+                                              const ratio = aspectRatios.current[element.id];
+                                              if (lockRatios[element.id] && ratio) {
+                                                const h = Math.round(value / ratio);
+                                                handleUpdateElement(row.id, element.id, { width: value, height: Math.max(20, Math.min(200, h)) });
+                                              } else {
+                                                handleUpdateElement(row.id, element.id, { width: value });
+                                              }
+                                            }}
                                             min={30}
                                             max={400}
                                             step={5}
@@ -375,14 +395,35 @@ export function HeaderRowEditor({ rows, onChange, availableFields = [] }: Header
                                           </span>
                                         </div>
                                       </div>
-                                      <div className="space-y-1">
+                                      <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        className="h-7 w-7 mt-4 flex-shrink-0"
+                                        onClick={() => {
+                                          setLockRatios((prev) => ({ ...prev, [element.id]: !prev[element.id] }));
+                                          // Captura ratio atual se ainda nao tem
+                                          if (!aspectRatios.current[element.id] && element.url) {
+                                            updateAspectRatio(element.id, element.url);
+                                          }
+                                        }}
+                                        title={lockRatios[element.id] ? 'Desbloquear proporcao' : 'Travar proporcao'}
+                                      >
+                                        {lockRatios[element.id] ? <Lock className="h-3 w-3" /> : <Unlock className="h-3 w-3" />}
+                                      </Button>
+                                      <div className="flex-1 space-y-1">
                                         <Label className="text-xs">Altura</Label>
                                         <div className="flex items-center gap-2">
                                           <Slider
                                             value={[element.height || 60]}
-                                            onValueChange={([value]) =>
-                                              handleUpdateElement(row.id, element.id, { height: value })
-                                            }
+                                            onValueChange={([value]) => {
+                                              const ratio = aspectRatios.current[element.id];
+                                              if (lockRatios[element.id] && ratio) {
+                                                const w = Math.round(value * ratio);
+                                                handleUpdateElement(row.id, element.id, { height: value, width: Math.max(30, Math.min(400, w)) });
+                                              } else {
+                                                handleUpdateElement(row.id, element.id, { height: value });
+                                              }
+                                            }}
                                             min={20}
                                             max={200}
                                             step={5}

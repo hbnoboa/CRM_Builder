@@ -36,6 +36,7 @@ import {
   MapConfig,
   SubEntityAggregateConfig,
   PdfHeader,
+  PdfFooter,
 } from './interfaces/pdf-element.interface';
 
 // pdfkit-table estende pdfkit e deve ser usado como construtor
@@ -604,11 +605,13 @@ export class PdfGeneratorService {
       left: 70,
     };
 
+    const hasFooter = !!(template.content as any)?.footer;
     const doc = new PDFDocument({
       size: template.pageSize,
       layout: template.orientation.toLowerCase(),
       margins,
       compress: true,
+      ...(hasFooter && { bufferPages: true }),
     });
 
     const chunks: Buffer[] = [];
@@ -636,6 +639,11 @@ export class PdfGeneratorService {
       await this.renderElement(doc, element, data);
     }
 
+    // Renderizar footer em todas as paginas
+    if (content.footer) {
+      this.renderFooterOnAllPages(doc, content.footer);
+    }
+
     // Finalizar documento
     doc.end();
 
@@ -661,11 +669,13 @@ export class PdfGeneratorService {
       top: 70, right: 70, bottom: 70, left: 70,
     };
 
+    const hasFooter = !!(template.content as any)?.footer;
     const doc = new PDFDocument({
       size: template.pageSize,
       layout: template.orientation.toLowerCase(),
       margins,
       compress: true,
+      ...(hasFooter && { bufferPages: true }),
     });
 
     const chunks: Buffer[] = [];
@@ -755,16 +765,20 @@ export class PdfGeneratorService {
         await this.renderElement(doc, element, batchData);
       }
 
+      // Callback para novas paginas: header completo ou so logo
+      const onPageAdded = async () => {
+        if (content.header?.showOnAllPages) {
+          await this.renderHeader(doc, content.header, batchData, template.logoUrl);
+        } else {
+          renderLogoOnly();
+        }
+      };
+
       // Renderizar secao repetida para cada registro
       if (repeatElements.length > 0) {
         const recordsWithSubEntities = allRecords.filter((record) =>
           Object.values(record).some((v) => Array.isArray(v) && v.length > 0),
         );
-
-        // Encontrar titulo da secao 4 e elemento image-grid nos repeatElements
-        const sectionTitle = normalElements.find(
-          (el) => el.type === 'text' && (el as TextElement).content?.includes('IMAGENS'),
-        ) as TextElement | undefined;
 
         for (let recIdx = 0; recIdx < recordsWithSubEntities.length; recIdx++) {
           const record = recordsWithSubEntities[recIdx];
@@ -787,7 +801,7 @@ export class PdfGeneratorService {
 
               await this.renderMixedImageGridBatch(
                 doc, imgGrid, record, imageWidth, imageHeight, columnWidth,
-                renderLogoOnly, sectionTitle, isFirstRecord,
+                onPageAdded, undefined, isFirstRecord,
               );
 
               if (element.marginBottom) doc.y += element.marginBottom;
@@ -799,6 +813,11 @@ export class PdfGeneratorService {
       }
     }
 
+    // Renderizar footer em todas as paginas
+    if (content.footer) {
+      this.renderFooterOnAllPages(doc, content.footer);
+    }
+
     doc.end();
 
     return new Promise((resolve) => {
@@ -806,6 +825,72 @@ export class PdfGeneratorService {
         resolve(Buffer.concat(chunks));
       });
     });
+  }
+
+  /**
+   * Renderiza footer em todas as paginas do documento
+   * Requer bufferPages: true no construtor do doc
+   */
+  private renderFooterOnAllPages(
+    doc: typeof PDFDocument,
+    footer: PdfFooter,
+  ): void {
+    const pages = doc.bufferedPageRange();
+    const totalPages = pages.count;
+    if (totalPages === 0) return;
+
+    for (let i = 0; i < totalPages; i++) {
+      doc.switchToPage(pages.start + i);
+
+      const left = doc.page.margins.left;
+      const pageWidth = doc.page.width - left - doc.page.margins.right;
+      const footerY = doc.page.height - doc.page.margins.bottom + 10;
+
+      // Zerar margem inferior temporariamente para PDFKit nao pular pagina
+      const savedMarginBottom = doc.page.margins.bottom;
+      doc.page.margins.bottom = 0;
+
+      // Linha divisoria
+      doc.save();
+      doc
+        .moveTo(left, footerY - 5)
+        .lineTo(left + pageWidth, footerY - 5)
+        .lineWidth(0.5)
+        .strokeColor('#cccccc')
+        .stroke();
+      doc.restore();
+
+      doc.font('Helvetica').fontSize(8).fillColor('#666666');
+
+      const pageLabel = `Pagina ${i + 1} de ${totalPages}`;
+      const position = footer.position || 'center';
+      const hasText = !!footer.text;
+      const hasPages = !!footer.showPageNumbers;
+
+      if (hasText || hasPages) {
+        if (hasText && hasPages) {
+          if (position === 'left') {
+            doc.text(footer.text!, left, footerY, { lineBreak: false, width: pageWidth / 2, align: 'left' });
+            doc.text(pageLabel, left + pageWidth / 2, footerY, { lineBreak: false, width: pageWidth / 2, align: 'right' });
+          } else if (position === 'right') {
+            doc.text(pageLabel, left, footerY, { lineBreak: false, width: pageWidth / 2, align: 'left' });
+            doc.text(footer.text!, left + pageWidth / 2, footerY, { lineBreak: false, width: pageWidth / 2, align: 'right' });
+          } else {
+            doc.text(`${footer.text} - ${pageLabel}`, left, footerY, { lineBreak: false, width: pageWidth, align: 'center' });
+          }
+        } else if (hasText) {
+          doc.text(footer.text!, left, footerY, { lineBreak: false, width: pageWidth, align: position });
+        } else {
+          doc.text(pageLabel, left, footerY, { lineBreak: false, width: pageWidth, align: position });
+        }
+      }
+
+      // Restaurar margem
+      doc.page.margins.bottom = savedMarginBottom;
+    }
+
+    // Voltar para ultima pagina para doc.end() funcionar corretamente
+    doc.switchToPage(pages.start + totalPages - 1);
   }
 
   /**
@@ -1605,8 +1690,8 @@ export class PdfGeneratorService {
     imageWidth: number,
     imageHeight: number,
     columnWidth: number,
-    renderLogoOnly: () => void,
-    sectionTitle?: TextElement,
+    onPageAdded: () => Promise<void>,
+    _unused?: unknown,
     isFirstVehicle = true,
   ): Promise<void> {
     const parentFields = element.parentImageFields || [];
@@ -1630,14 +1715,10 @@ export class PdfGeneratorService {
       }
     };
 
-    // Helper: page break com logo + titulo + headers
-    const handlePageBreak = () => {
+    // Helper: page break com header + column headers
+    const handlePageBreak = async () => {
       doc.addPage();
-      renderLogoOnly();
-      if (sectionTitle) {
-        this.renderText(doc, sectionTitle, data);
-        if (sectionTitle.marginBottom) doc.y += sectionTitle.marginBottom;
-      }
+      await onPageAdded();
       renderColumnHeaders();
     };
 
@@ -1656,7 +1737,7 @@ export class PdfGeneratorService {
       }
       // Page break check antes de renderizar imagens do pai
       if (doc.y + cellHeight > doc.page.height - doc.page.margins.bottom) {
-        handlePageBreak();
+        await handlePageBreak();
       }
       const results = await Promise.allSettled(parentUrls.map((url) => this.fetchImageBuffer(url)));
       const rowY = doc.y;
@@ -1693,7 +1774,7 @@ export class PdfGeneratorService {
     for (let rowIdx = 0; rowIdx < childRecords.length; rowIdx++) {
       // Verificar quebra de pagina
       if (rowY + cellHeight > doc.page.height - doc.page.margins.bottom) {
-        handlePageBreak();
+        await handlePageBreak();
         rowY = doc.y;
       }
 
