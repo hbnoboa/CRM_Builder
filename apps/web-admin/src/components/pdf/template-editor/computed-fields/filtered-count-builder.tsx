@@ -21,7 +21,11 @@ const OPERATORS = [
   { value: 'less', label: 'Menor que' },
   { value: 'contains', label: 'Contem' },
   { value: 'not_empty', label: 'Nao vazio' },
+  { value: 'has_items', label: 'Possui itens' },
+  { value: 'no_items', label: 'Nao possui itens' },
 ] as const;
+
+const NO_VALUE_OPERATORS = ['not_empty', 'has_items', 'no_items'];
 
 interface FilteredCountBuilderProps {
   config: FilteredCountConfig;
@@ -37,7 +41,7 @@ export function FilteredCountBuilder({
   templateType,
 }: FilteredCountBuilderProps) {
   const selectableFields = availableFields.filter(
-    (f) => !['image', 'images', 'sub-entity', 'array'].includes(f.type),
+    (f) => !['image', 'images'].includes(f.type),
   );
 
   // Backward compat: migrate old single-filter format
@@ -113,7 +117,7 @@ export function FilteredCountBuilder({
               </SelectContent>
             </Select>
 
-            {filter.operator !== 'not_empty' && (
+            {!NO_VALUE_OPERATORS.includes(filter.operator) && (
               <Input
                 placeholder="Valor..."
                 value={filter.value}

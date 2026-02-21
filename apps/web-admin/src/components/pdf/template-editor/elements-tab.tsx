@@ -47,14 +47,6 @@ interface ElementsTabProps {
     slug: string;
     fields?: Array<{ slug: string; name: string; label?: string; type: string }>;
   };
-  subEntities?: Record<string, {
-    id: string;
-    name: string;
-    slug: string;
-    fields?: Array<{ slug: string; name: string; label?: string; type: string }>;
-  }>;
-  templateType?: string;
-  computedFields?: Array<{ slug: string; label: string }>;
   onChange: (elements: PdfElement[]) => void;
 }
 
@@ -160,7 +152,7 @@ function getElementLabel(type: string) {
   return found ? found.label : type;
 }
 
-export function ElementsTab({ elements, sourceEntity, subEntities, templateType, computedFields, onChange }: ElementsTabProps) {
+export function ElementsTab({ elements, sourceEntity, onChange }: ElementsTabProps) {
   const [expandedElements, setExpandedElements] = useState<Set<string>>(new Set());
 
   const handleAddElement = (type: string) => {
@@ -346,32 +338,24 @@ export function ElementsTab({ elements, sourceEntity, subEntities, templateType,
                         <FieldGroupElementEditor
                           element={element}
                           onChange={(updates) => handleUpdateElement(element.id, updates)}
-                          availableFields={availableFields}
-                          isBatch={templateType === 'batch'}
-                          computedFields={computedFields}
                         />
                       )}
                       {element.type === 'table' && (
                         <TableElementEditor
                           element={element}
                           onChange={(updates) => handleUpdateElement(element.id, updates)}
-                          availableFields={availableFields}
-                          subEntities={subEntities}
                         />
                       )}
                       {element.type === 'image-grid' && (
                         <ImageGridElementEditor
                           element={element}
                           onChange={(updates) => handleUpdateElement(element.id, updates)}
-                          availableFields={availableFields}
-                          subEntities={subEntities}
                         />
                       )}
                       {element.type === 'statistics' && (
                         <StatisticsElementEditor
                           element={element}
                           onChange={(updates) => handleUpdateElement(element.id, updates)}
-                          availableFields={availableFields}
                         />
                       )}
                       {element.type === 'divider' && (

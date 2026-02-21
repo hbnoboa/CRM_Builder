@@ -1775,6 +1775,8 @@ export class PdfGeneratorService {
       case 'less': return !isNaN(numVal) && !isNaN(compNum) && numVal < compNum;
       case 'contains': return strVal.toLowerCase().includes((compareValue || '').toLowerCase());
       case 'not_empty': return strVal !== '' && fieldValue != null;
+      case 'has_items': return Array.isArray(fieldValue) && fieldValue.length > 0;
+      case 'no_items': return !Array.isArray(fieldValue) || fieldValue.length === 0;
       default: return false;
     }
   }

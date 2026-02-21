@@ -160,7 +160,7 @@ export interface ArithmeticConfig {
 
 export interface ConditionalConfig {
   field: string;
-  operator: 'equals' | 'not_equals' | 'greater' | 'less' | 'contains' | 'not_empty';
+  operator: 'equals' | 'not_equals' | 'greater' | 'less' | 'contains' | 'not_empty' | 'has_items' | 'no_items';
   compareValue: string;
   trueResult: { type: 'text' | 'field'; value: string };
   falseResult: { type: 'text' | 'field'; value: string };
@@ -168,7 +168,7 @@ export interface ConditionalConfig {
 
 export interface FilteredCountFilter {
   field: string;
-  operator: 'equals' | 'not_equals' | 'greater' | 'less' | 'contains' | 'not_empty';
+  operator: 'equals' | 'not_equals' | 'greater' | 'less' | 'contains' | 'not_empty' | 'has_items' | 'no_items';
   value: string;
 }
 

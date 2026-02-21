@@ -18,7 +18,11 @@ const OPERATORS = [
   { value: 'less', label: 'Menor que' },
   { value: 'contains', label: 'Contem' },
   { value: 'not_empty', label: 'Nao vazio' },
+  { value: 'has_items', label: 'Possui itens' },
+  { value: 'no_items', label: 'Nao possui itens' },
 ] as const;
+
+const NO_VALUE_OPERATORS = ['not_empty', 'has_items', 'no_items'];
 
 interface ConditionalBuilderProps {
   config: ConditionalConfig;
@@ -28,7 +32,7 @@ interface ConditionalBuilderProps {
 
 export function ConditionalBuilder({ config, onChange, availableFields }: ConditionalBuilderProps) {
   const selectableFields = availableFields.filter(
-    (f) => !['image', 'images', 'sub-entity', 'array'].includes(f.type),
+    (f) => !['image', 'images'].includes(f.type),
   );
 
   const handleResultChange = (
@@ -131,7 +135,7 @@ export function ConditionalBuilder({ config, onChange, availableFields }: Condit
             </SelectContent>
           </Select>
 
-          {config.operator !== 'not_empty' && (
+          {!NO_VALUE_OPERATORS.includes(config.operator) && (
             <Input
               placeholder="Valor..."
               value={config.compareValue}

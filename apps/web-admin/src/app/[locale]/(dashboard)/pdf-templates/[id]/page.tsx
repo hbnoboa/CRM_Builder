@@ -232,6 +232,15 @@ function EditPdfTemplatePageContent({ params }: PageProps) {
                   onChange={(computedFields) => handleContentChange({ computedFields })}
                   availableFields={template.sourceEntity?.fields || []}
                   templateType={template.templateType}
+                  elements={localContent.body || []}
+                  onElementChange={(elementId, updates) => {
+                    handleContentChange({
+                      body: (localContent.body || []).map((el) =>
+                        el.id === elementId ? { ...el, ...updates } : el
+                      ),
+                    });
+                  }}
+                  subEntities={template.subEntities}
                 />
               )}
             </TabsContent>
@@ -251,9 +260,6 @@ function EditPdfTemplatePageContent({ params }: PageProps) {
                 <ElementsTab
                   elements={localContent.body || []}
                   sourceEntity={template.sourceEntity}
-                  subEntities={template.subEntities}
-                  templateType={template.templateType}
-                  computedFields={localContent.computedFields}
                   onChange={(body) => handleContentChange({ body })}
                 />
               )}
