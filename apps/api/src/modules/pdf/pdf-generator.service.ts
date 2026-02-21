@@ -35,6 +35,7 @@ import {
   ConcatConfig,
   MapConfig,
   SubEntityAggregateConfig,
+  PdfHeader,
 } from './interfaces/pdf-element.interface';
 
 // pdfkit-table estende pdfkit e deve ser usado como construtor
@@ -816,8 +817,159 @@ export class PdfGeneratorService {
     data: Record<string, unknown>,
     defaultLogoUrl?: string | null,
   ): Promise<void> {
-    const startY = doc.y;
+    // Se tem rows (novo formato flexivel), usar renderizacao flexivel
+    if (header?.rows && header.rows.length > 0) {
+      await this.renderFlexibleHeader(doc, header, data);
+      return;
+    }
+
+    // Formato legado (logo, title, subtitle)
+    await this.renderLegacyHeader(doc, header, data, defaultLogoUrl);
+  }
+
+  /**
+   * Renderiza header no formato flexivel (multiplas linhas/elementos)
+   */
+  private async renderFlexibleHeader(
+    doc: typeof PDFDocument,
+    header: PdfHeader,
+    data: Record<string, unknown>,
+  ): Promise<void> {
     const pageWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
+
+    for (const row of header.rows || []) {
+      const rowStartY = doc.y;
+      let maxRowHeight = 0;
+
+      // Agrupar elementos por posicao
+      const leftElements = row.elements.filter((e) => e.position === 'left');
+      const centerElements = row.elements.filter((e) => e.position === 'center');
+      const rightElements = row.elements.filter((e) => e.position === 'right');
+
+      // Renderizar cada grupo
+      for (const element of row.elements) {
+        const elementStartY = rowStartY;
+        let elementX = doc.page.margins.left;
+        let elementWidth = pageWidth;
+
+        if (element.position === 'center') {
+          // Centro: calcular posicao baseada no conteudo
+          if (element.type === 'image') {
+            elementX = (doc.page.width - (element.width || 100)) / 2;
+          } else {
+            elementX = doc.page.margins.left;
+          }
+        } else if (element.position === 'right') {
+          if (element.type === 'image') {
+            elementX = doc.page.width - doc.page.margins.right - (element.width || 100);
+          } else {
+            elementX = doc.page.margins.left + pageWidth / 2;
+            elementWidth = pageWidth / 2;
+          }
+        } else {
+          // Left
+          if (leftElements.length > 0 && (centerElements.length > 0 || rightElements.length > 0)) {
+            elementWidth = pageWidth / 2;
+          }
+        }
+
+        if (element.type === 'image' && element.url) {
+          const resolvedUrl = this.resolveBindings(element.url, data);
+          if (resolvedUrl && !resolvedUrl.includes('{{')) {
+            try {
+              const buffer = await this.fetchImageBuffer(resolvedUrl);
+              doc.image(buffer, elementX, elementStartY, {
+                fit: [element.width || 100, element.height || 60],
+              });
+              maxRowHeight = Math.max(maxRowHeight, element.height || 60);
+            } catch (err) {
+              this.logger.warn(`Falha ao carregar imagem do header: ${(err as Error).message}`);
+              maxRowHeight = Math.max(maxRowHeight, element.height || 60);
+            }
+          }
+        } else if (element.type === 'text' && element.text) {
+          const resolvedText = this.resolveBindings(element.text, data);
+          const fontSize = element.fontSize || 12;
+          const padding = element.padding || 8;
+
+          doc.font(element.bold ? 'Helvetica-Bold' : 'Helvetica').fontSize(fontSize);
+
+          if (element.hasBorder) {
+            // Calcular tamanho do texto para a caixa
+            const textWidth = doc.widthOfString(resolvedText);
+            const textHeight = doc.heightOfString(resolvedText, { width: elementWidth - padding * 2 });
+            const boxWidth = Math.min(textWidth + padding * 2, elementWidth);
+            const boxHeight = textHeight + padding * 2;
+
+            let boxX = elementX;
+            if (element.position === 'center') {
+              boxX = (doc.page.width - boxWidth) / 2;
+            } else if (element.position === 'right') {
+              boxX = doc.page.width - doc.page.margins.right - boxWidth;
+            }
+
+            // Desenhar borda
+            doc
+              .rect(boxX, elementStartY, boxWidth, boxHeight)
+              .strokeColor(element.borderColor || '#000000')
+              .lineWidth(1)
+              .stroke();
+
+            // Texto dentro da caixa
+            doc.fillColor(element.color || '#000000');
+            doc.text(resolvedText, boxX + padding, elementStartY + padding, {
+              width: boxWidth - padding * 2,
+              align: 'center',
+            });
+
+            maxRowHeight = Math.max(maxRowHeight, boxHeight);
+          } else {
+            // Texto sem borda
+            const textAlign = element.position === 'center' ? 'center' : element.position === 'right' ? 'right' : 'left';
+            doc.fillColor(element.color || '#000000');
+
+            // Calcular altura do texto
+            const textHeight = doc.heightOfString(resolvedText, { width: elementWidth });
+
+            doc.text(resolvedText, elementX, elementStartY, {
+              width: elementWidth,
+              align: textAlign,
+            });
+
+            maxRowHeight = Math.max(maxRowHeight, textHeight);
+          }
+        }
+      }
+
+      // Mover para apos a linha
+      doc.y = rowStartY + maxRowHeight + (row.marginBottom || 10);
+    }
+
+    // Linha divisoria (opcional, default true)
+    if (header?.showDivider !== false) {
+      doc.moveDown(0.3);
+      doc
+        .moveTo(doc.page.margins.left, doc.y)
+        .lineTo(doc.page.width - doc.page.margins.right, doc.y)
+        .strokeColor('#000000')
+        .lineWidth(1)
+        .stroke();
+      doc.moveDown(0.5);
+    } else {
+      doc.moveDown(0.5);
+    }
+  }
+
+  /**
+   * Renderiza header no formato legado (logo, title, subtitle)
+   */
+  private async renderLegacyHeader(
+    doc: typeof PDFDocument,
+    header: PdfTemplateContent['header'],
+    data: Record<string, unknown>,
+    defaultLogoUrl?: string | null,
+  ): Promise<void> {
+    const startY = doc.y;
 
     // Renderizar logo
     if (header?.logo?.url || defaultLogoUrl) {

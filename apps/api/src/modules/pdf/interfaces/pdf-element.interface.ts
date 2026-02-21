@@ -178,8 +178,43 @@ export type PdfElement =
   | SpacerElement
   | StatisticsElement;
 
+// Elemento individual do header (imagem ou texto)
+export interface HeaderElement {
+  id: string;
+  type: 'image' | 'text';
+  position: 'left' | 'center' | 'right';
+
+  // Propriedades de imagem
+  url?: string;
+  width?: number;
+  height?: number;
+
+  // Propriedades de texto
+  text?: string;
+  fontSize?: number;
+  bold?: boolean;
+  color?: string;
+
+  // Borda (para caixas de texto)
+  hasBorder?: boolean;
+  borderColor?: string;
+  padding?: number;
+}
+
+// Linha do header (pode ter multiplos elementos)
+export interface HeaderRow {
+  id: string;
+  elements: HeaderElement[];
+  marginBottom?: number;
+  verticalAlign?: 'top' | 'center' | 'bottom';
+}
+
 // Estrutura do header
 export interface PdfHeader {
+  // Nova estrutura flexivel (array de linhas)
+  rows?: HeaderRow[];
+
+  // Estrutura antiga (mantida para compatibilidade)
   logo?: {
     url: string;
     width?: number;
@@ -195,6 +230,7 @@ export interface PdfHeader {
     text: string;
     binding?: string;
   };
+
   showOnAllPages?: boolean;
   showDivider?: boolean; // Mostrar linha divisoria apos header (default true)
 }
