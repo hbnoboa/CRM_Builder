@@ -208,9 +208,17 @@ export class PdfGeneratorService {
             const andClauses: unknown[] = [];
             for (const f of parsed) {
               if (!f.fieldSlug || !f.value) continue;
-              andClauses.push({
-                data: { path: [f.fieldSlug], string_contains: String(f.value) },
-              });
+              const strValue = String(f.value);
+              if (f.operator === 'equals') {
+                andClauses.push({
+                  data: { path: [f.fieldSlug], equals: strValue },
+                });
+              } else {
+                // contains (default)
+                andClauses.push({
+                  data: { path: [f.fieldSlug], string_contains: strValue },
+                });
+              }
             }
             if (andClauses.length > 0) {
               where.AND = andClauses;
@@ -760,11 +768,6 @@ export class PdfGeneratorService {
         await this.renderHeader(doc, content.header, batchData, template.logoUrl);
       }
 
-      // Renderizar elementos normais (estatisticas, headers, etc) uma vez
-      for (const element of normalElements) {
-        await this.renderElement(doc, element, batchData);
-      }
-
       // Callback para novas paginas: header completo ou so logo
       const onPageAdded = async () => {
         if (content.header?.showOnAllPages) {
@@ -773,6 +776,11 @@ export class PdfGeneratorService {
           renderLogoOnly();
         }
       };
+
+      // Renderizar elementos normais (estatisticas, headers, etc) uma vez
+      for (const element of normalElements) {
+        await this.renderElement(doc, element, batchData, onPageAdded);
+      }
 
       // Renderizar secao repetida para cada registro
       if (repeatElements.length > 0) {
@@ -1133,6 +1141,7 @@ export class PdfGeneratorService {
     doc: typeof PDFDocument,
     element: PdfElement,
     data: Record<string, unknown>,
+    onPageAdded?: () => Promise<void>,
   ): Promise<void> {
     // Verificar visibilidade condicional
     if (element.visibility) {
@@ -1179,7 +1188,7 @@ export class PdfGeneratorService {
         break;
 
       case 'statistics':
-        await this.renderStatistics(doc, element as StatisticsElement, data);
+        await this.renderStatistics(doc, element as StatisticsElement, data, onPageAdded);
         break;
     }
 
@@ -1876,6 +1885,7 @@ export class PdfGeneratorService {
     doc: typeof PDFDocument,
     element: StatisticsElement,
     data: Record<string, unknown>,
+    onPageAdded?: () => Promise<void>,
   ): Promise<void> {
     // Titulo
     doc
@@ -2037,30 +2047,49 @@ export class PdfGeneratorService {
     let currentY = doc.y;
     const fontSize = 8;
     const textOffsetY = (rowHeight - fontSize) / 2;
+    const pageBottom = doc.page.height - doc.page.margins.bottom;
+
+    // Funcao para renderizar header da tabela
+    const renderStatsHeader = () => {
+      if (element.headerFill && element.headerFill !== null) {
+        doc.rect(startX, currentY, pageWidth, rowHeight).fill(element.headerFill);
+      }
+      doc.font('Helvetica-Bold').fontSize(fontSize).fillColor('#000000');
+      let hx = startX;
+      for (let i = 0; i < numCols; i++) {
+        doc.text(statsHeaders[i], hx, currentY + textOffsetY, {
+          width: colWidths[i],
+          align: 'center',
+          lineBreak: false,
+        });
+        hx += colWidths[i];
+      }
+      currentY += rowHeight;
+      doc.moveTo(startX, currentY).lineTo(startX + pageWidth, currentY)
+        .strokeColor('#000000').lineWidth(0.5).stroke();
+    };
 
     // Header row
-    if (element.headerFill && element.headerFill !== null) {
-      doc.rect(startX, currentY, pageWidth, rowHeight).fill(element.headerFill);
-    }
-    doc.font('Helvetica-Bold').fontSize(fontSize).fillColor('#000000');
-    let cellX = startX;
-    for (let i = 0; i < numCols; i++) {
-      doc.text(statsHeaders[i], cellX, currentY + textOffsetY, {
-        width: colWidths[i],
-        align: 'center',
-        lineBreak: false,
-      });
-      cellX += colWidths[i];
-    }
-    // Header bottom line
-    currentY += rowHeight;
-    doc.moveTo(startX, currentY).lineTo(startX + pageWidth, currentY)
-      .strokeColor('#000000').lineWidth(0.5).stroke();
+    renderStatsHeader();
 
     // Data rows
     doc.font('Helvetica').fontSize(fontSize);
     for (const row of rows) {
-      cellX = startX;
+      // Verificar se a proxima row cabe na pagina
+      if (currentY + rowHeight > pageBottom) {
+        doc.addPage();
+        currentY = doc.page.margins.top;
+        // Renderizar header do PDF na nova pagina
+        if (onPageAdded) {
+          await onPageAdded();
+          currentY = doc.y;
+        }
+        // Re-renderizar header da tabela
+        renderStatsHeader();
+        doc.font('Helvetica').fontSize(fontSize);
+      }
+
+      let cellX = startX;
       for (let i = 0; i < numCols; i++) {
         doc.text(row[i] || '', cellX, currentY + textOffsetY, {
           width: colWidths[i],

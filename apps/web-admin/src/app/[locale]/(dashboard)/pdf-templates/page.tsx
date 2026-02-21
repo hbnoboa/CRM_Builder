@@ -140,11 +140,19 @@ function GenerateModal({
         fieldSlug: first.slug,
         fieldName: first.label || first.name,
         fieldType: first.type,
-        operator: 'equals',
+        operator: 'contains',
         value: '',
       },
     ]);
   }, [filterableFields]);
+
+  const handleFilterOperatorChange = useCallback((index: number, operator: string) => {
+    setActiveFilters((prev) => {
+      const newFilters = [...prev];
+      newFilters[index] = { ...newFilters[index], operator };
+      return newFilters;
+    });
+  }, []);
 
   const handleRemoveFilter = useCallback((index: number) => {
     setActiveFilters((prev) => prev.filter((_, i) => i !== index));
@@ -219,7 +227,7 @@ function GenerateModal({
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
-            placeholder="Buscar registros..."
+            placeholder="Buscar em todos os campos (contém)..."
             value={recordSearch}
             onChange={(e) => setRecordSearch(e.target.value)}
             className="pl-9"
@@ -245,12 +253,12 @@ function GenerateModal({
               </Button>
             </div>
             {activeFilters.map((filter, index) => (
-              <div key={index} className="flex items-center gap-2">
+              <div key={index} className="flex items-center gap-1.5">
                 <Select
                   value={filter.fieldSlug}
                   onValueChange={(val) => handleFilterFieldChange(index, val)}
                 >
-                  <SelectTrigger className="h-8 text-xs flex-1">
+                  <SelectTrigger className="h-8 text-xs w-[130px] flex-shrink-0">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -261,33 +269,34 @@ function GenerateModal({
                     ))}
                   </SelectContent>
                 </Select>
-                {uniqueFieldValues[filter.fieldSlug] ? (
-                  <Select
-                    value={filter.value || '_empty'}
-                    onValueChange={(val) =>
-                      handleFilterValueChange(index, val === '_empty' ? '' : val)
-                    }
-                  >
-                    <SelectTrigger className="h-8 text-xs flex-1">
-                      <SelectValue placeholder="Valor..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="_empty">Todos</SelectItem>
-                      {uniqueFieldValues[filter.fieldSlug].map((v) => (
-                        <SelectItem key={v} value={v}>
-                          {v}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                ) : (
+                <Select
+                  value={filter.operator}
+                  onValueChange={(val) => handleFilterOperatorChange(index, val)}
+                >
+                  <SelectTrigger className="h-8 text-xs w-[90px] flex-shrink-0">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="contains">contém</SelectItem>
+                    <SelectItem value="equals">igual a</SelectItem>
+                  </SelectContent>
+                </Select>
+                <div className="flex-1 relative">
                   <Input
                     placeholder="Valor..."
                     value={filter.value}
                     onChange={(e) => handleFilterValueChange(index, e.target.value)}
-                    className="h-8 text-xs flex-1"
+                    className="h-8 text-xs"
+                    list={uniqueFieldValues[filter.fieldSlug] ? `filter-suggestions-${index}` : undefined}
                   />
-                )}
+                  {uniqueFieldValues[filter.fieldSlug] && (
+                    <datalist id={`filter-suggestions-${index}`}>
+                      {uniqueFieldValues[filter.fieldSlug].map((v) => (
+                        <option key={v} value={v} />
+                      ))}
+                    </datalist>
+                  )}
+                </div>
                 <Button
                   variant="ghost"
                   size="icon"
