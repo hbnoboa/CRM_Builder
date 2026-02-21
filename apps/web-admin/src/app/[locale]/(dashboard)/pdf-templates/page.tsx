@@ -83,7 +83,15 @@ function GenerateModal({
 
   const entitySlug = template?.sourceEntity?.slug || '';
 
-  // Busca apenas para contar registros e popular filtros
+  // Busca total de registros (sem filtros)
+  const { data: allRecordsData } = useEntityData(
+    entitySlug,
+    { limit: 1 }
+  );
+  const grandTotal = allRecordsData?.meta?.total ?? 0;
+
+  // Busca registros com filtros aplicados
+  const hasFilters = activeFilters.length > 0 || !!recordSearch;
   const { data: recordsData, isLoading: loadingRecords } = useEntityData(
     entitySlug,
     {
@@ -319,11 +327,12 @@ function GenerateModal({
             </span>
           ) : (
             <span>
-              <strong>{totalRecords.toLocaleString('pt-BR')}</strong>{' '}
+              <strong>{totalRecords.toLocaleString('pt-BR')}</strong>
+              {hasFilters && grandTotal > 0 && (
+                <span className="text-muted-foreground"> de {grandTotal.toLocaleString('pt-BR')}</span>
+              )}{' '}
               registro{totalRecords !== 1 ? 's' : ''}{' '}
-              {activeFilters.length > 0 || recordSearch
-                ? 'correspondem aos filtros'
-                : 'serao incluidos'}
+              {hasFilters ? 'correspondem aos filtros' : 'serao incluidos'}
             </span>
           )}
         </div>
@@ -344,7 +353,7 @@ function GenerateModal({
             ) : (
               <>
                 <Download className="h-4 w-4 mr-2" />
-                Gerar PDF ({totalRecords.toLocaleString('pt-BR')} registro{totalRecords !== 1 ? 's' : ''})
+                Gerar PDF ({totalRecords.toLocaleString('pt-BR')}{hasFilters && grandTotal > 0 ? ` de ${grandTotal.toLocaleString('pt-BR')}` : ''} registro{totalRecords !== 1 ? 's' : ''})
               </>
             )}
           </Button>
