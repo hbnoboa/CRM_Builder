@@ -61,9 +61,10 @@ export class DataController {
   async importData(
     @Param('entitySlug') entitySlug: string,
     @UploadedFile() file: Express.Multer.File,
+    @Query('tenantId') tenantId: string,
     @CurrentUser() user: CurrentUserType,
   ) {
-    return this.dataIoService.importData(entitySlug, file, user);
+    return this.dataIoService.importData(entitySlug, file, user, tenantId);
   }
 
   @Post(':entitySlug')

@@ -145,6 +145,7 @@ export class DataIoService {
     entitySlug: string,
     file: Express.Multer.File,
     user: CurrentUser,
+    tenantId?: string,
   ): Promise<ImportResult> {
     checkModulePermission(user, 'data', 'canImport');
 
@@ -152,7 +153,7 @@ export class DataIoService {
       throw new BadRequestException('Nenhum arquivo enviado');
     }
 
-    const effectiveTenantId = getEffectiveTenantId(user);
+    const effectiveTenantId = getEffectiveTenantId(user, tenantId);
 
     // Buscar entidade e campos
     const entity = await this.prisma.entity.findFirst({
