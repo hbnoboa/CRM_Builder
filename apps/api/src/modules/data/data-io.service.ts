@@ -26,6 +26,20 @@ export interface ImportResult {
 
 const MAX_EXPORT_ROWS = 5000;
 const IMPORT_BATCH_SIZE = 500;
+const PREVIEW_ROWS = 5;
+
+export interface ImportPreview {
+  headers: string[];
+  sampleRows: Record<string, unknown>[];
+  totalRows: number;
+  entityFields: Array<{
+    slug: string;
+    name: string;
+    type: string;
+    required: boolean;
+  }>;
+  suggestedMapping: Record<string, string>; // header -> fieldSlug
+}
 
 @Injectable()
 export class DataIoService {
@@ -138,7 +152,100 @@ export class DataIoService {
   }
 
   // =========================================================================
-  // IMPORT
+  // IMPORT PREVIEW
+  // =========================================================================
+
+  async previewImport(
+    entitySlug: string,
+    file: Express.Multer.File,
+    user: CurrentUser,
+    tenantId?: string,
+  ): Promise<ImportPreview> {
+    checkModulePermission(user, 'data', 'canImport');
+
+    if (!file || !file.buffer) {
+      throw new BadRequestException('Nenhum arquivo enviado');
+    }
+
+    const effectiveTenantId = getEffectiveTenantId(user, tenantId);
+
+    // Buscar entidade e campos
+    const entity = await this.prisma.entity.findFirst({
+      where: {
+        slug: entitySlug,
+        tenantId: effectiveTenantId,
+      },
+    });
+
+    if (!entity) {
+      throw new BadRequestException(`Entidade "${entitySlug}" nao encontrada`);
+    }
+
+    const fields = (entity.fields as unknown) as FieldDefinition[];
+    const importableFields = fields.filter(
+      f => f.type !== 'sub-entity' && f.type !== 'password' && f.type !== 'hidden',
+    );
+
+    // Parse file
+    let rawRows: Record<string, unknown>[];
+    const ext = file.originalname?.toLowerCase() || '';
+
+    if (ext.endsWith('.json')) {
+      rawRows = this.parseJson(file.buffer);
+    } else if (ext.endsWith('.xlsx') || ext.endsWith('.xls')) {
+      rawRows = await this.parseExcel(file.buffer);
+    } else {
+      throw new BadRequestException('Formato nao suportado. Use .xlsx ou .json');
+    }
+
+    if (rawRows.length === 0) {
+      throw new BadRequestException('Arquivo vazio ou sem dados');
+    }
+
+    // Get headers from first row keys
+    const headers = Object.keys(rawRows[0]);
+
+    // Build suggested mapping (auto-match)
+    const suggestedMapping: Record<string, string> = {};
+    for (const header of headers) {
+      const lowerHeader = header.toLowerCase().trim();
+
+      // Try exact slug match
+      let field = importableFields.find(f => f.slug === header);
+      if (!field) {
+        // Try slug case-insensitive
+        field = importableFields.find(f => f.slug.toLowerCase() === lowerHeader);
+      }
+      if (!field) {
+        // Try exact name match
+        field = importableFields.find(f => f.name?.toLowerCase() === lowerHeader);
+      }
+      if (!field) {
+        // Try label match
+        field = importableFields.find(f => f.label?.toLowerCase() === lowerHeader);
+      }
+
+      if (field) {
+        suggestedMapping[header] = field.slug;
+      }
+    }
+
+    return {
+      headers,
+      sampleRows: rawRows.slice(0, PREVIEW_ROWS),
+      totalRows: rawRows.length,
+      entityFields: importableFields.map(f => ({
+        slug: f.slug,
+        name: f.name || f.slug,
+        type: f.type || 'text',
+        required: f.required || false,
+      })),
+      suggestedMapping,
+    };
+  }
+
+  // =========================================================================
+  // IMPORT WITH MAPPING
   // =========================================================================
 
   async importData(
@@ -146,6 +253,7 @@ export class DataIoService {
     file: Express.Multer.File,
     user: CurrentUser,
     tenantId?: string,
+    columnMapping?: Record<string, string>, // header -> fieldSlug
   ): Promise<ImportResult> {
     checkModulePermission(user, 'data', 'canImport');
 
@@ -188,8 +296,10 @@ export class DataIoService {
       return { imported: 0, errors: [], total: 0 };
     }
 
-    // Map column headers to field slugs
-    const fieldMap = this.buildFieldMap(rawRows[0], importableFields);
+    // Map column headers to field slugs (use custom mapping or auto-detect)
+    const fieldMap = columnMapping
+      ? this.buildFieldMapFromMapping(columnMapping, importableFields)
+      : this.buildFieldMap(rawRows[0], importableFields);
 
     // Validate and coerce each row
     const validRows: Record<string, unknown>[] = [];
@@ -326,6 +436,26 @@ export class DataIoService {
         field = fields.find(f => f.label?.toLowerCase() === lowerHeader);
       }
 
+      if (field) {
+        fieldMap.set(header, field);
+      }
+    }
+
+    return fieldMap;
+  }
+
+  /**
+   * Build field map from explicit column mapping (header -> fieldSlug)
+   */
+  private buildFieldMapFromMapping(
+    mapping: Record<string, string>,
+    fields: FieldDefinition[],
+  ): Map<string, FieldDefinition> {
+    const fieldMap = new Map<string, FieldDefinition>();
+
+    for (const [header, fieldSlug] of Object.entries(mapping)) {
+      if (!fieldSlug) continue; // Skip unmapped columns
+      const field = fields.find(f => f.slug === fieldSlug);
       if (field) {
         fieldMap.set(header, field);
       }

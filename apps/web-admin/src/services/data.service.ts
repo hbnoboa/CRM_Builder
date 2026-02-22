@@ -104,12 +104,34 @@ export const dataService = {
     return response.data;
   },
 
+  async previewImport(
+    entitySlug: string,
+    file: File,
+  ): Promise<{
+    headers: string[];
+    sampleRows: Record<string, unknown>[];
+    totalRows: number;
+    entityFields: Array<{ slug: string; name: string; type: string; required: boolean }>;
+    suggestedMapping: Record<string, string>;
+  }> {
+    const formData = new FormData();
+    formData.append('file', file);
+    const response = await api.post(`/data/${entitySlug}/import/preview`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return response.data;
+  },
+
   async importData(
     entitySlug: string,
     file: File,
+    columnMapping?: Record<string, string>,
   ): Promise<{ imported: number; errors: Array<{ row: number; field: string; message: string }>; total: number }> {
     const formData = new FormData();
     formData.append('file', file);
+    if (columnMapping) {
+      formData.append('columnMapping', JSON.stringify(columnMapping));
+    }
     const response = await api.post(`/data/${entitySlug}/import`, formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
     });

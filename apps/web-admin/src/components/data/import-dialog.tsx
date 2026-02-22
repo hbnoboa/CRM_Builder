@@ -10,14 +10,58 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Upload, Loader2, FileSpreadsheet, FileJson, AlertCircle, CheckCircle2 } from 'lucide-react';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import { Badge } from '@/components/ui/badge';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import {
+  Upload,
+  Loader2,
+  FileSpreadsheet,
+  FileJson,
+  AlertCircle,
+  CheckCircle2,
+  ArrowRight,
+  ArrowLeft,
+  Link2,
+  Link2Off,
+} from 'lucide-react';
 import { toast } from 'sonner';
 import { dataService } from '@/services/data.service';
+import { cn } from '@/lib/utils';
 
 interface ImportError {
   row: number;
   field: string;
   message: string;
+}
+
+interface EntityField {
+  slug: string;
+  name: string;
+  type: string;
+  required: boolean;
+}
+
+interface ImportPreview {
+  headers: string[];
+  sampleRows: Record<string, unknown>[];
+  totalRows: number;
+  entityFields: EntityField[];
+  suggestedMapping: Record<string, string>;
 }
 
 interface ImportDialogProps {
@@ -28,10 +72,42 @@ interface ImportDialogProps {
   onSuccess: () => void;
 }
 
-export function ImportDialog({ entitySlug, entityName, open, onOpenChange, onSuccess }: ImportDialogProps) {
+type Step = 'upload' | 'mapping' | 'result';
+
+const FIELD_TYPE_LABELS: Record<string, string> = {
+  text: 'Texto',
+  textarea: 'Texto longo',
+  number: 'Numero',
+  currency: 'Moeda',
+  email: 'Email',
+  phone: 'Telefone',
+  date: 'Data',
+  datetime: 'Data/Hora',
+  boolean: 'Sim/Nao',
+  select: 'Selecao',
+  multiselect: 'Multipla selecao',
+  url: 'URL',
+  relation: 'Relacao',
+  'api-select': 'API Select',
+};
+
+export function ImportDialog({
+  entitySlug,
+  entityName,
+  open,
+  onOpenChange,
+  onSuccess,
+}: ImportDialogProps) {
+  const [step, setStep] = useState<Step>('upload');
   const [file, setFile] = useState<File | null>(null);
-  const [importing, setImporting] = useState(false);
-  const [result, setResult] = useState<{ imported: number; errors: ImportError[]; total: number } | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [preview, setPreview] = useState<ImportPreview | null>(null);
+  const [columnMapping, setColumnMapping] = useState<Record<string, string>>({});
+  const [result, setResult] = useState<{
+    imported: number;
+    errors: ImportError[];
+    total: number;
+  } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -43,19 +119,37 @@ export function ImportDialog({ entitySlug, entityName, open, onOpenChange, onSuc
         return;
       }
       setFile(selected);
+      setPreview(null);
+      setColumnMapping({});
       setResult(null);
+    }
+  };
+
+  const handlePreview = async () => {
+    if (!file) return;
+
+    setLoading(true);
+    try {
+      const previewData = await dataService.previewImport(entitySlug, file);
+      setPreview(previewData);
+      setColumnMapping(previewData.suggestedMapping);
+      setStep('mapping');
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Erro ao processar arquivo';
+      toast.error(message);
+    } finally {
+      setLoading(false);
     }
   };
 
   const handleImport = async () => {
     if (!file) return;
 
-    setImporting(true);
-    setResult(null);
-
+    setLoading(true);
     try {
-      const res = await dataService.importData(entitySlug, file);
+      const res = await dataService.importData(entitySlug, file, columnMapping);
       setResult(res);
+      setStep('result');
 
       if (res.imported > 0) {
         toast.success(`${res.imported} registro(s) importado(s) com sucesso`);
@@ -69,16 +163,32 @@ export function ImportDialog({ entitySlug, entityName, open, onOpenChange, onSuc
       const message = error instanceof Error ? error.message : 'Erro ao importar';
       toast.error(message);
     } finally {
-      setImporting(false);
+      setLoading(false);
     }
   };
 
   const handleClose = (open: boolean) => {
-    if (!importing) {
+    if (!loading) {
       setFile(null);
+      setPreview(null);
+      setColumnMapping({});
       setResult(null);
+      setStep('upload');
       onOpenChange(open);
     }
+  };
+
+  const handleBack = () => {
+    if (step === 'mapping') {
+      setStep('upload');
+    }
+  };
+
+  const updateMapping = (header: string, fieldSlug: string) => {
+    setColumnMapping((prev) => ({
+      ...prev,
+      [header]: fieldSlug,
+    }));
   };
 
   const formatFileSize = (bytes: number): string => {
@@ -87,113 +197,301 @@ export function ImportDialog({ entitySlug, entityName, open, onOpenChange, onSuc
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   };
 
-  const isExcel = file?.name.toLowerCase().endsWith('.xlsx') || file?.name.toLowerCase().endsWith('.xls');
+  const getMappedCount = () => {
+    return Object.values(columnMapping).filter(Boolean).length;
+  };
+
+  const getRequiredFieldsMissing = () => {
+    if (!preview) return [];
+    const mappedSlugs = new Set(Object.values(columnMapping).filter(Boolean));
+    return preview.entityFields.filter((f) => f.required && !mappedSlugs.has(f.slug));
+  };
+
+  const isExcel =
+    file?.name.toLowerCase().endsWith('.xlsx') || file?.name.toLowerCase().endsWith('.xls');
+
+  const requiredMissing = getRequiredFieldsMissing();
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className={cn('sm:max-w-2xl', step === 'mapping' && 'sm:max-w-4xl')}>
         <DialogHeader>
-          <DialogTitle>Importar dados - {entityName}</DialogTitle>
+          <DialogTitle>
+            Importar dados - {entityName}
+            {step === 'mapping' && (
+              <Badge variant="outline" className="ml-2 font-normal">
+                Mapeamento
+              </Badge>
+            )}
+            {step === 'result' && (
+              <Badge variant="outline" className="ml-2 font-normal">
+                Resultado
+              </Badge>
+            )}
+          </DialogTitle>
           <DialogDescription>
-            Selecione um arquivo .xlsx ou .json para importar registros.
+            {step === 'upload' && 'Selecione um arquivo .xlsx ou .json para importar registros.'}
+            {step === 'mapping' && 'Mapeie as colunas do arquivo com os campos da entidade.'}
+            {step === 'result' && 'Resultado da importacao.'}
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4">
-          {/* File upload area */}
-          <div
-            className="border-2 border-dashed rounded-lg p-6 text-center cursor-pointer hover:border-primary/50 transition-colors"
-            onClick={() => fileInputRef.current?.click()}
-          >
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept=".xlsx,.xls,.json"
-              onChange={handleFileChange}
-              className="hidden"
-            />
-            {file ? (
-              <div className="flex items-center justify-center gap-3">
-                {isExcel ? (
-                  <FileSpreadsheet className="h-8 w-8 text-green-600" />
-                ) : (
-                  <FileJson className="h-8 w-8 text-blue-600" />
-                )}
-                <div className="text-left">
-                  <p className="font-medium text-sm">{file.name}</p>
-                  <p className="text-xs text-muted-foreground">{formatFileSize(file.size)}</p>
-                </div>
-              </div>
-            ) : (
-              <div>
-                <Upload className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
-                <p className="text-sm text-muted-foreground">
-                  Clique para selecionar um arquivo
-                </p>
-                <p className="text-xs text-muted-foreground mt-1">
-                  .xlsx ou .json (max 10MB)
-                </p>
-              </div>
-            )}
-          </div>
-
-          {/* Result */}
-          {result && (
-            <div className="space-y-3">
-              {/* Summary */}
-              <div className="flex items-center gap-4 text-sm">
-                <div className="flex items-center gap-1.5">
-                  <CheckCircle2 className="h-4 w-4 text-green-600" />
-                  <span>{result.imported} importado(s)</span>
-                </div>
-                {result.errors.length > 0 && (
-                  <div className="flex items-center gap-1.5">
-                    <AlertCircle className="h-4 w-4 text-destructive" />
-                    <span>{result.errors.length} erro(s)</span>
-                  </div>
-                )}
-                <span className="text-muted-foreground">de {result.total} linha(s)</span>
-              </div>
-
-              {/* Errors list */}
-              {result.errors.length > 0 && (
-                <div className="max-h-48 overflow-y-auto border rounded-md p-2 space-y-1">
-                  {result.errors.slice(0, 50).map((err, i) => (
-                    <div key={i} className="text-xs flex gap-2">
-                      <span className="text-muted-foreground shrink-0">Linha {err.row}</span>
-                      <span className="font-medium shrink-0">{err.field}:</span>
-                      <span className="text-destructive">{err.message}</span>
-                    </div>
-                  ))}
-                  {result.errors.length > 50 && (
-                    <p className="text-xs text-muted-foreground text-center pt-1">
-                      ... e mais {result.errors.length - 50} erro(s)
-                    </p>
+        {/* Step: Upload */}
+        {step === 'upload' && (
+          <div className="space-y-4">
+            <div
+              className="border-2 border-dashed rounded-lg p-6 text-center cursor-pointer hover:border-primary/50 transition-colors"
+              onClick={() => fileInputRef.current?.click()}
+            >
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".xlsx,.xls,.json"
+                onChange={handleFileChange}
+                className="hidden"
+              />
+              {file ? (
+                <div className="flex items-center justify-center gap-3">
+                  {isExcel ? (
+                    <FileSpreadsheet className="h-8 w-8 text-green-600" />
+                  ) : (
+                    <FileJson className="h-8 w-8 text-blue-600" />
                   )}
+                  <div className="text-left">
+                    <p className="font-medium text-sm">{file.name}</p>
+                    <p className="text-xs text-muted-foreground">{formatFileSize(file.size)}</p>
+                  </div>
+                </div>
+              ) : (
+                <div>
+                  <Upload className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
+                  <p className="text-sm text-muted-foreground">Clique para selecionar um arquivo</p>
+                  <p className="text-xs text-muted-foreground mt-1">.xlsx ou .json (max 10MB)</p>
                 </div>
               )}
             </div>
-          )}
-        </div>
+          </div>
+        )}
+
+        {/* Step: Mapping */}
+        {step === 'mapping' && preview && (
+          <div className="space-y-4">
+            {/* Stats */}
+            <div className="flex items-center gap-4 text-sm">
+              <div className="flex items-center gap-1.5">
+                <FileSpreadsheet className="h-4 w-4 text-muted-foreground" />
+                <span>{preview.totalRows} linha(s) no arquivo</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <Link2 className="h-4 w-4 text-muted-foreground" />
+                <span>
+                  {getMappedCount()} de {preview.headers.length} coluna(s) mapeada(s)
+                </span>
+              </div>
+            </div>
+
+            {/* Required fields warning */}
+            {requiredMissing.length > 0 && (
+              <div className="flex items-start gap-2 p-3 bg-destructive/10 border border-destructive/20 rounded-md">
+                <AlertCircle className="h-4 w-4 text-destructive mt-0.5 shrink-0" />
+                <div className="text-sm">
+                  <p className="font-medium text-destructive">Campos obrigatorios nao mapeados:</p>
+                  <p className="text-muted-foreground">
+                    {requiredMissing.map((f) => f.name).join(', ')}
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* Mapping table */}
+            <ScrollArea className="h-[300px] border rounded-md">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-[200px]">Coluna do Arquivo</TableHead>
+                    <TableHead className="w-[50px]"></TableHead>
+                    <TableHead className="w-[250px]">Campo da Entidade</TableHead>
+                    <TableHead>Amostra</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {preview.headers.map((header) => {
+                    const mappedSlug = columnMapping[header];
+                    const mappedField = preview.entityFields.find((f) => f.slug === mappedSlug);
+                    const sampleValue = preview.sampleRows[0]?.[header];
+
+                    return (
+                      <TableRow key={header}>
+                        <TableCell className="font-medium">{header}</TableCell>
+                        <TableCell>
+                          {mappedSlug ? (
+                            <Link2 className="h-4 w-4 text-green-600" />
+                          ) : (
+                            <Link2Off className="h-4 w-4 text-muted-foreground" />
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <Select
+                            value={mappedSlug || '_none'}
+                            onValueChange={(value) =>
+                              updateMapping(header, value === '_none' ? '' : value)
+                            }
+                          >
+                            <SelectTrigger className="w-full">
+                              <SelectValue placeholder="Selecione um campo" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="_none">
+                                <span className="text-muted-foreground">-- Ignorar --</span>
+                              </SelectItem>
+                              {preview.entityFields.map((field) => (
+                                <SelectItem key={field.slug} value={field.slug}>
+                                  <div className="flex items-center gap-2">
+                                    <span>{field.name}</span>
+                                    <Badge variant="outline" className="text-[10px] px-1">
+                                      {FIELD_TYPE_LABELS[field.type] || field.type}
+                                    </Badge>
+                                    {field.required && (
+                                      <span className="text-destructive">*</span>
+                                    )}
+                                  </div>
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </TableCell>
+                        <TableCell className="text-muted-foreground text-xs max-w-[200px] truncate">
+                          {sampleValue !== undefined && sampleValue !== null
+                            ? String(sampleValue)
+                            : '-'}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </ScrollArea>
+
+            {/* Preview table */}
+            <div>
+              <p className="text-sm font-medium mb-2">Preview dos dados (primeiras 5 linhas)</p>
+              <ScrollArea className="h-[150px] border rounded-md">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      {preview.headers.map((header) => (
+                        <TableHead key={header} className="text-xs whitespace-nowrap">
+                          {header}
+                        </TableHead>
+                      ))}
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {preview.sampleRows.map((row, i) => (
+                      <TableRow key={i}>
+                        {preview.headers.map((header) => (
+                          <TableCell key={header} className="text-xs max-w-[150px] truncate">
+                            {row[header] !== undefined && row[header] !== null
+                              ? String(row[header])
+                              : '-'}
+                          </TableCell>
+                        ))}
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </ScrollArea>
+            </div>
+          </div>
+        )}
+
+        {/* Step: Result */}
+        {step === 'result' && result && (
+          <div className="space-y-4">
+            {/* Summary */}
+            <div className="flex items-center gap-4 text-sm">
+              <div className="flex items-center gap-1.5">
+                <CheckCircle2 className="h-4 w-4 text-green-600" />
+                <span>{result.imported} importado(s)</span>
+              </div>
+              {result.errors.length > 0 && (
+                <div className="flex items-center gap-1.5">
+                  <AlertCircle className="h-4 w-4 text-destructive" />
+                  <span>{result.errors.length} erro(s)</span>
+                </div>
+              )}
+              <span className="text-muted-foreground">de {result.total} linha(s)</span>
+            </div>
+
+            {/* Errors list */}
+            {result.errors.length > 0 && (
+              <div className="max-h-48 overflow-y-auto border rounded-md p-2 space-y-1">
+                {result.errors.slice(0, 50).map((err, i) => (
+                  <div key={i} className="text-xs flex gap-2">
+                    <span className="text-muted-foreground shrink-0">Linha {err.row}</span>
+                    <span className="font-medium shrink-0">{err.field}:</span>
+                    <span className="text-destructive">{err.message}</span>
+                  </div>
+                ))}
+                {result.errors.length > 50 && (
+                  <p className="text-xs text-muted-foreground text-center pt-1">
+                    ... e mais {result.errors.length - 50} erro(s)
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
+        )}
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => handleClose(false)} disabled={importing}>
-            {result ? 'Fechar' : 'Cancelar'}
-          </Button>
-          {!result && (
-            <Button onClick={handleImport} disabled={!file || importing}>
-              {importing ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Importando...
-                </>
-              ) : (
-                <>
-                  <Upload className="h-4 w-4 mr-2" />
-                  Importar
-                </>
-              )}
-            </Button>
+          {step === 'upload' && (
+            <>
+              <Button variant="outline" onClick={() => handleClose(false)} disabled={loading}>
+                Cancelar
+              </Button>
+              <Button onClick={handlePreview} disabled={!file || loading}>
+                {loading ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Processando...
+                  </>
+                ) : (
+                  <>
+                    Continuar
+                    <ArrowRight className="h-4 w-4 ml-2" />
+                  </>
+                )}
+              </Button>
+            </>
+          )}
+
+          {step === 'mapping' && (
+            <>
+              <Button variant="outline" onClick={handleBack} disabled={loading}>
+                <ArrowLeft className="h-4 w-4 mr-2" />
+                Voltar
+              </Button>
+              <Button
+                onClick={handleImport}
+                disabled={loading || getMappedCount() === 0}
+              >
+                {loading ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Importando...
+                  </>
+                ) : (
+                  <>
+                    <Upload className="h-4 w-4 mr-2" />
+                    Importar {preview?.totalRows} registro(s)
+                  </>
+                )}
+              </Button>
+            </>
+          )}
+
+          {step === 'result' && (
+            <Button onClick={() => handleClose(false)}>Fechar</Button>
           )}
         </DialogFooter>
       </DialogContent>

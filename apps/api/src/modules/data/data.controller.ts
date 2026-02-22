@@ -55,6 +55,18 @@ export class DataController {
     return new StreamableFile(result.buffer);
   }
 
+  @Post(':entitySlug/import/preview')
+  @ApiOperation({ summary: 'Preview do arquivo para importacao' })
+  @UseInterceptors(FileInterceptor('file'))
+  async previewImport(
+    @Param('entitySlug') entitySlug: string,
+    @UploadedFile() file: Express.Multer.File,
+    @Query('tenantId') tenantId: string,
+    @CurrentUser() user: CurrentUserType,
+  ) {
+    return this.dataIoService.previewImport(entitySlug, file, user, tenantId);
+  }
+
   @Post(':entitySlug/import')
   @ApiOperation({ summary: 'Importar dados' })
   @UseInterceptors(FileInterceptor('file'))
@@ -62,9 +74,10 @@ export class DataController {
     @Param('entitySlug') entitySlug: string,
     @UploadedFile() file: Express.Multer.File,
     @Query('tenantId') tenantId: string,
+    @Body() body: { columnMapping?: Record<string, string> },
     @CurrentUser() user: CurrentUserType,
   ) {
-    return this.dataIoService.importData(entitySlug, file, user, tenantId);
+    return this.dataIoService.importData(entitySlug, file, user, tenantId, body?.columnMapping);
   }
 
   @Post(':entitySlug')
