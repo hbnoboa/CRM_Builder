@@ -10,7 +10,7 @@ class Formatters {
   static String date(String? isoDate) {
     if (isoDate == null || isoDate.isEmpty) return '-';
     try {
-      return _dateFmt.format(DateTime.parse(isoDate));
+      return _dateFmt.format(DateTime.parse(isoDate).toLocal());
     } catch (_) {
       return isoDate;
     }
@@ -19,7 +19,7 @@ class Formatters {
   static String dateTime(String? isoDate) {
     if (isoDate == null || isoDate.isEmpty) return '-';
     try {
-      return _dateTimeFmt.format(DateTime.parse(isoDate));
+      return _dateTimeFmt.format(DateTime.parse(isoDate).toLocal());
     } catch (_) {
       return isoDate;
     }
