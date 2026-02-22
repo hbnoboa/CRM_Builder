@@ -601,7 +601,7 @@ function NewEntityPageContent() {
             >
               <SelectTrigger className="h-8 text-sm"><SelectValue placeholder={tFieldConfig('selectDataApi')} /></SelectTrigger>
               <SelectContent>
-                {allCustomApis.map(ca => (
+                {allCustomApis.filter(ca => ca.path).map(ca => (
                   <SelectItem key={ca.id} value={ca.path}>
                     <div className="flex items-center gap-2">
                       <Badge className="bg-green-500 text-white text-[10px] h-4">{ca.method}</Badge>
@@ -650,8 +650,8 @@ function NewEntityPageContent() {
                 <Select value={af.targetField} onValueChange={(val) => updateAutoFill(index, afIdx, { targetField: val })}>
                   <SelectTrigger className="h-7 text-xs flex-1"><SelectValue placeholder={tFieldConfig('targetField')} /></SelectTrigger>
                   <SelectContent>
-                    {fields.filter((_, i) => i !== index).map(f => (
-                      <SelectItem key={f.slug || f.name} value={f.slug || f.name || ''}>{f.label || f.name} <span className="text-muted-foreground">({f.slug || f.name})</span></SelectItem>
+                    {fields.filter((_, i) => i !== index && (f.slug || f.name)).map(f => (
+                      <SelectItem key={f.slug || f.name} value={f.slug || f.name}>{f.label || f.name} <span className="text-muted-foreground">({f.slug || f.name})</span></SelectItem>
                     ))}
                   </SelectContent>
                 </Select>

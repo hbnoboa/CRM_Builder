@@ -520,7 +520,7 @@ export function RecordFormDialog({
                 {options.length === 0 && !isLoadingOpts ? (
                   <div className="px-2 py-1 text-sm text-muted-foreground">{t('noOptionsAvailable')}</div>
                 ) : (
-                  options.map((opt) => <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>)
+                  options.filter((opt) => opt.value).map((opt) => <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>)
                 )}
               </SelectContent>
             </Select>
@@ -548,7 +548,7 @@ export function RecordFormDialog({
                 {options.length === 0 && !isLoadingRel ? (
                   <div className="px-2 py-1 text-sm text-muted-foreground">{t('noRecordFound')}</div>
                 ) : (
-                  options.map((opt) => <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>)
+                  options.filter((opt) => opt.value).map((opt) => <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>)
                 )}
               </SelectContent>
             </Select>
