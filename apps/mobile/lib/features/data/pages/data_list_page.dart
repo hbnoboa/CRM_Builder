@@ -30,6 +30,8 @@ class _DataListPageState extends ConsumerState<DataListPage> {
   Timer? _debounce;
   String _search = '';
   int _limit = AppConstants.defaultPageSize;
+  bool _isLoadingMore = false;
+  int _currentRecordCount = 0;
 
   @override
   void initState() {
@@ -46,10 +48,18 @@ class _DataListPageState extends ConsumerState<DataListPage> {
   }
 
   void _onScroll() {
+    // Evita carregar mais se ja esta carregando ou se ja carregou tudo
+    if (_isLoadingMore) return;
+    if (_currentRecordCount < _limit) return; // Ja carregou tudo
+
     if (_scrollController.position.pixels >=
         _scrollController.position.maxScrollExtent - 200) {
-      // Near bottom - load more
+      _isLoadingMore = true;
       setState(() => _limit += AppConstants.defaultPageSize);
+      // Reset flag apos um pequeno delay
+      Future.delayed(const Duration(milliseconds: 300), () {
+        _isLoadingMore = false;
+      });
     }
   }
 
@@ -150,6 +160,15 @@ class _DataListPageState extends ConsumerState<DataListPage> {
             fields = jsonDecode(entity['fields'] as String? ?? '[]');
           } catch (_) {}
 
+          // Extract role-based data filters from customRole
+          final authState = ref.watch(authProvider);
+          final customRoleMap = authState.user?.customRole?.toJson();
+          final roleFilters = repo.extractRoleFilters(
+            entity: entity,
+            customRole: customRoleMap,
+            entitySlug: widget.entitySlug,
+          );
+
           return Column(
             children: [
               // Search bar
@@ -195,10 +214,14 @@ class _DataListPageState extends ConsumerState<DataListPage> {
                     search: _search.isNotEmpty ? _search : null,
                     orderBy: 'createdAt DESC',
                     limit: _limit,
+                    roleFilters: roleFilters,
                     createdById: scopeUserId,
                   ),
                   builder: (context, snapshot) {
                     final records = snapshot.data ?? [];
+
+                    // Atualiza contador para controle de lazy loading
+                    _currentRecordCount = records.length;
 
                     if (records.isEmpty) {
                       final canCreate = perms.hasEntityPermission(
@@ -291,6 +314,7 @@ class _DataListPageState extends ConsumerState<DataListPage> {
                           stream: repo.watchRecordCount(
                             entityId: entityId,
                             search: _search.isNotEmpty ? _search : null,
+                            roleFilters: roleFilters,
                             createdById: scopeUserId,
                           ),
                           builder: (context, countSnapshot) {

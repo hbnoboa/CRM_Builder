@@ -58,30 +58,59 @@ sync_rules:
             FROM "Notification"
             WHERE "userId" = bucket.user_id AND "tenantId" = bucket.tenant_id
 
-      # Bucket 2: tenant-level data (requires tenant_id only)
-      # Permission filtering (entity visibility, global filters, own scope)
-      # is handled client-side by permission_provider.dart
-      tenant_data:
+      # Bucket 2: tenant-level data for ADMINS (all data)
+      admin_data:
         parameters: |
           SELECT
-            request.jwt() ->> 'tenantId' as tenant_id
+            request.jwt() ->> 'tenantId' as tenant_id,
+            request.jwt() ->> 'roleType' as role_type
+          WHERE request.jwt() ->> 'roleType' IN ('PLATFORM_ADMIN', 'ADMIN')
         data:
           # Custom roles (for client-side permission checks)
-          - SELECT id, "tenantId", name, description, color, "roleType", "isSystem", permissions, "modulePermissions", "tenantPermissions", "isDefault", "createdAt", "updatedAt"
+          - SELECT id, "tenantId", name, description, color, "roleType", "isSystem", permissions, "modulePermissions", "tenantPermissions", "dataFilters", "isDefault", "createdAt", "updatedAt"
             FROM "CustomRole"
             WHERE "tenantId" = bucket.tenant_id
 
-          # All entity definitions for tenant (client filters by role)
+          # All entity definitions for tenant
           - SELECT id, "tenantId", name, "namePlural", slug, description, icon, color, fields, settings, "isSystem", "createdAt", "updatedAt"
             FROM "Entity"
             WHERE "tenantId" = bucket.tenant_id
 
-          # Entity data: only records passing global filters AND whose parent also passes
-          # - _matchesGlobalFilter: record passes its entity's global filters
-          # - _parentMatchesFilter: parent record also passes (for sub-entities)
+          # All entity data (admins see everything)
           - SELECT id, "tenantId", "entityId", data, "parentRecordId", "createdById", "updatedById", "createdAt", "updatedAt", "deletedAt"
             FROM "EntityData"
             WHERE "tenantId" = bucket.tenant_id
               AND "deletedAt" IS NULL
               AND "_matchesGlobalFilter" = true
               AND "_parentMatchesFilter" = true
+
+      # Bucket 3: tenant-level data for non-admin roles (filtered by role)
+      role_filtered_data:
+        parameters: |
+          SELECT
+            request.jwt() ->> 'tenantId' as tenant_id,
+            request.jwt() ->> 'customRoleId' as custom_role_id,
+            request.jwt() ->> 'roleType' as role_type
+          WHERE request.jwt() ->> 'roleType' NOT IN ('PLATFORM_ADMIN', 'ADMIN')
+        data:
+          # Custom roles (for client-side permission checks)
+          - SELECT id, "tenantId", name, description, color, "roleType", "isSystem", permissions, "modulePermissions", "tenantPermissions", "dataFilters", "isDefault", "createdAt", "updatedAt"
+            FROM "CustomRole"
+            WHERE "tenantId" = bucket.tenant_id
+
+          # All entity definitions for tenant
+          - SELECT id, "tenantId", name, "namePlural", slug, description, icon, color, fields, settings, "isSystem", "createdAt", "updatedAt"
+            FROM "Entity"
+            WHERE "tenantId" = bucket.tenant_id
+
+          # Entity data filtered by role
+          # - _matchesGlobalFilter: record passes entity's global filters
+          # - _parentMatchesFilter: parent record also passes (for sub-entities)
+          # - _visibleToRoles: NULL means all can see, otherwise role must be in array
+          - SELECT id, "tenantId", "entityId", data, "parentRecordId", "createdById", "updatedById", "createdAt", "updatedAt", "deletedAt"
+            FROM "EntityData"
+            WHERE "tenantId" = bucket.tenant_id
+              AND "deletedAt" IS NULL
+              AND "_matchesGlobalFilter" = true
+              AND "_parentMatchesFilter" = true
+              AND ("_visibleToRoles" IS NULL OR bucket.custom_role_id = ANY("_visibleToRoles"))

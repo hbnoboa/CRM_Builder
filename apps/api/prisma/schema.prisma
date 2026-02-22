@@ -225,6 +225,13 @@ model EntityData {
   // Sub-entities only sync if parent also passes
   parentMatchesFilter Boolean @default(true) @map("_parentMatchesFilter")
 
+  // Trigger-maintained: array of CustomRole IDs that can see this record
+  // NULL = all roles can see (no role filters configured for this entity)
+  // Empty array = no roles can see
+  // Array with IDs = only those roles can see
+  // PLATFORM_ADMIN and ADMIN always see everything (handled in sync rules)
+  visibleToRoles String[] @map("_visibleToRoles")
+
   entity       Entity       @relation(fields: [entityId], references: [id], onDelete: Cascade)
   tenant       Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   createdBy    User?        @relation("CreatedBy", fields: [createdById], references: [id], onDelete: SetNull)

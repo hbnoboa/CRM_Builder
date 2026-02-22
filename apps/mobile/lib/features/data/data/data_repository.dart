@@ -89,6 +89,7 @@ class DataRepository {
     required String entityId,
     String? search,
     List<LocalFilter> localFilters = const [],
+    List<RoleFilter> roleFilters = const [],
     String? createdById,
   }) {
     final db = AppDatabase.instance.db;
@@ -101,6 +102,15 @@ class DataRepository {
     if (createdById != null) {
       query += ' AND createdById = ?';
       params.add(createdById);
+    }
+
+    // Apply role-based data filters (restrict what data a role can see)
+    if (roleFilters.isNotEmpty) {
+      final roleResult = FilterSqlBuilder.buildRoleFilterClauses(roleFilters);
+      if (roleResult.where.isNotEmpty) {
+        query += roleResult.where;
+        params.addAll(roleResult.params);
+      }
     }
 
     // Apply local filters

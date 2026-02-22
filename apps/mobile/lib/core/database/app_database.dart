@@ -41,6 +41,7 @@ const schema = Schema([
     Column.text('permissions'),
     Column.text('modulePermissions'),
     Column.text('tenantPermissions'),
+    Column.text('dataFilters'),
     Column.integer('isDefault'),
     Column.text('createdAt'),
     Column.text('updatedAt'),
