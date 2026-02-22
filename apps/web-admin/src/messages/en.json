@@ -369,6 +369,7 @@
       "andMore": "...and {count} more options",
       "applyOptions": "Apply options",
       "noOptions": "No options. Add options for the selector.",
+      "selectSheet": "Select a sheet:",
       "defaultValue": "Default Value",
       "noDefault": "None (empty)",
       "relationConfig": "🔗 Relation Configuration",

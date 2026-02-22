@@ -363,11 +363,22 @@ function EntityDetailPageContent() {
   // Estados globais para importação de opções por campo
   const [importPreview, setImportPreview] = useState<Record<number, any[] | null>>({});
   const [importError, setImportError] = useState<Record<number, string | null>>({});
+  const [importSheetData, setImportSheetData] = useState<Record<number, { workbook: XLSX.WorkBook; sheets: string[] } | null>>({});
+
+  const handleSelectSheet = (fieldIndex: number, sheetName: string) => {
+    const stored = importSheetData[fieldIndex];
+    if (!stored) return;
+    const sheet = stored.workbook.Sheets[sheetName];
+    const json = XLSX.utils.sheet_to_json(sheet);
+    setImportPreview(prev => ({ ...prev, [fieldIndex]: json }));
+    setImportSheetData(prev => ({ ...prev, [fieldIndex]: null }));
+  };
 
   // Handler de importação
   const handleImportOptions = async (e: React.ChangeEvent<HTMLInputElement>, fieldIndex: number) => {
     setImportError(prev => ({ ...prev, [fieldIndex]: null }));
     setImportPreview(prev => ({ ...prev, [fieldIndex]: null }));
+    setImportSheetData(prev => ({ ...prev, [fieldIndex]: null }));
     const file = e.target.files?.[0];
     if (!file) return;
     const ext = file.name.split('.').pop()?.toLowerCase();
@@ -388,15 +399,21 @@ function EntityDetailPageContent() {
       } else if (ext === 'xlsx') {
         const data = await file.arrayBuffer();
         const workbook = XLSX.read(data);
-        const sheet = workbook.Sheets[workbook.SheetNames[0]];
-        const json = XLSX.utils.sheet_to_json(sheet);
-        setImportPreview(prev => ({ ...prev, [fieldIndex]: json }));
+        const sheetNames = workbook.SheetNames;
+        if (sheetNames.length > 1) {
+          setImportSheetData(prev => ({ ...prev, [fieldIndex]: { workbook, sheets: sheetNames } }));
+        } else {
+          const sheet = workbook.Sheets[sheetNames[0]];
+          const json = XLSX.utils.sheet_to_json(sheet);
+          setImportPreview(prev => ({ ...prev, [fieldIndex]: json }));
+        }
       } else {
         setImportError(prev => ({ ...prev, [fieldIndex]: tImport('unsupportedFormat') }));
       }
     } catch (err: any) {
       setImportError(prev => ({ ...prev, [fieldIndex]: tImport('importError') + (err.message || String(err)) }));
     }
+    e.target.value = '';
   };
 
   // Aplicar preview ao campo
@@ -444,6 +461,19 @@ function EntityDetailPageContent() {
             </div>
           </div>
           {importError[index] && <div className="text-xs text-red-600">{importError[index]}</div>}
+          {importSheetData[index] && (
+            <div className="bg-muted p-2 rounded border text-xs mb-2">
+              <div className="mb-1 font-medium">{tFieldConfig('selectSheet')}</div>
+              <div className="flex flex-wrap gap-2 mt-1">
+                {importSheetData[index]!.sheets.map((sheetName) => (
+                  <Button key={sheetName} size="sm" variant="outline" className="h-7 text-xs" onClick={() => handleSelectSheet(index, sheetName)}>
+                    {sheetName}
+                  </Button>
+                ))}
+              </div>
+              <Button size="sm" variant="ghost" className="mt-2" onClick={() => setImportSheetData(prev => ({ ...prev, [index]: null }))}>{tCommon('cancel')}</Button>
+            </div>
+          )}
           {importPreview[index] && (
             <div className="bg-muted p-2 rounded border text-xs mb-2">
               <div className="mb-1 font-medium">{tFieldConfig('importPreview', { count: importPreview[index].length })}</div>
@@ -483,7 +513,10 @@ function EntityDetailPageContent() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="__none__">{tFieldConfig('noDefault')}</SelectItem>
-                  {(field.options || []).map((opt, i) => {
+                  {(field.options || []).filter((opt) => {
+                    const v = typeof opt === 'object' ? opt.value : opt;
+                    return v !== '' && v != null;
+                  }).map((opt, i) => {
                     const val = typeof opt === 'object' ? opt.value : opt;
                     const label = typeof opt === 'object' ? opt.label : opt;
                     return <SelectItem key={i} value={val}>{label}</SelectItem>;

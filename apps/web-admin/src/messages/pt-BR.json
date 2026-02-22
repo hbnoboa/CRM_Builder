@@ -369,6 +369,7 @@
       "andMore": "...e mais {count} opções",
       "applyOptions": "Aplicar opções",
       "noOptions": "Nenhuma opção. Adicione opções para o seletor.",
+      "selectSheet": "Selecione a planilha:",
       "defaultValue": "Valor Padrão",
       "noDefault": "Nenhum (vazio)",
       "relationConfig": "🔗 Configuração da Relação",
