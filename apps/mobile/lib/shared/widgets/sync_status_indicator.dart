@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:crm_mobile/core/database/app_database.dart';
-import 'package:crm_mobile/core/config/env.dart';
 import 'package:crm_mobile/core/theme/app_colors_extension.dart';
 import 'package:crm_mobile/core/theme/app_typography.dart';
 import 'package:powersync/powersync.dart' hide Column;
@@ -19,51 +18,12 @@ class SyncStatusIndicator extends StatelessWidget {
         .map((rows) => (rows.first['count'] as num?)?.toInt() ?? 0);
   }
 
-  Future<Map<String, int>> _getTableCounts() async {
-    final db = AppDatabase.instance.db;
-    final results = <String, int>{};
-
-    try {
-      final entities = await db.getAll('SELECT COUNT(*) as count FROM Entity');
-      results['Entity'] = (entities.first['count'] as num?)?.toInt() ?? 0;
-    } catch (_) {
-      results['Entity'] = -1;
-    }
-
-    try {
-      final data = await db.getAll('SELECT COUNT(*) as count FROM EntityData WHERE deletedAt IS NULL');
-      results['EntityData'] = (data.first['count'] as num?)?.toInt() ?? 0;
-    } catch (_) {
-      results['EntityData'] = -1;
-    }
-
-    try {
-      final roles = await db.getAll('SELECT COUNT(*) as count FROM CustomRole');
-      results['CustomRole'] = (roles.first['count'] as num?)?.toInt() ?? 0;
-    } catch (_) {
-      results['CustomRole'] = -1;
-    }
-
-    try {
-      final users = await db.getAll('SELECT COUNT(*) as count FROM User');
-      results['User'] = (users.first['count'] as num?)?.toInt() ?? 0;
-    } catch (_) {
-      results['User'] = -1;
-    }
-
-    return results;
-  }
-
-  void _showDebugDialog(BuildContext context, SyncStatus? status) async {
-    final counts = await _getTableCounts();
-
-    if (!context.mounted) return;
+  void _showDebugDialog(BuildContext context, SyncStatus? status) {
+    final colors = context.colors;
 
     showDialog(
       context: context,
       builder: (ctx) {
-        final colors = ctx.colors;
-
         return AlertDialog(
           title: Row(
             children: [
@@ -72,86 +32,27 @@ class SyncStatusIndicator extends StatelessWidget {
                 color: status?.connected == true ? colors.success : colors.destructive,
               ),
               const SizedBox(width: 8),
-              const Text('PowerSync Debug'),
+              const Text('PowerSync'),
             ],
           ),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // URLs de configuracao
-                const Text('Configuracao:', style: AppTypography.labelMedium),
-                const SizedBox(height: 4),
-                _buildStatusRow(ctx, 'API URL', Env.apiUrl, colors.mutedForeground),
-                _buildStatusRow(ctx, 'PowerSync URL', Env.powerSyncUrl, colors.mutedForeground),
-                const Divider(height: 24),
-
-                // Status de conexao
-                const Text('Status:', style: AppTypography.labelMedium),
-                const SizedBox(height: 4),
-                _buildStatusRow(ctx, 'Conectado', status?.connected == true ? 'Sim' : 'Nao'),
-                _buildStatusRow(ctx, 'Uploading', status?.uploading == true ? 'Sim' : 'Nao'),
-                _buildStatusRow(ctx, 'Downloading', status?.downloading == true ? 'Sim' : 'Nao'),
-                if (status?.lastSyncedAt != null)
-                  _buildStatusRow(ctx, 'Ultimo sync', _formatDate(status!.lastSyncedAt!)),
-                const Divider(height: 24),
-
-                // Contagem de tabelas
-                const Text('Tabelas Locais:', style: AppTypography.labelMedium),
-                const SizedBox(height: 8),
-                ...counts.entries.map((e) => _buildStatusRow(
-                  ctx,
-                  e.key,
-                  e.value >= 0 ? '${e.value} registros' : 'Erro',
-                  e.value == 0 ? colors.warning : null,
-                ),),
-                const Divider(height: 24),
-
-                // Alerta se sem dados
-                if (counts.values.every((v) => v == 0))
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: colors.warning.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Icon(Icons.warning, color: colors.warning, size: 20),
-                            const SizedBox(width: 8),
-                            Text(
-                              'Nenhum dado sincronizado!',
-                              style: AppTypography.labelSmall.copyWith(
-                                color: colors.warning,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          'Possiveis causas:\n'
-                          '- PowerSync service offline\n'
-                          '- JWT secret incorreto\n'
-                          '- Sync rules com erro\n'
-                          '- Sem dados no tenant',
-                          style: AppTypography.caption.copyWith(color: colors.warning),
-                        ),
-                      ],
-                    ),
-                  ),
-              ],
-            ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildStatusRow(ctx, 'Conectado', status?.connected == true ? 'Sim' : 'Nao',
+                  status?.connected == true ? colors.success : colors.destructive),
+              _buildStatusRow(ctx, 'Uploading', status?.uploading == true ? 'Sim' : 'Nao',
+                  status?.uploading == true ? colors.warning : null),
+              _buildStatusRow(ctx, 'Downloading', status?.downloading == true ? 'Sim' : 'Nao',
+                  status?.downloading == true ? colors.warning : null),
+              _buildStatusRow(ctx, 'Ultimo sync',
+                  status?.lastSyncedAt != null ? _formatDate(status!.lastSyncedAt!) : '-'),
+            ],
           ),
           actions: [
             TextButton(
               onPressed: () async {
                 Navigator.pop(ctx);
-                // Force reconnect
                 await AppDatabase.instance.db.disconnect();
                 await AppDatabase.instance.connect();
               },
