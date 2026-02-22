@@ -7,10 +7,17 @@ import {
   Body,
   Param,
   Query,
+  Res,
   UseGuards,
+  UseInterceptors,
+  UploadedFile,
+  StreamableFile,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
+import { Response } from 'express';
 import { DataService, QueryDataDto } from './data.service';
+import { DataIoService } from './data-io.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
@@ -21,7 +28,43 @@ import { CurrentUser as CurrentUserType } from '../../common/types';
 @UseGuards(JwtAuthGuard, RolesGuard)
 @ApiBearerAuth()
 export class DataController {
-  constructor(private readonly dataService: DataService) {}
+  constructor(
+    private readonly dataService: DataService,
+    private readonly dataIoService: DataIoService,
+  ) {}
+
+  // Export/Import endpoints BEFORE :entitySlug/:id to avoid route conflicts
+
+  @Get(':entitySlug/export')
+  @ApiOperation({ summary: 'Exportar dados' })
+  async exportData(
+    @Param('entitySlug') entitySlug: string,
+    @Query() query: QueryDataDto,
+    @Query('format') format: string,
+    @CurrentUser() user: CurrentUserType,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const exportFormat = format === 'json' ? 'json' : 'xlsx';
+    const result = await this.dataIoService.exportData(entitySlug, query, exportFormat, user);
+
+    res.set({
+      'Content-Type': result.contentType,
+      'Content-Disposition': `attachment; filename="${encodeURIComponent(result.filename)}"`,
+    });
+
+    return new StreamableFile(result.buffer);
+  }
+
+  @Post(':entitySlug/import')
+  @ApiOperation({ summary: 'Importar dados' })
+  @UseInterceptors(FileInterceptor('file'))
+  async importData(
+    @Param('entitySlug') entitySlug: string,
+    @UploadedFile() file: Express.Multer.File,
+    @CurrentUser() user: CurrentUserType,
+  ) {
+    return this.dataIoService.importData(entitySlug, file, user);
+  }
 
   @Post(':entitySlug')
   @ApiOperation({ summary: 'Criar registro' })

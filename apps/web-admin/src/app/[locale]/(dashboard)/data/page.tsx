@@ -26,7 +26,8 @@ import {
   RotateCcw,
   Globe,
   ListFilter,
-
+  Download,
+  Upload,
 } from 'lucide-react';
 import { RequireRole } from '@/components/auth/require-role';
 import { usePermissions } from '@/hooks/use-permissions';
@@ -66,7 +67,9 @@ import { api } from '@/lib/api';
 import { useTenant } from '@/stores/tenant-context';
 import { useAuthStore } from '@/stores/auth-store';
 import { RecordFormDialog } from '@/components/data/record-form-dialog';
+import { ImportDialog } from '@/components/data/import-dialog';
 import { useDeleteEntityData } from '@/hooks/use-data';
+import { dataService } from '@/services/data.service';
 import type { DataFilter, EntityField } from '@/types';
 
 // Tipos de filtro
@@ -396,6 +399,8 @@ function DataPageContent() {
   const [filterPopoverOpen, setFilterPopoverOpen] = useState(false);
   const [newFilter, setNewFilter] = useState<Partial<ActiveFilter>>({});
   const [saveAsGlobal, setSaveAsGlobal] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
+  const [exporting, setExporting] = useState(false);
 
   // Filtro por entidade pai (quando clica no badge de sub-entidade)
   const [parentFilter, setParentFilter] = useState<{ parentRecordId: string; parentDisplay: string; parentEntityName: string } | null>(null);
@@ -674,6 +679,43 @@ function DataPageContent() {
       await fetchRecords(selectedEntity.slug, 1, debouncedSearch, undefined, newSort === null ? null : newSort);
     }
   };
+
+  const handleExport = useCallback(async () => {
+    if (!selectedEntity || exporting) return;
+    setExporting(true);
+    try {
+      const params: Record<string, string | number | undefined> = {};
+      if (debouncedSearch) params.search = debouncedSearch;
+      if (activeFilters.length > 0) {
+        params.filters = JSON.stringify(activeFilters.map(f => ({
+          fieldSlug: f.fieldSlug,
+          fieldName: f.fieldName,
+          fieldType: f.fieldType,
+          operator: f.operator,
+          value: f.value,
+          value2: f.value2,
+        })));
+      }
+      if (parentFilter?.parentRecordId) {
+        params.parentRecordId = parentFilter.parentRecordId;
+      }
+      const blob = await dataService.exportData(selectedEntity.slug, 'xlsx', params);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      const date = new Date().toISOString().split('T')[0];
+      a.download = `${selectedEntity.namePlural || selectedEntity.name}_${date}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      toast.success('Exportacao concluida');
+    } catch {
+      toast.error('Erro ao exportar dados');
+    } finally {
+      setExporting(false);
+    }
+  }, [selectedEntity, exporting, debouncedSearch, activeFilters, parentFilter]);
 
   const handleNewRecord = () => {
     setSelectedRecord(null);
@@ -1671,6 +1713,22 @@ function DataPageContent() {
                     </Popover>
                     )}
 
+                    {/* Botao Exportar */}
+                    {selectedEntity && hasEntityAction(selectedEntity.slug, 'canExport') && (
+                      <Button variant="outline" size="sm" className="gap-1" onClick={handleExport} disabled={exporting || loadingRecords}>
+                        {exporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+                        <span className="hidden sm:inline">Exportar</span>
+                      </Button>
+                    )}
+
+                    {/* Botao Importar */}
+                    {selectedEntity && hasEntityAction(selectedEntity.slug, 'canImport') && (
+                      <Button variant="outline" size="sm" className="gap-1" onClick={() => setImportOpen(true)}>
+                        <Upload className="h-4 w-4" />
+                        <span className="hidden sm:inline">Importar</span>
+                      </Button>
+                    )}
+
                     {/* Botao Filtrar por Pai (so para sub-entidades) */}
                     {isSubEntity && parentEntityMeta && (
                       <Popover open={parentSearchOpen} onOpenChange={(open) => {
@@ -2216,6 +2274,21 @@ function DataPageContent() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Import Dialog */}
+      {selectedEntity && (
+        <ImportDialog
+          entitySlug={selectedEntity.slug}
+          entityName={selectedEntity.name}
+          open={importOpen}
+          onOpenChange={setImportOpen}
+          onSuccess={() => {
+            if (selectedEntity) {
+              fetchRecords(selectedEntity.slug, currentPage, debouncedSearch);
+            }
+          }}
+        />
+      )}
     </div>
   );
 }

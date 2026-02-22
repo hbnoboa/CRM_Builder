@@ -91,4 +91,28 @@ export const dataService = {
   async delete(entitySlug: string, id: string): Promise<void> {
     await api.delete(`/data/${entitySlug}/${id}`);
   },
+
+  async exportData(
+    entitySlug: string,
+    format: 'xlsx' | 'json',
+    params?: QueryDataParams,
+  ): Promise<Blob> {
+    const response = await api.get(`/data/${entitySlug}/export`, {
+      params: { ...params, format },
+      responseType: 'blob',
+    });
+    return response.data;
+  },
+
+  async importData(
+    entitySlug: string,
+    file: File,
+  ): Promise<{ imported: number; errors: Array<{ row: number; field: string; message: string }>; total: number }> {
+    const formData = new FormData();
+    formData.append('file', file);
+    const response = await api.post(`/data/${entitySlug}/import`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return response.data;
+  },
 };
