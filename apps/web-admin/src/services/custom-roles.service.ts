@@ -1,5 +1,5 @@
 import api from '@/lib/api';
-import { CustomRole, EntityPermission, EntityDataFilter, ModulePermissions, TenantPermissions, PaginatedResponse } from '@/types';
+import { CustomRole, EntityPermission, ModulePermissions, TenantPermissions, PaginatedResponse } from '@/types';
 
 export interface QueryCustomRolesParams {
   page?: number;
@@ -18,7 +18,6 @@ export interface CreateCustomRoleData {
   roleType?: string;
   isSystem?: boolean;
   permissions: EntityPermission[];
-  dataFilters?: EntityDataFilter[];
   modulePermissions?: ModulePermissions;
   tenantPermissions?: TenantPermissions;
   isDefault?: boolean;
@@ -31,7 +30,6 @@ export interface UpdateCustomRoleData {
   color?: string;
   roleType?: string;
   permissions?: EntityPermission[];
-  dataFilters?: EntityDataFilter[];
   modulePermissions?: ModulePermissions;
   tenantPermissions?: TenantPermissions;
   isDefault?: boolean;
@@ -65,10 +63,6 @@ export const customRolesService = {
 
   async assignToUser(roleId: string, userId: string, tenantId?: string): Promise<void> {
     await api.post(`/custom-roles/${roleId}/assign/${userId}`, undefined, { params: tenantId ? { tenantId } : undefined });
-  },
-
-  async removeFromUser(userId: string, tenantId?: string): Promise<void> {
-    await api.delete(`/custom-roles/user/${userId}`, { params: tenantId ? { tenantId } : undefined });
   },
 
   async getMyPermissions(): Promise<{ entities: string[]; modules: Record<string, boolean> }> {

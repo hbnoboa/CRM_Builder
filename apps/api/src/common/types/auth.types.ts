@@ -10,7 +10,6 @@ export interface CurrentUserCustomRole {
   roleType: RoleType;
   isSystem: boolean;
   permissions: unknown[];
-  dataFilters: unknown[];
   modulePermissions: Record<string, unknown>;
   tenantPermissions: Record<string, unknown>;
 }

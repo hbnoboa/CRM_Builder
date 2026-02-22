@@ -33,18 +33,6 @@ export class DataFilterDto {
   value2?: unknown;
 }
 
-export class EntityDataFilterDto {
-  @ApiProperty({ example: 'veiculos' })
-  @IsString()
-  entitySlug: string;
-
-  @ApiProperty({ type: [DataFilterDto] })
-  @IsArray()
-  @ValidateNested({ each: true })
-  @Type(() => DataFilterDto)
-  filters: DataFilterDto[];
-}
-
 export class FieldPermissionDto {
   @ApiProperty({ example: 'email' })
   @IsString()
@@ -277,13 +265,6 @@ export class CreateCustomRoleDto {
   @ValidateNested({ each: true })
   @Type(() => EntityPermissionDto)
   permissions: EntityPermissionDto[];
-
-  @ApiPropertyOptional({ type: [EntityDataFilterDto], description: 'Filtros de dados globais por entidade' })
-  @IsArray()
-  @ValidateNested({ each: true })
-  @Type(() => EntityDataFilterDto)
-  @IsOptional()
-  dataFilters?: EntityDataFilterDto[];
 
   @ApiPropertyOptional({ type: ModulePermissionsDto })
   @ValidateNested()

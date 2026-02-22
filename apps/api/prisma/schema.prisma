@@ -421,10 +421,6 @@ model CustomRole {
   // Formato: [{ "entitySlug": "clientes", "canCreate": true, "canRead": true, "canUpdate": true, "canDelete": false, "scope": "all"|"own" }]
   permissions Json @default("[]")
 
-  // Filtros de dados por entidade (restringe quais registros a role pode ver)
-  // Formato: [{ "entitySlug": "veiculos", "filters": [{ "fieldSlug": "local", "operator": "equals", "value": "Porto A" }] }]
-  dataFilters Json @default("[]")
-
   // Permissoes globais (modulos do sistema)
   // Formato: { "dashboard": true, "users": false, "settings": false, "apis": false, "pages": false, "entities": false }
   modulePermissions Json @default("{}")

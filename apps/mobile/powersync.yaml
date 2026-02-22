@@ -71,7 +71,7 @@ sync_rules:
             request.jwt() ->> 'tenantId' as tenant_id
         data:
           # Custom roles (for client-side permission checks)
-          - SELECT id, "tenantId", name, description, color, "roleType", "isSystem", permissions, "modulePermissions", "tenantPermissions", "dataFilters", "isDefault", "createdAt", "updatedAt"
+          - SELECT id, "tenantId", name, description, color, "roleType", "isSystem", permissions, "modulePermissions", "tenantPermissions", "isDefault", "createdAt", "updatedAt"
             FROM "CustomRole"
             WHERE "tenantId" = bucket.tenant_id
 

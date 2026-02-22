@@ -184,8 +184,7 @@ class GlobalFilter {
   }
 }
 
-/// Role-based data filter — extracted from CustomRole.dataFilters,
-/// CustomRole.permissions[].dataFilters, and entity.settings.roleFilters.
+/// Role-based data filter — extracted from CustomRole.permissions[].dataFilters.
 /// Applied locally in SQLite queries to restrict what data a role can see.
 class RoleFilter {
   const RoleFilter({

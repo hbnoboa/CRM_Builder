@@ -1,5 +1,5 @@
 import api from '@/lib/api';
-import { DataFilter, Entity, EntityField, PaginatedResponse } from '@/types';
+import { Entity, EntityField, PaginatedResponse } from '@/types';
 
 export interface CreateEntityData {
   name: string;
@@ -72,18 +72,4 @@ export const entitiesService = {
     return response.data;
   },
 
-  async getRoleFilters(entityId: string): Promise<Record<string, DataFilter[]>> {
-    const response = await api.get<Record<string, DataFilter[]>>(`/entities/${entityId}/role-filters`);
-    return response.data;
-  },
-
-  async updateRoleFilters(entityId: string, roleId: string, filters: DataFilter[]): Promise<Entity> {
-    const response = await api.patch<Entity>(`/entities/${entityId}/role-filters/${roleId}`, { filters });
-    return response.data;
-  },
-
-  async deleteRoleFilters(entityId: string, roleId: string): Promise<Entity> {
-    const response = await api.delete<Entity>(`/entities/${entityId}/role-filters/${roleId}`);
-    return response.data;
-  },
 };

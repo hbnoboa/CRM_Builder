@@ -384,8 +384,8 @@ export class DataService {
       this.logger.log(`Auto-applied ${entityGlobalFilters.length} global filters for ${entitySlug}`);
     }
 
-    // Aplicar filtros de dados por role (dataFilters da CustomRole + entity.settings.roleFilters)
-    this.applyRoleDataFilters(where, currentUser, entitySlug, entitySettings);
+    // Aplicar filtros de dados por role (permissions[].dataFilters da CustomRole)
+    this.applyRoleDataFilters(where, currentUser, entitySlug);
 
     // Aplicar filtros passados via query parameter (suporta multiplos filtros)
     if (query.filters) {
@@ -906,8 +906,7 @@ export class DataService {
     // Verificar filtros de dados por role: construir WHERE e checar se este registro passa
     if (roleType !== 'PLATFORM_ADMIN' && roleType !== 'ADMIN') {
       const roleFilterWhere: Prisma.EntityDataWhereInput = { id: record.id };
-      const entitySettings = entity.settings as Record<string, unknown> | null;
-      this.applyRoleDataFilters(roleFilterWhere, currentUser, entitySlug, entitySettings);
+      this.applyRoleDataFilters(roleFilterWhere, currentUser, entitySlug);
 
       // Se filtros foram adicionados, verificar se o registro passa
       if (roleFilterWhere.AND && (roleFilterWhere.AND as Prisma.EntityDataWhereInput[]).length > 0) {
@@ -1159,44 +1158,26 @@ export class DataService {
 
   /**
    * Aplica filtros de dados por role na query.
-   * Fontes: 1) customRole.dataFilters e permissions[].dataFilters  2) entity.settings.roleFilters[roleId]
+   * Fonte unica: permissions[].dataFilters (inline por entidade na CustomRole).
    * PLATFORM_ADMIN/ADMIN nao recebem filtros.
    */
   private applyRoleDataFilters(
     where: Prisma.EntityDataWhereInput,
     user: CurrentUser,
     entitySlug: string,
-    entitySettings: Record<string, unknown> | null | undefined,
   ): void {
     const roleType = user.customRole?.roleType as RoleType | undefined;
     if (roleType === 'PLATFORM_ADMIN' || roleType === 'ADMIN') return;
     if (!user.customRole) return;
 
-    const allFilters: GlobalFilter[] = [];
-
-    // 1. Filtros da CustomRole (dataFilters globais + permissions[].dataFilters)
     const roleFilters = this.customRoleService.getRoleDataFilters(
-      user.customRole as { roleType: string; permissions: unknown; dataFilters: unknown },
+      user.customRole as { roleType: string; permissions: unknown },
       entitySlug,
     );
+
     if (roleFilters.length > 0) {
-      allFilters.push(...(roleFilters as unknown as GlobalFilter[]));
-    }
-
-    // 2. Filtros definidos na entidade para esta role (entity.settings.roleFilters[roleId])
-    if (entitySettings) {
-      const roleFiltersMap = entitySettings.roleFilters as Record<string, GlobalFilter[]> | undefined;
-      if (roleFiltersMap && user.customRole.id) {
-        const entityRoleFilters = roleFiltersMap[user.customRole.id];
-        if (entityRoleFilters?.length) {
-          allFilters.push(...entityRoleFilters);
-        }
-      }
-    }
-
-    if (allFilters.length > 0) {
-      this.applyGlobalFilters(where, allFilters);
-      this.logger.log(`Applied ${allFilters.length} role data filters for user ${user.id} on ${entitySlug}`);
+      this.applyGlobalFilters(where, roleFilters as unknown as GlobalFilter[]);
+      this.logger.log(`Applied ${roleFilters.length} role data filters for user ${user.id} on ${entitySlug}`);
     }
   }
 

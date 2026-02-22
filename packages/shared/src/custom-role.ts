@@ -16,11 +16,6 @@ export interface DataFilter {
   value2?: unknown;
 }
 
-export interface EntityDataFilter {
-  entitySlug: string;
-  filters: DataFilter[];
-}
-
 export interface EntityPermission {
   entitySlug: string;
   entityName?: string;
@@ -83,7 +78,6 @@ export interface CustomRole {
   roleType: RoleType;
   isSystem: boolean;
   permissions: EntityPermission[];
-  dataFilters?: EntityDataFilter[];
   modulePermissions?: ModulePermissions;
   tenantPermissions?: TenantPermissions;
   isDefault?: boolean;

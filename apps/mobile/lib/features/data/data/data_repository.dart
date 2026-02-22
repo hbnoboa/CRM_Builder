@@ -155,10 +155,7 @@ class DataRepository {
   }
 
   /// Extract role-based data filters for a given entity and custom role.
-  /// Merges from 3 sources:
-  /// 1. customRole.dataFilters[entitySlug].filters
-  /// 2. customRole.permissions[entitySlug].dataFilters
-  /// 3. entity.settings.roleFilters[customRoleId]
+  /// Source: customRole.permissions[entitySlug].dataFilters
   List<RoleFilter> extractRoleFilters({
     required Map<String, dynamic> entity,
     required Map<String, dynamic>? customRole,
@@ -167,35 +164,10 @@ class DataRepository {
     if (customRole == null) return [];
 
     final roleType = customRole['roleType'] as String? ?? '';
-    // PLATFORM_ADMIN and ADMIN see everything
     if (roleType == 'PLATFORM_ADMIN' || roleType == 'ADMIN') return [];
 
     final result = <RoleFilter>[];
-    final customRoleId = customRole['id'] as String? ?? '';
 
-    // 1. customRole.dataFilters (global role filters per entity)
-    try {
-      dynamic dataFiltersRaw = customRole['dataFilters'];
-      if (dataFiltersRaw is String) {
-        dataFiltersRaw = jsonDecode(dataFiltersRaw);
-      }
-      if (dataFiltersRaw is List) {
-        for (final entry in dataFiltersRaw) {
-          if (entry is Map<String, dynamic> && entry['entitySlug'] == entitySlug) {
-            final filters = entry['filters'] as List<dynamic>? ?? [];
-            for (final f in filters) {
-              if (f is Map<String, dynamic>) {
-                result.add(RoleFilter.fromJson(f));
-              }
-            }
-          }
-        }
-      }
-    } catch (e) {
-      debugPrint('[DataRepo] extractRoleFilters dataFilters error: $e');
-    }
-
-    // 2. customRole.permissions[entitySlug].dataFilters
     try {
       dynamic permsRaw = customRole['permissions'];
       if (permsRaw is String) {
@@ -214,28 +186,7 @@ class DataRepository {
         }
       }
     } catch (e) {
-      debugPrint('[DataRepo] extractRoleFilters permissions error: $e');
-    }
-
-    // 3. entity.settings.roleFilters[customRoleId]
-    try {
-      final settingsStr = entity['settings'] as String?;
-      if (settingsStr != null && settingsStr.isNotEmpty) {
-        final settings = jsonDecode(settingsStr) as Map<String, dynamic>;
-        final roleFiltersMap = settings['roleFilters'] as Map<String, dynamic>?;
-        if (roleFiltersMap != null && customRoleId.isNotEmpty) {
-          final entityRoleFilters = roleFiltersMap[customRoleId] as List<dynamic>?;
-          if (entityRoleFilters != null) {
-            for (final f in entityRoleFilters) {
-              if (f is Map<String, dynamic>) {
-                result.add(RoleFilter.fromJson(f));
-              }
-            }
-          }
-        }
-      }
-    } catch (e) {
-      debugPrint('[DataRepo] extractRoleFilters entity settings error: $e');
+      debugPrint('[DataRepo] extractRoleFilters error: $e');
     }
 
     return result;

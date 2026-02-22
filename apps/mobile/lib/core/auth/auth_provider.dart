@@ -74,7 +74,6 @@ class CustomRole {
         isSystem: json['isSystem'] as bool? ?? false,
         permissions: json['permissions'] as List<dynamic>?,
         modulePermissions: json['modulePermissions'] as Map<String, dynamic>?,
-        dataFilters: json['dataFilters'],
       );
   const CustomRole({
     required this.id,
@@ -85,7 +84,6 @@ class CustomRole {
     required this.isSystem,
     this.permissions,
     this.modulePermissions,
-    this.dataFilters,
   });
 
   final String id;
@@ -96,7 +94,6 @@ class CustomRole {
   final bool isSystem;
   final List<dynamic>? permissions;
   final Map<String, dynamic>? modulePermissions;
-  final dynamic dataFilters;
 
   Map<String, dynamic> toJson() => {
         'id': id,
@@ -107,7 +104,6 @@ class CustomRole {
         'isSystem': isSystem,
         'permissions': permissions,
         'modulePermissions': modulePermissions,
-        'dataFilters': dataFilters,
       };
 }
 

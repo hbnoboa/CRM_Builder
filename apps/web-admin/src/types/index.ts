@@ -25,7 +25,6 @@ export type {
   EntityData,
   CustomRole,
   DataFilter,
-  EntityDataFilter,
   EntityPermission,
   FieldPermission,
   ModulePermission,
@@ -33,8 +32,6 @@ export type {
   CustomApi,
   FixedFilter,
   QueryParam,
-  OrderByConfig,
-  Notification,
   Page,
 } from '@crm-builder/shared';
 
@@ -53,9 +50,6 @@ export type Status = SharedStatus | 'PENDING';
 // Alias para compatibilidade
 export type UserRole = RoleType;
 
-// Alias for backwards compatibility
-export type EntityDate = EntityData;
-
 export interface RegisterDate {
   email: string;
   password: string;
@@ -63,16 +57,4 @@ export interface RegisterDate {
   tenantName: string;
 }
 
-// Legacy Role interface (antes do CustomRole)
-export interface Role {
-  id: string;
-  name: string;
-  slug?: string;
-  description?: string;
-  permissions: string[] | Record<string, unknown>;
-  tenantId: string;
-  isSystem?: boolean;
-  createdAt?: string;
-  updatedAt?: string;
-}
 

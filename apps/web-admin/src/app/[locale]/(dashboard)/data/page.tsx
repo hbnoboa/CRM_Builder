@@ -26,7 +26,7 @@ import {
   RotateCcw,
   Globe,
   ListFilter,
-  Shield,
+
 } from 'lucide-react';
 import { RequireRole } from '@/components/auth/require-role';
 import { usePermissions } from '@/hooks/use-permissions';
@@ -68,7 +68,6 @@ import { useAuthStore } from '@/stores/auth-store';
 import { RecordFormDialog } from '@/components/data/record-form-dialog';
 import { useDeleteEntityData } from '@/hooks/use-data';
 import type { DataFilter, EntityField } from '@/types';
-import { RoleFiltersPopover } from '@/components/data/role-filters-popover';
 
 // Tipos de filtro
 type FilterOperator = 'equals' | 'contains' | 'startsWith' | 'endsWith' | 'gt' | 'gte' | 'lt' | 'lte' | 'between' | 'isEmpty' | 'isNotEmpty';
@@ -1518,13 +1517,6 @@ function DataPageContent() {
                         </div>
                       </PopoverContent>
                     </Popover>
-
-                    {/* Botao Filtros por Role */}
-                    {selectedEntity && hasEntityPermission(selectedEntity.slug, 'canUpdate') && (
-                      <RoleFiltersPopover
-                        entity={selectedEntity}
-                      />
-                    )}
 
                     {/* Botao Colunas */}
                     {selectedEntity && hasEntityAction(selectedEntity.slug, 'canConfigureColumns') && (
