@@ -232,6 +232,12 @@ model EntityData {
   // PLATFORM_ADMIN and ADMIN always see everything (handled in sync rules)
   visibleToRoles String[] @map("_visibleToRoles")
 
+  // Trigger-maintained: PowerSync-compatible columns derived from _visibleToRoles
+  // _hasRoleFilter: true if any role has data filters for this entity
+  // _visibleToRolesJson: JSONB array of role IDs (PowerSync IN operator needs JSONB, not TEXT[])
+  hasRoleFilter    Boolean @default(false) @map("_hasRoleFilter")
+  visibleToRolesJson Json  @default("[]")  @map("_visibleToRolesJson")
+
   entity       Entity       @relation(fields: [entityId], references: [id], onDelete: Cascade)
   tenant       Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   createdBy    User?        @relation("CreatedBy", fields: [createdById], references: [id], onDelete: SetNull)

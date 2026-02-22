@@ -34,10 +34,15 @@ storage:
 # Sync rules: define which data each user can access
 # JWT payload: { sub: "userId", tenantId: "tenantId", customRoleId: "...", roleType: "..." }
 #
-# PowerSync limitations:
-# - No JOINs, no custom PG functions, no CASTs
-# - Each data query must reference ALL bucket parameters
-# So we split into 2 buckets and do permission/filter logic client-side
+# PowerSync supported SQL: =, !=, <, >, AND, OR, NOT, IS NULL, IS NOT NULL
+# PowerSync IN operator: works with JSONB arrays (bucket.param IN json_column)
+# No JOINs, no GROUP BY, no ORDER BY, no LIMIT, no subqueries
+# Each data query must reference ALL bucket parameters
+#
+# Strategy: Two EntityData buckets for role-based filtering:
+# 1. unrestricted_entity_data: records with no role filters (_hasRoleFilter=false)
+# 2. role_filtered_entity_data: records filtered by role (_hasRoleFilter=true)
+#    Uses PowerSync IN operator: bucket.role_id IN "_visibleToRolesJson"
 sync_rules:
   content: |
     bucket_definitions:
@@ -58,13 +63,12 @@ sync_rules:
             FROM "Notification"
             WHERE "userId" = bucket.user_id AND "tenantId" = bucket.tenant_id
 
-      # Bucket 2: tenant-level data for ADMINS (all data)
-      admin_data:
+      # Bucket 2: tenant-level shared data (roles, entities)
+      # All users in the same tenant see the same metadata.
+      tenant_data:
         parameters: |
           SELECT
-            request.jwt() ->> 'tenantId' as tenant_id,
-            request.jwt() ->> 'roleType' as role_type
-          WHERE request.jwt() ->> 'roleType' IN ('PLATFORM_ADMIN', 'ADMIN')
+            request.jwt() ->> 'tenantId' as tenant_id
         data:
           # Custom roles (for client-side permission checks)
           - SELECT id, "tenantId", name, description, color, "roleType", "isSystem", permissions, "modulePermissions", "tenantPermissions", "dataFilters", "isDefault", "createdAt", "updatedAt"
@@ -76,41 +80,39 @@ sync_rules:
             FROM "Entity"
             WHERE "tenantId" = bucket.tenant_id
 
-          # All entity data (admins see everything)
+      # Bucket 3: entity data WITHOUT role filters (all tenant users see these)
+      # _hasRoleFilter = false means no role has data filters for this entity
+      unrestricted_entity_data:
+        parameters: |
+          SELECT
+            request.jwt() ->> 'tenantId' as tenant_id
+        data:
           - SELECT id, "tenantId", "entityId", data, "parentRecordId", "createdById", "updatedById", "createdAt", "updatedAt", "deletedAt"
             FROM "EntityData"
             WHERE "tenantId" = bucket.tenant_id
               AND "deletedAt" IS NULL
               AND "_matchesGlobalFilter" = true
               AND "_parentMatchesFilter" = true
+              AND "_hasRoleFilter" = false
 
-      # Bucket 3: tenant-level data for non-admin roles (filtered by role)
-      role_filtered_data:
+      # Bucket 4: entity data WITH role filters (only matching roles see these)
+      # Uses PowerSync IN operator on JSONB array column
+      # bucket.role_id comes from JWT customRoleId claim
+      # _visibleToRolesJson is a JSONB array like ["role-id-1", "role-id-2"]
+      # ADMIN/PLATFORM_ADMIN role IDs are NOT in _visibleToRolesJson because
+      # _hasRoleFilter=false for entities with no filters. When filters exist,
+      # ADMIN/PLATFORM_ADMIN see records via this bucket (their roleId is in the array).
+      role_filtered_entity_data:
         parameters: |
           SELECT
             request.jwt() ->> 'tenantId' as tenant_id,
-            request.jwt() ->> 'customRoleId' as custom_role_id,
-            request.jwt() ->> 'roleType' as role_type
-          WHERE request.jwt() ->> 'roleType' NOT IN ('PLATFORM_ADMIN', 'ADMIN')
+            request.jwt() ->> 'customRoleId' as role_id
         data:
-          # Custom roles (for client-side permission checks)
-          - SELECT id, "tenantId", name, description, color, "roleType", "isSystem", permissions, "modulePermissions", "tenantPermissions", "dataFilters", "isDefault", "createdAt", "updatedAt"
-            FROM "CustomRole"
-            WHERE "tenantId" = bucket.tenant_id
-
-          # All entity definitions for tenant
-          - SELECT id, "tenantId", name, "namePlural", slug, description, icon, color, fields, settings, "isSystem", "createdAt", "updatedAt"
-            FROM "Entity"
-            WHERE "tenantId" = bucket.tenant_id
-
-          # Entity data filtered by role
-          # - _matchesGlobalFilter: record passes entity's global filters
-          # - _parentMatchesFilter: parent record also passes (for sub-entities)
-          # - _visibleToRoles: NULL means all can see, otherwise role must be in array
           - SELECT id, "tenantId", "entityId", data, "parentRecordId", "createdById", "updatedById", "createdAt", "updatedAt", "deletedAt"
             FROM "EntityData"
             WHERE "tenantId" = bucket.tenant_id
               AND "deletedAt" IS NULL
               AND "_matchesGlobalFilter" = true
               AND "_parentMatchesFilter" = true
-              AND ("_visibleToRoles" IS NULL OR bucket.custom_role_id = ANY("_visibleToRoles"))
+              AND "_hasRoleFilter" = true
+              AND bucket.role_id IN "_visibleToRolesJson"
