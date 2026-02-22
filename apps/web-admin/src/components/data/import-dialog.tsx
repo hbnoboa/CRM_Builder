@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef } from 'react';
+import { useTranslations } from 'next-intl';
 import {
   Dialog,
   DialogContent,
@@ -74,23 +75,6 @@ interface ImportDialogProps {
 
 type Step = 'upload' | 'mapping' | 'result';
 
-const FIELD_TYPE_LABELS: Record<string, string> = {
-  text: 'Texto',
-  textarea: 'Texto longo',
-  number: 'Numero',
-  currency: 'Moeda',
-  email: 'Email',
-  phone: 'Telefone',
-  date: 'Data',
-  datetime: 'Data/Hora',
-  boolean: 'Sim/Nao',
-  select: 'Selecao',
-  multiselect: 'Multipla selecao',
-  url: 'URL',
-  relation: 'Relacao',
-  'api-select': 'API Select',
-};
-
 export function ImportDialog({
   entitySlug,
   entityName,
@@ -98,6 +82,7 @@ export function ImportDialog({
   onOpenChange,
   onSuccess,
 }: ImportDialogProps) {
+  const t = useTranslations('data.importDialog');
   const [step, setStep] = useState<Step>('upload');
   const [file, setFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
@@ -110,12 +95,20 @@ export function ImportDialog({
   } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const getFieldTypeLabel = (type: string): string => {
+    try {
+      return t(`fieldTypes.${type}`);
+    } catch {
+      return type;
+    }
+  };
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selected = e.target.files?.[0];
     if (selected) {
       const ext = selected.name.toLowerCase();
       if (!ext.endsWith('.xlsx') && !ext.endsWith('.xls') && !ext.endsWith('.json')) {
-        toast.error('Formato nao suportado. Use .xlsx ou .json');
+        toast.error(t('unsupportedFormat'));
         return;
       }
       setFile(selected);
@@ -135,7 +128,7 @@ export function ImportDialog({
       setColumnMapping(previewData.suggestedMapping);
       setStep('mapping');
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Erro ao processar arquivo';
+      const message = error instanceof Error ? error.message : t('processError');
       toast.error(message);
     } finally {
       setLoading(false);
@@ -152,15 +145,15 @@ export function ImportDialog({
       setStep('result');
 
       if (res.imported > 0) {
-        toast.success(`${res.imported} registro(s) importado(s) com sucesso`);
+        toast.success(t('importSuccess', { count: res.imported }));
         onSuccess();
       }
 
       if (res.errors.length > 0 && res.imported === 0) {
-        toast.error('Nenhum registro importado. Verifique os erros abaixo.');
+        toast.error(t('noRecordsImported'));
       }
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Erro ao importar';
+      const message = error instanceof Error ? error.message : t('importError');
       toast.error(message);
     } finally {
       setLoading(false);
@@ -217,22 +210,22 @@ export function ImportDialog({
       <DialogContent className={cn('sm:max-w-2xl', step === 'mapping' && 'sm:max-w-4xl')}>
         <DialogHeader>
           <DialogTitle>
-            Importar dados - {entityName}
+            {t('title', { entity: entityName })}
             {step === 'mapping' && (
               <Badge variant="outline" className="ml-2 font-normal">
-                Mapeamento
+                {t('stepMapping')}
               </Badge>
             )}
             {step === 'result' && (
               <Badge variant="outline" className="ml-2 font-normal">
-                Resultado
+                {t('stepResult')}
               </Badge>
             )}
           </DialogTitle>
           <DialogDescription>
-            {step === 'upload' && 'Selecione um arquivo .xlsx ou .json para importar registros.'}
-            {step === 'mapping' && 'Mapeie as colunas do arquivo com os campos da entidade.'}
-            {step === 'result' && 'Resultado da importacao.'}
+            {step === 'upload' && t('descUpload')}
+            {step === 'mapping' && t('descMapping')}
+            {step === 'result' && t('descResult')}
           </DialogDescription>
         </DialogHeader>
 
@@ -265,8 +258,8 @@ export function ImportDialog({
               ) : (
                 <div>
                   <Upload className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
-                  <p className="text-sm text-muted-foreground">Clique para selecionar um arquivo</p>
-                  <p className="text-xs text-muted-foreground mt-1">.xlsx ou .json (max 10MB)</p>
+                  <p className="text-sm text-muted-foreground">{t('clickToSelect')}</p>
+                  <p className="text-xs text-muted-foreground mt-1">{t('maxSize')}</p>
                 </div>
               )}
             </div>
@@ -280,12 +273,12 @@ export function ImportDialog({
             <div className="flex items-center gap-4 text-sm">
               <div className="flex items-center gap-1.5">
                 <FileSpreadsheet className="h-4 w-4 text-muted-foreground" />
-                <span>{preview.totalRows} linha(s) no arquivo</span>
+                <span>{t('linesInFile', { count: preview.totalRows })}</span>
               </div>
               <div className="flex items-center gap-1.5">
                 <Link2 className="h-4 w-4 text-muted-foreground" />
                 <span>
-                  {getMappedCount()} de {preview.headers.length} coluna(s) mapeada(s)
+                  {t('columnsMapped', { mapped: getMappedCount(), total: preview.headers.length })}
                 </span>
               </div>
             </div>
@@ -295,7 +288,7 @@ export function ImportDialog({
               <div className="flex items-start gap-2 p-3 bg-destructive/10 border border-destructive/20 rounded-md">
                 <AlertCircle className="h-4 w-4 text-destructive mt-0.5 shrink-0" />
                 <div className="text-sm">
-                  <p className="font-medium text-destructive">Campos obrigatorios nao mapeados:</p>
+                  <p className="font-medium text-destructive">{t('requiredNotMapped')}</p>
                   <p className="text-muted-foreground">
                     {requiredMissing.map((f) => f.name).join(', ')}
                   </p>
@@ -308,16 +301,15 @@ export function ImportDialog({
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="w-[200px]">Coluna do Arquivo</TableHead>
+                    <TableHead className="w-[200px]">{t('fileColumn')}</TableHead>
                     <TableHead className="w-[50px]"></TableHead>
-                    <TableHead className="w-[250px]">Campo da Entidade</TableHead>
-                    <TableHead>Amostra</TableHead>
+                    <TableHead className="w-[250px]">{t('entityField')}</TableHead>
+                    <TableHead>{t('sample')}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {preview.headers.map((header) => {
                     const mappedSlug = columnMapping[header];
-                    const mappedField = preview.entityFields.find((f) => f.slug === mappedSlug);
                     const sampleValue = preview.sampleRows[0]?.[header];
 
                     return (
@@ -338,18 +330,18 @@ export function ImportDialog({
                             }
                           >
                             <SelectTrigger className="w-full">
-                              <SelectValue placeholder="Selecione um campo" />
+                              <SelectValue placeholder={t('selectField')} />
                             </SelectTrigger>
                             <SelectContent>
                               <SelectItem value="_none">
-                                <span className="text-muted-foreground">-- Ignorar --</span>
+                                <span className="text-muted-foreground">{t('ignore')}</span>
                               </SelectItem>
                               {preview.entityFields.map((field) => (
                                 <SelectItem key={field.slug} value={field.slug}>
                                   <div className="flex items-center gap-2">
                                     <span>{field.name}</span>
                                     <Badge variant="outline" className="text-[10px] px-1">
-                                      {FIELD_TYPE_LABELS[field.type] || field.type}
+                                      {getFieldTypeLabel(field.type)}
                                     </Badge>
                                     {field.required && (
                                       <span className="text-destructive">*</span>
@@ -374,7 +366,7 @@ export function ImportDialog({
 
             {/* Preview table */}
             <div>
-              <p className="text-sm font-medium mb-2">Preview dos dados (primeiras 5 linhas)</p>
+              <p className="text-sm font-medium mb-2">{t('previewTitle')}</p>
               <ScrollArea className="h-[150px] border rounded-md">
                 <Table>
                   <TableHeader>
@@ -412,15 +404,15 @@ export function ImportDialog({
             <div className="flex items-center gap-4 text-sm">
               <div className="flex items-center gap-1.5">
                 <CheckCircle2 className="h-4 w-4 text-green-600" />
-                <span>{result.imported} importado(s)</span>
+                <span>{t('imported', { count: result.imported })}</span>
               </div>
               {result.errors.length > 0 && (
                 <div className="flex items-center gap-1.5">
                   <AlertCircle className="h-4 w-4 text-destructive" />
-                  <span>{result.errors.length} erro(s)</span>
+                  <span>{t('errors', { count: result.errors.length })}</span>
                 </div>
               )}
-              <span className="text-muted-foreground">de {result.total} linha(s)</span>
+              <span className="text-muted-foreground">{t('ofLines', { count: result.total })}</span>
             </div>
 
             {/* Errors list */}
@@ -428,14 +420,14 @@ export function ImportDialog({
               <div className="max-h-48 overflow-y-auto border rounded-md p-2 space-y-1">
                 {result.errors.slice(0, 50).map((err, i) => (
                   <div key={i} className="text-xs flex gap-2">
-                    <span className="text-muted-foreground shrink-0">Linha {err.row}</span>
+                    <span className="text-muted-foreground shrink-0">{t('lineNum', { row: err.row })}</span>
                     <span className="font-medium shrink-0">{err.field}:</span>
                     <span className="text-destructive">{err.message}</span>
                   </div>
                 ))}
                 {result.errors.length > 50 && (
                   <p className="text-xs text-muted-foreground text-center pt-1">
-                    ... e mais {result.errors.length - 50} erro(s)
+                    {t('moreErrors', { count: result.errors.length - 50 })}
                   </p>
                 )}
               </div>
@@ -447,17 +439,17 @@ export function ImportDialog({
           {step === 'upload' && (
             <>
               <Button variant="outline" onClick={() => handleClose(false)} disabled={loading}>
-                Cancelar
+                {t('cancel')}
               </Button>
               <Button onClick={handlePreview} disabled={!file || loading}>
                 {loading ? (
                   <>
                     <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Processando...
+                    {t('processing')}
                   </>
                 ) : (
                   <>
-                    Continuar
+                    {t('continue')}
                     <ArrowRight className="h-4 w-4 ml-2" />
                   </>
                 )}
@@ -469,7 +461,7 @@ export function ImportDialog({
             <>
               <Button variant="outline" onClick={handleBack} disabled={loading}>
                 <ArrowLeft className="h-4 w-4 mr-2" />
-                Voltar
+                {t('back')}
               </Button>
               <Button
                 onClick={handleImport}
@@ -478,12 +470,12 @@ export function ImportDialog({
                 {loading ? (
                   <>
                     <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Importando...
+                    {t('importing')}
                   </>
                 ) : (
                   <>
                     <Upload className="h-4 w-4 mr-2" />
-                    Importar {preview?.totalRows} registro(s)
+                    {t('importCount', { count: preview?.totalRows || 0 })}
                   </>
                 )}
               </Button>
@@ -491,7 +483,7 @@ export function ImportDialog({
           )}
 
           {step === 'result' && (
-            <Button onClick={() => handleClose(false)}>Fechar</Button>
+            <Button onClick={() => handleClose(false)}>{t('close')}</Button>
           )}
         </DialogFooter>
       </DialogContent>

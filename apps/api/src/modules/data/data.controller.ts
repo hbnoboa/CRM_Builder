@@ -77,7 +77,11 @@ export class DataController {
     @Body() body: { columnMapping?: Record<string, string> },
     @CurrentUser() user: CurrentUserType,
   ) {
-    return this.dataIoService.importData(entitySlug, file, user, tenantId, body?.columnMapping);
+    // columnMapping comes as a JSON string from multipart/form-data
+    const parsedMapping = typeof body?.columnMapping === 'string'
+      ? JSON.parse(body.columnMapping)
+      : body?.columnMapping;
+    return this.dataIoService.importData(entitySlug, file, user, tenantId, parsedMapping);
   }
 
   @Post(':entitySlug')
