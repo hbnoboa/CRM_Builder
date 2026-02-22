@@ -712,7 +712,7 @@ function EntityDetailPageContent() {
                         {tFieldConfig('selectApiFirst')}
                       </SelectItem>
                     ) : (
-                      field.apiFields.map((apiField: string) => (
+                      field.apiFields.filter((af2: string) => af2).map((apiField: string) => (
                         <SelectItem key={apiField} value={apiField}>{apiField}</SelectItem>
                       ))
                     )}
@@ -722,8 +722,8 @@ function EntityDetailPageContent() {
                 <Select value={af.targetField} onValueChange={(val) => updateAutoFill(index, afIdx, { targetField: val })}>
                   <SelectTrigger className="h-7 text-xs flex-1"><SelectValue placeholder={tFieldConfig('targetField')} /></SelectTrigger>
                   <SelectContent>
-                    {fields.filter((_, i) => i !== index && (f.slug || f.name)).map(f => (
-                      <SelectItem key={f.slug || f.name} value={f.slug || f.name}>{f.label || f.name} <span className="text-muted-foreground">({f.slug || f.name})</span></SelectItem>
+                    {fields.filter((fld, i) => i !== index && (fld.slug || fld.name)).map(fld => (
+                      <SelectItem key={fld.slug || fld.name} value={fld.slug || fld.name}>{fld.label || fld.name} <span className="text-muted-foreground">({fld.slug || fld.name})</span></SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
