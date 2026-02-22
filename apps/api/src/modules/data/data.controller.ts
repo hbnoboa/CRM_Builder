@@ -62,9 +62,10 @@ export class DataController {
     @Param('entitySlug') entitySlug: string,
     @UploadedFile() file: Express.Multer.File,
     @Query('tenantId') tenantId: string,
+    @Query('sheetName') sheetName: string,
     @CurrentUser() user: CurrentUserType,
   ) {
-    return this.dataIoService.previewImport(entitySlug, file, user, tenantId);
+    return this.dataIoService.previewImport(entitySlug, file, user, tenantId, sheetName);
   }
 
   @Post(':entitySlug/import')
@@ -74,14 +75,15 @@ export class DataController {
     @Param('entitySlug') entitySlug: string,
     @UploadedFile() file: Express.Multer.File,
     @Query('tenantId') tenantId: string,
-    @Body() body: { columnMapping?: Record<string, string> },
+    @Body() body: { columnMapping?: Record<string, string>; sheetName?: string },
     @CurrentUser() user: CurrentUserType,
   ) {
-    // columnMapping comes as a JSON string from multipart/form-data
+    // columnMapping and sheetName come as JSON strings from multipart/form-data
     const parsedMapping = typeof body?.columnMapping === 'string'
       ? JSON.parse(body.columnMapping)
       : body?.columnMapping;
-    return this.dataIoService.importData(entitySlug, file, user, tenantId, parsedMapping);
+    const sheet = typeof body?.sheetName === 'string' ? body.sheetName : undefined;
+    return this.dataIoService.importData(entitySlug, file, user, tenantId, parsedMapping, sheet);
   }
 
   @Post(':entitySlug')

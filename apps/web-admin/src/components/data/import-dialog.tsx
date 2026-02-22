@@ -39,6 +39,7 @@ import {
   ArrowLeft,
   Link2,
   Link2Off,
+  Layers,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { dataService } from '@/services/data.service';
@@ -57,12 +58,19 @@ interface EntityField {
   required: boolean;
 }
 
+interface SheetInfo {
+  name: string;
+  rowCount: number;
+}
+
 interface ImportPreview {
   headers: string[];
   sampleRows: Record<string, unknown>[];
   totalRows: number;
   entityFields: EntityField[];
   suggestedMapping: Record<string, string>;
+  sheets: SheetInfo[];
+  selectedSheet: string;
 }
 
 interface ImportDialogProps {
@@ -88,6 +96,7 @@ export function ImportDialog({
   const [loading, setLoading] = useState(false);
   const [preview, setPreview] = useState<ImportPreview | null>(null);
   const [columnMapping, setColumnMapping] = useState<Record<string, string>>({});
+  const [selectedSheet, setSelectedSheet] = useState<string>('');
   const [result, setResult] = useState<{
     imported: number;
     errors: ImportError[];
@@ -118,14 +127,15 @@ export function ImportDialog({
     }
   };
 
-  const handlePreview = async () => {
+  const handlePreview = async (sheetName?: string) => {
     if (!file) return;
 
     setLoading(true);
     try {
-      const previewData = await dataService.previewImport(entitySlug, file);
+      const previewData = await dataService.previewImport(entitySlug, file, sheetName);
       setPreview(previewData);
       setColumnMapping(previewData.suggestedMapping);
+      setSelectedSheet(previewData.selectedSheet);
       setStep('mapping');
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : t('processError');
@@ -135,12 +145,17 @@ export function ImportDialog({
     }
   };
 
+  const handleSheetChange = (sheetName: string) => {
+    setSelectedSheet(sheetName);
+    handlePreview(sheetName);
+  };
+
   const handleImport = async () => {
     if (!file) return;
 
     setLoading(true);
     try {
-      const res = await dataService.importData(entitySlug, file, columnMapping);
+      const res = await dataService.importData(entitySlug, file, columnMapping, selectedSheet || undefined);
       setResult(res);
       setStep('result');
 
@@ -165,6 +180,7 @@ export function ImportDialog({
       setFile(null);
       setPreview(null);
       setColumnMapping({});
+      setSelectedSheet('');
       setResult(null);
       setStep('upload');
       onOpenChange(open);
@@ -269,8 +285,29 @@ export function ImportDialog({
         {/* Step: Mapping */}
         {step === 'mapping' && preview && (
           <div className="space-y-4">
-            {/* Stats */}
-            <div className="flex items-center gap-4 text-sm">
+            {/* Sheet selector + Stats */}
+            <div className="flex items-center gap-4 text-sm flex-wrap">
+              {preview.sheets.length > 1 && (
+                <div className="flex items-center gap-1.5">
+                  <Layers className="h-4 w-4 text-muted-foreground" />
+                  <Select
+                    value={selectedSheet}
+                    onValueChange={handleSheetChange}
+                    disabled={loading}
+                  >
+                    <SelectTrigger className="h-7 text-xs w-auto min-w-[140px]">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {preview.sheets.map((sheet) => (
+                        <SelectItem key={sheet.name} value={sheet.name}>
+                          {sheet.name} ({t('linesInFile', { count: sheet.rowCount })})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
               <div className="flex items-center gap-1.5">
                 <FileSpreadsheet className="h-4 w-4 text-muted-foreground" />
                 <span>{t('linesInFile', { count: preview.totalRows })}</span>

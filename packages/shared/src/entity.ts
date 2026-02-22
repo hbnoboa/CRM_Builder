@@ -57,8 +57,10 @@ export interface EntityField {
   subEntityDisplayFields?: string[];
   parentDisplayField?: string; // Campo do pai para identificar o registro (fallback: id)
 
-  // image specific
+  // image/file specific
   imageSource?: 'camera' | 'gallery' | 'both';
+  multiple?: boolean;
+  maxFiles?: number;
 
   // zone-diagram specific
   diagramSaveMode?: 'object' | 'text'; // 'text' salva só o valor selecionado como string

@@ -745,6 +745,8 @@ export function RecordFormDialog({
               value={value as string | string[] || ''}
               onChange={(v: string | string[]) => handleFieldChange(field.slug, v)}
               mode={field.type === 'image' ? 'image' : 'file'}
+              multiple={field.multiple || false}
+              maxFiles={field.maxFiles || 10}
               placeholder={field.placeholder}
               folder={field.type === 'image' ? 'images' : 'files'}
               imageSource={field.type === 'image' ? field.imageSource : undefined}

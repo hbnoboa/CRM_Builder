@@ -28,6 +28,11 @@ const MAX_EXPORT_ROWS = 5000;
 const IMPORT_BATCH_SIZE = 500;
 const PREVIEW_ROWS = 5;
 
+export interface SheetInfo {
+  name: string;
+  rowCount: number;
+}
+
 export interface ImportPreview {
   headers: string[];
   sampleRows: Record<string, unknown>[];
@@ -39,6 +44,8 @@ export interface ImportPreview {
     required: boolean;
   }>;
   suggestedMapping: Record<string, string>; // header -> fieldSlug
+  sheets: SheetInfo[];
+  selectedSheet: string;
 }
 
 @Injectable()
@@ -160,6 +167,7 @@ export class DataIoService {
     file: Express.Multer.File,
     user: CurrentUser,
     tenantId?: string,
+    sheetName?: string,
   ): Promise<ImportPreview> {
     checkModulePermission(user, 'data', 'canImport');
 
@@ -188,15 +196,24 @@ export class DataIoService {
 
     // Parse file
     let rawRows: Record<string, unknown>[];
+    let sheets: SheetInfo[] = [];
+    let selectedSheet = '';
     const ext = file.originalname?.toLowerCase() || '';
+
+    this.logger.log(`Preview: file="${file.originalname}" size=${file.buffer.length} ext="${ext}" sheetName="${sheetName || ''}"`);
 
     if (ext.endsWith('.json')) {
       rawRows = this.parseJson(file.buffer);
     } else if (ext.endsWith('.xlsx') || ext.endsWith('.xls')) {
-      rawRows = await this.parseExcel(file.buffer);
+      const result = await this.parseExcel(file.buffer, sheetName);
+      rawRows = result.rows;
+      sheets = result.sheets;
+      selectedSheet = result.selectedSheet;
     } else {
       throw new BadRequestException('Formato nao suportado. Use .xlsx ou .json');
     }
+
+    this.logger.log(`Preview: parsed ${rawRows.length} rows`);
 
     if (rawRows.length === 0) {
       throw new BadRequestException('Arquivo vazio ou sem dados');
@@ -241,6 +258,8 @@ export class DataIoService {
         required: f.required || false,
       })),
       suggestedMapping,
+      sheets,
+      selectedSheet,
     };
   }
 
@@ -254,6 +273,7 @@ export class DataIoService {
     user: CurrentUser,
     tenantId?: string,
     columnMapping?: Record<string, string>, // header -> fieldSlug
+    sheetName?: string,
   ): Promise<ImportResult> {
     checkModulePermission(user, 'data', 'canImport');
 
@@ -287,7 +307,8 @@ export class DataIoService {
     if (ext.endsWith('.json')) {
       rawRows = this.parseJson(file.buffer);
     } else if (ext.endsWith('.xlsx') || ext.endsWith('.xls')) {
-      rawRows = await this.parseExcel(file.buffer);
+      const result = await this.parseExcel(file.buffer, sheetName);
+      rawRows = result.rows;
     } else {
       throw new BadRequestException('Formato nao suportado. Use .xlsx ou .json');
     }
@@ -361,27 +382,91 @@ export class DataIoService {
     }
   }
 
-  private async parseExcel(buffer: Buffer): Promise<Record<string, unknown>[]> {
+  private async parseExcel(
+    buffer: Buffer,
+    sheetName?: string,
+  ): Promise<{ rows: Record<string, unknown>[]; sheets: SheetInfo[]; selectedSheet: string }> {
     const workbook = new ExcelJS.Workbook();
     await workbook.xlsx.load(buffer as unknown as ArrayBuffer);
 
-    const worksheet = workbook.worksheets[0];
-    if (!worksheet || worksheet.rowCount < 2) {
-      return [];
+    this.logger.log(`Excel: ${workbook.worksheets.length} worksheets found`);
+
+    // Collect info about all sheets with data
+    const sheetsWithData: Array<{ worksheet: ExcelJS.Worksheet; info: SheetInfo }> = [];
+
+    for (const worksheet of workbook.worksheets) {
+      if (!worksheet || worksheet.rowCount < 2) continue;
+      // Quick check: does it have at least a header row with 2+ cells?
+      const headerRow = worksheet.getRow(1);
+      let cellCount = 0;
+      headerRow.eachCell({ includeEmpty: false }, () => { cellCount++; });
+      if (cellCount < 2) {
+        // Try rows 2-5 for header
+        let found = false;
+        for (let r = 2; r <= Math.min(5, worksheet.rowCount); r++) {
+          let cc = 0;
+          worksheet.getRow(r).eachCell({ includeEmpty: false }, () => { cc++; });
+          if (cc >= 2) { found = true; break; }
+        }
+        if (!found) continue;
+      }
+      sheetsWithData.push({
+        worksheet,
+        info: { name: worksheet.name, rowCount: Math.max(0, worksheet.rowCount - 1) },
+      });
     }
 
-    // Read headers from first row
-    const headerRow = worksheet.getRow(1);
-    const headers: string[] = [];
-    headerRow.eachCell({ includeEmpty: false }, (cell, colNumber) => {
-      headers[colNumber] = String(cell.value || '').trim();
-    });
+    const sheets = sheetsWithData.map(s => s.info);
 
-    // Read data rows
+    // Select which worksheet to parse
+    let target = sheetsWithData[0];
+    if (sheetName) {
+      const found = sheetsWithData.find(s => s.info.name === sheetName);
+      if (found) target = found;
+    }
+
+    if (!target) {
+      return { rows: [], sheets, selectedSheet: '' };
+    }
+
+    const rows = this.parseWorksheet(target.worksheet);
+
+    this.logger.log(`Sheet "${target.info.name}": parsed ${rows.length} data rows`);
+
+    return { rows, sheets, selectedSheet: target.info.name };
+  }
+
+  private parseWorksheet(worksheet: ExcelJS.Worksheet): Record<string, unknown>[] {
+    // Find header row - try rows 1-5 in case there's a title row
+    let headerRowNum = 0;
+    let headers: string[] = [];
+
+    for (let tryRow = 1; tryRow <= Math.min(5, worksheet.rowCount); tryRow++) {
+      const candidateHeaders: string[] = [];
+      const row = worksheet.getRow(tryRow);
+      let cellCount = 0;
+
+      row.eachCell({ includeEmpty: false }, (cell, colNumber) => {
+        const val = String(cell.value || '').trim();
+        if (val) {
+          candidateHeaders[colNumber] = val;
+          cellCount++;
+        }
+      });
+
+      if (cellCount >= 2) {
+        headers = candidateHeaders;
+        headerRowNum = tryRow;
+        break;
+      }
+    }
+
+    if (headerRowNum === 0) return [];
+
+    // Read data rows starting after header
     const rows: Record<string, unknown>[] = [];
-    for (let rowNum = 2; rowNum <= worksheet.rowCount; rowNum++) {
+    for (let rowNum = headerRowNum + 1; rowNum <= worksheet.rowCount; rowNum++) {
       const row = worksheet.getRow(rowNum);
-      // Skip completely empty rows
       let hasValue = false;
       const rowData: Record<string, unknown> = {};
 
@@ -398,6 +483,10 @@ export class DataIoService {
           // Handle ExcelJS date
           if (value instanceof Date) {
             value = value.toISOString();
+          }
+          // Handle ExcelJS formula result
+          if (value && typeof value === 'object' && 'result' in value) {
+            value = (value as { result: ExcelJS.CellValue }).result;
           }
           rowData[header] = value;
           hasValue = true;

@@ -79,6 +79,9 @@ interface EntityField {
   subEntityId?: string;
   subEntitySlug?: string;
   parentDisplayField?: string;
+  relatedEntityId?: string;
+  relatedEntitySlug?: string;
+  relatedDisplayField?: string;
 }
 
 // Cache for entity lookups within a request (reduces duplicate queries)
@@ -784,6 +787,79 @@ export class DataService {
           _parentEntityName: parentEntityName || null,
           _parentEntitySlug: parentEntitySlug || null,
         }));
+      }
+    }
+
+    // =========================================================================
+    // RESOLVER DISPLAY VALUES DE CAMPOS RELATION
+    // =========================================================================
+    if (enrichedData.length > 0) {
+      const allEntityFields = (entity.fields as unknown) as EntityField[];
+      const relationFields = allEntityFields.filter(f => f.type === 'relation' && f.relatedEntitySlug);
+
+      if (relationFields.length > 0) {
+        // Coletar todos os IDs de relacao por campo
+        const idsByField = new Map<string, Set<string>>();
+        for (const rf of relationFields) {
+          const ids = new Set<string>();
+          for (const record of enrichedData) {
+            const recordData = (record as Record<string, unknown>).data as Record<string, unknown>;
+            const val = recordData?.[rf.slug];
+            if (val && typeof val === 'string') ids.add(val);
+          }
+          if (ids.size > 0) idsByField.set(rf.slug, ids);
+        }
+
+        // Batch-fetch registros relacionados
+        const allRelationIds = [...new Set([...idsByField.values()].flatMap(s => [...s]))];
+        if (allRelationIds.length > 0) {
+          const relatedRecords = await this.prisma.entityData.findMany({
+            where: { id: { in: allRelationIds } },
+            select: { id: true, data: true, entityId: true },
+          });
+          const relatedMap = new Map(relatedRecords.map(r => [r.id, r]));
+
+          // Construir mapa de displayField por campo relacao
+          const displayFieldBySlug = new Map<string, string>();
+          for (const rf of relationFields) {
+            if (rf.relatedDisplayField) {
+              displayFieldBySlug.set(rf.slug, rf.relatedDisplayField);
+            } else {
+              // Fallback: buscar entidade relacionada e pegar primeiro campo texto
+              const relEntity = await this.prisma.entity.findFirst({
+                where: { slug: rf.relatedEntitySlug, tenantId: effectiveTenantId },
+                select: { fields: true },
+              });
+              if (relEntity) {
+                const relFields = (relEntity.fields as unknown) as EntityField[];
+                const firstTextField = relFields?.find(f => ['text', 'email'].includes(f.type));
+                if (firstTextField) displayFieldBySlug.set(rf.slug, firstTextField.slug);
+              }
+            }
+          }
+
+          // Enriquecer registros substituindo IDs por { value, label }
+          enrichedData = enrichedData.map(record => {
+            const recordData = { ...((record as Record<string, unknown>).data as Record<string, unknown>) };
+            let changed = false;
+
+            for (const rf of relationFields) {
+              const val = recordData[rf.slug];
+              if (val && typeof val === 'string') {
+                const related = relatedMap.get(val);
+                if (related) {
+                  const relData = related.data as Record<string, unknown>;
+                  const displayField = displayFieldBySlug.get(rf.slug);
+                  const label = displayField ? String(relData?.[displayField] || val) : val;
+                  recordData[rf.slug] = { value: val, label };
+                  changed = true;
+                }
+              }
+            }
+
+            return changed ? { ...record, data: recordData } : record;
+          });
+        }
       }
     }
 

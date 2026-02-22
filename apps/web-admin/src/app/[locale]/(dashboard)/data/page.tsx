@@ -505,11 +505,8 @@ function DataPageContent() {
         params.sortBy = effectiveSort.field;
         params.sortOrder = effectiveSort.order;
       }
-      // Filtros: apenas activeFilters do usuario (globalFilters sao aplicados automaticamente no backend)
-      const effectiveFilters = filtersOverride ?? [...activeFilters];
-      if (effectiveFilters.length > 0) {
-        params.filters = JSON.stringify(effectiveFilters);
-      }
+      // Filtros do usuario sao aplicados client-side apos carregar os dados
+      // (globalFilters e roleFilters sao aplicados no backend automaticamente)
       const response = await api.get(`/data/${entitySlug}`, { params });
       const list = Array.isArray(response.data) ? response.data : response.data?.data || [];
       const meta = response.data?.meta || null;
@@ -814,13 +811,8 @@ function DataPageContent() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hasChildrenFilter]);
 
-  // Quando filtros ativos mudam, resetar pagina e buscar no backend
-  useEffect(() => {
-    if (!selectedEntity) return;
-    setCurrentPage(1);
-    fetchRecords(selectedEntity.slug, 1, debouncedSearch);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeFilters]);
+  // Filtros ativos sao aplicados client-side no useMemo filteredRecords
+  // Nao e necessario buscar no backend quando filtros mudam
 
   // Real-time: granular updates via WebSocket (update/delete/create without full refetch)
   useEffect(() => {
@@ -994,13 +986,26 @@ function DataPageContent() {
     return selectedEntity?.fields?.find(f => f.slug === slug);
   }, [selectedEntity?.fields, parentEntityDisplayName]);
 
-  // Campos disponiveis para filtro (permite multiplos filtros por campo)
+  // Campos ja filtrados pelo cargo do usuario (nao podem ser filtrados manualmente)
+  const roleFilteredSlugs = useMemo(() => {
+    if (!selectedEntity?.slug || !currentUser?.customRole?.permissions) return new Set<string>();
+    const permissions = currentUser.customRole.permissions as Array<{
+      entitySlug: string;
+      dataFilters?: Array<{ fieldSlug: string }>;
+    }>;
+    const entityPerm = permissions.find(p => p.entitySlug === selectedEntity.slug);
+    if (!entityPerm?.dataFilters?.length) return new Set<string>();
+    return new Set(entityPerm.dataFilters.map(f => f.fieldSlug));
+  }, [selectedEntity?.slug, currentUser?.customRole?.permissions]);
+
+  // Campos disponiveis para filtro (exclui tipos nao filtraveis e campos ja filtrados pelo cargo)
   const availableFieldsForFilter = useMemo(() => {
     if (!selectedEntity?.fields) return [];
     return selectedEntity.fields.filter(f =>
-      !['hidden', 'file', 'image', 'json', 'richtext'].includes(f.type)
+      !['hidden', 'file', 'image', 'json', 'richtext'].includes(f.type) &&
+      !roleFilteredSlugs.has(f.slug)
     );
-  }, [selectedEntity?.fields]);
+  }, [selectedEntity?.fields, roleFilteredSlugs]);
 
   // Helper: obter valor de celula considerando _childCounts para sub-entity e _parentDisplay
   const getCellValue = useCallback((record: DataRecord, col: string): unknown => {
@@ -1014,8 +1019,7 @@ function DataPageContent() {
     return record.data[col];
   }, [getFieldBySlug]);
 
-  // Filtro de busca local (feedback visual enquanto digita)
-  // Nota: globalFilters e activeFilters sao aplicados no backend, nao aqui
+  // Filtro de busca local + activeFilters (aplicados client-side)
   const filteredRecords = useMemo(() => {
     let result = records;
 
@@ -1027,8 +1031,18 @@ function DataPageContent() {
       );
     }
 
+    // Aplicar filtros do usuario client-side
+    if (activeFilters.length > 0) {
+      result = result.filter(r => {
+        return activeFilters.every(filter => {
+          const value = getCellValue(r, filter.fieldSlug);
+          return evaluateFilter(value, filter);
+        });
+      });
+    }
+
     return result;
-  }, [records, searchTerm, allColumns, getCellValue]);
+  }, [records, searchTerm, allColumns, getCellValue, activeFilters]);
 
   return (
     <div className="space-y-4 sm:space-y-6">

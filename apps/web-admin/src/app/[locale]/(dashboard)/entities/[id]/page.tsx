@@ -829,6 +829,60 @@ function EntityDetailPageContent() {
             </Select>
             <p className="text-xs text-muted-foreground">{tFieldConfig('imageSourceHint')}</p>
           </div>
+          <div className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              id={`multiple-${index}`}
+              checked={field.multiple || false}
+              onChange={(e) => updateField(index, { multiple: e.target.checked })}
+              className="rounded border-gray-300"
+            />
+            <Label htmlFor={`multiple-${index}`} className="text-xs cursor-pointer">{tFieldConfig('allowMultiple')}</Label>
+          </div>
+          {field.multiple && (
+            <div className="space-y-1">
+              <Label className="text-xs">{tFieldConfig('maxFiles')}</Label>
+              <Input
+                type="number"
+                min={2}
+                max={50}
+                value={field.maxFiles || 10}
+                onChange={(e) => updateField(index, { maxFiles: parseInt(e.target.value) || 10 })}
+                className="h-8 text-sm w-24"
+              />
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    if (type === 'file') {
+      return (
+        <div className="space-y-3 mt-3 p-3 bg-gray-50 dark:bg-gray-950/20 rounded-lg border border-gray-200 dark:border-gray-800">
+          <Label className="text-sm font-medium text-gray-700 dark:text-gray-300">{tFieldConfig('fileConfig')}</Label>
+          <div className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              id={`multiple-${index}`}
+              checked={field.multiple || false}
+              onChange={(e) => updateField(index, { multiple: e.target.checked })}
+              className="rounded border-gray-300"
+            />
+            <Label htmlFor={`multiple-${index}`} className="text-xs cursor-pointer">{tFieldConfig('allowMultiple')}</Label>
+          </div>
+          {field.multiple && (
+            <div className="space-y-1">
+              <Label className="text-xs">{tFieldConfig('maxFiles')}</Label>
+              <Input
+                type="number"
+                min={2}
+                max={50}
+                value={field.maxFiles || 10}
+                onChange={(e) => updateField(index, { maxFiles: parseInt(e.target.value) || 10 })}
+                className="h-8 text-sm w-24"
+              />
+            </div>
+          )}
         </div>
       );
     }
@@ -997,22 +1051,28 @@ function EntityDetailPageContent() {
                           <div className="px-3 pb-4 pt-1 border-t space-y-4">
                             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                               <div className="space-y-1">
-                                <Label className="text-xs">{t('fieldLabel')}</Label>
-                                <Input placeholder={t('fieldNamePlaceholder')} value={field.label || ''} onChange={(e) => {
-                                  const label = e.target.value;
+                                <Label className="text-xs">{t('fieldName')}</Label>
+                                {(() => {
                                   const isExistingField = !!(field as Record<string, unknown>).id || (entity?.fields || []).some((ef: Partial<Field>) => ef.name === field.name && field.name);
-                                  if (isExistingField) {
-                                    updateField(index, { label });
-                                  } else {
-                                    const slug = label
-                                      .normalize('NFD')
-                                      .replace(/[\u0300-\u036f]/g, '')
-                                      .toLowerCase()
-                                      .replace(/[^a-z0-9]+/g, '_')
-                                      .replace(/^_+|_+$/g, '')
-                                      .replace(/__+/g, '_');
-                                    updateField(index, { label, name: slug });
-                                  }
+                                  return (
+                                    <Input
+                                      placeholder={t('fieldNamePlaceholder')}
+                                      value={field.name || ''}
+                                      disabled={isExistingField}
+                                      onChange={(e) => {
+                                        const name = e.target.value;
+                                        const shouldSyncLabel = !field.label || field.label === field.name;
+                                        updateField(index, { name, ...(shouldSyncLabel ? { label: name } : {}) });
+                                      }}
+                                      className="h-8 text-sm"
+                                    />
+                                  );
+                                })()}
+                              </div>
+                              <div className="space-y-1">
+                                <Label className="text-xs">{t('fieldLabel')}</Label>
+                                <Input placeholder={t('fieldLabelPlaceholder')} value={field.label || ''} onChange={(e) => {
+                                  updateField(index, { label: e.target.value });
                                 }} className="h-8 text-sm" />
                               </div>
                               <div className="space-y-1">
