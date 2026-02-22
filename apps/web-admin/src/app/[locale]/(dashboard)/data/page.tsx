@@ -1092,9 +1092,6 @@ function DataPageContent() {
                   <div className="flex items-center gap-2">
                     <Database className="h-4 w-4" />
                     <span>{selectedEntity.name}</span>
-                    <span className="text-xs text-muted-foreground ml-auto">
-                      ({selectedEntity._count?.data || 0})
-                    </span>
                   </div>
                 )}
               </SelectValue>
@@ -1105,9 +1102,6 @@ function DataPageContent() {
                   <div className="flex items-center gap-2">
                     <Database className="h-4 w-4" />
                     <span>{entity.name}</span>
-                    <span className="text-xs text-muted-foreground ml-2">
-                      ({entity._count?.data || 0})
-                    </span>
                   </div>
                 </SelectItem>
               ))}
@@ -1161,9 +1155,6 @@ function DataPageContent() {
                     <Database className="h-4 w-4 flex-shrink-0" />
                     <span className="font-medium truncate">{entity.name}</span>
                   </div>
-                  <span className="text-xs opacity-70 flex-shrink-0">
-                    {entity._count?.data || 0}
-                  </span>
                 </button>
               ))}
             </div>
