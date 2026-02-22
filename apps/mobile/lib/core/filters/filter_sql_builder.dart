@@ -33,6 +33,28 @@ class FilterSqlBuilder {
     return (where: ' AND ${clauses.join(' AND ')}', params: params);
   }
 
+  /// Builds WHERE clauses from role-based data filters.
+  /// Same logic as buildFilterClauses but for RoleFilter list.
+  static ({String where, List<dynamic> params}) buildRoleFilterClauses(
+    List<RoleFilter> roleFilters,
+  ) {
+    if (roleFilters.isEmpty) return (where: '', params: <dynamic>[]);
+
+    final clauses = <String>[];
+    final params = <dynamic>[];
+
+    for (final f in roleFilters) {
+      final result = _buildClause(f.fieldSlug, f.fieldType, f.operator, f.value, f.value2);
+      if (result.clause.isNotEmpty) {
+        clauses.add(result.clause);
+        params.addAll(result.params);
+      }
+    }
+
+    if (clauses.isEmpty) return (where: '', params: <dynamic>[]);
+    return (where: ' AND ${clauses.join(' AND ')}', params: params);
+  }
+
   static ({String clause, List<dynamic> params}) _buildClause(
     String fieldSlug,
     String fieldType,

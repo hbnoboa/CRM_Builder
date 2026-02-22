@@ -40,6 +40,8 @@ export type { EntityData } from './data';
 // Custom Role & Permissions
 export type {
   CustomRole,
+  DataFilter,
+  EntityDataFilter,
   EntityPermission,
   FieldPermission,
   ModulePermission,

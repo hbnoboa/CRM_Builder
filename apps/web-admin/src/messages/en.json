@@ -609,7 +609,9 @@
       "data": "Data",
       "dataDesc": "Records for each entity",
       "roles": "Access Roles",
-      "rolesDesc": "Configure roles and permissions"
+      "rolesDesc": "Configure roles and permissions",
+      "pdfTemplates": "PDF Templates",
+      "pdfTemplatesDesc": "Generate documents from templates"
     },
     "userRoles": {
       "title": "Manage Permissions",
@@ -673,7 +675,8 @@
       "canUpdateField": "Edit Field Configuration",
       "canConfigureColumns": "Configure Visible Columns",
       "canExport": "Export Records",
-      "canImport": "Import Records"
+      "canImport": "Import Records",
+      "canGenerate": "Generate PDF"
     },
     "permissionCategories": {
       "entities": "Entities",

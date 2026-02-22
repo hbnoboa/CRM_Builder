@@ -348,6 +348,51 @@ export class EntityService {
     });
   }
 
+  /**
+   * Retorna os filtros por role definidos na entidade (entity.settings.roleFilters)
+   */
+  async getRoleFilters(id: string, currentUser: CurrentUser) {
+    const entity = await this.findOne(id, currentUser);
+    const settings = (entity.settings as Record<string, unknown>) || {};
+    return (settings.roleFilters || {}) as Record<string, unknown[]>;
+  }
+
+  /**
+   * Atualiza filtros de uma role especifica na entidade
+   */
+  async updateRoleFilters(id: string, roleId: string, filters: unknown[], currentUser: CurrentUser) {
+    const entity = await this.findOne(id, currentUser);
+    const currentSettings = (entity.settings as Record<string, unknown>) || {};
+    const roleFilters = (currentSettings.roleFilters || {}) as Record<string, unknown[]>;
+
+    roleFilters[roleId] = filters;
+
+    const settings = { ...currentSettings, roleFilters };
+
+    return this.prisma.entity.update({
+      where: { id },
+      data: { settings: settings as unknown as Prisma.InputJsonValue },
+    });
+  }
+
+  /**
+   * Remove filtros de uma role na entidade
+   */
+  async deleteRoleFilters(id: string, roleId: string, currentUser: CurrentUser) {
+    const entity = await this.findOne(id, currentUser);
+    const currentSettings = (entity.settings as Record<string, unknown>) || {};
+    const roleFilters = { ...(currentSettings.roleFilters || {}) } as Record<string, unknown[]>;
+
+    delete roleFilters[roleId];
+
+    const settings = { ...currentSettings, roleFilters };
+
+    return this.prisma.entity.update({
+      where: { id },
+      data: { settings: settings as unknown as Prisma.InputJsonValue },
+    });
+  }
+
   async remove(id: string, currentUser: CurrentUser) {
     await this.findOne(id, currentUser);
 

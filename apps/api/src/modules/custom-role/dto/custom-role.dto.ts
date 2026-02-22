@@ -1,9 +1,49 @@
-import { IsString, IsOptional, IsBoolean, IsArray, ValidateNested, IsIn } from 'class-validator';
+import { IsString, IsOptional, IsBoolean, IsArray, ValidateNested, IsIn, Allow } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional, PartialType } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import { RoleType, PermissionScope, ROLE_TYPES } from '@crm-builder/shared';
 
 export { RoleType, PermissionScope, ROLE_TYPES };
+
+export class DataFilterDto {
+  @ApiProperty({ example: 'local' })
+  @IsString()
+  fieldSlug: string;
+
+  @ApiProperty({ example: 'Local' })
+  @IsString()
+  fieldName: string;
+
+  @ApiProperty({ example: 'text' })
+  @IsString()
+  fieldType: string;
+
+  @ApiProperty({ example: 'equals' })
+  @IsString()
+  operator: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Allow()
+  value?: unknown;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Allow()
+  value2?: unknown;
+}
+
+export class EntityDataFilterDto {
+  @ApiProperty({ example: 'veiculos' })
+  @IsString()
+  entitySlug: string;
+
+  @ApiProperty({ type: [DataFilterDto] })
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => DataFilterDto)
+  filters: DataFilterDto[];
+}
 
 export class FieldPermissionDto {
   @ApiProperty({ example: 'email' })
@@ -60,6 +100,13 @@ export class EntityPermissionDto {
   @IsOptional()
   fieldPermissions?: FieldPermissionDto[];
 
+  @ApiPropertyOptional({ type: [DataFilterDto], description: 'Filtros de dados por role nesta entidade' })
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => DataFilterDto)
+  @IsOptional()
+  dataFilters?: DataFilterDto[];
+
   @IsBoolean() @IsOptional() canExport?: boolean;
   @IsBoolean() @IsOptional() canImport?: boolean;
   @IsBoolean() @IsOptional() canConfigureColumns?: boolean;
@@ -91,6 +138,7 @@ export class ModulePermissionDto {
   @IsBoolean() @IsOptional() canTest?: boolean;
   @IsBoolean() @IsOptional() canPublish?: boolean;
   @IsBoolean() @IsOptional() canDuplicate?: boolean;
+  @IsBoolean() @IsOptional() canGenerate?: boolean;
   @IsBoolean() @IsOptional() canSuspend?: boolean;
   @IsBoolean() @IsOptional() canAssignRole?: boolean;
   @IsBoolean() @IsOptional() canChangeStatus?: boolean;
@@ -135,6 +183,12 @@ export class ModulePermissionsDto {
   @Type(() => ModulePermissionDto)
   @IsOptional()
   pages?: ModulePermissionDto;
+
+  @ApiPropertyOptional({ type: ModulePermissionDto })
+  @ValidateNested()
+  @Type(() => ModulePermissionDto)
+  @IsOptional()
+  pdfTemplates?: ModulePermissionDto;
 
   @ApiPropertyOptional({ type: ModulePermissionDto })
   @ValidateNested()
@@ -223,6 +277,13 @@ export class CreateCustomRoleDto {
   @ValidateNested({ each: true })
   @Type(() => EntityPermissionDto)
   permissions: EntityPermissionDto[];
+
+  @ApiPropertyOptional({ type: [EntityDataFilterDto], description: 'Filtros de dados globais por entidade' })
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => EntityDataFilterDto)
+  @IsOptional()
+  dataFilters?: EntityDataFilterDto[];
 
   @ApiPropertyOptional({ type: ModulePermissionsDto })
   @ValidateNested()

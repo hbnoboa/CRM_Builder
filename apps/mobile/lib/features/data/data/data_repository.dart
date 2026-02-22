@@ -37,6 +37,7 @@ class DataRepository {
     int limit = 10,
     int offset = 0,
     List<LocalFilter> localFilters = const [],
+    List<RoleFilter> roleFilters = const [],
     String? createdById,
   }) {
     final db = AppDatabase.instance.db;
@@ -49,6 +50,15 @@ class DataRepository {
     if (createdById != null) {
       query += ' AND createdById = ?';
       params.add(createdById);
+    }
+
+    // Apply role-based data filters (restrict what data a role can see)
+    if (roleFilters.isNotEmpty) {
+      final roleResult = FilterSqlBuilder.buildRoleFilterClauses(roleFilters);
+      if (roleResult.where.isNotEmpty) {
+        query += roleResult.where;
+        params.addAll(roleResult.params);
+      }
     }
 
     // Apply local filters via json_extract (global filters are applied by backend/PowerSync)
@@ -132,6 +142,93 @@ class DataRepository {
       debugPrint('[DataRepo] extractGlobalFilters error: $e');
       return [];
     }
+  }
+
+  /// Extract role-based data filters for a given entity and custom role.
+  /// Merges from 3 sources:
+  /// 1. customRole.dataFilters[entitySlug].filters
+  /// 2. customRole.permissions[entitySlug].dataFilters
+  /// 3. entity.settings.roleFilters[customRoleId]
+  List<RoleFilter> extractRoleFilters({
+    required Map<String, dynamic> entity,
+    required Map<String, dynamic>? customRole,
+    required String entitySlug,
+  }) {
+    if (customRole == null) return [];
+
+    final roleType = customRole['roleType'] as String? ?? '';
+    // PLATFORM_ADMIN and ADMIN see everything
+    if (roleType == 'PLATFORM_ADMIN' || roleType == 'ADMIN') return [];
+
+    final result = <RoleFilter>[];
+    final customRoleId = customRole['id'] as String? ?? '';
+
+    // 1. customRole.dataFilters (global role filters per entity)
+    try {
+      dynamic dataFiltersRaw = customRole['dataFilters'];
+      if (dataFiltersRaw is String) {
+        dataFiltersRaw = jsonDecode(dataFiltersRaw);
+      }
+      if (dataFiltersRaw is List) {
+        for (final entry in dataFiltersRaw) {
+          if (entry is Map<String, dynamic> && entry['entitySlug'] == entitySlug) {
+            final filters = entry['filters'] as List<dynamic>? ?? [];
+            for (final f in filters) {
+              if (f is Map<String, dynamic>) {
+                result.add(RoleFilter.fromJson(f));
+              }
+            }
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('[DataRepo] extractRoleFilters dataFilters error: $e');
+    }
+
+    // 2. customRole.permissions[entitySlug].dataFilters
+    try {
+      dynamic permsRaw = customRole['permissions'];
+      if (permsRaw is String) {
+        permsRaw = jsonDecode(permsRaw);
+      }
+      if (permsRaw is List) {
+        for (final perm in permsRaw) {
+          if (perm is Map<String, dynamic> && perm['entitySlug'] == entitySlug) {
+            final filters = perm['dataFilters'] as List<dynamic>? ?? [];
+            for (final f in filters) {
+              if (f is Map<String, dynamic>) {
+                result.add(RoleFilter.fromJson(f));
+              }
+            }
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('[DataRepo] extractRoleFilters permissions error: $e');
+    }
+
+    // 3. entity.settings.roleFilters[customRoleId]
+    try {
+      final settingsStr = entity['settings'] as String?;
+      if (settingsStr != null && settingsStr.isNotEmpty) {
+        final settings = jsonDecode(settingsStr) as Map<String, dynamic>;
+        final roleFiltersMap = settings['roleFilters'] as Map<String, dynamic>?;
+        if (roleFiltersMap != null && customRoleId.isNotEmpty) {
+          final entityRoleFilters = roleFiltersMap[customRoleId] as List<dynamic>?;
+          if (entityRoleFilters != null) {
+            for (final f in entityRoleFilters) {
+              if (f is Map<String, dynamic>) {
+                result.add(RoleFilter.fromJson(f));
+              }
+            }
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('[DataRepo] extractRoleFilters entity settings error: $e');
+    }
+
+    return result;
   }
 
   /// Extract visible column slugs (ordered) from Entity.settings JSON.

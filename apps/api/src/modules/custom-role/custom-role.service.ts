@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException, ConflictException, ForbiddenException, Logger } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
-import { CreateCustomRoleDto, UpdateCustomRoleDto, QueryCustomRoleDto, RoleType } from './dto/custom-role.dto';
+import { CreateCustomRoleDto, UpdateCustomRoleDto, QueryCustomRoleDto, RoleType, DataFilterDto } from './dto/custom-role.dto';
 import { getEffectiveTenantId } from '../../common/utils/tenant.util';
 import { Prisma } from '@prisma/client';
 import {
@@ -70,6 +70,7 @@ export class CustomRoleService {
         roleType: 'CUSTOM', // Roles criadas manualmente sao sempre CUSTOM
         isSystem: false,
         permissions: dto.permissions as unknown as Prisma.InputJsonValue,
+        dataFilters: (dto.dataFilters || []) as unknown as Prisma.InputJsonValue,
         modulePermissions: (dto.modulePermissions || {}) as unknown as Prisma.InputJsonValue,
         isDefault: dto.isDefault || false,
       },
@@ -218,6 +219,7 @@ export class CustomRoleService {
     if (dto.color !== undefined) data.color = dto.color;
     if (dto.isDefault !== undefined) data.isDefault = dto.isDefault;
     if (dto.permissions !== undefined) data.permissions = dto.permissions as unknown as Prisma.InputJsonValue;
+    if (dto.dataFilters !== undefined) data.dataFilters = (dto.dataFilters || []) as unknown as Prisma.InputJsonValue;
     if (dto.modulePermissions !== undefined) data.modulePermissions = (dto.modulePermissions || {}) as unknown as Prisma.InputJsonValue;
     if (dto.tenantPermissions !== undefined) data.tenantPermissions = dto.tenantPermissions as unknown as Prisma.InputJsonValue;
 
@@ -534,5 +536,46 @@ export class CustomRoleService {
 
     // Demais roles: usar modulePermissions configuradas (normalizado de boolean → CRUD)
     return normalizeModulePermissions(user.customRole.modulePermissions as Record<string, unknown>);
+  }
+
+  /**
+   * Retorna os filtros de dados da role para uma entidade especifica.
+   * Merge: dataFilters (globais da role) + permissions[].dataFilters (inline por entidade).
+   * PLATFORM_ADMIN/ADMIN retornam [] (sem filtros).
+   */
+  getRoleDataFilters(
+    customRole: { roleType: string; permissions: unknown; dataFilters: unknown },
+    entitySlug: string,
+  ): DataFilterDto[] {
+    const roleType = customRole.roleType as RoleType;
+
+    // PLATFORM_ADMIN e ADMIN nao tem filtros por role
+    if (roleType === 'PLATFORM_ADMIN' || roleType === 'ADMIN') {
+      return [];
+    }
+
+    const result: DataFilterDto[] = [];
+
+    // 1. Filtros globais da role (dataFilters[])
+    const globalFilters = (customRole.dataFilters || []) as Array<{
+      entitySlug: string;
+      filters: DataFilterDto[];
+    }>;
+    const entityGlobalFilter = globalFilters.find((f) => f.entitySlug === entitySlug);
+    if (entityGlobalFilter?.filters?.length) {
+      result.push(...entityGlobalFilter.filters);
+    }
+
+    // 2. Filtros inline da permissao por entidade (permissions[].dataFilters)
+    const permissions = (customRole.permissions || []) as Array<{
+      entitySlug: string;
+      dataFilters?: DataFilterDto[];
+    }>;
+    const entityPerm = permissions.find((p) => p.entitySlug === entitySlug);
+    if (entityPerm?.dataFilters?.length) {
+      result.push(...entityPerm.dataFilters);
+    }
+
+    return result;
   }
 }

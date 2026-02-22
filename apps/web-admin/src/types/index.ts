@@ -24,6 +24,8 @@ export type {
   Field,
   EntityData,
   CustomRole,
+  DataFilter,
+  EntityDataFilter,
   EntityPermission,
   FieldPermission,
   ModulePermission,

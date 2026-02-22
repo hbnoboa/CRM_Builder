@@ -609,7 +609,9 @@
       "data": "Dados",
       "dataDesc": "Registros de cada entidade",
       "roles": "Perfis de Acesso",
-      "rolesDesc": "Configurar cargos e permissões"
+      "rolesDesc": "Configurar cargos e permissões",
+      "pdfTemplates": "Templates PDF",
+      "pdfTemplatesDesc": "Gerar documentos a partir de templates"
     },
     "userRoles": {
       "title": "Gerenciar Permissões",
@@ -673,7 +675,8 @@
       "canUpdateField": "Editar Configuração de Campos",
       "canConfigureColumns": "Configurar Colunas Visíveis",
       "canExport": "Exportar Registros",
-      "canImport": "Importar Registros"
+      "canImport": "Importar Registros",
+      "canGenerate": "Gerar PDF"
     },
     "permissionCategories": {
       "entities": "Entidades",

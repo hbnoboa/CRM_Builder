@@ -24,14 +24,14 @@ import {
 import {
   Eye, Plus, Pencil, Trash2, Shield, Database, Users,
   Settings, Code, LayoutDashboard, Globe, User, Building2,
-  ChevronRight,
+  ChevronRight, ListFilter, X, FileText, LayoutGrid,
 } from 'lucide-react';
 import { useCreateCustomRole, useUpdateCustomRole } from '@/hooks/use-custom-roles';
 import { useQuery } from '@tanstack/react-query';
 import api from '@/lib/api';
 import { useTenant } from '@/stores/tenant-context';
 import { usePermissions } from '@/hooks/use-permissions';
-import type { CustomRole, EntityPermission, EntityField, ModulePermission, ModulePermissions, Entity, PermissionScope } from '@/types';
+import type { CustomRole, DataFilter, EntityPermission, EntityField, ModulePermission, ModulePermissions, Entity, PermissionScope } from '@/types';
 
 const EMPTY_MODULE_PERM: ModulePermission = { canRead: false, canCreate: false, canUpdate: false, canDelete: false };
 
@@ -50,7 +50,7 @@ function normalizeModulePermToRecord(mp: Record<string, unknown> | null | undefi
   return result;
 }
 
-const MODULE_KEYS = ['dashboard', 'users', 'roles', 'entities', 'data', 'apis', 'settings', 'tenants'] as const;
+const MODULE_KEYS = ['dashboard', 'users', 'roles', 'entities', 'data', 'apis', 'pages', 'pdfTemplates', 'settings', 'tenants'] as const;
 
 function getDefaultModulePerms(): Record<string, ModulePermission> {
   const result: Record<string, ModulePermission> = {};
@@ -69,6 +69,91 @@ function countCrudActive(perm: ModulePermission): number {
   if (perm.canUpdate) count++;
   if (perm.canDelete) count++;
   return count;
+}
+
+const FILTER_OPERATORS = [
+  { value: 'equals', label: 'Igual a' },
+  { value: 'contains', label: 'Contém' },
+  { value: 'startsWith', label: 'Começa com' },
+  { value: 'endsWith', label: 'Termina com' },
+  { value: 'isEmpty', label: 'Está vazio' },
+  { value: 'isNotEmpty', label: 'Não está vazio' },
+];
+
+function DataFilterAdder({ fields, onAdd }: {
+  fields: EntityField[];
+  onAdd: (filter: DataFilter) => void;
+}) {
+  const [fieldSlug, setFieldSlug] = useState('');
+  const [operator, setOperator] = useState('equals');
+  const [value, setValue] = useState('');
+
+  const selectedField = fields.find(f => f.slug === fieldSlug);
+  const needsValue = !['isEmpty', 'isNotEmpty'].includes(operator);
+
+  const handleAdd = () => {
+    if (!fieldSlug || !selectedField) return;
+    if (needsValue && !value.trim()) return;
+    onAdd({
+      fieldSlug,
+      fieldName: selectedField.label || selectedField.name,
+      fieldType: selectedField.type,
+      operator,
+      ...(needsValue ? { value: value.trim() } : {}),
+    });
+    setFieldSlug('');
+    setOperator('equals');
+    setValue('');
+  };
+
+  return (
+    <div className="flex items-center gap-1.5 flex-wrap">
+      <Select value={fieldSlug} onValueChange={setFieldSlug}>
+        <SelectTrigger className="h-7 w-[130px] text-[11px]">
+          <SelectValue placeholder="Campo..." />
+        </SelectTrigger>
+        <SelectContent>
+          {fields.map(f => (
+            <SelectItem key={f.slug} value={f.slug} className="text-xs">
+              {f.label || f.name}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <Select value={operator} onValueChange={setOperator}>
+        <SelectTrigger className="h-7 w-[110px] text-[11px]">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {FILTER_OPERATORS.map(op => (
+            <SelectItem key={op.value} value={op.value} className="text-xs">
+              {op.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      {needsValue && (
+        <Input
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          placeholder="Valor..."
+          className="h-7 w-[120px] text-[11px]"
+          onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleAdd(); } }}
+        />
+      )}
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        className="h-7 px-2 text-[11px]"
+        onClick={handleAdd}
+        disabled={!fieldSlug || (needsValue && !value.trim())}
+      >
+        <Plus className="h-3 w-3 mr-1" />
+        Adicionar
+      </Button>
+    </div>
+  );
 }
 
 interface RoleFormDialogProps {
@@ -216,6 +301,7 @@ export function RoleFormDialog({ open, onOpenChange, role, onSuccess }: RoleForm
   };
 
   const [expandedFieldPerms, setExpandedFieldPerms] = useState<Set<string>>(new Set());
+  const [expandedDataFilters, setExpandedDataFilters] = useState<Set<string>>(new Set());
 
   const toggleFieldPermsExpand = (entitySlug: string) => {
     setExpandedFieldPerms(prev => {
@@ -224,6 +310,36 @@ export function RoleFormDialog({ open, onOpenChange, role, onSuccess }: RoleForm
       else next.add(entitySlug);
       return next;
     });
+  };
+
+  const toggleDataFiltersExpand = (entitySlug: string) => {
+    setExpandedDataFilters(prev => {
+      const next = new Set(prev);
+      if (next.has(entitySlug)) next.delete(entitySlug);
+      else next.add(entitySlug);
+      return next;
+    });
+  };
+
+  const addDataFilter = (entitySlug: string, filter: DataFilter) => {
+    setPermissions(prev =>
+      prev.map(p => {
+        if (p.entitySlug !== entitySlug) return p;
+        const existing = p.dataFilters || [];
+        return { ...p, dataFilters: [...existing, filter] };
+      })
+    );
+  };
+
+  const removeDataFilter = (entitySlug: string, index: number) => {
+    setPermissions(prev =>
+      prev.map(p => {
+        if (p.entitySlug !== entitySlug) return p;
+        const filters = [...(p.dataFilters || [])];
+        filters.splice(index, 1);
+        return { ...p, dataFilters: filters };
+      })
+    );
   };
 
   const toggleModulePerm = (moduleKey: string, action: keyof ModulePermission) => {
@@ -260,6 +376,7 @@ export function RoleFormDialog({ open, onOpenChange, role, onSuccess }: RoleForm
         canDelete: p.canDelete,
         scope: p.scope || 'all',
         ...(p.fieldPermissions && p.fieldPermissions.length > 0 ? { fieldPermissions: p.fieldPermissions } : {}),
+        ...(p.dataFilters && p.dataFilters.length > 0 ? { dataFilters: p.dataFilters } : {}),
         ...(p.canExport ? { canExport: true } : {}),
         ...(p.canImport ? { canImport: true } : {}),
         ...(p.canConfigureColumns ? { canConfigureColumns: true } : {}),
@@ -286,6 +403,8 @@ export function RoleFormDialog({ open, onOpenChange, role, onSuccess }: RoleForm
     users: <Users className="h-4 w-4" />,
     settings: <Settings className="h-4 w-4" />,
     apis: <Code className="h-4 w-4" />,
+    pages: <LayoutGrid className="h-4 w-4" />,
+    pdfTemplates: <FileText className="h-4 w-4" />,
     entities: <Database className="h-4 w-4" />,
     tenants: <Building2 className="h-4 w-4" />,
     data: <Globe className="h-4 w-4" />,
@@ -303,6 +422,13 @@ export function RoleFormDialog({ open, onOpenChange, role, onSuccess }: RoleForm
     apis: [
       { key: 'canActivate', label: t('permissions.canActivate') },
       { key: 'canTest', label: t('permissions.canTest') },
+    ],
+    pages: [
+      { key: 'canPublish', label: t('permissions.canPublish') },
+      { key: 'canDuplicate', label: t('permissions.canDuplicate') },
+    ],
+    pdfTemplates: [
+      { key: 'canGenerate', label: t('permissions.canGenerate') },
     ],
     entities: [
       { key: 'canUpdateLayout', label: t('permissions.canUpdateLayout') },
@@ -366,8 +492,8 @@ export function RoleFormDialog({ open, onOpenChange, role, onSuccess }: RoleForm
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-4 min-h-0 flex-1 overflow-y-auto pr-1">
-          {/* Nome e Descrição */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {/* Nome, Descrição e Cor */}
+          <div className="grid grid-cols-1 sm:grid-cols-[1fr_1fr_auto] gap-4">
             <div className="space-y-2">
               <Label>{tCommon('name')} *</Label>
               <Input
@@ -384,6 +510,23 @@ export function RoleFormDialog({ open, onOpenChange, role, onSuccess }: RoleForm
                 onChange={(e) => setDescription(e.target.value)}
                 placeholder={t('form.descriptionPlaceholder')}
               />
+            </div>
+            <div className="space-y-2">
+              <Label>{t('form.color')}</Label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="color"
+                  value={color}
+                  onChange={(e) => setColor(e.target.value)}
+                  className="h-9 w-9 rounded border cursor-pointer p-0.5"
+                />
+                <Input
+                  value={color}
+                  onChange={(e) => setColor(e.target.value)}
+                  className="w-[90px] text-xs font-mono"
+                  placeholder="#6366f1"
+                />
+              </div>
             </div>
           </div>
 
@@ -663,6 +806,59 @@ export function RoleFormDialog({ open, onOpenChange, role, onSuccess }: RoleForm
                                     ))}
                                   </div>
                                 </div>
+
+                                {/* Data Filters */}
+                                {entity && entity.fields && entity.fields.length > 0 && (
+                                  <>
+                                    <Separator />
+                                    <div>
+                                      <button
+                                        type="button"
+                                        className="text-xs text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1"
+                                        onClick={(e) => { e.stopPropagation(); toggleDataFiltersExpand(perm.entitySlug); }}
+                                      >
+                                        <ListFilter className="h-3 w-3" />
+                                        Filtros de Dados ({perm.dataFilters?.length || 0})
+                                        <span className="ml-1">{expandedDataFilters.has(perm.entitySlug) ? '▾' : '▸'}</span>
+                                      </button>
+                                      {expandedDataFilters.has(perm.entitySlug) && (
+                                        <div className="mt-2 space-y-2">
+                                          {/* Existing filters */}
+                                          {perm.dataFilters && perm.dataFilters.length > 0 && (
+                                            <div className="flex flex-wrap gap-1.5">
+                                              {perm.dataFilters.map((filter, idx) => (
+                                                <Badge
+                                                  key={idx}
+                                                  variant="secondary"
+                                                  className="text-[10px] px-2 py-0.5 gap-1"
+                                                >
+                                                  <span className="font-medium">{filter.fieldName}</span>
+                                                  <span className="text-muted-foreground">{filter.operator === 'equals' ? '=' : filter.operator}</span>
+                                                  <span>{String(filter.value ?? '')}</span>
+                                                  <button
+                                                    type="button"
+                                                    onClick={(e) => { e.stopPropagation(); removeDataFilter(perm.entitySlug, idx); }}
+                                                    className="ml-0.5 hover:text-destructive"
+                                                  >
+                                                    <X className="h-3 w-3" />
+                                                  </button>
+                                                </Badge>
+                                              ))}
+                                            </div>
+                                          )}
+                                          {/* Add new filter */}
+                                          <DataFilterAdder
+                                            fields={entity.fields.filter((f: EntityField) => !['image', 'images', 'sub-entity', 'array', 'hidden'].includes(f.type))}
+                                            onAdd={(filter) => addDataFilter(perm.entitySlug, filter)}
+                                          />
+                                          <p className="text-[10px] text-muted-foreground">
+                                            Filtros restringem quais registros usuarios com esta role podem ver nesta entidade.
+                                          </p>
+                                        </div>
+                                      )}
+                                    </div>
+                                  </>
+                                )}
 
                                 {/* Field Permissions */}
                                 {entity && entity.fields && entity.fields.length > 0 && (

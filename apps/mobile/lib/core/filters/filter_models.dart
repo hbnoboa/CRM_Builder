@@ -184,6 +184,46 @@ class GlobalFilter {
   }
 }
 
+/// Role-based data filter — extracted from CustomRole.dataFilters,
+/// CustomRole.permissions[].dataFilters, and entity.settings.roleFilters.
+/// Applied locally in SQLite queries to restrict what data a role can see.
+class RoleFilter {
+  const RoleFilter({
+    required this.fieldSlug,
+    required this.fieldName,
+    required this.fieldType,
+    required this.operator,
+    this.value,
+    this.value2,
+  });
+
+  factory RoleFilter.fromJson(Map<String, dynamic> json) => RoleFilter(
+        fieldSlug: json['fieldSlug'] as String? ?? '',
+        fieldName: json['fieldName'] as String? ?? '',
+        fieldType: json['fieldType'] as String? ?? 'text',
+        operator: FilterOperator.fromJson(json['operator'] as String? ?? 'equals'),
+        value: json['value'],
+        value2: json['value2'],
+      );
+
+  final String fieldSlug;
+  final String fieldName;
+  final String fieldType;
+  final FilterOperator operator;
+  final dynamic value;
+  final dynamic value2;
+
+  String get displayLabel {
+    if (operator == FilterOperator.isEmpty || operator == FilterOperator.isNotEmpty) {
+      return '$fieldName: ${operator.label}';
+    }
+    if (operator == FilterOperator.between) {
+      return '$fieldName: $value - $value2';
+    }
+    return '$fieldName ${operator.label} $value';
+  }
+}
+
 /// Local filter — session-only, not persisted.
 class LocalFilter {
   const LocalFilter({

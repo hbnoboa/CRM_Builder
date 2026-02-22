@@ -1,5 +1,5 @@
 import api from '@/lib/api';
-import { CustomRole, EntityPermission, ModulePermissions, PaginatedResponse } from '@/types';
+import { CustomRole, EntityPermission, EntityDataFilter, ModulePermissions, TenantPermissions, PaginatedResponse } from '@/types';
 
 export interface QueryCustomRolesParams {
   page?: number;
@@ -15,8 +15,12 @@ export interface CreateCustomRoleData {
   name: string;
   description?: string;
   color?: string;
+  roleType?: string;
+  isSystem?: boolean;
   permissions: EntityPermission[];
+  dataFilters?: EntityDataFilter[];
   modulePermissions?: ModulePermissions;
+  tenantPermissions?: TenantPermissions;
   isDefault?: boolean;
   tenantId?: string;
 }
@@ -25,8 +29,11 @@ export interface UpdateCustomRoleData {
   name?: string;
   description?: string;
   color?: string;
+  roleType?: string;
   permissions?: EntityPermission[];
+  dataFilters?: EntityDataFilter[];
   modulePermissions?: ModulePermissions;
+  tenantPermissions?: TenantPermissions;
   isDefault?: boolean;
   tenantId?: string;
 }

@@ -13,6 +13,7 @@ import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { EntityService, QueryEntityDto, CreateEntityDto, UpdateEntityDto } from './entity.service';
 import { UpdateColumnConfigDto } from './dto/entity.dto';
 import { UpdateGlobalFiltersDto } from './dto/update-global-filters.dto';
+import { UpdateRoleFiltersDto } from './dto/update-role-filters.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
@@ -75,6 +76,39 @@ export class EntityController {
   ) {
     checkModulePermission(user, 'entities', 'canUpdate');
     return this.entityService.updateGlobalFilters(id, dto.globalFilters, user);
+  }
+
+  @Get(':id/role-filters')
+  @ApiOperation({ summary: 'Listar filtros por role da entidade' })
+  async getRoleFilters(
+    @Param('id') id: string,
+    @CurrentUser() user: CurrentUserType,
+  ) {
+    checkModulePermission(user, 'entities', 'canRead');
+    return this.entityService.getRoleFilters(id, user);
+  }
+
+  @Patch(':id/role-filters/:roleId')
+  @ApiOperation({ summary: 'Atualizar filtros de uma role na entidade' })
+  async updateRoleFilters(
+    @Param('id') id: string,
+    @Param('roleId') roleId: string,
+    @Body() dto: UpdateRoleFiltersDto,
+    @CurrentUser() user: CurrentUserType,
+  ) {
+    checkModulePermission(user, 'entities', 'canUpdate');
+    return this.entityService.updateRoleFilters(id, roleId, dto.filters, user);
+  }
+
+  @Delete(':id/role-filters/:roleId')
+  @ApiOperation({ summary: 'Remover filtros de uma role na entidade' })
+  async deleteRoleFilters(
+    @Param('id') id: string,
+    @Param('roleId') roleId: string,
+    @CurrentUser() user: CurrentUserType,
+  ) {
+    checkModulePermission(user, 'entities', 'canUpdate');
+    return this.entityService.deleteRoleFilters(id, roleId, user);
   }
 
   @Patch(':id')

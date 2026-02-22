@@ -7,6 +7,20 @@ export interface FieldPermission {
   canEdit: boolean;
 }
 
+export interface DataFilter {
+  fieldSlug: string;
+  fieldName: string;
+  fieldType: string;
+  operator: string;
+  value?: unknown;
+  value2?: unknown;
+}
+
+export interface EntityDataFilter {
+  entitySlug: string;
+  filters: DataFilter[];
+}
+
 export interface EntityPermission {
   entitySlug: string;
   entityName?: string;
@@ -16,6 +30,7 @@ export interface EntityPermission {
   canDelete: boolean;
   scope?: PermissionScope;
   fieldPermissions?: FieldPermission[];
+  dataFilters?: DataFilter[];
   // Sub-granular actions per entity (data module)
   canExport?: boolean;
   canImport?: boolean;
@@ -30,6 +45,9 @@ export interface ModulePermission {
   // Sub-granular actions (each module uses its relevant fields)
   canActivate?: boolean;      // apis, tenants
   canTest?: boolean;           // apis
+  canPublish?: boolean;        // pages
+  canDuplicate?: boolean;      // pages
+  canGenerate?: boolean;       // pdfTemplates
   canSuspend?: boolean;        // tenants
   canAssignRole?: boolean;     // users
   canChangeStatus?: boolean;   // users
@@ -49,6 +67,8 @@ export interface ModulePermissions {
   users?: ModulePermission;
   settings?: ModulePermission;
   apis?: ModulePermission;
+  pages?: ModulePermission;
+  pdfTemplates?: ModulePermission;
   entities?: ModulePermission;
   tenants?: ModulePermission;
   data?: ModulePermission;
@@ -63,6 +83,7 @@ export interface CustomRole {
   roleType: RoleType;
   isSystem: boolean;
   permissions: EntityPermission[];
+  dataFilters?: EntityDataFilter[];
   modulePermissions?: ModulePermissions;
   tenantPermissions?: TenantPermissions;
   isDefault?: boolean;
