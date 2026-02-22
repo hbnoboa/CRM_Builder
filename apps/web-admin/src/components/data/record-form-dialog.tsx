@@ -183,11 +183,16 @@ export function RecordFormDialog({
       const displayField = field.relatedDisplayField || '';
       const options: ApiOption[] = data.map((item: Record<string, unknown>) => {
         const itemData = (item.data || item) as Record<string, unknown>;
-        let label = displayField ? itemData[displayField] : undefined;
+        let label: unknown = displayField ? itemData[displayField] : undefined;
+        // Handle {value, label} objects from backend enrichment
+        if (label && typeof label === 'object' && 'label' in (label as Record<string, unknown>)) {
+          label = (label as Record<string, unknown>).label;
+        }
         if (!label) {
           for (const key of Object.keys(itemData)) {
-            if (typeof itemData[key] === 'string' && key !== 'id' && key !== 'createdAt' && key !== 'updatedAt') {
-              label = itemData[key]; break;
+            const v = itemData[key];
+            if (typeof v === 'string' && key !== 'id' && key !== 'createdAt' && key !== 'updatedAt') {
+              label = v; break;
             }
           }
         }
@@ -357,6 +362,12 @@ export function RecordFormDialog({
           processedData[field.slug] = Number(value);
         } else if (field.type === 'currency' || field.type === 'percentage') {
           processedData[field.slug] = Number(String(value).replace(/[^\d.-]/g, ''));
+        } else if (field.type === 'relation') {
+          // Save as {value, label} so the data list shows the display name
+          const id = String(value);
+          const options = relationOptions[field.slug] || [];
+          const option = options.find(o => o.value === id);
+          processedData[field.slug] = option ? { value: id, label: option.label } : id;
         } else {
           processedData[field.slug] = value;
         }

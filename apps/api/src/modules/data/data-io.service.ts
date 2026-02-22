@@ -96,7 +96,13 @@ export class DataIoService {
         const data = record.data as Record<string, unknown>;
         const row: Record<string, unknown> = {};
         for (const field of exportFields) {
-          row[field.name || field.slug] = data?.[field.slug] ?? null;
+          const val = data?.[field.slug] ?? null;
+          // Extract label from {value, label} objects (e.g. relation fields)
+          if (val && typeof val === 'object' && !Array.isArray(val) && 'label' in (val as Record<string, unknown>)) {
+            row[field.name || field.slug] = (val as Record<string, unknown>).label;
+          } else {
+            row[field.name || field.slug] = val;
+          }
         }
         return row;
       });
@@ -141,7 +147,9 @@ export class DataIoService {
         if (Array.isArray(value)) {
           rowData[field.slug] = value.join('; ');
         } else if (value !== null && value !== undefined && typeof value === 'object') {
-          rowData[field.slug] = JSON.stringify(value);
+          // Extract label from {value, label} objects (e.g. relation fields)
+          const obj = value as Record<string, unknown>;
+          rowData[field.slug] = obj.label ? String(obj.label) : JSON.stringify(value);
         } else {
           rowData[field.slug] = value ?? '';
         }
