@@ -368,6 +368,8 @@
       "andMore": "...y {count} opciones más",
       "applyOptions": "Aplicar opciones",
       "noOptions": "Sin opciones. Agrega opciones para el selector.",
+      "defaultValue": "Valor Predeterminado",
+      "noDefault": "Ninguno (vacío)",
       "relationConfig": "🔗 Configuración de Relación",
       "relatedEntity": "Entidad Relacionada",
       "selectEntity": "Selecciona la entidad",

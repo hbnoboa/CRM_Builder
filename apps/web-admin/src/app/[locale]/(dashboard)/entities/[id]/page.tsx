@@ -471,6 +471,27 @@ function EntityDetailPageContent() {
               ))}
             </div>
           )}
+          {(field.options || []).length > 0 && (
+            <div className="space-y-1 mt-2">
+              <Label className="text-xs">{tFieldConfig('defaultValue')}</Label>
+              <Select
+                value={String(field.default || '')}
+                onValueChange={(val) => updateField(index, { default: val === '__none__' ? undefined : val })}
+              >
+                <SelectTrigger className="h-8 text-sm">
+                  <SelectValue placeholder={tFieldConfig('noDefault')} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">{tFieldConfig('noDefault')}</SelectItem>
+                  {(field.options || []).map((opt, i) => {
+                    const val = typeof opt === 'object' ? opt.value : opt;
+                    const label = typeof opt === 'object' ? opt.label : opt;
+                    return <SelectItem key={i} value={val}>{label}</SelectItem>;
+                  })}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
         </div>
       );
     }
