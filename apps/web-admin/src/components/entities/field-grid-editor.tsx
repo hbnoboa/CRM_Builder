@@ -530,6 +530,14 @@ export default function FieldGridEditor({
     const cell = row.cells.find(c => c.fieldIndex === fieldIndex);
     if (!cell) return;
 
+    // Se o usuario quer 100% (12 colunas) e e o unico campo na linha, resetar para coluna 1
+    if (newSpan === GRID_COLS && row.cells.length === 1) {
+      cell.colStart = 0;
+      cell.colSpan = GRID_COLS;
+      commitGrid(newGrid);
+      return;
+    }
+
     const maxSpan = GRID_COLS - cell.colStart;
     newSpan = Math.min(newSpan, maxSpan);
 
