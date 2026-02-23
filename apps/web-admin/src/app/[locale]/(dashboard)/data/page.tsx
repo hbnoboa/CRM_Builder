@@ -514,8 +514,18 @@ function DataPageContent() {
         params.sortBy = effectiveSort.field;
         params.sortOrder = effectiveSort.order;
       }
-      // Filtros do usuario sao aplicados client-side apos carregar os dados
-      // (globalFilters e roleFilters sao aplicados no backend automaticamente)
+      // Enviar filtros do usuario para o backend (server-side filtering)
+      const effectiveFilters = filtersOverride ?? activeFilters;
+      if (effectiveFilters.length > 0) {
+        params.filters = JSON.stringify(effectiveFilters.map(f => ({
+          fieldSlug: f.fieldSlug,
+          fieldName: f.fieldName,
+          fieldType: f.fieldType,
+          operator: f.operator,
+          value: f.value,
+          value2: f.value2,
+        })));
+      }
       const response = await api.get(`/data/${entitySlug}`, { params });
       const list = Array.isArray(response.data) ? response.data : response.data?.data || [];
       const meta = response.data?.meta || null;
@@ -820,8 +830,14 @@ function DataPageContent() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hasChildrenFilter]);
 
-  // Filtros ativos sao aplicados client-side no useMemo filteredRecords
-  // Nao e necessario buscar no backend quando filtros mudam
+  // Quando filtros locais mudam, resetar pagina e buscar no backend
+  const activeFiltersKey = useMemo(() => JSON.stringify(activeFilters), [activeFilters]);
+  useEffect(() => {
+    if (!selectedEntity) return;
+    setCurrentPage(1);
+    fetchRecords(selectedEntity.slug, 1, debouncedSearch, undefined, undefined, activeFilters);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeFiltersKey]);
 
   // Real-time: granular updates via WebSocket (update/delete/create without full refetch)
   useEffect(() => {
@@ -1028,30 +1044,15 @@ function DataPageContent() {
     return record.data[col];
   }, [getFieldBySlug]);
 
-  // Filtro de busca local + activeFilters (aplicados client-side)
+  // Filtro de busca textual local (feedback enquanto digita, antes do debounce)
+  // activeFilters sao aplicados server-side via fetchRecords
   const filteredRecords = useMemo(() => {
-    let result = records;
-
-    // Aplicar busca textual local (feedback enquanto digita, antes do debounce)
-    if (searchTerm.trim()) {
-      const term = searchTerm.toLowerCase();
-      result = result.filter(r =>
-        allColumns.some(col => formatCellValue(getCellValue(r, col)).toLowerCase().includes(term))
-      );
-    }
-
-    // Aplicar filtros do usuario client-side
-    if (activeFilters.length > 0) {
-      result = result.filter(r => {
-        return activeFilters.every(filter => {
-          const value = getCellValue(r, filter.fieldSlug);
-          return evaluateFilter(value, filter);
-        });
-      });
-    }
-
-    return result;
-  }, [records, searchTerm, allColumns, getCellValue, activeFilters]);
+    if (!searchTerm.trim()) return records;
+    const term = searchTerm.toLowerCase();
+    return records.filter(r =>
+      allColumns.some(col => formatCellValue(getCellValue(r, col)).toLowerCase().includes(term))
+    );
+  }, [records, searchTerm, allColumns, getCellValue]);
 
   return (
     <div className="space-y-4 sm:space-y-6">
