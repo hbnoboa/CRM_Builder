@@ -629,14 +629,24 @@ export function RecordFormDialog({
           </div>
         );
 
-      case 'datetime':
+      case 'datetime': {
+        // Normalizar ISO strings (ex: 2026-02-23T01:09:01.841Z) para formato datetime-local (yyyy-MM-ddTHH:mm)
+        let dtValue = String(value || '');
+        if (dtValue && (dtValue.includes('Z') || dtValue.includes('.'))) {
+          const d = new Date(dtValue);
+          if (!isNaN(d.getTime())) {
+            const pad = (n: number) => String(n).padStart(2, '0');
+            dtValue = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+          }
+        }
         return (
           <div key={field.slug} className="space-y-2">
             {fieldLabel}
-            <Input id={field.slug} type="datetime-local" value={String(value || '')} onChange={(e) => handleFieldChange(field.slug, e.target.value)} />
+            <Input id={field.slug} type="datetime-local" value={dtValue} onChange={(e) => handleFieldChange(field.slug, e.target.value)} />
             {helpEl}{errorEl}
           </div>
         );
+      }
 
       case 'time':
         return (
