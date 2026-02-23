@@ -188,9 +188,18 @@ interface DataRecord {
   updatedAt: string;
 }
 
-// Helper para formatar valores de select/multiselect
-function formatCellValue(val: unknown): string {
+// Helper para formatar valores de celula
+function formatCellValue(val: unknown, fieldType?: string): string {
   if (val === null || val === undefined) return '-';
+  // Formatar datas/datetimes no padrao pt-BR
+  if (typeof val === 'string' && val && (fieldType === 'date' || fieldType === 'datetime')) {
+    const d = new Date(val);
+    if (!isNaN(d.getTime())) {
+      return fieldType === 'date'
+        ? d.toLocaleDateString('pt-BR')
+        : d.toLocaleString('pt-BR');
+    }
+  }
   if (typeof val === 'object' && val !== null) {
     if ('label' in (val as Record<string, unknown>)) {
       return String((val as Record<string, unknown>).label);
@@ -2057,7 +2066,7 @@ function DataPageContent() {
                                         </Badge>
                                       </button>
                                     ) : (
-                                      formatCellValue(value)
+                                      formatCellValue(value, field?.type)
                                     )}
                                   </td>
                                 );
@@ -2125,7 +2134,7 @@ function DataPageContent() {
                                   : isSubEntity
                                     ? record._childCounts?.[col] ?? 0
                                     : record.data[col];
-                                const value = formatCellValue(cellValue);
+                                const value = formatCellValue(cellValue, field?.type);
                                 return (
                                   <div key={col} className={idx === 0 ? 'font-medium text-sm' : 'text-xs text-muted-foreground'}>
                                     {isParentCol
