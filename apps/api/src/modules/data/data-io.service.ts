@@ -7,7 +7,7 @@ import {
 import { PrismaService } from '../../prisma/prisma.service';
 import { EntityService, FieldDefinition } from '../entity/entity.service';
 import { CurrentUser } from '../../common/types';
-import { checkModulePermission } from '../../common/utils/check-module-permission';
+import { checkEntityAction } from '../../common/utils/check-module-permission';
 import { getEffectiveTenantId } from '../../common/utils/tenant.util';
 import { DataService, QueryDataDto } from './data.service';
 import * as ExcelJS from 'exceljs';
@@ -68,7 +68,7 @@ export class DataIoService {
     format: 'xlsx' | 'json',
     user: CurrentUser,
   ): Promise<{ buffer: Buffer; contentType: string; filename: string }> {
-    checkModulePermission(user, 'data', 'canExport');
+    checkEntityAction(user, entitySlug, 'canExport');
 
     // Reutilizar findAll com limit alto para obter dados filtrados + field permissions
     const exportQuery: QueryDataDto = {
@@ -177,7 +177,7 @@ export class DataIoService {
     tenantId?: string,
     sheetName?: string,
   ): Promise<ImportPreview> {
-    checkModulePermission(user, 'data', 'canImport');
+    checkEntityAction(user, entitySlug, 'canImport');
 
     if (!file || !file.buffer) {
       throw new BadRequestException('Nenhum arquivo enviado');
@@ -283,7 +283,7 @@ export class DataIoService {
     columnMapping?: Record<string, string>, // header -> fieldSlug
     sheetName?: string,
   ): Promise<ImportResult> {
-    checkModulePermission(user, 'data', 'canImport');
+    checkEntityAction(user, entitySlug, 'canImport');
 
     if (!file || !file.buffer) {
       throw new BadRequestException('Nenhum arquivo enviado');

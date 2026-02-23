@@ -18,7 +18,7 @@ import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { CurrentUser as CurrentUserType } from '../../common/types';
-import { checkModulePermission } from '../../common/utils/check-module-permission';
+import { checkModulePermission, checkEntityAction } from '../../common/utils/check-module-permission';
 
 @ApiTags('Entities')
 @Controller('entities')
@@ -62,7 +62,8 @@ export class EntityController {
     @Body() dto: UpdateColumnConfigDto,
     @CurrentUser() user: CurrentUserType,
   ) {
-    checkModulePermission(user, 'data', 'canConfigureColumns');
+    const entity = await this.entityService.findOne(id, user);
+    checkEntityAction(user, entity.slug, 'canConfigureColumns');
     return this.entityService.updateColumnConfig(id, dto.visibleColumns, user);
   }
 

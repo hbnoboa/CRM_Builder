@@ -35,12 +35,19 @@ function normalizeModulePermissions(mp: Record<string, unknown> | null | undefin
  */
 const READ_ONLY: ModulePermission = { canRead: true, canCreate: false, canUpdate: false, canDelete: false };
 
+const PDF_READ_GENERATE: ModulePermission = { canRead: true, canCreate: false, canUpdate: false, canDelete: false, canGenerate: true } as ModulePermission;
+
+/**
+ * Defaults espelham exatamente o seed (prisma/seed.ts).
+ * Todos os 10 modulos definidos para cada role.
+ */
 const DEFAULT_MODULE_PERMISSIONS: Record<RoleType, ModulePermissions> = {
   PLATFORM_ADMIN: {
     dashboard: FULL_CRUD,
     users: FULL_CRUD,
     settings: FULL_CRUD,
     apis: FULL_CRUD,
+    pages: FULL_CRUD,
     entities: FULL_CRUD,
     tenants: FULL_CRUD,
     data: FULL_CRUD,
@@ -52,6 +59,7 @@ const DEFAULT_MODULE_PERMISSIONS: Record<RoleType, ModulePermissions> = {
     users: FULL_CRUD,
     settings: FULL_CRUD,
     apis: FULL_CRUD,
+    pages: FULL_CRUD,
     entities: FULL_CRUD,
     tenants: NO_CRUD,
     data: FULL_CRUD,
@@ -63,39 +71,43 @@ const DEFAULT_MODULE_PERMISSIONS: Record<RoleType, ModulePermissions> = {
     users: READ_ONLY,
     settings: NO_CRUD,
     apis: NO_CRUD,
+    pages: NO_CRUD,
     entities: NO_CRUD,
     tenants: NO_CRUD,
     data: { canRead: true, canCreate: true, canUpdate: true, canDelete: false },
     roles: READ_ONLY,
-    pdfTemplates: { canRead: true, canCreate: false, canUpdate: false, canDelete: false, canGenerate: true } as ModulePermission,
+    pdfTemplates: PDF_READ_GENERATE,
   },
   USER: {
     dashboard: READ_ONLY,
     users: READ_ONLY,
     settings: READ_ONLY,
     apis: NO_CRUD,
+    pages: NO_CRUD,
     entities: { canRead: true, canCreate: true, canUpdate: true, canDelete: false },
     tenants: NO_CRUD,
     data: { canRead: true, canCreate: true, canUpdate: true, canDelete: false },
     roles: NO_CRUD,
-    pdfTemplates: { canRead: true, canCreate: false, canUpdate: false, canDelete: false, canGenerate: true } as ModulePermission,
+    pdfTemplates: PDF_READ_GENERATE,
   },
   VIEWER: {
     dashboard: READ_ONLY,
     users: NO_CRUD,
     settings: READ_ONLY,
     apis: NO_CRUD,
+    pages: NO_CRUD,
     entities: NO_CRUD,
     tenants: NO_CRUD,
     data: READ_ONLY,
     roles: NO_CRUD,
-    pdfTemplates: { canRead: true, canCreate: false, canUpdate: false, canDelete: false, canGenerate: true } as ModulePermission,
+    pdfTemplates: PDF_READ_GENERATE,
   },
   CUSTOM: {
     dashboard: READ_ONLY,
     users: NO_CRUD,
     settings: NO_CRUD,
     apis: NO_CRUD,
+    pages: NO_CRUD,
     entities: NO_CRUD,
     tenants: NO_CRUD,
     data: NO_CRUD,
@@ -111,6 +123,7 @@ const MODULE_KEY_MAP: Record<string, keyof ModulePermissions> = {
   dashboard: 'dashboard',
   entities: 'entities',
   apis: 'apis',
+  pages: 'pages',
   users: 'users',
   roles: 'roles',
   settings: 'settings',
@@ -119,7 +132,7 @@ const MODULE_KEY_MAP: Record<string, keyof ModulePermissions> = {
   pdfTemplates: 'pdfTemplates',
 };
 
-const MODULE_KEYS: (keyof ModulePermissions)[] = ['dashboard', 'users', 'settings', 'apis', 'entities', 'tenants', 'data', 'roles', 'pdfTemplates'];
+const MODULE_KEYS: (keyof ModulePermissions)[] = ['dashboard', 'users', 'settings', 'apis', 'pages', 'entities', 'tenants', 'data', 'roles', 'pdfTemplates'];
 
 export function usePermissions() {
   const user = useAuthStore((s) => s.user);

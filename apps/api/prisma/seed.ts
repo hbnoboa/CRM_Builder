@@ -8,7 +8,12 @@ const FULL = { canRead: true, canCreate: true, canUpdate: true, canDelete: true 
 const READ_ONLY = { canRead: true, canCreate: false, canUpdate: false, canDelete: false };
 const NONE = { canRead: false, canCreate: false, canUpdate: false, canDelete: false };
 
+// Helpers para permissoes de modulo especificas
+const PDF_READ_GENERATE = { canRead: true, canCreate: false, canUpdate: false, canDelete: false, canGenerate: true };
+
 // Configuracao de roles de sistema
+// IMPORTANTE: Todos os 10 modulos devem ser definidos para cada role.
+// O backend usa DB exclusivamente quando modulePermissions existe.
 const SYSTEM_ROLES = {
   PLATFORM_ADMIN: {
     name: 'Super Admin',
@@ -16,7 +21,7 @@ const SYSTEM_ROLES = {
     color: '#dc2626',
     roleType: 'PLATFORM_ADMIN',
     isSystem: true,
-    modulePermissions: { dashboard: FULL, users: FULL, settings: FULL, apis: FULL, pages: FULL, entities: FULL, tenants: FULL },
+    modulePermissions: { dashboard: FULL, users: FULL, settings: FULL, apis: FULL, pages: FULL, entities: FULL, tenants: FULL, data: FULL, roles: FULL, pdfTemplates: { ...FULL, canGenerate: true } },
     tenantPermissions: { canAccessAllTenants: true },
   },
   ADMIN: {
@@ -25,7 +30,7 @@ const SYSTEM_ROLES = {
     color: '#7c3aed',
     roleType: 'ADMIN',
     isSystem: true,
-    modulePermissions: { dashboard: FULL, users: FULL, settings: FULL, apis: FULL, pages: FULL, entities: FULL, tenants: NONE },
+    modulePermissions: { dashboard: FULL, users: FULL, settings: FULL, apis: FULL, pages: FULL, entities: FULL, tenants: NONE, data: FULL, roles: FULL, pdfTemplates: { ...FULL, canGenerate: true } },
   },
   MANAGER: {
     name: 'Gerente',
@@ -33,7 +38,7 @@ const SYSTEM_ROLES = {
     color: '#2563eb',
     roleType: 'MANAGER',
     isSystem: true,
-    modulePermissions: { dashboard: READ_ONLY, users: READ_ONLY, settings: NONE, apis: NONE, pages: NONE, entities: NONE, tenants: NONE },
+    modulePermissions: { dashboard: READ_ONLY, users: READ_ONLY, settings: NONE, apis: NONE, pages: NONE, entities: NONE, tenants: NONE, data: { canRead: true, canCreate: true, canUpdate: true, canDelete: false }, roles: READ_ONLY, pdfTemplates: PDF_READ_GENERATE },
   },
   USER: {
     name: 'Usuario',
@@ -42,7 +47,7 @@ const SYSTEM_ROLES = {
     roleType: 'USER',
     isSystem: true,
     isDefault: true,
-    modulePermissions: { dashboard: READ_ONLY, users: NONE, settings: NONE, apis: NONE, pages: NONE, entities: { canRead: true, canCreate: true, canUpdate: true, canDelete: false }, tenants: NONE },
+    modulePermissions: { dashboard: READ_ONLY, users: READ_ONLY, settings: READ_ONLY, apis: NONE, pages: NONE, entities: { canRead: true, canCreate: true, canUpdate: true, canDelete: false }, tenants: NONE, data: { canRead: true, canCreate: true, canUpdate: true, canDelete: false }, roles: NONE, pdfTemplates: PDF_READ_GENERATE },
   },
   VIEWER: {
     name: 'Visualizador',
@@ -50,7 +55,7 @@ const SYSTEM_ROLES = {
     color: '#6b7280',
     roleType: 'VIEWER',
     isSystem: true,
-    modulePermissions: { dashboard: READ_ONLY, users: NONE, settings: NONE, apis: NONE, pages: NONE, entities: NONE, tenants: NONE },
+    modulePermissions: { dashboard: READ_ONLY, users: NONE, settings: READ_ONLY, apis: NONE, pages: NONE, entities: NONE, tenants: NONE, data: READ_ONLY, roles: NONE, pdfTemplates: PDF_READ_GENERATE },
   },
 };
 
@@ -68,7 +73,10 @@ async function createSystemRolesForTenant(tenantId: string, excludePlatformAdmin
           name: config.name,
         },
       },
-      update: {},
+      update: {
+        modulePermissions: config.modulePermissions,
+        tenantPermissions: (config as { tenantPermissions?: object }).tenantPermissions || {},
+      },
       create: {
         tenantId,
         name: config.name,
