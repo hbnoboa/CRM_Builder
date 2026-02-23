@@ -267,9 +267,12 @@ export function RecordFormDialog({
   // Resolve template values like {{now}}, {{today}}, {{timestamp}}
   const resolveValueTemplate = (template: string): unknown => {
     const now = new Date();
+    // Format as yyyy-MM-ddTHH:mm (compatible with datetime-local input)
+    const pad = (n: number) => String(n).padStart(2, '0');
+    const localDatetime = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}`;
     const values: Record<string, unknown> = {
-      'now': now.toISOString(),
-      'today': now.toISOString().split('T')[0],
+      'now': localDatetime,
+      'today': localDatetime.split('T')[0],
       'timestamp': now.getTime(),
     };
     const match = template.match(/^\{\{(.+?)\}\}$/);
