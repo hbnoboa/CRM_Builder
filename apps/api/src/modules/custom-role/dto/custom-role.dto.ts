@@ -5,6 +5,12 @@ import { RoleType, PermissionScope, ROLE_TYPES } from '@crm-builder/shared';
 
 export { RoleType, PermissionScope, ROLE_TYPES };
 
+const VALID_FILTER_OPERATORS = [
+  'equals', 'contains', 'startsWith', 'endsWith',
+  'gt', 'gte', 'lt', 'lte', 'between',
+  'isEmpty', 'isNotEmpty',
+] as const;
+
 export class DataFilterDto {
   @ApiProperty({ example: 'local' })
   @IsString()
@@ -18,8 +24,8 @@ export class DataFilterDto {
   @IsString()
   fieldType: string;
 
-  @ApiProperty({ example: 'equals' })
-  @IsString()
+  @ApiProperty({ example: 'equals', enum: VALID_FILTER_OPERATORS })
+  @IsIn([...VALID_FILTER_OPERATORS])
   operator: string;
 
   @ApiPropertyOptional()

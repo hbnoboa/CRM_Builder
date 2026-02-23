@@ -71,44 +71,114 @@ function countCrudActive(perm: ModulePermission): number {
   return count;
 }
 
-const FILTER_OPERATORS = [
-  { value: 'equals', label: 'Igual a' },
-  { value: 'contains', label: 'Contém' },
-  { value: 'startsWith', label: 'Começa com' },
-  { value: 'endsWith', label: 'Termina com' },
-  { value: 'isEmpty', label: 'Está vazio' },
-  { value: 'isNotEmpty', label: 'Não está vazio' },
-];
+const OPERATORS_BY_TYPE: Record<string, { value: string; label: string }[]> = {
+  text: [
+    { value: 'contains', label: 'Contém' },
+    { value: 'equals', label: 'Igual a' },
+    { value: 'startsWith', label: 'Começa com' },
+    { value: 'endsWith', label: 'Termina com' },
+    { value: 'isEmpty', label: 'Está vazio' },
+    { value: 'isNotEmpty', label: 'Não está vazio' },
+  ],
+  number: [
+    { value: 'equals', label: 'Igual a' },
+    { value: 'gt', label: 'Maior que' },
+    { value: 'gte', label: 'Maior ou igual' },
+    { value: 'lt', label: 'Menor que' },
+    { value: 'lte', label: 'Menor ou igual' },
+    { value: 'between', label: 'Entre' },
+    { value: 'isEmpty', label: 'Está vazio' },
+  ],
+  date: [
+    { value: 'equals', label: 'Igual a' },
+    { value: 'gt', label: 'Depois de' },
+    { value: 'gte', label: 'A partir de' },
+    { value: 'lt', label: 'Antes de' },
+    { value: 'lte', label: 'Até' },
+    { value: 'between', label: 'Entre' },
+    { value: 'isEmpty', label: 'Está vazio' },
+  ],
+  boolean: [
+    { value: 'equals', label: 'Igual a' },
+  ],
+  select: [
+    { value: 'equals', label: 'Igual a' },
+    { value: 'isEmpty', label: 'Está vazio' },
+    { value: 'isNotEmpty', label: 'Não está vazio' },
+  ],
+};
+
+function getOperatorCategory(fieldType: string): string {
+  const textTypes = ['text', 'textarea', 'richtext', 'email', 'phone', 'url', 'cpf', 'cnpj', 'cep', 'password'];
+  const numberTypes = ['number', 'currency', 'percentage', 'rating', 'slider'];
+  const dateTypes = ['date', 'datetime', 'time'];
+  const booleanTypes = ['boolean'];
+  const selectTypes = ['select', 'multiselect', 'api-select', 'relation'];
+
+  if (textTypes.includes(fieldType)) return 'text';
+  if (numberTypes.includes(fieldType)) return 'number';
+  if (dateTypes.includes(fieldType)) return 'date';
+  if (booleanTypes.includes(fieldType)) return 'boolean';
+  if (selectTypes.includes(fieldType)) return 'select';
+  return 'text';
+}
+
+function getOperatorsForType(fieldType: string): { value: string; label: string }[] {
+  return OPERATORS_BY_TYPE[getOperatorCategory(fieldType)] || OPERATORS_BY_TYPE.text;
+}
 
 function DataFilterAdder({ fields, onAdd }: {
   fields: EntityField[];
   onAdd: (filter: DataFilter) => void;
 }) {
   const [fieldSlug, setFieldSlug] = useState('');
-  const [operator, setOperator] = useState('equals');
+  const [operator, setOperator] = useState('');
   const [value, setValue] = useState('');
+  const [value2, setValue2] = useState('');
 
   const selectedField = fields.find(f => f.slug === fieldSlug);
+  const operators = selectedField ? getOperatorsForType(selectedField.type) : OPERATORS_BY_TYPE.text;
+  const category = selectedField ? getOperatorCategory(selectedField.type) : 'text';
   const needsValue = !['isEmpty', 'isNotEmpty'].includes(operator);
+  const needsValue2 = operator === 'between';
+  const inputType = category === 'number' ? 'number' : category === 'date' ? 'date' : 'text';
+
+  const handleFieldChange = (slug: string) => {
+    setFieldSlug(slug);
+    const field = fields.find(f => f.slug === slug);
+    const ops = field ? getOperatorsForType(field.type) : OPERATORS_BY_TYPE.text;
+    setOperator(ops[0]?.value || 'equals');
+    setValue('');
+    setValue2('');
+  };
+
+  const handleOperatorChange = (op: string) => {
+    setOperator(op);
+    setValue('');
+    setValue2('');
+  };
 
   const handleAdd = () => {
     if (!fieldSlug || !selectedField) return;
     if (needsValue && !value.trim()) return;
+    if (needsValue2 && !value2.trim()) return;
     onAdd({
       fieldSlug,
       fieldName: selectedField.label || selectedField.name,
       fieldType: selectedField.type,
       operator,
-      ...(needsValue ? { value: value.trim() } : {}),
+      ...(needsValue ? { value: category === 'boolean' ? value === 'true' : value.trim() } : {}),
+      ...(needsValue2 ? { value2: value2.trim() } : {}),
     });
     setFieldSlug('');
-    setOperator('equals');
+    setOperator('');
     setValue('');
+    setValue2('');
   };
 
   return (
     <div className="flex items-center gap-1.5 flex-wrap">
-      <Select value={fieldSlug} onValueChange={setFieldSlug}>
+      <Select value={fieldSlug} onValueChange={handleFieldChange}>
         <SelectTrigger className="h-7 w-[130px] text-[11px]">
           <SelectValue placeholder="Campo..." />
         </SelectTrigger>
@@ -120,24 +190,48 @@ function DataFilterAdder({ fields, onAdd }: {
           ))}
         </SelectContent>
       </Select>
-      <Select value={operator} onValueChange={setOperator}>
-        <SelectTrigger className="h-7 w-[110px] text-[11px]">
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          {FILTER_OPERATORS.map(op => (
-            <SelectItem key={op.value} value={op.value} className="text-xs">
-              {op.label}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-      {needsValue && (
+      {fieldSlug && (
+        <Select value={operator} onValueChange={handleOperatorChange}>
+          <SelectTrigger className="h-7 w-[120px] text-[11px]">
+            <SelectValue placeholder="Operador..." />
+          </SelectTrigger>
+          <SelectContent>
+            {operators.map(op => (
+              <SelectItem key={op.value} value={op.value} className="text-xs">
+                {op.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      )}
+      {needsValue && operator && category === 'boolean' && (
+        <Select value={value} onValueChange={setValue}>
+          <SelectTrigger className="h-7 w-[100px] text-[11px]">
+            <SelectValue placeholder="Valor..." />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="true" className="text-xs">Sim</SelectItem>
+            <SelectItem value="false" className="text-xs">Não</SelectItem>
+          </SelectContent>
+        </Select>
+      )}
+      {needsValue && operator && category !== 'boolean' && (
         <Input
+          type={inputType}
           value={value}
           onChange={(e) => setValue(e.target.value)}
-          placeholder="Valor..."
-          className="h-7 w-[120px] text-[11px]"
+          placeholder={needsValue2 ? 'De...' : 'Valor...'}
+          className="h-7 w-[100px] text-[11px]"
+          onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleAdd(); } }}
+        />
+      )}
+      {needsValue2 && (
+        <Input
+          type={inputType}
+          value={value2}
+          onChange={(e) => setValue2(e.target.value)}
+          placeholder="Até..."
+          className="h-7 w-[100px] text-[11px]"
           onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleAdd(); } }}
         />
       )}
@@ -147,7 +241,7 @@ function DataFilterAdder({ fields, onAdd }: {
         size="sm"
         className="h-7 px-2 text-[11px]"
         onClick={handleAdd}
-        disabled={!fieldSlug || (needsValue && !value.trim())}
+        disabled={!fieldSlug || !operator || (needsValue && !value.trim()) || (needsValue2 && !value2.trim())}
       >
         <Plus className="h-3 w-3 mr-1" />
         Adicionar
@@ -833,8 +927,14 @@ export function RoleFormDialog({ open, onOpenChange, role, onSuccess }: RoleForm
                                                   className="text-[10px] px-2 py-0.5 gap-1"
                                                 >
                                                   <span className="font-medium">{filter.fieldName}</span>
-                                                  <span className="text-muted-foreground">{filter.operator === 'equals' ? '=' : filter.operator}</span>
-                                                  <span>{String(filter.value ?? '')}</span>
+                                                  <span className="text-muted-foreground">
+                                                    {filter.operator === 'equals' ? '=' : filter.operator === 'between' ? '↔' : filter.operator}
+                                                  </span>
+                                                  <span>
+                                                    {filter.operator === 'between'
+                                                      ? `${String(filter.value ?? '')} — ${String(filter.value2 ?? '')}`
+                                                      : String(filter.value ?? '')}
+                                                  </span>
                                                   <button
                                                     type="button"
                                                     onClick={(e) => { e.stopPropagation(); removeDataFilter(perm.entitySlug, idx); }}
