@@ -314,7 +314,8 @@ model CustomEndpoint {
   queryParams    Json   @default("[]")
   orderBy        Json?
   limitRecords   Int?
-  responseType   String @default("records") // "records" | "count"
+  responseType   String @default("records") // "records" | "count" | "computed"
+  computedValues Json   @default("[]") // Para responseType "computed": [{ field, template }]
 
   logic       Json     @default("[]")
   auth        AuthType @default(JWT)

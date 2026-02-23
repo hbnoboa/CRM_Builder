@@ -144,7 +144,11 @@ export class CreateCustomApiDto {
 
   @IsString()
   @IsOptional()
-  responseType?: string; // "records" | "count"
+  responseType?: string; // "records" | "count" | "computed"
+
+  @IsArray()
+  @IsOptional()
+  computedValues?: { field: string; template: string }[]; // Para responseType "computed"
 
   // ═══════════════════════════════════════════════════════════════════════════
   // MODO CODE - JavaScript customizado (avancado)
@@ -257,6 +261,10 @@ export class UpdateCustomApiDto {
   @IsString()
   @IsOptional()
   responseType?: string;
+
+  @IsArray()
+  @IsOptional()
+  computedValues?: { field: string; template: string }[]; // Para responseType "computed"
 
   // ═══════════════════════════════════════════════════════════════════════════
   // MODO CODE

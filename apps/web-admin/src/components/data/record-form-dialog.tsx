@@ -264,10 +264,69 @@ export function RecordFormDialog({
     }
   }, [open, record, entity.fields]);
 
+  // Resolve template values like {{now}}, {{today}}, {{timestamp}}
+  const resolveValueTemplate = (template: string): unknown => {
+    const now = new Date();
+    const values: Record<string, unknown> = {
+      'now': now.toISOString(),
+      'today': now.toISOString().split('T')[0],
+      'timestamp': now.getTime(),
+    };
+    const match = template.match(/^\{\{(.+?)\}\}$/);
+    if (match) {
+      const key = match[1].trim();
+      return values[key] ?? template;
+    }
+    return template;
+  };
+
+  // Process onChangeAutoFill when a field changes
+  const processOnChangeAutoFill = async (field: EntityField, newValue: unknown) => {
+    if (!field.onChangeAutoFill || field.onChangeAutoFill.length === 0) return;
+
+    // Only trigger if the field actually has a value (not clearing)
+    const hasValue = newValue !== undefined && newValue !== null && newValue !== '' &&
+      !(Array.isArray(newValue) && newValue.length === 0);
+    if (!hasValue) return;
+
+    const updates: Record<string, unknown> = {};
+    const tid = effectiveTenantId || tenantId;
+
+    for (const autoFill of field.onChangeAutoFill) {
+      if (autoFill.valueTemplate) {
+        // Use template directly (e.g., {{now}})
+        updates[autoFill.targetField] = resolveValueTemplate(autoFill.valueTemplate);
+      } else if (autoFill.apiEndpoint && tid) {
+        // Call custom API to get computed value
+        try {
+          const response = await api.get(`/x/${tid}${autoFill.apiEndpoint}`);
+          const data = Array.isArray(response.data) ? response.data[0] : response.data;
+          if (data) {
+            // Get the first non-id field value or use the whole object
+            const valueField = Object.keys(data).find(k => k !== 'id' && k !== 'createdAt' && k !== 'updatedAt');
+            updates[autoFill.targetField] = valueField ? data[valueField] : data;
+          }
+        } catch (error) {
+          console.error(`Error calling auto-fill API ${autoFill.apiEndpoint}:`, error);
+        }
+      }
+    }
+
+    if (Object.keys(updates).length > 0) {
+      setFormData(prev => ({ ...prev, ...updates }));
+    }
+  };
+
   const handleFieldChange = (fieldSlug: string, value: unknown) => {
     setFormData((prev) => ({ ...prev, [fieldSlug]: value }));
     if (errors[fieldSlug]) {
       setErrors((prev) => { const newErrors = { ...prev }; delete newErrors[fieldSlug]; return newErrors; });
+    }
+
+    // Check for onChangeAutoFill on the changed field
+    const field = entity.fields?.find(f => f.slug === fieldSlug);
+    if (field?.onChangeAutoFill) {
+      processOnChangeAutoFill(field, value);
     }
   };
 

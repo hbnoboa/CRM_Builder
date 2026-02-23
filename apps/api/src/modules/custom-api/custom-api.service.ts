@@ -118,6 +118,7 @@ export class CustomApiService {
         orderBy: data.orderBy ? (data.orderBy as unknown as Prisma.InputJsonValue) : Prisma.JsonNull,
         limitRecords: data.limitRecords,
         responseType: data.responseType || 'records',
+        computedValues: (data.computedValues || []) as unknown as Prisma.InputJsonValue,
         // Configuracao codigo (legado)
         requestSchema: data.inputSchema,
         responseSchema: data.outputSchema,
@@ -307,6 +308,7 @@ export class CustomApiService {
         orderBy: data.orderBy ? (data.orderBy as unknown as Prisma.InputJsonValue) : undefined,
         limitRecords: data.limitRecords,
         responseType: data.responseType,
+        computedValues: data.computedValues ? (data.computedValues as unknown as Prisma.InputJsonValue) : undefined,
         // Configuracao codigo
         requestSchema: data.inputSchema,
         responseSchema: data.outputSchema,
@@ -605,6 +607,27 @@ export class CustomApiService {
     if (endpoint.responseType === 'count') {
       const count = await this.prisma.entityData.count({ where });
       return { count };
+    }
+
+    // Se responseType = computed, retornar valores dinamicos resolvidos
+    if (endpoint.responseType === 'computed') {
+      const computedValues = (endpoint as any).computedValues as { field: string; template: string }[] || [];
+      const result: Record<string, unknown> = { id: 'computed' };
+
+      for (const cv of computedValues) {
+        result[cv.field] = this.resolveDynamicValue(cv.template, undefined);
+      }
+
+      // Se nao tiver computedValues configurados, usar selectedFields com templates padrao
+      if (computedValues.length === 0) {
+        const fields = endpoint.selectedFields || [];
+        for (const field of fields) {
+          // Tentar resolver como template
+          result[field] = this.resolveDynamicValue(`{{${field}}}`, undefined);
+        }
+      }
+
+      return [result]; // Retorna como array para ser compativel com api-select
     }
 
     // Executar query

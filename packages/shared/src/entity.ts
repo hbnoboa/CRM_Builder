@@ -62,6 +62,13 @@ export interface EntityField {
   multiple?: boolean;
   maxFiles?: number;
 
+  // Auto-fill on field change (for computed fields via custom-api)
+  onChangeAutoFill?: Array<{
+    targetField: string;      // Campo a ser preenchido
+    apiEndpoint?: string;     // Endpoint do custom-api (opcional)
+    valueTemplate?: string;   // Template de valor como {{now}} (opcional, usado se nao tiver apiEndpoint)
+  }>;
+
   // zone-diagram specific
   diagramSaveMode?: 'object' | 'text'; // 'text' salva só o valor selecionado como string
   diagramImage?: string;
