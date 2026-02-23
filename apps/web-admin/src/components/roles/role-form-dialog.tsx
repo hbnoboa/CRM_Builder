@@ -293,7 +293,7 @@ export function RoleFormDialog({ open, onOpenChange, role, onSuccess }: RoleForm
             fps[idx].canEdit = false;
           }
         } else {
-          fps.push({ fieldSlug, canView: action === 'canView' ? true : true, canEdit: action === 'canEdit' ? true : false });
+          fps.push({ fieldSlug, canView: true, canEdit: action === 'canEdit' });
         }
         return { ...p, fieldPermissions: fps };
       })
