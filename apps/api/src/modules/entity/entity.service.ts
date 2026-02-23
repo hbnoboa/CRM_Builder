@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException, ConflictException, Logger } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { NotificationService } from '../notification/notification.service';
+import { AuditService } from '../audit/audit.service';
 import {
   CurrentUser,
   PaginationQuery,
@@ -71,6 +72,7 @@ export class EntityService {
   constructor(
     private prisma: PrismaService,
     private notificationService: NotificationService,
+    private auditService: AuditService,
   ) {}
 
   async create(dto: CreateEntityDto & { tenantId?: string }, currentUser: CurrentUser) {
@@ -127,6 +129,15 @@ export class EntityService {
       entity.name,
       currentUser.name,
     ).catch((err) => this.logger.error('Failed to send notification', err));
+
+    // Audit log
+    this.auditService.log(currentUser, {
+      action: 'create',
+      resource: 'entity',
+      resourceId: entity.id,
+      newData: entity as unknown as Record<string, unknown>,
+      metadata: { name: entity.name, slug: entity.slug },
+    }).catch(() => {});
 
     return entity;
   }
@@ -299,7 +310,7 @@ export class EntityService {
   }
 
   async update(id: string, dto: UpdateEntityDto, currentUser: CurrentUser) {
-    await this.findOne(id, currentUser);
+    const oldEntity = await this.findOne(id, currentUser);
 
     const updateData: Prisma.EntityUpdateInput = {
       name: dto.name,
@@ -320,10 +331,22 @@ export class EntityService {
       updateData.settings = dto.settings as Prisma.InputJsonValue;
     }
 
-    return this.prisma.entity.update({
+    const updatedEntity = await this.prisma.entity.update({
       where: { id },
       data: updateData,
     });
+
+    // Audit log
+    this.auditService.log(currentUser, {
+      action: 'update',
+      resource: 'entity',
+      resourceId: id,
+      oldData: { name: oldEntity.name, slug: oldEntity.slug, description: oldEntity.description, icon: oldEntity.icon, color: oldEntity.color },
+      newData: dto as unknown as Record<string, unknown>,
+      metadata: { name: updatedEntity.name, slug: updatedEntity.slug },
+    }).catch(() => {});
+
+    return updatedEntity;
   }
 
   async updateColumnConfig(id: string, visibleColumns: string[], currentUser: CurrentUser) {
@@ -349,10 +372,19 @@ export class EntityService {
   }
 
   async remove(id: string, currentUser: CurrentUser) {
-    await this.findOne(id, currentUser);
+    const oldEntity = await this.findOne(id, currentUser);
 
     // Isso tambem deleta todos os dados da entidade (cascade)
     await this.prisma.entity.delete({ where: { id } });
+
+    // Audit log
+    this.auditService.log(currentUser, {
+      action: 'delete',
+      resource: 'entity',
+      resourceId: id,
+      oldData: { name: oldEntity.name, slug: oldEntity.slug, description: oldEntity.description },
+      metadata: { name: oldEntity.name, slug: oldEntity.slug },
+    }).catch(() => {});
 
     return { message: 'Entidade excluida com sucesso' };
   }

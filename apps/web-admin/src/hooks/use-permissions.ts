@@ -53,6 +53,7 @@ const DEFAULT_MODULE_PERMISSIONS: Record<RoleType, ModulePermissions> = {
     data: FULL_CRUD,
     roles: FULL_CRUD,
     pdfTemplates: { ...FULL_CRUD, canGenerate: true } as ModulePermission,
+    auditLogs: READ_ONLY,
   },
   ADMIN: {
     dashboard: FULL_CRUD,
@@ -130,9 +131,10 @@ const MODULE_KEY_MAP: Record<string, keyof ModulePermissions> = {
   tenants: 'tenants',
   data: 'data',
   pdfTemplates: 'pdfTemplates',
+  auditLogs: 'auditLogs',
 };
 
-const MODULE_KEYS: (keyof ModulePermissions)[] = ['dashboard', 'users', 'settings', 'apis', 'pages', 'entities', 'tenants', 'data', 'roles', 'pdfTemplates'];
+const MODULE_KEYS: (keyof ModulePermissions)[] = ['dashboard', 'users', 'settings', 'apis', 'pages', 'entities', 'tenants', 'data', 'roles', 'pdfTemplates', 'auditLogs'];
 
 export function usePermissions() {
   const user = useAuthStore((s) => s.user);

@@ -15,6 +15,7 @@ import {
 import { RoleType } from '../../common/decorators/roles.decorator';
 import { getEffectiveTenantId } from '../../common/utils/tenant.util';
 import { buildFilterClause } from '../../common/utils/build-filter-clause';
+import { AuditService } from '../audit/audit.service';
 
 interface CreateDataDto {
   data: Record<string, unknown>;
@@ -97,6 +98,7 @@ export class DataService {
     private entityService: EntityService,
     private notificationService: NotificationService,
     private customRoleService: CustomRoleService,
+    private auditService: AuditService,
   ) {}
 
   /**
@@ -306,6 +308,12 @@ export class DataService {
       entitySlug,
       dataWithCustomApi as Record<string, unknown>,
     ).catch((err) => this.logger.error('Failed to send notification', err));
+
+    this.auditService.log(currentUser, {
+      action: 'create', resource: 'entity_data', resourceId: record.id,
+      newData: dataWithCustomApi as Record<string, unknown>,
+      metadata: { entitySlug, entityId: entity.id },
+    }).catch(() => {});
 
     // Real-time: granular update for all tenant clients
     this.notificationService.emitDataChanged(targetTenantId, {
@@ -1117,6 +1125,13 @@ export class DataService {
       mergedData as Record<string, unknown>,
     ).catch((err) => this.logger.error('Failed to send notification', err));
 
+    this.auditService.log(currentUser, {
+      action: 'update', resource: 'entity_data', resourceId: id,
+      oldData: record.data as Record<string, unknown>,
+      newData: mergedData as Record<string, unknown>,
+      metadata: { entitySlug, entityId: entity.id },
+    }).catch(() => {});
+
     // Real-time: granular update for all tenant clients
     this.notificationService.emitDataChanged(effectiveTenantId, {
       operation: 'updated',
@@ -1180,6 +1195,12 @@ export class DataService {
       entitySlug,
       recordData,
     ).catch((err) => this.logger.error('Failed to send notification', err));
+
+    this.auditService.log(currentUser, {
+      action: 'delete', resource: 'entity_data', resourceId: id,
+      oldData: recordData,
+      metadata: { entitySlug, entityId: entity.id },
+    }).catch(() => {});
 
     // Real-time: granular update for all tenant clients
     this.notificationService.emitDataChanged(effectiveTenantId, {

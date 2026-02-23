@@ -133,6 +133,7 @@
     "pdfTemplates": "PDF Templates",
     "settings": "Settings",
     "tenants": "Tenants",
+    "auditLogs": "Audit Logs",
     "profile": "Profile",
     "hello": "Hello,"
   },
@@ -1512,5 +1513,52 @@
     "hint": "If the problem persists, try refreshing the page or contact support.",
     "tryAgain": "Try Again",
     "backToDashboard": "Back to Dashboard"
+  },
+  "auditLogsPage": {
+    "title": "Audit Logs",
+    "subtitle": "Record of all actions performed in the system.",
+    "filters": "Filters",
+    "clearFilters": "Clear Filters",
+    "allActions": "All actions",
+    "allResources": "All resources",
+    "allTenants": "All tenants",
+    "dateFrom": "Start date",
+    "dateTo": "End date",
+    "searchPlaceholder": "Search by resource ID...",
+    "exportJson": "Export JSON",
+    "exporting": "Exporting...",
+    "noLogs": "No logs found",
+    "noLogsDescription": "No audit records match the selected filters.",
+    "table": {
+      "date": "Date",
+      "user": "User",
+      "action": "Action",
+      "resource": "Resource",
+      "resourceId": "Resource ID",
+      "details": "Details"
+    },
+    "actions": {
+      "create": "Create",
+      "update": "Update",
+      "delete": "Delete"
+    },
+    "resources": {
+      "entity_data": "Data",
+      "user": "User",
+      "entity": "Entity",
+      "custom_role": "Role",
+      "custom_api": "API",
+      "page": "Page"
+    },
+    "changes": "Changes",
+    "oldData": "Previous Data",
+    "newData": "New Data",
+    "noData": "No data",
+    "metadata": "Metadata",
+    "stats": {
+      "total": "Total Logs",
+      "today": "Today",
+      "thisMonth": "This Month"
+    }
   }
 }

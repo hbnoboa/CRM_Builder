@@ -5,6 +5,7 @@ import {
   Logger,
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { AuditService } from '../audit/audit.service';
 import { AuthType as PrismaAuthType, Prisma } from '@prisma/client';
 import { CreateCustomApiDto, UpdateCustomApiDto, HttpMethod, ApiMode, FilterOperator } from './dto/custom-api.dto';
 import {
@@ -74,9 +75,12 @@ interface EndpointExecutionContext {
 export class CustomApiService {
   private readonly logger = new Logger(CustomApiService.name);
 
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private auditService: AuditService,
+  ) {}
 
-  async create(data: CreateCustomApiDto, tenantId: string) {
+  async create(data: CreateCustomApiDto, tenantId: string, currentUser?: CurrentUser) {
     // Check if path already exists for this tenant and method
     const existing = await this.prisma.customEndpoint.findFirst({
       where: {
@@ -102,7 +106,7 @@ export class CustomApiService {
       }
     }
 
-    return this.prisma.customEndpoint.create({
+    const newEndpoint = await this.prisma.customEndpoint.create({
       data: {
         name: data.name,
         description: data.description,
@@ -134,6 +138,19 @@ export class CustomApiService {
         sourceEntity: true,
       },
     });
+
+    // Audit log
+    if (currentUser) {
+      this.auditService.log(currentUser, {
+        action: 'create',
+        resource: 'custom_api',
+        resourceId: newEndpoint.id,
+        newData: { name: newEndpoint.name, path: newEndpoint.path, method: newEndpoint.method, mode: newEndpoint.mode },
+        metadata: { name: newEndpoint.name, path: newEndpoint.path },
+      }).catch(() => {});
+    }
+
+    return newEndpoint;
   }
 
   async findAll(tenantId: string, query: QueryCustomApiDto = {}) {
@@ -260,8 +277,8 @@ export class CustomApiService {
     return endpoint;
   }
 
-  async update(id: string, data: UpdateCustomApiDto, tenantId: string) {
-    await this.findOne(id, tenantId);
+  async update(id: string, data: UpdateCustomApiDto, tenantId: string, currentUser?: CurrentUser) {
+    const oldEndpoint = await this.findOne(id, tenantId);
 
     // Check if new path conflicts with existing
     if (data.path || data.method) {
@@ -291,7 +308,7 @@ export class CustomApiService {
       }
     }
 
-    return this.prisma.customEndpoint.update({
+    const updatedEndpoint = await this.prisma.customEndpoint.update({
       where: { id },
       data: {
         name: data.name,
@@ -323,14 +340,41 @@ export class CustomApiService {
         sourceEntity: true,
       },
     });
+
+    // Audit log
+    if (currentUser) {
+      this.auditService.log(currentUser, {
+        action: 'update',
+        resource: 'custom_api',
+        resourceId: id,
+        oldData: { name: oldEndpoint.name, path: oldEndpoint.path, method: oldEndpoint.method, mode: oldEndpoint.mode },
+        newData: { name: data.name, path: data.path, method: data.method, mode: data.mode },
+        metadata: { name: updatedEndpoint.name, path: updatedEndpoint.path },
+      }).catch(() => {});
+    }
+
+    return updatedEndpoint;
   }
 
-  async remove(id: string, tenantId: string) {
-    await this.findOne(id, tenantId);
+  async remove(id: string, tenantId: string, currentUser?: CurrentUser) {
+    const oldEndpoint = await this.findOne(id, tenantId);
 
-    return this.prisma.customEndpoint.delete({
+    await this.prisma.customEndpoint.delete({
       where: { id },
     });
+
+    // Audit log
+    if (currentUser) {
+      this.auditService.log(currentUser, {
+        action: 'delete',
+        resource: 'custom_api',
+        resourceId: id,
+        oldData: { name: oldEndpoint.name, path: oldEndpoint.path, method: oldEndpoint.method },
+        metadata: { name: oldEndpoint.name, path: oldEndpoint.path },
+      }).catch(() => {});
+    }
+
+    return oldEndpoint;
   }
 
   async toggleActive(id: string, tenantId: string) {

@@ -35,7 +35,7 @@ export class CustomApiController {
   async create(@Body() dto: CreateCustomApiDto, @CurrentUser() user: CurrentUserType) {
     const tenantId = getEffectiveTenantId(user, dto.tenantId);
     this.logger.log(`Creating custom API: ${dto.name} (tenant: ${tenantId})`);
-    return this.customApiService.create(dto, tenantId);
+    return this.customApiService.create(dto, tenantId, user);
   }
 
   @Get()
@@ -68,7 +68,7 @@ export class CustomApiController {
     @CurrentUser() user: CurrentUserType,
   ) {
     const effectiveTenantId = getEffectiveTenantId(user, dto.tenantId);
-    return this.customApiService.update(id, dto, effectiveTenantId);
+    return this.customApiService.update(id, dto, effectiveTenantId, user);
   }
 
   @Patch(':id/toggle')
@@ -115,7 +115,7 @@ export class CustomApiController {
     @CurrentUser() user: CurrentUserType,
   ) {
     const effectiveTenantId = getEffectiveTenantId(user, tenantId);
-    return this.customApiService.remove(id, effectiveTenantId);
+    return this.customApiService.remove(id, effectiveTenantId, user);
   }
 }
 

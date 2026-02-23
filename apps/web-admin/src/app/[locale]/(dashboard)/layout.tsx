@@ -19,6 +19,7 @@ import {
   FileText,
   PanelLeftClose,
   PanelLeftOpen,
+  ScrollText,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -97,6 +98,12 @@ const navigationConfig: NavItemConfig[] = [
     href: '/settings',
     icon: <Settings className="h-5 w-5" />,
     moduleKey: 'settings',
+  },
+  {
+    titleKey: 'auditLogs',
+    href: '/audit-logs',
+    icon: <ScrollText className="h-5 w-5" />,
+    moduleKey: 'auditLogs',
   },
 ];
 

@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { AuditService } from '../audit/audit.service';
 import { Prisma } from '@prisma/client';
 import { CreatePageDto, UpdatePageDto } from './dto/page.dto';
 import {
@@ -72,7 +73,10 @@ function cleanPuckContent(obj: unknown): unknown {
 
 @Injectable()
 export class PageService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private auditService: AuditService,
+  ) {}
 
   async create(data: CreatePageDto & { tenantId?: string }, userId: string, currentUser: CurrentUser) {
     const targetTenantId = getEffectiveTenantId(currentUser, data.tenantId);
@@ -80,7 +84,7 @@ export class PageService {
     // Limpar hrefs do conteudo para remover prefixos de locale
     const cleanedContent = data.content ? cleanPuckContent(data.content) : {};
 
-    return this.prisma.page.create({
+    const newPage = await this.prisma.page.create({
       data: {
         title: data.title,
         slug: data.slug,
@@ -92,6 +96,17 @@ export class PageService {
         tenantId: targetTenantId,
       },
     });
+
+    // Audit log
+    this.auditService.log(currentUser, {
+      action: 'create',
+      resource: 'page',
+      resourceId: newPage.id,
+      newData: { title: newPage.title, slug: newPage.slug, isPublished: newPage.isPublished },
+      metadata: { title: newPage.title, slug: newPage.slug },
+    }).catch(() => {});
+
+    return newPage;
   }
 
   async findAll(currentUser: CurrentUser, query: QueryPageDto = {}) {
@@ -187,12 +202,12 @@ export class PageService {
   }
 
   async update(id: string, data: UpdatePageDto, currentUser: CurrentUser) {
-    await this.findOne(id, currentUser);
+    const oldPage = await this.findOne(id, currentUser);
 
     // Limpar hrefs do conteudo para remover prefixos de locale
     const cleanedContent = data.content ? cleanPuckContent(data.content) : undefined;
 
-    return this.prisma.page.update({
+    const updatedPage = await this.prisma.page.update({
       where: { id },
       data: {
         title: data.title,
@@ -205,6 +220,18 @@ export class PageService {
         updatedAt: new Date(),
       },
     });
+
+    // Audit log
+    this.auditService.log(currentUser, {
+      action: 'update',
+      resource: 'page',
+      resourceId: id,
+      oldData: { title: oldPage.title, slug: oldPage.slug, isPublished: oldPage.isPublished },
+      newData: { title: data.title, slug: data.slug, isPublished: data.isPublished },
+      metadata: { title: updatedPage.title, slug: updatedPage.slug },
+    }).catch(() => {});
+
+    return updatedPage;
   }
 
   async publish(id: string, currentUser: CurrentUser) {
@@ -253,11 +280,22 @@ export class PageService {
   }
 
   async remove(id: string, currentUser: CurrentUser) {
-    await this.findOne(id, currentUser);
+    const oldPage = await this.findOne(id, currentUser);
 
-    return this.prisma.page.delete({
+    await this.prisma.page.delete({
       where: { id },
     });
+
+    // Audit log
+    this.auditService.log(currentUser, {
+      action: 'delete',
+      resource: 'page',
+      resourceId: id,
+      oldData: { title: oldPage.title, slug: oldPage.slug },
+      metadata: { title: oldPage.title, slug: oldPage.slug },
+    }).catch(() => {});
+
+    return oldPage;
   }
 
   // Get page for preview (authenticated - allows unpublished pages)

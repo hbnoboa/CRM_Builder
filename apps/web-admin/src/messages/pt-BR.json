@@ -133,6 +133,7 @@
     "pdfTemplates": "Templates PDF",
     "settings": "Configurações",
     "tenants": "Tenants",
+    "auditLogs": "Logs de Auditoria",
     "profile": "Perfil",
     "hello": "Olá,"
   },
@@ -1512,5 +1513,52 @@
     "hint": "Se o problema persistir, tente atualizar a pagina ou entre em contato com o suporte.",
     "tryAgain": "Tentar Novamente",
     "backToDashboard": "Voltar ao Dashboard"
+  },
+  "auditLogsPage": {
+    "title": "Logs de Auditoria",
+    "subtitle": "Registro de todas as acoes realizadas no sistema.",
+    "filters": "Filtros",
+    "clearFilters": "Limpar Filtros",
+    "allActions": "Todas as acoes",
+    "allResources": "Todos os recursos",
+    "allTenants": "Todos os tenants",
+    "dateFrom": "Data inicial",
+    "dateTo": "Data final",
+    "searchPlaceholder": "Buscar por ID do recurso...",
+    "exportJson": "Exportar JSON",
+    "exporting": "Exportando...",
+    "noLogs": "Nenhum log encontrado",
+    "noLogsDescription": "Nenhum registro de auditoria corresponde aos filtros selecionados.",
+    "table": {
+      "date": "Data",
+      "user": "Usuario",
+      "action": "Acao",
+      "resource": "Recurso",
+      "resourceId": "ID do Recurso",
+      "details": "Detalhes"
+    },
+    "actions": {
+      "create": "Criar",
+      "update": "Editar",
+      "delete": "Deletar"
+    },
+    "resources": {
+      "entity_data": "Dados",
+      "user": "Usuario",
+      "entity": "Entidade",
+      "custom_role": "Cargo",
+      "custom_api": "API",
+      "page": "Pagina"
+    },
+    "changes": "Alteracoes",
+    "oldData": "Dados Anteriores",
+    "newData": "Dados Novos",
+    "noData": "Sem dados",
+    "metadata": "Metadados",
+    "stats": {
+      "total": "Total de Logs",
+      "today": "Hoje",
+      "thisMonth": "Este Mes"
+    }
   }
 }

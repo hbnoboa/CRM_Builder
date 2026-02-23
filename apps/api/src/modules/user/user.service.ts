@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException, ConflictException, ForbiddenException, Logger } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { NotificationService } from '../notification/notification.service';
+import { AuditService } from '../audit/audit.service';
 import { CreateUserDto, UpdateUserDto, QueryUserDto } from './dto/user.dto';
 import { Prisma } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
@@ -22,6 +23,7 @@ export class UserService {
   constructor(
     private prisma: PrismaService,
     private notificationService: NotificationService,
+    private auditService: AuditService,
   ) {}
 
   async create(dto: CreateUserDto, currentUser: CurrentUser) {
@@ -70,6 +72,14 @@ export class UserService {
       newUser.name,
       currentUser.name,
     ).catch((err) => this.logger.error('Failed to send notification', err));
+
+    // Audit log (fire-and-forget, never log passwords)
+    this.auditService.log(currentUser, {
+      action: 'create',
+      resource: 'user',
+      resourceId: newUser.id,
+      newData: { email: dto.email, name: dto.name, customRoleId: dto.customRoleId },
+    }).catch(() => {});
 
     return newUser;
   }
@@ -244,14 +254,14 @@ export class UserService {
 
   async update(id: string, dto: UpdateUserDto, currentUser: CurrentUser) {
     // Verifica se usuario existe (e se tem permissao)
-    await this.findOne(id, currentUser);
+    const oldUser = await this.findOne(id, currentUser);
 
     // Se mudando senha, fazer hash
     if (dto.password) {
       dto.password = await bcrypt.hash(dto.password, 12);
     }
 
-    return this.prisma.user.update({
+    const updatedUser = await this.prisma.user.update({
       where: { id },
       data: dto,
       select: {
@@ -266,11 +276,22 @@ export class UserService {
         customRole: { select: { id: true, name: true, color: true, roleType: true, isSystem: true } },
       },
     });
+
+    // Audit log (fire-and-forget, never log passwords)
+    this.auditService.log(currentUser, {
+      action: 'update',
+      resource: 'user',
+      resourceId: id,
+      oldData: { name: oldUser.name, email: oldUser.email, status: oldUser.status, customRoleId: oldUser.customRoleId },
+      newData: { ...dto, password: undefined },
+    }).catch(() => {});
+
+    return updatedUser;
   }
 
   async remove(id: string, currentUser: CurrentUser) {
     // Verifica se usuario existe (e se tem permissao)
-    await this.findOne(id, currentUser);
+    const oldUser = await this.findOne(id, currentUser);
 
     // Nao pode deletar a si mesmo
     if (id === currentUser.id) {
@@ -278,6 +299,14 @@ export class UserService {
     }
 
     await this.prisma.user.delete({ where: { id } });
+
+    // Audit log (fire-and-forget, never log passwords)
+    this.auditService.log(currentUser, {
+      action: 'delete',
+      resource: 'user',
+      resourceId: id,
+      oldData: { name: oldUser.name, email: oldUser.email },
+    }).catch(() => {});
 
     return { message: 'Usuario excluido com sucesso' };
   }

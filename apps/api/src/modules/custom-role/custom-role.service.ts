@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException, ConflictException, ForbiddenException, Logger } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { AuditService } from '../audit/audit.service';
 import { CreateCustomRoleDto, UpdateCustomRoleDto, QueryCustomRoleDto, RoleType, DataFilterDto } from './dto/custom-role.dto';
 import { getEffectiveTenantId } from '../../common/utils/tenant.util';
 import { Prisma } from '@prisma/client';
@@ -47,7 +48,10 @@ const FULL_CRUD: ModulePermissionCrud = { canRead: true, canCreate: true, canUpd
 export class CustomRoleService {
   private readonly logger = new Logger(CustomRoleService.name);
 
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private auditService: AuditService,
+  ) {}
 
   async create(dto: CreateCustomRoleDto, currentUser: CurrentUser, requestedTenantId?: string) {
     const tenantId = getEffectiveTenantId(currentUser, requestedTenantId);
@@ -61,7 +65,7 @@ export class CustomRoleService {
       throw new ConflictException('Já existe uma role com este nome');
     }
 
-    return this.prisma.customRole.create({
+    const newRole = await this.prisma.customRole.create({
       data: {
         tenantId,
         name: dto.name,
@@ -77,6 +81,17 @@ export class CustomRoleService {
         _count: { select: { users: true } },
       },
     });
+
+    // Audit log
+    this.auditService.log(currentUser, {
+      action: 'create',
+      resource: 'custom_role',
+      resourceId: newRole.id,
+      newData: { name: newRole.name, description: newRole.description, color: newRole.color, roleType: newRole.roleType },
+      metadata: { name: newRole.name },
+    }).catch(() => {});
+
+    return newRole;
   }
 
   async findAll(query: QueryCustomRoleDto, currentUser: CurrentUser) {
@@ -221,13 +236,25 @@ export class CustomRoleService {
     if (dto.modulePermissions !== undefined) data.modulePermissions = (dto.modulePermissions || {}) as unknown as Prisma.InputJsonValue;
     if (dto.tenantPermissions !== undefined) data.tenantPermissions = dto.tenantPermissions as unknown as Prisma.InputJsonValue;
 
-    return this.prisma.customRole.update({
+    const updatedRole = await this.prisma.customRole.update({
       where: { id },
       data,
       include: {
         _count: { select: { users: true } },
       },
     });
+
+    // Audit log
+    this.auditService.log(currentUser, {
+      action: 'update',
+      resource: 'custom_role',
+      resourceId: id,
+      oldData: { name: role.name, description: role.description, color: role.color },
+      newData: dto as unknown as Record<string, unknown>,
+      metadata: { name: updatedRole.name },
+    }).catch(() => {});
+
+    return updatedRole;
   }
 
   async remove(id: string, currentUser: CurrentUser, requestedTenantId?: string) {
@@ -248,6 +275,16 @@ export class CustomRoleService {
     }
 
     await this.prisma.customRole.delete({ where: { id } });
+
+    // Audit log
+    this.auditService.log(currentUser, {
+      action: 'delete',
+      resource: 'custom_role',
+      resourceId: id,
+      oldData: { name: role.name, description: role.description, color: role.color },
+      metadata: { name: role.name },
+    }).catch(() => {});
+
     return { message: 'Role excluida com sucesso' };
   }
 
@@ -266,7 +303,7 @@ export class CustomRoleService {
     });
     if (!user) throw new NotFoundException('Usuário não encontrado');
 
-    return this.prisma.user.update({
+    const updatedUser = await this.prisma.user.update({
       where: { id: userId },
       data: { customRoleId: roleId },
       select: {
@@ -279,6 +316,17 @@ export class CustomRoleService {
         },
       },
     });
+
+    // Audit log
+    this.auditService.log(currentUser, {
+      action: 'update',
+      resource: 'custom_role',
+      resourceId: roleId,
+      newData: { userId, roleName: role.name },
+      metadata: { subAction: 'assign_role', userId, userName: user.name },
+    }).catch(() => {});
+
+    return updatedUser;
   }
 
   async removeFromUser(userId: string, currentUser: CurrentUser, requestedTenantId?: string) {
@@ -298,8 +346,10 @@ export class CustomRoleService {
       throw new NotFoundException('Tenant sem role default configurada');
     }
 
+    const oldRoleId = user.customRoleId;
+
     // Atribuir role default ao inves de null
-    return this.prisma.user.update({
+    const updatedUser = await this.prisma.user.update({
       where: { id: userId },
       data: { customRoleId: defaultRole.id },
       select: {
@@ -312,6 +362,18 @@ export class CustomRoleService {
         },
       },
     });
+
+    // Audit log
+    this.auditService.log(currentUser, {
+      action: 'update',
+      resource: 'custom_role',
+      resourceId: oldRoleId || defaultRole.id,
+      oldData: { userId, customRoleId: oldRoleId },
+      newData: { userId, customRoleId: defaultRole.id, defaultRoleName: defaultRole.name },
+      metadata: { subAction: 'remove_role', userId, userName: user.name },
+    }).catch(() => {});
+
+    return updatedUser;
   }
 
   /**
