@@ -301,6 +301,26 @@ function NewEntityPageContent() {
     updateField(fieldIndex, { autoFillFields });
   };
 
+  // ─── onChangeAutoFill rules ────────────────────────────────────────────
+  const addOnChangeRule = (fieldIndex: number) => {
+    const field = fields[fieldIndex];
+    const onChangeAutoFill = [...(field.onChangeAutoFill || []), { targetField: '', valueTemplate: '{{now}}' }];
+    updateField(fieldIndex, { onChangeAutoFill });
+  };
+
+  const updateOnChangeRule = (fieldIndex: number, ruleIndex: number, updates: Partial<{ targetField: string; apiEndpoint: string | undefined; valueTemplate: string | undefined }>) => {
+    const field = fields[fieldIndex];
+    const onChangeAutoFill = [...(field.onChangeAutoFill || [])];
+    onChangeAutoFill[ruleIndex] = { ...onChangeAutoFill[ruleIndex], ...updates };
+    updateField(fieldIndex, { onChangeAutoFill });
+  };
+
+  const removeOnChangeRule = (fieldIndex: number, ruleIndex: number) => {
+    const field = fields[fieldIndex];
+    const onChangeAutoFill = (field.onChangeAutoFill || []).filter((_, i) => i !== ruleIndex);
+    updateField(fieldIndex, { onChangeAutoFill });
+  };
+
   // ─── Import options ─────────────────────────────────────────────────────
   const [importPreview, setImportPreview] = useState<Record<number, any[] | null>>({});
   const [importError, setImportError] = useState<Record<number, string | null>>({});
@@ -398,6 +418,72 @@ function NewEntityPageContent() {
   };
 
   // ─── Type-specific config render ─────────────────────────────────────────
+  const renderOnChangeAutoFill = (field: Partial<Field>, index: number) => {
+    const rules = field.onChangeAutoFill || [];
+    if (rules.length === 0) return null;
+    return (
+      <div className="space-y-3 mt-3 p-3 bg-teal-50 dark:bg-teal-950/20 rounded-lg border border-teal-200 dark:border-teal-800">
+        <div className="flex items-center justify-between gap-2">
+          <Label className="text-sm font-medium text-teal-700 dark:text-teal-300">{tFieldConfig('onChangeAutoFill')}</Label>
+          <Button onClick={() => addOnChangeRule(index)} size="sm" variant="outline" className="h-6 text-[10px]">
+            <Plus className="h-2 w-2 mr-1" /> {tFieldConfig('rule')}
+          </Button>
+        </div>
+        <p className="text-xs text-muted-foreground">{tFieldConfig('onChangeAutoFillDescription')}</p>
+        {rules.map((rule, ruleIdx) => {
+          const isApiMode = rule.apiEndpoint !== undefined && rule.apiEndpoint !== null;
+          return (
+            <div key={ruleIdx} className="flex flex-col sm:flex-row sm:items-center gap-2 bg-background/50 p-2 rounded border">
+              <Select value={rule.targetField || ''} onValueChange={(val) => updateOnChangeRule(index, ruleIdx, { targetField: val })}>
+                <SelectTrigger className="h-7 text-xs flex-1"><SelectValue placeholder={tFieldConfig('onChangeTarget')} /></SelectTrigger>
+                <SelectContent>
+                  {fields.filter((fld, i) => i !== index && (fld.slug || fld.name)).map(fld => (
+                    <SelectItem key={fld.slug || fld.name} value={fld.slug || fld.name}>
+                      {fld.label || fld.name} <span className="text-muted-foreground">({fld.slug || fld.name})</span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <span className="text-xs text-muted-foreground">=</span>
+              <Select value={isApiMode ? 'api' : 'template'} onValueChange={(val) => {
+                if (val === 'api') updateOnChangeRule(index, ruleIdx, { apiEndpoint: '', valueTemplate: undefined });
+                else updateOnChangeRule(index, ruleIdx, { apiEndpoint: undefined, valueTemplate: '{{now}}' });
+              }}>
+                <SelectTrigger className="h-7 text-xs w-28"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="template">{tFieldConfig('onChangeTemplate')}</SelectItem>
+                  <SelectItem value="api">{tFieldConfig('onChangeApi')}</SelectItem>
+                </SelectContent>
+              </Select>
+              {!isApiMode ? (
+                <Select value={rule.valueTemplate || '{{now}}'} onValueChange={(val) => updateOnChangeRule(index, ruleIdx, { valueTemplate: val })}>
+                  <SelectTrigger className="h-7 text-xs flex-1"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="{{now}}">{tFieldConfig('templateNow')}</SelectItem>
+                    <SelectItem value="{{today}}">{tFieldConfig('templateToday')}</SelectItem>
+                    <SelectItem value="{{timestamp}}">{tFieldConfig('templateTimestamp')}</SelectItem>
+                  </SelectContent>
+                </Select>
+              ) : (
+                <Select value={rule.apiEndpoint || ''} onValueChange={(val) => updateOnChangeRule(index, ruleIdx, { apiEndpoint: val })}>
+                  <SelectTrigger className="h-7 text-xs flex-1"><SelectValue placeholder={tFieldConfig('selectDataApi')} /></SelectTrigger>
+                  <SelectContent>
+                    {allCustomApis.filter(ca => ca.path).map(ca => (
+                      <SelectItem key={ca.id || ca.path} value={ca.path}>{ca.path}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+              <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive shrink-0" onClick={() => removeOnChangeRule(index, ruleIdx)}>
+                <Trash2 className="h-3 w-3" />
+              </Button>
+            </div>
+          );
+        })}
+      </div>
+    );
+  };
+
   const renderFieldTypeSpecificConfig = (field: Partial<Field>, index: number) => {
     const type = field.type as FieldType;
 
@@ -851,6 +937,36 @@ function NewEntityPageContent() {
     return null;
   };
 
+  const renderFieldConfig = (field: Partial<Field>, index: number) => {
+    const typeConfig = renderFieldTypeSpecificConfig(field, index);
+    const onChangeConfig = renderOnChangeAutoFill(field, index);
+    const hasRules = (field.onChangeAutoFill || []).length > 0;
+
+    if (!typeConfig && !hasRules) {
+      return (
+        <div className="mt-3">
+          <Button onClick={() => addOnChangeRule(index)} size="sm" variant="outline" className="h-7 text-xs">
+            <Plus className="h-3 w-3 mr-1" /> {tFieldConfig('onChangeAutoFill')}
+          </Button>
+        </div>
+      );
+    }
+
+    return (
+      <>
+        {typeConfig}
+        {onChangeConfig}
+        {!hasRules && (
+          <div className="mt-2">
+            <Button onClick={() => addOnChangeRule(index)} size="sm" variant="outline" className="h-7 text-xs">
+              <Plus className="h-3 w-3 mr-1" /> {tFieldConfig('onChangeAutoFill')}
+            </Button>
+          </div>
+        )}
+      </>
+    );
+  };
+
   // ─── Render ──────────────────────────────────────────────────────────────
   return (
     <div className="space-y-4 sm:space-y-6">
@@ -1014,7 +1130,7 @@ function NewEntityPageContent() {
                                 <Input className="h-8 text-sm" value={field.helpText || ''} placeholder={tFieldConfig('helpTextHint')} onChange={(e) => updateField(index, { helpText: e.target.value })} />
                               </div>
                             </div>
-                            {renderFieldTypeSpecificConfig(field, index)}
+                            {renderFieldConfig(field, index)}
                           </div>
                         )}
                       </div>
