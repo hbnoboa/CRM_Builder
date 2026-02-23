@@ -453,26 +453,45 @@ export function RecordFormDialog({
   const fieldRows = useMemo(() => {
     // Filtra campos ocultos (type === 'hidden' OU hidden === true)
     const visibleFields = (entity.fields || []).filter(f => f.type !== 'hidden' && !f.hidden);
-    const rows: EntityField[][] = [];
-    let currentRow: EntityField[] = [];
-    let currentRowNum = -1;
-    let currentRowSpan = 0;
 
+    // Agrupa campos por gridRow (mesmo approach do FieldGridEditor)
+    const fieldsByRow: Record<number, EntityField[]> = {};
     for (const field of visibleFields) {
-      const fieldRow = field.gridRow || 0;
-      const colSpan = field.gridColSpan || 12;
-
-      if (fieldRow > 0 && fieldRow === currentRowNum && currentRowSpan + colSpan <= 12) {
-        currentRow.push(field);
-        currentRowSpan += colSpan;
-      } else {
-        if (currentRow.length > 0) rows.push(currentRow);
-        currentRow = [field];
-        currentRowNum = fieldRow || -1;
-        currentRowSpan = colSpan;
-      }
+      const row = field.gridRow || 0;
+      if (!fieldsByRow[row]) fieldsByRow[row] = [];
+      fieldsByRow[row].push(field);
     }
-    if (currentRow.length > 0) rows.push(currentRow);
+
+    // Ordena por gridRow (row 0 = sem row definido, vai pro final)
+    const rowKeys = Object.keys(fieldsByRow).map(Number).sort((a, b) => {
+      if (a === 0) return 1;
+      if (b === 0) return -1;
+      return a - b;
+    });
+
+    // Monta rows respeitando colSpan (quebra se exceder 12 colunas)
+    const rows: EntityField[][] = [];
+    for (const rowKey of rowKeys) {
+      const fieldsInRow = fieldsByRow[rowKey];
+      let currentRow: EntityField[] = [];
+      let currentSpan = 0;
+
+      for (const field of fieldsInRow) {
+        const colSpan = field.gridColSpan || 12;
+        const colStart = field.gridColStart ? field.gridColStart - 1 : currentSpan;
+
+        if (colStart + colSpan > 12 && currentRow.length > 0) {
+          rows.push(currentRow);
+          currentRow = [field];
+          currentSpan = Math.min(colSpan, 12);
+        } else {
+          currentRow.push(field);
+          currentSpan = colStart + colSpan;
+        }
+      }
+      if (currentRow.length > 0) rows.push(currentRow);
+    }
+
     return rows;
   }, [entity.fields]);
 
