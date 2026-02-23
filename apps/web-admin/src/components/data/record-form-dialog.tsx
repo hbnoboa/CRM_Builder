@@ -430,6 +430,12 @@ export function RecordFormDialog({
           const options = relationOptions[field.slug] || [];
           const option = options.find(o => o.value === id);
           processedData[field.slug] = option ? { value: id, label: option.label } : id;
+        } else if (field.type === 'api-select') {
+          // Same as relation: save as {value, label} so display shows the name
+          const id = String(value);
+          const options = apiOptions[field.slug] || [];
+          const option = options.find(o => o.value === id);
+          processedData[field.slug] = option ? { value: id, label: option.label } : id;
         } else {
           processedData[field.slug] = value;
         }
