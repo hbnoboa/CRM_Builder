@@ -94,16 +94,16 @@ const navigationConfig: NavItemConfig[] = [
     moduleKey: 'pdfTemplates',
   },
   {
-    titleKey: 'settings',
-    href: '/settings',
-    icon: <Settings className="h-5 w-5" />,
-    moduleKey: 'settings',
-  },
-  {
     titleKey: 'auditLogs',
     href: '/audit-logs',
     icon: <ScrollText className="h-5 w-5" />,
     moduleKey: 'auditLogs',
+  },
+  {
+    titleKey: 'settings',
+    href: '/settings',
+    icon: <Settings className="h-5 w-5" />,
+    moduleKey: 'settings',
   },
 ];
 

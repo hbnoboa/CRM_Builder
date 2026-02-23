@@ -17,6 +17,7 @@ import {
 import { useAuditLogs } from '@/hooks/use-audit-logs';
 import { usePermissions } from '@/hooks/use-permissions';
 import { useTenants } from '@/hooks/use-tenants';
+import { useTenant } from '@/stores/tenant-context';
 import { auditLogsService, type AuditLog } from '@/services/audit-logs.service';
 import { cn } from '@/lib/utils';
 
@@ -34,12 +35,13 @@ export default function AuditLogsPage() {
   const tNav = useTranslations('navigation');
   const tAuth = useTranslations('auth');
   const { isPlatformAdmin } = usePermissions();
+  const { effectiveTenantId } = useTenant();
 
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
   const [action, setAction] = useState<string>('');
   const [resource, setResource] = useState<string>('');
-  const [tenantId, setTenantId] = useState<string>('');
+  const [tenantFilter, setTenantFilter] = useState<string>('');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [expandedRow, setExpandedRow] = useState<string | null>(null);
@@ -48,22 +50,25 @@ export default function AuditLogsPage() {
   const { data: tenantsData } = useTenants({ limit: 100 });
   const tenants = tenantsData?.data ?? [];
 
+  // Use effectiveTenantId from tenant selector, override with local filter if set
+  const resolvedTenantId = tenantFilter || effectiveTenantId || '';
+
   const queryParams = useMemo(() => ({
     page,
     limit: 50,
     ...(search && { search }),
     ...(action && { action }),
     ...(resource && { resource }),
-    ...(tenantId && { tenantId }),
+    ...(resolvedTenantId && { tenantId: resolvedTenantId }),
     ...(dateFrom && { dateFrom }),
     ...(dateTo && { dateTo }),
-  }), [page, search, action, resource, tenantId, dateFrom, dateTo]);
+  }), [page, search, action, resource, resolvedTenantId, dateFrom, dateTo]);
 
   const { data, isLoading } = useAuditLogs(queryParams);
   const logs = data?.data ?? [];
   const meta = data?.meta;
 
-  const hasFilters = !!(action || resource || tenantId || dateFrom || dateTo || search);
+  const hasFilters = !!(action || resource || tenantFilter || dateFrom || dateTo || search);
 
   if (!isPlatformAdmin) {
     return (
@@ -90,7 +95,7 @@ export default function AuditLogsPage() {
   const clearFilters = () => {
     setAction('');
     setResource('');
-    setTenantId('');
+    setTenantFilter('');
     setDateFrom('');
     setDateTo('');
     setSearch('');
@@ -103,7 +108,7 @@ export default function AuditLogsPage() {
       const blob = await auditLogsService.exportJson({
         dateFrom: dateFrom || undefined,
         dateTo: dateTo || undefined,
-        tenantId: tenantId || undefined,
+        tenantId: resolvedTenantId || undefined,
       });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -189,7 +194,7 @@ export default function AuditLogsPage() {
               </SelectContent>
             </Select>
 
-            <Select value={tenantId} onValueChange={(v) => { setTenantId(v === 'all' ? '' : v); setPage(1); }}>
+            <Select value={tenantFilter} onValueChange={(v) => { setTenantFilter(v === 'all' ? '' : v); setPage(1); }}>
               <SelectTrigger><SelectValue placeholder={t('allTenants')} /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">{t('allTenants')}</SelectItem>
