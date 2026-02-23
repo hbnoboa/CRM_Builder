@@ -17,6 +17,8 @@ import {
   Building2,
   Shield,
   FileText,
+  PanelLeftClose,
+  PanelLeftOpen,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -135,6 +137,12 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
   const { hasModuleAccess, getDefaultRoute } = usePermissions();
   const { tenant } = useTenant();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('sidebar-collapsed') === 'true';
+    }
+    return false;
+  });
   const [mounted, setMounted] = useState(false);
   const fetchedRef = useRef(false);
 
@@ -221,12 +229,14 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
 
       <aside
         className={cn(
-          'fixed inset-y-0 left-0 z-50 w-64 max-w-[calc(100vw-3rem)] lg:max-w-none bg-card border-r transform transition-transform duration-200 ease-in-out lg:translate-x-0',
+          'fixed inset-y-0 left-0 z-50 max-w-[calc(100vw-3rem)] lg:max-w-none bg-card border-r transform transition-all duration-200 ease-in-out lg:translate-x-0',
+          sidebarCollapsed ? 'lg:w-16' : 'lg:w-64',
+          'w-64',
           sidebarOpen ? 'translate-x-0' : '-translate-x-full'
         )}
       >
         <div className="flex flex-col h-full">
-          <div className="flex items-center gap-3 h-16 px-4 border-b">
+          <div className={cn('flex items-center h-16 border-b', sidebarCollapsed ? 'lg:justify-center lg:px-2 px-4 gap-3' : 'gap-3 px-4')}>
             {tenant?.logo ? (
               <img src={tenant.logo} alt={tenant.name} className="h-8 w-8 flex-shrink-0 object-contain" />
             ) : (
@@ -234,7 +244,7 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
                 <span className="text-lg font-bold text-primary-foreground">{(tenant?.name || 'C')[0].toUpperCase()}</span>
               </div>
             )}
-            <span className="font-semibold text-lg truncate">{tenant?.name || 'CRM Builder'}</span>
+            <span className={cn('font-semibold text-lg truncate', sidebarCollapsed && 'lg:hidden')}>{tenant?.name || 'CRM Builder'}</span>
             <button
               className="ml-auto lg:hidden p-2 -mr-2 rounded-lg hover:bg-muted active:bg-muted/80 transition-colors"
               onClick={() => setSidebarOpen(false)}
@@ -244,7 +254,7 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
             </button>
           </div>
 
-          <nav className="flex-1 overflow-y-auto p-3 space-y-1">
+          <nav className={cn('flex-1 overflow-y-auto space-y-1', sidebarCollapsed ? 'lg:p-2 p-3' : 'p-3')}>
             {filteredNavigation.map((item) => {
               const isActive = pathname === item.href || pathname.startsWith(item.href + '/');
               return (
@@ -252,8 +262,10 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
                   key={item.href}
                   href={item.href}
                   prefetch={false}
+                  title={sidebarCollapsed ? tNav(item.titleKey) : undefined}
                   className={cn(
-                    'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all min-h-[44px]',
+                    'flex items-center rounded-lg text-sm font-medium transition-all min-h-[44px]',
+                    sidebarCollapsed ? 'lg:justify-center lg:px-0 lg:py-2.5 gap-3 px-3 py-2.5' : 'gap-3 px-3 py-2.5',
                     isActive
                       ? 'bg-primary text-primary-foreground shadow-sm'
                       : 'text-muted-foreground hover:text-foreground hover:bg-muted'
@@ -261,9 +273,9 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
                   onClick={() => setSidebarOpen(false)}
                 >
                   {item.icon}
-                  <span className="flex-1">{tNav(item.titleKey)}</span>
+                  <span className={cn('flex-1', sidebarCollapsed && 'lg:hidden')}>{tNav(item.titleKey)}</span>
                   {item.badge && (
-                    <span className="text-xs bg-primary/20 text-primary px-1.5 py-0.5 rounded">
+                    <span className={cn('text-xs bg-primary/20 text-primary px-1.5 py-0.5 rounded', sidebarCollapsed && 'lg:hidden')}>
                       {item.badge}
                     </span>
                   )}
@@ -272,14 +284,27 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
             })}
           </nav>
 
-          <div className="p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] border-t bg-muted/30">
-            <div className="flex items-center gap-3 p-2.5 rounded-lg hover:bg-muted transition-colors" data-testid="user-menu">
-              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center">
+          <div className={cn('border-t bg-muted/30', sidebarCollapsed ? 'lg:p-2 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]' : 'p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]')}>
+            <button
+              className="hidden lg:flex items-center justify-center w-full p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors mb-2"
+              onClick={() => {
+                setSidebarCollapsed(prev => {
+                  const next = !prev;
+                  localStorage.setItem('sidebar-collapsed', String(next));
+                  return next;
+                });
+              }}
+              title={sidebarCollapsed ? 'Expandir sidebar' : 'Colapsar sidebar'}
+            >
+              {sidebarCollapsed ? <PanelLeftOpen className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}
+            </button>
+            <div className={cn('flex items-center rounded-lg hover:bg-muted transition-colors', sidebarCollapsed ? 'lg:justify-center lg:p-2 gap-3 p-2.5' : 'gap-3 p-2.5')} data-testid="user-menu">
+              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center flex-shrink-0">
                 <span className="text-sm font-medium text-white">
                   {user?.name?.charAt(0)?.toUpperCase() || 'U'}
                 </span>
               </div>
-              <div className="flex-1 min-w-0">
+              <div className={cn('flex-1 min-w-0', sidebarCollapsed && 'lg:hidden')}>
                 <p className="text-sm font-medium truncate">{user?.name || 'User'}</p>
                 {user?.customRole && (
                   <span
@@ -304,7 +329,7 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
                 size="icon"
                 onClick={handleLogout}
                 title={t('auth.logout')}
-                className="text-muted-foreground hover:text-destructive"
+                className={cn('text-muted-foreground hover:text-destructive', sidebarCollapsed && 'lg:hidden')}
               >
                 <LogOut className="h-4 w-4" />
               </Button>
@@ -313,7 +338,7 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
         </div>
       </aside>
 
-      <div className="lg:pl-64">
+      <div className={cn('transition-all duration-200', sidebarCollapsed ? 'lg:pl-16' : 'lg:pl-64')}>
         <header className="sticky top-0 z-30 h-16 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
           <div className="flex items-center gap-2 sm:gap-4 h-full px-3 sm:px-4">
             <button

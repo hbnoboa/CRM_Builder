@@ -28,6 +28,8 @@ import {
   ListFilter,
   Download,
   Upload,
+  PanelLeftClose,
+  PanelLeftOpen,
 } from 'lucide-react';
 import { RequireRole } from '@/components/auth/require-role';
 import { usePermissions } from '@/hooks/use-permissions';
@@ -64,6 +66,7 @@ import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { api } from '@/lib/api';
+import { cn } from '@/lib/utils';
 import { useTenant } from '@/stores/tenant-context';
 import { useAuthStore } from '@/stores/auth-store';
 import { RecordFormDialog } from '@/components/data/record-form-dialog';
@@ -369,6 +372,12 @@ function DataPageContent() {
   const { tenantId, effectiveTenantId, isPlatformAdmin, loading: tenantLoading } = useTenant();
   const [entities, setEntities] = useState<Entity[]>([]);
   const [selectedEntity, setSelectedEntity] = useState<Entity | null>(null);
+  const [entityPanelCollapsed, setEntityPanelCollapsed] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('data-entity-panel-collapsed') === 'true';
+    }
+    return false;
+  });
   const [records, setRecords] = useState<DataRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingRecords, setLoadingRecords] = useState(false);
@@ -1136,52 +1145,82 @@ function DataPageContent() {
 
       <div className="flex flex-col lg:flex-row gap-4 lg:gap-6">
         {/* Sidebar de Entidades - Desktop */}
-        <div className="hidden lg:block w-64 space-y-2 flex-shrink-0">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="font-semibold text-sm text-muted-foreground uppercase tracking-wider">
-              {tNav('entities')}
-            </h3>
-            <span className="text-xs text-muted-foreground">{entities.length}</span>
-          </div>
-          {loading ? (
-            <div className="animate-pulse space-y-2">
-              {[1, 2, 3].map(i => (
-                <div key={i} className="h-12 bg-muted rounded-lg" />
-              ))}
-            </div>
-          ) : entities.length === 0 ? (
-            <Card>
-              <CardContent className="py-8 text-center">
-                <Database className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
-                <p className="text-sm text-muted-foreground">
-                  {t('noEntitiesCreated')}
-                </p>
-                <Link href="/entities">
-                  <Button variant="link" size="sm" data-testid="create-entity-btn">
-                    {t('createEntity')}
-                  </Button>
-                </Link>
-              </CardContent>
-            </Card>
+        <div className={cn(
+          'hidden lg:flex flex-col flex-shrink-0 transition-all duration-200',
+          entityPanelCollapsed ? 'w-10' : 'w-64'
+        )}>
+          {entityPanelCollapsed ? (
+            <button
+              onClick={() => {
+                setEntityPanelCollapsed(false);
+                localStorage.setItem('data-entity-panel-collapsed', 'false');
+              }}
+              className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+              title={tNav('entities')}
+            >
+              <PanelLeftOpen className="h-5 w-5" />
+            </button>
           ) : (
-            <div className="space-y-1">
-              {entities.map(entity => (
-                <button
-                  key={entity.id}
-                  onClick={() => handleEntitySelect(entity)}
-                  className={`w-full flex items-center justify-between p-3 rounded-lg text-left transition-colors ${
-                    selectedEntity?.id === entity.id
-                      ? 'bg-primary text-primary-foreground'
-                      : 'hover:bg-muted'
-                  }`}
-                >
-                  <div className="flex items-center gap-3 min-w-0">
-                    <Database className="h-4 w-4 flex-shrink-0" />
-                    <span className="font-medium truncate">{entity.name}</span>
-                  </div>
-                </button>
-              ))}
-            </div>
+            <>
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="font-semibold text-sm text-muted-foreground uppercase tracking-wider">
+                  {tNav('entities')}
+                </h3>
+                <div className="flex items-center gap-1">
+                  <span className="text-xs text-muted-foreground">{entities.length}</span>
+                  <button
+                    onClick={() => {
+                      setEntityPanelCollapsed(true);
+                      localStorage.setItem('data-entity-panel-collapsed', 'true');
+                    }}
+                    className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                    title="Colapsar painel"
+                  >
+                    <PanelLeftClose className="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
+              {loading ? (
+                <div className="animate-pulse space-y-2">
+                  {[1, 2, 3].map(i => (
+                    <div key={i} className="h-12 bg-muted rounded-lg" />
+                  ))}
+                </div>
+              ) : entities.length === 0 ? (
+                <Card>
+                  <CardContent className="py-8 text-center">
+                    <Database className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
+                    <p className="text-sm text-muted-foreground">
+                      {t('noEntitiesCreated')}
+                    </p>
+                    <Link href="/entities">
+                      <Button variant="link" size="sm" data-testid="create-entity-btn">
+                        {t('createEntity')}
+                      </Button>
+                    </Link>
+                  </CardContent>
+                </Card>
+              ) : (
+                <div className="space-y-1">
+                  {entities.map(entity => (
+                    <button
+                      key={entity.id}
+                      onClick={() => handleEntitySelect(entity)}
+                      className={`w-full flex items-center justify-between p-3 rounded-lg text-left transition-colors ${
+                        selectedEntity?.id === entity.id
+                          ? 'bg-primary text-primary-foreground'
+                          : 'hover:bg-muted'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        <Database className="h-4 w-4 flex-shrink-0" />
+                        <span className="font-medium truncate">{entity.name}</span>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </>
           )}
         </div>
 
