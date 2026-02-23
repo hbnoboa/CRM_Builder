@@ -244,7 +244,20 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
                 <span className="text-lg font-bold text-primary-foreground">{(tenant?.name || 'C')[0].toUpperCase()}</span>
               </div>
             )}
-            <span className={cn('font-semibold text-lg truncate', sidebarCollapsed && 'lg:hidden')}>{tenant?.name || 'CRM Builder'}</span>
+            <span className={cn('font-semibold text-lg truncate flex-1', sidebarCollapsed && 'lg:hidden')}>{tenant?.name || 'CRM Builder'}</span>
+            <button
+              className="hidden lg:flex p-2 -mr-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+              onClick={() => {
+                setSidebarCollapsed(prev => {
+                  const next = !prev;
+                  localStorage.setItem('sidebar-collapsed', String(next));
+                  return next;
+                });
+              }}
+              title={sidebarCollapsed ? 'Expandir sidebar' : 'Colapsar sidebar'}
+            >
+              {sidebarCollapsed ? <PanelLeftOpen className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}
+            </button>
             <button
               className="ml-auto lg:hidden p-2 -mr-2 rounded-lg hover:bg-muted active:bg-muted/80 transition-colors"
               onClick={() => setSidebarOpen(false)}
@@ -285,19 +298,6 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
           </nav>
 
           <div className={cn('border-t bg-muted/30', sidebarCollapsed ? 'lg:p-2 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]' : 'p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]')}>
-            <button
-              className="hidden lg:flex items-center justify-center w-full p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors mb-2"
-              onClick={() => {
-                setSidebarCollapsed(prev => {
-                  const next = !prev;
-                  localStorage.setItem('sidebar-collapsed', String(next));
-                  return next;
-                });
-              }}
-              title={sidebarCollapsed ? 'Expandir sidebar' : 'Colapsar sidebar'}
-            >
-              {sidebarCollapsed ? <PanelLeftOpen className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}
-            </button>
             <div className={cn('flex items-center rounded-lg hover:bg-muted transition-colors', sidebarCollapsed ? 'lg:justify-center lg:p-2 gap-3 p-2.5' : 'gap-3 p-2.5')} data-testid="user-menu">
               <div className="w-10 h-10 rounded-full bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center flex-shrink-0">
                 <span className="text-sm font-medium text-white">
