@@ -45,6 +45,7 @@ export type {
   FieldPermission,
   ModulePermission,
   ModulePermissions,
+  NotificationRule,
 } from './custom-role';
 
 // Custom API

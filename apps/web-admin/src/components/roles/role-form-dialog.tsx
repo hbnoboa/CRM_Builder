@@ -24,14 +24,14 @@ import {
 import {
   Eye, Plus, Pencil, Trash2, Shield, Database, Users,
   Settings, Code, LayoutDashboard, Globe, User, Building2,
-  ChevronRight, ListFilter, X, FileText, LayoutGrid,
+  ChevronRight, ListFilter, X, FileText, LayoutGrid, Bell,
 } from 'lucide-react';
 import { useCreateCustomRole, useUpdateCustomRole } from '@/hooks/use-custom-roles';
 import { useQuery } from '@tanstack/react-query';
 import api from '@/lib/api';
 import { useTenant } from '@/stores/tenant-context';
 import { usePermissions } from '@/hooks/use-permissions';
-import type { CustomRole, DataFilter, EntityPermission, EntityField, ModulePermission, ModulePermissions, Entity, PermissionScope } from '@/types';
+import type { CustomRole, DataFilter, EntityPermission, EntityField, ModulePermission, ModulePermissions, Entity, PermissionScope, NotificationRule } from '@/types';
 
 const EMPTY_MODULE_PERM: ModulePermission = { canRead: false, canCreate: false, canUpdate: false, canDelete: false };
 
@@ -436,6 +436,60 @@ export function RoleFormDialog({ open, onOpenChange, role, onSuccess }: RoleForm
     );
   };
 
+  const [expandedNotifRules, setExpandedNotifRules] = useState<Set<string>>(new Set());
+
+  const toggleNotifRulesExpand = (entitySlug: string) => {
+    setExpandedNotifRules(prev => {
+      const next = new Set(prev);
+      if (next.has(entitySlug)) next.delete(entitySlug);
+      else next.add(entitySlug);
+      return next;
+    });
+  };
+
+  const toggleNotificationEnabled = (entitySlug: string) => {
+    setPermissions(prev =>
+      prev.map(p => {
+        if (p.entitySlug !== entitySlug) return p;
+        const current = p.notificationRules;
+        if (!current || !current.enabled) {
+          return { ...p, notificationRules: { enabled: true, onCreate: true, onUpdate: true, onDelete: true, conditions: [] } };
+        }
+        return { ...p, notificationRules: { ...current, enabled: false } };
+      })
+    );
+  };
+
+  const toggleNotificationOp = (entitySlug: string, op: 'onCreate' | 'onUpdate' | 'onDelete') => {
+    setPermissions(prev =>
+      prev.map(p => {
+        if (p.entitySlug !== entitySlug || !p.notificationRules) return p;
+        return { ...p, notificationRules: { ...p.notificationRules, [op]: !p.notificationRules[op] } };
+      })
+    );
+  };
+
+  const addNotifCondition = (entitySlug: string, filter: DataFilter) => {
+    setPermissions(prev =>
+      prev.map(p => {
+        if (p.entitySlug !== entitySlug || !p.notificationRules) return p;
+        const existing = p.notificationRules.conditions || [];
+        return { ...p, notificationRules: { ...p.notificationRules, conditions: [...existing, filter] } };
+      })
+    );
+  };
+
+  const removeNotifCondition = (entitySlug: string, index: number) => {
+    setPermissions(prev =>
+      prev.map(p => {
+        if (p.entitySlug !== entitySlug || !p.notificationRules) return p;
+        const conditions = [...(p.notificationRules.conditions || [])];
+        conditions.splice(index, 1);
+        return { ...p, notificationRules: { ...p.notificationRules, conditions } };
+      })
+    );
+  };
+
   const toggleModulePerm = (moduleKey: string, action: keyof ModulePermission) => {
     setModulePerms((prev) => ({
       ...prev,
@@ -474,6 +528,7 @@ export function RoleFormDialog({ open, onOpenChange, role, onSuccess }: RoleForm
         ...(p.canExport ? { canExport: true } : {}),
         ...(p.canImport ? { canImport: true } : {}),
         ...(p.canConfigureColumns ? { canConfigureColumns: true } : {}),
+        ...(p.notificationRules?.enabled ? { notificationRules: p.notificationRules } : {}),
       })),
       modulePermissions: modulePerms as ModulePermissions,
       ...(effectiveTenantId ? { tenantId: effectiveTenantId } : {}),
@@ -954,6 +1009,107 @@ export function RoleFormDialog({ open, onOpenChange, role, onSuccess }: RoleForm
                                           <p className="text-[10px] text-muted-foreground">
                                             Filtros restringem quais registros usuarios com esta role podem ver nesta entidade.
                                           </p>
+                                        </div>
+                                      )}
+                                    </div>
+                                  </>
+                                )}
+
+                                {/* Notification Rules */}
+                                {entity && entity.fields && entity.fields.length > 0 && (
+                                  <>
+                                    <Separator />
+                                    <div>
+                                      <button
+                                        type="button"
+                                        className="text-xs text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1"
+                                        onClick={(e) => { e.stopPropagation(); toggleNotifRulesExpand(perm.entitySlug); }}
+                                      >
+                                        <Bell className="h-3 w-3" />
+                                        Notificações {perm.notificationRules?.enabled ? '(ativo)' : ''}
+                                        <span className="ml-1">{expandedNotifRules.has(perm.entitySlug) ? '▾' : '▸'}</span>
+                                      </button>
+                                      {expandedNotifRules.has(perm.entitySlug) && (
+                                        <div className="mt-2 space-y-2">
+                                          {/* Enable toggle */}
+                                          <label className="flex items-center gap-2 text-xs">
+                                            <Checkbox
+                                              checked={perm.notificationRules?.enabled || false}
+                                              onCheckedChange={() => toggleNotificationEnabled(perm.entitySlug)}
+                                              className="h-3.5 w-3.5"
+                                            />
+                                            Receber notificações desta entidade
+                                          </label>
+                                          {perm.notificationRules?.enabled && (
+                                            <div className="ml-5 space-y-2">
+                                              {/* Operations */}
+                                              <div className="flex items-center gap-3">
+                                                <span className="text-[10px] text-muted-foreground">Quando:</span>
+                                                {([
+                                                  { key: 'onCreate' as const, label: 'Criação' },
+                                                  { key: 'onUpdate' as const, label: 'Edição' },
+                                                  { key: 'onDelete' as const, label: 'Exclusão' },
+                                                ]).map(({ key, label }) => (
+                                                  <label
+                                                    key={key}
+                                                    className={`flex items-center gap-1 cursor-pointer rounded-md border px-2 py-1 text-[11px] font-medium transition-colors ${
+                                                      perm.notificationRules?.[key]
+                                                        ? 'border-primary bg-primary/10 text-primary'
+                                                        : 'border-border text-muted-foreground hover:border-muted-foreground/50'
+                                                    }`}
+                                                  >
+                                                    <Checkbox
+                                                      checked={perm.notificationRules?.[key] || false}
+                                                      onCheckedChange={() => toggleNotificationOp(perm.entitySlug, key)}
+                                                      className="h-3 w-3"
+                                                    />
+                                                    {label}
+                                                  </label>
+                                                ))}
+                                              </div>
+                                              {/* Conditions */}
+                                              <div>
+                                                <span className="text-[10px] text-muted-foreground">Condições (opcional):</span>
+                                                {perm.notificationRules?.conditions && perm.notificationRules.conditions.length > 0 && (
+                                                  <div className="flex flex-wrap gap-1.5 mt-1">
+                                                    {perm.notificationRules.conditions.map((filter, idx) => (
+                                                      <Badge
+                                                        key={idx}
+                                                        variant="secondary"
+                                                        className="text-[10px] px-2 py-0.5 gap-1"
+                                                      >
+                                                        <span className="font-medium">{filter.fieldName}</span>
+                                                        <span className="text-muted-foreground">
+                                                          {filter.operator === 'equals' ? '=' : filter.operator === 'between' ? '↔' : filter.operator}
+                                                        </span>
+                                                        <span>
+                                                          {filter.operator === 'between'
+                                                            ? `${String(filter.value ?? '')} — ${String(filter.value2 ?? '')}`
+                                                            : String(filter.value ?? '')}
+                                                        </span>
+                                                        <button
+                                                          type="button"
+                                                          onClick={(e) => { e.stopPropagation(); removeNotifCondition(perm.entitySlug, idx); }}
+                                                          className="ml-0.5 hover:text-destructive"
+                                                        >
+                                                          <X className="h-3 w-3" />
+                                                        </button>
+                                                      </Badge>
+                                                    ))}
+                                                  </div>
+                                                )}
+                                                <div className="mt-1.5">
+                                                  <DataFilterAdder
+                                                    fields={entity.fields.filter((f: EntityField) => !['image', 'images', 'sub-entity', 'array', 'hidden'].includes(f.type))}
+                                                    onAdd={(filter) => addNotifCondition(perm.entitySlug, filter)}
+                                                  />
+                                                </div>
+                                                <p className="text-[10px] text-muted-foreground mt-1">
+                                                  Só notifica quando todas as condições forem atendidas.
+                                                </p>
+                                              </div>
+                                            </div>
+                                          )}
                                         </div>
                                       )}
                                     </div>

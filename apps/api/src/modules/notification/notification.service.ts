@@ -4,6 +4,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { PushService } from '../push/push.service';
 import { NotificationType, Prisma } from '@prisma/client';
 import { v4 as uuidv4 } from 'uuid';
+import { evaluateConditions } from '../../common/utils/evaluate-notification-conditions';
 
 export interface CreateNotificationDto {
   type: 'info' | 'success' | 'warning' | 'error';
@@ -95,6 +96,8 @@ export class NotificationService {
     tenantId: string,
     notification: CreateNotificationDto,
     entitySlug?: string,
+    operation?: 'created' | 'updated' | 'deleted',
+    recordData?: Record<string, unknown>,
   ): Promise<Notification> {
     const fullNotification: Notification = {
       id: uuidv4(),
@@ -105,7 +108,7 @@ export class NotificationService {
 
     // Se tem entitySlug, só notificar usuários com permissão nessa entidade
     if (entitySlug) {
-      await this.notifyUsersWithEntityAccess(tenantId, entitySlug, fullNotification);
+      await this.notifyUsersWithEntityAccess(tenantId, entitySlug, fullNotification, operation, recordData);
     } else {
       this.gateway.sendToTenant(tenantId, fullNotification);
     }
@@ -120,6 +123,8 @@ export class NotificationService {
     tenantId: string,
     entitySlug: string,
     notification: Notification,
+    operation?: 'created' | 'updated' | 'deleted',
+    recordData?: Record<string, unknown>,
   ): Promise<void> {
     try {
       const users = await this.prisma.user.findMany({
@@ -147,14 +152,48 @@ export class NotificationService {
         // Verificar permissoes da custom role
         if (user.customRole) {
           const permissions = user.customRole.permissions as unknown as Array<{
-            entitySlug: string; canRead: boolean;
+            entitySlug: string;
+            canRead: boolean;
+            notificationRules?: {
+              enabled: boolean;
+              onCreate: boolean;
+              onUpdate: boolean;
+              onDelete: boolean;
+              conditions?: Array<{ fieldSlug: string; fieldType: string; operator: string; value?: unknown; value2?: unknown }>;
+            };
           }>;
-          const hasAccess = permissions.some(
+          const entityPerm = permissions.find(
             (p) => p.entitySlug === entitySlug && p.canRead,
           );
-          if (hasAccess) {
+
+          if (!entityPerm) continue;
+
+          // Checar notificationRules
+          const rules = entityPerm.notificationRules;
+          if (!rules) {
+            // Sem regras definidas → comportamento padrao (recebe tudo)
             eligibleUserIds.push(user.id);
+            continue;
           }
+
+          if (!rules.enabled) continue;
+
+          // Checar operacao
+          if (operation) {
+            const opMap: Record<string, boolean> = {
+              created: rules.onCreate,
+              updated: rules.onUpdate,
+              deleted: rules.onDelete,
+            };
+            if (opMap[operation] === false) continue;
+          }
+
+          // Checar condicoes
+          if (rules.conditions && rules.conditions.length > 0 && recordData) {
+            if (!evaluateConditions(recordData, rules.conditions)) continue;
+          }
+
+          eligibleUserIds.push(user.id);
         }
       }
 
@@ -219,13 +258,14 @@ export class NotificationService {
     recordName: string,
     createdBy: string,
     entitySlug?: string,
+    recordData?: Record<string, unknown>,
   ) {
     return this.notifyTenant(tenantId, {
       type: 'success',
       title: 'Novo Registro',
       message: `${createdBy} criou um novo registro em ${entityName}: ${recordName}`,
       data: { entityName, recordName, createdBy, entitySlug },
-    }, entitySlug);
+    }, entitySlug, 'created', recordData);
   }
 
   /**
@@ -237,13 +277,14 @@ export class NotificationService {
     recordName: string,
     updatedBy: string,
     entitySlug?: string,
+    recordData?: Record<string, unknown>,
   ) {
     return this.notifyTenant(tenantId, {
       type: 'info',
       title: 'Registro Atualizado',
       message: `${updatedBy} atualizou um registro em ${entityName}: ${recordName}`,
       data: { entityName, recordName, updatedBy, entitySlug },
-    }, entitySlug);
+    }, entitySlug, 'updated', recordData);
   }
 
   /**
@@ -255,13 +296,14 @@ export class NotificationService {
     recordName: string,
     deletedBy: string,
     entitySlug?: string,
+    recordData?: Record<string, unknown>,
   ) {
     return this.notifyTenant(tenantId, {
       type: 'warning',
       title: 'Registro Excluído',
       message: `${deletedBy} excluiu um registro em ${entityName}: ${recordName}`,
       data: { entityName, recordName, deletedBy, entitySlug },
-    }, entitySlug);
+    }, entitySlug, 'deleted', recordData);
   }
 
   /**

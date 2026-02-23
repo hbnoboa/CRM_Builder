@@ -16,6 +16,14 @@ export interface DataFilter {
   value2?: unknown;
 }
 
+export interface NotificationRule {
+  enabled: boolean;
+  onCreate: boolean;
+  onUpdate: boolean;
+  onDelete: boolean;
+  conditions?: DataFilter[];
+}
+
 export interface EntityPermission {
   entitySlug: string;
   entityName?: string;
@@ -26,6 +34,7 @@ export interface EntityPermission {
   scope?: PermissionScope;
   fieldPermissions?: FieldPermission[];
   dataFilters?: DataFilter[];
+  notificationRules?: NotificationRule;
   // Sub-granular actions per entity (data module)
   canExport?: boolean;
   canImport?: boolean;

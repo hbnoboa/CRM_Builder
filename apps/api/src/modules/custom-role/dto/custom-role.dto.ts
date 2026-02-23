@@ -53,6 +53,31 @@ export class FieldPermissionDto {
   canEdit: boolean;
 }
 
+export class NotificationRuleDto {
+  @ApiProperty({ default: true })
+  @IsBoolean()
+  enabled: boolean;
+
+  @ApiProperty({ default: true })
+  @IsBoolean()
+  onCreate: boolean;
+
+  @ApiProperty({ default: true })
+  @IsBoolean()
+  onUpdate: boolean;
+
+  @ApiProperty({ default: true })
+  @IsBoolean()
+  onDelete: boolean;
+
+  @ApiPropertyOptional({ type: [DataFilterDto], description: 'Condicoes para disparar notificacao' })
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => DataFilterDto)
+  @IsOptional()
+  conditions?: DataFilterDto[];
+}
+
 export class EntityPermissionDto {
   @ApiProperty({ example: 'clientes' })
   @IsString()
@@ -100,6 +125,12 @@ export class EntityPermissionDto {
   @Type(() => DataFilterDto)
   @IsOptional()
   dataFilters?: DataFilterDto[];
+
+  @ApiPropertyOptional({ type: NotificationRuleDto, description: 'Regras de notificacao para esta entidade' })
+  @ValidateNested()
+  @Type(() => NotificationRuleDto)
+  @IsOptional()
+  notificationRules?: NotificationRuleDto;
 
   @IsBoolean() @IsOptional() canExport?: boolean;
   @IsBoolean() @IsOptional() canImport?: boolean;

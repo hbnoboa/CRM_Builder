@@ -29,6 +29,7 @@ export type {
   FieldPermission,
   ModulePermission,
   ModulePermissions,
+  NotificationRule,
   CustomApi,
   FixedFilter,
   QueryParam,

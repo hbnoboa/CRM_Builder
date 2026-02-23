@@ -303,6 +303,8 @@ export class DataService {
       entity.name,
       recordName,
       currentUser.name,
+      entitySlug,
+      dataWithCustomApi as Record<string, unknown>,
     ).catch((err) => this.logger.error('Failed to send notification', err));
 
     // Real-time: granular update for all tenant clients
@@ -1111,6 +1113,8 @@ export class DataService {
       entity.name,
       recordName,
       currentUser.name,
+      entitySlug,
+      mergedData as Record<string, unknown>,
     ).catch((err) => this.logger.error('Failed to send notification', err));
 
     // Real-time: granular update for all tenant clients
@@ -1173,6 +1177,8 @@ export class DataService {
       entity.name,
       recordName,
       currentUser.name,
+      entitySlug,
+      recordData,
     ).catch((err) => this.logger.error('Failed to send notification', err));
 
     // Real-time: granular update for all tenant clients
