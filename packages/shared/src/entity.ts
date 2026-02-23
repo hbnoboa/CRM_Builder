@@ -9,6 +9,7 @@ export interface EntityField {
   required?: boolean;
   unique?: boolean;
   hidden?: boolean;
+  disabled?: boolean;
   default?: unknown;
   options?: Array<string | { value: string; label: string; color?: string }>;
   validation?: Record<string, unknown>;

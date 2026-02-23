@@ -998,6 +998,11 @@ function NewEntityPageContent() {
                                 <div className="pt-1"><Switch checked={field.hidden || false} onCheckedChange={(checked) => updateField(index, { hidden: checked })} /></div>
                                 <p className="text-[10px] text-muted-foreground">{tDetail('fieldFilledByApi')}</p>
                               </div>
+                              <div className="space-y-1">
+                                <Label className="text-xs">{tCommon('disabled')}</Label>
+                                <div className="pt-1"><Switch checked={field.disabled || false} onCheckedChange={(checked) => updateField(index, { disabled: checked })} /></div>
+                                <p className="text-[10px] text-muted-foreground">{tDetail('fieldDisabledHint')}</p>
+                              </div>
                             </div>
                             <div className="grid gap-3 sm:grid-cols-2">
                               <div className="space-y-1">

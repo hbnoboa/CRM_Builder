@@ -481,7 +481,7 @@ export function RecordFormDialog({
     const value = formData[field.slug];
     const error = errors[field.slug];
     const helpText = field.helpText;
-    const isFieldDisabled = editableFields ? !editableFields.includes(field.slug) : false;
+    const isFieldDisabled = field.disabled || (editableFields ? !editableFields.includes(field.slug) : false);
 
     const fieldLabel = (
       <Label htmlFor={field.slug} className={isFieldDisabled ? 'opacity-60' : ''}>
@@ -499,7 +499,7 @@ export function RecordFormDialog({
         return (
           <div key={field.slug} className="space-y-2">
             {fieldLabel}
-            <Textarea id={field.slug} placeholder={field.placeholder || tPlaceholders('enterField', { field: (field.label || field.name).toLowerCase() })} value={String(value || '')} onChange={(e) => handleFieldChange(field.slug, e.target.value)} rows={3} />
+            <Textarea id={field.slug} placeholder={field.placeholder || tPlaceholders('enterField', { field: (field.label || field.name).toLowerCase() })} value={String(value || '')} onChange={(e) => handleFieldChange(field.slug, e.target.value)} rows={3} disabled={isFieldDisabled} />
             {helpEl}{errorEl}
           </div>
         );
@@ -507,7 +507,7 @@ export function RecordFormDialog({
       case 'boolean':
         return (
           <div key={field.slug} className="flex items-center space-x-2 pt-6">
-            <Checkbox id={field.slug} checked={Boolean(value)} onCheckedChange={(checked) => handleFieldChange(field.slug, checked)} />
+            <Checkbox id={field.slug} checked={Boolean(value)} onCheckedChange={(checked) => handleFieldChange(field.slug, checked)} disabled={isFieldDisabled} />
             <Label htmlFor={field.slug} className="cursor-pointer">{field.label || field.name}{field.required && <span className="text-destructive ml-1">*</span>}</Label>
             {errorEl}
           </div>
@@ -517,7 +517,7 @@ export function RecordFormDialog({
         return (
           <div key={field.slug} className="space-y-2">
             {fieldLabel}
-            <Select value={String(value || '')} onValueChange={(val) => handleFieldChange(field.slug, val)}>
+            <Select value={String(value || '')} onValueChange={(val) => handleFieldChange(field.slug, val)} disabled={isFieldDisabled}>
               <SelectTrigger><SelectValue placeholder={field.placeholder || tCommon('select')} /></SelectTrigger>
               <SelectContent>
                 {field.options?.map((option) => {
@@ -570,7 +570,7 @@ export function RecordFormDialog({
         return (
           <div key={field.slug} className="space-y-2">
             {fieldLabel}
-            <Select value={String(value || '')} onValueChange={(val) => handleApiSelectChange(field, val)} disabled={isLoadingOpts}>
+            <Select value={String(value || '')} onValueChange={(val) => handleApiSelectChange(field, val)} disabled={isFieldDisabled || isLoadingOpts}>
               <SelectTrigger>
                 {isLoadingOpts ? (
                   <span className="flex items-center gap-2"><Loader2 className="h-4 w-4 animate-spin" /> {t('loadingOptions')}</span>
@@ -598,7 +598,7 @@ export function RecordFormDialog({
         return (
           <div key={field.slug} className="space-y-2">
             {fieldLabel}
-            <Select value={String(value || '')} onValueChange={(val) => handleFieldChange(field.slug, val)} disabled={isLoadingRel}>
+            <Select value={String(value || '')} onValueChange={(val) => handleFieldChange(field.slug, val)} disabled={isFieldDisabled || isLoadingRel}>
               <SelectTrigger>
                 {isLoadingRel ? (
                   <span className="flex items-center gap-2"><Loader2 className="h-4 w-4 animate-spin" /> {t('loadingOptions')}</span>
@@ -624,7 +624,7 @@ export function RecordFormDialog({
         return (
           <div key={field.slug} className="space-y-2">
             {fieldLabel}
-            <Input id={field.slug} type="date" value={String(value || '')} onChange={(e) => handleFieldChange(field.slug, e.target.value)} />
+            <Input id={field.slug} type="date" value={String(value || '')} onChange={(e) => handleFieldChange(field.slug, e.target.value)} disabled={isFieldDisabled} />
             {helpEl}{errorEl}
           </div>
         );
@@ -642,7 +642,7 @@ export function RecordFormDialog({
         return (
           <div key={field.slug} className="space-y-2">
             {fieldLabel}
-            <Input id={field.slug} type="datetime-local" value={dtValue} onChange={(e) => handleFieldChange(field.slug, e.target.value)} />
+            <Input id={field.slug} type="datetime-local" value={dtValue} onChange={(e) => handleFieldChange(field.slug, e.target.value)} disabled={isFieldDisabled} />
             {helpEl}{errorEl}
           </div>
         );
@@ -652,7 +652,7 @@ export function RecordFormDialog({
         return (
           <div key={field.slug} className="space-y-2">
             {fieldLabel}
-            <Input id={field.slug} type="time" value={String(value || '')} onChange={(e) => handleFieldChange(field.slug, e.target.value)} />
+            <Input id={field.slug} type="time" value={String(value || '')} onChange={(e) => handleFieldChange(field.slug, e.target.value)} disabled={isFieldDisabled} />
             {helpEl}{errorEl}
           </div>
         );
@@ -661,7 +661,7 @@ export function RecordFormDialog({
         return (
           <div key={field.slug} className="space-y-2">
             {fieldLabel}
-            <Input id={field.slug} type="number" min={field.min} max={field.max} step={field.step} placeholder={field.placeholder || tPlaceholders('enterField', { field: (field.label || field.name).toLowerCase() })} value={String(value || '')} onChange={(e) => handleFieldChange(field.slug, e.target.value)} />
+            <Input id={field.slug} type="number" min={field.min} max={field.max} step={field.step} placeholder={field.placeholder || tPlaceholders('enterField', { field: (field.label || field.name).toLowerCase() })} value={String(value || '')} onChange={(e) => handleFieldChange(field.slug, e.target.value)} disabled={isFieldDisabled} />
             {helpEl}{errorEl}
           </div>
         );
@@ -672,7 +672,7 @@ export function RecordFormDialog({
             {fieldLabel}
             <div className="relative">
               <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">{field.prefix || 'R$'}</span>
-              <Input id={field.slug} type="number" step="0.01" min={field.min} max={field.max} className="pl-10" placeholder="0,00" value={String(value || '')} onChange={(e) => handleFieldChange(field.slug, e.target.value)} />
+              <Input id={field.slug} type="number" step="0.01" min={field.min} max={field.max} className="pl-10" placeholder="0,00" value={String(value || '')} onChange={(e) => handleFieldChange(field.slug, e.target.value)} disabled={isFieldDisabled} />
             </div>
             {helpEl}{errorEl}
           </div>
@@ -683,7 +683,7 @@ export function RecordFormDialog({
           <div key={field.slug} className="space-y-2">
             {fieldLabel}
             <div className="relative">
-              <Input id={field.slug} type="number" step="0.1" min={field.min ?? 0} max={field.max ?? 100} className="pr-8" placeholder="0" value={String(value || '')} onChange={(e) => handleFieldChange(field.slug, e.target.value)} />
+              <Input id={field.slug} type="number" step="0.1" min={field.min ?? 0} max={field.max ?? 100} className="pr-8" placeholder="0" value={String(value || '')} onChange={(e) => handleFieldChange(field.slug, e.target.value)} disabled={isFieldDisabled} />
               <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">%</span>
             </div>
             {helpEl}{errorEl}
@@ -694,7 +694,7 @@ export function RecordFormDialog({
         return (
           <div key={field.slug} className="space-y-2">
             {fieldLabel}
-            <Input id={field.slug} type="email" placeholder={field.placeholder || tPlaceholders('email')} value={String(value || '')} onChange={(e) => handleFieldChange(field.slug, e.target.value)} />
+            <Input id={field.slug} type="email" placeholder={field.placeholder || tPlaceholders('email')} value={String(value || '')} onChange={(e) => handleFieldChange(field.slug, e.target.value)} disabled={isFieldDisabled} />
             {helpEl}{errorEl}
           </div>
         );
@@ -703,7 +703,7 @@ export function RecordFormDialog({
         return (
           <div key={field.slug} className="space-y-2">
             {fieldLabel}
-            <Input id={field.slug} type="url" placeholder={field.placeholder || tPlaceholders('url')} value={String(value || '')} onChange={(e) => handleFieldChange(field.slug, e.target.value)} />
+            <Input id={field.slug} type="url" placeholder={field.placeholder || tPlaceholders('url')} value={String(value || '')} onChange={(e) => handleFieldChange(field.slug, e.target.value)} disabled={isFieldDisabled} />
             {helpEl}{errorEl}
           </div>
         );
@@ -712,7 +712,7 @@ export function RecordFormDialog({
         return (
           <div key={field.slug} className="space-y-2">
             {fieldLabel}
-            <Input id={field.slug} type="tel" placeholder={field.placeholder || tPlaceholders('phone')} value={String(value || '')} onChange={(e) => handleFieldChange(field.slug, applyPhoneMask(e.target.value))} maxLength={15} />
+            <Input id={field.slug} type="tel" placeholder={field.placeholder || tPlaceholders('phone')} value={String(value || '')} onChange={(e) => handleFieldChange(field.slug, applyPhoneMask(e.target.value))} maxLength={15} disabled={isFieldDisabled} />
             {helpEl}{errorEl}
           </div>
         );
@@ -721,7 +721,7 @@ export function RecordFormDialog({
         return (
           <div key={field.slug} className="space-y-2">
             {fieldLabel}
-            <Input id={field.slug} placeholder={field.placeholder || tPlaceholders('cpf')} value={String(value || '')} onChange={(e) => handleFieldChange(field.slug, applyCpfMask(e.target.value))} maxLength={14} />
+            <Input id={field.slug} placeholder={field.placeholder || tPlaceholders('cpf')} value={String(value || '')} onChange={(e) => handleFieldChange(field.slug, applyCpfMask(e.target.value))} maxLength={14} disabled={isFieldDisabled} />
             {helpEl}{errorEl}
           </div>
         );
@@ -730,7 +730,7 @@ export function RecordFormDialog({
         return (
           <div key={field.slug} className="space-y-2">
             {fieldLabel}
-            <Input id={field.slug} placeholder={field.placeholder || tPlaceholders('cnpj')} value={String(value || '')} onChange={(e) => handleFieldChange(field.slug, applyCnpjMask(e.target.value))} maxLength={18} />
+            <Input id={field.slug} placeholder={field.placeholder || tPlaceholders('cnpj')} value={String(value || '')} onChange={(e) => handleFieldChange(field.slug, applyCnpjMask(e.target.value))} maxLength={18} disabled={isFieldDisabled} />
             {helpEl}{errorEl}
           </div>
         );
@@ -739,7 +739,7 @@ export function RecordFormDialog({
         return (
           <div key={field.slug} className="space-y-2">
             {fieldLabel}
-            <Input id={field.slug} placeholder={field.placeholder || tPlaceholders('cep')} value={String(value || '')} onChange={(e) => handleFieldChange(field.slug, applyCepMask(e.target.value))} maxLength={9} />
+            <Input id={field.slug} placeholder={field.placeholder || tPlaceholders('cep')} value={String(value || '')} onChange={(e) => handleFieldChange(field.slug, applyCepMask(e.target.value))} maxLength={9} disabled={isFieldDisabled} />
             {helpEl}{errorEl}
           </div>
         );
@@ -833,6 +833,7 @@ export function RecordFormDialog({
               placeholder={field.placeholder}
               folder={field.type === 'image' ? 'images' : 'files'}
               imageSource={field.type === 'image' ? field.imageSource : undefined}
+              disabled={isFieldDisabled}
             />
             {helpEl}{errorEl}
           </div>
@@ -922,7 +923,7 @@ export function RecordFormDialog({
         return (
           <div key={field.slug} className="space-y-2">
             {fieldLabel}
-            <Input id={field.slug} type="text" placeholder={field.placeholder || tPlaceholders('enterField', { field: (field.label || field.name).toLowerCase() })} value={String(value || '')} onChange={(e) => handleFieldChange(field.slug, e.target.value)} />
+            <Input id={field.slug} type="text" placeholder={field.placeholder || tPlaceholders('enterField', { field: (field.label || field.name).toLowerCase() })} value={String(value || '')} onChange={(e) => handleFieldChange(field.slug, e.target.value)} disabled={isFieldDisabled} />
             {helpEl}{errorEl}
           </div>
         );

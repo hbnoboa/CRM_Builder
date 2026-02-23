@@ -289,6 +289,7 @@
       "noFieldsDefined": "No fields defined.",
       "addFirstField": "Add first field",
       "fieldFilledByApi": "Field filled via Custom API",
+      "fieldDisabledHint": "Read-only field in the form",
       "fieldName": "Field name (slug)",
       "fieldLabel": "Label (display)",
       "fieldLabelPlaceholder": "Ex: Vehicle Model",
