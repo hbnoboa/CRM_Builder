@@ -15,6 +15,7 @@ import {
   ArrowLeft,
   Users,
   Calendar,
+  Copy,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -28,7 +29,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useTenants, useSuspendTenant, useActivateTenant } from '@/hooks/use-tenants';
-import { TenantFormDialog, DeleteTenantDialog } from '@/components/tenants';
+import { TenantFormDialog, DeleteTenantDialog, CopyTenantDataDialog } from '@/components/tenants';
 import { useAuthStore } from '@/stores/auth-store';
 import { usePermissions } from '@/hooks/use-permissions';
 import { Link } from '@/i18n/navigation';
@@ -53,6 +54,7 @@ export default function TenantsPage() {
   const [search, setSearch] = useState('');
   const [formOpen, setFormOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [copyOpen, setCopyOpen] = useState(false);
   const [selectedTenant, setSelectedTenant] = useState<Tenant | null>(null);
 
   const { data, isLoading, refetch } = useTenants();
@@ -146,12 +148,20 @@ export default function TenantsPage() {
             {t('subtitle')}
           </p>
         </div>
-        {hasModulePermission('tenants', 'canCreate') && (
-        <Button onClick={handleCreateTenant} className="w-full sm:w-auto">
-          <Plus className="h-4 w-4 mr-2" />
-          {t('newTenant')}
-        </Button>
-        )}
+        <div className="flex gap-2 w-full sm:w-auto">
+          {user?.customRole?.roleType === 'PLATFORM_ADMIN' && (
+            <Button variant="outline" onClick={() => setCopyOpen(true)} className="w-full sm:w-auto">
+              <Copy className="h-4 w-4 mr-2" />
+              {t('copyData.button')}
+            </Button>
+          )}
+          {hasModulePermission('tenants', 'canCreate') && (
+            <Button onClick={handleCreateTenant} className="w-full sm:w-auto">
+              <Plus className="h-4 w-4 mr-2" />
+              {t('newTenant')}
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Stats */}
@@ -344,6 +354,11 @@ export default function TenantsPage() {
         open={deleteOpen}
         onOpenChange={setDeleteOpen}
         tenant={selectedTenant}
+        onSuccess={handleSuccess}
+      />
+      <CopyTenantDataDialog
+        open={copyOpen}
+        onOpenChange={setCopyOpen}
         onSuccess={handleSuccess}
       />
     </div>

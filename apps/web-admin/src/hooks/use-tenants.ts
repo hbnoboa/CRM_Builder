@@ -5,6 +5,7 @@ import {
   QueryTenantsParams,
   CreateTenantData,
   UpdateTenantData,
+  CopyTenantDataPayload,
 } from '@/services/tenants.service';
 import { CACHE_TIMES } from '@/providers/query-provider';
 import { getErrorMessage } from '@/lib/get-error-message';
@@ -16,6 +17,7 @@ export const tenantKeys = {
   details: () => [...tenantKeys.all, 'detail'] as const,
   detail: (id: string) => [...tenantKeys.details(), id] as const,
   stats: () => [...tenantKeys.all, 'stats'] as const,
+  copyableData: (id: string) => [...tenantKeys.all, 'copyable-data', id] as const,
 };
 
 export function useTenants(params?: QueryTenantsParams) {
@@ -108,6 +110,29 @@ export function useSuspendTenant(messages?: MutationMessages) {
       queryClient.invalidateQueries({ queryKey: tenantKeys.lists() });
       queryClient.invalidateQueries({ queryKey: tenantKeys.detail(id) });
       queryClient.invalidateQueries({ queryKey: tenantKeys.stats() });
+      if (messages?.success) toast.success(messages.success);
+    },
+    onError: (error: unknown) => {
+      toast.error(getErrorMessage(error, messages?.error));
+    },
+  });
+}
+
+export function useCopyableData(tenantId: string | null) {
+  return useQuery({
+    queryKey: tenantKeys.copyableData(tenantId || ''),
+    queryFn: () => tenantsService.getCopyableData(tenantId!),
+    enabled: !!tenantId,
+  });
+}
+
+export function useCopyTenantData(messages?: MutationMessages) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (payload: CopyTenantDataPayload) => tenantsService.copyData(payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: tenantKeys.all });
       if (messages?.success) toast.success(messages.success);
     },
     onError: (error: unknown) => {

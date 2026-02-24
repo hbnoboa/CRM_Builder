@@ -31,6 +31,90 @@ export interface TenantStats {
   suspended: number;
 }
 
+// ═══════════════════════════════════════
+// Copy Tenant Data
+// ═══════════════════════════════════════
+
+export interface CopyableRole {
+  id: string;
+  name: string;
+  roleType: string;
+  color: string | null;
+  isSystem: boolean;
+  _count: { users: number };
+}
+
+export interface CopyableEntity {
+  id: string;
+  name: string;
+  slug: string;
+  icon: string | null;
+  color: string | null;
+  _count: { data: number };
+}
+
+export interface CopyablePage {
+  id: string;
+  title: string;
+  slug: string;
+  isPublished: boolean;
+}
+
+export interface CopyableEndpoint {
+  id: string;
+  name: string;
+  path: string;
+  method: string;
+  isActive: boolean;
+}
+
+export interface CopyablePdfTemplate {
+  id: string;
+  name: string;
+  slug: string;
+  templateType: string;
+  isPublished: boolean;
+}
+
+export interface CopyableData {
+  roles: CopyableRole[];
+  entities: CopyableEntity[];
+  pages: CopyablePage[];
+  endpoints: CopyableEndpoint[];
+  pdfTemplates: CopyablePdfTemplate[];
+}
+
+export interface CopyEntitySelection {
+  id: string;
+  includeData?: boolean;
+}
+
+export interface CopyTenantDataPayload {
+  sourceTenantId: string;
+  targetTenantId: string;
+  conflictStrategy?: 'skip' | 'suffix';
+  modules: {
+    roles?: string[];
+    entities?: CopyEntitySelection[];
+    pages?: string[];
+    endpoints?: string[];
+    pdfTemplates?: string[];
+  };
+}
+
+export interface CopyResult {
+  copied: {
+    roles: number;
+    entities: number;
+    entityData: number;
+    endpoints: number;
+    pdfTemplates: number;
+    pages: number;
+  };
+  skipped: string[];
+  warnings: string[];
+}
+
 export const tenantsService = {
   async getAll(params?: QueryTenantsParams): Promise<PaginatedResponse<Tenant>> {
     const response = await api.get<PaginatedResponse<Tenant>>('/tenants', { params });
@@ -68,6 +152,16 @@ export const tenantsService = {
 
   async getStats(): Promise<TenantStats> {
     const response = await api.get<TenantStats>('/tenants/stats');
+    return response.data;
+  },
+
+  async getCopyableData(tenantId: string): Promise<CopyableData> {
+    const response = await api.get<CopyableData>(`/tenants/${tenantId}/copyable-data`);
+    return response.data;
+  },
+
+  async copyData(payload: CopyTenantDataPayload): Promise<CopyResult> {
+    const response = await api.post<CopyResult>('/tenants/copy-data', payload);
     return response.data;
   },
 };

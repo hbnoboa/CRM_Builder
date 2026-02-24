@@ -13,7 +13,9 @@ import {
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiResponse } from '@nestjs/swagger';
 import { TenantService } from './tenant.service';
+import { TenantCopyService } from './tenant-copy.service';
 import { CreateTenantDto, UpdateTenantDto, QueryTenantDto } from './dto/tenant.dto';
+import { CopyTenantDataDto } from './dto/copy-tenant-data.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
@@ -42,7 +44,10 @@ function assertTenantAccess(user: CurrentUserType, action: 'canRead' | 'canCreat
 @UseGuards(JwtAuthGuard, RolesGuard)
 @ApiBearerAuth()
 export class TenantController {
-  constructor(private readonly tenantService: TenantService) {}
+  constructor(
+    private readonly tenantService: TenantService,
+    private readonly tenantCopyService: TenantCopyService,
+  ) {}
 
   // Endpoint para usuario autenticado obter seu proprio tenant
   @Get('me')
@@ -74,6 +79,23 @@ export class TenantController {
   async getStats(@CurrentUser() user: CurrentUserType) {
     assertTenantAccess(user);
     return this.tenantService.getStats();
+  }
+
+  @Post('copy-data')
+  @Roles('PLATFORM_ADMIN')
+  @ApiOperation({ summary: 'Copiar dados entre tenants (PLATFORM_ADMIN)' })
+  @ApiResponse({ status: 200, description: 'Dados copiados com sucesso' })
+  async copyData(@Body() dto: CopyTenantDataDto, @CurrentUser() user: CurrentUserType) {
+    assertTenantAccess(user, 'canCreate');
+    return this.tenantCopyService.executeCopy(dto);
+  }
+
+  @Get(':id/copyable-data')
+  @Roles('PLATFORM_ADMIN')
+  @ApiOperation({ summary: 'Listar dados copiaveis de um tenant (PLATFORM_ADMIN)' })
+  async getCopyableData(@Param('id') id: string, @CurrentUser() user: CurrentUserType) {
+    assertTenantAccess(user);
+    return this.tenantCopyService.getCopyableData(id);
   }
 
   @Get(':id')

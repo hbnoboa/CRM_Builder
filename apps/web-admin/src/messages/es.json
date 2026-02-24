@@ -841,6 +841,39 @@
       "deleted": "Tenant eliminado exitosamente",
       "suspended": "Tenant suspendido exitosamente",
       "activated": "Tenant activado exitosamente"
+    },
+    "copyData": {
+      "button": "Copiar Datos",
+      "title": "Copiar Datos entre Tenants",
+      "description": "Copie roles, entidades, datos, paginas, APIs y plantillas de un tenant a otro.",
+      "sourceTenant": "Tenant de Origen",
+      "targetTenant": "Tenant de Destino",
+      "selectTenant": "Seleccione un tenant",
+      "conflictStrategy": "En caso de conflicto",
+      "skip": "Omitir existentes",
+      "skipDescription": "Los items con el mismo nombre/slug en el destino seran omitidos.",
+      "suffix": "Renombrar con sufijo",
+      "suffixDescription": "Los items duplicados se crearan con el sufijo '(copia)'.",
+      "next": "Siguiente",
+      "back": "Volver",
+      "copy": "Copiar",
+      "copying": "Copiando...",
+      "selectAll": "Seleccionar todos",
+      "includeData": "Incluir datos",
+      "records": "registros",
+      "itemsSelected": "items seleccionados",
+      "modules": {
+        "roles": "Roles de Acceso",
+        "entities": "Entidades",
+        "pages": "Paginas",
+        "endpoints": "APIs Personalizadas",
+        "pdfTemplates": "Plantillas PDF"
+      },
+      "result": {
+        "title": "Copia completada exitosamente!",
+        "skipped": "Items omitidos",
+        "warnings": "Advertencias"
+      }
     }
   },
   "apis": {
