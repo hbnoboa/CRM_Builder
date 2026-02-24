@@ -562,21 +562,14 @@ class DynamicFieldInput extends StatelessWidget {
         );
 
       case 'SELECT':
-        final opts = options?.map((o) {
-          if (o is Map) return o['value']?.toString() ?? o.toString();
-          return o.toString();
-        }).toList() ?? [];
-
-        return DropdownButtonFormField<String>(
-          initialValue: value?.toString(),
-          decoration: InputDecoration(labelText: name, hintText: placeholder, helperText: helpText),
-          items: opts.map((o) {
-            return DropdownMenuItem(value: o, child: Text(o));
-          }).toList(),
-          validator: required
-              ? (v) => (v == null || v.isEmpty) ? '$name obrigatorio' : null
-              : null,
-          onChanged: (v) => onChanged(v),
+        return _SelectFieldInput(
+          label: name,
+          options: options,
+          value: value?.toString(),
+          required: required,
+          onChanged: onChanged,
+          placeholder: placeholder,
+          helpText: helpText,
         );
 
       case 'DATE':
@@ -936,22 +929,33 @@ class _MultiSelectFieldInputState extends State<_MultiSelectFieldInput> {
     _selected = List<String>.from(widget.value ?? []);
   }
 
-  List<String> get _opts {
+  List<_SimpleOption> get _opts {
     return widget.options?.map((o) {
-      if (o is Map) return o['value']?.toString() ?? o.toString();
-      return o.toString();
+      if (o is Map) {
+        final val = o['value']?.toString() ?? o.toString();
+        final label = o['label']?.toString() ?? val;
+        return _SimpleOption(value: val, label: label);
+      }
+      return _SimpleOption(value: o.toString(), label: o.toString());
     }).toList() ?? [];
   }
 
-  void _toggle(String option) {
-    setState(() {
-      if (_selected.contains(option)) {
-        _selected.remove(option);
-      } else {
-        _selected.add(option);
-      }
-    });
-    widget.onChanged(List<String>.from(_selected));
+  Future<void> _openSheet() async {
+    final result = await showModalBottomSheet<List<String>>(
+      context: context,
+      isScrollControlled: true,
+      builder: (ctx) => _SearchableSelectSheet(
+        options: _opts,
+        selectedValues: _selected,
+        label: widget.label,
+        multiple: true,
+        allowCustom: true,
+      ),
+    );
+    if (result != null) {
+      setState(() => _selected = result);
+      widget.onChanged(List<String>.from(_selected));
+    }
   }
 
   @override
@@ -967,30 +971,35 @@ class _MultiSelectFieldInputState extends State<_MultiSelectFieldInput> {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(widget.label, style: AppTypography.labelLarge),
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 8,
-              runSpacing: 4,
-              children: _opts.map((opt) {
-                final isSelected = _selected.contains(opt);
-                return FilterChip(
-                  label: Text(opt),
-                  selected: isSelected,
-                  onSelected: (_) => _toggle(opt),
-                  selectedColor: Theme.of(context).colorScheme.primary.withValues(alpha: 0.15),
-                  checkmarkColor: Theme.of(context).colorScheme.primary,
-                );
-              }).toList(),
-            ),
-            if (fieldState.hasError)
-              Padding(
-                padding: const EdgeInsets.only(top: 4),
-                child: Text(
-                  fieldState.errorText!,
-                  style: AppTypography.caption.copyWith(color: context.colors.destructive),
+            InkWell(
+              onTap: _openSheet,
+              child: InputDecorator(
+                decoration: InputDecoration(
+                  labelText: widget.label,
+                  suffixIcon: const Icon(Icons.arrow_drop_down),
+                  errorText: fieldState.errorText,
                 ),
+                child: _selected.isEmpty
+                    ? Text(
+                        'Selecionar...',
+                        style: AppTypography.bodyMedium.copyWith(
+                          color: context.colors.mutedForeground,
+                        ),
+                      )
+                    : Wrap(
+                        spacing: 4,
+                        runSpacing: 4,
+                        children: _selected.map((val) {
+                          final opt = _opts.where((o) => o.value == val).firstOrNull;
+                          return Chip(
+                            label: Text(opt?.label ?? val, style: const TextStyle(fontSize: 12)),
+                            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            visualDensity: VisualDensity.compact,
+                          );
+                        }).toList(),
+                      ),
               ),
+            ),
           ],
         );
       },
@@ -1698,38 +1707,7 @@ class _RelationFieldInputState extends State<_RelationFieldInput> {
       );
     }
 
-    // For few items use simple dropdown, for many use searchable sheet
-    if (_options.length <= 10) {
-      final items = _options.map((r) {
-        final id = r['id'] as String;
-        return DropdownMenuItem(
-          value: id,
-          child: Text(
-            _getRecordLabel(r),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
-        );
-      }).toList();
-
-      return DropdownButtonFormField<String>(
-        initialValue: _selectedId,
-        decoration: InputDecoration(labelText: widget.label),
-        isExpanded: true,
-        items: items,
-        validator: widget.required
-            ? (v) => (v == null || v.isEmpty)
-                ? '${widget.label} obrigatorio'
-                : null
-            : null,
-        onChanged: (v) {
-          setState(() => _selectedId = v);
-          widget.onChanged(v);
-        },
-      );
-    }
-
-    // Searchable picker for many items
+    // Always use searchable picker
     return FormField<String>(
       initialValue: _selectedId,
       validator: widget.required
@@ -2126,34 +2104,7 @@ class _ApiSelectFieldInputState extends State<_ApiSelectFieldInput> {
       );
     }
 
-    if (_options.length <= 10) {
-      return DropdownButtonFormField<String>(
-        initialValue: _selectedValue,
-        decoration: InputDecoration(
-          labelText: widget.label,
-          hintText: widget.placeholder,
-          helperText: widget.helpText,
-        ),
-        isExpanded: true,
-        items: _options
-            .map((o) => DropdownMenuItem(
-                  value: o.value,
-                  child: Text(
-                    o.label,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),)
-            .toList(),
-        validator: widget.required
-            ? (v) =>
-                (v == null || v.isEmpty) ? '${widget.label} obrigatorio' : null
-            : null,
-        onChanged: _onSelectionChanged,
-      );
-    }
-
-    // For many options, use a searchable bottom sheet
+    // Always use searchable bottom sheet
     return InkWell(
       onTap: () => _showSearchSheet(context),
       child: InputDecorator(
@@ -2273,6 +2224,329 @@ class _ApiSelectSearchSheetState extends State<_ApiSelectSearchSheet> {
               },
             ),
           ),
+        ],
+      ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════
+// SEARCHABLE SELECT (reusable for select, multiselect)
+// ═══════════════════════════════════════════════════════
+
+class _SimpleOption {
+  const _SimpleOption({required this.value, required this.label});
+  final String value;
+  final String label;
+}
+
+/// Single select field with searchable bottom sheet and "Outro..." option.
+class _SelectFieldInput extends StatefulWidget {
+  const _SelectFieldInput({
+    required this.label,
+    this.options,
+    this.value,
+    required this.required,
+    required this.onChanged,
+    this.placeholder,
+    this.helpText,
+  });
+
+  final String label;
+  final List<dynamic>? options;
+  final String? value;
+  final bool required;
+  final ValueChanged<dynamic> onChanged;
+  final String? placeholder;
+  final String? helpText;
+
+  @override
+  State<_SelectFieldInput> createState() => _SelectFieldInputState();
+}
+
+class _SelectFieldInputState extends State<_SelectFieldInput> {
+  String? _selected;
+
+  @override
+  void initState() {
+    super.initState();
+    _selected = widget.value;
+  }
+
+  List<_SimpleOption> get _opts {
+    return widget.options?.map((o) {
+      if (o is Map) {
+        final val = o['value']?.toString() ?? o.toString();
+        final label = o['label']?.toString() ?? val;
+        return _SimpleOption(value: val, label: label);
+      }
+      return _SimpleOption(value: o.toString(), label: o.toString());
+    }).toList() ?? [];
+  }
+
+  String? get _selectedLabel {
+    if (_selected == null) return null;
+    final opt = _opts.where((o) => o.value == _selected).firstOrNull;
+    return opt?.label ?? _selected;
+  }
+
+  Future<void> _openSheet() async {
+    final result = await showModalBottomSheet<List<String>>(
+      context: context,
+      isScrollControlled: true,
+      builder: (ctx) => _SearchableSelectSheet(
+        options: _opts,
+        selectedValues: _selected != null ? [_selected!] : [],
+        label: widget.label,
+        multiple: false,
+        allowCustom: true,
+      ),
+    );
+    if (result != null && result.isNotEmpty) {
+      setState(() => _selected = result.first);
+      widget.onChanged(result.first);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FormField<String>(
+      initialValue: _selected,
+      validator: widget.required
+          ? (v) => (v == null || v.isEmpty) ? '${widget.label} obrigatorio' : null
+          : null,
+      builder: (fieldState) => Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          InkWell(
+            onTap: _openSheet,
+            child: InputDecorator(
+              decoration: InputDecoration(
+                labelText: widget.label,
+                hintText: widget.placeholder,
+                helperText: widget.helpText,
+                suffixIcon: const Icon(Icons.arrow_drop_down),
+                errorText: fieldState.errorText,
+              ),
+              child: Text(
+                _selectedLabel ?? 'Selecionar...',
+                style: _selectedLabel != null
+                    ? AppTypography.bodyMedium
+                    : AppTypography.bodyMedium.copyWith(color: context.colors.mutedForeground),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Reusable searchable bottom sheet for select/multiselect with "Outro..." option.
+class _SearchableSelectSheet extends StatefulWidget {
+  const _SearchableSelectSheet({
+    required this.options,
+    required this.selectedValues,
+    required this.label,
+    this.multiple = false,
+    this.allowCustom = true,
+  });
+
+  final List<_SimpleOption> options;
+  final List<String> selectedValues;
+  final String label;
+  final bool multiple;
+  final bool allowCustom;
+
+  @override
+  State<_SearchableSelectSheet> createState() => _SearchableSelectSheetState();
+}
+
+class _SearchableSelectSheetState extends State<_SearchableSelectSheet> {
+  final _searchController = TextEditingController();
+  final _customController = TextEditingController();
+  String _query = '';
+  late List<String> _selected;
+  bool _customMode = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _selected = List<String>.from(widget.selectedValues);
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    _customController.dispose();
+    super.dispose();
+  }
+
+  List<_SimpleOption> get _filtered {
+    if (_query.isEmpty) return widget.options;
+    final q = _query.toLowerCase();
+    return widget.options.where((o) => o.label.toLowerCase().contains(q)).toList();
+  }
+
+  void _toggleOption(String value) {
+    setState(() {
+      if (widget.multiple) {
+        if (_selected.contains(value)) {
+          _selected.remove(value);
+        } else {
+          _selected.add(value);
+        }
+      } else {
+        _selected = [value];
+        Navigator.of(context).pop(_selected);
+      }
+    });
+  }
+
+  void _confirmCustom() {
+    final trimmed = _customController.text.trim();
+    if (trimmed.isEmpty) return;
+    if (widget.multiple) {
+      setState(() {
+        if (!_selected.contains(trimmed)) {
+          _selected.add(trimmed);
+        }
+        _customMode = false;
+        _customController.clear();
+      });
+    } else {
+      Navigator.of(context).pop([trimmed]);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return DraggableScrollableSheet(
+      initialChildSize: 0.6,
+      maxChildSize: 0.9,
+      minChildSize: 0.3,
+      expand: false,
+      builder: (context, scrollController) => Column(
+        children: [
+          // Header with title and confirm button (multi)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    widget.label,
+                    style: AppTypography.h4,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                if (widget.multiple)
+                  TextButton(
+                    onPressed: () => Navigator.of(context).pop(_selected),
+                    child: Text('Confirmar (${_selected.length})'),
+                  ),
+              ],
+            ),
+          ),
+
+          if (_customMode) ...[
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Digite o valor', style: AppTypography.labelLarge.copyWith(color: context.colors.mutedForeground)),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: _customController,
+                          autofocus: true,
+                          decoration: const InputDecoration(
+                            hintText: 'Digite o valor...',
+                            isDense: true,
+                          ),
+                          onSubmitted: (_) => _confirmCustom(),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      FilledButton(
+                        onPressed: _confirmCustom,
+                        child: const Text('OK'),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  TextButton.icon(
+                    onPressed: () => setState(() { _customMode = false; _customController.clear(); }),
+                    icon: const Icon(Icons.arrow_back, size: 16),
+                    label: const Text('Voltar'),
+                    style: TextButton.styleFrom(visualDensity: VisualDensity.compact),
+                  ),
+                ],
+              ),
+            ),
+          ] else ...[
+            // Search field
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+              child: TextField(
+                controller: _searchController,
+                autofocus: true,
+                decoration: InputDecoration(
+                  hintText: 'Buscar ${widget.label}...',
+                  prefixIcon: const Icon(Icons.search),
+                  isDense: true,
+                ),
+                onChanged: (v) => setState(() => _query = v),
+              ),
+            ),
+
+            // Options list
+            Expanded(
+              child: ListView.builder(
+                controller: scrollController,
+                itemCount: _filtered.length + (widget.allowCustom ? 1 : 0),
+                itemBuilder: (context, index) {
+                  // "Outro..." item at the end
+                  if (widget.allowCustom && index == _filtered.length) {
+                    return ListTile(
+                      leading: Icon(Icons.edit_outlined, color: context.colors.mutedForeground),
+                      title: Text('Outro...', style: TextStyle(color: context.colors.mutedForeground)),
+                      onTap: () => setState(() => _customMode = true),
+                    );
+                  }
+
+                  final opt = _filtered[index];
+                  final isSelected = _selected.contains(opt.value);
+                  return ListTile(
+                    leading: widget.multiple
+                        ? Checkbox(
+                            value: isSelected,
+                            onChanged: (_) => _toggleOption(opt.value),
+                          )
+                        : null,
+                    title: Text(
+                      opt.label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    trailing: !widget.multiple && isSelected
+                        ? Icon(Icons.check, color: colorScheme.primary)
+                        : null,
+                    selected: isSelected,
+                    onTap: () => _toggleOption(opt.value),
+                  );
+                },
+              ),
+            ),
+          ],
         ],
       ),
     );

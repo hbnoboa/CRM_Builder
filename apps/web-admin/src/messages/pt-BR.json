@@ -65,7 +65,9 @@
     "new": "Novo",
     "unexpectedError": "Ocorreu um erro inesperado.",
     "confirmDelete": "Tem certeza?",
-    "confirmDeleteDesc": "Esta ação não pode ser desfeita. O item será excluído permanentemente."
+    "confirmDeleteDesc": "Esta ação não pode ser desfeita. O item será excluído permanentemente.",
+    "other": "Outro...",
+    "typeCustomValue": "Digite o valor"
   },
   "metadata": {
     "title": "CRM Builder - Painel Admin",

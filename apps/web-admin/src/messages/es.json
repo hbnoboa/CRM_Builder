@@ -65,7 +65,9 @@
     "new": "Nuevo",
     "unexpectedError": "Ocurrio un error inesperado.",
     "confirmDelete": "¿Estás seguro?",
-    "confirmDeleteDesc": "Esta acción no se puede deshacer. El elemento será eliminado permanentemente."
+    "confirmDeleteDesc": "Esta acción no se puede deshacer. El elemento será eliminado permanentemente.",
+    "other": "Otro...",
+    "typeCustomValue": "Escriba el valor"
   },
   "metadata": {
     "title": "CRM Builder - Panel Admin",

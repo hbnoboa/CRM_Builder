@@ -17,13 +17,8 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Slider as SliderUI } from '@/components/ui/slider';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
+import { SearchableSelect } from '@/components/ui/searchable-select';
+import type { SelectOption } from '@/components/ui/searchable-select';
 import { useCreateEntityData, useUpdateEntityData } from '@/hooks/use-data';
 import { useTenant } from '@/stores/tenant-context';
 import { api } from '@/lib/api';
@@ -561,79 +556,69 @@ export function RecordFormDialog({
           </div>
         );
 
-      case 'select':
+      case 'select': {
+        const selectOpts: SelectOption[] = (field.options || []).map((option) => {
+          const optVal = typeof option === 'object' ? option.value : option;
+          const optLabel = typeof option === 'object' ? option.label : option;
+          const optColor = typeof option === 'object' ? option.color : undefined;
+          return { value: optVal, label: optLabel, ...(optColor ? { color: optColor } : {}) };
+        });
         return (
           <div key={field.slug} className="space-y-2">
             {fieldLabel}
-            <Select value={String(value || '')} onValueChange={(val) => handleFieldChange(field.slug, val)} disabled={isFieldDisabled}>
-              <SelectTrigger><SelectValue placeholder={field.placeholder || tCommon('select')} /></SelectTrigger>
-              <SelectContent>
-                {field.options?.map((option) => {
-                  const optVal = typeof option === 'object' ? option.value : option;
-                  const optLabel = typeof option === 'object' ? option.label : option;
-                  const optColor = typeof option === 'object' ? option.color : undefined;
-                  return (
-                    <SelectItem key={optVal} value={optVal}>
-                      <span className="flex items-center gap-2">
-                        {optColor && <span className="w-3 h-3 rounded-full" style={{ backgroundColor: optColor }} />}
-                        {optLabel}
-                      </span>
-                    </SelectItem>
-                  );
-                })}
-              </SelectContent>
-            </Select>
+            <SearchableSelect
+              options={selectOpts}
+              value={String(value || '')}
+              onChange={(val) => handleFieldChange(field.slug, val)}
+              placeholder={field.placeholder || tCommon('select')}
+              disabled={isFieldDisabled}
+              allowCustom
+            />
             {helpEl}{errorEl}
           </div>
         );
+      }
 
-      case 'multiselect':
+      case 'multiselect': {
+        const multiOpts: SelectOption[] = (field.options || []).map((option) => {
+          const optVal = typeof option === 'object' ? option.value : option;
+          const optLabel = typeof option === 'object' ? option.label : option;
+          const optColor = typeof option === 'object' ? option.color : undefined;
+          return { value: optVal, label: optLabel, ...(optColor ? { color: optColor } : {}) };
+        });
         return (
           <div key={field.slug} className="space-y-2">
             {fieldLabel}
-            <div className="border rounded-md p-3 space-y-2 max-h-40 overflow-y-auto">
-              {field.options?.map((option) => {
-                const optVal = typeof option === 'object' ? option.value : option;
-                const optLabel = typeof option === 'object' ? option.label : option;
-                const selectedValues = Array.isArray(value) ? value : [];
-                return (
-                  <div key={optVal} className="flex items-center space-x-2">
-                    <Checkbox id={`${field.slug}-${optVal}`} checked={selectedValues.includes(optVal)}
-                      onCheckedChange={(checked) => {
-                        if (checked) handleFieldChange(field.slug, [...selectedValues, optVal]);
-                        else handleFieldChange(field.slug, selectedValues.filter((v: string) => v !== optVal));
-                      }} />
-                    <Label htmlFor={`${field.slug}-${optVal}`} className="cursor-pointer text-sm">{optLabel}</Label>
-                  </div>
-                );
-              })}
-            </div>
+            <SearchableSelect
+              options={multiOpts}
+              value={Array.isArray(value) ? value : []}
+              onChange={(val) => handleFieldChange(field.slug, val)}
+              multiple
+              placeholder={field.placeholder || tCommon('select')}
+              disabled={isFieldDisabled}
+              allowCustom
+            />
             {helpEl}{errorEl}
           </div>
         );
+      }
 
       case 'api-select': {
-        const options = apiOptions[field.slug] || [];
+        const apiOpts: SelectOption[] = (apiOptions[field.slug] || []).filter(o => o.value).map(o => ({ value: o.value, label: o.label }));
         const isLoadingOpts = loadingApiOptions[field.slug];
         return (
           <div key={field.slug} className="space-y-2">
             {fieldLabel}
-            <Select value={String(value || '')} onValueChange={(val) => handleApiSelectChange(field, val)} disabled={isFieldDisabled || isLoadingOpts}>
-              <SelectTrigger>
-                {isLoadingOpts ? (
-                  <span className="flex items-center gap-2"><Loader2 className="h-4 w-4 animate-spin" /> {t('loadingOptions')}</span>
-                ) : (
-                  <SelectValue placeholder={field.placeholder || tCommon('select')} />
-                )}
-              </SelectTrigger>
-              <SelectContent>
-                {options.length === 0 && !isLoadingOpts ? (
-                  <div className="px-2 py-1 text-sm text-muted-foreground">{t('noOptionsAvailable')}</div>
-                ) : (
-                  options.filter((opt) => opt.value).map((opt) => <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>)
-                )}
-              </SelectContent>
-            </Select>
+            <SearchableSelect
+              options={apiOpts}
+              value={String(value || '')}
+              onChange={(val) => handleApiSelectChange(field, String(val))}
+              placeholder={field.placeholder || tCommon('select')}
+              disabled={isFieldDisabled}
+              loading={isLoadingOpts}
+              allowCustom={false}
+              emptyMessage={t('noOptionsAvailable')}
+            />
             {field.apiEndpoint && <p className="text-xs text-muted-foreground">API: {field.apiEndpoint}</p>}
             {helpEl}{errorEl}
           </div>
@@ -641,27 +626,21 @@ export function RecordFormDialog({
       }
 
       case 'relation': {
-        const options = relationOptions[field.slug] || [];
+        const relOpts: SelectOption[] = (relationOptions[field.slug] || []).filter(o => o.value).map(o => ({ value: o.value, label: o.label }));
         const isLoadingRel = loadingRelations[field.slug];
         return (
           <div key={field.slug} className="space-y-2">
             {fieldLabel}
-            <Select value={String(value || '')} onValueChange={(val) => handleFieldChange(field.slug, val)} disabled={isFieldDisabled || isLoadingRel}>
-              <SelectTrigger>
-                {isLoadingRel ? (
-                  <span className="flex items-center gap-2"><Loader2 className="h-4 w-4 animate-spin" /> {t('loadingOptions')}</span>
-                ) : (
-                  <SelectValue placeholder={field.placeholder || tCommon('select')} />
-                )}
-              </SelectTrigger>
-              <SelectContent>
-                {options.length === 0 && !isLoadingRel ? (
-                  <div className="px-2 py-1 text-sm text-muted-foreground">{t('noRecordFound')}</div>
-                ) : (
-                  options.filter((opt) => opt.value).map((opt) => <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>)
-                )}
-              </SelectContent>
-            </Select>
+            <SearchableSelect
+              options={relOpts}
+              value={String(value || '')}
+              onChange={(val) => handleFieldChange(field.slug, String(val))}
+              placeholder={field.placeholder || tCommon('select')}
+              disabled={isFieldDisabled}
+              loading={isLoadingRel}
+              allowCustom={false}
+              emptyMessage={t('noRecordFound')}
+            />
             {field.relatedEntitySlug && <p className="text-xs text-muted-foreground">{tCommon('type')}: {field.relatedEntitySlug}</p>}
             {helpEl}{errorEl}
           </div>

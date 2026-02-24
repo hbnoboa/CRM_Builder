@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import { useTranslations } from 'next-intl';
-import { X, Check, Loader2, MapPin, RotateCcw, ChevronDown } from 'lucide-react';
+import { X, Check, Loader2, MapPin, RotateCcw, ChevronDown, PenLine } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -17,6 +17,7 @@ import {
   CommandInput,
   CommandItem,
   CommandList,
+  CommandSeparator,
 } from '@/components/ui/command';
 import {
   Collapsible,
@@ -68,12 +69,15 @@ export default function ZoneDiagramField({
   readOnly = false,
 }: ZoneDiagramFieldProps) {
   const t = useTranslations('zoneDiagram');
+  const tCommon = useTranslations('common');
   const tUpload = useTranslations('upload');
   const { tenantId } = useTenant();
   const displayLabel = label || t('title');
   const [activeZone, setActiveZone] = useState<string | null>(null);
   const [entityOptions, setEntityOptions] = useState<Record<string, string[]>>({});
   const [loadingEntity, setLoadingEntity] = useState<Record<string, boolean>>({});
+  const [customMode, setCustomMode] = useState<string | null>(null); // zone id in custom mode
+  const [customInput, setCustomInput] = useState('');
   const containerRef = useRef<HTMLDivElement>(null);
 
   // ─── Normalize value to Record for internal use ─────────────────────
@@ -218,6 +222,14 @@ export default function ZoneDiagramField({
     const options = getOptionsForZone(zone);
     const loading = isZoneLoading(zone);
 
+    const handleCustomConfirm = () => {
+      const trimmed = customInput.trim();
+      if (!trimmed) return;
+      handleSelect(zone.label, trimmed);
+      setCustomInput('');
+      setCustomMode(null);
+    };
+
     return (
       <>
         <div className="border-b px-3 py-2 bg-muted/30">
@@ -256,9 +268,42 @@ export default function ZoneDiagramField({
             <Loader2 className="h-4 w-4 animate-spin" />
             <span className="text-sm text-muted-foreground">{t('loadingOptions')}</span>
           </div>
+        ) : customMode === zone.id ? (
+          <div className="p-3 space-y-2">
+            <p className="text-sm font-medium text-muted-foreground">{tCommon('typeCustomValue')}</p>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={customInput}
+                onChange={(e) => setCustomInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') { e.preventDefault(); handleCustomConfirm(); }
+                  else if (e.key === 'Escape') { setCustomMode(null); setCustomInput(''); }
+                }}
+                placeholder={tCommon('typeCustomValue')}
+                className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                autoFocus
+              />
+              <Button type="button" size="sm" className="h-9 px-3" onClick={handleCustomConfirm} disabled={!customInput.trim()}>
+                {tCommon('confirm')}
+              </Button>
+            </div>
+            <Button type="button" variant="ghost" size="sm" className="w-full text-xs" onClick={() => { setCustomMode(null); setCustomInput(''); }}>
+              {tCommon('back')}
+            </Button>
+          </div>
         ) : options.length === 0 ? (
-          <div className="p-3 text-sm text-muted-foreground text-center">
-            {t('noOptionsAvailable')}
+          <div className="p-3 space-y-2">
+            <div className="text-sm text-muted-foreground text-center">{t('noOptionsAvailable')}</div>
+            <CommandSeparator />
+            <button
+              type="button"
+              className="w-full flex items-center gap-2 px-2 py-1.5 text-sm rounded-sm hover:bg-accent cursor-pointer"
+              onClick={() => setCustomMode(zone.id)}
+            >
+              <PenLine className="h-4 w-4 text-muted-foreground" />
+              <span className="text-muted-foreground">{tCommon('other')}</span>
+            </button>
           </div>
         ) : (
           <Command>
@@ -283,6 +328,17 @@ export default function ZoneDiagramField({
                     <span className="text-sm">{opt}</span>
                   </CommandItem>
                 ))}
+              </CommandGroup>
+              <CommandSeparator />
+              <CommandGroup>
+                <CommandItem
+                  value="__custom__"
+                  onSelect={() => setCustomMode(zone.id)}
+                  className="cursor-pointer"
+                >
+                  <PenLine className="mr-2 h-4 w-4 text-muted-foreground" />
+                  <span className="text-muted-foreground">{tCommon('other')}</span>
+                </CommandItem>
               </CommandGroup>
             </CommandList>
           </Command>
@@ -377,9 +433,47 @@ export default function ZoneDiagramField({
                         <Loader2 className="h-4 w-4 animate-spin" />
                         <span className="text-sm text-muted-foreground">{t('loadingOptions')}</span>
                       </div>
+                    ) : customMode === zone.id ? (
+                      <div className="px-3 py-2 space-y-2">
+                        <p className="text-sm font-medium text-muted-foreground">{tCommon('typeCustomValue')}</p>
+                        <div className="flex gap-2">
+                          <input
+                            type="text"
+                            value={customInput}
+                            onChange={(e) => setCustomInput(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                e.preventDefault();
+                                const trimmed = customInput.trim();
+                                if (trimmed) { handleSelect(zone.label, trimmed); setCustomInput(''); setCustomMode(null); }
+                              } else if (e.key === 'Escape') { setCustomMode(null); setCustomInput(''); }
+                            }}
+                            placeholder={tCommon('typeCustomValue')}
+                            className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                            autoFocus
+                          />
+                          <Button type="button" size="sm" className="h-9 px-3" onClick={() => {
+                            const trimmed = customInput.trim();
+                            if (trimmed) { handleSelect(zone.label, trimmed); setCustomInput(''); setCustomMode(null); }
+                          }} disabled={!customInput.trim()}>
+                            {tCommon('confirm')}
+                          </Button>
+                        </div>
+                        <Button type="button" variant="ghost" size="sm" className="w-full text-xs" onClick={() => { setCustomMode(null); setCustomInput(''); }}>
+                          {tCommon('back')}
+                        </Button>
+                      </div>
                     ) : options.length === 0 ? (
-                      <div className="px-3 py-2 text-sm text-muted-foreground text-center">
-                        {t('noOptionsAvailable')}
+                      <div className="px-3 py-2 space-y-2">
+                        <div className="text-sm text-muted-foreground text-center">{t('noOptionsAvailable')}</div>
+                        <button
+                          type="button"
+                          className="w-full flex items-center gap-2 px-2 py-1.5 text-sm rounded-sm hover:bg-accent cursor-pointer"
+                          onClick={() => setCustomMode(zone.id)}
+                        >
+                          <PenLine className="h-4 w-4 text-muted-foreground" />
+                          <span className="text-muted-foreground">{tCommon('other')}</span>
+                        </button>
                       </div>
                     ) : (
                       <Command>
@@ -404,6 +498,17 @@ export default function ZoneDiagramField({
                                 <span className="text-sm">{opt}</span>
                               </CommandItem>
                             ))}
+                          </CommandGroup>
+                          <CommandSeparator />
+                          <CommandGroup>
+                            <CommandItem
+                              value="__custom__"
+                              onSelect={() => setCustomMode(zone.id)}
+                              className="cursor-pointer"
+                            >
+                              <PenLine className="mr-2 h-4 w-4 text-muted-foreground" />
+                              <span className="text-muted-foreground">{tCommon('other')}</span>
+                            </CommandItem>
                           </CommandGroup>
                         </CommandList>
                       </Command>

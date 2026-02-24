@@ -618,11 +618,25 @@ class _ZoneOptionsSheet extends StatefulWidget {
 
 class _ZoneOptionsSheetState extends State<_ZoneOptionsSheet> {
   String _search = '';
+  bool _customMode = false;
+  final _customController = TextEditingController();
 
   List<String> get _filtered {
     if (_search.isEmpty) return widget.options;
     final q = _search.toLowerCase();
     return widget.options.where((o) => o.toLowerCase().contains(q)).toList();
+  }
+
+  @override
+  void dispose() {
+    _customController.dispose();
+    super.dispose();
+  }
+
+  void _confirmCustom() {
+    final trimmed = _customController.text.trim();
+    if (trimmed.isEmpty) return;
+    widget.onSelect(trimmed);
   }
 
   @override
@@ -667,8 +681,46 @@ class _ZoneOptionsSheetState extends State<_ZoneOptionsSheet> {
             ),
           ),
 
-          // Search (for many options)
-          if (widget.options.length > 6)
+          if (_customMode) ...[
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Digite o valor', style: AppTypography.labelLarge.copyWith(color: context.colors.mutedForeground)),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: _customController,
+                          autofocus: true,
+                          decoration: const InputDecoration(
+                            hintText: 'Digite o valor...',
+                            isDense: true,
+                          ),
+                          onSubmitted: (_) => _confirmCustom(),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      FilledButton(
+                        onPressed: _confirmCustom,
+                        child: const Text('OK'),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  TextButton.icon(
+                    onPressed: () => setState(() { _customMode = false; _customController.clear(); }),
+                    icon: const Icon(Icons.arrow_back, size: 16),
+                    label: const Text('Voltar'),
+                    style: TextButton.styleFrom(visualDensity: VisualDensity.compact),
+                  ),
+                ],
+              ),
+            ),
+          ] else ...[
+            // Search
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: TextField(
@@ -682,63 +734,83 @@ class _ZoneOptionsSheetState extends State<_ZoneOptionsSheet> {
               ),
             ),
 
-          const SizedBox(height: 8),
+            const SizedBox(height: 8),
 
-          // Options list
-          Expanded(
-            child: widget.isLoading
-                ? const Center(
-                    child: Padding(
-                      padding: EdgeInsets.all(24),
-                      child: CircularProgressIndicator(),
-                    ),
-                  )
-                : widget.options.isEmpty
-                    ? Center(
-                        child: Padding(
-                          padding: const EdgeInsets.all(24),
-                          child: Text('Nenhuma opcao disponivel',
-                              style: AppTypography.bodyMedium
-                                  .copyWith(color: context.colors.mutedForeground)),
-                        ),
-                      )
-                    : ListView.builder(
-                        controller: scrollController,
-                        itemCount: _filtered.length,
-                        itemBuilder: (context, index) {
-                          final option = _filtered[index];
-                          final isSelected = option == widget.selected;
-
-                          return ListTile(
-                            leading: Container(
-                              width: 20,
-                              height: 20,
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                color: isSelected
-                                    ? const Color(0xFF10B981)
-                                    : Colors.transparent,
-                                border: Border.all(
-                                  color: isSelected
-                                      ? const Color(0xFF059669)
-                                      : context.colors.mutedForeground
-                                          .withValues(alpha: 0.3),
-                                ),
-                              ),
-                              child: isSelected
-                                  ? const Icon(Icons.check,
-                                      size: 12, color: Colors.white)
-                                  : null,
-                            ),
-                            title: Text(option,
-                                style: AppTypography.bodyMedium),
-                            onTap: widget.enabled
-                                ? () => widget.onSelect(option)
-                                : null,
-                          );
-                        },
+            // Options list
+            Expanded(
+              child: widget.isLoading
+                  ? const Center(
+                      child: Padding(
+                        padding: EdgeInsets.all(24),
+                        child: CircularProgressIndicator(),
                       ),
-          ),
+                    )
+                  : widget.options.isEmpty
+                      ? Padding(
+                          padding: const EdgeInsets.all(24),
+                          child: Column(
+                            children: [
+                              Text('Nenhuma opcao disponivel',
+                                  style: AppTypography.bodyMedium
+                                      .copyWith(color: context.colors.mutedForeground)),
+                              if (widget.enabled) ...[
+                                const SizedBox(height: 16),
+                                ListTile(
+                                  leading: Icon(Icons.edit_outlined, color: context.colors.mutedForeground),
+                                  title: Text('Outro...', style: TextStyle(color: context.colors.mutedForeground)),
+                                  onTap: () => setState(() => _customMode = true),
+                                ),
+                              ],
+                            ],
+                          ),
+                        )
+                      : ListView.builder(
+                          controller: scrollController,
+                          itemCount: _filtered.length + (widget.enabled ? 1 : 0),
+                          itemBuilder: (context, index) {
+                            // "Outro..." at the end
+                            if (widget.enabled && index == _filtered.length) {
+                              return ListTile(
+                                leading: Icon(Icons.edit_outlined, color: context.colors.mutedForeground),
+                                title: Text('Outro...', style: TextStyle(color: context.colors.mutedForeground)),
+                                onTap: () => setState(() => _customMode = true),
+                              );
+                            }
+
+                            final option = _filtered[index];
+                            final isSelected = option == widget.selected;
+
+                            return ListTile(
+                              leading: Container(
+                                width: 20,
+                                height: 20,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: isSelected
+                                      ? const Color(0xFF10B981)
+                                      : Colors.transparent,
+                                  border: Border.all(
+                                    color: isSelected
+                                        ? const Color(0xFF059669)
+                                        : context.colors.mutedForeground
+                                            .withValues(alpha: 0.3),
+                                  ),
+                                ),
+                                child: isSelected
+                                    ? const Icon(Icons.check,
+                                        size: 12, color: Colors.white)
+                                    : null,
+                              ),
+                              title: Text(option,
+                                  style: AppTypography.bodyMedium),
+                              onTap: widget.enabled
+                                  ? () => widget.onSelect(option)
+                                  : null,
+                            );
+                          },
+                        ),
+            ),
+          ],
         ],
       ),
     );
