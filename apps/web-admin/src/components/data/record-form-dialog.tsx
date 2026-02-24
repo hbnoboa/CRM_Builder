@@ -264,18 +264,26 @@ export function RecordFormDialog({
     }
   }, [open, record, entity.fields]);
 
-  // Resolve template values like {{now}}, {{today}}, {{timestamp}}, {{allFilled:f1,f2,...}}
+  // Resolve template values like {{now}}, {{today}}, {{allFilled:...}}, {{anyEmpty:...}}
   const resolveValueTemplate = (template: string, currentFormData?: Record<string, unknown>): unknown => {
-    // {{allFilled:field1,field2,...}} — returns true if ALL listed fields have a value
+    const data = currentFormData || formData;
+
+    const hasValue = (val: unknown) =>
+      val !== undefined && val !== null && val !== '' &&
+      !(Array.isArray(val) && val.length === 0);
+
+    // {{allFilled:field1,field2,...}} — true if ALL listed fields have a value
     const allFilledMatch = template.match(/^\{\{allFilled:(.+?)\}\}$/);
     if (allFilledMatch) {
-      const data = currentFormData || formData;
       const fields = allFilledMatch[1].split(',').map(f => f.trim());
-      return fields.every(f => {
-        const val = data[f];
-        return val !== undefined && val !== null && val !== '' &&
-          !(Array.isArray(val) && val.length === 0);
-      });
+      return fields.every(f => hasValue(data[f]));
+    }
+
+    // {{anyEmpty:field1,field2,...}} — true if ANY listed field is empty
+    const anyEmptyMatch = template.match(/^\{\{anyEmpty:(.+?)\}\}$/);
+    if (anyEmptyMatch) {
+      const fields = anyEmptyMatch[1].split(',').map(f => f.trim());
+      return fields.some(f => !hasValue(data[f]));
     }
 
     const now = new Date();
