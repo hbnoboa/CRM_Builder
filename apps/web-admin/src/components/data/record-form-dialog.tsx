@@ -32,25 +32,6 @@ const ZoneDiagramField = dynamic(
   { ssr: false, loading: () => <div className="h-32 flex items-center justify-center text-muted-foreground">Carregando...</div> },
 );
 
-function getFieldRowSpan(fieldType: string): number {
-  switch (fieldType) {
-    case 'textarea':
-    case 'richtext':
-    case 'json':
-    case 'array':
-      return 2;
-    case 'file':
-    case 'image':
-      return 3;
-    case 'map':
-    case 'zone-diagram':
-    case 'sub-entity':
-      return 4;
-    default:
-      return 1;
-  }
-}
-
 interface ApiOption {
   value: string;
   label: string;
@@ -492,14 +473,50 @@ export function RecordFormDialog({
 
   const isLoading = createRecord.isPending || updateRecord.isPending;
 
-  // ─── Visible fields sorted by gridRow ─────────────────────────────────────
-  const visibleFields = useMemo(() => {
-    const fields = (entity.fields || []).filter(f => f.type !== 'hidden' && !f.hidden);
-    return [...fields].sort((a, b) => {
-      const ra = a.gridRow || 9999;
-      const rb = b.gridRow || 9999;
-      return ra - rb;
+  // ─── Group fields into grid rows ──────────────────────────────────────────
+  const fieldRows = useMemo(() => {
+    // Filtra campos ocultos (type === 'hidden' OU hidden === true)
+    const visibleFields = (entity.fields || []).filter(f => f.type !== 'hidden' && !f.hidden);
+
+    // Agrupa campos por gridRow (mesmo approach do FieldGridEditor)
+    const fieldsByRow: Record<number, EntityField[]> = {};
+    for (const field of visibleFields) {
+      const row = field.gridRow || 0;
+      if (!fieldsByRow[row]) fieldsByRow[row] = [];
+      fieldsByRow[row].push(field);
+    }
+
+    // Ordena por gridRow (row 0 = sem row definido, vai pro final)
+    const rowKeys = Object.keys(fieldsByRow).map(Number).sort((a, b) => {
+      if (a === 0) return 1;
+      if (b === 0) return -1;
+      return a - b;
     });
+
+    // Monta rows respeitando colSpan (quebra se exceder 12 colunas)
+    const rows: EntityField[][] = [];
+    for (const rowKey of rowKeys) {
+      const fieldsInRow = fieldsByRow[rowKey];
+      let currentRow: EntityField[] = [];
+      let currentSpan = 0;
+
+      for (const field of fieldsInRow) {
+        const colSpan = field.gridColSpan || 12;
+        const colStart = field.gridColStart ? field.gridColStart - 1 : currentSpan;
+
+        if (colStart + colSpan > 12 && currentRow.length > 0) {
+          rows.push(currentRow);
+          currentRow = [field];
+          currentSpan = Math.min(colSpan, 12);
+        } else {
+          currentRow.push(field);
+          currentSpan = colStart + colSpan;
+        }
+      }
+      if (currentRow.length > 0) rows.push(currentRow);
+    }
+
+    return rows;
   }, [entity.fields]);
 
   // ─── Render field ─────────────────────────────────────────────────────────
@@ -523,9 +540,9 @@ export function RecordFormDialog({
       case 'textarea':
       case 'richtext':
         return (
-          <div key={field.slug} className="space-y-2 h-full flex flex-col">
+          <div key={field.slug} className="space-y-2">
             {fieldLabel}
-            <Textarea id={field.slug} className="flex-1 min-h-[80px]" placeholder={field.placeholder || tPlaceholders('enterField', { field: (field.label || field.name).toLowerCase() })} value={String(value || '')} onChange={(e) => handleFieldChange(field.slug, e.target.value)} rows={3} disabled={isFieldDisabled} />
+            <Textarea id={field.slug} placeholder={field.placeholder || tPlaceholders('enterField', { field: (field.label || field.name).toLowerCase() })} value={String(value || '')} onChange={(e) => handleFieldChange(field.slug, e.target.value)} rows={3} disabled={isFieldDisabled} />
             {helpEl}{errorEl}
           </div>
         );
@@ -832,21 +849,19 @@ export function RecordFormDialog({
       case 'image': {
         const ImageUploadField = require('@/components/form/image-upload-field').default;
         return (
-          <div key={field.slug} className="space-y-2 h-full flex flex-col">
+          <div key={field.slug} className="space-y-2">
             {fieldLabel}
-            <div className="flex-1 min-h-[180px] max-h-[240px] overflow-y-auto">
-              <ImageUploadField
-                value={value as string | string[] || ''}
-                onChange={(v: string | string[]) => handleFieldChange(field.slug, v)}
-                mode={field.type === 'image' ? 'image' : 'file'}
-                multiple={field.multiple || false}
-                maxFiles={field.maxFiles || 10}
-                placeholder={field.placeholder}
-                folder={field.type === 'image' ? 'images' : 'files'}
-                imageSource={field.type === 'image' ? field.imageSource : undefined}
-                disabled={isFieldDisabled}
-              />
-            </div>
+            <ImageUploadField
+              value={value as string | string[] || ''}
+              onChange={(v: string | string[]) => handleFieldChange(field.slug, v)}
+              mode={field.type === 'image' ? 'image' : 'file'}
+              multiple={field.multiple || false}
+              maxFiles={field.maxFiles || 10}
+              placeholder={field.placeholder}
+              folder={field.type === 'image' ? 'images' : 'files'}
+              imageSource={field.type === 'image' ? field.imageSource : undefined}
+              disabled={isFieldDisabled}
+            />
             {helpEl}{errorEl}
           </div>
         );
@@ -916,17 +931,15 @@ export function RecordFormDialog({
         const isTextMode = field.diagramSaveMode === 'text';
         return (
           <div key={field.slug} className="col-span-full space-y-2">
-            <div className="max-h-[320px] overflow-y-auto">
-              <ZoneDiagramField
-                value={isTextMode ? (value as string) || '' : (value as Record<string, string>) || {}}
-                onChange={(val: Record<string, string> | string) => handleFieldChange(field.slug, val)}
-                saveMode={field.diagramSaveMode || 'object'}
-                diagramImage={field.diagramImage}
-                zones={field.diagramZones}
-                label={field.label || field.name}
-                readOnly={false}
-              />
-            </div>
+            <ZoneDiagramField
+              value={isTextMode ? (value as string) || '' : (value as Record<string, string>) || {}}
+              onChange={(val: Record<string, string> | string) => handleFieldChange(field.slug, val)}
+              saveMode={field.diagramSaveMode || 'object'}
+              diagramImage={field.diagramImage}
+              zones={field.diagramZones}
+              label={field.label || field.name}
+              readOnly={false}
+            />
             {errorEl}
           </div>
         );
@@ -970,27 +983,21 @@ export function RecordFormDialog({
           )}
 
           {entity.fields?.length > 0 ? (
-            visibleFields.length > 0 ? (
-              <div
-                className="grid grid-cols-12 gap-x-4 gap-y-4"
-                style={{ gridAutoRows: 'minmax(60px, auto)', gridAutoFlow: 'dense' }}
-              >
-                {visibleFields.map((field) => {
-                  const colSpan = (field.type === 'sub-entity' || field.type === 'zone-diagram') ? 12 : (field.gridColSpan || 12);
-                  const colStart = field.gridColStart;
-                  const rowSpan = getFieldRowSpan(field.type);
-                  return (
-                    <div
-                      key={field.slug}
-                      style={{
-                        gridColumn: colStart ? `${colStart} / span ${colSpan}` : `span ${colSpan}`,
-                        ...(rowSpan > 1 ? { gridRow: `span ${rowSpan}` } : {}),
-                      }}
-                    >
-                      {renderFieldWithPermission(field)}
-                    </div>
-                  );
-                })}
+            fieldRows.length > 0 ? (
+              <div className="space-y-4">
+                {fieldRows.map((row, rowIdx) => (
+                  <div key={rowIdx} className="grid grid-cols-12 gap-4">
+                    {row.map((field) => {
+                      const colSpan = (field.type === 'sub-entity' || field.type === 'zone-diagram') ? 12 : (field.gridColSpan || 12);
+                      const colStart = field.gridColStart;
+                      return (
+                        <div key={field.slug} style={{ gridColumn: colStart ? `${colStart} / span ${colSpan}` : `span ${colSpan} / span ${colSpan}` }}>
+                          {renderFieldWithPermission(field)}
+                        </div>
+                      );
+                    })}
+                  </div>
+                ))}
               </div>
             ) : (
               entity.fields.map((field) => renderFieldWithPermission(field))
