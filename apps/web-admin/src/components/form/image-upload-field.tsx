@@ -165,10 +165,22 @@ export default function ImageUploadField({
 
   const handleUrlSubmit = useCallback(() => {
     if (!urlInput.trim()) return;
+    const trimmed = urlInput.trim();
+
+    // Validate URL protocol (only http/https allowed)
+    try {
+      const url = new URL(trimmed);
+      if (!['http:', 'https:'].includes(url.protocol)) {
+        return;
+      }
+    } catch {
+      return;
+    }
+
     if (multiple) {
-      onChange([...values, urlInput.trim()]);
+      onChange([...values, trimmed]);
     } else {
-      onChange(urlInput.trim());
+      onChange(trimmed);
     }
     setUrlInput('');
     setUrlMode(false);

@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import 'package:crm_mobile/core/config/env.dart';
 import 'package:crm_mobile/core/network/auth_interceptor.dart';
 import 'package:crm_mobile/core/network/tenant_interceptor.dart';
@@ -31,11 +32,13 @@ Dio createApiClient() {
   dio.interceptors.addAll([
     TenantInterceptor(),
     AuthInterceptor(dio),
-    LogInterceptor(
-      requestBody: true,
-      responseBody: true,
-      logPrint: (o) => _logger.d(o),
-    ),
+    // Log requests only in debug mode to prevent data leakage in release builds
+    if (kDebugMode)
+      LogInterceptor(
+        requestBody: true,
+        responseBody: true,
+        logPrint: (o) => _logger.d(o),
+      ),
   ]);
 
   return dio;

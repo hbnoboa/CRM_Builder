@@ -110,6 +110,11 @@ export class ForgotPasswordDto {
   @ApiProperty({ example: 'usuario@empresa.com' })
   @IsEmail({}, { message: 'Email invalido' })
   email: string;
+
+  @ApiPropertyOptional({ description: 'ID do tenant (para ambientes multi-tenant com mesmo email)' })
+  @IsString()
+  @IsOptional()
+  tenantId?: string;
 }
 
 export class ResetPasswordDto {

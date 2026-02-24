@@ -10,6 +10,12 @@ const nextConfig = {
   // Otimizacoes para producao
   poweredByHeader: false,
   reactStrictMode: true,
+  productionBrowserSourceMaps: false,
+
+  // Remover console.log em producao (manter error e warn)
+  compiler: {
+    removeConsole: process.env.NODE_ENV === 'production' ? { exclude: ['error', 'warn'] } : false,
+  },
 
   // Ignorar erros de ESLint e TypeScript no build de producao
   eslint: {

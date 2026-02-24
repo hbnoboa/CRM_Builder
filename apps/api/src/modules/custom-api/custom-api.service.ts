@@ -835,20 +835,24 @@ export class CustomApiService {
             findMany: (args: Prisma.EntityDataFindManyArgs) =>
               context.prisma.entityData.findMany({
                 ...args,
-                where: { ...args.where, entity: { tenantId } },
+                where: { ...args.where, tenantId, entity: { tenantId } },
               }),
             findFirst: (args: Prisma.EntityDataFindFirstArgs) =>
               context.prisma.entityData.findFirst({
                 ...args,
-                where: { ...args.where, entity: { tenantId } },
+                where: { ...args.where, tenantId, entity: { tenantId } },
               }),
             create: (args: Prisma.EntityDataCreateArgs) =>
-              context.prisma.entityData.create(args),
+              context.prisma.entityData.create({
+                ...args,
+                data: { ...args.data, tenantId } as any,
+              }),
             update: (args: Prisma.EntityDataUpdateArgs) =>
               context.prisma.entityData.update({
                 ...args,
                 where: {
                   ...args.where,
+                  tenantId,
                   entity: { tenantId },
                 },
               }),

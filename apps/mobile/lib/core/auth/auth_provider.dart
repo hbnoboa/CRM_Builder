@@ -10,9 +10,17 @@ import 'package:crm_mobile/core/config/env.dart';
 import 'package:crm_mobile/core/database/app_database.dart';
 import 'package:crm_mobile/core/network/api_client.dart';
 import 'package:crm_mobile/core/push/push_notification_service.dart';
+import 'package:crm_mobile/core/cache/crm_cache_manager.dart';
 import 'package:crm_mobile/core/theme/theme_provider.dart';
 
 part 'auth_provider.g.dart';
+
+/// Debug-only print to prevent data leakage in release builds.
+void _debugLog(String message) {
+  if (kDebugMode) {
+    debugPrint(message);
+  }
+}
 
 /// Hash password for offline storage (SHA-256).
 /// Note: This is for offline verification only, not for production auth.
@@ -169,7 +177,7 @@ class Auth extends _$Auth {
 
     // If offline, try to restore from cached user data
     if (!isOnline) {
-      debugPrint('[Auth] Offline - attempting auto login from cache');
+      _debugLog('[Auth] Offline - attempting auto login from cache');
       await _restoreFromCache();
       return;
     }
@@ -177,7 +185,7 @@ class Auth extends _$Auth {
     final token = await SecureStorage.getAccessToken();
     if (token == null) {
       // No token - try cache as fallback
-      debugPrint('[Auth] No token - trying cache fallback');
+      _debugLog('[Auth] No token - trying cache fallback');
       await _restoreFromCache();
       return;
     }
@@ -190,7 +198,7 @@ class Auth extends _$Auth {
       await _restoreSession();
     } catch (_) {
       // API failed - try offline cache as fallback
-      debugPrint('[Auth] API restore failed - trying cache fallback');
+      _debugLog('[Auth] API restore failed - trying cache fallback');
       await _restoreFromCache();
     }
   }
@@ -201,7 +209,7 @@ class Auth extends _$Auth {
     try {
       final hasCache = await SecureStorage.hasOfflineCredentials();
       if (!hasCache) {
-        debugPrint('[Auth] No cached credentials for offline auto login');
+        _debugLog('[Auth] No cached credentials for offline auto login');
         if (!_manualAuthInProgress && !state.isAuthenticated) {
           state = const AuthState(isLoading: false);
         }
@@ -228,10 +236,10 @@ class Auth extends _$Auth {
         // Online: try to refresh token for a full session restore
         final refreshToken = await SecureStorage.getRefreshToken();
         if (refreshToken != null) {
-          debugPrint('[Auth] Online with refresh token - attempting token refresh');
+          _debugLog('[Auth] Online with refresh token - attempting token refresh');
           final refreshed = await _tryRefreshToken(refreshToken);
           if (refreshed) {
-            debugPrint('[Auth] Token refreshed successfully');
+            _debugLog('[Auth] Token refreshed successfully');
             await _restoreSession();
             return;
           }
@@ -240,7 +248,7 @@ class Auth extends _$Auth {
         final cachedEmail = await SecureStorage.getCachedEmail();
         final cachedPassword = await SecureStorage.getCachedPassword();
         if (cachedEmail != null && cachedPassword != null) {
-          debugPrint('[Auth] Attempting silent re-login with cached credentials');
+          _debugLog('[Auth] Attempting silent re-login with cached credentials');
           try {
             final dio = ref.read(apiClientProvider);
             final response = await dio.post('/auth/login', data: {
@@ -270,24 +278,24 @@ class Auth extends _$Auth {
 
             // Apply brand color
             final tenantData = data['user']?['tenant'] as Map<String, dynamic>?;
-            debugPrint('[Auth] Silent re-login tenant data: $tenantData');
+            _debugLog('[Auth] Silent re-login tenant data: $tenantData');
             final tenantSettings = tenantData?['settings'];
-            debugPrint('[Auth] Silent re-login settings (${tenantSettings.runtimeType}): $tenantSettings');
+            _debugLog('[Auth] Silent re-login settings (${tenantSettings.runtimeType}): $tenantSettings');
             String? brandColor;
             if (tenantSettings is Map<String, dynamic>) {
               final themeData = tenantSettings['theme'];
-              debugPrint('[Auth] Silent re-login theme (${themeData.runtimeType}): $themeData');
+              _debugLog('[Auth] Silent re-login theme (${themeData.runtimeType}): $themeData');
               if (themeData is Map<String, dynamic>) {
                 brandColor = themeData['brandColor'] as String?;
               }
             }
-            debugPrint('[Auth] Silent re-login brandColor: "$brandColor"');
+            _debugLog('[Auth] Silent re-login brandColor: "$brandColor"');
             if (brandColor != null && brandColor.isNotEmpty) {
               await SecureStorage.setString('brandColor', brandColor);
             }
             ref.read(tenantThemeProvider.notifier).applyBrandColor(brandColor);
 
-            debugPrint('[Auth] Silent re-login success for ${freshUser.email}');
+            _debugLog('[Auth] Silent re-login success for ${freshUser.email}');
             state = AuthState(
               user: freshUser,
               isAuthenticated: true,
@@ -298,17 +306,17 @@ class Auth extends _$Auth {
             try {
               await AppDatabase.instance.connect();
             } catch (e) {
-              debugPrint('[Auth] PowerSync connect failed after silent login: $e');
+              _debugLog('[Auth] PowerSync connect failed after silent login: $e');
             }
 
             PushNotificationService.instance.registerDeviceToken();
             return;
           } catch (e) {
-            debugPrint('[Auth] Silent re-login failed: $e');
+            _debugLog('[Auth] Silent re-login failed: $e');
           }
         }
         // All online attempts failed - send to login screen
-        debugPrint('[Auth] Online but all auth attempts failed - redirecting to login');
+        _debugLog('[Auth] Online but all auth attempts failed - redirecting to login');
         await AppDatabase.instance.disconnect();
         if (!_manualAuthInProgress && !state.isAuthenticated) {
           state = const AuthState(isLoading: false);
@@ -324,14 +332,14 @@ class Auth extends _$Auth {
       final brandColor = await SecureStorage.getString('brandColor');
       ref.read(tenantThemeProvider.notifier).applyBrandColor(brandColor);
 
-      debugPrint('[Auth] Offline auto login from cache for ${user.email}');
+      _debugLog('[Auth] Offline auto login from cache for ${user.email}');
       state = AuthState(
         user: user,
         isAuthenticated: true,
         isLoading: false,
       );
     } catch (e) {
-      debugPrint('[Auth] Auto login from cache failed: $e');
+      _debugLog('[Auth] Auto login from cache failed: $e');
       if (!_manualAuthInProgress && !state.isAuthenticated) {
         state = const AuthState(isLoading: false);
       }
@@ -356,10 +364,10 @@ class Auth extends _$Auth {
         refreshToken: newRefreshToken,
       );
 
-      debugPrint('[Auth] Token refresh successful');
+      _debugLog('[Auth] Token refresh successful');
       return true;
     } catch (e) {
-      debugPrint('[Auth] Token refresh failed: $e');
+      _debugLog('[Auth] Token refresh failed: $e');
       return false;
     }
   }
@@ -376,18 +384,18 @@ class Auth extends _$Auth {
       if (!_manualAuthInProgress) {
         // Extract and cache brand color from /auth/me response
         final tenantData = meData['tenant'] as Map<String, dynamic>?;
-        debugPrint('[Auth] RestoreSession tenant data: $tenantData');
+        _debugLog('[Auth] RestoreSession tenant data: $tenantData');
         final tenantSettings = tenantData?['settings'];
-        debugPrint('[Auth] RestoreSession settings (${tenantSettings.runtimeType}): $tenantSettings');
+        _debugLog('[Auth] RestoreSession settings (${tenantSettings.runtimeType}): $tenantSettings');
         String? brandColor;
         if (tenantSettings is Map<String, dynamic>) {
           final themeData = tenantSettings['theme'];
-          debugPrint('[Auth] RestoreSession theme (${themeData.runtimeType}): $themeData');
+          _debugLog('[Auth] RestoreSession theme (${themeData.runtimeType}): $themeData');
           if (themeData is Map<String, dynamic>) {
             brandColor = themeData['brandColor'] as String?;
           }
         }
-        debugPrint('[Auth] RestoreSession brandColor: "$brandColor"');
+        _debugLog('[Auth] RestoreSession brandColor: "$brandColor"');
         if (brandColor != null && brandColor.isNotEmpty) {
           await SecureStorage.setString('brandColor', brandColor);
         }
@@ -452,7 +460,7 @@ class Auth extends _$Auth {
 
     // If offline, try offline login directly
     if (!isOnline) {
-      debugPrint('[Auth] Offline - attempting offline login');
+      _debugLog('[Auth] Offline - attempting offline login');
       await _offlineLogin(email: email, password: password);
       return;
     }
@@ -478,13 +486,13 @@ class Auth extends _$Auth {
       final previousUserId = await SecureStorage.getUserId();
       final previousTenantId = await SecureStorage.getTenantId();
       if (previousUserId != null && previousUserId != user.id) {
-        debugPrint('[Auth] User changed from $previousUserId to ${user.id}, clearing local data');
+        _debugLog('[Auth] User changed from $previousUserId to ${user.id}, clearing local data');
         await AppDatabase.instance.clearData();
-        debugPrint('[Auth] Local data cleared, ready for new sync');
+        _debugLog('[Auth] Local data cleared, ready for new sync');
       } else if (previousTenantId != null && previousTenantId != user.tenantId) {
-        debugPrint('[Auth] Tenant changed from $previousTenantId to ${user.tenantId}, clearing local data');
+        _debugLog('[Auth] Tenant changed from $previousTenantId to ${user.tenantId}, clearing local data');
         await AppDatabase.instance.clearData();
-        debugPrint('[Auth] Local data cleared, ready for new sync');
+        _debugLog('[Auth] Local data cleared, ready for new sync');
       }
 
       await SecureStorage.setUserId(user.id);
@@ -506,18 +514,18 @@ class Auth extends _$Auth {
 
       // Extract and apply tenant brand color for theming
       final tenantData = data['user']?['tenant'] as Map<String, dynamic>?;
-      debugPrint('[Auth] Login tenant data: $tenantData');
+      _debugLog('[Auth] Login tenant data: $tenantData');
       final tenantSettings = tenantData?['settings'];
-      debugPrint('[Auth] Login tenant settings (${tenantSettings.runtimeType}): $tenantSettings');
+      _debugLog('[Auth] Login tenant settings (${tenantSettings.runtimeType}): $tenantSettings');
       String? brandColor;
       if (tenantSettings is Map<String, dynamic>) {
         final themeData = tenantSettings['theme'];
-        debugPrint('[Auth] Login theme data (${themeData.runtimeType}): $themeData');
+        _debugLog('[Auth] Login theme data (${themeData.runtimeType}): $themeData');
         if (themeData is Map<String, dynamic>) {
           brandColor = themeData['brandColor'] as String?;
         }
       }
-      debugPrint('[Auth] Login extracted brandColor: "$brandColor"');
+      _debugLog('[Auth] Login extracted brandColor: "$brandColor"');
       if (brandColor != null && brandColor.isNotEmpty) {
         await SecureStorage.setString('brandColor', brandColor);
       } else {
@@ -525,27 +533,27 @@ class Auth extends _$Auth {
       }
       ref.read(tenantThemeProvider.notifier).applyBrandColor(brandColor);
 
-      debugPrint('[Auth] Login success, setting state isAuthenticated=true');
+      _debugLog('[Auth] Login success, setting state isAuthenticated=true');
       state = AuthState(
         user: user,
         isAuthenticated: true,
         isLoading: false,
       );
-      debugPrint('[Auth] State updated: isAuthenticated=${state.isAuthenticated}');
+      _debugLog('[Auth] State updated: isAuthenticated=${state.isAuthenticated}');
 
       _manualAuthInProgress = false;
 
       // Connect PowerSync to start syncing data
-      debugPrint('[Auth] Connecting PowerSync...');
+      _debugLog('[Auth] Connecting PowerSync...');
       try {
         await AppDatabase.instance.connect();
-        debugPrint('[Auth] PowerSync connected, waiting for initial sync...');
+        _debugLog('[Auth] PowerSync connected, waiting for initial sync...');
         // Wait a bit for initial sync to complete
         await Future.delayed(const Duration(milliseconds: 1500));
-        debugPrint('[Auth] Initial sync delay complete');
+        _debugLog('[Auth] Initial sync delay complete');
       } catch (e) {
         // PowerSync connection failure should not block login
-        debugPrint('[Auth] PowerSync connect failed: $e');
+        _debugLog('[Auth] PowerSync connect failed: $e');
       }
 
       // Register device for push notifications (non-blocking)
@@ -553,7 +561,7 @@ class Auth extends _$Auth {
     } on DioException catch (e) {
       // Network error - try offline login as fallback
       if (_isNetworkError(e)) {
-        debugPrint('[Auth] Network error - attempting offline login fallback');
+        _debugLog('[Auth] Network error - attempting offline login fallback');
         await _offlineLogin(email: email, password: password);
         return;
       }
@@ -651,7 +659,7 @@ class Auth extends _$Auth {
       final brandColor = await SecureStorage.getString('brandColor');
       ref.read(tenantThemeProvider.notifier).applyBrandColor(brandColor);
 
-      debugPrint('[Auth] Offline login success for ${user.email}');
+      _debugLog('[Auth] Offline login success for ${user.email}');
       state = AuthState(
         user: user,
         isAuthenticated: true,
@@ -664,7 +672,7 @@ class Auth extends _$Auth {
       // PowerSync will auto-sync when connection is restored
     } catch (e) {
       _manualAuthInProgress = false;
-      debugPrint('[Auth] Offline login error: $e');
+      _debugLog('[Auth] Offline login error: $e');
       state = state.copyWith(
         isLoading: false,
         error: 'Falha no login offline.',
@@ -714,7 +722,7 @@ class Auth extends _$Auth {
 
       // Connect PowerSync to start syncing data (non-blocking)
       AppDatabase.instance.connect().catchError((e) {
-        debugPrint('[Auth] PowerSync connect failed: $e');
+        _debugLog('[Auth] PowerSync connect failed: $e');
       });
 
       // Register device for push notifications (non-blocking)
@@ -740,10 +748,13 @@ class Auth extends _$Auth {
       await dio.post('/auth/logout');
     } catch (_) {
       // Ignore logout errors - works offline
-      debugPrint('[Auth] Logout API call failed (offline mode)');
+      _debugLog('[Auth] Logout API call failed (offline mode)');
     } finally {
       // Disconnect PowerSync
       await AppDatabase.instance.disconnect();
+
+      // Clear image cache to prevent data leakage between users
+      await CrmCacheManager().clearCache();
 
       if (clearOfflineCache) {
         // Full clear - remove everything including offline credentials
@@ -756,7 +767,7 @@ class Auth extends _$Auth {
       }
 
       state = const AuthState();
-      debugPrint('[Auth] Logout complete (clearOfflineCache=$clearOfflineCache)');
+      _debugLog('[Auth] Logout complete (clearOfflineCache=$clearOfflineCache)');
     }
   }
 

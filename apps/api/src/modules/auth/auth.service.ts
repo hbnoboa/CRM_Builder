@@ -43,6 +43,17 @@ export class AuthService {
     // Buscar role default do tenant ou role especificada
     let customRoleId = dto.customRoleId;
 
+    // Validar que customRoleId pertence ao tenant
+    if (customRoleId) {
+      const roleExists = await this.prisma.customRole.findFirst({
+        where: { id: customRoleId, tenantId: dto.tenantId },
+        select: { id: true },
+      });
+      if (!roleExists) {
+        throw new BadRequestException('Role nao encontrada para este tenant');
+      }
+    }
+
     if (!customRoleId) {
       // Buscar role default (USER) do tenant
       const defaultRole = await this.prisma.customRole.findFirst({
@@ -316,8 +327,13 @@ export class AuthService {
   }
 
   async forgotPassword(dto: ForgotPasswordDto) {
+    const where: any = { email: dto.email, status: Status.ACTIVE };
+    if (dto.tenantId) {
+      where.tenantId = dto.tenantId;
+    }
+
     const user = await this.prisma.user.findFirst({
-      where: { email: dto.email, status: Status.ACTIVE },
+      where,
       select: { id: true, email: true, name: true },
     });
 
@@ -382,7 +398,6 @@ export class AuthService {
   private async generateTokens(user: UserForTokenGeneration, rememberMe = false) {
     const payload = {
       sub: user.id,
-      email: user.email,
       tenantId: user.tenantId,
       customRoleId: user.customRoleId,
       roleType: user.customRole.roleType as RoleType,

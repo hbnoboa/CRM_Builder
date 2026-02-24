@@ -22,7 +22,10 @@ export interface AuditLogInput {
   metadata?: Record<string, unknown>;
 }
 
-const SENSITIVE_FIELDS = ['password', 'refreshToken', 'accessToken', 'token', 'secret'];
+const SENSITIVE_PATTERNS = [
+  /password/i, /token/i, /secret/i, /key/i, /credential/i,
+  /authorization/i, /credit.?card/i, /ssn/i, /cpf/i, /cnpj/i,
+];
 
 @Injectable()
 export class AuditService {
@@ -142,13 +145,17 @@ export class AuditService {
   }
 
   /**
-   * Strip sensitive fields from data before persisting.
+   * Strip sensitive fields from data before persisting (case-insensitive, recursive).
    */
   private sanitize(data: Record<string, unknown>): Record<string, unknown> {
-    const cleaned = { ...data };
-    for (const key of SENSITIVE_FIELDS) {
-      if (key in cleaned) {
+    const cleaned: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(data)) {
+      if (SENSITIVE_PATTERNS.some(p => p.test(key))) {
         cleaned[key] = '[REDACTED]';
+      } else if (value && typeof value === 'object' && !Array.isArray(value)) {
+        cleaned[key] = this.sanitize(value as Record<string, unknown>);
+      } else {
+        cleaned[key] = value;
       }
     }
     return cleaned;

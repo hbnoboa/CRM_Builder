@@ -32,7 +32,7 @@ interface AuthenticatedSocket extends Socket {
 
 @WebSocketGateway({
   cors: {
-    origin: '*',
+    origin: process.env.CORS_ORIGIN?.split(',') || ['http://localhost:3000'],
     credentials: true,
   },
   namespace: '/notifications',
@@ -167,6 +167,15 @@ export class NotificationGateway
     @ConnectedSocket() client: AuthenticatedSocket,
     @MessageBody() data: { channel: string },
   ) {
+    // Validar que usuario so pode se inscrever em canais do proprio tenant
+    if (data.channel.startsWith('tenant:')) {
+      const channelTenantId = data.channel.replace('tenant:', '');
+      if (channelTenantId !== client.tenantId) {
+        this.logger.warn(`Usuario ${client.userId} tentou subscribe cross-tenant: ${data.channel}`);
+        return { event: 'error', data: { message: 'Acesso negado' } };
+      }
+    }
+
     client.join(data.channel);
     this.logger.log(`Cliente ${client.userId} inscrito em ${data.channel}`);
     return { event: 'subscribed', data: { channel: data.channel } };

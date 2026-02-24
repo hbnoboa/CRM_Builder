@@ -166,12 +166,8 @@ async function main() {
   console.log('\n===================================================');
   console.log('SEED COMPLETO!');
   console.log('===================================================');
-  console.log('\nCredenciais:');
-  console.log('');
-  console.log('SUPER ADMIN:');
-  console.log('   Email: superadmin@platform.com');
-  console.log('   Senha: superadmin123');
-  console.log('');
+  console.log('Credenciais padroes foram configuradas.');
+  console.log('Consulte a documentacao para detalhes de acesso.');
   console.log('===================================================\n');
 }
 

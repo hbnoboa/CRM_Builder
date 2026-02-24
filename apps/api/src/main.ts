@@ -75,28 +75,30 @@ async function bootstrap() {
     }),
   );
   
-  // Swagger
-  const config = new DocumentBuilder()
-    .setTitle('CRM Builder API')
-    .setDescription('API do CRM Builder - Plataforma SaaS Multi-Tenant')
-    .setVersion('1.0')
-    .addBearerAuth()
-    .addTag('Auth', 'Autenticação e tokens')
-    .addTag('Users', 'Gerenciamento de usuários')
-    .addTag('Tenants', 'Gerenciamento de tenants')
-    .addTag('Roles', 'Permissões e papéis')
-    .addTag('Entities', 'Definição de entidades')
-    .addTag('Data', 'CRUD dinâmico de dados')
-    .build();
-  
-  const document = SwaggerModule.createDocument(app, config);
-  SwaggerModule.setup('docs', app, document);
-  
+  // Swagger - apenas em desenvolvimento (nao expor em producao)
+  if (process.env.NODE_ENV !== 'production') {
+    const config = new DocumentBuilder()
+      .setTitle('CRM Builder API')
+      .setDescription('API do CRM Builder - Plataforma SaaS Multi-Tenant')
+      .setVersion('1.0')
+      .addBearerAuth()
+      .addTag('Auth', 'Autenticação e tokens')
+      .addTag('Users', 'Gerenciamento de usuários')
+      .addTag('Tenants', 'Gerenciamento de tenants')
+      .addTag('Roles', 'Permissões e papéis')
+      .addTag('Entities', 'Definição de entidades')
+      .addTag('Data', 'CRUD dinâmico de dados')
+      .build();
+
+    const document = SwaggerModule.createDocument(app, config);
+    SwaggerModule.setup('docs', app, document);
+    logger.log(`📚 Swagger disponível em http://localhost:${process.env.API_PORT || 3001}/docs`);
+  }
+
   const port = process.env.API_PORT || 3001;
   await app.listen(port);
-  
+
   logger.log(`🚀 CRM Builder API rodando em http://localhost:${port}`);
-  logger.log(`📚 Swagger disponível em http://localhost:${port}/docs`);
 }
 
 bootstrap();

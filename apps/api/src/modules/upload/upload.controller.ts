@@ -148,15 +148,22 @@ export class UploadController {
     @Param('path') filePath: string,
     @CurrentUser() user: CurrentUserType,
   ): Promise<{ message: string }> {
-    // Normalizar path para prevenir path traversal (../)
-    const normalizedPath = pathModule.normalize(filePath).replace(/^(\.\.(\/|\\|$))+/, '');
+    // Resolver path completo para prevenir path traversal
+    const uploadsRoot = pathModule.resolve(process.cwd(), 'uploads');
+    const resolvedPath = pathModule.resolve(uploadsRoot, filePath);
 
-    // Verificar se o arquivo pertence ao tenant apos normalizacao
-    if (!normalizedPath.startsWith(user.tenantId)) {
+    // Deve estar dentro do diretorio de uploads
+    if (!resolvedPath.startsWith(uploadsRoot + pathModule.sep)) {
+      throw new ForbiddenException('Caminho de arquivo invalido');
+    }
+
+    // Deve estar dentro do diretorio do tenant
+    const relativePath = pathModule.relative(uploadsRoot, resolvedPath);
+    if (!relativePath.startsWith(user.tenantId)) {
       throw new ForbiddenException('Voce nao tem permissao para deletar este arquivo');
     }
 
-    await this.uploadService.deleteFile(normalizedPath);
+    await this.uploadService.deleteFile(relativePath);
     return { message: 'Arquivo deletado com sucesso' };
   }
 }

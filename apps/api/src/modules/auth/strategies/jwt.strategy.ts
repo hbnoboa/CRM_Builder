@@ -47,6 +47,11 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       throw new UnauthorizedException('Usuario nao encontrado ou inativo');
     }
 
+    // Validar que tenantId do token corresponde ao do usuario (defense-in-depth)
+    if (payload.tenantId && payload.tenantId !== user.tenantId) {
+      throw new UnauthorizedException('Token tenant mismatch');
+    }
+
     if (!user.customRole || !user.customRoleId) {
       throw new UnauthorizedException('Usuario sem role definida');
     }
