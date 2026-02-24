@@ -368,9 +368,10 @@ function DataPageContent() {
   const searchParams = useSearchParams();
   const entityParam = searchParams.get('entity');
   const parentIdParam = searchParams.get('parentId');
+  const tenantIdParam = searchParams.get('tenantId');
   const { user: currentUser } = useAuthStore();
   const { hasEntityPermission, hasEntityAction } = usePermissions();
-  const { tenantId, effectiveTenantId, isPlatformAdmin, loading: tenantLoading } = useTenant();
+  const { tenantId, effectiveTenantId, isPlatformAdmin, loading: tenantLoading, switchTenant } = useTenant();
   const [entities, setEntities] = useState<Entity[]>([]);
   const allEntitiesRef = useRef<Entity[]>([]);
   const [selectedEntity, setSelectedEntity] = useState<Entity | null>(null);
@@ -449,6 +450,13 @@ function DataPageContent() {
   // Debounced toast for burst creates via WebSocket
   const newRecordCountRef = useRef(0);
   const newRecordTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Restaurar tenant do URL param (para links abertos em nova aba por PLATFORM_ADMIN)
+  useEffect(() => {
+    if (tenantIdParam && isPlatformAdmin && effectiveTenantId !== tenantIdParam) {
+      switchTenant(tenantIdParam);
+    }
+  }, [tenantIdParam, isPlatformAdmin]);
 
   useEffect(() => {
     setSelectedEntity(null);
@@ -2133,7 +2141,7 @@ function DataPageContent() {
                                       </span>
                                     ) : isSubEntity ? (
                                       <a
-                                        href={`?entity=${field?.subEntitySlug || ''}&parentId=${record.id}`}
+                                        href={`?entity=${field?.subEntitySlug || ''}&parentId=${record.id}${effectiveTenantId ? `&tenantId=${effectiveTenantId}` : ''}`}
                                         onClick={(e) => {
                                           e.preventDefault();
                                           const subEnt = allEntitiesRef.current.find(ent => ent.slug === field?.subEntitySlug);
@@ -2224,7 +2232,7 @@ function DataPageContent() {
                                       ? <span className="text-primary">{parentEntityDisplayName}: {value}</span>
                                       : isSubEntity
                                         ? <a
-                                            href={`?entity=${field?.subEntitySlug || ''}&parentId=${record.id}`}
+                                            href={`?entity=${field?.subEntitySlug || ''}&parentId=${record.id}${effectiveTenantId ? `&tenantId=${effectiveTenantId}` : ''}`}
                                             onClick={(e) => {
                                               e.preventDefault();
                                               const subEnt = allEntitiesRef.current.find(ent => ent.slug === field?.subEntitySlug);
