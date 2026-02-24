@@ -264,8 +264,20 @@ export function RecordFormDialog({
     }
   }, [open, record, entity.fields]);
 
-  // Resolve template values like {{now}}, {{today}}, {{timestamp}}
-  const resolveValueTemplate = (template: string): unknown => {
+  // Resolve template values like {{now}}, {{today}}, {{timestamp}}, {{allFilled:f1,f2,...}}
+  const resolveValueTemplate = (template: string, currentFormData?: Record<string, unknown>): unknown => {
+    // {{allFilled:field1,field2,...}} — returns true if ALL listed fields have a value
+    const allFilledMatch = template.match(/^\{\{allFilled:(.+?)\}\}$/);
+    if (allFilledMatch) {
+      const data = currentFormData || formData;
+      const fields = allFilledMatch[1].split(',').map(f => f.trim());
+      return fields.every(f => {
+        const val = data[f];
+        return val !== undefined && val !== null && val !== '' &&
+          !(Array.isArray(val) && val.length === 0);
+      });
+    }
+
     const now = new Date();
     // Format as yyyy-MM-ddTHH:mm (compatible with datetime-local input)
     const pad = (n: number) => String(n).padStart(2, '0');
@@ -292,13 +304,16 @@ export function RecordFormDialog({
       !(Array.isArray(newValue) && newValue.length === 0);
     if (!hasValue) return;
 
+    // Build updated formData snapshot (current formData + the new value)
+    const updatedFormData = { ...formData, [field.slug]: newValue };
+
     const updates: Record<string, unknown> = {};
     const tid = effectiveTenantId || tenantId;
 
     for (const autoFill of field.onChangeAutoFill) {
       if (autoFill.valueTemplate) {
-        // Use template directly (e.g., {{now}})
-        updates[autoFill.targetField] = resolveValueTemplate(autoFill.valueTemplate);
+        // Use template directly (e.g., {{now}}, {{allFilled:...}})
+        updates[autoFill.targetField] = resolveValueTemplate(autoFill.valueTemplate, updatedFormData);
       } else if (autoFill.apiEndpoint && tid) {
         // Call custom API to get computed value
         try {
