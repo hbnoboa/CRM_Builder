@@ -988,7 +988,7 @@ export function RecordFormDialog({
                 {fieldRows.map((row, rowIdx) => (
                   <div key={rowIdx} className="grid grid-cols-12 gap-4">
                     {row.map((field) => {
-                      const colSpan = (field.type === 'sub-entity' || field.type === 'zone-diagram') ? 12 : (field.gridColSpan || 12);
+                      const colSpan = (field.type === 'sub-entity' || field.type === 'zone-diagram' || field.type === 'file' || field.type === 'image') ? 12 : (field.gridColSpan || 12);
                       const colStart = field.gridColStart;
                       return (
                         <div key={field.slug} style={{ gridColumn: colStart ? `${colStart} / span ${colSpan}` : `span ${colSpan} / span ${colSpan}` }}>

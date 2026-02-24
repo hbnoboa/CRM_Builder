@@ -198,6 +198,12 @@ interface DataRecord {
 // Helper para formatar valores de celula
 function formatCellValue(val: unknown, fieldType?: string): string {
   if (val === null || val === undefined) return '-';
+  // Boolean → Sim/Não
+  if (typeof val === 'boolean') return val ? 'Sim' : 'Não';
+  if (fieldType === 'boolean' || fieldType === 'checkbox') {
+    if (val === 'true' || val === 1) return 'Sim';
+    if (val === 'false' || val === 0) return 'Não';
+  }
   // Formatar datas/datetimes no padrao pt-BR
   if (typeof val === 'string' && val && (fieldType === 'date' || fieldType === 'datetime')) {
     const d = new Date(val);
