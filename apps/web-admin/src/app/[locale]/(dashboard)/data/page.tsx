@@ -68,6 +68,13 @@ import { useTenant } from '@/stores/tenant-context';
 import { useAuthStore } from '@/stores/auth-store';
 import { RecordFormDialog } from '@/components/data/record-form-dialog';
 import { ImportDialog } from '@/components/data/import-dialog';
+import SubEntityField from '@/components/data/sub-entity-field';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { useDeleteEntityData } from '@/hooks/use-data';
 import { dataService } from '@/services/data.service';
 import type { DataFilter, EntityField } from '@/types';
@@ -364,13 +371,10 @@ function DataPageContent() {
   const tNav = useTranslations('navigation');
   const searchParams = useSearchParams();
   const entityParam = searchParams.get('entity');
-  const parentIdParam = searchParams.get('parentId');
-  const tenantIdParam = searchParams.get('tenantId');
   const { user: currentUser } = useAuthStore();
   const { hasEntityPermission, hasEntityAction } = usePermissions();
-  const { tenantId, effectiveTenantId, isPlatformAdmin, loading: tenantLoading, switchTenant } = useTenant();
+  const { tenantId, effectiveTenantId, isPlatformAdmin, loading: tenantLoading } = useTenant();
   const [entities, setEntities] = useState<Entity[]>([]);
-  const allEntitiesRef = useRef<Entity[]>([]);
   const [selectedEntity, setSelectedEntity] = useState<Entity | null>(null);
   const [records, setRecords] = useState<DataRecord[]>([]);
   const [loading, setLoading] = useState(true);
@@ -395,6 +399,14 @@ function DataPageContent() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [recordToDelete, setRecordToDelete] = useState<DataRecord | null>(null);
 
+  // Sub-entity modal
+  const [subEntityModal, setSubEntityModal] = useState<{
+    open: boolean;
+    parentRecordId: string;
+    field: EntityField;
+    parentDisplay: string;
+  } | null>(null);
+
   // Field-level permissions (retornadas pelo backend)
   const [serverVisibleFields, setServerVisibleFields] = useState<string[] | null>(null);
   const [serverEditableFields, setServerEditableFields] = useState<string[] | null>(null);
@@ -415,7 +427,7 @@ function DataPageContent() {
   const [exporting, setExporting] = useState(false);
 
   // Filtro por entidade pai (quando clica no badge de sub-entidade)
-  const [parentFilter, setParentFilter] = useState<{ parentRecordId: string; parentDisplay: string; parentEntityName: string; parentEntitySlug?: string } | null>(null);
+  const [parentFilter, setParentFilter] = useState<{ parentRecordId: string; parentDisplay: string; parentEntityName: string } | null>(null);
 
   // Metadados da entidade pai (retornado pela API)
   const [parentEntityMeta, setParentEntityMeta] = useState<{ name: string; slug: string } | null>(null);
@@ -442,13 +454,6 @@ function DataPageContent() {
   const newRecordCountRef = useRef(0);
   const newRecordTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Restaurar tenant do URL param (para links abertos em nova aba por PLATFORM_ADMIN)
-  useEffect(() => {
-    if (tenantIdParam && isPlatformAdmin && effectiveTenantId !== tenantIdParam) {
-      switchTenant(tenantIdParam);
-    }
-  }, [tenantIdParam, isPlatformAdmin]);
-
   useEffect(() => {
     setSelectedEntity(null);
     setRecords([]);
@@ -474,44 +479,20 @@ function DataPageContent() {
         }
       }
 
-      // Store all entities (including sub-entities) for lookup
-      allEntitiesRef.current = allEntities;
-
       // Filter out sub-entities - show only parent entities
       const list = allEntities.filter(e => !subEntitySlugs.has(e.slug));
 
       setEntities(list);
       if (list.length > 0 && !selectedEntity) {
-        // Se entityParam aponta para sub-entidade (aberto em nova aba), buscar em allEntities
-        const subEntityTarget = entityParam ? allEntities.find(e => e.slug === entityParam && subEntitySlugs.has(e.slug)) : null;
-        if (subEntityTarget && parentIdParam) {
-          // Navegacao direta para sub-entidade com filtro de pai (aberto em nova aba)
-          setSelectedEntity(subEntityTarget);
-          // Descobrir nome da entidade pai
-          const parentEntity = allEntities.find(pe => pe.fields?.some(f => f.type === 'sub-entity' && f.subEntitySlug === subEntityTarget.slug));
-          setParentFilter({
-            parentRecordId: parentIdParam,
-            parentDisplay: parentIdParam.slice(0, 8) + '...',
-            parentEntityName: parentEntity?.name || '',
-            parentEntitySlug: parentEntity?.slug,
-          });
-          fetchRecords(subEntityTarget.slug, 1, '', parentIdParam).then(recs => {
-            // Atualizar display do pai com dados reais se disponivel
-            if (recs.length > 0 && recs[0]._parentDisplay) {
-              setParentFilter(prev => prev ? { ...prev, parentDisplay: recs[0]._parentDisplay || prev.parentDisplay } : prev);
-            }
-          });
-        } else {
-          const target = entityParam
-            ? list.find((e: Entity) => e.slug === entityParam) || list[0]
-            : list[0];
-          setSelectedEntity(target);
-          // Extrair globalFilters antes de buscar (mesmo padrao do handleEntityClick)
-          const settings = target.settings as Record<string, unknown> | null;
-          const entityGlobalFilters = (settings?.globalFilters as ActiveFilter[]) || [];
-          setGlobalFilters(entityGlobalFilters);
-          fetchRecords(target.slug, 1, '');
-        }
+        const target = entityParam
+          ? list.find((e: Entity) => e.slug === entityParam) || list[0]
+          : list[0];
+        setSelectedEntity(target);
+        // Extrair globalFilters antes de buscar (mesmo padrao do handleEntityClick)
+        const settings = target.settings as Record<string, unknown> | null;
+        const entityGlobalFilters = (settings?.globalFilters as ActiveFilter[]) || [];
+        setGlobalFilters(entityGlobalFilters);
+        fetchRecords(target.slug, 1, '');
       }
     } catch (error) {
       console.error('Erro ao carregar entidades:', error);
@@ -614,57 +595,9 @@ function DataPageContent() {
     await fetchRecords(entity.slug, 1, '');
   };
 
-  // Navegar para sub-entidade filtrada por pai (ao clicar no badge de sub-entity)
-  const handleEntitySelectWithParentFilter = async (
-    subEntity: Entity,
-    parentRecordId: string,
-    parentData: Record<string, unknown>,
-    parentField?: EntityField,
-  ) => {
-    if (!subEntity.fields) {
-      try {
-        const res = await api.get(`/entities/${subEntity.id}`);
-        subEntity = { ...subEntity, ...res.data };
-        allEntitiesRef.current = allEntitiesRef.current.map(e => (e.id === subEntity.id ? subEntity : e));
-      } catch {}
-    }
-    const displayField = parentField?.parentDisplayField;
-    const displayValue = displayField
-      ? String(parentData[displayField] || parentRecordId)
-      : Object.values(parentData).find(v => typeof v === 'string' && v.length > 0) as string || parentRecordId;
-    const parentEntityName = selectedEntity?.name || '';
-    const parentEntitySlug = selectedEntity?.slug;
-
-    setSelectedEntity(subEntity);
-    setActiveFilters([]);
-    setHiddenColumns(new Set());
-    setSearchTerm('');
-    setDebouncedSearch('');
-    setNewFilter({});
-    setCurrentPage(1);
-    setParentFilter({ parentRecordId, parentDisplay: displayValue, parentEntityName, parentEntitySlug });
-    await fetchRecords(subEntity.slug, 1, '', parentRecordId);
-  };
-
-  // Limpar filtro de pai e voltar para a entidade pai
+  // Limpar filtro de pai
   const clearParentFilter = async () => {
-    const parentSlug = parentFilter?.parentEntitySlug;
     setParentFilter(null);
-    if (parentSlug) {
-      // Navigate back to the parent entity
-      const parentEntity = entities.find(e => e.slug === parentSlug) || allEntitiesRef.current.find(e => e.slug === parentSlug);
-      if (parentEntity) {
-        setSelectedEntity(parentEntity);
-        setActiveFilters([]);
-        setHiddenColumns(new Set());
-        setSearchTerm('');
-        setDebouncedSearch('');
-        setNewFilter({});
-        setCurrentPage(1);
-        await fetchRecords(parentEntity.slug, 1, '', null);
-        return;
-      }
-    }
     if (selectedEntity) {
       setCurrentPage(1);
       await fetchRecords(selectedEntity.slug, 1, debouncedSearch, null);
@@ -2050,23 +1983,27 @@ function DataPageContent() {
                                       <span className="font-medium text-primary" title={String(value)}>
                                         {String(value)}
                                       </span>
-                                    ) : isSubEntity ? (
-                                      <a
-                                        href={`?entity=${field?.subEntitySlug || ''}&parentId=${record.id}${effectiveTenantId ? `&tenantId=${effectiveTenantId}` : ''}`}
-                                        onClick={(e) => {
-                                          e.preventDefault();
-                                          const subEnt = allEntitiesRef.current.find(ent => ent.slug === field?.subEntitySlug);
-                                          if (subEnt) {
-                                            handleEntitySelectWithParentFilter(subEnt, record.id, record.data, field);
-                                          }
+                                    ) : isSubEntity && field ? (
+                                      <button
+                                        onClick={() => {
+                                          const displayField = field.parentDisplayField;
+                                          const displayVal = displayField
+                                            ? String(record.data[displayField] || '')
+                                            : Object.values(record.data).find(v => typeof v === 'string' && v.length > 0) as string || record.id.slice(0, 8);
+                                          setSubEntityModal({
+                                            open: true,
+                                            parentRecordId: record.id,
+                                            field,
+                                            parentDisplay: displayVal,
+                                          });
                                         }}
                                         className="cursor-pointer hover:opacity-80 transition-opacity"
-                                        title={field?.label || field?.name}
+                                        title={field.label || field.name}
                                       >
                                         <Badge variant={Number(value) > 0 ? 'default' : 'secondary'} className="text-xs">
                                           {String(value)}
                                         </Badge>
-                                      </a>
+                                      </button>
                                     ) : (
                                       formatCellValue(value, field?.type)
                                     )}
@@ -2141,21 +2078,25 @@ function DataPageContent() {
                                   <div key={col} className={idx === 0 ? 'font-medium text-sm' : 'text-xs text-muted-foreground'}>
                                     {isParentCol
                                       ? <span className="text-primary">{parentEntityDisplayName}: {value}</span>
-                                      : isSubEntity
-                                        ? <a
-                                            href={`?entity=${field?.subEntitySlug || ''}&parentId=${record.id}${effectiveTenantId ? `&tenantId=${effectiveTenantId}` : ''}`}
-                                            onClick={(e) => {
-                                              e.preventDefault();
-                                              const subEnt = allEntitiesRef.current.find(ent => ent.slug === field?.subEntitySlug);
-                                              if (subEnt) {
-                                                handleEntitySelectWithParentFilter(subEnt, record.id, record.data, field);
-                                              }
+                                      : (isSubEntity && field)
+                                        ? <button
+                                            onClick={() => {
+                                              const displayField = field.parentDisplayField;
+                                              const displayVal = displayField
+                                                ? String(record.data[displayField] || '')
+                                                : Object.values(record.data).find(v => typeof v === 'string' && v.length > 0) as string || record.id.slice(0, 8);
+                                              setSubEntityModal({
+                                                open: true,
+                                                parentRecordId: record.id,
+                                                field,
+                                                parentDisplay: displayVal,
+                                              });
                                             }}
                                             className="inline-flex items-center gap-1"
                                           >
-                                            <span>{field?.name || col}:</span>
+                                            <span>{field.name || col}:</span>
                                             <Badge variant={Number(cellValue) > 0 ? 'default' : 'secondary'} className="text-xs">{String(cellValue)}</Badge>
-                                          </a>
+                                          </button>
                                         : idx === 0 ? value : `${field?.name || col}: ${value}`}
                                   </div>
                                 );
@@ -2320,6 +2261,42 @@ function DataPageContent() {
           }}
         />
       )}
+
+      {/* Sub-entity Modal */}
+      <Dialog
+        open={subEntityModal?.open ?? false}
+        onOpenChange={(open) => {
+          if (!open) {
+            setSubEntityModal(null);
+            // Refresh parent record counts
+            if (selectedEntity) {
+              fetchRecords(selectedEntity.slug, currentPage, debouncedSearch);
+            }
+          }
+        }}
+      >
+        <DialogContent className="max-w-4xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>
+              {subEntityModal?.field.label || subEntityModal?.field.name}
+              {subEntityModal?.parentDisplay && (
+                <span className="text-muted-foreground font-normal text-base ml-2">
+                  — {subEntityModal.parentDisplay}
+                </span>
+              )}
+            </DialogTitle>
+          </DialogHeader>
+          {subEntityModal && (
+            <SubEntityField
+              parentRecordId={subEntityModal.parentRecordId}
+              subEntitySlug={subEntityModal.field.subEntitySlug || ''}
+              subEntityId={subEntityModal.field.subEntityId || ''}
+              subEntityDisplayFields={subEntityModal.field.subEntityDisplayFields}
+              label={subEntityModal.field.label || subEntityModal.field.name}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
