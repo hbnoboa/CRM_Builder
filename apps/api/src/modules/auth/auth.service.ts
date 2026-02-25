@@ -216,8 +216,38 @@ export class AuthService {
         return token;
       });
 
-      // Gerar novos tokens
-      const tokens = await this.generateTokens(storedToken.user);
+      // Decodificar refresh token para preservar contexto (tenant switch + rememberMe)
+      const decoded = this.jwtService.decode(dto.refreshToken) as { tenantId?: string; customRoleId?: string; rememberMe?: boolean } | null;
+      const switchedTenantId = decoded?.tenantId;
+      const wasRememberMe = decoded?.rememberMe ?? false;
+
+      if (switchedTenantId && switchedTenantId !== storedToken.user.tenantId) {
+        // Usuario esta em contexto de tenant trocado - preservar
+        const access = await this.prisma.userTenantAccess.findUnique({
+          where: {
+            userId_tenantId: {
+              userId: storedToken.user.id,
+              tenantId: switchedTenantId,
+            },
+          },
+          include: {
+            customRole: { select: { id: true, roleType: true } },
+          },
+        });
+
+        if (access && access.status === 'ACTIVE' && (!access.expiresAt || access.expiresAt > new Date())) {
+          const tokens = await this.generateTokens({
+            ...storedToken.user,
+            tenantId: switchedTenantId,
+            customRoleId: access.customRoleId,
+            customRole: access.customRole,
+          }, wasRememberMe);
+          return tokens;
+        }
+      }
+
+      // Gerar novos tokens com home tenant
+      const tokens = await this.generateTokens(storedToken.user, wasRememberMe);
 
       return tokens;
     } catch (error) {
@@ -277,7 +307,22 @@ export class AuthService {
       throw new UnauthorizedException('Usuario nao encontrado');
     }
 
-    return user;
+    // Verificar se usuario tem acesso a outros tenants
+    const accessCount = await this.prisma.userTenantAccess.count({
+      where: {
+        userId,
+        status: 'ACTIVE',
+        OR: [
+          { expiresAt: null },
+          { expiresAt: { gt: new Date() } },
+        ],
+      },
+    });
+
+    return {
+      ...user,
+      hasMultipleTenants: accessCount > 0,
+    };
   }
 
   async updateProfile(userId: string, dto: UpdateProfileDto) {
@@ -395,6 +440,167 @@ export class AuthService {
     return { message: 'Senha redefinida com sucesso' };
   }
 
+  async switchTenant(userId: string, targetTenantId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      include: {
+        tenant: {
+          select: { id: true, name: true, slug: true, status: true, settings: true },
+        },
+        customRole: {
+          select: {
+            id: true, name: true, description: true, color: true,
+            roleType: true, isSystem: true, permissions: true,
+            modulePermissions: true, tenantPermissions: true, isDefault: true,
+          },
+        },
+      },
+    });
+
+    if (!user) {
+      throw new UnauthorizedException('Usuario nao encontrado');
+    }
+
+    // Trocar para o home tenant
+    if (targetTenantId === user.tenantId) {
+      const tokens = await this.generateTokens(user);
+      return {
+        user: {
+          id: user.id,
+          email: user.email,
+          name: user.name,
+          avatar: user.avatar,
+          customRoleId: user.customRoleId,
+          customRole: user.customRole,
+          tenantId: user.tenantId,
+          tenant: user.tenant,
+        },
+        ...tokens,
+      };
+    }
+
+    // Buscar acesso ao tenant destino
+    const access = await this.prisma.userTenantAccess.findUnique({
+      where: {
+        userId_tenantId: { userId, tenantId: targetTenantId },
+      },
+      include: {
+        tenant: {
+          select: { id: true, name: true, slug: true, status: true, settings: true },
+        },
+        customRole: {
+          select: {
+            id: true, name: true, description: true, color: true,
+            roleType: true, isSystem: true, permissions: true,
+            modulePermissions: true, tenantPermissions: true, isDefault: true,
+          },
+        },
+      },
+    });
+
+    if (!access || access.status !== 'ACTIVE') {
+      throw new UnauthorizedException('Sem acesso a este tenant');
+    }
+
+    if (access.expiresAt && access.expiresAt < new Date()) {
+      throw new UnauthorizedException('Acesso ao tenant expirado');
+    }
+
+    if (access.tenant.status !== 'ACTIVE') {
+      throw new UnauthorizedException('Tenant suspenso ou inativo');
+    }
+
+    // Gerar tokens com o tenant destino
+    const tokens = await this.generateTokens({
+      id: user.id,
+      email: user.email,
+      tenantId: targetTenantId,
+      customRoleId: access.customRoleId,
+      customRole: access.customRole,
+    });
+
+    return {
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        avatar: user.avatar,
+        customRoleId: access.customRoleId,
+        customRole: access.customRole,
+        tenantId: targetTenantId,
+        tenant: access.tenant,
+      },
+      ...tokens,
+    };
+  }
+
+  async getAccessibleTenants(userId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        tenantId: true,
+        customRoleId: true,
+        tenant: {
+          select: { id: true, name: true, slug: true, logo: true },
+        },
+        customRole: {
+          select: { id: true, name: true, roleType: true },
+        },
+      },
+    });
+
+    if (!user) {
+      throw new UnauthorizedException('Usuario nao encontrado');
+    }
+
+    const accessList = await this.prisma.userTenantAccess.findMany({
+      where: {
+        userId,
+        status: 'ACTIVE',
+        OR: [
+          { expiresAt: null },
+          { expiresAt: { gt: new Date() } },
+        ],
+      },
+      include: {
+        tenant: {
+          select: { id: true, name: true, slug: true, logo: true },
+        },
+        customRole: {
+          select: { id: true, name: true, roleType: true },
+        },
+      },
+      orderBy: { tenant: { name: 'asc' } },
+    });
+
+    return [
+      {
+        id: user.tenant.id,
+        name: user.tenant.name,
+        slug: user.tenant.slug,
+        logo: user.tenant.logo,
+        isHome: true,
+        customRole: {
+          id: user.customRole.id,
+          name: user.customRole.name,
+          roleType: user.customRole.roleType,
+        },
+      },
+      ...accessList.map((a) => ({
+        id: a.tenant.id,
+        name: a.tenant.name,
+        slug: a.tenant.slug,
+        logo: a.tenant.logo,
+        isHome: false,
+        customRole: {
+          id: a.customRole.id,
+          name: a.customRole.name,
+          roleType: a.customRole.roleType,
+        },
+      })),
+    ];
+  }
+
   private async generateTokens(user: UserForTokenGeneration, rememberMe = false) {
     const payload = {
       sub: user.id,
@@ -403,7 +609,7 @@ export class AuthService {
       roleType: user.customRole.roleType as RoleType,
     };
 
-    // Access Token (curta duracao - sempre 15m)
+    // Access Token (duracao configuravel via JWT_EXPIRATION)
     const accessToken = this.jwtService.sign(payload);
 
     // Refresh Token TTL: 30 dias se rememberMe, 7 dias padrao
@@ -411,8 +617,9 @@ export class AuthService {
     const refreshExpiration = new Date();
     refreshExpiration.setDate(refreshExpiration.getDate() + refreshDays);
 
-    // Refresh Token (longa duracao)
-    const refreshToken = this.jwtService.sign(payload, {
+    // Refresh Token (longa duracao) - inclui rememberMe para preservar no refresh
+    const refreshPayload = { ...payload, rememberMe };
+    const refreshToken = this.jwtService.sign(refreshPayload, {
       secret: this.configService.get<string>('JWT_REFRESH_SECRET'),
       expiresIn: rememberMe ? '30d' : (this.configService.get<string>('JWT_REFRESH_EXPIRATION') || '7d'),
     });
@@ -429,7 +636,7 @@ export class AuthService {
     return {
       accessToken,
       refreshToken,
-      expiresIn: this.configService.get<string>('JWT_EXPIRATION') || '15m',
+      expiresIn: this.configService.get<string>('JWT_EXPIRATION') || '8h',
     };
   }
 }

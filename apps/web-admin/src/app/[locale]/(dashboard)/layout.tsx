@@ -140,7 +140,7 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
   const t = useTranslations();
   const tNav = useTranslations('navigation');
   const tRoles = useTranslations('roles');
-  const { user, isAuthenticated, logout, getProfile, isLoading } = useAuthStore();
+  const { user, isAuthenticated, logout, ensureAuth, isLoading } = useAuthStore();
   const { hasModuleAccess, getDefaultRoute } = usePermissions();
   const { tenant } = useTenant();
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -169,27 +169,11 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (mounted && !fetchedRef.current) {
       fetchedRef.current = true;
-
-      const token = localStorage.getItem('accessToken');
-      if (!token && !isAuthenticated) {
-        router.push('/login');
-        return;
-      }
-
-      getProfile().catch(() => {
-        router.push('/login');
+      ensureAuth().then((result) => {
+        if (result === 'redirect') router.push('/login');
       });
     }
-  }, [mounted, getProfile, router, isAuthenticated]);
-
-  useEffect(() => {
-    if (mounted && !isLoading && !isAuthenticated) {
-      const token = localStorage.getItem('accessToken');
-      if (!token) {
-        router.push('/login');
-      }
-    }
-  }, [mounted, isLoading, isAuthenticated, router]);
+  }, [mounted, ensureAuth, router]);
 
   // Redirect if user doesn't have access to the current module
   useEffect(() => {

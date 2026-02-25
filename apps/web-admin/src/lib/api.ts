@@ -1,5 +1,4 @@
 import axios from 'axios';
-// import Cookies from 'js-cookie';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
 
@@ -47,14 +46,56 @@ api.interceptors.request.use(
   }
 );
 
+// --- Refresh queue (prevents concurrent refresh calls with one-time-use tokens) ---
+let isRefreshing = false;
+let refreshSubscribers: Array<{
+  resolve: (token: string) => void;
+  reject: (error: unknown) => void;
+}> = [];
+
+function onTokenRefreshed(newToken: string) {
+  refreshSubscribers.forEach(({ resolve }) => resolve(newToken));
+  refreshSubscribers = [];
+}
+
+function onRefreshFailed(error: unknown) {
+  refreshSubscribers.forEach(({ reject }) => reject(error));
+  refreshSubscribers = [];
+}
+
+function subscribeToRefresh(): Promise<string> {
+  return new Promise((resolve, reject) => {
+    refreshSubscribers.push({ resolve, reject });
+  });
+}
+
+// Auth endpoints that should NOT trigger token refresh on 401
+const AUTH_ENDPOINTS = ['/auth/login', '/auth/register', '/auth/refresh'];
+
 // Response interceptor - handle token refresh
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
     const originalRequest = error.config;
+    const url = originalRequest?.url || '';
+    const isAuthEndpoint = AUTH_ENDPOINTS.some((path) => url.endsWith(path));
 
-    if (error.response?.status === 401 && !originalRequest._retry) {
+    // Only attempt refresh for non-auth endpoints with 401 status
+    if (error.response?.status === 401 && !originalRequest._retry && !isAuthEndpoint) {
       originalRequest._retry = true;
+
+      // If already refreshing, queue this request and wait
+      if (isRefreshing) {
+        try {
+          const newToken = await subscribeToRefresh();
+          originalRequest.headers.Authorization = `Bearer ${newToken}`;
+          return api(originalRequest);
+        } catch (refreshError) {
+          return Promise.reject(refreshError);
+        }
+      }
+
+      isRefreshing = true;
 
       try {
         const refreshToken = localStorage.getItem('refreshToken');
@@ -71,9 +112,15 @@ api.interceptors.response.use(
         localStorage.setItem('accessToken', accessToken);
         localStorage.setItem('refreshToken', newRefreshToken);
 
+        isRefreshing = false;
+        onTokenRefreshed(accessToken);
+
         originalRequest.headers.Authorization = `Bearer ${accessToken}`;
         return api(originalRequest);
       } catch (refreshError) {
+        isRefreshing = false;
+        onRefreshFailed(refreshError);
+
         // Clear tokens and redirect to login
         localStorage.removeItem('accessToken');
         localStorage.removeItem('refreshToken');

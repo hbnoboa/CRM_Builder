@@ -791,10 +791,15 @@ class Auth extends _$Auth {
 
       // Re-register device token on profile refresh
       PushNotificationService.instance.registerDeviceToken();
-    } catch (_) {
-      // Clear session but keep offline credentials and local data
-      await SecureStorage.clearSession();
-      state = const AuthState(isLoading: false);
+    } catch (e) {
+      // Only clear session on explicit 401 (token truly invalid)
+      if (e is DioException && e.response?.statusCode == 401) {
+        await SecureStorage.clearSession();
+        state = const AuthState(isLoading: false);
+      } else {
+        // Network error, timeout, 500 — keep session alive
+        state = state.copyWith(isLoading: false);
+      }
     }
   }
 
