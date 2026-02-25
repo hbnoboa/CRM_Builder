@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:crm_mobile/core/permissions/permission_provider.dart';
 import 'package:crm_mobile/core/theme/app_colors_extension.dart';
-import 'package:crm_mobile/shared/widgets/offline_banner.dart';
 
 /// Main shell scaffold with bottom navigation.
 /// Shows only Dashboard (if permitted) and Data modules.
@@ -43,12 +42,7 @@ class ShellScaffold extends ConsumerWidget {
 
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
-      body: Column(
-        children: [
-          const OfflineBanner(),
-          Expanded(child: child),
-        ],
-      ),
+      body: child,
       bottomNavigationBar: navItems.length > 1
           ? Container(
               decoration: BoxDecoration(
