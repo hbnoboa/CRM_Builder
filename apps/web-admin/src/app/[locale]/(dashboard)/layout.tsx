@@ -13,7 +13,6 @@ import {
   X,
   Layers,
   Code,
-  Search,
   Building2,
   Shield,
   FileText,
@@ -22,15 +21,12 @@ import {
   ScrollText,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { useAuthStore } from '@/stores/auth-store';
 import { usePermissions } from '@/hooks/use-permissions';
 import { TenantProvider, useTenant } from '@/stores/tenant-context';
 import { NotificationProvider } from '@/providers/notification-provider';
 import { TenantThemeProvider } from '@/providers/tenant-theme-provider';
 import { NotificationBell } from '@/components/notifications/notification-bell';
-import { ThemeToggle } from '@/components/theme-toggle';
-import { LanguageSwitcher } from '@/components/language-switcher';
 import { TenantSelector } from '@/components/tenant-selector';
 import { cn } from '@/lib/utils';
 import type { RoleType } from '@/types';
@@ -340,34 +336,9 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
               <Menu className="h-6 w-6" />
             </button>
 
-            <div className="hidden md:flex items-center flex-1 max-w-md">
-              <div className="relative w-full">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder={t('common.search')}
-                  className="pl-9 pr-12 bg-muted/50 border-0 focus-visible:ring-1"
-                />
-                <div className="absolute right-2 top-1/2 transform -translate-y-1/2 flex items-center gap-1 text-muted-foreground">
-                  <kbd className="px-1.5 py-0.5 text-xs bg-background border rounded">⌘</kbd>
-                  <kbd className="px-1.5 py-0.5 text-xs bg-background border rounded">K</kbd>
-                </div>
-              </div>
-            </div>
-
-            <div className="flex-1 md:hidden" />
-
-            <button
-              className="md:hidden p-2 rounded-lg hover:bg-muted active:bg-muted/80 transition-colors text-muted-foreground"
-              aria-label={t('common.search')}
-            >
-              <Search className="h-5 w-5" />
-            </button>
+            <div className="flex-1" />
 
             <TenantSelector />
-
-            <LanguageSwitcher />
-
-            <ThemeToggle />
 
             <NotificationBell />
 
