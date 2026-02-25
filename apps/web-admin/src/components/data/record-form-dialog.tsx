@@ -79,10 +79,30 @@ function applyPhoneMask(value: string) {
   return digits.replace(/(\d{2})(\d)/, '($1) $2').replace(/(\d{5})(\d)/, '$1-$2').replace(/(-\d{4})\d+?$/, '$1');
 }
 
-function formatCurrency(value: string | number, prefix = 'R$') {
-  const num = typeof value === 'string' ? parseFloat(value.replace(/[^\d.-]/g, '')) : value;
+function parseCurrencyInput(input: string): number {
+  const cleaned = String(input).trim();
+  if (!cleaned) return NaN;
+  const lastDot = cleaned.lastIndexOf('.');
+  const lastComma = cleaned.lastIndexOf(',');
+  if (lastDot > -1 && lastComma > -1) {
+    if (lastComma > lastDot) {
+      // "1.234,56" → pt-BR format
+      return parseFloat(cleaned.replace(/\./g, '').replace(',', '.'));
+    } else {
+      // "1,234.56" → en-US format
+      return parseFloat(cleaned.replace(/,/g, ''));
+    }
+  } else if (lastComma > -1) {
+    // "1234,56" → comma as decimal
+    return parseFloat(cleaned.replace(',', '.'));
+  }
+  return parseFloat(cleaned);
+}
+
+function formatCurrencyDisplay(value: string | number): string {
+  const num = typeof value === 'number' ? value : parseCurrencyInput(String(value));
   if (isNaN(num)) return '';
-  return `${prefix} ${num.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  return num.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
 // ─── Component ──────────────────────────────────────────────────────────────
@@ -240,7 +260,14 @@ export function RecordFormDialog({
   useEffect(() => {
     if (open) {
       if (record) {
-        setFormData(normalizeFormData(record.data || {}, entity.fields || []));
+        const normalized = normalizeFormData(record.data || {}, entity.fields || []);
+        entity.fields?.forEach((field) => {
+          if (field.type === 'currency' && normalized[field.slug] != null && normalized[field.slug] !== '') {
+            const num = Number(normalized[field.slug]);
+            if (!isNaN(num)) normalized[field.slug] = formatCurrencyDisplay(num);
+          }
+        });
+        setFormData(normalized);
       } else {
         const initialData: Record<string, unknown> = {};
         entity.fields?.forEach((field) => {
@@ -357,7 +384,7 @@ export function RecordFormDialog({
       // Sub-entity fields are not validated (they manage their own data)
       if (field.type === 'sub-entity') return;
       const value = formData[field.slug];
-      if (field.required && (value === undefined || value === null || value === '')) {
+      if (field.required && (value === undefined || value === null || value === '' || (Array.isArray(value) && value.length === 0))) {
         newErrors[field.slug] = tValidation('fieldRequired', { field: field.label || field.name });
         return;
       }
@@ -370,7 +397,7 @@ export function RecordFormDialog({
             try { new URL(String(value)); } catch { newErrors[field.slug] = tValidation('urlInvalid'); }
             break;
           case 'number': case 'currency': case 'percentage':
-            if (isNaN(Number(String(value).replace(/[^\d.-]/g, '')))) newErrors[field.slug] = tValidation('numberInvalid');
+            if (isNaN(parseCurrencyInput(String(value)))) newErrors[field.slug] = tValidation('numberInvalid');
             break;
           case 'cpf': {
             const digits = String(value).replace(/\D/g, '');
@@ -441,7 +468,7 @@ export function RecordFormDialog({
         if (field.type === 'number' || field.type === 'rating' || field.type === 'slider') {
           processedData[field.slug] = Number(value);
         } else if (field.type === 'currency' || field.type === 'percentage') {
-          processedData[field.slug] = Number(String(value).replace(/[^\d.-]/g, ''));
+          processedData[field.slug] = parseCurrencyInput(String(value));
         } else if (field.type === 'relation') {
           // Save as {value, label} so the data list shows the display name
           const id = String(value);
@@ -562,7 +589,7 @@ export function RecordFormDialog({
           const optLabel = typeof option === 'object' ? option.label : option;
           const optColor = typeof option === 'object' ? option.color : undefined;
           return { value: optVal, label: optLabel, ...(optColor ? { color: optColor } : {}) };
-        });
+        }).sort((a, b) => a.label.localeCompare(b.label, 'pt-BR'));
         return (
           <div key={field.slug} className="space-y-2">
             {fieldLabel}
@@ -585,7 +612,7 @@ export function RecordFormDialog({
           const optLabel = typeof option === 'object' ? option.label : option;
           const optColor = typeof option === 'object' ? option.color : undefined;
           return { value: optVal, label: optLabel, ...(optColor ? { color: optColor } : {}) };
-        });
+        }).sort((a, b) => a.label.localeCompare(b.label, 'pt-BR'));
         return (
           <div key={field.slug} className="space-y-2">
             {fieldLabel}
@@ -604,7 +631,7 @@ export function RecordFormDialog({
       }
 
       case 'api-select': {
-        const apiOpts: SelectOption[] = (apiOptions[field.slug] || []).filter(o => o.value).map(o => ({ value: o.value, label: o.label }));
+        const apiOpts: SelectOption[] = (apiOptions[field.slug] || []).filter(o => o.value).map(o => ({ value: o.value, label: o.label })).sort((a, b) => a.label.localeCompare(b.label, 'pt-BR'));
         const isLoadingOpts = loadingApiOptions[field.slug];
         return (
           <div key={field.slug} className="space-y-2">
@@ -626,7 +653,7 @@ export function RecordFormDialog({
       }
 
       case 'relation': {
-        const relOpts: SelectOption[] = (relationOptions[field.slug] || []).filter(o => o.value).map(o => ({ value: o.value, label: o.label }));
+        const relOpts: SelectOption[] = (relationOptions[field.slug] || []).filter(o => o.value).map(o => ({ value: o.value, label: o.label })).sort((a, b) => a.label.localeCompare(b.label, 'pt-BR'));
         const isLoadingRel = loadingRelations[field.slug];
         return (
           <div key={field.slug} className="space-y-2">
@@ -699,7 +726,25 @@ export function RecordFormDialog({
             {fieldLabel}
             <div className="relative">
               <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">{field.prefix || 'R$'}</span>
-              <Input id={field.slug} type="number" step="0.01" min={field.min} max={field.max} className="pl-10" placeholder="0,00" value={String(value || '')} onChange={(e) => handleFieldChange(field.slug, e.target.value)} disabled={isFieldDisabled} />
+              <Input
+                id={field.slug}
+                type="text"
+                inputMode="decimal"
+                className="pl-10"
+                placeholder="0,00"
+                value={String(value || '')}
+                onChange={(e) => {
+                  const raw = e.target.value.replace(/[^\d.,-]/g, '');
+                  handleFieldChange(field.slug, raw);
+                }}
+                onBlur={() => {
+                  const v = String(value || '');
+                  if (!v) return;
+                  const num = parseCurrencyInput(v);
+                  if (!isNaN(num)) handleFieldChange(field.slug, formatCurrencyDisplay(num));
+                }}
+                disabled={isFieldDisabled}
+              />
             </div>
             {helpEl}{errorEl}
           </div>

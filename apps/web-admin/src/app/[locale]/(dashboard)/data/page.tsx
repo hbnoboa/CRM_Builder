@@ -213,6 +213,13 @@ function formatCellValue(val: unknown, fieldType?: string): string {
         : d.toLocaleString('pt-BR');
     }
   }
+  // Formatar moeda com 2 decimais
+  if (fieldType === 'currency' && (typeof val === 'number' || (typeof val === 'string' && !isNaN(Number(val))))) {
+    return Number(val).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+  if (fieldType === 'percentage' && (typeof val === 'number' || (typeof val === 'string' && !isNaN(Number(val))))) {
+    return `${Number(val).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%`;
+  }
   if (typeof val === 'object' && val !== null) {
     if ('label' in (val as Record<string, unknown>)) {
       return String((val as Record<string, unknown>).label);
