@@ -71,26 +71,25 @@ class _DataFormPageState extends ConsumerState<DataFormPage> {
       if (settings is Map<String, dynamic>) {
         _captureLocation = settings['captureLocation'] == true;
 
-        // Reorder fields by columnConfig if set
-        final columnConfig = settings['columnConfig'] as Map<String, dynamic>?;
-        final visibleColumns = (columnConfig?['visibleColumns'] as List<dynamic>?)
-            ?.cast<String>()
-            .toList();
-        if (visibleColumns != null && visibleColumns.isNotEmpty) {
-          final fieldMap = <String, dynamic>{};
-          for (final f in _fields) {
-            final slug = (f as Map<String, dynamic>)['slug'] as String? ?? '';
-            if (slug.isNotEmpty) fieldMap[slug] = f;
+        // Sort fields by gridRow to match web form layout order.
+        // Fields with gridRow > 0 come first (sorted ascending),
+        // fields without gridRow (0 or null) keep their original order at the end.
+        final withRow = <dynamic>[];
+        final withoutRow = <dynamic>[];
+        for (final f in _fields) {
+          final row = (f as Map<String, dynamic>)['gridRow'];
+          if (row is int && row > 0) {
+            withRow.add(f);
+          } else {
+            withoutRow.add(f);
           }
-          final ordered = <dynamic>[];
-          for (final slug in visibleColumns) {
-            if (fieldMap.containsKey(slug)) {
-              ordered.add(fieldMap.remove(slug));
-            }
-          }
-          ordered.addAll(fieldMap.values);
-          _fields = ordered;
         }
+        withRow.sort((a, b) {
+          final ra = ((a as Map<String, dynamic>)['gridRow'] as int?) ?? 0;
+          final rb = ((b as Map<String, dynamic>)['gridRow'] as int?) ?? 0;
+          return ra.compareTo(rb);
+        });
+        _fields = [...withRow, ...withoutRow];
       }
     } catch (_) {}
 
