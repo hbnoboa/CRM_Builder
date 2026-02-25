@@ -247,6 +247,20 @@
       "created": "Usuário criado com sucesso",
       "updated": "Usuário atualizado com sucesso",
       "deleted": "Usuário excluído com sucesso"
+    },
+    "tenantAccess": {
+      "menu": "Acesso a Tenants",
+      "title": "Acesso a Tenants",
+      "description": "Gerencie os tenants que {name} pode acessar",
+      "home": "Principal",
+      "additionalAccess": "Acessos Adicionais",
+      "noAccess": "Nenhum acesso adicional configurado",
+      "grantAccess": "Conceder Acesso",
+      "selectTenant": "Selecione o tenant",
+      "selectRole": "Selecione a role",
+      "grant": "Conceder",
+      "granted": "Acesso concedido com sucesso",
+      "revoked": "Acesso revogado com sucesso"
     }
   },
   "entities": {

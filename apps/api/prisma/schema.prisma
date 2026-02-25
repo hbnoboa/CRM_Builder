@@ -86,6 +86,7 @@ model Tenant {
   notifications   Notification[]
   pdfTemplates    PdfTemplate[]
   pdfGenerations  PdfGeneration[]
+  userTenantAccess UserTenantAccess[]
 
   @@index([slug])
   @@index([status])
@@ -127,6 +128,9 @@ model User {
 
   // PDFs solicitados por este usuario
   pdfGenerations PdfGeneration[]
+
+  // Acessos a outros tenants (multi-tenant por usuario)
+  tenantAccess UserTenantAccess[]
 
   @@unique([tenantId, email])
   @@index([tenantId])
@@ -436,6 +440,7 @@ model CustomRole {
 
   tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   users  User[]
+  tenantAccessUsers UserTenantAccess[]
 
   @@unique([tenantId, name])
   @@index([tenantId])
@@ -443,6 +448,32 @@ model CustomRole {
   @@index([roleType])
   @@index([tenantId, isDefault])
   @@index([tenantId, roleType])
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// USER TENANT ACCESS (Acesso multi-tenant por usuario)
+// ═══════════════════════════════════════════════════════════════════════════
+
+model UserTenantAccess {
+  id           String    @id @default(cuid())
+  userId       String
+  tenantId     String
+  customRoleId String
+  status       Status    @default(ACTIVE)
+  grantedAt    DateTime  @default(now())
+  expiresAt    DateTime?
+  grantedById  String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tenant     Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  customRole CustomRole @relation(fields: [customRoleId], references: [id])
+
+  @@unique([userId, tenantId])
+  @@index([userId])
+  @@index([tenantId])
+  @@index([customRoleId])
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

@@ -289,6 +289,116 @@ export class UserService {
     return updatedUser;
   }
 
+  // ═══════════════════════════════════════════════════════════════
+  // TENANT ACCESS MANAGEMENT
+  // ═══════════════════════════════════════════════════════════════
+
+  async grantTenantAccess(
+    currentUser: CurrentUser,
+    dto: { userId: string; tenantId: string; customRoleId: string; expiresAt?: string },
+  ) {
+    const roleType = currentUser.customRole?.roleType as RoleType | undefined;
+
+    // Apenas PLATFORM_ADMIN ou ADMIN do tenant destino podem conceder acesso
+    if (roleType !== 'PLATFORM_ADMIN' && currentUser.tenantId !== dto.tenantId) {
+      throw new ForbiddenException('Sem permissao para conceder acesso a este tenant');
+    }
+
+    // Verificar que o usuario existe
+    const user = await this.prisma.user.findUnique({
+      where: { id: dto.userId },
+      select: { id: true, tenantId: true, name: true },
+    });
+    if (!user) throw new NotFoundException('Usuario nao encontrado');
+
+    // Nao pode conceder acesso ao proprio home tenant
+    if (user.tenantId === dto.tenantId) {
+      throw new ConflictException('Usuario ja pertence a este tenant');
+    }
+
+    // Verificar que o tenant destino existe
+    const tenant = await this.prisma.tenant.findUnique({
+      where: { id: dto.tenantId },
+      select: { id: true, name: true },
+    });
+    if (!tenant) throw new NotFoundException('Tenant nao encontrado');
+
+    // Verificar que a role pertence ao tenant destino
+    const role = await this.prisma.customRole.findFirst({
+      where: { id: dto.customRoleId, tenantId: dto.tenantId },
+      select: { id: true, name: true },
+    });
+    if (!role) throw new NotFoundException('Role nao encontrada neste tenant');
+
+    // Criar ou atualizar acesso (upsert)
+    const access = await this.prisma.userTenantAccess.upsert({
+      where: {
+        userId_tenantId: { userId: dto.userId, tenantId: dto.tenantId },
+      },
+      create: {
+        userId: dto.userId,
+        tenantId: dto.tenantId,
+        customRoleId: dto.customRoleId,
+        grantedById: currentUser.id,
+        expiresAt: dto.expiresAt ? new Date(dto.expiresAt) : null,
+      },
+      update: {
+        customRoleId: dto.customRoleId,
+        status: 'ACTIVE',
+        grantedById: currentUser.id,
+        expiresAt: dto.expiresAt ? new Date(dto.expiresAt) : null,
+      },
+      include: {
+        tenant: { select: { id: true, name: true, slug: true } },
+        customRole: { select: { id: true, name: true, roleType: true } },
+      },
+    });
+
+    this.logger.log(`Tenant access granted: user ${user.name} -> tenant ${tenant.name}`);
+    return access;
+  }
+
+  async revokeTenantAccess(currentUser: CurrentUser, accessId: string) {
+    const access = await this.prisma.userTenantAccess.findUnique({
+      where: { id: accessId },
+      select: { id: true, tenantId: true, userId: true },
+    });
+
+    if (!access) throw new NotFoundException('Acesso nao encontrado');
+
+    const roleType = currentUser.customRole?.roleType as RoleType | undefined;
+    if (roleType !== 'PLATFORM_ADMIN' && currentUser.tenantId !== access.tenantId) {
+      throw new ForbiddenException('Sem permissao para revogar este acesso');
+    }
+
+    await this.prisma.userTenantAccess.delete({ where: { id: accessId } });
+
+    this.logger.log(`Tenant access revoked: accessId ${accessId}`);
+    return { message: 'Acesso revogado com sucesso' };
+  }
+
+  async listUserTenantAccess(currentUser: CurrentUser, userId: string) {
+    const roleType = currentUser.customRole?.roleType as RoleType | undefined;
+
+    // PLATFORM_ADMIN pode ver de qualquer user, outros so de users do mesmo tenant
+    if (roleType !== 'PLATFORM_ADMIN') {
+      const user = await this.prisma.user.findFirst({
+        where: { id: userId, tenantId: currentUser.tenantId },
+        select: { id: true },
+      });
+      if (!user) throw new NotFoundException('Usuario nao encontrado');
+    }
+
+    return this.prisma.userTenantAccess.findMany({
+      where: { userId },
+      include: {
+        tenant: { select: { id: true, name: true, slug: true } },
+        customRole: { select: { id: true, name: true, roleType: true, color: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
   async remove(id: string, currentUser: CurrentUser) {
     // Verifica se usuario existe (e se tem permissao)
     const oldUser = await this.findOne(id, currentUser);

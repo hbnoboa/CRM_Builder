@@ -247,6 +247,20 @@
       "created": "User created successfully",
       "updated": "User updated successfully",
       "deleted": "User deleted successfully"
+    },
+    "tenantAccess": {
+      "menu": "Tenant Access",
+      "title": "Tenant Access",
+      "description": "Manage tenants that {name} can access",
+      "home": "Home",
+      "additionalAccess": "Additional Access",
+      "noAccess": "No additional access configured",
+      "grantAccess": "Grant Access",
+      "selectTenant": "Select tenant",
+      "selectRole": "Select role",
+      "grant": "Grant",
+      "granted": "Access granted successfully",
+      "revoked": "Access revoked successfully"
     }
   },
   "entities": {

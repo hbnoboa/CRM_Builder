@@ -87,4 +87,39 @@ export class UserController {
   async remove(@Param('id') id: string, @CurrentUser() user: CurrentUserType) {
     return this.userService.remove(id, user);
   }
+
+  // ═══════════════════════════════════════════════════════════════
+  // TENANT ACCESS MANAGEMENT
+  // ═══════════════════════════════════════════════════════════════
+
+  @Get(':userId/tenant-access')
+  @Roles('ADMIN', 'PLATFORM_ADMIN')
+  @ApiOperation({ summary: 'Listar acessos a tenants de um usuario' })
+  async listUserTenantAccess(
+    @Param('userId') userId: string,
+    @CurrentUser() user: CurrentUserType,
+  ) {
+    return this.userService.listUserTenantAccess(user, userId);
+  }
+
+  @Post(':userId/tenant-access')
+  @Roles('ADMIN', 'PLATFORM_ADMIN')
+  @ApiOperation({ summary: 'Conceder acesso a outro tenant' })
+  async grantTenantAccess(
+    @Param('userId') userId: string,
+    @Body() dto: { tenantId: string; customRoleId: string; expiresAt?: string },
+    @CurrentUser() user: CurrentUserType,
+  ) {
+    return this.userService.grantTenantAccess(user, { userId, ...dto });
+  }
+
+  @Delete('tenant-access/:accessId')
+  @Roles('ADMIN', 'PLATFORM_ADMIN')
+  @ApiOperation({ summary: 'Revogar acesso a tenant' })
+  async revokeTenantAccess(
+    @Param('accessId') accessId: string,
+    @CurrentUser() user: CurrentUserType,
+  ) {
+    return this.userService.revokeTenantAccess(user, accessId);
+  }
 }

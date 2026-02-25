@@ -47,13 +47,60 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       throw new UnauthorizedException('Usuario nao encontrado ou inativo');
     }
 
-    // Validar que tenantId do token corresponde ao do usuario (defense-in-depth)
-    if (payload.tenantId && payload.tenantId !== user.tenantId) {
-      throw new UnauthorizedException('Token tenant mismatch');
-    }
-
     if (!user.customRole || !user.customRoleId) {
       throw new UnauthorizedException('Usuario sem role definida');
+    }
+
+    // Se o tenantId do token e diferente do home tenant, validar via UserTenantAccess
+    if (payload.tenantId && payload.tenantId !== user.tenantId) {
+      const access = await this.prisma.userTenantAccess.findUnique({
+        where: {
+          userId_tenantId: {
+            userId: user.id,
+            tenantId: payload.tenantId,
+          },
+        },
+        include: {
+          customRole: {
+            select: {
+              id: true,
+              name: true,
+              roleType: true,
+              isSystem: true,
+              permissions: true,
+              modulePermissions: true,
+              tenantPermissions: true,
+            },
+          },
+        },
+      });
+
+      if (!access || access.status !== 'ACTIVE') {
+        throw new UnauthorizedException('Token tenant mismatch');
+      }
+
+      // Verificar expiracao
+      if (access.expiresAt && access.expiresAt < new Date()) {
+        throw new UnauthorizedException('Acesso ao tenant expirado');
+      }
+
+      // Retornar CurrentUser com o tenant e role do acesso
+      return {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        tenantId: payload.tenantId,
+        customRoleId: access.customRoleId,
+        customRole: {
+          id: access.customRole.id,
+          name: access.customRole.name,
+          roleType: access.customRole.roleType as CurrentUser['customRole']['roleType'],
+          isSystem: access.customRole.isSystem,
+          permissions: access.customRole.permissions as unknown[],
+          modulePermissions: access.customRole.modulePermissions as Record<string, boolean>,
+          tenantPermissions: access.customRole.tenantPermissions as Record<string, unknown>,
+        },
+      };
     }
 
     return {

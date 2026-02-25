@@ -13,6 +13,7 @@ import {
   Mail,
   UserCheck,
   UserX,
+  Shield,
 } from 'lucide-react';
 import { RequireRole } from '@/components/auth/require-role';
 import { usePermissions } from '@/hooks/use-permissions';
@@ -27,8 +28,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { useUsers } from '@/hooks/use-users';
-import { UserFormDialog } from '@/components/users/user-form-dialog';
-import { DeleteUserDialog } from '@/components/users/delete-user-dialog';
+import { UserFormDialog, DeleteUserDialog, TenantAccessDialog } from '@/components/users';
 import { useAuthStore } from '@/stores/auth-store';
 import { useTenant } from '@/stores/tenant-context';
 import type { User } from '@/types';
@@ -54,7 +54,9 @@ function UsersPageContent() {
   const [search, setSearch] = useState('');
   const [formOpen, setFormOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [tenantAccessOpen, setTenantAccessOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
+  const isPlatformAdmin = currentUser?.customRole?.roleType === 'PLATFORM_ADMIN';
 
   const queryParams = effectiveTenantId ? { tenantId: effectiveTenantId } : undefined;
   const { data, isLoading, refetch } = useUsers(queryParams);
@@ -264,6 +266,15 @@ function UsersPageContent() {
                               {tCommon('edit')}
                             </DropdownMenuItem>
                           )}
+                          {isPlatformAdmin && (
+                            <>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem onClick={() => { setSelectedUser(user); setTenantAccessOpen(true); }}>
+                              <Shield className="h-4 w-4 mr-2" />
+                              {t('tenantAccess.menu')}
+                            </DropdownMenuItem>
+                            </>
+                          )}
                           {canEditUser(user) && canDeleteUser() && <DropdownMenuSeparator />}
                           {canDeleteUser() && (
                             <DropdownMenuItem
@@ -297,6 +308,11 @@ function UsersPageContent() {
         onOpenChange={setDeleteOpen}
         user={selectedUser}
         onSuccess={handleSuccess}
+      />
+      <TenantAccessDialog
+        open={tenantAccessOpen}
+        onOpenChange={setTenantAccessOpen}
+        user={selectedUser}
       />
     </div>
   );

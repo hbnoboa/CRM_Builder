@@ -12,6 +12,7 @@ import { ApiTags, ApiOperation, ApiBearerAuth, ApiResponse } from '@nestjs/swagg
 import { Throttle } from '@nestjs/throttler';
 import { AuthService } from './auth.service';
 import { LoginDto, RegisterDto, RefreshTokenDto, UpdateProfileDto, ChangePasswordDto, ForgotPasswordDto, ResetPasswordDto } from './dto/auth.dto';
+import { SwitchTenantDto } from './dto/switch-tenant.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 
@@ -95,6 +96,29 @@ export class AuthController {
     @Body() dto: ChangePasswordDto,
   ) {
     return this.authService.changePassword(userId, dto);
+  }
+
+  @Post('switch-tenant')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Trocar para outro tenant (requer UserTenantAccess)' })
+  @ApiResponse({ status: 200, description: 'Tokens com novo tenant' })
+  @ApiResponse({ status: 401, description: 'Sem acesso ao tenant' })
+  async switchTenant(
+    @CurrentUser('id') userId: string,
+    @Body() dto: SwitchTenantDto,
+  ) {
+    return this.authService.switchTenant(userId, dto.tenantId);
+  }
+
+  @Get('accessible-tenants')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Listar tenants acessiveis pelo usuario' })
+  @ApiResponse({ status: 200, description: 'Lista de tenants' })
+  async getAccessibleTenants(@CurrentUser('id') userId: string) {
+    return this.authService.getAccessibleTenants(userId);
   }
 
   @Post('forgot-password')

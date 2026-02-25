@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient, useInfiniteQuery } from '@tanstack/react-query';
 import { useCallback, useMemo } from 'react';
 import { toast } from 'sonner';
-import { usersService, QueryUsersParams, CreateUserData, UpdateUserData } from '@/services/users.service';
+import { usersService, QueryUsersParams, CreateUserData, UpdateUserData, GrantTenantAccessData } from '@/services/users.service';
 import { getErrorMessage } from '@/lib/get-error-message';
 
 export const userKeys = {
@@ -12,6 +12,7 @@ export const userKeys = {
     [...userKeys.lists(), 'infinite', params] as const,
   details: () => [...userKeys.all, 'detail'] as const,
   detail: (id: string) => [...userKeys.details(), id] as const,
+  tenantAccess: (userId: string) => [...userKeys.all, 'tenant-access', userId] as const,
 };
 
 export function useUsers(params?: QueryUsersParams) {
@@ -124,6 +125,49 @@ export function useDeleteUser(messages?: MutationMessages) {
     mutationFn: (id: string) => usersService.delete(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: userKeys.lists() });
+      if (messages?.success) toast.success(messages.success);
+    },
+    onError: (error: unknown) => {
+      toast.error(getErrorMessage(error, messages?.error));
+    },
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════
+// TENANT ACCESS HOOKS
+// ═══════════════════════════════════════════════════════════════
+
+export function useUserTenantAccess(userId: string | null) {
+  return useQuery({
+    queryKey: userKeys.tenantAccess(userId || ''),
+    queryFn: () => usersService.getUserTenantAccess(userId!),
+    enabled: !!userId,
+  });
+}
+
+export function useGrantTenantAccess(messages?: MutationMessages) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ userId, data }: { userId: string; data: GrantTenantAccessData }) =>
+      usersService.grantTenantAccess(userId, data),
+    onSuccess: (_, { userId }) => {
+      queryClient.invalidateQueries({ queryKey: userKeys.tenantAccess(userId) });
+      if (messages?.success) toast.success(messages.success);
+    },
+    onError: (error: unknown) => {
+      toast.error(getErrorMessage(error, messages?.error));
+    },
+  });
+}
+
+export function useRevokeTenantAccess(messages?: MutationMessages) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (accessId: string) => usersService.revokeTenantAccess(accessId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: userKeys.all });
       if (messages?.success) toast.success(messages.success);
     },
     onError: (error: unknown) => {
