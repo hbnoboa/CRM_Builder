@@ -96,6 +96,16 @@ export class DataController {
     return this.dataService.create(entitySlug, dto, user);
   }
 
+  @Get(':entitySlug/archived')
+  @ApiOperation({ summary: 'Listar registros arquivados' })
+  async findAllArchived(
+    @Param('entitySlug') entitySlug: string,
+    @Query() query: QueryDataDto,
+    @CurrentUser() user: CurrentUserType,
+  ) {
+    return this.dataService.findAllArchived(entitySlug, query, user);
+  }
+
   @Get(':entitySlug')
   @ApiOperation({ summary: 'Listar registros' })
   async findAll(

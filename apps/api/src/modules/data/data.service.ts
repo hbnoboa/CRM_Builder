@@ -459,6 +459,11 @@ export class DataService {
     }
 
     // =========================================================================
+    // ARCHIVED DATA: construir where equivalente para ArchivedEntityData
+    // =========================================================================
+    const archivedWhere = this.buildArchivedWhere(where);
+
+    // =========================================================================
     // ORDENACAO E QUERIES
     // =========================================================================
     const TOP_LEVEL_SORT_FIELDS = new Set(['createdAt', 'updatedAt', 'id', 'parentRecordId']);
@@ -490,13 +495,23 @@ export class DataService {
 
     if (isParentDisplaySort && !useCursor) {
       // Ordenacao por campo de display do pai: buscar IDs + parentRecordId, resolver displays, ordenar em memoria
-      const [allItems, totalCount] = await Promise.all([
+      const [activeItems, archivedItems, activeCount, archivedCount] = await Promise.all([
         this.prisma.entityData.findMany({
           where,
           select: { id: true, parentRecordId: true },
         }),
+        this.prisma.archivedEntityData.findMany({
+          where: archivedWhere,
+          select: { id: true, parentRecordId: true },
+        }),
         this.prisma.entityData.count({ where }),
+        this.prisma.archivedEntityData.count({ where: archivedWhere }),
       ]);
+
+      const allItems: Array<{ id: string; parentRecordId: string | null; _isArchived?: boolean }> = [
+        ...activeItems,
+        ...archivedItems.map(r => ({ ...r, _isArchived: true })),
+      ];
 
       // Buscar registros pai para resolver o display
       const parentIds = [...new Set(allItems.map(r => r.parentRecordId).filter(Boolean))] as string[];
@@ -552,29 +567,40 @@ export class DataService {
 
       // Paginar
       const offset = skipClause || (page - 1) * limit;
-      const paginatedIds = allItems.slice(offset, offset + limit).map(r => r.id);
+      const paginatedIds = allItems.slice(offset, offset + limit);
+      const activeIds = paginatedIds.filter(r => !r._isArchived).map(r => r.id);
+      const archivedIds = paginatedIds.filter(r => r._isArchived).map(r => r.id);
 
-      // Buscar registros completos
-      const fullRecords = paginatedIds.length > 0
-        ? await this.prisma.entityData.findMany({
-            where: { id: { in: paginatedIds } },
-            include: includeClause,
-          })
-        : [];
+      // Buscar registros completos de ambas tabelas
+      const [fullActive, fullArchived] = await Promise.all([
+        activeIds.length > 0
+          ? this.prisma.entityData.findMany({
+              where: { id: { in: activeIds } },
+              include: includeClause,
+            })
+          : [],
+        this.fetchArchivedRecordsFull(archivedIds),
+      ]);
 
-      const idOrder = new Map(paginatedIds.map((id, i) => [id, i]));
-      data = fullRecords.sort((a, b) => (idOrder.get(a.id) ?? 0) - (idOrder.get(b.id) ?? 0));
-      total = totalCount;
-      hasNextPage = offset + limit < totalCount;
+      const allFull = [...fullActive, ...fullArchived];
+      const idOrder = new Map(paginatedIds.map((r, i) => [r.id, i]));
+      data = allFull.sort((a, b) => (idOrder.get(a.id as string) ?? 0) - (idOrder.get(b.id as string) ?? 0));
+      total = activeCount + archivedCount;
+      hasNextPage = offset + limit < total;
       hasPreviousPage = page > 1;
     } else if (isSubEntitySort && !useCursor) {
       // Ordenacao por contagem de filhos (sub-entity): contar filhos, ordenar em memoria, paginar
-      const [allIds, totalCount, childCounts] = await Promise.all([
+      const [activeIds, archivedIds2, activeCount, archivedCount, childCounts] = await Promise.all([
         this.prisma.entityData.findMany({
           where,
           select: { id: true },
         }),
+        this.prisma.archivedEntityData.findMany({
+          where: archivedWhere,
+          select: { id: true },
+        }),
         this.prisma.entityData.count({ where }),
+        this.prisma.archivedEntityData.count({ where: archivedWhere }),
         // Buscar TODAS as contagens de filhos da sub-entidade (sem IN clause)
         this.prisma.entityData.groupBy({
           by: ['parentRecordId'],
@@ -585,6 +611,11 @@ export class DataService {
           _count: { id: true },
         }),
       ]);
+
+      const allIds: Array<{ id: string; _isArchived?: boolean }> = [
+        ...activeIds,
+        ...archivedIds2.map(r => ({ ...r, _isArchived: true })),
+      ];
 
       const countMap = new Map<string, number>();
       for (const c of childCounts) {
@@ -603,29 +634,45 @@ export class DataService {
 
       // Paginar
       const offset = skipClause || (page - 1) * limit;
-      const paginatedIds = allIds.slice(offset, offset + limit).map(r => r.id);
+      const paginatedItems = allIds.slice(offset, offset + limit);
+      const activePageIds = paginatedItems.filter(r => !r._isArchived).map(r => r.id);
+      const archivedPageIds = paginatedItems.filter(r => r._isArchived).map(r => r.id);
 
-      const fullRecords = paginatedIds.length > 0
-        ? await this.prisma.entityData.findMany({
-            where: { id: { in: paginatedIds } },
-            include: includeClause,
-          })
-        : [];
+      const [fullActive, fullArchived] = await Promise.all([
+        activePageIds.length > 0
+          ? this.prisma.entityData.findMany({
+              where: { id: { in: activePageIds } },
+              include: includeClause,
+            })
+          : [],
+        this.fetchArchivedRecordsFull(archivedPageIds),
+      ]);
 
-      const idOrder = new Map(paginatedIds.map((id, i) => [id, i]));
-      data = fullRecords.sort((a, b) => (idOrder.get(a.id) ?? 0) - (idOrder.get(b.id) ?? 0));
-      total = totalCount;
-      hasNextPage = offset + limit < totalCount;
+      const allFull = [...fullActive, ...fullArchived];
+      const idOrder = new Map(paginatedItems.map((r, i) => [r.id, i]));
+      data = allFull.sort((a, b) => (idOrder.get(a.id as string) ?? 0) - (idOrder.get(b.id as string) ?? 0));
+      total = activeCount + archivedCount;
+      hasNextPage = offset + limit < total;
       hasPreviousPage = page > 1;
     } else if (isJsonFieldSort && !useCursor) {
       // Ordenacao por campo JSON: buscar IDs + valor do campo, ordenar em memoria, paginar
-      const [allItems, totalCount] = await Promise.all([
+      const [activeItems, archivedItems2, activeCount, archivedCount] = await Promise.all([
         this.prisma.entityData.findMany({
           where,
           select: { id: true, data: true },
         }),
+        this.prisma.archivedEntityData.findMany({
+          where: archivedWhere,
+          select: { id: true, data: true },
+        }),
         this.prisma.entityData.count({ where }),
+        this.prisma.archivedEntityData.count({ where: archivedWhere }),
       ]);
+
+      const allItems: Array<{ id: string; data: unknown; _isArchived?: boolean }> = [
+        ...activeItems,
+        ...archivedItems2.map(r => ({ ...r, _isArchived: true })),
+      ];
 
       // Ordenar em memoria pelo campo JSON
       allItems.sort((a, b) => {
@@ -640,24 +687,31 @@ export class DataService {
 
       // Paginar
       const offset = skipClause || (page - 1) * limit;
-      const paginatedIds = allItems.slice(offset, offset + limit).map(r => r.id);
+      const paginatedItems = allItems.slice(offset, offset + limit);
+      const activePageIds = paginatedItems.filter(r => !r._isArchived).map(r => r.id);
+      const archivedPageIds = paginatedItems.filter(r => r._isArchived).map(r => r.id);
 
-      // Buscar registros completos
-      const fullRecords = paginatedIds.length > 0
-        ? await this.prisma.entityData.findMany({
-            where: { id: { in: paginatedIds } },
-            include: includeClause,
-          })
-        : [];
+      // Buscar registros completos de ambas tabelas
+      const [fullActive, fullArchived] = await Promise.all([
+        activePageIds.length > 0
+          ? this.prisma.entityData.findMany({
+              where: { id: { in: activePageIds } },
+              include: includeClause,
+            })
+          : [],
+        this.fetchArchivedRecordsFull(archivedPageIds),
+      ]);
 
+      const allFull = [...fullActive, ...fullArchived];
       // Reordenar conforme IDs paginados
-      const idOrder = new Map(paginatedIds.map((id, i) => [id, i]));
-      data = fullRecords.sort((a, b) => (idOrder.get(a.id) ?? 0) - (idOrder.get(b.id) ?? 0));
-      total = totalCount;
-      hasNextPage = offset + limit < totalCount;
+      const idOrder = new Map(paginatedItems.map((r, i) => [r.id, i]));
+      data = allFull.sort((a, b) => (idOrder.get(a.id as string) ?? 0) - (idOrder.get(b.id as string) ?? 0));
+      total = activeCount + archivedCount;
+      hasNextPage = offset + limit < total;
       hasPreviousPage = page > 1;
     } else {
       // Ordenacao por campo top-level: usar Prisma orderBy nativo
+      // Com merge transparente de dados arquivados via boundary calculation
       const orderBy: Prisma.EntityDataOrderByWithRelationInput[] = [
         { [sortBy]: sortOrder },
       ];
@@ -665,31 +719,123 @@ export class DataService {
         orderBy.push({ id: sortOrder });
       }
 
-      const takeWithExtra = limit + 1;
-
-      const findManyArgs: Prisma.EntityDataFindManyArgs = {
-        where,
-        take: takeWithExtra,
-        orderBy,
-        include: includeClause,
-      };
-
-      if (useCursor && cursorClause) {
-        findManyArgs.cursor = cursorClause;
-        findManyArgs.skip = 1;
-      } else {
-        findManyArgs.skip = skipClause;
+      const archivedOrderBy: Prisma.ArchivedEntityDataOrderByWithRelationInput[] = [
+        { [sortBy]: sortOrder } as Prisma.ArchivedEntityDataOrderByWithRelationInput,
+      ];
+      if (sortBy !== 'id') {
+        archivedOrderBy.push({ id: sortOrder } as Prisma.ArchivedEntityDataOrderByWithRelationInput);
       }
 
-      const [rawData, totalCount] = await Promise.all([
-        this.prisma.entityData.findMany(findManyArgs),
+      const [activeCount, archivedCount] = await Promise.all([
         this.prisma.entityData.count({ where }),
+        this.prisma.archivedEntityData.count({ where: archivedWhere }),
       ]);
+      const combinedTotal = activeCount + archivedCount;
 
-      hasNextPage = rawData.length > limit;
-      data = hasNextPage ? rawData.slice(0, limit) : rawData;
-      hasPreviousPage = useCursor ? true : page > 1;
-      total = totalCount;
+      if (useCursor && cursorClause) {
+        // Cursor pagination: manter comportamento original (apenas active)
+        const findManyArgs: Prisma.EntityDataFindManyArgs = {
+          where,
+          take: limit + 1,
+          orderBy,
+          include: includeClause,
+          cursor: cursorClause,
+          skip: 1,
+        };
+
+        const rawData = await this.prisma.entityData.findMany(findManyArgs);
+        hasNextPage = rawData.length > limit;
+        data = hasNextPage ? rawData.slice(0, limit) : rawData;
+        hasPreviousPage = true;
+        total = combinedTotal;
+      } else {
+        // Offset pagination: boundary calculation across active + archived
+        const offset = skipClause || (page - 1) * limit;
+
+        // Para createdAt/updatedAt: active records sao mais recentes, archived sao mais antigos
+        // DESC: active primeiro, archived depois
+        // ASC: archived primeiro, active depois
+        // Nota: id e parentRecordId (CUIDs) nao tem ordem temporal garantida,
+        // mas a boundary e uma aproximacao aceitavel para paginacao
+        const activeFirst = sortOrder === 'desc';
+        const firstCount = activeFirst ? activeCount : archivedCount;
+
+        if (offset + limit <= firstCount) {
+          // Todos os registros desta pagina vem da primeira tabela
+          if (activeFirst) {
+            const rawData = await this.prisma.entityData.findMany({
+              where, skip: offset, take: limit, orderBy, include: includeClause,
+            });
+            data = rawData;
+          } else {
+            const rawArchived = await this.prisma.archivedEntityData.findMany({
+              where: archivedWhere, skip: offset, take: limit, orderBy: archivedOrderBy,
+            });
+            data = await this.fetchArchivedRecordsFull(rawArchived.map(r => r.id));
+            // Manter ordem
+            const idOrder = new Map(rawArchived.map((r, i) => [r.id, i]));
+            data.sort((a: Record<string, unknown>, b: Record<string, unknown>) =>
+              (idOrder.get(a.id as string) ?? 0) - (idOrder.get(b.id as string) ?? 0));
+          }
+        } else if (offset >= firstCount) {
+          // Todos os registros vem da segunda tabela
+          const secondOffset = offset - firstCount;
+          if (activeFirst) {
+            // Segunda tabela = archived
+            const rawArchived = await this.prisma.archivedEntityData.findMany({
+              where: archivedWhere, skip: secondOffset, take: limit, orderBy: archivedOrderBy,
+            });
+            data = await this.fetchArchivedRecordsFull(rawArchived.map(r => r.id));
+            const idOrder = new Map(rawArchived.map((r, i) => [r.id, i]));
+            data.sort((a: Record<string, unknown>, b: Record<string, unknown>) =>
+              (idOrder.get(a.id as string) ?? 0) - (idOrder.get(b.id as string) ?? 0));
+          } else {
+            // Segunda tabela = active
+            const rawData = await this.prisma.entityData.findMany({
+              where, skip: secondOffset, take: limit, orderBy, include: includeClause,
+            });
+            data = rawData;
+          }
+        } else {
+          // Boundary: precisa de registros de ambas tabelas
+          const firstTake = firstCount - offset;
+          const secondTake = limit - firstTake;
+
+          if (activeFirst) {
+            const [activeData, rawArchived] = await Promise.all([
+              this.prisma.entityData.findMany({
+                where, skip: offset, take: firstTake, orderBy, include: includeClause,
+              }),
+              this.prisma.archivedEntityData.findMany({
+                where: archivedWhere, skip: 0, take: secondTake, orderBy: archivedOrderBy,
+              }),
+            ]);
+            const archivedData = await this.fetchArchivedRecordsFull(rawArchived.map(r => r.id));
+            const idOrder = new Map(rawArchived.map((r, i) => [r.id, i]));
+            archivedData.sort((a, b) =>
+              (idOrder.get(a.id as string) ?? 0) - (idOrder.get(b.id as string) ?? 0));
+            data = [...activeData, ...archivedData];
+          } else {
+            const [rawArchived, activeData] = await Promise.all([
+              this.prisma.archivedEntityData.findMany({
+                where: archivedWhere, skip: offset, take: firstTake, orderBy: archivedOrderBy,
+              }),
+              this.prisma.entityData.findMany({
+                where, skip: 0, take: secondTake, orderBy, include: includeClause,
+              }),
+            ]);
+            const archivedData = await this.fetchArchivedRecordsFull(rawArchived.map(r => r.id));
+            const idOrder = new Map(rawArchived.map((r, i) => [r.id, i]));
+            archivedData.sort((a, b) =>
+              (idOrder.get(a.id as string) ?? 0) - (idOrder.get(b.id as string) ?? 0));
+            data = [...archivedData, ...activeData];
+          }
+        }
+
+        hasNextPage = offset + limit < combinedTotal;
+        hasPreviousPage = page > 1;
+        total = combinedTotal;
+      }
     }
 
     // =========================================================================
@@ -708,19 +854,30 @@ export class DataService {
         const childCountsMap = new Map<string, Record<string, number>>();
 
         for (const subField of subEntityFields) {
-          const counts = await this.prisma.entityData.groupBy({
-            by: ['parentRecordId'],
-            where: {
-              entityId: subField.subEntityId!,
-              parentRecordId: { in: recordIds },
-            },
-            _count: { id: true },
-          });
+          // Contar filhos em ambas tabelas (active + archived)
+          const [activeCounts, archivedCounts] = await Promise.all([
+            this.prisma.entityData.groupBy({
+              by: ['parentRecordId'],
+              where: {
+                entityId: subField.subEntityId!,
+                parentRecordId: { in: recordIds },
+              },
+              _count: { id: true },
+            }),
+            this.prisma.archivedEntityData.groupBy({
+              by: ['parentRecordId'],
+              where: {
+                entityId: subField.subEntityId!,
+                parentRecordId: { in: recordIds },
+              },
+              _count: { id: true },
+            }),
+          ]);
 
-          for (const c of counts) {
+          for (const c of [...activeCounts, ...archivedCounts]) {
             if (!c.parentRecordId) continue;
             const existing = childCountsMap.get(c.parentRecordId) || {};
-            existing[subField.slug] = c._count.id;
+            existing[subField.slug] = (existing[subField.slug] || 0) + c._count.id;
             childCountsMap.set(c.parentRecordId, existing);
           }
         }
@@ -944,6 +1101,121 @@ export class DataService {
     };
   }
 
+  /**
+   * Lista dados arquivados de uma entidade com paginacao simples.
+   */
+  async findAllArchived(
+    entitySlug: string,
+    query: QueryDataDto,
+    currentUser: CurrentUser,
+  ) {
+    await this.checkEntityPermission(currentUser.id, entitySlug, 'canRead');
+
+    const page = parseInt(String(query.page || '1'), 10) || 1;
+    const limit = Math.min(MAX_LIMIT, Math.max(1, parseInt(String(query.limit || DEFAULT_LIMIT), 10) || DEFAULT_LIMIT));
+    const { search, sortBy = 'createdAt', sortOrder = 'desc', tenantId: queryTenantId } = query;
+
+    const effectiveTenantId = getEffectiveTenantId(currentUser, queryTenantId);
+    const entity = await this.getEntityCached(entitySlug, currentUser, effectiveTenantId);
+
+    const where: Prisma.ArchivedEntityDataWhereInput = {
+      entityId: entity.id,
+    };
+
+    const userRoleType = currentUser.customRole?.roleType as RoleType | undefined;
+    if (userRoleType === 'PLATFORM_ADMIN') {
+      if (queryTenantId) where.tenantId = queryTenantId;
+    } else {
+      where.tenantId = currentUser.tenantId;
+    }
+
+    // Busca textual simples no JSON
+    if (search) {
+      const settings = entity.settings as EntitySettings;
+      const searchFields = settings?.searchFields || [];
+      if (searchFields.length > 0) {
+        const searchVariants = [search];
+        if (search !== search.toUpperCase()) searchVariants.push(search.toUpperCase());
+        if (search !== search.toLowerCase()) searchVariants.push(search.toLowerCase());
+        where.OR = searchFields.flatMap((field: string) =>
+          searchVariants.map(term => ({
+            data: { path: [field], string_contains: term },
+          }))
+        );
+      }
+    }
+
+    const TOP_LEVEL_SORT_FIELDS = new Set(['createdAt', 'updatedAt', 'id', 'archivedAt']);
+    const isTopLevel = TOP_LEVEL_SORT_FIELDS.has(sortBy);
+
+    let data: Array<Record<string, unknown>>;
+    let total: number;
+
+    if (isTopLevel) {
+      const [rawData, totalCount] = await Promise.all([
+        this.prisma.archivedEntityData.findMany({
+          where,
+          take: limit,
+          skip: (page - 1) * limit,
+          orderBy: { [sortBy]: sortOrder },
+        }),
+        this.prisma.archivedEntityData.count({ where }),
+      ]);
+      data = rawData.map(r => ({ ...r, _isArchived: true }));
+      total = totalCount;
+    } else {
+      // JSON field sort: fetch all, sort in memory, paginate
+      const [allItems, totalCount] = await Promise.all([
+        this.prisma.archivedEntityData.findMany({
+          where,
+          select: { id: true, data: true },
+        }),
+        this.prisma.archivedEntityData.count({ where }),
+      ]);
+
+      allItems.sort((a, b) => {
+        const aVal = (a.data as Record<string, unknown>)?.[sortBy];
+        const bVal = (b.data as Record<string, unknown>)?.[sortBy];
+        if (aVal == null && bVal == null) return 0;
+        if (aVal == null) return 1;
+        if (bVal == null) return -1;
+        const comp = String(aVal).localeCompare(String(bVal), undefined, { numeric: true, sensitivity: 'base' });
+        return sortOrder === 'desc' ? -comp : comp;
+      });
+
+      const offset = (page - 1) * limit;
+      const paginatedIds = allItems.slice(offset, offset + limit).map(r => r.id);
+
+      const fullRecords = paginatedIds.length > 0
+        ? await this.prisma.archivedEntityData.findMany({
+            where: { id: { in: paginatedIds } },
+          })
+        : [];
+
+      const idOrder = new Map(paginatedIds.map((id, i) => [id, i]));
+      data = fullRecords
+        .sort((a, b) => (idOrder.get(a.id) ?? 0) - (idOrder.get(b.id) ?? 0))
+        .map(r => ({ ...r, _isArchived: true }));
+      total = totalCount;
+    }
+
+    return {
+      data,
+      meta: createPaginationMeta(total, page, limit, {
+        hasNextPage: page * limit < total,
+        hasPreviousPage: page > 1,
+      }),
+      entity: {
+        id: entity.id,
+        name: entity.name,
+        namePlural: entity.namePlural,
+        slug: entity.slug,
+        fields: entity.fields,
+        settings: entity.settings,
+      },
+    };
+  }
+
   async findOne(entitySlug: string, id: string, currentUser: CurrentUser, tenantId?: string) {
     // Verificar permissao de leitura na entidade
     await this.checkEntityPermission(currentUser.id, entitySlug, 'canRead');
@@ -962,7 +1234,7 @@ export class DataService {
       whereClause.tenantId = currentUser.tenantId;
     }
 
-    const record = await this.prisma.entityData.findFirst({
+    let record = await this.prisma.entityData.findFirst({
       where: whereClause,
       include: {
         tenant: {
@@ -977,21 +1249,63 @@ export class DataService {
       },
     });
 
+    // Fallback: buscar em ArchivedEntityData se nao encontrado
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let recordResult: any = record;
     if (!record) {
+      const archivedWhereClause: Prisma.ArchivedEntityDataWhereInput = {
+        id,
+        entityId: entity.id,
+      };
+      if (roleType !== 'PLATFORM_ADMIN') {
+        archivedWhereClause.tenantId = currentUser.tenantId;
+      }
+
+      const archivedRecord = await this.prisma.archivedEntityData.findFirst({
+        where: archivedWhereClause,
+      });
+
+      if (!archivedRecord) {
+        throw new NotFoundException('Registro nao encontrado');
+      }
+
+      // Enriquecer com info de user/tenant manualmente
+      const [users, tenantInfo] = await Promise.all([
+        this.prisma.user.findMany({
+          where: { id: { in: [archivedRecord.createdById, archivedRecord.updatedById].filter(Boolean) as string[] } },
+          select: { id: true, name: true, email: true },
+        }),
+        this.prisma.tenant.findFirst({
+          where: { id: archivedRecord.tenantId },
+          select: { id: true, name: true, slug: true },
+        }),
+      ]);
+      const userMap = new Map(users.map(u => [u.id, u]));
+
+      recordResult = {
+        ...archivedRecord,
+        _isArchived: true,
+        tenant: tenantInfo,
+        createdBy: archivedRecord.createdById ? userMap.get(archivedRecord.createdById) || null : null,
+        updatedBy: archivedRecord.updatedById ? userMap.get(archivedRecord.updatedById) || null : null,
+      };
+    }
+
+    if (!recordResult) {
       throw new NotFoundException('Registro nao encontrado');
     }
 
     // Verificar scope: se usuario tem scope 'own', so pode ver proprios registros
     if (roleType !== 'PLATFORM_ADMIN') {
       const scope = await this.customRoleService.getEntityScope(currentUser.id, entitySlug);
-      if (scope === 'own' && record.createdById !== currentUser.id) {
+      if (scope === 'own' && recordResult.createdById !== currentUser.id) {
         throw new ForbiddenException('Acesso negado a este registro');
       }
     }
 
-    // Verificar filtros de dados por role: construir WHERE e checar se este registro passa
-    if (roleType !== 'PLATFORM_ADMIN' && roleType !== 'ADMIN') {
-      const roleFilterWhere: Prisma.EntityDataWhereInput = { id: record.id };
+    // Verificar filtros de dados por role (apenas para registros ativos — archived nao tem role filters)
+    if (!recordResult._isArchived && roleType !== 'PLATFORM_ADMIN' && roleType !== 'ADMIN') {
+      const roleFilterWhere: Prisma.EntityDataWhereInput = { id: recordResult.id };
       this.applyRoleDataFilters(roleFilterWhere, currentUser, entitySlug);
 
       // Se filtros foram adicionados, verificar se o registro passa
@@ -1005,7 +1319,7 @@ export class DataService {
 
     // Field-level permissions: filtrar campos que o usuario nao pode ver
     const fieldPerms = await this.customRoleService.getFieldPermissions(currentUser.id, entitySlug);
-    let filteredRecord = record;
+    let filteredRecord = recordResult;
     let visibleFields: string[] | undefined;
     let editableFields: string[] | undefined;
 
@@ -1014,12 +1328,12 @@ export class DataService {
       visibleFields = Array.from(viewableSet);
       editableFields = fieldPerms.filter(f => f.canEdit).map(f => f.fieldSlug);
 
-      const recordData = record.data as Record<string, unknown>;
+      const recordData = recordResult.data as Record<string, unknown>;
       const filteredData: Record<string, unknown> = {};
       for (const [key, value] of Object.entries(recordData)) {
         if (viewableSet.has(key)) filteredData[key] = value;
       }
-      filteredRecord = { ...record, data: filteredData as Prisma.JsonValue };
+      filteredRecord = { ...recordResult, data: filteredData };
     }
 
     return {
@@ -1052,18 +1366,46 @@ export class DataService {
       whereClause.tenantId = currentUser.tenantId;
     }
 
-    // Buscar registro
-    const record = await this.prisma.entityData.findFirst({
+    // Buscar registro (active ou archived)
+    let record = await this.prisma.entityData.findFirst({
       where: whereClause,
     });
 
+    let isArchivedRecord = false;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let archivedRecord: any = null;
+
     if (!record) {
-      throw new NotFoundException('Registro nao encontrado');
+      // Fallback: buscar em ArchivedEntityData
+      const archivedWhereClause: Prisma.ArchivedEntityDataWhereInput = {
+        id,
+        entityId: entity.id,
+      };
+      if (roleType !== 'PLATFORM_ADMIN') {
+        archivedWhereClause.tenantId = currentUser.tenantId;
+      }
+      archivedRecord = await this.prisma.archivedEntityData.findFirst({
+        where: archivedWhereClause,
+      });
+      if (!archivedRecord) {
+        throw new NotFoundException('Registro nao encontrado');
+      }
+      isArchivedRecord = true;
     }
+
+    const activeRecord = record || archivedRecord;
 
     // Verificar permissao de escopo (exceto PLATFORM_ADMIN)
     if (roleType !== 'PLATFORM_ADMIN') {
-      await this.checkScope(record, currentUser, entitySlug);
+      // Para archived: verificar scope manualmente (checkScope espera EntityData)
+      if (isArchivedRecord) {
+        const scope = await this.customRoleService.getEntityScope(currentUser.id, entitySlug);
+        if (scope === 'own' && archivedRecord.createdById !== currentUser.id) {
+          throw new ForbiddenException('Acesso negado a este registro');
+        }
+      } else {
+        await this.checkScope(record!, currentUser, entitySlug);
+      }
     }
 
     // Field-level permissions: validar que o usuario so edita campos permitidos
@@ -1099,22 +1441,35 @@ export class DataService {
 
     // Merge dos dados existentes com os novos (incluindo Custom API)
     const mergedData = {
-      ...(record.data as Record<string, unknown>),
+      ...(activeRecord.data as Record<string, unknown>),
       ...dataWithCustomApi,
     };
 
-    const updatedRecord = await this.prisma.entityData.update({
-      where: { id },
-      data: {
-        data: mergedData as Prisma.InputJsonValue,
-        updatedById: currentUser.id,
-      },
-    });
+    let updatedRecord;
+    if (isArchivedRecord) {
+      // Update na tabela ArchivedEntityData
+      updatedRecord = await this.prisma.archivedEntityData.update({
+        where: { id },
+        data: {
+          data: mergedData as Prisma.InputJsonValue,
+          updatedById: currentUser.id,
+        },
+      });
+    } else {
+      // Update na tabela EntityData (comportamento original)
+      updatedRecord = await this.prisma.entityData.update({
+        where: { id },
+        data: {
+          data: mergedData as Prisma.InputJsonValue,
+          updatedById: currentUser.id,
+        },
+      });
+    }
 
     // Enviar notificacao para o tenant
     const settings = entity.settings as EntitySettings;
     const titleField = settings?.titleField || 'nome';
-    const recordName = String((mergedData as Record<string, unknown>)[titleField] || record.id);
+    const recordName = String((mergedData as Record<string, unknown>)[titleField] || activeRecord.id);
 
     this.notificationService.notifyRecordUpdated(
       effectiveTenantId,
@@ -1127,7 +1482,7 @@ export class DataService {
 
     this.auditService.log(currentUser, {
       action: 'update', resource: 'entity_data', resourceId: id,
-      oldData: record.data as Record<string, unknown>,
+      oldData: activeRecord.data as Record<string, unknown>,
       newData: mergedData as Record<string, unknown>,
       metadata: { entitySlug, entityId: entity.id },
     }).catch(() => {});
@@ -1169,22 +1524,52 @@ export class DataService {
       where: whereClause,
     });
 
+    let isArchivedDeletion = false;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let targetRecord: any = record;
+
     if (!record) {
-      throw new NotFoundException('Registro nao encontrado');
+      // Fallback: buscar em ArchivedEntityData
+      const archivedWhereClause: Prisma.ArchivedEntityDataWhereInput = {
+        id,
+        entityId: entity.id,
+      };
+      if (roleType !== 'PLATFORM_ADMIN') {
+        archivedWhereClause.tenantId = currentUser.tenantId;
+      }
+      const archivedRecord = await this.prisma.archivedEntityData.findFirst({
+        where: archivedWhereClause,
+      });
+      if (!archivedRecord) {
+        throw new NotFoundException('Registro nao encontrado');
+      }
+      targetRecord = archivedRecord;
+      isArchivedDeletion = true;
     }
 
     // Verificar permissao de escopo (exceto PLATFORM_ADMIN)
     if (roleType !== 'PLATFORM_ADMIN') {
-      await this.checkScope(record, currentUser, entitySlug);
+      if (isArchivedDeletion) {
+        const scope = await this.customRoleService.getEntityScope(currentUser.id, entitySlug);
+        if (scope === 'own' && targetRecord.createdById !== currentUser.id) {
+          throw new ForbiddenException('Acesso negado a este registro');
+        }
+      } else {
+        await this.checkScope(record!, currentUser, entitySlug);
+      }
     }
 
     // Extrair nome do registro antes de deletar
     const settings = entity.settings as EntitySettings;
     const titleField = settings?.titleField || 'nome';
-    const recordData = record.data as Record<string, unknown>;
-    const recordName = String(recordData[titleField] || record.id);
+    const recordData = targetRecord.data as Record<string, unknown>;
+    const recordName = String(recordData[titleField] || targetRecord.id);
 
-    await this.prisma.entityData.delete({ where: { id } });
+    if (isArchivedDeletion) {
+      await this.prisma.archivedEntityData.delete({ where: { id } });
+    } else {
+      await this.prisma.entityData.delete({ where: { id } });
+    }
 
     // Enviar notificacao para o tenant
     this.notificationService.notifyRecordDeleted(
@@ -1296,6 +1681,83 @@ export class DataService {
     value2?: unknown,
   ): Prisma.EntityDataWhereInput | null {
     return buildFilterClause(fieldSlug, fieldType, operator, value, value2);
+  }
+
+  /**
+   * Constroi ArchivedEntityDataWhereInput a partir de EntityDataWhereInput.
+   * Copia: entityId, tenantId, createdById, parentRecordId, OR (search), AND (filters JSON).
+   * Ignora: deletedAt, PowerSync columns, id-based hasChildrenIn filter.
+   */
+  private buildArchivedWhere(
+    where: Prisma.EntityDataWhereInput,
+  ): Prisma.ArchivedEntityDataWhereInput {
+    const aw: Prisma.ArchivedEntityDataWhereInput = {};
+
+    if (where.entityId) aw.entityId = where.entityId as string;
+    if (where.tenantId) aw.tenantId = where.tenantId as string;
+    if (where.createdById) aw.createdById = where.createdById as string;
+    if (where.parentRecordId !== undefined) aw.parentRecordId = where.parentRecordId as string | null;
+
+    // Copy search OR clauses (data JSON path queries)
+    if (where.OR) {
+      aw.OR = where.OR as Prisma.ArchivedEntityDataWhereInput[];
+    }
+
+    // Copy AND clauses (global filters, role filters — all data JSON path queries)
+    if (where.AND) {
+      aw.AND = where.AND as Prisma.ArchivedEntityDataWhereInput[];
+    }
+
+    return aw;
+  }
+
+  /**
+   * Busca registros completos de ArchivedEntityData por IDs, retorna com _isArchived flag
+   * e dados de user/tenant enriquecidos manualmente (ArchivedEntityData nao tem relations Prisma).
+   */
+  private async fetchArchivedRecordsFull(
+    ids: string[],
+  ): Promise<Array<Record<string, unknown>>> {
+    if (ids.length === 0) return [];
+
+    const records = await this.prisma.archivedEntityData.findMany({
+      where: { id: { in: ids } },
+    });
+
+    // Coletar user IDs para buscar nomes
+    const userIds = new Set<string>();
+    const tenantIds = new Set<string>();
+    for (const r of records) {
+      if (r.createdById) userIds.add(r.createdById);
+      if (r.updatedById) userIds.add(r.updatedById);
+      tenantIds.add(r.tenantId);
+    }
+
+    const [users, tenants] = await Promise.all([
+      userIds.size > 0
+        ? this.prisma.user.findMany({
+            where: { id: { in: [...userIds] } },
+            select: { id: true, name: true, email: true },
+          })
+        : [],
+      tenantIds.size > 0
+        ? this.prisma.tenant.findMany({
+            where: { id: { in: [...tenantIds] } },
+            select: { id: true, name: true, slug: true },
+          })
+        : [],
+    ]);
+
+    const userMap = new Map(users.map(u => [u.id, u]));
+    const tenantMap = new Map(tenants.map(t => [t.id, t]));
+
+    return records.map(r => ({
+      ...r,
+      _isArchived: true,
+      createdBy: r.createdById ? userMap.get(r.createdById) || null : null,
+      updatedBy: r.updatedById ? userMap.get(r.updatedById) || null : null,
+      tenant: tenantMap.get(r.tenantId) || null,
+    }));
   }
 
   // Validar campos marcados como unique

@@ -18,6 +18,7 @@ import { SyncModule } from './modules/sync/sync.module';
 import { PushModule } from './modules/push/push.module';
 import { PdfModule } from './modules/pdf/pdf.module';
 import { AuditModule } from './modules/audit/audit.module';
+import { ArchiveModule } from './modules/archive/archive.module';
 
 @Module({
   imports: [
@@ -55,6 +56,7 @@ import { AuditModule } from './modules/audit/audit.module';
     PushModule,
     PdfModule,
     AuditModule,
+    ArchiveModule,
   ],
 })
 export class AppModule {}

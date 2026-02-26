@@ -80,6 +80,7 @@ model Tenant {
   users           User[]
   entities        Entity[]
   entityData      EntityData[]
+  archivedData    ArchivedEntityData[]
   pages           Page[]
   customEndpoints CustomEndpoint[]
   customRoles     CustomRole[]
@@ -191,6 +192,7 @@ model Entity {
   // Relacionamentos
   tenant          Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   data            EntityData[]
+  archivedData    ArchivedEntityData[]
   customEndpoints CustomEndpoint[]
   pdfTemplates    PdfTemplate[]
 
@@ -262,6 +264,33 @@ model EntityData {
   @@index([updatedById])
   @@index([updatedAt])
   @@index([deletedAt])
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ARCHIVED ENTITY DATA (Dados Arquivados — sem colunas PowerSync)
+// ═══════════════════════════════════════════════════════════════════════════
+
+model ArchivedEntityData {
+  id             String   @id
+  tenantId       String
+  entityId       String
+  data           Json
+  parentRecordId String?
+  createdAt      DateTime
+  updatedAt      DateTime
+  createdById    String?
+  updatedById    String?
+  archivedAt     DateTime @default(now())
+
+  entity Entity @relation(fields: [entityId], references: [id], onDelete: Cascade)
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([entityId])
+  @@index([tenantId, entityId])
+  @@index([tenantId, entityId, createdAt(sort: Desc)])
+  @@index([createdAt])
+  @@index([archivedAt])
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
