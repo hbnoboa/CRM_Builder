@@ -31,7 +31,7 @@ module.exports = {
         NODE_ENV: 'production',
         PORT: 3000,
         HOSTNAME: '0.0.0.0',
-        NEXT_PUBLIC_API_URL: 'http://136.114.109.222/api/v1',
+        NEXT_PUBLIC_API_URL: 'http://34.42.34.73/api/v1',
       },
       watch: false,
       max_memory_restart: '500M',
