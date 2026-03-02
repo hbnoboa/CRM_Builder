@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 
-interface ExecutionLogEntry {
+export interface ExecutionLogEntry {
   id: string;
   type: 'webhook' | 'action-chain' | 'scheduled-task' | 'api-execution';
   name: string;
