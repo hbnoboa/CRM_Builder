@@ -5,12 +5,12 @@ class Env {
 
   static const String apiUrl = String.fromEnvironment(
     'API_URL',
-    defaultValue: 'http://34.42.34.73/api/v1',
+    defaultValue: 'https://iossystem.com.br/api/v1',
   );
 
   static const String powerSyncUrl = String.fromEnvironment(
     'POWERSYNC_URL',
-    defaultValue: 'http://34.42.34.73:8081',
+    defaultValue: 'https://iossystem.com.br:8081',
   );
 
   /// Timeout for API calls in milliseconds.

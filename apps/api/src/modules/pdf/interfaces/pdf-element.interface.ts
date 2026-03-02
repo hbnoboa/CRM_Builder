@@ -298,6 +298,7 @@ export interface ComputedField {
 // Configuracoes globais do template
 export interface PdfTemplateSettings {
   emptyFieldDefault?: string; // Texto padrao para campos vazios (ex: "-", "N/A")
+  fileNamePattern?: string; // Padrao do nome do arquivo. Ex: "{chassi}" ou "relatorio-{navio}"
 }
 
 // Conteudo completo do template

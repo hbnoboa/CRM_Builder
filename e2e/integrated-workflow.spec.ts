@@ -19,8 +19,8 @@ test.describe.configure({ mode: 'serial' });
  * 9. Limpeza dos dados criados
  */
 
-const API_URL = process.env.API_URL || 'http://34.134.215.184/api/v1';
-const WEB_URL = process.env.WEB_URL || 'http://34.134.215.184';
+const API_URL = process.env.API_URL || 'https://iossystem.com.br/api/v1';
+const WEB_URL = process.env.WEB_URL || 'https://iossystem.com.br';
 
 // Credenciais de teste
 const ADMIN_CREDENTIALS = {

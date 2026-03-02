@@ -58,7 +58,7 @@ services:
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
       JWT_EXPIRATION: ${JWT_EXPIRATION:-8h}
       JWT_REFRESH_EXPIRATION: ${JWT_REFRESH_EXPIRATION:-7d}
-      CORS_ORIGIN: ${CORS_ORIGIN:-https://your-domain.com}
+      CORS_ORIGIN: ${CORS_ORIGIN:-https://iossystem.com.br}
       GCS_PROJECT_ID: ${GCS_PROJECT_ID:-}
       GCS_BUCKET: ${GCS_BUCKET:-}
       GCS_KEY_FILE: ${GCS_KEY_FILE:-}
@@ -89,7 +89,7 @@ services:
       context: .
       dockerfile: apps/web-admin/Dockerfile
       args:
-        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://34.42.34.73/api/v1}
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-/api/v1}
     container_name: crm-web-prod
     restart: always
     environment:
@@ -115,9 +115,72 @@ services:
       - ./nginx/nginx.prod.conf:/etc/nginx/nginx.conf:ro
       - ./nginx/ssl:/etc/nginx/ssl:ro
       - ./nginx/logs:/var/log/nginx
+      - ./nginx/certbot:/var/www/certbot:ro
     depends_on:
       - api
       - web
+    networks:
+      - crm-network
+
+  # ===================
+  # DEV API (NestJS)
+  # ===================
+  api-dev:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    container_name: crm-api-dev
+    restart: unless-stopped
+    environment:
+      TZ: America/Sao_Paulo
+      NODE_ENV: production
+      PORT: 3001
+      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-crm_builder}?schema=public
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
+      JWT_EXPIRATION: ${JWT_EXPIRATION:-8h}
+      JWT_REFRESH_EXPIRATION: ${JWT_REFRESH_EXPIRATION:-7d}
+      CORS_ORIGIN: https://dev.iossystem.com.br
+      GCS_PROJECT_ID: ${GCS_PROJECT_ID:-}
+      GCS_BUCKET: ${GCS_BUCKET:-}
+      GCS_KEY_FILE: ${GCS_KEY_FILE:-}
+      GCS_CREDENTIALS: ${GCS_CREDENTIALS:-}
+      GCS_BASE_URL: ${GCS_BASE_URL:-}
+      POWERSYNC_URL: ${POWERSYNC_URL:-http://localhost:8080}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3001/api/v1/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    volumes:
+      - api_uploads:/app/uploads
+    networks:
+      - crm-network
+
+  # ===================
+  # DEV WEB (Next.js)
+  # ===================
+  web-dev:
+    build:
+      context: .
+      dockerfile: apps/web-admin/Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: /api/v1
+    container_name: crm-web-dev
+    restart: unless-stopped
+    environment:
+      TZ: America/Sao_Paulo
+      NODE_ENV: production
+    depends_on:
+      api-dev:
+        condition: service_healthy
     networks:
       - crm-network
 

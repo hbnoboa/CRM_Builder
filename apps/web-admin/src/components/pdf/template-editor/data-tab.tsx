@@ -230,23 +230,45 @@ export function DataTab({
     <div className="space-y-6">
       {/* ==================== Configuracoes Gerais ==================== */}
       {onSettingsChange && (
-        <div className="space-y-2">
-          <h3 className="font-medium">Quando um campo esta vazio</h3>
-          <div className="space-y-1">
-            <Label className="text-sm">Texto a exibir no PDF</Label>
-            <Input
-              placeholder="Ex: -, N/A, Nao informado"
-              value={settings?.emptyFieldDefault || ''}
-              onChange={(e) =>
-                onSettingsChange({
-                  ...settings,
-                  emptyFieldDefault: e.target.value || undefined,
-                })
-              }
-            />
-            <p className="text-xs text-muted-foreground">
-              Aparece no lugar de campos sem dados. Cada campo pode ter seu proprio texto.
-            </p>
+        <div className="space-y-4">
+          <div className="space-y-2">
+            <h3 className="font-medium">Nome do arquivo PDF</h3>
+            <div className="space-y-1">
+              <Label className="text-sm">Padrao do nome</Label>
+              <Input
+                placeholder="Ex: {chassi} ou relatorio-{navio}"
+                value={settings?.fileNamePattern || ''}
+                onChange={(e) =>
+                  onSettingsChange({
+                    ...settings,
+                    fileNamePattern: e.target.value || undefined,
+                  })
+                }
+              />
+              <p className="text-xs text-muted-foreground">
+                Use {'{campo}'} para inserir valores dos dados. Variaveis especiais: {'{count}'} (qtd registros), {'{date}'} (data), {'{templateName}'}, {'{templateSlug}'}.
+              </p>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <h3 className="font-medium">Quando um campo esta vazio</h3>
+            <div className="space-y-1">
+              <Label className="text-sm">Texto a exibir no PDF</Label>
+              <Input
+                placeholder="Ex: -, N/A, Nao informado"
+                value={settings?.emptyFieldDefault || ''}
+                onChange={(e) =>
+                  onSettingsChange({
+                    ...settings,
+                    emptyFieldDefault: e.target.value || undefined,
+                  })
+                }
+              />
+              <p className="text-xs text-muted-foreground">
+                Aparece no lugar de campos sem dados. Cada campo pode ter seu proprio texto.
+              </p>
+            </div>
           </div>
         </div>
       )}

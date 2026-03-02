@@ -152,12 +152,12 @@ export function useGeneratePdf() {
       recordId: string;
       overrideData?: Record<string, unknown>;
     }) => pdfTemplatesService.generateSingle(templateId, recordId, overrideData),
-    onSuccess: (blob) => {
+    onSuccess: ({ blob, fileName }) => {
       // Baixar o PDF automaticamente
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = 'relatorio.pdf';
+      a.download = fileName;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -194,11 +194,11 @@ export function useGenerateBatchPdf() {
       filters,
       search,
     }),
-    onSuccess: (blob) => {
+    onSuccess: ({ blob, fileName }) => {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = 'relatorio-lote.pdf';
+      a.download = fileName;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);

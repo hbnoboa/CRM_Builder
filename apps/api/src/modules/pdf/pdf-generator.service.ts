@@ -84,14 +84,28 @@ export class PdfGeneratorService {
       throw new NotFoundException('Template nao encontrado');
     }
 
-    // Buscar dados do registro
-    const record = await this.prisma.entityData.findFirst({
+    // Buscar dados do registro (EntityData + ArchivedEntityData)
+    let record = await this.prisma.entityData.findFirst({
       where: {
         id: recordId,
         tenantId: targetTenantId,
         entityId: template.sourceEntityId || undefined,
       },
     });
+
+    if (!record) {
+      // Fallback: buscar em ArchivedEntityData
+      const archivedRecord = await this.prisma.archivedEntityData.findFirst({
+        where: {
+          id: recordId,
+          tenantId: targetTenantId,
+          entityId: template.sourceEntityId || undefined,
+        },
+      });
+      if (archivedRecord) {
+        record = { ...archivedRecord, deletedAt: null } as unknown as typeof record;
+      }
+    }
 
     if (!record) {
       throw new NotFoundException('Registro nao encontrado');
@@ -124,10 +138,18 @@ export class PdfGeneratorService {
     const buffer = await this.renderPdf(template, finalData);
 
     // Gerar nome do arquivo
-    const titleField = (template.sourceEntity?.settings as Record<string, string>)?.titleField;
-    const fileName = titleField && finalData[titleField]
-      ? `${String(finalData[titleField]).replace(/[^a-zA-Z0-9]/g, '_')}.pdf`
-      : `${template.slug}-${recordId.substring(0, 8)}.pdf`;
+    const contentSettings = (template.content as unknown as PdfTemplateContent)?.settings;
+    const fileNamePattern = contentSettings?.fileNamePattern;
+    let fileName: string;
+
+    if (fileNamePattern) {
+      fileName = this.resolveFileNamePattern(fileNamePattern, finalData, template, 1) + '.pdf';
+    } else {
+      const titleField = (template.sourceEntity?.settings as Record<string, string>)?.titleField;
+      fileName = titleField && finalData[titleField]
+        ? `${String(finalData[titleField]).replace(/[^a-zA-Z0-9_\-]/g, '_')}.pdf`
+        : `${template.slug}-${recordId.substring(0, 8)}.pdf`;
+    }
 
     // Upload para GCS na pasta relatorios
     let fileUrl: string | null = null;
@@ -230,29 +252,89 @@ export class PdfGeneratorService {
       }
 
       if (search) {
-        if (!where.AND) where.AND = [];
-        (where.AND as unknown[]).push({
-          OR: [
-            { data: { string_contains: search } },
-            { data: { string_contains: search.toUpperCase() } },
-            { data: { string_contains: search.toLowerCase() } },
-          ],
-        });
+        // Buscar nos searchFields da entidade (igual data.service.ts)
+        const entitySettings = template.sourceEntity?.settings as { searchFields?: string[] } | null;
+        const searchFields = entitySettings?.searchFields || [];
+
+        if (searchFields.length > 0) {
+          const searchVariants = [search];
+          if (search !== search.toUpperCase()) searchVariants.push(search.toUpperCase());
+          if (search !== search.toLowerCase()) searchVariants.push(search.toLowerCase());
+
+          if (!where.AND) where.AND = [];
+          (where.AND as unknown[]).push({
+            OR: searchFields.flatMap((field: string) =>
+              searchVariants.map(term => ({
+                data: { path: [field], string_contains: term },
+              }))
+            ),
+          });
+        } else {
+          // Fallback: buscar em todos os campos de texto da entidade
+          const entityFields = template.sourceEntity?.fields as Array<{ slug: string; type: string }> | null;
+          const textFields = (entityFields || [])
+            .filter(f => ['text', 'short_text', 'string', 'select'].includes(f.type))
+            .map(f => f.slug);
+
+          if (textFields.length > 0) {
+            const searchVariants = [search];
+            if (search !== search.toUpperCase()) searchVariants.push(search.toUpperCase());
+            if (search !== search.toLowerCase()) searchVariants.push(search.toLowerCase());
+
+            if (!where.AND) where.AND = [];
+            (where.AND as unknown[]).push({
+              OR: textFields.flatMap((field: string) =>
+                searchVariants.map(term => ({
+                  data: { path: [field], string_contains: term },
+                }))
+              ),
+            });
+          }
+        }
       }
 
-      records = await this.prisma.entityData.findMany({
-        where: where as any,
-        orderBy: { createdAt: 'asc' },
-      });
+      const [activeRecords, archivedRecords] = await Promise.all([
+        this.prisma.entityData.findMany({
+          where: where as any,
+          orderBy: { createdAt: 'asc' },
+        }),
+        this.prisma.archivedEntityData.findMany({
+          where: {
+            tenantId: targetTenantId,
+            entityId: template.sourceEntityId || undefined,
+            parentRecordId: null,
+            ...(where.AND ? { AND: where.AND } : {}),
+          } as any,
+          orderBy: { createdAt: 'asc' },
+        }),
+      ]);
+      records = [
+        ...activeRecords,
+        ...archivedRecords.map((r) => ({ ...r, parentRecordId: r.parentRecordId ?? null })),
+      ];
     } else {
-      records = await this.prisma.entityData.findMany({
-        where: {
-          id: { in: recordIds },
-          tenantId: targetTenantId,
-          entityId: template.sourceEntityId || undefined,
-        },
-        orderBy: { createdAt: 'asc' },
-      });
+      const [activeRecords, archivedRecords] = await Promise.all([
+        this.prisma.entityData.findMany({
+          where: {
+            id: { in: recordIds },
+            tenantId: targetTenantId,
+            entityId: template.sourceEntityId || undefined,
+          },
+          orderBy: { createdAt: 'asc' },
+        }),
+        this.prisma.archivedEntityData.findMany({
+          where: {
+            id: { in: recordIds },
+            tenantId: targetTenantId,
+            entityId: template.sourceEntityId || undefined,
+          },
+          orderBy: { createdAt: 'asc' },
+        }),
+      ]);
+      records = [
+        ...activeRecords,
+        ...archivedRecords.map((r) => ({ ...r, parentRecordId: r.parentRecordId ?? null })),
+      ];
     }
 
     if (records.length === 0) {
@@ -269,15 +351,26 @@ export class PdfGeneratorService {
       const subData: Record<string, Record<string, unknown>[]> = {};
 
       for (const subField of subEntityFields) {
-        const children = await this.prisma.entityData.findMany({
-          where: {
-            entityId: subField.subEntityId!,
-            parentRecordId: { in: allRecordIds },
-            tenantId: targetTenantId,
-            deletedAt: null,
-          },
-          orderBy: { createdAt: 'asc' },
-        });
+        const [activeChildren, archivedChildren] = await Promise.all([
+          this.prisma.entityData.findMany({
+            where: {
+              entityId: subField.subEntityId!,
+              parentRecordId: { in: allRecordIds },
+              tenantId: targetTenantId,
+              deletedAt: null,
+            },
+            orderBy: { createdAt: 'asc' },
+          }),
+          this.prisma.archivedEntityData.findMany({
+            where: {
+              entityId: subField.subEntityId!,
+              parentRecordId: { in: allRecordIds },
+              tenantId: targetTenantId,
+            },
+            orderBy: { createdAt: 'asc' },
+          }),
+        ]);
+        const children = [...activeChildren, ...archivedChildren];
         for (const child of children) {
           const key = `${child.parentRecordId}_${subField.slug}`;
           if (!subData[key]) subData[key] = [];
@@ -390,7 +483,15 @@ export class PdfGeneratorService {
     // Gerar PDF
     const buffer = await this.renderBatchPdf(template, batchData, enrichedRecords);
 
-    const fileName = `${template.slug}-lote-${records.length}-registros.pdf`;
+    const batchContentSettings = (template.content as unknown as PdfTemplateContent)?.settings;
+    const batchFileNamePattern = batchContentSettings?.fileNamePattern;
+    let fileName: string;
+
+    if (batchFileNamePattern) {
+      fileName = this.resolveFileNamePattern(batchFileNamePattern, batchData, template, records.length) + '.pdf';
+    } else {
+      fileName = `${template.slug}-lote-${records.length}-registros.pdf`;
+    }
 
     // Upload para GCS na pasta relatorios
     let fileUrl: string | null = null;
@@ -454,12 +555,18 @@ export class PdfGeneratorService {
 
     // Se forneceu recordId, buscar dados reais
     if (dto.recordId) {
-      const record = await this.prisma.entityData.findFirst({
+      let record = await this.prisma.entityData.findFirst({
         where: {
           id: dto.recordId,
           tenantId: targetTenantId,
         },
       });
+      if (!record) {
+        const archived = await this.prisma.archivedEntityData.findFirst({
+          where: { id: dto.recordId, tenantId: targetTenantId },
+        });
+        if (archived) record = { ...archived, deletedAt: null } as unknown as typeof record;
+      }
 
       if (record) {
         const baseData = {
@@ -2418,14 +2525,25 @@ export class PdfGeneratorService {
 
     for (const field of fields) {
       if (field.type === 'sub-entity' && field.subEntityId) {
-        const childRecords = await this.prisma.entityData.findMany({
-          where: {
-            entityId: field.subEntityId,
-            parentRecordId: recordId,
-            tenantId,
-          },
-          orderBy: { createdAt: 'asc' },
-        });
+        const [activeChildren, archivedChildren] = await Promise.all([
+          this.prisma.entityData.findMany({
+            where: {
+              entityId: field.subEntityId,
+              parentRecordId: recordId,
+              tenantId,
+            },
+            orderBy: { createdAt: 'asc' },
+          }),
+          this.prisma.archivedEntityData.findMany({
+            where: {
+              entityId: field.subEntityId,
+              parentRecordId: recordId,
+              tenantId,
+            },
+            orderBy: { createdAt: 'asc' },
+          }),
+        ]);
+        const childRecords = [...activeChildren, ...archivedChildren];
 
         enrichedData[field.slug] = childRecords.map((r) => ({
           ...(r.data as Record<string, unknown>),
@@ -2437,6 +2555,39 @@ export class PdfGeneratorService {
     }
 
     return enrichedData;
+  }
+
+  /**
+   * Resolve o padrao de nome do arquivo substituindo {campo} pelos valores dos dados.
+   * Variaveis especiais: {count}, {date}, {templateName}, {templateSlug}
+   */
+  private resolveFileNamePattern(
+    pattern: string,
+    data: Record<string, unknown>,
+    template: PdfTemplate,
+    recordCount: number,
+  ): string {
+    let result = pattern;
+
+    // Variaveis especiais
+    result = result.replace(/\{count\}/g, String(recordCount));
+    result = result.replace(/\{date\}/g, new Date().toISOString().split('T')[0]);
+    result = result.replace(/\{templateName\}/g, template.name);
+    result = result.replace(/\{templateSlug\}/g, template.slug);
+
+    // Substituir {campo} com valores dos dados
+    result = result.replace(/\{([^}]+)\}/g, (_match, field) => {
+      const value = data[field];
+      if (value !== undefined && value !== null && value !== '') {
+        return String(value);
+      }
+      return field;
+    });
+
+    // Sanitizar: remover caracteres invalidos para nome de arquivo
+    result = result.replace(/[^a-zA-Z0-9_\-.\s]/g, '_').replace(/\s+/g, '_').replace(/_+/g, '_');
+
+    return result || template.slug;
   }
 
   /**

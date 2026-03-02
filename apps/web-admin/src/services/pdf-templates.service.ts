@@ -277,6 +277,7 @@ export interface ComputedField {
 
 export interface PdfTemplateSettings {
   emptyFieldDefault?: string;
+  fileNamePattern?: string;
 }
 
 export interface PdfTemplateContent {
@@ -441,13 +442,16 @@ export const pdfTemplatesService = {
     templateId: string,
     recordId: string,
     overrideData?: Record<string, unknown>,
-  ): Promise<Blob> {
+  ): Promise<{ blob: Blob; fileName: string }> {
     const response = await api.post(
       `/pdf-templates/${templateId}/generate`,
       { recordId, overrideData },
       { responseType: 'blob' },
     );
-    return response.data;
+    const disposition = response.headers['content-disposition'] || '';
+    const match = disposition.match(/filename="?([^";\n]+)"?/);
+    const fileName = match?.[1] || 'relatorio.pdf';
+    return { blob: response.data, fileName };
   },
 
   async generateBatch(
@@ -459,13 +463,16 @@ export const pdfTemplatesService = {
       search?: string;
       mergePdfs?: boolean;
     },
-  ): Promise<Blob> {
+  ): Promise<{ blob: Blob; fileName: string }> {
     const response = await api.post(
       `/pdf-templates/${templateId}/generate-batch`,
       options,
       { responseType: 'blob', timeout: 600000 },
     );
-    return response.data;
+    const disposition = response.headers['content-disposition'] || '';
+    const match = disposition.match(/filename="?([^";\n]+)"?/);
+    const fileName = match?.[1] || 'relatorio-lote.pdf';
+    return { blob: response.data, fileName };
   },
 
   async preview(

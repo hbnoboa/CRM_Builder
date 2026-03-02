@@ -73,7 +73,8 @@ export function NotificationProvider({ children }: NotificationProviderProps) {
     const timer = setTimeout(() => {
       if (cancelled) return;
 
-      const apiUrl = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001').replace(/\/api\/v1\/?$/, '');
+      const envUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+      const apiUrl = (envUrl.startsWith('/') ? window.location.origin : envUrl).replace(/\/api\/v1\/?$/, '');
       newSocket = io(
         `${apiUrl}/notifications`,
         {
