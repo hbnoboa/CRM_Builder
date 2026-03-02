@@ -38,9 +38,11 @@ pnpm-debug.log*
 prisma/*.db
 prisma/*.db-journal
 
-# Docker
+# Docker / Nginx SSL
 docker/nginx/ssl/*.pem
 docker/nginx/ssl/*.key
+nginx/ssl/*.pem
+nginx/ssl/*.key
 
 # OS
 .DS_Store
