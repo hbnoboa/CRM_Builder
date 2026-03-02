@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback, useMemo } from 'react';
-import { Loader2, Star, Eye, EyeOff } from 'lucide-react';
+import { Loader2, Star, Eye, EyeOff, Play, Pause, Square, Clock, AlertTriangle, CheckCircle, XCircle, X, Plus } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import {
   Dialog,
@@ -16,6 +16,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Badge } from '@/components/ui/badge';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Slider as SliderUI } from '@/components/ui/slider';
 import { SearchableSelect } from '@/components/ui/searchable-select';
 import type { SelectOption } from '@/components/ui/searchable-select';
@@ -32,6 +34,11 @@ const ZoneDiagramField = dynamic(
   { ssr: false, loading: () => <div className="h-32 flex items-center justify-center text-muted-foreground">Carregando...</div> },
 );
 
+// Sprint 4: Componentes de campos avancados
+import { SignatureField } from '@/components/fields/signature-field';
+import { ActionButtonField } from '@/components/fields/action-button-field';
+import { LookupField } from '@/components/fields/lookup-field';
+
 interface ApiOption {
   value: string;
   label: string;
@@ -43,6 +50,14 @@ interface Entity {
   name: string;
   slug: string;
   fields: EntityField[];
+  settings?: {
+    allowCreate?: boolean;
+    allowEdit?: boolean;
+    allowDelete?: boolean;
+    enableAudit?: boolean;
+    softDelete?: boolean;
+    captureLocation?: boolean;
+  };
 }
 
 interface RecordData {
@@ -131,6 +146,7 @@ export function RecordFormDialog({
   const [relationOptions, setRelationOptions] = useState<Record<string, ApiOption[]>>({});
   const [loadingRelations, setLoadingRelations] = useState<Record<string, boolean>>({});
   const [showPassword, setShowPassword] = useState<Record<string, boolean>>({});
+  const [tagInputs, setTagInputs] = useState<Record<string, string>>({});
 
   const normalizeSelectValue = (val: unknown): unknown => {
     if (val && typeof val === 'object' && 'value' in (val as Record<string, unknown>)) {
@@ -986,6 +1002,437 @@ export function RecordFormDialog({
               readOnly={false}
             />
             {errorEl}
+          </div>
+        );
+      }
+
+      // ─── NOVOS TIPOS DE CAMPO ──────────────────────────────────────────────
+
+      case 'user-select': {
+        // TODO: Implementar busca de usuarios via API
+        // Por enquanto usa as opcoes do campo ou uma lista vazia
+        const userOpts: SelectOption[] = (field.options || []).map((option: string | { value: string; label: string }) => {
+          const optVal = typeof option === 'object' ? option.value : option;
+          const optLabel = typeof option === 'object' ? option.label : option;
+          return { value: optVal, label: optLabel };
+        });
+        const config = field.userSelectConfig;
+        return (
+          <div key={field.slug} className="space-y-2">
+            {fieldLabel}
+            <SearchableSelect
+              options={userOpts}
+              value={config?.allowMultiple ? (Array.isArray(value) ? value : []) : String(value || '')}
+              onChange={(val) => handleFieldChange(field.slug, val)}
+              multiple={config?.allowMultiple}
+              placeholder={field.placeholder || 'Selecione um usuario'}
+              disabled={isFieldDisabled}
+              allowCustom={false}
+            />
+            {helpEl}{errorEl}
+          </div>
+        );
+      }
+
+      case 'workflow-status': {
+        const config = field.workflowConfig;
+        const statuses = config?.statuses || [];
+        const currentStatus = String(value || '');
+        const currentStatusObj = statuses.find((s: { value: string }) => s.value === currentStatus);
+
+        // Filtra transicoes validas a partir do status atual
+        const validTransitions = config?.transitions?.filter((t: { from: string | string[]; to: string }) => {
+          const fromArr = Array.isArray(t.from) ? t.from : [t.from];
+          return fromArr.includes(currentStatus) || (!currentStatus && statuses.find((s: { isInitial?: boolean; value: string }) => s.isInitial)?.value === t.to);
+        }) || [];
+
+        const availableStatuses = statuses.filter((s: { isInitial?: boolean; value: string }) => {
+          if (!currentStatus && s.isInitial) return true;
+          return validTransitions.some((t: { to: string }) => t.to === s.value);
+        });
+
+        // Se nao ha status atual, mostra todos os iniciais
+        const displayStatuses = currentStatus ? availableStatuses : statuses.filter((s: { isInitial?: boolean }) => s.isInitial);
+
+        return (
+          <div key={field.slug} className="space-y-2">
+            {fieldLabel}
+            {currentStatusObj && (
+              <div className="mb-2">
+                <Badge style={{ backgroundColor: currentStatusObj.color, color: '#fff' }}>
+                  {currentStatusObj.label}
+                </Badge>
+              </div>
+            )}
+            <SearchableSelect
+              options={displayStatuses.map((s: { value: string; label: string; color: string }) => ({
+                value: s.value,
+                label: s.label,
+                color: s.color
+              }))}
+              value={currentStatus}
+              onChange={(val) => handleFieldChange(field.slug, val)}
+              placeholder={field.placeholder || 'Selecione um status'}
+              disabled={isFieldDisabled || (currentStatusObj?.isFinal)}
+              allowCustom={false}
+            />
+            {currentStatusObj?.isFinal && (
+              <p className="text-xs text-muted-foreground">Status final - nao pode ser alterado</p>
+            )}
+            {helpEl}{errorEl}
+          </div>
+        );
+      }
+
+      case 'timer': {
+        const timerValue = value as { totalSeconds?: number; isRunning?: boolean; lastStartedAt?: string } | undefined;
+        const totalSeconds = timerValue?.totalSeconds || 0;
+        const isRunning = timerValue?.isRunning || false;
+        const hours = Math.floor(totalSeconds / 3600);
+        const minutes = Math.floor((totalSeconds % 3600) / 60);
+        const seconds = totalSeconds % 60;
+        const displayTime = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+
+        return (
+          <div key={field.slug} className="space-y-2">
+            {fieldLabel}
+            <div className="flex items-center gap-3 p-3 border rounded-lg bg-muted/30">
+              <Clock className="h-5 w-5 text-muted-foreground" />
+              <span className="font-mono text-xl">{displayTime}</span>
+              <div className="flex gap-1 ml-auto">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={isRunning ? 'outline' : 'default'}
+                  onClick={() => handleFieldChange(field.slug, {
+                    ...timerValue,
+                    isRunning: !isRunning,
+                    lastStartedAt: !isRunning ? new Date().toISOString() : timerValue?.lastStartedAt
+                  })}
+                  disabled={isFieldDisabled}
+                >
+                  {isRunning ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() => handleFieldChange(field.slug, { totalSeconds: 0, isRunning: false })}
+                  disabled={isFieldDisabled}
+                >
+                  <Square className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+            {helpEl}{errorEl}
+          </div>
+        );
+      }
+
+      case 'sla-status': {
+        const slaValue = String(value || 'on-track');
+        const statusConfig: Record<string, { color: string; icon: React.ReactNode; label: string }> = {
+          'on-track': { color: 'bg-green-500', icon: <CheckCircle className="h-4 w-4" />, label: 'No prazo' },
+          'warning': { color: 'bg-yellow-500', icon: <AlertTriangle className="h-4 w-4" />, label: 'Atencao' },
+          'breached': { color: 'bg-red-500', icon: <XCircle className="h-4 w-4" />, label: 'SLA violado' },
+          'paused': { color: 'bg-gray-500', icon: <Pause className="h-4 w-4" />, label: 'Pausado' },
+        };
+        const status = statusConfig[slaValue] || statusConfig['on-track'];
+
+        return (
+          <div key={field.slug} className="space-y-2">
+            {fieldLabel}
+            <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-white ${status.color}`}>
+              {status.icon}
+              <span className="text-sm font-medium">{status.label}</span>
+            </div>
+            <p className="text-xs text-muted-foreground">Campo calculado automaticamente</p>
+            {helpEl}{errorEl}
+          </div>
+        );
+      }
+
+      case 'checkbox-group': {
+        const config = field.checkboxGroupConfig;
+        const options = config?.options || field.options?.map((o: string | { value: string; label: string }) => typeof o === 'object' ? o : { value: o, label: o }) || [];
+        const selectedValues = Array.isArray(value) ? value : [];
+        const layout = config?.layout || 'vertical';
+        const columns = config?.columns || 2;
+
+        return (
+          <div key={field.slug} className="space-y-2">
+            {fieldLabel}
+            <div className={
+              layout === 'horizontal' ? 'flex flex-wrap gap-4' :
+              layout === 'grid' ? `grid grid-cols-${columns} gap-2` :
+              'space-y-2'
+            }>
+              {options.map((opt: { value: string; label: string }) => (
+                <div key={opt.value} className="flex items-center space-x-2">
+                  <Checkbox
+                    id={`${field.slug}-${opt.value}`}
+                    checked={selectedValues.includes(opt.value)}
+                    onCheckedChange={(checked) => {
+                      const newValues = checked
+                        ? [...selectedValues, opt.value]
+                        : selectedValues.filter((v: string) => v !== opt.value);
+                      handleFieldChange(field.slug, newValues);
+                    }}
+                    disabled={isFieldDisabled}
+                  />
+                  <Label htmlFor={`${field.slug}-${opt.value}`} className="cursor-pointer text-sm">
+                    {opt.label}
+                  </Label>
+                </div>
+              ))}
+            </div>
+            {helpEl}{errorEl}
+          </div>
+        );
+      }
+
+      case 'radio-group': {
+        const config = field.radioGroupConfig;
+        const options = config?.options || field.options?.map((o: string | { value: string; label: string }) => typeof o === 'object' ? o : { value: o, label: o }) || [];
+        const layout = config?.layout || 'vertical';
+
+        return (
+          <div key={field.slug} className="space-y-2">
+            {fieldLabel}
+            <RadioGroup
+              value={String(value || '')}
+              onValueChange={(val) => handleFieldChange(field.slug, val)}
+              className={layout === 'horizontal' ? 'flex flex-wrap gap-4' : 'space-y-2'}
+              disabled={isFieldDisabled}
+            >
+              {options.map((opt: { value: string; label: string; description?: string }) => (
+                <div key={opt.value} className="flex items-center space-x-2">
+                  <RadioGroupItem value={opt.value} id={`${field.slug}-${opt.value}`} />
+                  <Label htmlFor={`${field.slug}-${opt.value}`} className="cursor-pointer">
+                    <span className="text-sm">{opt.label}</span>
+                    {opt.description && (
+                      <span className="block text-xs text-muted-foreground">{opt.description}</span>
+                    )}
+                  </Label>
+                </div>
+              ))}
+            </RadioGroup>
+            {helpEl}{errorEl}
+          </div>
+        );
+      }
+
+      case 'tags': {
+        const config = field.tagsConfig;
+        const tags = Array.isArray(value) ? value as string[] : [];
+        const predefined = config?.predefinedTags || [];
+        const allowCustom = config?.allowCustom !== false;
+        const maxTags = config?.maxTags || 10;
+        const colorByValue = config?.colorByValue || {};
+        const tagInput = tagInputs[field.slug] || '';
+
+        const addTag = (tag: string) => {
+          const trimmed = tag.trim();
+          if (trimmed && !tags.includes(trimmed) && tags.length < maxTags) {
+            handleFieldChange(field.slug, [...tags, trimmed]);
+          }
+          setTagInputs(prev => ({ ...prev, [field.slug]: '' }));
+        };
+
+        const removeTag = (tag: string) => {
+          handleFieldChange(field.slug, tags.filter(t => t !== tag));
+        };
+
+        return (
+          <div key={field.slug} className="space-y-2">
+            {fieldLabel}
+            <div className="flex flex-wrap gap-2 mb-2">
+              {tags.map((tag) => (
+                <Badge
+                  key={tag}
+                  variant="secondary"
+                  className="flex items-center gap-1"
+                  style={colorByValue[tag] ? { backgroundColor: colorByValue[tag], color: '#fff' } : {}}
+                >
+                  {tag}
+                  <button
+                    type="button"
+                    onClick={() => removeTag(tag)}
+                    className="ml-1 hover:text-destructive"
+                    disabled={isFieldDisabled}
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </Badge>
+              ))}
+            </div>
+            {tags.length < maxTags && (
+              <div className="flex gap-2">
+                {allowCustom && (
+                  <Input
+                    placeholder="Digite uma tag..."
+                    value={tagInput}
+                    onChange={(e) => setTagInputs(prev => ({ ...prev, [field.slug]: e.target.value }))}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        addTag(tagInput);
+                      }
+                    }}
+                    disabled={isFieldDisabled}
+                    className="flex-1"
+                  />
+                )}
+                {predefined.length > 0 && (
+                  <SearchableSelect
+                    options={predefined.filter((p: string) => !tags.includes(p)).map((p: string) => ({ value: p, label: p }))}
+                    value=""
+                    onChange={(val) => addTag(String(val))}
+                    placeholder="Adicionar tag"
+                    disabled={isFieldDisabled}
+                    allowCustom={false}
+                  />
+                )}
+              </div>
+            )}
+            <p className="text-xs text-muted-foreground">{tags.length}/{maxTags} tags</p>
+            {helpEl}{errorEl}
+          </div>
+        );
+      }
+
+      case 'signature': {
+        const signatureConfig = field.signatureConfig || {};
+        return (
+          <div key={field.slug} className="space-y-2">
+            <SignatureField
+              value={value as string | undefined}
+              onChange={(val) => handleFieldChange(field.slug, val)}
+              label={field.name}
+              required={field.required}
+              disabled={isFieldDisabled}
+              config={{
+                width: signatureConfig.width || 400,
+                height: signatureConfig.height || 150,
+                penColor: signatureConfig.penColor || '#000000',
+                backgroundColor: signatureConfig.backgroundColor || '#ffffff',
+              }}
+            />
+            {helpEl}{errorEl}
+          </div>
+        );
+      }
+
+      case 'lookup': {
+        const lookupConfig = field.lookupConfig;
+        if (!lookupConfig?.sourceEntity) {
+          return (
+            <div key={field.slug} className="space-y-2">
+              {fieldLabel}
+              <div className="p-3 border rounded-lg bg-muted/30 text-muted-foreground">
+                Lookup nao configurado (sourceEntity necessario)
+              </div>
+              {helpEl}{errorEl}
+            </div>
+          );
+        }
+
+        return (
+          <div key={field.slug} className="space-y-2">
+            <LookupField
+              value={value as string | null}
+              onChange={(val) => handleFieldChange(field.slug, val)}
+              label={field.name}
+              required={field.required}
+              disabled={isFieldDisabled}
+              placeholder={field.placeholder || 'Buscar...'}
+              config={{
+                sourceEntity: lookupConfig.sourceEntity,
+                searchFields: lookupConfig.searchFields || ['nome', 'name', 'titulo', 'title'],
+                displayFields: lookupConfig.displayFields || ['nome', 'name'],
+                previewFields: lookupConfig.previewFields,
+                filterConditions: lookupConfig.filterConditions,
+                allowCreate: lookupConfig.allowCreate,
+              }}
+            />
+            {helpEl}{errorEl}
+          </div>
+        );
+      }
+
+      case 'formula': {
+        const config = field.formulaConfig;
+        const displayValue = value !== undefined && value !== null ? String(value) : '-';
+
+        return (
+          <div key={field.slug} className="space-y-2">
+            {fieldLabel}
+            <div className="p-3 border rounded-lg bg-muted/30">
+              <span className="font-mono text-lg">{displayValue}</span>
+            </div>
+            {config?.expression && (
+              <p className="text-xs text-muted-foreground">Formula: {config.expression}</p>
+            )}
+            <p className="text-xs text-muted-foreground">Campo calculado automaticamente</p>
+            {helpEl}{errorEl}
+          </div>
+        );
+      }
+
+      case 'rollup': {
+        const config = field.rollupConfig;
+        const displayValue = value !== undefined && value !== null ? String(value) : '0';
+
+        return (
+          <div key={field.slug} className="space-y-2">
+            {fieldLabel}
+            <div className="p-3 border rounded-lg bg-muted/30">
+              <span className="font-mono text-lg">{displayValue}</span>
+            </div>
+            {config && (
+              <p className="text-xs text-muted-foreground">
+                {config.aggregation.toUpperCase()}({config.targetField || '*'}) de {config.sourceField}
+              </p>
+            )}
+            <p className="text-xs text-muted-foreground">Campo agregado automaticamente</p>
+            {helpEl}{errorEl}
+          </div>
+        );
+      }
+
+      case 'action-button': {
+        const actionConfig = field.actionButtonConfig;
+        if (!actionConfig?.action) {
+          return (
+            <div key={field.slug} className="space-y-2">
+              <Button type="button" variant="outline" disabled className="w-full">
+                {actionConfig?.label || field.name} (nao configurado)
+              </Button>
+              {helpEl}{errorEl}
+            </div>
+          );
+        }
+
+        return (
+          <div key={field.slug} className="space-y-2">
+            <ActionButtonField
+              config={{
+                label: actionConfig.label || field.label || field.name,
+                style: actionConfig.style,
+                confirmMessage: actionConfig.confirmMessage,
+                action: actionConfig.action,
+                visibleIf: actionConfig.visibleIf,
+              }}
+              recordId={record?.id}
+              recordData={formData}
+              entitySlug={entity.slug}
+              disabled={isFieldDisabled || !record?.id}
+              onSuccess={() => {
+                // Recarregar dados apos acao
+                if (onSuccess) onSuccess();
+              }}
+            />
+            {helpEl}{errorEl}
           </div>
         );
       }

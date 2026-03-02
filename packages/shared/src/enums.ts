@@ -63,7 +63,20 @@ export type FieldType =
   | 'map'
   | 'array'
   | 'sub-entity'
-  | 'zone-diagram';
+  | 'zone-diagram'
+  // Novos tipos de campo
+  | 'user-select'
+  | 'workflow-status'
+  | 'timer'
+  | 'sla-status'
+  | 'checkbox-group'
+  | 'radio-group'
+  | 'tags'
+  | 'signature'
+  | 'lookup'
+  | 'formula'
+  | 'rollup'
+  | 'action-button';
 
 // ============================================================================
 // HTTP / API

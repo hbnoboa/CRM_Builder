@@ -19,6 +19,20 @@ import { GlobalFilterDto } from './dto/update-global-filters.dto';
 
 export type QueryEntityDto = PaginationQuery;
 
+// Interface para condicao de validacao
+export interface FieldCondition {
+  field: string;
+  operator: 'equals' | 'not_equals' | 'contains' | 'gt' | 'gte' | 'lt' | 'lte' | 'in' | 'is_empty' | 'is_not_empty';
+  value: unknown;
+}
+
+// Interface para validador customizado
+export interface FieldValidator {
+  type: 'regex' | 'min' | 'max' | 'minLength' | 'maxLength' | 'custom';
+  config: Record<string, unknown>;
+  message: string;
+}
+
 export interface FieldDefinition {
   slug: string;
   name: string;
@@ -41,6 +55,11 @@ export interface FieldDefinition {
     sourceField: string; // Campo fonte da API
     targetField: string; // Campo destino nesta entidade
   }>;
+  // Validacoes condicionais
+  requiredIf?: FieldCondition;
+  visibleIf?: FieldCondition;
+  readOnlyIf?: FieldCondition;
+  validators?: FieldValidator[];
 }
 
 export interface CreateEntityDto {
@@ -396,6 +415,14 @@ export class EntityService {
     for (const field of fields) {
       const value = data[field.slug];
 
+      // Verificar requiredIf (condicional)
+      if (field.requiredIf && this.evaluateCondition(field.requiredIf, data)) {
+        if (value === undefined || value === null || value === '') {
+          errors.push(`Campo "${field.name}" e obrigatorio nesta condicao`);
+          continue;
+        }
+      }
+
       // Verificar campos obrigatorios
       if (field.required && (value === undefined || value === null || value === '')) {
         errors.push(`Campo "${field.name}" e obrigatorio`);
@@ -418,6 +445,8 @@ export class EntityService {
         case 'number':
         case 'decimal':
         case 'currency':
+        case 'formula':
+        case 'rollup':
           if (isNaN(Number(value))) {
             errors.push(`"${field.name}" deve ser um numero`);
           }
@@ -432,6 +461,7 @@ export class EntityService {
           break;
 
         case 'select':
+        case 'radio-group':
           if (field.options) {
             const validValues = field.options.map((o) => typeof o === 'string' ? o : o.value);
             if (!validValues.includes(value)) {
@@ -441,6 +471,8 @@ export class EntityService {
           break;
 
         case 'multiselect':
+        case 'checkbox-group':
+        case 'tags':
           if (field.options && Array.isArray(value)) {
             const validValues = field.options.map((o) => typeof o === 'string' ? o : o.value);
             for (const v of value) {
@@ -451,8 +483,108 @@ export class EntityService {
           }
           break;
       }
+
+      // Executar validators customizados
+      if (field.validators && field.validators.length > 0) {
+        for (const validator of field.validators) {
+          const validationError = this.runValidator(validator, value, field.name);
+          if (validationError) {
+            errors.push(validationError);
+          }
+        }
+      }
     }
 
     return errors;
+  }
+
+  /**
+   * Avalia uma condicao de validacao
+   */
+  private evaluateCondition(condition: FieldCondition, data: Record<string, any>): boolean {
+    const fieldValue = data[condition.field];
+    const expectedValue = condition.value;
+
+    switch (condition.operator) {
+      case 'equals':
+        return fieldValue === expectedValue;
+      case 'not_equals':
+        return fieldValue !== expectedValue;
+      case 'contains':
+        return String(fieldValue || '').includes(String(expectedValue));
+      case 'gt':
+        return Number(fieldValue) > Number(expectedValue);
+      case 'gte':
+        return Number(fieldValue) >= Number(expectedValue);
+      case 'lt':
+        return Number(fieldValue) < Number(expectedValue);
+      case 'lte':
+        return Number(fieldValue) <= Number(expectedValue);
+      case 'in':
+        return Array.isArray(expectedValue) && expectedValue.includes(fieldValue);
+      case 'is_empty':
+        return fieldValue === undefined || fieldValue === null || fieldValue === '' ||
+          (Array.isArray(fieldValue) && fieldValue.length === 0);
+      case 'is_not_empty':
+        return fieldValue !== undefined && fieldValue !== null && fieldValue !== '' &&
+          !(Array.isArray(fieldValue) && fieldValue.length === 0);
+      default:
+        return false;
+    }
+  }
+
+  /**
+   * Executa um validator customizado
+   */
+  private runValidator(validator: FieldValidator, value: unknown, fieldName: string): string | null {
+    switch (validator.type) {
+      case 'regex': {
+        const pattern = validator.config.pattern as string;
+        if (pattern && !new RegExp(pattern).test(String(value))) {
+          return validator.message || `"${fieldName}" nao corresponde ao padrao esperado`;
+        }
+        break;
+      }
+
+      case 'min': {
+        const min = validator.config.value as number;
+        if (Number(value) < min) {
+          return validator.message || `"${fieldName}" deve ser no minimo ${min}`;
+        }
+        break;
+      }
+
+      case 'max': {
+        const max = validator.config.value as number;
+        if (Number(value) > max) {
+          return validator.message || `"${fieldName}" deve ser no maximo ${max}`;
+        }
+        break;
+      }
+
+      case 'minLength': {
+        const minLength = validator.config.value as number;
+        if (String(value).length < minLength) {
+          return validator.message || `"${fieldName}" deve ter no minimo ${minLength} caracteres`;
+        }
+        break;
+      }
+
+      case 'maxLength': {
+        const maxLength = validator.config.value as number;
+        if (String(value).length > maxLength) {
+          return validator.message || `"${fieldName}" deve ter no maximo ${maxLength} caracteres`;
+        }
+        break;
+      }
+
+      case 'custom': {
+        // Para validators customizados, apenas retorna a mensagem se value for invalido
+        // A logica customizada deve ser implementada no frontend
+        break;
+      }
+    }
+
+    return null;
   }
 }

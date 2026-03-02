@@ -32,7 +32,37 @@ export type { User } from './user';
 export type { Tenant, TenantPermissions } from './tenant';
 
 // Entity
-export type { Entity, EntityField, EntitySettings, Field } from './entity';
+export type {
+  Entity,
+  EntityField,
+  EntitySettings,
+  Field,
+  // Novas interfaces de configuracao de campos
+  UserSelectConfig,
+  WorkflowStatusConfig,
+  TimerConfig,
+  TimerValue,
+  SlaStatusConfig,
+  CheckboxGroupConfig,
+  RadioGroupConfig,
+  TagsConfig,
+  SignatureConfig,
+  LookupConfig,
+  FormulaConfig,
+  RollupConfig,
+  ActionButtonConfig,
+  // Validacoes condicionais
+  FieldCondition,
+  FieldValidator,
+  CrossFieldValidation,
+  // Entity settings expandidos
+  EntitySlaConfig,
+  EntityAutoAssignConfig,
+  EntityEscalationConfig,
+  EntityNotificationConfig,
+  FieldDependency,
+  EntityAuditConfig,
+} from './entity';
 
 // Entity Data
 export type { EntityData } from './data';

@@ -1,8 +1,11 @@
-import { Injectable, NotFoundException, ForbiddenException, BadRequestException, Logger } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException, BadRequestException, Logger, Inject, Optional } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { EntityService } from '../entity/entity.service';
 import { NotificationService } from '../notification/notification.service';
 import { CustomRoleService } from '../custom-role/custom-role.service';
+import { ComputedFieldsService } from './computed-fields.service';
+import { WebhookService } from '../webhook/webhook.service';
+import { ActionChainService } from '../action-chain/action-chain.service';
 import { Prisma, EntityData, Entity } from '@prisma/client';
 import {
   CurrentUser,
@@ -54,11 +57,19 @@ export interface QueryDataDto {
   filters?: string; // Ex: '[{"fieldSlug":"status","operator":"equals","value":"ativo"}]'
 }
 
+interface BusinessHoursConfig {
+  timezone: string;
+  schedule: Record<string, { start: string; end: string } | null>;
+}
+
 interface EntitySettings {
   searchFields?: string[];
   titleField?: string;
   subtitleField?: string;
   globalFilters?: GlobalFilter[];
+  slaConfig?: {
+    businessHours?: BusinessHoursConfig;
+  };
 }
 
 interface GlobalFilter {
@@ -99,7 +110,50 @@ export class DataService {
     private notificationService: NotificationService,
     private customRoleService: CustomRoleService,
     private auditService: AuditService,
+    private computedFieldsService: ComputedFieldsService,
+    @Optional() @Inject(WebhookService) private webhookService?: WebhookService,
+    @Optional() @Inject(ActionChainService) private actionChainService?: ActionChainService,
   ) {}
+
+  /**
+   * Dispara webhooks e action chains para eventos de dados
+   */
+  private async triggerAutomations(
+    event: 'created' | 'updated' | 'deleted' | 'status-changed',
+    tenantId: string,
+    entity: { id: string; slug: string; name: string },
+    record: Record<string, unknown>,
+    user: CurrentUser,
+    previousRecord?: Record<string, unknown>,
+  ): Promise<void> {
+    const context = {
+      event,
+      recordId: record.id as string,
+      record,
+      previousRecord,
+      user: { id: user.id, name: user.name, email: user.email },
+      entity: { id: entity.id, slug: entity.slug, name: entity.name },
+    };
+
+    // Disparar webhooks
+    if (this.webhookService) {
+      this.webhookService.triggerWebhooks(tenantId, context).catch((err) => {
+        this.logger.error(`Erro ao disparar webhooks: ${err.message}`);
+      });
+    }
+
+    // Disparar action chains
+    if (this.actionChainService) {
+      this.actionChainService.triggerByEvent(tenantId, event, {
+        recordId: record.id as string,
+        record,
+        user: context.user,
+        entity: context.entity,
+      }).catch((err) => {
+        this.logger.error(`Erro ao disparar action chains: ${err.message}`);
+      });
+    }
+  }
 
   /**
    * Verifica se usuario tem permissao para acao na entidade
@@ -274,21 +328,33 @@ export class DataService {
       'POST',
     );
 
-    // Validar dados (apos aplicar Custom API para incluir campos automaticos)
+    // Processar campos calculados (formula, rollup, timer, sla-status)
     const fields = (entity.fields as unknown) as EntityField[];
-    const errors = this.entityService.validateData(fields, dataWithCustomApi);
+    const settings = entity.settings as EntitySettings;
+    const dataWithComputedFields = await this.computedFieldsService.processComputedFields(
+      dataWithCustomApi,
+      fields,
+      entity.id,
+      targetTenantId,
+      undefined, // recordId ainda nao existe no create
+      undefined, // previousData
+      settings,
+    );
+
+    // Validar dados (apos aplicar Custom API e campos calculados)
+    const errors = this.entityService.validateData(fields, dataWithComputedFields);
     if (errors.length > 0) {
       throw new BadRequestException(errors);
     }
 
     // Validar campos unicos
-    await this.validateUniqueFields(fields, dataWithCustomApi, entity.id, targetTenantId);
+    await this.validateUniqueFields(fields, dataWithComputedFields, entity.id, targetTenantId);
 
     const record = await this.prisma.entityData.create({
       data: {
         tenantId: targetTenantId,
         entityId: entity.id,
-        data: dataWithCustomApi as Prisma.InputJsonValue,
+        data: dataWithComputedFields as Prisma.InputJsonValue,
         parentRecordId: dto.parentRecordId || null,
         createdById: currentUser.id,
         updatedById: currentUser.id,
@@ -296,9 +362,8 @@ export class DataService {
     });
 
     // Enviar notificacao para o tenant
-    const settings = entity.settings as EntitySettings;
     const titleField = settings?.titleField || 'nome';
-    const recordName = String((dataWithCustomApi as Record<string, unknown>)[titleField] || record.id);
+    const recordName = String((dataWithComputedFields as Record<string, unknown>)[titleField] || record.id);
 
     this.notificationService.notifyRecordCreated(
       targetTenantId,
@@ -306,12 +371,12 @@ export class DataService {
       recordName,
       currentUser.name,
       entitySlug,
-      dataWithCustomApi as Record<string, unknown>,
+      dataWithComputedFields as Record<string, unknown>,
     ).catch((err) => this.logger.error('Failed to send notification', err));
 
     this.auditService.log(currentUser, {
       action: 'create', resource: 'entity_data', resourceId: record.id,
-      newData: dataWithCustomApi as Record<string, unknown>,
+      newData: dataWithComputedFields as Record<string, unknown>,
       metadata: { entitySlug, entityId: entity.id },
     }).catch(() => {});
 
@@ -328,6 +393,15 @@ export class DataService {
       },
       userId: currentUser.id,
     });
+
+    // Disparar webhooks e action chains
+    this.triggerAutomations(
+      'created',
+      targetTenantId,
+      { id: entity.id, slug: entitySlug, name: entity.name },
+      { id: record.id, ...dataWithComputedFields },
+      currentUser,
+    );
 
     return record;
   }
@@ -1429,20 +1503,33 @@ export class DataService {
       'PATCH',
     );
 
-    // Validar dados (apos aplicar Custom API)
+    // Processar campos calculados (formula, rollup, timer, sla-status)
     const fields = (entity.fields as unknown) as EntityField[];
-    const errors = this.entityService.validateData(fields, dataWithCustomApi);
+    const settings = entity.settings as EntitySettings;
+    const previousData = activeRecord.data as Record<string, unknown>;
+    const dataWithComputedFields = await this.computedFieldsService.processComputedFields(
+      { ...previousData, ...dataWithCustomApi },
+      fields,
+      entity.id,
+      effectiveTenantId,
+      id,
+      previousData,
+      settings,
+    );
+
+    // Validar dados (apos aplicar Custom API e campos calculados)
+    const errors = this.entityService.validateData(fields, dataWithComputedFields);
     if (errors.length > 0) {
       throw new BadRequestException(errors);
     }
 
     // Validar campos unicos (excluindo o proprio registro)
-    await this.validateUniqueFields(fields, dataWithCustomApi, entity.id, effectiveTenantId, id);
+    await this.validateUniqueFields(fields, dataWithComputedFields, entity.id, effectiveTenantId, id);
 
-    // Merge dos dados existentes com os novos (incluindo Custom API)
+    // Merge dos dados existentes com os novos (incluindo Custom API e campos calculados)
     const mergedData = {
       ...(activeRecord.data as Record<string, unknown>),
-      ...dataWithCustomApi,
+      ...dataWithComputedFields,
     };
 
     let updatedRecord;
@@ -1467,7 +1554,6 @@ export class DataService {
     }
 
     // Enviar notificacao para o tenant
-    const settings = entity.settings as EntitySettings;
     const titleField = settings?.titleField || 'nome';
     const recordName = String((mergedData as Record<string, unknown>)[titleField] || activeRecord.id);
 
@@ -1498,6 +1584,28 @@ export class DataService {
       },
       userId: currentUser.id,
     });
+
+    // Disparar webhooks e action chains
+    // Detectar se houve mudanca de status para evento 'status-changed'
+    const statusFields = fields.filter((f: EntityField) => f.type === 'workflow-status' || f.type === 'select');
+    let hasStatusChange = false;
+    for (const statusField of statusFields) {
+      const oldStatus = previousData[statusField.slug];
+      const newStatus = (mergedData as Record<string, unknown>)[statusField.slug];
+      if (oldStatus !== newStatus) {
+        hasStatusChange = true;
+        break;
+      }
+    }
+
+    this.triggerAutomations(
+      hasStatusChange ? 'status-changed' : 'updated',
+      effectiveTenantId,
+      { id: entity.id, slug: entitySlug, name: entity.name },
+      { id: updatedRecord.id, ...mergedData },
+      currentUser,
+      previousData,
+    );
 
     return updatedRecord;
   }
@@ -1594,6 +1702,15 @@ export class DataService {
       recordId: id,
       userId: currentUser.id,
     });
+
+    // Disparar webhooks e action chains
+    this.triggerAutomations(
+      'deleted',
+      effectiveTenantId,
+      { id: entity.id, slug: entitySlug, name: entity.name },
+      { id, ...recordData },
+      currentUser,
+    );
 
     return { message: 'Registro excluido com sucesso' };
   }

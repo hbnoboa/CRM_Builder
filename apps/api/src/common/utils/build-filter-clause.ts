@@ -35,13 +35,17 @@ export function buildFilterClause(
   }
 
   // Tipos texto
-  const textTypes = ['text', 'textarea', 'richtext', 'email', 'phone', 'url', 'cpf', 'cnpj', 'cep', 'password'];
+  const textTypes = ['text', 'textarea', 'richtext', 'email', 'phone', 'url', 'cpf', 'cnpj', 'cep', 'password', 'signature'];
   // Tipos numero
-  const numberTypes = ['number', 'currency', 'percentage', 'rating', 'slider'];
+  const numberTypes = ['number', 'currency', 'percentage', 'rating', 'slider', 'formula', 'rollup'];
   // Tipos data
-  const dateTypes = ['date', 'datetime', 'time'];
+  const dateTypes = ['date', 'datetime', 'time', 'timer'];
   // Tipos select
-  const selectTypes = ['select', 'multiselect', 'api-select', 'relation'];
+  const selectTypes = ['select', 'multiselect', 'api-select', 'relation', 'user-select', 'workflow-status', 'lookup', 'radio-group'];
+  // Tipos array
+  const arrayTypes = ['checkbox-group', 'tags'];
+  // Tipos especiais (nao filtráveis)
+  const specialTypes = ['sla-status', 'action-button'];
 
   if (type === 'boolean') {
     if (operator === 'equals') {
@@ -121,6 +125,23 @@ export function buildFilterClause(
         }
         break;
     }
+  }
+
+  // Tipos array (checkbox-group, tags)
+  if (arrayTypes.includes(type)) {
+    const strValue = String(value || '');
+    switch (operator) {
+      case 'contains':
+        // Verifica se o array contem o valor
+        return { data: { path: [fieldSlug], array_contains: strValue } };
+      case 'equals':
+        return { data: { path: [fieldSlug], equals: value as Prisma.InputJsonValue } };
+    }
+  }
+
+  // Tipos especiais nao sao filtraveis diretamente
+  if (specialTypes.includes(type)) {
+    return null;
   }
 
   // Fallback para texto

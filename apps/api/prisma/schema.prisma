@@ -89,6 +89,12 @@ model Tenant {
   pdfGenerations  PdfGeneration[]
   userTenantAccess UserTenantAccess[]
 
+  // Automacoes
+  webhooks        Webhook[]
+  emailTemplates  EmailTemplate[]
+  actionChains    ActionChain[]
+  scheduledTasks  ScheduledTask[]
+
   @@index([slug])
   @@index([status])
 }
@@ -605,5 +611,325 @@ model PdfGeneration {
   @@index([createdAt])
   @@index([tenantId, createdAt(sort: Desc)])
   @@index([tenantId, status])
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// WEBHOOKS (Webhooks outbound para integracao)
+// ═══════════════════════════════════════════════════════════════════════════
+
+enum WebhookStatus {
+  ACTIVE
+  INACTIVE
+  PAUSED
+}
+
+model Webhook {
+  id       String @id @default(cuid())
+  tenantId String
+  entityId String?
+
+  name        String
+  description String?
+  url         String
+  method      HttpMethod @default(POST)
+  headers     Json?      // { "Authorization": "Bearer {{secret}}", "Content-Type": "application/json" }
+  bodyTemplate Json?     // Template do body com placeholders
+
+  // Eventos que disparam o webhook
+  events String[] // ['created', 'updated', 'deleted', 'status-changed']
+
+  // Filtros para disparar apenas em certas condicoes
+  filterConditions Json? // [{ field, operator, value }]
+
+  // Configuracoes
+  status     WebhookStatus @default(ACTIVE)
+  retryCount Int           @default(3)
+  retryDelay Int           @default(1000) // ms entre retries
+  timeout    Int           @default(30000) // ms
+
+  // Seguranca
+  secret String? // Para assinatura HMAC
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relacionamentos
+  tenant     Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  executions WebhookExecution[]
+
+  @@index([tenantId])
+  @@index([entityId])
+  @@index([status])
+  @@index([tenantId, status])
+  @@index([tenantId, entityId])
+}
+
+model WebhookExecution {
+  id        String @id @default(cuid())
+  webhookId String
+  tenantId  String
+
+  // Evento que disparou
+  event    String
+  recordId String?
+
+  // Request
+  requestUrl     String
+  requestMethod  String
+  requestHeaders Json?
+  requestBody    Json?
+
+  // Response
+  responseStatus Int?
+  responseBody   Json?
+  responseTime   Int? // ms
+
+  // Status
+  status       String // 'success', 'error', 'timeout', 'retry'
+  errorMessage String?
+  retryCount   Int    @default(0)
+
+  createdAt DateTime @default(now())
+
+  webhook Webhook @relation(fields: [webhookId], references: [id], onDelete: Cascade)
+
+  @@index([webhookId])
+  @@index([tenantId])
+  @@index([status])
+  @@index([createdAt])
+  @@index([webhookId, createdAt(sort: Desc)])
+  @@index([tenantId, createdAt(sort: Desc)])
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// EMAIL TEMPLATES (Templates de email customizaveis)
+// ═══════════════════════════════════════════════════════════════════════════
+
+model EmailTemplate {
+  id       String @id @default(cuid())
+  tenantId String
+
+  name        String
+  slug        String
+  description String?
+
+  // Conteudo
+  subject   String
+  bodyHtml  String  @db.Text
+  bodyText  String? @db.Text
+
+  // Variaveis disponiveis no template
+  variables String[] // ['user.name', 'record.data.name', 'now']
+
+  // Configuracoes
+  fromName  String?
+  fromEmail String?
+  replyTo   String?
+
+  isActive Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relacionamentos
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, slug])
+  @@index([tenantId])
+  @@index([isActive])
+  @@index([tenantId, isActive])
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ACTION CHAINS (Cadeia de acoes automaticas)
+// ═══════════════════════════════════════════════════════════════════════════
+
+enum ActionChainTrigger {
+  MANUAL      // Disparado por botao
+  WEBHOOK     // Disparado por webhook recebido
+  SCHEDULE    // Disparado por cron
+  EVENT       // Disparado por evento (create, update, status-change)
+}
+
+model ActionChain {
+  id       String @id @default(cuid())
+  tenantId String
+  entityId String?
+
+  name        String
+  description String?
+  trigger     ActionChainTrigger @default(MANUAL)
+
+  // Configuracao do trigger
+  // Para EVENT: { events: ['created', 'updated'], filterConditions: [...] }
+  // Para SCHEDULE: { cronExpression: '0 9 * * *', timezone: 'America/Sao_Paulo' }
+  // Para WEBHOOK: { path: '/hooks/my-action' }
+  triggerConfig Json?
+
+  // Acoes a executar em ordem
+  // [{ order, type, config, inputMapping, condition }]
+  // type: 'custom-api' | 'email' | 'webhook' | 'status-change' | 'notification' | 'wait'
+  actions Json @default("[]")
+
+  // Tratamento de erro
+  errorHandling String @default("stop") // 'stop' | 'continue' | 'rollback'
+
+  isActive Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relacionamentos
+  tenant     Tenant                @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  executions ActionChainExecution[]
+
+  @@index([tenantId])
+  @@index([entityId])
+  @@index([trigger])
+  @@index([isActive])
+  @@index([tenantId, isActive])
+  @@index([tenantId, entityId])
+}
+
+model ActionChainExecution {
+  id            String @id @default(cuid())
+  actionChainId String
+  tenantId      String
+
+  // Contexto de execucao
+  triggeredBy String  // 'manual:userId', 'event:created', 'schedule:cron', 'webhook'
+  recordId    String?
+  inputData   Json?
+
+  // Progresso
+  currentStep Int    @default(0)
+  totalSteps  Int    @default(0)
+  status      String @default("running") // 'running', 'completed', 'failed', 'cancelled'
+
+  // Resultado de cada acao
+  // [{ step, type, status, input, output, error, duration }]
+  stepResults Json @default("[]")
+
+  errorMessage String?
+  duration     Int? // ms total
+
+  startedAt   DateTime  @default(now())
+  completedAt DateTime?
+
+  actionChain ActionChain @relation(fields: [actionChainId], references: [id], onDelete: Cascade)
+
+  @@index([actionChainId])
+  @@index([tenantId])
+  @@index([status])
+  @@index([startedAt])
+  @@index([actionChainId, startedAt(sort: Desc)])
+  @@index([tenantId, startedAt(sort: Desc)])
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// SCHEDULED TASKS (Tarefas agendadas - Cron)
+// ═══════════════════════════════════════════════════════════════════════════
+
+model ScheduledTask {
+  id       String @id @default(cuid())
+  tenantId String
+  entityId String?
+
+  name        String
+  description String?
+
+  // Cron
+  cronExpression String
+  timezone       String @default("America/Sao_Paulo")
+
+  // Acao a executar
+  // type: 'custom-api' | 'action-chain' | 'webhook' | 'email-report'
+  actionType   String
+  actionConfig Json?
+
+  // Controle
+  isActive  Boolean   @default(true)
+  lastRunAt DateTime?
+  nextRunAt DateTime?
+
+  // Estatisticas
+  runCount      Int @default(0)
+  successCount  Int @default(0)
+  failureCount  Int @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relacionamentos
+  tenant     Tenant               @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  executions ScheduledTaskExecution[]
+
+  @@index([tenantId])
+  @@index([entityId])
+  @@index([isActive])
+  @@index([nextRunAt])
+  @@index([tenantId, isActive])
+}
+
+model ScheduledTaskExecution {
+  id              String @id @default(cuid())
+  scheduledTaskId String
+  tenantId        String
+
+  status       String // 'success', 'error', 'timeout'
+  duration     Int?   // ms
+  outputData   Json?
+  errorMessage String?
+
+  startedAt   DateTime @default(now())
+  completedAt DateTime?
+
+  scheduledTask ScheduledTask @relation(fields: [scheduledTaskId], references: [id], onDelete: Cascade)
+
+  @@index([scheduledTaskId])
+  @@index([tenantId])
+  @@index([status])
+  @@index([startedAt])
+  @@index([scheduledTaskId, startedAt(sort: Desc)])
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// API EXECUTION LOG (Log de execucao de Custom APIs)
+// ═══════════════════════════════════════════════════════════════════════════
+
+model ApiExecutionLog {
+  id             String @id @default(cuid())
+  tenantId       String
+  customApiId    String?
+  webhookId      String?
+  actionChainId  String?
+
+  // Request
+  method       String
+  path         String
+  inputPayload Json?
+  userId       String?
+  ip           String?
+
+  // Response
+  status        String // 'success', 'error', 'timeout', 'rate-limited'
+  statusCode    Int?
+  outputPayload Json?
+  errorMessage  String?
+
+  // Performance
+  duration Int? // ms
+
+  createdAt DateTime @default(now())
+
+  @@index([tenantId])
+  @@index([customApiId])
+  @@index([webhookId])
+  @@index([actionChainId])
+  @@index([status])
+  @@index([createdAt])
+  @@index([tenantId, createdAt(sort: Desc)])
+  @@index([tenantId, status])
+  @@index([customApiId, createdAt(sort: Desc)])
 }
 

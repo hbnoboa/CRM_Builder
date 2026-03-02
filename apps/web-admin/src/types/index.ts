@@ -34,6 +34,31 @@ export type {
   FixedFilter,
   QueryParam,
   Page,
+  // Novas interfaces de configuracao de campos
+  UserSelectConfig,
+  WorkflowStatusConfig,
+  TimerConfig,
+  TimerValue,
+  SlaStatusConfig,
+  CheckboxGroupConfig,
+  RadioGroupConfig,
+  TagsConfig,
+  SignatureConfig,
+  LookupConfig,
+  FormulaConfig,
+  RollupConfig,
+  ActionButtonConfig,
+  // Validacoes condicionais
+  FieldCondition,
+  FieldValidator,
+  CrossFieldValidation,
+  // Entity settings expandidos
+  EntitySlaConfig,
+  EntityAutoAssignConfig,
+  EntityEscalationConfig,
+  EntityNotificationConfig,
+  FieldDependency,
+  EntityAuditConfig,
 } from '@crm-builder/shared';
 
 export { ROLE_TYPES, DEFAULT_PAGE, DEFAULT_LIMIT, MAX_LIMIT } from '@crm-builder/shared';

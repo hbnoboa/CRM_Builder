@@ -19,6 +19,12 @@ import { PushModule } from './modules/push/push.module';
 import { PdfModule } from './modules/pdf/pdf.module';
 import { AuditModule } from './modules/audit/audit.module';
 import { ArchiveModule } from './modules/archive/archive.module';
+import { WebhookModule } from './modules/webhook/webhook.module';
+import { EmailTemplateModule } from './modules/email-template/email-template.module';
+import { ActionChainModule } from './modules/action-chain/action-chain.module';
+import { ScheduledTaskModule } from './modules/scheduled-task/scheduled-task.module';
+import { EscalationModule } from './modules/escalation/escalation.module';
+import { ExecutionLogsModule } from './modules/execution-logs/execution-logs.module';
 
 @Module({
   imports: [
@@ -57,6 +63,16 @@ import { ArchiveModule } from './modules/archive/archive.module';
     PdfModule,
     AuditModule,
     ArchiveModule,
+
+    // Automacoes (Sprint 3)
+    WebhookModule,
+    EmailTemplateModule,
+    ActionChainModule,
+    ScheduledTaskModule,
+
+    // Avancado (Sprint 4)
+    EscalationModule,
+    ExecutionLogsModule,
   ],
 })
 export class AppModule {}
