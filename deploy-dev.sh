@@ -3,6 +3,13 @@ set -e
 
 echo "=== CRM Builder Deploy DEV ==="
 
+# 0. Garantir que estamos na branch develop
+CURRENT_BRANCH=$(git branch --show-current)
+if [ "$CURRENT_BRANCH" != "develop" ]; then
+  echo "ERRO: Deploy de dev so pode ser feito na branch 'develop' (atual: '$CURRENT_BRANCH')"
+  exit 1
+fi
+
 # 1. Build all packages
 echo "[1/4] Building packages..."
 pnpm build

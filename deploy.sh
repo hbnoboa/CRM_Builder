@@ -1,7 +1,14 @@
 #!/bin/bash
 set -e
 
-echo "=== CRM Builder Deploy ==="
+echo "=== CRM Builder Deploy PRODUCAO ==="
+
+# 0. Garantir que estamos na branch main
+CURRENT_BRANCH=$(git branch --show-current)
+if [ "$CURRENT_BRANCH" != "main" ]; then
+  echo "ERRO: Deploy de producao so pode ser feito na branch 'main' (atual: '$CURRENT_BRANCH')"
+  exit 1
+fi
 
 # 1. Build all packages (shared → api + web-admin)
 echo "[1/4] Building packages..."
