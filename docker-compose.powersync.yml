@@ -7,6 +7,21 @@
 # Prerequisites:
 #   - PostgreSQL must have wal_level=logical enabled
 #   - JWT_SECRET must match the NestJS API JWT secret
+#
+# IMPORTANT: How to generate PS_JWT_SECRET_B64
+# =============================================
+# PS_JWT_SECRET_B64 must be the base64url encoded version of JWT_SECRET.
+# The JWT tokens are signed with kid='crm-builder-key' which must match
+# the JWKS key in powersync.yaml.
+#
+# Generate it with:
+#   echo -n "YOUR_JWT_SECRET_VALUE" | base64 | tr '+/' '-_' | tr -d '='
+#
+# Example: If JWT_SECRET is "super-secret-key-32-characters!!"
+#   echo -n "super-secret-key-32-characters!!" | base64 | tr '+/' '-_' | tr -d '='
+#   Result: c3VwZXItc2VjcmV0LWtleS0zMi1jaGFyYWN0ZXJzISE
+#
+# Then set: PS_JWT_SECRET_B64=c3VwZXItc2VjcmV0LWtleS0zMi1jaGFyYWN0ZXJzISE
 
 services:
   powersync-mongo:
@@ -28,8 +43,9 @@ services:
     environment:
       PS_REPLICATION_URI: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-crm_builder}?sslmode=disable
       PS_MONGO_URI: mongodb://powersync-mongo:27017/powersync?replicaSet=rs0
-      # IMPORTANTE: Este valor deve ser o base64 do JWT_SECRET do backend NestJS
-      PS_JWT_SECRET_B64: RmV4UGpCbFYyaElFTzJoUk93V0tOOW1ManVRNmJaaTBxL1NPNExCdjNFST0=
+      # IMPORTANTE: Este valor deve ser o base64url do JWT_SECRET do backend NestJS
+      # Gere com: echo -n "$JWT_SECRET" | base64 | tr '+/' '-_' | tr -d '='
+      PS_JWT_SECRET_B64: ${PS_JWT_SECRET_B64}
       PS_API_TOKEN: powersync-crm-admin-token
     volumes:
       - ./apps/mobile/powersync.yaml:/app/powersync.yaml:ro

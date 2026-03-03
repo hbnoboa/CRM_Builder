@@ -22,7 +22,8 @@ client_auth:
   audience: ["powersync"]
   jwks:
     keys:
-      - kty: oct
+      - kid: crm-builder-key
+        kty: oct
         alg: HS256
         k: !env PS_JWT_SECRET_B64
 
