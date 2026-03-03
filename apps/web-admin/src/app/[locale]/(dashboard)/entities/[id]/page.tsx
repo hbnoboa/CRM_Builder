@@ -126,6 +126,12 @@ const fieldTypeCategories = [
     ],
   },
   {
+    labelKey: 'fieldCategories.layout',
+    types: [
+      { value: 'section-title', labelKey: 'sectionTitle', icon: '📌', descKey: 'fieldDesc.sectionTitle' },
+    ],
+  },
+  {
     labelKey: 'fieldCategories.other',
     types: [
       { value: 'json', labelKey: 'json', icon: '{}', descKey: 'fieldDesc.json' },
@@ -1198,6 +1204,23 @@ function EntityDetailPageContent() {
                         </div>
                         {isExpanded && (
                           <div className="px-3 pb-4 pt-1 border-t space-y-4">
+                            {field.type === 'section-title' ? (
+                              <div className="grid gap-3 sm:grid-cols-2">
+                                <div className="space-y-1">
+                                  <Label className="text-xs">{t('fieldLabel')}</Label>
+                                  <Input placeholder={t('fieldLabelPlaceholder')} value={field.label || ''} onChange={(e) => {
+                                    const label = e.target.value;
+                                    const shouldSyncName = !field.name || field.name === field.label;
+                                    updateField(index, { label, ...(shouldSyncName ? { name: label } : {}) });
+                                  }} className="h-8 text-sm" />
+                                </div>
+                                <div className="space-y-1">
+                                  <Label className="text-xs">{t('helpText')}</Label>
+                                  <Input className="h-8 text-sm" value={field.helpText || ''} placeholder={tFieldConfig('helpTextHint')} onChange={(e) => updateField(index, { helpText: e.target.value })} />
+                                </div>
+                              </div>
+                            ) : (
+                            <>
                             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                               <div className="space-y-1">
                                 <Label className="text-xs">{t('fieldName')}</Label>
@@ -1272,6 +1295,8 @@ function EntityDetailPageContent() {
                               </div>
                             </div>
                             {renderFieldConfig(field, index)}
+                            </>
+                            )}
                           </div>
                         )}
                       </div>

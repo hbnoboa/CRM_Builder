@@ -24,6 +24,7 @@ const fieldTypeIcons: Record<string, string> = {
   relation: '🔗', 'api-select': '⚡',
   file: '📎', image: '🖼', json: '{}', hidden: '👁',
   map: '🗺️',
+  'section-title': '📌',
 };
 
 // Field type labels are now loaded from translations (fieldTypes namespace)

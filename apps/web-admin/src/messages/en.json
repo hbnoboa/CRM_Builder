@@ -1304,6 +1304,7 @@
     "relationship": "Relationship",
     "media": "Media",
     "location": "Location",
+    "layout": "Layout",
     "other": "Other"
   },
   "fieldDesc": {
@@ -1338,7 +1339,8 @@
     "image": "Image upload",
     "map": "Map field with address and coordinates",
     "json": "Data in JSON format",
-    "hidden": "Hidden field in form"
+    "hidden": "Hidden field in form",
+    "sectionTitle": "Visual title to separate form sections"
   },
   "fieldTypes": {
     "text": "Text",
@@ -1375,7 +1377,9 @@
     "subEntity": "Sub-entity",
     "sub-entity": "Sub-entity",
     "zoneDiagram": "Zone Diagram",
-    "zone-diagram": "Zone Diagram"
+    "zone-diagram": "Zone Diagram",
+    "sectionTitle": "Section Title",
+    "section-title": "Section Title"
   },
   "upload": {
     "maxFilesAllowed": "Maximum of {count} files allowed",

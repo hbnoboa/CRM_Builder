@@ -1304,6 +1304,7 @@
     "relationship": "Relación",
     "media": "Media",
     "location": "Ubicación",
+    "layout": "Diseño",
     "other": "Otros"
   },
   "fieldDesc": {
@@ -1338,7 +1339,8 @@
     "image": "Subida de imagen",
     "map": "Campo de mapa con dirección y coordenadas",
     "json": "Datos en formato JSON",
-    "hidden": "Campo oculto en formulario"
+    "hidden": "Campo oculto en formulario",
+    "sectionTitle": "Título visual para separar secciones del formulario"
   },
   "fieldTypes": {
     "text": "Texto",
@@ -1372,7 +1374,9 @@
     "map": "Mapa",
     "array": "Lista",
     "subEntity": "Sub-entidad",
-    "zoneDiagram": "Diagrama de Zonas"
+    "zoneDiagram": "Diagrama de Zonas",
+    "sectionTitle": "Título de Sección",
+    "section-title": "Título de Sección"
   },
   "upload": {
     "maxFilesAllowed": "Maximo de {count} archivos permitidos",

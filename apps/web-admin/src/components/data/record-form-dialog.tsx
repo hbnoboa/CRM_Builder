@@ -398,7 +398,7 @@ export function RecordFormDialog({
     const newErrors: Record<string, string> = {};
     entity.fields?.forEach((field) => {
       // Sub-entity fields are not validated (they manage their own data)
-      if (field.type === 'sub-entity') return;
+      if (field.type === 'sub-entity' || field.type === 'section-title') return;
       const value = formData[field.slug];
       if (field.required && (value === undefined || value === null || value === '' || (Array.isArray(value) && value.length === 0))) {
         newErrors[field.slug] = tValidation('fieldRequired', { field: field.label || field.name });
@@ -476,7 +476,7 @@ export function RecordFormDialog({
     }
     entity.fields?.forEach((field) => {
       // Sub-entity fields store data separately, skip them
-      if (field.type === 'sub-entity') return;
+      if (field.type === 'sub-entity' || field.type === 'section-title') return;
       // Skip fields the user cannot edit (field-level permissions)
       if (editableFields && !editableFields.includes(field.slug)) return;
       const value = formData[field.slug];
@@ -1437,6 +1437,14 @@ export function RecordFormDialog({
         );
       }
 
+      case 'section-title':
+        return (
+          <div key={field.slug} className="pt-4 pb-1 border-b border-border">
+            <h3 className="text-base font-semibold text-foreground">{field.label || field.name}</h3>
+            {helpText && <p className="text-xs text-muted-foreground mt-0.5">{helpText}</p>}
+          </div>
+        );
+
       // text, hidden, and default
       default:
         return (
@@ -1480,7 +1488,7 @@ export function RecordFormDialog({
                 {fieldRows.map((row, rowIdx) => (
                   <div key={rowIdx} className="grid grid-cols-12 gap-4">
                     {row.map((field) => {
-                      const colSpan = (field.type === 'sub-entity' || field.type === 'zone-diagram') ? 12 : (field.gridColSpan || 12);
+                      const colSpan = (field.type === 'sub-entity' || field.type === 'zone-diagram' || field.type === 'section-title') ? 12 : (field.gridColSpan || 12);
                       const colStart = field.gridColStart;
                       return (
                         <div key={field.slug} style={{ gridColumn: colStart ? `${colStart} / span ${colSpan}` : `span ${colSpan} / span ${colSpan}` }}>

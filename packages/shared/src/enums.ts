@@ -76,7 +76,8 @@ export type FieldType =
   | 'lookup'
   | 'formula'
   | 'rollup'
-  | 'action-button';
+  | 'action-button'
+  | 'section-title';
 
 // ============================================================================
 // HTTP / API
