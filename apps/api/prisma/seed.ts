@@ -103,7 +103,6 @@ async function main() {
   // Limpar banco antes de popular
   console.log('Limpando banco de dados...');
   await prisma.entityData.deleteMany();
-  await prisma.customEndpoint.deleteMany();
   await prisma.page.deleteMany();
   await prisma.entity.deleteMany();
   await prisma.notification.deleteMany();

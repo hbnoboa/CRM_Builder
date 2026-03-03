@@ -45,7 +45,6 @@ interface DashboardStats {
   totalEntities: number;
   totalRecords: number;
   totalPages: number;
-  totalApis: number;
   totalUsers: number;
 }
 
@@ -125,7 +124,6 @@ export default function DashboardPage() {
         totalEntities: 0,
         totalRecords: 0,
         totalPages: 0,
-        totalApis: 0,
         totalUsers: 0,
       });
     } finally {
@@ -161,15 +159,6 @@ export default function DashboardPage() {
       bgColor: 'bg-green-500/10',
       href: '/data',
       moduleKey: 'data',
-    },
-    {
-      title: t('stats.apis'),
-      value: stats?.totalApis ?? 0,
-      icon: <Code className="h-4 w-4 sm:h-5 sm:w-5" />,
-      color: 'text-purple-500',
-      bgColor: 'bg-purple-500/10',
-      href: '/apis',
-      moduleKey: 'apis',
     },
     {
       title: t('stats.users'),
@@ -547,26 +536,6 @@ export default function DashboardPage() {
                         <h3 className="font-semibold text-sm sm:text-base">{tNav('data')}</h3>
                         <p className="text-xs sm:text-sm text-muted-foreground truncate">
                           {t('quickActions.newPageDesc')}
-                        </p>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              </Link>
-            )}
-
-            {hasModulePermission('apis', 'canCreate') && (
-              <Link href="/apis/new">
-                <Card className="hover:border-primary/50 transition-colors cursor-pointer h-full">
-                  <CardContent className="p-4 sm:p-6">
-                    <div className="flex items-center gap-3 sm:gap-4">
-                      <div className="p-2 sm:p-3 rounded-lg bg-purple-500/10 flex-shrink-0">
-                        <Code className="h-5 w-5 sm:h-6 sm:w-6 text-purple-500" />
-                      </div>
-                      <div className="min-w-0">
-                        <h3 className="font-semibold text-sm sm:text-base">{t('quickActions.newApi')}</h3>
-                        <p className="text-xs sm:text-sm text-muted-foreground truncate">
-                          {t('quickActions.newApiDesc')}
                         </p>
                       </div>
                     </div>

@@ -8,7 +8,6 @@ import { TenantModule } from './modules/tenant/tenant.module';
 import { EntityModule } from './modules/entity/entity.module';
 import { DataModule } from './modules/data/data.module';
 import { PageModule } from './modules/page/page.module';
-import { CustomApiModule } from './modules/custom-api/custom-api.module';
 import { StatsModule } from './modules/stats/stats.module';
 import { UploadModule } from './modules/upload/upload.module';
 import { NotificationModule } from './modules/notification/notification.module';

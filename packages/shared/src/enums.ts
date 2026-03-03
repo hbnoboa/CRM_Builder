@@ -85,10 +85,6 @@ export type FieldType =
 
 export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
 
-export type AuthType = 'NONE' | 'API_KEY' | 'JWT' | 'BASIC';
-
-export type ApiMode = 'visual' | 'code';
-
 export type FilterOperator =
   | 'equals'
   | 'not_equals'

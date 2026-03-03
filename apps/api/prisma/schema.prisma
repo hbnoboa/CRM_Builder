@@ -31,11 +31,6 @@ enum HttpMethod {
   DELETE
 }
 
-enum AuthType {
-  NONE
-  JWT
-  API_KEY
-}
 
 // ═══════════════════════════════════════════════════════════════════════════
 // PDF TEMPLATES - Enums
@@ -82,7 +77,6 @@ model Tenant {
   entityData      EntityData[]
   archivedData    ArchivedEntityData[]
   pages           Page[]
-  customEndpoints CustomEndpoint[]
   customRoles     CustomRole[]
   notifications   Notification[]
   pdfTemplates    PdfTemplate[]
@@ -204,7 +198,6 @@ model Entity {
   tenant          Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   data            EntityData[]
   archivedData    ArchivedEntityData[]
-  customEndpoints CustomEndpoint[]
   pdfTemplates    PdfTemplate[]
   automations     EntityAutomation[]
   fieldRules      EntityFieldRule[]
@@ -333,52 +326,6 @@ model Page {
   @@index([tenantId])
   @@index([isPublished])
   @@index([tenantId, isPublished])
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// API BUILDER (Endpoints Customizados)
-// ═══════════════════════════════════════════════════════════════════════════
-
-model CustomEndpoint {
-  id       String @id @default(cuid())
-  tenantId String
-
-  name        String
-  description String?
-  path        String
-  method      HttpMethod @default(POST)
-
-  mode           String @default("visual")
-  requestSchema  Json?
-  responseSchema Json?
-
-  sourceEntityId String?
-  sourceEntity   Entity? @relation(fields: [sourceEntityId], references: [id], onDelete: SetNull)
-
-  selectedFields Json   @default("[]")
-  filters        Json   @default("[]")
-  queryParams    Json   @default("[]")
-  orderBy        Json?
-  limitRecords   Int?
-  responseType   String @default("records") // "records" | "count" | "computed"
-  computedValues Json   @default("[]") // Para responseType "computed": [{ field, template }]
-
-  logic       Json     @default("[]")
-  auth        AuthType @default(JWT)
-  permissions Json     @default("[]")
-  rateLimit   Int      @default(100)
-  isActive    Boolean  @default(true)
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-
-  @@unique([tenantId, path, method])
-  @@index([tenantId])
-  @@index([isActive])
-  @@index([sourceEntityId])
-  @@index([tenantId, isActive])
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -775,7 +722,7 @@ model ActionChain {
 
   // Acoes a executar em ordem
   // [{ order, type, config, inputMapping, condition }]
-  // type: 'custom-api' | 'email' | 'webhook' | 'status-change' | 'notification' | 'wait'
+  // type: 'email' | 'webhook' | 'status-change' | 'notification' | 'wait'
   actions Json @default("[]")
 
   // Tratamento de erro
@@ -850,7 +797,7 @@ model ScheduledTask {
   timezone       String @default("America/Sao_Paulo")
 
   // Acao a executar
-  // type: 'custom-api' | 'action-chain' | 'webhook' | 'email-report'
+  // type: 'action-chain' | 'webhook' | 'email-report'
   actionType   String
   actionConfig Json?
 
@@ -901,7 +848,7 @@ model ScheduledTaskExecution {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// API EXECUTION LOG (Log de execucao de Custom APIs)
+// API EXECUTION LOG (Log de execucao de APIs e automacoes)
 // ═══════════════════════════════════════════════════════════════════════════
 
 model ApiExecutionLog {

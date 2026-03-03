@@ -18,14 +18,12 @@ export class StatsService {
       totalEntities,
       totalRecords,
       totalPages,
-      totalApis,
       totalUsers,
       totalTenants,
     ] = await Promise.all([
       this.prisma.entity.count({ where }),
       this.prisma.entityData.count({ where }),
       this.prisma.page.count({ where }),
-      this.prisma.customEndpoint.count({ where }),
       this.prisma.user.count({ where }),
       roleType === 'PLATFORM_ADMIN'
         ? this.prisma.tenant.count()
@@ -36,7 +34,6 @@ export class StatsService {
       totalEntities,
       totalRecords,
       totalPages,
-      totalApis,
       totalUsers,
       ...(roleType === 'PLATFORM_ADMIN' ? { totalTenants } : {}),
     };

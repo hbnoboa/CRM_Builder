@@ -13,7 +13,6 @@ export interface CopyResult {
     roles: number;
     entities: number;
     entityData: number;
-    endpoints: number;
     pdfTemplates: number;
     pages: number;
   };
@@ -40,7 +39,7 @@ export class TenantCopyService {
       throw new NotFoundException('Tenant nao encontrado');
     }
 
-    const [roles, entities, pages, endpoints, pdfTemplates] = await Promise.all([
+    const [roles, entities, pages, pdfTemplates] = await Promise.all([
       this.prisma.customRole.findMany({
         where: { tenantId },
         select: {
@@ -75,17 +74,6 @@ export class TenantCopyService {
         },
         orderBy: { title: 'asc' },
       }),
-      this.prisma.customEndpoint.findMany({
-        where: { tenantId },
-        select: {
-          id: true,
-          name: true,
-          path: true,
-          method: true,
-          isActive: true,
-        },
-        orderBy: { name: 'asc' },
-      }),
       this.prisma.pdfTemplate.findMany({
         where: { tenantId },
         select: {
@@ -99,7 +87,7 @@ export class TenantCopyService {
       }),
     ]);
 
-    return { roles, entities, pages, endpoints, pdfTemplates };
+    return { roles, entities, pages, pdfTemplates };
   }
 
   /**
@@ -125,7 +113,6 @@ export class TenantCopyService {
       modules.roles?.length ||
       modules.entities?.length ||
       modules.pages?.length ||
-      modules.endpoints?.length ||
       modules.pdfTemplates?.length;
 
     if (!hasAnything) {
@@ -144,7 +131,7 @@ export class TenantCopyService {
         const entityDataIdMap = new Map<string, string>();
         const skipped: string[] = [];
         const warnings: string[] = [];
-        const copied = { roles: 0, entities: 0, entityData: 0, endpoints: 0, pdfTemplates: 0, pages: 0 };
+        const copied = { roles: 0, entities: 0, entityData: 0, pdfTemplates: 0, pages: 0 };
 
         // ═══════════════════════════════════════
         // 1. COPY ROLES
@@ -361,88 +348,7 @@ export class TenantCopyService {
         }
 
         // ═══════════════════════════════════════
-        // 4. COPY CUSTOM ENDPOINTS
-        // ═══════════════════════════════════════
-        if (modules.endpoints?.length) {
-          const sourceEndpoints = await tx.customEndpoint.findMany({
-            where: { id: { in: modules.endpoints }, tenantId: sourceTenantId },
-          });
-
-          const existingEndpoints = await tx.customEndpoint.findMany({
-            where: { tenantId: targetTenantId },
-            select: { id: true, path: true, method: true },
-          });
-          const existingPaths = new Set(
-            existingEndpoints.map((e) => `${e.method}:${e.path}`),
-          );
-
-          for (const endpoint of sourceEndpoints) {
-            let path = endpoint.path;
-            let name = endpoint.name;
-            const key = `${endpoint.method}:${path}`;
-
-            if (existingPaths.has(key)) {
-              if (conflictStrategy === 'skip') {
-                skipped.push(`API: ${endpoint.method} ${path}`);
-                continue;
-              }
-              path = `${path}-copy`;
-              name = `${name} (copia)`;
-              let suffix = 2;
-              while (existingPaths.has(`${endpoint.method}:${path}`)) {
-                path = `${endpoint.path}-copy-${suffix}`;
-                name = `${endpoint.name} (copia ${suffix})`;
-                suffix++;
-              }
-            }
-
-            // Remap sourceEntityId
-            let sourceEntityId = endpoint.sourceEntityId;
-            if (sourceEntityId) {
-              const mapped = entityIdMap.get(sourceEntityId);
-              if (mapped) {
-                sourceEntityId = mapped;
-              } else {
-                warnings.push(
-                  `API "${endpoint.name}": entidade fonte nao foi copiada, sourceEntityId removido`,
-                );
-                sourceEntityId = null;
-              }
-            }
-
-            await tx.customEndpoint.create({
-              data: {
-                tenantId: targetTenantId,
-                name,
-                description: endpoint.description,
-                path,
-                method: endpoint.method,
-                mode: endpoint.mode,
-                requestSchema: endpoint.requestSchema as Prisma.InputJsonValue,
-                responseSchema: endpoint.responseSchema as Prisma.InputJsonValue,
-                sourceEntityId,
-                selectedFields: endpoint.selectedFields as Prisma.InputJsonValue,
-                filters: endpoint.filters as Prisma.InputJsonValue,
-                queryParams: endpoint.queryParams as Prisma.InputJsonValue,
-                orderBy: endpoint.orderBy as Prisma.InputJsonValue,
-                limitRecords: endpoint.limitRecords,
-                responseType: endpoint.responseType,
-                computedValues: endpoint.computedValues as Prisma.InputJsonValue,
-                logic: endpoint.logic as Prisma.InputJsonValue,
-                auth: endpoint.auth,
-                permissions: endpoint.permissions as Prisma.InputJsonValue,
-                rateLimit: endpoint.rateLimit,
-                isActive: endpoint.isActive,
-              },
-            });
-
-            existingPaths.add(`${endpoint.method}:${path}`);
-            copied.endpoints++;
-          }
-        }
-
-        // ═══════════════════════════════════════
-        // 5. COPY PDF TEMPLATES
+        // 4. COPY PDF TEMPLATES
         // ═══════════════════════════════════════
         if (modules.pdfTemplates?.length) {
           const sourceTemplates = await tx.pdfTemplate.findMany({
@@ -513,7 +419,7 @@ export class TenantCopyService {
         }
 
         // ═══════════════════════════════════════
-        // 6. COPY PAGES
+        // 5. COPY PAGES
         // ═══════════════════════════════════════
         if (modules.pages?.length) {
           const sourcePages = await tx.page.findMany({

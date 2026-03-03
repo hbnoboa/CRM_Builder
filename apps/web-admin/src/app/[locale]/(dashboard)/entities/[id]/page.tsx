@@ -42,8 +42,16 @@ import { Switch } from '@/components/ui/switch';
 import { toast } from 'sonner';
 import api from '@/lib/api';
 import { useTenant } from '@/stores/tenant-context';
-import type { CustomApi } from '@/services/custom-apis.service';
 import type { Entity, Field, FieldType } from '@/types';
+
+// Legacy type - api-select field type (deprecated, Custom APIs removed)
+interface CustomApi {
+  id: string;
+  path: string;
+  method: string;
+  isActive: boolean;
+  sourceEntity?: { fields: unknown[] };
+}
 import { usePermissions } from '@/hooks/use-permissions';
 import FieldGridEditor from '@/components/entities/field-grid-editor';
 import { AutomationTab } from '@/components/entity-automation';
@@ -259,13 +267,8 @@ function EntityDetailPageContent() {
   };
 
   const loadAllCustomApis = async () => {
-    try {
-      const response = await api.get('/custom-apis');
-      const list = Array.isArray(response.data) ? response.data : response.data?.data || [];
-      setAllCustomApis(list.filter((a: CustomApi) => a.isActive && a.method === 'GET'));
-    } catch (error) {
-      console.error('Error loading custom APIs:', error);
-    }
+    // Custom APIs removed - api-select field type is deprecated
+    setAllCustomApis([]);
   };
 
   const addField = () => {

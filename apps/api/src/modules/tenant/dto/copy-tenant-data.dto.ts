@@ -41,12 +41,6 @@ export class CopyModulesDto {
   @IsOptional()
   pages?: string[];
 
-  @ApiPropertyOptional({ description: 'IDs dos endpoints a copiar' })
-  @IsArray()
-  @IsString({ each: true })
-  @IsOptional()
-  endpoints?: string[];
-
   @ApiPropertyOptional({ description: 'IDs dos templates PDF a copiar' })
   @IsArray()
   @IsString({ each: true })

@@ -21,7 +21,7 @@ interface ActionButtonConfig {
   style?: 'primary' | 'secondary' | 'danger' | 'outline';
   confirmMessage?: string;
   action: {
-    type: 'webhook' | 'status-change' | 'custom-api' | 'email' | 'action-chain';
+    type: 'webhook' | 'status-change' | 'email' | 'action-chain';
     config: Record<string, unknown>;
   };
   visibleIf?: {
@@ -123,17 +123,6 @@ export function ActionButtonField({
               data: {
                 [actionConfig.statusField as string]: actionConfig.newStatus,
               },
-            });
-          }
-          break;
-
-        case 'custom-api':
-          if (actionConfig.endpoint) {
-            await api.post(`/custom-api/${actionConfig.endpoint}`, {
-              recordId,
-              entitySlug,
-              data: recordData,
-              ...((actionConfig.payload as Record<string, unknown>) || {}),
             });
           }
           break;

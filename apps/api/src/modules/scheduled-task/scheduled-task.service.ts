@@ -10,7 +10,7 @@ interface CreateScheduledTaskDto {
   description?: string;
   cronExpression: string;
   timezone?: string;
-  actionType: 'custom-api' | 'action-chain' | 'webhook' | 'email-report';
+  actionType: 'action-chain' | 'webhook' | 'email-report';
   actionConfig?: Record<string, unknown>;
 }
 
@@ -157,11 +157,6 @@ export class ScheduledTaskService implements OnModuleInit {
         // Prepararia e enviaria um relatorio por email
         this.logger.log(`Email report scheduled: ${task.name}`);
         return { emailReportPrepared: true };
-
-      case 'custom-api':
-        // Chamaria um custom endpoint
-        this.logger.log(`Custom API scheduled: ${task.name}`);
-        return { customApiCalled: true, endpoint: config?.endpoint };
 
       default:
         throw new Error(`Tipo de acao desconhecido: ${task.actionType}`);

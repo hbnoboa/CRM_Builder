@@ -6,8 +6,6 @@ export type {
   PermissionScope,
   FieldType,
   HttpMethod,
-  AuthType,
-  ApiMode,
   FilterOperator,
   SortOrder,
   NotificationType,
@@ -77,14 +75,6 @@ export type {
   ModulePermissions,
   NotificationRule,
 } from './custom-role';
-
-// Custom API
-export type {
-  CustomApi,
-  FixedFilter,
-  QueryParam,
-  OrderByConfig,
-} from './custom-api';
 
 // Notification
 export type { Notification } from './notification';

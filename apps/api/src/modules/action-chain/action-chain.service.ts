@@ -6,7 +6,7 @@ import { EmailTemplateService } from '../email-template/email-template.service';
 
 interface ActionConfig {
   order: number;
-  type: 'custom-api' | 'email' | 'webhook' | 'status-change' | 'notification' | 'wait';
+  type: 'email' | 'webhook' | 'status-change' | 'notification' | 'wait';
   config: Record<string, unknown>;
   inputMapping?: Record<string, string>;
   condition?: { field: string; operator: string; value: unknown };
@@ -140,7 +140,7 @@ export class ActionChainService {
    * Valida as acoes de uma chain
    */
   private validateActions(actions: ActionConfig[]) {
-    const validTypes = ['custom-api', 'email', 'webhook', 'status-change', 'notification', 'wait'];
+    const validTypes = ['email', 'webhook', 'status-change', 'notification', 'wait'];
 
     for (const action of actions) {
       if (!validTypes.includes(action.type)) {
@@ -397,12 +397,6 @@ export class ActionChainService {
           },
         });
         return { notificationCreated: true };
-
-      case 'custom-api':
-        // Chama um CustomEndpoint interno
-        // Isso seria implementado com o servico de custom-api
-        this.logger.log(`Custom API call: ${config.endpoint}`);
-        return { customApiCalled: true, endpoint: config.endpoint };
 
       default:
         throw new Error(`Tipo de acao desconhecido: ${type}`);

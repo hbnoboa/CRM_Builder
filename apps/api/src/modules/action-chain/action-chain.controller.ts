@@ -20,7 +20,7 @@ import { ActionChainTrigger } from '@prisma/client';
 
 class ActionConfigDto {
   order: number;
-  type: 'custom-api' | 'email' | 'webhook' | 'status-change' | 'notification' | 'wait';
+  type: 'email' | 'webhook' | 'status-change' | 'notification' | 'wait';
   config: Record<string, unknown>;
   inputMapping?: Record<string, string>;
   condition?: { field: string; operator: string; value: unknown };

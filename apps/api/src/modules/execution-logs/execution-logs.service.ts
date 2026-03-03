@@ -171,22 +171,11 @@ export class ExecutionLogsService {
         take: limit * 2,
       });
 
-      // Buscar nomes das custom APIs se houver IDs
-      const customApiIds = [...new Set(apiLogs.map((l) => l.customApiId).filter(Boolean))] as string[];
-      const customApis = customApiIds.length > 0
-        ? await this.prisma.customEndpoint.findMany({
-            where: { id: { in: customApiIds } },
-            select: { id: true, name: true, path: true },
-          })
-        : [];
-      const customApiMap = new Map(customApis.map((a) => [a.id, a]));
-
       for (const log of apiLogs) {
-        const customApi = log.customApiId ? customApiMap.get(log.customApiId) : undefined;
         allLogs.push({
           id: log.id,
           type: 'api-execution',
-          name: customApi?.name || `API ${log.path || log.customApiId?.slice(0, 8) || 'unknown'}`,
+          name: `API ${log.path || log.customApiId?.slice(0, 8) || 'unknown'}`,
           status: log.status,
           duration: log.duration ?? undefined,
           error: log.errorMessage ?? undefined,
@@ -195,7 +184,6 @@ export class ExecutionLogsService {
             customApiId: log.customApiId,
             webhookId: log.webhookId,
             actionChainId: log.actionChainId,
-            endpointPath: customApi?.path,
             method: log.method,
             path: log.path,
             inputPayload: log.inputPayload,

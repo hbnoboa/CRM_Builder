@@ -36,7 +36,7 @@ class CreateScheduledTaskDto {
   timezone?: string;
 
   @IsString()
-  actionType: 'custom-api' | 'action-chain' | 'webhook' | 'email-report';
+  actionType: 'action-chain' | 'webhook' | 'email-report';
 
   @IsOptional()
   actionConfig?: Record<string, unknown>;

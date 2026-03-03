@@ -5,8 +5,6 @@ export type {
   PermissionScope,
   FieldType,
   HttpMethod,
-  AuthType,
-  ApiMode,
   FilterOperator,
   SortOrder,
   NotificationType,
@@ -30,9 +28,6 @@ export type {
   ModulePermission,
   ModulePermissions,
   NotificationRule,
-  CustomApi,
-  FixedFilter,
-  QueryParam,
   Page,
   // Novas interfaces de configuracao de campos
   UserSelectConfig,
