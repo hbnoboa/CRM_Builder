@@ -76,9 +76,14 @@ sync_rules:
             WHERE "tenantId" = bucket.tenant_id
 
           # All entity definitions for tenant
-          - SELECT id, "tenantId", name, "namePlural", slug, description, icon, color, fields, settings, "isSystem", "createdAt", "updatedAt"
+          - SELECT id, "tenantId", name, "namePlural", slug, description, icon, color, category, fields, settings, "isSystem", "createdAt", "updatedAt"
             FROM "Entity"
             WHERE "tenantId" = bucket.tenant_id
+
+          # Entity field rules (dynamic required/visible/default/computed/validation)
+          - SELECT id, "tenantId", "entityId", "fieldSlug", "ruleType", condition, config, priority, "isActive", "createdAt", "updatedAt"
+            FROM "EntityFieldRule"
+            WHERE "tenantId" = bucket.tenant_id AND "isActive" = true
 
       # Bucket 3: entity data WITHOUT role filters (all tenant users see these)
       # _hasRoleFilter = false means no role has data filters for this entity

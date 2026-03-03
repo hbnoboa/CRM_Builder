@@ -6,7 +6,7 @@ part of 'tenant_provider.dart';
 // RiverpodGenerator
 // **************************************************************************
 
-String _$tenantSwitchHash() => r'2d68c8b5552d7e276a394ae04b9ad2e4a8cbb76b';
+String _$tenantSwitchHash() => r'715efc5025a2dc8a350d7d51d1b3be321b4827b2';
 
 /// See also [TenantSwitch].
 @ProviderFor(TenantSwitch)

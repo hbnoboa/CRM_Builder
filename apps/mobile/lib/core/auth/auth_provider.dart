@@ -743,35 +743,75 @@ class Auth extends _$Auth {
 
   /// Logout. Works offline - clears session but keeps credential cache.
   Future<void> logout({bool clearOfflineCache = false}) async {
-    // Unregister push token before logout (non-blocking, may fail offline)
+    _debugLog('[Auth] Logout started');
+
+    // Unregister push token (fire-and-forget, don't block)
     PushNotificationService.instance.unregisterDeviceToken().catchError((_) {});
 
+    // Call logout API with short timeout (fire-and-forget, don't block UI)
+    // This invalidates the refresh token on the server
+    _callLogoutApi();
+
+    // Immediately proceed with local cleanup (don't wait for API)
+    _debugLog('[Auth] Starting local cleanup...');
+
     try {
-      final dio = ref.read(apiClientProvider);
-      await dio.post('/auth/logout');
-    } catch (_) {
-      // Ignore logout errors - works offline
-      _debugLog('[Auth] Logout API call failed (offline mode)');
-    } finally {
       // Disconnect PowerSync
       await AppDatabase.instance.disconnect();
+      _debugLog('[Auth] PowerSync disconnected');
+    } catch (e) {
+      _debugLog('[Auth] PowerSync disconnect error: $e');
+    }
 
+    try {
       // Clear image cache to prevent data leakage between users
       await CrmCacheManager().clearCache();
+      _debugLog('[Auth] Cache cleared');
+    } catch (e) {
+      _debugLog('[Auth] Cache clear error: $e');
+    }
 
+    try {
       if (clearOfflineCache) {
         // Full clear - remove everything including offline credentials
         await AppDatabase.instance.clearData();
         await SecureStorage.clearAll();
+        _debugLog('[Auth] Full data cleared');
       } else {
         // Normal logout - keep offline credentials for future offline login
         // Keep local database so user can view data offline after re-login
         await SecureStorage.clearSession();
+        _debugLog('[Auth] Session cleared');
       }
-
-      state = const AuthState();
-      _debugLog('[Auth] Logout complete (clearOfflineCache=$clearOfflineCache)');
+    } catch (e) {
+      _debugLog('[Auth] Storage clear error: $e');
     }
+
+    // Update state to logged out - triggers router redirect to /login
+    state = const AuthState();
+    _debugLog('[Auth] Logout complete - state.isAuthenticated=${state.isAuthenticated}');
+  }
+
+  /// Fire-and-forget logout API call with short timeout.
+  /// This invalidates the refresh token on the server but doesn't block the UI.
+  void _callLogoutApi() {
+    Future(() async {
+      try {
+        final dio = Dio(BaseOptions(
+          baseUrl: Env.apiUrl,
+          connectTimeout: const Duration(seconds: 5),
+          receiveTimeout: const Duration(seconds: 5),
+        ));
+        final token = await SecureStorage.getAccessToken();
+        if (token != null) {
+          dio.options.headers['Authorization'] = 'Bearer $token';
+          await dio.post('/auth/logout');
+          _debugLog('[Auth] Logout API call success');
+        }
+      } catch (e) {
+        _debugLog('[Auth] Logout API call failed (non-blocking): $e');
+      }
+    });
   }
 
   /// Get current user profile. Mirrors auth-store.ts getProfile().

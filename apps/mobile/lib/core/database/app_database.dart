@@ -79,6 +79,24 @@ const schema = Schema([
     Column.text('status'),
     Column.text('createdAt'),
   ]),
+  Table('Tenant', [
+    Column.text('name'),
+    Column.text('slug'),
+    Column.text('logo'),
+    Column.text('domain'),
+    Column.text('status'),
+    Column.text('settings'),
+    Column.text('createdAt'),
+    Column.text('updatedAt'),
+  ]),
+  // TenantUser for multi-tenant access
+  Table('TenantUser', [
+    Column.text('tenantId'),
+    Column.text('userId'),
+    Column.text('customRoleId'),
+    Column.integer('isHome'),
+    Column.text('createdAt'),
+  ]),
   // Local-only table for offline upload queue (never synced to server)
   Table.localOnly('file_upload_queue', [
     Column.text('local_path'),
