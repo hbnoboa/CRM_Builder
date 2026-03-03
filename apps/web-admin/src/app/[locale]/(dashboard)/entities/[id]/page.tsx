@@ -1403,11 +1403,7 @@ function EntityDetailPageContent() {
         <TabsContent value="automations">
           <AutomationTab
             entityId={params.id as string}
-            fields={fields.map(f => ({
-              slug: f.slug || f.name || '',
-              name: f.label || f.name || '',
-              type: f.type || 'text',
-            }))}
+            fields={fields}
           />
         </TabsContent>
 

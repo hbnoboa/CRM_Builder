@@ -25,9 +25,11 @@ import type { EntityAutomation } from '@/services/entity-automation.service';
 import { AutomationWizard } from './automation-wizard';
 import { ExecutionHistoryDialog } from './execution-history-dialog';
 
+import type { EntityField } from '@/types';
+
 interface ScheduledSectionProps {
   entityId: string;
-  fields: Array<{ slug: string; name: string; type: string }>;
+  fields: EntityField[];
 }
 
 /**

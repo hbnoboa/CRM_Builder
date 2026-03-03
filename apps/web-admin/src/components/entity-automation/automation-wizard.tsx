@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -30,6 +31,11 @@ import {
   DialogFooter,
   DialogDescription,
 } from '@/components/ui/dialog';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
 import { toast } from 'sonner';
 import {
   useCreateAutomation,
@@ -41,10 +47,11 @@ import type {
   AutomationTrigger,
   CreateAutomationData,
 } from '@/services/entity-automation.service';
+import type { EntityField, Entity } from '@/types';
 
 interface AutomationWizardProps {
   entityId: string;
-  fields: Array<{ slug: string; name: string; type: string }>;
+  fields: EntityField[];
   automation?: EntityAutomation;
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -174,10 +181,17 @@ function getInitialForm(
         operator: c.operator,
         value: String(c.value ?? ''),
       })),
-      actions: (automation.actions || []).map(a => ({
-        type: a.type as ActionType,
-        config: a.config || {},
-      })),
+      actions: (automation.actions || []).map(a => {
+        const config = { ...(a.config || {}) };
+        // Convert data object to dataMappings array for UI editing
+        if (a.type === 'create_record' && config.data && typeof config.data === 'object' && !Array.isArray(config.data)) {
+          config.dataMappings = Object.entries(config.data as Record<string, unknown>).map(([field, value]) => ({
+            targetField: field,
+            value: String(value ?? ''),
+          }));
+        }
+        return { type: a.type as ActionType, config };
+      }),
       errorHandling: (automation.errorHandling as 'stop' | 'continue') || 'stop',
       maxExecutionsPerHour: automation.maxExecutionsPerHour ?? 100,
       isActive: automation.isActive,
@@ -225,11 +239,19 @@ function buildAutomationData(form: WizardFormState): CreateAutomationData {
     conditions: form.conditions.length > 0
       ? form.conditions.map(c => ({ field: c.field, operator: c.operator, value: c.value }))
       : undefined,
-    actions: form.actions.map((a, i) => ({
-      order: i + 1,
-      type: a.type,
-      config: a.config,
-    })),
+    actions: form.actions.map((a, i) => {
+      const cfg = { ...a.config };
+      // Convert UI-friendly dataMappings back to data object for backend
+      if (a.type === 'create_record' && Array.isArray(cfg.dataMappings)) {
+        const data: Record<string, string> = {};
+        for (const m of cfg.dataMappings as Array<{ targetField: string; value: string }>) {
+          if (m.targetField) data[m.targetField] = m.value || '';
+        }
+        cfg.data = data;
+        delete cfg.dataMappings;
+      }
+      return { order: i + 1, type: a.type, config: cfg };
+    }),
     errorHandling: form.errorHandling,
     maxExecutionsPerHour: form.maxExecutionsPerHour,
     isActive: form.isActive,
@@ -241,6 +263,79 @@ function getConfigValue(config: Record<string, unknown>, key: string, fallback: 
   if (val === undefined || val === null) return fallback;
   if (typeof val === 'string') return val;
   return JSON.stringify(val);
+}
+
+// -- Utility: field display label --
+function fl(f: EntityField): string {
+  return f.label || f.name;
+}
+
+// -- Value source parsing (backward-compatible with {{template}} strings) --
+type ValueSourceType = 'fixed' | 'record_field' | 'now' | 'previous_result';
+
+interface ValueSource {
+  type: ValueSourceType;
+  value: string;
+}
+
+function parseValueSource(raw: unknown): ValueSource {
+  if (raw === undefined || raw === null || raw === '') {
+    return { type: 'fixed', value: '' };
+  }
+  const str = String(raw);
+  if (str === '{{now}}') return { type: 'now', value: '' };
+  const recordMatch = str.match(/^\{\{record\.([^}]+)\}\}$/);
+  if (recordMatch) return { type: 'record_field', value: recordMatch[1] };
+  const templateMatch = str.match(/^\{\{([^}]+)\}\}$/);
+  if (templateMatch) return { type: 'previous_result', value: templateMatch[1] };
+  return { type: 'fixed', value: str };
+}
+
+function buildValueFromSource(source: ValueSource): string {
+  switch (source.type) {
+    case 'record_field': return `{{record.${source.value}}}`;
+    case 'now': return '{{now}}';
+    case 'previous_result': return `{{${source.value}}}`;
+    default: return source.value;
+  }
+}
+
+function collectSaveAsNames(actions: Array<{ config: Record<string, unknown> }>, beforeIndex: number): string[] {
+  const names: string[] = [];
+  for (let i = 0; i < beforeIndex; i++) {
+    const saveAs = actions[i]?.config?.saveAs;
+    if (saveAs && typeof saveAs === 'string') names.push(saveAs);
+  }
+  return names;
+}
+
+function getEntityFieldsBySlug(entities: Entity[], slug: string): EntityField[] {
+  if (!slug) return [];
+  const entity = entities.find(e => e.slug === slug);
+  return (entity?.fields as EntityField[]) || [];
+}
+
+function getFieldOptions(field?: EntityField): Array<{ value: string; label: string }> {
+  if (!field?.options) return [];
+  return field.options.map(opt => {
+    if (typeof opt === 'string') return { value: opt, label: opt };
+    return { value: opt.value, label: opt.label };
+  });
+}
+
+function parseDuration(ms: unknown): { value: number; unit: string } {
+  const n = typeof ms === 'number' ? ms : parseInt(String(ms)) || 0;
+  if (n >= 3600000 && n % 3600000 === 0) return { value: n / 3600000, unit: 'hours' };
+  if (n >= 60000 && n % 60000 === 0) return { value: n / 60000, unit: 'minutes' };
+  return { value: Math.round(n / 1000), unit: 'seconds' };
+}
+
+function buildDuration(value: number, unit: string): number {
+  switch (unit) {
+    case 'hours': return value * 3600000;
+    case 'minutes': return value * 60000;
+    default: return value * 1000;
+  }
 }
 
 export function AutomationWizard({
@@ -390,7 +485,7 @@ export function AutomationWizard({
           <SelectValue placeholder="Selecione a entidade" />
         </SelectTrigger>
         <SelectContent>
-          {entities.map((e: { id: string; slug: string; name: string }) => (
+          {entities.map((e) => (
             <SelectItem key={e.id} value={e.slug}>
               {e.name} ({e.slug})
             </SelectItem>
@@ -400,9 +495,197 @@ export function AutomationWizard({
     </div>
   );
 
-  // -- Inline filters builder --
-  const renderFiltersBuilder = (actionIndex: number) => {
+  // -- Value source selector (replaces {{template}} inputs) --
+  const renderValueSourceSelector = (
+    actionIndex: number,
+    configKey: string,
+    label?: string,
+  ) => {
+    const currentValue = form.actions[actionIndex]?.config[configKey];
+    const source = parseValueSource(currentValue);
+    const saveAsNames = collectSaveAsNames(form.actions, actionIndex);
+
+    const handleTypeChange = (newType: string) => {
+      let newSource: ValueSource;
+      switch (newType) {
+        case 'record_field': newSource = { type: 'record_field', value: '' }; break;
+        case 'now': newSource = { type: 'now', value: '' }; break;
+        case 'previous_result': newSource = { type: 'previous_result', value: saveAsNames[0] || '' }; break;
+        default: newSource = { type: 'fixed', value: '' };
+      }
+      updateActionConfig(actionIndex, configKey, buildValueFromSource(newSource));
+    };
+
+    const handleValueChange = (newValue: string) => {
+      updateActionConfig(actionIndex, configKey, buildValueFromSource({ ...source, value: newValue }));
+    };
+
+    return (
+      <div className="space-y-1">
+        {label && <Label className="text-xs">{label}</Label>}
+        <div className="flex gap-1.5">
+          <Select value={source.type} onValueChange={handleTypeChange}>
+            <SelectTrigger className="h-8 text-xs w-[140px] flex-shrink-0">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="fixed">Valor fixo</SelectItem>
+              <SelectItem value="record_field">Campo do registro</SelectItem>
+              <SelectItem value="now">Data/hora atual</SelectItem>
+              {saveAsNames.length > 0 && (
+                <SelectItem value="previous_result">Resultado anterior</SelectItem>
+              )}
+            </SelectContent>
+          </Select>
+          {source.type === 'fixed' && (
+            <Input
+              placeholder="Digite o valor"
+              value={source.value}
+              onChange={(e) => handleValueChange(e.target.value)}
+              className="h-8 text-xs flex-1"
+            />
+          )}
+          {source.type === 'record_field' && (
+            <Select value={source.value} onValueChange={handleValueChange}>
+              <SelectTrigger className="h-8 text-xs flex-1">
+                <SelectValue placeholder="Selecione o campo" />
+              </SelectTrigger>
+              <SelectContent>
+                {fields.map(f => (
+                  <SelectItem key={f.slug} value={f.slug}>{fl(f)}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+          {source.type === 'now' && (
+            <span className="h-8 flex items-center text-xs text-muted-foreground px-2 flex-1">
+              Preenchido automaticamente
+            </span>
+          )}
+          {source.type === 'previous_result' && (
+            <Select value={source.value} onValueChange={handleValueChange}>
+              <SelectTrigger className="h-8 text-xs flex-1">
+                <SelectValue placeholder="Selecione" />
+              </SelectTrigger>
+              <SelectContent>
+                {saveAsNames.map(name => (
+                  <SelectItem key={name} value={name}>{name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  // -- Mini value source for inline filter rows --
+  const renderFilterValueSource = (
+    actionIndex: number,
+    filterIndex: number,
+    currentValue: unknown,
+  ) => {
+    const source = parseValueSource(currentValue);
+    const saveAsNames = collectSaveAsNames(form.actions, actionIndex);
+
+    const handleChange = (newSource: ValueSource) => {
+      updateActionConfigArrayItem(actionIndex, 'filters', filterIndex, {
+        value: buildValueFromSource(newSource),
+      });
+    };
+
+    return (
+      <div className="flex gap-1 flex-1">
+        <Select
+          value={source.type}
+          onValueChange={(t) => {
+            const ns: ValueSource = t === 'record_field'
+              ? { type: 'record_field', value: '' }
+              : t === 'now' ? { type: 'now', value: '' }
+              : t === 'previous_result' ? { type: 'previous_result', value: saveAsNames[0] || '' }
+              : { type: 'fixed', value: '' };
+            handleChange(ns);
+          }}
+        >
+          <SelectTrigger className="h-7 text-xs w-[110px] flex-shrink-0">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="fixed">Fixo</SelectItem>
+            <SelectItem value="record_field">Campo</SelectItem>
+            {saveAsNames.length > 0 && <SelectItem value="previous_result">Anterior</SelectItem>}
+          </SelectContent>
+        </Select>
+        {source.type === 'fixed' && (
+          <Input
+            placeholder="valor"
+            value={source.value}
+            onChange={(e) => handleChange({ type: 'fixed', value: e.target.value })}
+            className="h-7 text-xs flex-1"
+          />
+        )}
+        {source.type === 'record_field' && (
+          <Select value={source.value} onValueChange={(v) => handleChange({ type: 'record_field', value: v })}>
+            <SelectTrigger className="h-7 text-xs flex-1">
+              <SelectValue placeholder="Campo" />
+            </SelectTrigger>
+            <SelectContent>
+              {fields.map(f => (
+                <SelectItem key={f.slug} value={f.slug}>{fl(f)}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
+        {source.type === 'previous_result' && (
+          <Select value={source.value} onValueChange={(v) => handleChange({ type: 'previous_result', value: v })}>
+            <SelectTrigger className="h-7 text-xs flex-1">
+              <SelectValue placeholder="Resultado" />
+            </SelectTrigger>
+            <SelectContent>
+              {saveAsNames.map(n => <SelectItem key={n} value={n}>{n}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        )}
+      </div>
+    );
+  };
+
+  // -- Insert field button (for text inputs that accept templates) --
+  const renderInsertFieldButton = (actionIndex: number, configKey: string) => (
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button type="button" variant="outline" size="sm" className="h-7 text-xs px-2 flex-shrink-0">
+          <Plus className="h-3 w-3 mr-1" />
+          Campo
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-48 p-1" align="end">
+        <ScrollArea className="max-h-48">
+          {fields.map(f => (
+            <button
+              key={f.slug}
+              type="button"
+              className="w-full text-left text-xs px-2 py-1.5 hover:bg-muted rounded"
+              onClick={() => {
+                const current = getConfigValue(form.actions[actionIndex].config, configKey);
+                updateActionConfig(actionIndex, configKey, current + `{{record.${f.slug}}}`);
+              }}
+            >
+              {fl(f)}
+            </button>
+          ))}
+        </ScrollArea>
+      </PopoverContent>
+    </Popover>
+  );
+
+  // -- Inline filters builder (with selects) --
+  const renderFiltersBuilder = (actionIndex: number, targetEntitySlug?: string) => {
     const filters = getActionConfigArray(actionIndex, 'filters');
+    const targetFields = targetEntitySlug
+      ? getEntityFieldsBySlug(entities, targetEntitySlug)
+      : fields;
+
     return (
       <div className="space-y-2">
         <div className="flex items-center justify-between">
@@ -420,12 +703,19 @@ export function AutomationWizard({
         </div>
         {filters.map((filter, fi) => (
           <div key={fi} className="flex items-center gap-1.5">
-            <Input
-              placeholder="campo"
+            <Select
               value={String(filter.field ?? '')}
-              onChange={(e) => updateActionConfigArrayItem(actionIndex, 'filters', fi, { field: e.target.value })}
-              className="h-7 text-xs flex-1"
-            />
+              onValueChange={(v) => updateActionConfigArrayItem(actionIndex, 'filters', fi, { field: v })}
+            >
+              <SelectTrigger className="h-7 text-xs flex-1">
+                <SelectValue placeholder="Campo" />
+              </SelectTrigger>
+              <SelectContent>
+                {targetFields.map(f => (
+                  <SelectItem key={f.slug} value={f.slug}>{fl(f)}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             <Select
               value={String(filter.operator ?? 'eq')}
               onValueChange={(v) => updateActionConfigArrayItem(actionIndex, 'filters', fi, { operator: v })}
@@ -439,12 +729,7 @@ export function AutomationWizard({
                 ))}
               </SelectContent>
             </Select>
-            <Input
-              placeholder="valor ou {{template}}"
-              value={String(filter.value ?? '')}
-              onChange={(e) => updateActionConfigArrayItem(actionIndex, 'filters', fi, { value: e.target.value })}
-              className="h-7 text-xs flex-1"
-            />
+            {renderFilterValueSource(actionIndex, fi, filter.value)}
             <Button
               type="button"
               variant="ghost"
@@ -463,7 +748,10 @@ export function AutomationWizard({
   // -- Render action config --
   const renderActionConfig = (action: ActionItem, index: number) => {
     switch (action.type) {
-      case 'send_email':
+      case 'send_email': {
+        const toSource = parseValueSource(getConfigValue(action.config, 'to'));
+        const toMode = toSource.type === 'record_field' ? 'field' : 'custom';
+        const emailFields = fields.filter(f => f.type === 'email' || f.type === 'text' || f.type === 'user-select');
         return (
           <div className="space-y-2">
             <div className="space-y-1">
@@ -476,16 +764,53 @@ export function AutomationWizard({
               />
             </div>
             <div className="space-y-1">
-              <Label className="text-xs">Destinatario (campo ou email)</Label>
-              <Input
-                placeholder="{{record.email}} ou usuario@email.com"
-                value={getConfigValue(action.config, 'to')}
-                onChange={(e) => updateActionConfig(index, 'to', e.target.value)}
-                className="h-8 text-sm"
-              />
+              <Label className="text-xs">Destinatario</Label>
+              <div className="flex gap-1.5">
+                <Select
+                  value={toMode}
+                  onValueChange={(v) => {
+                    if (v === 'field') {
+                      updateActionConfig(index, 'to', emailFields.length > 0 ? `{{record.${emailFields[0].slug}}}` : '');
+                    } else {
+                      updateActionConfig(index, 'to', '');
+                    }
+                  }}
+                >
+                  <SelectTrigger className="h-8 text-xs w-[140px] flex-shrink-0">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="field">Campo do registro</SelectItem>
+                    <SelectItem value="custom">Email fixo</SelectItem>
+                  </SelectContent>
+                </Select>
+                {toMode === 'field' ? (
+                  <Select
+                    value={toSource.value}
+                    onValueChange={(v) => updateActionConfig(index, 'to', `{{record.${v}}}`)}
+                  >
+                    <SelectTrigger className="h-8 text-xs flex-1">
+                      <SelectValue placeholder="Selecione o campo" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {emailFields.map(f => (
+                        <SelectItem key={f.slug} value={f.slug}>{fl(f)}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <Input
+                    placeholder="email@exemplo.com"
+                    value={getConfigValue(action.config, 'to')}
+                    onChange={(e) => updateActionConfig(index, 'to', e.target.value)}
+                    className="h-8 text-xs flex-1"
+                  />
+                )}
+              </div>
             </div>
           </div>
         );
+      }
 
       case 'call_webhook':
         return (
@@ -556,7 +881,7 @@ export function AutomationWizard({
 
       case 'update_field':
         return (
-          <div className="grid grid-cols-2 gap-2">
+          <div className="space-y-2">
             <div className="space-y-1">
               <Label className="text-xs">Campo</Label>
               <Select
@@ -564,65 +889,146 @@ export function AutomationWizard({
                 onValueChange={(v) => updateActionConfig(index, 'fieldSlug', v)}
               >
                 <SelectTrigger className="h-8 text-sm">
-                  <SelectValue placeholder="Selecione" />
+                  <SelectValue placeholder="Selecione o campo" />
                 </SelectTrigger>
                 <SelectContent>
                   {fields.map(f => (
-                    <SelectItem key={f.slug} value={f.slug}>
-                      {f.name}
-                    </SelectItem>
+                    <SelectItem key={f.slug} value={f.slug}>{fl(f)}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-1">
-              <Label className="text-xs">Valor</Label>
-              <Input
-                placeholder="novo valor ou {{template}}"
-                value={getConfigValue(action.config, 'value')}
-                onChange={(e) => updateActionConfig(index, 'value', e.target.value)}
-                className="h-8 text-sm"
-              />
-            </div>
+            {renderValueSourceSelector(index, 'value', 'Novo valor')}
           </div>
         );
 
-      case 'create_record':
+      case 'create_record': {
+        const crEntitySlug = getConfigValue(action.config, 'entitySlug');
+        const crTargetFields = getEntityFieldsBySlug(entities, crEntitySlug);
+        const crMappings = getActionConfigArray(index, 'dataMappings');
         return (
           <div className="space-y-2">
-            <div className="space-y-1">
-              <Label className="text-xs">Entidade (slug)</Label>
-              <Input
-                placeholder="slug-da-entidade"
-                value={getConfigValue(action.config, 'entitySlug')}
-                onChange={(e) => updateActionConfig(index, 'entitySlug', e.target.value)}
-                className="h-8 text-sm"
-              />
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs">Dados (JSON)</Label>
-              <Textarea
-                placeholder='{"campo": "{{record.campo}}"}'
-                value={getConfigValue(action.config, 'data')}
-                onChange={(e) => {
-                  try {
-                    updateActionConfig(index, 'data', JSON.parse(e.target.value));
-                  } catch {
-                    updateActionConfig(index, 'data', e.target.value);
-                  }
-                }}
-                rows={3}
-                className="text-sm"
-              />
+            {renderEntitySelect(index)}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label className="text-xs">Mapeamento de campos</Label>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 text-xs px-2"
+                  onClick={() => addActionConfigArrayItem(index, 'dataMappings', { targetField: '', value: '' })}
+                >
+                  <Plus className="h-3 w-3 mr-1" />
+                  Campo
+                </Button>
+              </div>
+              {crMappings.map((mapping, mi) => {
+                const mSource = parseValueSource(mapping.value);
+                const mSaveAs = collectSaveAsNames(form.actions, index);
+                return (
+                  <div key={mi} className="flex items-center gap-1.5">
+                    <Select
+                      value={String(mapping.targetField ?? '')}
+                      onValueChange={(v) => updateActionConfigArrayItem(index, 'dataMappings', mi, { targetField: v })}
+                    >
+                      <SelectTrigger className="h-7 text-xs flex-1">
+                        <SelectValue placeholder="Campo destino" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {crTargetFields.map(f => (
+                          <SelectItem key={f.slug} value={f.slug}>{fl(f)}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <span className="text-xs text-muted-foreground">=</span>
+                    <Select
+                      value={mSource.type}
+                      onValueChange={(t) => {
+                        const ns: ValueSource = t === 'record_field'
+                          ? { type: 'record_field', value: '' }
+                          : t === 'now' ? { type: 'now', value: '' }
+                          : t === 'previous_result' ? { type: 'previous_result', value: mSaveAs[0] || '' }
+                          : { type: 'fixed', value: '' };
+                        updateActionConfigArrayItem(index, 'dataMappings', mi, { value: buildValueFromSource(ns) });
+                      }}
+                    >
+                      <SelectTrigger className="h-7 text-xs w-[100px] flex-shrink-0">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="fixed">Fixo</SelectItem>
+                        <SelectItem value="record_field">Campo</SelectItem>
+                        <SelectItem value="now">Agora</SelectItem>
+                        {mSaveAs.length > 0 && <SelectItem value="previous_result">Anterior</SelectItem>}
+                      </SelectContent>
+                    </Select>
+                    {mSource.type === 'fixed' && (
+                      <Input
+                        placeholder="valor"
+                        value={mSource.value}
+                        onChange={(e) => updateActionConfigArrayItem(index, 'dataMappings', mi, { value: e.target.value })}
+                        className="h-7 text-xs flex-1"
+                      />
+                    )}
+                    {mSource.type === 'record_field' && (
+                      <Select
+                        value={mSource.value}
+                        onValueChange={(v) => updateActionConfigArrayItem(index, 'dataMappings', mi, { value: `{{record.${v}}}` })}
+                      >
+                        <SelectTrigger className="h-7 text-xs flex-1">
+                          <SelectValue placeholder="Campo" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {fields.map(f => (
+                            <SelectItem key={f.slug} value={f.slug}>{fl(f)}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
+                    {mSource.type === 'previous_result' && (
+                      <Select
+                        value={mSource.value}
+                        onValueChange={(v) => updateActionConfigArrayItem(index, 'dataMappings', mi, { value: `{{${v}}}` })}
+                      >
+                        <SelectTrigger className="h-7 text-xs flex-1">
+                          <SelectValue placeholder="Resultado" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {mSaveAs.map(n => <SelectItem key={n} value={n}>{n}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    )}
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-6 w-6 text-destructive flex-shrink-0"
+                      onClick={() => removeActionConfigArrayItem(index, 'dataMappings', mi)}
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </Button>
+                  </div>
+                );
+              })}
+              {crMappings.length === 0 && (
+                <p className="text-xs text-muted-foreground">
+                  Clique em &quot;+ Campo&quot; para mapear campos do novo registro.
+                </p>
+              )}
             </div>
           </div>
         );
+      }
 
       case 'notify_user':
         return (
           <div className="space-y-2">
             <div className="space-y-1">
-              <Label className="text-xs">Titulo</Label>
+              <div className="flex items-center justify-between">
+                <Label className="text-xs">Titulo</Label>
+                {renderInsertFieldButton(index, 'title')}
+              </div>
               <Input
                 placeholder="Titulo da notificacao"
                 value={getConfigValue(action.config, 'title')}
@@ -631,9 +1037,12 @@ export function AutomationWizard({
               />
             </div>
             <div className="space-y-1">
-              <Label className="text-xs">Mensagem</Label>
+              <div className="flex items-center justify-between">
+                <Label className="text-xs">Mensagem</Label>
+                {renderInsertFieldButton(index, 'message')}
+              </div>
               <Textarea
-                placeholder="Registro {{record.name}} foi atualizado"
+                placeholder="Mensagem da notificacao"
                 value={getConfigValue(action.config, 'message')}
                 onChange={(e) => updateActionConfig(index, 'message', e.target.value)}
                 rows={2}
@@ -643,77 +1052,128 @@ export function AutomationWizard({
           </div>
         );
 
-      case 'change_status':
+      case 'change_status': {
+        const statusFields = fields.filter(f => f.type === 'select' || f.type === 'radio' || f.type === 'workflow-status');
+        const selectedStatusField = statusFields.find(f => f.slug === getConfigValue(action.config, 'fieldSlug'));
+        const statusOptions = getFieldOptions(selectedStatusField);
         return (
           <div className="grid grid-cols-2 gap-2">
             <div className="space-y-1">
               <Label className="text-xs">Campo de status</Label>
               <Select
                 value={getConfigValue(action.config, 'fieldSlug')}
-                onValueChange={(v) => updateActionConfig(index, 'fieldSlug', v)}
+                onValueChange={(v) => {
+                  updateActionConfig(index, 'fieldSlug', v);
+                  updateActionConfig(index, 'targetStatus', '');
+                }}
               >
                 <SelectTrigger className="h-8 text-sm">
                   <SelectValue placeholder="Selecione" />
                 </SelectTrigger>
                 <SelectContent>
-                  {fields.filter(f => f.type === 'select' || f.type === 'text').map(f => (
-                    <SelectItem key={f.slug} value={f.slug}>
-                      {f.name}
-                    </SelectItem>
+                  {statusFields.map(f => (
+                    <SelectItem key={f.slug} value={f.slug}>{fl(f)}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
             <div className="space-y-1">
               <Label className="text-xs">Novo status</Label>
-              <Input
-                placeholder="APROVADO"
-                value={getConfigValue(action.config, 'targetStatus')}
-                onChange={(e) => updateActionConfig(index, 'targetStatus', e.target.value)}
-                className="h-8 text-sm"
-              />
+              {statusOptions.length > 0 ? (
+                <Select
+                  value={getConfigValue(action.config, 'targetStatus')}
+                  onValueChange={(v) => updateActionConfig(index, 'targetStatus', v)}
+                >
+                  <SelectTrigger className="h-8 text-sm">
+                    <SelectValue placeholder="Selecione o status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {statusOptions.map(opt => (
+                      <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : (
+                <Input
+                  placeholder="Digite o novo status"
+                  value={getConfigValue(action.config, 'targetStatus')}
+                  onChange={(e) => updateActionConfig(index, 'targetStatus', e.target.value)}
+                  className="h-8 text-sm"
+                />
+              )}
             </div>
           </div>
         );
+      }
 
-      case 'wait':
+      case 'wait': {
+        const dur = parseDuration(action.config.duration);
         return (
           <div className="space-y-1">
-            <Label className="text-xs">Duracao (milissegundos)</Label>
-            <Input
-              type="number"
-              placeholder="5000"
-              value={getConfigValue(action.config, 'duration')}
-              onChange={(e) => updateActionConfig(index, 'duration', parseInt(e.target.value) || 0)}
-              className="h-8 text-sm"
-            />
-            <p className="text-xs text-muted-foreground">
-              1000ms = 1 segundo, 60000ms = 1 minuto
-            </p>
+            <Label className="text-xs">Duracao</Label>
+            <div className="flex gap-2">
+              <Input
+                type="number"
+                min={0}
+                placeholder="5"
+                value={dur.value || ''}
+                onChange={(e) => {
+                  const val = parseInt(e.target.value) || 0;
+                  updateActionConfig(index, 'duration', buildDuration(val, dur.unit));
+                }}
+                className="h-8 text-sm w-24"
+              />
+              <Select
+                value={dur.unit}
+                onValueChange={(u) => {
+                  updateActionConfig(index, 'duration', buildDuration(dur.value, u));
+                }}
+              >
+                <SelectTrigger className="h-8 text-sm w-32">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="seconds">Segundos</SelectItem>
+                  <SelectItem value="minutes">Minutos</SelectItem>
+                  <SelectItem value="hours">Horas</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
         );
+      }
 
-      case 'lookup_record':
+      case 'lookup_record': {
+        const lkEntitySlug = getConfigValue(action.config, 'entitySlug');
+        const lkTargetFields = getEntityFieldsBySlug(entities, lkEntitySlug);
+        const lkSelected: string[] = Array.isArray(action.config.selectedFields)
+          ? (action.config.selectedFields as string[])
+          : [];
         return (
           <div className="space-y-2">
             {renderEntitySelect(index)}
-            {renderFiltersBuilder(index)}
-            <div className="space-y-1">
-              <Label className="text-xs">Campos a retornar (opcional, separados por virgula)</Label>
-              <Input
-                placeholder="cnpj, email, nome"
-                value={getConfigValue(action.config, 'selectedFields')}
-                onChange={(e) => {
-                  const val = e.target.value;
-                  updateActionConfig(
-                    index,
-                    'selectedFields',
-                    val ? val.split(',').map((s: string) => s.trim()).filter(Boolean) : [],
-                  );
-                }}
-                className="h-8 text-sm"
-              />
-            </div>
+            {renderFiltersBuilder(index, lkEntitySlug)}
+            {lkTargetFields.length > 0 && (
+              <div className="space-y-1">
+                <Label className="text-xs">Campos a retornar (opcional)</Label>
+                <div className="flex flex-wrap gap-2 p-2 border rounded max-h-28 overflow-y-auto">
+                  {lkTargetFields.map(f => (
+                    <label key={f.slug} className="flex items-center gap-1.5 text-xs cursor-pointer">
+                      <Checkbox
+                        checked={lkSelected.includes(f.slug)}
+                        onCheckedChange={(checked) => {
+                          const next = checked
+                            ? [...lkSelected, f.slug]
+                            : lkSelected.filter(s => s !== f.slug);
+                          updateActionConfig(index, 'selectedFields', next);
+                        }}
+                      />
+                      {fl(f)}
+                    </label>
+                  ))}
+                </div>
+              </div>
+            )}
             <div className="grid grid-cols-2 gap-2">
               <div className="space-y-1">
                 <Label className="text-xs">Limite de resultados</Label>
@@ -737,56 +1197,149 @@ export function AutomationWizard({
                   className="h-8 text-sm"
                 />
                 <p className="text-xs text-muted-foreground">
-                  Use {'{{'}<span>nome.campo</span>{'}}'}
+                  Resultado disponivel nas acoes seguintes
                 </p>
               </div>
             </div>
           </div>
         );
+      }
 
       case 'update_related_record': {
+        const urEntitySlug = getConfigValue(action.config, 'entitySlug');
+        const urTargetFields = getEntityFieldsBySlug(entities, urEntitySlug);
+        const urRelationFields = fields.filter(f => f.type === 'relation' || f.type === 'sub-entity');
         const updates = getActionConfigArray(index, 'updates');
+        const urFindBy = (action.config.findBy as Record<string, unknown>) || {};
+        const urRecordIdSource = parseValueSource(action.config.recordId);
+        const urFindByValSource = parseValueSource(urFindBy.value);
+        const urSaveAsNames = collectSaveAsNames(form.actions, index);
+        const urLocateMode = urRecordIdSource.type === 'record_field' || urRecordIdSource.value
+          ? 'by_id' : (urFindBy.field ? 'by_field' : 'by_id');
         return (
           <div className="space-y-2">
             {renderEntitySelect(index)}
-            <div className="grid grid-cols-2 gap-2">
+            <div className="space-y-1">
+              <Label className="text-xs">Como localizar o registro</Label>
+              <Select
+                value={urLocateMode}
+                onValueChange={(v) => {
+                  if (v === 'by_id') {
+                    updateActionConfig(index, 'findBy', undefined);
+                  } else {
+                    updateActionConfig(index, 'recordId', '');
+                  }
+                }}
+              >
+                <SelectTrigger className="h-8 text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="by_id">Por campo de relacao</SelectItem>
+                  <SelectItem value="by_field">Buscar por valor de campo</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            {urLocateMode === 'by_id' ? (
               <div className="space-y-1">
-                <Label className="text-xs">ID do registro (ou template)</Label>
-                <Input
-                  placeholder="{{record.projeto_id}}"
-                  value={getConfigValue(action.config, 'recordId')}
-                  onChange={(e) => updateActionConfig(index, 'recordId', e.target.value)}
-                  className="h-8 text-sm"
-                />
+                <Label className="text-xs">Campo de relacao (ID do registro)</Label>
+                <Select
+                  value={urRecordIdSource.value}
+                  onValueChange={(v) => updateActionConfig(index, 'recordId', `{{record.${v}}}`)}
+                >
+                  <SelectTrigger className="h-8 text-xs">
+                    <SelectValue placeholder="Selecione o campo de relacao" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {urRelationFields.map(f => (
+                      <SelectItem key={f.slug} value={f.slug}>{fl(f)}</SelectItem>
+                    ))}
+                    {fields.filter(f => f.type !== 'relation' && f.type !== 'sub-entity').map(f => (
+                      <SelectItem key={f.slug} value={f.slug}>{fl(f)} (texto)</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
-              <div className="space-y-1">
-                <Label className="text-xs">Ou buscar por campo</Label>
-                <div className="flex gap-1">
-                  <Input
-                    placeholder="campo"
-                    value={String((action.config.findBy as Record<string, unknown>)?.field ?? '')}
-                    onChange={(e) =>
-                      updateActionConfig(index, 'findBy', {
-                        ...((action.config.findBy as Record<string, unknown>) || {}),
-                        field: e.target.value,
-                      })
-                    }
-                    className="h-8 text-xs flex-1"
-                  />
-                  <Input
-                    placeholder="valor"
-                    value={String((action.config.findBy as Record<string, unknown>)?.value ?? '')}
-                    onChange={(e) =>
-                      updateActionConfig(index, 'findBy', {
-                        ...((action.config.findBy as Record<string, unknown>) || {}),
-                        value: e.target.value,
-                      })
-                    }
-                    className="h-8 text-xs flex-1"
-                  />
+            ) : (
+              <div className="grid grid-cols-2 gap-2">
+                <div className="space-y-1">
+                  <Label className="text-xs">Campo na entidade alvo</Label>
+                  <Select
+                    value={String(urFindBy.field ?? '')}
+                    onValueChange={(v) => updateActionConfig(index, 'findBy', { ...urFindBy, field: v })}
+                  >
+                    <SelectTrigger className="h-8 text-xs">
+                      <SelectValue placeholder="Campo" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {urTargetFields.map(f => (
+                        <SelectItem key={f.slug} value={f.slug}>{fl(f)}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Valor para buscar</Label>
+                  <div className="flex gap-1">
+                    <Select
+                      value={urFindByValSource.type}
+                      onValueChange={(t) => {
+                        const ns: ValueSource = t === 'record_field'
+                          ? { type: 'record_field', value: '' }
+                          : t === 'previous_result' ? { type: 'previous_result', value: urSaveAsNames[0] || '' }
+                          : { type: 'fixed', value: '' };
+                        updateActionConfig(index, 'findBy', { ...urFindBy, value: buildValueFromSource(ns) });
+                      }}
+                    >
+                      <SelectTrigger className="h-8 text-xs w-[90px] flex-shrink-0">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="fixed">Fixo</SelectItem>
+                        <SelectItem value="record_field">Campo</SelectItem>
+                        {urSaveAsNames.length > 0 && <SelectItem value="previous_result">Anterior</SelectItem>}
+                      </SelectContent>
+                    </Select>
+                    {urFindByValSource.type === 'fixed' && (
+                      <Input
+                        placeholder="valor"
+                        value={urFindByValSource.value}
+                        onChange={(e) => updateActionConfig(index, 'findBy', { ...urFindBy, value: e.target.value })}
+                        className="h-8 text-xs flex-1"
+                      />
+                    )}
+                    {urFindByValSource.type === 'record_field' && (
+                      <Select
+                        value={urFindByValSource.value}
+                        onValueChange={(v) => updateActionConfig(index, 'findBy', { ...urFindBy, value: `{{record.${v}}}` })}
+                      >
+                        <SelectTrigger className="h-8 text-xs flex-1">
+                          <SelectValue placeholder="Campo" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {fields.map(f => (
+                            <SelectItem key={f.slug} value={f.slug}>{fl(f)}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
+                    {urFindByValSource.type === 'previous_result' && (
+                      <Select
+                        value={urFindByValSource.value}
+                        onValueChange={(v) => updateActionConfig(index, 'findBy', { ...urFindBy, value: `{{${v}}}` })}
+                      >
+                        <SelectTrigger className="h-8 text-xs flex-1">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {urSaveAsNames.map(n => <SelectItem key={n} value={n}>{n}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    )}
+                  </div>
                 </div>
               </div>
-            </div>
+            )}
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <Label className="text-xs">Atualizacoes</Label>
@@ -801,45 +1354,106 @@ export function AutomationWizard({
                   Campo
                 </Button>
               </div>
-              {updates.map((upd, ui) => (
-                <div key={ui} className="flex items-center gap-1.5">
-                  <Input
-                    placeholder="campo"
-                    value={String(upd.field ?? '')}
-                    onChange={(e) => updateActionConfigArrayItem(index, 'updates', ui, { field: e.target.value })}
-                    className="h-7 text-xs flex-1"
-                  />
-                  <Select
-                    value={String(upd.mode ?? 'set')}
-                    onValueChange={(v) => updateActionConfigArrayItem(index, 'updates', ui, { mode: v })}
-                  >
-                    <SelectTrigger className="h-7 text-xs w-32">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="set">Definir</SelectItem>
-                      <SelectItem value="increment">Incrementar</SelectItem>
-                      <SelectItem value="decrement">Decrementar</SelectItem>
-                      <SelectItem value="append">Adicionar a lista</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <Input
-                    placeholder="valor ou {{template}}"
-                    value={String(upd.value ?? '')}
-                    onChange={(e) => updateActionConfigArrayItem(index, 'updates', ui, { value: e.target.value })}
-                    className="h-7 text-xs flex-1"
-                  />
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className="h-6 w-6 text-destructive flex-shrink-0"
-                    onClick={() => removeActionConfigArrayItem(index, 'updates', ui)}
-                  >
-                    <Trash2 className="h-3 w-3" />
-                  </Button>
-                </div>
-              ))}
+              {updates.map((upd, ui) => {
+                const updValSource = parseValueSource(upd.value);
+                return (
+                  <div key={ui} className="flex items-center gap-1.5">
+                    <Select
+                      value={String(upd.field ?? '')}
+                      onValueChange={(v) => updateActionConfigArrayItem(index, 'updates', ui, { field: v })}
+                    >
+                      <SelectTrigger className="h-7 text-xs flex-1">
+                        <SelectValue placeholder="Campo" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {urTargetFields.map(f => (
+                          <SelectItem key={f.slug} value={f.slug}>{fl(f)}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Select
+                      value={String(upd.mode ?? 'set')}
+                      onValueChange={(v) => updateActionConfigArrayItem(index, 'updates', ui, { mode: v })}
+                    >
+                      <SelectTrigger className="h-7 text-xs w-28">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="set">Definir</SelectItem>
+                        <SelectItem value="increment">+1</SelectItem>
+                        <SelectItem value="decrement">-1</SelectItem>
+                        <SelectItem value="append">Adicionar</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Select
+                      value={updValSource.type}
+                      onValueChange={(t) => {
+                        const ns: ValueSource = t === 'record_field'
+                          ? { type: 'record_field', value: '' }
+                          : t === 'now' ? { type: 'now', value: '' }
+                          : t === 'previous_result' ? { type: 'previous_result', value: urSaveAsNames[0] || '' }
+                          : { type: 'fixed', value: '' };
+                        updateActionConfigArrayItem(index, 'updates', ui, { value: buildValueFromSource(ns) });
+                      }}
+                    >
+                      <SelectTrigger className="h-7 text-xs w-[90px] flex-shrink-0">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="fixed">Fixo</SelectItem>
+                        <SelectItem value="record_field">Campo</SelectItem>
+                        <SelectItem value="now">Agora</SelectItem>
+                        {urSaveAsNames.length > 0 && <SelectItem value="previous_result">Anterior</SelectItem>}
+                      </SelectContent>
+                    </Select>
+                    {updValSource.type === 'fixed' && (
+                      <Input
+                        placeholder="valor"
+                        value={updValSource.value}
+                        onChange={(e) => updateActionConfigArrayItem(index, 'updates', ui, { value: e.target.value })}
+                        className="h-7 text-xs w-20"
+                      />
+                    )}
+                    {updValSource.type === 'record_field' && (
+                      <Select
+                        value={updValSource.value}
+                        onValueChange={(v) => updateActionConfigArrayItem(index, 'updates', ui, { value: `{{record.${v}}}` })}
+                      >
+                        <SelectTrigger className="h-7 text-xs w-24">
+                          <SelectValue placeholder="Campo" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {fields.map(f => (
+                            <SelectItem key={f.slug} value={f.slug}>{fl(f)}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
+                    {updValSource.type === 'previous_result' && (
+                      <Select
+                        value={updValSource.value}
+                        onValueChange={(v) => updateActionConfigArrayItem(index, 'updates', ui, { value: `{{${v}}}` })}
+                      >
+                        <SelectTrigger className="h-7 text-xs w-24">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {urSaveAsNames.map(n => <SelectItem key={n} value={n}>{n}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    )}
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-6 w-6 text-destructive flex-shrink-0"
+                      onClick={() => removeActionConfigArrayItem(index, 'updates', ui)}
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </Button>
+                  </div>
+                );
+              })}
               {updates.length === 0 && (
                 <p className="text-xs text-muted-foreground">Clique em &quot;+ Campo&quot; para adicionar atualizacoes.</p>
               )}
@@ -848,7 +1462,13 @@ export function AutomationWizard({
         );
       }
 
-      case 'aggregate_records':
+      case 'aggregate_records': {
+        const agEntitySlug = getConfigValue(action.config, 'entitySlug');
+        const agTargetFields = getEntityFieldsBySlug(entities, agEntitySlug);
+        const agNumericFields = agTargetFields.filter(f =>
+          f.type === 'number' || f.type === 'currency' || f.type === 'integer'
+        );
+        const agIsCount = getConfigValue(action.config, 'operation', 'count') === 'count';
         return (
           <div className="space-y-2">
             {renderEntitySelect(index)}
@@ -857,7 +1477,10 @@ export function AutomationWizard({
                 <Label className="text-xs">Operacao</Label>
                 <Select
                   value={getConfigValue(action.config, 'operation', 'count')}
-                  onValueChange={(v) => updateActionConfig(index, 'operation', v)}
+                  onValueChange={(v) => {
+                    updateActionConfig(index, 'operation', v);
+                    if (v === 'count') updateActionConfig(index, 'field', null);
+                  }}
                 >
                   <SelectTrigger className="h-8 text-sm">
                     <SelectValue />
@@ -871,20 +1494,26 @@ export function AutomationWizard({
                   </SelectContent>
                 </Select>
               </div>
-              <div className="space-y-1">
-                <Label className="text-xs">
-                  Campo {getConfigValue(action.config, 'operation', 'count') === 'count' ? '(opcional)' : ''}
-                </Label>
-                <Input
-                  placeholder="campo numerico"
-                  value={getConfigValue(action.config, 'field')}
-                  onChange={(e) => updateActionConfig(index, 'field', e.target.value || null)}
-                  className="h-8 text-sm"
-                  disabled={getConfigValue(action.config, 'operation', 'count') === 'count'}
-                />
-              </div>
+              {!agIsCount && (
+                <div className="space-y-1">
+                  <Label className="text-xs">Campo</Label>
+                  <Select
+                    value={getConfigValue(action.config, 'field')}
+                    onValueChange={(v) => updateActionConfig(index, 'field', v)}
+                  >
+                    <SelectTrigger className="h-8 text-sm">
+                      <SelectValue placeholder="Campo numerico" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {(agNumericFields.length > 0 ? agNumericFields : agTargetFields).map(f => (
+                        <SelectItem key={f.slug} value={f.slug}>{fl(f)}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
             </div>
-            {renderFiltersBuilder(index)}
+            {renderFiltersBuilder(index, agEntitySlug)}
             <div className="space-y-1">
               <Label className="text-xs">Salvar como</Label>
               <Input
@@ -894,11 +1523,12 @@ export function AutomationWizard({
                 className="h-8 text-sm"
               />
               <p className="text-xs text-muted-foreground">
-                Resultado disponivel como {'{{'}<span>nome</span>{'}}'}
+                Resultado disponivel nas acoes seguintes
               </p>
             </div>
           </div>
         );
+      }
 
       case 'run_script':
         return (
@@ -1032,7 +1662,7 @@ export function AutomationWizard({
                       <SelectContent>
                         {fields.map(f => (
                           <SelectItem key={f.slug} value={f.slug}>
-                            {f.name} ({f.slug})
+                            {fl(f)} ({f.slug})
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -1061,28 +1691,68 @@ export function AutomationWizard({
                 </div>
               )}
 
-              {form.trigger === 'ON_STATUS_CHANGE' && (
-                <div className="grid grid-cols-2 gap-2 p-3 bg-muted/50 rounded-lg">
-                  <div className="space-y-1">
-                    <Label className="text-xs">De status (opcional)</Label>
-                    <Input
-                      placeholder="PENDENTE"
-                      value={form.triggerFromValue}
-                      onChange={(e) => updateForm({ triggerFromValue: e.target.value })}
-                      className="h-8 text-sm"
-                    />
+              {form.trigger === 'ON_STATUS_CHANGE' && (() => {
+                const allStatusOpts = fields
+                  .filter(f => f.type === 'select' || f.type === 'radio' || f.type === 'workflow-status')
+                  .flatMap(f => getFieldOptions(f));
+                const uniqueOpts = [...new Map(allStatusOpts.map(o => [o.value, o])).values()];
+                return (
+                  <div className="grid grid-cols-2 gap-2 p-3 bg-muted/50 rounded-lg">
+                    <div className="space-y-1">
+                      <Label className="text-xs">De status (opcional)</Label>
+                      {uniqueOpts.length > 0 ? (
+                        <Select
+                          value={form.triggerFromValue || '__any__'}
+                          onValueChange={(v) => updateForm({ triggerFromValue: v === '__any__' ? '' : v })}
+                        >
+                          <SelectTrigger className="h-8 text-sm">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="__any__">Qualquer</SelectItem>
+                            {uniqueOpts.map(o => (
+                              <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      ) : (
+                        <Input
+                          placeholder="PENDENTE"
+                          value={form.triggerFromValue}
+                          onChange={(e) => updateForm({ triggerFromValue: e.target.value })}
+                          className="h-8 text-sm"
+                        />
+                      )}
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">Para status (opcional)</Label>
+                      {uniqueOpts.length > 0 ? (
+                        <Select
+                          value={form.triggerToValue || '__any__'}
+                          onValueChange={(v) => updateForm({ triggerToValue: v === '__any__' ? '' : v })}
+                        >
+                          <SelectTrigger className="h-8 text-sm">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="__any__">Qualquer</SelectItem>
+                            {uniqueOpts.map(o => (
+                              <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      ) : (
+                        <Input
+                          placeholder="APROVADO"
+                          value={form.triggerToValue}
+                          onChange={(e) => updateForm({ triggerToValue: e.target.value })}
+                          className="h-8 text-sm"
+                        />
+                      )}
+                    </div>
                   </div>
-                  <div className="space-y-1">
-                    <Label className="text-xs">Para status (opcional)</Label>
-                    <Input
-                      placeholder="APROVADO"
-                      value={form.triggerToValue}
-                      onChange={(e) => updateForm({ triggerToValue: e.target.value })}
-                      className="h-8 text-sm"
-                    />
-                  </div>
-                </div>
-              )}
+                );
+              })()}
 
               {form.trigger === 'SCHEDULE' && (
                 <div className="space-y-2 p-3 bg-muted/50 rounded-lg">
@@ -1155,7 +1825,7 @@ export function AutomationWizard({
                     </SelectTrigger>
                     <SelectContent>
                       {fields.map(f => (
-                        <SelectItem key={f.slug} value={f.slug}>{f.name}</SelectItem>
+                        <SelectItem key={f.slug} value={f.slug}>{fl(f)}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>

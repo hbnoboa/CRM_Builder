@@ -17,9 +17,11 @@ import { FieldRulesSection } from './field-rules-section';
 import { EventAutomationsSection } from './event-automations-section';
 import { ScheduledSection } from './scheduled-section';
 
+import type { EntityField } from '@/types';
+
 interface AutomationTabProps {
   entityId: string;
-  fields: Array<{ slug: string; name: string; type: string }>;
+  fields: EntityField[];
 }
 
 export function AutomationTab({ entityId, fields }: AutomationTabProps) {

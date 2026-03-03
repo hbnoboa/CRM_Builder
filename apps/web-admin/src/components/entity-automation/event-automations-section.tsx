@@ -26,9 +26,11 @@ import type { EntityAutomation, AutomationTrigger } from '@/services/entity-auto
 import { AutomationWizard } from './automation-wizard';
 import { ExecutionHistoryDialog } from './execution-history-dialog';
 
+import type { EntityField } from '@/types';
+
 interface EventAutomationsSectionProps {
   entityId: string;
-  fields: Array<{ slug: string; name: string; type: string }>;
+  fields: EntityField[];
 }
 
 const EVENT_TRIGGERS: AutomationTrigger[] = [
