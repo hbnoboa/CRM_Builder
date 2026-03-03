@@ -81,11 +81,19 @@ export const entityAutomationService = {
     entityId: string,
     params?: QueryAutomationsParams,
   ): Promise<EntityAutomation[]> {
-    const response = await api.get<EntityAutomation[]>(
+    const response = await api.get<
+      { data: EntityAutomation[]; meta: unknown } | EntityAutomation[]
+    >(
       `/entities/${entityId}/automations`,
       { params },
     );
-    return response.data;
+    // Backend returns paginated { data, meta } — extract the array
+    const result = response.data;
+    if (Array.isArray(result)) return result;
+    if (result && typeof result === 'object' && 'data' in result && Array.isArray(result.data)) {
+      return result.data;
+    }
+    return [];
   },
 
   async getById(entityId: string, id: string): Promise<EntityAutomation> {
