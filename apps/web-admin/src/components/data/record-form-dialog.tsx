@@ -273,33 +273,6 @@ export function RecordFormDialog({
     }
   };
 
-  const handleRelationChange = (field: EntityField, value: string) => {
-    handleFieldChange(field.slug, value);
-    if (field.autoFillFields && field.autoFillFields.length > 0) {
-      const options = relationOptions[field.slug] || [];
-      const selectedOption = options.find(opt => opt.value === value);
-      if (selectedOption) {
-        const updates: Record<string, unknown> = {};
-        const allFields = entity.fields || [];
-        const slugLookup: Record<string, string> = {};
-        for (const f of allFields) {
-          if (f.slug) slugLookup[f.slug] = f.slug;
-          if (f.name) slugLookup[f.name] = f.slug || f.name;
-        }
-        for (const autoFill of field.autoFillFields) {
-          let sourceValue = selectedOption.data[autoFill.sourceField];
-          // Handle enriched {value, label} objects from backend
-          if (sourceValue && typeof sourceValue === 'object' && 'label' in (sourceValue as Record<string, unknown>)) {
-            sourceValue = (sourceValue as Record<string, unknown>).label;
-          }
-          const resolvedTarget = slugLookup[autoFill.targetField] || autoFill.targetField;
-          if (sourceValue !== undefined) updates[resolvedTarget] = sourceValue;
-        }
-        if (Object.keys(updates).length > 0) setFormData(prev => ({ ...prev, ...updates }));
-      }
-    }
-  };
-
   useEffect(() => {
     if (open) {
       if (record) {
@@ -384,7 +357,28 @@ export function RecordFormDialog({
     const tid = effectiveTenantId || tenantId;
 
     for (const autoFill of field.onChangeAutoFill) {
-      if (autoFill.valueTemplate) {
+      if (autoFill.sourceField) {
+        // Copy field from selected related/api-select record
+        const options = relationOptions[field.slug] || apiOptions[field.slug] || [];
+        const selectedOption = options.find(opt => opt.value === String(newValue));
+        if (selectedOption?.data) {
+          let sourceValue = selectedOption.data[autoFill.sourceField];
+          // Handle enriched {value, label} objects from backend
+          if (sourceValue && typeof sourceValue === 'object' && 'label' in (sourceValue as Record<string, unknown>)) {
+            sourceValue = (sourceValue as Record<string, unknown>).label;
+          }
+          if (sourceValue !== undefined) {
+            const allFields = entity.fields || [];
+            const slugLookup: Record<string, string> = {};
+            for (const f of allFields) {
+              if (f.slug) slugLookup[f.slug] = f.slug;
+              if (f.name) slugLookup[f.name] = f.slug || f.name;
+            }
+            const resolvedTarget = slugLookup[autoFill.targetField] || autoFill.targetField;
+            updates[resolvedTarget] = sourceValue;
+          }
+        }
+      } else if (autoFill.valueTemplate) {
         // Use template directly (e.g., {{now}}, {{allFilled:...}})
         updates[autoFill.targetField] = resolveValueTemplate(autoFill.valueTemplate, updatedFormData);
       } else if (autoFill.apiEndpoint && tid) {
@@ -704,7 +698,7 @@ export function RecordFormDialog({
             <SearchableSelect
               options={relOpts}
               value={String(value || '')}
-              onChange={(val) => handleRelationChange(field, String(val))}
+              onChange={(val) => handleFieldChange(field.slug, String(val))}
               placeholder={field.placeholder || tCommon('select')}
               disabled={isFieldDisabled}
               loading={isLoadingRel}

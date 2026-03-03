@@ -352,11 +352,15 @@ function EntityDetailPageContent() {
   // ─── onChangeAutoFill rules ────────────────────────────────────────────
   const addOnChangeRule = (fieldIndex: number) => {
     const field = fields[fieldIndex];
-    const onChangeAutoFill = [...(field.onChangeAutoFill || []), { targetField: '', valueTemplate: '{{now}}' }];
+    const isRelationLike = field.type === 'relation' || field.type === 'api-select';
+    const newRule = isRelationLike
+      ? { targetField: '', sourceField: '' }
+      : { targetField: '', valueTemplate: '{{now}}' };
+    const onChangeAutoFill = [...(field.onChangeAutoFill || []), newRule];
     updateField(fieldIndex, { onChangeAutoFill });
   };
 
-  const updateOnChangeRule = (fieldIndex: number, ruleIndex: number, updates: Partial<{ targetField: string; apiEndpoint: string | undefined; valueTemplate: string | undefined }>) => {
+  const updateOnChangeRule = (fieldIndex: number, ruleIndex: number, updates: Partial<{ targetField: string; sourceField: string | undefined; apiEndpoint: string | undefined; valueTemplate: string | undefined }>) => {
     const field = fields[fieldIndex];
     const onChangeAutoFill = [...(field.onChangeAutoFill || [])];
     onChangeAutoFill[ruleIndex] = { ...onChangeAutoFill[ruleIndex], ...updates };
@@ -469,6 +473,22 @@ function EntityDetailPageContent() {
   const renderOnChangeAutoFill = (field: Partial<Field>, index: number) => {
     const rules = field.onChangeAutoFill || [];
     if (rules.length === 0) return null;
+    const isRelationLike = field.type === 'relation' || field.type === 'api-select';
+    // Get source fields for relation/api-select
+    const getSourceFields = () => {
+      if (field.type === 'relation' && field.relatedEntityId) {
+        return getRelatedEntityFields(field.relatedEntityId).map((f: any) => ({
+          value: f.slug || f.name,
+          label: f.label || f.name,
+        }));
+      }
+      if (field.type === 'api-select' && field.apiFields) {
+        return (field.apiFields as string[]).filter(f => f && f !== 'id').map(f => ({ value: f, label: f }));
+      }
+      return [];
+    };
+    const sourceFields = isRelationLike ? getSourceFields() : [];
+
     return (
       <div className="space-y-3 mt-3 p-3 bg-teal-50 dark:bg-teal-950/20 rounded-lg border border-teal-200 dark:border-teal-800">
         <div className="flex items-center justify-between gap-2">
@@ -479,9 +499,28 @@ function EntityDetailPageContent() {
         </div>
         <p className="text-xs text-muted-foreground">{tFieldConfig('onChangeAutoFillDescription')}</p>
         {rules.map((rule, ruleIdx) => {
-          const isApiMode = rule.apiEndpoint !== undefined && rule.apiEndpoint !== null;
+          const isCopyMode = rule.sourceField !== undefined && rule.sourceField !== null;
+          const isApiMode = !isCopyMode && rule.apiEndpoint !== undefined && rule.apiEndpoint !== null;
+          const currentMode = isCopyMode ? 'copy' : isApiMode ? 'api' : 'template';
           return (
             <div key={ruleIdx} className="flex flex-col sm:flex-row sm:items-center gap-2 bg-background/50 p-2 rounded border">
+              {isCopyMode ? (
+                <>
+                  <Select value={rule.sourceField || ''} onValueChange={(val) => updateOnChangeRule(index, ruleIdx, { sourceField: val })}>
+                    <SelectTrigger className="h-7 text-xs flex-1"><SelectValue placeholder={tFieldConfig('sourceField')} /></SelectTrigger>
+                    <SelectContent>
+                      {sourceFields.length === 0 ? (
+                        <SelectItem value="__empty__" disabled>{tFieldConfig('selectEntityFirst')}</SelectItem>
+                      ) : (
+                        sourceFields.map(sf => (
+                          <SelectItem key={sf.value} value={sf.value}>{sf.label}</SelectItem>
+                        ))
+                      )}
+                    </SelectContent>
+                  </Select>
+                  <span className="text-xs text-muted-foreground">→</span>
+                </>
+              ) : null}
               <Select value={rule.targetField || ''} onValueChange={(val) => updateOnChangeRule(index, ruleIdx, { targetField: val })}>
                 <SelectTrigger className="h-7 text-xs flex-1"><SelectValue placeholder={tFieldConfig('onChangeTarget')} /></SelectTrigger>
                 <SelectContent>
@@ -492,18 +531,37 @@ function EntityDetailPageContent() {
                   ))}
                 </SelectContent>
               </Select>
-              <span className="text-xs text-muted-foreground">=</span>
-              <Select value={isApiMode ? 'api' : 'template'} onValueChange={(val) => {
-                if (val === 'api') updateOnChangeRule(index, ruleIdx, { apiEndpoint: '', valueTemplate: undefined });
-                else updateOnChangeRule(index, ruleIdx, { apiEndpoint: undefined, valueTemplate: '{{now}}' });
-              }}>
-                <SelectTrigger className="h-7 text-xs w-28"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="template">{tFieldConfig('onChangeTemplate')}</SelectItem>
-                  <SelectItem value="api">{tFieldConfig('onChangeApi')}</SelectItem>
-                </SelectContent>
-              </Select>
-              {!isApiMode ? (
+              {!isCopyMode && (
+                <>
+                  <span className="text-xs text-muted-foreground">=</span>
+                  <Select value={currentMode} onValueChange={(val) => {
+                    if (val === 'copy') updateOnChangeRule(index, ruleIdx, { sourceField: '', apiEndpoint: undefined, valueTemplate: undefined });
+                    else if (val === 'api') updateOnChangeRule(index, ruleIdx, { sourceField: undefined, apiEndpoint: '', valueTemplate: undefined });
+                    else updateOnChangeRule(index, ruleIdx, { sourceField: undefined, apiEndpoint: undefined, valueTemplate: '{{now}}' });
+                  }}>
+                    <SelectTrigger className="h-7 text-xs w-32"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {isRelationLike && <SelectItem value="copy">{tFieldConfig('onChangeCopyField')}</SelectItem>}
+                      <SelectItem value="template">{tFieldConfig('onChangeTemplate')}</SelectItem>
+                      <SelectItem value="api">{tFieldConfig('onChangeApi')}</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </>
+              )}
+              {isCopyMode && (
+                <Select value={currentMode} onValueChange={(val) => {
+                  if (val === 'api') updateOnChangeRule(index, ruleIdx, { sourceField: undefined, apiEndpoint: '', valueTemplate: undefined });
+                  else if (val === 'template') updateOnChangeRule(index, ruleIdx, { sourceField: undefined, apiEndpoint: undefined, valueTemplate: '{{now}}' });
+                }}>
+                  <SelectTrigger className="h-7 text-xs w-32"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="copy">{tFieldConfig('onChangeCopyField')}</SelectItem>
+                    <SelectItem value="template">{tFieldConfig('onChangeTemplate')}</SelectItem>
+                    <SelectItem value="api">{tFieldConfig('onChangeApi')}</SelectItem>
+                  </SelectContent>
+                </Select>
+              )}
+              {currentMode === 'template' && (
                 <Select value={rule.valueTemplate || '{{now}}'} onValueChange={(val) => updateOnChangeRule(index, ruleIdx, { valueTemplate: val })}>
                   <SelectTrigger className="h-7 text-xs flex-1"><SelectValue /></SelectTrigger>
                   <SelectContent>
@@ -512,7 +570,8 @@ function EntityDetailPageContent() {
                     <SelectItem value="{{timestamp}}">{tFieldConfig('templateTimestamp')}</SelectItem>
                   </SelectContent>
                 </Select>
-              ) : (
+              )}
+              {currentMode === 'api' && (
                 <Select value={rule.apiEndpoint || ''} onValueChange={(val) => updateOnChangeRule(index, ruleIdx, { apiEndpoint: val })}>
                   <SelectTrigger className="h-7 text-xs flex-1"><SelectValue placeholder={tFieldConfig('selectDataApi')} /></SelectTrigger>
                   <SelectContent>

@@ -425,6 +425,8 @@
       "onChangeMode": "Modo",
       "onChangeTemplate": "Plantilla",
       "onChangeApi": "API Personalizada",
+      "onChangeCopyField": "Copiar campo",
+      "selectEntityFirst": "Seleccione la entidad primero",
       "templateNow": "Fecha/hora actual",
       "templateToday": "Fecha actual",
       "templateTimestamp": "Timestamp (ms)",

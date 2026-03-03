@@ -292,11 +292,12 @@ export interface EntityField {
   multiple?: boolean;
   maxFiles?: number;
 
-  // Auto-fill on field change (for computed fields via custom-api)
+  // Auto-fill on field change
   onChangeAutoFill?: Array<{
     targetField: string;      // Campo a ser preenchido
-    apiEndpoint?: string;     // Endpoint do custom-api (opcional)
-    valueTemplate?: string;   // Template de valor como {{now}} (opcional, usado se nao tiver apiEndpoint)
+    sourceField?: string;     // Campo do registro relacionado a copiar (modo copiar campo - relation/api-select)
+    apiEndpoint?: string;     // Endpoint do custom-api (modo API)
+    valueTemplate?: string;   // Template de valor como {{now}} (modo template)
   }>;
 
   // zone-diagram specific

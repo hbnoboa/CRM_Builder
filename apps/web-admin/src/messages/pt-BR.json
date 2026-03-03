@@ -428,6 +428,8 @@
       "onChangeMode": "Modo",
       "onChangeTemplate": "Template",
       "onChangeApi": "Custom API",
+      "onChangeCopyField": "Copiar campo",
+      "selectEntityFirst": "Selecione a entidade primeiro",
       "templateNow": "Data/hora atual",
       "templateToday": "Data atual",
       "templateTimestamp": "Timestamp (ms)",

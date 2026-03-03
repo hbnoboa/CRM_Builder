@@ -425,6 +425,8 @@
       "onChangeMode": "Mode",
       "onChangeTemplate": "Template",
       "onChangeApi": "Custom API",
+      "onChangeCopyField": "Copy field",
+      "selectEntityFirst": "Select entity first",
       "templateNow": "Current date/time",
       "templateToday": "Current date",
       "templateTimestamp": "Timestamp (ms)",
