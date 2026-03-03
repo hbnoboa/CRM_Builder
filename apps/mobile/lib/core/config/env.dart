@@ -10,7 +10,7 @@ class Env {
 
   static const String powerSyncUrl = String.fromEnvironment(
     'POWERSYNC_URL',
-    defaultValue: 'https://iossystem.com.br:8081',
+    defaultValue: 'https://iossystem.com.br/powersync',
   );
 
   /// Timeout for API calls in milliseconds.
