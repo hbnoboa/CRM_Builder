@@ -95,6 +95,11 @@ model Tenant {
   actionChains    ActionChain[]
   scheduledTasks  ScheduledTask[]
 
+  // Automacoes Unificadas
+  entityAutomations    EntityAutomation[]
+  automationExecutions AutomationExecution[]
+  entityFieldRules     EntityFieldRule[]
+
   @@index([slug])
   @@index([status])
 }
@@ -201,6 +206,8 @@ model Entity {
   archivedData    ArchivedEntityData[]
   customEndpoints CustomEndpoint[]
   pdfTemplates    PdfTemplate[]
+  automations     EntityAutomation[]
+  fieldRules      EntityFieldRule[]
 
   @@unique([tenantId, slug])
   @@index([tenantId])
@@ -931,5 +938,126 @@ model ApiExecutionLog {
   @@index([tenantId, createdAt(sort: Desc)])
   @@index([tenantId, status])
   @@index([customApiId, createdAt(sort: Desc)])
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ENTITY AUTOMATION (Sistema unificado de automacoes)
+// ═══════════════════════════════════════════════════════════════════════════
+
+enum AutomationTrigger {
+  ON_CREATE
+  ON_UPDATE
+  ON_DELETE
+  ON_FIELD_CHANGE
+  ON_STATUS_CHANGE
+  SCHEDULE
+  MANUAL
+}
+
+model EntityAutomation {
+  id       String @id @default(cuid())
+  tenantId String
+  entityId String
+
+  name        String
+  description String?
+  isActive    Boolean @default(true)
+
+  // Trigger
+  trigger       AutomationTrigger
+  triggerConfig Json? // ON_FIELD_CHANGE: { fieldSlug, fromValue?, toValue? }
+                      // ON_STATUS_CHANGE: { fromStatus?, toStatus? }
+                      // SCHEDULE: { cronExpression, timezone }
+
+  // Condicoes para execucao (AND logico)
+  conditions Json? // [{ field, operator, value }]
+
+  // Acoes sequenciais
+  actions Json @default("[]") // [{ order, type, config, condition? }]
+  // Tipos: send_email, call_webhook, update_field, create_record,
+  //        notify_user, change_status, wait
+
+  errorHandling String @default("stop") // 'stop' | 'continue'
+
+  // Rate limiting
+  maxExecutionsPerHour Int @default(100)
+
+  // Scheduling (para trigger SCHEDULE)
+  lastRunAt DateTime?
+  nextRunAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant     Tenant                @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  entity     Entity                @relation(fields: [entityId], references: [id], onDelete: Cascade)
+  executions AutomationExecution[]
+
+  @@index([tenantId])
+  @@index([entityId])
+  @@index([tenantId, entityId, isActive])
+  @@index([trigger, isActive])
+  @@index([nextRunAt])
+}
+
+model AutomationExecution {
+  id           String @id @default(cuid())
+  automationId String
+  tenantId     String
+  recordId     String?
+
+  triggeredBy String  // 'system:on_create', 'user:<userId>', 'cron'
+  inputData   Json?
+
+  currentStep Int    @default(0)
+  totalSteps  Int    @default(0)
+  status      String @default("running") // 'running','completed','failed','cancelled'
+
+  stepResults  Json    @default("[]")
+  errorMessage String?
+  duration     Int? // ms
+
+  startedAt   DateTime  @default(now())
+  completedAt DateTime?
+
+  automation EntityAutomation @relation(fields: [automationId], references: [id], onDelete: Cascade)
+  tenant     Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([automationId])
+  @@index([tenantId])
+  @@index([status])
+  @@index([tenantId, startedAt(sort: Desc)])
+  @@index([automationId, startedAt(sort: Desc)])
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ENTITY FIELD RULES (Regras de campo: obrigatoriedade, visibilidade, etc.)
+// ═══════════════════════════════════════════════════════════════════════════
+
+model EntityFieldRule {
+  id        String @id @default(cuid())
+  tenantId  String
+  entityId  String
+  fieldSlug String
+
+  ruleType String // 'required' | 'visible' | 'default' | 'computed' | 'validation'
+
+  // Quando a regra se aplica (null = sempre)
+  condition Json? // { field, operator, value }
+
+  // Configuracao baseada no ruleType
+  config Json
+
+  priority Int     @default(0)
+  isActive Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  entity Entity @relation(fields: [entityId], references: [id], onDelete: Cascade)
+
+  @@index([entityId, fieldSlug])
+  @@index([tenantId, entityId])
 }
 

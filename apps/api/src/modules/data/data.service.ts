@@ -6,6 +6,7 @@ import { CustomRoleService } from '../custom-role/custom-role.service';
 import { ComputedFieldsService } from './computed-fields.service';
 import { WebhookService } from '../webhook/webhook.service';
 import { ActionChainService } from '../action-chain/action-chain.service';
+import { EntityAutomationService } from '../entity-automation/entity-automation.service';
 import { Prisma, EntityData, Entity } from '@prisma/client';
 import {
   CurrentUser,
@@ -113,6 +114,7 @@ export class DataService {
     private computedFieldsService: ComputedFieldsService,
     @Optional() @Inject(WebhookService) private webhookService?: WebhookService,
     @Optional() @Inject(ActionChainService) private actionChainService?: ActionChainService,
+    @Optional() @Inject(EntityAutomationService) private entityAutomationService?: EntityAutomationService,
   ) {}
 
   /**
@@ -135,14 +137,14 @@ export class DataService {
       entity: { id: entity.id, slug: entity.slug, name: entity.name },
     };
 
-    // Disparar webhooks
+    // Disparar webhooks (legado)
     if (this.webhookService) {
       this.webhookService.triggerWebhooks(tenantId, context).catch((err) => {
         this.logger.error(`Erro ao disparar webhooks: ${err.message}`);
       });
     }
 
-    // Disparar action chains
+    // Disparar action chains (legado)
     if (this.actionChainService) {
       this.actionChainService.triggerByEvent(tenantId, event, {
         recordId: record.id as string,
@@ -151,6 +153,20 @@ export class DataService {
         entity: context.entity,
       }).catch((err) => {
         this.logger.error(`Erro ao disparar action chains: ${err.message}`);
+      });
+    }
+
+    // Disparar automacoes unificadas (novo sistema)
+    if (this.entityAutomationService) {
+      this.entityAutomationService.triggerByEvent(tenantId, entity.id, event, {
+        event,
+        recordId: record.id as string,
+        record,
+        previousRecord,
+        user: context.user,
+        entity: context.entity,
+      }).catch((err) => {
+        this.logger.error(`Erro ao disparar automacoes unificadas: ${err.message}`);
       });
     }
   }

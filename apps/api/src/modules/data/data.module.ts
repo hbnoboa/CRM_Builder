@@ -10,6 +10,7 @@ import { NotificationModule } from '../notification/notification.module';
 import { CustomRoleModule } from '../custom-role/custom-role.module';
 import { WebhookModule } from '../webhook/webhook.module';
 import { ActionChainModule } from '../action-chain/action-chain.module';
+import { EntityAutomationModule } from '../entity-automation/entity-automation.module';
 
 @Module({
   imports: [
@@ -18,6 +19,7 @@ import { ActionChainModule } from '../action-chain/action-chain.module';
     CustomRoleModule,
     forwardRef(() => WebhookModule),
     forwardRef(() => ActionChainModule),
+    forwardRef(() => EntityAutomationModule),
     MulterModule.register({
       storage: memoryStorage(),
       limits: { fileSize: 10 * 1024 * 1024 }, // 10MB

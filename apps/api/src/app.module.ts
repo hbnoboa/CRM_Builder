@@ -25,6 +25,8 @@ import { ActionChainModule } from './modules/action-chain/action-chain.module';
 import { ScheduledTaskModule } from './modules/scheduled-task/scheduled-task.module';
 import { EscalationModule } from './modules/escalation/escalation.module';
 import { ExecutionLogsModule } from './modules/execution-logs/execution-logs.module';
+import { EntityAutomationModule } from './modules/entity-automation/entity-automation.module';
+import { EntityFieldRuleModule } from './modules/entity-field-rule/entity-field-rule.module';
 
 @Module({
   imports: [
@@ -73,6 +75,10 @@ import { ExecutionLogsModule } from './modules/execution-logs/execution-logs.mod
     // Avancado (Sprint 4)
     EscalationModule,
     ExecutionLogsModule,
+
+    // Automacoes Unificadas (Sprint 5)
+    EntityAutomationModule,
+    EntityFieldRuleModule,
   ],
 })
 export class AppModule {}

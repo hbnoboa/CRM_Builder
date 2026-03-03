@@ -46,6 +46,7 @@ import type { CustomApi } from '@/services/custom-apis.service';
 import type { Entity, Field, FieldType } from '@/types';
 import { usePermissions } from '@/hooks/use-permissions';
 import FieldGridEditor from '@/components/entities/field-grid-editor';
+import { AutomationTab } from '@/components/entity-automation';
 
 // ─── Field Type Definitions ────────────────────────────────────────────────
 // Uses translation keys that are resolved at runtime in the component
@@ -1092,6 +1093,7 @@ function EntityDetailPageContent() {
           <TabsTrigger value="info">{t('basicInfo')}</TabsTrigger>
           <TabsTrigger value="fields">{t('fieldsTab')} ({fields.length})</TabsTrigger>
           <TabsTrigger value="layout">{t('visualLayout')}</TabsTrigger>
+          <TabsTrigger value="automations">Automacoes</TabsTrigger>
         </TabsList>
 
         {/* Info Tab */}
@@ -1333,6 +1335,18 @@ function EntityDetailPageContent() {
               )}
             </CardContent>
           </Card>
+        </TabsContent>
+
+        {/* Automations Tab */}
+        <TabsContent value="automations">
+          <AutomationTab
+            entityId={params.id as string}
+            fields={fields.map(f => ({
+              slug: f.slug || f.name || '',
+              name: f.label || f.name || '',
+              type: f.type || 'text',
+            }))}
+          />
         </TabsContent>
 
       </Tabs>

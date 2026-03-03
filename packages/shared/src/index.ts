@@ -92,3 +92,28 @@ export type { Notification } from './notification';
 // Page
 export type { Page } from './page';
 
+// Automation
+export type {
+  AutomationTrigger,
+  AutomationActionType,
+  ConditionOperator,
+  AutomationCondition,
+  FieldChangeTriggerConfig,
+  StatusChangeTriggerConfig,
+  ScheduleTriggerConfig,
+  TriggerConfig,
+  SendEmailActionConfig,
+  CallWebhookActionConfig,
+  UpdateFieldActionConfig,
+  CreateRecordActionConfig,
+  NotifyUserActionConfig,
+  ChangeStatusActionConfig,
+  WaitActionConfig,
+  AutomationAction,
+  EntityAutomation,
+  AutomationExecution,
+  AutomationStepResult,
+  FieldRuleType,
+  EntityFieldRule,
+} from './automation';
+
