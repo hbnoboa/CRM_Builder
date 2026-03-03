@@ -497,6 +497,16 @@ function DataPageContent() {
     fetchEntities();
   }, [effectiveTenantId]);
 
+  // React to sidebar entity clicks (URL query param changes)
+  useEffect(() => {
+    if (entityParam && entities.length > 0) {
+      const target = entities.find(e => e.slug === entityParam);
+      if (target && target.id !== selectedEntity?.id) {
+        handleEntitySelect(target);
+      }
+    }
+  }, [entityParam]);
+
   const fetchEntities = async () => {
     try {
       const params: Record<string, string> = {};
