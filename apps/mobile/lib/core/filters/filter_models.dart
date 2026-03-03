@@ -62,7 +62,7 @@ List<FilterOperator> operatorsForFieldType(String fieldType) {
     'number', 'currency', 'percentage', 'rating', 'slider',
   ];
   const dateTypes = ['date', 'datetime', 'time'];
-  const selectTypes = ['select', 'multiselect', 'api-select', 'relation'];
+  const selectTypes = ['select', 'multiselect', 'relation'];
 
   if (textTypes.contains(type)) {
     return [

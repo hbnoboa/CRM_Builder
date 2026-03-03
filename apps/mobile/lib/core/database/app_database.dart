@@ -14,6 +14,7 @@ const schema = Schema([
     Column.text('description'),
     Column.text('icon'),
     Column.text('color'),
+    Column.text('category'),
     Column.text('fields'),
     Column.text('settings'),
     Column.integer('isSystem'),
@@ -30,6 +31,18 @@ const schema = Schema([
     Column.text('createdAt'),
     Column.text('updatedAt'),
     Column.text('deletedAt'),
+  ]),
+  Table('EntityFieldRule', [
+    Column.text('tenantId'),
+    Column.text('entityId'),
+    Column.text('fieldSlug'),
+    Column.text('ruleType'),
+    Column.text('condition'),
+    Column.text('config'),
+    Column.integer('priority'),
+    Column.integer('isActive'),
+    Column.text('createdAt'),
+    Column.text('updatedAt'),
   ]),
   Table('CustomRole', [
     Column.text('tenantId'),
@@ -82,12 +95,6 @@ const schema = Schema([
     Column.integer('file_size'),
     Column.text('created_at'),
     Column.text('last_attempt'), // ISO8601 timestamp of last upload attempt
-  ]),
-  // Local-only table for API-SELECT field options cache
-  Table.localOnly('api_select_cache', [
-    Column.text('cache_key'),    // unique key: tenantId + apiEndpoint
-    Column.text('options_json'), // JSON array of options
-    Column.text('updated_at'),   // last fetch timestamp
   ]),
   // Local-only table for pending global filter updates
   // Entity.settings is read-only (synced from server), so we queue

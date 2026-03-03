@@ -11,7 +11,7 @@ import 'package:crm_mobile/shared/utils/icon_mapper.dart';
 import 'package:crm_mobile/shared/widgets/app_drawer.dart';
 import 'package:crm_mobile/shared/widgets/sync_status_indicator.dart';
 
-/// Data entities selector page - shows only parent entities.
+/// Data entities selector page - shows entities grouped by category.
 /// If only one parent entity is available, navigates directly to its list.
 class DataEntitiesPage extends ConsumerStatefulWidget {
   const DataEntitiesPage({super.key});
@@ -23,6 +23,7 @@ class DataEntitiesPage extends ConsumerStatefulWidget {
 class _DataEntitiesPageState extends ConsumerState<DataEntitiesPage> {
   String _searchQuery = '';
   bool _autoNavigated = false;
+  final Set<String> _expandedCategories = {};
 
   /// Collect all slugs that are referenced as SUB_ENTITY by other entities.
   Set<String> _getSubEntitySlugs(List<Map<String, dynamic>> allEntities) {
@@ -43,6 +44,32 @@ class _DataEntitiesPageState extends ConsumerState<DataEntitiesPage> {
       } catch (_) {}
     }
     return subSlugs;
+  }
+
+  /// Group entities by category
+  Map<String, List<Map<String, dynamic>>> _groupByCategory(
+    List<Map<String, dynamic>> entities,
+  ) {
+    final grouped = <String, List<Map<String, dynamic>>>{};
+    for (final entity in entities) {
+      final category = entity['category'] as String? ?? '';
+      grouped.putIfAbsent(category, () => []).add(entity);
+    }
+    // Sort categories: non-empty first (alphabetically), then empty category last
+    final sortedKeys = grouped.keys.toList()
+      ..sort((a, b) {
+        if (a.isEmpty && b.isNotEmpty) return 1;
+        if (a.isNotEmpty && b.isEmpty) return -1;
+        return a.compareTo(b);
+      });
+    return {for (final key in sortedKeys) key: grouped[key]!};
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    // Start with all categories expanded
+    _expandedCategories.add(''); // Uncategorized
   }
 
   @override
@@ -130,13 +157,13 @@ class _DataEntitiesPageState extends ConsumerState<DataEntitiesPage> {
             },
           ),
 
-        // Entities list
+        // Entities list grouped by category
         Expanded(
           child: StreamBuilder<List<Map<String, dynamic>>>(
             stream: db.watch(
               'SELECT e.*, '
               '(SELECT COUNT(*) FROM EntityData WHERE entityId = e.id AND deletedAt IS NULL) as recordCount '
-              'FROM Entity e ORDER BY e.name ASC',
+              'FROM Entity e ORDER BY e.category ASC, e.name ASC',
             ),
             builder: (context, snapshot) {
               final allEntities = snapshot.data ?? [];
@@ -155,6 +182,7 @@ class _DataEntitiesPageState extends ConsumerState<DataEntitiesPage> {
                 final name = (e['name'] as String? ?? '').toLowerCase();
                 final namePlural =
                     (e['namePlural'] as String? ?? '').toLowerCase();
+                final category = (e['category'] as String? ?? '').toLowerCase();
                 final search = _searchQuery.toLowerCase();
 
                 final hasPermission =
@@ -164,7 +192,8 @@ class _DataEntitiesPageState extends ConsumerState<DataEntitiesPage> {
                 final matchesSearch = search.isEmpty ||
                     name.contains(search) ||
                     namePlural.contains(search) ||
-                    slug.contains(search);
+                    slug.contains(search) ||
+                    category.contains(search);
 
                 return hasPermission && matchesSearch;
               }).toList();
@@ -195,11 +224,35 @@ class _DataEntitiesPageState extends ConsumerState<DataEntitiesPage> {
                 return _buildEmptyState();
               }
 
+              // Group by category
+              final grouped = _groupByCategory(filteredEntities);
+
+              // If only one category, don't show category headers
+              if (grouped.length == 1) {
+                final entities = grouped.values.first;
+                return ListView.builder(
+                  padding: const EdgeInsets.all(AppColors.spaceMd),
+                  itemCount: entities.length,
+                  itemBuilder: (context, index) {
+                    return _buildEntityCard(entities[index], index);
+                  },
+                );
+              }
+
+              // Expand all categories when searching
+              if (_searchQuery.isNotEmpty) {
+                for (final cat in grouped.keys) {
+                  _expandedCategories.add(cat);
+                }
+              }
+
               return ListView.builder(
                 padding: const EdgeInsets.all(AppColors.spaceMd),
-                itemCount: filteredEntities.length,
+                itemCount: grouped.length,
                 itemBuilder: (context, index) {
-                  return _buildEntityCard(filteredEntities[index], index);
+                  final category = grouped.keys.elementAt(index);
+                  final entities = grouped[category]!;
+                  return _buildCategorySection(category, entities, index);
                 },
               );
             },
@@ -207,6 +260,87 @@ class _DataEntitiesPageState extends ConsumerState<DataEntitiesPage> {
         ),
         ],
       ),
+    );
+  }
+
+  Widget _buildCategorySection(
+    String category,
+    List<Map<String, dynamic>> entities,
+    int categoryIndex,
+  ) {
+    final isExpanded = _expandedCategories.contains(category);
+    final categoryName = category.isEmpty ? 'Outros' : category;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Category header
+        InkWell(
+          onTap: () {
+            setState(() {
+              if (isExpanded) {
+                _expandedCategories.remove(category);
+              } else {
+                _expandedCategories.add(category);
+              }
+            });
+          },
+          borderRadius: BorderRadius.circular(AppColors.radiusMd),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(
+              vertical: AppColors.spaceSm,
+              horizontal: AppColors.spaceXs,
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  isExpanded ? Icons.expand_more : Icons.chevron_right,
+                  size: 20,
+                  color: context.colors.mutedForeground,
+                ),
+                const SizedBox(width: AppColors.spaceXs),
+                Icon(
+                  Icons.folder_outlined,
+                  size: 18,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
+                const SizedBox(width: AppColors.spaceSm),
+                Expanded(
+                  child: Text(
+                    categoryName,
+                    style: AppTypography.labelLarge.copyWith(
+                      fontWeight: FontWeight.w600,
+                      color: Theme.of(context).colorScheme.onSurface,
+                    ),
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(AppColors.radiusFull),
+                  ),
+                  child: Text(
+                    '${entities.length}',
+                    style: AppTypography.caption.copyWith(
+                      color: Theme.of(context).colorScheme.primary,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        // Entities in category
+        if (isExpanded) ...[
+          const SizedBox(height: AppColors.spaceSm),
+          ...entities.asMap().entries.map((entry) {
+            return _buildEntityCard(entry.value, categoryIndex * 10 + entry.key);
+          }),
+          const SizedBox(height: AppColors.spaceMd),
+        ],
+      ],
     );
   }
 

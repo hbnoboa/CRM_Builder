@@ -6,12 +6,14 @@ import 'package:uuid/uuid.dart';
 import 'package:crm_mobile/core/location/geolocation_service.dart';
 import 'package:crm_mobile/core/theme/app_colors_extension.dart';
 import 'package:crm_mobile/core/permissions/permission_provider.dart';
+import 'package:crm_mobile/core/field_rules/field_rule_evaluator.dart';
 import 'package:crm_mobile/features/data/data/data_repository.dart';
 import 'package:crm_mobile/features/data/widgets/dynamic_field.dart';
 import 'package:crm_mobile/features/data/widgets/sub_entity_section.dart';
 
 /// Dynamic form for creating/editing entity data records.
 /// Renders form fields based on entity.fields JSON schema.
+/// Supports dynamic field rules for conditional required/visible/default.
 class DataFormPage extends ConsumerStatefulWidget {
   const DataFormPage({
     super.key,
@@ -39,7 +41,9 @@ class _DataFormPageState extends ConsumerState<DataFormPage> {
   bool _saved = false;
   List<dynamic> _fields = [];
   String _entityName = '';
+  String _entityId = '';
   bool _captureLocation = false;
+  FieldRuleEvaluator? _ruleEvaluator;
 
   /// Record ID - either from widget (editing) or pre-generated UUID (new record).
   /// Pre-generating allows image uploads to reference the correct record.
@@ -61,6 +65,7 @@ class _DataFormPageState extends ConsumerState<DataFormPage> {
     if (entity == null) return;
 
     _entityName = entity['name'] as String? ?? widget.entitySlug;
+    _entityId = entity['id'] as String? ?? '';
 
     try {
       _fields = jsonDecode(entity['fields'] as String? ?? '[]');
@@ -93,6 +98,11 @@ class _DataFormPageState extends ConsumerState<DataFormPage> {
       }
     } catch (_) {}
 
+    // Load field rules for this entity
+    if (_entityId.isNotEmpty) {
+      _ruleEvaluator = await FieldRuleEvaluator.loadForEntity(_entityId);
+    }
+
     // If editing, load existing record
     if (widget.isEditing) {
       final record = await repo.getRecord(widget.recordId!);
@@ -109,6 +119,17 @@ class _DataFormPageState extends ConsumerState<DataFormPage> {
       for (final field in _fields) {
         final f = field as Map<String, dynamic>;
         final slug = f['slug'] as String? ?? '';
+
+        // First check field rules for defaults
+        if (_ruleEvaluator != null && slug.isNotEmpty) {
+          final ruleDefault = _ruleEvaluator!.getDefaultValue(slug, _values);
+          if (ruleDefault != null && !_values.containsKey(slug)) {
+            _values[slug] = ruleDefault;
+            continue;
+          }
+        }
+
+        // Then check static field default
         final defaultValue = f['default'];
         if (slug.isNotEmpty && defaultValue != null && !_values.containsKey(slug)) {
           _values[slug] = defaultValue;
@@ -118,6 +139,49 @@ class _DataFormPageState extends ConsumerState<DataFormPage> {
 
     _initialValues = Map<String, dynamic>.from(_values);
     setState(() => _isInitialized = true);
+  }
+
+  /// Check if a field is required (static required + dynamic rules)
+  bool _isFieldRequired(Map<String, dynamic> field) {
+    final slug = field['slug'] as String? ?? '';
+
+    // Static required from field definition
+    if (field['required'] == true) return true;
+
+    // Dynamic required from rules
+    if (_ruleEvaluator != null && slug.isNotEmpty) {
+      return _ruleEvaluator!.isFieldRequired(slug, _values);
+    }
+
+    return false;
+  }
+
+  /// Check if a field is visible (static + dynamic rules)
+  bool _isFieldVisible(Map<String, dynamic> field) {
+    final slug = field['slug'] as String? ?? '';
+
+    // Dynamic visibility from rules
+    if (_ruleEvaluator != null && slug.isNotEmpty) {
+      return _ruleEvaluator!.isFieldVisible(slug, _values);
+    }
+
+    return true;
+  }
+
+  /// Update computed fields when values change
+  void _updateComputedFields() {
+    if (_ruleEvaluator == null) return;
+
+    for (final field in _fields) {
+      final f = field as Map<String, dynamic>;
+      final slug = f['slug'] as String? ?? '';
+      if (slug.isEmpty) continue;
+
+      final computed = _ruleEvaluator!.getComputedValue(slug, _values);
+      if (computed != null && computed != _values[slug]) {
+        _values[slug] = computed;
+      }
+    }
   }
 
   bool get _hasUnsavedChanges {
@@ -142,12 +206,18 @@ class _DataFormPageState extends ConsumerState<DataFormPage> {
     for (final field in _fields) {
       final f = field as Map<String, dynamic>;
       final type = (f['type'] as String? ?? '').toUpperCase().replaceAll('-', '_');
-      if (type == 'SUB_ENTITY') continue;
+      if (type == 'SUB_ENTITY' || type == 'SECTION') continue;
+
       final slug = f['slug'] as String? ?? '';
+
+      // Skip required check for non-visible fields
+      if (!_isFieldVisible(f)) continue;
+
       // Skip required check for fields the user cannot edit
       if (editableFields != null && !editableFields.contains(slug)) continue;
-      final required = f['required'] == true;
-      if (!required) continue;
+
+      // Check if required (static + dynamic)
+      if (!_isFieldRequired(f)) continue;
 
       final value = _values[slug];
       if (value == null || value.toString().trim().isEmpty) {
@@ -164,6 +234,25 @@ class _DataFormPageState extends ConsumerState<DataFormPage> {
         );
       }
       return;
+    }
+
+    // Validate with custom field rules
+    if (_ruleEvaluator != null) {
+      for (final field in _fields) {
+        final f = field as Map<String, dynamic>;
+        final slug = f['slug'] as String? ?? '';
+        if (slug.isEmpty || !_isFieldVisible(f)) continue;
+
+        final error = _ruleEvaluator!.validateField(slug, _values[slug], _values);
+        if (error != null) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text(error)),
+            );
+          }
+          return;
+        }
+      }
     }
 
     // Dismiss keyboard before submitting
@@ -350,31 +439,51 @@ class _DataFormPageState extends ConsumerState<DataFormPage> {
                       final fieldMap = f as Map<String, dynamic>;
                       final type = (fieldMap['type']?.toString().toUpperCase() ?? '').replaceAll('-', '_');
                       if (type == 'SUB_ENTITY') return false;
+
                       // Field-level permissions: hide non-visible fields
                       if (visibleFields != null) {
                         final slug = fieldMap['slug'] as String? ?? '';
-                        return visibleFields.contains(slug);
+                        if (!visibleFields.contains(slug)) return false;
                       }
+
+                      // Dynamic visibility from field rules
+                      if (!_isFieldVisible(fieldMap)) return false;
+
                       return true;
                     })
                     .map<Widget>((field) {
                   final fieldMap = field as Map<String, dynamic>;
                   final slug = fieldMap['slug'] as String? ?? '';
                   final canEdit = editableFields == null || editableFields.contains(slug);
+
+                  // Add dynamic required indicator
+                  final isRequired = _isFieldRequired(fieldMap);
+                  final fieldWithRequired = Map<String, dynamic>.from(fieldMap);
+                  if (isRequired && fieldWithRequired['required'] != true) {
+                    fieldWithRequired['required'] = true;
+                  }
+
                   return Padding(
                     padding: const EdgeInsets.only(bottom: 16),
                     child: DynamicFieldInput(
-                      field: fieldMap,
+                      field: fieldWithRequired,
                       value: _values[slug],
                       enabled: canEdit,
                       allFields: _fields,
                       entitySlug: widget.entitySlug,
                       recordId: _recordId,
                       onChanged: (value) {
-                        setState(() => _values[slug] = value);
+                        setState(() {
+                          _values[slug] = value;
+                          // Update computed fields when any value changes
+                          _updateComputedFields();
+                        });
                       },
                       onAutoFill: (updates) {
-                        setState(() => _values.addAll(updates));
+                        setState(() {
+                          _values.addAll(updates);
+                          _updateComputedFields();
+                        });
                       },
                     ),
                   );

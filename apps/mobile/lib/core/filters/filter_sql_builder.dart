@@ -98,7 +98,7 @@ class FilterSqlBuilder {
     if (type == 'boolean') {
       return _boolClause(jsonPath, operator, value);
     }
-    if (type == 'select' || type == 'multiselect' || type == 'api-select' || type == 'relation') {
+    if (type == 'select' || type == 'multiselect' || type == 'relation') {
       return _selectClause(jsonPath, operator, value);
     }
     // Fallback: treat as text
