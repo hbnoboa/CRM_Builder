@@ -47,6 +47,7 @@ class User {
         status: json['status'] as String?,
         lastLoginAt: json['lastLoginAt'] as String?,
         createdAt: json['createdAt'] as String?,
+        hasMultipleTenants: json['hasMultipleTenants'] as bool? ?? false,
       );
   const User({
     required this.id,
@@ -58,6 +59,7 @@ class User {
     this.status,
     this.lastLoginAt,
     this.createdAt,
+    this.hasMultipleTenants = false,
   });
 
   final String id;
@@ -69,6 +71,7 @@ class User {
   final String? status;
   final String? lastLoginAt;
   final String? createdAt;
+  final bool hasMultipleTenants;
 }
 
 class CustomRole {
@@ -805,6 +808,11 @@ class Auth extends _$Auth {
 
   void clearError() {
     state = state.copyWith(clearError: true);
+  }
+
+  /// Update user after tenant switch.
+  void updateUser(User user) {
+    state = state.copyWith(user: user);
   }
 
   String _extractErrorMessage(dynamic error, String fallback) {

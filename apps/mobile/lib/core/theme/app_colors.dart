@@ -8,10 +8,10 @@ class AppColors {
   // BRAND COLORS
   // ═══════════════════════════════════════════════════════
 
-  /// Primary brand color - Vibrant Blue
-  static const Color primary = Color(0xFF3B82F6);
-  static const Color primaryLight = Color(0xFF60A5FA);
-  static const Color primaryDark = Color(0xFF2563EB);
+  /// Primary brand color - Neutral Gray (default before tenant theme loads)
+  static const Color primary = Color(0xFF64748B);
+  static const Color primaryLight = Color(0xFF94A3B8);
+  static const Color primaryDark = Color(0xFF475569);
   static const Color primaryForeground = Color(0xFFFFFFFF);
 
   /// Secondary - Soft Purple
@@ -43,7 +43,7 @@ class AppColors {
   static const Color border = Color(0xFFE2E8F0);
   static const Color borderLight = Color(0xFFF1F5F9);
   static const Color input = Color(0xFFE2E8F0);
-  static const Color ring = Color(0xFF3B82F6);
+  static const Color ring = Color(0xFF64748B);
 
   // ═══════════════════════════════════════════════════════
   // SEMANTIC COLORS

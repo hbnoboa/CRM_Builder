@@ -23,9 +23,21 @@ class AppDrawer extends ConsumerWidget {
     final currentPath = GoRouterState.of(context).uri.path;
     final tenantState = ref.watch(tenantSwitchProvider);
     final isPlatformAdmin = user?.customRole?.roleType == 'PLATFORM_ADMIN';
+    final hasMultipleTenants = user?.hasMultipleTenants ?? false;
 
-    final currentTenantName = tenantState.selectedTenantName ??
-        (user != null ? _getUserTenantName(user) : null);
+    // Show tenant selector for PLATFORM_ADMIN or multi-tenant users
+    final showTenantSelector = isPlatformAdmin || hasMultipleTenants;
+
+    // Get current tenant name
+    String? currentTenantName;
+    if (tenantState.selectedTenantName != null) {
+      currentTenantName = tenantState.selectedTenantName;
+    } else if (hasMultipleTenants && tenantState.accessibleTenants.isNotEmpty) {
+      final current = tenantState.accessibleTenants
+          .where((t) => t.id == user?.tenantId)
+          .firstOrNull;
+      currentTenantName = current?.name;
+    }
 
     return Drawer(
       child: SafeArea(
@@ -101,13 +113,17 @@ class AppDrawer extends ConsumerWidget {
               ),
             ),
 
-            // Tenant selector (PLATFORM_ADMIN only)
-            if (isPlatformAdmin)
+            // Tenant selector (PLATFORM_ADMIN or multi-tenant users)
+            if (showTenantSelector)
               ListTile(
                 dense: true,
-                leading: Icon(Icons.swap_horiz, size: 20, color: colors.mutedForeground),
+                leading: Icon(
+                  isPlatformAdmin ? Icons.swap_horiz : Icons.business,
+                  size: 20,
+                  color: colors.mutedForeground,
+                ),
                 title: Text(
-                  currentTenantName ?? 'Meu tenant',
+                  currentTenantName ?? 'Selecionar tenant',
                   style: AppTypography.bodySmall.copyWith(
                     fontWeight: FontWeight.w500,
                   ),
@@ -121,7 +137,12 @@ class AppDrawer extends ConsumerWidget {
                         child: CircularProgressIndicator(strokeWidth: 2),
                       )
                     : Icon(Icons.unfold_more, size: 18, color: colors.mutedForeground),
-                onTap: () => _showTenantSelector(context, ref),
+                onTap: () => _showTenantSelector(
+                  context,
+                  ref,
+                  isPlatformAdmin: isPlatformAdmin,
+                  hasMultipleTenants: hasMultipleTenants,
+                ),
               ),
 
             // Menu items
@@ -178,21 +199,34 @@ class AppDrawer extends ConsumerWidget {
     );
   }
 
-  String? _getUserTenantName(User user) => null;
-
-  Future<void> _showTenantSelector(BuildContext context, WidgetRef ref) async {
+  Future<void> _showTenantSelector(
+    BuildContext context,
+    WidgetRef ref, {
+    required bool isPlatformAdmin,
+    required bool hasMultipleTenants,
+  }) async {
     final tenantNotifier = ref.read(tenantSwitchProvider.notifier);
     final tenantState = ref.read(tenantSwitchProvider);
 
-    if (tenantState.tenants.isEmpty && !tenantState.isLoading) {
-      tenantNotifier.loadTenants();
+    // Load appropriate tenant list
+    if (isPlatformAdmin) {
+      if (tenantState.tenants.isEmpty && !tenantState.isLoading) {
+        tenantNotifier.loadTenants();
+      }
+    } else if (hasMultipleTenants) {
+      if (tenantState.accessibleTenants.isEmpty && !tenantState.isLoading) {
+        tenantNotifier.loadAccessibleTenants();
+      }
     }
 
     await showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (ctx) => _TenantSelectorSheet(parentRef: ref),
+      builder: (ctx) => _TenantSelectorSheet(
+        parentRef: ref,
+        isPlatformAdmin: isPlatformAdmin,
+      ),
     );
   }
 
@@ -343,11 +377,16 @@ class _SyncRow extends StatelessWidget {
   }
 }
 
-/// Bottom sheet for selecting a tenant (PLATFORM_ADMIN only).
+/// Bottom sheet for selecting a tenant.
+/// Works for both PLATFORM_ADMIN (all tenants) and multi-tenant users (accessible tenants).
 class _TenantSelectorSheet extends ConsumerStatefulWidget {
-  const _TenantSelectorSheet({required this.parentRef});
+  const _TenantSelectorSheet({
+    required this.parentRef,
+    required this.isPlatformAdmin,
+  });
 
   final WidgetRef parentRef;
+  final bool isPlatformAdmin;
 
   @override
   ConsumerState<_TenantSelectorSheet> createState() => _TenantSelectorSheetState();
@@ -360,8 +399,16 @@ class _TenantSelectorSheetState extends ConsumerState<_TenantSelectorSheet> {
   void initState() {
     super.initState();
     final state = ref.read(tenantSwitchProvider);
-    if (state.tenants.isEmpty && !state.isLoading) {
-      ref.read(tenantSwitchProvider.notifier).loadTenants();
+    final notifier = ref.read(tenantSwitchProvider.notifier);
+
+    if (widget.isPlatformAdmin) {
+      if (state.tenants.isEmpty && !state.isLoading) {
+        notifier.loadTenants();
+      }
+    } else {
+      if (state.accessibleTenants.isEmpty && !state.isLoading) {
+        notifier.loadAccessibleTenants();
+      }
     }
   }
 
@@ -370,12 +417,26 @@ class _TenantSelectorSheetState extends ConsumerState<_TenantSelectorSheet> {
     final theme = Theme.of(context);
     final colors = context.colors;
     final tenantState = ref.watch(tenantSwitchProvider);
-    final filteredTenants = tenantState.tenants.where((t) {
-      if (_search.isEmpty) return true;
-      final searchLower = _search.toLowerCase();
-      return t.name.toLowerCase().contains(searchLower) ||
-          t.slug.toLowerCase().contains(searchLower);
-    }).toList();
+    final authState = ref.watch(authProvider);
+    final currentTenantId = authState.user?.tenantId;
+
+    // Filter tenants based on search
+    final List<dynamic> filteredTenants;
+    if (widget.isPlatformAdmin) {
+      filteredTenants = tenantState.tenants.where((t) {
+        if (_search.isEmpty) return true;
+        final searchLower = _search.toLowerCase();
+        return t.name.toLowerCase().contains(searchLower) ||
+            t.slug.toLowerCase().contains(searchLower);
+      }).toList();
+    } else {
+      filteredTenants = tenantState.accessibleTenants.where((t) {
+        if (_search.isEmpty) return true;
+        final searchLower = _search.toLowerCase();
+        return t.name.toLowerCase().contains(searchLower) ||
+            t.slug.toLowerCase().contains(searchLower);
+      }).toList();
+    }
 
     return Container(
       constraints: BoxConstraints(
@@ -408,9 +469,12 @@ class _TenantSelectorSheetState extends ConsumerState<_TenantSelectorSheet> {
               children: [
                 Icon(Icons.business, color: theme.colorScheme.primary),
                 const SizedBox(width: 12),
-                const Text('Selecionar Tenant', style: AppTypography.h4),
+                Text(
+                  widget.isPlatformAdmin ? 'Selecionar Tenant' : 'Trocar de Workspace',
+                  style: AppTypography.h4,
+                ),
                 const Spacer(),
-                if (tenantState.selectedTenantId != null)
+                if (widget.isPlatformAdmin && tenantState.selectedTenantId != null)
                   TextButton(
                     onPressed: () async {
                       await ref.read(tenantSwitchProvider.notifier).clearSelection();
@@ -427,7 +491,7 @@ class _TenantSelectorSheetState extends ConsumerState<_TenantSelectorSheet> {
             padding: const EdgeInsets.symmetric(horizontal: 16),
             child: TextField(
               decoration: InputDecoration(
-                hintText: 'Buscar tenant...',
+                hintText: 'Buscar...',
                 prefixIcon: const Icon(Icons.search),
                 filled: true,
                 fillColor: colors.muted,
@@ -469,7 +533,11 @@ class _TenantSelectorSheetState extends ConsumerState<_TenantSelectorSheet> {
                               const SizedBox(height: 16),
                               ElevatedButton(
                                 onPressed: () {
-                                  ref.read(tenantSwitchProvider.notifier).loadTenants();
+                                  if (widget.isPlatformAdmin) {
+                                    ref.read(tenantSwitchProvider.notifier).loadTenants();
+                                  } else {
+                                    ref.read(tenantSwitchProvider.notifier).loadAccessibleTenants();
+                                  }
                                 },
                                 child: const Text('Tentar novamente'),
                               ),
@@ -496,71 +564,135 @@ class _TenantSelectorSheetState extends ConsumerState<_TenantSelectorSheet> {
                             padding: const EdgeInsets.only(bottom: 16),
                             itemCount: filteredTenants.length,
                             itemBuilder: (ctx, index) {
-                              final tenant = filteredTenants[index];
-                              final isSelected = tenant.id == tenantState.selectedTenantId;
+                              if (widget.isPlatformAdmin) {
+                                final tenant = filteredTenants[index] as TenantInfo;
+                                final isSelected = tenant.id == tenantState.selectedTenantId;
 
-                              return ListTile(
-                                leading: Container(
-                                  width: 40,
-                                  height: 40,
-                                  decoration: BoxDecoration(
-                                    color: isSelected
-                                        ? theme.colorScheme.primary.withValues(alpha: 0.1)
-                                        : colors.muted,
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                  child: Center(
-                                    child: Text(
-                                      tenant.name.isNotEmpty
-                                          ? tenant.name[0].toUpperCase()
-                                          : 'T',
-                                      style: AppTypography.labelLarge.copyWith(
-                                        color: isSelected
-                                            ? theme.colorScheme.primary
-                                            : colors.mutedForeground,
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                                title: Text(
-                                  tenant.name,
-                                  style: TextStyle(
-                                    fontWeight: isSelected ? FontWeight.w600 : null,
-                                    color: isSelected ? theme.colorScheme.primary : null,
-                                  ),
-                                ),
-                                subtitle: Text(
-                                  tenant.slug,
-                                  style: AppTypography.caption.copyWith(
-                                    color: colors.mutedForeground,
-                                  ),
-                                ),
-                                trailing: isSelected
-                                    ? Icon(Icons.check_circle, color: theme.colorScheme.primary)
-                                    : tenantState.isSwitching
-                                        ? const SizedBox(
-                                            width: 20,
-                                            height: 20,
-                                            child: CircularProgressIndicator(strokeWidth: 2),
-                                          )
-                                        : null,
-                                onTap: tenantState.isSwitching
-                                    ? null
-                                    : () async {
-                                        await ref
-                                            .read(tenantSwitchProvider.notifier)
-                                            .switchTenant(tenant.id, tenant.name);
-                                        if (context.mounted) {
-                                          Navigator.pop(context);
-                                        }
-                                      },
-                              );
+                                return _TenantListTile(
+                                  id: tenant.id,
+                                  name: tenant.name,
+                                  subtitle: tenant.slug,
+                                  isSelected: isSelected,
+                                  isHome: false,
+                                  isSwitching: tenantState.isSwitching,
+                                  onTap: () async {
+                                    await ref
+                                        .read(tenantSwitchProvider.notifier)
+                                        .switchTenant(tenant.id, tenant.name);
+                                    if (context.mounted) Navigator.pop(context);
+                                  },
+                                );
+                              } else {
+                                final tenant = filteredTenants[index] as AccessibleTenant;
+                                final isSelected = tenant.id == currentTenantId;
+
+                                return _TenantListTile(
+                                  id: tenant.id,
+                                  name: tenant.name,
+                                  subtitle: tenant.customRole.name,
+                                  isSelected: isSelected,
+                                  isHome: tenant.isHome,
+                                  isSwitching: tenantState.isSwitching,
+                                  onTap: () async {
+                                    await ref
+                                        .read(tenantSwitchProvider.notifier)
+                                        .switchTenantWithJwt(tenant.id);
+                                    if (context.mounted) Navigator.pop(context);
+                                  },
+                                );
+                              }
                             },
                           ),
           ),
         ],
       ),
+    );
+  }
+}
+
+class _TenantListTile extends StatelessWidget {
+  const _TenantListTile({
+    required this.id,
+    required this.name,
+    required this.subtitle,
+    required this.isSelected,
+    required this.isHome,
+    required this.isSwitching,
+    required this.onTap,
+  });
+
+  final String id;
+  final String name;
+  final String subtitle;
+  final bool isSelected;
+  final bool isHome;
+  final bool isSwitching;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = context.colors;
+
+    return ListTile(
+      leading: Container(
+        width: 40,
+        height: 40,
+        decoration: BoxDecoration(
+          color: isSelected
+              ? theme.colorScheme.primary.withValues(alpha: 0.1)
+              : colors.muted,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Center(
+          child: Text(
+            name.isNotEmpty ? name[0].toUpperCase() : 'T',
+            style: AppTypography.labelLarge.copyWith(
+              color: isSelected ? theme.colorScheme.primary : colors.mutedForeground,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+      ),
+      title: Row(
+        children: [
+          Expanded(
+            child: Text(
+              name,
+              style: TextStyle(
+                fontWeight: isSelected ? FontWeight.w600 : null,
+                color: isSelected ? theme.colorScheme.primary : null,
+              ),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          if (isHome)
+            Padding(
+              padding: const EdgeInsets.only(left: 8),
+              child: Icon(
+                Icons.home,
+                size: 16,
+                color: colors.mutedForeground,
+              ),
+            ),
+        ],
+      ),
+      subtitle: Text(
+        subtitle,
+        style: AppTypography.caption.copyWith(
+          color: colors.mutedForeground,
+        ),
+      ),
+      trailing: isSelected
+          ? Icon(Icons.check_circle, color: theme.colorScheme.primary)
+          : isSwitching
+              ? const SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : null,
+      onTap: isSwitching ? null : onTap,
     );
   }
 }
@@ -588,98 +720,96 @@ class _ThemeToggleItem extends ConsumerWidget {
         label = 'Tema do Sistema';
     }
 
-    return ListTile(
-      leading: Icon(icon, color: colors.mutedForeground),
-      title: Text(label),
-      trailing: PopupMenuButton<ThemeMode>(
-        icon: Icon(Icons.arrow_drop_down, color: colors.mutedForeground),
-        onSelected: (mode) {
-          ref.read(themeModeNotifierProvider.notifier).setThemeMode(mode);
-        },
-        itemBuilder: (context) => [
-          PopupMenuItem(
-            value: ThemeMode.light,
-            child: Row(
-              children: [
-                Icon(
-                  Icons.light_mode,
+    return PopupMenuButton<ThemeMode>(
+      onSelected: (mode) {
+        ref.read(themeModeNotifierProvider.notifier).setThemeMode(mode);
+      },
+      offset: const Offset(0, 40),
+      itemBuilder: (context) => [
+        PopupMenuItem(
+          value: ThemeMode.light,
+          child: Row(
+            children: [
+              Icon(
+                Icons.light_mode,
+                color: themeMode == ThemeMode.light
+                    ? theme.colorScheme.primary
+                    : colors.mutedForeground,
+                size: 20,
+              ),
+              const SizedBox(width: 12),
+              Text(
+                'Claro',
+                style: TextStyle(
                   color: themeMode == ThemeMode.light
                       ? theme.colorScheme.primary
-                      : colors.mutedForeground,
-                  size: 20,
+                      : null,
+                  fontWeight: themeMode == ThemeMode.light
+                      ? FontWeight.w600
+                      : null,
                 ),
-                const SizedBox(width: 12),
-                Text(
-                  'Claro',
-                  style: TextStyle(
-                    color: themeMode == ThemeMode.light
-                        ? theme.colorScheme.primary
-                        : null,
-                    fontWeight: themeMode == ThemeMode.light
-                        ? FontWeight.w600
-                        : null,
-                  ),
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
-          PopupMenuItem(
-            value: ThemeMode.dark,
-            child: Row(
-              children: [
-                Icon(
-                  Icons.dark_mode,
+        ),
+        PopupMenuItem(
+          value: ThemeMode.dark,
+          child: Row(
+            children: [
+              Icon(
+                Icons.dark_mode,
+                color: themeMode == ThemeMode.dark
+                    ? theme.colorScheme.primary
+                    : colors.mutedForeground,
+                size: 20,
+              ),
+              const SizedBox(width: 12),
+              Text(
+                'Escuro',
+                style: TextStyle(
                   color: themeMode == ThemeMode.dark
                       ? theme.colorScheme.primary
-                      : colors.mutedForeground,
-                  size: 20,
+                      : null,
+                  fontWeight: themeMode == ThemeMode.dark
+                      ? FontWeight.w600
+                      : null,
                 ),
-                const SizedBox(width: 12),
-                Text(
-                  'Escuro',
-                  style: TextStyle(
-                    color: themeMode == ThemeMode.dark
-                        ? theme.colorScheme.primary
-                        : null,
-                    fontWeight: themeMode == ThemeMode.dark
-                        ? FontWeight.w600
-                        : null,
-                  ),
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
-          PopupMenuItem(
-            value: ThemeMode.system,
-            child: Row(
-              children: [
-                Icon(
-                  Icons.brightness_auto,
+        ),
+        PopupMenuItem(
+          value: ThemeMode.system,
+          child: Row(
+            children: [
+              Icon(
+                Icons.brightness_auto,
+                color: themeMode == ThemeMode.system
+                    ? theme.colorScheme.primary
+                    : colors.mutedForeground,
+                size: 20,
+              ),
+              const SizedBox(width: 12),
+              Text(
+                'Sistema',
+                style: TextStyle(
                   color: themeMode == ThemeMode.system
                       ? theme.colorScheme.primary
-                      : colors.mutedForeground,
-                  size: 20,
+                      : null,
+                  fontWeight: themeMode == ThemeMode.system
+                      ? FontWeight.w600
+                      : null,
                 ),
-                const SizedBox(width: 12),
-                Text(
-                  'Sistema',
-                  style: TextStyle(
-                    color: themeMode == ThemeMode.system
-                        ? theme.colorScheme.primary
-                        : null,
-                    fontWeight: themeMode == ThemeMode.system
-                        ? FontWeight.w600
-                        : null,
-                  ),
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
-        ],
+        ),
+      ],
+      child: ListTile(
+        leading: Icon(icon, color: colors.mutedForeground),
+        title: Text(label),
+        trailing: Icon(Icons.arrow_drop_down, color: colors.mutedForeground),
       ),
-      onTap: () {
-        ref.read(themeModeNotifierProvider.notifier).toggleTheme();
-      },
     );
   }
 }
