@@ -4,6 +4,7 @@ import { EmailTemplateService } from '../email-template/email-template.service';
 import { NotificationService } from '../notification/notification.service';
 import { Prisma, EntityAutomation } from '@prisma/client';
 import { ConditionEvaluator } from './condition-evaluator';
+import * as vm from 'vm';
 
 interface ActionConfig {
   order: number;
@@ -21,6 +22,7 @@ export interface AutomationContext {
   user?: { id: string; name: string; email: string };
   entity?: { id: string; slug: string; name: string };
   inputData?: Record<string, unknown>;
+  lookupResults?: Record<string, unknown>;
 }
 
 interface StepResult {
@@ -56,6 +58,9 @@ export class AutomationExecutorService {
     const actions = (
       (automation.actions as unknown as ActionConfig[]) || []
     ).sort((a, b) => a.order - b.order);
+
+    // Inicializar lookupResults para compartilhar dados entre acoes
+    context.lookupResults = context.lookupResults || {};
 
     // Verificar rate limiting
     const recentExecutions = await this.prisma.automationExecution.count({
@@ -245,6 +250,18 @@ export class AutomationExecutorService {
 
       case 'wait':
         return this.executeWait(config);
+
+      case 'lookup_record':
+        return this.executeLookupRecord(config, context);
+
+      case 'update_related_record':
+        return this.executeUpdateRelatedRecord(config, context);
+
+      case 'aggregate_records':
+        return this.executeAggregateRecords(config, context);
+
+      case 'run_script':
+        return this.executeRunScript(config, context);
 
       default:
         throw new Error(`Tipo de acao desconhecido: ${type}`);
@@ -608,6 +625,484 @@ export class AutomationExecutorService {
   }
 
   /**
+   * Acao: Buscar registros de outra entidade e salvar no contexto.
+   */
+  private async executeLookupRecord(
+    config: Record<string, unknown>,
+    context: AutomationContext,
+  ): Promise<unknown> {
+    try {
+      const resolvedConfig = this.replacePlaceholders(config, context) as Record<string, unknown>;
+
+      const entitySlug = resolvedConfig.entitySlug as string;
+      if (!entitySlug) {
+        throw new Error('entitySlug e obrigatorio para lookup_record');
+      }
+
+      const saveAs = resolvedConfig.saveAs as string;
+      if (!saveAs) {
+        throw new Error('saveAs e obrigatorio para lookup_record');
+      }
+
+      const filters = (resolvedConfig.filters as Array<{ field: string; operator: string; value: unknown }>) || [];
+      const selectedFields = resolvedConfig.selectedFields as string[] | undefined;
+      const limit = resolvedConfig.limit as number | undefined;
+
+      // Buscar entidade pelo slug + tenantId
+      const entity = await this.prisma.entity.findFirst({
+        where: {
+          slug: entitySlug,
+          tenantId: context.tenantId,
+        },
+      });
+
+      if (!entity) {
+        throw new Error(`Entidade "${entitySlug}" nao encontrada no tenant`);
+      }
+
+      // Buscar registros da entidade
+      const records = await this.prisma.entityData.findMany({
+        where: {
+          entityId: entity.id,
+          tenantId: context.tenantId,
+        },
+      });
+
+      // Filtrar em memoria usando ConditionEvaluator
+      let filtered = records.filter((record) => {
+        const data = (record.data as Record<string, unknown>) || {};
+        return ConditionEvaluator.evaluate(filters, data);
+      });
+
+      // Aplicar limite
+      if (limit && limit > 0) {
+        filtered = filtered.slice(0, limit);
+      }
+
+      // Mapear resultados
+      const results = filtered.map((record) => {
+        const data = (record.data as Record<string, unknown>) || {};
+
+        if (selectedFields && selectedFields.length > 0) {
+          const picked: Record<string, unknown> = { id: record.id };
+          for (const field of selectedFields) {
+            if (field in data) {
+              picked[field] = data[field];
+            }
+          }
+          return picked;
+        }
+
+        return { id: record.id, ...data };
+      });
+
+      // Salvar no contexto: se limit=1 salvar objeto unico, senao array
+      if (limit === 1 && results.length > 0) {
+        context.lookupResults![saveAs] = results[0];
+      } else {
+        context.lookupResults![saveAs] = results;
+      }
+
+      return {
+        saveAs,
+        foundCount: results.length,
+        entitySlug,
+      };
+    } catch (err) {
+      const error = err as Error;
+      throw new Error(`lookup_record falhou: ${error.message}`);
+    }
+  }
+
+  /**
+   * Acao: Atualizar registro de outra entidade.
+   */
+  private async executeUpdateRelatedRecord(
+    config: Record<string, unknown>,
+    context: AutomationContext,
+  ): Promise<unknown> {
+    try {
+      const resolvedConfig = this.replacePlaceholders(config, context) as Record<string, unknown>;
+
+      const entitySlug = resolvedConfig.entitySlug as string;
+      if (!entitySlug) {
+        throw new Error('entitySlug e obrigatorio para update_related_record');
+      }
+
+      const updates = resolvedConfig.updates as Array<{
+        field: string;
+        mode: 'set' | 'increment' | 'decrement' | 'append';
+        value: unknown;
+      }>;
+      if (!updates || updates.length === 0) {
+        throw new Error('updates e obrigatorio para update_related_record');
+      }
+
+      // Buscar entidade pelo slug + tenantId
+      const entity = await this.prisma.entity.findFirst({
+        where: {
+          slug: entitySlug,
+          tenantId: context.tenantId,
+        },
+      });
+
+      if (!entity) {
+        throw new Error(`Entidade "${entitySlug}" nao encontrada no tenant`);
+      }
+
+      // Encontrar o registro alvo
+      let entityData: { id: string; data: unknown } | null = null;
+
+      const recordId = resolvedConfig.recordId as string | undefined;
+      const findBy = resolvedConfig.findBy as { field: string; value: unknown } | undefined;
+
+      if (recordId) {
+        // Busca direta por ID
+        entityData = await this.prisma.entityData.findFirst({
+          where: {
+            id: recordId,
+            entityId: entity.id,
+            tenantId: context.tenantId,
+          },
+        });
+      } else if (findBy) {
+        // Busca pelo campo no JSON data
+        const allRecords = await this.prisma.entityData.findMany({
+          where: {
+            entityId: entity.id,
+            tenantId: context.tenantId,
+          },
+        });
+
+        entityData = allRecords.find((r) => {
+          const data = (r.data as Record<string, unknown>) || {};
+          return data[findBy.field] === findBy.value;
+        }) || null;
+      } else {
+        throw new Error('recordId ou findBy e obrigatorio para update_related_record');
+      }
+
+      if (!entityData) {
+        throw new Error('Registro relacionado nao encontrado');
+      }
+
+      // Ler dados atuais e aplicar atualizacoes
+      const currentData = (entityData.data as Record<string, unknown>) || {};
+      const updatedFields: string[] = [];
+
+      for (const update of updates) {
+        switch (update.mode) {
+          case 'set':
+            currentData[update.field] = update.value;
+            break;
+          case 'increment':
+            currentData[update.field] =
+              (Number(currentData[update.field]) || 0) + Number(update.value);
+            break;
+          case 'decrement':
+            currentData[update.field] =
+              (Number(currentData[update.field]) || 0) - Number(update.value);
+            break;
+          case 'append':
+            if (Array.isArray(currentData[update.field])) {
+              (currentData[update.field] as unknown[]).push(update.value);
+            } else {
+              currentData[update.field] = [update.value];
+            }
+            break;
+          default:
+            throw new Error(`Modo de atualizacao desconhecido: ${update.mode}`);
+        }
+        updatedFields.push(update.field);
+      }
+
+      // Salvar de volta
+      await this.prisma.entityData.update({
+        where: { id: entityData.id },
+        data: {
+          data: currentData as Prisma.InputJsonValue,
+        },
+      });
+
+      return {
+        recordId: entityData.id,
+        entitySlug,
+        updatedFields,
+      };
+    } catch (err) {
+      const error = err as Error;
+      throw new Error(`update_related_record falhou: ${error.message}`);
+    }
+  }
+
+  /**
+   * Acao: Agregar registros de uma entidade (count, sum, avg, min, max).
+   */
+  private async executeAggregateRecords(
+    config: Record<string, unknown>,
+    context: AutomationContext,
+  ): Promise<unknown> {
+    try {
+      const resolvedConfig = this.replacePlaceholders(config, context) as Record<string, unknown>;
+
+      const entitySlug = resolvedConfig.entitySlug as string;
+      if (!entitySlug) {
+        throw new Error('entitySlug e obrigatorio para aggregate_records');
+      }
+
+      const operation = resolvedConfig.operation as 'count' | 'sum' | 'avg' | 'min' | 'max';
+      if (!operation) {
+        throw new Error('operation e obrigatorio para aggregate_records');
+      }
+
+      const field = resolvedConfig.field as string | undefined;
+      const filters = (resolvedConfig.filters as Array<{ field: string; operator: string; value: unknown }>) || [];
+      const saveAs = resolvedConfig.saveAs as string;
+
+      if (!saveAs) {
+        throw new Error('saveAs e obrigatorio para aggregate_records');
+      }
+
+      if (operation !== 'count' && !field) {
+        throw new Error(`field e obrigatorio para operacao "${operation}"`);
+      }
+
+      // Buscar entidade pelo slug + tenantId
+      const entity = await this.prisma.entity.findFirst({
+        where: {
+          slug: entitySlug,
+          tenantId: context.tenantId,
+        },
+      });
+
+      if (!entity) {
+        throw new Error(`Entidade "${entitySlug}" nao encontrada no tenant`);
+      }
+
+      // Otimizacao: count simples sem filtros
+      if (operation === 'count' && filters.length === 0) {
+        const count = await this.prisma.entityData.count({
+          where: {
+            entityId: entity.id,
+            tenantId: context.tenantId,
+          },
+        });
+
+        context.lookupResults![saveAs] = count;
+        return { saveAs, operation, value: count };
+      }
+
+      // Buscar todos os registros e filtrar em memoria
+      const records = await this.prisma.entityData.findMany({
+        where: {
+          entityId: entity.id,
+          tenantId: context.tenantId,
+        },
+      });
+
+      const filtered = records.filter((record) => {
+        const data = (record.data as Record<string, unknown>) || {};
+        return ConditionEvaluator.evaluate(filters, data);
+      });
+
+      let result: number;
+
+      switch (operation) {
+        case 'count':
+          result = filtered.length;
+          break;
+
+        case 'sum': {
+          result = filtered.reduce((acc, record) => {
+            const data = (record.data as Record<string, unknown>) || {};
+            return acc + (Number(data[field!]) || 0);
+          }, 0);
+          break;
+        }
+
+        case 'avg': {
+          if (filtered.length === 0) {
+            result = 0;
+          } else {
+            const sum = filtered.reduce((acc, record) => {
+              const data = (record.data as Record<string, unknown>) || {};
+              return acc + (Number(data[field!]) || 0);
+            }, 0);
+            result = sum / filtered.length;
+          }
+          break;
+        }
+
+        case 'min': {
+          if (filtered.length === 0) {
+            result = 0;
+          } else {
+            const values = filtered.map((record) => {
+              const data = (record.data as Record<string, unknown>) || {};
+              return Number(data[field!]) || 0;
+            });
+            result = Math.min(...values);
+          }
+          break;
+        }
+
+        case 'max': {
+          if (filtered.length === 0) {
+            result = 0;
+          } else {
+            const values = filtered.map((record) => {
+              const data = (record.data as Record<string, unknown>) || {};
+              return Number(data[field!]) || 0;
+            });
+            result = Math.max(...values);
+          }
+          break;
+        }
+
+        default:
+          throw new Error(`Operacao de agregacao desconhecida: ${operation}`);
+      }
+
+      context.lookupResults![saveAs] = result;
+
+      return {
+        saveAs,
+        operation,
+        field: field || null,
+        recordCount: filtered.length,
+        value: result,
+      };
+    } catch (err) {
+      const error = err as Error;
+      throw new Error(`aggregate_records falhou: ${error.message}`);
+    }
+  }
+
+  /**
+   * Padroes bloqueados para seguranca do VM sandbox.
+   */
+  private static readonly BLOCKED_PATTERNS = [
+    /\bconstructor\b/i,
+    /\b__proto__\b/i,
+    /\bprototype\b/i,
+    /\bprocess\b/i,
+    /\brequire\b/i,
+    /\bimport\b/i,
+    /\bglobal\b/i,
+    /\bglobalThis\b/i,
+    /\bFunction\b/,
+    /\beval\b/,
+    /\bchild_process\b/i,
+    /\bexecSync\b/i,
+    /\bspawn\b/i,
+    /\bsetTimeout\b/,
+    /\bsetInterval\b/,
+    /\bsetImmediate\b/,
+  ];
+
+  private static readonly MAX_CODE_LENGTH = 10000;
+
+  /**
+   * Acao: Executar script customizado em sandbox VM.
+   */
+  private async executeRunScript(
+    config: Record<string, unknown>,
+    context: AutomationContext,
+  ): Promise<unknown> {
+    try {
+      const resolvedConfig = this.replacePlaceholders(config, context) as Record<string, unknown>;
+
+      const code = resolvedConfig.code as string;
+      if (!code) {
+        throw new Error('code e obrigatorio para run_script');
+      }
+
+      const saveAs = resolvedConfig.saveAs as string | undefined;
+
+      // Validar codigo
+      if (code.length > AutomationExecutorService.MAX_CODE_LENGTH) {
+        throw new Error(
+          `Codigo excede o limite de ${AutomationExecutorService.MAX_CODE_LENGTH} caracteres`,
+        );
+      }
+
+      for (const pattern of AutomationExecutorService.BLOCKED_PATTERNS) {
+        if (pattern.test(code)) {
+          throw new Error(`Codigo contem padrao bloqueado: ${pattern.source}`);
+        }
+      }
+
+      // Criar sandbox
+      const sandbox = {
+        record: context.record || null,
+        previousRecord: context.previousRecord || null,
+        user: context.user || null,
+        entity: context.entity || null,
+        lookups: context.lookupResults || {},
+        // Globais seguros
+        JSON,
+        Date,
+        Math,
+        Array,
+        Object: {
+          keys: Object.keys,
+          values: Object.values,
+          entries: Object.entries,
+          assign: Object.assign,
+          fromEntries: Object.fromEntries,
+        },
+        String,
+        Number,
+        Boolean,
+        parseInt,
+        parseFloat,
+        isNaN,
+        isFinite,
+        console: {
+          log: (...args: unknown[]) =>
+            this.logger.debug(`[run_script] ${args.map(String).join(' ')}`),
+        },
+        result: undefined as unknown,
+      };
+
+      // Executar no VM
+      const script = new vm.Script(`
+        (function() {
+          ${code}
+        })();
+      `);
+
+      const vmContext = vm.createContext(sandbox);
+      const scriptResult = script.runInContext(vmContext, { timeout: 5000 });
+
+      // Usar o retorno do script ou sandbox.result
+      const finalResult = scriptResult !== undefined ? scriptResult : sandbox.result;
+
+      // Salvar resultado no contexto se saveAs definido
+      if (saveAs) {
+        context.lookupResults![saveAs] = finalResult;
+      }
+
+      // Resumo para o log
+      const resultSummary =
+        finalResult === undefined
+          ? 'undefined'
+          : typeof finalResult === 'object'
+            ? JSON.stringify(finalResult).substring(0, 200)
+            : String(finalResult).substring(0, 200);
+
+      return {
+        executed: true,
+        saveAs: saveAs || null,
+        resultSummary,
+      };
+    } catch (err) {
+      const error = err as Error;
+      throw new Error(`run_script falhou: ${error.message}`);
+    }
+  }
+
+  /**
    * Substitui placeholders em strings usando o contexto da automacao.
    */
   private replaceStringPlaceholders(
@@ -631,6 +1126,25 @@ export class AutomationExecutorService {
       })
       .replace(/\{\{previousRecord\.([^}]+)\}\}/g, (_, path) => {
         return this.getNestedStringValue(context.previousRecord || {}, path);
+      })
+      .replace(/\{\{([^}]+)\}\}/g, (match, path) => {
+        // Resolve lookupResults placeholders: {{saveAsName.field}} or {{saveAsName}}
+        if (!context.lookupResults) return match;
+        const parts = (path as string).split('.');
+        const lookupKey = parts[0];
+        if (!(lookupKey in context.lookupResults)) return match;
+        if (parts.length === 1) {
+          const val = context.lookupResults[lookupKey];
+          return val != null ? String(val) : '';
+        }
+        const lookupValue = context.lookupResults[lookupKey];
+        if (lookupValue && typeof lookupValue === 'object') {
+          return this.getNestedStringValue(
+            lookupValue as Record<string, unknown>,
+            parts.slice(1).join('.'),
+          );
+        }
+        return match;
       });
   }
 

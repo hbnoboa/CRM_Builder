@@ -45,6 +45,10 @@ export class EntityAutomationService {
     'notify_user',
     'change_status',
     'wait',
+    'lookup_record',
+    'update_related_record',
+    'aggregate_records',
+    'run_script',
   ];
 
   constructor(

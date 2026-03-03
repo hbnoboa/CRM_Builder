@@ -12,7 +12,6 @@ import {
   Menu,
   X,
   Layers,
-  Code,
   Building2,
   Shield,
   FileText,
@@ -64,12 +63,6 @@ const navigationConfig: NavItemConfig[] = [
     href: '/data',
     icon: <Layers className="h-5 w-5" />,
     moduleKey: 'data',
-  },
-  {
-    titleKey: 'apis',
-    href: '/apis',
-    icon: <Code className="h-5 w-5" />,
-    moduleKey: 'apis',
   },
   {
     titleKey: 'users',

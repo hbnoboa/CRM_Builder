@@ -55,7 +55,6 @@ import { EntityFieldRuleModule } from './modules/entity-field-rule/entity-field-
     EntityModule,
     DataModule,
     PageModule,
-    CustomApiModule,
     CustomRoleModule,
     StatsModule,
     UploadModule,

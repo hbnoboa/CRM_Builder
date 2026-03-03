@@ -16,7 +16,11 @@ export type AutomationActionType =
   | 'create_record'
   | 'notify_user'
   | 'change_status'
-  | 'wait';
+  | 'wait'
+  | 'lookup_record'
+  | 'update_related_record'
+  | 'aggregate_records'
+  | 'run_script';
 
 // Condition operators
 export type ConditionOperator =
@@ -107,6 +111,37 @@ export interface WaitActionConfig {
   durationMs: number;
 }
 
+export type AggregateOperation = 'count' | 'sum' | 'avg' | 'min' | 'max';
+export type UpdateMode = 'set' | 'increment' | 'decrement' | 'append';
+
+export interface LookupRecordConfig {
+  entitySlug: string;
+  filters: Array<{ field: string; operator: string; value: unknown }>;
+  selectedFields?: string[];
+  limit?: number;
+  saveAs: string;
+}
+
+export interface UpdateRelatedRecordConfig {
+  entitySlug: string;
+  recordId?: string;
+  findBy?: { field: string; value: unknown };
+  updates: Array<{ field: string; mode: UpdateMode; value: unknown }>;
+}
+
+export interface AggregateRecordsConfig {
+  entitySlug: string;
+  operation: AggregateOperation;
+  field?: string | null;
+  filters?: Array<{ field: string; operator: string; value: unknown }>;
+  saveAs: string;
+}
+
+export interface RunScriptConfig {
+  code: string;
+  saveAs?: string;
+}
+
 // A single action in the actions array
 export interface AutomationAction {
   order: number;
@@ -119,6 +154,10 @@ export interface AutomationAction {
     | NotifyUserActionConfig
     | ChangeStatusActionConfig
     | WaitActionConfig
+    | LookupRecordConfig
+    | UpdateRelatedRecordConfig
+    | AggregateRecordsConfig
+    | RunScriptConfig
     | Record<string, unknown>;
   condition?: AutomationCondition;
 }
