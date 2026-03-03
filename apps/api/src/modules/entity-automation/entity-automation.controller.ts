@@ -13,6 +13,8 @@ import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import { CurrentUser as CurrentUserType } from '../../common/types';
+import { getEffectiveTenantId } from '../../common/utils/tenant.util';
 import { EntityAutomationService } from './entity-automation.service';
 import { CreateAutomationDto } from './dto/create-automation.dto';
 import { UpdateAutomationDto } from './dto/update-automation.dto';
@@ -25,13 +27,6 @@ class ExecuteManualDto {
 
   @IsOptional()
   inputData?: Record<string, unknown>;
-}
-
-interface AuthUser {
-  id: string;
-  tenantId: string;
-  email: string;
-  name: string;
 }
 
 @ApiTags('Entity Automations')
@@ -47,14 +42,16 @@ export class EntityAutomationController {
   @ApiOperation({ summary: 'Lista automacoes de uma entidade' })
   async findAll(
     @Param('entityId') entityId: string,
-    @CurrentUser() user: AuthUser,
+    @CurrentUser() user: CurrentUserType,
+    @Query('tenantId') tenantId?: string,
     @Query('isActive') isActive?: string,
     @Query('trigger') trigger?: string,
     @Query('search') search?: string,
     @Query('page') page?: string,
     @Query('limit') limit?: string,
   ) {
-    return this.automationService.findAll(user.tenantId, entityId, {
+    const effectiveTenantId = getEffectiveTenantId(user, tenantId);
+    return this.automationService.findAll(effectiveTenantId, entityId, {
       isActive: isActive !== undefined ? isActive === 'true' : undefined,
       trigger,
       search,
@@ -68,9 +65,11 @@ export class EntityAutomationController {
   async findOne(
     @Param('entityId') entityId: string,
     @Param('id') id: string,
-    @CurrentUser() user: AuthUser,
+    @CurrentUser() user: CurrentUserType,
+    @Query('tenantId') tenantId?: string,
   ) {
-    return this.automationService.findOne(user.tenantId, entityId, id);
+    const effectiveTenantId = getEffectiveTenantId(user, tenantId);
+    return this.automationService.findOne(effectiveTenantId, entityId, id);
   }
 
   @Post()
@@ -78,9 +77,11 @@ export class EntityAutomationController {
   async create(
     @Param('entityId') entityId: string,
     @Body() dto: CreateAutomationDto,
-    @CurrentUser() user: AuthUser,
+    @CurrentUser() user: CurrentUserType,
+    @Query('tenantId') tenantId?: string,
   ) {
-    return this.automationService.create(user.tenantId, entityId, dto);
+    const effectiveTenantId = getEffectiveTenantId(user, tenantId);
+    return this.automationService.create(effectiveTenantId, entityId, dto);
   }
 
   @Patch(':id')
@@ -89,9 +90,11 @@ export class EntityAutomationController {
     @Param('entityId') entityId: string,
     @Param('id') id: string,
     @Body() dto: UpdateAutomationDto,
-    @CurrentUser() user: AuthUser,
+    @CurrentUser() user: CurrentUserType,
+    @Query('tenantId') tenantId?: string,
   ) {
-    return this.automationService.update(user.tenantId, entityId, id, dto);
+    const effectiveTenantId = getEffectiveTenantId(user, tenantId);
+    return this.automationService.update(effectiveTenantId, entityId, id, dto);
   }
 
   @Delete(':id')
@@ -99,9 +102,11 @@ export class EntityAutomationController {
   async remove(
     @Param('entityId') entityId: string,
     @Param('id') id: string,
-    @CurrentUser() user: AuthUser,
+    @CurrentUser() user: CurrentUserType,
+    @Query('tenantId') tenantId?: string,
   ) {
-    return this.automationService.remove(user.tenantId, entityId, id);
+    const effectiveTenantId = getEffectiveTenantId(user, tenantId);
+    return this.automationService.remove(effectiveTenantId, entityId, id);
   }
 
   @Post(':id/execute')
@@ -110,10 +115,12 @@ export class EntityAutomationController {
     @Param('entityId') entityId: string,
     @Param('id') id: string,
     @Body() dto: ExecuteManualDto,
-    @CurrentUser() user: AuthUser,
+    @CurrentUser() user: CurrentUserType,
+    @Query('tenantId') tenantId?: string,
   ) {
+    const effectiveTenantId = getEffectiveTenantId(user, tenantId);
     return this.automationService.executeManual(
-      user.tenantId,
+      effectiveTenantId,
       entityId,
       id,
       user.id,
@@ -127,12 +134,14 @@ export class EntityAutomationController {
   async getExecutions(
     @Param('entityId') entityId: string,
     @Param('id') id: string,
-    @CurrentUser() user: AuthUser,
+    @CurrentUser() user: CurrentUserType,
+    @Query('tenantId') tenantId?: string,
     @Query('page') page?: string,
     @Query('limit') limit?: string,
   ) {
+    const effectiveTenantId = getEffectiveTenantId(user, tenantId);
     return this.automationService.getExecutions(
-      user.tenantId,
+      effectiveTenantId,
       id,
       page ? parseInt(page, 10) : 1,
       limit ? parseInt(limit, 10) : 20,

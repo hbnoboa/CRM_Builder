@@ -13,16 +13,11 @@ import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import { CurrentUser as CurrentUserType } from '../../common/types';
+import { getEffectiveTenantId } from '../../common/utils/tenant.util';
 import { EntityFieldRuleService } from './entity-field-rule.service';
 import { CreateFieldRuleDto } from './dto/create-field-rule.dto';
 import { UpdateFieldRuleDto } from './dto/update-field-rule.dto';
-
-interface AuthUser {
-  id: string;
-  tenantId: string;
-  email: string;
-  name: string;
-}
 
 @ApiTags('Entity Field Rules')
 @ApiBearerAuth()
@@ -37,17 +32,19 @@ export class EntityFieldRuleController {
   @ApiOperation({ summary: 'Lista regras de campo de uma entidade' })
   async findAll(
     @Param('entityId') entityId: string,
-    @CurrentUser() user: AuthUser,
+    @CurrentUser() user: CurrentUserType,
+    @Query('tenantId') tenantId?: string,
     @Query('fieldSlug') fieldSlug?: string,
   ) {
+    const effectiveTenantId = getEffectiveTenantId(user, tenantId);
     if (fieldSlug) {
       return this.entityFieldRuleService.findByField(
-        user.tenantId,
+        effectiveTenantId,
         entityId,
         fieldSlug,
       );
     }
-    return this.entityFieldRuleService.findAll(user.tenantId, entityId);
+    return this.entityFieldRuleService.findAll(effectiveTenantId, entityId);
   }
 
   @Get(':id')
@@ -55,9 +52,11 @@ export class EntityFieldRuleController {
   async findOne(
     @Param('entityId') entityId: string,
     @Param('id') id: string,
-    @CurrentUser() user: AuthUser,
+    @CurrentUser() user: CurrentUserType,
+    @Query('tenantId') tenantId?: string,
   ) {
-    return this.entityFieldRuleService.findOne(user.tenantId, entityId, id);
+    const effectiveTenantId = getEffectiveTenantId(user, tenantId);
+    return this.entityFieldRuleService.findOne(effectiveTenantId, entityId, id);
   }
 
   @Post()
@@ -65,9 +64,11 @@ export class EntityFieldRuleController {
   async create(
     @Param('entityId') entityId: string,
     @Body() dto: CreateFieldRuleDto,
-    @CurrentUser() user: AuthUser,
+    @CurrentUser() user: CurrentUserType,
+    @Query('tenantId') tenantId?: string,
   ) {
-    return this.entityFieldRuleService.create(user.tenantId, entityId, dto);
+    const effectiveTenantId = getEffectiveTenantId(user, tenantId);
+    return this.entityFieldRuleService.create(effectiveTenantId, entityId, dto);
   }
 
   @Patch(':id')
@@ -76,10 +77,12 @@ export class EntityFieldRuleController {
     @Param('entityId') entityId: string,
     @Param('id') id: string,
     @Body() dto: UpdateFieldRuleDto,
-    @CurrentUser() user: AuthUser,
+    @CurrentUser() user: CurrentUserType,
+    @Query('tenantId') tenantId?: string,
   ) {
+    const effectiveTenantId = getEffectiveTenantId(user, tenantId);
     return this.entityFieldRuleService.update(
-      user.tenantId,
+      effectiveTenantId,
       entityId,
       id,
       dto,
@@ -91,8 +94,10 @@ export class EntityFieldRuleController {
   async remove(
     @Param('entityId') entityId: string,
     @Param('id') id: string,
-    @CurrentUser() user: AuthUser,
+    @CurrentUser() user: CurrentUserType,
+    @Query('tenantId') tenantId?: string,
   ) {
-    return this.entityFieldRuleService.remove(user.tenantId, entityId, id);
+    const effectiveTenantId = getEffectiveTenantId(user, tenantId);
+    return this.entityFieldRuleService.remove(effectiveTenantId, entityId, id);
   }
 }

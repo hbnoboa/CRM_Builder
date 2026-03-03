@@ -273,6 +273,33 @@ export function RecordFormDialog({
     }
   };
 
+  const handleRelationChange = (field: EntityField, value: string) => {
+    handleFieldChange(field.slug, value);
+    if (field.autoFillFields && field.autoFillFields.length > 0) {
+      const options = relationOptions[field.slug] || [];
+      const selectedOption = options.find(opt => opt.value === value);
+      if (selectedOption) {
+        const updates: Record<string, unknown> = {};
+        const allFields = entity.fields || [];
+        const slugLookup: Record<string, string> = {};
+        for (const f of allFields) {
+          if (f.slug) slugLookup[f.slug] = f.slug;
+          if (f.name) slugLookup[f.name] = f.slug || f.name;
+        }
+        for (const autoFill of field.autoFillFields) {
+          let sourceValue = selectedOption.data[autoFill.sourceField];
+          // Handle enriched {value, label} objects from backend
+          if (sourceValue && typeof sourceValue === 'object' && 'label' in (sourceValue as Record<string, unknown>)) {
+            sourceValue = (sourceValue as Record<string, unknown>).label;
+          }
+          const resolvedTarget = slugLookup[autoFill.targetField] || autoFill.targetField;
+          if (sourceValue !== undefined) updates[resolvedTarget] = sourceValue;
+        }
+        if (Object.keys(updates).length > 0) setFormData(prev => ({ ...prev, ...updates }));
+      }
+    }
+  };
+
   useEffect(() => {
     if (open) {
       if (record) {
@@ -677,7 +704,7 @@ export function RecordFormDialog({
             <SearchableSelect
               options={relOpts}
               value={String(value || '')}
-              onChange={(val) => handleFieldChange(field.slug, String(val))}
+              onChange={(val) => handleRelationChange(field, String(val))}
               placeholder={field.placeholder || tCommon('select')}
               disabled={isFieldDisabled}
               loading={isLoadingRel}
