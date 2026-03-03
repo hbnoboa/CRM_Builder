@@ -125,8 +125,8 @@
   },
   "navigation": {
     "dashboard": "Dashboard",
-    "entities": "Entities",
-    "data": "Data",
+    "entities": "Tables",
+    "data": "Records",
     "pages": "Pages",
     "users": "Users",
     "roles": "Roles",
@@ -136,7 +136,8 @@
     "tenants": "Tenants",
     "auditLogs": "Audit Logs",
     "profile": "Profile",
-    "hello": "Hello,"
+    "hello": "Hello,",
+    "admin": "Admin"
   },
   "roles": {
     "PLATFORM_ADMIN": "Super Admin",
@@ -156,7 +157,7 @@
     "title": "Dashboard",
     "welcome": "Welcome back, {name}! Here's a summary of your CRM.",
     "stats": {
-      "entities": "Entities",
+      "entities": "Tables",
       "records": "Records",
       "pages": "Pages",
       "users": "Users"
@@ -185,7 +186,7 @@
     "quickActions": {
       "title": "Quick Actions",
       "subtitle": "Start building your CRM",
-      "newEntity": "New Entity",
+      "newEntity": "New Table",
       "newEntityDesc": "Define a data structure",
       "newPage": "New Page",
       "newPageDesc": "Create a custom page",
@@ -197,8 +198,8 @@
     "empty": {
       "noRecords": "No records created yet",
       "createFirstRecord": "Create first record",
-      "noEntities": "No entities created yet",
-      "createFirstEntity": "Create first entity"
+      "noEntities": "No tables created yet",
+      "createFirstEntity": "Create first table"
     }
   },
   "users": {
@@ -262,20 +263,20 @@
     }
   },
   "entities": {
-    "title": "Entities",
-    "subtitle": "Manage your CRM data structures",
-    "newEntity": "New Entity",
-    "editEntity": "Edit Entity",
+    "title": "Tables",
+    "subtitle": "Manage your CRM tables",
+    "newEntity": "New Table",
+    "editEntity": "Edit Table",
     "stats": {
-      "total": "Total Entities",
+      "total": "Total Tables",
       "withFields": "With Fields",
       "totalRecords": "Total Records"
     },
-    "searchPlaceholder": "Search entities...",
-    "noEntitiesFound": "No entities found",
-    "noEntitiesMatchSearch": "No entities match your search.",
-    "createEntitiesToStart": "Create entities to structure your data.",
-    "createFirstEntity": "Create First Entity",
+    "searchPlaceholder": "Search tables...",
+    "noEntitiesFound": "No tables found",
+    "noEntitiesMatchSearch": "No tables match your search.",
+    "createEntitiesToStart": "Create tables to structure your data.",
+    "createFirstEntity": "Create First Table",
     "fields": "fields",
     "viewData": "View Data",
     "subEntityOf": "Sub-entity of {parent}",
@@ -461,8 +462,8 @@
     }
   },
   "data": {
-    "title": "Data",
-    "subtitle": "View and manage records from your entities",
+    "title": "Records",
+    "subtitle": "View and manage records from your tables",
     "newRecord": "New Record",
     "editRecord": "Edit Record",
     "addRecord": "Add Record",
@@ -680,12 +681,12 @@
       "settingsDesc": "General system settings",
       "pages": "Pages",
       "pagesDesc": "Visual Page Builder",
-      "entities": "Entities",
-      "entitiesDesc": "Define data structure",
+      "entities": "Tables",
+      "entitiesDesc": "Define table structure",
       "tenants": "Tenants",
       "tenantsDesc": "Manage companies and clients",
-      "data": "Data",
-      "dataDesc": "Records for each entity",
+      "data": "Records",
+      "dataDesc": "Records for each table",
       "roles": "Access Roles",
       "rolesDesc": "Configure roles and permissions",
       "pdfTemplates": "PDF Templates",
@@ -757,8 +758,8 @@
       "canGenerate": "Generate PDF"
     },
     "permissionCategories": {
-      "entities": "Entities",
-      "data": "Data / Records",
+      "entities": "Tables",
+      "data": "Records",
       "pages": "Pages",
       "users": "Users",
       "roles": "Roles",
@@ -869,7 +870,7 @@
       "itemsSelected": "items selected",
       "modules": {
         "roles": "Roles",
-        "entities": "Entities",
+        "entities": "Tables",
         "pages": "Pages",
         "endpoints": "Custom APIs",
         "pdfTemplates": "PDF Templates"
@@ -1282,7 +1283,7 @@
       "delete": "Delete"
     },
     "resources": {
-      "entity_data": "Data",
+      "entity_data": "Records",
       "user": "User",
       "entity": "Entity",
       "custom_role": "Role",

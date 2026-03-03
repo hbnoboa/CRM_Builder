@@ -69,6 +69,7 @@ export interface CreateEntityDto {
   description?: string;
   icon?: string;
   color?: string;
+  category?: string;
   fields?: FieldDefinition[];
   settings?: Record<string, unknown>;
   isSystem?: boolean;
@@ -80,6 +81,7 @@ export interface UpdateEntityDto {
   description?: string;
   icon?: string;
   color?: string;
+  category?: string;
   fields?: FieldDefinition[];
   settings?: Record<string, unknown>;
 }
@@ -135,6 +137,7 @@ export class EntityService {
         description: dto.description,
         icon: dto.icon,
         color: dto.color,
+        category: dto.category || null,
         tenantId: targetTenantId,
         fields: processedFields as unknown as Prisma.InputJsonValue,
         settings: (dto.settings || {}) as Prisma.InputJsonValue,
@@ -278,6 +281,42 @@ export class EntityService {
     };
   }
 
+  async findAllGrouped(currentUser: CurrentUser, queryTenantId?: string) {
+    const roleType = currentUser.customRole?.roleType as RoleType | undefined;
+    const where: Prisma.EntityWhereInput = {};
+
+    if (roleType === 'PLATFORM_ADMIN') {
+      if (queryTenantId) {
+        where.tenantId = queryTenantId;
+      }
+    } else {
+      where.tenantId = currentUser.tenantId;
+    }
+
+    const entities = await this.prisma.entity.findMany({
+      where,
+      orderBy: [{ category: 'asc' }, { name: 'asc' }],
+      include: {
+        _count: {
+          select: { data: true },
+        },
+      },
+    });
+
+    // Agrupar por categoria
+    const grouped: Record<string, typeof entities> = {};
+    for (const entity of entities) {
+      const cat = entity.category || '';
+      if (!grouped[cat]) grouped[cat] = [];
+      grouped[cat].push(entity);
+    }
+
+    return Object.entries(grouped).map(([category, items]) => ({
+      category: category || null,
+      entities: items,
+    }));
+  }
+
   async findBySlug(slug: string, currentUser: CurrentUser, tenantId?: string) {
     // PLATFORM_ADMIN pode buscar entidade de qualquer tenant se nao especificar tenantId
     const roleType = currentUser.customRole?.roleType as RoleType | undefined;
@@ -337,6 +376,7 @@ export class EntityService {
       description: dto.description,
       icon: dto.icon,
       color: dto.color,
+      ...(dto.category !== undefined && { category: dto.category || null }),
     };
 
     if (dto.fields !== undefined) {

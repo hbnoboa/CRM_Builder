@@ -189,6 +189,7 @@ function EntityDetailPageContent() {
   const [saving, setSaving] = useState(false);
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
+  const [category, setCategory] = useState('');
   const [captureLocation, setCaptureLocation] = useState(false);
   const [fields, setFields] = useState<Partial<Field>[]>([]);
   const [expandedFieldIndex, setExpandedFieldIndex] = useState<number | null>(null);
@@ -245,6 +246,7 @@ function EntityDetailPageContent() {
       setEntity(entityData);
       setName(entityData.name);
       setDescription(entityData.description || '');
+      setCategory(entityData.category || '');
       setCaptureLocation(entityData.settings?.captureLocation || false);
       setFields(entityData.fields || []);
     } catch (error) {
@@ -378,7 +380,7 @@ function EntityDetailPageContent() {
     setSaving(true);
     try {
       const settings = { ...(entity?.settings || {}), captureLocation };
-      await api.patch(`/entities/${params.id}`, { name, description, fields, settings });
+      await api.patch(`/entities/${params.id}`, { name, description, category: category.trim() || undefined, fields, settings });
       toast.success(tToast('updated'));
       router.push('/entities');
     } catch (error) {
@@ -1179,6 +1181,24 @@ function EntityDetailPageContent() {
               <div className="space-y-2">
                 <Label htmlFor="description">{tCommon('description')}</Label>
                 <Textarea id="description" value={description} onChange={(e) => setDescription(e.target.value)} placeholder={t('descriptionPlaceholder')} rows={3} />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="category">Categoria (Sidebar)</Label>
+                <Input
+                  id="category"
+                  value={category}
+                  onChange={(e) => setCategory(e.target.value)}
+                  placeholder="Ex: CRM, Suporte, Projetos..."
+                  list="category-suggestions-edit"
+                />
+                <datalist id="category-suggestions-edit">
+                  {[...new Set(allEntities.map((e: any) => e.category).filter(Boolean))].map(cat => (
+                    <option key={String(cat)} value={String(cat)} />
+                  ))}
+                </datalist>
+                <p className="text-xs text-muted-foreground">
+                  Agrupa esta tabela no sidebar. Deixe vazio para aparecer sem categoria.
+                </p>
               </div>
               <div className="flex items-center justify-between pt-4 border-t">
                 <div className="flex items-center gap-3">

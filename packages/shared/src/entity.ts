@@ -392,6 +392,7 @@ export interface Entity {
   icon?: string;
   color?: string;
   description?: string;
+  category?: string;
   fields: EntityField[];
   settings?: EntitySettings;
   isSystem?: boolean;

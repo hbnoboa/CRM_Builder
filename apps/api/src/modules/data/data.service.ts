@@ -42,6 +42,8 @@ export interface QueryDataDto {
   fields?: string; // Ex: "id,data,createdAt"
   // Filtros - JSON stringified array de GlobalFilter
   filters?: string; // Ex: '[{"fieldSlug":"status","operator":"equals","value":"ativo"}]'
+  // IDs especificos para export
+  recordIds?: string; // JSON stringified array de IDs: '["id1","id2"]'
 }
 
 interface BusinessHoursConfig {
@@ -320,6 +322,16 @@ export class DataService {
     const where: Prisma.EntityDataWhereInput = {
       entityId: entity.id,
     };
+
+    // Filtro por IDs especificos (para export de selecionados)
+    if (query.recordIds) {
+      try {
+        const ids = JSON.parse(query.recordIds) as string[];
+        if (Array.isArray(ids) && ids.length > 0) {
+          where.id = { in: ids };
+        }
+      } catch { /* ignore parse error */ }
+    }
 
     // Filtro: apenas registros que tem filhos em uma entidade especifica
     if (hasChildrenIn) {

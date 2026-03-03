@@ -7,6 +7,7 @@ export interface CreateEntityData {
   description?: string;
   icon?: string;
   color?: string;
+  category?: string;
   fields?: EntityField[];
   settings?: Record<string, unknown>;
   tenantId?: string;
@@ -18,8 +19,14 @@ export interface UpdateEntityData {
   description?: string;
   icon?: string;
   color?: string;
+  category?: string;
   fields?: EntityField[];
   settings?: Record<string, unknown>;
+}
+
+export interface EntityGrouped {
+  category: string | null;
+  entities: Entity[];
 }
 
 export interface QueryEntitiesParams {
@@ -69,6 +76,13 @@ export const entitiesService = {
 
   async updateGlobalFilters(id: string, globalFilters: unknown[]): Promise<Entity> {
     const response = await api.patch<Entity>(`/entities/${id}/global-filters`, { globalFilters });
+    return response.data;
+  },
+
+  async getAllGrouped(tenantId?: string): Promise<EntityGrouped[]> {
+    const params: Record<string, string> = {};
+    if (tenantId) params.tenantId = tenantId;
+    const response = await api.get<EntityGrouped[]>('/entities/grouped', { params });
     return response.data;
   },
 

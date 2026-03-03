@@ -43,6 +43,8 @@ import { toast } from 'sonner';
 import api from '@/lib/api';
 import { useTenant } from '@/stores/tenant-context';
 import type { Field, FieldType } from '@/types';
+import { entityTemplates, templateCategories } from '@/lib/entity-templates';
+import type { EntityTemplate } from '@/lib/entity-templates';
 
 // Legacy type - api-select field type (deprecated, Custom APIs removed)
 interface CustomApi {
@@ -183,10 +185,24 @@ function NewEntityPageContent() {
   const [saving, setSaving] = useState(false);
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
+  const [category, setCategory] = useState('');
   const [fields, setFields] = useState<Partial<Field>[]>([]);
   const [expandedFieldIndex, setExpandedFieldIndex] = useState<number | null>(null);
   const [allEntities, setAllEntities] = useState<RelatedEntity[]>([]);
   const [allCustomApis, setAllCustomApis] = useState<CustomApi[]>([]);
+  const [showTemplates, setShowTemplates] = useState(true);
+
+  const applyTemplate = (template: EntityTemplate) => {
+    setName(template.name);
+    setDescription(template.description);
+    setCategory(template.category);
+    setFields(template.fields.map((f, i) => ({
+      ...f,
+      gridRow: f.gridRow || i + 1,
+      gridColSpan: f.gridColSpan || 12,
+    })));
+    setShowTemplates(false);
+  };
 
   const getFieldTypeLabel = (type: string): string => {
     try { return tFieldTypes(type as 'text') || type; } catch { return type; }
@@ -414,8 +430,21 @@ function NewEntityPageContent() {
     setSaving(true);
     try {
       const payload: Record<string, unknown> = { name, description, fields };
+      if (category.trim()) payload.category = category.trim();
       if (effectiveTenantId) payload.tenantId = effectiveTenantId;
-      await api.post('/entities', payload);
+      const entityResult = await api.post('/entities', payload);
+
+      // Se aplicou template com automacoes, criar as automacoes
+      const appliedTemplate = entityTemplates.find(t => t.name === name && t.category === category);
+      if (appliedTemplate?.automations?.length && entityResult.data?.id) {
+        for (const automation of appliedTemplate.automations) {
+          try {
+            await api.post(`/entities/${entityResult.data.id}/automations`, automation);
+          } catch (err) {
+            console.warn('Failed to create template automation:', err);
+          }
+        }
+      }
       toast.success(t('toast.created'));
       router.push('/entities');
     } catch (error) {
@@ -1000,6 +1029,65 @@ function NewEntityPageContent() {
         )}
       </div>
 
+      {/* Template Selection */}
+      {showTemplates && fields.length === 0 && (
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="text-lg">Escolha um template</CardTitle>
+                <CardDescription>Comece com uma estrutura pronta ou crie do zero</CardDescription>
+              </div>
+              <Button variant="outline" size="sm" onClick={() => setShowTemplates(false)}>
+                Criar do zero
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent>
+            {templateCategories.map(tc => {
+              const templates = entityTemplates.filter(t => t.templateCategory === tc.id);
+              if (templates.length === 0) return null;
+              return (
+                <div key={tc.id} className="mb-6 last:mb-0">
+                  <h3 className="text-sm font-semibold text-muted-foreground mb-3 flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full" style={{ backgroundColor: tc.color }} />
+                    {tc.label}
+                  </h3>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                    {templates.map(template => (
+                      <button
+                        key={template.id}
+                        onClick={() => applyTemplate(template)}
+                        className="text-left p-4 rounded-lg border-2 border-transparent hover:border-primary/30 hover:bg-muted/50 transition-all group"
+                      >
+                        <div className="flex items-start gap-3">
+                          <div
+                            className="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 text-white text-lg"
+                            style={{ backgroundColor: template.color }}
+                          >
+                            {template.icon.charAt(0)}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="font-medium text-sm group-hover:text-primary transition-colors">{template.name}</p>
+                            <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{template.description}</p>
+                            <div className="flex items-center gap-2 mt-2">
+                              <Badge variant="secondary" className="text-[10px]">{template.fields.length} campos</Badge>
+                              {template.automations && template.automations.length > 0 && (
+                                <Badge variant="outline" className="text-[10px]">{template.automations.length} automacao(es)</Badge>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+          </CardContent>
+        </Card>
+      )}
+
       <Tabs defaultValue="info" className="space-y-4">
         <TabsList className="w-full overflow-x-auto flex-wrap h-auto gap-1">
           <TabsTrigger value="info">{t('basicInfo')}</TabsTrigger>
@@ -1022,6 +1110,24 @@ function NewEntityPageContent() {
               <div className="space-y-2">
                 <Label htmlFor="description">{t('description')}</Label>
                 <Textarea id="description" value={description} onChange={(e) => setDescription(e.target.value)} placeholder={t('descriptionPlaceholder')} rows={3} />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="category">Categoria (Sidebar)</Label>
+                <Input
+                  id="category"
+                  value={category}
+                  onChange={(e) => setCategory(e.target.value)}
+                  placeholder="Ex: CRM, Suporte, Projetos..."
+                  list="category-suggestions"
+                />
+                <datalist id="category-suggestions">
+                  {[...new Set(allEntities.map((e: any) => e.category).filter(Boolean))].map(cat => (
+                    <option key={String(cat)} value={String(cat)} />
+                  ))}
+                </datalist>
+                <p className="text-xs text-muted-foreground">
+                  Agrupa esta tabela no sidebar. Deixe vazio para aparecer sem categoria.
+                </p>
               </div>
             </CardContent>
           </Card>

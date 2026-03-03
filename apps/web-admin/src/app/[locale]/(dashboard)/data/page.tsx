@@ -25,15 +25,19 @@ import {
   Check,
   RotateCcw,
   Globe,
-  ListFilter,
   Download,
   Upload,
+  Settings2,
+  FileSpreadsheet,
+  FileJson,
+  FileText,
+  ChevronDown,
 } from 'lucide-react';
 import { RequireRole } from '@/components/auth/require-role';
 import { usePermissions } from '@/hooks/use-permissions';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
+import { Card, CardHeader, CardContent } from '@/components/ui/card';
 import {
   Select,
   SelectContent,
@@ -63,11 +67,19 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { api } from '@/lib/api';
 import { useTenant } from '@/stores/tenant-context';
 import { useAuthStore } from '@/stores/auth-store';
 import { RecordFormDialog } from '@/components/data/record-form-dialog';
 import { ImportDialog } from '@/components/data/import-dialog';
+import { pdfTemplatesService, type PdfTemplate } from '@/services/pdf-templates.service';
 import SubEntityField from '@/components/data/sub-entity-field';
 import {
   Dialog,
@@ -137,18 +149,29 @@ const OPERATORS_BY_TYPE: Record<string, { value: FilterOperator; labelKey: strin
     { value: 'isEmpty', labelKey: 'isEmpty' },
     { value: 'isNotEmpty', labelKey: 'isNotEmpty' },
   ],
+  'sub-entity': [
+    { value: 'contains', labelKey: 'contains' },
+    { value: 'gt', labelKey: 'gt' },
+    { value: 'gte', labelKey: 'gte' },
+    { value: 'lt', labelKey: 'lt' },
+    { value: 'lte', labelKey: 'lte' },
+    { value: 'equals', labelKey: 'equals' },
+    { value: 'isEmpty', labelKey: 'isEmpty' },
+    { value: 'isNotEmpty', labelKey: 'isNotEmpty' },
+  ],
 };
 
 // Mapear tipos de campo para categoria de operadores
 function getOperatorCategory(fieldType: string): string {
   const textTypes = ['text', 'textarea', 'richtext', 'email', 'phone', 'url', 'cpf', 'cnpj', 'cep', 'password'];
-  const numberTypes = ['number', 'currency', 'percentage', 'rating', 'slider', 'sub-entity'];
+  const numberTypes = ['number', 'currency', 'percentage', 'rating', 'slider'];
   const dateTypes = ['date', 'datetime', 'time'];
   const booleanTypes = ['boolean'];
   const selectTypes = ['select', 'multiselect', 'api-select', 'relation', 'zone-diagram'];
 
   if (textTypes.includes(fieldType)) return 'text';
   if (numberTypes.includes(fieldType)) return 'number';
+  if (fieldType === 'sub-entity') return 'sub-entity';
   if (dateTypes.includes(fieldType)) return 'date';
   if (booleanTypes.includes(fieldType)) return 'boolean';
   if (selectTypes.includes(fieldType)) return 'select';
@@ -381,7 +404,6 @@ function formatFilterLabel(
 function DataPageContent() {
   const t = useTranslations('data');
   const tCommon = useTranslations('common');
-  const tNav = useTranslations('navigation');
   const searchParams = useSearchParams();
   const entityParam = searchParams.get('entity');
   const { user: currentUser } = useAuthStore();
@@ -438,6 +460,11 @@ function DataPageContent() {
   const [saveAsGlobal, setSaveAsGlobal] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [selectedRecordIds, setSelectedRecordIds] = useState<Set<string>>(new Set());
+
+  // PDF templates vinculados a esta entidade
+  const [entityPdfTemplates, setEntityPdfTemplates] = useState<PdfTemplate[]>([]);
+  const [generatingPdf, setGeneratingPdf] = useState(false);
 
   // Filtro por entidade pai (quando clica no badge de sub-entidade)
   const [parentFilter, setParentFilter] = useState<{ parentRecordId: string; parentDisplay: string; parentEntityName: string } | null>(null);
@@ -451,9 +478,6 @@ function DataPageContent() {
   const [parentSearchResults, setParentSearchResults] = useState<Array<{ id: string; display: string }>>([]);
   const [parentSearchLoading, setParentSearchLoading] = useState(false);
   const parentSearchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  // Filtro: apenas registros com filhos (sub-entidade)
-  const [hasChildrenFilter, setHasChildrenFilter] = useState<string | null>(null);
 
   // Ordenacao por coluna
   const [sortConfig, setSortConfig] = useState<{ field: string; order: 'asc' | 'desc' } | null>(null);
@@ -506,6 +530,10 @@ function DataPageContent() {
         const entityGlobalFilters = (settings?.globalFilters as ActiveFilter[]) || [];
         setGlobalFilters(entityGlobalFilters);
         fetchRecords(target.slug, 1, '');
+        // Buscar templates PDF vinculados
+        pdfTemplatesService.getAll({ sourceEntityId: target.id, isPublished: true })
+          .then(res => setEntityPdfTemplates(res.data || []))
+          .catch(() => setEntityPdfTemplates([]));
       }
     } catch (error) {
       console.error('Erro ao carregar entidades:', error);
@@ -535,7 +563,6 @@ function DataPageContent() {
       }
       if (effectiveTenantId) params.tenantId = effectiveTenantId;
       if (search.trim()) params.search = search.trim();
-      if (hasChildrenFilter) params.hasChildrenIn = hasChildrenFilter;
       // Ordenacao: null = explicitamente sem sort; undefined = usar state
       const effectiveSort = sortOverride === null ? null : (sortOverride ?? sortConfig);
       if (effectiveSort) {
@@ -598,6 +625,7 @@ function DataPageContent() {
     resetFilters();
     setCurrentPage(1);
     setDebouncedSearch('');
+    setSelectedRecordIds(new Set());
 
     // Extrair globalFilters ANTES de buscar (evita busca dupla)
     const settings = entity.settings as Record<string, unknown> | null;
@@ -606,6 +634,14 @@ function DataPageContent() {
 
     // Buscar ja com os filtros aplicados
     await fetchRecords(entity.slug, 1, '');
+
+    // Buscar templates PDF vinculados a esta entidade
+    try {
+      const pdfRes = await pdfTemplatesService.getAll({ sourceEntityId: entity.id, isPublished: true });
+      setEntityPdfTemplates(pdfRes.data || []);
+    } catch {
+      setEntityPdfTemplates([]);
+    }
   };
 
   // Limpar filtro de pai
@@ -693,31 +729,41 @@ function DataPageContent() {
     }
   };
 
-  const handleExport = useCallback(async () => {
+  const buildExportParams = useCallback(() => {
+    const params: Record<string, string | number | undefined> = {};
+    if (debouncedSearch) params.search = debouncedSearch;
+    if (activeFilters.length > 0) {
+      params.filters = JSON.stringify(activeFilters.map(f => ({
+        fieldSlug: f.fieldSlug,
+        fieldName: f.fieldName,
+        fieldType: f.fieldType,
+        operator: f.operator,
+        value: f.value,
+        value2: f.value2,
+      })));
+    }
+    if (parentFilter?.parentRecordId) {
+      params.parentRecordId = parentFilter.parentRecordId;
+    }
+    return params;
+  }, [debouncedSearch, activeFilters, parentFilter]);
+
+  const handleExport = useCallback(async (format: 'xlsx' | 'json') => {
     if (!selectedEntity || exporting) return;
     setExporting(true);
     try {
-      const params: Record<string, string | number | undefined> = {};
-      if (debouncedSearch) params.search = debouncedSearch;
-      if (activeFilters.length > 0) {
-        params.filters = JSON.stringify(activeFilters.map(f => ({
-          fieldSlug: f.fieldSlug,
-          fieldName: f.fieldName,
-          fieldType: f.fieldType,
-          operator: f.operator,
-          value: f.value,
-          value2: f.value2,
-        })));
+      const params = buildExportParams();
+      // Se tem registros selecionados, exporta so eles
+      if (selectedRecordIds.size > 0) {
+        params.recordIds = JSON.stringify(Array.from(selectedRecordIds));
       }
-      if (parentFilter?.parentRecordId) {
-        params.parentRecordId = parentFilter.parentRecordId;
-      }
-      const blob = await dataService.exportData(selectedEntity.slug, 'xlsx', params);
+      const ext = format === 'xlsx' ? 'xlsx' : 'json';
+      const blob = await dataService.exportData(selectedEntity.slug, format, params);
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
       const date = new Date().toISOString().split('T')[0];
-      a.download = `${selectedEntity.namePlural || selectedEntity.name}_${date}.xlsx`;
+      a.download = `${selectedEntity.namePlural || selectedEntity.name}_${date}.${ext}`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -728,7 +774,63 @@ function DataPageContent() {
     } finally {
       setExporting(false);
     }
-  }, [selectedEntity, exporting, debouncedSearch, activeFilters, parentFilter]);
+  }, [selectedEntity, exporting, buildExportParams, selectedRecordIds]);
+
+  const downloadBlob = useCallback((blob: Blob, fileName: string) => {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = fileName;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }, []);
+
+  const handlePdfExport = useCallback(async (template: PdfTemplate) => {
+    if (!selectedEntity || generatingPdf) return;
+    setGeneratingPdf(true);
+    try {
+      const params = buildExportParams();
+      const hasSelection = selectedRecordIds.size > 0;
+      const ids = Array.from(selectedRecordIds);
+
+      if (template.templateType === 'single') {
+        // Single: exige selecao, gera 1 PDF por registro
+        if (ids.length === 0) return;
+        let success = 0;
+        for (const recordId of ids) {
+          try {
+            const { blob, fileName } = await pdfTemplatesService.generateSingle(template.id, recordId);
+            downloadBlob(blob, fileName);
+            success++;
+            if (ids.indexOf(recordId) < ids.length - 1) {
+              await new Promise(r => setTimeout(r, 500));
+            }
+          } catch {
+            console.error(`Erro ao gerar PDF para registro ${recordId}`);
+          }
+        }
+        toast.success(ids.length === 1 ? 'PDF gerado com sucesso' : `${success} de ${ids.length} PDF(s) gerado(s)`);
+      } else {
+        // Batch: usa todos ou selecionados
+        const { blob, fileName } = await pdfTemplatesService.generateBatch(template.id, {
+          ...(hasSelection
+            ? { recordIds: ids }
+            : { useAllRecords: true }),
+          filters: params.filters as string | undefined,
+          search: params.search as string | undefined,
+          mergePdfs: true,
+        });
+        downloadBlob(blob, fileName);
+        toast.success('PDF gerado com sucesso');
+      }
+    } catch {
+      toast.error('Erro ao gerar PDF');
+    } finally {
+      setGeneratingPdf(false);
+    }
+  }, [selectedEntity, generatingPdf, buildExportParams, selectedRecordIds, downloadBlob]);
 
   const handleNewRecord = () => {
     setSelectedRecord(null);
@@ -820,13 +922,6 @@ function DataPageContent() {
   }, [debouncedSearch]);
 
   // Quando filtro de filhos muda, resetar pagina e buscar
-  useEffect(() => {
-    if (!selectedEntity) return;
-    setCurrentPage(1);
-    fetchRecords(selectedEntity.slug, 1, debouncedSearch);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hasChildrenFilter]);
-
   // Quando filtros locais mudam, resetar pagina e buscar no backend
   const activeFiltersKey = useMemo(() => JSON.stringify(activeFilters), [activeFilters]);
   useEffect(() => {
@@ -1053,119 +1148,81 @@ function DataPageContent() {
 
   return (
     <div className="space-y-4 sm:space-y-6">
-      {/* Breadcrumbs */}
-      <nav className="mb-2 flex items-center gap-2 text-sm text-muted-foreground" aria-label="breadcrumb" data-testid="breadcrumb">
-        <Link href="/dashboard" className="hover:underline">{tNav('dashboard')}</Link>
-        <span>/</span>
-        <span className="font-semibold text-foreground">{t('title')}</span>
-      </nav>
-
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-bold" data-testid="page-title">{t('title')}</h1>
-          <p className="text-muted-foreground mt-1 text-sm sm:text-base">
-            {t('subtitle')}
-          </p>
-        </div>
-        <div className="flex items-center gap-2 w-full sm:w-auto">
-          {selectedEntity && hasEntityPermission(selectedEntity.slug, 'canCreate') && (
-            <Button
-              onClick={handleNewRecord}
-              disabled={tenantLoading || (!tenantId && !isPlatformAdmin)}
-              data-testid="new-record-btn"
-              className="w-full sm:w-auto"
-            >
-              <Plus className="h-4 w-4 mr-2" />
-              {t('newRecord')}
-            </Button>
-          )}
-        </div>
-      </div>
-
-      {/* Dropdown de Entidades */}
-      <div>
-        {loading ? (
-          <div className="animate-pulse h-10 bg-muted rounded-lg w-full sm:w-64" />
-        ) : entities.length === 0 ? (
-          <Card>
-            <CardContent className="py-6 text-center">
-              <Database className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
-              <p className="text-sm text-muted-foreground">{t('noEntitiesCreated')}</p>
-              <Link href="/entities">
-                <Button variant="link" size="sm" data-testid="create-entity-btn">
-                  {t('createEntity')}
-                </Button>
-              </Link>
-            </CardContent>
-          </Card>
-        ) : (
-          <Select
-            value={selectedEntity?.id || ''}
-            onValueChange={(value) => {
-              const entity = entities.find(e => e.id === value);
-              if (entity) handleEntitySelect(entity);
-            }}
-          >
-            <SelectTrigger className="w-full sm:w-64">
-              <SelectValue placeholder={t('selectEntity')}>
-                {selectedEntity && (
-                  <div className="flex items-center gap-2">
-                    <Database className="h-4 w-4" />
-                    <span>{selectedEntity.name}</span>
-                  </div>
-                )}
-              </SelectValue>
-            </SelectTrigger>
-            <SelectContent>
-              {entities.map(entity => (
-                <SelectItem key={entity.id} value={entity.id}>
-                  <div className="flex items-center gap-2">
-                    <Database className="h-4 w-4" />
-                    <span>{entity.name}</span>
-                  </div>
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        )}
-      </div>
+      {loading && !selectedEntity ? (
+        <div className="animate-pulse h-10 bg-muted rounded-lg w-full sm:w-64" />
+      ) : !selectedEntity && entities.length === 0 ? (
+        <Card>
+          <CardContent className="py-6 text-center">
+            <Database className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
+            <p className="text-sm text-muted-foreground">{t('noEntitiesCreated')}</p>
+            <Link href="/entities">
+              <Button variant="link" size="sm" data-testid="create-entity-btn">
+                {t('createEntity')}
+              </Button>
+            </Link>
+          </CardContent>
+        </Card>
+      ) : null}
 
       <div>
         {/* Tabela de Registros */}
         <div className="min-w-0">
           {selectedEntity ? (
             <Card className="overflow-hidden">
-              <CardHeader className="border-b p-4 sm:p-6 space-y-4">
-                {/* Linha 1: Titulo e botoes principais */}
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                  <div>
-                    <CardTitle className="text-lg sm:text-xl">{selectedEntity.name}</CardTitle>
-                    <CardDescription>
-                      {(activeFilters.length + globalFilters.length) > 0
-                        ? t('recordsFiltered', { count: filteredRecords.length, filters: activeFilters.length + globalFilters.length })
-                        : paginationMeta
-                          ? t('recordsCount', { filtered: filteredRecords.length, total: paginationMeta.total })
-                          : t('recordsCount', { filtered: filteredRecords.length, total: records.length })
+              <CardHeader className="border-b px-4 py-3 sm:px-6 sm:py-4 space-y-3">
+                {/* Linha 1: Nome da entidade + contagem discreta | Novo Registro */}
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <h2 className="text-base sm:text-lg font-semibold truncate">{selectedEntity.name}</h2>
+                    {hasEntityPermission(selectedEntity.slug, 'update') && (
+                      <Link href={`/entities/${selectedEntity.id}`} prefetch={false}>
+                        <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground hover:text-foreground flex-shrink-0">
+                          <Settings2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </Link>
+                    )}
+                    <span className="text-xs text-muted-foreground flex-shrink-0">
+                      {selectedRecordIds.size > 0
+                        ? `${selectedRecordIds.size} selecionado(s)`
+                        : (activeFilters.length + globalFilters.length) > 0
+                          ? `${filteredRecords.length} filtrado(s)`
+                          : paginationMeta
+                            ? `${paginationMeta.total} registro(s)`
+                            : `${records.length} registro(s)`
                       }
-                    </CardDescription>
+                    </span>
                   </div>
-                  <div className="flex items-center gap-2 flex-wrap">
-                    {/* Busca */}
-                    <div className="relative flex-1 sm:flex-none">
-                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                      <Input
-                        placeholder={tCommon('search')}
-                        value={searchTerm}
-                        onChange={e => setSearchTerm(e.target.value)}
-                        className="pl-9 w-full sm:w-40 md:w-52"
-                      />
-                    </div>
+                  {hasEntityPermission(selectedEntity.slug, 'canCreate') && (
+                    <Button
+                      onClick={handleNewRecord}
+                      disabled={tenantLoading || (!tenantId && !isPlatformAdmin)}
+                      size="sm"
+                      data-testid="new-record-btn"
+                      className="flex-shrink-0"
+                    >
+                      <Plus className="h-4 w-4 mr-1" />
+                      <span className="hidden sm:inline">{t('newRecord')}</span>
+                    </Button>
+                  )}
+                </div>
 
-                    {/* Botao + Filtrar */}
+                {/* Linha 2: Busca + ferramentas compactas */}
+                <div className="flex items-center gap-2 flex-wrap">
+                  {/* Busca */}
+                  <div className="relative flex-1 min-w-[140px] max-w-xs">
+                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      placeholder={tCommon('search')}
+                      value={searchTerm}
+                      onChange={e => setSearchTerm(e.target.value)}
+                      className="pl-8 h-8 text-sm"
+                    />
+                  </div>
+
+                  {/* Botao + Filtrar */}
                     <Popover open={filterPopoverOpen} onOpenChange={setFilterPopoverOpen}>
                       <PopoverTrigger asChild>
-                        <Button variant="outline" size="sm" className="gap-1">
+                        <Button variant="outline" size="sm" className="gap-1 h-8">
                           <Filter className="h-4 w-4" />
                           <span className="hidden sm:inline">{t('filter.title')}</span>
                           {(activeFilters.length + globalFilters.length) > 0 && (
@@ -1541,7 +1598,7 @@ function DataPageContent() {
                       }
                     }}>
                       <PopoverTrigger asChild>
-                        <Button variant="outline" size="sm" className="gap-1">
+                        <Button variant="outline" size="sm" className="gap-1 h-8">
                           <Columns3 className="h-4 w-4" />
                           <span className="hidden sm:inline">{t('filter.columns')}</span>
                         </Button>
@@ -1675,17 +1732,61 @@ function DataPageContent() {
                     </Popover>
                     )}
 
-                    {/* Botao Exportar */}
+                    {/* Botao Exportar (dropdown: Excel, JSON, PDF) */}
                     {selectedEntity && hasEntityAction(selectedEntity.slug, 'canExport') && (
-                      <Button variant="outline" size="sm" className="gap-1" onClick={handleExport} disabled={exporting || loadingRecords}>
-                        {exporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-                        <span className="hidden sm:inline">Exportar</span>
-                      </Button>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="outline" size="sm" className="gap-1 h-8" disabled={exporting || generatingPdf || loadingRecords}>
+                            {(exporting || generatingPdf) ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+                            <span className="hidden sm:inline">Exportar</span>
+                            <ChevronDown className="h-3 w-3 opacity-50" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-52">
+                          {selectedRecordIds.size > 0 && (
+                            <>
+                              <div className="px-2 py-1.5 text-xs text-muted-foreground font-medium">
+                                {selectedRecordIds.size} registro(s) selecionado(s)
+                              </div>
+                              <DropdownMenuSeparator />
+                            </>
+                          )}
+                          <DropdownMenuItem onClick={() => handleExport('xlsx')} className="gap-2">
+                            <FileSpreadsheet className="h-4 w-4 text-green-600" />
+                            Excel (.xlsx)
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => handleExport('json')} className="gap-2">
+                            <FileJson className="h-4 w-4 text-blue-600" />
+                            JSON
+                          </DropdownMenuItem>
+                          {entityPdfTemplates.length > 0 && (
+                            <>
+                              <DropdownMenuSeparator />
+                              {entityPdfTemplates.map(tpl => {
+                                const isSingle = tpl.templateType === 'single';
+                                const disabled = isSingle && selectedRecordIds.size === 0;
+                                return (
+                                  <DropdownMenuItem
+                                    key={tpl.id}
+                                    onClick={() => !disabled && handlePdfExport(tpl)}
+                                    className={`gap-2 ${disabled ? 'opacity-40 cursor-not-allowed' : ''}`}
+                                    onSelect={disabled ? (e) => e.preventDefault() : undefined}
+                                  >
+                                    <FileText className="h-4 w-4 text-red-600" />
+                                    <span className="flex-1 truncate">{tpl.name}</span>
+                                    {disabled && <span className="text-[10px] text-muted-foreground">selecione</span>}
+                                  </DropdownMenuItem>
+                                );
+                              })}
+                            </>
+                          )}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     )}
 
                     {/* Botao Importar */}
                     {selectedEntity && hasEntityAction(selectedEntity.slug, 'canImport') && (
-                      <Button variant="outline" size="sm" className="gap-1" onClick={() => setImportOpen(true)}>
+                      <Button variant="outline" size="sm" className="gap-1 h-8" onClick={() => setImportOpen(true)}>
                         <Upload className="h-4 w-4" />
                         <span className="hidden sm:inline">Importar</span>
                       </Button>
@@ -1700,7 +1801,7 @@ function DataPageContent() {
                         }
                       }}>
                         <PopoverTrigger asChild>
-                          <Button variant={parentFilter ? 'default' : 'outline'} size="sm" className="gap-1">
+                          <Button variant={parentFilter ? 'default' : 'outline'} size="sm" className="gap-1 h-8">
                             <Database className="h-4 w-4" />
                             <span className="hidden sm:inline">{parentEntityMeta.name}</span>
                           </Button>
@@ -1761,28 +1862,6 @@ function DataPageContent() {
                       </Popover>
                     )}
 
-                    {/* Filtro: apenas com sub-entidades */}
-                    {subEntityFields.length > 0 && (
-                      <Button
-                        variant={hasChildrenFilter ? 'default' : 'outline'}
-                        size="sm"
-                        className="gap-1"
-                        onClick={() => {
-                          if (hasChildrenFilter) {
-                            setHasChildrenFilter(null);
-                          } else {
-                            setHasChildrenFilter(subEntityFields[0].subEntityId!);
-                          }
-                        }}
-                        title={hasChildrenFilter ? t('filter.showAll') : t('filter.onlyWithChildren')}
-                      >
-                        <ListFilter className="h-4 w-4" />
-                        <span className="hidden sm:inline">
-                          {hasChildrenFilter ? t('filter.withChildren') : t('filter.onlyWithChildren')}
-                        </span>
-                      </Button>
-                    )}
-
                     {/* Botao Refresh */}
                     <Button
                       variant="outline"
@@ -1792,41 +1871,29 @@ function DataPageContent() {
                     >
                       <RefreshCw className={`h-4 w-4 ${loadingRecords ? 'animate-spin' : ''}`} />
                     </Button>
-                  </div>
                 </div>
 
-                {/* Linha 2: Filtros ativos (pills) */}
-                {/* Filtro por pai ativo */}
-                {parentFilter && (
-                  <div className="flex flex-wrap gap-2 items-center">
-                    <Badge
-                      variant="default"
-                      className="gap-1 pl-2 pr-1 py-1"
-                    >
-                      <span className="text-xs">
-                        {t('filter.filteredByParentLabel', { entity: parentFilter.parentEntityName, display: parentFilter.parentDisplay })}
-                      </span>
-                      <button
-                        onClick={clearParentFilter}
-                        className="ml-1 rounded-full hover:bg-primary/80 p-0.5"
-                      >
-                        <X className="h-3 w-3" />
-                      </button>
-                    </Badge>
-                  </div>
-                )}
-
-                {/* Filtros globais (pills com icone globe) */}
-                {globalFilters.length > 0 && (
-                  <div className="flex flex-wrap gap-2 items-center">
+                {/* Filtros ativos (pills) - todos em uma unica linha */}
+                {(parentFilter || globalFilters.length > 0 || activeFilters.length > 0) && (
+                  <div className="flex flex-wrap gap-1.5 items-center">
+                    {/* Filtro por pai */}
+                    {parentFilter && (
+                      <Badge variant="default" className="gap-1 pl-2 pr-1 py-0.5 text-[11px]">
+                        {parentFilter.parentEntityName}: {parentFilter.parentDisplay}
+                        <button onClick={clearParentFilter} className="ml-0.5 rounded-full hover:bg-primary/80 p-0.5">
+                          <X className="h-2.5 w-2.5" />
+                        </button>
+                      </Badge>
+                    )}
+                    {/* Filtros globais */}
                     {globalFilters.map((filter, index) => (
                       <Badge
                         key={`global-${filter.fieldSlug}-${index}`}
                         variant="outline"
-                        className="gap-1 pl-2 pr-1 py-1 border-primary/30 bg-primary/5"
+                        className="gap-1 pl-1.5 pr-1 py-0.5 text-[11px] border-primary/30 bg-primary/5"
                       >
-                        <Globe className="h-3 w-3 text-primary/70" />
-                        <span className="text-xs">{formatFilterLabel(filter, t, tCommon)}</span>
+                        <Globe className="h-2.5 w-2.5 text-primary/70" />
+                        {formatFilterLabel(filter, t, tCommon)}
                         {selectedEntity && hasEntityPermission(selectedEntity.slug, 'canUpdate') && (
                           <button
                             onClick={async () => {
@@ -1839,49 +1906,36 @@ function DataPageContent() {
                                   settings: { ...((prev.settings as Record<string, unknown>) || {}), globalFilters: updated },
                                 } as Entity : null);
                                 toast.success('Filtro global removido');
-                                // Re-buscar dados com os filtros atualizados no backend
                                 setCurrentPage(1);
                                 await fetchRecords(selectedEntity.slug, 1, debouncedSearch);
                               } catch {
                                 toast.error('Erro ao remover filtro global');
                               }
                             }}
-                            className="ml-1 rounded-full hover:bg-muted p-0.5"
+                            className="ml-0.5 rounded-full hover:bg-muted p-0.5"
                           >
-                            <X className="h-3 w-3" />
+                            <X className="h-2.5 w-2.5" />
                           </button>
                         )}
                       </Badge>
                     ))}
-                  </div>
-                )}
-
-                {/* Filtros locais ativos (pills) */}
-                {activeFilters.length > 0 && (
-                  <div className="flex flex-wrap gap-2 items-center">
+                    {/* Filtros locais */}
                     {activeFilters.map((filter, index) => (
-                      <Badge
-                        key={`${filter.fieldSlug}-${index}`}
-                        variant="secondary"
-                        className="gap-1 pl-2 pr-1 py-1"
-                      >
-                        <span className="text-xs">{formatFilterLabel(filter, t, tCommon)}</span>
-                        <button
-                          onClick={() => handleRemoveFilter(index)}
-                          className="ml-1 rounded-full hover:bg-muted p-0.5"
-                        >
-                          <X className="h-3 w-3" />
+                      <Badge key={`${filter.fieldSlug}-${index}`} variant="secondary" className="gap-1 pl-1.5 pr-1 py-0.5 text-[11px]">
+                        {formatFilterLabel(filter, t, tCommon)}
+                        <button onClick={() => handleRemoveFilter(index)} className="ml-0.5 rounded-full hover:bg-muted p-0.5">
+                          <X className="h-2.5 w-2.5" />
                         </button>
                       </Badge>
                     ))}
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={handleClearFilters}
-                      className="h-6 px-2 text-xs text-muted-foreground hover:text-foreground"
-                    >
-                      {t('filter.clearAll')}
-                    </Button>
+                    {activeFilters.length > 0 && (
+                      <button
+                        onClick={handleClearFilters}
+                        className="text-[11px] text-muted-foreground hover:text-foreground px-1"
+                      >
+                        {t('filter.clearAll')}
+                      </button>
+                    )}
                   </div>
                 )}
               </CardHeader>
@@ -1916,6 +1970,19 @@ function DataPageContent() {
                       <table className="w-full table-auto">
                         <thead className="bg-muted/50">
                           <tr>
+                            <th className="px-2 py-2 w-8">
+                              <Checkbox
+                                checked={filteredRecords.length > 0 && selectedRecordIds.size === filteredRecords.length}
+                                onCheckedChange={(checked) => {
+                                  if (checked) {
+                                    setSelectedRecordIds(new Set(filteredRecords.map(r => r.id)));
+                                  } else {
+                                    setSelectedRecordIds(new Set());
+                                  }
+                                }}
+                                aria-label="Selecionar todos"
+                              />
+                            </th>
                             {visibleColumns.map(col => {
                               const field = getFieldBySlug(col);
                               const sortKey = col === '_parent' ? '_parentDisplay' : col;
@@ -1980,7 +2047,21 @@ function DataPageContent() {
                         </thead>
                         <tbody className="divide-y">
                           {filteredRecords.map(record => (
-                            <tr key={record.id} className="hover:bg-muted/30">
+                            <tr key={record.id} className={`hover:bg-muted/30 ${selectedRecordIds.has(record.id) ? 'bg-primary/5' : ''}`}>
+                              <td className="px-2 py-2 w-8">
+                                <Checkbox
+                                  checked={selectedRecordIds.has(record.id)}
+                                  onCheckedChange={(checked) => {
+                                    setSelectedRecordIds(prev => {
+                                      const next = new Set(prev);
+                                      if (checked) next.add(record.id);
+                                      else next.delete(record.id);
+                                      return next;
+                                    });
+                                  }}
+                                  aria-label="Selecionar registro"
+                                />
+                              </td>
                               {visibleColumns.map(col => {
                                 const field = getFieldBySlug(col);
                                 const isSubEntity = field?.type === 'sub-entity';
@@ -2073,8 +2154,21 @@ function DataPageContent() {
                     {/* Mobile: Cards */}
                     <div className="md:hidden divide-y">
                       {filteredRecords.map(record => (
-                        <div key={record.id} className="p-3 hover:bg-muted/30">
+                        <div key={record.id} className={`p-3 hover:bg-muted/30 ${selectedRecordIds.has(record.id) ? 'bg-primary/5' : ''}`}>
                           <div className="flex items-start justify-between gap-2">
+                            <div className="flex items-start gap-2 flex-1 min-w-0">
+                              <Checkbox
+                                checked={selectedRecordIds.has(record.id)}
+                                onCheckedChange={(checked) => {
+                                  setSelectedRecordIds(prev => {
+                                    const next = new Set(prev);
+                                    if (checked) next.add(record.id);
+                                    else next.delete(record.id);
+                                    return next;
+                                  });
+                                }}
+                                className="mt-0.5 flex-shrink-0"
+                              />
                             <div className="flex-1 min-w-0 space-y-1">
                               {/* Mostrar primeiras 3 colunas visiveis */}
                               {visibleColumns.slice(0, 3).map((col, idx) => {
@@ -2122,6 +2216,7 @@ function DataPageContent() {
                               <div className="text-xs text-muted-foreground pt-1">
                                 {tCommon('createdAt')}: {new Date(record.createdAt).toLocaleString('pt-BR')} · {tCommon('updatedAt')}: {new Date(record.updatedAt).toLocaleString('pt-BR')}
                               </div>
+                            </div>
                             </div>
                             <div className="flex items-center gap-1 flex-shrink-0">
                               {selectedEntity && hasEntityPermission(selectedEntity.slug, 'canUpdate') && (

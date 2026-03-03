@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient, useInfiniteQuery } from '@tanstack/react-query';
 import { useCallback, useMemo } from 'react';
 import { toast } from 'sonner';
-import { entitiesService, CreateEntityData, UpdateEntityData, QueryEntitiesParams } from '@/services/entities.service';
+import { entitiesService, CreateEntityData, UpdateEntityData, QueryEntitiesParams, EntityGrouped } from '@/services/entities.service';
 import { getErrorMessage } from '@/lib/get-error-message';
 
 export const entityKeys = {
@@ -10,6 +10,7 @@ export const entityKeys = {
   list: (params?: QueryEntitiesParams) => [...entityKeys.lists(), params] as const,
   infinite: (params?: Omit<QueryEntitiesParams, 'page' | 'cursor'>) =>
     [...entityKeys.lists(), 'infinite', params] as const,
+  grouped: () => [...entityKeys.all, 'grouped'] as const,
   details: () => [...entityKeys.all, 'detail'] as const,
   detail: (id: string) => [...entityKeys.details(), id] as const,
   bySlug: (slug: string) => [...entityKeys.all, 'slug', slug] as const,
@@ -71,6 +72,14 @@ export function useInfiniteEntities(
     hasMore: queryResult.hasNextPage,
     isLoadingMore: queryResult.isFetchingNextPage,
   };
+}
+
+export function useEntitiesGrouped(tenantId?: string | null) {
+  return useQuery({
+    queryKey: [...entityKeys.grouped(), tenantId],
+    queryFn: () => entitiesService.getAllGrouped(tenantId || undefined),
+    staleTime: 30000,
+  });
 }
 
 export function useEntity(id: string) {

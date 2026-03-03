@@ -40,6 +40,12 @@ export class EntityController {
     return this.entityService.findAll(user, query);
   }
 
+  @Get('grouped')
+  @ApiOperation({ summary: 'Listar entidades agrupadas por categoria' })
+  async findAllGrouped(@Query('tenantId') tenantId: string, @CurrentUser() user: CurrentUserType) {
+    return this.entityService.findAllGrouped(user, tenantId);
+  }
+
   @Get(':id')
   @ApiOperation({ summary: 'Buscar entidade por ID' })
   async findOne(@Param('id') id: string, @CurrentUser() user: CurrentUserType) {

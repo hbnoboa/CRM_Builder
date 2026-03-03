@@ -2,6 +2,7 @@
 
 import { Building2, ChevronDown, Globe, Home } from 'lucide-react';
 import { useTranslations } from 'next-intl';
+import { useRouter } from '@/i18n/navigation';
 import { useTenant } from '@/stores/tenant-context';
 import {
   DropdownMenu,
@@ -15,6 +16,7 @@ import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 
 export function TenantSelector() {
+  const router = useRouter();
   const {
     isPlatformAdmin,
     hasMultipleTenants,
@@ -25,6 +27,11 @@ export function TenantSelector() {
     switchTenant,
     tenant: ownTenant,
   } = useTenant();
+
+  const handleSwitchTenant = (tenantId: string | null) => {
+    switchTenant(tenantId);
+    router.push('/dashboard');
+  };
 
   // Show for PLATFORM_ADMIN or users with multi-tenant access
   if (!isPlatformAdmin && !hasMultipleTenants) return null;
@@ -61,7 +68,7 @@ export function TenantSelector() {
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start" className="w-[220px]">
           <DropdownMenuItem
-            onClick={() => switchTenant(null)}
+            onClick={() => handleSwitchTenant(null)}
             className={cn(!selectedTenantId && 'bg-accent')}
           >
             <Globe className="h-4 w-4 mr-2 flex-shrink-0" />
@@ -76,7 +83,7 @@ export function TenantSelector() {
           {allTenants.map((t) => (
             <DropdownMenuItem
               key={t.id}
-              onClick={() => switchTenant(t.id)}
+              onClick={() => handleSwitchTenant(t.id)}
               className={cn(selectedTenantId === t.id && 'bg-accent')}
             >
               <Building2 className="h-4 w-4 mr-2 flex-shrink-0" />
@@ -114,7 +121,7 @@ export function TenantSelector() {
         {accessibleTenants.map((t) => (
           <DropdownMenuItem
             key={t.id}
-            onClick={() => switchTenant(t.id)}
+            onClick={() => handleSwitchTenant(t.id)}
             className={cn(t.id === ownTenantId && 'bg-accent')}
           >
             <Building2 className="h-4 w-4 mr-2 flex-shrink-0" />

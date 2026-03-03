@@ -189,6 +189,7 @@ model Entity {
 
   fields   Json // [{ slug, name, type, required, options, ... }]
   settings Json    @default("{}")
+  category String?
   isSystem Boolean @default(false)
 
   createdAt DateTime @default(now())
@@ -205,6 +206,7 @@ model Entity {
   @@unique([tenantId, slug])
   @@index([tenantId])
   @@index([tenantId, name])
+  @@index([tenantId, category])
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
