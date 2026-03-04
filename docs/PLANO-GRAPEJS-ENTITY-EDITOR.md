@@ -100,12 +100,13 @@ pnpm add grapesjs @grapesjs/react --filter web-admin
 ```
 
 ### 1.2 Editor Config (`config/editor-config.ts`)
-- Canvas: preview-only (campos renderizados como placeholders visuais, nao editaveis inline)
+- Canvas: **WYSIWYG** (campos renderizados exatamente como no formulario final, disabled)
 - Style Manager: **desabilitado** (layout e controlado por grid-row/grid-cell, nao CSS livre)
 - Layer Manager: **desabilitado** (campos sao flat, nao aninhados)
 - Panels: Blocks (esquerda), Traits (direita), Automations (tab no direita)
 - Storage: nenhum built-in (nos controlamos save via API)
-- Canvas CSS: injetar CSS do design system (cores, fontes, spacing)
+- Canvas CSS: injetar CSS completo do design system (shadcn/ui vars, componentes, dark mode)
+- Canvas width: fixo em largura do formulario real (ex: 800px) para WYSIWYG perfeito
 
 ### 1.3 Grid System (`components/grid-row.ts`, `grid-cell.ts`)
 - `grid-row`: wrapper de linha, nao-removivel, auto-criado quando campo e solto no canvas
@@ -142,20 +143,58 @@ editor.DomComponents.addType('crm-field', {
   },
   view: {
     onRender() {
-      // Renderiza preview do campo no canvas
+      // Renderiza campo WYSIWYG (exatamente como no formulario final)
       const type = this.model.get('field-type');
       const label = this.model.get('field-label') || 'Campo';
+      const required = this.model.get('required');
+      const placeholder = this.model.get('placeholder') || '';
+
       this.el.innerHTML = `
-        <div class="crm-field-preview">
-          <label>${label}</label>
-          <div class="crm-field-placeholder crm-field-${type}">
-            ${getFieldPlaceholder(type)}
-          </div>
+        <div class="space-y-2">
+          <label class="text-sm font-medium leading-none">
+            ${label}${required ? ' <span class="text-destructive">*</span>' : ''}
+          </label>
+          ${renderFieldByType(type, { placeholder, disabled: true })}
         </div>
       `;
     },
   },
 });
+
+// Helper para renderizar cada tipo de campo como WYSIWYG
+function renderFieldByType(type: string, opts: { placeholder?: string; disabled?: boolean }): string {
+  const baseInput = `class="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm disabled:opacity-50" disabled`;
+
+  switch (type) {
+    case 'text':
+    case 'email':
+    case 'url':
+    case 'cpf':
+    case 'cnpj':
+    case 'cep':
+    case 'phone':
+      return `<input type="text" ${baseInput} placeholder="${opts.placeholder}" />`;
+    case 'textarea':
+      return `<textarea ${baseInput} rows="3" placeholder="${opts.placeholder}"></textarea>`;
+    case 'number':
+    case 'currency':
+    case 'percentage':
+      return `<input type="text" ${baseInput} placeholder="0,00" />`;
+    case 'date':
+      return `<div class="relative"><input type="text" ${baseInput} placeholder="dd/mm/aaaa" /><span class="absolute right-3 top-2.5">📅</span></div>`;
+    case 'select':
+      return `<div class="relative"><input type="text" ${baseInput} placeholder="Selecione..." /><span class="absolute right-3 top-2.5">▼</span></div>`;
+    case 'boolean':
+      return `<div class="flex items-center gap-2"><div class="h-5 w-9 rounded-full bg-muted"></div><span class="text-sm">Nao</span></div>`;
+    case 'image':
+    case 'file':
+      return `<div class="border-2 border-dashed rounded-md p-6 text-center text-muted-foreground">📎 Clique ou arraste</div>`;
+    case 'map':
+      return `<div class="border rounded-md bg-muted h-48 flex items-center justify-center text-muted-foreground">🗺️ Mapa</div>`;
+    default:
+      return `<input type="text" ${baseInput} />`;
+  }
+}
 ```
 
 ### 1.5 Serializacao Bidirecional (`serialization/`)
@@ -398,6 +437,28 @@ A serializacao GrapeJS -> EntityField[] garante o mesmo formato.
 - Cache de Intl formatters (ja existente no shared)
 - Debounce no save de traits (evitar re-render a cada keypress)
 
+### 6.5 gridRowSpan (campos multi-linha)
+- Adicionar propriedade `gridRowSpan` ao `grid-cell`
+- Permite campos como mapa/richtext/image ocupar 2+ linhas
+- Exemplo: mapa em 2 linhas com inputs lat/lng ao lado
+- Trait de resize vertical no canvas (arrastar borda inferior)
+- Atualizar serializacao para incluir `gridRowSpan` no EntityField
+
+### 6.6 Canvas WYSIWYG (What You See Is What You Get)
+- Canvas renderiza campos **exatamente** como aparecerao no formulario final
+- Nao precisa de botao "Preview" separado - o canvas JA e o preview
+- Cada tipo de campo renderiza com:
+  - Estilos reais do design system (shadcn/ui)
+  - Tamanhos reais (altura, largura)
+  - Placeholders e labels visiveis
+  - Icones apropriados (calendario, upload, busca)
+- Dados de mock para campos que precisam:
+  - select: mostra primeira opcao como exemplo
+  - relation: "Registro Exemplo"
+  - image: placeholder de upload
+- Campos sao **disabled** no canvas (nao editaveis, apenas visuais)
+- Feedback imediato: mudar propriedade atualiza o campo no canvas
+
 ## Arquivos Criticos
 
 | Arquivo | Acao |
@@ -428,6 +489,10 @@ A serializacao GrapeJS -> EntityField[] garante o mesmo formato.
 8. **Templates**: Criar entidade com template, verificar campos pre-populados no editor.
 9. **Permissoes**: ADMIN/MANAGER podem editar, VIEWER nao.
 10. **Mobile**: Verificar que entidades editadas no GrapeJS funcionam no app Flutter (mesmo formato EntityField[]).
+11. **gridRowSpan**: Campo mapa ocupando 2 linhas com inputs lat/lng ao lado, verificar layout correto.
+12. **Undo/Redo**: Desfazer multiplas acoes (Ctrl+Z), refazer (Ctrl+Y), verificar estado correto do canvas.
+13. **Copy/Paste**: Copiar campo (Ctrl+C), colar (Ctrl+V), verificar que novo campo tem slug unico gerado.
+14. **WYSIWYG**: Verificar que cada tipo de campo renderiza no canvas exatamente como aparecera no formulario final.
 
 ## Ordem de Implementacao
 
@@ -436,4 +501,6 @@ A serializacao GrapeJS -> EntityField[] garante o mesmo formato.
 3. **Fase 3** (Traits Complexos): ~2-3 sessoes — React Portals para options, workflow, formula, validacao
 4. **Fase 4** (Paineis): ~1-2 sessoes — Automacoes e Info como tabs React
 5. **Fase 5** (Integracao): ~1-2 sessoes — Substituir paginas de edicao/criacao
-6. **Fase 6** (Polish): ~1 sessao — Dark mode, i18n, atalhos, performance
+6. **Fase 6** (Polish): ~2 sessoes — Dark mode, i18n, atalhos, performance, gridRowSpan, preview com mock
+
+**Total estimado: 12-18 sessoes**
