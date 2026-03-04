@@ -165,43 +165,21 @@ class TenantSwitch extends _$TenantSwitch {
     }
   }
 
-  /// Load all tenants from local database (PLATFORM_ADMIN only).
-  /// Uses PowerSync synced Tenant table - works offline.
-  /// Fallback: if Tenant table not synced, just clears loading state.
+  /// Load all tenants (PLATFORM_ADMIN only).
+  /// Fetches from API since Tenant table is not synced via PowerSync.
   Future<void> loadTenants() async {
     state = state.copyWith(isLoading: true, clearError: true);
 
     try {
-      final db = AppDatabase.instance.db;
+      final dio = ref.read(apiClientProvider);
+      final response = await dio.get('/tenants', queryParameters: {
+        'limit': 100,
+      });
 
-      // Check if Tenant table has data (may not be synced for PLATFORM_ADMIN yet)
-      final countResult = await db.get('SELECT COUNT(*) as cnt FROM Tenant');
-      final count = countResult['cnt'] as int? ?? 0;
+      final data = response.data as Map<String, dynamic>;
+      final items = (data['data'] as List<dynamic>?) ?? [];
 
-      if (count == 0) {
-        // Tenant table not synced - clear loading, no error
-        // PLATFORM_ADMIN can still use the app, just can't switch tenants
-        debugPrint('[TenantSwitch] Tenant table empty - sync not available for PLATFORM_ADMIN');
-        state = state.copyWith(isLoading: false, tenants: []);
-        return;
-      }
-
-      // Query tenants from local SQLite (synced via PowerSync)
-      final rows = await db.getAll(
-        'SELECT t.*, (SELECT COUNT(*) FROM User u WHERE u.tenantId = t.id) as userCount '
-        'FROM Tenant t WHERE t.status = ? ORDER BY t.name ASC',
-        ['ACTIVE'],
-      );
-
-      final tenants = rows.map((row) => TenantInfo(
-        id: row['id'] as String,
-        name: row['name'] as String? ?? '',
-        slug: row['slug'] as String? ?? '',
-        logo: row['logo'] as String?,
-        status: row['status'] as String? ?? 'ACTIVE',
-        userCount: row['userCount'] as int? ?? 0,
-        createdAt: row['createdAt'] as String?,
-      )).toList();
+      final tenants = items.map((json) => TenantInfo.fromJson(json as Map<String, dynamic>)).toList();
 
       // If we have a selectedTenantId but no name, resolve it
       String? tenantName = state.selectedTenantName;
@@ -216,81 +194,51 @@ class TenantSwitch extends _$TenantSwitch {
         selectedTenantName: tenantName,
       );
 
-      debugPrint('[TenantSwitch] Loaded ${tenants.length} tenants from local DB');
+      debugPrint('[TenantSwitch] Loaded ${tenants.length} tenants from API');
     } catch (e) {
-      debugPrint('[TenantSwitch] Failed to load tenants: $e');
-      // Don't show error - just clear loading state
+      debugPrint('[TenantSwitch] Failed to load tenants from API: $e');
       state = state.copyWith(isLoading: false, tenants: []);
     }
   }
 
-  /// Load accessible tenants for multi-tenant users from local database.
-  /// Uses PowerSync synced TenantUser + Tenant tables - works offline.
-  /// Fallback: if tables not synced, just clears loading state.
+  /// Load accessible tenants for multi-tenant users.
+  /// Fetches from API since Tenant/TenantUser tables are not synced via PowerSync.
   Future<void> loadAccessibleTenants() async {
     state = state.copyWith(isLoading: true, clearError: true);
 
     try {
-      final db = AppDatabase.instance.db;
-      final authState = ref.read(authProvider);
-      final userId = authState.user?.id;
+      final dio = ref.read(apiClientProvider);
+      final response = await dio.get('/auth/accessible-tenants');
 
-      if (userId == null) {
-        state = state.copyWith(isLoading: false);
-        return;
-      }
+      final items = (response.data as List<dynamic>?) ?? [];
 
-      // Check if TenantUser table has data for this user
-      final countResult = await db.get(
-        'SELECT COUNT(*) as cnt FROM TenantUser WHERE userId = ?',
-        [userId],
-      );
-      final count = countResult['cnt'] as int? ?? 0;
+      final accessibleTenants = items.map((json) {
+        final map = json as Map<String, dynamic>;
+        final tenant = map['tenant'] as Map<String, dynamic>? ?? map;
+        final role = map['customRole'] as Map<String, dynamic>?;
 
-      if (count == 0) {
-        // TenantUser not synced - user only has access to current tenant
-        debugPrint('[TenantSwitch] TenantUser table empty for user - multi-tenant sync not available');
-        state = state.copyWith(isLoading: false, accessibleTenants: []);
-        return;
-      }
-
-      // Query accessible tenants from local SQLite (synced via PowerSync)
-      final rows = await db.getAll(
-        '''
-        SELECT t.id, t.name, t.slug, t.logo,
-               tu.isHome,
-               cr.id as roleId, cr.name as roleName, cr.roleType
-        FROM TenantUser tu
-        INNER JOIN Tenant t ON t.id = tu.tenantId
-        LEFT JOIN CustomRole cr ON cr.id = tu.customRoleId
-        WHERE tu.userId = ?
-        ORDER BY tu.isHome DESC, t.name ASC
-        ''',
-        [userId],
-      );
-
-      final accessibleTenants = rows.map((row) => AccessibleTenant(
-        id: row['id'] as String,
-        name: row['name'] as String? ?? '',
-        slug: row['slug'] as String? ?? '',
-        logo: row['logo'] as String?,
-        isHome: (row['isHome'] as int? ?? 0) == 1,
-        customRole: AccessibleTenantRole(
-          id: row['roleId'] as String? ?? '',
-          name: row['roleName'] as String? ?? '',
-          roleType: row['roleType'] as String? ?? 'USER',
-        ),
-      )).toList();
+        return AccessibleTenant(
+          id: tenant['id'] as String,
+          name: tenant['name'] as String? ?? '',
+          slug: tenant['slug'] as String? ?? '',
+          logo: tenant['logo'] as String?,
+          isHome: map['isHome'] as bool? ?? false,
+          customRole: AccessibleTenantRole(
+            id: role?['id'] as String? ?? '',
+            name: role?['name'] as String? ?? '',
+            roleType: role?['roleType'] as String? ?? 'USER',
+          ),
+        );
+      }).toList();
 
       state = state.copyWith(
         accessibleTenants: accessibleTenants,
         isLoading: false,
       );
 
-      debugPrint('[TenantSwitch] Loaded ${accessibleTenants.length} accessible tenants from local DB');
+      debugPrint('[TenantSwitch] Loaded ${accessibleTenants.length} accessible tenants from API');
     } catch (e) {
-      debugPrint('[TenantSwitch] Failed to load accessible tenants: $e');
-      // Don't show error - just clear loading state
+      debugPrint('[TenantSwitch] Failed to load accessible tenants from API: $e');
       state = state.copyWith(isLoading: false, accessibleTenants: []);
     }
   }
