@@ -206,7 +206,7 @@ class _DataFormPageState extends ConsumerState<DataFormPage> {
     for (final field in _fields) {
       final f = field as Map<String, dynamic>;
       final type = (f['type'] as String? ?? '').toUpperCase().replaceAll('-', '_');
-      if (type == 'SUB_ENTITY' || type == 'SECTION') continue;
+      if (type == 'SUB_ENTITY' || type == 'SECTION' || type == 'SECTION_TITLE') continue;
 
       final slug = f['slug'] as String? ?? '';
 
@@ -443,7 +443,8 @@ class _DataFormPageState extends ConsumerState<DataFormPage> {
                       // Field-level permissions: hide non-visible fields
                       if (visibleFields != null) {
                         final slug = fieldMap['slug'] as String? ?? '';
-                        if (!visibleFields.contains(slug)) return false;
+                        // Allow SECTION type to pass through (it's a visual element, not a data field)
+                        if (type != 'SECTION' && type != 'SECTION_TITLE' && !visibleFields.contains(slug)) return false;
                       }
 
                       // Dynamic visibility from field rules
@@ -453,7 +454,32 @@ class _DataFormPageState extends ConsumerState<DataFormPage> {
                     })
                     .map<Widget>((field) {
                   final fieldMap = field as Map<String, dynamic>;
+                  final type = (fieldMap['type']?.toString().toUpperCase() ?? '').replaceAll('-', '_');
                   final slug = fieldMap['slug'] as String? ?? '';
+
+                  // SECTION type: render as centered title
+                  if (type == 'SECTION' || type == 'SECTION_TITLE') {
+                    final label = fieldMap['label'] as String? ?? fieldMap['name'] as String? ?? '';
+                    return Padding(
+                      padding: const EdgeInsets.only(top: 16, bottom: 8),
+                      child: Column(
+                        children: [
+                          const Divider(),
+                          const SizedBox(height: 8),
+                          Text(
+                            label,
+                            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.bold,
+                              color: Theme.of(context).colorScheme.primary,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                          const SizedBox(height: 8),
+                        ],
+                      ),
+                    );
+                  }
+
                   final canEdit = editableFields == null || editableFields.contains(slug);
 
                   // Add dynamic required indicator
@@ -463,11 +489,18 @@ class _DataFormPageState extends ConsumerState<DataFormPage> {
                     fieldWithRequired['required'] = true;
                   }
 
+                  // Use key with value to force rebuild when value changes externally (via onAutoFill)
+                  final fieldValue = _values[slug];
+                  // Use a unique key that changes when value changes to force complete widget rebuild
+                  // This is necessary because TextFormField with initialValue only reads value once
+                  final fieldKey = ValueKey('field-$slug-${fieldValue?.toString() ?? 'null'}');
+
                   return Padding(
                     padding: const EdgeInsets.only(bottom: 16),
                     child: DynamicFieldInput(
+                      key: fieldKey,
                       field: fieldWithRequired,
-                      value: _values[slug],
+                      value: fieldValue,
                       enabled: canEdit,
                       allFields: _fields,
                       entitySlug: widget.entitySlug,

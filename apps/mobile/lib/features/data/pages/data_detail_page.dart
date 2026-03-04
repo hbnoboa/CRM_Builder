@@ -197,13 +197,39 @@ class DataDetailPage extends ConsumerWidget {
                               .getVisibleFields(entitySlug);
                           if (visibleFields != null) {
                             final slug = fieldMap['slug'] as String? ?? '';
-                            return visibleFields.contains(slug);
+                            // Allow SECTION type to pass through (visual element)
+                            if (type != 'SECTION' && type != 'SECTION_TITLE' && !visibleFields.contains(slug)) return false;
                           }
                           return true;
                         })
                         .map<Widget>((field) {
                       final fieldMap = field as Map<String, dynamic>;
+                      final type = (fieldMap['type']?.toString().toUpperCase() ?? '').replaceAll('-', '_');
                       final slug = fieldMap['slug'] as String? ?? '';
+
+                      // SECTION type: render as centered title
+                      if (type == 'SECTION' || type == 'SECTION_TITLE') {
+                        final label = fieldMap['label'] as String? ?? fieldMap['name'] as String? ?? '';
+                        return Padding(
+                          padding: const EdgeInsets.only(top: 16, bottom: 8),
+                          child: Column(
+                            children: [
+                              const Divider(),
+                              const SizedBox(height: 8),
+                              Text(
+                                label,
+                                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                  fontWeight: FontWeight.bold,
+                                  color: Theme.of(context).colorScheme.primary,
+                                ),
+                                textAlign: TextAlign.center,
+                              ),
+                              const SizedBox(height: 8),
+                            ],
+                          ),
+                        );
+                      }
+
                       final value = data[slug];
 
                       return Padding(

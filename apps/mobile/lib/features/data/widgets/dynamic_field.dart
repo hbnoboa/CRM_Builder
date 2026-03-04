@@ -585,7 +585,7 @@ class DynamicFieldInput extends StatelessWidget {
         return _SelectFieldInput(
           label: name,
           options: options,
-          value: value?.toString(),
+          value: value, // Pass as-is, can be String, Map, or null
           required: required,
           onChanged: onChanged,
           placeholder: placeholder,
@@ -653,7 +653,7 @@ class DynamicFieldInput extends StatelessWidget {
         return _MultiSelectFieldInput(
           label: name,
           options: options,
-          value: value is List ? List<String>.from(value) : null,
+          value: value, // Pass as-is, can be List of strings or List of {label,value} Maps
           required: required,
           onChanged: onChanged,
         );
@@ -880,10 +880,12 @@ class DynamicFieldInput extends StatelessWidget {
       case 'RELATION':
         return _RelationFieldInput(
           label: name,
-          value: value?.toString(),
+          value: value, // Pass as-is, can be String, Map, or null
           required: required,
           field: field,
           onChanged: onChanged,
+          onAutoFill: onAutoFill,
+          allFields: allFields,
         );
 
       case 'MAP':
@@ -931,7 +933,7 @@ class _MultiSelectFieldInput extends StatefulWidget {
 
   final String label;
   final List<dynamic>? options;
-  final List<String>? value;
+  final dynamic value; // Can be List<String> or List<{label, value}>
   final bool required;
   final ValueChanged<dynamic> onChanged;
 
@@ -941,11 +943,30 @@ class _MultiSelectFieldInput extends StatefulWidget {
 
 class _MultiSelectFieldInputState extends State<_MultiSelectFieldInput> {
   late List<String> _selected;
+  final Map<String, String> _cachedLabels = {}; // value -> label cache
 
   @override
   void initState() {
     super.initState();
-    _selected = List<String>.from(widget.value ?? []);
+    // Handle initial value which can be:
+    // - List of strings
+    // - List of {label, value} objects (from edit form)
+    _selected = [];
+    final initialValue = widget.value;
+    if (initialValue is List) {
+      for (final item in initialValue) {
+        if (item is Map<String, dynamic>) {
+          final val = item['value']?.toString();
+          if (val != null && val.isNotEmpty) {
+            _selected.add(val);
+            final lbl = item['label']?.toString();
+            if (lbl != null) _cachedLabels[val] = lbl;
+          }
+        } else if (item != null) {
+          _selected.add(item.toString());
+        }
+      }
+    }
   }
 
   List<_SimpleOption> get _opts {
@@ -972,8 +993,19 @@ class _MultiSelectFieldInputState extends State<_MultiSelectFieldInput> {
       ),
     );
     if (result != null) {
+      // Update cached labels for new selections
+      for (final val in result) {
+        if (!_cachedLabels.containsKey(val)) {
+          final opt = _opts.where((o) => o.value == val).firstOrNull;
+          _cachedLabels[val] = opt?.label ?? val;
+        }
+      }
       setState(() => _selected = result);
-      widget.onChanged(List<String>.from(_selected));
+      // Send list of {label, value} objects to match backend format
+      final formattedList = result.map((val) {
+        return {'label': _cachedLabels[val] ?? val, 'value': val};
+      }).toList();
+      widget.onChanged(formattedList);
     }
   }
 
@@ -1010,8 +1042,10 @@ class _MultiSelectFieldInputState extends State<_MultiSelectFieldInput> {
                         runSpacing: 4,
                         children: _selected.map((val) {
                           final opt = _opts.where((o) => o.value == val).firstOrNull;
+                          // Use option label, then cached label, then value
+                          final displayLabel = opt?.label ?? _cachedLabels[val] ?? val;
                           return Chip(
-                            label: Text(opt?.label ?? val, style: const TextStyle(fontSize: 12)),
+                            label: Text(displayLabel, style: const TextStyle(fontSize: 12)),
                             materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                             visualDensity: VisualDensity.compact,
                           );
@@ -1631,13 +1665,17 @@ class _RelationFieldInput extends StatefulWidget {
     required this.required,
     required this.field,
     required this.onChanged,
+    this.onAutoFill,
+    this.allFields,
   });
 
   final String label;
-  final String? value;
+  final dynamic value; // Can be String or {label, value} Map
   final bool required;
   final Map<String, dynamic> field;
   final ValueChanged<dynamic> onChanged;
+  final void Function(Map<String, dynamic>)? onAutoFill;
+  final List<dynamic>? allFields;
 
   @override
   State<_RelationFieldInput> createState() => _RelationFieldInputState();
@@ -1646,42 +1684,134 @@ class _RelationFieldInput extends StatefulWidget {
 class _RelationFieldInputState extends State<_RelationFieldInput> {
   List<Map<String, dynamic>> _options = [];
   String? _selectedId;
+  String? _cachedLabel; // Cached label from initial value (for edit forms)
   bool _loaded = false;
 
   @override
   void initState() {
     super.initState();
-    _selectedId = widget.value;
+    // Handle initial value which can be:
+    // - String (just the ID)
+    // - Map with {label, value} structure (from edit form)
+    // - String JSON like "{label: X, value: Y}" that needs parsing
+    final initialValue = widget.value;
+    if (initialValue is Map<String, dynamic>) {
+      _selectedId = initialValue['value']?.toString();
+      _cachedLabel = initialValue['label']?.toString();
+    } else if (initialValue is String && initialValue.isNotEmpty) {
+      // Check if it's a JSON string that needs parsing
+      if (initialValue.startsWith('{') && initialValue.contains('label')) {
+        try {
+          final parsed = jsonDecode(initialValue);
+          if (parsed is Map<String, dynamic>) {
+            _selectedId = parsed['value']?.toString();
+            _cachedLabel = parsed['label']?.toString();
+          }
+        } catch (_) {
+          _selectedId = initialValue;
+        }
+      } else {
+        _selectedId = initialValue;
+      }
+    }
+    debugPrint('[RelationField] Init ${widget.label}: id=$_selectedId, label=$_cachedLabel');
     _loadRelatedRecords();
   }
 
   Future<void> _loadRelatedRecords() async {
-    final relatedEntityId = widget.field['relationEntityId'] as String?;
-    if (relatedEntityId == null) {
-      setState(() => _loaded = true);
-      return;
+    debugPrint('[RelationField] _loadRelatedRecords START for ${widget.label}');
+    debugPrint('[RelationField] field keys: ${widget.field.keys.toList()}');
+
+    try {
+      // relatedEntityId is the direct entity ID, relatedEntitySlug is the slug
+      final relatedEntityId = widget.field['relatedEntityId'] as String?;
+      final relatedEntitySlug = widget.field['relatedEntitySlug'] as String?;
+
+      debugPrint('[RelationField] entityId=$relatedEntityId, slug=$relatedEntitySlug');
+
+      if ((relatedEntityId == null || relatedEntityId.isEmpty) &&
+          (relatedEntitySlug == null || relatedEntitySlug.isEmpty)) {
+        debugPrint('[RelationField] No relatedEntityId or relatedEntitySlug');
+        if (mounted) setState(() => _loaded = true);
+        return;
+      }
+
+      final db = AppDatabase.instance.db;
+
+      // Use relatedEntityId directly if available (it's already the entity ID)
+      String? entityId = relatedEntityId;
+
+      // If no entityId but have slug, find the entity ID by slug
+      if ((entityId == null || entityId.isEmpty) && relatedEntitySlug != null && relatedEntitySlug.isNotEmpty) {
+        final entities = await db.getAll(
+          'SELECT id FROM Entity WHERE slug = ? LIMIT 1',
+          [relatedEntitySlug],
+        );
+        if (entities.isNotEmpty) {
+          entityId = entities.first['id'] as String?;
+        }
+        debugPrint('[RelationField] Found entityId=$entityId for slug=$relatedEntitySlug');
+      }
+
+      if (entityId == null || entityId.isEmpty) {
+        debugPrint('[RelationField] Entity not found');
+        if (mounted) setState(() => _loaded = true);
+        return;
+      }
+
+      debugPrint('[RelationField] Querying EntityData for entityId=$entityId');
+
+      final records = await db.getAll(
+        'SELECT id, data FROM EntityData WHERE entityId = ? AND parentRecordId IS NULL AND deletedAt IS NULL ORDER BY createdAt DESC LIMIT 100',
+        [entityId],
+      );
+
+      debugPrint('[RelationField] Loaded ${records.length} options for ${widget.label}');
+
+      if (mounted) {
+        setState(() {
+          _options = records;
+          _loaded = true;
+        });
+      }
+    } catch (e, stack) {
+      debugPrint('[RelationField] Error loading: $e');
+      debugPrint('[RelationField] Stack: $stack');
+      if (mounted) setState(() => _loaded = true);
     }
-
-    final db = AppDatabase.instance.db;
-    final records = await db.getAll(
-      'SELECT id, data FROM EntityData WHERE entityId = ? AND parentRecordId IS NULL AND deletedAt IS NULL ORDER BY createdAt DESC LIMIT 100',
-      [relatedEntityId],
-    );
-
-    setState(() {
-      _options = records;
-      _loaded = true;
-    });
   }
 
   String _getRecordLabel(Map<String, dynamic> record) {
     try {
       final data = jsonDecode(record['data'] as String? ?? '{}');
       if (data is Map) {
-        // Use first non-empty value as label
+        // Use relatedDisplayField if specified
+        final displayField = widget.field['relatedDisplayField'] as String?;
+        if (displayField != null && displayField.isNotEmpty) {
+          final value = data[displayField];
+          if (value != null) {
+            // Handle {label, value} objects
+            if (value is Map && value.containsKey('label')) {
+              return value['label']?.toString() ?? '';
+            }
+            if (value.toString().isNotEmpty) {
+              return value.toString();
+            }
+          }
+        }
+
+        // Fallback: use first non-empty string value
         for (final v in data.values) {
-          if (v != null && v.toString().isNotEmpty) {
-            return v.toString();
+          if (v == null) continue;
+          // Handle {label, value} objects
+          if (v is Map && v.containsKey('label')) {
+            final label = v['label']?.toString();
+            if (label != null && label.isNotEmpty) return label;
+            continue;
+          }
+          final str = v.toString();
+          if (str.isNotEmpty && !str.startsWith('{')) {
+            return str;
           }
         }
       }
@@ -1691,8 +1821,17 @@ class _RelationFieldInputState extends State<_RelationFieldInput> {
 
   String? get _selectedLabel {
     if (_selectedId == null) return null;
+    // First try to find in loaded options
     for (final r in _options) {
       if (r['id'] == _selectedId) return _getRecordLabel(r);
+    }
+    // Fall back to cached label (from initial {label, value} object)
+    if (_cachedLabel != null && _cachedLabel!.isNotEmpty) {
+      return _cachedLabel;
+    }
+    // Last resort: show shortened ID
+    if (_selectedId!.length > 8) {
+      return '${_selectedId!.substring(0, 8)}...';
     }
     return _selectedId;
   }
@@ -1709,8 +1848,91 @@ class _RelationFieldInputState extends State<_RelationFieldInput> {
       ),
     );
     if (result != null) {
-      setState(() => _selectedId = result);
-      widget.onChanged(result);
+      // Find the record and label
+      String? label;
+      Map<String, dynamic>? selectedRecord;
+      for (final r in _options) {
+        if (r['id'] == result) {
+          label = _getRecordLabel(r);
+          selectedRecord = r;
+          break;
+        }
+      }
+      setState(() {
+        _selectedId = result;
+        _cachedLabel = label;
+      });
+      // Send {label, value} structure to match backend format
+      widget.onChanged({'label': label ?? result, 'value': result});
+
+      // Process onChangeAutoFill if configured
+      _processOnChangeAutoFill(result, selectedRecord);
+    }
+  }
+
+  /// Process onChangeAutoFill rules when a relation is selected
+  void _processOnChangeAutoFill(String selectedId, Map<String, dynamic>? selectedRecord) {
+    final onChangeAutoFill = widget.field['onChangeAutoFill'] as List<dynamic>?;
+    if (onChangeAutoFill == null || onChangeAutoFill.isEmpty || widget.onAutoFill == null) {
+      return;
+    }
+
+    // Parse the record data
+    Map<String, dynamic> recordData = {};
+    if (selectedRecord != null) {
+      try {
+        final dataStr = selectedRecord['data'] as String?;
+        if (dataStr != null) {
+          recordData = jsonDecode(dataStr) as Map<String, dynamic>;
+        }
+      } catch (_) {}
+    }
+
+    final updates = <String, dynamic>{};
+
+    // Build slug lookup for target field resolution
+    final slugLookup = <String, String>{};
+    if (widget.allFields != null) {
+      for (final f in widget.allFields!) {
+        if (f is Map<String, dynamic>) {
+          final slug = f['slug'] as String?;
+          final name = f['name'] as String?;
+          if (slug != null) slugLookup[slug] = slug;
+          if (name != null) slugLookup[name] = slug ?? name;
+        }
+      }
+    }
+
+    for (final autoFill in onChangeAutoFill) {
+      if (autoFill is! Map<String, dynamic>) continue;
+
+      final sourceField = autoFill['sourceField'] as String?;
+      final targetField = autoFill['targetField'] as String?;
+
+      if (targetField == null || targetField.isEmpty) continue;
+
+      // Resolve target field slug
+      final resolvedTarget = slugLookup[targetField] ?? targetField;
+
+      if (sourceField != null && sourceField.isNotEmpty) {
+        // Copy field from selected record
+        var sourceValue = recordData[sourceField];
+
+        // Handle enriched {value, label} objects
+        if (sourceValue is Map<String, dynamic> && sourceValue.containsKey('label')) {
+          sourceValue = sourceValue['label'];
+        }
+
+        if (sourceValue != null) {
+          updates[resolvedTarget] = sourceValue;
+        }
+      }
+      // Note: valueTemplate and apiEndpoint not supported yet on mobile
+    }
+
+    if (updates.isNotEmpty) {
+      debugPrint('[RelationField] onChangeAutoFill updates: $updates');
+      widget.onAutoFill!(updates);
     }
   }
 
@@ -1864,7 +2086,7 @@ class _SelectFieldInput extends StatefulWidget {
 
   final String label;
   final List<dynamic>? options;
-  final String? value;
+  final dynamic value; // Can be String or {label, value} Map
   final bool required;
   final ValueChanged<dynamic> onChanged;
   final String? placeholder;
@@ -1876,11 +2098,21 @@ class _SelectFieldInput extends StatefulWidget {
 
 class _SelectFieldInputState extends State<_SelectFieldInput> {
   String? _selected;
+  String? _cachedLabel;
 
   @override
   void initState() {
     super.initState();
-    _selected = widget.value;
+    // Handle initial value which can be:
+    // - String (just the value)
+    // - Map with {label, value} structure (from edit form)
+    final initialValue = widget.value;
+    if (initialValue is Map<String, dynamic>) {
+      _selected = initialValue['value']?.toString();
+      _cachedLabel = initialValue['label']?.toString();
+    } else if (initialValue != null) {
+      _selected = initialValue.toString();
+    }
   }
 
   List<_SimpleOption> get _opts {
@@ -1896,8 +2128,14 @@ class _SelectFieldInputState extends State<_SelectFieldInput> {
 
   String? get _selectedLabel {
     if (_selected == null) return null;
+    // First try to find in options list
     final opt = _opts.where((o) => o.value == _selected).firstOrNull;
-    return opt?.label ?? _selected;
+    if (opt != null) return opt.label;
+    // Fall back to cached label (from initial {label, value} object)
+    if (_cachedLabel != null && _cachedLabel!.isNotEmpty) {
+      return _cachedLabel;
+    }
+    return _selected;
   }
 
   Future<void> _openSheet() async {
@@ -1913,8 +2151,16 @@ class _SelectFieldInputState extends State<_SelectFieldInput> {
       ),
     );
     if (result != null && result.isNotEmpty) {
-      setState(() => _selected = result.first);
-      widget.onChanged(result.first);
+      final selectedValue = result.first;
+      // Find label for selected value
+      final opt = _opts.where((o) => o.value == selectedValue).firstOrNull;
+      final label = opt?.label ?? selectedValue;
+      setState(() {
+        _selected = selectedValue;
+        _cachedLabel = label;
+      });
+      // Send {label, value} structure to match backend format
+      widget.onChanged({'label': label, 'value': selectedValue});
     }
   }
 
