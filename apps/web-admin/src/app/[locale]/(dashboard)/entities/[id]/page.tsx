@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useSearchParams } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import { Link, useRouter } from '@/i18n/navigation';
 import { useTranslations } from 'next-intl';
@@ -9,6 +9,11 @@ import { useTranslations } from 'next-intl';
 const ZoneDiagramEditor = dynamic(
   () => import('@/components/form/zone-diagram-editor'),
   { ssr: false, loading: () => <div className="h-32 flex items-center justify-center text-muted-foreground">Carregando editor...</div> },
+);
+
+const GrapeJSEntityEditor = dynamic(
+  () => import('@/components/entity-editor/grapejs-editor'),
+  { ssr: false, loading: () => <div className="h-screen flex items-center justify-center text-muted-foreground">Carregando editor visual...</div> },
 );
 import {
   ArrowLeft, Plus, Trash2, Save, Loader2, MoreHorizontal,
@@ -1144,12 +1149,19 @@ function EntityDetailPageContent() {
           <h1 className="text-xl sm:text-2xl font-bold truncate">{entity.name}</h1>
           <p className="text-xs sm:text-sm text-muted-foreground truncate">/{entity.slug} — {entity._count?.data || 0} {tCommon('fields').toLowerCase()}</p>
         </div>
-        {hasModulePermission('entities', 'canUpdate') && (
-          <Button onClick={handleSave} disabled={saving} className="w-full sm:w-auto">
-            {saving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
-            {tCommon('save')}
-          </Button>
-        )}
+        <div className="flex items-center gap-2">
+          <Link href={`/entities/${params.id}?editor=visual`}>
+            <Button variant="outline" size="sm" title="Editor Visual (GrapeJS)">
+              Editor Visual
+            </Button>
+          </Link>
+          {hasModulePermission('entities', 'canUpdate') && (
+            <Button onClick={handleSave} disabled={saving} className="w-full sm:w-auto">
+              {saving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
+              {tCommon('save')}
+            </Button>
+          )}
+        </div>
       </div>
 
       <Tabs defaultValue="fields" className="space-y-4">
@@ -1432,7 +1444,54 @@ function EntityDetailPageContent() {
   );
 }
 
+function GrapeJSEditorWrapper() {
+  const params = useParams();
+  const router = useRouter();
+  const [entity, setEntity] = useState<Entity | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (params.id) {
+      api.get(`/entities/${params.id}`)
+        .then((res) => setEntity(res.data))
+        .catch(() => { toast.error('Entidade nao encontrada'); router.push('/entities'); })
+        .finally(() => setLoading(false));
+    }
+  }, [params.id]);
+
+  if (loading || !entity) {
+    return <div className="h-screen flex items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>;
+  }
+
+  return (
+    <GrapeJSEntityEditor
+      entity={entity}
+      onSave={async ({ name, description, fields, settings }) => {
+        await api.patch(`/entities/${params.id}`, {
+          name,
+          description,
+          fields,
+          settings,
+        });
+        router.push('/entities');
+      }}
+      onCancel={() => router.push('/entities')}
+    />
+  );
+}
+
 export default function EntityDetailPage() {
+  const searchParams = useSearchParams();
+  const useVisualEditor = searchParams.get('editor') === 'visual';
+
+  if (useVisualEditor) {
+    return (
+      <RequireRole module="entities">
+        <GrapeJSEditorWrapper />
+      </RequireRole>
+    );
+  }
+
   return (
     <RequireRole module="entities">
       <EntityDetailPageContent />
