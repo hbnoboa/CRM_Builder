@@ -1,10 +1,13 @@
 import 'dart:convert';
 import 'dart:io';
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:crm_mobile/core/auth/secure_storage.dart';
 import 'package:crm_mobile/core/cache/crm_cache_manager.dart';
+import 'package:crm_mobile/core/config/env.dart';
 import 'package:crm_mobile/core/database/app_database.dart';
 import 'package:crm_mobile/core/theme/app_colors.dart';
 import 'package:crm_mobile/core/theme/app_colors_extension.dart';
@@ -585,6 +588,19 @@ class DynamicFieldInput extends StatelessWidget {
           value: value?.toString(),
           required: required,
           onChanged: onChanged,
+          placeholder: placeholder,
+          helpText: helpText,
+        );
+
+      case 'API_SELECT':
+        return _ApiSelectFieldInput(
+          label: name,
+          field: field,
+          value: value,
+          required: required,
+          onChanged: onChanged,
+          onAutoFill: onAutoFill,
+          allFields: allFields,
           placeholder: placeholder,
           helpText: helpText,
         );
@@ -1931,6 +1947,315 @@ class _SelectFieldInputState extends State<_SelectFieldInput> {
                 overflow: TextOverflow.ellipsis,
               ),
             ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// API Select field: fetches options from API endpoint and allows selection.
+/// Supports auto-fill of other fields when a selection is made.
+class _ApiSelectFieldInput extends StatefulWidget {
+  const _ApiSelectFieldInput({
+    required this.label,
+    required this.field,
+    this.value,
+    required this.required,
+    required this.onChanged,
+    this.onAutoFill,
+    this.allFields,
+    this.placeholder,
+    this.helpText,
+  });
+
+  final String label;
+  final Map<String, dynamic> field;
+  final dynamic value;
+  final bool required;
+  final ValueChanged<dynamic> onChanged;
+  final void Function(Map<String, dynamic>)? onAutoFill;
+  final List<dynamic>? allFields;
+  final String? placeholder;
+  final String? helpText;
+
+  @override
+  State<_ApiSelectFieldInput> createState() => _ApiSelectFieldInputState();
+}
+
+class _ApiSelectFieldInputState extends State<_ApiSelectFieldInput> {
+  List<_SimpleOption> _options = [];
+  bool _loading = true;
+  String? _selectedValue;
+  String? _selectedLabel;
+
+  @override
+  void initState() {
+    super.initState();
+    // Parse initial value (may be string or {label, value} object)
+    if (widget.value != null) {
+      if (widget.value is Map<String, dynamic>) {
+        _selectedValue = widget.value['value']?.toString();
+        _selectedLabel = widget.value['label']?.toString();
+      } else {
+        _selectedValue = widget.value.toString();
+      }
+    }
+    _loadOptions();
+  }
+
+  Future<void> _loadOptions() async {
+    final apiEndpoint = widget.field['apiEndpoint'] as String?;
+    if (apiEndpoint == null || apiEndpoint.isEmpty) {
+      setState(() => _loading = false);
+      return;
+    }
+
+    try {
+      // Import Dio and make API call
+      final dio = await _getDio();
+      final response = await dio.get(apiEndpoint);
+
+      if (response.data is List) {
+        final items = response.data as List;
+        _options = items.map((item) {
+          if (item is Map<String, dynamic>) {
+            return _SimpleOption(
+              value: item['value']?.toString() ?? '',
+              label: item['label']?.toString() ?? item['value']?.toString() ?? '',
+            );
+          }
+          return _SimpleOption(value: item.toString(), label: item.toString());
+        }).where((o) => o.value.isNotEmpty).toList();
+
+        // Sort alphabetically
+        _options.sort((a, b) => a.label.compareTo(b.label));
+
+        // Update label if we have a value but no label
+        if (_selectedValue != null && _selectedLabel == null) {
+          final match = _options.where((o) => o.value == _selectedValue).firstOrNull;
+          _selectedLabel = match?.label;
+        }
+      }
+    } catch (e) {
+      debugPrint('[ApiSelect] Error loading options from $apiEndpoint: $e');
+    }
+
+    if (mounted) setState(() => _loading = false);
+  }
+
+  Future<Dio> _getDio() async {
+    // Get authenticated Dio instance
+    final dio = Dio(BaseOptions(
+      baseUrl: Env.apiUrl,
+      connectTimeout: const Duration(seconds: 30),
+      receiveTimeout: const Duration(seconds: 30),
+    ),);
+
+    // Add auth token
+    final token = await SecureStorage.getAccessToken();
+    if (token != null) {
+      dio.options.headers['Authorization'] = 'Bearer $token';
+    }
+
+    return dio;
+  }
+
+  void _handleSelection(_SimpleOption option, Map<String, dynamic>? rawData) {
+    setState(() {
+      _selectedValue = option.value;
+      _selectedLabel = option.label;
+    });
+
+    // Return {label, value} object to match web behavior
+    widget.onChanged({
+      'label': option.label,
+      'value': option.value,
+    });
+
+    // Handle auto-fill if configured
+    _processAutoFill(option, rawData);
+  }
+
+  void _processAutoFill(_SimpleOption option, Map<String, dynamic>? rawData) {
+    final autoFillFields = widget.field['autoFillFields'] as List<dynamic>?;
+    if (autoFillFields == null || autoFillFields.isEmpty || widget.onAutoFill == null) return;
+
+    final updates = <String, dynamic>{};
+
+    for (final autoFill in autoFillFields) {
+      if (autoFill is! Map<String, dynamic>) continue;
+
+      final targetSlug = autoFill['targetField'] as String?;
+      final sourceField = autoFill['sourceField'] as String?;
+
+      if (targetSlug == null || targetSlug.isEmpty) continue;
+
+      // Get value from raw data if available
+      if (rawData != null && sourceField != null) {
+        final val = rawData[sourceField];
+        if (val != null) {
+          updates[targetSlug] = val;
+        }
+      }
+    }
+
+    if (updates.isNotEmpty) {
+      widget.onAutoFill!(updates);
+    }
+  }
+
+  Future<void> _openSheet() async {
+    final result = await showModalBottomSheet<_SimpleOption>(
+      context: context,
+      isScrollControlled: true,
+      builder: (ctx) => _ApiSelectSheet(
+        options: _options,
+        selectedValue: _selectedValue,
+        label: widget.label,
+        loading: _loading,
+      ),
+    );
+
+    if (result != null) {
+      _handleSelection(result, null);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FormField<String>(
+      initialValue: _selectedValue,
+      validator: widget.required
+          ? (v) => (v == null || v.isEmpty) ? '${widget.label} obrigatorio' : null
+          : null,
+      builder: (fieldState) => Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          InkWell(
+            onTap: _loading ? null : _openSheet,
+            child: InputDecorator(
+              decoration: InputDecoration(
+                labelText: widget.label,
+                hintText: widget.placeholder,
+                helperText: widget.helpText,
+                suffixIcon: _loading
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: Padding(
+                          padding: EdgeInsets.all(12),
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        ),
+                      )
+                    : const Icon(Icons.arrow_drop_down),
+                errorText: fieldState.errorText,
+              ),
+              child: Text(
+                _selectedLabel ?? 'Selecionar...',
+                style: _selectedLabel != null
+                    ? AppTypography.bodyMedium
+                    : AppTypography.bodyMedium.copyWith(color: context.colors.mutedForeground),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Bottom sheet for API select options
+class _ApiSelectSheet extends StatefulWidget {
+  const _ApiSelectSheet({
+    required this.options,
+    this.selectedValue,
+    required this.label,
+    this.loading = false,
+  });
+
+  final List<_SimpleOption> options;
+  final String? selectedValue;
+  final String label;
+  final bool loading;
+
+  @override
+  State<_ApiSelectSheet> createState() => _ApiSelectSheetState();
+}
+
+class _ApiSelectSheetState extends State<_ApiSelectSheet> {
+  String _query = '';
+
+  List<_SimpleOption> get _filtered {
+    if (_query.isEmpty) return widget.options;
+    final q = _query.toLowerCase();
+    return widget.options.where((o) => o.label.toLowerCase().contains(q)).toList();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return DraggableScrollableSheet(
+      initialChildSize: 0.6,
+      maxChildSize: 0.9,
+      minChildSize: 0.3,
+      expand: false,
+      builder: (context, scrollController) => Column(
+        children: [
+          // Header
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+            child: Text(widget.label, style: AppTypography.h4),
+          ),
+
+          // Search field
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+            child: TextField(
+              autofocus: true,
+              decoration: InputDecoration(
+                hintText: 'Buscar ${widget.label}...',
+                prefixIcon: const Icon(Icons.search),
+                isDense: true,
+              ),
+              onChanged: (v) => setState(() => _query = v),
+            ),
+          ),
+
+          // Options list
+          Expanded(
+            child: widget.loading
+                ? const Center(child: CircularProgressIndicator())
+                : widget.options.isEmpty
+                    ? Center(
+                        child: Text(
+                          'Nenhuma opcao disponivel',
+                          style: AppTypography.bodyMedium.copyWith(
+                            color: context.colors.mutedForeground,
+                          ),
+                        ),
+                      )
+                    : ListView.builder(
+                        controller: scrollController,
+                        itemCount: _filtered.length,
+                        itemBuilder: (context, index) {
+                          final opt = _filtered[index];
+                          final isSelected = opt.value == widget.selectedValue;
+                          return ListTile(
+                            title: Text(
+                              opt.label,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            trailing: isSelected
+                                ? Icon(Icons.check, color: Theme.of(context).colorScheme.primary)
+                                : null,
+                            selected: isSelected,
+                            onTap: () => Navigator.of(context).pop(opt),
+                          );
+                        },
+                      ),
           ),
         ],
       ),
