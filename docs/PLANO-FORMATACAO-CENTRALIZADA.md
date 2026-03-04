@@ -258,20 +258,222 @@ Ou seja, `_formatted` so contera campos que o usuario tem permissao de ver.
 
 ### 3.4 Locais avulsos com toLocaleDateString/toLocaleString
 
-Esses NAO serao migrados agora pois sao datas de metadados (createdAt de tenant, logs, etc.), nao valores de campo de entidade. O formatter e especifico para FieldType de entidades.
+O formatter deve ser **universal** e usado em TODOS os locais que exibem dados formatados:
+
+- **Tabelas de dados** (principal)
+- **Dashboards** (cards, metricas, graficos)
+- **PDFs** (relatorios, documentos)
+- **Exports** (Excel, JSON, CSV)
+- **Logs de auditoria** (createdAt, updatedAt, etc.)
+- **Detalhes de tenant/usuario** (datas de criacao, ultimo acesso)
+- **Notificacoes** (timestamps, valores)
+- **Mobile** (todas as telas que exibem dados)
+
+**Migrar todos os `toLocaleDateString`/`toLocaleString` avulsos** para usar o formatter centralizado. Isso garante:
+
+1. **Consistencia visual** - mesma formatacao em toda a plataforma
+2. **Facilidade de manutencao** - mudar formato em 1 lugar
+3. **Internacionalizacao futura** - locale configuravel por tenant
+4. **Menos bugs** - elimina inconsistencias pt-BR vs en-US
+
+**Locais a migrar:**
+- `audit-logs` - timestamps de acoes
+- `tenant/page.tsx` - datas de criacao do tenant
+- `user/page.tsx` - ultimo acesso, data de criacao
+- `notification/page.tsx` - timestamps de notificacoes
+- `dashboard/page.tsx` - metricas com datas/valores
+- Qualquer outro local com formatacao inline de data/numero
 
 ## Fase 4: Expandir Flutter formatters
 
 **Arquivo:** `apps/mobile/lib/shared/utils/formatters.dart`
 
+### Por que Flutter nao usa `packages/shared` diretamente?
+
+| Aspecto | TypeScript (shared) | Dart (Flutter) |
+|---------|---------------------|----------------|
+| **Linguagem** | TypeScript/JavaScript | Dart |
+| **Runtime** | Node.js / Browser | Dart VM / AOT |
+| **Intl** | `Intl.NumberFormat` | `intl` package |
+| **Interop** | N/A | Possivel mas complexo |
+
+**Opcoes avaliadas:**
+
+1. **Manter em sincronia manual** (RECOMENDADO)
+   - Simples, funciona, baixo overhead
+   - Formatters sao funcoes puras simples
+   - Dart e TS tem APIs de formatacao similares (`intl` package)
+   - Facil de testar: mesma entrada = mesma saida
+
+2. **Gerar Dart do TypeScript** (NAO RECOMENDADO)
+   - Ferramentas como `ts2dart` sao abandonadas
+   - Complexidade de build nao justifica
+   - Introducao de bugs na transpilacao
+
+3. **Usar package compartilhado via FFI/JS** (NAO RECOMENDADO)
+   - Flutter Web poderia usar JS interop
+   - Flutter mobile nao pode (nao tem JS runtime)
+   - Fragmentacao de implementacao
+
+4. **Usar API para formatar** (ALTERNATIVA FUTURA)
+   - Mobile chama API com `?include=formatted`
+   - Backend retorna `_formatted` junto com `data`
+   - Mobile so renderiza, nao formata
+   - Overhead de rede, mas zero duplicacao de logica
+
+### Implementacao Dart (espelha TypeScript)
+
 Expandir a classe `Formatters` para espelhar os tipos do shared TypeScript:
 
-- Adicionar: `cpf`, `cnpj`, `cep`, `phone`, `percentage`, `number`, `boolean`, `time`, `rating`
-- Adicionar: `formatFieldValue(dynamic value, String fieldType)` -- funcao principal que despacha por tipo
-- Manter `date`, `dateTime`, `currency`, `initials`, `timeAgo` existentes
-- Usar no `data_card.dart` e `dynamic_field.dart` em vez de formatacao inline
+```dart
+// apps/mobile/lib/shared/utils/formatters.dart
 
-**Nota**: Flutter nao usa o package shared (Dart vs TS), entao precisa manter em sincronia manualmente. A logica e simples o suficiente para nao divergir.
+class Formatters {
+  // Existentes (manter)
+  static String date(String? isoDate) { ... }
+  static String dateTime(String? isoDateTime) { ... }
+  static String currency(num? value, {String symbol = 'R\$'}) { ... }
+  static String initials(String? name) { ... }
+  static String timeAgo(String? isoDate) { ... }
+
+  // NOVOS (adicionar para espelhar shared/formatters.ts)
+  static String cpf(String? value) { ... }
+  static String cnpj(String? value) { ... }
+  static String cep(String? value) { ... }
+  static String phone(String? value) { ... }
+  static String percentage(num? value, {int decimals = 2}) { ... }
+  static String number(num? value, {int? decimals}) { ... }
+  static String boolean(bool? value, {String t = 'Sim', String f = 'Nao'}) { ... }
+  static String time(String? value) { ... }
+  static String rating(num? value, {int max = 5}) { ... }
+  static String duration(int? milliseconds) { ... }
+
+  /// Funcao principal que despacha por tipo de campo
+  /// Espelha formatFieldValue do packages/shared/src/formatters.ts
+  static String formatFieldValue(dynamic value, String fieldType, {
+    String emptyValue = '-',
+    String boolTrue = 'Sim',
+    String boolFalse = 'Nao',
+  }) {
+    if (value == null) return emptyValue;
+
+    // Extrair label de {value, label}
+    if (value is Map && value.containsKey('label')) {
+      return value['label']?.toString() ?? emptyValue;
+    }
+
+    switch (fieldType.toUpperCase().replaceAll('-', '_')) {
+      case 'TEXT':
+      case 'TEXTAREA':
+      case 'EMAIL':
+      case 'URL':
+        return value.toString();
+      case 'RICHTEXT':
+        return _stripHtml(value.toString());
+      case 'NUMBER':
+        return number(num.tryParse(value.toString()));
+      case 'CURRENCY':
+        return currency(num.tryParse(value.toString()));
+      case 'PERCENTAGE':
+        return percentage(num.tryParse(value.toString()));
+      case 'CPF':
+        return cpf(value.toString());
+      case 'CNPJ':
+        return cnpj(value.toString());
+      case 'CEP':
+        return cep(value.toString());
+      case 'PHONE':
+        return phone(value.toString());
+      case 'DATE':
+        return date(value.toString());
+      case 'DATETIME':
+        return dateTime(value.toString());
+      case 'TIME':
+        return time(value.toString());
+      case 'BOOLEAN':
+        return boolean(value == true || value == 'true', t: boolTrue, f: boolFalse);
+      case 'SELECT':
+      case 'API_SELECT':
+      case 'RELATION':
+      case 'USER_SELECT':
+      case 'WORKFLOW_STATUS':
+      case 'RADIO_GROUP':
+      case 'LOOKUP':
+        return _extractLabel(value) ?? emptyValue;
+      case 'MULTISELECT':
+      case 'CHECKBOX_GROUP':
+      case 'TAGS':
+        return _formatArray(value);
+      case 'RATING':
+        return rating(num.tryParse(value.toString()));
+      case 'COLOR':
+        return value.toString();
+      case 'PASSWORD':
+        return '••••••••';
+      case 'HIDDEN':
+        return '';
+      case 'FILE':
+      case 'IMAGE':
+        return _formatFileCount(value);
+      case 'MAP':
+        return _extractMapAddress(value) ?? emptyValue;
+      case 'TIMER':
+        return duration(int.tryParse(value.toString()));
+      case 'SIGNATURE':
+        return value != null && value.toString().isNotEmpty ? 'Assinado' : emptyValue;
+      default:
+        return value.toString();
+    }
+  }
+
+  // Helpers privados
+  static String _stripHtml(String html) { ... }
+  static String? _extractLabel(dynamic value) { ... }
+  static String _formatArray(dynamic value) { ... }
+  static String _formatFileCount(dynamic value) { ... }
+  static String? _extractMapAddress(dynamic value) { ... }
+}
+```
+
+### Uso no mobile
+
+```dart
+// data_card.dart - antes
+Text(_formatValue(value, type)) // funcao local
+
+// data_card.dart - depois
+Text(Formatters.formatFieldValue(value, type))
+
+// dynamic_field.dart (display mode) - antes
+Text(value?.toString() ?? '-')
+
+// dynamic_field.dart (display mode) - depois
+Text(Formatters.formatFieldValue(value, field['type']))
+```
+
+### Testes de paridade
+
+Para garantir que Dart e TypeScript produzem mesma saida:
+
+```dart
+// test/formatters_test.dart
+void main() {
+  group('Formatters parity with TypeScript', () {
+    test('CPF formatting matches', () {
+      expect(Formatters.cpf('12345678901'), '123.456.789-01');
+    });
+    test('Currency formatting matches', () {
+      expect(Formatters.currency(1234.56), 'R\$ 1.234,56');
+    });
+    test('Date formatting matches', () {
+      expect(Formatters.date('2026-03-15'), '15/03/2026');
+    });
+    // ... um teste para cada tipo
+  });
+}
+```
+
+Rodar os mesmos testes em ambos os lados garante paridade.
 
 ## Fase 5: Build, Deploy, Verificacao
 
@@ -298,6 +500,11 @@ Expandir a classe `Formatters` para espelhar os tipos do shared TypeScript:
 | CUSTOM role (scope) | Conta de registros respeita scope | funciona | funciona |
 | ArchivedEntityData | Records arquivados tambem tem _formatted | N/A | formatted |
 | PLATFORM_ADMIN | Ve tudo sem filtro | funciona | funciona |
+| Mobile cards | Formatacao igual ao web | parcial | completo |
+| Mobile detail | Formatacao igual ao web | parcial | completo |
+| Mobile form display | Campos readonly formatados | parcial | completo |
+| Dashboard cards | Metricas formatadas | inline | centralizado |
+| Audit logs | Timestamps formatados | inline | centralizado |
 
 ## Arquivos Criticos
 
@@ -311,11 +518,61 @@ Expandir a classe `Formatters` para espelhar os tipos do shared TypeScript:
 | `apps/api/src/modules/data/data-io.service.ts` | Melhorar formatacao do export (linhas 141-158) | EDITAR |
 | `apps/web-admin/src/app/[locale]/(dashboard)/data/page.tsx` | Deletar formatCellValue, usar _formatted | EDITAR |
 | `apps/web-admin/src/components/data/sub-entity-field.tsx` | Deletar formatCellValue, usar _formatted | EDITAR |
-| `apps/mobile/lib/shared/utils/formatters.dart` | Expandir com todos os tipos | EDITAR |
+| `apps/mobile/lib/shared/utils/formatters.dart` | Expandir com todos os tipos + `formatFieldValue()` | EDITAR |
+| `apps/mobile/test/formatters_test.dart` | **CRIAR** - testes de paridade com TypeScript | NOVO |
 
 ## Nao incluso neste plano (futuro)
 
 - Locale configuravel por tenant (hoje hardcoded pt-BR) -- pode ser adicionado depois passando locale do tenant settings
-- `include=formatted` como query param opt-in na API -- pode ser adicionado depois se mobile precisar
 - Formatacao de campos computed (formula/rollup/timer/sla-status) com tipos especificos -- por agora formata como number ou string generico
-- Migracao dos `toLocaleDateString` avulsos em logs/tenants/etc. -- nao sao valores de campo de entidade
+
+## Evolucoes futuras
+
+### Mobile usando `_formatted` da API (elimina duplicacao)
+
+Quando o mobile precisar de formatacao 100% identica ao web sem manter Dart em sincronia:
+
+```
+GET /data/clientes?include=formatted
+
+Response:
+{
+  "data": [
+    {
+      "id": "123",
+      "data": { "cpf": "12345678901", "valor": 1234.56 },
+      "_formatted": { "cpf": "123.456.789-01", "valor": "R$ 1.234,56" }
+    }
+  ]
+}
+```
+
+**Prós:**
+- Zero duplicacao de logica (backend e fonte unica)
+- Mobile so renderiza, nao formata
+- Garantia de consistencia
+
+**Contras:**
+- Overhead de rede (dados maiores)
+- Nao funciona offline (precisa de fallback local)
+
+**Implementacao:**
+1. Adicionar query param `include=formatted` no `data.controller.ts`
+2. Se presente, incluir `_formatted` no response (ja implementado para web)
+3. Mobile usa `_formatted` quando online, fallback para `Formatters.formatFieldValue` quando offline
+
+### Package shared em Dart (alternativa avancada)
+
+Se no futuro a logica de formatacao ficar muito complexa para manter em sincronia manual:
+
+1. **Extrair logica para JSON schema**
+   - Definir formatacao como dados, nao codigo
+   - `{ "cpf": { "mask": "###.###.###-##" } }`
+   - Interpretar em TS e Dart
+
+2. **Gerar codigo Dart automaticamente**
+   - Script de build que le `formatters.ts`
+   - Gera `formatters.g.dart` equivalente
+   - Roda no CI/CD
+
+Por agora, a sincronia manual e suficiente (formatters sao funcoes simples e estaveis).
