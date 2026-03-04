@@ -16,13 +16,15 @@ export class StatsService {
 
     const [
       totalEntities,
-      totalRecords,
+      activeRecords,
+      archivedRecords,
       totalPages,
       totalUsers,
       totalTenants,
     ] = await Promise.all([
       this.prisma.entity.count({ where }),
       this.prisma.entityData.count({ where }),
+      this.prisma.archivedEntityData.count({ where }),
       this.prisma.page.count({ where }),
       this.prisma.user.count({ where }),
       roleType === 'PLATFORM_ADMIN'
@@ -32,7 +34,7 @@ export class StatsService {
 
     return {
       totalEntities,
-      totalRecords,
+      totalRecords: activeRecords + archivedRecords,
       totalPages,
       totalUsers,
       ...(roleType === 'PLATFORM_ADMIN' ? { totalTenants } : {}),
@@ -84,7 +86,7 @@ export class StatsService {
     const where = this.getWhere(tenantId, role);
 
     // Usar groupBy para evitar N+1 (1 query ao inves de N+1)
-    const [entities, counts] = await Promise.all([
+    const [entities, activeCounts, archivedCounts] = await Promise.all([
       this.prisma.entity.findMany({
         where,
         select: { id: true, name: true, slug: true },
@@ -94,17 +96,25 @@ export class StatsService {
         where,
         _count: { id: true },
       }),
+      this.prisma.archivedEntityData.groupBy({
+        by: ['entityId'],
+        where,
+        _count: { id: true },
+      }),
     ]);
 
-    const countMap = new Map(
-      counts.map((c) => [c.entityId, c._count.id]),
+    const activeMap = new Map(
+      activeCounts.map((c) => [c.entityId, c._count.id]),
+    );
+    const archivedMap = new Map(
+      archivedCounts.map((c) => [c.entityId, c._count.id]),
     );
 
     return entities
       .map((entity) => ({
         name: entity.name,
         slug: entity.slug,
-        records: countMap.get(entity.id) || 0,
+        records: (activeMap.get(entity.id) || 0) + (archivedMap.get(entity.id) || 0),
       }))
       .filter((item) => item.records > 0);
   }

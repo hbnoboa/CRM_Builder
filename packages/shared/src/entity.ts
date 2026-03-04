@@ -398,6 +398,7 @@ export interface Entity {
   isSystem?: boolean;
   _count?: {
     data: number;
+    archivedData?: number;
   };
   createdAt?: string;
   updatedAt?: string;

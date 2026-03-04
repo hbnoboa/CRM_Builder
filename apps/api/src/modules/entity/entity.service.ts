@@ -220,7 +220,7 @@ export class EntityService {
       orderBy,
       include: {
         _count: {
-          select: { data: true },
+          select: { data: true, archivedData: true },
         },
         tenant: {
           select: { id: true, name: true, slug: true },
@@ -298,7 +298,7 @@ export class EntityService {
       orderBy: [{ category: 'asc' }, { name: 'asc' }],
       include: {
         _count: {
-          select: { data: true },
+          select: { data: true, archivedData: true },
         },
       },
     });

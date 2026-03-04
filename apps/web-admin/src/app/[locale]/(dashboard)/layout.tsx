@@ -478,7 +478,7 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
                                     </TooltipTrigger>
                                     <TooltipContent side="right">
                                       <p>{entity.name}</p>
-                                      {entity._count && <p className="text-xs text-muted-foreground">{entity._count.data} registros</p>}
+                                      {entity._count && <p className="text-xs text-muted-foreground">{(entity._count.data || 0) + (entity._count.archivedData || 0)} registros</p>}
                                     </TooltipContent>
                                   </Tooltip>
                                 );
@@ -567,7 +567,7 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
                                             'text-[10px] tabular-nums',
                                             isActive ? 'text-primary-foreground/70' : 'text-muted-foreground/50'
                                           )}>
-                                            {entity._count.data}
+                                            {(entity._count.data || 0) + (entity._count.archivedData || 0)}
                                           </span>
                                         )}
                                       </Link>
