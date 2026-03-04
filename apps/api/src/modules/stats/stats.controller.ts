@@ -5,7 +5,6 @@ import { RolesGuard } from '../../common/guards/roles.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { CurrentUser as CurrentUserType } from '../../common/types';
 import { StatsService } from './stats.service';
-import { getEffectiveTenantId } from '../../common/utils/tenant.util';
 import { checkModulePermission } from '../../common/utils/check-module-permission';
 
 @ApiTags('Stats')
@@ -19,9 +18,7 @@ export class StatsController {
   @ApiOperation({ summary: 'Obter estatisticas do dashboard' })
   async getDashboardStats(@CurrentUser() user: CurrentUserType, @Query('tenantId') tenantId?: string) {
     checkModulePermission(user, 'dashboard', 'canRead');
-    const roleType = user.customRole?.roleType;
-    const effectiveTenantId = getEffectiveTenantId(user, tenantId);
-    return this.statsService.getDashboardStats(effectiveTenantId, roleType === 'PLATFORM_ADMIN' && tenantId ? 'filtered' : roleType);
+    return this.statsService.getDashboardStats(user, tenantId);
   }
 
   @Get('records-over-time')
@@ -32,18 +29,14 @@ export class StatsController {
     @Query('tenantId') tenantId?: string,
   ) {
     checkModulePermission(user, 'dashboard', 'canRead');
-    const roleType = user.customRole?.roleType;
-    const effectiveTenantId = getEffectiveTenantId(user, tenantId);
-    return this.statsService.getRecordsOverTime(effectiveTenantId, roleType === 'PLATFORM_ADMIN' && tenantId ? 'filtered' : roleType, days || 30);
+    return this.statsService.getRecordsOverTime(user, tenantId, days || 30);
   }
 
   @Get('entities-distribution')
   @ApiOperation({ summary: 'Distribuicao de registros por entidade' })
   async getEntitiesDistribution(@CurrentUser() user: CurrentUserType, @Query('tenantId') tenantId?: string) {
     checkModulePermission(user, 'dashboard', 'canRead');
-    const roleType = user.customRole?.roleType;
-    const effectiveTenantId = getEffectiveTenantId(user, tenantId);
-    return this.statsService.getEntitiesDistribution(effectiveTenantId, roleType === 'PLATFORM_ADMIN' && tenantId ? 'filtered' : roleType);
+    return this.statsService.getEntitiesDistribution(user, tenantId);
   }
 
   @Get('users-activity')
@@ -54,9 +47,7 @@ export class StatsController {
     @Query('tenantId') tenantId?: string,
   ) {
     checkModulePermission(user, 'dashboard', 'canRead');
-    const roleType = user.customRole?.roleType;
-    const effectiveTenantId = getEffectiveTenantId(user, tenantId);
-    return this.statsService.getUsersActivity(effectiveTenantId, roleType === 'PLATFORM_ADMIN' && tenantId ? 'filtered' : roleType, days || 7);
+    return this.statsService.getUsersActivity(user, tenantId, days || 7);
   }
 
   @Get('recent-activity')
@@ -67,8 +58,6 @@ export class StatsController {
     @Query('tenantId') tenantId?: string,
   ) {
     checkModulePermission(user, 'dashboard', 'canRead');
-    const roleType = user.customRole?.roleType;
-    const effectiveTenantId = getEffectiveTenantId(user, tenantId);
-    return this.statsService.getRecentActivity(effectiveTenantId, roleType === 'PLATFORM_ADMIN' && tenantId ? 'filtered' : roleType, limit || 10);
+    return this.statsService.getRecentActivity(user, tenantId, limit || 10);
   }
 }

@@ -2,6 +2,7 @@ import { Injectable, NotFoundException, ConflictException, Logger } from '@nestj
 import { PrismaService } from '../../prisma/prisma.service';
 import { NotificationService } from '../notification/notification.service';
 import { AuditService } from '../audit/audit.service';
+import { CustomRoleService } from '../custom-role/custom-role.service';
 import {
   CurrentUser,
   PaginationQuery,
@@ -15,6 +16,7 @@ import {
 import { Prisma } from '@prisma/client';
 import { RoleType } from '../../common/decorators/roles.decorator';
 import { getEffectiveTenantId } from '../../common/utils/tenant.util';
+import { buildFilterClause } from '../../common/utils/build-filter-clause';
 import { GlobalFilterDto } from './dto/update-global-filters.dto';
 
 export type QueryEntityDto = PaginationQuery;
@@ -94,6 +96,7 @@ export class EntityService {
     private prisma: PrismaService,
     private notificationService: NotificationService,
     private auditService: AuditService,
+    private customRoleService: CustomRoleService,
   ) {}
 
   async create(dto: CreateEntityDto & { tenantId?: string }, currentUser: CurrentUser) {
@@ -282,7 +285,8 @@ export class EntityService {
   }
 
   async findAllGrouped(currentUser: CurrentUser, queryTenantId?: string) {
-    const roleType = currentUser.customRole?.roleType as RoleType | undefined;
+    const roleType = (currentUser.customRole?.roleType || 'USER') as RoleType;
+    const effectiveTenantId = getEffectiveTenantId(currentUser, queryTenantId);
     const where: Prisma.EntityWhereInput = {};
 
     if (roleType === 'PLATFORM_ADMIN') {
@@ -293,19 +297,48 @@ export class EntityService {
       where.tenantId = currentUser.tenantId;
     }
 
+    // CUSTOM roles: filtrar apenas entidades com canRead
+    if (roleType === 'CUSTOM') {
+      const accessibleSlugs = await this.customRoleService.getUserAccessibleEntities(currentUser.id);
+      if (accessibleSlugs.length === 0) {
+        return [];
+      }
+      where.slug = { in: accessibleSlugs };
+    }
+
     const entities = await this.prisma.entity.findMany({
       where,
       orderBy: [{ category: 'asc' }, { name: 'asc' }],
-      include: {
-        _count: {
-          select: { data: true, archivedData: true },
-        },
-      },
     });
 
-    // Agrupar por categoria
-    const grouped: Record<string, typeof entities> = {};
+    // Identificar sub-entidades (referenciadas por campo type=sub-entity em outra entidade)
+    const subEntitySlugs = new Set<string>();
     for (const entity of entities) {
+      const fields = (entity.fields as unknown as Array<{ type: string; subEntitySlug?: string }>) || [];
+      for (const field of fields) {
+        if (field.type === 'sub-entity' && field.subEntitySlug) {
+          subEntitySlugs.add(field.subEntitySlug);
+        }
+      }
+    }
+
+    // Excluir sub-entidades do sidebar
+    const topLevelEntities = entities.filter((e) => !subEntitySlugs.has(e.slug));
+
+    // Computar contagens filtradas por entidade (scope + dataFilters + globalFilters)
+    const entitiesWithCounts = await Promise.all(
+      topLevelEntities.map(async (entity) => {
+        const counts = await this.countFilteredEntityRecords(entity, currentUser, effectiveTenantId, roleType);
+        return {
+          ...entity,
+          _count: { data: counts.active, archivedData: counts.archived },
+        };
+      }),
+    );
+
+    // Agrupar por categoria
+    const grouped: Record<string, typeof entitiesWithCounts> = {};
+    for (const entity of entitiesWithCounts) {
       const cat = entity.category || '';
       if (!grouped[cat]) grouped[cat] = [];
       grouped[cat].push(entity);
@@ -315,6 +348,76 @@ export class EntityService {
       category: category || null,
       entities: items,
     }));
+  }
+
+  /**
+   * Conta registros filtrados de uma entidade (scope + dataFilters + globalFilters).
+   * Usado pelo sidebar para mostrar contagens corretas por role.
+   */
+  private async countFilteredEntityRecords(
+    entity: { id: string; slug: string; settings: Prisma.JsonValue },
+    user: CurrentUser,
+    effectiveTenantId: string,
+    roleType: RoleType | string,
+  ): Promise<{ active: number; archived: number }> {
+    const where: Prisma.EntityDataWhereInput = {
+      entityId: entity.id,
+      tenantId: effectiveTenantId,
+    };
+
+    // Scope: 'own' = apenas registros criados pelo usuario
+    if (roleType === 'CUSTOM') {
+      const scope = await this.customRoleService.getEntityScope(user.id, entity.slug);
+      if (scope === 'own') {
+        where.createdById = user.id;
+      }
+    } else if (roleType === 'USER') {
+      where.createdById = user.id;
+    }
+
+    // Filtros globais da entidade
+    const entitySettings = entity.settings as Record<string, unknown> | null;
+    const globalFilters = (entitySettings?.globalFilters || []) as Array<{
+      fieldSlug: string; fieldType: string; operator: string; value: unknown; value2?: unknown;
+    }>;
+    if (globalFilters.length > 0) {
+      if (!where.AND) where.AND = [];
+      const andArray = where.AND as Prisma.EntityDataWhereInput[];
+      for (const f of globalFilters) {
+        const clause = buildFilterClause(f.fieldSlug, f.fieldType, f.operator, f.value, f.value2);
+        if (clause) andArray.push(clause);
+      }
+    }
+
+    // Filtros de dados por role (permissions[].dataFilters)
+    if (roleType !== 'PLATFORM_ADMIN' && roleType !== 'ADMIN' && user.customRole) {
+      const roleFilters = this.customRoleService.getRoleDataFilters(
+        user.customRole as { roleType: string; permissions: unknown },
+        entity.slug,
+      );
+      if (roleFilters.length > 0) {
+        if (!where.AND) where.AND = [];
+        const andArray = where.AND as Prisma.EntityDataWhereInput[];
+        for (const f of roleFilters) {
+          const clause = buildFilterClause(f.fieldSlug, f.fieldType, f.operator, f.value, f.value2);
+          if (clause) andArray.push(clause);
+        }
+      }
+    }
+
+    // Construir where para archived (mesma estrutura)
+    const archivedWhere: Prisma.ArchivedEntityDataWhereInput = {};
+    if (where.entityId) archivedWhere.entityId = where.entityId as string;
+    if (where.tenantId) archivedWhere.tenantId = where.tenantId as string;
+    if (where.createdById) archivedWhere.createdById = where.createdById as string;
+    if (where.AND) archivedWhere.AND = where.AND as Prisma.ArchivedEntityDataWhereInput[];
+
+    const [active, archived] = await Promise.all([
+      this.prisma.entityData.count({ where }),
+      this.prisma.archivedEntityData.count({ where: archivedWhere }),
+    ]);
+
+    return { active, archived };
   }
 
   async findBySlug(slug: string, currentUser: CurrentUser, tenantId?: string) {
