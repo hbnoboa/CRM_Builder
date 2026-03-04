@@ -24,7 +24,8 @@ export interface ImportResult {
   total: number;
 }
 
-const MAX_EXPORT_ROWS = 5000;
+const MAX_EXPORT_ROWS = 50000;
+const EXPORT_BATCH_SIZE = 5000;
 const IMPORT_BATCH_SIZE = 500;
 const PREVIEW_ROWS = 5;
 
@@ -70,34 +71,56 @@ export class DataIoService {
   ): Promise<{ buffer: Buffer; contentType: string; filename: string }> {
     checkEntityAction(user, entitySlug, 'canExport');
 
-    // Reutilizar findAll com limit alto para obter dados filtrados + field permissions
-    const exportQuery: QueryDataDto = {
+    // Buscar primeiro lote para obter metadados (entity, fields, visibleFields)
+    const firstQuery: QueryDataDto = {
       ...query,
-      limit: MAX_EXPORT_ROWS,
+      limit: EXPORT_BATCH_SIZE,
       page: 1,
       cursor: undefined,
+      _skipMaxLimit: true,
     };
 
-    const result = await this.dataService.findAll(entitySlug, exportQuery, user);
-    const records = result.data as Array<Record<string, unknown>>;
-    const entityFields = (result.entity.fields as unknown) as FieldDefinition[];
+    const firstResult = await this.dataService.findAll(entitySlug, firstQuery, user);
+    const entityFields = (firstResult.entity.fields as unknown) as FieldDefinition[];
+    const totalRecords = firstResult.meta.total;
 
     // Determinar campos visiveis (field-level permissions ja aplicadas pelo findAll)
-    const visibleFields = (result as Record<string, unknown>).visibleFields as string[] | undefined;
+    const visibleFields = (firstResult as Record<string, unknown>).visibleFields as string[] | undefined;
     const exportFields = visibleFields
       ? entityFields.filter(f => visibleFields.includes(f.slug))
       : entityFields.filter(f => f.type !== 'sub-entity' && f.type !== 'password' && f.type !== 'hidden');
 
-    const entityName = result.entity.namePlural || result.entity.name || entitySlug;
+    const entityName = firstResult.entity.namePlural || firstResult.entity.name || entitySlug;
     const dateStr = new Date().toISOString().split('T')[0];
 
+    // Coletar todos os registros em lotes
+    const allRecords: Array<Record<string, unknown>> = [
+      ...(firstResult.data as Array<Record<string, unknown>>),
+    ];
+
+    const totalToFetch = Math.min(totalRecords, MAX_EXPORT_ROWS);
+    const totalPages = Math.ceil(totalToFetch / EXPORT_BATCH_SIZE);
+
+    for (let page = 2; page <= totalPages; page++) {
+      const batchQuery: QueryDataDto = {
+        ...query,
+        limit: EXPORT_BATCH_SIZE,
+        page,
+        cursor: undefined,
+        _skipMaxLimit: true,
+      };
+      const batchResult = await this.dataService.findAll(entitySlug, batchQuery, user);
+      allRecords.push(...(batchResult.data as Array<Record<string, unknown>>));
+    }
+
+    this.logger.log(`Export ${entitySlug}: ${allRecords.length} records fetched in ${totalPages} batch(es)`);
+
     if (format === 'json') {
-      const jsonData = records.map(record => {
+      const jsonData = allRecords.map(record => {
         const formatted = (record as Record<string, unknown>)._formatted as Record<string, string> | undefined;
         const data = record.data as Record<string, unknown>;
         const row: Record<string, unknown> = {};
         for (const field of exportFields) {
-          // Usar _formatted se disponivel, senao valor raw
           row[field.name || field.slug] = formatted?.[field.slug] ?? data?.[field.slug] ?? null;
         }
         return row;
@@ -133,8 +156,8 @@ export class DataIoService {
       fgColor: { argb: 'FFE2E8F0' },
     };
 
-    // Data rows — usa _formatted para valores formatados (CPF, datas, currency, etc.)
-    for (const record of records) {
+    // Data rows
+    for (const record of allRecords) {
       const formatted = (record as Record<string, unknown>)._formatted as Record<string, string> | undefined;
       const data = record.data as Record<string, unknown>;
       const rowData: Record<string, unknown> = {};

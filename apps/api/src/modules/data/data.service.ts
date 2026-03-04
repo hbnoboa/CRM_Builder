@@ -45,6 +45,8 @@ export interface QueryDataDto {
   filters?: string; // Ex: '[{"fieldSlug":"status","operator":"equals","value":"ativo"}]'
   // IDs especificos para export
   recordIds?: string; // JSON stringified array de IDs: '["id1","id2"]'
+  // Internal flag — bypasses MAX_LIMIT cap (used by export, not exposed via API)
+  _skipMaxLimit?: boolean;
 }
 
 interface BusinessHoursConfig {
@@ -311,7 +313,8 @@ export class DataService {
 
     // Parse parameters
     const page = parseInt(String(query.page || '1'), 10) || 1;
-    const limit = Math.min(MAX_LIMIT, Math.max(1, parseInt(String(query.limit || DEFAULT_LIMIT), 10) || DEFAULT_LIMIT));
+    const rawLimit = Math.max(1, parseInt(String(query.limit || DEFAULT_LIMIT), 10) || DEFAULT_LIMIT);
+    const limit = query._skipMaxLimit ? rawLimit : Math.min(MAX_LIMIT, rawLimit);
     const { search, sortBy = 'createdAt', sortOrder = 'desc', tenantId: queryTenantId, parentRecordId, includeChildren, hasChildrenIn, cursor, fields } = query;
 
     const effectiveTenantId = getEffectiveTenantId(currentUser, queryTenantId);
@@ -1104,7 +1107,8 @@ export class DataService {
     await this.checkEntityPermission(currentUser.id, entitySlug, 'canRead');
 
     const page = parseInt(String(query.page || '1'), 10) || 1;
-    const limit = Math.min(MAX_LIMIT, Math.max(1, parseInt(String(query.limit || DEFAULT_LIMIT), 10) || DEFAULT_LIMIT));
+    const rawArchivedLimit = Math.max(1, parseInt(String(query.limit || DEFAULT_LIMIT), 10) || DEFAULT_LIMIT);
+    const limit = query._skipMaxLimit ? rawArchivedLimit : Math.min(MAX_LIMIT, rawArchivedLimit);
     const { search, sortBy = 'createdAt', sortOrder = 'desc', tenantId: queryTenantId } = query;
 
     const effectiveTenantId = getEffectiveTenantId(currentUser, queryTenantId);
