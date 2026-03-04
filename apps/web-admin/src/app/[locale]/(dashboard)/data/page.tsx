@@ -2109,7 +2109,7 @@ function DataPageContent() {
                                         </Badge>
                                       </button>
                                     ) : (
-                                      formatCellValue(value, field?.type)
+                                      record._formatted?.[col] ?? formatCellValue(value, field?.type)
                                     )}
                                   </td>
                                 );
@@ -2190,7 +2190,7 @@ function DataPageContent() {
                                   : isSubEntity
                                     ? record._childCounts?.[col] ?? 0
                                     : record.data[col];
-                                const value = formatCellValue(cellValue, field?.type);
+                                const value = record._formatted?.[col] ?? formatCellValue(cellValue, field?.type);
                                 return (
                                   <div key={col} className={idx === 0 ? 'font-medium text-sm' : 'text-xs text-muted-foreground'}>
                                     {isParentCol

@@ -127,7 +127,7 @@ export function LookupField({
     const value = record.data[field];
     if (value === null || value === undefined) return '-';
     if (typeof value === 'boolean') return value ? 'Sim' : 'Nao';
-    if (value instanceof Date) return new Date(value).toLocaleDateString();
+    if (value instanceof Date) return new Date(value).toLocaleDateString('pt-BR');
     return String(value);
   };
 

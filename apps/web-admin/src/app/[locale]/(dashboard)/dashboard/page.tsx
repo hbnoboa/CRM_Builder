@@ -247,7 +247,7 @@ export default function DashboardPage() {
                   </div>
                 </div>
                 <div>
-                  <h3 className="text-xl sm:text-2xl font-bold">{stat.value.toLocaleString('en-US')}</h3>
+                  <h3 className="text-xl sm:text-2xl font-bold">{stat.value.toLocaleString('pt-BR')}</h3>
                   <p className="text-xs sm:text-sm text-muted-foreground">{stat.title}</p>
                 </div>
               </CardContent>

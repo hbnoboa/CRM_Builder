@@ -93,16 +93,12 @@ export class DataIoService {
 
     if (format === 'json') {
       const jsonData = records.map(record => {
+        const formatted = (record as Record<string, unknown>)._formatted as Record<string, string> | undefined;
         const data = record.data as Record<string, unknown>;
         const row: Record<string, unknown> = {};
         for (const field of exportFields) {
-          const val = data?.[field.slug] ?? null;
-          // Extract label from {value, label} objects (e.g. relation fields)
-          if (val && typeof val === 'object' && !Array.isArray(val) && 'label' in (val as Record<string, unknown>)) {
-            row[field.name || field.slug] = (val as Record<string, unknown>).label;
-          } else {
-            row[field.name || field.slug] = val;
-          }
+          // Usar _formatted se disponivel, senao valor raw
+          row[field.name || field.slug] = formatted?.[field.slug] ?? data?.[field.slug] ?? null;
         }
         return row;
       });
@@ -137,22 +133,13 @@ export class DataIoService {
       fgColor: { argb: 'FFE2E8F0' },
     };
 
-    // Data rows
+    // Data rows — usa _formatted para valores formatados (CPF, datas, currency, etc.)
     for (const record of records) {
+      const formatted = (record as Record<string, unknown>)._formatted as Record<string, string> | undefined;
       const data = record.data as Record<string, unknown>;
       const rowData: Record<string, unknown> = {};
       for (const field of exportFields) {
-        const value = data?.[field.slug];
-        // Multiselect/array: join com ;
-        if (Array.isArray(value)) {
-          rowData[field.slug] = value.join('; ');
-        } else if (value !== null && value !== undefined && typeof value === 'object') {
-          // Extract label from {value, label} objects (e.g. relation fields)
-          const obj = value as Record<string, unknown>;
-          rowData[field.slug] = obj.label ? String(obj.label) : JSON.stringify(value);
-        } else {
-          rowData[field.slug] = value ?? '';
-        }
+        rowData[field.slug] = formatted?.[field.slug] ?? data?.[field.slug] ?? '';
       }
       worksheet.addRow(rowData);
     }

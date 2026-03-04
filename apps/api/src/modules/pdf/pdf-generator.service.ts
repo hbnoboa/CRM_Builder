@@ -16,6 +16,7 @@ import {
   createPaginationMeta,
 } from '../../common/types';
 import { getEffectiveTenantId } from '../../common/utils/tenant.util';
+import { formatFieldValue as sharedFormatFieldValue } from '@crm-builder/shared';
 import { QueryPdfGenerationDto, PreviewPdfDto } from './dto';
 import {
   PdfTemplateContent,
@@ -2434,80 +2435,35 @@ export class PdfGeneratorService {
   }
 
   /**
-   * Formata valor baseado no tipo
+   * Formata valor baseado no tipo — delega para formatFieldValue do @crm-builder/shared
    */
   private formatValue(value: unknown, format?: string, defaultValue?: string): string {
     if (value === undefined || value === null || value === '') {
       return defaultValue || this.emptyFieldDefault || '-';
     }
 
-    switch (format) {
-      case 'date':
-        return new Date(String(value)).toLocaleDateString('pt-BR');
+    if (!format) return String(value);
 
-      case 'datetime':
-        return new Date(String(value)).toLocaleString('pt-BR', {
-          day: '2-digit', month: '2-digit', year: 'numeric',
-          hour: '2-digit', minute: '2-digit',
-        });
+    // textTransform sao tratados separadamente (nao sao FieldType)
+    const textTransformMap: Record<string, 'uppercase' | 'lowercase' | 'titlecase'> = {
+      uppercase: 'uppercase',
+      lowercase: 'lowercase',
+      titlecase: 'titlecase',
+    };
 
-      case 'time':
-        return new Date(String(value)).toLocaleTimeString('pt-BR', {
-          hour: '2-digit',
-          minute: '2-digit',
-        });
-
-      case 'currency':
-        return new Intl.NumberFormat('pt-BR', {
-          style: 'currency',
-          currency: 'BRL',
-        }).format(Number(value));
-
-      case 'number':
-        return new Intl.NumberFormat('pt-BR').format(Number(value));
-
-      case 'percentage':
-        return `${Number(value).toFixed(2)}%`;
-
-      case 'cpf': {
-        const cpfDigits = String(value).replace(/\D/g, '').padStart(11, '0');
-        return `${cpfDigits.slice(0,3)}.${cpfDigits.slice(3,6)}.${cpfDigits.slice(6,9)}-${cpfDigits.slice(9,11)}`;
-      }
-
-      case 'cnpj': {
-        const cnpjDigits = String(value).replace(/\D/g, '').padStart(14, '0');
-        return `${cnpjDigits.slice(0,2)}.${cnpjDigits.slice(2,5)}.${cnpjDigits.slice(5,8)}/${cnpjDigits.slice(8,12)}-${cnpjDigits.slice(12,14)}`;
-      }
-
-      case 'cep': {
-        const cepDigits = String(value).replace(/\D/g, '').padStart(8, '0');
-        return `${cepDigits.slice(0,5)}-${cepDigits.slice(5,8)}`;
-      }
-
-      case 'phone': {
-        const phoneDigits = String(value).replace(/\D/g, '');
-        if (phoneDigits.length === 11) return `(${phoneDigits.slice(0,2)}) ${phoneDigits.slice(2,7)}-${phoneDigits.slice(7)}`;
-        if (phoneDigits.length === 10) return `(${phoneDigits.slice(0,2)}) ${phoneDigits.slice(2,6)}-${phoneDigits.slice(6)}`;
-        return String(value);
-      }
-
-      case 'boolean': {
-        const boolVal = value === true || value === 'true' || value === '1' || value === 1;
-        return boolVal ? 'Sim' : 'Nao';
-      }
-
-      case 'uppercase':
-        return String(value).toUpperCase();
-
-      case 'lowercase':
-        return String(value).toLowerCase();
-
-      case 'titlecase':
-        return String(value).replace(/\b\w/g, (c) => c.toUpperCase());
-
-      default:
-        return String(value);
+    const textTransform = textTransformMap[format];
+    if (textTransform) {
+      return sharedFormatFieldValue(value, {
+        type: 'text',
+        emptyValue: defaultValue || this.emptyFieldDefault || '-',
+        textTransform,
+      });
     }
+
+    return sharedFormatFieldValue(value, {
+      type: format as import('@crm-builder/shared').FieldType,
+      emptyValue: defaultValue || this.emptyFieldDefault || '-',
+    });
   }
 
   /**

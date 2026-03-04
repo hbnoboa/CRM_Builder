@@ -20,6 +20,7 @@ import { RoleType } from '../../common/decorators/roles.decorator';
 import { getEffectiveTenantId } from '../../common/utils/tenant.util';
 import { buildFilterClause } from '../../common/utils/build-filter-clause';
 import { AuditService } from '../audit/audit.service';
+import { formatRecordData } from '../../common/utils/format-record';
 
 interface CreateDataDto {
   data: Record<string, unknown>;
@@ -1056,6 +1057,19 @@ export class DataService {
       });
     }
 
+    // =========================================================================
+    // FORMATACAO: adicionar _formatted com valores formatados para display
+    // =========================================================================
+    enrichedData = enrichedData.map(record => {
+      const recordData = (record as Record<string, unknown>).data as Record<string, unknown>;
+      return {
+        ...record,
+        _formatted: formatRecordData(recordData, entityFields, {
+          visibleFields: visibleFields,
+        }),
+      };
+    });
+
     return {
       data: enrichedData,
       meta: createPaginationMeta(total, page, limit, {
@@ -1177,8 +1191,15 @@ export class DataService {
       total = totalCount;
     }
 
+    // Adicionar _formatted
+    const archivedFields = (entity.fields as unknown) as Array<{ slug: string; type: string }>;
+    const formattedData = data.map(record => ({
+      ...record,
+      _formatted: formatRecordData(record.data as Record<string, unknown>, archivedFields),
+    }));
+
     return {
-      data,
+      data: formattedData,
       meta: createPaginationMeta(total, page, limit, {
         hasNextPage: page * limit < total,
         hasPreviousPage: page > 1,
@@ -1314,8 +1335,17 @@ export class DataService {
       filteredRecord = { ...recordResult, data: filteredData };
     }
 
+    // Adicionar _formatted
+    const findOneFields = (entity.fields as unknown) as Array<{ slug: string; type: string }>;
+    const _formatted = formatRecordData(
+      filteredRecord.data as Record<string, unknown>,
+      findOneFields,
+      { visibleFields },
+    );
+
     return {
       ...filteredRecord,
+      _formatted,
       entity: {
         id: entity.id,
         name: entity.name,
