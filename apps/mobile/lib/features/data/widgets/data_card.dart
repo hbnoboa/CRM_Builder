@@ -73,7 +73,7 @@ class DataCard extends StatelessWidget {
         name: field['name'] as String? ?? slug,
         value: _formatValue(value, type),
         type: type,
-      ));
+      ),);
     }
 
     // First field is the title
@@ -169,6 +169,30 @@ class DataCard extends StatelessWidget {
   }
 
   String _formatValue(dynamic value, String type) {
+    if (value == null) return '-';
+
+    // Handle objects with label/value (relation, select, api-select)
+    if (value is Map<String, dynamic>) {
+      if (value.containsKey('label')) {
+        return value['label']?.toString() ?? '-';
+      }
+      if (value.containsKey('value')) {
+        return value['value']?.toString() ?? '-';
+      }
+      return '-';
+    }
+
+    // Handle arrays (multiselect, multiple relations)
+    if (value is List) {
+      if (value.isEmpty) return '-';
+      return value.map((item) {
+        if (item is Map<String, dynamic>) {
+          return item['label']?.toString() ?? item['value']?.toString() ?? '';
+        }
+        return item.toString();
+      }).where((s) => s.isNotEmpty).join(', ');
+    }
+
     switch (type) {
       case 'DATE':
         return Formatters.date(value.toString());
@@ -181,9 +205,6 @@ class DataCard extends StatelessWidget {
         return '$value%';
       case 'BOOLEAN':
         return (value == true || value == 'true') ? 'Sim' : 'Nao';
-      case 'MULTI_SELECT':
-        if (value is List) return value.join(', ');
-        return value.toString();
       case 'RATING':
         final n = (num.tryParse(value.toString()) ?? 0).toInt();
         return '${'★' * n}${'☆' * (5 - n)}';

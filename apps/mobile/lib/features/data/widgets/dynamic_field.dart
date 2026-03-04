@@ -143,7 +143,15 @@ class DynamicFieldDisplay extends StatelessWidget {
         );
 
       case 'SELECT':
-        return Chip(label: Text(value.toString()));
+      case 'API_SELECT':
+        // Handle {label, value} objects
+        String selectLabel;
+        if (value is Map<String, dynamic>) {
+          selectLabel = value['label']?.toString() ?? value['value']?.toString() ?? '-';
+        } else {
+          selectLabel = value.toString();
+        }
+        return Chip(label: Text(selectLabel));
 
       case 'MULTI_SELECT':
         if (value is List) {
@@ -151,7 +159,14 @@ class DynamicFieldDisplay extends StatelessWidget {
             spacing: 8,
             runSpacing: 4,
             children: (value as List).map<Widget>((v) {
-              return Chip(label: Text(v.toString()));
+              // Handle {label, value} objects in array
+              String itemLabel;
+              if (v is Map<String, dynamic>) {
+                itemLabel = v['label']?.toString() ?? v['value']?.toString() ?? '';
+              } else {
+                itemLabel = v.toString();
+              }
+              return Chip(label: Text(itemLabel));
             }).toList(),
           );
         }
@@ -324,8 +339,14 @@ class DynamicFieldDisplay extends StatelessWidget {
         return Text(value.toString(), style: AppTypography.bodyMedium);
 
       case 'RELATION':
-        // Show related record name if stored as string, or ID
-        return Text(value.toString(), style: AppTypography.bodyMedium);
+        // Handle {label, value} objects for relations
+        String relationLabel;
+        if (value is Map<String, dynamic>) {
+          relationLabel = value['label']?.toString() ?? value['value']?.toString() ?? '-';
+        } else {
+          relationLabel = value.toString();
+        }
+        return Text(relationLabel, style: AppTypography.bodyMedium);
 
       case 'MAP':
         return MapFieldDisplay(

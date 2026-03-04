@@ -264,16 +264,37 @@ class DataDetailPage extends ConsumerWidget {
     ];
   }
 
+  /// Format a value for sharing (extracts label from {label, value} objects)
+  String _formatShareValue(dynamic val) {
+    if (val == null) return '';
+    if (val is Map<String, dynamic>) {
+      return val['label']?.toString() ?? val['value']?.toString() ?? '';
+    }
+    if (val is List) {
+      return val.map((item) {
+        if (item is Map<String, dynamic>) {
+          return item['label']?.toString() ?? item['value']?.toString() ?? '';
+        }
+        return item.toString();
+      }).where((s) => s.isNotEmpty).join(', ');
+    }
+    return val.toString();
+  }
+
   String _getTitle(Map<String, dynamic> data, List<dynamic> fields) {
-    // Use first text field as title
+    // Use first text field as title, or first field with value
     for (final field in fields) {
       final f = field as Map<String, dynamic>;
-      final type = f['type'] as String? ?? '';
-      if (type == 'text' || type == 'TEXT') {
-        final slug = f['slug'] as String? ?? '';
-        final value = data[slug];
-        if (value != null && value.toString().isNotEmpty) {
-          return value.toString();
+      final type = (f['type'] as String? ?? '').toUpperCase().replaceAll('-', '_');
+      // Skip non-display types
+      if (type == 'SUB_ENTITY' || type == 'HIDDEN' || type == 'IMAGE' || type == 'FILE') continue;
+
+      final slug = f['slug'] as String? ?? '';
+      final value = data[slug];
+      if (value != null) {
+        final formatted = _formatShareValue(value);
+        if (formatted.isNotEmpty) {
+          return formatted;
         }
       }
     }
@@ -317,7 +338,11 @@ class DataDetailPage extends ConsumerWidget {
         final name = f['name'] as String? ?? f['label'] as String? ?? slug;
         final val = data[slug];
         if (val != null && val.toString().isNotEmpty) {
-          buffer.writeln('$name: $val');
+          // Format value properly (handle {label, value} objects)
+          final formattedVal = _formatShareValue(val);
+          if (formattedVal.isNotEmpty) {
+            buffer.writeln('$name: $formattedVal');
+          }
         }
       }
 
