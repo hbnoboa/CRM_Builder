@@ -87,24 +87,18 @@ export function serializeToGjs(fields: EntityField[]): GjsProjectData {
 
     const cellComponents: GjsComponentDef[] = sortedFields.map((field) => {
       const colSpan = field.gridColSpan ?? 12;
-      const rowSpan = field.gridRowSpan ?? 1;
       const fieldProps = entityFieldToGjsProps(field);
-
-      const cellClasses = [`grid-cell`, `col-span-${colSpan}`];
-      if (rowSpan > 1) cellClasses.push(`row-span-${rowSpan}`);
 
       return {
         type: 'grid-cell',
-        attributes: { class: cellClasses.join(' ') },
+        attributes: { class: `grid-cell col-span-${colSpan}` },
         colSpan,
-        rowSpan,
         components: [
           {
             type: `crm-field-${field.type}`,
             ...fieldProps,
             // Setar fieldColSpan como string para consistencia com select trait
             fieldColSpan: String(colSpan),
-            fieldRowSpan: rowSpan,
           },
         ],
       } as GjsComponentDef;

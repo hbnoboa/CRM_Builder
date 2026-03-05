@@ -22,23 +22,22 @@ import { type PortalTraitType } from './traits';
 import { OptionsTraitEditor } from './traits/options-trait';
 import { EntitySelectTraitEditor } from './traits/entity-select-trait';
 import { WorkflowTraitEditor } from './traits/workflow-trait';
+import { ZoneDiagramTraitEditor } from './traits/zone-diagram-trait';
 import { EntityInfoPanel } from './panels/entity-info-panel';
 import { FieldPickerModal } from './panels/field-picker-modal';
 import { AutomationTab } from '@/components/entity-automation/automation-tab';
 
-// Constantes de layout do grid (movidas de base-field.ts)
+// Constantes de layout do grid
 const GRID_GAP = 16; // gap do grid em px
-const BASE_ROW_HEIGHT = 80; // altura base de um campo (label + input + gap)
 
 /**
  * Funcao centralizada para atualizar layout de uma grid-cell.
  * Fonte unica de verdade — usada em resize, drag-drop e trait change.
  * NAO usa setClass() — delega para updateGridSpan que usa classList.
  */
-function syncCellLayout(cell: GjsComponent, colSpan: number, rowSpan: number = 1) {
-  // 1. Atualizar model da cell (dispara updateGridSpan que usa classList)
+function syncCellLayout(cell: GjsComponent, colSpan: number) {
+  // 1. Atualizar model da cell (dispara updateGridSpan)
   cell.set('colSpan', colSpan);
-  cell.set('rowSpan', rowSpan);
 
   // 2. Atualizar o campo dentro da cell — SEM silent para que traits atualize
   const field = cell.components().find(
@@ -46,7 +45,6 @@ function syncCellLayout(cell: GjsComponent, colSpan: number, rowSpan: number = 1
   );
   if (field) {
     field.set('fieldColSpan', String(colSpan));
-    field.set('fieldRowSpan', rowSpan);
   }
 }
 
@@ -246,8 +244,8 @@ export default function EntityEditor({ entity, onSave, onCancel }: EntityEditorP
     editor.on('component:remove', () => setTimeout(updateFieldCount, 50));
 
     // ─── Auto-wrap: campo solto fora de grid-cell ─────────────────────
-    // Guard: component:add e sincrono — quando fazemos row.append() dentro
-    // do handler, dispara outro component:add. O guard previne reentrada.
+    // Guard: quando fazemos row.append() dentro do handler, dispara outro
+    // component:add. O guard previne reentrada.
     let _addGuard = false;
 
     editor.on('component:add', (component: GjsComponent) => {
@@ -259,166 +257,156 @@ export default function EntityEditor({ entity, onSave, onCancel }: EntityEditorP
       if (!parent) return;
       const parentType = parent.get('type');
 
-      _addGuard = true;
-      try {
-        // Caso 1: dentro de grid-cell (pode acontecer via undo/redo ou programatico)
-        if (parentType === 'grid-cell') {
-          const siblings = parent.components().filter(
-            (c: GjsComponent) => c.get('type')?.startsWith('crm-field'),
-          );
-          if (siblings.length <= 1) return; // OK, celula tinha espaço
+      // Se ja esta numa celula sozinho, OK — nao precisa reestruturar
+      if (parentType === 'grid-cell') {
+        const siblings = parent.components().filter(
+          (c: GjsComponent) => c.get('type')?.startsWith('crm-field'),
+        );
+        if (siblings.length <= 1) return;
+      }
 
-          const fieldJson = component.toJSON();
-          const viewEl1 = component.view?.el;
-          component.remove();
-          if (viewEl1?.parentNode) viewEl1.parentNode.removeChild(viewEl1);
-          const row = parent.parent();
-          if (!row || row.get('type') !== 'grid-row') return;
-
-          // Inserir DEPOIS da cell atual
-          const cellIndex = row.components().indexOf(parent);
-
-          // Limpar cells vazias ANTES de redistribuir
-          cleanupRow(row);
-
-          const existingCells = row.components().filter(
-            (c: GjsComponent) => c.get('type') === 'grid-cell',
-          );
-          const cellCount = existingCells.length + 1;
-          const newSpan = Math.max(1, Math.floor(12 / cellCount));
-          existingCells.forEach((cell: GjsComponent) => syncCellLayout(cell, newSpan));
-
-          const lastCellSpan = 12 - newSpan * existingCells.length;
-          const finalSpan = lastCellSpan > 0 ? lastCellSpan : newSpan;
-
-          // Ajustar indice apos cleanup (pode ter mudado)
-          const insertAt = Math.min(cellIndex + 1, existingCells.length);
-
-          const newCells = row.append({
-            type: 'grid-cell',
-            colSpan: finalSpan,
-            attributes: { class: `grid-cell col-span-${finalSpan}` },
-            components: [fieldJson],
-          }, { at: insertAt });
-
-          const addedField = newCells?.[0]?.components()?.at(0);
-          if (addedField) {
-            addedField.set('fieldColSpan', String(finalSpan));
-            editor.select(addedField);
+      // Capturar info de posicao AGORA (indices podem mudar depois)
+      const dropIndex = parent.components().indexOf(component);
+      let prevCell: GjsComponent | null = null;
+      if (parentType === 'grid-row') {
+        for (let i = dropIndex - 1; i >= 0; i--) {
+          const child = parent.components().at(i);
+          if (child && child.get('type') === 'grid-cell' &&
+              child.components().find((f: GjsComponent) => f.get('type')?.startsWith('crm-field'))) {
+            prevCell = child;
+            break;
           }
-          return;
         }
+      }
+      const parentRef = parent;
+      const cellIndexRef = parentType === 'grid-cell'
+        ? parent.parent()?.components().indexOf(parent) ?? -1
+        : -1;
+      const rowRef = parentType === 'grid-cell' ? parent.parent() : null;
 
-        // Caso 2: dentro de grid-row — principal caso de drag-drop
-        // Com grid-cell droppable:false, o sorter SEMPRE usa grid-row como target.
-        // Para flex horizontal, so mostra indicadores esquerda/direita.
-        // SEMPRE insere lado a lado na mesma row, redistribuindo larguras.
-        if (parentType === 'grid-row') {
-          const dropIndex = parent.components().indexOf(component);
+      // Esconder o componente imediatamente para evitar flash visual
+      const viewEl = component.view?.el;
+      if (viewEl) viewEl.style.display = 'none';
 
-          // Encontrar a cell nao-vazia ANTES da posicao de drop (referencia estavel)
-          let prevCell: GjsComponent | null = null;
-          for (let i = dropIndex - 1; i >= 0; i--) {
-            const child = parent.components().at(i);
-            if (child && child.get('type') === 'grid-cell' &&
-                child.components().find((f: GjsComponent) => f.get('type')?.startsWith('crm-field'))) {
-              prevCell = child;
-              break;
+      // Deferir para proximo tick — GrapeJS termina de criar o view,
+      // garantindo que component.remove() limpa o DOM corretamente.
+      // Sem isto, o view pode nao existir e o DOM fica orfao (ghost).
+      setTimeout(() => {
+        if (!component.parent()) return; // Ja foi removido por outro handler
+
+        _addGuard = true;
+        try {
+          const fieldJson = component.toJSON();
+          component.remove(); // View existe agora, DOM limpo corretamente
+
+          // Caso 1: dentro de grid-cell com 2+ campos
+          if (parentType === 'grid-cell') {
+            const row = rowRef;
+            if (!row || row.get('type') !== 'grid-row') return;
+
+            const existingCells = row.components().filter(
+              (c: GjsComponent) => c.get('type') === 'grid-cell',
+            );
+            const cellCount = existingCells.length + 1;
+            const newSpan = Math.max(1, Math.floor(12 / cellCount));
+            existingCells.forEach((cell: GjsComponent) => syncCellLayout(cell, newSpan));
+
+            const lastCellSpan = 12 - newSpan * existingCells.length;
+            const finalSpan = lastCellSpan > 0 ? lastCellSpan : newSpan;
+            const insertAt = Math.min(cellIndexRef + 1, existingCells.length);
+
+            const newCells = row.append({
+              type: 'grid-cell',
+              colSpan: finalSpan,
+              attributes: { class: `grid-cell col-span-${finalSpan}` },
+              components: [fieldJson],
+            }, { at: insertAt });
+
+            const addedField = newCells?.[0]?.components()?.at(0);
+            if (addedField) {
+              addedField.set('fieldColSpan', String(finalSpan));
+              editor.select(addedField);
             }
+            return;
           }
 
-          const fieldJson = component.toJSON();
-          const viewEl = component.view?.el;
-          component.remove();
-          // Forcar limpeza do DOM caso GrapeJS nao remova imediatamente
-          if (viewEl?.parentNode) viewEl.parentNode.removeChild(viewEl);
+          // Caso 2: dentro de grid-row
+          if (parentType === 'grid-row') {
+            // Remover cells vazias (campo pode ter sido arrastado de cell na mesma row)
+            parentRef.components().filter(
+              (c: GjsComponent) => c.get('type') === 'grid-cell' && c.components().length === 0,
+            ).forEach((c: GjsComponent) => c.remove());
 
-          // Limpar cells vazias
-          cleanupRow(parent);
+            const existingCells = parentRef.components().filter(
+              (c: GjsComponent) => c.get('type') === 'grid-cell',
+            );
 
-          // Se a row foi removida por estar completamente vazia, criar nova row
-          if (!parent.parent()) {
-            const wrapper = editor.getWrapper();
-            if (!wrapper) return;
-            const rows = wrapper.append({
-              type: 'grid-row',
-              components: [{
+            // Se nao restaram cells, criar cell diretamente na row
+            if (existingCells.length === 0) {
+              const newCells = parentRef.append({
                 type: 'grid-cell',
                 colSpan: 12,
                 attributes: { class: 'grid-cell col-span-12' },
                 components: [fieldJson],
-              }],
-            });
-            const f = rows?.[0]?.components()?.at(0)?.components()?.at(0);
-            if (f) { f.set('fieldColSpan', '12'); editor.select(f); }
+              });
+              const f = newCells?.[0]?.components()?.at(0);
+              if (f) { f.set('fieldColSpan', '12'); editor.select(f); }
+              return;
+            }
+
+            const cellCount = existingCells.length + 1;
+            const newSpan = Math.max(1, Math.floor(12 / cellCount));
+            existingCells.forEach((cell: GjsComponent) => syncCellLayout(cell, newSpan));
+
+            const lastCellSpan = 12 - newSpan * existingCells.length;
+            const finalSpan = lastCellSpan > 0 ? lastCellSpan : newSpan;
+
+            let insertAt: number;
+            if (prevCell) {
+              const prevIndex = existingCells.indexOf(prevCell);
+              insertAt = prevIndex >= 0 ? prevIndex + 1 : existingCells.length;
+            } else {
+              insertAt = 0;
+            }
+
+            const newCells = parentRef.append({
+              type: 'grid-cell',
+              colSpan: finalSpan,
+              attributes: { class: `grid-cell col-span-${finalSpan}` },
+              components: [fieldJson],
+            }, { at: insertAt });
+
+            const addedField = newCells?.[0]?.components()?.at(0);
+            if (addedField) {
+              addedField.set('fieldColSpan', String(finalSpan));
+              editor.select(addedField);
+            }
             return;
           }
 
-          const existingCells = parent.components().filter(
-            (c: GjsComponent) => c.get('type') === 'grid-cell',
-          );
+          // Caso 3: solto no wrapper — criar nova row preservando posicao
+          const wrapper = parentRef;
+          const insertAt = Math.min(Math.max(0, dropIndex), wrapper.components().length);
 
-          // Inserir lado a lado na mesma row, redistribuindo larguras
-          const cellCount = existingCells.length + 1;
-          const newSpan = Math.max(1, Math.floor(12 / cellCount));
-          existingCells.forEach((cell: GjsComponent) => syncCellLayout(cell, newSpan));
-
-          const lastCellSpan = 12 - newSpan * existingCells.length;
-          const finalSpan = lastCellSpan > 0 ? lastCellSpan : newSpan;
-
-          // Calcular posicao usando cell de referencia (imune a mudanca de indices)
-          let insertAt: number;
-          if (prevCell) {
-            const prevIndex = existingCells.indexOf(prevCell);
-            insertAt = prevIndex >= 0 ? prevIndex + 1 : existingCells.length;
-          } else {
-            insertAt = 0; // Dropped antes de todas as cells
-          }
-
-          const newCells = parent.append({
-            type: 'grid-cell',
-            colSpan: finalSpan,
-            attributes: { class: `grid-cell col-span-${finalSpan}` },
-            components: [fieldJson],
+          const rows = wrapper.append({
+            type: 'grid-row',
+            components: [{
+              type: 'grid-cell',
+              colSpan: 12,
+              attributes: { class: 'grid-cell col-span-12' },
+              components: [fieldJson],
+            }],
           }, { at: insertAt });
 
-          const addedField = newCells?.[0]?.components()?.at(0);
+          const addedField = rows?.[0]?.components()?.at(0)?.components()?.at(0);
           if (addedField) {
-            addedField.set('fieldColSpan', String(finalSpan));
+            addedField.set('fieldColSpan', '12');
             editor.select(addedField);
           }
-          return;
+        } finally {
+          _addGuard = false;
         }
-
-        // Caso 3: solto no wrapper — criar nova row preservando posicao
-        const dropIndex = parent.components().indexOf(component);
-        const fieldJson = component.toJSON();
-        const viewEl3 = component.view?.el;
-        component.remove();
-        if (viewEl3?.parentNode) viewEl3.parentNode.removeChild(viewEl3);
-        const wrapper = parent; // parent IS the wrapper
-
-        // Inserir na posicao onde o GrapeJS colocou (acima/abaixo de outra row)
-        const insertAt = Math.min(Math.max(0, dropIndex), wrapper.components().length);
-
-        const rows = wrapper.append({
-          type: 'grid-row',
-          components: [{
-            type: 'grid-cell',
-            colSpan: 12,
-            attributes: { class: 'grid-cell col-span-12' },
-            components: [fieldJson],
-          }],
-        }, { at: insertAt });
-
-        const addedField = rows?.[0]?.components()?.at(0)?.components()?.at(0);
-        if (addedField) {
-          addedField.set('fieldColSpan', '12');
-          editor.select(addedField);
-        }
-      } finally {
-        _addGuard = false;
-      }
+      }, 0);
     });
 
     // ─── Resize centralizado: converter px → colSpan/rowSpan ────────
@@ -455,14 +443,11 @@ export default function EntityEditor({ entity, onSave, onCancel }: EntityEditorP
       const newColSpan = Math.min(12, Math.max(1,
         Math.round((rect.w + GRID_GAP) / (colWidth + GRID_GAP)),
       ));
-      const newRowSpan = Math.max(1, Math.min(6,
-        Math.round((rect.h + GRID_GAP) / (BASE_ROW_HEIGHT + GRID_GAP)),
-      ));
 
-      syncCellLayout(cell, newColSpan, newRowSpan);
+      syncCellLayout(cell, newColSpan);
 
       if (resizeIndicator) {
-        resizeIndicator.textContent = `${newColSpan} col × ${newRowSpan} row`;
+        resizeIndicator.textContent = `${newColSpan}/12`;
         resizeIndicator.style.left = `${pointer.x + 15}px`;
         resizeIndicator.style.top = `${pointer.y - 30}px`;
         resizeIndicator.style.display = 'block';
@@ -507,6 +492,21 @@ export default function EntityEditor({ entity, onSave, onCancel }: EntityEditorP
       setTimeout(() => {
         const wrapper = editor.getWrapper();
         if (!wrapper) return;
+
+        // 1. Model-level: remover campos orfaos (soltos fora de grid-cell)
+        wrapper.components().forEach((row: GjsComponent) => {
+          if (row.get('type') !== 'grid-row') return;
+          const orphans = row.components().filter(
+            (c: GjsComponent) => c.get('type')?.startsWith('crm-field'),
+          );
+          orphans.forEach((c: GjsComponent) => c.remove());
+        });
+        // Orfaos no wrapper
+        wrapper.components().filter(
+          (c: GjsComponent) => c.get('type')?.startsWith('crm-field'),
+        ).forEach((c: GjsComponent) => c.remove());
+
+        // 2. Limpar cells/rows vazias
         const allRows = wrapper.components().filter(
           (c: GjsComponent) => c.get('type') === 'grid-row',
         );
@@ -515,13 +515,16 @@ export default function EntityEditor({ entity, onSave, onCancel }: EntityEditorP
           cleanupRow(allRows[i]);
         }
 
-        // Limpar elementos orfaos no DOM do canvas (ghosts de drag-drop)
-        // Campos que ficaram diretamente dentro de grid-row (sem grid-cell)
+        // 3. DOM-level: remover filhos de grid-row que nao sao grid-cell
         const frame = editor.Canvas.getFrameEl();
         const doc = frame?.contentDocument;
         if (doc) {
-          doc.querySelectorAll('.grid-row > .crm-field-preview').forEach((el) => {
-            el.remove();
+          doc.querySelectorAll('.grid-row').forEach((rowEl) => {
+            Array.from(rowEl.children).forEach((child) => {
+              if (!(child as HTMLElement).classList?.contains('grid-cell')) {
+                child.remove();
+              }
+            });
           });
         }
       }, 150);
@@ -689,6 +692,18 @@ export default function EntityEditor({ entity, onSave, onCancel }: EntityEditorP
           <WorkflowTraitEditor
             value={getComponentProp(target.propName)}
             onChange={(v) => setComponentProp(target.propName, v)}
+          />
+        );
+
+      case 'crm-zone-diagram-editor':
+        return (
+          <ZoneDiagramTraitEditor
+            imageValue={getComponentProp('fieldDiagramImage')}
+            zonesValue={getComponentProp('fieldDiagramZones')}
+            saveModeValue={getComponentProp('fieldDiagramSaveMode')}
+            onChangeImage={(v) => setComponentProp('fieldDiagramImage', v)}
+            onChangeZones={(v) => setComponentProp('fieldDiagramZones', v)}
+            onChangeSaveMode={(v) => setComponentProp('fieldDiagramSaveMode', v)}
           />
         );
 

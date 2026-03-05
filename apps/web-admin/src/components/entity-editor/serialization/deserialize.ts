@@ -44,7 +44,6 @@ export function deserializeFromGjs(projectData: GjsProjectData): EntityField[] {
       if (cell.type !== 'grid-cell') continue;
 
       const colSpan = (cell.colSpan as number) || extractColSpanFromClass(cell);
-      const rowSpan = (cell.rowSpan as number) || extractRowSpanFromClass(cell);
       const fieldComponents = cell.components || [];
 
       for (const fieldComp of fieldComponents) {
@@ -77,9 +76,6 @@ export function deserializeFromGjs(projectData: GjsProjectData): EntityField[] {
         field.gridRow = rowIndex;
         field.gridColSpan = colSpan;
         field.gridColStart = colStart;
-        if (rowSpan > 1) {
-          (field as Record<string, unknown>).gridRowSpan = rowSpan;
-        }
 
         fields.push(field);
       }
@@ -117,27 +113,6 @@ function extractColSpanFromClass(cell: GjsComponentDef): number {
   const classStr = cell.attributes?.class || '';
   const match = classStr.match(/col-span-(\d+)/);
   return match ? parseInt(match[1], 10) : 12;
-}
-
-/**
- * Extrai rowSpan da classe CSS do grid-cell.
- * Ex: "grid-cell col-span-6 row-span-2" -> 2
- */
-function extractRowSpanFromClass(cell: GjsComponentDef): number {
-  const classesArray = (cell as Record<string, unknown>).classes;
-  if (Array.isArray(classesArray)) {
-    for (const cls of classesArray) {
-      const str = typeof cls === 'string' ? cls : (cls as Record<string, unknown>)?.name;
-      if (typeof str === 'string') {
-        const match = str.match(/row-span-(\d+)/);
-        if (match) return parseInt(match[1], 10);
-      }
-    }
-  }
-
-  const classStr = cell.attributes?.class || '';
-  const match = classStr.match(/row-span-(\d+)/);
-  return match ? parseInt(match[1], 10) : 1;
 }
 
 /**

@@ -16,6 +16,10 @@ export function registerCustomTraits(editor: Editor) {
   // ─── Trait: crm-workflow-editor ────────────────────────────────────
   // Usado por: workflow-status
   registerPortalTrait(editor, 'crm-workflow-editor', 'fieldWorkflowConfig');
+
+  // ─── Trait: crm-zone-diagram-editor ────────────────────────────────
+  // Usado por: zone-diagram
+  registerPortalTrait(editor, 'crm-zone-diagram-editor', 'fieldDiagramZones');
 }
 
 /**
@@ -58,6 +62,7 @@ export const PORTAL_TRAIT_TYPES = [
   'crm-options-editor',
   'crm-entity-select',
   'crm-workflow-editor',
+  'crm-zone-diagram-editor',
 ] as const;
 
 export type PortalTraitType = typeof PORTAL_TRAIT_TYPES[number];

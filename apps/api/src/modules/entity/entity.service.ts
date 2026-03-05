@@ -313,25 +313,48 @@ export class EntityService {
 
     // Identificar sub-entidades (referenciadas por campo type=sub-entity em outra entidade)
     const subEntitySlugs = new Set<string>();
+    // Mapear parent slug -> sub-entity slugs
+    const parentToSubEntities = new Map<string, string[]>();
     for (const entity of entities) {
       const fields = (entity.fields as unknown as Array<{ type: string; subEntitySlug?: string }>) || [];
       for (const field of fields) {
         if (field.type === 'sub-entity' && field.subEntitySlug) {
           subEntitySlugs.add(field.subEntitySlug);
+          const existing = parentToSubEntities.get(entity.slug) || [];
+          existing.push(field.subEntitySlug);
+          parentToSubEntities.set(entity.slug, existing);
         }
       }
     }
 
-    // Excluir sub-entidades do sidebar
+    // Criar lookup de sub-entidades por slug
+    const entityBySlug = new Map(entities.map((e) => [e.slug, e]));
+
+    // Excluir sub-entidades do sidebar (entidades top-level apenas)
     const topLevelEntities = entities.filter((e) => !subEntitySlugs.has(e.slug));
 
     // Computar contagens filtradas por entidade (scope + dataFilters + globalFilters)
     const entitiesWithCounts = await Promise.all(
       topLevelEntities.map(async (entity) => {
         const counts = await this.countFilteredEntityRecords(entity, currentUser, effectiveTenantId, roleType);
+
+        // Anexar sub-entidades (id, name, slug, icon, color) para o sidebar
+        const subSlugs = parentToSubEntities.get(entity.slug) || [];
+        const subEntities = subSlugs
+          .map((slug) => entityBySlug.get(slug))
+          .filter(Boolean)
+          .map((sub) => ({
+            id: sub!.id,
+            name: sub!.name,
+            slug: sub!.slug,
+            icon: (sub as any).icon || null,
+            color: (sub as any).color || null,
+          }));
+
         return {
           ...entity,
           _count: { data: counts.active, archivedData: counts.archived },
+          ...(subEntities.length > 0 ? { subEntities } : {}),
         };
       }),
     );

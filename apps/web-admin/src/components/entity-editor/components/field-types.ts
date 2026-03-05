@@ -224,14 +224,7 @@ export function registerFieldTypes(editor: Editor) {
   ]);
 
   registerType(editor, 'crm-field-zone-diagram', 'zone-diagram', 'Diagrama de zonas', [
-    { type: 'select', name: 'fieldDiagramSaveMode', label: 'Modo de salvamento', changeProp: true,
-      options: [
-        { id: 'object', name: 'Objeto completo' },
-        { id: 'text', name: 'Apenas texto' },
-      ],
-    },
-    { type: 'text', name: 'fieldDiagramImage', label: 'URL da imagem', changeProp: true },
-    { type: 'textarea', name: 'fieldDiagramZones', label: 'Zonas (JSON)', changeProp: true },
+    { type: 'crm-zone-diagram-editor', name: 'fieldDiagramZones', label: 'Diagrama', changeProp: true },
   ]);
 
   registerType(editor, 'crm-field-json', 'json', 'JSON', []);

@@ -10,21 +10,38 @@ if [ "$CURRENT_BRANCH" != "develop" ] && [ "$CURRENT_BRANCH" != "dev" ]; then
   exit 1
 fi
 
-# 1. Build all packages
-echo "[1/4] Building packages..."
+# 1. Build all packages (shared → api + web-admin)
+echo "[1/6] Building packages..."
 pnpm build
 
-# 2. Build Docker images (reusa as mesmas imagens)
-echo "[2/4] Building Docker images (dev)..."
-docker compose -f docker-compose.prod.yml build api-dev web-dev
+# 2. Rotacionar tags: previous → removida, latest → previous
+echo "[2/6] Rotacionando imagens (latest → previous)..."
+for img in crm-builder-api-dev crm-builder-web-dev; do
+  docker rmi "$img:previous" 2>/dev/null || true
+  if docker image inspect "$img:latest" &>/dev/null; then
+    docker tag "$img:latest" "$img:previous"
+  fi
+done
 
-# 3. Recreate dev containers
-echo "[3/4] Deploying dev containers..."
+# 3. Build Docker images (copia artefatos pre-compilados, sem rebuild)
+echo "[3/6] Building Docker images (dev)..."
+docker compose -f docker-compose.prod.yml build --no-cache api-dev web-dev
+
+# 4. Recreate dev containers
+echo "[4/6] Deploying dev containers..."
 docker compose -f docker-compose.prod.yml up -d api-dev web-dev
 
-# 4. Restart nginx to refresh upstream DNS
-echo "[4/4] Restarting nginx..."
+# 5. Restart nginx to refresh upstream DNS
+echo "[5/6] Restarting nginx..."
 docker compose -f docker-compose.prod.yml restart nginx
+
+# 6. Limpar imagens dangling e build cache antigo
+echo "[6/6] Limpando lixo Docker..."
+docker image prune -f
+docker builder prune -f --filter 'until=1h' 2>/dev/null || true
 
 echo "=== Deploy DEV concluido ==="
 docker compose -f docker-compose.prod.yml ps api-dev web-dev nginx
+echo ""
+echo "Imagens mantidas:"
+docker images --format "  {{.Repository}}:{{.Tag}}  {{.Size}}" | grep "crm-builder-.*-dev"

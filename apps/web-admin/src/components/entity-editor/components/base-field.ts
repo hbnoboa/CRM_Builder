@@ -27,7 +27,7 @@ export function registerBaseField(editor: Editor) {
         // Logica de conversao px→colSpan centralizada em grapejs-editor.tsx
         resizable: {
           tl: 0, tc: 0, tr: 0,
-          bl: 0, bc: 1, br: 0,
+          bl: 0, bc: 0, br: 0,
           cl: 1, cr: 1,
           step: 1,
           minDim: 50,
@@ -129,7 +129,6 @@ export function registerBaseField(editor: Editor) {
         // Grid — editavel pelo usuario, sincronizado com grid-cell pai
         // Usar string para consistencia com o select trait (que retorna strings)
         fieldColSpan: '12',
-        fieldRowSpan: 1,
 
         // Grid posicao (informativo, gerenciado pelo grid-cell pai)
         fieldGridRow: 0,
@@ -228,21 +227,19 @@ export function registerBaseField(editor: Editor) {
         this.on('change:fieldType', this.triggerRender);
         this.on('change:fieldOptions', this.triggerRender);
         this.on('change:fieldHidden', this.triggerRender);
+        this.on('change:fieldDiagramImage', this.triggerRender);
+        this.on('change:fieldDiagramZones', this.triggerRender);
 
-        // Sincronizar largura/altura do campo com a celula pai
+        // Sincronizar largura do campo com a celula pai
         this.on('change:fieldColSpan', this.syncGridSpan);
-        this.on('change:fieldRowSpan', this.syncGridSpan);
       },
 
       syncGridSpan() {
         const rawColSpan = this.get('fieldColSpan');
         const colSpan = Math.min(12, Math.max(1, parseInt(String(rawColSpan), 10) || 12));
-        const rowSpan = Math.max(1, parseInt(String(this.get('fieldRowSpan')), 10) || 1);
         const cell = this.parent();
         if (cell && cell.get('type') === 'grid-cell') {
-          // Guard anti-loop: so atualizar se o valor mudou (evita ciclo cell→field→cell)
           if (cell.get('colSpan') !== colSpan) cell.set('colSpan', colSpan);
-          if (cell.get('rowSpan') !== rowSpan) cell.set('rowSpan', rowSpan);
         }
       },
 
@@ -286,9 +283,25 @@ export function registerBaseField(editor: Editor) {
           return;
         }
 
+        // Zone diagram: extrair imagem e zonas reais
+        let diagramImage: string | undefined;
+        let diagramZones: Array<{ id: string; label: string; x: number; y: number }> | undefined;
+        if (type === 'zone-diagram') {
+          diagramImage = model.get('fieldDiagramImage') || undefined;
+          const zonesStr = model.get('fieldDiagramZones') || '[]';
+          try {
+            const parsed = JSON.parse(zonesStr);
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              diagramZones = parsed;
+            }
+          } catch { /* ignore */ }
+        }
+
         const fieldHtml = renderFieldByType(type, {
           placeholder,
           options,
+          diagramImage,
+          diagramZones,
           label: model.get('fieldWorkflowConfig')
             ? (() => {
                 try {

@@ -197,6 +197,7 @@ function EntityDetailPageContent() {
   const [category, setCategory] = useState('');
   const [captureLocation, setCaptureLocation] = useState(false);
   const [fields, setFields] = useState<Partial<Field>[]>([]);
+  const [activeTab, setActiveTab] = useState('fields');
   const [expandedFieldIndex, setExpandedFieldIndex] = useState<number | null>(null);
   const [allEntities, setAllEntities] = useState<RelatedEntity[]>([]);
   const [allCustomApis, setAllCustomApis] = useState<CustomApi[]>([]);
@@ -1164,7 +1165,7 @@ function EntityDetailPageContent() {
         </div>
       </div>
 
-      <Tabs defaultValue="fields" className="space-y-4">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
         <TabsList className="w-full overflow-x-auto flex-wrap h-auto gap-1">
           <TabsTrigger value="info">{t('basicInfo')}</TabsTrigger>
           <TabsTrigger value="fields">{t('fieldsTab')} ({fields.length})</TabsTrigger>

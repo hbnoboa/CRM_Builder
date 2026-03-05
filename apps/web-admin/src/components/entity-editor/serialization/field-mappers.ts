@@ -53,7 +53,6 @@ const SIMPLE_PROPS: Array<{
   { entityKey: 'gridRow', gjsKey: 'fieldGridRow', type: 'number' },
   { entityKey: 'gridColSpan', gjsKey: 'fieldGridColSpan', type: 'number' },
   { entityKey: 'gridColStart', gjsKey: 'fieldGridColStart', type: 'number' },
-  { entityKey: 'gridRowSpan', gjsKey: 'fieldRowSpan', type: 'number' },
 ];
 
 // Propriedades que sao serializadas como JSON string

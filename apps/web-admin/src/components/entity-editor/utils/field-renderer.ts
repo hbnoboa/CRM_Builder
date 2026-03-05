@@ -8,6 +8,8 @@ interface RenderOptions {
   options?: Array<{ value: string; label: string }>;
   label?: string;
   actionLabel?: string;
+  diagramImage?: string;
+  diagramZones?: Array<{ id: string; label: string; x: number; y: number }>;
 }
 
 export function renderFieldByType(type: string, opts: RenderOptions = {}): string {
@@ -191,8 +193,30 @@ export function renderFieldByType(type: string, opts: RenderOptions = {}): strin
 
     // === Especiais ===
     case 'map':
-      return `<div class="crm-map-placeholder">
-        <span>&#128506; Mapa</span>
+      return `<div class="crm-map-container">
+        <div class="crm-map-inputs">
+          <div class="crm-map-search">
+            <span class="crm-map-search-icon">&#128269;</span>
+            <input type="text" class="crm-input crm-map-search-input" placeholder="Buscar endereco..." disabled />
+          </div>
+          <div class="crm-map-coords">
+            <div class="crm-map-coord-field">
+              <label class="crm-map-coord-label">Lat</label>
+              <input type="text" class="crm-input" placeholder="-23.5505" disabled />
+            </div>
+            <div class="crm-map-coord-field">
+              <label class="crm-map-coord-label">Lng</label>
+              <input type="text" class="crm-input" placeholder="-46.6333" disabled />
+            </div>
+          </div>
+        </div>
+        <div class="crm-map-tile">
+          <div class="crm-map-grid"></div>
+          <div class="crm-map-marker">
+            <div class="crm-map-marker-pin"></div>
+            <div class="crm-map-marker-shadow"></div>
+          </div>
+        </div>
       </div>`;
 
     case 'hidden':
@@ -209,11 +233,38 @@ export function renderFieldByType(type: string, opts: RenderOptions = {}): strin
         <span>Sub-entidade</span>
       </div>`;
 
-    case 'zone-diagram':
-      return `<div style="border: 1px solid var(--border, #e4e4e7); border-radius: 8px; padding: 16px; text-align: center; color: var(--muted-fg, #a1a1aa); min-height: 100px;">
-        <div style="font-size: 20px; margin-bottom: 4px;">&#128506;</div>
-        <span>Diagrama de zonas</span>
+    case 'zone-diagram': {
+      const zones = opts.diagramZones || [];
+      const imgUrl = opts.diagramImage || '';
+
+      const zonesHtml = zones.length > 0
+        ? zones.map((z) =>
+            `<div class="crm-zone-point" style="left: ${z.x}%; top: ${z.y}%;">
+              <span>${esc(z.label)}</span>
+            </div>`
+          ).join('')
+        : '';
+
+      const imageContent = imgUrl
+        ? `<img src="${esc(imgUrl)}" alt="Diagrama" class="crm-zone-img" />`
+        : `<div class="crm-zone-bg-pattern"></div>`;
+
+      const emptyMsg = !imgUrl && zones.length === 0
+        ? `<div class="crm-zone-empty">Nenhuma imagem ou zona configurada</div>`
+        : '';
+
+      return `<div class="crm-zone-diagram">
+        <div class="crm-zone-header">
+          <span class="crm-zone-header-icon">&#128205;</span>
+          <span>Diagrama de Zonas</span>
+        </div>
+        <div class="crm-zone-image-area">
+          ${imageContent}
+          ${zonesHtml}
+          ${emptyMsg}
+        </div>
       </div>`;
+    }
 
     case 'section-title':
       return ''; // Handled separately in base-field.ts

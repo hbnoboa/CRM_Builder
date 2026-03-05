@@ -1,8 +1,5 @@
 **/node_modules
-**/.next
 **/.turbo
-**/dist
-!packages/shared/dist
 **/.cache
 .git
 *.log
@@ -15,3 +12,8 @@ scripts
 .env.development
 .env.test
 **/*.md
+
+# Manter artefatos pre-compilados necessarios:
+# - apps/api/dist (API compilada)
+# - apps/web-admin/.next (Next.js standalone build)
+# - packages/shared/dist (tipos compartilhados)

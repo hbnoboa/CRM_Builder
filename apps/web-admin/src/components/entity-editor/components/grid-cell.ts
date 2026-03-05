@@ -6,9 +6,8 @@ import type { Editor } from 'grapesjs';
  * Propriedade `colSpan` controla a largura.
  * Auto-remove quando fica vazia (campo deletado).
  *
- * IMPORTANTE: Nunca usar setClass() — ele substitui TODAS as classes,
- * removendo classes do GrapeJS (gjs-selected, gjs-comp-highlighted).
- * Usar classList.add/remove para manipulacao cirurgica.
+ * Classes: usar addClass/removeClass do GrapeJS para manter o model.classes
+ * sincronizado com o DOM. O model.classes e o que getProjectData() serializa.
  */
 export function registerGridCell(editor: Editor) {
   editor.DomComponents.addType('grid-cell', {
@@ -27,12 +26,10 @@ export function registerGridCell(editor: Editor) {
         highlightable: false,
         attributes: { class: 'grid-cell col-span-12' },
         colSpan: 12,
-        rowSpan: 1,
         traits: [],
       },
       init() {
         this.on('change:colSpan', this.updateGridSpan);
-        this.on('change:rowSpan', this.updateGridSpan);
 
         // Escutar diretamente a collection de filhos (nao 'component:remove' que
         // e um evento do EDITOR, nao do model — nunca disparava para filhos!)
@@ -55,29 +52,22 @@ export function registerGridCell(editor: Editor) {
       },
       updateGridSpan() {
         const colSpan = Math.min(12, Math.max(1, this.get('colSpan') || 12));
-        const rowSpan = Math.max(1, this.get('rowSpan') || 1);
-        const el = this.view?.el;
-        if (el) {
-          // Remover apenas col-span-* e row-span-* sem tocar em classes do GrapeJS
-          const toRemove: string[] = [];
-          el.classList.forEach((cls: string) => {
-            if (cls.startsWith('col-span-') || cls.startsWith('row-span-')) {
-              toRemove.push(cls);
-            }
-          });
-          toRemove.forEach((cls) => el.classList.remove(cls));
-          el.classList.add('grid-cell', `col-span-${colSpan}`);
-          if (rowSpan > 1) el.classList.add(`row-span-${rowSpan}`);
-        }
+
+        // Atualizar model.classes via API do GrapeJS — isto atualiza TANTO
+        // o model (para serializacao via getProjectData) QUANTO o DOM.
+        const currentClasses: string[] = this.getClasses?.() || [];
+        const toRemove = currentClasses.filter(
+          (cls: string) => cls.startsWith('col-span-'),
+        );
+        toRemove.forEach((cls: string) => this.removeClass?.(cls));
+        this.addClass?.(`col-span-${colSpan}`);
+        if (!this.getClasses?.().includes('grid-cell')) this.addClass?.('grid-cell');
       },
     },
     view: {
       onRender() {
         const colSpan = this.model.get('colSpan') || 12;
-        const rowSpan = this.model.get('rowSpan') || 1;
-        // classList ao inves de className = ... para preservar classes do GrapeJS
         this.el.classList.add('grid-cell', `col-span-${colSpan}`);
-        if (rowSpan > 1) this.el.classList.add(`row-span-${rowSpan}`);
       },
     },
   });
@@ -95,11 +85,9 @@ function redistributeColSpans(row: { components: () => { filter: (fn: (c: { get:
 
   const spanPerCell = Math.max(1, Math.floor(12 / cells.length));
   cells.forEach((cell, index) => {
-    // Ultima celula pega o restante
     const span = index === cells.length - 1
       ? 12 - spanPerCell * (cells.length - 1)
       : spanPerCell;
     cell.set('colSpan', span);
-    // NAO chamar setClass() — updateGridSpan ja cuida via change:colSpan
   });
 }

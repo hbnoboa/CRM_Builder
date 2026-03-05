@@ -68,13 +68,6 @@ export function getCanvasCss(isDark: boolean): string {
     .col-span-11 { flex: 0 0 calc(91.667% - 1.333px); max-width: calc(91.667% - 1.333px); }
     .col-span-12 { flex: 0 0 100%; max-width: 100%; }
 
-    /* rowSpan — convertido para altura fixa (80px base + gap) */
-    .row-span-2 { height: calc(2 * 80px + 16px); }
-    .row-span-3 { height: calc(3 * 80px + 2 * 16px); }
-    .row-span-4 { height: calc(4 * 80px + 3 * 16px); }
-    .row-span-5 { height: calc(5 * 80px + 4 * 16px); }
-    .row-span-6 { height: calc(6 * 80px + 5 * 16px); }
-
     /* ━━━ Field Preview (replica space-y-2 do formulario real) ━━━ */
     .crm-field-preview {
       display: flex;
@@ -206,16 +199,159 @@ export function getCanvasCss(isDark: boolean): string {
     .crm-dropzone-icon { font-size: 24px; margin-bottom: 4px; }
 
     /* ━━━ Map ━━━ */
-    .crm-map-placeholder {
+    .crm-map-container {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .crm-map-inputs {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .crm-map-search {
+      position: relative;
+    }
+    .crm-map-search-icon {
+      position: absolute;
+      left: 10px;
+      top: 50%;
+      transform: translateY(-50%);
+      font-size: 14px;
+      color: ${mutedFg};
+      pointer-events: none;
+      z-index: 1;
+    }
+    .crm-map-search-input {
+      padding-left: 32px !important;
+    }
+    .crm-map-coords {
+      display: flex;
+      gap: 8px;
+    }
+    .crm-map-coord-field {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .crm-map-coord-label {
+      font-size: 0.75rem;
+      font-weight: 500;
+      color: ${mutedFg};
+    }
+    .crm-map-tile {
       border: 1px solid ${border};
       border-radius: 0.5rem;
+      height: 160px;
+      position: relative;
+      overflow: hidden;
+      background:
+        linear-gradient(135deg, #e8f4e8 0%, #d4ecd4 25%, #e0eed0 50%, #d8e8d0 75%, #e4f0e0 100%);
+    }
+    .crm-map-grid {
+      position: absolute;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(0,0,0,0.04) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0,0,0,0.04) 1px, transparent 1px);
+      background-size: 40px 40px;
+    }
+    .crm-map-marker {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -100%);
+    }
+    .crm-map-marker-pin {
+      width: 24px;
+      height: 24px;
+      background: #ef4444;
+      border: 2px solid #fff;
+      border-radius: 50% 50% 50% 0;
+      transform: rotate(-45deg);
+      box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+    }
+    .crm-map-marker-shadow {
+      width: 14px;
+      height: 6px;
+      background: rgba(0,0,0,0.15);
+      border-radius: 50%;
+      margin: 2px auto 0;
+    }
+
+    /* ━━━ Zone Diagram ━━━ */
+    .crm-zone-diagram {
+      border: 1px solid ${border};
+      border-radius: 0.5rem;
+      overflow: hidden;
+    }
+    .crm-zone-header {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 12px;
       background: ${muted};
-      height: 180px;
+      border-bottom: 1px solid ${border};
+      font-size: 0.8125rem;
+      font-weight: 500;
+      color: ${fg};
+    }
+    .crm-zone-header-icon {
+      font-size: 14px;
+    }
+    .crm-zone-image-area {
+      position: relative;
+      min-height: 140px;
+      background: ${bg};
+      overflow: hidden;
+    }
+    .crm-zone-img {
+      width: 100%;
+      height: auto;
+      display: block;
+      pointer-events: none;
+    }
+    .crm-zone-empty {
       display: flex;
       align-items: center;
       justify-content: center;
+      min-height: 100px;
+      font-size: 0.8125rem;
       color: ${mutedFg};
-      font-size: 0.875rem;
+    }
+    .crm-zone-bg-pattern {
+      position: absolute;
+      inset: 0;
+      background-image:
+        linear-gradient(45deg, ${muted} 25%, transparent 25%),
+        linear-gradient(-45deg, ${muted} 25%, transparent 25%),
+        linear-gradient(45deg, transparent 75%, ${muted} 75%),
+        linear-gradient(-45deg, transparent 75%, ${muted} 75%);
+      background-size: 20px 20px;
+      background-position: 0 0, 0 10px, 10px -10px, -10px 0;
+      opacity: 0.5;
+    }
+    .crm-zone-point {
+      position: absolute;
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: #3b82f6;
+      border: 2px solid #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transform: translate(-50%, -50%);
+      box-shadow: 0 2px 8px rgba(59, 130, 246, 0.4);
+      cursor: default;
+      pointer-events: none;
+    }
+    .crm-zone-point span {
+      color: #fff;
+      font-size: 0.6875rem;
+      font-weight: 700;
+      line-height: 1;
     }
 
     /* ━━━ Rating ━━━ */
@@ -339,7 +475,8 @@ export function getCanvasCss(isDark: boolean): string {
     .crm-slider-fill,
     .crm-dropzone,
     .crm-signature-placeholder,
-    .crm-map-placeholder,
+    .crm-map-container,
+    .crm-zone-diagram,
     .crm-json-preview,
     .crm-hidden-indicator {
       pointer-events: none !important;

@@ -31,6 +31,7 @@ import {
   Package,
   UserCheck,
   CircleDot,
+  Layers,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -130,7 +131,7 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
   const tNav = useTranslations('navigation');
   const tRoles = useTranslations('roles');
   const { user, isAuthenticated, logout, ensureAuth, isLoading } = useAuthStore();
-  const { hasModuleAccess, getDefaultRoute } = usePermissions();
+  const { hasModuleAccess, hasModulePermission, getDefaultRoute } = usePermissions();
   const { tenant, effectiveTenantId } = useTenant();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
@@ -547,30 +548,58 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
                                   {group.entities.map((entity) => {
                                     const href = `/data?entity=${entity.slug}`;
                                     const isActive = pathname === '/data' && searchParams.get('entity') === entity.slug;
+                                    const subEntities = (entity as any).subEntities as Array<{ id: string; name: string; slug: string; icon?: string; color?: string }> | undefined;
+                                    const canEditEntities = hasModulePermission('entities', 'canUpdate');
                                     return (
-                                      <Link
-                                        key={entity.id}
-                                        href={href}
-                                        prefetch={false}
-                                        className={cn(
-                                          'flex items-center rounded-lg text-sm transition-all min-h-[36px] gap-2.5 pl-7 pr-3 py-1.5',
-                                          isActive
-                                            ? 'bg-primary text-primary-foreground shadow-sm'
-                                            : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+                                      <div key={entity.id}>
+                                        <Link
+                                          href={href}
+                                          prefetch={false}
+                                          className={cn(
+                                            'flex items-center rounded-lg text-sm transition-all min-h-[36px] gap-2.5 pl-7 pr-3 py-1.5',
+                                            isActive
+                                              ? 'bg-primary text-primary-foreground shadow-sm'
+                                              : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+                                          )}
+                                          onClick={() => setSidebarOpen(false)}
+                                        >
+                                          {getEntityIcon(entity.icon, isActive ? undefined : entity.color)}
+                                          <span className="flex-1 truncate text-[13px]">{entity.name}</span>
+                                          {entity._count && (
+                                            <span className={cn(
+                                              'text-[10px] tabular-nums',
+                                              isActive ? 'text-primary-foreground/70' : 'text-muted-foreground/50'
+                                            )}>
+                                              {(entity._count.data || 0) + (entity._count.archivedData || 0)}
+                                            </span>
+                                          )}
+                                        </Link>
+                                        {canEditEntities && subEntities && subEntities.length > 0 && (
+                                          <div className="space-y-0.5 mt-0.5">
+                                            {subEntities.map((sub) => {
+                                              const subHref = `/entities/${sub.id}`;
+                                              const isSubActive = pathname === `/entities/${sub.id}`;
+                                              return (
+                                                <Link
+                                                  key={sub.id}
+                                                  href={subHref}
+                                                  prefetch={false}
+                                                  className={cn(
+                                                    'flex items-center rounded-lg text-xs transition-all min-h-[30px] gap-2 pl-12 pr-3 py-1',
+                                                    isSubActive
+                                                      ? 'bg-primary text-primary-foreground shadow-sm'
+                                                      : 'text-muted-foreground/70 hover:text-foreground hover:bg-muted'
+                                                  )}
+                                                  onClick={() => setSidebarOpen(false)}
+                                                >
+                                                  <Layers className="h-3 w-3 flex-shrink-0" />
+                                                  <span className="flex-1 truncate">{sub.name}</span>
+                                                </Link>
+                                              );
+                                            })}
+                                          </div>
                                         )}
-                                        onClick={() => setSidebarOpen(false)}
-                                      >
-                                        {getEntityIcon(entity.icon, isActive ? undefined : entity.color)}
-                                        <span className="flex-1 truncate text-[13px]">{entity.name}</span>
-                                        {entity._count && (
-                                          <span className={cn(
-                                            'text-[10px] tabular-nums',
-                                            isActive ? 'text-primary-foreground/70' : 'text-muted-foreground/50'
-                                          )}>
-                                            {(entity._count.data || 0) + (entity._count.archivedData || 0)}
-                                          </span>
-                                        )}
-                                      </Link>
+                                      </div>
                                     );
                                   })}
                                 </div>

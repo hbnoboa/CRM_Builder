@@ -1,45 +1,7 @@
-# Dockerfile para API NestJS - Build completo no container
+# Dockerfile para API NestJS
+# Usa artefatos pre-compilados pelo pnpm build (sem rebuild no Docker)
 
-FROM node:20-alpine AS base
-
-# Instalar dependências
-FROM base AS deps
-WORKDIR /app
-RUN apk add --no-cache openssl
-
-# Copiar shared package (pré-compilado)
-COPY packages/shared/package.json ./shared/package.json
-COPY packages/shared/dist ./shared/dist
-
-# Copiar package.json do API e substituir workspace:* por file:
-COPY apps/api/package.json ./package.json.orig
-RUN sed 's|"workspace:\*"|"file:./shared"|g' package.json.orig > package.json
-COPY apps/api/prisma ./prisma
-
-# Instalar com npm para evitar symlinks do pnpm
-RUN npm install --legacy-peer-deps
-
-# Build
-FROM base AS builder
-WORKDIR /app
-RUN apk add --no-cache openssl
-
-COPY --from=deps /app/node_modules ./node_modules
-COPY --from=deps /app/prisma ./prisma
-COPY --from=deps /app/shared ./shared
-
-# Copiar arquivos do API (exceto node_modules)
-COPY apps/api/src ./src
-COPY apps/api/nest-cli.json ./
-COPY apps/api/tsconfig.json ./
-COPY apps/api/package.json ./package.json.orig
-RUN sed 's|"workspace:\*"|"file:./shared"|g' package.json.orig > package.json
-
-RUN npm run build
-RUN npx prisma generate
-
-# Produção - imagem mínima
-FROM node:20-alpine AS runner
+FROM node:20-alpine
 WORKDIR /app
 
 ENV NODE_ENV=production
@@ -49,14 +11,27 @@ RUN apk add --no-cache openssl
 RUN addgroup --system --gid 1001 nodejs && \
     adduser --system --uid 1001 nestjs
 
-# Copiar arquivos necessários
-COPY --from=builder --chown=nestjs:nodejs /app/dist ./dist
-COPY --from=builder --chown=nestjs:nodejs /app/prisma ./prisma
-COPY --from=builder --chown=nestjs:nodejs /app/package.json ./
-COPY --from=builder --chown=nestjs:nodejs /app/shared ./shared
-COPY --from=builder --chown=nestjs:nodejs /app/node_modules ./node_modules
+# Copiar shared package (pre-compilado)
+COPY packages/shared/package.json ./shared/package.json
+COPY packages/shared/dist ./shared/dist
 
-# Criar diretório de uploads com permissões corretas
+# Copiar package.json e prisma schema
+COPY apps/api/package.json ./package.json.orig
+RUN sed 's|"workspace:\*"|"file:./shared"|g' package.json.orig > package.json && rm package.json.orig
+COPY apps/api/prisma ./prisma
+
+# Instalar deps (incluindo dev para prisma generate), gerar client, remover dev deps
+ENV NODE_ENV=development
+RUN npm install --legacy-peer-deps && \
+    npx prisma generate && \
+    npm prune --omit=dev && \
+    npm cache clean --force
+ENV NODE_ENV=production
+
+# Copiar dist pre-compilado
+COPY --chown=nestjs:nodejs apps/api/dist ./dist
+
+# Criar diretorio de uploads
 RUN mkdir -p /app/uploads && chown nestjs:nodejs /app/uploads
 
 USER nestjs
