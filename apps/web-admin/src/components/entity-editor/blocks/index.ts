@@ -2,9 +2,9 @@ import type { Editor } from 'grapesjs';
 
 /**
  * Categorias de blocos — cada bloco cria um crm-field com o tipo correspondente.
- * O icone e renderizado como emoji/texto para simplicidade.
+ * O bloco mostra um mini preview do campo real na paleta.
  */
-interface BlockDef {
+export interface BlockDef {
   id: string;
   label: string;
   icon: string;
@@ -12,7 +12,7 @@ interface BlockDef {
   fieldType: string;
 }
 
-const BLOCKS: BlockDef[] = [
+export const BLOCKS: BlockDef[] = [
   // Texto
   { id: 'field-text', label: 'Texto', icon: 'Aa', category: 'Texto', fieldType: 'text' },
   { id: 'field-textarea', label: 'Area de texto', icon: '¶', category: 'Texto', fieldType: 'textarea' },
@@ -85,19 +85,14 @@ const BLOCKS: BlockDef[] = [
 
 /**
  * Registra todos os blocos no GrapeJS.
- * Cada bloco cria apenas o crm-field — o grid-row/grid-cell e criado
- * automaticamente pelo handler em grapejs-editor.tsx.
- *
- * Ao arrastar para o canvas/wrapper: cria nova row com 1 celula (12 colunas).
- * Ao arrastar para uma row existente: adiciona celula e redistribui colSpan.
+ * Cada bloco mostra um mini preview do campo na paleta (media)
+ * e cria o crm-field ao ser arrastado para o canvas.
  */
 export function registerAllBlocks(editor: Editor) {
   for (const block of BLOCKS) {
     editor.BlockManager.add(block.id, {
-      label: `<div style="display:flex;align-items:center;gap:6px;font-size:13px;">
-        <span style="font-size:16px;width:24px;text-align:center;">${block.icon}</span>
-        <span>${block.label}</span>
-      </div>`,
+      label: block.label,
+      media: getBlockMedia(block),
       category: block.category,
       content: {
         type: `crm-field-${block.fieldType}`,
@@ -105,7 +100,6 @@ export function registerAllBlocks(editor: Editor) {
         fieldLabel: block.label,
         fieldName: generateSlug(block.label),
       },
-      // Atributos visuais do bloco na paleta
       attributes: { class: 'gjs-block-field' },
     });
   }
@@ -113,13 +107,224 @@ export function registerAllBlocks(editor: Editor) {
 
 /**
  * Gera um slug a partir do label.
- * Ex: "Texto rico" -> "texto_rico"
  */
 function generateSlug(label: string): string {
   return label
     .toLowerCase()
     .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '') // Remove acentos
+    .replace(/[\u0300-\u036f]/g, '')
     .replace(/[^a-z0-9]+/g, '_')
     .replace(/^_|_$/g, '');
+}
+
+/**
+ * Gera o HTML do mini preview para cada tipo de campo na paleta de blocos.
+ * Replica visualmente o campo real em escala compacta.
+ */
+function getBlockMedia(block: BlockDef): string {
+  const type = block.fieldType;
+  const label = block.label;
+
+  // Mini input preview (para text, email, number, etc.)
+  const miniInput = (placeholder: string) => `
+    <div class="blk-preview">
+      <div class="blk-label">${label}</div>
+      <div class="blk-input">${placeholder}</div>
+    </div>`;
+
+  // Mini textarea preview
+  const miniTextarea = (placeholder: string) => `
+    <div class="blk-preview">
+      <div class="blk-label">${label}</div>
+      <div class="blk-textarea">${placeholder}</div>
+    </div>`;
+
+  // Mini select preview
+  const miniSelect = (placeholder: string) => `
+    <div class="blk-preview">
+      <div class="blk-label">${label}</div>
+      <div class="blk-select"><span>${placeholder}</span><span class="blk-arrow">▾</span></div>
+    </div>`;
+
+  switch (type) {
+    case 'text': return miniInput('Digite o texto...');
+    case 'email': return miniInput('email@exemplo.com');
+    case 'url': return miniInput('https://');
+    case 'phone': return miniInput('(00) 00000-0000');
+    case 'cpf': return miniInput('000.000.000-00');
+    case 'cnpj': return miniInput('00.000.000/0000-00');
+    case 'cep': return miniInput('00000-000');
+    case 'password': return miniInput('••••••••');
+    case 'number': return miniInput('0');
+    case 'currency': return miniInput('R$ 0,00');
+    case 'percentage': return miniInput('0,00 %');
+    case 'date': return miniInput('dd/mm/aaaa');
+    case 'datetime': return miniInput('dd/mm/aaaa hh:mm');
+    case 'time': return miniInput('hh:mm');
+
+    case 'textarea':
+    case 'richtext':
+      return miniTextarea('Digite...');
+
+    case 'array':
+      return `<div class="blk-preview">
+        <div class="blk-label">${label}</div>
+        <div class="blk-input">Adicionar item...</div>
+        <div class="blk-tags"><span class="blk-tag">Item 1</span><span class="blk-tag">Item 2</span></div>
+      </div>`;
+
+    case 'select':
+    case 'api-select':
+    case 'relation':
+    case 'user-select':
+    case 'lookup':
+    case 'multiselect':
+      return miniSelect('Selecionar...');
+
+    case 'boolean':
+      return `<div class="blk-preview">
+        <div class="blk-label">${label}</div>
+        <div style="display:flex;align-items:center;gap:6px;">
+          <div class="blk-switch"><div class="blk-switch-thumb"></div></div>
+          <span style="font-size:11px;opacity:0.6;">Nao</span>
+        </div>
+      </div>`;
+
+    case 'checkbox-group':
+      return `<div class="blk-preview">
+        <div class="blk-label">${label}</div>
+        <div style="display:flex;flex-direction:column;gap:3px;">
+          <div style="display:flex;align-items:center;gap:4px;"><div class="blk-checkbox"></div><span style="font-size:11px;">Opcao 1</span></div>
+          <div style="display:flex;align-items:center;gap:4px;"><div class="blk-checkbox"></div><span style="font-size:11px;">Opcao 2</span></div>
+        </div>
+      </div>`;
+
+    case 'radio-group':
+      return `<div class="blk-preview">
+        <div class="blk-label">${label}</div>
+        <div style="display:flex;flex-direction:column;gap:3px;">
+          <div style="display:flex;align-items:center;gap:4px;"><div class="blk-radio"></div><span style="font-size:11px;">Opcao 1</span></div>
+          <div style="display:flex;align-items:center;gap:4px;"><div class="blk-radio"></div><span style="font-size:11px;">Opcao 2</span></div>
+        </div>
+      </div>`;
+
+    case 'tags':
+      return `<div class="blk-preview">
+        <div class="blk-label">${label}</div>
+        <div class="blk-tags"><span class="blk-tag">tag1</span><span class="blk-tag">tag2</span><span class="blk-tag">tag3</span></div>
+      </div>`;
+
+    case 'color':
+      return `<div class="blk-preview">
+        <div class="blk-label">${label}</div>
+        <div style="display:flex;align-items:center;gap:6px;">
+          <div style="width:20px;height:20px;border-radius:4px;background:#3b82f6;border:1px solid hsl(var(--border));"></div>
+          <div class="blk-input" style="flex:1;">#3b82f6</div>
+        </div>
+      </div>`;
+
+    case 'slider':
+      return `<div class="blk-preview">
+        <div class="blk-label">${label}</div>
+        <div style="position:relative;height:6px;border-radius:3px;background:hsl(var(--muted));margin:6px 0;">
+          <div style="width:50%;height:100%;border-radius:3px;background:hsl(var(--primary));"></div>
+          <div style="width:12px;height:12px;border-radius:50%;background:hsl(var(--primary));position:absolute;top:-3px;left:calc(50% - 6px);"></div>
+        </div>
+      </div>`;
+
+    case 'rating':
+      return `<div class="blk-preview">
+        <div class="blk-label">${label}</div>
+        <div style="display:flex;gap:2px;font-size:14px;color:#f59e0b;">★★★<span style="opacity:0.3;">★★</span></div>
+      </div>`;
+
+    case 'file':
+      return `<div class="blk-preview">
+        <div class="blk-label">${label}</div>
+        <div class="blk-dropzone">📎 Arraste arquivos</div>
+      </div>`;
+
+    case 'image':
+      return `<div class="blk-preview">
+        <div class="blk-label">${label}</div>
+        <div class="blk-dropzone">📷 Arraste imagens</div>
+      </div>`;
+
+    case 'signature':
+      return `<div class="blk-preview">
+        <div class="blk-label">${label}</div>
+        <div class="blk-dropzone">✍ Assinar aqui</div>
+      </div>`;
+
+    case 'section-title':
+      return `<div class="blk-preview">
+        <div style="padding:4px 0;border-bottom:1px solid hsl(var(--border));font-size:12px;font-weight:600;">Titulo da Secao</div>
+      </div>`;
+
+    case 'workflow-status':
+      return `<div class="blk-preview">
+        <div class="blk-label">${label}</div>
+        <div class="blk-select" style="border-left:3px solid #3b82f6;"><span>Status</span><span class="blk-arrow">▾</span></div>
+      </div>`;
+
+    case 'timer':
+      return `<div class="blk-preview">
+        <div class="blk-label">${label}</div>
+        <div style="font-family:monospace;font-size:12px;">⏱ 00:00:00</div>
+      </div>`;
+
+    case 'sla-status':
+      return `<div class="blk-preview">
+        <div class="blk-label">${label}</div>
+        <div style="display:flex;align-items:center;gap:4px;font-size:11px;">
+          <span style="width:8px;height:8px;border-radius:50%;background:#22c55e;"></span>Dentro do SLA
+        </div>
+      </div>`;
+
+    case 'action-button':
+      return `<div class="blk-preview">
+        <div class="blk-label">${label}</div>
+        <div style="background:hsl(var(--primary));color:hsl(var(--primary-foreground));font-size:11px;padding:4px 10px;border-radius:4px;text-align:center;">Acao</div>
+      </div>`;
+
+    case 'formula':
+    case 'rollup':
+      return `<div class="blk-preview">
+        <div class="blk-label">${label}</div>
+        <div class="blk-input" style="opacity:0.6;">⚡ Calculado</div>
+      </div>`;
+
+    case 'map':
+      return `<div class="blk-preview">
+        <div class="blk-label">${label}</div>
+        <div class="blk-dropzone">🗺 Mapa</div>
+      </div>`;
+
+    case 'zone-diagram':
+      return `<div class="blk-preview">
+        <div class="blk-label">${label}</div>
+        <div class="blk-dropzone">📐 Diagrama</div>
+      </div>`;
+
+    case 'json':
+      return `<div class="blk-preview">
+        <div class="blk-label">${label}</div>
+        <div class="blk-input" style="font-family:monospace;font-size:10px;">{ }</div>
+      </div>`;
+
+    case 'hidden':
+      return `<div class="blk-preview">
+        <div class="blk-label">${label}</div>
+        <div style="font-size:11px;opacity:0.5;font-style:italic;">👁 Campo oculto</div>
+      </div>`;
+
+    case 'sub-entity':
+      return `<div class="blk-preview">
+        <div class="blk-label">${label}</div>
+        <div class="blk-dropzone">📂 Sub-entidade</div>
+      </div>`;
+
+    default:
+      return miniInput('...');
+  }
 }

@@ -3,11 +3,15 @@ import { entityFieldToGjsProps } from './field-mappers';
 
 /**
  * Estrutura de dados do GrapeJS para armazenamento.
- * Corresponde ao que `editor.getProjectData()` retorna.
+ *
+ * `loadProjectData()` aceita `pages[].component` como atalho,
+ * mas `getProjectData()` retorna `pages[].frames[].component` (GrapeJS 0.22+).
+ * A interface aceita ambos os formatos para compatibilidade.
  */
 export interface GjsProjectData {
   pages: Array<{
-    component: GjsComponentDef;
+    component?: GjsComponentDef;
+    frames?: Array<{ component?: GjsComponentDef; [key: string]: unknown }>;
     [key: string]: unknown;
   }>;
   [key: string]: unknown;
@@ -43,10 +47,28 @@ export function serializeToGjs(fields: EntityField[]): GjsProjectData {
   }
 
   // Agrupar campos por gridRow
+  // Campos sem gridRow recebem rows sequenciais que nao colidem com rows existentes
   const rowMap = new Map<number, EntityField[]>();
 
-  fields.forEach((field, index) => {
-    const row = field.gridRow ?? index + 1;
+  // Primeiro: coletar todas as rows explicitas
+  const usedRows = new Set<number>();
+  fields.forEach((field) => {
+    if (field.gridRow != null) usedRows.add(field.gridRow);
+  });
+
+  // Segundo: atribuir rows sequenciais para campos sem gridRow
+  let nextRow = 1;
+  fields.forEach((field) => {
+    let row: number;
+    if (field.gridRow != null) {
+      row = field.gridRow;
+    } else {
+      // Encontrar proxima row livre
+      while (usedRows.has(nextRow)) nextRow++;
+      row = nextRow;
+      usedRows.add(row);
+      nextRow++;
+    }
     if (!rowMap.has(row)) {
       rowMap.set(row, []);
     }
@@ -65,16 +87,24 @@ export function serializeToGjs(fields: EntityField[]): GjsProjectData {
 
     const cellComponents: GjsComponentDef[] = sortedFields.map((field) => {
       const colSpan = field.gridColSpan ?? 12;
+      const rowSpan = field.gridRowSpan ?? 1;
       const fieldProps = entityFieldToGjsProps(field);
+
+      const cellClasses = [`grid-cell`, `col-span-${colSpan}`];
+      if (rowSpan > 1) cellClasses.push(`row-span-${rowSpan}`);
 
       return {
         type: 'grid-cell',
-        attributes: { class: `grid-cell col-span-${colSpan}` },
+        attributes: { class: cellClasses.join(' ') },
         colSpan,
+        rowSpan,
         components: [
           {
             type: `crm-field-${field.type}`,
             ...fieldProps,
+            // Setar fieldColSpan como string para consistencia com select trait
+            fieldColSpan: String(colSpan),
+            fieldRowSpan: rowSpan,
           },
         ],
       } as GjsComponentDef;

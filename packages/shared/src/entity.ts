@@ -249,6 +249,7 @@ export interface EntityField {
   gridRow?: number;
   gridColSpan?: number;
   gridColStart?: number;
+  gridRowSpan?: number;
 
   // api-select specific
   apiEndpoint?: string;

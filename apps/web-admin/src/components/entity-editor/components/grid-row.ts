@@ -15,9 +15,10 @@ export function registerGridRow(editor: Editor) {
         draggable: '[data-gjs-type="wrapper"]',
         // Aceitar grid-cells E campos crm-field-* diretamente
         droppable: true,
-        copyable: true,
+        selectable: false,
+        copyable: false,
         removable: true,
-        highlightable: true,
+        highlightable: false,
         attributes: { class: 'grid-row' },
         styles: '',
         traits: [],
@@ -31,13 +32,20 @@ export function registerGridRow(editor: Editor) {
             <div style="
               grid-column: span 12;
               border: 2px dashed var(--border, #e4e4e7);
-              border-radius: 6px;
-              padding: 16px;
+              border-radius: 8px;
+              padding: 24px 16px;
               text-align: center;
               color: var(--muted-fg, #a1a1aa);
               font-size: 13px;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              gap: 8px;
+              background: var(--muted-bg, transparent);
+              transition: border-color 0.2s, background 0.2s;
             ">
-              Arraste campos aqui
+              <span style="font-size: 18px;">+</span>
+              Arraste um campo aqui ou use o botao "Adicionar Campo"
             </div>
           `;
         }

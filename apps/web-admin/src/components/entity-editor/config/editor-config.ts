@@ -1,5 +1,4 @@
 import type { EditorConfig } from 'grapesjs';
-import { getCanvasStyles } from './theme';
 
 /**
  * Configuracao base do GrapeJS para o editor de entidades.
@@ -9,7 +8,6 @@ import { getCanvasStyles } from './theme';
  */
 export function createEditorConfig(
   container: HTMLElement | string,
-  isDarkMode: boolean,
 ): EditorConfig {
   return {
     container,
@@ -29,64 +27,22 @@ export function createEditorConfig(
       ],
     },
 
-    // Canvas config
+    // Canvas config - CSS injetado via onEditor callback (nao data URI)
     canvas: {
-      styles: [getCanvasStyles(isDarkMode)],
+      styles: [
+        'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap',
+      ],
     },
 
     // Bloquear edicao de texto inline no canvas
-    // Os campos sao configurados via traits, nao por edicao direta
     richTextEditor: { enable: false },
 
     // Panels customizados
     panels: {
-      defaults: [
-        {
-          id: 'views',
-          el: '.panel__views',
-          buttons: {
-            defaults: [
-              {
-                id: 'open-blocks',
-                className: 'fa fa-th-large',
-                command: 'open-blocks',
-                togglable: false,
-                active: true,
-                label: 'Campos',
-              },
-            ],
-          },
-        },
-        {
-          id: 'options',
-          el: '.panel__options',
-          buttons: {
-            defaults: [
-              {
-                id: 'undo',
-                className: 'fa fa-undo',
-                command: 'core:undo',
-                label: 'Desfazer',
-              },
-              {
-                id: 'redo',
-                className: 'fa fa-repeat',
-                command: 'core:redo',
-                label: 'Refazer',
-              },
-              {
-                id: 'clear',
-                className: 'fa fa-trash',
-                command: 'core:canvas-clear',
-                label: 'Limpar',
-              },
-            ],
-          },
-        },
-      ],
+      defaults: [],
     },
 
-    // Bloquear componentes padroes do GrapeJS
+    // Blocos no painel esquerdo
     blockManager: {
       appendTo: '.blocks-container',
     },
@@ -96,19 +52,16 @@ export function createEditorConfig(
       appendTo: '.traits-container',
     },
 
-    // Selector manager - desabilitado
+    // Selector manager
     selectorManager: {
       componentFirst: true,
       custom: true,
     },
 
-    // Desabilitar drag de componentes nativos
     domComponents: {
       storeWrapper: 1,
     },
 
-    // Desabilitar features nativas que nao fazem sentido
-    // para editor de entidades
     plugins: [],
     pluginsOpts: {},
   };

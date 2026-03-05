@@ -1,6 +1,12 @@
 import type { Editor } from 'grapesjs';
 import { renderFieldByType } from '../utils/field-renderer';
 
+// Trait categories para organizar o painel de propriedades
+const CAT_BASIC = { id: 'basic', label: 'Basico', open: true };
+const CAT_APPEARANCE = { id: 'appearance', label: 'Aparencia', open: false };
+const CAT_LAYOUT = { id: 'layout', label: 'Layout', open: false };
+const CAT_ADVANCED = { id: 'advanced', label: 'Avancado', open: false };
+
 /**
  * Component type `crm-field` — base para todos os 47 tipos de campo.
  * Cada tipo estende este component type adicionando traits especificos.
@@ -17,6 +23,32 @@ export function registerBaseField(editor: Editor) {
         // Pode ser arrastado para grid-cell (ideal), grid-row (auto-wrap) ou wrapper (nova row)
         draggable: true,
         highlightable: true,
+        // Resize: handles laterais (cl, cr) e inferior (bc)
+        // Logica de conversao px→colSpan centralizada em grapejs-editor.tsx
+        resizable: {
+          tl: 0, tc: 0, tr: 0,
+          bl: 0, bc: 1, br: 0,
+          cl: 1, cr: 1,
+          step: 1,
+          minDim: 50,
+          maxDim: 2000,
+        },
+
+        // Toolbar: acoes rapidas ao selecionar o campo
+        toolbar: [
+          {
+            attributes: { class: 'fa fa-arrows gjs-no-touch-actions', title: 'Mover' },
+            command: 'tlb-move',
+          },
+          {
+            attributes: { class: 'fa fa-clone', title: 'Duplicar' },
+            command: 'tlb-clone',
+          },
+          {
+            attributes: { class: 'fa fa-trash-o', title: 'Remover' },
+            command: 'tlb-delete',
+          },
+        ],
 
         // === Propriedades do campo (mapeiam para EntityField) ===
         fieldName: '',
@@ -94,7 +126,12 @@ export function registerBaseField(editor: Editor) {
         fieldAutoFillFields: '[]',
         fieldOnChangeAutoFill: '[]',
 
-        // Grid (informativo, gerenciado pelo grid-cell pai)
+        // Grid — editavel pelo usuario, sincronizado com grid-cell pai
+        // Usar string para consistencia com o select trait (que retorna strings)
+        fieldColSpan: '12',
+        fieldRowSpan: 1,
+
+        // Grid posicao (informativo, gerenciado pelo grid-cell pai)
         fieldGridRow: 0,
         fieldGridColSpan: 12,
         fieldGridColStart: 0,
@@ -107,6 +144,7 @@ export function registerBaseField(editor: Editor) {
             label: 'Slug',
             placeholder: 'nome_do_campo',
             changeProp: true,
+            category: CAT_BASIC,
           },
           {
             type: 'text',
@@ -114,42 +152,70 @@ export function registerBaseField(editor: Editor) {
             label: 'Label',
             placeholder: 'Nome exibido',
             changeProp: true,
+            category: CAT_BASIC,
           },
           {
             type: 'checkbox',
             name: 'fieldRequired',
             label: 'Obrigatorio',
             changeProp: true,
+            category: CAT_BASIC,
           },
           {
             type: 'text',
             name: 'fieldPlaceholder',
             label: 'Placeholder',
             changeProp: true,
+            category: CAT_APPEARANCE,
           },
           {
             type: 'text',
             name: 'fieldHelpText',
             label: 'Texto de ajuda',
             changeProp: true,
+            category: CAT_APPEARANCE,
           },
           {
             type: 'text',
             name: 'fieldDefault',
             label: 'Valor padrao',
             changeProp: true,
+            category: CAT_APPEARANCE,
+          },
+          {
+            type: 'select',
+            name: 'fieldColSpan',
+            label: 'Largura',
+            changeProp: true,
+            category: CAT_LAYOUT,
+            options: [
+              { id: '1', label: '1/12' },
+              { id: '2', label: '2/12' },
+              { id: '3', label: '3/12 (1/4)' },
+              { id: '4', label: '4/12 (1/3)' },
+              { id: '5', label: '5/12' },
+              { id: '6', label: '6/12 (1/2)' },
+              { id: '7', label: '7/12' },
+              { id: '8', label: '8/12 (2/3)' },
+              { id: '9', label: '9/12 (3/4)' },
+              { id: '10', label: '10/12' },
+              { id: '11', label: '11/12' },
+              { id: '12', label: '12/12 (Inteiro)' },
+            ],
           },
           {
             type: 'checkbox',
             name: 'fieldHidden',
             label: 'Oculto',
             changeProp: true,
+            category: CAT_ADVANCED,
           },
           {
             type: 'checkbox',
             name: 'fieldUnique',
             label: 'Unico',
             changeProp: true,
+            category: CAT_ADVANCED,
           },
         ],
       },
@@ -162,6 +228,22 @@ export function registerBaseField(editor: Editor) {
         this.on('change:fieldType', this.triggerRender);
         this.on('change:fieldOptions', this.triggerRender);
         this.on('change:fieldHidden', this.triggerRender);
+
+        // Sincronizar largura/altura do campo com a celula pai
+        this.on('change:fieldColSpan', this.syncGridSpan);
+        this.on('change:fieldRowSpan', this.syncGridSpan);
+      },
+
+      syncGridSpan() {
+        const rawColSpan = this.get('fieldColSpan');
+        const colSpan = Math.min(12, Math.max(1, parseInt(String(rawColSpan), 10) || 12));
+        const rowSpan = Math.max(1, parseInt(String(this.get('fieldRowSpan')), 10) || 1);
+        const cell = this.parent();
+        if (cell && cell.get('type') === 'grid-cell') {
+          // Guard anti-loop: so atualizar se o valor mudou (evita ciclo cell→field→cell)
+          if (cell.get('colSpan') !== colSpan) cell.set('colSpan', colSpan);
+          if (cell.get('rowSpan') !== rowSpan) cell.set('rowSpan', rowSpan);
+        }
       },
 
       triggerRender() {
@@ -226,7 +308,7 @@ export function registerBaseField(editor: Editor) {
         });
 
         const helpHtml = helpText
-          ? `<p style="font-size: 12px; color: var(--muted-fg, #71717a); margin-top: 4px;">${helpText}</p>`
+          ? `<p class="crm-help-text">${helpText}</p>`
           : '';
 
         // Section title e um caso especial

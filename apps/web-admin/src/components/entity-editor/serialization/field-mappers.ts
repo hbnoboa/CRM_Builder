@@ -53,6 +53,7 @@ const SIMPLE_PROPS: Array<{
   { entityKey: 'gridRow', gjsKey: 'fieldGridRow', type: 'number' },
   { entityKey: 'gridColSpan', gjsKey: 'fieldGridColSpan', type: 'number' },
   { entityKey: 'gridColStart', gjsKey: 'fieldGridColStart', type: 'number' },
+  { entityKey: 'gridRowSpan', gjsKey: 'fieldRowSpan', type: 'number' },
 ];
 
 // Propriedades que sao serializadas como JSON string
@@ -165,13 +166,23 @@ export function gjsPropsToEntityField(
   // Propriedades simples
   for (const { entityKey, gjsKey, type } of SIMPLE_PROPS) {
     const value = props[gjsKey];
-    if (value !== undefined && value !== null && value !== '' && value !== 0 && value !== false) {
-      if (type === 'number') {
-        (field as Record<string, unknown>)[entityKey] = Number(value) || undefined;
-      } else if (type === 'boolean') {
-        (field as Record<string, unknown>)[entityKey] = Boolean(value) || undefined;
-      } else {
-        (field as Record<string, unknown>)[entityKey] = String(value) || undefined;
+    if (value === undefined || value === null) continue;
+
+    if (type === 'number') {
+      const num = Number(value);
+      if (!isNaN(num)) {
+        (field as Record<string, unknown>)[entityKey] = num;
+      }
+    } else if (type === 'boolean') {
+      if (value === true) {
+        (field as Record<string, unknown>)[entityKey] = true;
+      }
+      // false booleans: GrapeJS omits them when they match default (false),
+      // so if present and true, we set it. Otherwise skip (default is false).
+    } else {
+      const str = String(value);
+      if (str !== '') {
+        (field as Record<string, unknown>)[entityKey] = str;
       }
     }
   }

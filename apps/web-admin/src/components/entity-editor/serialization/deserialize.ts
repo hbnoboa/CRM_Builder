@@ -5,15 +5,30 @@ import { gjsPropsToEntityField } from './field-mappers';
 /**
  * Converte GrapeJS ProjectData de volta para EntityField[].
  * Extrai campos dos componentes grid-row > grid-cell > crm-field.
+ *
+ * GrapeJS 0.22+ retorna `pages[].frames[].component` em `getProjectData()`,
+ * mas `loadProjectData()` aceita `pages[].component` como atalho.
+ * Esta funcao suporta ambos os formatos para compatibilidade.
  */
 export function deserializeFromGjs(projectData: GjsProjectData): EntityField[] {
   const fields: EntityField[] = [];
 
-  if (!projectData?.pages?.[0]?.component) {
+  if (!projectData?.pages?.[0]) {
     return fields;
   }
 
-  const root = projectData.pages[0].component;
+  // GrapeJS 0.22+ usa pages[0].frames[0].component no getProjectData(),
+  // mas loadProjectData() aceita pages[0].component como atalho.
+  // Suportar ambos os formatos.
+  const page = projectData.pages[0];
+  const framesArr = page.frames as Array<{ component?: GjsComponentDef }> | undefined;
+  const root: GjsComponentDef | undefined =
+    (page.component as GjsComponentDef | undefined) ?? framesArr?.[0]?.component;
+
+  if (!root) {
+    return fields;
+  }
+
   const rows = root.components || [];
 
   let globalOrder = 0;
@@ -29,6 +44,7 @@ export function deserializeFromGjs(projectData: GjsProjectData): EntityField[] {
       if (cell.type !== 'grid-cell') continue;
 
       const colSpan = (cell.colSpan as number) || extractColSpanFromClass(cell);
+      const rowSpan = (cell.rowSpan as number) || extractRowSpanFromClass(cell);
       const fieldComponents = cell.components || [];
 
       for (const fieldComp of fieldComponents) {
@@ -44,12 +60,26 @@ export function deserializeFromGjs(projectData: GjsProjectData): EntityField[] {
           }
         }
 
+        // GrapeJS omite propriedades que igualam o default do component type.
+        // O fieldType e definido como default em cada tipo registrado, entao
+        // GrapeJS o omite no getProjectData(). Extrair do nome do component type.
+        // Ex: "crm-field-select" -> "select", "crm-field-workflow-status" -> "workflow-status"
+        if (!props.fieldType && fieldComp.type) {
+          const extracted = fieldComp.type.replace(/^crm-field-/, '');
+          if (extracted && extracted !== fieldComp.type) {
+            props.fieldType = extracted;
+          }
+        }
+
         const field = gjsPropsToEntityField(props, globalOrder);
 
         // Sobrescrever grid positioning com valores reais do layout
         field.gridRow = rowIndex;
         field.gridColSpan = colSpan;
         field.gridColStart = colStart;
+        if (rowSpan > 1) {
+          (field as Record<string, unknown>).gridRowSpan = rowSpan;
+        }
 
         fields.push(field);
       }
@@ -66,11 +96,48 @@ export function deserializeFromGjs(projectData: GjsProjectData): EntityField[] {
 /**
  * Extrai colSpan da classe CSS do grid-cell.
  * Ex: "grid-cell col-span-6" -> 6
+ *
+ * GrapeJS pode retornar classes em `attributes.class` (string)
+ * ou em `classes` (array de strings). Suportar ambos os formatos.
  */
 function extractColSpanFromClass(cell: GjsComponentDef): number {
-  const classes = cell.attributes?.class || '';
-  const match = classes.match(/col-span-(\d+)/);
+  // Formato GrapeJS getProjectData(): classes como array
+  const classesArray = (cell as Record<string, unknown>).classes;
+  if (Array.isArray(classesArray)) {
+    for (const cls of classesArray) {
+      const str = typeof cls === 'string' ? cls : (cls as Record<string, unknown>)?.name;
+      if (typeof str === 'string') {
+        const match = str.match(/col-span-(\d+)/);
+        if (match) return parseInt(match[1], 10);
+      }
+    }
+  }
+
+  // Formato loadProjectData(): class como string no attributes
+  const classStr = cell.attributes?.class || '';
+  const match = classStr.match(/col-span-(\d+)/);
   return match ? parseInt(match[1], 10) : 12;
+}
+
+/**
+ * Extrai rowSpan da classe CSS do grid-cell.
+ * Ex: "grid-cell col-span-6 row-span-2" -> 2
+ */
+function extractRowSpanFromClass(cell: GjsComponentDef): number {
+  const classesArray = (cell as Record<string, unknown>).classes;
+  if (Array.isArray(classesArray)) {
+    for (const cls of classesArray) {
+      const str = typeof cls === 'string' ? cls : (cls as Record<string, unknown>)?.name;
+      if (typeof str === 'string') {
+        const match = str.match(/row-span-(\d+)/);
+        if (match) return parseInt(match[1], 10);
+      }
+    }
+  }
+
+  const classStr = cell.attributes?.class || '';
+  const match = classStr.match(/row-span-(\d+)/);
+  return match ? parseInt(match[1], 10) : 1;
 }
 
 /**
@@ -110,8 +177,8 @@ export function verifyRoundtrip(fields: EntityField[]): {
     }
 
     for (const prop of criticalProps) {
-      const origVal = (original as Record<string, unknown>)[prop];
-      const rtVal = (rt as Record<string, unknown>)[prop];
+      const origVal = (original as unknown as Record<string, unknown>)[prop];
+      const rtVal = (rt as unknown as Record<string, unknown>)[prop];
 
       if (origVal === undefined && rtVal === undefined) continue;
       if (origVal === null && rtVal === undefined) continue;

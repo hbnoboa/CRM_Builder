@@ -1150,7 +1150,7 @@ function EntityDetailPageContent() {
           <p className="text-xs sm:text-sm text-muted-foreground truncate">/{entity.slug} — {entity._count?.data || 0} {tCommon('fields').toLowerCase()}</p>
         </div>
         <div className="flex items-center gap-2">
-          <Link href={`/entities/${params.id}?editor=visual`}>
+          <Link href={`/entities/${params.id}`}>
             <Button variant="outline" size="sm" title="Editor Visual (GrapeJS)">
               Editor Visual
             </Button>
@@ -1467,13 +1467,14 @@ function GrapeJSEditorWrapper() {
     <GrapeJSEntityEditor
       entity={entity}
       onSave={async ({ name, description, fields, settings }) => {
-        await api.patch(`/entities/${params.id}`, {
+        const res = await api.patch(`/entities/${params.id}`, {
           name,
           description,
           fields,
           settings,
         });
-        router.push('/entities');
+        // Atualizar a entidade localmente para manter o editor sincronizado
+        setEntity(res.data);
       }}
       onCancel={() => router.push('/entities')}
     />
@@ -1482,19 +1483,19 @@ function GrapeJSEditorWrapper() {
 
 export default function EntityDetailPage() {
   const searchParams = useSearchParams();
-  const useVisualEditor = searchParams.get('editor') === 'visual';
+  const useLegacyEditor = searchParams.get('editor') === 'legacy';
 
-  if (useVisualEditor) {
+  if (useLegacyEditor) {
     return (
       <RequireRole module="entities">
-        <GrapeJSEditorWrapper />
+        <EntityDetailPageContent />
       </RequireRole>
     );
   }
 
   return (
     <RequireRole module="entities">
-      <EntityDetailPageContent />
+      <GrapeJSEditorWrapper />
     </RequireRole>
   );
 }

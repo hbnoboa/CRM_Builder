@@ -1512,7 +1512,7 @@ export function RecordFormDialog({
                       const colSpan = (field.type === 'sub-entity' || field.type === 'zone-diagram' || field.type === 'section-title') ? 12 : (field.gridColSpan || 12);
                       const colStart = field.gridColStart;
                       return (
-                        <div key={field.slug} style={{ gridColumn: colStart ? `${colStart} / span ${colSpan}` : `span ${colSpan} / span ${colSpan}` }}>
+                        <div key={field.slug} style={{ gridColumn: colStart ? `${colStart} / span ${colSpan}` : `span ${colSpan}` }}>
                           {renderFieldWithPermission(field)}
                         </div>
                       );
