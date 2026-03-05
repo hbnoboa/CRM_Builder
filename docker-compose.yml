@@ -50,6 +50,8 @@ services:
 
 volumes:
   postgres_data:
+    external: true
+    name: crm-builder_postgres_data
   redis_data:
 
 networks:

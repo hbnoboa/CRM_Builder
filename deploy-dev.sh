@@ -27,9 +27,9 @@ done
 echo "[3/6] Building Docker images (dev)..."
 docker compose -f docker-compose.prod.yml build --no-cache api-dev web-dev
 
-# 4. Recreate dev containers
+# 4. Recreate dev containers (NUNCA recriar postgres/redis — apenas api-dev e web-dev)
 echo "[4/6] Deploying dev containers..."
-docker compose -f docker-compose.prod.yml up -d api-dev web-dev
+docker compose -f docker-compose.prod.yml up -d --no-deps api-dev web-dev
 
 # 5. Restart nginx to refresh upstream DNS
 echo "[5/6] Restarting nginx..."
