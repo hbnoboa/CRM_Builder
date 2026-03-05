@@ -9,7 +9,7 @@ interface RenderOptions {
   label?: string;
   actionLabel?: string;
   diagramImage?: string;
-  diagramZones?: Array<{ id: string; label: string; x: number; y: number }>;
+  diagramZones?: Array<{ id: string; label: string | number; x: number; y: number }>;
 }
 
 export function renderFieldByType(type: string, opts: RenderOptions = {}): string {
@@ -240,7 +240,7 @@ export function renderFieldByType(type: string, opts: RenderOptions = {}): strin
       const zonesHtml = zones.length > 0
         ? zones.map((z) =>
             `<div class="crm-zone-point" style="left: ${z.x}%; top: ${z.y}%;">
-              <span>${esc(z.label)}</span>
+              <span>${esc(String(z.label))}</span>
             </div>`
           ).join('')
         : '';

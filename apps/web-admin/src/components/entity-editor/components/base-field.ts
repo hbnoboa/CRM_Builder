@@ -285,7 +285,7 @@ export function registerBaseField(editor: Editor) {
 
         // Zone diagram: extrair imagem e zonas reais
         let diagramImage: string | undefined;
-        let diagramZones: Array<{ id: string; label: string; x: number; y: number }> | undefined;
+        let diagramZones: Array<{ id: string; label: string | number; x: number; y: number }> | undefined;
         if (type === 'zone-diagram') {
           diagramImage = model.get('fieldDiagramImage') || undefined;
           const zonesStr = model.get('fieldDiagramZones') || '[]';
