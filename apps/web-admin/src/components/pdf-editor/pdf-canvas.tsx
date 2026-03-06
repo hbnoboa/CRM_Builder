@@ -90,8 +90,8 @@ function SortableElement({
         'group relative rounded-md border-2 transition-colors cursor-pointer',
         isDragging && 'opacity-50 shadow-lg',
         isSelected
-          ? 'border-blue-500 bg-blue-50/50 dark:bg-blue-950/20'
-          : 'border-transparent hover:border-muted-foreground/30',
+          ? 'border-blue-500 bg-blue-50/50'
+          : 'border-transparent hover:border-gray-400/30',
       )}
       onClick={(e) => {
         e.stopPropagation();
@@ -106,18 +106,18 @@ function SortableElement({
         )}
       >
         <button
-          className="cursor-grab active:cursor-grabbing p-0.5 rounded hover:bg-muted"
+          className="cursor-grab active:cursor-grabbing p-0.5 rounded hover:bg-gray-100"
           {...attributes}
           {...listeners}
         >
-          <GripVertical className="h-4 w-4 text-muted-foreground" />
+          <GripVertical className="h-4 w-4 text-gray-400" />
         </button>
       </div>
 
       {/* Element type label (top-right) */}
       <div
         className={cn(
-          'absolute -top-2.5 right-2 flex items-center gap-1 px-1.5 py-0 rounded-sm text-[9px] font-medium bg-background border shadow-sm opacity-0 group-hover:opacity-100 transition-opacity',
+          'absolute -top-2.5 right-2 flex items-center gap-1 px-1.5 py-0 rounded-sm text-[9px] font-medium bg-white border shadow-sm opacity-0 group-hover:opacity-100 transition-opacity',
           isSelected && 'opacity-100',
         )}
       >
@@ -211,14 +211,14 @@ export function PdfCanvas({
       onClick={() => onSelect(null)}
     >
       <div
-        className="bg-background rounded-sm shadow-lg border relative"
+        className="bg-white text-gray-900 rounded-sm shadow-lg border relative"
         style={{
           width: maxWidth,
           minHeight: isLandscape ? 480 : 680,
         }}
       >
         {/* Page size indicator */}
-        <div className="absolute -top-6 left-0 text-[10px] text-muted-foreground">
+        <div className="absolute -top-6 left-0 text-[10px] text-gray-400">
           {pageSize} {isLandscape ? 'Paisagem' : 'Retrato'}
         </div>
 
@@ -228,8 +228,8 @@ export function PdfCanvas({
             className={cn(
               'rounded-md border-2 border-dashed p-3 mb-4 cursor-pointer transition-colors',
               selected?.type === 'header'
-                ? 'border-blue-500 bg-blue-50/30 dark:bg-blue-950/20'
-                : 'border-muted-foreground/20 hover:border-muted-foreground/40',
+                ? 'border-blue-500 bg-blue-50/30'
+                : 'border-gray-300/30 hover:border-gray-400/40',
             )}
             onClick={(e) => {
               e.stopPropagation();
@@ -271,7 +271,7 @@ export function PdfCanvas({
             </DndContext>
 
             {elements.length === 0 && (
-              <div className="flex items-center justify-center h-40 text-sm text-muted-foreground border-2 border-dashed border-muted-foreground/15 rounded-md">
+              <div className="flex items-center justify-center h-40 text-sm text-gray-400 border-2 border-dashed border-gray-300/20 rounded-md">
                 Clique em &quot;+&quot; para adicionar elementos
               </div>
             )}
@@ -282,8 +282,8 @@ export function PdfCanvas({
             className={cn(
               'rounded-md border-2 border-dashed p-3 mt-4 cursor-pointer transition-colors',
               selected?.type === 'footer'
-                ? 'border-blue-500 bg-blue-50/30 dark:bg-blue-950/20'
-                : 'border-muted-foreground/20 hover:border-muted-foreground/40',
+                ? 'border-blue-500 bg-blue-50/30'
+                : 'border-gray-300/30 hover:border-gray-400/40',
             )}
             onClick={(e) => {
               e.stopPropagation();

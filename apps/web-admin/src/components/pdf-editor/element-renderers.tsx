@@ -32,7 +32,7 @@ function highlightBindings(text: string) {
       return (
         <span
           key={i}
-          className="inline-flex items-center px-1 py-0.5 rounded bg-blue-100 text-blue-700 text-[10px] font-mono dark:bg-blue-900 dark:text-blue-300"
+          className="inline-flex items-center px-1 py-0.5 rounded bg-blue-100 text-blue-700 text-[10px] font-mono"
         >
           {part}
         </span>
@@ -94,12 +94,12 @@ function FieldGroupRenderer({ element }: { element: FieldGroupElement }) {
               {field.label}
             </span>
             {layout === 'horizontal' && (
-              <span className="text-muted-foreground">
+              <span className="text-gray-500">
                 {highlightBindings(field.binding || '____')}
               </span>
             )}
             {layout !== 'horizontal' && (
-              <div className="text-muted-foreground">
+              <div className="text-gray-500">
                 {highlightBindings(field.binding || '____')}
               </div>
             )}
@@ -121,7 +121,7 @@ function TableRenderer({ element }: { element: TableElement }) {
       )}
       <div className="border rounded overflow-hidden text-[10px]">
         {element.showHeader !== false && (
-          <div className="flex bg-muted/60 border-b">
+          <div className="flex bg-gray-100 border-b">
             {columns.map((col, i) => (
               <div
                 key={i}
@@ -138,7 +138,7 @@ function TableRenderer({ element }: { element: TableElement }) {
             {columns.map((col, i) => (
               <div
                 key={i}
-                className="flex-1 px-2 py-1 text-muted-foreground truncate"
+                className="flex-1 px-2 py-1 text-gray-500 truncate"
                 style={{ textAlign: col.align || 'left' }}
               >
                 ────
@@ -148,7 +148,7 @@ function TableRenderer({ element }: { element: TableElement }) {
         ))}
       </div>
       {element.dataSource && (
-        <div className="text-[10px] text-muted-foreground">
+        <div className="text-[10px] text-gray-500">
           Fonte: <Badge variant="outline" className="text-[9px] h-4">{element.dataSource}</Badge>
         </div>
       )}
@@ -175,21 +175,21 @@ function ImageGridRenderer({ element }: { element: ImageGridElement }) {
         style={{ gridTemplateColumns: `repeat(${totalCols}, 1fr)` }}
       >
         {headers.length > 0 && headers.map((h, i) => (
-          <div key={`h-${i}`} className="text-[9px] font-medium text-center text-muted-foreground truncate">
+          <div key={`h-${i}`} className="text-[9px] font-medium text-center text-gray-500 truncate">
             {h || `Col ${i + 1}`}
           </div>
         ))}
         {Array.from({ length: totalCols }).map((_, i) => (
           <div
             key={i}
-            className="aspect-[4/3] bg-muted/40 rounded border-2 border-dashed border-muted-foreground/20 flex items-center justify-center"
+            className="aspect-[4/3] bg-gray-50 rounded border-2 border-dashed border-gray-300/30 flex items-center justify-center"
           >
-            <Image className="h-4 w-4 text-muted-foreground/40" />
+            <Image className="h-4 w-4 text-gray-500/40" />
           </div>
         ))}
       </div>
       {element.dataSource && (
-        <div className="text-[10px] text-muted-foreground">
+        <div className="text-[10px] text-gray-500">
           Fonte: <Badge variant="outline" className="text-[9px] h-4">{element.dataSource}</Badge>
         </div>
       )}
@@ -209,7 +209,7 @@ function StatisticsRenderer({ element }: { element: StatisticsElement }) {
         <div className="text-xs font-semibold text-center mb-1">{element.title}</div>
       )}
       <div className="border rounded overflow-hidden text-[10px]">
-        <div className="flex bg-muted/60 border-b">
+        <div className="flex bg-gray-100 border-b">
           {groupBy.map((g, i) => (
             <div key={`g-${i}`} className="flex-1 px-2 py-1 font-semibold truncate">
               {g}
@@ -224,10 +224,10 @@ function StatisticsRenderer({ element }: { element: StatisticsElement }) {
         {[0, 1].map((row) => (
           <div key={row} className="flex border-b last:border-0">
             {groupBy.map((_, i) => (
-              <div key={`g-${i}`} className="flex-1 px-2 py-1 text-muted-foreground">────</div>
+              <div key={`g-${i}`} className="flex-1 px-2 py-1 text-gray-500">────</div>
             ))}
             {metrics.map((_, i) => (
-              <div key={`m-${i}`} className="flex-1 px-2 py-1 text-muted-foreground text-center">──</div>
+              <div key={`m-${i}`} className="flex-1 px-2 py-1 text-gray-500 text-center">──</div>
             ))}
           </div>
         ))}
@@ -255,7 +255,7 @@ function DividerRenderer({ element }: { element: DividerElement }) {
 function SpacerRenderer({ element }: { element: SpacerElement }) {
   return (
     <div
-      className="flex items-center justify-center border-2 border-dashed border-muted-foreground/15 rounded text-[10px] text-muted-foreground/40"
+      className="flex items-center justify-center border-2 border-dashed border-gray-300/20 rounded text-[10px] text-gray-500/40"
       style={{ height: `${Math.min(element.height || 20, 60)}px` }}
     >
       <MoveVertical className="h-3 w-3 mr-1" />
@@ -269,7 +269,7 @@ function SpacerRenderer({ element }: { element: SpacerElement }) {
 export function HeaderRenderer({ header }: { header?: PdfHeader }) {
   if (!header) {
     return (
-      <div className="text-xs text-muted-foreground text-center py-3">
+      <div className="text-xs text-gray-500 text-center py-3">
         Clique para configurar o header
       </div>
     );
@@ -284,7 +284,7 @@ export function HeaderRenderer({ header }: { header?: PdfHeader }) {
             {row.elements.map((el) => (
               <div key={el.id} className={`flex-1 ${el.position === 'center' ? 'text-center' : el.position === 'right' ? 'text-right' : 'text-left'}`}>
                 {el.type === 'image' ? (
-                  <div className="inline-flex items-center gap-1 px-2 py-1 bg-muted/40 rounded text-[10px] text-muted-foreground">
+                  <div className="inline-flex items-center gap-1 px-2 py-1 bg-gray-50 rounded text-[10px] text-gray-500">
                     <Image className="h-3 w-3" />
                     Logo
                   </div>
@@ -304,7 +304,7 @@ export function HeaderRenderer({ header }: { header?: PdfHeader }) {
             ))}
           </div>
         ))}
-        {header.showDivider !== false && <hr className="border-muted-foreground/20" />}
+        {header.showDivider !== false && <hr className="border-gray-300/30" />}
       </div>
     );
   }
@@ -314,7 +314,7 @@ export function HeaderRenderer({ header }: { header?: PdfHeader }) {
     <div className="space-y-1">
       <div className="flex items-center gap-2">
         {header.logo && (
-          <div className="inline-flex items-center gap-1 px-2 py-1 bg-muted/40 rounded text-[10px] text-muted-foreground">
+          <div className="inline-flex items-center gap-1 px-2 py-1 bg-gray-50 rounded text-[10px] text-gray-500">
             <Image className="h-3 w-3" />
             Logo
           </div>
@@ -326,11 +326,11 @@ export function HeaderRenderer({ header }: { header?: PdfHeader }) {
         )}
       </div>
       {header.subtitle && (
-        <div className="text-[10px] text-center text-muted-foreground">
+        <div className="text-[10px] text-center text-gray-500">
           {highlightBindings(header.subtitle.text || '')}
         </div>
       )}
-      {header.showDivider !== false && <hr className="border-muted-foreground/20" />}
+      {header.showDivider !== false && <hr className="border-gray-300/30" />}
     </div>
   );
 }
@@ -340,7 +340,7 @@ export function HeaderRenderer({ header }: { header?: PdfHeader }) {
 export function FooterRenderer({ footer }: { footer?: PdfFooter }) {
   if (!footer) {
     return (
-      <div className="text-xs text-muted-foreground text-center py-2">
+      <div className="text-xs text-gray-500 text-center py-2">
         Clique para configurar o footer
       </div>
     );
@@ -349,7 +349,7 @@ export function FooterRenderer({ footer }: { footer?: PdfFooter }) {
   const align = footer.position || 'center';
 
   return (
-    <div className={`text-[10px] text-muted-foreground ${align === 'center' ? 'text-center' : align === 'right' ? 'text-right' : 'text-left'}`}>
+    <div className={`text-[10px] text-gray-500 ${align === 'center' ? 'text-center' : align === 'right' ? 'text-right' : 'text-left'}`}>
       {footer.text && <span>{footer.text}</span>}
       {footer.text && footer.showPageNumbers && <span> — </span>}
       {footer.showPageNumbers && <span>Pagina X de Y</span>}
@@ -407,6 +407,6 @@ export function ElementRenderer({ element }: { element: PdfElement }) {
     case 'spacer':
       return <SpacerRenderer element={element} />;
     default:
-      return <div className="text-xs text-muted-foreground">Elemento desconhecido</div>;
+      return <div className="text-xs text-gray-500">Elemento desconhecido</div>;
   }
 }
