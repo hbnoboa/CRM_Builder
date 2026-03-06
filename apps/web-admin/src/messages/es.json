@@ -127,7 +127,6 @@
     "dashboard": "Dashboard",
     "entities": "Tablas",
     "data": "Registros",
-    "pages": "Páginas",
     "users": "Usuarios",
     "roles": "Roles",
     "permissions": "Permisos",
@@ -159,7 +158,6 @@
     "stats": {
       "entities": "Tablas",
       "records": "Registros",
-      "pages": "Páginas",
       "users": "Usuarios"
     },
     "charts": {
@@ -679,8 +677,6 @@
       "usersDesc": "Gestionar cuentas de usuarios",
       "settings": "Configuración",
       "settingsDesc": "Ajustes generales del sistema",
-      "pages": "Páginas",
-      "pagesDesc": "Page Builder visual",
       "entities": "Tablas",
       "entitiesDesc": "Definir estructura de datos",
       "tenants": "Tenants",
@@ -760,7 +756,6 @@
     "permissionCategories": {
       "entities": "Tablas",
       "data": "Registros",
-      "pages": "Páginas",
       "users": "Usuarios",
       "roles": "Roles",
       "organization": "Organización",
@@ -871,7 +866,6 @@
       "modules": {
         "roles": "Roles de Acceso",
         "entities": "Tablas",
-        "pages": "Paginas",
         "pdfTemplates": "Plantillas PDF",
         "automations": "Automatizaciones",
         "webhooks": "Webhooks",
@@ -882,34 +876,6 @@
         "skipped": "Items omitidos",
         "warnings": "Advertencias"
       }
-    }
-  },
-  "pages": {
-    "title": "Páginas",
-    "subtitle": "Crea y gestiona páginas personalizadas",
-    "newPage": "Nueva Página",
-    "stats": {
-      "total": "Total de Páginas",
-      "published": "Publicadas",
-      "drafts": "Borradores"
-    },
-    "searchPlaceholder": "Buscar páginas...",
-    "noPagesFound": "No se encontraron páginas",
-    "noPagesMatchSearch": "Ninguna página coincide con tu búsqueda.",
-    "createPagesToStart": "Crea páginas personalizadas para tu CRM.",
-    "createFirstPage": "Crear Primera Página",
-    "view": "Ver",
-    "duplicate": "Duplicar",
-    "publish": "Publicar",
-    "unpublish": "Despublicar",
-    "preview": "Vista previa",
-    "copy": "(Copia)",
-    "published": "Publicada",
-    "draft": "Borrador",
-    "deleteConfirm": {
-      "title": "¿Eliminar página?",
-      "message": "¿Estás seguro de que deseas eliminar la página \"{name}\"?",
-      "warning": "Esta acción no se puede deshacer."
     }
   },
   "profile": {

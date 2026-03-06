@@ -35,12 +35,6 @@ export class CopyModulesDto {
   @IsOptional()
   entities?: CopyEntitySelection[];
 
-  @ApiPropertyOptional({ description: 'IDs das paginas a copiar' })
-  @IsArray()
-  @IsString({ each: true })
-  @IsOptional()
-  pages?: string[];
-
   @ApiPropertyOptional({ description: 'IDs dos templates PDF a copiar' })
   @IsArray()
   @IsString({ each: true })

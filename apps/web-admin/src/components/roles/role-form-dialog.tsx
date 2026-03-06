@@ -24,7 +24,7 @@ import {
 import {
   Eye, Plus, Pencil, Trash2, Shield, Database, Users,
   Settings, Code, LayoutDashboard, Globe, User, Building2,
-  ChevronRight, ListFilter, X, FileText, LayoutGrid, Bell,
+  ChevronRight, ListFilter, X, FileText, Bell,
 } from 'lucide-react';
 import { useCreateCustomRole, useUpdateCustomRole } from '@/hooks/use-custom-roles';
 import { useQuery } from '@tanstack/react-query';
@@ -50,7 +50,7 @@ function normalizeModulePermToRecord(mp: Record<string, unknown> | null | undefi
   return result;
 }
 
-const MODULE_KEYS = ['dashboard', 'users', 'roles', 'entities', 'data', 'apis', 'pages', 'pdfTemplates', 'settings', 'tenants'] as const;
+const MODULE_KEYS = ['dashboard', 'users', 'roles', 'entities', 'data', 'apis', 'pdfTemplates', 'settings', 'tenants'] as const;
 
 function getDefaultModulePerms(): Record<string, ModulePermission> {
   const result: Record<string, ModulePermission> = {};
@@ -552,7 +552,6 @@ export function RoleFormDialog({ open, onOpenChange, role, onSuccess }: RoleForm
     users: <Users className="h-4 w-4" />,
     settings: <Settings className="h-4 w-4" />,
     apis: <Code className="h-4 w-4" />,
-    pages: <LayoutGrid className="h-4 w-4" />,
     pdfTemplates: <FileText className="h-4 w-4" />,
     entities: <Database className="h-4 w-4" />,
     tenants: <Building2 className="h-4 w-4" />,
@@ -571,10 +570,6 @@ export function RoleFormDialog({ open, onOpenChange, role, onSuccess }: RoleForm
     apis: [
       { key: 'canActivate', label: t('permissions.canActivate') },
       { key: 'canTest', label: t('permissions.canTest') },
-    ],
-    pages: [
-      { key: 'canPublish', label: t('permissions.canPublish') },
-      { key: 'canDuplicate', label: t('permissions.canDuplicate') },
     ],
     pdfTemplates: [
       { key: 'canGenerate', label: t('permissions.canGenerate') },

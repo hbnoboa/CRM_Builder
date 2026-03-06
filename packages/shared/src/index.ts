@@ -79,9 +79,6 @@ export type {
 // Notification
 export type { Notification } from './notification';
 
-// Page
-export type { Page } from './page';
-
 // Automation
 export type {
   AutomationTrigger,

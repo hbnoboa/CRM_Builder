@@ -166,8 +166,7 @@ export class StatsService {
       totalRecords = counts.reduce((sum, c) => sum + c.active + c.archived, 0);
     }
 
-    const [totalPages, totalUsers, totalTenants] = await Promise.all([
-      this.prisma.page.count({ where }),
+    const [totalUsers, totalTenants] = await Promise.all([
       this.prisma.user.count({ where }),
       roleType === 'PLATFORM_ADMIN'
         ? this.prisma.tenant.count()
@@ -177,7 +176,6 @@ export class StatsService {
     return {
       totalEntities: entities.length,
       totalRecords,
-      totalPages,
       totalUsers,
       ...(roleType === 'PLATFORM_ADMIN' ? { totalTenants } : {}),
     };
@@ -329,7 +327,7 @@ export class StatsService {
       }
     }
 
-    const [records, pages, entitiesList] = await Promise.all([
+    const [records, entitiesList] = await Promise.all([
       this.prisma.entityData.findMany({
         where: recordsWhere,
         select: {
@@ -337,17 +335,6 @@ export class StatsService {
           createdAt: true,
           updatedAt: true,
           entity: { select: { name: true } },
-        },
-        orderBy: { updatedAt: 'desc' },
-        take: limit,
-      }),
-      this.prisma.page.findMany({
-        where,
-        select: {
-          id: true,
-          title: true,
-          createdAt: true,
-          updatedAt: true,
         },
         orderBy: { updatedAt: 'desc' },
         take: limit,
@@ -379,16 +366,6 @@ export class StatsService {
         name: `Registro`,
         entityName: r.entity.name,
         timestamp: r.updatedAt.toISOString(),
-      })),
-      ...pages.map((p) => ({
-        id: p.id,
-        type: 'page' as const,
-        action:
-          p.createdAt.getTime() === p.updatedAt.getTime()
-            ? ('created' as const)
-            : ('updated' as const),
-        name: p.title,
-        timestamp: p.updatedAt.toISOString(),
       })),
       ...entitiesList.map((e) => ({
         id: e.id,

@@ -76,7 +76,6 @@ model Tenant {
   entities        Entity[]
   entityData      EntityData[]
   archivedData    ArchivedEntityData[]
-  pages           Page[]
   customRoles     CustomRole[]
   notifications   Notification[]
   pdfTemplates    PdfTemplate[]
@@ -299,35 +298,6 @@ model ArchivedEntityData {
   @@index([tenantId, entityId, createdAt(sort: Desc)])
   @@index([createdAt])
   @@index([archivedAt])
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// PAGE BUILDER (Paginas Puck)
-// ═══════════════════════════════════════════════════════════════════════════
-
-model Page {
-  id       String @id @default(cuid())
-  tenantId String
-
-  title       String
-  slug        String
-  description String?
-  icon        String?
-
-  content     Json      @default("{}")
-  isPublished Boolean   @default(false)
-  publishedAt DateTime?
-  permissions Json      @default("[]")
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-
-  @@unique([tenantId, slug])
-  @@index([tenantId])
-  @@index([isPublished])
-  @@index([tenantId, isPublished])
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

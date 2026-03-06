@@ -53,13 +53,6 @@ export interface CopyableEntity {
   _count: { data: number };
 }
 
-export interface CopyablePage {
-  id: string;
-  title: string;
-  slug: string;
-  isPublished: boolean;
-}
-
 export interface CopyablePdfTemplate {
   id: string;
   name: string;
@@ -95,7 +88,6 @@ export interface CopyableFieldRule {
 export interface CopyableData {
   roles: CopyableRole[];
   entities: CopyableEntity[];
-  pages: CopyablePage[];
   pdfTemplates: CopyablePdfTemplate[];
   automations: CopyableAutomation[];
   webhooks: CopyableWebhook[];
@@ -114,7 +106,6 @@ export interface CopyTenantDataPayload {
   modules: {
     roles?: string[];
     entities?: CopyEntitySelection[];
-    pages?: string[];
     pdfTemplates?: string[];
     automations?: string[];
     webhooks?: string[];
@@ -128,7 +119,6 @@ export interface CopyResult {
     entities: number;
     entityData: number;
     pdfTemplates: number;
-    pages: number;
     automations: number;
     webhooks: number;
     fieldRules: number;

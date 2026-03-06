@@ -44,7 +44,6 @@ import { cn } from '@/lib/utils';
 interface DashboardStats {
   totalEntities: number;
   totalRecords: number;
-  totalPages: number;
   totalUsers: number;
 }
 
@@ -68,7 +67,7 @@ interface UserActivity {
 
 interface RecentActivity {
   id: string;
-  type: 'entity' | 'record' | 'page' | 'api' | 'user';
+  type: 'entity' | 'record' | 'api' | 'user';
   action: 'created' | 'updated' | 'deleted';
   name: string;
   timestamp: string;
@@ -123,7 +122,6 @@ export default function DashboardPage() {
       setStats({
         totalEntities: 0,
         totalRecords: 0,
-        totalPages: 0,
         totalUsers: 0,
       });
     } finally {

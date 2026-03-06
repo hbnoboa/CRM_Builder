@@ -15,7 +15,6 @@ import {
   Zap,
   Globe,
   ListChecks,
-  Layout,
 } from 'lucide-react';
 import {
   Dialog,
@@ -61,7 +60,6 @@ type Step = 'select-tenants' | 'select-items' | 'result';
 interface SelectedItems {
   roles: Set<string>;
   entities: Map<string, boolean>; // id → includeData
-  pages: Set<string>;
   pdfTemplates: Set<string>;
   automations: Set<string>;
   webhooks: Set<string>;
@@ -71,7 +69,6 @@ interface SelectedItems {
 const emptySelection = (): SelectedItems => ({
   roles: new Set(),
   entities: new Map(),
-  pages: new Set(),
   pdfTemplates: new Set(),
   automations: new Set(),
   webhooks: new Set(),
@@ -106,7 +103,6 @@ export function CopyTenantDataDialog({
     () =>
       selected.roles.size +
       selected.entities.size +
-      selected.pages.size +
       selected.pdfTemplates.size +
       selected.automations.size +
       selected.webhooks.size +
@@ -146,7 +142,6 @@ export function CopyTenantDataDialog({
     const modules: {
       roles?: string[];
       entities?: CopyEntitySelection[];
-      pages?: string[];
       pdfTemplates?: string[];
       automations?: string[];
       webhooks?: string[];
@@ -160,7 +155,6 @@ export function CopyTenantDataDialog({
         includeData,
       }));
     }
-    if (selected.pages.size > 0) modules.pages = [...selected.pages];
     if (selected.pdfTemplates.size > 0) modules.pdfTemplates = [...selected.pdfTemplates];
     if (selected.automations.size > 0) modules.automations = [...selected.automations];
     if (selected.webhooks.size > 0) modules.webhooks = [...selected.webhooks];
@@ -231,25 +225,6 @@ export function CopyTenantDataDialog({
         entities: allSelected
           ? new Map()
           : new Map(data.entities.map((e) => [e.id, false])),
-      };
-    });
-  };
-
-  const togglePage = (id: string) => {
-    setSelected((prev) => {
-      const next = new Set(prev.pages);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return { ...prev, pages: next };
-    });
-  };
-
-  const toggleAllPages = (data: CopyableData) => {
-    setSelected((prev) => {
-      const allSelected = data.pages.every((p) => prev.pages.has(p.id));
-      return {
-        ...prev,
-        pages: allSelected ? new Set() : new Set(data.pages.map((p) => p.id)),
       };
     });
   };
@@ -415,7 +390,7 @@ export function CopyTenantDataDialog({
                 <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
               </div>
             ) : copyableData ? (
-              <Accordion type="multiple" defaultValue={['roles', 'entities', 'pages', 'pdfTemplates', 'automations', 'webhooks', 'fieldRules']} className="w-full">
+              <Accordion type="multiple" defaultValue={['roles', 'entities', 'pdfTemplates', 'automations', 'webhooks', 'fieldRules']} className="w-full">
                 {/* Roles */}
                 {copyableData.roles.length > 0 && (
                   <AccordionItem value="roles">
@@ -497,40 +472,6 @@ export function CopyTenantDataDialog({
                               </label>
                             )}
                           </div>
-                        ))}
-                      </div>
-                    </AccordionContent>
-                  </AccordionItem>
-                )}
-
-                {/* Pages */}
-                {copyableData.pages.length > 0 && (
-                  <AccordionItem value="pages">
-                    <AccordionTrigger className="hover:no-underline">
-                      <div className="flex items-center gap-2">
-                        <Layout className="h-4 w-4" />
-                        <span>{t('copyData.modules.pages')}</span>
-                        <Badge variant="secondary">{copyableData.pages.length}</Badge>
-                      </div>
-                    </AccordionTrigger>
-                    <AccordionContent>
-                      <div className="space-y-2 pl-2">
-                        <label className="flex items-center gap-2 text-sm font-medium cursor-pointer">
-                          <Checkbox
-                            checked={copyableData.pages.every((p) => selected.pages.has(p.id))}
-                            onCheckedChange={() => toggleAllPages(copyableData)}
-                          />
-                          {t('copyData.selectAll')}
-                        </label>
-                        {copyableData.pages.map((page) => (
-                          <label key={page.id} className="flex items-center gap-2 text-sm cursor-pointer pl-4">
-                            <Checkbox
-                              checked={selected.pages.has(page.id)}
-                              onCheckedChange={() => togglePage(page.id)}
-                            />
-                            <span className="flex-1">{page.title}</span>
-                            <span className="text-xs text-muted-foreground">{page.slug}</span>
-                          </label>
                         ))}
                       </div>
                     </AccordionContent>
@@ -705,12 +646,6 @@ export function CopyTenantDataDialog({
                 <div className="bg-muted rounded-lg p-3 text-center">
                   <div className="text-lg font-bold">{result.copied.entityData}</div>
                   <div className="text-xs text-muted-foreground">{t('copyData.records')}</div>
-                </div>
-              )}
-              {result.copied.pages > 0 && (
-                <div className="bg-muted rounded-lg p-3 text-center">
-                  <div className="text-lg font-bold">{result.copied.pages}</div>
-                  <div className="text-xs text-muted-foreground">{t('copyData.modules.pages')}</div>
                 </div>
               )}
               {result.copied.automations > 0 && (

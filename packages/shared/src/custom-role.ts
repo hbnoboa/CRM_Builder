@@ -49,8 +49,6 @@ export interface ModulePermission {
   // Sub-granular actions (each module uses its relevant fields)
   canActivate?: boolean;      // apis, tenants
   canTest?: boolean;           // apis
-  canPublish?: boolean;        // pages
-  canDuplicate?: boolean;      // pages
   canGenerate?: boolean;       // pdfTemplates
   canSuspend?: boolean;        // tenants
   canAssignRole?: boolean;     // users
@@ -71,7 +69,6 @@ export interface ModulePermissions {
   users?: ModulePermission;
   settings?: ModulePermission;
   apis?: ModulePermission;
-  pages?: ModulePermission;
   pdfTemplates?: ModulePermission;
   entities?: ModulePermission;
   tenants?: ModulePermission;

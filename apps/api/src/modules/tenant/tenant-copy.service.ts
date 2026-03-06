@@ -14,7 +14,6 @@ export interface CopyResult {
     entities: number;
     entityData: number;
     pdfTemplates: number;
-    pages: number;
     automations: number;
     webhooks: number;
     fieldRules: number;
@@ -42,7 +41,7 @@ export class TenantCopyService {
       throw new NotFoundException('Tenant nao encontrado');
     }
 
-    const [roles, entities, pages, pdfTemplates, automations, webhooks, fieldRules] = await Promise.all([
+    const [roles, entities, pdfTemplates, automations, webhooks, fieldRules] = await Promise.all([
       this.prisma.customRole.findMany({
         where: { tenantId },
         select: {
@@ -66,16 +65,6 @@ export class TenantCopyService {
           _count: { select: { data: { where: { deletedAt: null } } } },
         },
         orderBy: { name: 'asc' },
-      }),
-      this.prisma.page.findMany({
-        where: { tenantId },
-        select: {
-          id: true,
-          title: true,
-          slug: true,
-          isPublished: true,
-        },
-        orderBy: { title: 'asc' },
       }),
       this.prisma.pdfTemplate.findMany({
         where: { tenantId },
@@ -123,7 +112,7 @@ export class TenantCopyService {
       }),
     ]);
 
-    return { roles, entities, pages, pdfTemplates, automations, webhooks, fieldRules };
+    return { roles, entities, pdfTemplates, automations, webhooks, fieldRules };
   }
 
   /**
@@ -148,7 +137,6 @@ export class TenantCopyService {
     const hasAnything =
       modules.roles?.length ||
       modules.entities?.length ||
-      modules.pages?.length ||
       modules.pdfTemplates?.length ||
       modules.automations?.length ||
       modules.webhooks?.length ||
@@ -170,7 +158,7 @@ export class TenantCopyService {
         const entityDataIdMap = new Map<string, string>();
         const skipped: string[] = [];
         const warnings: string[] = [];
-        const copied = { roles: 0, entities: 0, entityData: 0, pdfTemplates: 0, pages: 0, automations: 0, webhooks: 0, fieldRules: 0 };
+        const copied = { roles: 0, entities: 0, entityData: 0, pdfTemplates: 0, automations: 0, webhooks: 0, fieldRules: 0 };
 
         // ═══════════════════════════════════════
         // 1. COPY ROLES
@@ -458,58 +446,7 @@ export class TenantCopyService {
         }
 
         // ═══════════════════════════════════════
-        // 5. COPY PAGES
-        // ═══════════════════════════════════════
-        if (modules.pages?.length) {
-          const sourcePages = await tx.page.findMany({
-            where: { id: { in: modules.pages }, tenantId: sourceTenantId },
-          });
-
-          const existingPages = await tx.page.findMany({
-            where: { tenantId: targetTenantId },
-            select: { id: true, slug: true },
-          });
-          const existingSlugs = new Set(existingPages.map((p) => p.slug));
-
-          for (const page of sourcePages) {
-            let slug = page.slug;
-            let title = page.title;
-
-            if (existingSlugs.has(slug)) {
-              if (conflictStrategy === 'skip') {
-                skipped.push(`Pagina: ${title} (${slug})`);
-                continue;
-              }
-              slug = `${slug}-copy`;
-              title = `${title} (copia)`;
-              let suffix = 2;
-              while (existingSlugs.has(slug)) {
-                slug = `${page.slug}-copy-${suffix}`;
-                title = `${page.title} (copia ${suffix})`;
-                suffix++;
-              }
-            }
-
-            await tx.page.create({
-              data: {
-                tenantId: targetTenantId,
-                title,
-                slug,
-                description: page.description,
-                icon: page.icon,
-                content: page.content as Prisma.InputJsonValue,
-                isPublished: false, // Always unpublished on copy
-                permissions: page.permissions as Prisma.InputJsonValue,
-              },
-            });
-
-            existingSlugs.add(slug);
-            copied.pages++;
-          }
-        }
-
-        // ═══════════════════════════════════════
-        // 6. COPY AUTOMATIONS (EntityAutomation)
+        // 5. COPY AUTOMATIONS (EntityAutomation)
         // ═══════════════════════════════════════
         if (modules.automations?.length) {
           const sourceAutomations = await tx.entityAutomation.findMany({

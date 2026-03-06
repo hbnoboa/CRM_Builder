@@ -7,7 +7,6 @@ import { UserModule } from './modules/user/user.module';
 import { TenantModule } from './modules/tenant/tenant.module';
 import { EntityModule } from './modules/entity/entity.module';
 import { DataModule } from './modules/data/data.module';
-import { PageModule } from './modules/page/page.module';
 import { StatsModule } from './modules/stats/stats.module';
 import { UploadModule } from './modules/upload/upload.module';
 import { NotificationModule } from './modules/notification/notification.module';
@@ -53,7 +52,6 @@ import { EntityFieldRuleModule } from './modules/entity-field-rule/entity-field-
     TenantModule,
     EntityModule,
     DataModule,
-    PageModule,
     CustomRoleModule,
     StatsModule,
     UploadModule,

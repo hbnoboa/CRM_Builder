@@ -127,7 +127,6 @@
     "dashboard": "Dashboard",
     "entities": "Tables",
     "data": "Records",
-    "pages": "Pages",
     "users": "Users",
     "roles": "Roles",
     "permissions": "Permissions",
@@ -159,7 +158,6 @@
     "stats": {
       "entities": "Tables",
       "records": "Records",
-      "pages": "Pages",
       "users": "Users"
     },
     "charts": {
@@ -679,8 +677,6 @@
       "usersDesc": "Manage user accounts",
       "settings": "Settings",
       "settingsDesc": "General system settings",
-      "pages": "Pages",
-      "pagesDesc": "Visual Page Builder",
       "entities": "Tables",
       "entitiesDesc": "Define table structure",
       "tenants": "Tenants",
@@ -760,7 +756,6 @@
     "permissionCategories": {
       "entities": "Tables",
       "data": "Records",
-      "pages": "Pages",
       "users": "Users",
       "roles": "Roles",
       "organization": "Organization",
@@ -871,7 +866,6 @@
       "modules": {
         "roles": "Roles",
         "entities": "Tables",
-        "pages": "Pages",
         "pdfTemplates": "PDF Templates",
         "automations": "Automations",
         "webhooks": "Webhooks",
@@ -882,34 +876,6 @@
         "skipped": "Skipped items",
         "warnings": "Warnings"
       }
-    }
-  },
-  "pages": {
-    "title": "Pages",
-    "subtitle": "Create and manage custom pages",
-    "newPage": "New Page",
-    "stats": {
-      "total": "Total Pages",
-      "published": "Published",
-      "drafts": "Drafts"
-    },
-    "searchPlaceholder": "Search pages...",
-    "noPagesFound": "No pages found",
-    "noPagesMatchSearch": "No pages match your search.",
-    "createPagesToStart": "Create custom pages for your CRM.",
-    "createFirstPage": "Create First Page",
-    "view": "View",
-    "duplicate": "Duplicate",
-    "publish": "Publish",
-    "unpublish": "Unpublish",
-    "preview": "Preview",
-    "copy": "(Copy)",
-    "published": "Published",
-    "draft": "Draft",
-    "deleteConfirm": {
-      "title": "Delete page?",
-      "message": "Are you sure you want to delete page \"{name}\"?",
-      "warning": "This action cannot be undone."
     }
   },
   "profile": {

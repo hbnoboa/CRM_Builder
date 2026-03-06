@@ -64,7 +64,6 @@ src/
     ├── role/               # Roles e permissões
     ├── entity/             # Definição de entidades
     ├── data/               # CRUD dinâmico
-    ├── page/               # Pages (Puck)
     ├── custom-api/         # Endpoints customizados
     ├── stats/              # Estatísticas
     ├── upload/             # Upload de arquivos
@@ -83,8 +82,6 @@ Tenant (Empresa)
 │       │
 │       ├── Entities[] (Definições)
 │       │   └── EntityData[] (Registros)
-│       │
-│       ├── Pages[] (Puck Builder)
 │       │
 │       └── CustomEndpoints[] (APIs)
 │
@@ -174,7 +171,6 @@ src/
 │   │   ├── dashboard/
 │   │   ├── data/[entity]/
 │   │   ├── entities/
-│   │   ├── pages/
 │   │   ├── apis/
 │   │   ├── users/
 │   │   └── settings/
