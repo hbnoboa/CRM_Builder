@@ -10,6 +10,11 @@ interface RenderOptions {
   actionLabel?: string;
   diagramImage?: string;
   diagramZones?: Array<{ id: string; label: string | number; x: number; y: number }>;
+  // Entity reference info (relation, api-select, sub-entity)
+  entitySlug?: string;
+  displayField?: string;
+  apiEndpoint?: string;
+  subEntitySlug?: string;
 }
 
 export function renderFieldByType(type: string, opts: RenderOptions = {}): string {
@@ -102,14 +107,48 @@ export function renderFieldByType(type: string, opts: RenderOptions = {}): strin
       </div>`;
 
     case 'select':
-    case 'api-select':
-    case 'relation':
+      return `<div class="crm-select">
+        <span>${esc(placeholder || getDefaultPlaceholder(type))}</span>
+        <span class="crm-select-arrow">&#9660;</span>
+      </div>`;
+
+    case 'relation': {
+      const relInfo = opts.entitySlug
+        ? `<div class="crm-field-ref">&#128279; ${esc(opts.entitySlug)}${opts.displayField ? ` &rarr; ${esc(opts.displayField)}` : ''}</div>`
+        : '';
+      return `<div class="crm-select">
+        <span>${esc(placeholder || getDefaultPlaceholder(type))}</span>
+        <span class="crm-select-arrow">&#9660;</span>
+      </div>${relInfo}`;
+    }
+
+    case 'api-select': {
+      const apiInfo = opts.apiEndpoint
+        ? `<div class="crm-field-ref">&#9889; ${esc(opts.apiEndpoint)}</div>`
+        : '';
+      return `<div class="crm-select">
+        <span>${esc(placeholder || getDefaultPlaceholder(type))}</span>
+        <span class="crm-select-arrow">&#9660;</span>
+      </div>${apiInfo}`;
+    }
+
     case 'user-select':
     case 'lookup':
       return `<div class="crm-select">
         <span>${esc(placeholder || getDefaultPlaceholder(type))}</span>
         <span class="crm-select-arrow">&#9660;</span>
       </div>`;
+
+    case 'sub-entity': {
+      const subInfo = opts.subEntitySlug
+        ? `<span style="font-size: 11px; color: var(--muted-fg, #a1a1aa);">&#128279; ${esc(opts.subEntitySlug)}</span>`
+        : '';
+      return `<div style="border: 1px solid var(--border, #e4e4e7); border-radius: 8px; padding: 16px; text-align: center; color: var(--muted-fg, #a1a1aa);">
+        <div style="font-size: 20px; margin-bottom: 4px;">&#128194;</div>
+        <span>Sub-entidade</span>
+        ${subInfo}
+      </div>`;
+    }
 
     case 'multiselect':
       return `<div>
@@ -176,13 +215,13 @@ export function renderFieldByType(type: string, opts: RenderOptions = {}): strin
     // === Arquivos ===
     case 'file':
       return `<div class="crm-dropzone">
-        <div class="crm-dropzone-icon">&#128206;</div>
+        <span class="crm-dropzone-icon">&#128206;</span>
         <span>Clique ou arraste arquivos</span>
       </div>`;
 
     case 'image':
       return `<div class="crm-dropzone">
-        <div class="crm-dropzone-icon">&#128247;</div>
+        <span class="crm-dropzone-icon">&#128247;</span>
         <span>Clique ou arraste imagens</span>
       </div>`;
 
@@ -226,12 +265,6 @@ export function renderFieldByType(type: string, opts: RenderOptions = {}): strin
 
     case 'json':
       return `<div class="crm-json-preview">{ }</div>`;
-
-    case 'sub-entity':
-      return `<div style="border: 1px solid var(--border, #e4e4e7); border-radius: 8px; padding: 16px; text-align: center; color: var(--muted-fg, #a1a1aa);">
-        <div style="font-size: 20px; margin-bottom: 4px;">&#128194;</div>
-        <span>Sub-entidade</span>
-      </div>`;
 
     case 'zone-diagram': {
       const zones = opts.diagramZones || [];

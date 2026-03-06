@@ -875,8 +875,10 @@
         "roles": "Perfis de Acesso",
         "entities": "Tabelas",
         "pages": "Paginas",
-        "endpoints": "APIs Customizadas",
-        "pdfTemplates": "Templates PDF"
+        "pdfTemplates": "Templates PDF",
+        "automations": "Automacoes",
+        "webhooks": "Webhooks",
+        "fieldRules": "Regras de Campo"
       },
       "result": {
         "title": "Copia concluida com sucesso!",

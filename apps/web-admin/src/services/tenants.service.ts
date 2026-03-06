@@ -60,14 +60,6 @@ export interface CopyablePage {
   isPublished: boolean;
 }
 
-export interface CopyableEndpoint {
-  id: string;
-  name: string;
-  path: string;
-  method: string;
-  isActive: boolean;
-}
-
 export interface CopyablePdfTemplate {
   id: string;
   name: string;
@@ -76,12 +68,38 @@ export interface CopyablePdfTemplate {
   isPublished: boolean;
 }
 
+export interface CopyableAutomation {
+  id: string;
+  name: string;
+  trigger: string;
+  isActive: boolean;
+  entity: { name: string; slug: string };
+}
+
+export interface CopyableWebhook {
+  id: string;
+  name: string;
+  url: string;
+  method: string;
+  status: string;
+}
+
+export interface CopyableFieldRule {
+  id: string;
+  fieldSlug: string;
+  ruleType: string;
+  isActive: boolean;
+  entity: { name: string; slug: string };
+}
+
 export interface CopyableData {
   roles: CopyableRole[];
   entities: CopyableEntity[];
   pages: CopyablePage[];
-  endpoints: CopyableEndpoint[];
   pdfTemplates: CopyablePdfTemplate[];
+  automations: CopyableAutomation[];
+  webhooks: CopyableWebhook[];
+  fieldRules: CopyableFieldRule[];
 }
 
 export interface CopyEntitySelection {
@@ -97,8 +115,10 @@ export interface CopyTenantDataPayload {
     roles?: string[];
     entities?: CopyEntitySelection[];
     pages?: string[];
-    endpoints?: string[];
     pdfTemplates?: string[];
+    automations?: string[];
+    webhooks?: string[];
+    fieldRules?: string[];
   };
 }
 
@@ -107,9 +127,11 @@ export interface CopyResult {
     roles: number;
     entities: number;
     entityData: number;
-    endpoints: number;
     pdfTemplates: number;
     pages: number;
+    automations: number;
+    webhooks: number;
+    fieldRules: number;
   };
   skipped: string[];
   warnings: string[];

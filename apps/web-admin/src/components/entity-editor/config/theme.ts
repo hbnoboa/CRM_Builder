@@ -24,11 +24,23 @@ export function getCanvasCss(isDark: boolean): string {
 
     body {
       font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-      background: ${muted} !important;
+      background: ${isDark ? '#0f172a' : '#f1f5f9'} !important;
       color: ${fg};
-      padding: 24px;
+      padding: 32px;
       font-size: 14px;
       line-height: 1.5;
+    }
+
+    /* Card branco para o formulario */
+    body > [data-gjs-type="wrapper"] {
+      background: ${bg} !important;
+      border-radius: 12px;
+      box-shadow: ${isDark
+        ? '0 1px 3px rgba(0,0,0,0.3), 0 1px 2px rgba(0,0,0,0.2)'
+        : '0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.06)'};
+      padding: 32px;
+      max-width: 100%;
+      min-height: 200px;
     }
 
     /* ━━━ Layout System — Flexbox (necessario para GrapeJS sorter horizontal) ━━━ */
@@ -151,6 +163,20 @@ export function getCanvasCss(isDark: boolean): string {
     }
     .crm-select-arrow { font-size: 10px; color: ${mutedFg}; opacity: 0.5; }
 
+    /* ━━━ Field reference info (entity/api indicator below selects) ━━━ */
+    .crm-field-ref {
+      font-size: 11px;
+      color: ${mutedFg};
+      margin-top: 4px;
+      padding: 2px 6px;
+      background: ${isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)'};
+      border-radius: 4px;
+      font-family: ui-monospace, monospace;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
     /* ━━━ Switch/Toggle (replica exata do shadcn Switch) ━━━ */
     /* peer inline-flex h-6 w-11 shrink-0 rounded-full border-2 border-transparent bg-input */
     .crm-switch {
@@ -186,17 +212,17 @@ export function getCanvasCss(isDark: boolean): string {
     /* ━━━ Dropzone ━━━ */
     .crm-dropzone {
       border: 2px dashed ${border};
-      border-radius: 0.5rem;
-      padding: 24px;
-      text-align: center;
+      border-radius: 0.375rem;
+      padding: 0.5rem 0.75rem;
       color: ${mutedFg};
       font-size: 0.8125rem;
       display: flex;
-      flex-direction: column;
+      flex-direction: row;
       align-items: center;
-      gap: 4px;
+      gap: 8px;
+      height: 2.5rem;
     }
-    .crm-dropzone-icon { font-size: 24px; margin-bottom: 4px; }
+    .crm-dropzone-icon { font-size: 16px; flex-shrink: 0; }
 
     /* ━━━ Map ━━━ */
     .crm-map-container {
@@ -552,212 +578,25 @@ export const editorStyles = `
   .gjs-frame-wrapper { background: hsl(var(--muted)) !important; }
   .gjs-frame-wrapper__top { background: transparent !important; }
 
-  /* ━━━ Block categories (accordions na paleta esquerda) ━━━ */
-  .gjs-block-categories {
-    padding: 0 !important;
-  }
-  .gjs-block-category {
-    border-bottom: 1px solid hsl(var(--border)) !important;
-  }
-  .gjs-block-category .gjs-title {
-    background: hsl(var(--muted)) !important;
-    border: none !important;
-    padding: 8px 12px !important;
-    font-size: 11px !important;
-    font-weight: 600 !important;
-    text-transform: uppercase !important;
-    letter-spacing: 0.05em !important;
-    color: hsl(var(--muted-foreground)) !important;
-    cursor: pointer;
-    user-select: none;
-    display: flex;
-    align-items: center;
-  }
-  .gjs-block-category .gjs-title:hover {
-    background: hsl(var(--accent)) !important;
-    color: hsl(var(--foreground)) !important;
-  }
-  .gjs-block-category .gjs-caret-icon {
-    font-size: 10px;
-    margin-right: 6px;
-    color: hsl(var(--muted-foreground));
-    transition: transform 0.2s;
-  }
-  .gjs-block-category.gjs-open .gjs-caret-icon {
-    transform: rotate(90deg);
-  }
-  .gjs-block-category .gjs-blocks-c {
-    padding: 4px !important;
-  }
+  /* ━━━ Hidden blocks container ━━━ */
+  .gjs-blocks-hidden { display: none !important; }
 
-  /* ━━━ Block previews na paleta ━━━ */
-  .gjs-block {
-    padding: 6px 8px !important;
-    min-height: auto !important;
-    border: 1px solid transparent !important;
-    border-radius: 6px !important;
-    margin: 2px !important;
-    transition: border-color 0.15s, background 0.15s;
-  }
-  .gjs-block:hover {
-    border-color: hsl(var(--border)) !important;
-    background: hsl(var(--accent)) !important;
-  }
-  .gjs-block-field { width: 100% !important; }
-  .gjs-block-label { width: 100%; }
+  /* ━━━ Hide GrapeJS default trait panel (we use custom React panel) ━━━ */
+  .gjs-trt-traits { display: none !important; }
 
-  .blk-preview { display: flex; flex-direction: column; gap: 4px; width: 100%; text-align: left; }
-  .blk-label { font-size: 11px; font-weight: 500; color: hsl(var(--foreground)); opacity: 0.9; }
-  .blk-input {
-    height: 24px; border-radius: 4px; padding: 0 8px; font-size: 10px;
-    border: 1px solid hsl(var(--border)); background: hsl(var(--background));
-    color: hsl(var(--muted-foreground)); display: flex; align-items: center;
+  /* Scrollbar customizada para o painel direito */
+  .overflow-y-auto::-webkit-scrollbar {
+    width: 6px;
   }
-  .blk-textarea {
-    height: 32px; border-radius: 4px; padding: 4px 8px; font-size: 10px;
-    border: 1px solid hsl(var(--border)); background: hsl(var(--background));
-    color: hsl(var(--muted-foreground));
+  .overflow-y-auto::-webkit-scrollbar-track {
+    background: transparent;
   }
-  .blk-select {
-    height: 24px; border-radius: 4px; padding: 0 8px; font-size: 10px;
-    border: 1px solid hsl(var(--border)); background: hsl(var(--background));
-    color: hsl(var(--muted-foreground)); display: flex; align-items: center;
-    justify-content: space-between;
+  .overflow-y-auto::-webkit-scrollbar-thumb {
+    background: hsl(var(--border));
+    border-radius: 3px;
   }
-  .blk-arrow { font-size: 8px; opacity: 0.5; }
-  .blk-tags { display: flex; gap: 3px; flex-wrap: wrap; }
-  .blk-tag {
-    font-size: 9px; padding: 1px 6px; border-radius: 9999px;
-    background: hsl(var(--accent)); color: hsl(var(--foreground));
-    border: 1px solid hsl(var(--border));
-  }
-  .blk-switch {
-    width: 28px; height: 14px; border-radius: 7px; background: hsl(var(--input));
-    position: relative;
-  }
-  .blk-switch-thumb {
-    width: 10px; height: 10px; border-radius: 50%; background: hsl(var(--background));
-    position: absolute; top: 2px; left: 2px;
-  }
-  .blk-checkbox {
-    width: 10px; height: 10px; border: 1px solid hsl(var(--primary));
-    border-radius: 2px;
-  }
-  .blk-radio {
-    width: 10px; height: 10px; border: 1px solid hsl(var(--primary));
-    border-radius: 50%;
-  }
-  .blk-dropzone {
-    border: 1px dashed hsl(var(--border)); border-radius: 4px; padding: 6px;
-    text-align: center; font-size: 10px; color: hsl(var(--muted-foreground));
-  }
-
-  /* ━━━ Traits Panel — estilo do painel de propriedades ━━━ */
-
-  /* Container de traits */
-  .traits-container .gjs-traits { padding: 0 !important; }
-
-  /* Trait category (collapsible section) */
-  .gjs-trt-category {
-    border-bottom: 1px solid hsl(var(--border));
-  }
-  .gjs-trt-category__title {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 8px 12px;
-    cursor: pointer;
-    font-size: 12px;
-    font-weight: 600;
-    color: hsl(var(--foreground));
-    background: hsl(var(--muted));
-    user-select: none;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-  }
-  .gjs-trt-category__title:hover {
-    background: hsl(var(--accent));
-  }
-  .gjs-trt-category__title .gjs-caret-icon {
-    transition: transform 0.2s;
-    font-size: 10px;
-    color: hsl(var(--muted-foreground));
-  }
-  .gjs-trt-category.gjs-trt-category--open .gjs-caret-icon {
-    transform: rotate(90deg);
-  }
-
-  /* Trait items dentro de categorias */
-  .gjs-trt-trait {
-    padding: 6px 12px !important;
-    border-bottom: 1px solid hsl(var(--border) / 0.3);
-  }
-  .gjs-trt-trait:last-child { border-bottom: none; }
-
-  /* Trait labels */
-  .gjs-trt-trait .gjs-label-wrp {
-    min-width: 80px !important;
-    font-size: 12px !important;
-    color: hsl(var(--muted-foreground)) !important;
-    font-weight: 400 !important;
-  }
-
-  /* Trait inputs */
-  .gjs-trt-trait .gjs-field {
-    background: hsl(var(--background)) !important;
-    border: 1px solid hsl(var(--border)) !important;
-    border-radius: 6px !important;
-    color: hsl(var(--foreground)) !important;
-    font-size: 13px !important;
-  }
-  .gjs-trt-trait .gjs-field:focus-within {
-    border-color: hsl(var(--ring)) !important;
-    box-shadow: 0 0 0 2px hsl(var(--ring) / 0.2) !important;
-  }
-  .gjs-trt-trait input,
-  .gjs-trt-trait select,
-  .gjs-trt-trait textarea {
-    color: hsl(var(--foreground)) !important;
-    background: transparent !important;
-    font-size: 13px !important;
-    padding: 4px 8px !important;
-  }
-  .gjs-trt-trait input::placeholder {
-    color: hsl(var(--muted-foreground)) !important;
-  }
-
-  /* Checkbox trait */
-  .gjs-trt-trait .gjs-chk-icon {
-    border-color: hsl(var(--border)) !important;
-    background: hsl(var(--background)) !important;
-    border-radius: 4px !important;
-  }
-  .gjs-trt-trait .gjs-chk-icon.gjs-chk-checked {
-    background: hsl(var(--primary)) !important;
-    border-color: hsl(var(--primary)) !important;
-  }
-
-  /* Select trait dropdown */
-  .gjs-trt-trait select {
-    border: none !important;
-    outline: none !important;
-    cursor: pointer;
-  }
-  .gjs-trt-trait select option {
-    background: hsl(var(--popover)) !important;
-    color: hsl(var(--popover-foreground)) !important;
-  }
-
-  /* Mensagem "Selecione um campo" quando nada esta selecionado */
-  .traits-container:empty::before,
-  .traits-container .gjs-traits:empty::before {
-    content: 'Selecione um campo no canvas para ver suas propriedades';
-    display: block;
-    padding: 24px 16px;
-    text-align: center;
-    font-size: 13px;
-    color: hsl(var(--muted-foreground));
-    line-height: 1.5;
+  .overflow-y-auto::-webkit-scrollbar-thumb:hover {
+    background: hsl(var(--muted-foreground) / 0.3);
   }
 
   /* ━━━ Resize handles ━━━ */

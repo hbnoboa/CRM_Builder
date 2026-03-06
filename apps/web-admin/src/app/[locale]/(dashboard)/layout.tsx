@@ -32,6 +32,7 @@ import {
   UserCheck,
   CircleDot,
   Layers,
+  FileText,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -68,6 +69,7 @@ const adminNavigation: NavItemConfig[] = [
   { titleKey: 'tenants', href: '/tenants', icon: <Building2 className="h-5 w-5" />, moduleKey: 'tenants' },
   { titleKey: 'users', href: '/users', icon: <Users className="h-5 w-5" />, moduleKey: 'users' },
   { titleKey: 'roles', href: '/roles', icon: <Shield className="h-5 w-5" />, moduleKey: 'roles' },
+  { titleKey: 'pdfTemplates', href: '/pdf-templates', icon: <FileText className="h-5 w-5" />, moduleKey: 'pdfTemplates' },
   { titleKey: 'auditLogs', href: '/audit-logs', icon: <ScrollText className="h-5 w-5" />, moduleKey: 'auditLogs' },
 ];
 

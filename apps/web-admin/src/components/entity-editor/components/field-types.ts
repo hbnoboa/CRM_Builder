@@ -135,7 +135,7 @@ export function registerFieldTypes(editor: Editor) {
   // ─── Relacoes ──────────────────────────────────────────────────────────
   registerType(editor, 'crm-field-relation', 'relation', 'Relacao', [
     { type: 'crm-entity-select', name: 'fieldRelatedEntityId', label: 'Entidade', changeProp: true },
-    { type: 'textarea', name: 'fieldAutoFillFields', label: 'Auto-preenchimento (JSON)', changeProp: true },
+    { type: 'crm-autofill-editor', name: 'fieldAutoFillFields', label: 'Auto-preenchimento', changeProp: true },
   ]);
 
   registerType(editor, 'crm-field-sub-entity', 'sub-entity', 'Sub-entidade', [
@@ -153,7 +153,7 @@ export function registerFieldTypes(editor: Editor) {
     { type: 'text', name: 'fieldValueField', label: 'Campo valor', placeholder: 'id', changeProp: true },
     { type: 'text', name: 'fieldLabelField', label: 'Campo label', changeProp: true },
     { type: 'textarea', name: 'fieldApiFields', label: 'Campos da API (JSON)', changeProp: true },
-    { type: 'textarea', name: 'fieldAutoFillFields', label: 'Auto-preenchimento (JSON)', changeProp: true },
+    { type: 'crm-autofill-editor', name: 'fieldAutoFillFields', label: 'Auto-preenchimento', changeProp: true },
   ]);
 
   registerType(editor, 'crm-field-user-select', 'user-select', 'Selecao de usuario', [
@@ -233,86 +233,22 @@ export function registerFieldTypes(editor: Editor) {
 
 // ─── Helper ────────────────────────────────────────────────────────────────
 
-// Trait categories — mesmas do base-field.ts
-const CAT_BASIC = { id: 'basic', label: 'Basico', open: true };
-const CAT_APPEARANCE = { id: 'appearance', label: 'Aparencia', open: false };
-const CAT_TYPE = { id: 'type-config', label: 'Configuracao do tipo', open: true };
-const CAT_LAYOUT = { id: 'layout', label: 'Layout', open: false };
-const CAT_ADVANCED = { id: 'advanced', label: 'Avancado', open: false };
-
-interface TraitDef {
-  type: string;
-  name: string;
-  label: string;
-  changeProp?: boolean;
-  placeholder?: string;
-  min?: number;
-  max?: number;
-  options?: Array<{ id: string; name: string }>;
-  category?: { id: string; label: string; open?: boolean };
-}
-
 function registerType(
   editor: Editor,
   typeName: string,
   fieldType: string,
   displayName: string,
-  extraTraits: TraitDef[],
+  _extraTraits: unknown[], // mantido para compatibilidade de assinatura
 ) {
-  // Adicionar categoria CAT_TYPE aos traits extras que nao tem categoria
-  const typedExtraTraits = extraTraits.map(t => ({
-    ...t,
-    category: t.category || CAT_TYPE,
-  }));
-
   editor.DomComponents.addType(typeName, {
     extend: 'crm-field',
     model: {
       defaults: {
         name: displayName,
         fieldType,
-        traits: [
-          // Herda os traits comuns do crm-field (com categorias)
-          ...getBaseTraits(),
-          // Adiciona traits especificos do tipo
-          ...typedExtraTraits,
-          // Trait de condicional (comum a todos, mas na categoria avancado)
-          { type: 'textarea', name: 'fieldVisibleIf', label: 'Visivel se (JSON)', changeProp: true, category: CAT_ADVANCED },
-          { type: 'textarea', name: 'fieldRequiredIf', label: 'Obrigatorio se (JSON)', changeProp: true, category: CAT_ADVANCED },
-          { type: 'textarea', name: 'fieldOnChangeAutoFill', label: 'Ao mudar, preencher (JSON)', changeProp: true, category: CAT_ADVANCED },
-        ],
+        // Traits vazio — painel de propriedades e gerenciado via React (FieldPropertiesPanel)
+        traits: [],
       },
     },
   });
-}
-
-function getBaseTraits(): TraitDef[] {
-  return [
-    { type: 'text', name: 'fieldName', label: 'Slug', placeholder: 'nome_do_campo', changeProp: true, category: CAT_BASIC },
-    { type: 'text', name: 'fieldLabel', label: 'Label', placeholder: 'Nome exibido', changeProp: true, category: CAT_BASIC },
-    { type: 'checkbox', name: 'fieldRequired', label: 'Obrigatorio', changeProp: true, category: CAT_BASIC },
-    { type: 'text', name: 'fieldPlaceholder', label: 'Placeholder', changeProp: true, category: CAT_APPEARANCE },
-    { type: 'text', name: 'fieldHelpText', label: 'Texto de ajuda', changeProp: true, category: CAT_APPEARANCE },
-    { type: 'text', name: 'fieldDefault', label: 'Valor padrao', changeProp: true, category: CAT_APPEARANCE },
-    { type: 'checkbox', name: 'fieldHidden', label: 'Oculto', changeProp: true, category: CAT_ADVANCED },
-    { type: 'checkbox', name: 'fieldUnique', label: 'Unico', changeProp: true, category: CAT_ADVANCED },
-    // Layout
-    {
-      type: 'select', name: 'fieldColSpan', label: 'Largura', changeProp: true, category: CAT_LAYOUT,
-      options: [
-        { id: '1', name: '1/12' },
-        { id: '2', name: '2/12' },
-        { id: '3', name: '3/12 (1/4)' },
-        { id: '4', name: '4/12 (1/3)' },
-        { id: '5', name: '5/12' },
-        { id: '6', name: '6/12 (1/2)' },
-        { id: '7', name: '7/12' },
-        { id: '8', name: '8/12 (2/3)' },
-        { id: '9', name: '9/12 (3/4)' },
-        { id: '10', name: '10/12' },
-        { id: '11', name: '11/12' },
-        { id: '12', name: '12/12 (Inteiro)' },
-      ],
-    },
-  ];
 }

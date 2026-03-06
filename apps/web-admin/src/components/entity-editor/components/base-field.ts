@@ -1,12 +1,6 @@
 import type { Editor } from 'grapesjs';
 import { renderFieldByType } from '../utils/field-renderer';
 
-// Trait categories para organizar o painel de propriedades
-const CAT_BASIC = { id: 'basic', label: 'Basico', open: true };
-const CAT_APPEARANCE = { id: 'appearance', label: 'Aparencia', open: false };
-const CAT_LAYOUT = { id: 'layout', label: 'Layout', open: false };
-const CAT_ADVANCED = { id: 'advanced', label: 'Avancado', open: false };
-
 /**
  * Component type `crm-field` — base para todos os 47 tipos de campo.
  * Cada tipo estende este component type adicionando traits especificos.
@@ -135,88 +129,8 @@ export function registerBaseField(editor: Editor) {
         fieldGridColSpan: 12,
         fieldGridColStart: 0,
 
-        // Traits comuns (exibidos para todos os tipos)
-        traits: [
-          {
-            type: 'text',
-            name: 'fieldName',
-            label: 'Slug',
-            placeholder: 'nome_do_campo',
-            changeProp: true,
-            category: CAT_BASIC,
-          },
-          {
-            type: 'text',
-            name: 'fieldLabel',
-            label: 'Label',
-            placeholder: 'Nome exibido',
-            changeProp: true,
-            category: CAT_BASIC,
-          },
-          {
-            type: 'checkbox',
-            name: 'fieldRequired',
-            label: 'Obrigatorio',
-            changeProp: true,
-            category: CAT_BASIC,
-          },
-          {
-            type: 'text',
-            name: 'fieldPlaceholder',
-            label: 'Placeholder',
-            changeProp: true,
-            category: CAT_APPEARANCE,
-          },
-          {
-            type: 'text',
-            name: 'fieldHelpText',
-            label: 'Texto de ajuda',
-            changeProp: true,
-            category: CAT_APPEARANCE,
-          },
-          {
-            type: 'text',
-            name: 'fieldDefault',
-            label: 'Valor padrao',
-            changeProp: true,
-            category: CAT_APPEARANCE,
-          },
-          {
-            type: 'select',
-            name: 'fieldColSpan',
-            label: 'Largura',
-            changeProp: true,
-            category: CAT_LAYOUT,
-            options: [
-              { id: '1', label: '1/12' },
-              { id: '2', label: '2/12' },
-              { id: '3', label: '3/12 (1/4)' },
-              { id: '4', label: '4/12 (1/3)' },
-              { id: '5', label: '5/12' },
-              { id: '6', label: '6/12 (1/2)' },
-              { id: '7', label: '7/12' },
-              { id: '8', label: '8/12 (2/3)' },
-              { id: '9', label: '9/12 (3/4)' },
-              { id: '10', label: '10/12' },
-              { id: '11', label: '11/12' },
-              { id: '12', label: '12/12 (Inteiro)' },
-            ],
-          },
-          {
-            type: 'checkbox',
-            name: 'fieldHidden',
-            label: 'Oculto',
-            changeProp: true,
-            category: CAT_ADVANCED,
-          },
-          {
-            type: 'checkbox',
-            name: 'fieldUnique',
-            label: 'Unico',
-            changeProp: true,
-            category: CAT_ADVANCED,
-          },
-        ],
+        // Traits vazio — painel de propriedades e gerenciado via React (FieldPropertiesPanel)
+        traits: [],
       },
 
       init() {
@@ -229,6 +143,10 @@ export function registerBaseField(editor: Editor) {
         this.on('change:fieldHidden', this.triggerRender);
         this.on('change:fieldDiagramImage', this.triggerRender);
         this.on('change:fieldDiagramZones', this.triggerRender);
+        this.on('change:fieldRelatedEntitySlug', this.triggerRender);
+        this.on('change:fieldRelatedDisplayField', this.triggerRender);
+        this.on('change:fieldSubEntitySlug', this.triggerRender);
+        this.on('change:fieldApiEndpoint', this.triggerRender);
 
         // Sincronizar largura do campo com a celula pai
         this.on('change:fieldColSpan', this.syncGridSpan);
@@ -236,9 +154,45 @@ export function registerBaseField(editor: Editor) {
 
       syncGridSpan() {
         const rawColSpan = this.get('fieldColSpan');
-        const colSpan = Math.min(12, Math.max(1, parseInt(String(rawColSpan), 10) || 12));
+        let colSpan = Math.min(12, Math.max(1, parseInt(String(rawColSpan), 10) || 12));
         const cell = this.parent();
-        if (cell && cell.get('type') === 'grid-cell') {
+        if (!cell || cell.get('type') !== 'grid-cell') return;
+
+        const row = cell.parent();
+        if (!row || row.get('type') !== 'grid-row') {
+          if (cell.get('colSpan') !== colSpan) cell.set('colSpan', colSpan);
+          return;
+        }
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const allCells: any[] = row.components().filter(
+          (c: any) => c.get('type') === 'grid-cell',
+        );
+        const MIN_COL = 2;
+
+        if (allCells.length > 1) {
+          const otherCells = allCells.filter((c: any) => c !== cell);
+          const maxForThis = 12 - otherCells.length * MIN_COL;
+          colSpan = Math.min(colSpan, maxForThis);
+          colSpan = Math.max(MIN_COL, colSpan);
+
+          if (cell.get('colSpan') !== colSpan) cell.set('colSpan', colSpan);
+
+          const remaining = 12 - colSpan;
+          const perOther = Math.floor(remaining / otherCells.length);
+          otherCells.forEach((other: any, i: number) => {
+            const span = i === otherCells.length - 1
+              ? remaining - perOther * (otherCells.length - 1)
+              : perOther;
+            const s = Math.max(MIN_COL, span);
+            if (other.get('colSpan') !== s) other.set('colSpan', s);
+            // Atualizar o campo dentro da celula irma
+            const otherField = other.components().find(
+              (c: any) => c.get('type')?.startsWith('crm-field'),
+            );
+            if (otherField) otherField.set('fieldColSpan', String(s));
+          });
+        } else {
           if (cell.get('colSpan') !== colSpan) cell.set('colSpan', colSpan);
         }
       },
@@ -297,11 +251,21 @@ export function registerBaseField(editor: Editor) {
           } catch { /* ignore */ }
         }
 
+        // Entity reference info for relation/api-select/sub-entity
+        const entitySlug = model.get('fieldRelatedEntitySlug') || '';
+        const displayField = model.get('fieldRelatedDisplayField') || '';
+        const apiEndpoint = model.get('fieldApiEndpoint') || '';
+        const subEntitySlug = model.get('fieldSubEntitySlug') || '';
+
         const fieldHtml = renderFieldByType(type, {
           placeholder,
           options,
           diagramImage,
           diagramZones,
+          entitySlug,
+          displayField,
+          apiEndpoint,
+          subEntitySlug,
           label: model.get('fieldWorkflowConfig')
             ? (() => {
                 try {

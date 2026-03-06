@@ -20,6 +20,18 @@ export function registerCustomTraits(editor: Editor) {
   // ─── Trait: crm-zone-diagram-editor ────────────────────────────────
   // Usado por: zone-diagram
   registerPortalTrait(editor, 'crm-zone-diagram-editor', 'fieldDiagramZones');
+
+  // ─── Trait: crm-autofill-editor ──────────────────────────────────
+  // Usado por: relation, api-select (autoFillFields)
+  registerPortalTrait(editor, 'crm-autofill-editor', 'fieldAutoFillFields');
+
+  // ─── Trait: crm-onchange-autofill-editor ─────────────────────────
+  // Usado por: todos os tipos (onChangeAutoFill)
+  registerPortalTrait(editor, 'crm-onchange-autofill-editor', 'fieldOnChangeAutoFill');
+
+  // ─── Trait: crm-field-rules-editor ─────────────────────────────
+  // Usado por: todos os tipos (regras de campo inline)
+  registerPortalTrait(editor, 'crm-field-rules-editor', 'fieldRules');
 }
 
 /**
@@ -63,6 +75,9 @@ export const PORTAL_TRAIT_TYPES = [
   'crm-entity-select',
   'crm-workflow-editor',
   'crm-zone-diagram-editor',
+  'crm-autofill-editor',
+  'crm-onchange-autofill-editor',
+  'crm-field-rules-editor',
 ] as const;
 
 export type PortalTraitType = typeof PORTAL_TRAIT_TYPES[number];

@@ -1,14 +1,13 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
 import GjsEditor, { Canvas } from '@grapesjs/react';
 import grapesjs, { type Editor, type Component as GjsComponent } from 'grapesjs';
 import 'grapesjs/dist/css/grapes.min.css';
 import { useTheme } from 'next-themes';
-import { Save, Loader2, Undo2, Redo2, Trash2, ArrowLeft, Info, Zap, Columns3, Plus } from 'lucide-react';
+import { Save, Loader2, Undo2, Redo2, Trash2, ArrowLeft, Zap, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { toast } from 'sonner';
 import type { Entity, EntityField, EntitySettings } from '@crm-builder/shared';
 
@@ -18,12 +17,8 @@ import { registerAllComponents } from './components';
 import { registerAllBlocks } from './blocks';
 import { serializeToGjs, type GjsProjectData } from './serialization/serialize';
 import { deserializeFromGjs } from './serialization/deserialize';
-import { type PortalTraitType } from './traits';
-import { OptionsTraitEditor } from './traits/options-trait';
-import { EntitySelectTraitEditor } from './traits/entity-select-trait';
-import { WorkflowTraitEditor } from './traits/workflow-trait';
-import { ZoneDiagramTraitEditor } from './traits/zone-diagram-trait';
 import { EntityInfoPanel } from './panels/entity-info-panel';
+import { FieldPropertiesPanel } from './panels/field-properties-panel';
 import { FieldPickerModal } from './panels/field-picker-modal';
 import { AutomationTab } from '@/components/entity-automation/automation-tab';
 
@@ -92,24 +87,17 @@ interface EntityEditorProps {
   onCancel: () => void;
 }
 
-interface PortalTarget {
-  container: HTMLElement;
-  type: PortalTraitType;
-  propName: string;
-  traitId: string;
-}
-
 export default function EntityEditor({ entity, onSave, onCancel }: EntityEditorProps) {
   const { resolvedTheme } = useTheme();
   const isDark = resolvedTheme === 'dark';
   const editorRef = useRef<Editor | null>(null);
   const [saving, setSaving] = useState(false);
-  const [rightTab, setRightTab] = useState<'traits' | 'info' | 'automations'>('traits');
-  const [portalTargets, setPortalTargets] = useState<PortalTarget[]>([]);
-  const selectedComponentRef = useRef<GjsComponent | null>(null);
+  const [selectedComponent, setSelectedComponent] = useState<GjsComponent | null>(null);
   const [, forceUpdate] = useState(0);
   const [fieldPickerOpen, setFieldPickerOpen] = useState(false);
   const [fieldCount, setFieldCount] = useState(entity.fields?.length || 0);
+  const [pendingField, setPendingField] = useState<{ type: string; label: string } | null>(null);
+  const [automationsOpen, setAutomationsOpen] = useState(false);
 
   // Editable entity info
   const [entityName, setEntityName] = useState(entity.name);
@@ -135,8 +123,14 @@ export default function EntityEditor({ entity, onSave, onCancel }: EntityEditorP
     setFieldCount(count);
   }, []);
 
-  // Handler para quando um campo e selecionado na modal
+  // Handler para quando um campo e selecionado na modal — entra em placement mode
   const handleFieldPickerSelect = useCallback((fieldType: string, label: string) => {
+    setPendingField({ type: fieldType, label });
+    setFieldPickerOpen(false);
+  }, []);
+
+  // Cria o campo numa posicao especifica (afterRowIndex) ou no final (-1)
+  const createFieldAtPosition = useCallback((fieldType: string, label: string, afterRowIndex: number) => {
     const editor = editorRef.current;
     if (!editor) return;
 
@@ -150,8 +144,7 @@ export default function EntityEditor({ entity, onSave, onCancel }: EntityEditorP
     const wrapper = editor.getWrapper();
     if (!wrapper) return;
 
-    // Criar nova row com o campo
-    const rows = wrapper.append({
+    const rowDef = {
       type: 'grid-row',
       components: [{
         type: 'grid-cell',
@@ -165,7 +158,11 @@ export default function EntityEditor({ entity, onSave, onCancel }: EntityEditorP
           fieldColSpan: '12',
         }],
       }],
-    });
+    };
+
+    const rows = afterRowIndex >= 0
+      ? wrapper.append(rowDef, { at: afterRowIndex })
+      : wrapper.append(rowDef);
 
     const addedField = rows?.[0]?.components()?.at(0)?.components()?.at(0);
     if (addedField) {
@@ -173,19 +170,24 @@ export default function EntityEditor({ entity, onSave, onCancel }: EntityEditorP
     }
   }, []);
 
-  // Scan the traits panel DOM for portal containers
-  const scanForPortals = useCallback(() => {
-    const containers = document.querySelectorAll('.crm-trait-portal');
-    const targets: PortalTarget[] = [];
-    containers.forEach((el) => {
-      const type = el.getAttribute('data-trait-portal') as PortalTraitType;
-      const propName = el.getAttribute('data-trait-prop') || '';
-      const traitId = el.getAttribute('data-trait-id') || '';
-      if (type && propName) {
-        targets.push({ container: el as HTMLElement, type, propName, traitId });
+  // Collect all field slugs from the canvas for FieldPropertiesPanel
+  const getCanvasFields = useCallback((): Array<{ slug: string; label: string }> => {
+    const editor = editorRef.current;
+    if (!editor) return [];
+    const fields: Array<{ slug: string; label: string }> = [];
+    const wrapper = editor.getWrapper();
+    if (!wrapper) return fields;
+
+    const iterate = (comp: GjsComponent) => {
+      if (comp.get('type')?.startsWith('crm-field')) {
+        const slug = (comp.get('fieldName') as string) || '';
+        const label = (comp.get('fieldLabel') as string) || slug;
+        if (slug) fields.push({ slug, label });
       }
-    });
-    setPortalTargets(targets);
+      comp.components().forEach((c: GjsComponent) => iterate(c));
+    };
+    wrapper.components().forEach((c: GjsComponent) => iterate(c));
+    return fields;
   }, []);
 
   const handleEditorInit = useCallback((editor: Editor) => {
@@ -220,23 +222,17 @@ export default function EntityEditor({ entity, onSave, onCancel }: EntityEditorP
     editor.loadProjectData(projectData);
     setTimeout(updateFieldCount, 100);
 
-    // ─── Track selected component for portals ───────────────────────
+    // ─── Track selected component ───────────────────────────────────
     editor.on('component:selected', (component: GjsComponent) => {
-      selectedComponentRef.current = component;
-      // Auto-switch to traits tab when selecting a field
       if (component.get('type')?.startsWith('crm-field')) {
-        setRightTab('traits');
+        setSelectedComponent(component);
+      } else {
+        setSelectedComponent(null);
       }
-      setTimeout(() => scanForPortals(), 80);
     });
 
     editor.on('component:deselected', () => {
-      selectedComponentRef.current = null;
-      setPortalTargets([]);
-    });
-
-    editor.on('trait:custom', () => {
-      setTimeout(() => scanForPortals(), 80);
+      setSelectedComponent(null);
     });
 
     // ─── Atualizar contagem de campos ao adicionar/remover ──────────────
@@ -440,11 +436,35 @@ export default function EntityEditor({ entity, onSave, onCancel }: EntityEditorP
 
       const rowWidth = rowEl.getBoundingClientRect().width;
       const colWidth = (rowWidth - GRID_GAP * 11) / 12;
-      const newColSpan = Math.min(12, Math.max(1,
+      let newColSpan = Math.min(12, Math.max(1,
         Math.round((rect.w + GRID_GAP) / (colWidth + GRID_GAP)),
       ));
 
-      syncCellLayout(cell, newColSpan);
+      // Ajustar celulas irmas para que o total sempre some 12
+      const allCells = row.components().filter(
+        (c: GjsComponent) => c.get('type') === 'grid-cell',
+      );
+      const MIN_COL = 2; // largura minima de cada celula irma
+
+      if (allCells.length > 1) {
+        const otherCells = allCells.filter((c: GjsComponent) => c !== cell);
+        const maxForResized = 12 - otherCells.length * MIN_COL;
+        newColSpan = Math.min(newColSpan, maxForResized);
+        newColSpan = Math.max(MIN_COL, newColSpan);
+
+        const remaining = 12 - newColSpan;
+        const perOther = Math.floor(remaining / otherCells.length);
+
+        syncCellLayout(cell, newColSpan);
+        otherCells.forEach((other: GjsComponent, i: number) => {
+          const span = i === otherCells.length - 1
+            ? remaining - perOther * (otherCells.length - 1)
+            : perOther;
+          syncCellLayout(other, Math.max(MIN_COL, span));
+        });
+      } else {
+        syncCellLayout(cell, newColSpan);
+      }
 
       if (resizeIndicator) {
         resizeIndicator.textContent = `${newColSpan}/12`;
@@ -576,26 +596,131 @@ export default function EntityEditor({ entity, onSave, onCancel }: EntityEditorP
         }
       }
     });
-  }, [entity, isDark, scanForPortals, updateFieldCount]);
+  }, [entity, isDark, updateFieldCount]);
 
-  // MutationObserver to detect portal containers appearing in the traits panel
+  // ─── Placement mode: Escape to cancel ─────────────────────────────
   useEffect(() => {
-    const traitsContainer = document.querySelector('.traits-container');
-    if (!traitsContainer) return;
-
-    const observer = new MutationObserver(() => {
-      if (selectedComponentRef.current) {
-        scanForPortals();
+    if (!pendingField) return;
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setPendingField(null);
       }
-    });
+    };
+    document.addEventListener('keydown', handler);
+    return () => document.removeEventListener('keydown', handler);
+  }, [pendingField]);
 
-    observer.observe(traitsContainer, {
-      childList: true,
-      subtree: true,
-    });
+  // ─── Placement mode: inject CSS + click handler into canvas ──────
+  useEffect(() => {
+    const editor = editorRef.current;
+    if (!editor) return;
 
-    return () => observer.disconnect();
-  }, [scanForPortals]);
+    const frame = editor.Canvas.getFrameEl();
+    const doc = frame?.contentDocument;
+    if (!doc) return;
+
+    // Manage placement CSS in canvas iframe
+    const existingStyle = doc.getElementById('crm-placement-styles');
+    if (!pendingField) {
+      // Remove placement styles when not in placement mode
+      if (existingStyle) existingStyle.remove();
+      doc.body.classList.remove('placement-mode');
+      return;
+    }
+
+    // Add placement mode class and styles
+    doc.body.classList.add('placement-mode');
+
+    if (!existingStyle) {
+      const style = doc.createElement('style');
+      style.id = 'crm-placement-styles';
+      style.textContent = `
+        body.placement-mode {
+          cursor: crosshair !important;
+        }
+        body.placement-mode * {
+          cursor: crosshair !important;
+        }
+        body.placement-mode .grid-row {
+          position: relative;
+        }
+        body.placement-mode .grid-row::before {
+          content: '';
+          display: block;
+          position: absolute;
+          top: -6px;
+          left: 0;
+          right: 0;
+          height: 4px;
+          background: #3b82f6;
+          border-radius: 2px;
+          opacity: 0;
+          transition: opacity 0.15s;
+          z-index: 100;
+          pointer-events: all;
+        }
+        body.placement-mode .grid-row:hover::before {
+          opacity: 0.6;
+        }
+        body.placement-mode .grid-row:last-child::after {
+          content: '';
+          display: block;
+          position: absolute;
+          bottom: -6px;
+          left: 0;
+          right: 0;
+          height: 4px;
+          background: #3b82f6;
+          border-radius: 2px;
+          opacity: 0;
+          transition: opacity 0.15s;
+          z-index: 100;
+          pointer-events: all;
+        }
+        body.placement-mode .grid-row:last-child:hover::after {
+          opacity: 0.6;
+        }
+        /* Dim the canvas content slightly */
+        body.placement-mode > [data-gjs-type="wrapper"] {
+          opacity: 0.85;
+        }
+      `;
+      doc.head.appendChild(style);
+    }
+
+    // Click handler inside canvas
+    const clickHandler = (e: MouseEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+
+      const wrapper = editor.getWrapper();
+      if (!wrapper) return;
+
+      // Find which row was clicked near
+      const allRowEls = doc.querySelectorAll('.grid-row');
+      let insertIndex = wrapper.components().length; // Default: end
+
+      for (let i = 0; i < allRowEls.length; i++) {
+        const rowEl = allRowEls[i];
+        const rect = rowEl.getBoundingClientRect();
+        const midY = rect.top + rect.height / 2;
+
+        if (e.clientY < midY) {
+          // Insert before this row
+          insertIndex = i;
+          break;
+        }
+      }
+
+      createFieldAtPosition(pendingField.type, pendingField.label, insertIndex);
+      setPendingField(null);
+    };
+
+    doc.addEventListener('click', clickHandler, true);
+    return () => {
+      doc.removeEventListener('click', clickHandler, true);
+    };
+  }, [pendingField, createFieldAtPosition]);
 
   const handleSave = useCallback(async () => {
     if (!editorRef.current) return;
@@ -643,76 +768,7 @@ export default function EntityEditor({ entity, onSave, onCancel }: EntityEditorP
     }
   }, [onSave, entityName, entityDescription, entitySettings]);
 
-  // ─── Portal rendering helpers ─────────────────────────────────────
-
-  const getComponentProp = (prop: string): string => {
-    return (selectedComponentRef.current?.get(prop) as string) || '';
-  };
-
-  const setComponentProp = (prop: string, value: string) => {
-    const comp = selectedComponentRef.current;
-    if (!comp) return;
-    comp.set(prop, value);
-    comp.trigger(`change:${prop}`);
-    forceUpdate((n) => n + 1);
-  };
-
-  function renderTraitPortal(target: PortalTarget) {
-    const comp = selectedComponentRef.current;
-    if (!comp) return null;
-
-    switch (target.type) {
-      case 'crm-options-editor':
-        return (
-          <OptionsTraitEditor
-            value={getComponentProp(target.propName)}
-            onChange={(v) => setComponentProp(target.propName, v)}
-          />
-        );
-
-      case 'crm-entity-select': {
-        const isSubEntity = target.propName === 'fieldSubEntityId';
-        const slugProp = isSubEntity ? 'fieldSubEntitySlug' : 'fieldRelatedEntitySlug';
-        const displayProp = isSubEntity ? 'fieldParentDisplayField' : 'fieldDisplayField';
-
-        return (
-          <EntitySelectTraitEditor
-            entityIdValue={getComponentProp(target.propName)}
-            entitySlugValue={getComponentProp(slugProp)}
-            displayFieldValue={getComponentProp(displayProp)}
-            onChangeEntityId={(v) => setComponentProp(target.propName, v)}
-            onChangeEntitySlug={(v) => setComponentProp(slugProp, v)}
-            onChangeDisplayField={(v) => setComponentProp(displayProp, v)}
-          />
-        );
-      }
-
-      case 'crm-workflow-editor':
-        return (
-          <WorkflowTraitEditor
-            value={getComponentProp(target.propName)}
-            onChange={(v) => setComponentProp(target.propName, v)}
-          />
-        );
-
-      case 'crm-zone-diagram-editor':
-        return (
-          <ZoneDiagramTraitEditor
-            imageValue={getComponentProp('fieldDiagramImage')}
-            zonesValue={getComponentProp('fieldDiagramZones')}
-            saveModeValue={getComponentProp('fieldDiagramSaveMode')}
-            onChangeImage={(v) => setComponentProp('fieldDiagramImage', v)}
-            onChangeZones={(v) => setComponentProp('fieldDiagramZones', v)}
-            onChangeSaveMode={(v) => setComponentProp('fieldDiagramSaveMode', v)}
-          />
-        );
-
-      default:
-        return null;
-    }
-  }
-
-  // Get current fields for the automations panel (deserialized from canvas)
+  // Get current fields for the automations dialog (deserialized from canvas)
   const getCurrentFields = useCallback((): EntityField[] => {
     if (!editorRef.current) return entity.fields || [];
     try {
@@ -722,6 +778,9 @@ export default function EntityEditor({ entity, onSave, onCancel }: EntityEditorP
       return entity.fields || [];
     }
   }, [entity.fields]);
+
+  // Whether the selected component is a CRM field
+  const isFieldSelected = selectedComponent?.get('type')?.startsWith('crm-field') || false;
 
   return (
     <div className="h-screen flex flex-col bg-background">
@@ -739,10 +798,23 @@ export default function EntityEditor({ entity, onSave, onCancel }: EntityEditorP
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5">
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-1.5"
+            onClick={() => setFieldPickerOpen(true)}
+          >
+            <Plus className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">Adicionar Campo</span>
+          </Button>
+
+          <div className="w-px h-6 bg-border mx-1" />
+
           <Button
             variant="ghost"
             size="icon"
+            className="h-8 w-8"
             onClick={() => editorRef.current?.runCommand('core:undo')}
             title="Desfazer (Ctrl+Z)"
           >
@@ -751,6 +823,7 @@ export default function EntityEditor({ entity, onSave, onCancel }: EntityEditorP
           <Button
             variant="ghost"
             size="icon"
+            className="h-8 w-8"
             onClick={() => editorRef.current?.runCommand('core:redo')}
             title="Refazer (Ctrl+Y)"
           >
@@ -759,6 +832,7 @@ export default function EntityEditor({ entity, onSave, onCancel }: EntityEditorP
           <Button
             variant="ghost"
             size="icon"
+            className="h-8 w-8"
             onClick={() => {
               if (confirm('Remover todos os campos do canvas?')) {
                 editorRef.current?.runCommand('core:canvas-clear');
@@ -771,11 +845,23 @@ export default function EntityEditor({ entity, onSave, onCancel }: EntityEditorP
 
           <div className="w-px h-6 bg-border mx-1" />
 
+          <Button
+            variant="ghost"
+            size="sm"
+            className="gap-1.5"
+            onClick={() => setAutomationsOpen(true)}
+          >
+            <Zap className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">Automacoes</span>
+          </Button>
+
+          <div className="w-px h-6 bg-border mx-1" />
+
           <span className="text-xs text-muted-foreground hidden md:inline">
             {fieldCount} campos
           </span>
 
-          <Button onClick={handleSave} disabled={saving}>
+          <Button size="sm" onClick={handleSave} disabled={saving}>
             {saving ? (
               <Loader2 className="h-4 w-4 mr-2 animate-spin" />
             ) : (
@@ -786,29 +872,30 @@ export default function EntityEditor({ entity, onSave, onCancel }: EntityEditorP
         </div>
       </div>
 
-      {/* Layout principal: Blocks | Canvas | Traits/Info/Automations */}
+      {/* Layout principal: Canvas | Right Panel */}
       <div className="flex-1 flex overflow-hidden">
-        {/* Painel esquerdo - Blocos + Botao de adicionar */}
-        <div className="w-64 border-r bg-card overflow-y-auto flex-shrink-0">
-          <div className="p-3">
-            <Button
-              variant="outline"
-              className="w-full justify-start gap-2 mb-3"
-              onClick={() => setFieldPickerOpen(true)}
-            >
-              <Plus className="h-4 w-4" />
-              Adicionar Campo
-            </Button>
-            <h2 className="text-sm font-semibold text-muted-foreground mb-2 flex items-center gap-2">
-              <Columns3 className="h-4 w-4" />
-              Arraste para o canvas
-            </h2>
-          </div>
-          <div className="blocks-container" />
-        </div>
+        {/* Hidden containers (GrapeJS needs blocks for drag-drop, traits hidden) */}
+        <div className="gjs-blocks-hidden hidden" />
+        <div id="gjs-traits-hidden" className="hidden" />
 
         {/* Canvas central */}
-        <div className="flex-1 overflow-hidden bg-muted">
+        <div className="flex-1 overflow-hidden bg-muted relative">
+          {/* Placement mode banner */}
+          {pendingField && (
+            <div className="absolute top-0 left-0 right-0 z-10 flex items-center justify-center gap-3 py-2.5 px-4 bg-blue-500 text-white text-sm shadow-md">
+              <span>
+                Clique no canvas para inserir <strong>{pendingField.label}</strong>
+              </span>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 text-white hover:bg-blue-600 hover:text-white text-xs"
+                onClick={() => setPendingField(null)}
+              >
+                Cancelar (Esc)
+              </Button>
+            </div>
+          )}
           <GjsEditor
             grapesjs={grapesjs}
             options={createEditorConfig('.gjs-editor-container')}
@@ -818,57 +905,52 @@ export default function EntityEditor({ entity, onSave, onCancel }: EntityEditorP
           </GjsEditor>
         </div>
 
-        {/* Painel direito - Traits / Info / Automations */}
-        <div className="w-80 border-l bg-card overflow-y-auto flex-shrink-0">
-          <Tabs value={rightTab} onValueChange={(v) => setRightTab(v as typeof rightTab)}>
-            <TabsList className="w-full rounded-none border-b">
-              <TabsTrigger value="traits" className="flex-1 text-xs gap-1">
-                <Columns3 className="h-3 w-3" />
-                Propriedades
-              </TabsTrigger>
-              <TabsTrigger value="info" className="flex-1 text-xs gap-1">
-                <Info className="h-3 w-3" />
-                Info
-              </TabsTrigger>
-              <TabsTrigger value="automations" className="flex-1 text-xs gap-1">
-                <Zap className="h-3 w-3" />
-                Automacoes
-              </TabsTrigger>
-            </TabsList>
+        {/* Painel direito - Propriedades */}
+        <div className="w-80 border-l bg-card flex flex-col flex-shrink-0 min-w-0">
+          {/* Header */}
+          <div className="px-4 py-2.5 border-b flex-shrink-0">
+            {isFieldSelected ? (
+              <>
+                <p className="text-sm font-medium truncate">
+                  {(selectedComponent?.get('fieldLabel') as string) || 'Campo'}
+                </p>
+                <p className="text-[11px] text-muted-foreground font-mono truncate">
+                  {(selectedComponent?.get('fieldName') as string) || '—'}
+                </p>
+              </>
+            ) : (
+              <p className="text-sm font-medium text-muted-foreground">
+                Propriedades da Entidade
+              </p>
+            )}
+          </div>
 
-            <TabsContent value="traits" className="m-0">
-              <div className="traits-container" />
-            </TabsContent>
-
-            <TabsContent value="info" className="m-0 p-3">
-              <EntityInfoPanel
-                name={entityName}
-                slug={entity.slug}
-                description={entityDescription}
-                settings={entitySettings}
-                onChangeName={setEntityName}
-                onChangeDescription={setEntityDescription}
-                onChangeSettings={setEntitySettings}
-              />
-            </TabsContent>
-
-            <TabsContent value="automations" className="m-0 p-3">
-              <AutomationTab
+          {/* Content */}
+          <div className="flex-1 overflow-y-auto">
+            {isFieldSelected && selectedComponent ? (
+              <FieldPropertiesPanel
+                key={selectedComponent.cid}
+                component={selectedComponent}
                 entityId={entity.id}
-                fields={getCurrentFields()}
+                getCanvasFields={getCanvasFields}
+                onPropertyChange={() => forceUpdate((n) => n + 1)}
               />
-            </TabsContent>
-          </Tabs>
+            ) : (
+              <div className="p-4">
+                <EntityInfoPanel
+                  name={entityName}
+                  slug={entity.slug}
+                  description={entityDescription}
+                  settings={entitySettings}
+                  onChangeName={setEntityName}
+                  onChangeDescription={setEntityDescription}
+                  onChangeSettings={setEntitySettings}
+                />
+              </div>
+            )}
+          </div>
         </div>
       </div>
-
-      {/* React Portals for custom trait editors */}
-      {portalTargets.map((target) =>
-        createPortal(
-          <div key={target.traitId}>{renderTraitPortal(target)}</div>,
-          target.container,
-        ),
-      )}
 
       {/* Modal de selecao de campos */}
       <FieldPickerModal
@@ -876,6 +958,16 @@ export default function EntityEditor({ entity, onSave, onCancel }: EntityEditorP
         onClose={() => setFieldPickerOpen(false)}
         onSelect={handleFieldPickerSelect}
       />
+
+      {/* Dialog de automacoes */}
+      <Dialog open={automationsOpen} onOpenChange={setAutomationsOpen}>
+        <DialogContent className="max-w-4xl max-h-[85vh] overflow-y-auto">
+          <AutomationTab
+            entityId={entity.id}
+            fields={getCurrentFields()}
+          />
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

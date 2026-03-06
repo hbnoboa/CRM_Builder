@@ -34,20 +34,45 @@ export function EntitySelectTraitEditor({
   const [search, setSearch] = useState('');
   const [selectedEntity, setSelectedEntity] = useState<EntityOption | null>(null);
 
+  // Fetch entities list
   useEffect(() => {
     api.get('/entities')
       .then((res) => {
         const list = Array.isArray(res.data) ? res.data : res.data?.data || [];
         setEntities(list);
-        // Find pre-selected entity
-        if (entityIdValue) {
-          const found = list.find((e: EntityOption) => e.id === entityIdValue);
-          if (found) setSelectedEntity(found);
-        }
       })
       .catch(() => setEntities([]))
       .finally(() => setLoading(false));
   }, []);
+
+  // Resolve selected entity when entities load or entityIdValue changes
+  useEffect(() => {
+    if (!entityIdValue) {
+      setSelectedEntity(null);
+      return;
+    }
+    if (entities.length === 0) return;
+
+    const found = entities.find((e) => e.id === entityIdValue);
+    if (found) {
+      setSelectedEntity(found);
+    } else {
+      // Entity not in list — fetch it directly
+      api.get(`/entities/${entityIdValue}`)
+        .then((res) => {
+          const entity = res.data;
+          if (entity?.id) {
+            setSelectedEntity(entity);
+          }
+        })
+        .catch(() => {
+          // Can't find entity — show slug fallback
+          if (entitySlugValue) {
+            setSelectedEntity({ id: entityIdValue, name: entitySlugValue, slug: entitySlugValue });
+          }
+        });
+    }
+  }, [entityIdValue, entities.length, entitySlugValue]);
 
   const handleSelect = (entity: EntityOption) => {
     setSelectedEntity(entity);
@@ -84,6 +109,7 @@ export function EntitySelectTraitEditor({
               setSelectedEntity(null);
               onChangeEntityId('');
               onChangeEntitySlug('');
+              onChangeDisplayField('');
             }}
           >
             Trocar
@@ -91,6 +117,13 @@ export function EntitySelectTraitEditor({
         </div>
       ) : (
         <>
+          {/* Show slug hint when ID exists but entity not resolved yet */}
+          {entitySlugValue && loading && (
+            <div className="p-2 bg-muted rounded-md text-xs text-muted-foreground font-mono">
+              {entitySlugValue}
+            </div>
+          )}
+
           <Input
             value={search}
             onChange={(e) => setSearch(e.target.value)}

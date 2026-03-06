@@ -15,6 +15,9 @@ export interface CopyResult {
     entityData: number;
     pdfTemplates: number;
     pages: number;
+    automations: number;
+    webhooks: number;
+    fieldRules: number;
   };
   skipped: string[];
   warnings: string[];
@@ -39,7 +42,7 @@ export class TenantCopyService {
       throw new NotFoundException('Tenant nao encontrado');
     }
 
-    const [roles, entities, pages, pdfTemplates] = await Promise.all([
+    const [roles, entities, pages, pdfTemplates, automations, webhooks, fieldRules] = await Promise.all([
       this.prisma.customRole.findMany({
         where: { tenantId },
         select: {
@@ -85,9 +88,42 @@ export class TenantCopyService {
         },
         orderBy: { name: 'asc' },
       }),
+      this.prisma.entityAutomation.findMany({
+        where: { tenantId },
+        select: {
+          id: true,
+          name: true,
+          trigger: true,
+          isActive: true,
+          entity: { select: { name: true, slug: true } },
+        },
+        orderBy: { name: 'asc' },
+      }),
+      this.prisma.webhook.findMany({
+        where: { tenantId },
+        select: {
+          id: true,
+          name: true,
+          url: true,
+          method: true,
+          status: true,
+        },
+        orderBy: { name: 'asc' },
+      }),
+      this.prisma.entityFieldRule.findMany({
+        where: { tenantId },
+        select: {
+          id: true,
+          fieldSlug: true,
+          ruleType: true,
+          isActive: true,
+          entity: { select: { name: true, slug: true } },
+        },
+        orderBy: { fieldSlug: 'asc' },
+      }),
     ]);
 
-    return { roles, entities, pages, pdfTemplates };
+    return { roles, entities, pages, pdfTemplates, automations, webhooks, fieldRules };
   }
 
   /**
@@ -113,7 +149,10 @@ export class TenantCopyService {
       modules.roles?.length ||
       modules.entities?.length ||
       modules.pages?.length ||
-      modules.pdfTemplates?.length;
+      modules.pdfTemplates?.length ||
+      modules.automations?.length ||
+      modules.webhooks?.length ||
+      modules.fieldRules?.length;
 
     if (!hasAnything) {
       throw new BadRequestException('Nenhum item selecionado para copiar');
@@ -131,7 +170,7 @@ export class TenantCopyService {
         const entityDataIdMap = new Map<string, string>();
         const skipped: string[] = [];
         const warnings: string[] = [];
-        const copied = { roles: 0, entities: 0, entityData: 0, pdfTemplates: 0, pages: 0 };
+        const copied = { roles: 0, entities: 0, entityData: 0, pdfTemplates: 0, pages: 0, automations: 0, webhooks: 0, fieldRules: 0 };
 
         // ═══════════════════════════════════════
         // 1. COPY ROLES
@@ -466,6 +505,111 @@ export class TenantCopyService {
 
             existingSlugs.add(slug);
             copied.pages++;
+          }
+        }
+
+        // ═══════════════════════════════════════
+        // 6. COPY AUTOMATIONS (EntityAutomation)
+        // ═══════════════════════════════════════
+        if (modules.automations?.length) {
+          const sourceAutomations = await tx.entityAutomation.findMany({
+            where: { id: { in: modules.automations }, tenantId: sourceTenantId },
+          });
+
+          for (const auto of sourceAutomations) {
+            const newEntityId = entityIdMap.get(auto.entityId);
+            if (!newEntityId) {
+              warnings.push(`Automacao "${auto.name}" pulada - entidade ${auto.entityId} nao foi copiada`);
+              continue;
+            }
+
+            await tx.entityAutomation.create({
+              data: {
+                tenantId: targetTenantId,
+                entityId: newEntityId,
+                name: auto.name,
+                description: auto.description,
+                isActive: false, // Always inactive on copy
+                trigger: auto.trigger,
+                triggerConfig: auto.triggerConfig as Prisma.InputJsonValue,
+                conditions: auto.conditions as Prisma.InputJsonValue,
+                actions: auto.actions as Prisma.InputJsonValue,
+                errorHandling: auto.errorHandling,
+                maxExecutionsPerHour: auto.maxExecutionsPerHour,
+              },
+            });
+
+            copied.automations++;
+          }
+        }
+
+        // ═══════════════════════════════════════
+        // 7. COPY WEBHOOKS
+        // ═══════════════════════════════════════
+        if (modules.webhooks?.length) {
+          const sourceWebhooks = await tx.webhook.findMany({
+            where: { id: { in: modules.webhooks }, tenantId: sourceTenantId },
+          });
+
+          for (const wh of sourceWebhooks) {
+            const newEntityId = wh.entityId ? entityIdMap.get(wh.entityId) : null;
+            if (wh.entityId && !newEntityId) {
+              warnings.push(`Webhook "${wh.name}" copiado sem vinculo a entidade (entidade nao foi copiada)`);
+            }
+
+            await tx.webhook.create({
+              data: {
+                tenantId: targetTenantId,
+                entityId: newEntityId || null,
+                name: wh.name,
+                description: wh.description,
+                url: wh.url,
+                method: wh.method,
+                headers: wh.headers as Prisma.InputJsonValue,
+                bodyTemplate: wh.bodyTemplate as Prisma.InputJsonValue,
+                events: wh.events,
+                filterConditions: wh.filterConditions as Prisma.InputJsonValue,
+                status: 'INACTIVE', // Always inactive on copy
+                retryCount: wh.retryCount,
+                retryDelay: wh.retryDelay,
+                timeout: wh.timeout,
+                secret: null, // Never copy secrets
+              },
+            });
+
+            copied.webhooks++;
+          }
+        }
+
+        // ═══════════════════════════════════════
+        // 8. COPY FIELD RULES (EntityFieldRule)
+        // ═══════════════════════════════════════
+        if (modules.fieldRules?.length) {
+          const sourceRules = await tx.entityFieldRule.findMany({
+            where: { id: { in: modules.fieldRules }, tenantId: sourceTenantId },
+          });
+
+          for (const rule of sourceRules) {
+            const newEntityId = entityIdMap.get(rule.entityId);
+            if (!newEntityId) {
+              warnings.push(`Regra de campo "${rule.fieldSlug}" pulada - entidade nao foi copiada`);
+              continue;
+            }
+
+            await tx.entityFieldRule.create({
+              data: {
+                tenantId: targetTenantId,
+                entityId: newEntityId,
+                fieldSlug: rule.fieldSlug,
+                ruleType: rule.ruleType,
+                condition: rule.condition as Prisma.InputJsonValue,
+                config: rule.config as Prisma.InputJsonValue,
+                priority: rule.priority,
+                isActive: rule.isActive,
+              },
+            });
+
+            copied.fieldRules++;
           }
         }
 

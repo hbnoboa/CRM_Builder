@@ -42,14 +42,14 @@ export function createEditorConfig(
       defaults: [],
     },
 
-    // Blocos no painel esquerdo
+    // Blocos em div hidden (necessarios para drag-and-drop funcionar, mas UI e via modal)
     blockManager: {
-      appendTo: '.blocks-container',
+      appendTo: '.gjs-blocks-hidden',
     },
 
-    // Traits no painel direito
+    // Traits desabilitados — painel de propriedades e gerenciado via React (FieldPropertiesPanel)
     traitManager: {
-      appendTo: '.traits-container',
+      appendTo: '#gjs-traits-hidden',
     },
 
     // Selector manager

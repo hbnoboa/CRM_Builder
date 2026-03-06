@@ -165,7 +165,7 @@ export function FieldPickerModal({ open, onClose, onSelect }: FieldPickerModalPr
 
         {/* Footer */}
         <div className="px-6 py-3 border-t text-xs text-muted-foreground">
-          Clique em um campo para adiciona-lo ao canvas
+          Clique em um campo para posiciona-lo no canvas
         </div>
       </DialogContent>
     </Dialog>

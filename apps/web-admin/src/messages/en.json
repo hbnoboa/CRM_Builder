@@ -872,8 +872,10 @@
         "roles": "Roles",
         "entities": "Tables",
         "pages": "Pages",
-        "endpoints": "Custom APIs",
-        "pdfTemplates": "PDF Templates"
+        "pdfTemplates": "PDF Templates",
+        "automations": "Automations",
+        "webhooks": "Webhooks",
+        "fieldRules": "Field Rules"
       },
       "result": {
         "title": "Copy completed successfully!",

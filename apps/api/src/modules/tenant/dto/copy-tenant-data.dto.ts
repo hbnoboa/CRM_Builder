@@ -46,6 +46,24 @@ export class CopyModulesDto {
   @IsString({ each: true })
   @IsOptional()
   pdfTemplates?: string[];
+
+  @ApiPropertyOptional({ description: 'IDs das automacoes a copiar' })
+  @IsArray()
+  @IsString({ each: true })
+  @IsOptional()
+  automations?: string[];
+
+  @ApiPropertyOptional({ description: 'IDs dos webhooks a copiar' })
+  @IsArray()
+  @IsString({ each: true })
+  @IsOptional()
+  webhooks?: string[];
+
+  @ApiPropertyOptional({ description: 'IDs das regras de campo a copiar' })
+  @IsArray()
+  @IsString({ each: true })
+  @IsOptional()
+  fieldRules?: string[];
 }
 
 export class CopyTenantDataDto {

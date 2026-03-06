@@ -11,8 +11,7 @@ const SIMPLE_PROPS: Array<{
   gjsKey: string;
   type: 'string' | 'boolean' | 'number';
 }> = [
-  { entityKey: 'name', gjsKey: 'fieldName', type: 'string' },
-  { entityKey: 'label', gjsKey: 'fieldLabel', type: 'string' },
+  { entityKey: 'slug', gjsKey: 'fieldName', type: 'string' },
   { entityKey: 'required', gjsKey: 'fieldRequired', type: 'boolean' },
   { entityKey: 'placeholder', gjsKey: 'fieldPlaceholder', type: 'string' },
   { entityKey: 'helpText', gjsKey: 'fieldHelpText', type: 'string' },
@@ -118,9 +117,14 @@ export function entityFieldToGjsProps(field: EntityField): Record<string, unknow
     }
   }
 
-  // Slug -> label fallback
-  if (!props.fieldLabel && field.name) {
-    props.fieldLabel = field.label || field.name;
+  // Garantir que fieldName tem o slug (fallback para name se slug nao existir)
+  if (!props.fieldName && field.name) {
+    props.fieldName = field.name;
+  }
+
+  // Label: usar label do campo, senao name (display name), senao slug
+  if (!props.fieldLabel) {
+    props.fieldLabel = field.label || field.name || field.slug || '';
   }
 
   // Propriedades JSON
@@ -147,7 +151,7 @@ export function gjsPropsToEntityField(
 ): EntityField {
   const field: Partial<EntityField> = {
     slug: String(props.fieldName || ''),
-    name: String(props.fieldName || ''),
+    name: String(props.fieldLabel || props.fieldName || ''),
     label: String(props.fieldLabel || ''),
     type: String(props.fieldType || 'text') as EntityField['type'],
   };
