@@ -787,7 +787,7 @@ export default function EntityEditor({ entity, onSave, onCancel }: EntityEditorP
       <style>{editorStyles}</style>
 
       {/* Toolbar superior */}
-      <div className="flex items-center justify-between px-4 py-2 border-b bg-card">
+      <div className="flex items-center justify-between px-2 sm:px-4 py-2 border-b bg-card">
         <div className="flex items-center gap-3">
           <Button variant="ghost" size="icon" onClick={onCancel}>
             <ArrowLeft className="h-4 w-4" />
@@ -857,7 +857,7 @@ export default function EntityEditor({ entity, onSave, onCancel }: EntityEditorP
 
           <div className="w-px h-6 bg-border mx-1" />
 
-          <span className="text-xs text-muted-foreground hidden md:inline">
+          <span className="text-xs text-muted-foreground hidden sm:inline">
             {fieldCount} campos
           </span>
 
@@ -906,7 +906,7 @@ export default function EntityEditor({ entity, onSave, onCancel }: EntityEditorP
         </div>
 
         {/* Painel direito - Propriedades */}
-        <div className="w-80 border-l bg-card flex flex-col flex-shrink-0 min-w-0">
+        <div className="w-64 md:w-72 lg:w-80 border-l bg-card flex flex-col flex-shrink-0 min-w-0">
           {/* Header */}
           <div className="px-4 py-2.5 border-b flex-shrink-0">
             {isFieldSelected ? (

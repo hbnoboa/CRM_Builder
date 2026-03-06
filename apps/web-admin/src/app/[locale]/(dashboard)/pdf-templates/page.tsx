@@ -261,12 +261,12 @@ function GenerateModal({
               </Button>
             </div>
             {activeFilters.map((filter, index) => (
-              <div key={index} className="flex items-center gap-1.5">
+              <div key={index} className="flex flex-wrap items-center gap-1.5">
                 <Select
                   value={filter.fieldSlug}
                   onValueChange={(val) => handleFilterFieldChange(index, val)}
                 >
-                  <SelectTrigger className="h-8 text-xs w-[130px] flex-shrink-0">
+                  <SelectTrigger className="h-8 text-xs flex-1 min-w-[100px]">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -281,7 +281,7 @@ function GenerateModal({
                   value={filter.operator}
                   onValueChange={(val) => handleFilterOperatorChange(index, val)}
                 >
-                  <SelectTrigger className="h-8 text-xs w-[90px] flex-shrink-0">
+                  <SelectTrigger className="h-8 text-xs w-24 flex-shrink-0">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>

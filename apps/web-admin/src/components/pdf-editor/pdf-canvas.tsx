@@ -101,7 +101,7 @@ function SortableElement({
       {/* Drag handle + type badge */}
       <div
         className={cn(
-          'absolute -left-7 top-1/2 -translate-y-1/2 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity',
+          'absolute -left-4 sm:-left-7 top-1/2 -translate-y-1/2 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity',
           isSelected && 'opacity-100',
         )}
       >
@@ -207,13 +207,14 @@ export function PdfCanvas({
 
   return (
     <div
-      className="flex justify-center py-8 px-4"
+      className="flex justify-center py-4 sm:py-8 px-2 sm:px-4"
       onClick={() => onSelect(null)}
     >
       <div
         className="bg-white text-gray-900 rounded-sm shadow-lg border relative"
         style={{
-          width: maxWidth,
+          width: '100%',
+          maxWidth: maxWidth,
           minHeight: isLandscape ? 480 : 680,
         }}
       >
@@ -222,7 +223,7 @@ export function PdfCanvas({
           {pageSize} {isLandscape ? 'Paisagem' : 'Retrato'}
         </div>
 
-        <div className="flex flex-col h-full" style={{ padding: '24px 32px' }}>
+        <div className="flex flex-col h-full p-4 sm:p-6 md:px-8">
           {/* ─── Header Zone ──────────────────────── */}
           <div
             className={cn(
@@ -240,7 +241,7 @@ export function PdfCanvas({
           </div>
 
           {/* ─── Body Zone (drag-drop elements) ─── */}
-          <div className="flex-1 min-h-[200px] pl-8">
+          <div className="flex-1 min-h-[200px] pl-4 sm:pl-8">
             <DndContext
               sensors={sensors}
               collisionDetection={closestCenter}

@@ -213,7 +213,7 @@ export function PdfVisualEditor({ template }: PdfVisualEditorProps) {
   return (
     <div className="flex flex-col h-screen">
       {/* ═══ Toolbar ═══ */}
-      <div className="h-14 border-b bg-card flex items-center px-4 gap-2 flex-shrink-0">
+      <div className="h-14 border-b bg-card flex items-center px-2 sm:px-4 gap-1.5 sm:gap-2 flex-shrink-0">
         {/* Back button */}
         <Button
           variant="ghost"
@@ -232,7 +232,7 @@ export function PdfVisualEditor({ template }: PdfVisualEditorProps) {
             setLocalName(e.target.value);
             setHasChanges(true);
           }}
-          className="text-sm font-semibold bg-transparent border-none outline-none focus:ring-1 focus:ring-ring rounded px-2 py-1 min-w-[120px] max-w-[300px]"
+          className="text-sm font-semibold bg-transparent border-none outline-none focus:ring-1 focus:ring-ring rounded px-2 py-1 min-w-[80px] sm:min-w-[120px] max-w-[160px] sm:max-w-[300px]"
         />
 
         {/* Badges */}
@@ -258,8 +258,8 @@ export function PdfVisualEditor({ template }: PdfVisualEditorProps) {
           size="sm"
           onClick={() => setComputedFieldsOpen(true)}
         >
-          <Calculator className="h-4 w-4 mr-1.5" />
-          Campos
+          <Calculator className="h-4 w-4 sm:mr-1.5" />
+          <span className="hidden sm:inline">Campos</span>
           {(localContent.computedFields?.length || 0) > 0 && (
             <Badge variant="secondary" className="ml-1.5 h-4 text-[10px] px-1">
               {localContent.computedFields?.length}
@@ -273,11 +273,11 @@ export function PdfVisualEditor({ template }: PdfVisualEditorProps) {
           onClick={() => setShowPreview(!showPreview)}
         >
           {showPreview ? (
-            <EyeOff className="h-4 w-4 mr-1.5" />
+            <EyeOff className="h-4 w-4 sm:mr-1.5" />
           ) : (
-            <Eye className="h-4 w-4 mr-1.5" />
+            <Eye className="h-4 w-4 sm:mr-1.5" />
           )}
-          Preview
+          <span className="hidden sm:inline">Preview</span>
         </Button>
 
         <Button
@@ -285,8 +285,8 @@ export function PdfVisualEditor({ template }: PdfVisualEditorProps) {
           size="sm"
           onClick={() => setElementPickerOpen(true)}
         >
-          <Plus className="h-4 w-4 mr-1.5" />
-          Adicionar
+          <Plus className="h-4 w-4 sm:mr-1.5" />
+          <span className="hidden sm:inline">Adicionar</span>
         </Button>
 
         <Button
@@ -296,11 +296,11 @@ export function PdfVisualEditor({ template }: PdfVisualEditorProps) {
           disabled={!hasChanges || updateTemplate.isPending}
         >
           {updateTemplate.isPending ? (
-            <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
+            <Loader2 className="h-4 w-4 sm:mr-1.5 animate-spin" />
           ) : (
-            <Save className="h-4 w-4 mr-1.5" />
+            <Save className="h-4 w-4 sm:mr-1.5" />
           )}
-          Salvar
+          <span className="hidden sm:inline">Salvar</span>
         </Button>
 
         {!template.isPublished && (
@@ -310,11 +310,11 @@ export function PdfVisualEditor({ template }: PdfVisualEditorProps) {
             disabled={publishTemplate.isPending}
           >
             {publishTemplate.isPending ? (
-              <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
+              <Loader2 className="h-4 w-4 sm:mr-1.5 animate-spin" />
             ) : (
-              <CheckCircle className="h-4 w-4 mr-1.5" />
+              <CheckCircle className="h-4 w-4 sm:mr-1.5" />
             )}
-            Publicar
+            <span className="hidden sm:inline">Publicar</span>
           </Button>
         )}
       </div>
@@ -334,7 +334,7 @@ export function PdfVisualEditor({ template }: PdfVisualEditorProps) {
         </div>
 
         {/* ─── Properties Panel ─── */}
-        <div className="w-80 border-l bg-card flex-shrink-0 overflow-y-auto">
+        <div className="w-64 md:w-72 lg:w-80 border-l bg-card flex-shrink-0 overflow-y-auto">
           {selected ? (
             <ElementPropertiesPanel
               selected={selected}
@@ -359,7 +359,7 @@ export function PdfVisualEditor({ template }: PdfVisualEditorProps) {
 
         {/* ─── Preview Panel (optional) ─── */}
         {showPreview && (
-          <div className="w-96 border-l bg-card flex-shrink-0 overflow-y-auto">
+          <div className="w-72 lg:w-96 border-l bg-card flex-shrink-0 overflow-y-auto">
             <Card className="border-0 shadow-none rounded-none h-full">
               <CardHeader className="pb-2">
                 <CardTitle className="text-lg">Preview PDF</CardTitle>

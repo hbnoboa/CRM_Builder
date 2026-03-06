@@ -131,15 +131,15 @@ function NewPdfTemplatePageContent() {
       </nav>
 
       {/* Header */}
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-3 sm:gap-4">
         <Link href="/pdf-templates">
-          <Button variant="ghost" size="icon">
+          <Button variant="ghost" size="icon" className="flex-shrink-0">
             <ArrowLeft className="h-4 w-4" />
           </Button>
         </Link>
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-bold">Novo Template de PDF</h1>
-          <p className="text-muted-foreground mt-1 text-sm sm:text-base">
+        <div className="min-w-0">
+          <h1 className="text-xl sm:text-2xl md:text-3xl font-bold truncate">Novo Template de PDF</h1>
+          <p className="text-muted-foreground mt-1 text-xs sm:text-sm md:text-base">
             Configure as informacoes basicas do seu template
           </p>
         </div>
