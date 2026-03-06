@@ -205,7 +205,7 @@ export function StatisticsDataEditor({
                       handleMetricChange(index, updates);
                     }}
                   >
-                    <SelectTrigger className="w-44">
+                    <SelectTrigger className="flex-1 min-w-0">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -299,7 +299,7 @@ export function StatisticsDataEditor({
                             })
                           }
                         >
-                          <SelectTrigger className="w-44">
+                          <SelectTrigger className="flex-1 min-w-0">
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>

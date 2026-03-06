@@ -36,7 +36,7 @@ export function TextElementEditor({ element, onChange, availableFields }: TextEl
         </p>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-3">
+      <div className="grid gap-4 grid-cols-2">
         <div className="space-y-2">
           <Label>Tamanho da Fonte</Label>
           <div className="flex items-center gap-4">
@@ -97,7 +97,7 @@ export function TextElementEditor({ element, onChange, availableFields }: TextEl
         <Label>Negrito</Label>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2">
+      <div className="grid gap-4 grid-cols-2">
         <div className="space-y-2">
           <Label>Margem Superior (px)</Label>
           <Slider

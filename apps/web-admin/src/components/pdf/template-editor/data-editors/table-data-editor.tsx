@@ -211,14 +211,14 @@ export function TableDataEditor({
               </div>
 
               {/* Linha 2: Formato + Alinhamento + Largura (px) */}
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <Select
                   value={column.format || 'text'}
                   onValueChange={(value) =>
                     handleColumnChange(index, { format: value as TableColumn['format'] })
                   }
                 >
-                  <SelectTrigger className="flex-1">
+                  <SelectTrigger className="flex-1 min-w-0">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -260,7 +260,7 @@ export function TableDataEditor({
                     handleColumnChange(index, { align: value as 'left' | 'center' | 'right' })
                   }
                 >
-                  <SelectTrigger className="w-32">
+                  <SelectTrigger className="w-24 flex-shrink-0">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -286,12 +286,12 @@ export function TableDataEditor({
                     placeholder="Texto quando vazio (ex: -, N/A)"
                     value={column.defaultValue || ''}
                     onChange={(e) => handleColumnChange(index, { defaultValue: e.target.value || undefined })}
-                    className="flex-1 text-xs h-7"
+                    className="flex-1 text-xs h-8"
                   />
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="text-xs h-7 text-muted-foreground"
+                    className="text-xs h-8 text-muted-foreground"
                     onClick={() => handleColumnChange(index, { defaultValue: undefined })}
                   >
                     Limpar
@@ -323,7 +323,7 @@ export function TableDataEditor({
                   value={element.filterLogic || 'and'}
                   onValueChange={(v) => onChange({ filterLogic: v as 'and' | 'or' })}
                 >
-                  <SelectTrigger className="h-7 w-auto text-xs">
+                  <SelectTrigger className="h-8 w-auto text-xs">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -346,7 +346,7 @@ export function TableDataEditor({
           )}
 
           {filters.map((filter, index) => (
-            <div key={index} className="flex items-center gap-2 p-2 border rounded-md">
+            <div key={index} className="flex flex-wrap items-center gap-2 p-2 border rounded-md">
               <Select
                 value={filter.field}
                 onValueChange={(v) => handleFilterChange(index, { field: v })}
@@ -366,7 +366,7 @@ export function TableDataEditor({
                 value={filter.operator}
                 onValueChange={(v) => handleFilterChange(index, { operator: v as TableRowFilter['operator'] })}
               >
-                <SelectTrigger className="w-36">
+                <SelectTrigger className="flex-1 min-w-0">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -382,7 +382,7 @@ export function TableDataEditor({
                   value={filter.value}
                   onChange={(e) => handleFilterChange(index, { value: e.target.value })}
                   placeholder="Valor"
-                  className="w-28"
+                  className="flex-1 min-w-0"
                 />
               )}
               <Button
@@ -419,7 +419,7 @@ export function TableDataEditor({
           )}
 
           {sorting.map((rule, index) => (
-            <div key={index} className="flex items-center gap-2 p-2 border rounded-md">
+            <div key={index} className="flex flex-wrap items-center gap-2 p-2 border rounded-md">
               <Select
                 value={rule.field}
                 onValueChange={(v) => handleSortChange(index, { field: v })}
@@ -439,7 +439,7 @@ export function TableDataEditor({
                 value={rule.direction}
                 onValueChange={(v) => handleSortChange(index, { direction: v as 'asc' | 'desc' })}
               >
-                <SelectTrigger className="w-44">
+                <SelectTrigger className="flex-1 min-w-0">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>

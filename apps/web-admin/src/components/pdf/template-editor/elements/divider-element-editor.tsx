@@ -13,7 +13,7 @@ interface DividerElementEditorProps {
 export function DividerElementEditor({ element, onChange }: DividerElementEditorProps) {
   return (
     <div className="space-y-4">
-      <div className="grid gap-4 sm:grid-cols-2">
+      <div className="grid gap-4 grid-cols-1">
         <div className="space-y-2">
           <Label>Cor da Linha</Label>
           <div className="flex gap-2">
@@ -49,7 +49,7 @@ export function DividerElementEditor({ element, onChange }: DividerElementEditor
         </div>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2">
+      <div className="grid gap-4 grid-cols-2">
         <div className="space-y-2">
           <Label>Margem Superior (px)</Label>
           <Slider

@@ -67,7 +67,7 @@ export function VisibilityEditor({
       {isEnabled && visibility && (
         <div className="space-y-2">
           {/* Linha 1: Campo + Condicao */}
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <Select
               value={visibility.field}
               onValueChange={(value) => onChange({ ...visibility, field: value })}
@@ -90,7 +90,7 @@ export function VisibilityEditor({
                 onChange({ ...visibility, operator: value as VisibilityCondition['operator'] })
               }
             >
-              <SelectTrigger className="w-44">
+              <SelectTrigger className="flex-1 min-w-0">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>

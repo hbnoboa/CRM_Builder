@@ -36,7 +36,7 @@ export function TableElementEditor({
         </div>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2">
+      <div className="grid gap-4 grid-cols-2">
         <div className="space-y-2">
           <Label>Tamanho Fonte Cabecalho</Label>
           <Slider
@@ -72,7 +72,7 @@ export function TableElementEditor({
         />
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2">
+      <div className="grid gap-4 grid-cols-2">
         <div className="space-y-2">
           <Label>Margem Superior (px)</Label>
           <Slider

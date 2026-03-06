@@ -32,7 +32,7 @@ export function FieldGroupElementEditor({
         />
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2">
+      <div className="grid gap-4 grid-cols-2">
         <div className="space-y-2">
           <Label>Layout</Label>
           <Select
@@ -73,7 +73,7 @@ export function FieldGroupElementEditor({
       </div>
 
       {/* Tamanhos de fonte e espacamento */}
-      <div className="grid gap-4 sm:grid-cols-3">
+      <div className="grid gap-4 grid-cols-1">
         <div className="space-y-2">
           <Label className="text-xs text-muted-foreground">Tamanho do Label</Label>
           <div className="flex items-center gap-2">
@@ -124,7 +124,7 @@ export function FieldGroupElementEditor({
         </div>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2">
+      <div className="grid gap-4 grid-cols-2">
         <div className="space-y-2">
           <Label>Margem Superior (px)</Label>
           <Slider

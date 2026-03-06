@@ -231,7 +231,7 @@ export function FieldGroupDataEditor({
               </div>
 
               {/* Linha 2: Fonte (batch) + Campo + Formato */}
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 {isBatch && (
                   <Select
                     value={parsed.source}
@@ -254,7 +254,7 @@ export function FieldGroupDataEditor({
                       }
                     }}
                   >
-                    <SelectTrigger className="w-40">
+                    <SelectTrigger className="flex-1 min-w-0">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -330,7 +330,7 @@ export function FieldGroupDataEditor({
                     value={field.format || '_none'}
                     onValueChange={(value) => handleFieldChange(index, { format: value === '_none' ? undefined : value })}
                   >
-                    <SelectTrigger className="w-44">
+                    <SelectTrigger className="flex-1 min-w-0">
                       <SelectValue placeholder="Formato" />
                     </SelectTrigger>
                     <SelectContent>
@@ -357,12 +357,12 @@ export function FieldGroupDataEditor({
                     placeholder="Texto quando vazio (ex: -, N/A)"
                     value={field.defaultValue || ''}
                     onChange={(e) => handleFieldChange(index, { defaultValue: e.target.value || undefined })}
-                    className="flex-1 text-xs h-7"
+                    className="flex-1 text-xs h-8"
                   />
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="text-xs h-7 text-muted-foreground"
+                    className="text-xs h-8 text-muted-foreground"
                     onClick={() => handleFieldChange(index, { defaultValue: undefined })}
                   >
                     Limpar

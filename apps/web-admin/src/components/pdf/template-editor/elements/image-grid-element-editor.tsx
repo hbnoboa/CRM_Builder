@@ -39,7 +39,7 @@ export function ImageGridElementEditor({
       {/* Layout do Grid */}
       <div className="space-y-3">
         <Label className="text-sm font-semibold">Layout</Label>
-        <div className="grid gap-4 sm:grid-cols-3">
+        <div className="grid gap-4 grid-cols-1">
           <div className="space-y-2">
             <Label className="text-xs text-muted-foreground">Colunas</Label>
             <Select
@@ -150,7 +150,7 @@ export function ImageGridElementEditor({
       {/* Margens e tamanho de fonte */}
       <div className="space-y-3">
         <Label className="text-xs font-medium text-muted-foreground">Espacamento</Label>
-        <div className="grid gap-4 sm:grid-cols-3">
+        <div className="grid gap-4 grid-cols-1">
           <div className="space-y-1">
             <Label className="text-xs text-muted-foreground">Margem superior</Label>
             <div className="flex items-center gap-2">

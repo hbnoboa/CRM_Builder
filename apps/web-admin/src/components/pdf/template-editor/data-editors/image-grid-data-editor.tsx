@@ -254,7 +254,7 @@ export function ImageGridDataEditor({
                           placeholder={`Ex: ${field?.label || field?.name || 'Foto'}`}
                           value={headers[i] || ''}
                           onChange={(e) => handleHeaderChange(i, e.target.value)}
-                          className="h-7 text-xs"
+                          className="h-8 text-xs"
                         />
                       </td>
                       <td className="py-1.5 pl-2">
@@ -262,7 +262,7 @@ export function ImageGridDataEditor({
                           value={dataCaptions[i] || '_none'}
                           onValueChange={(value) => handleDataCaptionChange(i, value === '_none' ? '' : value)}
                         >
-                          <SelectTrigger className="h-7 text-xs">
+                          <SelectTrigger className="h-8 text-xs">
                             <SelectValue placeholder="Nenhum" />
                           </SelectTrigger>
                           <SelectContent>
@@ -295,7 +295,7 @@ export function ImageGridDataEditor({
                           placeholder={`Ex: ${field?.label || field?.name || 'Foto'}`}
                           value={headers[colIdx] || ''}
                           onChange={(e) => handleHeaderChange(colIdx, e.target.value)}
-                          className="h-7 text-xs"
+                          className="h-8 text-xs"
                         />
                       </td>
                       <td className="py-1.5 pl-2">
@@ -303,7 +303,7 @@ export function ImageGridDataEditor({
                           value={dataCaptions[colIdx] || '_none'}
                           onValueChange={(value) => handleDataCaptionChange(colIdx, value === '_none' ? '' : value)}
                         >
-                          <SelectTrigger className="h-7 text-xs">
+                          <SelectTrigger className="h-8 text-xs">
                             <SelectValue placeholder="Nenhum" />
                           </SelectTrigger>
                           <SelectContent>

@@ -63,7 +63,7 @@ export function TemplateInfoPanel({
             <Input
               value={template.name}
               onChange={(e) => onTemplateFieldChange('name', e.target.value)}
-              className="h-8 text-sm"
+              className="h-9 text-sm"
             />
           </div>
 
@@ -72,7 +72,7 @@ export function TemplateInfoPanel({
             <Input
               value={template.slug}
               disabled
-              className="h-8 text-sm bg-muted"
+              className="h-9 text-sm bg-muted"
             />
           </div>
 
@@ -124,7 +124,7 @@ export function TemplateInfoPanel({
               value={template.pageSize}
               onValueChange={(v) => onTemplateFieldChange('pageSize', v)}
             >
-              <SelectTrigger className="h-8 text-sm">
+              <SelectTrigger className="h-9 text-sm">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -141,7 +141,7 @@ export function TemplateInfoPanel({
               value={template.orientation}
               onValueChange={(v) => onTemplateFieldChange('orientation', v)}
             >
-              <SelectTrigger className="h-8 text-sm">
+              <SelectTrigger className="h-9 text-sm">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -167,7 +167,7 @@ export function TemplateInfoPanel({
                 type="number"
                 value={margins[side]}
                 onChange={(e) => handleMarginChange(side, Number(e.target.value))}
-                className="h-8 text-sm"
+                className="h-9 text-sm"
                 min={0}
                 max={200}
               />
@@ -187,7 +187,7 @@ export function TemplateInfoPanel({
               value={settings.emptyFieldDefault || ''}
               onChange={(e) => handleSettingsChange('emptyFieldDefault', e.target.value)}
               placeholder="Ex: N/A, -, (vazio)"
-              className="h-8 text-sm"
+              className="h-9 text-sm"
             />
           </div>
           <div>
@@ -196,7 +196,7 @@ export function TemplateInfoPanel({
               value={settings.fileNamePattern || ''}
               onChange={(e) => handleSettingsChange('fileNamePattern', e.target.value)}
               placeholder="Ex: {{slug}}-{{id}}"
-              className="h-8 text-sm"
+              className="h-9 text-sm"
             />
           </div>
         </div>

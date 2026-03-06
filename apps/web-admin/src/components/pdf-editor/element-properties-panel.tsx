@@ -261,7 +261,7 @@ function BodyElementEditor({
             <div className="flex items-center justify-between">
               <div>
                 <Label className="text-xs">Repetir por registro</Label>
-                <p className="text-[10px] text-muted-foreground">
+                <p className="text-xs text-muted-foreground">
                   Este elemento sera repetido para cada registro do lote
                 </p>
               </div>
