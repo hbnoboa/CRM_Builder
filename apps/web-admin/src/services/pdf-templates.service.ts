@@ -280,6 +280,23 @@ export interface PdfTemplateSettings {
   fileNamePattern?: string;
 }
 
+// =============== Simulation Config ===============
+
+export interface SimulationSubEntityConfig {
+  fieldSlug: string;
+  recordsWithItems?: number;
+  minItemsPerRecord?: number;
+  maxItemsPerRecord?: number;
+}
+
+export interface SimulationConfig {
+  totalRecords?: number;
+  subEntityDistribution?: SimulationSubEntityConfig[];
+  fieldOverrides?: Record<string, unknown>;
+  fieldVariety?: Record<string, number>;
+  fieldProfiles?: Record<string, string>[];
+}
+
 export interface PdfTemplateContent {
   header?: PdfHeader;
   body: PdfElement[];
@@ -480,11 +497,12 @@ export const pdfTemplatesService = {
     sampleData?: Record<string, unknown>,
     recordId?: string,
     content?: PdfTemplateContent,
+    simulation?: SimulationConfig,
   ): Promise<Blob> {
     const response = await api.post(
       `/pdf-templates/${templateId}/preview`,
-      { sampleData, recordId, content },
-      { responseType: 'blob' },
+      { sampleData, recordId, content, simulation },
+      { responseType: 'blob', timeout: 300000 },
     );
     return response.data;
   },

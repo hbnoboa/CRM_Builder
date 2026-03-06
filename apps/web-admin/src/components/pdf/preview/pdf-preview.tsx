@@ -5,54 +5,30 @@ import { Loader2, FileText, AlertCircle, Download, RefreshCw } from 'lucide-reac
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { usePreviewPdf } from '@/hooks/use-pdf-templates';
-import type { PdfTemplate, PdfTemplateContent } from '@/services/pdf-templates.service';
+import type { PdfTemplate, PdfTemplateContent, SimulationConfig } from '@/services/pdf-templates.service';
+import { SimulationConfigurator } from './simulation-configurator';
 
 interface PdfPreviewProps {
   template: PdfTemplate;
   content: PdfTemplateContent | null;
 }
 
-// Dados de exemplo para preview
-const SAMPLE_DATA = {
-  chassi: 'ABC123456789',
-  placa: 'ABC-1234',
-  modelo: 'Modelo X',
-  marca: 'Marca Y',
-  ano: '2024',
-  cor: 'Branco',
-  observacao: 'Observacao de exemplo para teste do template',
-  data: new Date().toLocaleDateString('pt-BR'),
-  dataHora: new Date().toLocaleString('pt-BR'),
-  navio: 'NAVIO EXEMPLO',
-  viagem: 'V-2024-001',
-  local: 'Porto de Santos',
-  naoConformidades: [
-    { peca: 'Para-choque', local: 'Frontal', quadrante: 'Superior', medida: '5cm', tipo: 'Amassado' },
-    { peca: 'Porta', local: 'Lateral D', quadrante: 'Inferior', medida: '3cm', tipo: 'Arranhao' },
-    { peca: 'Capo', local: 'Frontal', quadrante: 'Central', medida: '2cm', tipo: 'Mancha' },
-  ],
-  imagens: [
-    '/placeholder.jpg',
-    '/placeholder.jpg',
-    '/placeholder.jpg',
-    '/placeholder.jpg',
-  ],
-};
-
 export function PdfPreview({ template, content }: PdfPreviewProps) {
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
+  const [simulationConfig, setSimulationConfig] = useState<SimulationConfig | null>(null);
   const previewPdf = usePreviewPdf();
   const isGeneratingRef = useRef(false);
   const contentKeyRef = useRef<string>('');
 
-  const handleGeneratePreview = useCallback(async () => {
+  const handleGeneratePreview = useCallback(async (simulation?: SimulationConfig | null) => {
     if (isGeneratingRef.current || !content) return;
     isGeneratingRef.current = true;
     try {
+      const activeSimulation = simulation !== undefined ? simulation : simulationConfig;
       const blob = await previewPdf.mutateAsync({
         templateId: template.id,
-        sampleData: SAMPLE_DATA,
         content: content || undefined,
+        ...(activeSimulation ? { simulation: activeSimulation } : {}),
       });
       const url = URL.createObjectURL(blob);
       setPdfUrl((prev) => {
@@ -64,7 +40,12 @@ export function PdfPreview({ template, content }: PdfPreviewProps) {
     } finally {
       isGeneratingRef.current = false;
     }
-  }, [template.id, content, previewPdf]);
+  }, [template.id, content, simulationConfig, previewPdf]);
+
+  const handleSimulationGenerate = useCallback((config: SimulationConfig) => {
+    setSimulationConfig(config);
+    handleGeneratePreview(config);
+  }, [handleGeneratePreview]);
 
   // Auto-gerar preview com debounce quando content muda
   useEffect(() => {
@@ -106,7 +87,7 @@ export function PdfPreview({ template, content }: PdfPreviewProps) {
             Erro ao gerar preview. Verifique se a API esta rodando.
           </AlertDescription>
         </Alert>
-        <Button onClick={handleGeneratePreview} variant="outline" className="w-full">
+        <Button onClick={() => handleGeneratePreview()} variant="outline" className="w-full">
           <RefreshCw className="h-4 w-4 mr-2" />
           Tentar novamente
         </Button>
@@ -116,18 +97,29 @@ export function PdfPreview({ template, content }: PdfPreviewProps) {
 
   return (
     <div className="space-y-4">
+      {/* Simulation Configurator */}
+      {template.sourceEntityId && (
+        <SimulationConfigurator
+          template={template}
+          onGenerate={handleSimulationGenerate}
+          isGenerating={previewPdf.isPending}
+        />
+      )}
+
       <div className="flex items-center justify-between">
         {previewPdf.isPending && (
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <Loader2 className="h-4 w-4 animate-spin" />
-            Atualizando...
+            {simulationConfig ? 'Gerando simulacao...' : 'Atualizando...'}
           </div>
         )}
         {!previewPdf.isPending && pdfUrl && (
-          <span className="text-xs text-muted-foreground">Atualiza automaticamente</span>
+          <span className="text-xs text-muted-foreground">
+            {simulationConfig ? 'Simulacao ativa' : 'Atualiza automaticamente'}
+          </span>
         )}
         <div className="flex gap-2 ml-auto">
-          <Button variant="outline" size="sm" onClick={handleGeneratePreview} disabled={previewPdf.isPending}>
+          <Button variant="outline" size="sm" onClick={() => handleGeneratePreview()} disabled={previewPdf.isPending}>
             <RefreshCw className="h-4 w-4 mr-1" />
             Atualizar
           </Button>

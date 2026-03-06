@@ -4,7 +4,10 @@ import {
   IsOptional,
   IsBoolean,
   IsObject,
+  IsNumber,
+  ValidateNested,
 } from 'class-validator';
+import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class GenerateSinglePdfDto {
@@ -46,6 +49,56 @@ export class GenerateBatchPdfDto {
   mergePdfs?: boolean;
 }
 
+export class SimulationSubEntityConfigDto {
+  @ApiProperty({ description: 'Slug do campo sub-entity no parent' })
+  @IsString()
+  fieldSlug: string;
+
+  @ApiPropertyOptional({ description: 'Quantos registros parent terao sub-itens' })
+  @IsNumber()
+  @IsOptional()
+  recordsWithItems?: number;
+
+  @ApiPropertyOptional({ description: 'Minimo de sub-itens por registro afetado', default: 1 })
+  @IsNumber()
+  @IsOptional()
+  minItemsPerRecord?: number;
+
+  @ApiPropertyOptional({ description: 'Maximo de sub-itens por registro afetado', default: 3 })
+  @IsNumber()
+  @IsOptional()
+  maxItemsPerRecord?: number;
+}
+
+export class SimulationConfigDto {
+  @ApiPropertyOptional({ description: 'Total de registros a simular (batch)', default: 10 })
+  @IsNumber()
+  @IsOptional()
+  totalRecords?: number;
+
+  @ApiPropertyOptional({ description: 'Distribuicao de sub-entidades' })
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => SimulationSubEntityConfigDto)
+  @IsOptional()
+  subEntityDistribution?: SimulationSubEntityConfigDto[];
+
+  @ApiPropertyOptional({ description: 'Valores fixos para sobrescrever campos' })
+  @IsObject()
+  @IsOptional()
+  fieldOverrides?: Record<string, unknown>;
+
+  @ApiPropertyOptional({ description: 'Variedade de dados: slug do campo → quantidade de valores distintos. Ex: { "marca": 5 } gera 5 marcas diferentes distribuidas entre os registros' })
+  @IsObject()
+  @IsOptional()
+  fieldVariety?: Record<string, number>;
+
+  @ApiPropertyOptional({ description: 'Combinacoes de valores relacionados. Cada item define valores de campos que devem ir juntos. Ex: [{ marca: "Toyota", modelo: "Corolla" }, { marca: "Ford", modelo: "Ranger" }]. Registros sao distribuidos ciclicamente entre as combinacoes.' })
+  @IsArray()
+  @IsOptional()
+  fieldProfiles?: Record<string, string>[];
+}
+
 export class PreviewPdfDto {
   @ApiPropertyOptional({ description: 'Dados de exemplo para preview' })
   @IsObject()
@@ -61,4 +114,10 @@ export class PreviewPdfDto {
   @IsObject()
   @IsOptional()
   content?: Record<string, unknown>;
+
+  @ApiPropertyOptional({ description: 'Configuracao de simulacao para gerar dados mock' })
+  @ValidateNested()
+  @Type(() => SimulationConfigDto)
+  @IsOptional()
+  simulation?: SimulationConfigDto;
 }

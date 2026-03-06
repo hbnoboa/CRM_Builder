@@ -17,7 +17,7 @@ import {
 } from '../../common/types';
 import { getEffectiveTenantId } from '../../common/utils/tenant.util';
 import { formatFieldValue as sharedFormatFieldValue } from '@crm-builder/shared';
-import { QueryPdfGenerationDto, PreviewPdfDto } from './dto';
+import { QueryPdfGenerationDto, PreviewPdfDto, SimulationConfigDto } from './dto';
 import {
   PdfTemplateContent,
   PdfElement,
@@ -552,6 +552,90 @@ export class PdfGeneratorService {
       throw new NotFoundException('Template nao encontrado');
     }
 
+    // Se forneceu content override, usar em vez do conteudo salvo no banco
+    const templateForRender = dto.content
+      ? { ...template, content: dto.content as any }
+      : template;
+
+    // ─── Modo simulacao ───────────────────────────────────
+    if (dto.simulation) {
+      if ((dto.simulation.totalRecords || 0) > 1000) {
+        throw new BadRequestException('Maximo de 1000 registros para simulacao');
+      }
+
+      if (template.templateType === 'batch') {
+        const { batchData, allRecords } = await this.generateSimulationData(
+          templateForRender,
+          dto.simulation,
+          targetTenantId,
+        );
+
+        // Avaliar campos calculados com todos os registros
+        const simContent = (templateForRender.content as unknown as PdfTemplateContent);
+        if (simContent?.computedFields?.length) {
+          this.evaluateComputedFields(batchData, simContent.computedFields, allRecords);
+        }
+
+        return this.renderBatchPdf(templateForRender, batchData, allRecords);
+      } else {
+        // Single: gerar 1 registro com overrides
+        const entity = (templateForRender as Record<string, unknown>).sourceEntity as {
+          fields?: Array<{ slug: string; name: string; type: string; options?: unknown[] }>;
+        } | undefined;
+        const fields = entity?.fields || [];
+        const data = this.generateMockRecord(fields, 1);
+        data.id = 'sim-000001';
+        data.createdAt = new Date().toISOString();
+        data.updatedAt = new Date().toISOString();
+
+        if (dto.simulation.fieldOverrides) {
+          for (const [key, value] of Object.entries(dto.simulation.fieldOverrides)) {
+            if (value !== undefined && value !== null && value !== '') {
+              data[key] = value;
+            }
+          }
+        }
+
+        // Gerar sub-entidades para single
+        if (dto.simulation.subEntityDistribution) {
+          const subEntityFields = fields.filter(f => f.type === 'sub-entity' && (f as Record<string, unknown>).subEntityId);
+          const subEntityIds = subEntityFields.map(f => (f as Record<string, unknown>).subEntityId as string);
+          const subEntities = subEntityIds.length > 0
+            ? await this.prisma.entity.findMany({
+                where: { id: { in: subEntityIds }, tenantId: targetTenantId },
+                select: { id: true, fields: true },
+              })
+            : [];
+
+          for (const dist of dto.simulation.subEntityDistribution) {
+            const parentField = subEntityFields.find(f => f.slug === dist.fieldSlug);
+            if (!parentField) continue;
+            const subEntity = subEntities.find(se => se.id === (parentField as Record<string, unknown>).subEntityId);
+            if (!subEntity) continue;
+            const childSchema = (subEntity.fields as Array<{ slug: string; name: string; type: string; options?: unknown[] }>) || [];
+            const itemCount = dist.maxItemsPerRecord ?? 3;
+            const children: Record<string, unknown>[] = [];
+            for (let ci = 0; ci < itemCount; ci++) {
+              const child = this.generateMockRecord(childSchema, ci + 1);
+              child.id = `sim-child-${ci + 1}`;
+              child.createdAt = data.createdAt;
+              child.updatedAt = data.updatedAt;
+              children.push(child);
+            }
+            data[dist.fieldSlug] = children;
+          }
+        }
+
+        const simContent = (templateForRender.content as unknown as PdfTemplateContent);
+        if (simContent?.computedFields?.length) {
+          this.evaluateComputedFields(data, simContent.computedFields);
+        }
+
+        return this.renderPdf(templateForRender, data);
+      }
+    }
+
+    // ─── Modo existente (sem simulacao) ───────────────────
     let data: Record<string, unknown> = dto.sampleData || {};
 
     // Se forneceu recordId, buscar dados reais
@@ -589,11 +673,6 @@ export class PdfGeneratorService {
     if (Object.keys(data).length === 0) {
       data = this.generateSampleData(template);
     }
-
-    // Se forneceu content override, usar em vez do conteudo salvo no banco
-    const templateForRender = dto.content
-      ? { ...template, content: dto.content as any }
-      : template;
 
     // Avaliar campos calculados
     const previewContent = (templateForRender.content as unknown as PdfTemplateContent);
@@ -2544,6 +2623,293 @@ export class PdfGeneratorService {
     result = result.replace(/[^a-zA-Z0-9_\-.\s]/g, '_').replace(/\s+/g, '_').replace(/_+/g, '_');
 
     return result || template.slug;
+  }
+
+  /**
+   * Gera um registro mock a partir do schema da entidade
+   */
+  private generateMockRecord(
+    fields: Array<{ slug: string; name: string; type: string; options?: unknown[] }>,
+    index: number,
+  ): Record<string, unknown> {
+    const record: Record<string, unknown> = {};
+    const now = Date.now();
+    const pad = (n: number, len = 3) => String(n).padStart(len, '0');
+
+    for (const field of fields) {
+      switch (field.type) {
+        case 'text':
+        case 'textarea':
+        case 'richtext':
+          record[field.slug] = `${field.name} ${pad(index)}`;
+          break;
+        case 'number':
+          record[field.slug] = Math.floor(Math.random() * 9999) + 1;
+          break;
+        case 'currency':
+          record[field.slug] = Math.floor(Math.random() * 50000) + 100;
+          break;
+        case 'percentage':
+          record[field.slug] = Math.floor(Math.random() * 100);
+          break;
+        case 'rating':
+          record[field.slug] = Math.floor(Math.random() * 5) + 1;
+          break;
+        case 'slider':
+          record[field.slug] = Math.floor(Math.random() * 100);
+          break;
+        case 'date':
+          record[field.slug] = new Date(now - Math.random() * 30 * 86400000).toISOString().split('T')[0];
+          break;
+        case 'datetime':
+          record[field.slug] = new Date(now - Math.random() * 30 * 86400000).toISOString();
+          break;
+        case 'time':
+          record[field.slug] = `${pad(Math.floor(Math.random() * 24), 2)}:${pad(Math.floor(Math.random() * 60), 2)}`;
+          break;
+        case 'boolean':
+          record[field.slug] = Math.random() > 0.5;
+          break;
+        case 'select': {
+          const options = field.options || [];
+          if (options.length > 0) {
+            const opt = options[Math.floor(Math.random() * options.length)];
+            record[field.slug] = typeof opt === 'object' && opt !== null && 'value' in opt ? (opt as { value: string }).value : String(opt);
+          } else {
+            record[field.slug] = `Opcao ${(index % 5) + 1}`;
+          }
+          break;
+        }
+        case 'multiselect': {
+          const mOptions = field.options || [];
+          if (mOptions.length > 0) {
+            const count = Math.min(Math.floor(Math.random() * 3) + 1, mOptions.length);
+            const shuffled = [...mOptions].sort(() => Math.random() - 0.5).slice(0, count);
+            record[field.slug] = shuffled.map(o => typeof o === 'object' && o !== null && 'value' in o ? (o as { value: string }).value : String(o));
+          } else {
+            record[field.slug] = [`Opcao ${(index % 3) + 1}`];
+          }
+          break;
+        }
+        case 'email':
+          record[field.slug] = `usuario${pad(index)}@exemplo.com`;
+          break;
+        case 'phone':
+          record[field.slug] = `(11) 9${String(Math.floor(Math.random() * 100000000)).padStart(8, '0')}`;
+          break;
+        case 'cpf':
+          record[field.slug] = `${pad(Math.floor(Math.random() * 999))}.${pad(Math.floor(Math.random() * 999))}.${pad(Math.floor(Math.random() * 999))}-${pad(index % 100, 2)}`;
+          break;
+        case 'cnpj':
+          record[field.slug] = `${pad(index, 2)}.${pad(Math.floor(Math.random() * 999))}.${pad(Math.floor(Math.random() * 999))}/0001-${pad(Math.floor(Math.random() * 99), 2)}`;
+          break;
+        case 'cep':
+          record[field.slug] = `${pad(Math.floor(Math.random() * 99999), 5)}-${pad(Math.floor(Math.random() * 999))}`;
+          break;
+        case 'url':
+          record[field.slug] = `https://exemplo.com/${field.slug}/${pad(index)}`;
+          break;
+        case 'color':
+          record[field.slug] = `#${Math.floor(Math.random() * 16777215).toString(16).padStart(6, '0')}`;
+          break;
+        case 'image':
+        case 'file':
+          record[field.slug] = '/placeholder.jpg';
+          break;
+        case 'sub-entity':
+          record[field.slug] = [];
+          break;
+        case 'section-title':
+        case 'hidden':
+          break;
+        default:
+          record[field.slug] = `${field.name} ${pad(index)}`;
+      }
+    }
+
+    return record;
+  }
+
+  /**
+   * Gera dados de simulacao completos para preview
+   */
+  private async generateSimulationData(
+    template: PdfTemplate,
+    simulation: SimulationConfigDto,
+    tenantId: string,
+  ): Promise<{ batchData: Record<string, unknown>; allRecords: Record<string, unknown>[] }> {
+    const entity = (template as Record<string, unknown>).sourceEntity as {
+      fields?: Array<{ slug: string; type: string; name: string; options?: unknown[]; subEntityId?: string }>;
+    } | undefined;
+
+    const fields = entity?.fields || [];
+    const totalRecords = Math.min(simulation.totalRecords || 10, 1000);
+
+    // Buscar schemas das sub-entidades
+    const subEntityFields = fields.filter(f => f.type === 'sub-entity' && f.subEntityId);
+    const subEntitySchemas: Record<string, Array<{ slug: string; name: string; type: string; options?: unknown[] }>> = {};
+
+    if (subEntityFields.length > 0) {
+      const subEntityIds = subEntityFields.map(f => f.subEntityId as string);
+      const subEntities = await this.prisma.entity.findMany({
+        where: { id: { in: subEntityIds }, tenantId },
+        select: { id: true, fields: true },
+      });
+      for (const sef of subEntityFields) {
+        const subEntity = subEntities.find(se => se.id === sef.subEntityId);
+        if (subEntity) {
+          subEntitySchemas[sef.slug] = (subEntity.fields as Array<{ slug: string; name: string; type: string; options?: unknown[] }>) || [];
+        }
+      }
+    }
+
+    // Gerar registros parent
+    const allRecords: Record<string, unknown>[] = [];
+    for (let i = 1; i <= totalRecords; i++) {
+      const record = this.generateMockRecord(fields, i);
+      record.id = `sim-${String(i).padStart(6, '0')}`;
+      record.createdAt = new Date(Date.now() - Math.random() * 30 * 86400000).toISOString();
+      record.updatedAt = new Date(Date.now() - Math.random() * 7 * 86400000).toISOString();
+
+      // Aplicar overrides
+      if (simulation.fieldOverrides) {
+        for (const [key, value] of Object.entries(simulation.fieldOverrides)) {
+          if (value !== undefined && value !== null && value !== '') {
+            record[key] = value;
+          }
+        }
+      }
+
+      allRecords.push(record);
+    }
+
+    // Aplicar variedade de dados (field variety)
+    if (simulation.fieldVariety) {
+      for (const [slug, distinctCount] of Object.entries(simulation.fieldVariety)) {
+        if (!distinctCount || distinctCount <= 0) continue;
+        const field = fields.find(f => f.slug === slug);
+        if (!field || field.type === 'sub-entity') continue;
+
+        // Gerar pool de valores distintos
+        const pool: unknown[] = [];
+        for (let pi = 1; pi <= distinctCount; pi++) {
+          const mockRecord = this.generateMockRecord([field], pi);
+          pool.push(mockRecord[slug]);
+        }
+
+        // Redistribuir os valores do pool entre todos os registros
+        for (let ri = 0; ri < allRecords.length; ri++) {
+          allRecords[ri][slug] = pool[ri % distinctCount];
+        }
+      }
+    }
+
+    // Aplicar combinacoes de valores relacionados (field profiles)
+    // Profiles sobrescrevem fieldVariety para os campos definidos
+    if (simulation.fieldProfiles && simulation.fieldProfiles.length > 0) {
+      const profiles = simulation.fieldProfiles;
+      for (let ri = 0; ri < allRecords.length; ri++) {
+        const profile = profiles[ri % profiles.length];
+        for (const [slug, value] of Object.entries(profile)) {
+          if (value !== undefined && value !== null && value !== '') {
+            allRecords[ri][slug] = value;
+          }
+        }
+      }
+    }
+
+    // Distribuir sub-entidades
+    const distribution = simulation.subEntityDistribution || [];
+    for (const dist of distribution) {
+      const childSchema = subEntitySchemas[dist.fieldSlug];
+      if (!childSchema) continue;
+
+      const recordsWithItems = Math.min(dist.recordsWithItems ?? Math.ceil(totalRecords * 0.1), totalRecords);
+      const minItems = dist.minItemsPerRecord ?? 1;
+      const maxItems = dist.maxItemsPerRecord ?? 3;
+
+      // Selecionar indices aleatorios para receber sub-itens
+      const indices = Array.from({ length: totalRecords }, (_, i) => i);
+      for (let i = indices.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [indices[i], indices[j]] = [indices[j], indices[i]];
+      }
+      const selectedIndices = new Set(indices.slice(0, recordsWithItems));
+
+      for (let ri = 0; ri < totalRecords; ri++) {
+        if (selectedIndices.has(ri)) {
+          const itemCount = minItems + Math.floor(Math.random() * (maxItems - minItems + 1));
+          const children: Record<string, unknown>[] = [];
+          for (let ci = 0; ci < itemCount; ci++) {
+            const child = this.generateMockRecord(childSchema, ri * 100 + ci + 1);
+            child.id = `sim-child-${String(ri + 1).padStart(4, '0')}-${ci + 1}`;
+            child.createdAt = allRecords[ri].createdAt;
+            child.updatedAt = allRecords[ri].updatedAt;
+            children.push(child);
+          }
+          allRecords[ri][dist.fieldSlug] = children;
+        } else {
+          allRecords[ri][dist.fieldSlug] = [];
+        }
+      }
+    }
+
+    // Para sub-entities sem config explicita, garantir array vazio
+    for (const sef of subEntityFields) {
+      for (const record of allRecords) {
+        if (record[sef.slug] === undefined) {
+          record[sef.slug] = [];
+        }
+      }
+    }
+
+    // Contar registros com sub-entidades (mesma logica de generateBatch)
+    const totalDamaged = allRecords.filter((record) =>
+      Object.values(record).some((v) => Array.isArray(v) && v.length > 0),
+    ).length;
+
+    // Calcular _max e _min
+    const maxValues: Record<string, unknown> = {};
+    const minValues: Record<string, unknown> = {};
+    if (allRecords.length > 0) {
+      const fieldKeys = Object.keys(allRecords[0]).filter(
+        (k) => !k.startsWith('_') && !Array.isArray(allRecords[0][k]) && typeof allRecords[0][k] !== 'object',
+      );
+      for (const key of fieldKeys) {
+        const values = allRecords.map((r) => r[key]).filter((v) => v != null && v !== '');
+        if (values.length === 0) continue;
+        const numericValues = values.map((v) => Number(v)).filter((n) => !isNaN(n));
+        if (numericValues.length > 0) {
+          maxValues[key] = Math.max(...numericValues);
+          minValues[key] = Math.min(...numericValues);
+        }
+      }
+    }
+
+    // Montar estrutura batch
+    const sortedByUpdate = [...allRecords].sort(
+      (a, b) => new Date(String(a.updatedAt)).getTime() - new Date(String(b.updatedAt)).getTime(),
+    );
+
+    const batchData: Record<string, unknown> = {
+      _items: allRecords,
+      _totalRecords: allRecords.length,
+      _totalDamaged: totalDamaged,
+      _timestamp: new Date().toISOString(),
+      _firstUpdatedAt: sortedByUpdate[0]?.updatedAt,
+      _lastUpdatedAt: sortedByUpdate[sortedByUpdate.length - 1]?.updatedAt,
+      _first: allRecords[0] || {},
+      _last: allRecords[allRecords.length - 1] || {},
+      _max: maxValues,
+      _min: minValues,
+    };
+
+    // Usar dados do primeiro registro como base
+    if (allRecords.length > 0) {
+      Object.assign(batchData, allRecords[0]);
+    }
+
+    return { batchData, allRecords };
   }
 
   /**

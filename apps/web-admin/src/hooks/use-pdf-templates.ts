@@ -8,6 +8,7 @@ import {
   type QueryPdfTemplateParams,
   type CreatePdfTemplateData,
   type UpdatePdfTemplateData,
+  type SimulationConfig,
 } from '@/services/pdf-templates.service';
 
 // ================= QUERY KEYS =================
@@ -219,12 +220,14 @@ export function usePreviewPdf() {
       sampleData,
       recordId,
       content,
+      simulation,
     }: {
       templateId: string;
       sampleData?: Record<string, unknown>;
       recordId?: string;
       content?: import('@/services/pdf-templates.service').PdfTemplateContent;
-    }) => pdfTemplatesService.preview(templateId, sampleData, recordId, content),
+      simulation?: SimulationConfig;
+    }) => pdfTemplatesService.preview(templateId, sampleData, recordId, content, simulation),
     onError: (error: unknown) => {
       const message = error instanceof Error ? error.message : 'Erro ao gerar preview';
       toast.error(message);
