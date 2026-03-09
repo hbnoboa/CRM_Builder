@@ -506,6 +506,7 @@ export class AuthService {
           customRole: user.customRole,
           tenantId: user.tenantId,
           tenant: user.tenant,
+          hasMultipleTenants: true,
         },
         ...tokens,
       };
@@ -561,6 +562,7 @@ export class AuthService {
         customRole: access.customRole,
         tenantId: targetTenantId,
         tenant: access.tenant,
+        hasMultipleTenants: true,
       },
       ...tokens,
     };
