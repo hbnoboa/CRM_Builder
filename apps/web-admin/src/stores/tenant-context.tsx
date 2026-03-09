@@ -57,7 +57,7 @@ const TenantContext = createContext<TenantContextType | undefined>(undefined);
 
 export function TenantProvider({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient();
-  const { user, switchTenant: authSwitchTenant, getProfile } = useAuthStore();
+  const { user, switchTenant: authSwitchTenant } = useAuthStore();
   const [tenant, setTenant] = useState<Tenant | null>(null);
   const [allTenants, setAllTenants] = useState<Tenant[]>([]);
   const [accessibleTenants, setAccessibleTenants] = useState<AccessibleTenant[]>([]);
@@ -139,8 +139,7 @@ export function TenantProvider({ children }: { children: ReactNode }) {
         await authSwitchTenant(tenantId);
         // Clear all cached queries from previous tenant
         queryClient.removeQueries();
-        // Refresh tenant data after switch
-        await getProfile();
+        // Fetch tenant info with new JWT (switched tenant)
         const tenantRes = await api.get('/tenants/me');
         if (tenantRes.data) {
           setTenant(tenantRes.data);
@@ -154,7 +153,7 @@ export function TenantProvider({ children }: { children: ReactNode }) {
         console.error('Error switching tenant:', error);
       }
     }
-  }, [isPlatformAdmin, hasMultipleTenants, authSwitchTenant, getProfile, queryClient]);
+  }, [isPlatformAdmin, hasMultipleTenants, authSwitchTenant, queryClient]);
 
   const effectiveTenantId = isPlatformAdmin
     ? (selectedTenantId || null)

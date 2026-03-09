@@ -265,7 +265,7 @@ export class AuthService {
     return { message: 'Logout realizado com sucesso' };
   }
 
-  async getMe(userId: string) {
+  async getMe(userId: string, jwtTenantId?: string) {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
       select: {
@@ -318,6 +318,38 @@ export class AuthService {
         ],
       },
     });
+
+    // Se o JWT tem um tenantId diferente do home, retornar dados do tenant trocado
+    if (jwtTenantId && jwtTenantId !== user.tenantId) {
+      const access = await this.prisma.userTenantAccess.findUnique({
+        where: {
+          userId_tenantId: { userId, tenantId: jwtTenantId },
+        },
+        include: {
+          tenant: {
+            select: { id: true, name: true, slug: true, settings: true },
+          },
+          customRole: {
+            select: {
+              id: true, name: true, description: true, color: true,
+              roleType: true, isSystem: true, permissions: true,
+              modulePermissions: true, tenantPermissions: true, isDefault: true,
+            },
+          },
+        },
+      });
+
+      if (access && access.status === 'ACTIVE') {
+        return {
+          ...user,
+          tenantId: jwtTenantId,
+          tenant: access.tenant,
+          customRoleId: access.customRoleId,
+          customRole: access.customRole,
+          hasMultipleTenants: accessCount > 0,
+        };
+      }
+    }
 
     return {
       ...user,

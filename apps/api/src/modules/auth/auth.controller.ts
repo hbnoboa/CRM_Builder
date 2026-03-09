@@ -68,8 +68,11 @@ export class AuthController {
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Obter usuario atual' })
   @ApiResponse({ status: 200, description: 'Dados do usuario' })
-  async getMe(@CurrentUser('id') userId: string) {
-    return this.authService.getMe(userId);
+  async getMe(
+    @CurrentUser('id') userId: string,
+    @CurrentUser('tenantId') jwtTenantId: string,
+  ) {
+    return this.authService.getMe(userId, jwtTenantId);
   }
 
   @Patch('profile')
