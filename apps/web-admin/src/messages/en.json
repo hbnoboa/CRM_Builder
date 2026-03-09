@@ -914,8 +914,13 @@
     },
     "theme": {
       "title": "Theme",
-      "comingSoon": "Under Construction",
-      "comingSoonDesc": "Theme customization will be available soon."
+      "description": "Choose the appearance theme of the interface",
+      "light": "Light",
+      "lightDesc": "Theme with white background and dark text",
+      "dark": "Dark",
+      "darkDesc": "Theme with dark background and light text",
+      "system": "System",
+      "systemDesc": "Follows your device settings"
     }
   },
   "validation": {

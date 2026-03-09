@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useCallback } from 'react';
-import { Upload, X, Image as ImageIcon, FileIcon, Loader2, Camera } from 'lucide-react';
+import { Upload, X, Image as ImageIcon, FileIcon, Loader2, Camera, ExternalLink, Download } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
@@ -215,15 +215,26 @@ export default function ImageUploadField({
                     controls
                     preload="metadata"
                   />
-                  {!disabled && (
-                    <button
-                      type="button"
-                      onClick={() => handleRemove(index)}
-                      className="absolute top-1 right-1 bg-destructive text-destructive-foreground rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity shadow-md z-10"
+                  <div className="absolute top-1 right-1 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity z-10">
+                    <a
+                      href={url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="bg-background/90 text-foreground rounded-full p-1 shadow-md hover:bg-background"
+                      onClick={(e) => e.stopPropagation()}
                     >
-                      <X className="h-3 w-3" />
-                    </button>
-                  )}
+                      <ExternalLink className="h-3 w-3" />
+                    </a>
+                    {!disabled && (
+                      <button
+                        type="button"
+                        onClick={() => handleRemove(index)}
+                        className="bg-destructive text-destructive-foreground rounded-full p-1 shadow-md"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    )}
+                  </div>
                 </div>
               ) : isImage(url) ? (
                 <div className="relative aspect-square rounded-lg border overflow-hidden bg-muted">
@@ -241,25 +252,53 @@ export default function ImageUploadField({
                       e.currentTarget.parentElement?.appendChild(icon);
                     }}
                   />
-                  {!disabled && (
-                    <button
-                      type="button"
-                      onClick={() => handleRemove(index)}
-                      className="absolute top-1 right-1 bg-destructive text-destructive-foreground rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity shadow-md"
+                  <div className="absolute top-1 right-1 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity z-10">
+                    <a
+                      href={url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="bg-background/90 text-foreground rounded-full p-1 shadow-md hover:bg-background"
+                      onClick={(e) => e.stopPropagation()}
                     >
-                      <X className="h-3 w-3" />
-                    </button>
-                  )}
+                      <ExternalLink className="h-3 w-3" />
+                    </a>
+                    {!disabled && (
+                      <button
+                        type="button"
+                        onClick={() => handleRemove(index)}
+                        className="bg-destructive text-destructive-foreground rounded-full p-1 shadow-md"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    )}
+                  </div>
                 </div>
               ) : (
                 <div className="flex items-center gap-2 p-2 rounded-lg border bg-muted">
                   <FileIcon className="h-5 w-5 text-muted-foreground shrink-0" />
-                  <span className="text-sm truncate flex-1">{url.split('/').pop() || url}</span>
+                  <a
+                    href={url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-sm truncate flex-1 hover:underline hover:text-primary"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    {url.split('/').pop() || url}
+                  </a>
+                  <a
+                    href={url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-muted-foreground hover:text-foreground shrink-0"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <ExternalLink className="h-4 w-4" />
+                  </a>
                   {!disabled && (
                     <button
                       type="button"
                       onClick={() => handleRemove(index)}
-                      className="text-destructive hover:text-destructive/80"
+                      className="text-destructive hover:text-destructive/80 shrink-0"
                     >
                       <X className="h-4 w-4" />
                     </button>

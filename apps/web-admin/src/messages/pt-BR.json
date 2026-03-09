@@ -917,8 +917,13 @@
     },
     "theme": {
       "title": "Tema",
-      "comingSoon": "Em Construção",
-      "comingSoonDesc": "A personalização de temas estará disponível em breve."
+      "description": "Escolha o tema de aparencia da interface",
+      "light": "Claro",
+      "lightDesc": "Tema com fundo branco e texto escuro",
+      "dark": "Escuro",
+      "darkDesc": "Tema com fundo escuro e texto claro",
+      "system": "Sistema",
+      "systemDesc": "Segue a configuracao do seu dispositivo"
     }
   },
   "validation": {

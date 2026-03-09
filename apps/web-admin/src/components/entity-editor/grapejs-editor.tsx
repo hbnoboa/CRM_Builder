@@ -200,9 +200,9 @@ export default function EntityEditor({ entity, onSave, onCancel }: EntityEditorP
     // ─── Injetar CSS direto no iframe do canvas ───────────────────────
     const injectCss = () => {
       const frame = editor.Canvas.getFrameEl();
-      if (!frame) return;
+      if (!frame) return false;
       const doc = frame.contentDocument;
-      if (!doc) return;
+      if (!doc) return false;
       // Remover estilo anterior se existir
       const existing = doc.getElementById('crm-canvas-styles');
       if (existing) existing.remove();
@@ -210,12 +210,22 @@ export default function EntityEditor({ entity, onSave, onCancel }: EntityEditorP
       style.id = 'crm-canvas-styles';
       style.textContent = getCanvasCss(isDark);
       doc.head.appendChild(style);
+      return true;
     };
 
     // Injetar apos o canvas carregar
     editor.on('canvas:frame:load', injectCss);
-    // Tambem tentar injetar agora (caso o frame ja esteja pronto)
-    setTimeout(injectCss, 200);
+    // Retry com intervalos crescentes para computadores lentos
+    const retryDelays = [100, 300, 600, 1200, 2500];
+    retryDelays.forEach((delay) => {
+      setTimeout(() => {
+        const frame = editor.Canvas.getFrameEl();
+        const doc = frame?.contentDocument;
+        if (doc && !doc.getElementById('crm-canvas-styles')) {
+          injectCss();
+        }
+      }, delay);
+    });
 
     // Carregar dados da entidade
     const projectData = serializeToGjs(entity.fields || []);

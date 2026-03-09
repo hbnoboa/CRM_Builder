@@ -1,20 +1,14 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { User, Languages, Palette } from 'lucide-react';
+import { User, Languages, Palette, Sun, Moon, Monitor } from 'lucide-react';
 import { useTranslations, useLocale } from 'next-intl';
+import { useTheme } from 'next-themes';
 import { RequireRole } from '@/components/auth/require-role';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
 import { useAuthStore } from '@/stores/auth-store';
 import { useUpdateProfile, useChangePassword } from '@/hooks/use-auth';
 import { Link, useRouter, usePathname } from '@/i18n/navigation';
@@ -45,7 +39,7 @@ function SettingsPageContent() {
   const pathname = usePathname();
 
   const [activeTab, setActiveTab] = useState<typeof TAB_IDS[number]>('profile');
-  const [themeModalOpen, setThemeModalOpen] = useState(false);
+  const { theme, setTheme } = useTheme();
 
   // Profile form state
   const [name, setName] = useState(user?.name || '');
@@ -89,11 +83,7 @@ function SettingsPageContent() {
   };
 
   const handleTabClick = (tabId: typeof TAB_IDS[number]) => {
-    if (tabId === 'theme') {
-      setThemeModalOpen(true);
-    } else {
-      setActiveTab(tabId);
-    }
+    setActiveTab(tabId);
   };
 
   return (
@@ -117,7 +107,7 @@ function SettingsPageContent() {
         <div className="flex md:flex-col md:w-64 gap-1 overflow-x-auto pb-2 md:pb-0 md:overflow-x-visible">
           {TAB_IDS.map((tabId) => {
             const Icon = TAB_ICONS[tabId];
-            const isActive = activeTab === tabId && tabId !== 'theme';
+            const isActive = activeTab === tabId;
             return (
               <button
                 key={tabId}
@@ -262,33 +252,57 @@ function SettingsPageContent() {
               </CardContent>
             </Card>
           )}
+
+          {activeTab === 'theme' && (
+            <Card>
+              <CardHeader>
+                <CardTitle>{t('theme.title')}</CardTitle>
+                <CardDescription>
+                  {t('theme.description')}
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                {([
+                  { value: 'light', icon: Sun, label: t('theme.light'), desc: t('theme.lightDesc') },
+                  { value: 'dark', icon: Moon, label: t('theme.dark'), desc: t('theme.darkDesc') },
+                  { value: 'system', icon: Monitor, label: t('theme.system'), desc: t('theme.systemDesc') },
+                ] as const).map((option) => {
+                  const Icon = option.icon;
+                  const isSelected = theme === option.value;
+                  return (
+                    <button
+                      key={option.value}
+                      onClick={() => setTheme(option.value)}
+                      className={cn(
+                        'w-full flex items-center gap-3 p-3 rounded-lg border transition-colors text-left',
+                        isSelected
+                          ? 'border-primary bg-primary/5'
+                          : 'hover:bg-muted'
+                      )}
+                    >
+                      <div className={cn(
+                        'w-10 h-10 rounded-lg flex items-center justify-center shrink-0',
+                        isSelected ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'
+                      )}>
+                        <Icon className="h-5 w-5" />
+                      </div>
+                      <div className="flex-1">
+                        <p className="font-medium">{option.label}</p>
+                        <p className="text-sm text-muted-foreground">{option.desc}</p>
+                      </div>
+                      {isSelected && (
+                        <span className="text-xs bg-primary text-primary-foreground px-2 py-1 rounded">
+                          {tCommon('active')}
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </CardContent>
+            </Card>
+          )}
         </div>
       </div>
-
-      {/* Theme Modal */}
-      <Dialog open={themeModalOpen} onOpenChange={setThemeModalOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Palette className="h-5 w-5" />
-              {t('theme.title')}
-            </DialogTitle>
-            <DialogDescription className="pt-4 text-center">
-              <div className="py-8">
-                <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-muted flex items-center justify-center">
-                  <Palette className="h-8 w-8 text-muted-foreground" />
-                </div>
-                <p className="text-lg font-medium text-foreground mb-2">
-                  {t('theme.comingSoon')}
-                </p>
-                <p className="text-muted-foreground">
-                  {t('theme.comingSoonDesc')}
-                </p>
-              </div>
-            </DialogDescription>
-          </DialogHeader>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }
