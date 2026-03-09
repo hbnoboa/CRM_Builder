@@ -11,11 +11,15 @@ if [ "$CURRENT_BRANCH" != "develop" ] && [ "$CURRENT_BRANCH" != "dev" ]; then
 fi
 
 # 1. Build all packages (shared → api + web-admin)
-echo "[1/6] Building packages..."
+echo "[1/7] Building packages..."
 pnpm build
 
-# 2. Rotacionar tags: previous → removida, latest → previous
-echo "[2/6] Rotacionando imagens (latest → previous)..."
+# 2. Garantir que postgres-dev e redis-dev estao rodando
+echo "[2/7] Garantindo infra dev (postgres-dev, redis-dev)..."
+docker compose -f docker-compose.prod.yml up -d postgres-dev redis-dev
+
+# 3. Rotacionar tags: previous → removida, latest → previous
+echo "[3/7] Rotacionando imagens (latest → previous)..."
 for img in crm-builder-api-dev crm-builder-web-dev; do
   docker rmi "$img:previous" 2>/dev/null || true
   if docker image inspect "$img:latest" &>/dev/null; then
@@ -23,25 +27,25 @@ for img in crm-builder-api-dev crm-builder-web-dev; do
   fi
 done
 
-# 3. Build Docker images (copia artefatos pre-compilados, sem rebuild)
-echo "[3/6] Building Docker images (dev)..."
+# 4. Build Docker images (copia artefatos pre-compilados, sem rebuild)
+echo "[4/7] Building Docker images (dev)..."
 docker compose -f docker-compose.prod.yml build --no-cache api-dev web-dev
 
-# 4. Recreate dev containers (NUNCA recriar postgres/redis — apenas api-dev e web-dev)
-echo "[4/6] Deploying dev containers..."
+# 5. Recreate dev containers (apenas api-dev e web-dev)
+echo "[5/7] Deploying dev containers..."
 docker compose -f docker-compose.prod.yml up -d --no-deps api-dev web-dev
 
-# 5. Restart nginx to refresh upstream DNS
-echo "[5/6] Restarting nginx..."
+# 6. Restart nginx to refresh upstream DNS
+echo "[6/7] Restarting nginx..."
 docker compose -f docker-compose.prod.yml restart nginx
 
-# 6. Limpar imagens dangling e build cache antigo
-echo "[6/6] Limpando lixo Docker..."
+# 7. Limpar imagens dangling e build cache antigo
+echo "[7/7] Limpando lixo Docker..."
 docker image prune -f
 docker builder prune -f --filter 'until=1h' 2>/dev/null || true
 
 echo "=== Deploy DEV concluido ==="
-docker compose -f docker-compose.prod.yml ps api-dev web-dev nginx
+docker compose -f docker-compose.prod.yml ps api-dev web-dev postgres-dev redis-dev nginx
 echo ""
 echo "Imagens mantidas:"
 docker images --format "  {{.Repository}}:{{.Tag}}  {{.Size}}" | grep "crm-builder-.*-dev"

@@ -94,16 +94,22 @@ export default function SubEntityField({
   const [recordToDelete, setRecordToDelete] = useState<SubRecord | null>(null);
   const [deleting, setDeleting] = useState(false);
 
-  // Load sub-entity definition
+  // Load sub-entity definition (by slug for tenant-safe resolution)
   const loadSubEntity = useCallback(async () => {
     try {
-      const response = await api.get(`/entities/${subEntityId}`);
-      setSubEntity(response.data);
+      const params: Record<string, string> = {};
+      if (tenantId) params.tenantId = tenantId;
+      const response = await api.get('/entities', { params });
+      const allEntities = Array.isArray(response.data) ? response.data : response.data?.data || [];
+      const found = allEntities.find((e: SubEntity) => e.slug === subEntitySlug || e.id === subEntityId);
+      if (found) {
+        setSubEntity(found);
+      }
     } catch (error) {
       console.error('Error loading sub-entity:', error);
       toast.error(t('loadError'));
     }
-  }, [subEntityId, t]);
+  }, [subEntitySlug, subEntityId, tenantId, t]);
 
   // Load sub-records
   const loadRecords = useCallback(async () => {
