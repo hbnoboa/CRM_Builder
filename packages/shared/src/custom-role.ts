@@ -74,6 +74,7 @@ export interface ModulePermissions {
   tenants?: ModulePermission;
   data?: ModulePermission;
   roles?: ModulePermission;
+  dashboardTemplates?: ModulePermission;
 }
 
 export interface CustomRole {

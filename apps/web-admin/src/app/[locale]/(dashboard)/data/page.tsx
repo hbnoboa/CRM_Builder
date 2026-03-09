@@ -90,6 +90,12 @@ import {
 import { useDeleteEntityData } from '@/hooks/use-data';
 import { dataService } from '@/services/data.service';
 import type { DataFilter, EntityField } from '@/types';
+import dynamic from 'next/dynamic';
+
+const EntityDashboard = dynamic(
+  () => import('@/components/dashboard-widgets/entity-dashboard').then((mod) => mod.EntityDashboard),
+  { ssr: false },
+);
 
 // Tipos de filtro
 type FilterOperator = 'equals' | 'contains' | 'startsWith' | 'endsWith' | 'gt' | 'gte' | 'lt' | 'lte' | 'between' | 'isEmpty' | 'isNotEmpty';
@@ -1173,6 +1179,14 @@ function DataPageContent() {
           </CardContent>
         </Card>
       ) : null}
+
+      {/* Dashboard Widgets (acima da tabela) */}
+      {selectedEntity && (
+        <EntityDashboard
+          entitySlug={selectedEntity.slug}
+          entityFields={(selectedEntity.fields || []) as Array<{ slug: string; name: string; label?: string; type: string }>}
+        />
+      )}
 
       <div>
         {/* Tabela de Registros */}

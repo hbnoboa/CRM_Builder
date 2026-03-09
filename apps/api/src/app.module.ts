@@ -25,6 +25,7 @@ import { EscalationModule } from './modules/escalation/escalation.module';
 import { ExecutionLogsModule } from './modules/execution-logs/execution-logs.module';
 import { EntityAutomationModule } from './modules/entity-automation/entity-automation.module';
 import { EntityFieldRuleModule } from './modules/entity-field-rule/entity-field-rule.module';
+import { DashboardTemplateModule } from './modules/dashboard-template/dashboard-template.module';
 
 @Module({
   imports: [
@@ -75,6 +76,9 @@ import { EntityFieldRuleModule } from './modules/entity-field-rule/entity-field-
     // Automacoes Unificadas (Sprint 5)
     EntityAutomationModule,
     EntityFieldRuleModule,
+
+    // Dashboard Templates
+    DashboardTemplateModule,
   ],
 })
 export class AppModule {}

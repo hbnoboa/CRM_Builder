@@ -104,6 +104,25 @@ export type {
   EntityFieldRule,
 } from './automation';
 
+// Dashboard Template
+export type {
+  WidgetType,
+  WidgetConfig,
+  LayoutItem,
+  DashboardTemplate,
+  CreateDashboardTemplateData,
+  UpdateDashboardTemplateData,
+  PeriodComparison,
+  EntityRecordCount,
+  TimeSeriesPoint,
+  FieldDistributionItem,
+  FieldAggregation,
+  FieldTrendPoint,
+  RecentActivityItem,
+  TopRecord,
+  FunnelStage,
+} from './dashboard-template';
+
 // Formatters
 export {
   formatFieldValue,

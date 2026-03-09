@@ -92,6 +92,7 @@ model Tenant {
   entityAutomations    EntityAutomation[]
   automationExecutions AutomationExecution[]
   entityFieldRules     EntityFieldRule[]
+  dashboardTemplates   DashboardTemplate[]
 
   @@index([slug])
   @@index([status])
@@ -978,5 +979,41 @@ model EntityFieldRule {
 
   @@index([entityId, fieldSlug])
   @@index([tenantId, entityId])
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DASHBOARD TEMPLATES
+// ═══════════════════════════════════════════════════════════════════════════
+
+model DashboardTemplate {
+  id          String  @id @default(cuid())
+  tenantId    String
+  name        String
+  description String?
+
+  // Entidade alvo (null = dashboard global)
+  entitySlug String?
+
+  // Layout do react-grid-layout: [{ i, x, y, w, h, minW, minH, maxW, maxH }]
+  layout Json @default("[]")
+
+  // Configuracoes dos widgets: { "widget-id": { type, title, config: {...} } }
+  widgets Json @default("{}")
+
+  // IDs das CustomRoles atribuidas
+  roleIds String[]
+
+  // Prioridade (maior = preferencia quando multiplos templates para mesma role+entity)
+  priority Int     @default(0)
+  isActive Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, name])
+  @@index([tenantId])
+  @@index([tenantId, entitySlug])
 }
 
