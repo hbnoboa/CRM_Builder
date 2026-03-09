@@ -577,7 +577,7 @@ function TemplateBuilderContent() {
           isActive,
         });
         if (result?.id) {
-          router.replace(`/settings/dashboard-templates/${result.id}`);
+          router.replace(`/dashboard-templates/${result.id}`);
         }
       } else {
         await updateTemplate.mutateAsync({
@@ -619,7 +619,7 @@ function TemplateBuilderContent() {
         {/* Toolbar */}
         <div className="flex items-center justify-between gap-3 flex-wrap">
           <div className="flex items-center gap-3">
-            <Link href="/settings/dashboard-templates">
+            <Link href="/dashboard-templates">
               <Button variant="ghost" size="icon" className="h-8 w-8">
                 <ArrowLeft className="h-4 w-4" />
               </Button>

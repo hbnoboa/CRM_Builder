@@ -51,7 +51,7 @@ function DashboardTemplatesContent() {
             Crie dashboards customizados e atribua a cargos
           </p>
         </div>
-        <Link href="/settings/dashboard-templates/new">
+        <Link href="/dashboard-templates/new">
           <Button>
             <Plus className="h-4 w-4 mr-2" />
             Novo Template
@@ -67,7 +67,7 @@ function DashboardTemplatesContent() {
             <p className="text-sm text-muted-foreground mb-4">
               Crie templates de dashboard com graficos, KPIs e tabelas para seus usuarios
             </p>
-            <Link href="/settings/dashboard-templates/new">
+            <Link href="/dashboard-templates/new">
               <Button>
                 <Plus className="h-4 w-4 mr-2" />
                 Criar primeiro template
@@ -90,7 +90,7 @@ function DashboardTemplatesContent() {
                     )}
                   </div>
                   <div className="flex items-center gap-1 ml-2">
-                    <Link href={`/settings/dashboard-templates/${template.id}`}>
+                    <Link href={`/dashboard-templates/${template.id}`}>
                       <Button variant="ghost" size="icon" className="h-7 w-7">
                         <Pencil className="h-3.5 w-3.5" />
                       </Button>

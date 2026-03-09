@@ -72,7 +72,7 @@ const adminNavigation: NavItemConfig[] = [
   { titleKey: 'roles', href: '/roles', icon: <Shield className="h-5 w-5" />, moduleKey: 'roles' },
   { titleKey: 'pdfTemplates', href: '/pdf-templates', icon: <FileText className="h-5 w-5" />, moduleKey: 'pdfTemplates' },
   { titleKey: 'auditLogs', href: '/audit-logs', icon: <ScrollText className="h-5 w-5" />, moduleKey: 'auditLogs' },
-  { titleKey: 'dashboardTemplates', href: '/settings/dashboard-templates', icon: <BarChart3 className="h-5 w-5" />, moduleKey: 'settings' },
+  { titleKey: 'dashboardTemplates', href: '/dashboard-templates', icon: <BarChart3 className="h-5 w-5" />, moduleKey: 'dashboardTemplates' },
 ];
 
 const bottomNavigation: NavItemConfig[] = [
