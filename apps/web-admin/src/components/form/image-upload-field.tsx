@@ -66,7 +66,7 @@ export default function ImageUploadField({
 
   const defaultAccept = mode === 'image'
     ? 'image/jpeg,image/png,image/gif,image/webp,image/svg+xml'
-    : 'image/*,application/pdf,.doc,.docx,.xls,.xlsx,.csv,.txt';
+    : 'image/*,video/mp4,video/quicktime,video/webm,video/mpeg,application/pdf,.doc,.docx,.xls,.xlsx,.csv,.txt';
 
   const handleFiles = useCallback(async (files: FileList | File[]) => {
     const fileArray = Array.from(files);
@@ -191,6 +191,10 @@ export default function ImageUploadField({
     return /\.(jpg|jpeg|png|gif|webp|svg)(\?.*)?$/i.test(url);
   };
 
+  const isVideo = (url: string) => {
+    return /\.(mp4|mov|webm|mpeg)(\?.*)?$/i.test(url);
+  };
+
   const showDropZone = multiple || values.length === 0;
 
   return (
@@ -203,7 +207,25 @@ export default function ImageUploadField({
         )}>
           {values.map((url, index) => (
             <div key={`${url}-${index}`} className="relative group">
-              {isImage(url) ? (
+              {isVideo(url) ? (
+                <div className="relative aspect-video rounded-lg border overflow-hidden bg-muted">
+                  <video
+                    src={url}
+                    className="w-full h-full object-cover"
+                    controls
+                    preload="metadata"
+                  />
+                  {!disabled && (
+                    <button
+                      type="button"
+                      onClick={() => handleRemove(index)}
+                      className="absolute top-1 right-1 bg-destructive text-destructive-foreground rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity shadow-md z-10"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  )}
+                </div>
+              ) : isImage(url) ? (
                 <div className="relative aspect-square rounded-lg border overflow-hidden bg-muted">
                   <img
                     src={url}

@@ -36,8 +36,9 @@ function renderWidget(
   entitySlug: string,
   entityFields?: Array<{ slug: string; name: string; label?: string; type: string }>,
 ) {
+  const effectiveSlug = widgetConfig.config.entitySlugOverride || entitySlug;
   const commonProps = {
-    entitySlug,
+    entitySlug: effectiveSlug,
     config: widgetConfig.config,
     title: widgetConfig.title,
   };

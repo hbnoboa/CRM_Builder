@@ -73,6 +73,10 @@ export class UploadService {
       'image/gif',
       'image/webp',
       'image/svg+xml',
+      'video/mp4',
+      'video/quicktime',
+      'video/webm',
+      'video/mpeg',
       'application/pdf',
       'application/msword',
       'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
@@ -88,8 +92,8 @@ export class UploadService {
       );
     }
 
-    // Validar tamanho (máximo 10MB)
-    const maxSize = 10 * 1024 * 1024; // 10MB
+    // Validar tamanho (máximo 50MB)
+    const maxSize = 50 * 1024 * 1024; // 50MB
     if (file.size > maxSize) {
       throw new BadRequestException(
         `Arquivo muito grande. Máximo permitido: ${maxSize / 1024 / 1024}MB`,

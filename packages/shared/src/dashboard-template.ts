@@ -21,6 +21,9 @@ export interface WidgetConfig {
   type: WidgetType;
   title?: string;
   config: {
+    // Cross-entity: use a different entity slug for this widget
+    entitySlugOverride?: string;
+
     // KPI / Aggregation
     fieldSlug?: string;
     aggregation?: 'count' | 'sum' | 'avg' | 'min' | 'max';

@@ -266,7 +266,7 @@ export function SearchableSelect({
                   <CommandSeparator />
                   <CommandGroup>
                     <CommandItem
-                      value="__custom__"
+                      value="Outro Outros Other __custom__"
                       onSelect={() => {
                         setCustomMode(true);
                         setTimeout(() => customInputRef.current?.focus(), 50);
