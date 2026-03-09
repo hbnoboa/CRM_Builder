@@ -257,6 +257,113 @@ function SelectPropInput({
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// Field type options for the type selector
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+const FIELD_TYPE_GROUPS: Array<{ group: string; types: Array<{ value: string; label: string }> }> = [
+  {
+    group: 'Texto',
+    types: [
+      { value: 'text', label: 'Texto' },
+      { value: 'textarea', label: 'Area de texto' },
+      { value: 'richtext', label: 'Texto rico' },
+      { value: 'email', label: 'Email' },
+      { value: 'url', label: 'URL' },
+      { value: 'password', label: 'Senha' },
+      { value: 'array', label: 'Lista de textos' },
+    ],
+  },
+  {
+    group: 'Numeros',
+    types: [
+      { value: 'number', label: 'Numero' },
+      { value: 'currency', label: 'Moeda' },
+      { value: 'percentage', label: 'Porcentagem' },
+      { value: 'slider', label: 'Slider' },
+      { value: 'rating', label: 'Avaliacao' },
+    ],
+  },
+  {
+    group: 'Contato',
+    types: [
+      { value: 'phone', label: 'Telefone' },
+      { value: 'cpf', label: 'CPF' },
+      { value: 'cnpj', label: 'CNPJ' },
+      { value: 'cep', label: 'CEP' },
+    ],
+  },
+  {
+    group: 'Data/Hora',
+    types: [
+      { value: 'date', label: 'Data' },
+      { value: 'datetime', label: 'Data e hora' },
+      { value: 'time', label: 'Hora' },
+    ],
+  },
+  {
+    group: 'Selecao',
+    types: [
+      { value: 'boolean', label: 'Sim/Nao' },
+      { value: 'select', label: 'Selecao unica' },
+      { value: 'multiselect', label: 'Selecao multipla' },
+      { value: 'checkbox-group', label: 'Grupo checkbox' },
+      { value: 'radio-group', label: 'Grupo radio' },
+      { value: 'tags', label: 'Tags' },
+      { value: 'color', label: 'Cor' },
+    ],
+  },
+  {
+    group: 'Relacoes',
+    types: [
+      { value: 'relation', label: 'Relacao' },
+      { value: 'sub-entity', label: 'Sub-entidade' },
+      { value: 'lookup', label: 'Lookup' },
+      { value: 'api-select', label: 'API Select' },
+      { value: 'user-select', label: 'Selecao usuario' },
+    ],
+  },
+  {
+    group: 'Arquivos',
+    types: [
+      { value: 'file', label: 'Arquivo' },
+      { value: 'image', label: 'Imagem' },
+      { value: 'signature', label: 'Assinatura' },
+    ],
+  },
+  {
+    group: 'Workflow',
+    types: [
+      { value: 'workflow-status', label: 'Status workflow' },
+      { value: 'timer', label: 'Cronometro' },
+      { value: 'sla-status', label: 'Status SLA' },
+      { value: 'action-button', label: 'Botao de acao' },
+    ],
+  },
+  {
+    group: 'Calculados',
+    types: [
+      { value: 'formula', label: 'Formula' },
+      { value: 'rollup', label: 'Rollup' },
+    ],
+  },
+  {
+    group: 'Layout',
+    types: [
+      { value: 'section-title', label: 'Titulo de secao' },
+      { value: 'map', label: 'Mapa' },
+      { value: 'zone-diagram', label: 'Diagrama de zona' },
+    ],
+  },
+  {
+    group: 'Outros',
+    types: [
+      { value: 'json', label: 'JSON' },
+      { value: 'hidden', label: 'Oculto' },
+    ],
+  },
+];
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // Type-specific trait configs (simple traits only)
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -620,6 +727,32 @@ export function FieldPropertiesPanel({
           mono
           onUpdate={onPropertyChange}
         />
+        <PropRow label="Tipo">
+          <Select
+            value={fieldType}
+            onValueChange={(newType) => {
+              component.set('fieldType', newType);
+              component.trigger('change:fieldType');
+              onPropertyChange();
+            }}
+          >
+            <SelectTrigger className="h-8 text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {FIELD_TYPE_GROUPS.map((group) => (
+                <div key={group.group}>
+                  <div className="px-2 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{group.group}</div>
+                  {group.types.map((t) => (
+                    <SelectItem key={t.value} value={t.value} className="text-xs">
+                      {t.label}
+                    </SelectItem>
+                  ))}
+                </div>
+              ))}
+            </SelectContent>
+          </Select>
+        </PropRow>
         <PropSwitch
           label="Obrigatorio"
           checked={!!component.get('fieldRequired')}
