@@ -158,11 +158,13 @@ export function usePermissions() {
     }
 
     // Usar modulePermissions da customRole (normalizado de boolean → CRUD)
+    // Chaves ausentes usam o default do roleType (nao NO_CRUD)
     if (user.customRole?.modulePermissions) {
       const normalized = normalizeModulePermissions(user.customRole.modulePermissions as Record<string, unknown>);
+      const defaults = DEFAULT_MODULE_PERMISSIONS[roleType] || DEFAULT_MODULE_PERMISSIONS.VIEWER;
       const result: Record<string, ModulePermission> = {};
       for (const key of MODULE_KEYS) {
-        result[key] = normalized[key] ?? { ...NO_CRUD };
+        result[key] = normalized[key] ?? defaults[key] ?? { ...NO_CRUD };
       }
       return result as ModulePermissions;
     }
