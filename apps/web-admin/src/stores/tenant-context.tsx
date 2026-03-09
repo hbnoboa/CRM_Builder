@@ -1,6 +1,7 @@
 'use client';
 
 import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { useAuthStore } from './auth-store';
 import api from '@/lib/api';
 
@@ -55,6 +56,7 @@ interface TenantContextType {
 const TenantContext = createContext<TenantContextType | undefined>(undefined);
 
 export function TenantProvider({ children }: { children: ReactNode }) {
+  const queryClient = useQueryClient();
   const { user, switchTenant: authSwitchTenant, getProfile } = useAuthStore();
   const [tenant, setTenant] = useState<Tenant | null>(null);
   const [allTenants, setAllTenants] = useState<Tenant[]>([]);
@@ -128,11 +130,15 @@ export function TenantProvider({ children }: { children: ReactNode }) {
       } else {
         sessionStorage.removeItem('selectedTenantId');
       }
+      // Invalidate all cached queries so they refetch with new tenantId
+      queryClient.removeQueries();
       window.dispatchEvent(new CustomEvent('tenant-changed'));
     } else if (hasMultipleTenants && tenantId) {
       // Regular multi-tenant user: JWT-based switching
       try {
         await authSwitchTenant(tenantId);
+        // Clear all cached queries from previous tenant
+        queryClient.removeQueries();
         // Refresh tenant data after switch
         await getProfile();
         const tenantRes = await api.get('/tenants/me');
@@ -148,7 +154,7 @@ export function TenantProvider({ children }: { children: ReactNode }) {
         console.error('Error switching tenant:', error);
       }
     }
-  }, [isPlatformAdmin, hasMultipleTenants, authSwitchTenant, getProfile]);
+  }, [isPlatformAdmin, hasMultipleTenants, authSwitchTenant, getProfile, queryClient]);
 
   const effectiveTenantId = isPlatformAdmin
     ? (selectedTenantId || null)
