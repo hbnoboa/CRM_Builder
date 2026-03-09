@@ -628,25 +628,13 @@ export class EntityService {
 
         case 'select':
         case 'radio-group':
-          if (field.options) {
-            const validValues = field.options.map((o) => typeof o === 'string' ? o : o.value);
-            if (!validValues.includes(value)) {
-              errors.push(`"${field.name}" deve ser um dos valores: ${validValues.join(', ')}`);
-            }
-          }
+          // Permite valores customizados (opcao "Outros" no frontend)
           break;
 
         case 'multiselect':
         case 'checkbox-group':
         case 'tags':
-          if (field.options && Array.isArray(value)) {
-            const validValues = field.options.map((o) => typeof o === 'string' ? o : o.value);
-            for (const v of value) {
-              if (!validValues.includes(v)) {
-                errors.push(`"${field.name}" contem valor invalido: ${v}`);
-              }
-            }
-          }
+          // Permite valores customizados (opcao "Outros" no frontend)
           break;
       }
 
