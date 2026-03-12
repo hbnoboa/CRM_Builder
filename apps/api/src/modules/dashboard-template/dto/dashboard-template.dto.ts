@@ -45,6 +45,10 @@ export class CreateDashboardTemplateDto {
   @IsOptional()
   @IsInt()
   priority?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  tabs?: unknown;
 }
 
 export class UpdateDashboardTemplateDto {
@@ -89,4 +93,8 @@ export class UpdateDashboardTemplateDto {
   @IsOptional()
   @IsBoolean()
   isActive?: boolean;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  tabs?: unknown;
 }

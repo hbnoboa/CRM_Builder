@@ -1000,6 +1000,9 @@ model DashboardTemplate {
   // Configuracoes dos widgets: { "widget-id": { type, title, config: {...} } }
   widgets Json @default("{}")
 
+  // Abas do dashboard: [{ id, label, icon?, widgetIds[] }]
+  tabs Json @default("[]")
+
   // IDs das CustomRoles atribuidas
   roleIds String[]
 

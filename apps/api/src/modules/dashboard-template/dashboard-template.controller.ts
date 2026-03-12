@@ -52,9 +52,10 @@ export class DashboardTemplateController {
   async create(
     @Body() dto: CreateDashboardTemplateDto,
     @CurrentUser() user: CurrentUserType,
+    @Query('tenantId') tenantId?: string,
   ) {
     checkModulePermission(user, 'settings', 'canUpdate');
-    return this.service.create(dto, user);
+    return this.service.create(dto, user, tenantId);
   }
 
   @Patch(':id')
@@ -63,9 +64,10 @@ export class DashboardTemplateController {
     @Param('id') id: string,
     @Body() dto: UpdateDashboardTemplateDto,
     @CurrentUser() user: CurrentUserType,
+    @Query('tenantId') tenantId?: string,
   ) {
     checkModulePermission(user, 'settings', 'canUpdate');
-    return this.service.update(id, dto, user);
+    return this.service.update(id, dto, user, tenantId);
   }
 
   @Delete(':id')
@@ -73,8 +75,9 @@ export class DashboardTemplateController {
   async remove(
     @Param('id') id: string,
     @CurrentUser() user: CurrentUserType,
+    @Query('tenantId') tenantId?: string,
   ) {
     checkModulePermission(user, 'settings', 'canDelete');
-    return this.service.remove(id, user);
+    return this.service.remove(id, user, tenantId);
   }
 }

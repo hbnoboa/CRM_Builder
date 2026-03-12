@@ -1,22 +1,31 @@
-# 🏗️ Arquitetura do Sistema
+# Arquitetura do Sistema
 
-## Visão Geral
+## Visao Geral
 
 ```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                              CRM BUILDER                                     │
-├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                             │
-│  ┌──────────────────┐         ┌──────────────────┐         ┌─────────────┐ │
-│  │   Next.js 14     │   HTTP  │   NestJS 10      │         │ PostgreSQL  │ │
-│  │   (Frontend)     │────────▶│   (API)          │────────▶│ 16          │ │
-│  │   Port 3000      │   REST  │   Port 3001      │ Prisma  │ Port 5432   │ │
-│  └──────────────────┘         └──────────────────┘         └─────────────┘ │
-│           │                            │                                    │
-│           │ WebSocket                  │                                    │
-│           └────────────────────────────┘                                    │
-│                                                                             │
-└─────────────────────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────────┐
+│                            CRM BUILDER                                  │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│  ┌────────────────┐  ┌────────────────┐  ┌────────────────────────────┐│
+│  │  Next.js 14    │  │  Flutter 3.32+ │  │  NestJS 10 (API)          ││
+│  │  (web-admin)   │  │  (mobile)      │  │  Port 3001                ││
+│  │  Port 3000     │  │  Offline-first │  │                            ││
+│  └───────┬────────┘  └───────┬────────┘  │  ┌──────────────────────┐ ││
+│          │ REST              │ REST+Sync  │  │ EntityDataQueryService│ ││
+│          └───────────────────┴──────────▶│  │ (camada centralizada) │ ││
+│                                          │  └──────────────────────┘ ││
+│                                          └────────────┬───────────────┘│
+│                                                       │ Prisma          │
+│                                          ┌────────────▼───────────────┐│
+│                                          │  PostgreSQL 16 + Redis 7   ││
+│                                          └────────────────────────────┘│
+│                                                       ▲                 │
+│                                          ┌────────────┴───────────────┐│
+│                                          │  PowerSync (self-hosted)   ││
+│                                          │  Sync → SQLite (mobile)    ││
+│                                          └────────────────────────────┘│
+└─────────────────────────────────────────────────────────────────────────┘
 ```
 
 ## Camadas da API (NestJS)
@@ -25,50 +34,128 @@
 Request
    │
    ▼
-┌─────────────────┐
-│   Controller    │  ← Recebe request, valida com DTO
-├─────────────────┤
-│   Guards        │  ← Autenticação (JWT) + Autorização (Permissions)
-├─────────────────┤
-│   Service       │  ← Lógica de negócio
-├─────────────────┤
-│   Repository    │  ← Acesso a dados (Prisma)
-├─────────────────┤
-│   Database      │  ← PostgreSQL
-└─────────────────┘
+┌──────────────────┐
+│  Controller      │  ← Recebe request, valida com DTO (class-validator)
+├──────────────────┤
+│  Guards          │  ← JwtAuthGuard → RolesGuard (CustomRole-based)
+├──────────────────┤
+│  Service         │  ← Logica de negocio
+├──────────────────┤
+│  EntityDataQuery │  ← Pipeline centralizado (scope, filters, search)
+│  Service         │     Usado por DataService, StatsService, PdfGenerator
+├──────────────────┤
+│  Prisma          │  ← ORM (PostgreSQL)
+└──────────────────┘
 ```
 
-## Módulos da API
+## Pipeline Centralizado de Dados (EntityDataQueryService)
+
+Todo modulo que busca `EntityData` DEVE usar o `EntityDataQueryService`:
 
 ```
-src/
-├── main.ts                 # Bootstrap da aplicação
-├── app.module.ts           # Módulo raiz
+buildWhere(options)
+   │
+   ├── 1. getEntityCached(slug) ─── cache 5s por slug:tenantId
+   ├── 2. where.entityId = entity.id
+   ├── 3. Tenant isolation (PLATFORM_ADMIN bypass)
+   ├── 4. parentRecordId / includeChildren
+   ├── 5. recordIds (export de selecionados)
+   ├── 6. hasChildrenIn (registros com filhos)
+   ├── 7. applyScopeFromCustomRole (own/all)
+   ├── 8. applyGlobalFilters (entity.settings.globalFilters)
+   ├── 9. applyRoleDataFilters (customRole.permissions[].dataFilters)
+   ├── 10. applyUserFilters (query.filters JSON)
+   ├── 11. applyDashboardFilters (cross-filters, date range)
+   └── 12. applySearchClause (searchFields da entidade)
+   │
+   ▼
+   { where, entity, effectiveTenantId }
+```
+
+**Arquivo:** `apps/api/src/common/services/entity-data-query.service.ts`
+**Modulo:** `EntityDataQueryModule` (importar nos consumers)
+
+**Consumers atuais:**
+- `DataService` — listagem, export, CRUD
+- `StatsService` — dashboard widgets
+- `PdfGeneratorService` — geracao de PDFs
+
+## Modulos da API
+
+```
+apps/api/src/
+├── main.ts
+├── app.module.ts
 │
-├── common/                 # Código compartilhado
-│   ├── decorators/         # @CurrentUser, @RequirePermission
-│   ├── guards/             # JwtAuthGuard, PermissionsGuard
-│   ├── filters/            # Exception filters
-│   ├── interceptors/       # Logging, transform
-│   └── pipes/              # Validação
+├── common/                          # Codigo compartilhado
+│   ├── decorators/
+│   │   ├── current-user.decorator.ts   # @CurrentUser()
+│   │   └── roles.decorator.ts          # @Roles(), RoleType
+│   ├── guards/
+│   │   ├── jwt-auth.guard.ts           # Valida JWT
+│   │   ├── roles.guard.ts              # Valida CustomRole permissions
+│   │   └── tenant.guard.ts             # Valida tenantId
+│   ├── services/
+│   │   ├── entity-data-query.service.ts  # ★ Pipeline centralizado
+│   │   └── entity-data-query.module.ts
+│   ├── utils/
+│   │   ├── build-filter-clause.ts      # Constroi WHERE para filtros JSON
+│   │   ├── check-module-permission.ts  # checkModulePermission(), checkEntityAction()
+│   │   ├── evaluate-notification-conditions.ts  # Avalia condicoes in-memory
+│   │   ├── format-record.ts            # Formata dados para display
+│   │   └── tenant.util.ts             # getEffectiveTenantId()
+│   ├── filters/                        # Exception filters
+│   ├── interceptors/                   # Logging, transform
+│   ├── pipes/                          # Validacao
+│   ├── dto/                            # DTOs compartilhados
+│   └── types/                          # CurrentUser, pagination, etc.
 │
-├── prisma/                 # Prisma service
-│   └── prisma.service.ts
+├── prisma/
+│   └── prisma.service.ts              # @Global() PrismaService
 │
 └── modules/
-    ├── auth/               # Autenticação
-    ├── user/               # Gerenciamento de usuários
-    ├── tenant/             # Multi-tenancy
-    ├── organization/       # Organizações
-    ├── organization/          # Organizations
-    ├── role/               # Roles e permissões
-    ├── entity/             # Definição de entidades
-    ├── data/               # CRUD dinâmico
-    ├── custom-api/         # Endpoints customizados
-    ├── stats/              # Estatísticas
-    ├── upload/             # Upload de arquivos
-    ├── notification/       # WebSocket
-    └── health/             # Health checks
+    │
+    │  # ─── Core ───────────────────────────────────────
+    ├── auth/                    # Login, register, refresh, JWT
+    ├── user/                    # CRUD usuarios
+    ├── tenant/                  # Multi-tenancy, tenant-copy
+    ├── workspace/               # Areas de trabalho
+    │
+    │  # ─── Entity Builder ─────────────────────────────
+    ├── entity/                  # Definicao de entidades (fields, settings)
+    ├── data/                    # CRUD dinamico de EntityData
+    ├── entity-field-rule/       # Regras condicionais de campos
+    │
+    │  # ─── Automacao ──────────────────────────────────
+    ├── entity-automation/       # Automacoes trigger-based
+    ├── action-chain/            # Cadeia de acoes (workflow)
+    ├── escalation/              # Regras de escalacao temporal
+    ├── scheduled-task/          # Tarefas agendadas (cron)
+    │
+    │  # ─── Seguranca & Auditoria ──────────────────────
+    ├── custom-role/             # RBAC granular (CustomRole)
+    ├── audit/                   # Log de auditoria
+    ├── archive/                 # Arquivamento automatico
+    │
+    │  # ─── Reporting & Analytics ──────────────────────
+    ├── stats/                   # Dashboard widgets (KPI, charts, funnel)
+    ├── dashboard-template/      # Templates de dashboard por role
+    ├── pdf/                     # Geracao de PDF (templates + batch)
+    │
+    │  # ─── Comunicacao ────────────────────────────────
+    ├── notification/            # WebSocket + in-app notifications
+    ├── email/                   # Envio de emails (SMTP)
+    ├── email-template/          # Templates de email
+    ├── push/                    # Push notifications (mobile)
+    ├── webhook/                 # Webhooks de saida
+    │
+    │  # ─── Integracao ─────────────────────────────────
+    ├── upload/                  # Upload de arquivos (S3/local)
+    ├── sync/                    # PowerSync (mobile offline sync)
+    │
+    │  # ─── Monitoramento ──────────────────────────────
+    ├── execution-logs/          # Logs de execucao (automacoes, webhooks)
+    └── health/                  # Health checks
 ```
 
 ## Modelo de Dados
@@ -76,172 +163,132 @@ src/
 ```
 Tenant (Empresa)
 │
-├── Organizations[] (Filiais)
-│   │
-│   └── Organizations[] (Projetos CRM)
-│       │
-│       ├── Entities[] (Definições)
-│       │   └── EntityData[] (Registros)
-│       │
-│       └── CustomEndpoints[] (APIs)
+├── CustomRole[] (Papeis com permissoes granulares)
+│   ├── permissions: [{ entitySlug, canRead, canUpdate, scope, dataFilters }]
+│   ├── modulePermissions: { data, settings, api, notification }
+│   └── roleType: PLATFORM_ADMIN | ADMIN | MANAGER | USER | VIEWER | CUSTOM
 │
-├── Users[]
-│   └── UserRoles[]
+├── User[] (vinculados a CustomRole)
+│   └── UserTenantAccess[] (acesso multi-tenant)
 │
-└── Roles[]
-    └── Permissions (JSON)
+├── Entity[] (Definicoes de entidade)
+│   ├── fields: [{ slug, name, type, required, options, ... }]
+│   ├── settings: { searchFields, titleField, globalFilters, slaConfig }
+│   ├── EntityData[] (Registros ativos)
+│   │   └── EntityData[] (Sub-registros via parentRecordId)
+│   ├── ArchivedEntityData[] (Registros arquivados)
+│   ├── EntityAutomation[] (Automacoes)
+│   └── EntityFieldRule[] (Regras condicionais)
+│
+├── DashboardTemplate[] (Templates de dashboard por role)
+├── PdfTemplate[] (Templates de PDF)
+├── Webhook[] (Webhooks de saida)
+├── ActionChain[] (Cadeias de acoes)
+├── EmailTemplate[] (Templates de email)
+└── AuditLog[] (Logs de auditoria)
 ```
 
-## Fluxo de Autenticação
+## Fluxo de Autenticacao
 
 ```
-1. Login (POST /auth/login)
-   │
-   ▼
-2. Valida credenciais
-   │
-   ▼
-3. Gera tokens
-   ├── accessToken (15min)
-   └── refreshToken (7dias)
-   │
-   ▼
-4. Cliente armazena tokens
-   │
-   ▼
-5. Requests subsequentes
-   └── Header: Authorization: Bearer <accessToken>
-   │
-   ▼
-6. Token expirado?
-   └── POST /auth/refresh com refreshToken
+1. POST /auth/login → Valida credenciais
+2. Gera accessToken (15min) + refreshToken (7dias)
+   - JWT payload: { sub, email, tenantId, customRoleId, roleType }
+   - Audience: "powersync" (compartilhado com PowerSync)
+3. Cliente envia: Authorization: Bearer <accessToken>
+4. Token expirado → POST /auth/refresh com refreshToken
 ```
 
-## Fluxo de Permissões
+## Fluxo de Permissoes (CustomRole)
 
 ```
 Request chega
      │
      ▼
-JwtAuthGuard
-     │ Valida token JWT
-     ▼
-PermissionsGuard
+JwtAuthGuard ── Valida JWT, popula req.user com CustomRole
      │
      ▼
-Extrai @RequirePermission('recurso', 'ação', 'escopo')
+RolesGuard ── Verifica @Roles() se presente
      │
      ▼
-Busca permissões do usuário (role + roles adicionais)
+Controller ── Chama checkModulePermission() ou checkEntityAction()
      │
      ▼
-Verifica se tem permissão
+Service ── Usa EntityDataQueryService que aplica:
+     │      - scope (own/all) via getEntityScope()
+     │      - globalFilters (entity.settings)
+     │      - roleDataFilters (customRole.permissions[].dataFilters)
      │
-     ├── ✅ Permite → Controller executa
-     │
+     ├── ✅ Permite → Retorna dados filtrados
      └── ❌ Nega → 403 Forbidden
-```
-
-## Formato de Permissões
-
-```
-{recurso}:{ação}:{escopo}
-
-Recursos: cliente, produto, venda, user, role, entity, etc
-Ações: create, read, update, delete, export, import, manage
-Escopos: all, team, own, none
-
-Exemplos:
-- cliente:read:all     → Ver todos os clientes
-- cliente:update:own   → Editar apenas seus clientes
-- *:manage:all         → Admin total
 ```
 
 ## Frontend (Next.js)
 
 ```
-src/
-├── app/                    # App Router
-│   ├── (auth)/            # Rotas públicas
-│   │   ├── login/
-│   │   └── register/
-│   │
-│   ├── (dashboard)/       # Rotas protegidas
-│   │   ├── layout.tsx     # Layout com sidebar
-│   │   ├── dashboard/
-│   │   ├── data/[entity]/
-│   │   ├── entities/
-│   │   ├── apis/
-│   │   ├── users/
-│   │   └── settings/
-│   │
-│   ├── layout.tsx         # Root layout
-│   └── globals.css
+apps/web-admin/src/
+├── app/[locale]/
+│   ├── (auth)/                  # Login, register, forgot-password
+│   └── (dashboard)/             # Rotas protegidas
+│       ├── dashboard/           # Dashboard principal
+│       ├── dashboard-templates/ # Builder de dashboards
+│       ├── data/                # CRUD dinamico de entidades
+│       ├── entities/            # Gerenciamento de entidades
+│       ├── pdf-templates/       # Builder de PDFs
+│       ├── roles/               # Gerenciamento de roles
+│       ├── users/               # Gerenciamento de usuarios
+│       ├── tenants/             # Gerenciamento de tenants (PLATFORM_ADMIN)
+│       ├── permissions/         # Painel de permissoes
+│       ├── audit-logs/          # Logs de auditoria
+│       ├── execution-logs/      # Logs de automacoes
+│       ├── settings/            # Configuracoes do tenant
+│       └── profile/             # Perfil do usuario
 │
 ├── components/
-│   ├── ui/                # shadcn/ui
-│   └── shared/            # Componentes do app
+│   ├── ui/                      # shadcn/ui base components
+│   ├── dashboard-widgets/       # Widgets de dashboard (KPI, charts, etc)
+│   ├── entity-editor/           # Editor visual de entidades
+│   └── [feature]/               # Componentes por feature
 │
-├── hooks/                 # Custom hooks
-├── lib/                   # Utilitários
-├── providers/             # Context providers
-├── services/              # API calls
-├── stores/                # Zustand stores
-└── types/                 # TypeScript
+├── hooks/                       # TanStack Query hooks
+│   ├── use-data.ts              # CRUD de EntityData
+│   ├── use-dashboard-templates.ts # Stats + templates
+│   ├── use-permissions.ts       # Permissoes (CustomRole-based)
+│   └── ...
+│
+├── services/                    # API clients (axios)
+├── stores/                      # Zustand stores
+├── providers/                   # React context providers
+└── types/                       # TypeScript types (re-exports @crm-builder/shared)
 ```
 
-## Comunicação Frontend ↔ API
+## Mobile (Flutter)
 
-```typescript
-// lib/api.ts
-const api = axios.create({
-  baseURL: process.env.NEXT_PUBLIC_API_URL + '/api/v1'
-});
-
-// Interceptor adiciona token automaticamente
-api.interceptors.request.use((config) => {
-  const token = getAccessToken();
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
-  return config;
-});
-
-// Interceptor trata refresh de token
-api.interceptors.response.use(
-  (response) => response,
-  async (error) => {
-    if (error.response?.status === 401) {
-      // Tenta refresh
-      // Se falhar, redireciona para login
-    }
-    return Promise.reject(error);
-  }
-);
+```
+apps/mobile/
+├── lib/
+│   ├── core/
+│   │   ├── database/            # PowerSync setup + connector
+│   │   ├── upload/              # Upload queue offline
+│   │   ├── cache/               # Image prefetch + cache
+│   │   └── auth/                # Auth service (flutter_secure_storage)
+│   ├── features/                # Features por modulo
+│   ├── providers/               # Riverpod providers
+│   └── design_system/           # Design system (mirror web-admin)
+│
+├── powersync.yaml               # Sync rules
+└── pubspec.yaml
 ```
 
-## WebSocket (Notificações)
+## Deploy
 
-```typescript
-// Cliente
-const socket = io(API_URL, {
-  auth: { token: accessToken }
-});
+```bash
+# Producao
+./deploy.sh          # build + docker build + up + nginx restart
 
-socket.on('notification', (data) => {
-  // Mostra notificação
-});
+# Dev
+./deploy-dev.sh      # branch develop, mesmo fluxo
 
-// Servidor
-@WebSocketGateway()
-export class NotificationGateway {
-  @SubscribeMessage('subscribe')
-  handleSubscribe(client, payload) {
-    client.join(`tenant:${payload.tenantId}`);
-  }
-  
-  notifyTenant(tenantId: string, message: any) {
-    this.server.to(`tenant:${tenantId}`).emit('notification', message);
-  }
-}
+# Fluxo:
+pnpm build → docker build api web → docker compose up → nginx restart
 ```

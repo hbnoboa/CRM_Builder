@@ -109,6 +109,7 @@ export type {
   WidgetType,
   WidgetConfig,
   LayoutItem,
+  DashboardTab,
   DashboardTemplate,
   CreateDashboardTemplateData,
   UpdateDashboardTemplateData,
@@ -121,6 +122,8 @@ export type {
   RecentActivityItem,
   TopRecord,
   FunnelStage,
+  CrossFieldDistribution,
+  FieldRatioResult,
 } from './dashboard-template';
 
 // Formatters

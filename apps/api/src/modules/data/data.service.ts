@@ -18,7 +18,7 @@ import {
 } from '../../common/types';
 import { RoleType } from '../../common/decorators/roles.decorator';
 import { getEffectiveTenantId } from '../../common/utils/tenant.util';
-import { buildFilterClause } from '../../common/utils/build-filter-clause';
+import { EntityDataQueryService } from '../../common/services/entity-data-query.service';
 import { AuditService } from '../audit/audit.service';
 import { formatRecordData } from '../../common/utils/format-record';
 
@@ -88,10 +88,6 @@ interface EntityField {
   relatedDisplayField?: string;
 }
 
-// Cache for entity lookups within a request (reduces duplicate queries)
-const entityCache = new Map<string, { entity: Entity; timestamp: number }>();
-const CACHE_TTL = 5000; // 5 seconds
-
 @Injectable()
 export class DataService {
   private readonly logger = new Logger(DataService.name);
@@ -103,6 +99,7 @@ export class DataService {
     private customRoleService: CustomRoleService,
     private auditService: AuditService,
     private computedFieldsService: ComputedFieldsService,
+    private queryService: EntityDataQueryService,
     @Optional() @Inject(WebhookService) private webhookService?: WebhookService,
     @Optional() @Inject(ActionChainService) private actionChainService?: ActionChainService,
     @Optional() @Inject(EntityAutomationService) private entityAutomationService?: EntityAutomationService,
@@ -185,36 +182,6 @@ export class DataService {
     }
   }
 
-  // Get entity with short-lived cache to avoid duplicate queries within same request
-  private async getEntityCached(entitySlug: string, currentUser: CurrentUser, tenantId?: string): Promise<Entity> {
-    // Para PLATFORM_ADMIN sem tenantId especificado, buscar em qualquer tenant
-    const roleType = currentUser.customRole?.roleType as RoleType | undefined;
-    const effectiveTenantId = roleType === 'PLATFORM_ADMIN' && !tenantId
-      ? undefined
-      : getEffectiveTenantId(currentUser, tenantId);
-    const cacheKey = `${entitySlug}:${effectiveTenantId || 'any'}`;
-    const cached = entityCache.get(cacheKey);
-
-    if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
-      return cached.entity;
-    }
-
-    const entity = await this.entityService.findBySlug(entitySlug, currentUser, effectiveTenantId);
-    entityCache.set(cacheKey, { entity, timestamp: Date.now() });
-
-    // Clean old entries periodically
-    if (entityCache.size > 100) {
-      const now = Date.now();
-      for (const [key, value] of entityCache.entries()) {
-        if (now - value.timestamp > CACHE_TTL) {
-          entityCache.delete(key);
-        }
-      }
-    }
-
-    return entity;
-  }
-
   async create(entitySlug: string, dto: CreateDataDto & { tenantId?: string }, currentUser: CurrentUser) {
     // Verificar permissao de criacao na entidade
     await this.checkEntityPermission(currentUser.id, entitySlug, 'canCreate');
@@ -222,7 +189,7 @@ export class DataService {
     const targetTenantId = getEffectiveTenantId(currentUser, dto.tenantId);
 
     // Buscar entidade (cached)
-    const entity = await this.getEntityCached(entitySlug, currentUser, targetTenantId);
+    const entity = await this.queryService.getEntityCached(entitySlug, currentUser, targetTenantId);
 
     // Processar campos calculados (formula, rollup, timer, sla-status)
     const fields = (entity.fields as unknown) as EntityField[];
@@ -317,110 +284,29 @@ export class DataService {
     const limit = query._skipMaxLimit ? rawLimit : Math.min(MAX_LIMIT, rawLimit);
     const { search, sortBy = 'createdAt', sortOrder = 'desc', tenantId: queryTenantId, parentRecordId, includeChildren, hasChildrenIn, cursor, fields } = query;
 
-    const effectiveTenantId = getEffectiveTenantId(currentUser, queryTenantId);
-
-    // Buscar entidade (cached)
-    const entity = await this.getEntityCached(entitySlug, currentUser, effectiveTenantId);
-
-    // Base where
-    const where: Prisma.EntityDataWhereInput = {
-      entityId: entity.id,
-    };
-
-    // Filtro por IDs especificos (para export de selecionados)
+    // Parse recordIds se fornecidos
+    let parsedRecordIds: string[] | undefined;
     if (query.recordIds) {
       try {
         const ids = JSON.parse(query.recordIds) as string[];
         if (Array.isArray(ids) && ids.length > 0) {
-          where.id = { in: ids };
+          parsedRecordIds = ids;
         }
       } catch { /* ignore parse error */ }
     }
 
-    // Filtro: apenas registros que tem filhos em uma entidade especifica
-    if (hasChildrenIn) {
-      const parentIdsResult = await this.prisma.entityData.findMany({
-        where: { entityId: hasChildrenIn, parentRecordId: { not: null } },
-        select: { parentRecordId: true },
-        distinct: ['parentRecordId'],
-      });
-      const parentIds = parentIdsResult.map(r => r.parentRecordId).filter(Boolean) as string[];
-      where.id = { in: parentIds.length > 0 ? parentIds : ['__none__'] };
-    }
-
-    // Filtro de sub-entidade:
-    // - parentRecordId passado: retorna apenas sub-registros daquele pai
-    // - includeChildren=true: retorna todos (inclusive sub-registros)
-    // - nenhum dos dois: retorna apenas registros raiz (sem parentRecordId)
-    if (parentRecordId) {
-      where.parentRecordId = parentRecordId;
-    } else if (includeChildren !== 'true') {
-      where.parentRecordId = null;
-    }
-
-    // PLATFORM_ADMIN pode ver de qualquer tenant ou todos
-    const userRoleType = currentUser.customRole?.roleType as RoleType | undefined;
-    if (userRoleType === 'PLATFORM_ADMIN') {
-      if (queryTenantId) {
-        where.tenantId = queryTenantId;
-      }
-    } else {
-      where.tenantId = currentUser.tenantId;
-    }
-
-    // Aplicar filtro de escopo baseado na CustomRole (own = apenas proprios registros)
-    await this.applyScopeFromCustomRole(where, currentUser, entitySlug);
-
-    // Aplicar filtros globais da entidade automaticamente (SEMPRE)
-    const entitySettings = entity.settings as Record<string, unknown> | null;
-    const entityGlobalFilters = (entitySettings?.globalFilters || []) as GlobalFilter[];
-    if (entityGlobalFilters.length > 0) {
-      this.applyGlobalFilters(where, entityGlobalFilters);
-      this.logger.log(`Auto-applied ${entityGlobalFilters.length} global filters for ${entitySlug}`);
-    }
-
-    // Aplicar filtros de dados por role (permissions[].dataFilters da CustomRole)
-    this.applyRoleDataFilters(where, currentUser, entitySlug);
-
-    // Aplicar filtros passados via query parameter (suporta multiplos filtros)
-    if (query.filters) {
-      try {
-        this.logger.debug(`Raw filters param: ${query.filters}`);
-        const filters = JSON.parse(query.filters) as GlobalFilter[];
-        if (Array.isArray(filters) && filters.length > 0) {
-          for (const f of filters) {
-            this.logger.log(`Filter: ${f.fieldSlug} (${f.fieldType}) ${f.operator} = ${JSON.stringify(f.value)}`);
-          }
-          this.applyGlobalFilters(where, filters);
-          this.logger.log(`Applied ${filters.length} filters for entity ${entitySlug}`);
-        }
-      } catch (e) {
-        this.logger.warn(`Failed to parse filters param: ${e}`);
-      }
-    }
-
-    // Busca textual
-    if (search) {
-      const settings = entity.settings as EntitySettings;
-      const searchFields = settings?.searchFields || [];
-
-      if (searchFields.length > 0) {
-        // JSON path queries nao suportam mode: 'insensitive' no Prisma
-        // Buscamos tanto com o termo original quanto em uppercase para chassis etc.
-        const searchVariants = [search];
-        if (search !== search.toUpperCase()) searchVariants.push(search.toUpperCase());
-        if (search !== search.toLowerCase()) searchVariants.push(search.toLowerCase());
-
-        where.OR = searchFields.flatMap((field: string) =>
-          searchVariants.map(term => ({
-            data: {
-              path: [field],
-              string_contains: term,
-            },
-          }))
-        );
-      }
-    }
+    // Construir WHERE via servico centralizado
+    const { where, entity, effectiveTenantId } = await this.queryService.buildWhere({
+      entitySlug,
+      user: currentUser,
+      tenantId: queryTenantId,
+      parentRecordId,
+      includeChildren: includeChildren === 'true',
+      filters: query.filters,
+      search,
+      recordIds: parsedRecordIds,
+      hasChildrenIn,
+    });
 
     // =========================================================================
     // CURSOR-BASED PAGINATION (mais eficiente para listas grandes)
@@ -443,7 +329,7 @@ export class DataService {
     // =========================================================================
     // ARCHIVED DATA: construir where equivalente para ArchivedEntityData
     // =========================================================================
-    const archivedWhere = this.buildArchivedWhere(where);
+    const archivedWhere = this.queryService.buildArchivedWhere(where);
 
     // =========================================================================
     // ORDENACAO E QUERIES
@@ -1112,7 +998,7 @@ export class DataService {
     const { search, sortBy = 'createdAt', sortOrder = 'desc', tenantId: queryTenantId } = query;
 
     const effectiveTenantId = getEffectiveTenantId(currentUser, queryTenantId);
-    const entity = await this.getEntityCached(entitySlug, currentUser, effectiveTenantId);
+    const entity = await this.queryService.getEntityCached(entitySlug, currentUser, effectiveTenantId);
 
     const where: Prisma.ArchivedEntityDataWhereInput = {
       entityId: entity.id,
@@ -1224,7 +1110,7 @@ export class DataService {
     await this.checkEntityPermission(currentUser.id, entitySlug, 'canRead');
 
     const effectiveTenantId = getEffectiveTenantId(currentUser, tenantId);
-    const entity = await this.getEntityCached(entitySlug, currentUser, effectiveTenantId);
+    const entity = await this.queryService.getEntityCached(entitySlug, currentUser, effectiveTenantId);
 
     // PLATFORM_ADMIN pode ver registro de qualquer tenant
     const roleType = currentUser.customRole?.roleType as RoleType | undefined;
@@ -1309,7 +1195,7 @@ export class DataService {
     // Verificar filtros de dados por role (apenas para registros ativos — archived nao tem role filters)
     if (!recordResult._isArchived && roleType !== 'PLATFORM_ADMIN' && roleType !== 'ADMIN') {
       const roleFilterWhere: Prisma.EntityDataWhereInput = { id: recordResult.id };
-      this.applyRoleDataFilters(roleFilterWhere, currentUser, entitySlug);
+      this.queryService.applyRoleDataFilters(roleFilterWhere, currentUser, entitySlug);
 
       // Se filtros foram adicionados, verificar se o registro passa
       if (roleFilterWhere.AND && (roleFilterWhere.AND as Prisma.EntityDataWhereInput[]).length > 0) {
@@ -1365,7 +1251,7 @@ export class DataService {
     await this.checkEntityPermission(currentUser.id, entitySlug, 'canUpdate');
 
     const effectiveTenantId = getEffectiveTenantId(currentUser, dto.tenantId);
-    const entity = await this.getEntityCached(entitySlug, currentUser, effectiveTenantId);
+    const entity = await this.queryService.getEntityCached(entitySlug, currentUser, effectiveTenantId);
 
     // PLATFORM_ADMIN pode editar registro de qualquer tenant
     const roleType = currentUser.customRole?.roleType as RoleType | undefined;
@@ -1545,7 +1431,7 @@ export class DataService {
     await this.checkEntityPermission(currentUser.id, entitySlug, 'canDelete');
 
     const effectiveTenantId = getEffectiveTenantId(currentUser, tenantId);
-    const entity = await this.getEntityCached(entitySlug, currentUser, effectiveTenantId);
+    const entity = await this.queryService.getEntityCached(entitySlug, currentUser, effectiveTenantId);
 
     // PLATFORM_ADMIN pode deletar registro de qualquer tenant
     const roleType = currentUser.customRole?.roleType as RoleType | undefined;
@@ -1643,119 +1529,6 @@ export class DataService {
     );
 
     return { message: 'Registro excluido com sucesso' };
-  }
-
-  /**
-   * Aplica filtros de escopo na query baseado na CustomRole
-   * @param entitySlug - slug da entidade para buscar o scope
-   */
-  private async applyScopeFromCustomRole(
-    where: Prisma.EntityDataWhereInput,
-    user: CurrentUser,
-    entitySlug: string,
-  ): Promise<void> {
-    // Buscar scope da custom role para esta entidade
-    const scope = await this.customRoleService.getEntityScope(user.id, entitySlug);
-
-    // Se scope = 'own', filtrar apenas registros criados pelo usuario
-    if (scope === 'own') {
-      where.createdById = user.id;
-      this.logger.debug(`Applying scope 'own' for user ${user.id} on entity ${entitySlug}`);
-    }
-    // Se scope = 'all' ou null (ADMIN/PLATFORM_ADMIN), nao filtra por criador
-  }
-
-  /**
-   * Aplica filtros globais da entidade na query
-   * Os filtros globais sao definidos em entity.settings.globalFilters
-   */
-  private applyGlobalFilters(
-    where: Prisma.EntityDataWhereInput,
-    globalFilters: GlobalFilter[],
-  ): void {
-    if (!globalFilters || globalFilters.length === 0) return;
-
-    // Inicializar AND array se nao existir
-    if (!where.AND) {
-      where.AND = [];
-    }
-    const andArray = where.AND as Prisma.EntityDataWhereInput[];
-
-    for (const filter of globalFilters) {
-      const { fieldSlug, fieldType, operator, value, value2 } = filter;
-      const filterClause = this.buildFilterClause(fieldSlug, fieldType, operator, value, value2);
-      if (filterClause) {
-        andArray.push(filterClause);
-        this.logger.debug(`Applied global filter: ${fieldSlug} ${operator} ${value}`);
-      }
-    }
-  }
-
-  /**
-   * Aplica filtros de dados por role na query.
-   * Fonte unica: permissions[].dataFilters (inline por entidade na CustomRole).
-   * PLATFORM_ADMIN/ADMIN nao recebem filtros.
-   */
-  private applyRoleDataFilters(
-    where: Prisma.EntityDataWhereInput,
-    user: CurrentUser,
-    entitySlug: string,
-  ): void {
-    const roleType = user.customRole?.roleType as RoleType | undefined;
-    if (roleType === 'PLATFORM_ADMIN' || roleType === 'ADMIN') return;
-    if (!user.customRole) return;
-
-    const roleFilters = this.customRoleService.getRoleDataFilters(
-      user.customRole as { roleType: string; permissions: unknown },
-      entitySlug,
-    );
-
-    if (roleFilters.length > 0) {
-      this.applyGlobalFilters(where, roleFilters as unknown as GlobalFilter[]);
-      this.logger.log(`Applied ${roleFilters.length} role data filters for user ${user.id} on ${entitySlug}`);
-    }
-  }
-
-  /**
-   * Constroi uma clausula Prisma WHERE para um filtro.
-   * Delegado para o util compartilhado em common/utils/build-filter-clause.ts
-   */
-  private buildFilterClause(
-    fieldSlug: string,
-    fieldType: string,
-    operator: string,
-    value: unknown,
-    value2?: unknown,
-  ): Prisma.EntityDataWhereInput | null {
-    return buildFilterClause(fieldSlug, fieldType, operator, value, value2);
-  }
-
-  /**
-   * Constroi ArchivedEntityDataWhereInput a partir de EntityDataWhereInput.
-   * Copia: entityId, tenantId, createdById, parentRecordId, OR (search), AND (filters JSON).
-   * Ignora: deletedAt, PowerSync columns, id-based hasChildrenIn filter.
-   */
-  private buildArchivedWhere(
-    where: Prisma.EntityDataWhereInput,
-  ): Prisma.ArchivedEntityDataWhereInput {
-    const aw: Prisma.ArchivedEntityDataWhereInput = {};
-
-    if (where.entityId) aw.entityId = where.entityId as string;
-    if (where.tenantId) aw.tenantId = where.tenantId as string;
-    if (where.createdById) aw.createdById = where.createdById as string;
-    if (where.parentRecordId !== undefined) aw.parentRecordId = where.parentRecordId as string | null;
-
-    // Copy search OR clauses (data JSON path queries)
-    if (where.OR) {
-      aw.OR = where.OR as Prisma.ArchivedEntityDataWhereInput[];
-    }
-
-    // Copy AND clauses (global filters, role filters — all data JSON path queries)
-    if (where.AND) {
-      aw.AND = where.AND as Prisma.ArchivedEntityDataWhereInput[];
-    }
-
-    return aw;
   }
 
   /**

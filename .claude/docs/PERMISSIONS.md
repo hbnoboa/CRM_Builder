@@ -1,300 +1,260 @@
-# 🔐 Sistema de Permissões
+# Sistema de Permissoes (CustomRole RBAC)
 
-## Formato
+## Visao Geral
 
-```
-{recurso}:{ação}:{escopo}
-```
+O sistema usa **CustomRole** com permissoes granulares por entidade e por modulo. Cada usuario tem uma `customRole` que define seu `roleType` e suas permissoes especificas.
 
-### Recursos
-| Recurso | Descrição |
-|---------|-----------|
-| `*` | Todos os recursos (wildcard) |
-| `user` | Gerenciamento de usuários |
-| `role` | Gerenciamento de roles |
-| `tenant` | Gerenciamento de tenants |
-| `organization` | Gerenciamento de organizações |
-| `organization` | Gerenciamento de organizations |
-| `entity` | Definição de entidades |
-| `page` | Pages do Puck Builder |
-| `api` | Endpoints customizados |
-| `{entity_slug}` | Dados de entidade específica |
+> **Importante:** O antigo sistema de permissoes baseado em strings (`recurso:acao:escopo`) foi completamente substituido pelo sistema CustomRole.
 
-### Ações
-| Ação | Descrição |
-|------|-----------|
-| `manage` | Todas as ações (wildcard) |
-| `create` | Criar registros |
-| `read` | Visualizar registros |
-| `update` | Editar registros |
-| `delete` | Excluir registros |
-| `export` | Exportar dados |
-| `import` | Importar dados |
+## Hierarquia de Roles (roleType)
 
-### Escopos
-| Escopo | Descrição |
-|--------|-----------|
-| `all` | Todos os registros do tenant |
-| `team` | Registros da mesma organização |
-| `own` | Apenas registros próprios |
-| `none` | Sem acesso |
+| roleType | Descricao | Scope | Acesso |
+|----------|-----------|-------|--------|
+| `PLATFORM_ADMIN` | Super admin da plataforma | all | Tudo, cross-tenant |
+| `ADMIN` | Admin do tenant | all | Tudo dentro do tenant |
+| `MANAGER` | Gerente | all | Dados + leitura de usuarios |
+| `USER` | Padrao | own | CRUD proprio |
+| `VIEWER` | Apenas leitura | all | Leitura de todos os dados |
+| `CUSTOM` | Configuravel | configuravel | Definido nas permissoes |
 
-## Exemplos
+## Estrutura do CustomRole
+
+### 1. permissions (por entidade)
+
+JSON array com permissoes por entidade:
 
 ```typescript
-// Ver todos os clientes
-'cliente:read:all'
+interface EntityPermission {
+  entitySlug: string;           // "clientes", "veiculos", etc.
 
-// Editar apenas seus clientes
-'cliente:update:own'
+  // CRUD basico
+  canCreate: boolean;
+  canRead: boolean;
+  canUpdate: boolean;
+  canDelete: boolean;
 
-// Ver clientes da equipe
-'cliente:read:team'
+  // Escopo de visibilidade
+  scope: 'all' | 'own';        // all = todos, own = apenas createdById
 
-// Admin de usuários
-'user:manage:all'
+  // Acoes extras (sub-granular)
+  canExport?: boolean;
+  canImport?: boolean;
+  canConfigureColumns?: boolean;
 
-// Super admin
-'*:manage:all'
-```
+  // Permissoes por campo (opcional)
+  fieldPermissions?: {
+    fieldSlug: string;
+    canView: boolean;
+    canEdit: boolean;
+  }[];
 
-## Roles Padrão
+  // Filtros de dados por role (restringe registros visiveis)
+  dataFilters?: {
+    fieldSlug: string;
+    fieldName: string;
+    fieldType: string;
+    operator: string;           // equals, contains, gt, lt, between, etc.
+    value?: unknown;
+    value2?: unknown;
+  }[];
 
-### PLATFORM_ADMIN
-```json
-["*:manage:all"]
-```
-
-### ADMIN
-```json
-[
-  "user:manage:all",
-  "role:manage:all",
-  "organization:manage:all",
-  "organization:manage:all",
-  "entity:manage:all",
-  "page:manage:all",
-  "api:manage:all",
-  "*:manage:all"  // Todas as entidades
-]
-```
-
-### MANAGER
-```json
-[
-  "user:read:team",
-  "user:update:team",
-  "*:read:all",
-  "*:create:all",
-  "*:update:team",
-  "*:delete:team",
-  "*:export:team"
-]
-```
-
-### USER
-```json
-[
-  "*:read:team",
-  "*:create:all",
-  "*:update:own",
-  "*:delete:own"
-]
-```
-
-### VIEWER
-```json
-[
-  "*:read:team"
-]
-```
-
-## Implementação Backend
-
-### Decorator
-```typescript
-// common/decorators/require-permission.decorator.ts
-export const RequirePermission = (
-  resource: string, 
-  action: string, 
-  scope?: string
-) => SetMetadata(PERMISSION_KEY, { resource, action, scope });
-
-// Uso no controller
-@Get()
-@RequirePermission('cliente', 'read', 'all')
-findAll() { ... }
-```
-
-### Guard
-```typescript
-// common/guards/permissions.guard.ts
-@Injectable()
-export class PermissionsGuard implements CanActivate {
-  async canActivate(context: ExecutionContext): Promise<boolean> {
-    const required = this.reflector.get<PermissionRequirement>(
-      PERMISSION_KEY, 
-      context.getHandler()
-    );
-    
-    if (!required) return true;
-    
-    const user = request.user;
-    const hasPermission = await this.permissionService.check(
-      user,
-      required.resource,
-      required.action,
-      required.scope
-    );
-    
-    if (!hasPermission) {
-      throw new ForbiddenException('Permissão negada');
-    }
-    
-    return true;
-  }
-}
-```
-
-### Service
-```typescript
-// common/services/permission.service.ts
-@Injectable()
-export class PermissionService {
-  async check(
-    user: User,
-    resource: string,
-    action: string,
-    requiredScope?: string
-  ): Promise<boolean> {
-    const permissions = await this.getUserPermissions(user.id);
-    
-    for (const perm of permissions) {
-      const parsed = this.parse(perm);
-      
-      // Wildcard de recurso
-      if (parsed.resource === '*' || parsed.resource === resource) {
-        // Wildcard de ação
-        if (parsed.action === 'manage' || parsed.action === action) {
-          // Verifica escopo
-          if (this.scopeMatches(parsed.scope, requiredScope)) {
-            return true;
-          }
-        }
-      }
-    }
-    
-    return false;
-  }
-  
-  private scopeMatches(userScope: string, required?: string): boolean {
-    if (!required) return true;
-    if (userScope === 'all') return true;
-    if (userScope === 'team' && required !== 'all') return true;
-    if (userScope === required) return true;
-    return false;
-  }
-}
-```
-
-## Implementação Frontend
-
-### Hook
-```typescript
-// hooks/use-permission.ts
-export function usePermission() {
-  const { user } = useAuthStore();
-  
-  const can = useCallback((
-    resource: string,
-    action: string,
-    scope?: string
-  ): boolean => {
-    if (!user) return false;
-    
-    // PLATFORM_ADMIN pode tudo
-    if (user.role === 'PLATFORM_ADMIN') return true;
-    
-    const permissions = user.permissions || [];
-    
-    for (const perm of permissions) {
-      const [permResource, permAction, permScope] = perm.split(':');
-      
-      if (permResource === '*' || permResource === resource) {
-        if (permAction === 'manage' || permAction === action) {
-          if (!scope || permScope === 'all' || permScope === scope) {
-            return true;
-          }
-        }
-      }
-    }
-    
-    return false;
-  }, [user]);
-  
-  return { can };
-}
-```
-
-### Componente Gate
-```typescript
-// components/permission-gate.tsx
-interface PermissionGateProps {
-  resource: string;
-  action: string;
-  scope?: string;
-  children: React.ReactNode;
-  fallback?: React.ReactNode;
-}
-
-export function PermissionGate({ 
-  resource, 
-  action, 
-  scope, 
-  children, 
-  fallback = null 
-}: PermissionGateProps) {
-  const { can } = usePermission();
-  
-  if (!can(resource, action, scope)) {
-    return <>{fallback}</>;
-  }
-  
-  return <>{children}</>;
-}
-
-// Uso
-<PermissionGate resource="cliente" action="delete">
-  <Button variant="destructive">Excluir</Button>
-</PermissionGate>
-```
-
-## Filtragem por Escopo
-
-```typescript
-// No service de dados
-async findAll(user: User, entitySlug: string) {
-  const scope = await this.getEffectiveScope(user, entitySlug, 'read');
-  
-  const where: any = {
-    entity: { slug: entitySlug },
-    tenantId: user.tenantId,
+  // Regras de notificacao
+  notificationRules?: {
+    enabled: boolean;
+    onCreate: boolean;
+    onUpdate: boolean;
+    onDelete: boolean;
+    conditions?: DataFilter[];  // Condicoes para disparar
   };
-  
-  switch (scope) {
-    case 'own':
-      where.createdById = user.id;
-      break;
-    case 'team':
-      where.createdBy = { organizationId: user.organizationId };
-      break;
-    case 'all':
-      // Sem filtro adicional
-      break;
-    default:
-      throw new ForbiddenException();
-  }
-  
-  return this.prisma.entityData.findMany({ where });
 }
 ```
+
+### 2. modulePermissions (por modulo do sistema)
+
+JSON object com permissoes CRUD por modulo:
+
+```typescript
+interface ModulePermissions {
+  dashboard?: ModulePermission;
+  users?: ModulePermission;
+  settings?: ModulePermission;
+  apis?: ModulePermission;
+  pages?: ModulePermission;
+  entities?: ModulePermission;
+  tenants?: ModulePermission;   // Apenas PLATFORM_ADMIN
+  data?: ModulePermission;
+  roles?: ModulePermission;
+  pdfTemplates?: ModulePermission;
+  auditLogs?: ModulePermission;
+  dashboardTemplates?: ModulePermission;
+}
+
+interface ModulePermission {
+  canRead: boolean;
+  canCreate: boolean;
+  canUpdate: boolean;
+  canDelete: boolean;
+
+  // Sub-granular (opcionais, por modulo)
+  canGenerate?: boolean;       // pdfTemplates
+  canPublish?: boolean;        // pdfTemplates
+  canActivate?: boolean;       // apis, webhooks
+  canTest?: boolean;           // apis
+  canDuplicate?: boolean;
+  canSuspend?: boolean;        // users
+  canAssignRole?: boolean;     // users
+  canChangeStatus?: boolean;   // users
+  canSetDefault?: boolean;     // roles
+  canManagePermissions?: boolean; // roles
+  canUpdateLayout?: boolean;   // entities
+  canCreateField?: boolean;    // entities
+  canDeleteField?: boolean;    // entities
+  canUpdateField?: boolean;    // entities
+  canConfigureColumns?: boolean; // data
+  canExport?: boolean;         // data
+  canImport?: boolean;         // data
+}
+```
+
+### 3. tenantPermissions (PLATFORM_ADMIN only)
+
+```typescript
+interface TenantPermissions {
+  canAccessAllTenants: boolean;
+  allowedTenantIds: string[];   // Se !canAccessAllTenants
+}
+```
+
+## Verificacao de Permissoes
+
+### Backend (API)
+
+**Guards:** `JwtAuthGuard` → `RolesGuard`
+
+```typescript
+@Controller('resources')
+@UseGuards(JwtAuthGuard, RolesGuard)
+export class ResourceController {
+  // Verificacao de modulo:
+  @Get()
+  async findAll(@CurrentUser() user: CurrentUser) {
+    checkModulePermission(user, 'settings', 'canRead');
+    return this.service.findAll(user);
+  }
+
+  // Verificacao de entidade (acao sub-granular):
+  @Post('export')
+  async export(@CurrentUser() user: CurrentUser) {
+    checkEntityAction(user, 'clientes', 'canExport');
+  }
+}
+```
+
+**`checkModulePermission(user, module, action)`**
+- PLATFORM_ADMIN e ADMIN → sempre permitido
+- Verifica `customRole.modulePermissions[module][action]`
+- Fallback para defaults do roleType se DB nao define o modulo
+- Lanca `ForbiddenException` se negado
+
+**`checkEntityAction(user, entitySlug, action)`**
+- PLATFORM_ADMIN e ADMIN → sempre permitido
+- Verifica AMBOS: `modulePermissions.data[action]` OU `permissions[entitySlug][action]`
+- Qualquer um que concede → permite
+
+**`CustomRoleService.getEntityScope(userId, entitySlug)`**
+- PLATFORM_ADMIN, ADMIN, MANAGER, VIEWER → `'all'`
+- USER → `'own'`
+- CUSTOM → `permissions[entitySlug].scope` (default `'all'`)
+- Sem acesso → `null`
+
+**`CustomRoleService.getFieldPermissions(userId, entitySlug)`**
+- PLATFORM_ADMIN, ADMIN → `null` (sem restricao)
+- CUSTOM → `permissions[entitySlug].fieldPermissions`
+- Outros → `null` (sem restricao)
+
+### Pipeline de Dados (EntityDataQueryService)
+
+O `EntityDataQueryService.buildWhere()` aplica automaticamente:
+
+```
+1. Tenant isolation (PLATFORM_ADMIN bypass via getEffectiveTenantId)
+2. Scope (own → where.createdById = user.id)
+3. Global filters (entity.settings.globalFilters)
+4. Role data filters (customRole.permissions[entitySlug].dataFilters)
+5. User filters, dashboard filters, search
+```
+
+**Arquivo:** `apps/api/src/common/services/entity-data-query.service.ts`
+
+### Frontend (Next.js)
+
+**Hook:** `usePermissions()`
+
+```typescript
+const {
+  roleType,
+  isAdmin,
+  isPlatformAdmin,
+  modulePermissions,
+  entityPermissions,
+  hasModuleAccess,        // (moduleKey) → boolean (canRead)
+  hasModulePermission,    // (moduleKey, action) → boolean
+  hasEntityPermission,    // (entitySlug, action) → boolean
+  hasModuleAction,        // (moduleKey, action) → boolean (sub-granular)
+  hasEntityAction,        // (entitySlug, action) → boolean (sub-granular)
+  getEntityScope,         // (entitySlug) → 'all' | 'own'
+  getDefaultRoute,        // () → string (rota inicial baseada em permissoes)
+} = usePermissions();
+```
+
+**Uso no JSX:**
+
+```tsx
+// Condicional por modulo
+{hasModuleAccess('users') && <Link href="/users">Usuarios</Link>}
+
+// Condicional por acao CRUD em modulo
+{hasModulePermission('users', 'canCreate') && <Button>Novo Usuario</Button>}
+
+// Condicional por entidade
+{hasEntityPermission('clientes', 'canDelete') && <Button>Excluir</Button>}
+
+// Acao sub-granular
+{hasEntityAction('clientes', 'canExport') && <Button>Exportar</Button>}
+```
+
+**Funcao pura (fora de componentes):**
+
+```typescript
+import { getDefaultRouteForUser } from '@/hooks/use-permissions';
+const route = getDefaultRouteForUser(user);
+```
+
+## Defaults por roleType
+
+Quando `modulePermissions` nao esta definido no DB, o sistema usa defaults:
+
+| Modulo | MANAGER | USER | VIEWER |
+|--------|---------|------|--------|
+| dashboard | Read | Read | Read |
+| data | CRU (sem D) | CRU (sem D) | Read |
+| users | Read | Read | - |
+| entities | - | CRU (sem D) | - |
+| settings | - | Read | Read |
+| roles | Read | - | - |
+| pdfTemplates | Read+Generate | Read+Generate | Read+Generate |
+| dashboardTemplates | - | - | - |
+
+> PLATFORM_ADMIN e ADMIN sempre tem FULL CRUD em tudo. CUSTOM começa sem nada e recebe permissoes explicitas.
+
+## Arquivos Relevantes
+
+| Arquivo | Descricao |
+|---------|-----------|
+| `apps/api/src/modules/custom-role/custom-role.service.ts` | CRUD de roles + getEntityScope + getFieldPermissions |
+| `apps/api/src/modules/custom-role/dto/custom-role.dto.ts` | DTOs com validacao class-validator |
+| `apps/api/src/common/utils/check-module-permission.ts` | checkModulePermission() + checkEntityAction() |
+| `apps/api/src/common/guards/roles.guard.ts` | RolesGuard (verifica @Roles decorator) |
+| `apps/api/src/common/services/entity-data-query.service.ts` | Pipeline centralizado (scope + filtros) |
+| `apps/web-admin/src/hooks/use-permissions.ts` | Hook frontend com toda logica de permissoes |
+| `packages/shared/src/enums.ts` | RoleType, PermissionScope |

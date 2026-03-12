@@ -44,6 +44,10 @@ export const entityStatsKeys = {
   recentActivity: (slug: string, limit?: number, df?: object) => [...entityStatsKeys.all, 'recent-activity', slug, limit, df] as const,
   topRecords: (slug: string, opts?: object) => [...entityStatsKeys.all, 'top-records', slug, opts] as const,
   funnel: (slug: string, fieldSlug: string, stages?: string[], df?: object) => [...entityStatsKeys.all, 'funnel', slug, fieldSlug, stages, df] as const,
+  crossFieldDist: (slug: string, row: string, col: string, opts?: object) => [...entityStatsKeys.all, 'cross-field-dist', slug, row, col, opts] as const,
+  fieldRatio: (slug: string, num: string, den: string, opts?: object) => [...entityStatsKeys.all, 'field-ratio', slug, num, den, opts] as const,
+  distinctCount: (slug: string, fields: string[], opts?: object) => [...entityStatsKeys.all, 'distinct-count', slug, fields, opts] as const,
+  groupedData: (slug: string, groupBy: string[], opts?: object) => [...entityStatsKeys.all, 'grouped-data', slug, groupBy, opts] as const,
 };
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -225,6 +229,66 @@ export function useEntityFunnel(
     queryKey: entityStatsKeys.funnel(entitySlug || '', fieldSlug || '', stages, dashFilters),
     queryFn: () => entityStatsService.funnel(entitySlug!, fieldSlug!, stages, dashFilters),
     enabled: !!entitySlug && !!fieldSlug,
+    staleTime: 30_000,
+  });
+}
+
+export function useFieldRatio(
+  entitySlug: string | undefined,
+  numeratorField: string | undefined,
+  denominatorField: string | undefined,
+  options?: { aggregation?: string; comparePeriod?: boolean; days?: number; denominatorEntitySlug?: string } & DashboardFilterParams,
+) {
+  return useQuery({
+    queryKey: entityStatsKeys.fieldRatio(entitySlug || '', numeratorField || '', denominatorField || '', options),
+    queryFn: () => entityStatsService.fieldRatio(entitySlug!, numeratorField!, denominatorField!, options),
+    enabled: !!entitySlug && !!numeratorField && !!denominatorField,
+    staleTime: 30_000,
+  });
+}
+
+export function useDistinctCount(
+  entitySlug: string | undefined,
+  fields: string[] | undefined,
+  options?: { comparePeriod?: boolean; days?: number; filterField?: string; filterValue?: string } & DashboardFilterParams,
+) {
+  return useQuery({
+    queryKey: entityStatsKeys.distinctCount(entitySlug || '', fields || [], options),
+    queryFn: () => entityStatsService.distinctCount(entitySlug!, fields!, options),
+    enabled: !!entitySlug && !!fields && fields.length > 0,
+    staleTime: 30_000,
+  });
+}
+
+export function useGroupedData(
+  entitySlug: string | undefined,
+  groupBy: string[] | undefined,
+  options?: {
+    aggregations?: Array<{ type: string; fieldSlug?: string; alias: string; distinctFields?: string[] }>;
+    crossEntityCount?: { entitySlug: string; matchFields?: Array<{ source: string; target: string }>; matchBy?: 'fields' | 'children'; alias: string };
+    limit?: number;
+    sortBy?: string;
+    sortOrder?: string;
+  } & DashboardFilterParams,
+) {
+  return useQuery({
+    queryKey: entityStatsKeys.groupedData(entitySlug || '', groupBy || [], options),
+    queryFn: () => entityStatsService.groupedData(entitySlug!, groupBy!, options),
+    enabled: !!entitySlug && !!groupBy && groupBy.length > 0,
+    staleTime: 30_000,
+  });
+}
+
+export function useCrossFieldDistribution(
+  entitySlug: string | undefined,
+  rowField: string | undefined,
+  columnField: string | undefined,
+  options?: { limit?: number } & DashboardFilterParams,
+) {
+  return useQuery({
+    queryKey: entityStatsKeys.crossFieldDist(entitySlug || '', rowField || '', columnField || '', options),
+    queryFn: () => entityStatsService.crossFieldDistribution(entitySlug!, rowField!, columnField!, options),
+    enabled: !!entitySlug && !!rowField && !!columnField,
     staleTime: 30_000,
   });
 }

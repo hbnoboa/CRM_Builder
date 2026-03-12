@@ -6,15 +6,10 @@ import {
 import { useFieldDistribution } from '@/hooks/use-dashboard-templates';
 import { useDashboardFilters, useWidgetFilters } from './dashboard-filter-context';
 import { WidgetWrapper } from './widget-wrapper';
+import { TOOLTIP_STYLE, TOOLTIP_LABEL_STYLE, TOOLTIP_ITEM_STYLE, LEGEND_STYLE } from './chart-styles';
 import type { WidgetConfig } from '@crm-builder/shared';
 
 const DEFAULT_COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899', '#06B6D4', '#84CC16'];
-
-const TOOLTIP_STYLE = {
-  backgroundColor: 'hsl(var(--card))',
-  border: '1px solid hsl(var(--border))',
-  borderRadius: '8px',
-};
 
 interface PieChartWidgetProps {
   entitySlug: string;
@@ -25,7 +20,7 @@ interface PieChartWidgetProps {
 
 export function PieChartWidget({ entitySlug, config, title, isEditMode }: PieChartWidgetProps) {
   const fieldSlug = config.groupByField || config.fieldSlug || '';
-  const dashFilters = useWidgetFilters({ excludeField: fieldSlug });
+  const dashFilters = useWidgetFilters();
   const { data, isLoading, error } = useFieldDistribution(entitySlug, fieldSlug || undefined, config.limit, dashFilters);
   const { crossFilters, toggleCrossFilter } = useDashboardFilters();
 
@@ -71,20 +66,22 @@ export function PieChartWidget({ entitySlug, config, title, isEditMode }: PieCha
               <Cell
                 key={entry.value}
                 fill={colors[idx % colors.length]}
-                opacity={activeFilter && activeFilter.value !== entry.value ? 0.3 : 1}
+                opacity={activeFilter && !activeFilter.values.includes(entry.value) ? 0.3 : 1}
               />
             ))}
           </Pie>
           <Tooltip
             contentStyle={TOOLTIP_STYLE}
-            formatter={(v: number) => [(v ?? 0).toLocaleString('pt-BR'), 'Registros']}
+            labelStyle={TOOLTIP_LABEL_STYLE}
+            itemStyle={TOOLTIP_ITEM_STYLE}
+            formatter={(v: number) => [(v ?? 0).toLocaleString('pt-BR'), title || '']}
           />
           {config.showLegend !== false && (
             <Legend
               layout="horizontal"
               verticalAlign="bottom"
               align="center"
-              wrapperStyle={{ fontSize: 11 }}
+              wrapperStyle={LEGEND_STYLE}
             />
           )}
         </PieChart>

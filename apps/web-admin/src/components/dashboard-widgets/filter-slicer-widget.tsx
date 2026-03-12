@@ -35,10 +35,10 @@ export function FilterSlicerWidget({ entitySlug, config, title, isEditMode }: Fi
       <WidgetWrapper title={title} isEditMode={isEditMode}>
         <div className="flex items-center gap-2 h-full">
           <Select
-            value={activeFilter?.value || ''}
+            value={activeFilter?.values[0] || ''}
             onValueChange={(val) => {
               if (val === '__clear__') {
-                if (activeFilter) toggleCrossFilter(fieldSlug, activeFilter.value);
+                if (activeFilter?.values[0]) toggleCrossFilter(fieldSlug, activeFilter.values[0]);
               } else {
                 toggleCrossFilter(fieldSlug, val);
               }
@@ -72,13 +72,13 @@ export function FilterSlicerWidget({ entitySlug, config, title, isEditMode }: Fi
           {(options || []).map((opt) => (
             <Button
               key={opt.value}
-              variant={activeFilter?.value === opt.value ? 'default' : 'outline'}
+              variant={activeFilter?.values.includes(opt.value) ? 'default' : 'outline'}
               size="sm"
               className="h-7 text-xs"
               onClick={() => toggleCrossFilter(fieldSlug, opt.value)}
             >
               {opt.label}
-              {activeFilter?.value === opt.value && (
+              {activeFilter?.values.includes(opt.value) && (
                 <X className="h-3 w-3 ml-1" />
               )}
             </Button>

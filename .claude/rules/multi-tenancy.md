@@ -1,6 +1,6 @@
-# 🏢 Regras de Multi-Tenancy
+# Regras de Multi-Tenancy
 
-## Princípio Fundamental
+## Principio Fundamental
 
 > **NUNCA** um tenant pode ver ou modificar dados de outro tenant.
 
@@ -8,203 +8,120 @@
 
 ```
 Tenant (Empresa/Cliente)
-├── Organizations (Areas de Trabalho)
-│   ├── Entities
-│   ├── EntityData
-│   ├── Pages
-│   └── CustomEndpoints
-└── Users
-    └── Roles
+├── CustomRole[] (Papeis com permissoes granulares)
+├── Users[]
+│   └── UserTenantAccess[] (acesso multi-tenant)
+├── Entities[]
+│   ├── EntityData[] (registros ativos)
+│   │   └── EntityData[] (sub-registros via parentRecordId)
+│   └── ArchivedEntityData[] (registros arquivados)
+├── DashboardTemplates[]
+├── PdfTemplates[]
+├── Webhooks[]
+└── ActionChains[]
 ```
 
-## Regras de Isolamento
+## Regra #1: Usar EntityDataQueryService para EntityData
 
-### 1. Toda Query DEVE ter tenantId
-
-```typescript
-// ✅ CORRETO
-const users = await this.prisma.user.findMany({
-  where: {
-    tenantId: user.tenantId, // OBRIGATÓRIO
-    status: 'ACTIVE',
-  },
-});
-
-// ❌ ERRADO - NUNCA FAZER
-const users = await this.prisma.user.findMany({
-  where: {
-    status: 'ACTIVE',
-  },
-});
-```
-
-### 2. Validar Ownership em Updates/Deletes
+**OBRIGATORIO:** Todo modulo que busca `EntityData` DEVE usar o `EntityDataQueryService`.
+Nunca construir WHERE manualmente para EntityData.
 
 ```typescript
-// ✅ CORRETO
-async update(id: string, user: User, dto: UpdateDto) {
-  // Primeiro, verificar se pertence ao tenant
-  const record = await this.prisma.record.findFirst({
-    where: {
-      id,
-      tenantId: user.tenantId, // Valida tenant
-    },
-  });
+// ✅ CORRETO — usa pipeline centralizado
+import { EntityDataQueryService } from '../../common/services/entity-data-query.service';
 
-  if (!record) {
-    throw new NotFoundException('Registro não encontrado');
-  }
-
-  return this.prisma.record.update({
-    where: { id },
-    data: dto,
-  });
-}
-
-// ❌ ERRADO - Permite acesso cross-tenant
-async update(id: string, dto: UpdateDto) {
-  return this.prisma.record.update({
-    where: { id }, // ID pode ser de outro tenant!
-    data: dto,
-  });
-}
-```
-
-### 3. Organization pertence a Organization que pertence a Tenant
-
-```typescript
-// Ao criar entidade, validar cadeia completa
-async createEntity(user: User, dto: CreateEntityDto) {
-  // Verificar se organization pertence ao tenant do usuário
-  const organization = await this.prisma.organization.findFirst({
-    where: {
-      id: dto.organizationId,
-      tenantId: user.tenantId, // CRÍTICO!
-    },
-  });
-
-  if (!organization) {
-    throw new ForbiddenException('Organization não encontrado');
-  }
-
-  return this.prisma.entity.create({
-    data: {
-      ...dto,
-      tenantId: user.tenantId, // Propagar tenantId
-    },
-  });
-}
-```
-
-### 4. Nunca Confiar em IDs do Request
-
-```typescript
-// ✅ CORRETO - Sempre validar
-@Get(':organizationId/entities')
-async getEntities(
-  @Param('organizationId') organizationId: string,
-  @CurrentUser() user: User,
-) {
-  // Validar que organization pertence ao tenant
-  const organization = await this.organizationService.findOne(
-    organizationId,
-    user.tenantId
-  );
-
-  if (!organization) {
-    throw new NotFoundException();
-  }
-
-  return this.entityService.findByOrganization(organizationId, user.tenantId);
-}
-```
-
-### 5. Relações: Sempre Verificar Tenant
-
-```typescript
-// Ao criar relação entre entidades
-async createRelation(user: User, dto: CreateRelationDto) {
-  // Ambas entidades devem ser do mesmo tenant
-  const [source, target] = await Promise.all([
-    this.prisma.entity.findFirst({
-      where: { id: dto.sourceId, tenantId: user.tenantId },
-    }),
-    this.prisma.entity.findFirst({
-      where: { id: dto.targetId, tenantId: user.tenantId },
-    }),
-  ]);
-
-  if (!source || !target) {
-    throw new ForbiddenException('Entidades não encontradas');
-  }
-
-  // Agora pode criar relação
-}
-```
-
-## Guards de Tenant
-
-```typescript
-// common/guards/tenant.guard.ts
 @Injectable()
-export class TenantGuard implements CanActivate {
-  async canActivate(context: ExecutionContext): Promise<boolean> {
-    const request = context.switchToHttp().getRequest();
-    const user = request.user;
+export class MeuService {
+  constructor(private readonly queryService: EntityDataQueryService) {}
 
-    // PLATFORM_ADMIN pode acessar qualquer tenant
-    if (user.role === 'PLATFORM_ADMIN') {
-      return true;
-    }
-
-    // Verificar se há tenantId no params/body
-    const tenantId = 
-      request.params.tenantId || 
-      request.body.tenantId;
-
-    if (tenantId && tenantId !== user.tenantId) {
-      throw new ForbiddenException('Acesso negado a este tenant');
-    }
-
-    return true;
+  async buscarDados(entitySlug: string, user: CurrentUser, tenantId?: string) {
+    const { where, entity, effectiveTenantId } = await this.queryService.buildWhere({
+      entitySlug,
+      user,
+      tenantId,
+    });
+    // where ja tem: entityId, tenantId, scope, globalFilters, roleDataFilters
+    return this.prisma.entityData.findMany({ where });
   }
 }
-```
 
-## Índices no Banco
-
-```prisma
-// Sempre indexar tenantId
-model Entity {
-  // ...
-  @@index([tenantId])
-  @@index([tenantId, organizationId])
-}
-
-model EntityData {
-  // ...
-  @@index([tenantId])
-  @@index([tenantId, entityId])
+// ❌ ERRADO — construcao manual (faltam scope, globalFilters, roleDataFilters)
+async buscarDados(entitySlug: string, user: CurrentUser) {
+  const entity = await this.entityService.findBySlug(entitySlug, user);
+  return this.prisma.entityData.findMany({
+    where: { entityId: entity.id, tenantId: user.tenantId },
+  });
 }
 ```
 
-## Logs e Auditoria
+**O pipeline aplica automaticamente:**
+1. Tenant isolation (PLATFORM_ADMIN bypass)
+2. Scope (own/all) via `getEntityScope()`
+3. Global filters (`entity.settings.globalFilters`)
+4. Role data filters (`customRole.permissions[].dataFilters`)
+5. User filters, dashboard filters, search
+
+**Module import:**
+```typescript
+import { EntityDataQueryModule } from '../../common/services/entity-data-query.module';
+
+@Module({
+  imports: [EntityDataQueryModule],
+})
+```
+
+## Regra #2: Toda Query DEVE ter tenantId
+
+Para modelos que NAO sao EntityData (User, Entity, Webhook, etc.):
 
 ```typescript
-// Sempre incluir tenantId nos logs
-this.logger.log({
-  action: 'user.created',
-  tenantId: user.tenantId,
-  userId: user.id,
-  targetId: newUser.id,
+// ✅ CORRETO
+const users = await this.prisma.user.findMany({
+  where: { tenantId: user.tenantId, status: 'ACTIVE' },
+});
+
+// ❌ ERRADO
+const users = await this.prisma.user.findMany({
+  where: { status: 'ACTIVE' },
 });
 ```
 
-## Checklist para Novos Endpoints
+## Regra #3: Usar getEffectiveTenantId para PLATFORM_ADMIN
 
-- [ ] Query filtra por `tenantId`?
-- [ ] Update/Delete valida ownership?
-- [ ] IDs de params são validados contra tenant?
-- [ ] Relações verificam mesmo tenant?
-- [ ] Logs incluem `tenantId`?
-- [ ] Testes cobrem isolamento?
+```typescript
+import { getEffectiveTenantId } from '../../common/utils/tenant.util';
+
+// PLATFORM_ADMIN pode acessar qualquer tenant via queryTenantId
+// Outros roles sempre usam seu proprio tenantId
+const effectiveTenantId = getEffectiveTenantId(currentUser, queryTenantId);
+```
+
+## Regra #4: Validar Ownership em Updates/Deletes
+
+```typescript
+async update(id: string, user: CurrentUser, dto: UpdateDto) {
+  const record = await this.prisma.record.findFirst({
+    where: { id, tenantId: user.tenantId },
+  });
+  if (!record) throw new NotFoundException();
+  return this.prisma.record.update({ where: { id }, data: dto });
+}
+```
+
+## Regra #5: Nunca Confiar em IDs do Request
+
+```typescript
+const entity = await this.prisma.entity.findFirst({
+  where: { id: entityId, tenantId: user.tenantId },
+});
+if (!entity) throw new NotFoundException();
+```
+
+## Checklist para Novos Modulos
+
+- [ ] Queries filtram por `tenantId`?
+- [ ] EntityData usa `EntityDataQueryService.buildWhere()`?
+- [ ] Update/Delete valida ownership (findFirst + tenantId)?
+- [ ] PLATFORM_ADMIN usa `getEffectiveTenantId()`?
+- [ ] IDs de params sao validados contra tenant?
+- [ ] Module importa `EntityDataQueryModule` se acessa EntityData?

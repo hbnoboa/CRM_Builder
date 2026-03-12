@@ -118,6 +118,26 @@ export class StatsController {
     return this.statsService.getFieldDistribution(user, entitySlug, fieldSlug, tenantId, limit ? Number(limit) : 20, { filters, dateStart, dateEnd });
   }
 
+  @Get('entity/:entitySlug/cross-field-distribution')
+  @ApiOperation({ summary: 'Distribuicao cruzada de dois campos' })
+  async getCrossFieldDistribution(
+    @Param('entitySlug') entitySlug: string,
+    @CurrentUser() user: CurrentUserType,
+    @Query('rowField') rowField: string,
+    @Query('columnField') columnField: string,
+    @Query('limit') limit?: number,
+    @Query('filters') filters?: string,
+    @Query('dateStart') dateStart?: string,
+    @Query('dateEnd') dateEnd?: string,
+    @Query('tenantId') tenantId?: string,
+  ) {
+    checkModulePermission(user, 'data', 'canRead');
+    return this.statsService.getCrossFieldDistribution(
+      user, entitySlug, rowField, columnField, tenantId,
+      { limit: limit ? Number(limit) : 20, filters, dateStart, dateEnd },
+    );
+  }
+
   @Get('entity/:entitySlug/field-aggregation')
   @ApiOperation({ summary: 'Agregacao de um campo numerico' })
   async getFieldAggregation(
@@ -201,6 +221,98 @@ export class StatsController {
       sortBy: sortBy || 'createdAt',
       sortOrder: (sortOrder || 'desc') as 'asc' | 'desc',
       fields: fields ? fields.split(',') : undefined,
+      filters,
+      dateStart,
+      dateEnd,
+    });
+  }
+
+  @Get('entity/:entitySlug/field-ratio')
+  @ApiOperation({ summary: 'Ratio entre dois campos numericos (suporta cross-entity)' })
+  async getFieldRatio(
+    @Param('entitySlug') entitySlug: string,
+    @CurrentUser() user: CurrentUserType,
+    @Query('numeratorField') numeratorField: string,
+    @Query('denominatorField') denominatorField: string,
+    @Query('denominatorEntitySlug') denominatorEntitySlug?: string,
+    @Query('aggregation') aggregation?: string,
+    @Query('comparePeriod') comparePeriod?: string,
+    @Query('days') days?: number,
+    @Query('filters') filters?: string,
+    @Query('dateStart') dateStart?: string,
+    @Query('dateEnd') dateEnd?: string,
+    @Query('tenantId') tenantId?: string,
+  ) {
+    checkModulePermission(user, 'data', 'canRead');
+    return this.statsService.getFieldRatio(user, entitySlug, numeratorField, denominatorField, tenantId, {
+      aggregation: aggregation || 'sum',
+      comparePeriod: comparePeriod === 'previous',
+      days: days ? Number(days) : 30,
+      denominatorEntitySlug,
+      filters,
+      dateStart,
+      dateEnd,
+    });
+  }
+
+  @Get('entity/:entitySlug/distinct-count')
+  @ApiOperation({ summary: 'Contagem de combinacoes distintas de campos' })
+  async getDistinctCount(
+    @Param('entitySlug') entitySlug: string,
+    @CurrentUser() user: CurrentUserType,
+    @Query('fields') fields: string,
+    @Query('comparePeriod') comparePeriod?: string,
+    @Query('days') days?: number,
+    @Query('filterField') filterField?: string,
+    @Query('filterValue') filterValue?: string,
+    @Query('filters') filters?: string,
+    @Query('dateStart') dateStart?: string,
+    @Query('dateEnd') dateEnd?: string,
+    @Query('tenantId') tenantId?: string,
+  ) {
+    checkModulePermission(user, 'data', 'canRead');
+    const fieldSlugs = fields ? fields.split(',') : [];
+    return this.statsService.getDistinctCount(user, entitySlug, fieldSlugs, tenantId, {
+      comparePeriod: comparePeriod === 'previous',
+      days: days ? Number(days) : 30,
+      filterField,
+      filterValue,
+      filters,
+      dateStart,
+      dateEnd,
+    });
+  }
+
+  @Get('entity/:entitySlug/grouped-data')
+  @ApiOperation({ summary: 'Dados agrupados por campos com agregacoes' })
+  async getGroupedData(
+    @Param('entitySlug') entitySlug: string,
+    @CurrentUser() user: CurrentUserType,
+    @Query('groupBy') groupBy: string,
+    @Query('aggregations') aggregations?: string,
+    @Query('crossEntityCount') crossEntityCount?: string,
+    @Query('limit') limit?: number,
+    @Query('sortBy') sortBy?: string,
+    @Query('sortOrder') sortOrder?: string,
+    @Query('filters') filters?: string,
+    @Query('dateStart') dateStart?: string,
+    @Query('dateEnd') dateEnd?: string,
+    @Query('tenantId') tenantId?: string,
+  ) {
+    checkModulePermission(user, 'data', 'canRead');
+    const groupByFields = groupBy ? groupBy.split(',') : [];
+    let parsedAggregations: Array<{ type: string; fieldSlug?: string; alias: string; distinctFields?: string[] }> | undefined;
+    let parsedCrossEntityCount: { entitySlug: string; matchFields: Array<{ source: string; target: string }>; alias: string } | undefined;
+
+    try { if (aggregations) parsedAggregations = JSON.parse(aggregations); } catch { /* ignore */ }
+    try { if (crossEntityCount) parsedCrossEntityCount = JSON.parse(crossEntityCount); } catch { /* ignore */ }
+
+    return this.statsService.getGroupedData(user, entitySlug, groupByFields, tenantId, {
+      aggregations: parsedAggregations as never,
+      crossEntityCount: parsedCrossEntityCount,
+      limit: limit ? Number(limit) : 50,
+      sortBy,
+      sortOrder: (sortOrder || 'desc') as 'asc' | 'desc',
       filters,
       dateStart,
       dateEnd,

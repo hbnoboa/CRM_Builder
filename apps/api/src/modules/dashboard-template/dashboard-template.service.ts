@@ -58,8 +58,8 @@ export class DashboardTemplateService {
     return templates[0] || null;
   }
 
-  async create(dto: CreateDashboardTemplateDto, user: CurrentUser) {
-    const tenantId = getEffectiveTenantId(user);
+  async create(dto: CreateDashboardTemplateDto, user: CurrentUser, queryTenantId?: string) {
+    const tenantId = getEffectiveTenantId(user, queryTenantId);
 
     // Auto-resolve nome unico: se ja existe, adiciona sufixo incremental
     let name = dto.name;
@@ -81,14 +81,15 @@ export class DashboardTemplateService {
         entitySlug: dto.entitySlug,
         layout: (dto.layout as object) || [],
         widgets: (dto.widgets as object) || {},
+        tabs: (dto.tabs as object) || [],
         roleIds: dto.roleIds || [],
         priority: dto.priority ?? 0,
       },
     });
   }
 
-  async update(id: string, dto: UpdateDashboardTemplateDto, user: CurrentUser) {
-    const tenantId = getEffectiveTenantId(user);
+  async update(id: string, dto: UpdateDashboardTemplateDto, user: CurrentUser, queryTenantId?: string) {
+    const tenantId = getEffectiveTenantId(user, queryTenantId);
 
     // Verificar que o template existe e pertence ao tenant
     const template = await this.prisma.dashboardTemplate.findFirst({
@@ -119,6 +120,7 @@ export class DashboardTemplateService {
     if (dto.roleIds !== undefined) data.roleIds = dto.roleIds;
     if (dto.priority !== undefined) data.priority = dto.priority;
     if (dto.isActive !== undefined) data.isActive = dto.isActive;
+    if (dto.tabs !== undefined) data.tabs = dto.tabs as object;
 
     return this.prisma.dashboardTemplate.update({
       where: { id },
@@ -126,8 +128,8 @@ export class DashboardTemplateService {
     });
   }
 
-  async remove(id: string, user: CurrentUser) {
-    const tenantId = getEffectiveTenantId(user);
+  async remove(id: string, user: CurrentUser, queryTenantId?: string) {
+    const tenantId = getEffectiveTenantId(user, queryTenantId);
 
     const template = await this.prisma.dashboardTemplate.findFirst({
       where: { id, tenantId },

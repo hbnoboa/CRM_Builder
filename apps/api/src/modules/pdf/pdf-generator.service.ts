@@ -16,6 +16,7 @@ import {
   createPaginationMeta,
 } from '../../common/types';
 import { getEffectiveTenantId } from '../../common/utils/tenant.util';
+import { EntityDataQueryService } from '../../common/services/entity-data-query.service';
 import { formatFieldValue as sharedFormatFieldValue } from '@crm-builder/shared';
 import { QueryPdfGenerationDto, PreviewPdfDto, SimulationConfigDto } from './dto';
 import {
@@ -56,6 +57,7 @@ export class PdfGeneratorService {
   constructor(
     private prisma: PrismaService,
     private uploadService: UploadService,
+    private queryService: EntityDataQueryService,
   ) {}
 
   /**
@@ -217,95 +219,30 @@ export class PdfGeneratorService {
     let records: { id: string; data: unknown; createdAt: Date; updatedAt: Date; parentRecordId: string | null }[];
 
     if (useAllRecords) {
-      const where: { tenantId: string; entityId?: string; deletedAt: null; parentRecordId: null; AND?: unknown[] } = {
-        tenantId: targetTenantId,
-        entityId: template.sourceEntityId || undefined,
-        deletedAt: null,
-        parentRecordId: null,
-      };
-
-      if (filters) {
-        try {
-          const parsed = JSON.parse(filters);
-          if (Array.isArray(parsed)) {
-            const andClauses: unknown[] = [];
-            for (const f of parsed) {
-              if (!f.fieldSlug || !f.value) continue;
-              const strValue = String(f.value);
-              if (f.operator === 'equals') {
-                andClauses.push({
-                  data: { path: [f.fieldSlug], equals: strValue },
-                });
-              } else {
-                // contains (default)
-                andClauses.push({
-                  data: { path: [f.fieldSlug], string_contains: strValue },
-                });
-              }
-            }
-            if (andClauses.length > 0) {
-              where.AND = andClauses;
-            }
-          }
-        } catch {
-          this.logger.warn('Failed to parse batch filters');
-        }
+      // Usar servico centralizado: aplica scope, globalFilters, roleDataFilters, search, filters
+      const entitySlug = template.sourceEntity?.slug;
+      if (!entitySlug) {
+        throw new NotFoundException('Entidade do template nao encontrada');
       }
 
-      if (search) {
-        // Buscar nos searchFields da entidade (igual data.service.ts)
-        const entitySettings = template.sourceEntity?.settings as { searchFields?: string[] } | null;
-        const searchFields = entitySettings?.searchFields || [];
+      const { where } = await this.queryService.buildWhere({
+        entitySlug,
+        user: currentUser,
+        tenantId,
+        filters,
+        search,
+        includeChildren: true, // Nao filtrar por parentRecordId (permite batch de sub-entidades)
+      });
 
-        if (searchFields.length > 0) {
-          const searchVariants = [search];
-          if (search !== search.toUpperCase()) searchVariants.push(search.toUpperCase());
-          if (search !== search.toLowerCase()) searchVariants.push(search.toLowerCase());
-
-          if (!where.AND) where.AND = [];
-          (where.AND as unknown[]).push({
-            OR: searchFields.flatMap((field: string) =>
-              searchVariants.map(term => ({
-                data: { path: [field], string_contains: term },
-              }))
-            ),
-          });
-        } else {
-          // Fallback: buscar em todos os campos de texto da entidade
-          const entityFields = template.sourceEntity?.fields as Array<{ slug: string; type: string }> | null;
-          const textFields = (entityFields || [])
-            .filter(f => ['text', 'short_text', 'string', 'select'].includes(f.type))
-            .map(f => f.slug);
-
-          if (textFields.length > 0) {
-            const searchVariants = [search];
-            if (search !== search.toUpperCase()) searchVariants.push(search.toUpperCase());
-            if (search !== search.toLowerCase()) searchVariants.push(search.toLowerCase());
-
-            if (!where.AND) where.AND = [];
-            (where.AND as unknown[]).push({
-              OR: textFields.flatMap((field: string) =>
-                searchVariants.map(term => ({
-                  data: { path: [field], string_contains: term },
-                }))
-              ),
-            });
-          }
-        }
-      }
+      const archivedWhere = this.queryService.buildArchivedWhere(where);
 
       const [activeRecords, archivedRecords] = await Promise.all([
         this.prisma.entityData.findMany({
-          where: where as any,
+          where,
           orderBy: { createdAt: 'asc' },
         }),
         this.prisma.archivedEntityData.findMany({
-          where: {
-            tenantId: targetTenantId,
-            entityId: template.sourceEntityId || undefined,
-            parentRecordId: null,
-            ...(where.AND ? { AND: where.AND } : {}),
-          } as any,
+          where: archivedWhere,
           orderBy: { createdAt: 'asc' },
         }),
       ]);

@@ -1,20 +1,15 @@
 'use client';
 
 import {
-  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
+  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine,
 } from 'recharts';
 import { useEntityRecordsOverTime, useFieldTrend } from '@/hooks/use-dashboard-templates';
-import { useWidgetFilters } from './dashboard-filter-context';
+import { useDashboardFilters, useWidgetFilters } from './dashboard-filter-context';
 import { WidgetWrapper } from './widget-wrapper';
+import { TOOLTIP_STYLE, TOOLTIP_LABEL_STYLE, TOOLTIP_ITEM_STYLE, AXIS_TICK_STYLE } from './chart-styles';
 import type { WidgetConfig } from '@crm-builder/shared';
 import { format, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-
-const TOOLTIP_STYLE = {
-  backgroundColor: 'hsl(var(--card))',
-  border: '1px solid hsl(var(--border))',
-  borderRadius: '8px',
-};
 
 interface AreaChartWidgetProps {
   entitySlug: string;
@@ -25,6 +20,7 @@ interface AreaChartWidgetProps {
 
 export function AreaChartWidget({ entitySlug, config, title, isEditMode }: AreaChartWidgetProps) {
   const dashFilters = useWidgetFilters();
+  const { dateRange, setDateRange } = useDashboardFilters();
   const isFieldTrend = config.dataSource === 'field-trend' && !!config.fieldSlug;
   const days = config.days || 30;
 
@@ -72,16 +68,17 @@ export function AreaChartWidget({ entitySlug, config, title, isEditMode }: AreaC
             tickFormatter={(v) => {
               try { return format(parseISO(v), 'dd/MM', { locale: ptBR }); } catch { return v; }
             }}
-            className="text-xs"
-            tick={{ fontSize: 10 }}
+            tick={AXIS_TICK_STYLE}
           />
-          <YAxis className="text-xs" tick={{ fontSize: 10 }} width={40} />
+          <YAxis tick={AXIS_TICK_STYLE} width={40} />
           <Tooltip
             contentStyle={TOOLTIP_STYLE}
+            labelStyle={TOOLTIP_LABEL_STYLE}
+            itemStyle={TOOLTIP_ITEM_STYLE}
             labelFormatter={(v) => {
               try { return format(parseISO(v as string), 'dd MMM yyyy', { locale: ptBR }); } catch { return v as string; }
             }}
-            formatter={(v: number) => [(v ?? 0).toLocaleString('pt-BR'), isFieldTrend ? 'Valor' : 'Registros']}
+            formatter={(v: number) => [(v ?? 0).toLocaleString('pt-BR'), title || '']}
           />
           <Area
             type="monotone"
@@ -89,7 +86,24 @@ export function AreaChartWidget({ entitySlug, config, title, isEditMode }: AreaC
             stroke={color}
             fill={`url(#gradient-${color})`}
             strokeWidth={2}
+            activeDot={{
+              r: 5,
+              cursor: 'pointer',
+              onClick: (_: unknown, payload: { payload?: { date?: string } }) => {
+                if (isEditMode || !payload?.payload?.date) return;
+                const clickedDate = payload.payload.date;
+                if (dateRange?.start === clickedDate && dateRange?.end === clickedDate) {
+                  setDateRange(undefined);
+                } else {
+                  setDateRange({ start: clickedDate, end: clickedDate });
+                }
+              },
+            }}
           />
+          {config.referenceLines?.map((ref, i) => (
+            <ReferenceLine key={i} y={ref.value} label={ref.label}
+              stroke={ref.color || '#EF4444'} strokeDasharray={ref.strokeDasharray || '5 5'} />
+          ))}
         </AreaChart>
       </ResponsiveContainer>
     </WidgetWrapper>

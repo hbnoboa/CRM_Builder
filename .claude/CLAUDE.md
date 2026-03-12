@@ -1,71 +1,93 @@
-# 🤖 CRM Builder - Instruções para Claude
+# CRM Builder - Instrucoes para Claude
 
 ## Sobre Este Projeto
 
-O **CRM Builder** é uma plataforma SaaS multi-tenant que permite criar CRMs personalizados com:
-- Entidades dinâmicas (sem código)
-- Sistema de permissões granular (RBAC)
-- API Builder para endpoints customizados
+Plataforma SaaS multi-tenant para criar CRMs personalizados com entidades dinamicas, permissoes granulares (RBAC via CustomRole), dashboards configuraveis, geracao de PDF, automacoes e app mobile offline-first.
 
-## Stack Tecnológica
+## Stack Tecnologica
 
 | Camada | Tecnologia |
 |--------|------------|
 | **Backend** | NestJS 10 + Prisma 5 + PostgreSQL 16 |
 | **Frontend** | Next.js 14 (App Router) + shadcn/ui + Tailwind |
+| **Mobile** | Flutter 3.32+ (offline-first via PowerSync) |
 | **State** | TanStack Query + Zustand |
 | **Auth** | JWT + Refresh Tokens |
 | **Realtime** | Socket.IO |
+| **Shared** | `@crm-builder/shared` (tipos compartilhados) |
 | **Monorepo** | pnpm + Turborepo |
+
+## Estrutura do Monorepo
+
+```
+crm-builder/
+├── apps/api/           # NestJS backend (CommonJS)
+├── apps/web-admin/     # Next.js 14 frontend (ESNext)
+├── apps/mobile/        # Flutter offline-first
+├── packages/shared/    # @crm-builder/shared tipos
+├── deploy.sh           # Deploy producao
+└── deploy-dev.sh       # Deploy dev (branch develop)
+```
 
 ## Arquitetura Multi-Tenant
 
 ```
 Tenant (Empresa)
-  └── Organization (Area de Trabalho)
-       ├── Entities (Definicoes)
-       ├── EntityData (Dados)
-       └── CustomEndpoints (APIs)
+├── CustomRole[] (RBAC granular)
+├── User[] → CustomRole
+├── Entity[] (Definicoes dinamicas)
+│   ├── EntityData[] (Registros)
+│   └── ArchivedEntityData[] (Arquivados)
+├── DashboardTemplate[] (por role)
+├── PdfTemplate[] (geracao PDF)
+└── Webhook[], ActionChain[], EntityAutomation[]
 ```
 
-## Hierarquia de Usuários
+## Hierarquia de Roles (CustomRole.roleType)
 
-1. **PLATFORM_ADMIN** - Super admin da plataforma
-2. **ADMIN** - Admin do tenant
-3. **MANAGER** - Gerente (vê equipe)
-4. **USER** - Usuário padrão (vê próprios)
-5. **VIEWER** - Apenas visualização
+1. **PLATFORM_ADMIN** - Super admin (acesso cross-tenant)
+2. **ADMIN** - Admin do tenant (tudo dentro do tenant)
+3. **MANAGER** - Gerente (scope: all)
+4. **USER** - Padrao (scope: own)
+5. **VIEWER** - Apenas leitura (scope: all)
+6. **CUSTOM** - Permissoes configuradas por entidade
+
+## Camada Centralizada de Dados
+
+**OBRIGATORIO:** Todo modulo que busca `EntityData` DEVE usar `EntityDataQueryService`:
+
+```typescript
+const { where, entity } = await this.queryService.buildWhere({
+  entitySlug, user, tenantId, filters, search, dashboardFilters,
+});
+```
+
+Pipeline automatico: tenant → scope → globalFilters → roleDataFilters → userFilters → dashboardFilters → search
+
+**Arquivo:** `apps/api/src/common/services/entity-data-query.service.ts`
 
 ## Comandos Principais
 
 ```bash
-# Desenvolvimento
-pnpm dev              # Roda tudo
-pnpm dev:api          # Só API
-pnpm dev:admin        # Só frontend
-
-# Banco de dados
-pnpm db:migrate       # Criar migration
-pnpm db:push          # Push direto (dev)
-pnpm db:seed          # Popular banco
-pnpm db:studio        # Prisma Studio
-
-# Docker
-pnpm docker:up        # Subir PostgreSQL + Redis
-pnpm docker:down      # Parar containers
+pnpm dev              # Roda API + Frontend
+pnpm build            # Build completo (shared → api + web-admin)
+./deploy.sh           # Deploy producao
+./deploy-dev.sh       # Deploy dev (branch develop)
 ```
 
 ## Regras Gerais
 
-1. **Sempre use TypeScript** - Nunca JavaScript puro
-2. **Validação com Zod** - Frontend e backend
-3. **class-validator no NestJS** - DTOs sempre validados
-4. **Multi-tenancy obrigatório** - Sempre filtrar por tenantId
-5. **Permissões em tudo** - Usar guards e decorators
+1. **Sempre TypeScript** — nunca JavaScript puro
+2. **EntityData → EntityDataQueryService** — nunca WHERE manual
+3. **Multi-tenancy obrigatorio** — sempre filtrar por tenantId
+4. **class-validator** nos DTOs do NestJS
+5. **Zod** para validacao no frontend
+6. **CustomRole RBAC** — checkModulePermission() / checkEntityAction()
+7. **Git: branch develop** — nunca dev, nunca push direto em main
 
-## Referências
+## Referencias
 
-- Documentação: `.claude/docs/`
-- Regras de código: `.claude/rules/`
-- Skills (como fazer): `.claude/skills/`
-- Comandos customizados: `.claude/commands/`
+- Documentacao: `.claude/docs/`
+- Regras de codigo: `.claude/rules/`
+- Skills: `.claude/skills/`
+- Comandos: `.claude/commands/`

@@ -54,7 +54,7 @@ export function FunnelChartWidget({ entitySlug, config, title, isEditMode }: Fun
               </div>
               <div className="flex-1 relative">
                 <div
-                  className="h-7 rounded-sm flex items-center px-2 transition-all"
+                  className="h-7 rounded-sm flex items-center px-2 transition-all hover:brightness-110 hover:shadow-sm cursor-pointer"
                   style={{
                     width: `${widthPercent}%`,
                     backgroundColor: colors[idx % colors.length],

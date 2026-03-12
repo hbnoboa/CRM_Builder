@@ -11,10 +11,12 @@ import { CustomRoleModule } from '../custom-role/custom-role.module';
 import { WebhookModule } from '../webhook/webhook.module';
 import { ActionChainModule } from '../action-chain/action-chain.module';
 import { EntityAutomationModule } from '../entity-automation/entity-automation.module';
+import { EntityDataQueryModule } from '../../common/services/entity-data-query.module';
 
 @Module({
   imports: [
     EntityModule,
+    EntityDataQueryModule,
     NotificationModule,
     CustomRoleModule,
     forwardRef(() => WebhookModule),

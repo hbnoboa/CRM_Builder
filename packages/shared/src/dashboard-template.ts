@@ -15,7 +15,15 @@ export type WidgetType =
   | 'gauge-chart'
   | 'mini-table'
   | 'activity-feed'
-  | 'filter-slicer';
+  | 'filter-slicer'
+  | 'stacked-bar-chart'
+  | 'heatmap-chart'
+  | 'scatter-chart'
+  | 'treemap-chart'
+  | 'grouped-bar-chart'
+  | 'zone-diagram'
+  | 'image-gallery'
+  | 'stat-list';
 
 export interface WidgetConfig {
   type: WidgetType;
@@ -26,7 +34,8 @@ export interface WidgetConfig {
 
     // KPI / Aggregation
     fieldSlug?: string;
-    aggregation?: 'count' | 'sum' | 'avg' | 'min' | 'max';
+    aggregation?: 'count' | 'sum' | 'avg' | 'min' | 'max' | 'distinct';
+    distinctFields?: string[]; // fields to combine for distinct count (e.g. ['navio','viagem'])
     showComparison?: boolean;
     comparisonPeriod?: number;
     thresholds?: { warn: number; danger: number };
@@ -61,6 +70,72 @@ export interface WidgetConfig {
     filterFields?: string[];
     slicerType?: 'dropdown' | 'date-range' | 'numeric-range' | 'relative-date' | 'tile';
     relativeDateOptions?: string[];
+
+    // Cross-field (stacked-bar, grouped-bar, heatmap, scatter)
+    rowField?: string;
+    columnField?: string;
+    colorScale?: string[];
+    showValues?: boolean;
+    orientation?: 'horizontal' | 'vertical';
+
+    // Reference lines (line-chart, bar-chart, column-chart, area-chart, grouped-bar-chart)
+    referenceLines?: { value: number; label?: string; color?: string; strokeDasharray?: string }[];
+
+    // KPI ratio mode (kpi-card)
+    ratioFieldSlug?: string;
+    ratioMode?: 'percentage' | 'ratio';
+    ratioEntitySlug?: string; // different entity for denominator (cross-entity ratio)
+
+    // Mini-table computed columns
+    computedColumns?: {
+      label: string;
+      type: 'duration' | 'percentage' | 'difference';
+      fieldA?: string;
+      fieldB?: string;
+      format?: string;
+      // Badge thresholds: colored badge for percentage columns
+      badgeThresholds?: { value: number; color: string; label?: string }[];
+    }[];
+
+    // Bar/Column chart: show ratio labels (e.g. "3/10 (30%)")
+    showRatio?: boolean;
+
+    // Image gallery
+    imageField?: string;
+    imageFields?: string[];           // multiple image fields per record
+    childEntitySlug?: string;         // also fetch photos from this child entity
+    childImageFields?: string[];      // image fields in the child entity
+    galleryColumns?: number;
+
+    // Zone diagram
+    zoneField?: string;
+    zoneLabels?: Record<string, string>;
+    zoneColorField?: string;
+
+    // Stat list
+    listStyle?: 'simple' | 'ranked' | 'colored';
+    valueSuffix?: string;
+    showTotal?: boolean;              // show total count prominently above list
+
+    // Filtered distinct (KPI distinct ratio)
+    filterField?: string;
+    filterValue?: string;
+
+    // Grouped mode (mini-table agrupado)
+    groupByFields?: string[];
+    tableColumns?: string[];
+    aggregations?: Array<{
+      type: 'count' | 'sum' | 'avg' | 'min' | 'max' | 'distinctCount' | 'mode' | 'first';
+      fieldSlug?: string;
+      alias: string;
+      distinctFields?: string[];
+    }>;
+    crossEntityCount?: {
+      entitySlug: string;
+      matchFields?: Array<{ source: string; target: string }>;
+      matchBy?: 'fields' | 'children';
+      alias: string;
+    };
   };
 }
 
@@ -76,6 +151,13 @@ export interface LayoutItem {
   maxH?: number;
 }
 
+export interface DashboardTab {
+  id: string;
+  label: string;
+  icon?: string;
+  widgetIds: string[];
+}
+
 export interface DashboardTemplate {
   id: string;
   tenantId: string;
@@ -87,6 +169,7 @@ export interface DashboardTemplate {
   roleIds: string[];
   priority: number;
   isActive: boolean;
+  tabs?: DashboardTab[];
   createdAt: string;
   updatedAt: string;
 }
@@ -101,6 +184,7 @@ export interface CreateDashboardTemplateData {
   roleIds?: string[];
   priority?: number;
   isActive?: boolean;
+  tabs?: DashboardTab[];
 }
 
 export interface UpdateDashboardTemplateData extends Partial<CreateDashboardTemplateData> {}
@@ -168,4 +252,19 @@ export interface FunnelStage {
   label: string;
   count: number;
   percentage: number;
+}
+
+export interface CrossFieldDistribution {
+  rows: { value: string; label: string }[];
+  columns: { value: string; label: string }[];
+  matrix: Record<string, Record<string, number>>;
+  maxValue: number;
+}
+
+export interface FieldRatioResult {
+  numerator: number;
+  denominator: number;
+  ratio: number;
+  percentage: number;
+  periodComparison?: PeriodComparison;
 }
