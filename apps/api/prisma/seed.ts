@@ -21,7 +21,7 @@ const SYSTEM_ROLES = {
     color: '#dc2626',
     roleType: 'PLATFORM_ADMIN',
     isSystem: true,
-    modulePermissions: { dashboard: FULL, users: FULL, settings: FULL, apis: FULL, pages: FULL, entities: FULL, tenants: FULL, data: FULL, roles: FULL, pdfTemplates: { ...FULL, canGenerate: true } },
+    modulePermissions: { dashboard: FULL, users: FULL, settings: FULL, apis: FULL, pages: FULL, entities: FULL, tenants: FULL, data: FULL, roles: FULL, pdfTemplates: { ...FULL, canGenerate: true }, auditLogs: READ_ONLY, dashboardTemplates: FULL },
     tenantPermissions: { canAccessAllTenants: true },
   },
   ADMIN: {
@@ -30,7 +30,7 @@ const SYSTEM_ROLES = {
     color: '#7c3aed',
     roleType: 'ADMIN',
     isSystem: true,
-    modulePermissions: { dashboard: FULL, users: FULL, settings: FULL, apis: FULL, pages: FULL, entities: FULL, tenants: NONE, data: FULL, roles: FULL, pdfTemplates: { ...FULL, canGenerate: true } },
+    modulePermissions: { dashboard: FULL, users: FULL, settings: FULL, apis: FULL, pages: FULL, entities: FULL, tenants: NONE, data: FULL, roles: FULL, pdfTemplates: { ...FULL, canGenerate: true }, auditLogs: NONE, dashboardTemplates: FULL },
   },
   MANAGER: {
     name: 'Gerente',
@@ -38,7 +38,7 @@ const SYSTEM_ROLES = {
     color: '#2563eb',
     roleType: 'MANAGER',
     isSystem: true,
-    modulePermissions: { dashboard: READ_ONLY, users: READ_ONLY, settings: NONE, apis: NONE, pages: NONE, entities: NONE, tenants: NONE, data: { canRead: true, canCreate: true, canUpdate: true, canDelete: false }, roles: READ_ONLY, pdfTemplates: PDF_READ_GENERATE },
+    modulePermissions: { dashboard: READ_ONLY, users: READ_ONLY, settings: NONE, apis: NONE, pages: NONE, entities: NONE, tenants: NONE, data: { canRead: true, canCreate: true, canUpdate: true, canDelete: false }, roles: READ_ONLY, pdfTemplates: PDF_READ_GENERATE, auditLogs: NONE, dashboardTemplates: NONE },
   },
   USER: {
     name: 'Usuario',
@@ -47,7 +47,7 @@ const SYSTEM_ROLES = {
     roleType: 'USER',
     isSystem: true,
     isDefault: true,
-    modulePermissions: { dashboard: READ_ONLY, users: READ_ONLY, settings: READ_ONLY, apis: NONE, pages: NONE, entities: { canRead: true, canCreate: true, canUpdate: true, canDelete: false }, tenants: NONE, data: { canRead: true, canCreate: true, canUpdate: true, canDelete: false }, roles: NONE, pdfTemplates: PDF_READ_GENERATE },
+    modulePermissions: { dashboard: READ_ONLY, users: READ_ONLY, settings: READ_ONLY, apis: NONE, pages: NONE, entities: { canRead: true, canCreate: true, canUpdate: true, canDelete: false }, tenants: NONE, data: { canRead: true, canCreate: true, canUpdate: true, canDelete: false }, roles: NONE, pdfTemplates: PDF_READ_GENERATE, auditLogs: NONE, dashboardTemplates: NONE },
   },
   VIEWER: {
     name: 'Visualizador',
@@ -55,7 +55,7 @@ const SYSTEM_ROLES = {
     color: '#6b7280',
     roleType: 'VIEWER',
     isSystem: true,
-    modulePermissions: { dashboard: READ_ONLY, users: NONE, settings: READ_ONLY, apis: NONE, pages: NONE, entities: NONE, tenants: NONE, data: READ_ONLY, roles: NONE, pdfTemplates: PDF_READ_GENERATE },
+    modulePermissions: { dashboard: READ_ONLY, users: NONE, settings: READ_ONLY, apis: NONE, pages: NONE, entities: NONE, tenants: NONE, data: READ_ONLY, roles: NONE, pdfTemplates: PDF_READ_GENERATE, auditLogs: NONE, dashboardTemplates: NONE },
   },
 };
 

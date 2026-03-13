@@ -3,7 +3,7 @@
 import {
   PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend,
 } from 'recharts';
-import { useFieldDistribution } from '@/hooks/use-dashboard-templates';
+import { useAdaptedFieldDistribution as useFieldDistribution } from '@/components/entity-data/adapter-hooks';
 import { useDashboardFilters, useWidgetFilters } from './dashboard-filter-context';
 import { WidgetWrapper } from './widget-wrapper';
 import { TOOLTIP_STYLE, TOOLTIP_LABEL_STYLE, TOOLTIP_ITEM_STYLE, LEGEND_STYLE } from './chart-styles';

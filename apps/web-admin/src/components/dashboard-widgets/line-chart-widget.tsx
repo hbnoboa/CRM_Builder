@@ -3,7 +3,7 @@
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine,
 } from 'recharts';
-import { useEntityRecordsOverTime, useFieldTrend, useGroupedData } from '@/hooks/use-dashboard-templates';
+import { useAdaptedRecordsOverTime as useEntityRecordsOverTime, useAdaptedFieldTrend as useFieldTrend, useAdaptedGroupedData as useGroupedData } from '@/components/entity-data/adapter-hooks';
 import { useDashboardFilters, useWidgetFilters } from './dashboard-filter-context';
 import { WidgetWrapper } from './widget-wrapper';
 import { TOOLTIP_STYLE, TOOLTIP_LABEL_STYLE, TOOLTIP_ITEM_STYLE, AXIS_TICK_STYLE } from './chart-styles';

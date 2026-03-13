@@ -4,7 +4,7 @@ import { useMemo } from 'react';
 import {
   ScatterChart, Scatter, XAxis, YAxis, ZAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from 'recharts';
-import { useCrossFieldDistribution } from '@/hooks/use-dashboard-templates';
+import { useAdaptedCrossFieldDistribution as useCrossFieldDistribution } from '@/components/entity-data/adapter-hooks';
 import { useDashboardFilters, useWidgetFilters } from './dashboard-filter-context';
 import { WidgetWrapper } from './widget-wrapper';
 import { TOOLTIP_STYLE, AXIS_TICK_STYLE } from './chart-styles';

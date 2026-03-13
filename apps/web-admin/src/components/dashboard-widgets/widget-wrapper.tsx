@@ -54,7 +54,7 @@ export function WidgetWrapper({
           )}
         </CardHeader>
       )}
-      <CardContent className="flex-1 p-4 pt-0 min-h-0">
+      <CardContent className="flex-1 flex flex-col p-4 pt-0 min-h-0 overflow-hidden">
         {isLoading ? (
           <div className="flex items-center justify-center h-full">
             <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />

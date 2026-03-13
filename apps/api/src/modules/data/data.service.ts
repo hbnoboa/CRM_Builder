@@ -16,6 +16,7 @@ import {
   DEFAULT_LIMIT,
   MAX_LIMIT,
 } from '../../common/types';
+import { DASHBOARD_MAX_LIMIT } from '@crm-builder/shared';
 import { RoleType } from '../../common/decorators/roles.decorator';
 import { getEffectiveTenantId } from '../../common/utils/tenant.util';
 import { EntityDataQueryService } from '../../common/services/entity-data-query.service';
@@ -45,6 +46,10 @@ export interface QueryDataDto {
   filters?: string; // Ex: '[{"fieldSlug":"status","operator":"equals","value":"ativo"}]'
   // IDs especificos para export
   recordIds?: string; // JSON stringified array de IDs: '["id1","id2"]'
+  // Dashboard mode: fetch all records (up to DASHBOARD_MAX_LIMIT)
+  all?: string; // 'true' para buscar todos os registros de uma vez
+  // Dashboard filters — JSON stringified array of { fieldSlug, operator, value } with cross-entity prefixes
+  dashboardFilters?: string;
   // Internal flag — bypasses MAX_LIMIT cap (used by export, not exposed via API)
   _skipMaxLimit?: boolean;
 }
@@ -279,9 +284,13 @@ export class DataService {
     await this.checkEntityPermission(currentUser.id, entitySlug, 'canRead');
 
     // Parse parameters
-    const page = parseInt(String(query.page || '1'), 10) || 1;
-    const rawLimit = Math.max(1, parseInt(String(query.limit || DEFAULT_LIMIT), 10) || DEFAULT_LIMIT);
-    const limit = query._skipMaxLimit ? rawLimit : Math.min(MAX_LIMIT, rawLimit);
+    const isDashboardAll = query.all === 'true';
+    const page = isDashboardAll ? 1 : (parseInt(String(query.page || '1'), 10) || 1);
+    const dashboardLimit = DASHBOARD_MAX_LIMIT > 0 ? DASHBOARD_MAX_LIMIT : undefined; // 0 = sem limite
+    const rawLimit = isDashboardAll
+      ? (dashboardLimit ?? 999999999)
+      : Math.max(1, parseInt(String(query.limit || DEFAULT_LIMIT), 10) || DEFAULT_LIMIT);
+    const limit = query._skipMaxLimit ? rawLimit : (isDashboardAll ? (dashboardLimit ?? 999999999) : Math.min(MAX_LIMIT, rawLimit));
     const { search, sortBy = 'createdAt', sortOrder = 'desc', tenantId: queryTenantId, parentRecordId, includeChildren, hasChildrenIn, cursor, fields } = query;
 
     // Parse recordIds se fornecidos
@@ -295,6 +304,12 @@ export class DataService {
       } catch { /* ignore parse error */ }
     }
 
+    // Parse dashboardFilters se fornecidos
+    let dashboardFilterOptions: { filters?: string } | undefined;
+    if (query.dashboardFilters) {
+      dashboardFilterOptions = { filters: query.dashboardFilters };
+    }
+
     // Construir WHERE via servico centralizado
     const { where, entity, effectiveTenantId } = await this.queryService.buildWhere({
       entitySlug,
@@ -306,6 +321,7 @@ export class DataService {
       search,
       recordIds: parsedRecordIds,
       hasChildrenIn,
+      dashboardFilters: dashboardFilterOptions,
     });
 
     // =========================================================================

@@ -81,15 +81,155 @@ import { GroupedBarChartWidget } from '@/components/dashboard-widgets/grouped-ba
 import { ZoneDiagramWidget } from '@/components/dashboard-widgets/zone-diagram-widget';
 import { ImageGalleryWidget } from '@/components/dashboard-widgets/image-gallery-widget';
 import { StatListWidget } from '@/components/dashboard-widgets/stat-list-widget';
+import { DataTableWidget } from '@/components/dashboard-widgets/data-table-widget';
 import { WidgetWrapper } from '@/components/dashboard-widgets/widget-wrapper';
 import type { WidgetConfig, WidgetType, LayoutItem } from '@crm-builder/shared';
 import type { EntityField } from '@/types';
 import { cn } from '@/lib/utils';
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+} from '@dnd-kit/core';
+import {
+  SortableContext,
+  useSortable,
+  verticalListSortingStrategy,
+  arrayMove,
+} from '@dnd-kit/sortable';
+import { restrictToVerticalAxis } from '@dnd-kit/modifiers';
+import { CSS } from '@dnd-kit/utilities';
 
 import 'react-grid-layout/css/styles.css';
 
 // Side panels total width: palette w-52 (13rem=208px) + properties w-72 (18rem=288px) = 496px
 const SIDE_PANELS_WIDTH = 496;
+
+// ═══════════════════════════════════════════════════════════════════════
+// Sortable field list for display field ordering
+// ═══════════════════════════════════════════════════════════════════════
+
+function SortableFieldItem({ id, label, onRemove }: { id: string; label: string; onRemove: () => void }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
+  return (
+    <div ref={setNodeRef} style={style} className="flex items-center gap-1 text-xs bg-background border rounded px-1.5 py-1">
+      <button type="button" className="cursor-grab touch-none text-muted-foreground" {...attributes} {...listeners}>
+        <GripVertical className="h-3 w-3" />
+      </button>
+      <span className="flex-1 truncate">{label}</span>
+      <button type="button" className="text-muted-foreground hover:text-destructive" onClick={onRemove}>
+        <Trash2 className="h-3 w-3" />
+      </button>
+    </div>
+  );
+}
+
+function SortableFieldList({
+  allFields,
+  selectedSlugs,
+  onChange,
+  parentFields,
+}: {
+  allFields: { slug: string; label?: string; name: string }[];
+  selectedSlugs: string[];
+  onChange: (slugs: string[]) => void;
+  parentFields?: { slug: string; label?: string; name: string }[];
+}) {
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
+    useSensor(KeyboardSensor),
+  );
+
+  const getLabel = (slug: string) => {
+    if (slug.startsWith('parent.')) {
+      const pSlug = slug.replace('parent.', '');
+      const pf = parentFields?.find(f => f.slug === pSlug);
+      return pf ? `${pf.label || pf.name} (pai)` : slug;
+    }
+    const f = allFields.find(f => f.slug === slug);
+    return f ? (f.label || f.name) : slug;
+  };
+
+  const unselected = allFields.filter(f => !selectedSlugs.includes(f.slug));
+  const unselectedParent = parentFields?.filter(f => !selectedSlugs.includes(`parent.${f.slug}`)) || [];
+
+  return (
+    <div className="space-y-1.5">
+      {/* Selected fields — sortable */}
+      {selectedSlugs.length > 0 && (
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          modifiers={[restrictToVerticalAxis]}
+          onDragEnd={(event) => {
+            const { active, over } = event;
+            if (over && active.id !== over.id) {
+              const oldIdx = selectedSlugs.indexOf(String(active.id));
+              const newIdx = selectedSlugs.indexOf(String(over.id));
+              onChange(arrayMove(selectedSlugs, oldIdx, newIdx));
+            }
+          }}
+        >
+          <SortableContext items={selectedSlugs} strategy={verticalListSortingStrategy}>
+            <div className="space-y-0.5">
+              {selectedSlugs.map(slug => (
+                <SortableFieldItem
+                  key={slug}
+                  id={slug}
+                  label={getLabel(slug)}
+                  onRemove={() => onChange(selectedSlugs.filter(s => s !== slug))}
+                />
+              ))}
+            </div>
+          </SortableContext>
+        </DndContext>
+      )}
+
+      {/* Add field buttons */}
+      {(unselected.length > 0 || unselectedParent.length > 0) && (
+        <div className="border rounded-md p-1.5 max-h-28 overflow-auto space-y-0.5">
+          {unselected.map(f => (
+            <button
+              key={f.slug}
+              type="button"
+              className="flex items-center gap-1.5 w-full text-xs text-muted-foreground hover:text-foreground px-1 py-0.5 rounded hover:bg-muted/50"
+              onClick={() => onChange([...selectedSlugs, f.slug])}
+            >
+              <Plus className="h-3 w-3" />
+              {f.label || f.name}
+            </button>
+          ))}
+          {unselectedParent.length > 0 && (
+            <>
+              <div className="border-t my-0.5 pt-0.5">
+                <span className="text-[10px] font-medium text-muted-foreground uppercase">Registro pai</span>
+              </div>
+              {unselectedParent.map(f => (
+                <button
+                  key={`parent.${f.slug}`}
+                  type="button"
+                  className="flex items-center gap-1.5 w-full text-xs text-muted-foreground hover:text-foreground px-1 py-0.5 rounded hover:bg-muted/50"
+                  onClick={() => onChange([...selectedSlugs, `parent.${f.slug}`])}
+                >
+                  <Plus className="h-3 w-3" />
+                  {f.label || f.name}
+                </button>
+              ))}
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 // ═══════════════════════════════════════════════════════════════════════
 // Helper: normalize entities list from API
@@ -1094,47 +1234,13 @@ function PropertiesPanel({
           {!isGroupedTable && (
             <>
               <div className="space-y-1.5">
-                <Label className="text-xs">Campos visiveis</Label>
-                <div className="border rounded-md p-2 max-h-40 overflow-auto space-y-1">
-                  {allFields.map((f) => {
-                    const selected = config.config.displayFields || [];
-                    const isSelected = selected.includes(f.slug);
-                    return (
-                      <label key={f.slug} className="flex items-center gap-2 text-xs cursor-pointer">
-                        <input type="checkbox" checked={isSelected} onChange={() => {
-                          const newFields = isSelected
-                            ? selected.filter((s: string) => s !== f.slug)
-                            : [...selected, f.slug];
-                          updateField('displayFields', newFields);
-                        }} />
-                        {f.label || f.name}
-                      </label>
-                    );
-                  })}
-                  {hasParentFields && (
-                    <>
-                      <div className="border-t my-1 pt-1">
-                        <span className="text-[10px] font-medium text-muted-foreground uppercase">Registro pai</span>
-                      </div>
-                      {parentAllFields.map((f) => {
-                        const selected = config.config.displayFields || [];
-                        const parentSlug = `parent.${f.slug}`;
-                        const isSelected = selected.includes(parentSlug);
-                        return (
-                          <label key={parentSlug} className="flex items-center gap-2 text-xs cursor-pointer">
-                            <input type="checkbox" checked={isSelected} onChange={() => {
-                              const newFields = isSelected
-                                ? selected.filter((s: string) => s !== parentSlug)
-                                : [...selected, parentSlug];
-                              updateField('displayFields', newFields);
-                            }} />
-                            {f.label || f.name}
-                          </label>
-                        );
-                      })}
-                    </>
-                  )}
-                </div>
+                <Label className="text-xs">Campos visiveis (arraste para reordenar)</Label>
+                <SortableFieldList
+                  allFields={allFields}
+                  selectedSlugs={config.config.displayFields || []}
+                  onChange={(slugs) => updateField('displayFields', slugs)}
+                  parentFields={hasParentFields ? parentAllFields : undefined}
+                />
               </div>
               <div className="space-y-1.5">
                 <Label className="text-xs">Limite</Label>
@@ -1190,6 +1296,115 @@ function PropertiesPanel({
               <GroupedSortConfig config={config.config} updateField={updateField} />
             </>
           )}
+        </>
+      );
+    }
+
+    if (config.type === 'data-table') {
+      return (
+        <>
+          <div className="space-y-1.5">
+            <Label className="text-xs">Campos visiveis (arraste para reordenar)</Label>
+            <SortableFieldList
+              allFields={allFields}
+              selectedSlugs={config.config.displayFields || []}
+              onChange={(slugs) => updateField('displayFields', slugs)}
+            />
+          </div>
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <Switch checked={config.config.enablePagination !== false} onCheckedChange={(v) => updateField('enablePagination', v)} />
+              <Label className="text-xs">Paginacao</Label>
+            </div>
+            {config.config.enablePagination !== false && (
+              <div className="space-y-1.5 pl-6">
+                <Label className="text-xs">Registros por pagina</Label>
+                <Select
+                  value={String(config.config.pageSize || 25)}
+                  onValueChange={(v) => updateField('pageSize', Number(v))}
+                >
+                  <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="10">10</SelectItem>
+                    <SelectItem value="25">25</SelectItem>
+                    <SelectItem value="50">50</SelectItem>
+                    <SelectItem value="75">75</SelectItem>
+                    <SelectItem value="100">100</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs">Ordenar por</Label>
+            <Select
+              value={config.config.defaultSortField || 'createdAt'}
+              onValueChange={(v) => updateField('defaultSortField', v)}
+            >
+              <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="createdAt">Data de criacao</SelectItem>
+                <SelectItem value="updatedAt">Data de atualizacao</SelectItem>
+                {allFields.map((f) => (
+                  <SelectItem key={f.slug} value={f.slug}>{f.label || f.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs">Ordem</Label>
+            <Select
+              value={config.config.defaultSortOrder || 'desc'}
+              onValueChange={(v) => updateField('defaultSortOrder', v)}
+            >
+              <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="asc">Crescente</SelectItem>
+                <SelectItem value="desc">Decrescente</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2 pt-1">
+            <div className="flex items-center gap-2">
+              <Switch checked={config.config.allowCreate !== false} onCheckedChange={(v) => updateField('allowCreate', v)} />
+              <Label className="text-xs">Permitir criar</Label>
+            </div>
+            <div className="flex items-center gap-2">
+              <Switch checked={config.config.allowEdit !== false} onCheckedChange={(v) => updateField('allowEdit', v)} />
+              <Label className="text-xs">Permitir editar</Label>
+            </div>
+            <div className="flex items-center gap-2">
+              <Switch checked={config.config.allowDelete !== false} onCheckedChange={(v) => updateField('allowDelete', v)} />
+              <Label className="text-xs">Permitir excluir</Label>
+            </div>
+            <div className="flex items-center gap-2">
+              <Switch checked={config.config.allowExport !== false} onCheckedChange={(v) => updateField('allowExport', v)} />
+              <Label className="text-xs">Permitir exportar</Label>
+            </div>
+            <div className="flex items-center gap-2">
+              <Switch checked={config.config.allowImport !== false} onCheckedChange={(v) => updateField('allowImport', v)} />
+              <Label className="text-xs">Permitir importar</Label>
+            </div>
+            <div className="flex items-center gap-2">
+              <Switch checked={config.config.allowBatchSelect !== false} onCheckedChange={(v) => updateField('allowBatchSelect', v)} />
+              <Label className="text-xs">Selecao em lote</Label>
+            </div>
+          </div>
+          <div className="space-y-2 pt-1">
+            <Label className="text-xs font-medium">Colunas extras</Label>
+            <div className="flex items-center gap-2">
+              <Switch checked={config.config.showCreatedAt !== false} onCheckedChange={(v) => updateField('showCreatedAt', v)} />
+              <Label className="text-xs">Data de criacao</Label>
+            </div>
+            <div className="flex items-center gap-2">
+              <Switch checked={config.config.showUpdatedAt !== false} onCheckedChange={(v) => updateField('showUpdatedAt', v)} />
+              <Label className="text-xs">Data de atualizacao</Label>
+            </div>
+            <div className="flex items-center gap-2">
+              <Switch checked={config.config.showGeolocation || false} onCheckedChange={(v) => updateField('showGeolocation', v)} />
+              <Label className="text-xs">Geolocalizacao (GPS)</Label>
+            </div>
+          </div>
         </>
       );
     }
@@ -1911,6 +2126,7 @@ function renderLiveWidget(
     case 'zone-diagram': return <ZoneDiagramWidget {...commonProps} />;
     case 'image-gallery': return <ImageGalleryWidget {...commonProps} />;
     case 'stat-list': return <StatListWidget {...commonProps} />;
+    case 'data-table': return <DataTableWidget {...commonProps} />;
     default: return <WidgetWrapper title={widgetConfig.title}><div /></WidgetWrapper>;
   }
 }

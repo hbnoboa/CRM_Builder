@@ -35,6 +35,11 @@ export const dashboardTemplatesService = {
     return response.data;
   },
 
+  async getMyTemplates(entitySlug: string): Promise<{ id: string; name: string; description?: string; priority: number }[]> {
+    const response = await api.get(`/dashboard-templates/my/${entitySlug}/all`);
+    return response.data;
+  },
+
   async create(data: CreateDashboardTemplateData): Promise<DashboardTemplate> {
     const response = await api.post('/dashboard-templates', data);
     return response.data;

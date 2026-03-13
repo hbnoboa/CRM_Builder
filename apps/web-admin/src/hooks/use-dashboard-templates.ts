@@ -78,6 +78,15 @@ export function useMyDashboardTemplate(entitySlug: string | undefined) {
   });
 }
 
+export function useMyDashboardTemplates(entitySlug: string | undefined) {
+  return useQuery({
+    queryKey: [...dashboardTemplateKeys.all, 'my-all', entitySlug || ''],
+    queryFn: () => dashboardTemplatesService.getMyTemplates(entitySlug!),
+    enabled: !!entitySlug,
+    staleTime: 30_000,
+  });
+}
+
 export function useCreateDashboardTemplate() {
   const queryClient = useQueryClient();
   return useMutation({

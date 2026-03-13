@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link } from '@/i18n/navigation';
 import { useTranslations, useLocale } from 'next-intl';
 import {
@@ -11,23 +11,19 @@ import {
   Layers,
   Clock,
   RefreshCw,
+  ArrowRight,
 } from 'lucide-react';
 import {
-  LineChart,
-  Line,
   AreaChart,
   Area,
   BarChart,
   Bar,
-  PieChart,
-  Pie,
-  Cell,
   XAxis,
   YAxis,
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
-  Legend,
+  Cell,
 } from 'recharts';
 import { format, formatDistanceToNow, Locale } from 'date-fns';
 import { enUS, ptBR, es } from 'date-fns/locale';
@@ -108,7 +104,7 @@ export default function DashboardPage() {
         api.get('/stats/records-over-time', { params: { days: 30, ...params } }),
         api.get('/stats/entities-distribution', { params }),
         api.get('/stats/users-activity', { params: { days: 7, ...params } }),
-        api.get('/stats/recent-activity', { params: { limit: 10, ...params } }),
+        api.get('/stats/recent-activity', { params: { limit: 15, ...params } }),
       ]);
 
       setStats(statsRes.data);
@@ -118,12 +114,7 @@ export default function DashboardPage() {
       setRecentActivity(activityRes.data);
     } catch (error) {
       console.error('Error loading dashboard:', error);
-      // Dados de fallback
-      setStats({
-        totalEntities: 0,
-        totalRecords: 0,
-        totalUsers: 0,
-      });
+      setStats({ totalEntities: 0, totalRecords: 0, totalUsers: 0 });
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -139,6 +130,23 @@ export default function DashboardPage() {
     fetchDashboardDate();
   };
 
+  // Computed sub-info for KPIs
+  const recordsLast7Days = useMemo(() => {
+    if (recordsOverTime.length === 0) return 0;
+    return recordsOverTime.slice(-7).reduce((sum, r) => sum + r.count, 0);
+  }, [recordsOverTime]);
+
+  const activityLast24h = useMemo(() => {
+    const now = Date.now();
+    const ms24h = 24 * 60 * 60 * 1000;
+    return recentActivity.filter((a) => now - new Date(a.timestamp).getTime() < ms24h).length;
+  }, [recentActivity]);
+
+  // Entity cards: max 8
+  const displayedEntities = entitiesDistribution.slice(0, 8);
+  const hasMoreEntities = entitiesDistribution.length > 8;
+
+  // KPI cards with permission gates
   const statCards = [
     {
       title: t('stats.entities'),
@@ -146,8 +154,9 @@ export default function DashboardPage() {
       icon: <Database className="h-4 w-4 sm:h-5 sm:w-5" />,
       color: 'text-blue-500',
       bgColor: 'bg-blue-500/10',
-      href: '/entities',
+      href: '/data',
       moduleKey: 'entities',
+      sub: null,
     },
     {
       title: t('stats.records'),
@@ -157,6 +166,7 @@ export default function DashboardPage() {
       bgColor: 'bg-green-500/10',
       href: '/data',
       moduleKey: 'data',
+      sub: t('stats.last7Days', { count: recordsLast7Days }),
     },
     {
       title: t('stats.users'),
@@ -166,6 +176,17 @@ export default function DashboardPage() {
       bgColor: 'bg-pink-500/10',
       href: '/users',
       moduleKey: 'users',
+      sub: t('stats.activeUsers7d', { count: usersActivity.length }),
+    },
+    {
+      title: t('stats.activity'),
+      value: recentActivity.length,
+      icon: <Activity className="h-4 w-4 sm:h-5 sm:w-5" />,
+      color: 'text-orange-500',
+      bgColor: 'bg-orange-500/10',
+      href: '/data',
+      moduleKey: 'data',
+      sub: t('stats.last24h') + `: ${activityLast24h}`,
     },
   ].filter((stat) => hasModuleAccess(stat.moduleKey));
 
@@ -204,11 +225,12 @@ export default function DashboardPage() {
           <Skeleton className="h-9 w-48" />
           <Skeleton className="h-5 w-full max-w-96 mt-2" />
         </div>
-        <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3 lg:grid-cols-5">
-          {[...Array(5)].map((_, i) => (
+        <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-4">
+          {[...Array(4)].map((_, i) => (
             <Skeleton key={i} className="h-28" />
           ))}
         </div>
+        <Skeleton className="h-48" />
         <div className="grid gap-4 lg:grid-cols-2">
           <Skeleton className="h-80" />
           <Skeleton className="h-80" />
@@ -233,265 +255,327 @@ export default function DashboardPage() {
         </Button>
       </div>
 
-      {/* Stats Grid */}
-      <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3 lg:grid-cols-5">
-        {statCards.map((stat, index) => (
-          <Link key={index} href={stat.href}>
-            <Card className="hover:border-primary/50 transition-colors cursor-pointer h-full">
-              <CardContent className="p-4 sm:p-6">
-                <div className="flex items-center justify-between mb-2 sm:mb-4">
-                  <div className={`p-1.5 sm:p-2 rounded-lg ${stat.bgColor}`}>
-                    <div className={stat.color}>{stat.icon}</div>
+      {/* Stats Grid — 4 KPIs */}
+      {statCards.length > 0 && (
+        <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-4">
+          {statCards.map((stat, index) => (
+            <Link key={index} href={stat.href}>
+              <Card className="hover:border-primary/50 transition-colors cursor-pointer h-full">
+                <CardContent className="p-4 sm:p-6">
+                  <div className="flex items-center justify-between mb-2 sm:mb-3">
+                    <div className={`p-1.5 sm:p-2 rounded-lg ${stat.bgColor}`}>
+                      <div className={stat.color}>{stat.icon}</div>
+                    </div>
                   </div>
-                </div>
-                <div>
-                  <h3 className="text-xl sm:text-2xl font-bold">{stat.value.toLocaleString('pt-BR')}</h3>
-                  <p className="text-xs sm:text-sm text-muted-foreground">{stat.title}</p>
-                </div>
-              </CardContent>
-            </Card>
-          </Link>
-        ))}
-      </div>
+                  <div>
+                    <h3 className="text-xl sm:text-2xl font-bold">{stat.value.toLocaleString('pt-BR')}</h3>
+                    <p className="text-xs sm:text-sm text-muted-foreground">{stat.title}</p>
+                    {stat.sub && (
+                      <p className="text-[10px] sm:text-xs text-muted-foreground/70 mt-1">{stat.sub}</p>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            </Link>
+          ))}
+        </div>
+      )}
+
+      {/* Entity Cards Grid */}
+      {hasModuleAccess('data') && displayedEntities.length > 0 && (
+        <Card>
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="text-lg">{t('entityCards.title')}</CardTitle>
+                <CardDescription>{t('entityCards.subtitle')}</CardDescription>
+              </div>
+              {hasMoreEntities && (
+                <Link href="/data">
+                  <Button variant="ghost" size="sm" className="text-xs">
+                    {t('entityCards.viewAll')}
+                    <ArrowRight className="h-3.5 w-3.5 ml-1" />
+                  </Button>
+                </Link>
+              )}
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+              {displayedEntities.map((entity) => (
+                <Link key={entity.slug} href={`/data?entity=${entity.slug}`}>
+                  <Card className="hover:border-primary/50 transition-colors cursor-pointer h-full">
+                    <CardContent className="p-3 sm:p-4">
+                      <div className="flex items-center gap-2.5">
+                        <div className="p-1.5 rounded-lg bg-blue-500/10 shrink-0">
+                          <Database className="h-4 w-4 text-blue-500" />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-medium truncate">{entity.name}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {t('entityCards.records', { count: entity.records.toLocaleString('pt-BR') })}
+                          </p>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </Link>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Charts Row */}
       <div className="grid gap-4 lg:grid-cols-2">
-        {/* Records Over Time */}
-        <Card>
-          <CardHeader>
-            <CardTitle>{t('charts.recordsLast30Days')}</CardTitle>
-            <CardDescription>{t('charts.recordsEvolution')}</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {recordsOverTime.length > 0 ? (
-              <ResponsiveContainer width="100%" height={300}>
-                <AreaChart data={recordsOverTime}>
-                  <defs>
-                    <linearGradient id="colorRecords" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#3B82F6" stopOpacity={0.3} />
-                      <stop offset="95%" stopColor="#3B82F6" stopOpacity={0} />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                  <XAxis
-                    dataKey="date"
-                    tickFormatter={(value) => format(new Date(value), 'MM/dd', { locale: dateLocale })}
-                    className="text-xs"
-                  />
-                  <YAxis className="text-xs" />
-                  <Tooltip
-                    labelFormatter={(value) =>
-                      format(new Date(value), "MMMM dd", { locale: dateLocale })
-                    }
-                    formatter={(value) => [value, t('stats.records')]}
-                    contentStyle={{
-                      backgroundColor: 'hsl(var(--card))',
-                      border: '1px solid hsl(var(--border))',
-                      borderRadius: '8px',
-                    }}
-                  />
-                  <Area
-                    type="monotone"
-                    dataKey="count"
-                    stroke="#3B82F6"
-                    strokeWidth={2}
-                    fillOpacity={1}
-                    fill="url(#colorRecords)"
-                  />
-                </AreaChart>
-              </ResponsiveContainer>
-            ) : (
-              <div className="h-[300px] flex items-center justify-center text-muted-foreground">
-                <div className="text-center">
-                  <Layers className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                  <p>{t('empty.noRecords')}</p>
-                  <Link href="/data">
-                    <Button variant="link" className="mt-2">
-                      {t('empty.createFirstRecord')}
-                    </Button>
-                  </Link>
+        {/* Records Over Time — Area Chart */}
+        {hasModuleAccess('data') && (
+          <Card>
+            <CardHeader>
+              <CardTitle>{t('charts.recordsLast30Days')}</CardTitle>
+              <CardDescription>{t('charts.recordsEvolution')}</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {recordsOverTime.length > 0 ? (
+                <ResponsiveContainer width="100%" height={300}>
+                  <AreaChart data={recordsOverTime}>
+                    <defs>
+                      <linearGradient id="colorRecords" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#3B82F6" stopOpacity={0.3} />
+                        <stop offset="95%" stopColor="#3B82F6" stopOpacity={0} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                    <XAxis
+                      dataKey="date"
+                      tickFormatter={(value) => format(new Date(value), 'MM/dd', { locale: dateLocale })}
+                      className="text-xs"
+                    />
+                    <YAxis className="text-xs" />
+                    <Tooltip
+                      labelFormatter={(value) =>
+                        format(new Date(value), "MMMM dd", { locale: dateLocale })
+                      }
+                      formatter={(value) => [value, t('stats.records')]}
+                      contentStyle={{
+                        backgroundColor: 'hsl(var(--card))',
+                        border: '1px solid hsl(var(--border))',
+                        borderRadius: '8px',
+                      }}
+                    />
+                    <Area
+                      type="monotone"
+                      dataKey="count"
+                      stroke="#3B82F6"
+                      strokeWidth={2}
+                      fillOpacity={1}
+                      fill="url(#colorRecords)"
+                    />
+                  </AreaChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="h-[300px] flex items-center justify-center text-muted-foreground">
+                  <div className="text-center">
+                    <Layers className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                    <p>{t('empty.noRecords')}</p>
+                    <Link href="/data">
+                      <Button variant="link" className="mt-2">
+                        {t('empty.createFirstRecord')}
+                      </Button>
+                    </Link>
+                  </div>
                 </div>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+              )}
+            </CardContent>
+          </Card>
+        )}
 
-        {/* Entities Distribution */}
-        <Card>
-          <CardHeader>
-            <CardTitle>{t('charts.distributionByEntity')}</CardTitle>
-            <CardDescription>{t('charts.recordsPerEntity')}</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {entitiesDistribution.length > 0 ? (
-              <ResponsiveContainer width="100%" height={300}>
-                <PieChart>
-                  <Pie
-                    data={entitiesDistribution}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={50}
-                    outerRadius={80}
-                    paddingAngle={5}
-                    dataKey="records"
-                    nameKey="name"
+        {/* Distribution by Entity — Horizontal Bar Chart */}
+        {hasModuleAccess('data') && (
+          <Card>
+            <CardHeader>
+              <CardTitle>{t('charts.distributionByEntity')}</CardTitle>
+              <CardDescription>{t('charts.recordsPerEntity')}</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {entitiesDistribution.length > 0 ? (
+                <ResponsiveContainer width="100%" height={300}>
+                  <BarChart
+                    layout="vertical"
+                    data={entitiesDistribution.slice(0, 10)}
+                    margin={{ left: 0, right: 20 }}
                   >
-                    {entitiesDistribution.map((entry, index) => (
-                      <Cell
-                        key={`cell-${index}`}
-                        fill={COLORS[index % COLORS.length]}
-                      />
-                    ))}
-                  </Pie>
-                  <Legend layout="horizontal" verticalAlign="bottom" align="center" />
-                  <Tooltip
-                    formatter={(value, name) => [
-                      `${Number(value).toLocaleString(locale)} ${t('stats.records').toLowerCase()}`,
-                      name,
-                    ]}
-                    contentStyle={{
-                      backgroundColor: 'hsl(var(--card))',
-                      border: '1px solid hsl(var(--border))',
-                      borderRadius: '8px',
-                    }}
-                  />
-                </PieChart>
-              </ResponsiveContainer>
-            ) : (
-              <div className="h-[300px] flex items-center justify-center text-muted-foreground">
-                <div className="text-center">
-                  <Database className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                  <p>{t('empty.noEntities')}</p>
-                  <Link href="/entities">
-                    <Button variant="link" className="mt-2">
-                      {t('empty.createFirstEntity')}
-                    </Button>
-                  </Link>
+                    <CartesianGrid strokeDasharray="3 3" className="stroke-muted" horizontal={false} />
+                    <XAxis type="number" className="text-xs" />
+                    <YAxis
+                      dataKey="name"
+                      type="category"
+                      width={120}
+                      className="text-xs"
+                      tick={{ fontSize: 12 }}
+                    />
+                    <Tooltip
+                      formatter={(value, _name, props) => [
+                        `${Number(value).toLocaleString(locale)} ${t('stats.records').toLowerCase()}`,
+                        props.payload?.name,
+                      ]}
+                      contentStyle={{
+                        backgroundColor: 'hsl(var(--card))',
+                        border: '1px solid hsl(var(--border))',
+                        borderRadius: '8px',
+                      }}
+                    />
+                    <Bar dataKey="records" radius={[0, 4, 4, 0]} barSize={20}>
+                      {entitiesDistribution.slice(0, 10).map((_, index) => (
+                        <Cell
+                          key={`cell-${index}`}
+                          fill={COLORS[index % COLORS.length]}
+                          className="cursor-pointer"
+                        />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="h-[300px] flex items-center justify-center text-muted-foreground">
+                  <div className="text-center">
+                    <Database className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                    <p>{t('empty.noEntities')}</p>
+                    <Link href="/entities/new">
+                      <Button variant="link" className="mt-2">
+                        {t('empty.createFirstEntity')}
+                      </Button>
+                    </Link>
+                  </div>
                 </div>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+              )}
+            </CardContent>
+          </Card>
+        )}
       </div>
 
-      {/* Bottom Row */}
+      {/* Activity + Users Row */}
       <div className="grid gap-4 lg:grid-cols-2">
         {/* Recent Activity */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Activity className="h-5 w-5" />
-              {t('activity.title')}
-            </CardTitle>
-            <CardDescription>{t('activity.subtitle')}</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {recentActivity.length > 0 ? (
-              <div className="space-y-4">
-                {recentActivity.map((activity) => {
-                  const actionInfo = getActionLabel(activity.action);
-                  return (
-                    <div
-                      key={activity.id}
-                      className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 sm:gap-2 py-2 border-b last:border-0"
-                    >
-                      <div className="flex items-center gap-3 min-w-0">
-                        {getActivityIcon(activity.type)}
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <Badge variant="secondary" className={actionInfo.color}>
-                              {actionInfo.label}
-                            </Badge>
-                            <span className="font-medium truncate">{activity.name}</span>
+        {hasModuleAccess('data') && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Activity className="h-5 w-5" />
+                {t('activity.title')}
+              </CardTitle>
+              <CardDescription>{t('activity.subtitle')}</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {recentActivity.length > 0 ? (
+                <div className="space-y-4">
+                  {recentActivity.map((activity) => {
+                    const actionInfo = getActionLabel(activity.action);
+                    return (
+                      <div
+                        key={activity.id}
+                        className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 sm:gap-2 py-2 border-b last:border-0"
+                      >
+                        <div className="flex items-center gap-3 min-w-0">
+                          {getActivityIcon(activity.type)}
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <Badge variant="secondary" className={actionInfo.color}>
+                                {actionInfo.label}
+                              </Badge>
+                              <span className="font-medium truncate">{activity.name}</span>
+                            </div>
+                            {activity.entityName && (
+                              <span className="text-xs text-muted-foreground">
+                                {t('activity.in')} {activity.entityName}
+                              </span>
+                            )}
                           </div>
-                          {activity.entityName && (
-                            <span className="text-xs text-muted-foreground">
-                              {t('activity.in')} {activity.entityName}
-                            </span>
-                          )}
                         </div>
-                      </div>
-                      <span className="text-xs sm:text-sm text-muted-foreground flex items-center gap-1 shrink-0">
-                        <Clock className="h-3 w-3" />
-                        {formatDistanceToNow(new Date(activity.timestamp), {
-                          addSuffix: true,
-                          locale: dateLocale,
-                        })}
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
-            ) : (
-              <div className="py-8 text-center text-muted-foreground">
-                <Activity className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                <p>{t('activity.noActivity')}</p>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Users Activity */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Users className="h-5 w-5" />
-              {t('activeUsers.title')}
-            </CardTitle>
-            <CardDescription>{t('activeUsers.subtitle')}</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {usersActivity.length > 0 ? (
-              <div className="space-y-4">
-                {usersActivity.map((activityUser) => (
-                  <div
-                    key={activityUser.id}
-                    className="flex items-center justify-between gap-2 py-2 border-b last:border-0"
-                  >
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div className="h-8 w-8 sm:h-10 sm:w-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-                        <span className="text-xs sm:text-sm font-medium text-primary">
-                          {activityUser.name
-                            .split(' ')
-                            .map((n) => n[0])
-                            .join('')
-                            .slice(0, 2)
-                            .toUpperCase()}
+                        <span className="text-xs sm:text-sm text-muted-foreground flex items-center gap-1 shrink-0">
+                          <Clock className="h-3 w-3" />
+                          {formatDistanceToNow(new Date(activity.timestamp), {
+                            addSuffix: true,
+                            locale: dateLocale,
+                          })}
                         </span>
                       </div>
-                      <div className="min-w-0">
-                        <p className="font-medium truncate">{activityUser.name}</p>
-                        <p className="text-xs sm:text-sm text-muted-foreground truncate">{activityUser.email}</p>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="py-8 text-center text-muted-foreground">
+                  <Activity className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                  <p>{t('activity.noActivity')}</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Users Activity */}
+        {hasModuleAccess('users') && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Users className="h-5 w-5" />
+                {t('activeUsers.title')}
+              </CardTitle>
+              <CardDescription>{t('activeUsers.subtitle')}</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {usersActivity.length > 0 ? (
+                <div className="space-y-4">
+                  {usersActivity.map((activityUser) => (
+                    <div
+                      key={activityUser.id}
+                      className="flex items-center justify-between gap-2 py-2 border-b last:border-0"
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="h-8 w-8 sm:h-10 sm:w-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                          <span className="text-xs sm:text-sm font-medium text-primary">
+                            {activityUser.name
+                              .split(' ')
+                              .map((n) => n[0])
+                              .join('')
+                              .slice(0, 2)
+                              .toUpperCase()}
+                          </span>
+                        </div>
+                        <div className="min-w-0">
+                          <p className="font-medium truncate">{activityUser.name}</p>
+                          <p className="text-xs sm:text-sm text-muted-foreground truncate">{activityUser.email}</p>
+                        </div>
+                      </div>
+                      <div className="text-right shrink-0">
+                        {activityUser.lastLoginAt ? (
+                          <>
+                            <p className="text-sm text-muted-foreground">
+                              {formatDistanceToNow(new Date(activityUser.lastLoginAt), {
+                                addSuffix: true,
+                                locale: dateLocale,
+                              })}
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              {format(new Date(activityUser.lastLoginAt), 'dd/MM/yyyy HH:mm')}
+                            </p>
+                          </>
+                        ) : (
+                          <Badge variant="outline">{t('activeUsers.neverLoggedIn')}</Badge>
+                        )}
                       </div>
                     </div>
-                    <div className="text-right shrink-0">
-                      {activityUser.lastLoginAt ? (
-                        <>
-                          <p className="text-sm text-muted-foreground">
-                            {formatDistanceToNow(new Date(activityUser.lastLoginAt), {
-                              addSuffix: true,
-                              locale: dateLocale,
-                            })}
-                          </p>
-                          <p className="text-xs text-muted-foreground">
-                            {format(new Date(activityUser.lastLoginAt), 'dd/MM/yyyy HH:mm')}
-                          </p>
-                        </>
-                      ) : (
-                        <Badge variant="outline">{t('activeUsers.neverLoggedIn')}</Badge>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="py-8 text-center text-muted-foreground">
-                <Users className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                <p>{t('activeUsers.noUsers')}</p>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+                  ))}
+                </div>
+              ) : (
+                <div className="py-8 text-center text-muted-foreground">
+                  <Users className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                  <p>{t('activeUsers.noUsers')}</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
       </div>
 
       {/* Quick Actions */}

@@ -23,7 +23,8 @@ export type WidgetType =
   | 'grouped-bar-chart'
   | 'zone-diagram'
   | 'image-gallery'
-  | 'stat-list';
+  | 'stat-list'
+  | 'data-table';
 
 export interface WidgetConfig {
   type: WidgetType;
@@ -120,6 +121,17 @@ export interface WidgetConfig {
     // Filtered distinct (KPI distinct ratio)
     filterField?: string;
     filterValue?: string;
+
+    // Data table
+    allowCreate?: boolean;
+    allowEdit?: boolean;
+    allowDelete?: boolean;
+    allowExport?: boolean;
+    allowImport?: boolean;
+    allowBatchSelect?: boolean;
+    pageSize?: number;
+    defaultSortField?: string;
+    defaultSortOrder?: 'asc' | 'desc';
 
     // Grouped mode (mini-table agrupado)
     groupByFields?: string[];

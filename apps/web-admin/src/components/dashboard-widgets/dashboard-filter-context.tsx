@@ -16,6 +16,8 @@ interface SlicerFilter {
   fieldSlug: string;
   operator: string;
   value: unknown;
+  entitySlug?: string;       // scopes filter to widgets of this entity (like CrossFilter)
+  fieldType?: string;        // original field type for backend operator resolution
 }
 
 // Drill-through: record detail opened from a widget
@@ -35,8 +37,8 @@ interface DashboardFilters {
   removeCrossFilter: (fieldSlug: string) => void;
   clearCrossFilters: () => void;
   clearAllFilters: () => void;
-  setSlicerFilter: (fieldSlug: string, operator: string, value: unknown) => void;
-  removeSlicerFilter: (fieldSlug: string) => void;
+  setSlicerFilter: (fieldSlug: string, operator: string, value: unknown, fieldType?: string) => void;
+  removeSlicerFilter: (fieldSlug: string, entitySlug?: string) => void;
   setDateRange: (range: { start: string; end: string } | undefined) => void;
   openDrillThrough: (entitySlug: string, recordId: string) => void;
   closeDrillThrough: () => void;
@@ -66,8 +68,17 @@ export function WidgetProvider({
 
 // ─── Internal Context ───────────────────────────────────────────────────────
 
+// External filters injected from the parent page (e.g. data/page.tsx filter popover)
+export interface ExternalFilter {
+  fieldSlug: string;
+  operator: string;
+  value: unknown;
+  value2?: unknown;
+}
+
 interface InternalFilters {
   mainEntitySlug?: string;  // dashboard's primary entity
+  externalFilters: ExternalFilter[];
   allCrossFilters: CrossFilter[];
   slicerFilters: SlicerFilter[];
   dateRange?: { start: string; end: string };
@@ -77,8 +88,8 @@ interface InternalFilters {
   removeCrossFilter: (fieldSlug: string, entitySlug?: string) => void;
   clearCrossFilters: () => void;
   clearAllFilters: () => void;
-  setSlicerFilter: (fieldSlug: string, operator: string, value: unknown) => void;
-  removeSlicerFilter: (fieldSlug: string) => void;
+  setSlicerFilter: (fieldSlug: string, operator: string, value: unknown, entitySlug?: string, fieldType?: string) => void;
+  removeSlicerFilter: (fieldSlug: string, entitySlug?: string) => void;
   setDateRange: (range: { start: string; end: string } | undefined) => void;
   openDrillThrough: (entitySlug: string, recordId: string) => void;
   closeDrillThrough: () => void;
@@ -87,6 +98,7 @@ interface InternalFilters {
 const noop = () => {};
 
 const InternalFilterContext = createContext<InternalFilters>({
+  externalFilters: [],
   allCrossFilters: [],
   slicerFilters: [],
   dateRange: undefined,
@@ -107,9 +119,11 @@ const InternalFilterContext = createContext<InternalFilters>({
 
 export function DashboardFilterProvider({
   mainEntitySlug,
+  externalFilters = [],
   children,
 }: {
   mainEntitySlug?: string;
+  externalFilters?: ExternalFilter[];
   children: ReactNode;
 }) {
   const [crossFilters, setCrossFilters] = useState<CrossFilter[]>([]);
@@ -186,20 +200,26 @@ export function DashboardFilterProvider({
     setDateRange(undefined);
   }, []);
 
-  const setSlicerFilterFn = useCallback((fieldSlug: string, operator: string, value: unknown) => {
+  const setSlicerFilterFn = useCallback((fieldSlug: string, operator: string, value: unknown, entitySlug?: string, fieldType?: string) => {
     setSlicerFilters((prev) => {
-      const filtered = prev.filter((f) => f.fieldSlug !== fieldSlug);
-      return [...filtered, { fieldSlug, operator, value }];
+      const filtered = prev.filter((f) => !(f.fieldSlug === fieldSlug && f.entitySlug === entitySlug));
+      return [...filtered, { fieldSlug, operator, value, entitySlug, fieldType }];
     });
   }, []);
 
-  const removeSlicerFilter = useCallback((fieldSlug: string) => {
-    setSlicerFilters((prev) => prev.filter((f) => f.fieldSlug !== fieldSlug));
+  const removeSlicerFilter = useCallback((fieldSlug: string, entitySlug?: string) => {
+    setSlicerFilters((prev) => {
+      if (entitySlug !== undefined) {
+        return prev.filter((f) => !(f.fieldSlug === fieldSlug && f.entitySlug === entitySlug));
+      }
+      return prev.filter((f) => f.fieldSlug !== fieldSlug);
+    });
   }, []);
 
   const value = useMemo<InternalFilters>(
     () => ({
       mainEntitySlug,
+      externalFilters,
       allCrossFilters: crossFilters,
       slicerFilters,
       dateRange,
@@ -215,7 +235,7 @@ export function DashboardFilterProvider({
       openDrillThrough,
       closeDrillThrough,
     }),
-    [mainEntitySlug, crossFilters, slicerFilters, dateRange, drillRecord, toggleCrossFilter, addCrossFilter, removeCrossFilter, clearCrossFilters, clearAllFilters, setSlicerFilterFn, removeSlicerFilter, setDateRange, openDrillThrough, closeDrillThrough],
+    [mainEntitySlug, externalFilters, crossFilters, slicerFilters, dateRange, drillRecord, toggleCrossFilter, addCrossFilter, removeCrossFilter, clearCrossFilters, clearAllFilters, setSlicerFilterFn, removeSlicerFilter, setDateRange, openDrillThrough, closeDrillThrough],
   );
 
   return <InternalFilterContext.Provider value={value}>{children}</InternalFilterContext.Provider>;
@@ -281,9 +301,79 @@ export function useDashboardFilters(): DashboardFilters {
     [ctx.removeCrossFilter, widgetEntity],
   );
 
+  // Transform slicer filters based on widget entity context (same logic as cross-filters)
+  const slicerFilters = useMemo(() => {
+    // Filter bar (no widget context): show all raw
+    if (!widgetEntity) return ctx.slicerFilters;
+
+    const mainEntity = ctx.mainEntitySlug;
+    const isSubEntity = mainEntity && widgetEntity !== mainEntity;
+    const isMainEntity = mainEntity && widgetEntity === mainEntity;
+
+    const result: SlicerFilter[] = [];
+    for (const sf of ctx.slicerFilters) {
+      if (!sf.entitySlug) {
+        // No entity scope: check if _hasChildren filter
+        if (sf.fieldSlug.startsWith('_hasChildren:')) {
+          // _hasChildren only applies to the MAIN entity (parent), skip for sub-entity widgets
+          if (isMainEntity || !mainEntity) {
+            result.push(sf);
+          }
+          // else: sub-entity widget → skip (NC doesn't need parent's _hasChildren filter)
+        } else {
+          // Other global filters: include as-is
+          result.push(sf);
+        }
+      } else if (sf.entitySlug === widgetEntity) {
+        // Same entity: include as-is
+        result.push(sf);
+      } else if (isSubEntity && sf.entitySlug === mainEntity) {
+        // Parent→Child: parent entity slicer propagates with parent.* prefix
+        result.push({ ...sf, fieldSlug: `parent.${sf.fieldSlug}` });
+      } else if (isMainEntity && sf.entitySlug !== mainEntity) {
+        // Child→Parent: sub-entity slicer propagates with child.<entitySlug>.* prefix
+        result.push({ ...sf, fieldSlug: `child.${sf.entitySlug}.${sf.fieldSlug}` });
+      }
+    }
+    return result;
+  }, [ctx.slicerFilters, widgetEntity, ctx.mainEntitySlug]);
+
+  // Auto-resolve prefixed fieldSlugs and inject entitySlug
+  const setSlicerFilter = useCallback(
+    (fieldSlug: string, operator: string, value: unknown, fieldType?: string) => {
+      if (fieldSlug.startsWith('parent.')) {
+        // Parent field: strip prefix, scope to main entity
+        const rawSlug = fieldSlug.slice(7);
+        ctx.setSlicerFilter(rawSlug, operator, value, ctx.mainEntitySlug, fieldType);
+      } else if (fieldSlug.startsWith('child.')) {
+        // Child field: child.<entitySlug>.<fieldSlug>
+        const parts = fieldSlug.split('.');
+        if (parts.length >= 3) {
+          const childEntitySlug = parts[1];
+          const rawSlug = parts.slice(2).join('.');
+          ctx.setSlicerFilter(rawSlug, operator, value, childEntitySlug, fieldType);
+        }
+      } else if (fieldSlug.startsWith('_hasChildren:')) {
+        // Special filter: no entitySlug, pass as-is
+        ctx.setSlicerFilter(fieldSlug, operator, value, undefined, 'boolean');
+      } else {
+        // Own field: inject widgetEntity
+        ctx.setSlicerFilter(fieldSlug, operator, value, widgetEntity, fieldType);
+      }
+    },
+    [ctx.setSlicerFilter, widgetEntity, ctx.mainEntitySlug],
+  );
+
+  const removeSlicerFilter = useCallback(
+    (fieldSlug: string, entitySlugOverride?: string) => {
+      ctx.removeSlicerFilter(fieldSlug, entitySlugOverride ?? widgetEntity);
+    },
+    [ctx.removeSlicerFilter, widgetEntity],
+  );
+
   return {
     crossFilters,
-    slicerFilters: ctx.slicerFilters,
+    slicerFilters,
     dateRange: ctx.dateRange,
     drillRecord: ctx.drillRecord,
     addCrossFilter,
@@ -291,8 +381,8 @@ export function useDashboardFilters(): DashboardFilters {
     toggleCrossFilter,
     clearCrossFilters: ctx.clearCrossFilters,
     clearAllFilters: ctx.clearAllFilters,
-    setSlicerFilter: ctx.setSlicerFilter,
-    removeSlicerFilter: ctx.removeSlicerFilter,
+    setSlicerFilter,
+    removeSlicerFilter,
     setDateRange: ctx.setDateRange,
     openDrillThrough: ctx.openDrillThrough,
     closeDrillThrough: ctx.closeDrillThrough,
@@ -307,6 +397,7 @@ export function useDashboardFilters(): DashboardFilters {
 export function useWidgetFilters(): DashboardFilterParams {
   const { crossFilters, slicerFilters, dateRange } = useDashboardFilters();
   const { widgetId } = useContext(WidgetIdentityContext);
+  const { externalFilters } = useContext(InternalFilterContext);
 
   return useMemo(() => {
     const filterItems: Array<{ fieldSlug: string; operator: string; value: unknown }> = [];
@@ -322,7 +413,17 @@ export function useWidgetFilters(): DashboardFilterParams {
     }
 
     for (const sf of slicerFilters) {
-      filterItems.push({ fieldSlug: sf.fieldSlug, operator: sf.operator, value: sf.value });
+      filterItems.push({
+        fieldSlug: sf.fieldSlug,
+        operator: sf.operator,
+        value: sf.value,
+        ...(sf.fieldType && { fieldType: sf.fieldType }),
+      });
+    }
+
+    // Merge external filters from parent page (filter popover)
+    for (const ef of externalFilters) {
+      filterItems.push({ fieldSlug: ef.fieldSlug, operator: ef.operator, value: ef.value });
     }
 
     return {
@@ -330,7 +431,7 @@ export function useWidgetFilters(): DashboardFilterParams {
       dateStart: dateRange?.start,
       dateEnd: dateRange?.end,
     };
-  }, [crossFilters, slicerFilters, dateRange, widgetId]);
+  }, [crossFilters, slicerFilters, dateRange, widgetId, externalFilters]);
 }
 
 // ─── Visual State Helper ───────────────────────────────────────────────────

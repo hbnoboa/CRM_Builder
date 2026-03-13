@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo } from 'react';
-import { useFieldDistribution } from '@/hooks/use-dashboard-templates';
+import { useAdaptedFieldDistribution as useFieldDistribution } from '@/components/entity-data/adapter-hooks';
 import { useDashboardFilters, useWidgetFilters } from './dashboard-filter-context';
 import { WidgetWrapper } from './widget-wrapper';
 import type { WidgetConfig } from '@crm-builder/shared';

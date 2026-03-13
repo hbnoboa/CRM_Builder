@@ -21,7 +21,7 @@ export class DashboardTemplateController {
     @CurrentUser() user: CurrentUserType,
     @Query('tenantId') tenantId?: string,
   ) {
-    checkModulePermission(user, 'settings', 'canRead');
+    checkModulePermission(user, 'dashboardTemplates', 'canRead');
     return this.service.findAll(user, tenantId);
   }
 
@@ -36,6 +36,17 @@ export class DashboardTemplateController {
     return this.service.findMyTemplate(entitySlug, user, tenantId);
   }
 
+  @Get('my/:entitySlug/all')
+  @ApiOperation({ summary: 'Listar todos os templates atribuidos ao role do usuario para uma entidade' })
+  async findMyTemplates(
+    @Param('entitySlug') entitySlug: string,
+    @CurrentUser() user: CurrentUserType,
+    @Query('tenantId') tenantId?: string,
+  ) {
+    checkModulePermission(user, 'data', 'canRead');
+    return this.service.findMyTemplates(entitySlug, user, tenantId);
+  }
+
   @Get(':id')
   @ApiOperation({ summary: 'Obter template de dashboard por ID' })
   async findOne(
@@ -43,7 +54,7 @@ export class DashboardTemplateController {
     @CurrentUser() user: CurrentUserType,
     @Query('tenantId') tenantId?: string,
   ) {
-    checkModulePermission(user, 'settings', 'canRead');
+    checkModulePermission(user, 'dashboardTemplates', 'canRead');
     return this.service.findOne(id, user, tenantId);
   }
 
@@ -54,7 +65,7 @@ export class DashboardTemplateController {
     @CurrentUser() user: CurrentUserType,
     @Query('tenantId') tenantId?: string,
   ) {
-    checkModulePermission(user, 'settings', 'canUpdate');
+    checkModulePermission(user, 'dashboardTemplates', 'canUpdate');
     return this.service.create(dto, user, tenantId);
   }
 
@@ -66,7 +77,7 @@ export class DashboardTemplateController {
     @CurrentUser() user: CurrentUserType,
     @Query('tenantId') tenantId?: string,
   ) {
-    checkModulePermission(user, 'settings', 'canUpdate');
+    checkModulePermission(user, 'dashboardTemplates', 'canUpdate');
     return this.service.update(id, dto, user, tenantId);
   }
 
@@ -77,7 +88,7 @@ export class DashboardTemplateController {
     @CurrentUser() user: CurrentUserType,
     @Query('tenantId') tenantId?: string,
   ) {
-    checkModulePermission(user, 'settings', 'canDelete');
+    checkModulePermission(user, 'dashboardTemplates', 'canDelete');
     return this.service.remove(id, user, tenantId);
   }
 }

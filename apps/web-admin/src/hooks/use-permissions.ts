@@ -343,7 +343,7 @@ export function usePermissions() {
     const routePriority: { moduleKey: string; href: string }[] = [
       { moduleKey: 'dashboard', href: '/dashboard' },
       { moduleKey: 'data', href: '/data' },
-      { moduleKey: 'entities', href: '/entities' },
+      { moduleKey: 'entities', href: '/data' },
       { moduleKey: 'users', href: '/users' },
       { moduleKey: 'roles', href: '/roles' },
       { moduleKey: 'apis', href: '/apis' },
@@ -398,7 +398,7 @@ export function getDefaultRouteForUser(user: { customRole?: { roleType?: string;
   const routePriority: { moduleKey: keyof ModulePermissions; href: string }[] = [
     { moduleKey: 'dashboard', href: '/dashboard' },
     { moduleKey: 'data', href: '/data' },
-    { moduleKey: 'entities', href: '/entities' },
+    { moduleKey: 'entities', href: '/data' },
     { moduleKey: 'users', href: '/users' },
     { moduleKey: 'roles', href: '/roles' },
     { moduleKey: 'apis', href: '/apis' },

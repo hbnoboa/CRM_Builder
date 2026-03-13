@@ -1,7 +1,7 @@
 'use client';
 
 import { Plus, Pencil } from 'lucide-react';
-import { useEntityRecentActivity } from '@/hooks/use-dashboard-templates';
+import { useAdaptedRecentActivity as useEntityRecentActivity } from '@/components/entity-data/adapter-hooks';
 import { useWidgetFilters } from './dashboard-filter-context';
 import { WidgetWrapper } from './widget-wrapper';
 import type { WidgetConfig } from '@crm-builder/shared';

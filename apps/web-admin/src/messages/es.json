@@ -67,7 +67,10 @@
     "confirmDelete": "¿Estás seguro?",
     "confirmDeleteDesc": "Esta acción no se puede deshacer. El elemento será eliminado permanentemente.",
     "other": "Otro...",
-    "typeCustomValue": "Escriba el valor"
+    "typeCustomValue": "Escriba el valor",
+    "columns": "Columnas",
+    "export": "Exportar",
+    "import": "Importar"
   },
   "metadata": {
     "title": "CRM Builder - Panel Admin",
@@ -159,7 +162,17 @@
     "stats": {
       "entities": "Tablas",
       "records": "Registros",
-      "users": "Usuarios"
+      "users": "Usuarios",
+      "activity": "Actividad",
+      "last7Days": "últimos 7 días: {count}",
+      "activeUsers7d": "activos 7 días: {count}",
+      "last24h": "últimas 24h"
+    },
+    "entityCards": {
+      "title": "Registros por Tabla",
+      "subtitle": "Visión general de registros por tabla",
+      "records": "{count} registros",
+      "viewAll": "Ver todas"
     },
     "charts": {
       "recordsLast30Days": "Registros en los Últimos 30 Días",
@@ -478,6 +491,8 @@
     "filterByParent": "Filtrar por {parent}",
     "filteredByParent": "filtrado por padre",
     "noRecords": "Sin registros",
+    "noResultsFiltered": "Sin resultados para los filtros aplicados",
+    "searchPlaceholder": "Buscar registros...",
     "noSearchResults": "Sin resultados de búsqueda",
     "startAddingData": "Comienza agregando datos a esta entidad",
     "recordsCount": "{filtered} de {total} registro(s)",
@@ -687,7 +702,11 @@
       "roles": "Perfiles de Acceso",
       "rolesDesc": "Configurar roles y permisos",
       "pdfTemplates": "Plantillas PDF",
-      "pdfTemplatesDesc": "Generar documentos desde plantillas"
+      "pdfTemplatesDesc": "Generar documentos desde plantillas",
+      "auditLogs": "Registros de Auditoria",
+      "auditLogsDesc": "Ver registros de auditoria del sistema",
+      "dashboardTemplates": "Plantillas de Dashboard",
+      "dashboardTemplatesDesc": "Configurar plantillas de dashboard por rol"
     },
     "userRoles": {
       "title": "Gestionar Permisos",

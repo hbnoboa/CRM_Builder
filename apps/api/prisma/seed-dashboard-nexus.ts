@@ -1,11 +1,11 @@
 /**
  * Seed: Dashboard Nexus — Inspeção Veicular (Completo)
  *
- * Template único com 25 widgets cobrindo todas as seções do layout Nexus:
- *   1. Visão Geral (KPIs + KPI ratio + tendência com referenceLines + tabela)
- *   2. Operação (stacked-bar modelo×marca + donut marca + situação + tipos dano)
- *   3. Não-Conformidades (heatmap peça×tipo + responsabilidade + treemap peças)
- *   4. Comparativo (grouped-bar viagem×marca + scatter quadrante×nível + zone-diagram)
+ * Template único com 26 widgets cobrindo todas as seções do layout Nexus:
+ *   1. Registros (data-table completa com CRUD)
+ *   2. Visão Geral (KPIs + KPI ratio + tendência com referenceLines + tabela)
+ *   3. Operação (stacked-bar modelo×marca + donut marca + situação + tipos dano)
+ *   4. Não-Conformidades (heatmap peça×tipo + responsabilidade + treemap peças)
  *   5. Ficha Veículo (tabelas detalhadas + atividade + galeria imagens)
  *
  * Uso: DATABASE_URL="..." npx ts-node prisma/seed-dashboard-nexus.ts
@@ -319,6 +319,27 @@ async function main() {
     },
 
     // ─────────────────────────────────────────────────────────────────────
+    // SEÇÃO 0: Tabela Completa (aba Registros)
+    // ─────────────────────────────────────────────────────────────────────
+
+    'data-table-veiculos': {
+      type: 'data-table',
+      title: 'Veículos',
+      config: {
+        displayFields: ['chassi', 'marca', 'modelo', 'navio', 'viagem', 'local', 'situacao', 'concluido'],
+        pageSize: 25,
+        allowCreate: true,
+        allowEdit: true,
+        allowDelete: true,
+        allowExport: true,
+        allowImport: true,
+        allowBatchSelect: true,
+        defaultSortField: 'createdAt',
+        defaultSortOrder: 'desc',
+      },
+    },
+
+    // ─────────────────────────────────────────────────────────────────────
     // SEÇÃO 7: Navio + Tabela Veículos (y=44)
     // ─────────────────────────────────────────────────────────────────────
 
@@ -374,27 +395,32 @@ async function main() {
   // ═══════════════════════════════════════════════════════════════════════
 
   // ═══════════════════════════════════════════════════════════════════════
-  // TABS: 4 abas (sem Comparativo)
+  // TABS: 5 abas — Registros (tabela) + 4 abas de dashboard
   // ═══════════════════════════════════════════════════════════════════════
   const tabs = [
     {
+      id: 'registros',
+      label: '1. Registros',
+      widgetIds: ['data-table-veiculos'],
+    },
+    {
       id: 'visao-geral',
-      label: '1. Visão Geral',
+      label: '2. Visão Geral',
       widgetIds: ['kpi-veiculos', 'kpi-ncs', 'number-ncs', 'kpi-variacao', 'kpi-ratio-nc', 'line-tendencia', 'column-navio', 'table-veiculos'],
     },
     {
       id: 'operacao',
-      label: '2. Operação',
+      label: '3. Operação',
       widgetIds: ['stacked-modelo-marca', 'donut-marca', 'bar-situacao', 'bar-tipo-dano'],
     },
     {
       id: 'nao-conformidades',
-      label: '3. Não-Conformidades',
+      label: '4. Não-Conformidades',
       widgetIds: ['bar-local-nc', 'heatmap-peca-tipo', 'column-medida', 'bar-nivel', 'treemap-peca'],
     },
     {
       id: 'ficha-veiculo',
-      label: '4. Ficha Veículo',
+      label: '5. Ficha Veículo',
       widgetIds: ['table-ncs', 'activity-ncs', 'zone-quadrante', 'gallery-fotos', 'resumo-ncs'],
     },
   ];
@@ -404,7 +430,10 @@ async function main() {
   // ═══════════════════════════════════════════════════════════════════════
 
   const layout = [
-    // ── Tab 1: Visão Geral ──
+    // ── Tab 1: Registros ──
+    { i: 'data-table-veiculos', x: 0, y: 0, w: 12, h: 12, minW: 6, minH: 6 },
+
+    // ── Tab 2: Visão Geral ──
     // KPIs (y=0, h=3)
     { i: 'kpi-veiculos', x: 0, y: 0, w: 3, h: 3, minW: 2, minH: 2 },
     { i: 'kpi-ncs', x: 3, y: 0, w: 3, h: 3, minW: 2, minH: 2 },
@@ -417,7 +446,7 @@ async function main() {
     // Tabela veículos (y=10, h=8)
     { i: 'table-veiculos', x: 0, y: 10, w: 12, h: 8, minW: 4, minH: 4 },
 
-    // ── Tab 2: Operação ──
+    // ── Tab 3: Operação ──
     // Stacked modelo×marca + Donut marca (y=0, h=8)
     { i: 'stacked-modelo-marca', x: 0, y: 0, w: 8, h: 8, minW: 4, minH: 3 },
     { i: 'donut-marca', x: 8, y: 0, w: 4, h: 8, minW: 3, minH: 3 },
@@ -425,7 +454,7 @@ async function main() {
     { i: 'bar-situacao', x: 0, y: 8, w: 6, h: 7, minW: 3, minH: 3 },
     { i: 'bar-tipo-dano', x: 6, y: 8, w: 6, h: 7, minW: 3, minH: 3 },
 
-    // ── Tab 3: Não-Conformidades ──
+    // ── Tab 4: Não-Conformidades ──
     // Responsabilidade + Heatmap (y=0, h=8)
     { i: 'bar-local-nc', x: 0, y: 0, w: 4, h: 8, minW: 3, minH: 3 },
     { i: 'heatmap-peca-tipo', x: 4, y: 0, w: 8, h: 8, minW: 4, minH: 4 },
@@ -434,7 +463,7 @@ async function main() {
     { i: 'bar-nivel', x: 4, y: 8, w: 4, h: 7, minW: 3, minH: 3 },
     { i: 'treemap-peca', x: 8, y: 8, w: 4, h: 7, minW: 3, minH: 3 },
 
-    // ── Tab 4: Ficha Veículo ──
+    // ── Tab 5: Ficha Veículo ──
     // Gallery + Resumo NCs + Zone (y=0, h=7)
     { i: 'gallery-fotos', x: 0, y: 0, w: 5, h: 7, minW: 3, minH: 3 },
     { i: 'resumo-ncs', x: 5, y: 0, w: 3, h: 7, minW: 2, minH: 3 },

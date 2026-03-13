@@ -118,14 +118,26 @@ export class EntityDataQueryService {
       where.id = { in: recordIds };
     }
 
-    // 6. hasChildrenIn — registros que tem filhos em entidade X
+    // 6. hasChildrenIn — registros que tem filhos em entidade X (active + archived)
     if (hasChildrenIn) {
-      const parentIdsResult = await this.prisma.entityData.findMany({
-        where: { entityId: hasChildrenIn, parentRecordId: { not: null } },
-        select: { parentRecordId: true },
-        distinct: ['parentRecordId'],
-      });
-      const parentIds = parentIdsResult.map(r => r.parentRecordId).filter(Boolean) as string[];
+      const [activeChildren, archivedChildren] = await Promise.all([
+        this.prisma.entityData.findMany({
+          where: { entityId: hasChildrenIn, parentRecordId: { not: null } },
+          select: { parentRecordId: true },
+          distinct: ['parentRecordId'],
+        }),
+        this.prisma.archivedEntityData.findMany({
+          where: { entityId: hasChildrenIn, parentRecordId: { not: null } },
+          select: { parentRecordId: true },
+          distinct: ['parentRecordId'],
+        }),
+      ]);
+      const parentIds = [
+        ...new Set([
+          ...activeChildren.map(r => r.parentRecordId),
+          ...archivedChildren.map(r => r.parentRecordId),
+        ].filter(Boolean)),
+      ] as string[];
       where.id = { in: parentIds.length > 0 ? parentIds : ['__none__'] };
     }
 
@@ -146,7 +158,7 @@ export class EntityDataQueryService {
 
     // 10. Filtros do usuario (query parameter)
     if (filters) {
-      this.applyUserFilters(where, filters);
+      await this.applyUserFilters(where, filters, effectiveTenantId);
     }
 
     // 11. Filtros de dashboard (cross-filters, date range, relative dates)
@@ -250,7 +262,7 @@ export class EntityDataQueryService {
 
     // Parse JSON filters (cross-filters + slicer filters)
     if (options.filters) {
-      let filters: Array<{ fieldSlug: string; operator: string; value: unknown }>;
+      let filters: Array<{ fieldSlug: string; operator: string; value: unknown; value2?: unknown; fieldType?: string }>;
       try {
         filters = JSON.parse(options.filters);
       } catch {
@@ -261,9 +273,14 @@ export class EntityDataQueryService {
         if (!where.AND) where.AND = [];
         const andArray = where.AND as Prisma.EntityDataWhereInput[];
 
-        // Collect parent/child field filters to resolve in batch
+        // Collect parent/child field filters to resolve in batch (equals/in operators)
         const parentFilters: Array<{ slug: string; value: unknown }> = [];
         const childFilters: Array<{ entitySlug: string; fieldSlug: string; value: unknown }> = [];
+
+        // Collect cross-entity filters for complex operators (contains, gt, between, etc.)
+        const parentComplexFilters: Array<{ slug: string; filter: { fieldType: string; operator: string; value: unknown; value2?: unknown } }> = [];
+        const childComplexFilters: Array<{ entitySlug: string; fieldSlug: string; filter: { fieldType: string; operator: string; value: unknown; value2?: unknown } }> = [];
+        const hasChildrenFilters: Array<{ subEntitySlug: string; value: boolean }> = [];
 
         for (const filter of filters) {
           if (filter.operator === 'equals' && filter.value !== undefined) {
@@ -281,6 +298,14 @@ export class EntityDataQueryService {
               const parts = filter.fieldSlug.split('.');
               if (parts.length >= 3) {
                 childFilters.push({ entitySlug: parts[1], fieldSlug: parts.slice(2).join('.'), value: val });
+              }
+            } else if (filter.fieldSlug.startsWith('_hasChildren:')) {
+              const subSlug = filter.fieldSlug.split(':')[1];
+              if (subSlug) {
+                hasChildrenFilters.push({
+                  subEntitySlug: subSlug,
+                  value: val === true || val === 'true',
+                });
               }
             } else {
               andArray.push(jsonbFieldMatch(filter.fieldSlug, val));
@@ -335,6 +360,38 @@ export class EntityDataQueryService {
             else if (rel === 'thisQuarter') { const q = Math.floor(now.getMonth() / 3); start = new Date(now.getFullYear(), q * 3, 1); }
             else if (rel === 'thisYear') { start = new Date(now.getFullYear(), 0, 1); }
             if (start) andArray.push({ createdAt: { gte: start, lte: now } });
+          } else {
+            // All other operators (contains, startsWith, endsWith, gt, gte, lt, lte, between, isEmpty, isNotEmpty)
+            // Use buildFilterClause for proper type-aware filter construction
+            const filterFieldType = (filter as { fieldType?: string }).fieldType || 'text';
+
+            if (filter.fieldSlug.startsWith('parent.')) {
+              parentComplexFilters.push({
+                slug: filter.fieldSlug.slice(7),
+                filter: { fieldType: filterFieldType, operator: filter.operator, value: filter.value, value2: (filter as { value2?: unknown }).value2 },
+              });
+            } else if (filter.fieldSlug.startsWith('child.')) {
+              const parts = filter.fieldSlug.split('.');
+              if (parts.length >= 3) {
+                childComplexFilters.push({
+                  entitySlug: parts[1],
+                  fieldSlug: parts.slice(2).join('.'),
+                  filter: { fieldType: filterFieldType, operator: filter.operator, value: filter.value, value2: (filter as { value2?: unknown }).value2 },
+                });
+              }
+            } else if (filter.fieldSlug.startsWith('_hasChildren:')) {
+              const subSlug = filter.fieldSlug.split(':')[1];
+              if (subSlug) {
+                hasChildrenFilters.push({
+                  subEntitySlug: subSlug,
+                  value: filter.value === true || filter.value === 'true',
+                });
+              }
+            } else {
+              // Direct field filter via buildFilterClause
+              const clause = buildFilterClause(filter.fieldSlug, filterFieldType, filter.operator, filter.value, (filter as { value2?: unknown }).value2);
+              if (clause) andArray.push(clause);
+            }
           }
         }
 
@@ -486,6 +543,172 @@ export class EntityDataQueryService {
             });
           }
         }
+
+        // Resolve complex parent filters (operators other than equals/in)
+        if (parentComplexFilters.length > 0) {
+          const entityId = where.entityId as string | undefined;
+          const [hasParentsActive, hasParentsArchived] = entityId
+            ? await Promise.all([
+                this.prisma.entityData.count({
+                  where: { entityId, parentRecordId: { not: null } },
+                  take: 1,
+                }),
+                this.prisma.archivedEntityData.count({
+                  where: { entityId, parentRecordId: { not: null } },
+                  take: 1,
+                }),
+              ])
+            : [0, 0];
+          const hasParents = hasParentsActive + hasParentsArchived;
+
+          if (hasParents > 0) {
+            // Entity IS a sub-entity: resolve via parentRecordId
+            const parentConditions: Prisma.EntityDataWhereInput[] = [];
+            for (const pf of parentComplexFilters) {
+              const clause = buildFilterClause(pf.slug, pf.filter.fieldType, pf.filter.operator, pf.filter.value, pf.filter.value2);
+              if (clause) parentConditions.push(clause);
+            }
+
+            if (parentConditions.length > 0) {
+              const parentWhere: Prisma.EntityDataWhereInput = { AND: parentConditions };
+              if (tenantId) parentWhere.tenantId = tenantId;
+
+              const [activeParents, archivedParents] = await Promise.all([
+                this.prisma.entityData.findMany({
+                  where: parentWhere,
+                  select: { id: true },
+                }),
+                this.prisma.archivedEntityData.findMany({
+                  where: parentWhere as Prisma.ArchivedEntityDataWhereInput,
+                  select: { id: true },
+                }),
+              ]);
+              const parentIds = [
+                ...activeParents.map((p) => p.id),
+                ...archivedParents.map((p) => p.id),
+              ];
+
+              andArray.push({
+                parentRecordId: parentIds.length > 0 ? { in: parentIds } : { equals: '__no_match__' },
+              });
+            }
+          } else {
+            // Entity is NOT a sub-entity: strip prefix and apply as direct field filter
+            this.logger.log(`[PARENT_COMPLEX_FILTER] NOT sub-entity, applying direct field filter`);
+            for (const pf of parentComplexFilters) {
+              const clause = buildFilterClause(pf.slug, pf.filter.fieldType, pf.filter.operator, pf.filter.value, pf.filter.value2);
+              if (clause) andArray.push(clause);
+            }
+          }
+        }
+
+        // Resolve complex child entity filters (operators other than equals/in)
+        if (childComplexFilters.length > 0) {
+          // Group by entity slug
+          const byEntity = new Map<string, Array<{ fieldSlug: string; filter: { fieldType: string; operator: string; value: unknown; value2?: unknown } }>>();
+          for (const cf of childComplexFilters) {
+            if (!byEntity.has(cf.entitySlug)) byEntity.set(cf.entitySlug, []);
+            byEntity.get(cf.entitySlug)!.push({ fieldSlug: cf.fieldSlug, filter: cf.filter });
+          }
+
+          for (const [childEntitySlug, fieldFilters] of byEntity) {
+            const childEntityWhere: Prisma.EntityWhereInput = { slug: childEntitySlug };
+            if (tenantId) childEntityWhere.tenantId = tenantId;
+
+            const childEntity = await this.prisma.entity.findFirst({
+              where: childEntityWhere,
+              select: { id: true },
+            });
+            if (!childEntity) continue;
+
+            const childConditions: Prisma.EntityDataWhereInput[] = [];
+            for (const ff of fieldFilters) {
+              const clause = buildFilterClause(ff.fieldSlug, ff.filter.fieldType, ff.filter.operator, ff.filter.value, ff.filter.value2);
+              if (clause) childConditions.push(clause);
+            }
+
+            if (childConditions.length === 0) continue;
+
+            const childWhere: Prisma.EntityDataWhereInput = {
+              entityId: childEntity.id,
+              parentRecordId: { not: null },
+              AND: childConditions,
+            };
+            if (tenantId) childWhere.tenantId = tenantId;
+
+            const [activeChildren, archivedChildren] = await Promise.all([
+              this.prisma.entityData.findMany({
+                where: childWhere,
+                select: { parentRecordId: true },
+                distinct: ['parentRecordId'],
+              }),
+              this.prisma.archivedEntityData.findMany({
+                where: childWhere as Prisma.ArchivedEntityDataWhereInput,
+                select: { parentRecordId: true },
+                distinct: ['parentRecordId'],
+              }),
+            ]);
+            const matchedParentIds = [
+              ...activeChildren.map((c) => c.parentRecordId),
+              ...archivedChildren.map((c) => c.parentRecordId),
+            ].filter(Boolean) as string[];
+
+            andArray.push({
+              id: matchedParentIds.length > 0 ? { in: matchedParentIds } : { equals: '__no_match__' },
+            });
+          }
+        }
+
+        // Resolve _hasChildren filters (active + archived children)
+        if (hasChildrenFilters.length > 0) {
+          for (const hcf of hasChildrenFilters) {
+            const childEntityWhere: Prisma.EntityWhereInput = { slug: hcf.subEntitySlug };
+            if (tenantId) childEntityWhere.tenantId = tenantId;
+
+            const childEntity = await this.prisma.entity.findFirst({
+              where: childEntityWhere,
+              select: { id: true },
+            });
+            if (!childEntity) continue;
+
+            const childWhere = {
+              entityId: childEntity.id,
+              parentRecordId: { not: null } as { not: null },
+              ...(tenantId && { tenantId }),
+            };
+            const [activeChildren, archivedChildren] = await Promise.all([
+              this.prisma.entityData.findMany({
+                where: childWhere,
+                select: { parentRecordId: true },
+                distinct: ['parentRecordId'],
+              }),
+              this.prisma.archivedEntityData.findMany({
+                where: childWhere as Prisma.ArchivedEntityDataWhereInput,
+                select: { parentRecordId: true },
+                distinct: ['parentRecordId'],
+              }),
+            ]);
+            const parentIdsWithChildren = [
+              ...new Set([
+                ...activeChildren.map((c) => c.parentRecordId),
+                ...archivedChildren.map((c) => c.parentRecordId),
+              ].filter(Boolean)),
+            ] as string[];
+
+            if (hcf.value) {
+              // Has children
+              andArray.push({
+                id: parentIdsWithChildren.length > 0 ? { in: parentIdsWithChildren } : { equals: '__no_match__' },
+              });
+            } else {
+              // No children
+              if (parentIdsWithChildren.length > 0) {
+                andArray.push({ id: { notIn: parentIdsWithChildren } });
+              }
+              // else: no records have children, so no filter needed
+            }
+          }
+        }
       }
     }
 
@@ -572,15 +795,197 @@ export class EntityDataQueryService {
 
   /**
    * Aplica filtros do usuario passados via query parameter (JSON stringified).
+   * Suporta prefixos cross-entity: parent.<fieldSlug>, child.<entitySlug>.<fieldSlug>,
+   * e filtros virtuais _hasChildren:<subEntitySlug>.
    */
-  private applyUserFilters(
+  private async applyUserFilters(
     where: Prisma.EntityDataWhereInput,
     filtersJson: string,
-  ): void {
+    tenantId?: string,
+  ): Promise<void> {
     try {
       const filters = JSON.parse(filtersJson) as GlobalFilter[];
-      if (Array.isArray(filters) && filters.length > 0) {
-        this.applyGlobalFilters(where, filters);
+      if (!Array.isArray(filters) || filters.length === 0) return;
+
+      const normalFilters: GlobalFilter[] = [];
+      const parentFilters: Array<{ slug: string; filter: GlobalFilter }> = [];
+      const childFilters: Array<{ entitySlug: string; fieldSlug: string; filter: GlobalFilter }> = [];
+      const hasChildrenFilters: Array<{ subEntitySlug: string; value: boolean }> = [];
+
+      for (const filter of filters) {
+        if (filter.fieldSlug.startsWith('parent.')) {
+          parentFilters.push({
+            slug: filter.fieldSlug.slice(7),
+            filter,
+          });
+        } else if (filter.fieldSlug.startsWith('child.')) {
+          const parts = filter.fieldSlug.split('.');
+          if (parts.length >= 3) {
+            childFilters.push({
+              entitySlug: parts[1],
+              fieldSlug: parts.slice(2).join('.'),
+              filter,
+            });
+          }
+        } else if (filter.fieldSlug.startsWith('_hasChildren:')) {
+          const subSlug = filter.fieldSlug.split(':')[1];
+          if (subSlug) {
+            hasChildrenFilters.push({
+              subEntitySlug: subSlug,
+              value: filter.value === true || filter.value === 'true',
+            });
+          }
+        } else {
+          normalFilters.push(filter);
+        }
+      }
+
+      // Apply normal filters via existing method
+      if (normalFilters.length > 0) {
+        this.applyGlobalFilters(where, normalFilters);
+      }
+
+      // Resolve cross-entity filters
+      if (parentFilters.length > 0 || childFilters.length > 0 || hasChildrenFilters.length > 0) {
+        if (!where.AND) where.AND = [];
+        const andArray = where.AND as Prisma.EntityDataWhereInput[];
+
+        // Parent field filters: find parent records matching condition, then filter by parentRecordId
+        if (parentFilters.length > 0) {
+          const entityId = where.entityId as string | undefined;
+          const hasParents = entityId
+            ? await this.prisma.entityData.count({
+                where: { entityId, parentRecordId: { not: null } },
+                take: 1,
+              })
+            : 0;
+
+          if (hasParents > 0) {
+            // Build filter clauses for parent records
+            const parentConditions: Prisma.EntityDataWhereInput[] = [];
+            for (const pf of parentFilters) {
+              const clause = buildFilterClause(pf.slug, pf.filter.fieldType, pf.filter.operator, pf.filter.value, pf.filter.value2);
+              if (clause) parentConditions.push(clause);
+            }
+
+            if (parentConditions.length > 0) {
+              const parentWhere: Prisma.EntityDataWhereInput = { AND: parentConditions };
+              if (tenantId) parentWhere.tenantId = tenantId;
+
+              const parentRecords = await this.prisma.entityData.findMany({
+                where: parentWhere,
+                select: { id: true },
+              });
+              const parentIds = parentRecords.map((p) => p.id);
+              andArray.push({
+                parentRecordId: parentIds.length > 0 ? { in: parentIds } : { equals: '__no_match__' },
+              });
+            }
+          } else {
+            // Not a sub-entity: strip prefix and apply as direct field filter
+            for (const pf of parentFilters) {
+              const clause = buildFilterClause(pf.slug, pf.filter.fieldType, pf.filter.operator, pf.filter.value, pf.filter.value2);
+              if (clause) andArray.push(clause);
+            }
+          }
+        }
+
+        // Child entity filters: find children matching condition, then filter parent by ID
+        if (childFilters.length > 0) {
+          // Group by entity slug
+          const byEntity = new Map<string, Array<{ fieldSlug: string; filter: GlobalFilter }>>();
+          for (const cf of childFilters) {
+            if (!byEntity.has(cf.entitySlug)) byEntity.set(cf.entitySlug, []);
+            byEntity.get(cf.entitySlug)!.push({ fieldSlug: cf.fieldSlug, filter: cf.filter });
+          }
+
+          for (const [childEntitySlug, fieldFilters] of byEntity) {
+            const childEntityWhere: Prisma.EntityWhereInput = { slug: childEntitySlug };
+            if (tenantId) childEntityWhere.tenantId = tenantId;
+
+            const childEntity = await this.prisma.entity.findFirst({
+              where: childEntityWhere,
+              select: { id: true },
+            });
+            if (!childEntity) continue;
+
+            const childConditions: Prisma.EntityDataWhereInput[] = [];
+            for (const ff of fieldFilters) {
+              const clause = buildFilterClause(ff.fieldSlug, ff.filter.fieldType, ff.filter.operator, ff.filter.value, ff.filter.value2);
+              if (clause) childConditions.push(clause);
+            }
+
+            if (childConditions.length === 0) continue;
+
+            const childWhere: Prisma.EntityDataWhereInput = {
+              entityId: childEntity.id,
+              parentRecordId: { not: null },
+              AND: childConditions,
+            };
+            if (tenantId) childWhere.tenantId = tenantId;
+
+            const childRecords = await this.prisma.entityData.findMany({
+              where: childWhere,
+              select: { parentRecordId: true },
+              distinct: ['parentRecordId'],
+            });
+            const parentIds = childRecords.map((c) => c.parentRecordId).filter(Boolean) as string[];
+            andArray.push({
+              id: parentIds.length > 0 ? { in: parentIds } : { equals: '__no_match__' },
+            });
+          }
+        }
+
+        // Has children filters (active + archived children)
+        if (hasChildrenFilters.length > 0) {
+          for (const hcf of hasChildrenFilters) {
+            const childEntityWhere: Prisma.EntityWhereInput = { slug: hcf.subEntitySlug };
+            if (tenantId) childEntityWhere.tenantId = tenantId;
+
+            const childEntity = await this.prisma.entity.findFirst({
+              where: childEntityWhere,
+              select: { id: true },
+            });
+            if (!childEntity) continue;
+
+            const childWhere = {
+              entityId: childEntity.id,
+              parentRecordId: { not: null } as { not: null },
+              ...(tenantId && { tenantId }),
+            };
+            const [activeChildren, archivedChildren] = await Promise.all([
+              this.prisma.entityData.findMany({
+                where: childWhere,
+                select: { parentRecordId: true },
+                distinct: ['parentRecordId'],
+              }),
+              this.prisma.archivedEntityData.findMany({
+                where: childWhere as Prisma.ArchivedEntityDataWhereInput,
+                select: { parentRecordId: true },
+                distinct: ['parentRecordId'],
+              }),
+            ]);
+            const parentIdsWithChildren = [
+              ...new Set([
+                ...activeChildren.map((c) => c.parentRecordId),
+                ...archivedChildren.map((c) => c.parentRecordId),
+              ].filter(Boolean)),
+            ] as string[];
+
+            if (hcf.value) {
+              // Has children
+              andArray.push({
+                id: parentIdsWithChildren.length > 0 ? { in: parentIdsWithChildren } : { equals: '__no_match__' },
+              });
+            } else {
+              // No children
+              if (parentIdsWithChildren.length > 0) {
+                andArray.push({ id: { notIn: parentIdsWithChildren } });
+              }
+              // else: no records have children, so no filter needed
+            }
+          }
+        }
       }
     } catch (e) {
       this.logger.warn(`Failed to parse filters param: ${e}`);

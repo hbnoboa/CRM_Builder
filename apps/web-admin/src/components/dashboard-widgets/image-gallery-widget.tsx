@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { useEntityTopRecords } from '@/hooks/use-dashboard-templates';
+import { useAdaptedTopRecords as useEntityTopRecords } from '@/components/entity-data/adapter-hooks';
 import { useWidgetFilters } from './dashboard-filter-context';
 import { WidgetWrapper } from './widget-wrapper';
 import { Dialog, DialogContent } from '@/components/ui/dialog';

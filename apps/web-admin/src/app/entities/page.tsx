@@ -7,5 +7,5 @@ export default function EntitiesRedirect() {
   const savedLocale = cookieStore.get('NEXT_LOCALE')?.value as Locale | undefined;
   const locale = savedLocale && locales.includes(savedLocale) ? savedLocale : defaultLocale;
   
-  redirect(`/${locale}/entities`);
+  redirect(`/${locale}/data`);
 }

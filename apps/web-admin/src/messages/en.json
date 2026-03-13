@@ -67,7 +67,10 @@
     "confirmDelete": "Are you sure?",
     "confirmDeleteDesc": "This action cannot be undone. The item will be permanently deleted.",
     "other": "Other...",
-    "typeCustomValue": "Type a custom value"
+    "typeCustomValue": "Type a custom value",
+    "columns": "Columns",
+    "export": "Export",
+    "import": "Import"
   },
   "metadata": {
     "title": "CRM Builder - Admin Panel",
@@ -159,7 +162,17 @@
     "stats": {
       "entities": "Tables",
       "records": "Records",
-      "users": "Users"
+      "users": "Users",
+      "activity": "Activity",
+      "last7Days": "last 7 days: {count}",
+      "activeUsers7d": "active 7 days: {count}",
+      "last24h": "last 24h"
+    },
+    "entityCards": {
+      "title": "Records by Table",
+      "subtitle": "Overview of records per table",
+      "records": "{count} records",
+      "viewAll": "View all"
     },
     "charts": {
       "recordsLast30Days": "Records in the Last 30 Days",
@@ -478,6 +491,8 @@
     "filterByParent": "Filter by {parent}",
     "filteredByParent": "filtered by parent",
     "noRecords": "No records",
+    "noResultsFiltered": "No results for the applied filters",
+    "searchPlaceholder": "Search records...",
     "noSearchResults": "No search results",
     "startAddingData": "Start adding data to this entity",
     "recordsCount": "{filtered} of {total} record(s)",
@@ -687,7 +702,11 @@
       "roles": "Access Roles",
       "rolesDesc": "Configure roles and permissions",
       "pdfTemplates": "PDF Templates",
-      "pdfTemplatesDesc": "Generate documents from templates"
+      "pdfTemplatesDesc": "Generate documents from templates",
+      "auditLogs": "Audit Logs",
+      "auditLogsDesc": "View system audit logs",
+      "dashboardTemplates": "Dashboard Templates",
+      "dashboardTemplatesDesc": "Configure dashboard templates per role"
     },
     "userRoles": {
       "title": "Manage Permissions",

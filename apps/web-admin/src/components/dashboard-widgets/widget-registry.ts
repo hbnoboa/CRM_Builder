@@ -183,6 +183,13 @@ export const WIDGET_REGISTRY: Record<WidgetType, WidgetDefinition> = {
     category: 'data',
     defaultLayout: { w: 4, h: 7, minW: 2, minH: 3 },
   },
+  'data-table': {
+    type: 'data-table',
+    label: 'Tabela de Dados',
+    icon: Table2,
+    category: 'data',
+    defaultLayout: { w: 12, h: 18, minW: 6, minH: 16 },
+  },
 };
 
 export const WIDGET_TYPES = Object.keys(WIDGET_REGISTRY) as WidgetType[];

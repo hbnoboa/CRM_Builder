@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useDashboardFilters } from './dashboard-filter-context';
-import { useFieldDistribution } from '@/hooks/use-dashboard-templates';
+import { useAdaptedFieldDistribution as useFieldDistribution } from '@/components/entity-data/adapter-hooks';
 import { WidgetWrapper } from './widget-wrapper';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';

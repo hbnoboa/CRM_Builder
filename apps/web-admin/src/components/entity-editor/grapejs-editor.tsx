@@ -8,6 +8,16 @@ import { useTheme } from 'next-themes';
 import { Save, Loader2, Undo2, Redo2, Trash2, ArrowLeft, Zap, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { toast } from 'sonner';
 import type { Entity, EntityField, EntitySettings } from '@crm-builder/shared';
 
@@ -85,9 +95,10 @@ interface EntityEditorProps {
     settings: EntitySettings;
   }) => Promise<void> | void;
   onCancel: () => void;
+  onDelete?: () => Promise<void> | void;
 }
 
-export default function EntityEditor({ entity, onSave, onCancel }: EntityEditorProps) {
+export default function EntityEditor({ entity, onSave, onCancel, onDelete }: EntityEditorProps) {
   const { resolvedTheme } = useTheme();
   const isDark = resolvedTheme === 'dark';
   const editorRef = useRef<Editor | null>(null);
@@ -98,6 +109,8 @@ export default function EntityEditor({ entity, onSave, onCancel }: EntityEditorP
   const [fieldCount, setFieldCount] = useState(entity.fields?.length || 0);
   const [pendingField, setPendingField] = useState<{ type: string; label: string } | null>(null);
   const [automationsOpen, setAutomationsOpen] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   // Editable entity info
   const [entityName, setEntityName] = useState(entity.name);
@@ -865,6 +878,21 @@ export default function EntityEditor({ entity, onSave, onCancel }: EntityEditorP
             <span className="hidden sm:inline">Automacoes</span>
           </Button>
 
+          {onDelete && (
+            <>
+              <div className="w-px h-6 bg-border mx-1" />
+              <Button
+                variant="ghost"
+                size="sm"
+                className="gap-1.5 text-destructive hover:text-destructive hover:bg-destructive/10"
+                onClick={() => setDeleteDialogOpen(true)}
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">Excluir Tabela</span>
+              </Button>
+            </>
+          )}
+
           <div className="w-px h-6 bg-border mx-1" />
 
           <span className="text-xs text-muted-foreground hidden sm:inline">
@@ -978,6 +1006,39 @@ export default function EntityEditor({ entity, onSave, onCancel }: EntityEditorP
           />
         </DialogContent>
       </Dialog>
+
+      {/* Dialog de confirmacao de exclusao */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir tabela?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tem certeza que deseja excluir a tabela &quot;{entityName}&quot;?
+              Todos os dados relacionados serao perdidos. Esta acao nao pode ser desfeita.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={async (e) => {
+                e.preventDefault();
+                setDeleting(true);
+                try {
+                  await onDelete?.();
+                } catch {
+                  setDeleting(false);
+                  setDeleteDialogOpen(false);
+                }
+              }}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={deleting}
+            >
+              {deleting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Excluir
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

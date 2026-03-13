@@ -16,6 +16,10 @@ export interface QueryDataParams {
   // Filtros - JSON stringified array de filtros
   // Ex: '[{"fieldSlug":"status","operator":"equals","value":"ativo","fieldType":"text"}]'
   filters?: string;
+  // Dashboard mode: fetch all records at once (up to 5000)
+  all?: string;
+  // Include child counts for sub-entities
+  includeChildren?: string;
 }
 
 // Meta com suporte a cursor

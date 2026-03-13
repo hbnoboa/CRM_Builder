@@ -39,23 +39,46 @@ export class DashboardTemplateService {
    */
   async findMyTemplate(entitySlug: string, user: CurrentUser, queryTenantId?: string) {
     const tenantId = getEffectiveTenantId(user, queryTenantId);
-    const customRoleId = user.customRoleId;
+    const isAdmin = user.customRole?.roleType === 'PLATFORM_ADMIN' || user.customRole?.roleType === 'ADMIN';
 
-    if (!customRoleId) return null;
+    if (!isAdmin && !user.customRoleId) return null;
 
-    // Busca templates ativos que contem o roleId do usuario
+    // PLATFORM_ADMIN ve todos os templates; outros veem apenas os atribuidos ao seu role
     const templates = await this.prisma.dashboardTemplate.findMany({
       where: {
         tenantId,
         entitySlug,
         isActive: true,
-        roleIds: { has: customRoleId },
+        ...(!isAdmin && { roleIds: { has: user.customRoleId } }),
       },
       orderBy: { priority: 'desc' },
       take: 1,
     });
 
     return templates[0] || null;
+  }
+
+  /**
+   * Lista todos os templates atribuidos ao role do usuario para uma entidade.
+   * PLATFORM_ADMIN ve todos os templates do tenant.
+   * Retorna lista resumida (sem layout/widgets pesados).
+   */
+  async findMyTemplates(entitySlug: string, user: CurrentUser, queryTenantId?: string) {
+    const tenantId = getEffectiveTenantId(user, queryTenantId);
+    const isAdmin = user.customRole?.roleType === 'PLATFORM_ADMIN' || user.customRole?.roleType === 'ADMIN';
+
+    if (!isAdmin && !user.customRoleId) return [];
+
+    return this.prisma.dashboardTemplate.findMany({
+      where: {
+        tenantId,
+        entitySlug,
+        isActive: true,
+        ...(!isAdmin && { roleIds: { has: user.customRoleId } }),
+      },
+      orderBy: { priority: 'desc' },
+      select: { id: true, name: true, description: true, priority: true },
+    });
   }
 
   async create(dto: CreateDashboardTemplateDto, user: CurrentUser, queryTenantId?: string) {

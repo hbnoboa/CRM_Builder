@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from 'react';
 import { Search } from 'lucide-react';
-import { useEntityTopRecords, useGroupedData } from '@/hooks/use-dashboard-templates';
+import { useAdaptedTopRecords as useEntityTopRecords, useAdaptedGroupedData as useGroupedData } from '@/components/entity-data/adapter-hooks';
 import { useDashboardFilters, useWidgetFilters } from './dashboard-filter-context';
 import { WidgetWrapper } from './widget-wrapper';
 import type { WidgetConfig } from '@crm-builder/shared';

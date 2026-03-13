@@ -120,11 +120,14 @@ export function DashboardFilterBar({ entityFields }: DashboardFilterBarProps) {
           {/* Slicer filter chips */}
           {slicerFilters.map((sf) => (
             <Badge
-              key={`slicer-${sf.fieldSlug}`}
+              key={`slicer-${sf.entitySlug || ''}-${sf.fieldSlug}`}
               variant="secondary"
               className="gap-1 text-xs py-0.5 px-2 cursor-pointer hover:bg-destructive/10 hover:text-destructive transition-colors group"
-              onClick={() => removeSlicerFilter(sf.fieldSlug)}
+              onClick={() => removeSlicerFilter(sf.fieldSlug, sf.entitySlug)}
             >
+              {sf.entitySlug && (
+                <span className="text-muted-foreground/70 mr-0.5">{sf.entitySlug}:</span>
+              )}
               <span className="font-medium">{getFieldLabel(sf.fieldSlug)}</span>
               <span className="text-muted-foreground mx-0.5">:</span>
               <span>{formatSlicerValue(sf)}</span>

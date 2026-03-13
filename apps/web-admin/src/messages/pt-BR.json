@@ -67,7 +67,10 @@
     "confirmDelete": "Tem certeza?",
     "confirmDeleteDesc": "Esta ação não pode ser desfeita. O item será excluído permanentemente.",
     "other": "Outro...",
-    "typeCustomValue": "Digite o valor"
+    "typeCustomValue": "Digite o valor",
+    "columns": "Colunas",
+    "export": "Exportar",
+    "import": "Importar"
   },
   "metadata": {
     "title": "CRM Builder - Painel Admin",
@@ -159,7 +162,17 @@
     "stats": {
       "entities": "Tabelas",
       "records": "Registros",
-      "users": "Usuários"
+      "users": "Usuários",
+      "activity": "Atividade",
+      "last7Days": "últimos 7 dias: {count}",
+      "activeUsers7d": "ativos 7 dias: {count}",
+      "last24h": "últimas 24h"
+    },
+    "entityCards": {
+      "title": "Registros por Tabela",
+      "subtitle": "Visão geral de registros por tabela",
+      "records": "{count} registros",
+      "viewAll": "Ver todas"
     },
     "charts": {
       "recordsLast30Days": "Registros nos Últimos 30 Dias",
@@ -481,6 +494,8 @@
     "filterByParent": "Filtrar por {parent}",
     "filteredByParent": "filtrado por pai",
     "noRecords": "Nenhum registro",
+    "noResultsFiltered": "Nenhum resultado para os filtros aplicados",
+    "searchPlaceholder": "Buscar registros...",
     "noSearchResults": "Nenhum resultado para a busca",
     "startAddingData": "Comece adicionando registros a esta tabela",
     "recordsCount": "{filtered} de {total} registro(s)",
@@ -690,7 +705,11 @@
       "roles": "Perfis de Acesso",
       "rolesDesc": "Configurar cargos e permissões",
       "pdfTemplates": "Templates PDF",
-      "pdfTemplatesDesc": "Gerar documentos a partir de templates"
+      "pdfTemplatesDesc": "Gerar documentos a partir de templates",
+      "auditLogs": "Logs de Auditoria",
+      "auditLogsDesc": "Visualizar logs de auditoria do sistema",
+      "dashboardTemplates": "Templates de Dashboard",
+      "dashboardTemplatesDesc": "Configurar templates de dashboard por cargo"
     },
     "userRoles": {
       "title": "Gerenciar Permissões",

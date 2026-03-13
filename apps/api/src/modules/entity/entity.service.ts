@@ -3,6 +3,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { NotificationService } from '../notification/notification.service';
 import { AuditService } from '../audit/audit.service';
 import { CustomRoleService } from '../custom-role/custom-role.service';
+import { DashboardTemplateService } from '../dashboard-template/dashboard-template.service';
 import {
   CurrentUser,
   PaginationQuery,
@@ -97,6 +98,7 @@ export class EntityService {
     private notificationService: NotificationService,
     private auditService: AuditService,
     private customRoleService: CustomRoleService,
+    private dashboardTemplateService: DashboardTemplateService,
   ) {}
 
   async create(dto: CreateEntityDto & { tenantId?: string }, currentUser: CurrentUser) {
@@ -164,7 +166,61 @@ export class EntityService {
       metadata: { name: entity.name, slug: entity.slug },
     }).catch(() => {});
 
+    // Auto-criar dashboard template com data-table para a nova entidade
+    this.autoCreateDashboardTemplate(entity, processedFields, targetTenantId, currentUser)
+      .catch((err) => this.logger.error('Failed to auto-create dashboard template', err));
+
     return entity;
+  }
+
+  /**
+   * Cria automaticamente um dashboard template com widget data-table ao criar entidade.
+   */
+  private async autoCreateDashboardTemplate(
+    entity: { id: string; name: string; slug: string },
+    fields: FieldDefinition[],
+    tenantId: string,
+    currentUser: CurrentUser,
+  ) {
+    // Buscar todos os roles do tenant para atribuir ao template
+    const roles = await this.prisma.customRole.findMany({
+      where: { tenantId },
+      select: { id: true },
+    });
+    const roleIds = roles.map((r) => r.id);
+
+    const widgetId = 'w-data-table-1';
+    const displayFields = fields
+      .filter((f) => !['sub-entity', 'map', 'json', 'signature'].includes(f.type))
+      .map((f) => f.slug);
+
+    await this.dashboardTemplateService.create(
+      {
+        name: `${entity.name} - Tabela`,
+        entitySlug: entity.slug,
+        roleIds,
+        priority: 0,
+        layout: [{ i: widgetId, x: 0, y: 0, w: 12, h: 10, minW: 6, minH: 6 }],
+        widgets: {
+          [widgetId]: {
+            type: 'data-table',
+            title: entity.name,
+            config: {
+              displayFields,
+              pageSize: 25,
+              allowCreate: true,
+              allowEdit: true,
+              allowDelete: true,
+              allowExport: true,
+              allowImport: true,
+              allowBatchSelect: true,
+            },
+          },
+        },
+      },
+      currentUser,
+      tenantId,
+    );
   }
 
   async findAll(currentUser: CurrentUser, query: QueryEntityDto = {}) {
