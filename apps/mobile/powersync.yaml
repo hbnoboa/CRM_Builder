@@ -40,10 +40,12 @@ storage:
 # No JOINs, no GROUP BY, no ORDER BY, no LIMIT, no subqueries
 # Each data query must reference ALL bucket parameters
 #
-# Strategy: Two EntityData buckets for role-based filtering:
+# Strategy: Three EntityData buckets for role-based filtering:
 # 1. unrestricted_entity_data: records with no role filters (_hasRoleFilter=false)
 # 2. role_filtered_entity_data: records filtered by role (_hasRoleFilter=true)
 #    Uses PowerSync IN operator: bucket.role_id IN "_visibleToRolesJson"
+# 3. admin_all_entity_data: PLATFORM_ADMIN/ADMIN bypass role filters
+#    Their roleId may not be in _visibleToRolesJson (cross-tenant PLATFORM_ADMIN)
 sync_rules:
   content: |
     bucket_definitions:
@@ -88,6 +90,7 @@ sync_rules:
 
       # Bucket 3: entity data WITHOUT role filters (all tenant users see these)
       # _hasRoleFilter = false means no role has data filters for this entity
+      # Also includes ALL ArchivedEntityData (no role filter columns on that table)
       unrestricted_entity_data:
         parameters: |
           SELECT
@@ -101,13 +104,17 @@ sync_rules:
               AND "_parentMatchesFilter" = true
               AND "_hasRoleFilter" = false
 
+          # Archived records: no role filter columns, all tenant users see them
+          - SELECT id, "tenantId", "entityId", data, "parentRecordId", "createdById", "updatedById", "createdAt", "updatedAt", "archivedAt"
+            FROM "ArchivedEntityData"
+            WHERE "tenantId" = bucket.tenant_id
+
       # Bucket 4: entity data WITH role filters (only matching roles see these)
       # Uses PowerSync IN operator on JSONB array column
       # bucket.role_id comes from JWT customRoleId claim
       # _visibleToRolesJson is a JSONB array like ["role-id-1", "role-id-2"]
-      # ADMIN/PLATFORM_ADMIN role IDs are NOT in _visibleToRolesJson because
-      # _hasRoleFilter=false for entities with no filters. When filters exist,
-      # ADMIN/PLATFORM_ADMIN see records via this bucket (their roleId is in the array).
+      # For same-tenant ADMIN roles, their ID is already in the array.
+      # For cross-tenant PLATFORM_ADMIN, this returns 0 records (handled by bucket 5).
       role_filtered_entity_data:
         parameters: |
           SELECT
@@ -122,3 +129,21 @@ sync_rules:
               AND "_parentMatchesFilter" = true
               AND "_hasRoleFilter" = true
               AND bucket.role_id IN "_visibleToRolesJson"
+
+      # Bucket 5: PLATFORM_ADMIN bypasses role filters entirely
+      # PLATFORM_ADMIN is cross-tenant — their role ID belongs to a different tenant,
+      # so it's NOT in _visibleToRolesJson. This bucket gives them all role-filtered records.
+      # PowerSync deduplicates if records also match bucket 4.
+      admin_all_entity_data:
+        parameters: |
+          SELECT
+            request.jwt() ->> 'tenantId' as tenant_id
+          WHERE request.jwt() ->> 'roleType' = 'PLATFORM_ADMIN'
+        data:
+          - SELECT id, "tenantId", "entityId", data, "parentRecordId", "createdById", "updatedById", "createdAt", "updatedAt", "deletedAt"
+            FROM "EntityData"
+            WHERE "tenantId" = bucket.tenant_id
+              AND "deletedAt" IS NULL
+              AND "_matchesGlobalFilter" = true
+              AND "_parentMatchesFilter" = true
+              AND "_hasRoleFilter" = true

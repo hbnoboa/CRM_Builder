@@ -32,6 +32,17 @@ const schema = Schema([
     Column.text('updatedAt'),
     Column.text('deletedAt'),
   ]),
+  Table('ArchivedEntityData', [
+    Column.text('tenantId'),
+    Column.text('entityId'),
+    Column.text('data'),
+    Column.text('parentRecordId'),
+    Column.text('createdById'),
+    Column.text('updatedById'),
+    Column.text('createdAt'),
+    Column.text('updatedAt'),
+    Column.text('archivedAt'),
+  ]),
   Table('EntityFieldRule', [
     Column.text('tenantId'),
     Column.text('entityId'),

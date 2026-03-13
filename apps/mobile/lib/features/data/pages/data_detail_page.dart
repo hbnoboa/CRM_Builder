@@ -100,8 +100,10 @@ class DataDetailPage extends ConsumerWidget {
           // Use StreamBuilder for real-time record updates
           return StreamBuilder<List<Map<String, dynamic>>>(
             stream: AppDatabase.instance.db.watch(
-              'SELECT * FROM EntityData WHERE id = ? AND deletedAt IS NULL',
-              parameters: [recordId],
+              'SELECT *, 0 as isArchived FROM EntityData WHERE id = ? AND deletedAt IS NULL '
+              'UNION ALL '
+              'SELECT *, 1 as isArchived FROM ArchivedEntityData WHERE id = ?',
+              parameters: [recordId, recordId],
             ),
             builder: (context, recordSnapshot) {
               // Distinguish loading vs deleted

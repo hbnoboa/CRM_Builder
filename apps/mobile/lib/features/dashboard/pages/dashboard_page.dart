@@ -185,8 +185,8 @@ class DashboardPage extends ConsumerWidget {
       stream: db.watch(
         'SELECT '
         '(SELECT COUNT(*) FROM Entity) as entityCount, '
-        '(SELECT COUNT(*) FROM EntityData WHERE deletedAt IS NULL) as dataCount, '
-        "(SELECT COUNT(*) FROM EntityData WHERE deletedAt IS NULL AND createdById = '${userId ?? ''}') as myDataCount, "
+        '(SELECT COUNT(*) FROM EntityData WHERE deletedAt IS NULL) + (SELECT COUNT(*) FROM ArchivedEntityData) as dataCount, '
+        "(SELECT COUNT(*) FROM EntityData WHERE deletedAt IS NULL AND createdById = '${userId ?? ''}') + (SELECT COUNT(*) FROM ArchivedEntityData WHERE createdById = '${userId ?? ''}') as myDataCount, "
         "(SELECT COUNT(*) FROM file_upload_queue WHERE status = 'pending') as pendingCount",
       ),
       builder: (context, snapshot) {
@@ -268,12 +268,18 @@ class DashboardPage extends ConsumerWidget {
 
     return StreamBuilder<List<Map<String, dynamic>>>(
       stream: db.watch(
+        'SELECT date, SUM(count) as count FROM ('
         'SELECT date(createdAt) as date, COUNT(*) as count '
         'FROM EntityData '
         'WHERE deletedAt IS NULL '
         "AND createdAt >= date('now', '-30 days') "
         'GROUP BY date(createdAt) '
-        'ORDER BY date ASC',
+        'UNION ALL '
+        'SELECT date(createdAt) as date, COUNT(*) as count '
+        'FROM ArchivedEntityData '
+        "WHERE createdAt >= date('now', '-30 days') "
+        'GROUP BY date(createdAt)'
+        ') GROUP BY date ORDER BY date ASC',
       ),
       builder: (context, snapshot) {
         final data = snapshot.data ?? [];
@@ -489,10 +495,10 @@ class DashboardPage extends ConsumerWidget {
 
     return StreamBuilder<List<Map<String, dynamic>>>(
       stream: db.watch(
-        'SELECT e.name, e.color, COUNT(ed.id) as count '
+        'SELECT e.name, e.color, '
+        '(SELECT COUNT(*) FROM EntityData WHERE entityId = e.id AND deletedAt IS NULL) + '
+        '(SELECT COUNT(*) FROM ArchivedEntityData WHERE entityId = e.id) as count '
         'FROM Entity e '
-        'LEFT JOIN EntityData ed ON ed.entityId = e.id AND ed.deletedAt IS NULL '
-        'GROUP BY e.id '
         'ORDER BY count DESC '
         'LIMIT 6',
       ),
@@ -790,12 +796,15 @@ class DashboardPage extends ConsumerWidget {
 
     return StreamBuilder<List<Map<String, dynamic>>>(
       stream: db.watch(
-        'SELECT ed.id, ed.data, ed.createdAt, ed.updatedAt, '
+        'SELECT r.id, r.data, r.createdAt, r.updatedAt, '
         'e.name as entityName, e.namePlural, e.slug as entitySlug, e.color '
-        'FROM EntityData ed '
-        'JOIN Entity e ON e.id = ed.entityId '
-        'WHERE ed.deletedAt IS NULL '
-        'ORDER BY ed.updatedAt DESC '
+        'FROM ('
+        'SELECT id, data, entityId, createdAt, updatedAt FROM EntityData WHERE deletedAt IS NULL '
+        'UNION ALL '
+        'SELECT id, data, entityId, createdAt, updatedAt FROM ArchivedEntityData'
+        ') r '
+        'JOIN Entity e ON e.id = r.entityId '
+        'ORDER BY r.updatedAt DESC '
         'LIMIT 10',
       ),
       builder: (context, snapshot) {

@@ -274,7 +274,7 @@ class AppDrawer extends ConsumerWidget {
           stream: AppDatabase.instance.db.watch(
             'SELECT '
             '(SELECT COUNT(*) FROM Entity) as entityCount, '
-            '(SELECT COUNT(*) FROM EntityData WHERE deletedAt IS NULL) as dataCount, '
+            '(SELECT COUNT(*) FROM EntityData WHERE deletedAt IS NULL) + (SELECT COUNT(*) FROM ArchivedEntityData) as dataCount, '
             '(SELECT COUNT(*) FROM CustomRole) as roleCount, '
             '(SELECT COUNT(*) FROM User) as userCount',
           ),

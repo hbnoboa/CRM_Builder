@@ -171,8 +171,11 @@ class _ZoneDiagramFieldInputState extends State<ZoneDiagramFieldInput> {
 
       final entityId = entities.first['id'] as String;
       final records = await db.getAll(
-        'SELECT data FROM EntityData WHERE entityId = ? AND deletedAt IS NULL LIMIT 500',
-        [entityId],
+        'SELECT data FROM EntityData WHERE entityId = ? AND deletedAt IS NULL '
+        'UNION ALL '
+        'SELECT data FROM ArchivedEntityData WHERE entityId = ? '
+        'LIMIT 500',
+        [entityId, entityId],
       );
 
       final opts = <String>{};

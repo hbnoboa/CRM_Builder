@@ -26,7 +26,9 @@ class ImagePrefetchService {
     final db = AppDatabase.instance.db;
 
     _subscription = db
-        .watch('SELECT id, data FROM EntityData WHERE deletedAt IS NULL')
+        .watch('SELECT id, data FROM EntityData WHERE deletedAt IS NULL '
+              'UNION ALL '
+              'SELECT id, data FROM ArchivedEntityData')
         .listen(_onDataChanged);
 
     _logger.i('ImagePrefetchService started');

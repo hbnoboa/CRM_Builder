@@ -14,6 +14,17 @@ part 'data_repository.g.dart';
 
 const _uuid = Uuid();
 
+/// Common columns for UNION ALL between EntityData and ArchivedEntityData.
+const _cols = 'id, tenantId, entityId, data, parentRecordId, createdById, updatedById, createdAt, updatedAt';
+
+/// Combined query from both active and archived records.
+String _allRecordsQuery(String where) =>
+    'SELECT * FROM ('
+    'SELECT $_cols, 0 as isArchived FROM EntityData WHERE $where AND deletedAt IS NULL '
+    'UNION ALL '
+    'SELECT $_cols, 1 as isArchived FROM ArchivedEntityData WHERE $where'
+    ')';
+
 /// Data repository - 100% offline-first via PowerSync.
 ///
 /// Leituras: SQLite local (real-time via streams)
@@ -30,6 +41,7 @@ class DataRepository {
   // ═══════════════════════════════════════════════════════
 
   /// Watch all records for an entity (real-time from SQLite).
+  /// Combines active (EntityData) and archived (ArchivedEntityData) records.
   Stream<List<Map<String, dynamic>>> watchRecords({
     required String entityId,
     String? search,
@@ -42,9 +54,9 @@ class DataRepository {
   }) {
     final db = AppDatabase.instance.db;
 
-    var query =
-        'SELECT * FROM EntityData WHERE entityId = ? AND deletedAt IS NULL';
-    final params = <dynamic>[entityId];
+    // UNION ALL: active + archived records for same entityId
+    var query = '${_allRecordsQuery('entityId = ?')} WHERE 1=1';
+    final params = <dynamic>[entityId, entityId];
 
     // Scope 'own': only show records created by this user
     if (createdById != null) {
@@ -85,6 +97,7 @@ class DataRepository {
   }
 
   /// Watch total count of records for an entity (real-time from SQLite).
+  /// Combines active (EntityData) and archived (ArchivedEntityData) records.
   Stream<int> watchRecordCount({
     required String entityId,
     String? search,
@@ -94,9 +107,13 @@ class DataRepository {
   }) {
     final db = AppDatabase.instance.db;
 
-    var query =
-        'SELECT COUNT(*) as count FROM EntityData WHERE entityId = ? AND deletedAt IS NULL';
-    final params = <dynamic>[entityId];
+    // COUNT over UNION ALL of active + archived (include data/createdById for filters)
+    var query = 'SELECT COUNT(*) as count FROM ('
+        'SELECT $_cols FROM EntityData WHERE entityId = ? AND deletedAt IS NULL '
+        'UNION ALL '
+        'SELECT $_cols FROM ArchivedEntityData WHERE entityId = ?'
+        ') WHERE 1=1';
+    final params = <dynamic>[entityId, entityId];
 
     // Scope 'own': only show records created by this user
     if (createdById != null) {
@@ -207,25 +224,33 @@ class DataRepository {
     }
   }
 
-  /// Get a single record by ID (local).
+  /// Get a single record by ID (local). Checks both active and archived.
   Future<Map<String, dynamic>?> getRecord(String recordId) async {
     final db = AppDatabase.instance.db;
-    final results = await db.getAll(
-      'SELECT * FROM EntityData WHERE id = ? AND deletedAt IS NULL',
+    // Try active first
+    var results = await db.getAll(
+      'SELECT $_cols, 0 as isArchived FROM EntityData WHERE id = ? AND deletedAt IS NULL',
       [recordId],
     );
+    // Fallback to archived
+    if (results.isEmpty) {
+      results = await db.getAll(
+        'SELECT $_cols, 1 as isArchived FROM ArchivedEntityData WHERE id = ?',
+        [recordId],
+      );
+    }
     return results.isNotEmpty ? results.first : null;
   }
 
-  /// Watch child records (sub-entities).
+  /// Watch child records (sub-entities). Includes archived children.
   Stream<List<Map<String, dynamic>>> watchChildRecords({
     required String parentRecordId,
     required String entityId,
   }) {
     final db = AppDatabase.instance.db;
     return db.watch(
-      'SELECT * FROM EntityData WHERE parentRecordId = ? AND entityId = ? AND deletedAt IS NULL ORDER BY createdAt DESC',
-      parameters: [parentRecordId, entityId],
+      '${_allRecordsQuery('parentRecordId = ? AND entityId = ?')} ORDER BY createdAt DESC',
+      parameters: [parentRecordId, entityId, parentRecordId, entityId],
     );
   }
 

@@ -162,7 +162,8 @@ class _DataEntitiesPageState extends ConsumerState<DataEntitiesPage> {
           child: StreamBuilder<List<Map<String, dynamic>>>(
             stream: db.watch(
               'SELECT e.*, '
-              '(SELECT COUNT(*) FROM EntityData WHERE entityId = e.id AND deletedAt IS NULL) as recordCount '
+              '(SELECT COUNT(*) FROM EntityData WHERE entityId = e.id AND deletedAt IS NULL) + '
+              '(SELECT COUNT(*) FROM ArchivedEntityData WHERE entityId = e.id) as recordCount '
               'FROM Entity e ORDER BY e.category ASC, e.name ASC',
             ),
             builder: (context, snapshot) {

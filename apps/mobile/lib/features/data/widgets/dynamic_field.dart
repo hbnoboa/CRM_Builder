@@ -1762,8 +1762,12 @@ class _RelationFieldInputState extends State<_RelationFieldInput> {
       debugPrint('[RelationField] Querying EntityData for entityId=$entityId');
 
       final records = await db.getAll(
-        'SELECT id, data FROM EntityData WHERE entityId = ? AND parentRecordId IS NULL AND deletedAt IS NULL ORDER BY createdAt DESC LIMIT 100',
-        [entityId],
+        'SELECT id, data FROM ('
+        'SELECT id, data, createdAt FROM EntityData WHERE entityId = ? AND parentRecordId IS NULL AND deletedAt IS NULL '
+        'UNION ALL '
+        'SELECT id, data, createdAt FROM ArchivedEntityData WHERE entityId = ? AND parentRecordId IS NULL'
+        ') ORDER BY createdAt DESC LIMIT 100',
+        [entityId, entityId],
       );
 
       debugPrint('[RelationField] Loaded ${records.length} options for ${widget.label}');
