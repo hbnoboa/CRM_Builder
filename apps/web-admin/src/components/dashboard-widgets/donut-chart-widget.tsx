@@ -87,8 +87,20 @@ export function DonutChartWidget({ entitySlug, config, title, isEditMode }: Donu
             cx="50%"
             cy="50%"
             innerRadius="55%"
-            outerRadius="80%"
+            outerRadius="75%"
             paddingAngle={2}
+            label={({ cx, cy, midAngle, outerRadius: oR, count }) => {
+              const RADIAN = Math.PI / 180;
+              const radius = (oR as number) + 16;
+              const x = (cx as number) + radius * Math.cos(-midAngle * RADIAN);
+              const y = (cy as number) + radius * Math.sin(-midAngle * RADIAN);
+              return (
+                <text x={x} y={y} textAnchor="middle" dominantBaseline="central" className="fill-foreground text-[11px] font-medium">
+                  {(count as number).toLocaleString('pt-BR')}
+                </text>
+              );
+            }}
+            labelLine={false}
             onClick={(_, idx) => {
               const entry = chartData[idx];
               if (entry && groupField) {
