@@ -92,8 +92,8 @@ export class UploadService {
       );
     }
 
-    // Validar tamanho (máximo 50MB)
-    const maxSize = 50 * 1024 * 1024; // 50MB
+    // Validar tamanho (máximo 100MB)
+    const maxSize = 100 * 1024 * 1024; // 100MB
     if (file.size > maxSize) {
       throw new BadRequestException(
         `Arquivo muito grande. Máximo permitido: ${maxSize / 1024 / 1024}MB`,

@@ -185,6 +185,8 @@ export interface EntityField {
   subEntitySlug?: string;
   subEntityId?: string;
   diagramZones?: Array<{ options?: string[] }>;
+  /** Allow all additional field properties (hidden, disabled, multiple, onChangeAutoFill, grid*, etc.) */
+  [key: string]: unknown;
 }
 
 export interface EntityMeta {

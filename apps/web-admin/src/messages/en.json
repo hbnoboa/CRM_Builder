@@ -1077,7 +1077,8 @@
     "replaceFile": "Replace file",
     "pasteUrlButton": "Paste URL",
     "takePhoto": "Take photo",
-    "takePhotoHint": "Use the device camera to capture an image"
+    "takePhotoHint": "Use the device camera to capture an image",
+    "onlyImages": "Only image files are allowed"
   },
   "placeholders": {
     "email": "email@example.com",

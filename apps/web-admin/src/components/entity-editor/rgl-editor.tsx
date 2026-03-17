@@ -14,6 +14,7 @@ import { EntityInfoPanel } from './panels/entity-info-panel';
 import { FieldPropertiesPanel } from './panels/field-properties-panel';
 import { FieldPickerModal } from './panels/field-picker-modal';
 import { AutomationTab } from '@/components/entity-automation/automation-tab';
+import { entityFieldToGjsProps, gjsPropsToEntityField } from './serialization/field-mappers';
 
 interface EntityEditorProps {
   entity: Entity;
@@ -130,11 +131,24 @@ export default function EntityEditor({ entity, onSave, onCancel }: EntityEditorP
     }));
   }, []);
 
-  // Update selected field properties
-  const handleFieldUpdate = useCallback((updates: Record<string, unknown>) => {
-    if (!selectedFieldId) return;
-    updateField(selectedFieldId, updates as Partial<EntityField>);
-  }, [selectedFieldId, updateField]);
+  // GjsComponent-compatible proxy so FieldPropertiesPanel can use .get()/.set()
+  const fieldProxy = useMemo(() => {
+    if (!selectedField) return null;
+    const gjsProps: Record<string, unknown> = entityFieldToGjsProps(selectedField);
+    return {
+      get: (key: string) => gjsProps[key],
+      set: (key: string, value: unknown) => { gjsProps[key] = value; },
+      trigger: () => {},
+      _gjsProps: gjsProps,
+    };
+  }, [selectedField]);
+
+  // When panel calls onPropertyChange, convert GJS props back to EntityField and update store
+  const handlePropertyChange = useCallback(() => {
+    if (!selectedFieldId || !fieldProxy) return;
+    const entityField = gjsPropsToEntityField(fieldProxy._gjsProps, 0);
+    updateField(selectedFieldId, entityField);
+  }, [selectedFieldId, fieldProxy, updateField]);
 
   return (
     <div className="h-screen flex flex-col bg-background">
@@ -272,10 +286,10 @@ export default function EntityEditor({ entity, onSave, onCancel }: EntityEditorP
             {selectedField ? (
               <FieldPropertiesPanel
                 key={selectedField.slug}
-                field={selectedField}
+                component={fieldProxy as any}
                 entityId={entity.id}
                 getCanvasFields={getCanvasFields}
-                onUpdate={handleFieldUpdate}
+                onPropertyChange={handlePropertyChange}
               />
             ) : (
               <div className="p-4">

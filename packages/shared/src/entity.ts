@@ -292,8 +292,8 @@ export interface EntityField {
   imageSource?: 'camera' | 'gallery' | 'both';
   multiple?: boolean;
   maxFiles?: number;
-  /** Display size for image previews in forms */
-  imageDisplaySize?: 'small' | 'medium' | 'large';
+  /** Display size for image previews in forms (pixels) */
+  imageDisplaySize?: number;
 
   // Auto-fill on field change
   onChangeAutoFill?: Array<{

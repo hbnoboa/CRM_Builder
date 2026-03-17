@@ -4,10 +4,11 @@ import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import { useRouter } from '@/i18n/navigation';
+import { useQueryClient } from '@tanstack/react-query';
 import { Loader2 } from 'lucide-react';
 import { RequireRole } from '@/components/auth/require-role';
 import { usePermissions } from '@/hooks/use-permissions';
-import { useDeleteEntity } from '@/hooks/use-entities';
+import { useDeleteEntity, entityKeys } from '@/hooks/use-entities';
 import { toast } from 'sonner';
 import api from '@/lib/api';
 import type { Entity } from '@/types';
@@ -22,6 +23,7 @@ function GrapeJSEditorWrapper() {
   const router = useRouter();
   const [entity, setEntity] = useState<Entity | null>(null);
   const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
   const { hasModulePermission } = usePermissions();
   const deleteEntity = useDeleteEntity({
     success: 'Tabela excluida com sucesso',
@@ -54,6 +56,8 @@ function GrapeJSEditorWrapper() {
           settings,
         });
         setEntity(res.data);
+        // Invalidate all entity caches so data pages pick up changes immediately
+        queryClient.invalidateQueries({ queryKey: entityKeys.all });
       }}
       onCancel={() => router.back()}
       onDelete={canDelete ? async () => {

@@ -524,6 +524,7 @@ const TYPE_SIMPLE_TRAITS: Record<string, SimpleTraitConfig[]> = {
         { value: 'gallery', label: 'Apenas Galeria' },
       ],
     },
+    { name: 'fieldImageDisplaySize', label: 'Tamanho do preview (px)', control: 'number', min: 32, max: 800 },
   ],
   signature: [
     { name: 'fieldSignatureConfig', label: 'Configuracao (JSON)', control: 'textarea', mono: true },

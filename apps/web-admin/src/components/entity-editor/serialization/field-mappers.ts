@@ -33,7 +33,7 @@ const SIMPLE_PROPS: Array<{
   { entityKey: 'multiple', gjsKey: 'fieldMultiple', type: 'boolean' },
   { entityKey: 'maxFiles', gjsKey: 'fieldMaxFiles', type: 'number' },
   { entityKey: 'imageSource', gjsKey: 'fieldImageSource', type: 'string' },
-  { entityKey: 'imageDisplaySize', gjsKey: 'fieldImageDisplaySize', type: 'string' },
+  { entityKey: 'imageDisplaySize', gjsKey: 'fieldImageDisplaySize', type: 'number' },
   // Relation
   { entityKey: 'relatedEntityId', gjsKey: 'fieldRelatedEntityId', type: 'string' },
   { entityKey: 'relatedEntitySlug', gjsKey: 'fieldRelatedEntitySlug', type: 'string' },
@@ -178,11 +178,8 @@ export function gjsPropsToEntityField(
         (field as Record<string, unknown>)[entityKey] = num;
       }
     } else if (type === 'boolean') {
-      if (value === true) {
-        (field as Record<string, unknown>)[entityKey] = true;
-      }
-      // false booleans: GrapeJS omits them when they match default (false),
-      // so if present and true, we set it. Otherwise skip (default is false).
+      // Include both true and false (false is needed to unset previously true values)
+      (field as Record<string, unknown>)[entityKey] = !!value;
     } else {
       const str = String(value);
       if (str !== '') {

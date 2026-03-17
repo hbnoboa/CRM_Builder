@@ -1080,7 +1080,8 @@
     "replaceFile": "Substituir arquivo",
     "pasteUrlButton": "Colar URL",
     "takePhoto": "Tirar foto",
-    "takePhotoHint": "Use a camera do dispositivo para capturar uma imagem"
+    "takePhotoHint": "Use a camera do dispositivo para capturar uma imagem",
+    "onlyImages": "Apenas arquivos de imagem sao permitidos"
   },
   "placeholders": {
     "email": "email@exemplo.com",

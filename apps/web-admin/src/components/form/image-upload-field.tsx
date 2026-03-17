@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useCallback } from 'react';
-import { Upload, X, Image as ImageIcon, FileIcon, Loader2, Camera, ExternalLink, Download } from 'lucide-react';
+import { Upload, X, Image as ImageIcon, FileIcon, Loader2, Camera, ExternalLink } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
@@ -28,8 +28,8 @@ interface ImageUploadFieldProps {
   folder?: string;
   /** Image source: 'camera' = only camera, 'gallery' = only gallery/URL, 'both' = all */
   imageSource?: 'camera' | 'gallery' | 'both';
-  /** Display size for image previews: small (64px), medium (128px), large (200px) */
-  imageDisplaySize?: 'small' | 'medium' | 'large';
+  /** Display size for image previews in pixels */
+  imageDisplaySize?: number;
 }
 
 interface UploadingFile {
@@ -60,7 +60,6 @@ export default function ImageUploadField({
   const cameraRef = useRef<HTMLInputElement>(null);
 
   const showCamera = mode === 'image' && imageSource !== 'gallery';
-  const showGallery = imageSource !== 'camera';
 
   // Normalize value to array for internal handling
   const values: string[] = Array.isArray(value)
@@ -72,17 +71,30 @@ export default function ImageUploadField({
     : 'image/*,video/mp4,video/quicktime,video/webm,video/mpeg,application/pdf,.doc,.docx,.xls,.xlsx,.csv,.txt';
 
   const handleFiles = useCallback(async (files: FileList | File[]) => {
-    const fileArray = Array.from(files);
-    if (!multiple && fileArray.length > 1) {
-      fileArray.splice(1);
+    let fileArray = Array.from(files);
+
+    // In image mode, reject non-image files before uploading
+    if (mode === 'image') {
+      const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml'];
+      const rejected = fileArray.filter(f => !allowedTypes.includes(f.type));
+      if (rejected.length > 0) {
+        toast.error(t('onlyImages'));
+        fileArray = fileArray.filter(f => allowedTypes.includes(f.type));
+        if (fileArray.length === 0) return;
+      }
     }
 
-    const remaining = multiple ? maxFiles - values.length : 1;
-    const toUpload = fileArray.slice(0, remaining);
-
-    if (toUpload.length === 0) {
-      toast.error(t('maxFilesAllowed', { count: maxFiles }));
-      return;
+    let toUpload: File[];
+    if (multiple) {
+      const remaining = maxFiles - values.length;
+      if (remaining <= 0) {
+        toast.error(t('maxFilesAllowed', { count: maxFiles }));
+        return;
+      }
+      toUpload = fileArray.slice(0, remaining);
+    } else {
+      // Single mode: only upload 1 file (will replace existing)
+      toUpload = fileArray.slice(0, 1);
     }
 
     const uploadPromises = toUpload.map(async (file) => {
@@ -121,9 +133,11 @@ export default function ImageUploadField({
     const urls = (await Promise.all(uploadPromises)).filter(Boolean) as string[];
 
     if (multiple) {
+      // Multiple mode: always add to existing
       onChange([...values, ...urls]);
     } else {
-      onChange(urls[0] || '');
+      // Single mode: replace with the last uploaded file
+      onChange(urls[urls.length - 1] || values[0] || '');
     }
   }, [values, multiple, maxFiles, mode, folder, onChange]);
 
@@ -200,9 +214,8 @@ export default function ImageUploadField({
     return /\.(mp4|mov|webm|mpeg)(\?.*)?$/i.test(url);
   };
 
-  // Always show drop zone — for single file mode, new upload replaces the existing one
-  const showDropZone = true;
-  const isReplaceMode = !multiple && values.length > 0;
+  // Show drop zone: always for single-file (to allow replace), or while under maxFiles for multiple
+  const showDropZone = multiple ? values.length < maxFiles : true;
 
   return (
     <div className="space-y-2">
@@ -210,13 +223,7 @@ export default function ImageUploadField({
       {values.length > 0 && (
         <div className={cn(
           'gap-2',
-          mode === 'image'
-            ? imageDisplaySize === 'small'
-              ? 'grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8'
-              : imageDisplaySize === 'medium'
-                ? 'grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5'
-                : 'grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4'
-            : 'flex flex-col'
+          mode === 'image' ? 'flex flex-wrap' : 'flex flex-col'
         )}>
           {values.map((url, index) => (
             <div key={`${url}-${index}`} className="relative group">
@@ -250,10 +257,10 @@ export default function ImageUploadField({
                   </div>
                 </div>
               ) : isImage(url) ? (
-                <div className={cn(
-                  'relative rounded-lg border overflow-hidden bg-muted',
-                  imageDisplaySize === 'small' ? 'h-16 w-16' : imageDisplaySize === 'medium' ? 'h-32 w-32' : 'aspect-square'
-                )}>
+                <div
+                  className="relative rounded-lg border overflow-hidden bg-muted"
+                  style={imageDisplaySize ? { width: imageDisplaySize, height: imageDisplaySize } : { aspectRatio: '1/1', width: '100%', maxWidth: 200 }}
+                >
                   <img
                     src={url}
                     alt={`Arquivo ${index + 1}`}
@@ -388,31 +395,6 @@ export default function ImageUploadField({
               >
                 <Camera className="h-3.5 w-3.5 mr-1" />
                 {t('takePhoto')}
-              </Button>
-            </div>
-          ) : isReplaceMode ? (
-            /* Compact replace mode: small button row instead of full drop zone */
-            <div className="flex flex-wrap gap-2">
-              <input
-                ref={inputRef}
-                type="file"
-                className="hidden"
-                accept={accept || defaultAccept}
-                onChange={handleFileInput}
-                disabled={disabled}
-              />
-              {showCamera && (
-                <Button type="button" variant="outline" size="sm" onClick={() => cameraRef.current?.click()}>
-                  <Camera className="h-3.5 w-3.5 mr-1" />
-                  {t('takePhoto')}
-                </Button>
-              )}
-              <Button type="button" variant="outline" size="sm" onClick={() => inputRef.current?.click()}>
-                <Upload className="h-3.5 w-3.5 mr-1" />
-                {t('replaceFile')}
-              </Button>
-              <Button type="button" variant="outline" size="sm" onClick={() => setUrlMode(true)}>
-                {t('pasteUrlButton')}
               </Button>
             </div>
           ) : (

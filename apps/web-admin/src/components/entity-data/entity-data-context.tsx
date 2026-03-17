@@ -155,28 +155,16 @@ function toEntityMeta(entity: Entity): EntityMeta {
     name: entity.name,
     namePlural: entity.namePlural ?? undefined,
     slug: entity.slug,
-    fields: (entity.fields || []).map(f => {
-      const fExtra = f as unknown as Record<string, unknown>;
-      return {
-        slug: f.slug,
-        name: f.name,
-        label: f.label,
-        type: f.type,
-        options: f.options as EntityField['options'],
-        required: f.required,
-        searchable: (fExtra.searchable as boolean) ?? false,
-        settings: fExtra.settings as Record<string, unknown> | undefined,
-        subEntitySlug: (fExtra.subEntitySlug as string) ?? undefined,
-        subEntityId: (fExtra.subEntityId as string) ?? undefined,
-        diagramZones: fExtra.diagramZones as EntityField['diagramZones'],
-        // Relation fields
-        relatedEntitySlug: (fExtra.relatedEntitySlug as string) ?? undefined,
-        relatedEntityId: (fExtra.relatedEntityId as string) ?? undefined,
-        relatedDisplayField: (fExtra.relatedDisplayField as string) ?? undefined,
-        // Auto-fill
-        autoFillFields: fExtra.autoFillFields as EntityField['autoFillFields'],
-      };
-    }),
+    // Spread all field properties so hidden, disabled, multiple, onChangeAutoFill,
+    // gridRow, gridColSpan, gridColStart, imageDisplaySize, etc. are preserved
+    fields: (entity.fields || []).map(f => ({
+      ...(f as unknown as Record<string, unknown>),
+      slug: f.slug,
+      name: f.name,
+      label: f.label,
+      type: f.type,
+      options: f.options as EntityField['options'],
+    })) as EntityField[],
     displayField: (settings?.titleField as string) ?? undefined,
     parentEntityId: (extra.parentEntityId as string | null) ?? null,
     parentEntitySlug: (extra.parentEntitySlug as string | null) ?? null,
