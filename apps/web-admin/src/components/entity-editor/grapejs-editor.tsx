@@ -980,6 +980,7 @@ export default function EntityEditor({ entity, onSave, onCancel, onDelete }: Ent
                   slug={entity.slug}
                   description={entityDescription}
                   settings={entitySettings}
+                  booleanFields={(entity.fields || []).filter((f: EntityField) => f.type === 'boolean').map((f: EntityField) => ({ slug: f.slug, label: f.label || f.name || f.slug }))}
                   onChangeName={setEntityName}
                   onChangeDescription={setEntityDescription}
                   onChangeSettings={setEntitySettings}

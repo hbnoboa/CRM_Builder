@@ -138,6 +138,7 @@
     "tenants": "Tenants",
     "auditLogs": "Audit Logs",
     "dashboardTemplates": "Dashboards",
+    "publicLinks": "Public Links",
     "profile": "Profile",
     "hello": "Hello,",
     "admin": "Admin"
@@ -238,6 +239,7 @@
       "password": "Password",
       "passwordPlaceholder": "Secure password",
       "passwordHint": "(leave blank to keep current)",
+      "phone": "Phone",
       "role": "Role",
       "rolePlaceholder": "Select a role",
       "status": "Status",
@@ -513,6 +515,7 @@
       "title": "Delete record?",
       "message": "Are you sure you want to delete this record? This action cannot be undone."
     },
+    "recordLocked": "This record is finalized and cannot be edited",
     "toast": {
       "created": "Record created successfully",
       "updated": "Record updated successfully",
@@ -771,6 +774,7 @@
       "canConfigureColumns": "Configure Visible Columns",
       "canExport": "Export Records",
       "canImport": "Import Records",
+      "canEditLocked": "Edit Locked Records",
       "canGenerate": "Generate PDF"
     },
     "permissionCategories": {

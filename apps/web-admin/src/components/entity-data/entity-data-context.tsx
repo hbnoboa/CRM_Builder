@@ -169,6 +169,12 @@ function toEntityMeta(entity: Entity): EntityMeta {
         subEntitySlug: (fExtra.subEntitySlug as string) ?? undefined,
         subEntityId: (fExtra.subEntityId as string) ?? undefined,
         diagramZones: fExtra.diagramZones as EntityField['diagramZones'],
+        // Relation fields
+        relatedEntitySlug: (fExtra.relatedEntitySlug as string) ?? undefined,
+        relatedEntityId: (fExtra.relatedEntityId as string) ?? undefined,
+        relatedDisplayField: (fExtra.relatedDisplayField as string) ?? undefined,
+        // Auto-fill
+        autoFillFields: fExtra.autoFillFields as EntityField['autoFillFields'],
       };
     }),
     displayField: (settings?.titleField as string) ?? undefined,

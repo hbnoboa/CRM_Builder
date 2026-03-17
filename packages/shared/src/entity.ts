@@ -381,6 +381,8 @@ export interface EntitySettings {
   fieldDependencies?: FieldDependency[];
   /** Configuracao de auditoria detalhada */
   auditConfig?: EntityAuditConfig;
+  /** Slug do campo boolean que trava o registro quando true */
+  lockField?: string;
 }
 
 export interface Entity {

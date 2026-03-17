@@ -138,6 +138,7 @@
     "tenants": "Tenants",
     "auditLogs": "Logs de Auditoría",
     "dashboardTemplates": "Dashboards",
+    "publicLinks": "Links Publicos",
     "profile": "Perfil",
     "hello": "Hola,",
     "admin": "Admin"
@@ -513,6 +514,7 @@
       "title": "¿Eliminar registro?",
       "message": "¿Estás seguro de que deseas eliminar este registro? Esta acción no se puede deshacer."
     },
+    "recordLocked": "Este registro esta finalizado y no puede ser editado",
     "toast": {
       "created": "Registro creado exitosamente",
       "updated": "Registro actualizado exitosamente",
@@ -771,6 +773,7 @@
       "canConfigureColumns": "Configurar Columnas Visibles",
       "canExport": "Exportar Registros",
       "canImport": "Importar Registros",
+      "canEditLocked": "Editar Registros Bloqueados",
       "canGenerate": "Generar PDF"
     },
     "permissionCategories": {

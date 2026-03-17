@@ -11,6 +11,7 @@ import {
   Trash2,
   Users as UsersIcon,
   Mail,
+  Phone,
   UserCheck,
   UserX,
   Shield,
@@ -31,6 +32,7 @@ import { useUsers } from '@/hooks/use-users';
 import { UserFormDialog, DeleteUserDialog, TenantAccessDialog } from '@/components/users';
 import { useAuthStore } from '@/stores/auth-store';
 import { useTenant } from '@/stores/tenant-context';
+import { formatCpf, formatPhone } from '@/lib/masks';
 import type { User } from '@/types';
 
 const roleColors: Record<string, string> = {
@@ -72,7 +74,9 @@ function UsersPageContent() {
   const filteredUsers = users.filter(
     (user) =>
       (user.name || '').toLowerCase().includes(search.toLowerCase()) ||
-      (user.email || '').toLowerCase().includes(search.toLowerCase())
+      (user.email || '').toLowerCase().includes(search.toLowerCase()) ||
+      (user.cpf || '').includes(search.replace(/\D/g, '')) ||
+      (user.phone || '').includes(search.replace(/\D/g, ''))
   );
 
   const handleCreateUser = () => {
@@ -236,11 +240,23 @@ function UsersPageContent() {
                           </span>
                         )}
                       </div>
-                      <div className="flex items-center gap-4 mt-1 text-xs sm:text-sm text-muted-foreground">
+                      <div className="flex items-center gap-4 mt-1 text-xs sm:text-sm text-muted-foreground flex-wrap">
                         <span className="flex items-center gap-1 truncate">
                           <Mail className="h-3 w-3 flex-shrink-0" />
                           <span className="truncate">{user.email}</span>
                         </span>
+                        {user.cpf && (
+                          <span className="flex items-center gap-1">
+                            <span className="text-muted-foreground">CPF:</span>
+                            <span>{formatCpf(user.cpf)}</span>
+                          </span>
+                        )}
+                        {user.phone && (
+                          <span className="flex items-center gap-1">
+                            <Phone className="h-3 w-3 flex-shrink-0" />
+                            <span>{formatPhone(user.phone)}</span>
+                          </span>
+                        )}
                       </div>
                     </div>
                   </div>

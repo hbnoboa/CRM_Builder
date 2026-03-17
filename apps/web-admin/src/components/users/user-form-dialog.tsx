@@ -26,12 +26,16 @@ import {
 import { useCreateUser, useUpdateUser } from '@/hooks/use-users';
 import { useCustomRoles } from '@/hooks/use-custom-roles';
 import { usePermissions } from '@/hooks/use-permissions';
+import { maskCpf, maskCnpj, maskPhone, unmask } from '@/lib/masks';
 import type { User, Status } from '@/types';
 
 const createUserSchema = (t: (key: string) => string) => z.object({
   name: z.string().min(2, t('nameMinLength')),
   email: z.string().email(t('emailInvalid')),
   password: z.string().min(8, t('passwordMinLength')).optional().or(z.literal('')),
+  cpf: z.string().optional().or(z.literal('')),
+  cnpj: z.string().optional().or(z.literal('')),
+  phone: z.string().optional().or(z.literal('')),
   status: z.enum(['ACTIVE', 'INACTIVE', 'SUSPENDED', 'PENDING'] as const).optional(),
   customRoleId: z.string().min(1, 'Role e obrigatoria'),
 });
@@ -79,6 +83,9 @@ export function UserFormDialog({ open, onOpenChange, user, onSuccess }: UserForm
         name: user.name,
         email: user.email,
         password: '',
+        cpf: user.cpf ? maskCpf(user.cpf) : '',
+        cnpj: user.cnpj ? maskCnpj(user.cnpj) : '',
+        phone: user.phone ? maskPhone(user.phone) : '',
         status: user.status,
         customRoleId: user.customRoleId || '',
       });
@@ -87,6 +94,9 @@ export function UserFormDialog({ open, onOpenChange, user, onSuccess }: UserForm
         name: '',
         email: '',
         password: '',
+        cpf: '',
+        cnpj: '',
+        phone: '',
         status: 'ACTIVE',
         customRoleId: defaultRoleId,
       });
@@ -102,6 +112,9 @@ export function UserFormDialog({ open, onOpenChange, user, onSuccess }: UserForm
           email: data.email,
           status: data.status,
           customRoleId: data.customRoleId,
+          cpf: data.cpf ? unmask(data.cpf) : undefined,
+          cnpj: data.cnpj ? unmask(data.cnpj) : undefined,
+          phone: data.phone ? unmask(data.phone) : undefined,
         };
         if (data.password) {
           updateData.password = data.password;
@@ -113,6 +126,9 @@ export function UserFormDialog({ open, onOpenChange, user, onSuccess }: UserForm
           email: data.email,
           password: data.password || '',
           customRoleId: data.customRoleId,
+          cpf: data.cpf ? unmask(data.cpf) : undefined,
+          cnpj: data.cnpj ? unmask(data.cnpj) : undefined,
+          phone: data.phone ? unmask(data.phone) : undefined,
         });
       }
       onOpenChange(false);
@@ -174,6 +190,37 @@ export function UserFormDialog({ open, onOpenChange, user, onSuccess }: UserForm
             {form.formState.errors.password && (
               <p className="text-sm text-destructive">{form.formState.errors.password.message}</p>
             )}
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="cpf">CPF</Label>
+              <Input
+                id="cpf"
+                placeholder="000.000.000-00"
+                {...form.register('cpf')}
+                onChange={(e) => form.setValue('cpf', maskCpf(e.target.value))}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="phone">{t('form.phone')}</Label>
+              <Input
+                id="phone"
+                placeholder="(00) 00000-0000"
+                {...form.register('phone')}
+                onChange={(e) => form.setValue('phone', maskPhone(e.target.value))}
+              />
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="cnpj">CNPJ</Label>
+            <Input
+              id="cnpj"
+              placeholder="00.000.000/0000-00"
+              {...form.register('cnpj')}
+              onChange={(e) => form.setValue('cnpj', maskCnpj(e.target.value))}
+            />
           </div>
 
           {hasModuleAction('users', 'canAssignRole') && (

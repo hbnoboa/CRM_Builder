@@ -135,6 +135,7 @@ export class EntityPermissionDto {
   @IsBoolean() @IsOptional() canExport?: boolean;
   @IsBoolean() @IsOptional() canImport?: boolean;
   @IsBoolean() @IsOptional() canConfigureColumns?: boolean;
+  @IsBoolean() @IsOptional() canEditLocked?: boolean;
 }
 
 export class ModulePermissionDto {

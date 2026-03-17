@@ -156,12 +156,6 @@ export default function LoginPage() {
               )}
             </Button>
 
-            <p className="text-sm text-center text-muted-foreground">
-              {t('noAccount')}{' '}
-              <Link href="/register" className="text-primary hover:underline">
-                {t('createAccount')}
-              </Link>
-            </p>
           </CardFooter>
         </form>
       </Card>

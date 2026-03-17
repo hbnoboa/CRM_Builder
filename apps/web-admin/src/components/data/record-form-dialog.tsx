@@ -22,6 +22,7 @@ import { Slider as SliderUI } from '@/components/ui/slider';
 import { SearchableSelect } from '@/components/ui/searchable-select';
 import type { SelectOption } from '@/components/ui/searchable-select';
 import { useCreateEntityData, useUpdateEntityData } from '@/hooks/use-data';
+import { usePermissions } from '@/hooks/use-permissions';
 import { useTenant } from '@/stores/tenant-context';
 import { api } from '@/lib/api';
 import dynamic from 'next/dynamic';
@@ -57,6 +58,7 @@ interface Entity {
     enableAudit?: boolean;
     softDelete?: boolean;
     captureLocation?: boolean;
+    lockField?: string;
   };
 }
 
@@ -138,6 +140,13 @@ export function RecordFormDialog({
   const createRecord = useCreateEntityData({ success: isEditing ? t('toast.updated') : t('toast.created') });
   const updateRecord = useUpdateEntityData({ success: t('toast.updated') });
   const { tenantId, effectiveTenantId } = useTenant();
+  const { hasEntityAction, isAdmin } = usePermissions();
+
+  // Lock check: registro travado quando lockField esta true
+  const lockField = entity.settings?.lockField;
+  const isRecordLocked = isEditing && lockField && record?.data?.[lockField] === true;
+  const canEditLocked = isAdmin || hasEntityAction(entity.slug, 'canEditLocked');
+  const isLocked = isRecordLocked && !canEditLocked;
 
   const [formData, setFormData] = useState<Record<string, unknown>>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -203,11 +212,10 @@ export function RecordFormDialog({
 
   // ─── Fetch relation options ─────────────────────────────────────────────
   const fetchRelationOptions = useCallback(async (field: EntityField) => {
-    const tid = effectiveTenantId || tenantId;
-    if (!field.relatedEntitySlug || !tid) return;
+    if (!field.relatedEntitySlug) return;
     setLoadingRelations(prev => ({ ...prev, [field.slug]: true }));
     try {
-      const params: Record<string, string> = {};
+      const params: Record<string, string | number> = { limit: 500 };
       if (effectiveTenantId) params.tenantId = effectiveTenantId;
       const response = await api.get(`/data/${field.relatedEntitySlug}`, { params });
       const data = Array.isArray(response.data) ? response.data : response.data?.data || [];
@@ -222,8 +230,16 @@ export function RecordFormDialog({
         if (!label) {
           for (const key of Object.keys(itemData)) {
             const v = itemData[key];
-            if (typeof v === 'string' && key !== 'id' && key !== 'createdAt' && key !== 'updatedAt') {
+            if (key === 'id' || key === 'createdAt' || key === 'updatedAt') continue;
+            // Handle enriched {value, label} objects from backend
+            if (v && typeof v === 'object' && 'label' in (v as Record<string, unknown>)) {
+              label = (v as Record<string, unknown>).label; break;
+            }
+            if (typeof v === 'string') {
               label = v; break;
+            }
+            if (typeof v === 'number') {
+              label = String(v); break;
             }
           }
         }
@@ -234,13 +250,13 @@ export function RecordFormDialog({
         };
       });
       setRelationOptions(prev => ({ ...prev, [field.slug]: options }));
-    } catch (error) {
-      console.error(`Error loading relation ${field.relatedEntitySlug}:`, error);
-      setRelationOptions(prev => ({ ...prev, [field.slug]: [] }));
+    } catch (error: any) {
+      console.error(`[Relation] Erro ao carregar ${field.relatedEntitySlug}:`, error?.response?.status, error?.response?.data?.message || error?.message);
+      // Keep existing seed/previous options on error so the current value still shows correctly
     } finally {
       setLoadingRelations(prev => ({ ...prev, [field.slug]: false }));
     }
-  }, [effectiveTenantId, tenantId, t]);
+  }, [effectiveTenantId, t]);
 
   // Load options when dialog opens
   useEffect(() => {
@@ -276,6 +292,32 @@ export function RecordFormDialog({
   useEffect(() => {
     if (open) {
       if (record) {
+        // Pre-seed relation/api-select options from enriched record data
+        // so the display name shows immediately before the full API fetch completes
+        const seedRelation: Record<string, ApiOption[]> = {};
+        const seedApi: Record<string, ApiOption[]> = {};
+        entity.fields?.forEach((field) => {
+          const rawValue = record.data?.[field.slug];
+          if (rawValue && typeof rawValue === 'object' && 'value' in (rawValue as Record<string, unknown>) && 'label' in (rawValue as Record<string, unknown>)) {
+            const opt: ApiOption = {
+              value: String((rawValue as Record<string, unknown>).value),
+              label: String((rawValue as Record<string, unknown>).label),
+              data: {},
+            };
+            if (field.type === 'relation') {
+              seedRelation[field.slug] = [opt];
+            } else if (field.type === 'api-select') {
+              seedApi[field.slug] = [opt];
+            }
+          }
+        });
+        if (Object.keys(seedRelation).length > 0) {
+          setRelationOptions(prev => ({ ...prev, ...seedRelation }));
+        }
+        if (Object.keys(seedApi).length > 0) {
+          setApiOptions(prev => ({ ...prev, ...seedApi }));
+        }
+
         const normalized = normalizeFormData(record.data || {}, entity.fields || []);
         entity.fields?.forEach((field) => {
           if (field.type === 'currency' && normalized[field.slug] != null && normalized[field.slug] !== '') {
@@ -588,7 +630,7 @@ export function RecordFormDialog({
     const value = formData[field.slug];
     const error = errors[field.slug];
     const helpText = field.helpText;
-    const isFieldDisabled = field.disabled || (editableFields ? !editableFields.includes(field.slug) : false);
+    const isFieldDisabled = isLocked || field.disabled || (editableFields ? !editableFields.includes(field.slug) : false);
 
     const fieldLabel = (
       <Label htmlFor={field.slug} className={isFieldDisabled ? 'opacity-60' : ''}>
@@ -670,12 +712,17 @@ export function RecordFormDialog({
       case 'api-select': {
         const apiOpts: SelectOption[] = (apiOptions[field.slug] || []).filter(o => o.value).map(o => ({ value: o.value, label: o.label })).sort((a, b) => a.label.localeCompare(b.label, 'pt-BR'));
         const isLoadingOpts = loadingApiOptions[field.slug];
+        // Safety net: extract value from {value, label} object if normalization didn't catch it
+        let apiSelValue = value;
+        if (apiSelValue && typeof apiSelValue === 'object' && 'value' in (apiSelValue as Record<string, unknown>)) {
+          apiSelValue = (apiSelValue as Record<string, unknown>).value;
+        }
         return (
           <div key={field.slug} className="space-y-2">
             {fieldLabel}
             <SearchableSelect
               options={apiOpts}
-              value={String(value || '')}
+              value={String(apiSelValue || '')}
               onChange={(val) => handleApiSelectChange(field, String(val))}
               placeholder={field.placeholder || tCommon('select')}
               disabled={isFieldDisabled}
@@ -692,12 +739,17 @@ export function RecordFormDialog({
       case 'relation': {
         const relOpts: SelectOption[] = (relationOptions[field.slug] || []).filter(o => o.value).map(o => ({ value: o.value, label: o.label })).sort((a, b) => a.label.localeCompare(b.label, 'pt-BR'));
         const isLoadingRel = loadingRelations[field.slug];
+        // Safety net: extract value from {value, label} object if normalization didn't catch it
+        let relValue = value;
+        if (relValue && typeof relValue === 'object' && 'value' in (relValue as Record<string, unknown>)) {
+          relValue = (relValue as Record<string, unknown>).value;
+        }
         return (
           <div key={field.slug} className="space-y-2">
             {fieldLabel}
             <SearchableSelect
               options={relOpts}
-              value={String(value || '')}
+              value={String(relValue || '')}
               onChange={(val) => handleFieldChange(field.slug, String(val))}
               placeholder={field.placeholder || tCommon('select')}
               disabled={isFieldDisabled}
@@ -1533,11 +1585,19 @@ export function RecordFormDialog({
           ))}
 
           <DialogFooter>
+            {isLocked && (
+              <p className="text-xs text-amber-600 mr-auto flex items-center gap-1">
+                <AlertTriangle className="h-3.5 w-3.5" />
+                {t('recordLocked')}
+              </p>
+            )}
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>{tCommon('cancel')}</Button>
-            <Button type="submit" disabled={isLoading || !entity.fields?.length}>
-              {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              {isLoading ? tCommon('saving') : isEditing ? tCommon('save') : tCommon('create')}
-            </Button>
+            {!isLocked && (
+              <Button type="submit" disabled={isLoading || !entity.fields?.length}>
+                {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                {isLoading ? tCommon('saving') : isEditing ? tCommon('save') : tCommon('create')}
+              </Button>
+            )}
           </DialogFooter>
         </form>
       </DialogContent>

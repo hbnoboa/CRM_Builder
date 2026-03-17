@@ -67,6 +67,7 @@ interface EntitySettings {
   slaConfig?: {
     businessHours?: BusinessHoursConfig;
   };
+  lockField?: string;
 }
 
 interface GlobalFilter {
@@ -1319,6 +1320,24 @@ export class DataService {
         }
       } else {
         await this.checkScope(record!, currentUser, entitySlug);
+      }
+    }
+
+    // Lock check: se a entidade tem lockField e o registro esta travado, bloquear edicao
+    const lockSettings = entity.settings as EntitySettings;
+    if (lockSettings?.lockField) {
+      const recordData = activeRecord.data as Record<string, unknown>;
+      if (recordData[lockSettings.lockField] === true) {
+        const rt = currentUser.customRole?.roleType;
+        const isPrivileged = rt === 'PLATFORM_ADMIN' || rt === 'ADMIN';
+        if (!isPrivileged) {
+          // Checar canEditLocked na permission da entidade
+          const permissions = currentUser.customRole?.permissions as Array<Record<string, unknown>> | undefined;
+          const entityPerm = permissions?.find((p) => p.entitySlug === entitySlug);
+          if (!entityPerm?.canEditLocked) {
+            throw new ForbiddenException('Este registro esta finalizado e nao pode ser editado');
+          }
+        }
       }
     }
 

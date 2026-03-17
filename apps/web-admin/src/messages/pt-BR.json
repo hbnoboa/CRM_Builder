@@ -138,6 +138,7 @@
     "tenants": "Tenants",
     "auditLogs": "Logs de Auditoria",
     "dashboardTemplates": "Dashboards",
+    "publicLinks": "Links Publicos",
     "profile": "Perfil",
     "hello": "Olá,",
     "admin": "Admin"
@@ -238,6 +239,7 @@
       "password": "Senha",
       "passwordPlaceholder": "Senha segura",
       "passwordHint": "(deixe em branco para manter)",
+      "phone": "Telefone",
       "role": "Função",
       "rolePlaceholder": "Selecione uma função",
       "status": "Status",
@@ -516,6 +518,7 @@
       "title": "Excluir registro?",
       "message": "Tem certeza que deseja excluir este registro? Esta ação não pode ser desfeita."
     },
+    "recordLocked": "Este registro esta finalizado e nao pode ser editado",
     "toast": {
       "created": "Registro criado com sucesso",
       "updated": "Registro atualizado com sucesso",
@@ -774,6 +777,7 @@
       "canConfigureColumns": "Configurar Colunas Visíveis",
       "canExport": "Exportar Registros",
       "canImport": "Importar Registros",
+      "canEditLocked": "Editar Registros Travados",
       "canGenerate": "Gerar PDF"
     },
     "permissionCategories": {

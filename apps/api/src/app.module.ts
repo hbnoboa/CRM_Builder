@@ -26,6 +26,7 @@ import { ExecutionLogsModule } from './modules/execution-logs/execution-logs.mod
 import { EntityAutomationModule } from './modules/entity-automation/entity-automation.module';
 import { EntityFieldRuleModule } from './modules/entity-field-rule/entity-field-rule.module';
 import { DashboardTemplateModule } from './modules/dashboard-template/dashboard-template.module';
+import { PublicLinkModule } from './modules/public-link/public-link.module';
 
 @Module({
   imports: [
@@ -79,6 +80,9 @@ import { DashboardTemplateModule } from './modules/dashboard-template/dashboard-
 
     // Dashboard Templates
     DashboardTemplateModule,
+
+    // Public Links (formularios externos)
+    PublicLinkModule,
   ],
 })
 export class AppModule {}

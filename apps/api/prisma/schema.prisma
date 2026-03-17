@@ -93,6 +93,7 @@ model Tenant {
   automationExecutions AutomationExecution[]
   entityFieldRules     EntityFieldRule[]
   dashboardTemplates   DashboardTemplate[]
+  publicLinks          PublicLink[]
 
   @@index([slug])
   @@index([status])
@@ -110,6 +111,11 @@ model User {
   password String
   name     String
   avatar   String?
+
+  // Identificacao adicional (para usuarios publicos via weblinks)
+  cpf   String? // Digitos: 00000000000
+  cnpj  String? // Digitos: 00000000000000
+  phone String? // Digitos: 00000000000
 
   // role REMOVIDO - agora usamos apenas customRole.roleType
   customRoleId String
@@ -139,8 +145,12 @@ model User {
   tenantAccess UserTenantAccess[]
 
   @@unique([tenantId, email])
+  @@unique([tenantId, cpf])
+  @@unique([tenantId, phone])
   @@index([tenantId])
   @@index([email])
+  @@index([cpf])
+  @@index([phone])
   @@index([status])
   @@index([tenantId, status])
   @@index([customRoleId])
@@ -202,6 +212,7 @@ model Entity {
   pdfTemplates    PdfTemplate[]
   automations     EntityAutomation[]
   fieldRules      EntityFieldRule[]
+  publicLinks     PublicLink[]
 
   @@unique([tenantId, slug])
   @@index([tenantId])
@@ -403,6 +414,7 @@ model CustomRole {
   tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   users  User[]
   tenantAccessUsers UserTenantAccess[]
+  publicLinks       PublicLink[]
 
   @@unique([tenantId, name])
   @@index([tenantId])
@@ -1016,6 +1028,50 @@ model DashboardTemplate {
   tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@unique([tenantId, name])
+  @@index([tenantId])
+  @@index([tenantId, entitySlug])
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// PUBLIC LINKS (Links publicos para formularios externos)
+// ═══════════════════════════════════════════════════════════════════════════
+
+model PublicLink {
+  id       String @id @default(cuid())
+  tenantId String
+
+  // Token URL-safe para acesso publico: /p/{slug}
+  slug String @unique
+
+  // Entidade alvo
+  entitySlug String
+  entityId   String
+
+  // Role atribuida a usuarios que se registram via este link
+  customRoleId String
+
+  // Metadados
+  name        String  // Nome amigavel (ex: "Inspecao de Caminhoes")
+  description String?
+
+  // Controles
+  isActive          Boolean   @default(true)
+  expiresAt         DateTime?
+  maxUsers          Int?
+  registrationCount Int       @default(0)
+
+  // Configuracoes extras (logo, cor, mensagem de boas-vindas, etc.)
+  settings Json @default("{}")
+
+  createdById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relacionamentos
+  tenant     Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  entity     Entity     @relation(fields: [entityId], references: [id])
+  customRole CustomRole @relation(fields: [customRoleId], references: [id])
+
   @@index([tenantId])
   @@index([tenantId, entitySlug])
 }

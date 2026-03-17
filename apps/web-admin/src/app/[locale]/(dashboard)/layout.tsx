@@ -35,6 +35,7 @@ import {
   FileText,
   BarChart3,
   Settings2,
+  Link2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -74,6 +75,7 @@ const adminNavigation: NavItemConfig[] = [
   { titleKey: 'pdfTemplates', href: '/pdf-templates', icon: <FileText className="h-5 w-5" />, moduleKey: 'pdfTemplates' },
   { titleKey: 'auditLogs', href: '/audit-logs', icon: <ScrollText className="h-5 w-5" />, moduleKey: 'auditLogs' },
   { titleKey: 'dashboardTemplates', href: '/dashboard-templates', icon: <BarChart3 className="h-5 w-5" />, moduleKey: 'dashboardTemplates' },
+  { titleKey: 'publicLinks', href: '/public-links', icon: <Link2 className="h-5 w-5" />, moduleKey: 'publicLinks' },
 ];
 
 const bottomNavigation: NavItemConfig[] = [

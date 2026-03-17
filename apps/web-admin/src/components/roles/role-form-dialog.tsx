@@ -605,6 +605,7 @@ export function RoleFormDialog({ open, onOpenChange, role, onSuccess }: RoleForm
     { key: 'canConfigureColumns', label: t('permissions.canConfigureColumns') },
     { key: 'canExport', label: t('permissions.canExport') },
     { key: 'canImport', label: t('permissions.canImport') },
+    { key: 'canEditLocked', label: t('permissions.canEditLocked') },
   ];
 
   const toggleModuleOpen = (key: string) => {

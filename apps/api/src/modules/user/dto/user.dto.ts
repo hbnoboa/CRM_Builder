@@ -28,6 +28,21 @@ export class CreateUserDto {
   @IsOptional()
   avatar?: string;
 
+  @ApiPropertyOptional({ description: 'CPF (11 digitos)' })
+  @IsString()
+  @IsOptional()
+  cpf?: string;
+
+  @ApiPropertyOptional({ description: 'CNPJ (14 digitos)' })
+  @IsString()
+  @IsOptional()
+  cnpj?: string;
+
+  @ApiPropertyOptional({ description: 'Telefone com DDD' })
+  @IsString()
+  @IsOptional()
+  phone?: string;
+
   @ApiProperty({ description: 'ID da role customizada (obrigatorio)' })
   @IsString()
   customRoleId: string;

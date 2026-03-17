@@ -300,30 +300,6 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                     ),
                   ],
 
-                  const SizedBox(height: 16),
-
-                  // Register link
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(
-                        'Nao tem conta? ',
-                        style: AppTypography.bodySmall.copyWith(
-                          color: context.colors.mutedForeground,
-                        ),
-                      ),
-                      GestureDetector(
-                        onTap: () => context.push('/register'),
-                        child: Text(
-                          'Registre-se',
-                          style: AppTypography.bodySmall.copyWith(
-                            color: Theme.of(context).colorScheme.primary,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
                 ],
               ),
             ),

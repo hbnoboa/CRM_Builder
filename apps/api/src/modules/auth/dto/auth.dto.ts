@@ -1,4 +1,4 @@
-import { IsEmail, IsString, MinLength, MaxLength, IsOptional, Matches, IsBoolean } from 'class-validator';
+import { IsEmail, IsString, MinLength, MaxLength, IsOptional, Matches, IsBoolean, ValidateIf } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class LoginDto {
@@ -39,6 +39,21 @@ export class RegisterDto {
   @ApiProperty({ example: 'cuid_do_tenant' })
   @IsString()
   tenantId: string;
+
+  @ApiPropertyOptional({ description: 'CPF (11 digitos)' })
+  @IsString()
+  @IsOptional()
+  cpf?: string;
+
+  @ApiPropertyOptional({ description: 'CNPJ (14 digitos)' })
+  @IsString()
+  @IsOptional()
+  cnpj?: string;
+
+  @ApiPropertyOptional({ description: 'Telefone com DDD' })
+  @IsString()
+  @IsOptional()
+  phone?: string;
 
   @ApiPropertyOptional({ description: 'ID da custom role (se nao informado, usa role default do tenant)' })
   @IsString()

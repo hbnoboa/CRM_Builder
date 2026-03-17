@@ -47,6 +47,11 @@ export class UserService {
     // Remove tenantId do dto para evitar duplicacao
     const { tenantId: _, ...userData } = dto;
 
+    // Normalizar CPF/phone: armazenar apenas digitos
+    if (userData.cpf) userData.cpf = userData.cpf.replace(/\D/g, '') || undefined;
+    if (userData.cnpj) userData.cnpj = userData.cnpj.replace(/\D/g, '') || undefined;
+    if (userData.phone) userData.phone = userData.phone.replace(/\D/g, '') || undefined;
+
     const newUser = await this.prisma.user.create({
       data: {
         ...userData,
@@ -58,6 +63,9 @@ export class UserService {
         email: true,
         name: true,
         avatar: true,
+        cpf: true,
+        cnpj: true,
+        phone: true,
         customRoleId: true,
         status: true,
         tenantId: true,
@@ -142,6 +150,9 @@ export class UserService {
         email: true,
         name: true,
         avatar: true,
+        cpf: true,
+        cnpj: true,
+        phone: true,
         customRoleId: true,
         status: true,
         tenantId: true,
@@ -222,6 +233,9 @@ export class UserService {
         email: true,
         name: true,
         avatar: true,
+        cpf: true,
+        cnpj: true,
+        phone: true,
         customRoleId: true,
         status: true,
         tenantId: true,
@@ -261,6 +275,11 @@ export class UserService {
       dto.password = await bcrypt.hash(dto.password, 12);
     }
 
+    // Normalizar CPF/CNPJ/phone — armazenar apenas digitos
+    if (dto.cpf) dto.cpf = dto.cpf.replace(/\D/g, '') || undefined;
+    if (dto.cnpj) dto.cnpj = dto.cnpj.replace(/\D/g, '') || undefined;
+    if (dto.phone) dto.phone = dto.phone.replace(/\D/g, '') || undefined;
+
     const updatedUser = await this.prisma.user.update({
       where: { id },
       data: dto,
@@ -269,6 +288,9 @@ export class UserService {
         email: true,
         name: true,
         avatar: true,
+        cpf: true,
+        cnpj: true,
+        phone: true,
         customRoleId: true,
         status: true,
         tenantId: true,

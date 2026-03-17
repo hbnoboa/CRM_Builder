@@ -7,6 +7,9 @@ export interface User {
   email: string;
   name: string;
   avatar?: string | null;
+  cpf?: string | null;
+  cnpj?: string | null;
+  phone?: string | null;
   customRoleId: string;
   customRole: CustomRole;
   status: Status;

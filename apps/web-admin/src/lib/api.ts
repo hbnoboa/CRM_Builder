@@ -9,10 +9,17 @@ export const api = axios.create({
   },
 });
 
+// Detect if current page is a public link page
+function isPublicContext(): boolean {
+  if (typeof window === 'undefined') return false;
+  return window.location.pathname.includes('/p/');
+}
+
 // Request interceptor - add auth token + tenant context
 api.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('accessToken');
+    const tokenKey = isPublicContext() ? 'publicAccessToken' : 'accessToken';
+    const token = localStorage.getItem(tokenKey);
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
@@ -98,7 +105,11 @@ api.interceptors.response.use(
       isRefreshing = true;
 
       try {
-        const refreshToken = localStorage.getItem('refreshToken');
+        const isPublic = isPublicContext();
+        const refreshTokenKey = isPublic ? 'publicRefreshToken' : 'refreshToken';
+        const accessTokenKey = isPublic ? 'publicAccessToken' : 'accessToken';
+
+        const refreshToken = localStorage.getItem(refreshTokenKey);
         if (!refreshToken) {
           throw new Error('No refresh token');
         }
@@ -109,8 +120,8 @@ api.interceptors.response.use(
 
         const { accessToken, refreshToken: newRefreshToken } = response.data;
 
-        localStorage.setItem('accessToken', accessToken);
-        localStorage.setItem('refreshToken', newRefreshToken);
+        localStorage.setItem(accessTokenKey, accessToken);
+        localStorage.setItem(refreshTokenKey, newRefreshToken);
 
         isRefreshing = false;
         onTokenRefreshed(accessToken);
@@ -121,9 +132,22 @@ api.interceptors.response.use(
         isRefreshing = false;
         onRefreshFailed(refreshError);
 
-        // Clear tokens and redirect to login
-        localStorage.removeItem('accessToken');
-        localStorage.removeItem('refreshToken');
+        // Clear tokens and redirect appropriately
+        if (isPublic) {
+          localStorage.removeItem('publicAccessToken');
+          localStorage.removeItem('publicRefreshToken');
+
+          // Redirect to public login page
+          const match = window.location.pathname.match(/\/p\/([^/]+)/);
+          if (match) {
+            window.location.href = window.location.pathname.replace(/\/p\/([^/]+)\/.*/, '/p/$1');
+            return Promise.reject(refreshError);
+          }
+        } else {
+          localStorage.removeItem('accessToken');
+          localStorage.removeItem('refreshToken');
+        }
+
         window.location.href = '/login';
         return Promise.reject(refreshError);
       }

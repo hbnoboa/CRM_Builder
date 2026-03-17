@@ -39,6 +39,7 @@ export interface EntityPermission {
   canExport?: boolean;
   canImport?: boolean;
   canConfigureColumns?: boolean;
+  canEditLocked?: boolean;
 }
 
 export interface ModulePermission {

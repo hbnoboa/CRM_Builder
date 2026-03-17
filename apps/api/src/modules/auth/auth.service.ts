@@ -7,7 +7,7 @@ import { LoginDto, RegisterDto, RefreshTokenDto, UpdateProfileDto, ChangePasswor
 import { Status } from '@prisma/client';
 import { RoleType } from '../../common/decorators/roles.decorator';
 
-interface UserForTokenGeneration {
+export interface UserForTokenGeneration {
   id: string;
   email: string;
   tenantId: string;
@@ -74,6 +74,11 @@ export class AuthService {
     // Hash da senha
     const hashedPassword = await bcrypt.hash(dto.password, 12);
 
+    // Normalizar CPF/phone: armazenar apenas digitos
+    const cpf = dto.cpf ? dto.cpf.replace(/\D/g, '') || null : null;
+    const cnpj = dto.cnpj ? dto.cnpj.replace(/\D/g, '') || null : null;
+    const phone = dto.phone ? dto.phone.replace(/\D/g, '') || null : null;
+
     // Criar usuario
     const user = await this.prisma.user.create({
       data: {
@@ -83,6 +88,9 @@ export class AuthService {
         tenantId: dto.tenantId,
         customRoleId: customRoleId,
         status: Status.ACTIVE,
+        cpf,
+        cnpj,
+        phone,
       },
       select: {
         id: true,
@@ -633,6 +641,13 @@ export class AuthService {
         },
       })),
     ];
+  }
+
+  /**
+   * Gera tokens JWT para um usuario. Usado internamente e pelo PublicLink module.
+   */
+  async generateTokensForUser(user: UserForTokenGeneration, rememberMe = false) {
+    return this.generateTokens(user, rememberMe);
   }
 
   private async generateTokens(user: UserForTokenGeneration, rememberMe = false) {
