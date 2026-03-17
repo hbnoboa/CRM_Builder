@@ -1074,6 +1074,7 @@
     "dragImage": "Drag an image or click to select",
     "dragFile": "Drag a file or click to select",
     "chooseFile": "Choose file",
+    "replaceFile": "Replace file",
     "pasteUrlButton": "Paste URL",
     "takePhoto": "Take photo",
     "takePhotoHint": "Use the device camera to capture an image"

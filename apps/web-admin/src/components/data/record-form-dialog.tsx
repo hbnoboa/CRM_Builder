@@ -579,6 +579,30 @@ export function RecordFormDialog({
 
   const isLoading = createRecord.isPending || updateRecord.isPending;
 
+  // ─── Evaluate visibleIf conditions ──────────────────────────────────────
+  const evaluateCondition = useCallback((condition: { field: string; operator: string; value: unknown }): boolean => {
+    const fieldValue = formData[condition.field];
+    switch (condition.operator) {
+      case 'equals': return fieldValue === condition.value;
+      case 'not_equals': return fieldValue !== condition.value;
+      case 'contains': return typeof fieldValue === 'string' && typeof condition.value === 'string' && fieldValue.includes(condition.value);
+      case 'gt': return Number(fieldValue) > Number(condition.value);
+      case 'gte': return Number(fieldValue) >= Number(condition.value);
+      case 'lt': return Number(fieldValue) < Number(condition.value);
+      case 'lte': return Number(fieldValue) <= Number(condition.value);
+      case 'in': return Array.isArray(condition.value) && condition.value.includes(fieldValue);
+      case 'is_empty': return fieldValue === undefined || fieldValue === null || fieldValue === '' || (Array.isArray(fieldValue) && fieldValue.length === 0);
+      case 'is_not_empty': return fieldValue !== undefined && fieldValue !== null && fieldValue !== '' && !(Array.isArray(fieldValue) && fieldValue.length === 0);
+      default: return true;
+    }
+  }, [formData]);
+
+  const isFieldVisible = useCallback((field: EntityField): boolean => {
+    if (field.type === 'hidden' || field.hidden) return false;
+    if (field.visibleIf) return evaluateCondition(field.visibleIf);
+    return true;
+  }, [evaluateCondition]);
+
   // ─── Group fields into grid rows ──────────────────────────────────────────
   const fieldRows = useMemo(() => {
     // Filtra campos ocultos (type === 'hidden' OU hidden === true)
@@ -994,6 +1018,7 @@ export function RecordFormDialog({
               placeholder={field.placeholder}
               folder={field.type === 'image' ? 'images' : 'files'}
               imageSource={field.type === 'image' ? field.imageSource : undefined}
+              imageDisplaySize={field.type === 'image' ? field.imageDisplaySize : undefined}
               disabled={isFieldDisabled}
             />
             {helpEl}{errorEl}
@@ -1530,8 +1555,10 @@ export function RecordFormDialog({
     }
   };
 
-  // Wrapper para campos desabilitados (field-level permissions)
+  // Wrapper para campos desabilitados (field-level permissions) e visibilidade condicional
   const renderFieldWithPermission = (field: EntityField) => {
+    // Checa visibleIf (hidden/type=hidden ja filtrado no fieldRows, mas visibleIf depende do formData)
+    if (!isFieldVisible(field)) return null;
     const isDisabled = editableFields ? !editableFields.includes(field.slug) : false;
     const rendered = renderField(field);
     if (!isDisabled) return rendered;
@@ -1573,7 +1600,7 @@ export function RecordFormDialog({
                 ))}
               </div>
             ) : (
-              entity.fields.map((field) => renderFieldWithPermission(field))
+              entity.fields.filter(f => f.type !== 'hidden' && !f.hidden).map((field) => renderFieldWithPermission(field))
             )
           ) : (
             <p className="text-sm text-muted-foreground text-center py-4">{tCommon('noResults')}</p>

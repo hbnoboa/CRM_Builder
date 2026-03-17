@@ -33,6 +33,7 @@ const SIMPLE_PROPS: Array<{
   { entityKey: 'multiple', gjsKey: 'fieldMultiple', type: 'boolean' },
   { entityKey: 'maxFiles', gjsKey: 'fieldMaxFiles', type: 'number' },
   { entityKey: 'imageSource', gjsKey: 'fieldImageSource', type: 'string' },
+  { entityKey: 'imageDisplaySize', gjsKey: 'fieldImageDisplaySize', type: 'string' },
   // Relation
   { entityKey: 'relatedEntityId', gjsKey: 'fieldRelatedEntityId', type: 'string' },
   { entityKey: 'relatedEntitySlug', gjsKey: 'fieldRelatedEntitySlug', type: 'string' },

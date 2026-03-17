@@ -176,6 +176,13 @@ export function registerFieldTypes(editor: Editor) {
         { id: 'gallery', name: 'Apenas Galeria' },
       ],
     },
+    { type: 'select', name: 'fieldImageDisplaySize', label: 'Tamanho da imagem', changeProp: true,
+      options: [
+        { id: 'large', name: 'Grande' },
+        { id: 'medium', name: 'Medio' },
+        { id: 'small', name: 'Pequeno' },
+      ],
+    },
   ]);
 
   registerType(editor, 'crm-field-signature', 'signature', 'Assinatura', [

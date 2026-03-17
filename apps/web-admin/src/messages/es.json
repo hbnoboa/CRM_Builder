@@ -1070,6 +1070,7 @@
     "dragImage": "Arrastre una imagen o haga clic para seleccionar",
     "dragFile": "Arrastre un archivo o haga clic para seleccionar",
     "chooseFile": "Elegir archivo",
+    "replaceFile": "Reemplazar archivo",
     "pasteUrlButton": "Pegar URL",
     "takePhoto": "Tomar foto",
     "takePhotoHint": "Use la cámara del dispositivo para capturar una imagen"

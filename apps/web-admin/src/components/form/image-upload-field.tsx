@@ -28,6 +28,8 @@ interface ImageUploadFieldProps {
   folder?: string;
   /** Image source: 'camera' = only camera, 'gallery' = only gallery/URL, 'both' = all */
   imageSource?: 'camera' | 'gallery' | 'both';
+  /** Display size for image previews: small (64px), medium (128px), large (200px) */
+  imageDisplaySize?: 'small' | 'medium' | 'large';
 }
 
 interface UploadingFile {
@@ -47,6 +49,7 @@ export default function ImageUploadField({
   disabled = false,
   folder = 'uploads',
   imageSource = 'both',
+  imageDisplaySize,
 }: ImageUploadFieldProps) {
   const t = useTranslations('upload');
   const [isDragOver, setIsDragOver] = useState(false);
@@ -187,15 +190,19 @@ export default function ImageUploadField({
   }, [urlInput, values, multiple, onChange]);
 
   const isImage = (url: string) => {
-    if (mode === 'image') return true;
-    return /\.(jpg|jpeg|png|gif|webp|svg)(\?.*)?$/i.test(url);
+    // File mode: always show as file, never as image preview
+    if (mode === 'file') return false;
+    return true;
   };
 
   const isVideo = (url: string) => {
+    if (mode === 'file') return false;
     return /\.(mp4|mov|webm|mpeg)(\?.*)?$/i.test(url);
   };
 
-  const showDropZone = multiple || values.length === 0;
+  // Always show drop zone — for single file mode, new upload replaces the existing one
+  const showDropZone = true;
+  const isReplaceMode = !multiple && values.length > 0;
 
   return (
     <div className="space-y-2">
@@ -203,7 +210,13 @@ export default function ImageUploadField({
       {values.length > 0 && (
         <div className={cn(
           'gap-2',
-          mode === 'image' ? 'grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4' : 'flex flex-col'
+          mode === 'image'
+            ? imageDisplaySize === 'small'
+              ? 'grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8'
+              : imageDisplaySize === 'medium'
+                ? 'grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5'
+                : 'grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4'
+            : 'flex flex-col'
         )}>
           {values.map((url, index) => (
             <div key={`${url}-${index}`} className="relative group">
@@ -237,7 +250,10 @@ export default function ImageUploadField({
                   </div>
                 </div>
               ) : isImage(url) ? (
-                <div className="relative aspect-square rounded-lg border overflow-hidden bg-muted">
+                <div className={cn(
+                  'relative rounded-lg border overflow-hidden bg-muted',
+                  imageDisplaySize === 'small' ? 'h-16 w-16' : imageDisplaySize === 'medium' ? 'h-32 w-32' : 'aspect-square'
+                )}>
                   <img
                     src={url}
                     alt={`Arquivo ${index + 1}`}
@@ -372,6 +388,31 @@ export default function ImageUploadField({
               >
                 <Camera className="h-3.5 w-3.5 mr-1" />
                 {t('takePhoto')}
+              </Button>
+            </div>
+          ) : isReplaceMode ? (
+            /* Compact replace mode: small button row instead of full drop zone */
+            <div className="flex flex-wrap gap-2">
+              <input
+                ref={inputRef}
+                type="file"
+                className="hidden"
+                accept={accept || defaultAccept}
+                onChange={handleFileInput}
+                disabled={disabled}
+              />
+              {showCamera && (
+                <Button type="button" variant="outline" size="sm" onClick={() => cameraRef.current?.click()}>
+                  <Camera className="h-3.5 w-3.5 mr-1" />
+                  {t('takePhoto')}
+                </Button>
+              )}
+              <Button type="button" variant="outline" size="sm" onClick={() => inputRef.current?.click()}>
+                <Upload className="h-3.5 w-3.5 mr-1" />
+                {t('replaceFile')}
+              </Button>
+              <Button type="button" variant="outline" size="sm" onClick={() => setUrlMode(true)}>
+                {t('pasteUrlButton')}
               </Button>
             </div>
           ) : (
