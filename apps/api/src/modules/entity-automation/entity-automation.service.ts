@@ -369,14 +369,20 @@ export class EntityAutomationService {
     context: TriggerContext,
   ) {
     // Mapear evento para trigger
+    // DataService passa: 'created', 'updated', 'deleted', 'status-changed'
     const triggerMap: Record<string, AutomationTrigger[]> = {
-      'record.created': [AutomationTrigger.ON_CREATE],
-      'record.updated': [
+      'created': [AutomationTrigger.ON_CREATE],
+      'updated': [
         AutomationTrigger.ON_UPDATE,
         AutomationTrigger.ON_FIELD_CHANGE,
         AutomationTrigger.ON_STATUS_CHANGE,
       ],
-      'record.deleted': [AutomationTrigger.ON_DELETE],
+      'deleted': [AutomationTrigger.ON_DELETE],
+      'status-changed': [
+        AutomationTrigger.ON_STATUS_CHANGE,
+        AutomationTrigger.ON_UPDATE,
+        AutomationTrigger.ON_FIELD_CHANGE,
+      ],
     };
 
     const triggers = triggerMap[event];
@@ -465,16 +471,16 @@ export class EntityAutomationService {
 
     switch (automation.trigger) {
       case AutomationTrigger.ON_CREATE:
-        return event === 'record.created';
+        return event === 'created';
 
       case AutomationTrigger.ON_UPDATE:
-        return event === 'record.updated';
+        return event === 'updated' || event === 'status-changed';
 
       case AutomationTrigger.ON_DELETE:
-        return event === 'record.deleted';
+        return event === 'deleted';
 
       case AutomationTrigger.ON_FIELD_CHANGE:
-        if (event !== 'record.updated') return false;
+        if (event !== 'updated' && event !== 'status-changed') return false;
         if (!config?.fieldSlug) return true; // Qualquer campo
 
         // Verificar se o campo especifico mudou
@@ -497,7 +503,7 @@ export class EntityAutomationService {
         return previousValue !== currentValue;
 
       case AutomationTrigger.ON_STATUS_CHANGE:
-        if (event !== 'record.updated') return false;
+        if (event !== 'updated' && event !== 'status-changed') return false;
 
         const statusField = (config?.statusField as string) || 'status';
         const prevStatus = context.previousRecord?.[statusField];
