@@ -463,11 +463,16 @@ export function RecordFormDialog({
       // Sub-entity fields are not validated (they manage their own data)
       if (field.type === 'sub-entity' || field.type === 'section-title') return;
       const value = formData[field.slug];
-      if (field.required && (value === undefined || value === null || value === '' || (Array.isArray(value) && value.length === 0))) {
+      const isEmpty = value === undefined || value === null || value === '' || (Array.isArray(value) && value.length === 0);
+
+      // Required check (static + conditional via requiredIf)
+      if (isFieldRequired(field) && isEmpty) {
         newErrors[field.slug] = tValidation('fieldRequired', { field: field.label || field.name });
         return;
       }
-      if (value !== undefined && value !== null && value !== '') {
+
+      if (!isEmpty) {
+        // Type-specific validations
         switch (field.type) {
           case 'email':
             if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value))) newErrors[field.slug] = tValidation('emailInvalid');
@@ -492,6 +497,57 @@ export function RecordFormDialog({
             const digits = String(value).replace(/\D/g, '');
             if (digits.length !== 8) newErrors[field.slug] = tValidation('cepDigits');
             break;
+          }
+        }
+
+        // Custom validators
+        if (field.validators && !newErrors[field.slug]) {
+          for (const v of field.validators) {
+            if (newErrors[field.slug]) break;
+            const strVal = String(value);
+            switch (v.type) {
+              case 'regex':
+                if (v.config.pattern && !new RegExp(String(v.config.pattern)).test(strVal))
+                  newErrors[field.slug] = v.message;
+                break;
+              case 'min':
+                if (Number(value) < Number(v.config.value))
+                  newErrors[field.slug] = v.message;
+                break;
+              case 'max':
+                if (Number(value) > Number(v.config.value))
+                  newErrors[field.slug] = v.message;
+                break;
+              case 'minLength':
+                if (strVal.length < Number(v.config.value))
+                  newErrors[field.slug] = v.message;
+                break;
+              case 'maxLength':
+                if (strVal.length > Number(v.config.value))
+                  newErrors[field.slug] = v.message;
+                break;
+            }
+          }
+        }
+
+        // Cross-field validation
+        if (field.crossFieldValidation && !newErrors[field.slug]) {
+          const { rule, targetField, message } = field.crossFieldValidation;
+          const targetValue = formData[targetField];
+          if (targetValue !== undefined && targetValue !== null && targetValue !== '') {
+            let failed = false;
+            if (rule === 'equalTo') {
+              failed = String(value) !== String(targetValue);
+            } else if (rule === 'different') {
+              failed = String(value) === String(targetValue);
+            } else {
+              const a = Number(value), b = Number(targetValue);
+              if (!isNaN(a) && !isNaN(b)) {
+                if (rule === 'greaterThan') failed = a <= b;
+                else if (rule === 'lessThan') failed = a >= b;
+              }
+            }
+            if (failed) newErrors[field.slug] = message;
           }
         }
       }
@@ -603,6 +659,17 @@ export function RecordFormDialog({
     return true;
   }, [evaluateCondition]);
 
+  const isFieldRequired = useCallback((field: EntityField): boolean => {
+    if (field.required) return true;
+    if (field.requiredIf) return evaluateCondition(field.requiredIf);
+    return false;
+  }, [evaluateCondition]);
+
+  const isFieldReadOnly = useCallback((field: EntityField): boolean => {
+    if (field.readOnlyIf) return evaluateCondition(field.readOnlyIf);
+    return false;
+  }, [evaluateCondition]);
+
   // ─── Group fields into grid rows ──────────────────────────────────────────
   const fieldRows = useMemo(() => {
     // Filtra campos ocultos (type === 'hidden' OU hidden === true)
@@ -654,12 +721,13 @@ export function RecordFormDialog({
     const value = formData[field.slug];
     const error = errors[field.slug];
     const helpText = field.helpText;
-    const isFieldDisabled = isLocked || field.disabled || (editableFields ? !editableFields.includes(field.slug) : false);
+    const isFieldDisabled = isLocked || field.disabled || isFieldReadOnly(field) || (editableFields ? !editableFields.includes(field.slug) : false);
+    const fieldRequired = isFieldRequired(field);
 
     const fieldLabel = (
       <Label htmlFor={field.slug} className={isFieldDisabled ? 'opacity-60' : ''}>
         {field.label || field.name}
-        {field.required && <span className="text-destructive ml-1">*</span>}
+        {fieldRequired && <span className="text-destructive ml-1">*</span>}
         {isFieldDisabled && <span className="text-muted-foreground ml-1 text-xs">(readonly)</span>}
       </Label>
     );
@@ -681,7 +749,7 @@ export function RecordFormDialog({
         return (
           <div key={field.slug} className="flex items-center space-x-2 pt-6">
             <Checkbox id={field.slug} checked={Boolean(value)} onCheckedChange={(checked) => handleFieldChange(field.slug, checked)} disabled={isFieldDisabled} />
-            <Label htmlFor={field.slug} className="cursor-pointer">{field.label || field.name}{field.required && <span className="text-destructive ml-1">*</span>}</Label>
+            <Label htmlFor={field.slug} className="cursor-pointer">{field.label || field.name}{fieldRequired && <span className="text-destructive ml-1">*</span>}</Label>
             {errorEl}
           </div>
         );
@@ -1407,7 +1475,7 @@ export function RecordFormDialog({
               value={value as string | undefined}
               onChange={(val) => handleFieldChange(field.slug, val)}
               label={field.name}
-              required={field.required}
+              required={fieldRequired}
               disabled={isFieldDisabled}
               config={{
                 width: signatureConfig.width || 400,
@@ -1441,7 +1509,7 @@ export function RecordFormDialog({
               value={value as string | null}
               onChange={(val) => handleFieldChange(field.slug, val)}
               label={field.name}
-              required={field.required}
+              required={fieldRequired}
               disabled={isFieldDisabled}
               placeholder={field.placeholder || 'Buscar...'}
               config={{
