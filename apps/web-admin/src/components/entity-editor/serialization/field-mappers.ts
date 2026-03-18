@@ -29,6 +29,7 @@ const SIMPLE_PROPS: Array<{
   // Map
   { entityKey: 'mapMode', gjsKey: 'fieldMapMode', type: 'string' },
   { entityKey: 'mapHeight', gjsKey: 'fieldMapHeight', type: 'number' },
+  { entityKey: 'mapDefaultZoom', gjsKey: 'fieldMapDefaultZoom', type: 'number' },
   // Image/File
   { entityKey: 'multiple', gjsKey: 'fieldMultiple', type: 'boolean' },
   { entityKey: 'maxFiles', gjsKey: 'fieldMaxFiles', type: 'number' },
@@ -53,6 +54,7 @@ const SIMPLE_PROPS: Array<{
   { entityKey: 'gridRow', gjsKey: 'fieldGridRow', type: 'number' },
   { entityKey: 'gridColSpan', gjsKey: 'fieldGridColSpan', type: 'number' },
   { entityKey: 'gridColStart', gjsKey: 'fieldGridColStart', type: 'number' },
+  { entityKey: 'gridRowSpan', gjsKey: 'fieldGridRowSpan', type: 'number' },
 ];
 
 // Propriedades que sao serializadas como JSON string

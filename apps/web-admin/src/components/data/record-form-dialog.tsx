@@ -268,7 +268,7 @@ export function RecordFormDialog({
 
   const handleApiSelectChange = (field: EntityField, value: string) => {
     handleFieldChange(field.slug, value);
-    const options = apiOptions[field.slug] || [];
+    const options = apiOptions[field.slug] || relationOptions[field.slug] || [];
     const selectedOption = options.find(opt => opt.value === value);
     if (selectedOption && field.autoFillFields) {
       const updates: Record<string, unknown> = {};
@@ -594,8 +594,8 @@ export function RecordFormDialog({
       }
     }
     entity.fields?.forEach((field) => {
-      // Sub-entity fields store data separately, skip them
-      if (field.type === 'sub-entity' || field.type === 'section-title') return;
+      // Sub-entity, section-title, and computed fields are not user-editable, skip them
+      if (field.type === 'sub-entity' || field.type === 'section-title' || field.type === 'formula' || field.type === 'rollup' || field.type === 'lookup') return;
       // Skip fields the user cannot edit (field-level permissions)
       if (editableFields && !editableFields.includes(field.slug)) return;
       const value = formData[field.slug];
@@ -842,7 +842,7 @@ export function RecordFormDialog({
             <SearchableSelect
               options={relOpts}
               value={String(relValue || '')}
-              onChange={(val) => handleFieldChange(field.slug, String(val))}
+              onChange={(val) => handleApiSelectChange(field, String(val))}
               placeholder={field.placeholder || tCommon('select')}
               disabled={isFieldDisabled}
               loading={isLoadingRel}
@@ -1330,9 +1330,9 @@ export function RecordFormDialog({
             {fieldLabel}
             <div className={
               layout === 'horizontal' ? 'flex flex-wrap gap-4' :
-              layout === 'grid' ? `grid grid-cols-${columns} gap-2` :
+              layout === 'grid' ? 'grid gap-2' :
               'space-y-2'
-            }>
+            } style={layout === 'grid' ? { gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` } : undefined}>
               {options.map((opt: { value: string; label: string }) => (
                 <div key={opt.value} className="flex items-center space-x-2">
                   <Checkbox
