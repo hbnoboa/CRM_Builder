@@ -3,12 +3,14 @@
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Plus, Trash2, GripVertical } from 'lucide-react';
+import { Plus, Trash2, GripVertical, ChevronDown } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 interface OptionItem {
   value: string;
   label: string;
   color?: string;
+  customValue?: boolean; // Flag para indicar que o value foi editado manualmente
 }
 
 interface OptionsTraitProps {
@@ -33,10 +35,13 @@ export function OptionsTraitEditor({ value, onChange }: OptionsTraitProps) {
       return [];
     }
   });
+  const [expandedIndex, setExpandedIndex] = useState<number | null>(null);
 
   const sync = (updated: OptionItem[]) => {
     setOptions(updated);
-    onChange(JSON.stringify(updated));
+    // Remove a flag customValue ao salvar (nao precisa ser persistida)
+    const cleaned = updated.map(({ customValue, ...rest }) => rest);
+    onChange(JSON.stringify(cleaned));
   };
 
   const addOption = () => {
@@ -47,14 +52,18 @@ export function OptionsTraitEditor({ value, onChange }: OptionsTraitProps) {
   const updateOption = (index: number, field: 'value' | 'label', val: string) => {
     const updated = [...options];
     updated[index] = { ...updated[index], [field]: val };
-    // Auto-sync value from label if value was auto-generated
-    if (field === 'label' && (updated[index].value === '' || updated[index].value.startsWith('opcao_'))) {
+    // Auto-sync value from label (sempre, exceto se o usuario editou o value manualmente)
+    if (field === 'label' && !updated[index].customValue) {
       updated[index].value = val
         .toLowerCase()
         .normalize('NFD')
         .replace(/[\u0300-\u036f]/g, '')
         .replace(/[^a-z0-9]+/g, '_')
         .replace(/^_|_$/g, '');
+    }
+    // Marcar que o value foi editado manualmente
+    if (field === 'value') {
+      updated[index].customValue = true;
     }
     sync(updated);
   };
@@ -91,47 +100,77 @@ export function OptionsTraitEditor({ value, onChange }: OptionsTraitProps) {
       )}
 
       <div className="space-y-1.5 max-h-64 overflow-y-auto">
-        {options.map((opt, i) => (
-          <div key={i} className="flex items-center gap-1 group">
-            <button
-              className="cursor-grab text-muted-foreground hover:text-foreground p-0.5"
-              title="Mover"
-              onMouseDown={(e) => e.preventDefault()}
-              onClick={() => moveOption(i, i - 1)}
-            >
-              <GripVertical className="h-3 w-3" />
-            </button>
+        {options.map((opt, i) => {
+          const isExpanded = expandedIndex === i;
+          return (
+            <div key={i} className="border border-border/50 rounded-md p-1.5 group">
+              <div className="flex items-center gap-1">
+                <button
+                  className="cursor-grab text-muted-foreground hover:text-foreground p-0.5"
+                  title="Mover"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => moveOption(i, i - 1)}
+                >
+                  <GripVertical className="h-3 w-3" />
+                </button>
 
-            {/* Color dot */}
-            <div className="relative">
-              <button
-                className="w-4 h-4 rounded-full border border-border flex-shrink-0"
-                style={{ backgroundColor: opt.color || '#6b7280' }}
-                title="Cor"
-                onClick={(e) => {
-                  const next = COLORS[(COLORS.indexOf(opt.color || '#6b7280') + 1) % COLORS.length];
-                  setColor(i, next);
-                  e.stopPropagation();
-                }}
-              />
+                {/* Color dot */}
+                <div className="relative">
+                  <button
+                    className="w-4 h-4 rounded-full border border-border flex-shrink-0"
+                    style={{ backgroundColor: opt.color || '#6b7280' }}
+                    title="Cor"
+                    onClick={(e) => {
+                      const next = COLORS[(COLORS.indexOf(opt.color || '#6b7280') + 1) % COLORS.length];
+                      setColor(i, next);
+                      e.stopPropagation();
+                    }}
+                  />
+                </div>
+
+                <Input
+                  value={opt.label}
+                  onChange={(e) => updateOption(i, 'label', e.target.value)}
+                  className="h-7 text-xs flex-1"
+                  placeholder="Label"
+                />
+
+                <button
+                  className="text-muted-foreground hover:text-foreground p-0.5"
+                  onClick={() => setExpandedIndex(isExpanded ? null : i)}
+                  title="Expandir"
+                >
+                  <ChevronDown className={cn("h-3 w-3 transition-transform", isExpanded && "rotate-180")} />
+                </button>
+
+                <button
+                  className="text-muted-foreground hover:text-destructive p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
+                  onClick={() => removeOption(i)}
+                  title="Remover"
+                >
+                  <Trash2 className="h-3 w-3" />
+                </button>
+              </div>
+
+              {isExpanded && (
+                <div className="mt-1.5 pl-5 space-y-1">
+                  <div className="text-[10px] text-muted-foreground">Valor (salvo no banco):</div>
+                  <Input
+                    value={opt.value}
+                    onChange={(e) => updateOption(i, 'value', e.target.value)}
+                    className="h-6 text-xs font-mono"
+                    placeholder="valor_salvo"
+                  />
+                  {!opt.customValue && (
+                    <div className="text-[9px] text-muted-foreground italic">
+                      Auto-sincronizado do label
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
-
-            <Input
-              value={opt.label}
-              onChange={(e) => updateOption(i, 'label', e.target.value)}
-              className="h-7 text-xs flex-1"
-              placeholder="Label"
-            />
-
-            <button
-              className="text-muted-foreground hover:text-destructive p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
-              onClick={() => removeOption(i)}
-              title="Remover"
-            >
-              <Trash2 className="h-3 w-3" />
-            </button>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
