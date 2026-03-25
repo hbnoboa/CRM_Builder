@@ -55,6 +55,10 @@ const DEFAULT_MODULE_PERMISSIONS: Record<RoleType, ModulePermissions> = {
     pdfTemplates: { ...FULL_CRUD, canGenerate: true } as ModulePermission,
     auditLogs: READ_ONLY,
     dashboardTemplates: FULL_CRUD,
+    webhooks: FULL_CRUD,
+    actionChains: FULL_CRUD,
+    emailTemplates: FULL_CRUD,
+    notifications: FULL_CRUD,
   },
   ADMIN: {
     dashboard: FULL_CRUD,
@@ -68,6 +72,10 @@ const DEFAULT_MODULE_PERMISSIONS: Record<RoleType, ModulePermissions> = {
     roles: FULL_CRUD,
     pdfTemplates: { ...FULL_CRUD, canGenerate: true } as ModulePermission,
     dashboardTemplates: FULL_CRUD,
+    webhooks: FULL_CRUD,
+    actionChains: FULL_CRUD,
+    emailTemplates: FULL_CRUD,
+    notifications: FULL_CRUD,
   },
   MANAGER: {
     dashboard: READ_ONLY,
@@ -81,6 +89,10 @@ const DEFAULT_MODULE_PERMISSIONS: Record<RoleType, ModulePermissions> = {
     roles: READ_ONLY,
     pdfTemplates: PDF_READ_GENERATE,
     dashboardTemplates: NO_CRUD,
+    webhooks: READ_ONLY,
+    actionChains: READ_ONLY,
+    emailTemplates: READ_ONLY,
+    notifications: READ_ONLY,
   },
   USER: {
     dashboard: READ_ONLY,
@@ -94,6 +106,10 @@ const DEFAULT_MODULE_PERMISSIONS: Record<RoleType, ModulePermissions> = {
     roles: NO_CRUD,
     pdfTemplates: PDF_READ_GENERATE,
     dashboardTemplates: NO_CRUD,
+    webhooks: NO_CRUD,
+    actionChains: NO_CRUD,
+    emailTemplates: NO_CRUD,
+    notifications: READ_ONLY,
   },
   VIEWER: {
     dashboard: READ_ONLY,
@@ -107,6 +123,10 @@ const DEFAULT_MODULE_PERMISSIONS: Record<RoleType, ModulePermissions> = {
     roles: NO_CRUD,
     pdfTemplates: PDF_READ_GENERATE,
     dashboardTemplates: NO_CRUD,
+    webhooks: NO_CRUD,
+    actionChains: NO_CRUD,
+    emailTemplates: NO_CRUD,
+    notifications: READ_ONLY,
   },
   CUSTOM: {
     dashboard: READ_ONLY,
@@ -120,6 +140,10 @@ const DEFAULT_MODULE_PERMISSIONS: Record<RoleType, ModulePermissions> = {
     roles: NO_CRUD,
     pdfTemplates: NO_CRUD,
     dashboardTemplates: NO_CRUD,
+    webhooks: NO_CRUD,
+    actionChains: NO_CRUD,
+    emailTemplates: NO_CRUD,
+    notifications: NO_CRUD,
   },
 };
 
@@ -139,9 +163,13 @@ const MODULE_KEY_MAP: Record<string, keyof ModulePermissions> = {
   pdfTemplates: 'pdfTemplates',
   auditLogs: 'auditLogs',
   dashboardTemplates: 'dashboardTemplates',
+  webhooks: 'webhooks',
+  actionChains: 'actionChains',
+  emailTemplates: 'emailTemplates',
+  notifications: 'notifications',
 };
 
-const MODULE_KEYS: (keyof ModulePermissions)[] = ['dashboard', 'users', 'settings', 'apis', 'pages', 'entities', 'tenants', 'data', 'roles', 'pdfTemplates', 'auditLogs', 'dashboardTemplates'];
+const MODULE_KEYS: (keyof ModulePermissions)[] = ['dashboard', 'users', 'settings', 'apis', 'pages', 'entities', 'tenants', 'data', 'roles', 'pdfTemplates', 'auditLogs', 'dashboardTemplates', 'webhooks', 'actionChains', 'emailTemplates', 'notifications'];
 
 export function usePermissions() {
   const user = useAuthStore((s) => s.user);

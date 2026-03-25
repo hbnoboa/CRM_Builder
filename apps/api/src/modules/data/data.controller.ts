@@ -22,6 +22,7 @@ import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { CurrentUser as CurrentUserType } from '../../common/types';
+import { checkModulePermission } from '../../common/utils/check-module-permission';
 
 @ApiTags('Data')
 @Controller('data')
@@ -93,6 +94,7 @@ export class DataController {
     @Body() dto: { data: Record<string, any>; parentRecordId?: string; tenantId?: string },
     @CurrentUser() user: CurrentUserType,
   ) {
+    checkModulePermission(user, 'data', 'canCreate');
     return this.dataService.create(entitySlug, dto, user);
   }
 
@@ -103,6 +105,7 @@ export class DataController {
     @Query() query: QueryDataDto,
     @CurrentUser() user: CurrentUserType,
   ) {
+    checkModulePermission(user, 'data', 'canRead');
     return this.dataService.findAllArchived(entitySlug, query, user);
   }
 
@@ -113,6 +116,7 @@ export class DataController {
     @Query() query: QueryDataDto,
     @CurrentUser() user: CurrentUserType,
   ) {
+    checkModulePermission(user, 'data', 'canRead');
     return this.dataService.findAll(entitySlug, query, user);
   }
 
@@ -124,6 +128,7 @@ export class DataController {
     @Query('tenantId') tenantId: string | undefined,
     @CurrentUser() user: CurrentUserType,
   ) {
+    checkModulePermission(user, 'data', 'canRead');
     return this.dataService.findOne(entitySlug, id, user, tenantId);
   }
 
@@ -135,6 +140,7 @@ export class DataController {
     @Body() dto: { data: Record<string, any>; tenantId?: string },
     @CurrentUser() user: CurrentUserType,
   ) {
+    checkModulePermission(user, 'data', 'canUpdate');
     return this.dataService.update(entitySlug, id, dto, user);
   }
 
@@ -146,6 +152,7 @@ export class DataController {
     @Query('tenantId') tenantId: string | undefined,
     @CurrentUser() user: CurrentUserType,
   ) {
+    checkModulePermission(user, 'data', 'canDelete');
     return this.dataService.remove(entitySlug, id, user, tenantId);
   }
 }
