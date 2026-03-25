@@ -14,6 +14,7 @@ import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import { CurrentUser as CurrentUserType } from '../../common/types';
 import { WebhookService } from './webhook.service';
 import { checkModulePermission } from '../../common/utils/check-module-permission';
 import {
@@ -88,13 +89,6 @@ class UpdateWebhookDto extends CreateWebhookDto {
   status?: WebhookStatus;
 }
 
-interface AuthUser {
-  id: string;
-  tenantId: string;
-  email: string;
-  name: string;
-}
-
 @ApiTags('Webhooks')
 @ApiBearerAuth()
 @Controller('webhooks')
@@ -105,7 +99,7 @@ export class WebhookController {
   @Get()
   @ApiOperation({ summary: 'Lista webhooks do tenant' })
   async findAll(
-    @CurrentUser() user: AuthUser,
+    @CurrentUser() user: CurrentUserType,
     @Query('entityId') entityId?: string,
   ) {
     checkModulePermission(user, 'webhooks', 'canRead');
@@ -114,7 +108,7 @@ export class WebhookController {
 
   @Get(':id')
   @ApiOperation({ summary: 'Busca webhook por ID' })
-  async findOne(@Param('id') id: string, @CurrentUser() user: AuthUser) {
+  async findOne(@Param('id') id: string, @CurrentUser() user: CurrentUserType) {
     checkModulePermission(user, 'webhooks', 'canRead');
     return this.webhookService.findOne(id, user.tenantId);
   }
@@ -122,7 +116,7 @@ export class WebhookController {
   @Post()
   @ApiOperation({ summary: 'Cria novo webhook' })
   @Roles('ADMIN', 'PLATFORM_ADMIN')
-  async create(@Body() dto: CreateWebhookDto, @CurrentUser() user: AuthUser) {
+  async create(@Body() dto: CreateWebhookDto, @CurrentUser() user: CurrentUserType) {
     checkModulePermission(user, 'webhooks', 'canCreate');
     return this.webhookService.create(user.tenantId, dto);
   }
@@ -133,7 +127,7 @@ export class WebhookController {
   async update(
     @Param('id') id: string,
     @Body() dto: UpdateWebhookDto,
-    @CurrentUser() user: AuthUser,
+    @CurrentUser() user: CurrentUserType,
   ) {
     checkModulePermission(user, 'webhooks', 'canUpdate');
     return this.webhookService.update(id, user.tenantId, dto);
@@ -142,7 +136,7 @@ export class WebhookController {
   @Delete(':id')
   @ApiOperation({ summary: 'Remove webhook' })
   @Roles('ADMIN', 'PLATFORM_ADMIN')
-  async delete(@Param('id') id: string, @CurrentUser() user: AuthUser) {
+  async delete(@Param('id') id: string, @CurrentUser() user: CurrentUserType) {
     checkModulePermission(user, 'webhooks', 'canDelete');
     return this.webhookService.delete(id, user.tenantId);
   }
@@ -151,7 +145,7 @@ export class WebhookController {
   @ApiOperation({ summary: 'Lista execucoes do webhook' })
   async getExecutions(
     @Param('id') id: string,
-    @CurrentUser() user: AuthUser,
+    @CurrentUser() user: CurrentUserType,
     @Query('page') page?: string,
     @Query('limit') limit?: string,
   ) {
