@@ -12,8 +12,11 @@ import {
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
+import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import { CurrentUser as CurrentUserType } from '../../common/types';
 import { ActionChainService } from './action-chain.service';
+import { checkModulePermission } from '../../common/utils/check-module-permission';
 import { IsString, IsOptional, IsEnum, IsArray, IsBoolean, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ActionChainTrigger } from '@prisma/client';
@@ -69,13 +72,6 @@ class ExecuteManualDto {
   inputData?: Record<string, unknown>;
 }
 
-interface AuthUser {
-  id: string;
-  tenantId: string;
-  email: string;
-  name: string;
-}
-
 @ApiTags('Action Chains')
 @ApiBearerAuth()
 @Controller('action-chains')
@@ -86,47 +82,57 @@ export class ActionChainController {
   @Get()
   @ApiOperation({ summary: 'Lista action chains do tenant' })
   async findAll(
-    @CurrentUser() user: AuthUser,
+    @CurrentUser() user: CurrentUserType,
     @Query('entityId') entityId?: string,
   ) {
+    checkModulePermission(user, 'actionChains', 'canRead');
     return this.actionChainService.findAll(user.tenantId, entityId);
   }
 
   @Get(':id')
   @ApiOperation({ summary: 'Busca action chain por ID' })
-  async findOne(@Param('id') id: string, @CurrentUser() user: AuthUser) {
+  async findOne(@Param('id') id: string, @CurrentUser() user: CurrentUserType) {
+    checkModulePermission(user, 'actionChains', 'canRead');
     return this.actionChainService.findOne(id, user.tenantId);
   }
 
   @Post()
   @ApiOperation({ summary: 'Cria nova action chain' })
-  async create(@Body() dto: CreateActionChainDto, @CurrentUser() user: AuthUser) {
+  @Roles('ADMIN', 'PLATFORM_ADMIN')
+  async create(@Body() dto: CreateActionChainDto, @CurrentUser() user: CurrentUserType) {
+    checkModulePermission(user, 'actionChains', 'canCreate');
     return this.actionChainService.create(user.tenantId, dto);
   }
 
   @Put(':id')
   @ApiOperation({ summary: 'Atualiza action chain' })
+  @Roles('ADMIN', 'PLATFORM_ADMIN')
   async update(
     @Param('id') id: string,
     @Body() dto: UpdateActionChainDto,
-    @CurrentUser() user: AuthUser,
+    @CurrentUser() user: CurrentUserType,
   ) {
+    checkModulePermission(user, 'actionChains', 'canUpdate');
     return this.actionChainService.update(id, user.tenantId, dto);
   }
 
   @Delete(':id')
   @ApiOperation({ summary: 'Remove action chain' })
-  async delete(@Param('id') id: string, @CurrentUser() user: AuthUser) {
+  @Roles('ADMIN', 'PLATFORM_ADMIN')
+  async delete(@Param('id') id: string, @CurrentUser() user: CurrentUserType) {
+    checkModulePermission(user, 'actionChains', 'canDelete');
     return this.actionChainService.delete(id, user.tenantId);
   }
 
   @Post(':id/execute')
   @ApiOperation({ summary: 'Executa action chain manualmente' })
+  @Roles('ADMIN', 'PLATFORM_ADMIN')
   async executeManual(
     @Param('id') id: string,
     @Body() dto: ExecuteManualDto,
-    @CurrentUser() user: AuthUser,
+    @CurrentUser() user: CurrentUserType,
   ) {
+    checkModulePermission(user, 'actionChains', 'canExecute');
     const executionId = await this.actionChainService.executeManual(
       id,
       user.tenantId,
@@ -142,10 +148,11 @@ export class ActionChainController {
   @ApiOperation({ summary: 'Lista execucoes da action chain' })
   async getExecutions(
     @Param('id') id: string,
-    @CurrentUser() user: AuthUser,
+    @CurrentUser() user: CurrentUserType,
     @Query('page') page?: string,
     @Query('limit') limit?: string,
   ) {
+    checkModulePermission(user, 'actionChains', 'canRead');
     return this.actionChainService.getExecutions(
       id,
       user.tenantId,

@@ -709,7 +709,15 @@
       "auditLogs": "Audit Logs",
       "auditLogsDesc": "View system audit logs",
       "dashboardTemplates": "Dashboard Templates",
-      "dashboardTemplatesDesc": "Configure dashboard templates per role"
+      "dashboardTemplatesDesc": "Configure dashboard templates per role",
+      "webhooks": "Webhooks",
+      "webhooksDesc": "Integrate with external services via HTTP",
+      "actionChains": "Automations",
+      "actionChainsDesc": "Create automated action flows",
+      "emailTemplates": "Email Templates",
+      "emailTemplatesDesc": "Manage system email templates",
+      "notifications": "Notifications",
+      "notificationsDesc": "View system notifications"
     },
     "userRoles": {
       "title": "Manage Permissions",
@@ -775,7 +783,8 @@
       "canExport": "Export Records",
       "canImport": "Import Records",
       "canEditLocked": "Edit Locked Records",
-      "canGenerate": "Generate PDF"
+      "canGenerate": "Generate PDF",
+      "canExecute": "Execute Manually"
     },
     "permissionCategories": {
       "entities": "Tables",

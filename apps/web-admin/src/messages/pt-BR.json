@@ -712,7 +712,15 @@
       "auditLogs": "Logs de Auditoria",
       "auditLogsDesc": "Visualizar logs de auditoria do sistema",
       "dashboardTemplates": "Templates de Dashboard",
-      "dashboardTemplatesDesc": "Configurar templates de dashboard por cargo"
+      "dashboardTemplatesDesc": "Configurar templates de dashboard por cargo",
+      "webhooks": "Webhooks",
+      "webhooksDesc": "Integrar com serviços externos via HTTP",
+      "actionChains": "Automações",
+      "actionChainsDesc": "Criar fluxos de ações automatizadas",
+      "emailTemplates": "Templates de Email",
+      "emailTemplatesDesc": "Gerenciar templates de email do sistema",
+      "notifications": "Notificações",
+      "notificationsDesc": "Ver notificações do sistema"
     },
     "userRoles": {
       "title": "Gerenciar Permissões",
@@ -778,7 +786,8 @@
       "canExport": "Exportar Registros",
       "canImport": "Importar Registros",
       "canEditLocked": "Editar Registros Travados",
-      "canGenerate": "Gerar PDF"
+      "canGenerate": "Gerar PDF",
+      "canExecute": "Executar Manualmente"
     },
     "permissionCategories": {
       "entities": "Tabelas",

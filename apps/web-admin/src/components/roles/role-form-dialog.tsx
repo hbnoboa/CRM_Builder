@@ -25,6 +25,7 @@ import {
   Eye, Plus, Pencil, Trash2, Shield, Database, Users,
   Settings, Code, LayoutDashboard, Globe, User, Building2,
   ChevronRight, ListFilter, X, FileText, Bell, ScrollText, BarChart3,
+  Webhook, Zap, Mail,
 } from 'lucide-react';
 import { useCreateCustomRole, useUpdateCustomRole } from '@/hooks/use-custom-roles';
 import { useQuery } from '@tanstack/react-query';
@@ -50,7 +51,7 @@ function normalizeModulePermToRecord(mp: Record<string, unknown> | null | undefi
   return result;
 }
 
-const MODULE_KEYS = ['dashboard', 'users', 'roles', 'entities', 'data', 'apis', 'pdfTemplates', 'settings', 'tenants', 'auditLogs', 'dashboardTemplates'] as const;
+const MODULE_KEYS = ['dashboard', 'users', 'roles', 'entities', 'data', 'apis', 'pdfTemplates', 'settings', 'tenants', 'auditLogs', 'dashboardTemplates', 'webhooks', 'actionChains', 'emailTemplates', 'notifications'] as const;
 
 function getDefaultModulePerms(): Record<string, ModulePermission> {
   const result: Record<string, ModulePermission> = {};
@@ -559,6 +560,10 @@ export function RoleFormDialog({ open, onOpenChange, role, onSuccess }: RoleForm
     roles: <Shield className="h-4 w-4" />,
     auditLogs: <ScrollText className="h-4 w-4" />,
     dashboardTemplates: <BarChart3 className="h-4 w-4" />,
+    webhooks: <Webhook className="h-4 w-4" />,
+    actionChains: <Zap className="h-4 w-4" />,
+    emailTemplates: <Mail className="h-4 w-4" />,
+    notifications: <Bell className="h-4 w-4" />,
   };
 
   const crudActions = [
@@ -598,6 +603,9 @@ export function RoleFormDialog({ open, onOpenChange, role, onSuccess }: RoleForm
       { key: 'canConfigureColumns', label: t('permissions.canConfigureColumns') },
       { key: 'canExport', label: t('permissions.canExport') },
       { key: 'canImport', label: t('permissions.canImport') },
+    ],
+    actionChains: [
+      { key: 'canExecute', label: t('permissions.canExecute') },
     ],
   };
 

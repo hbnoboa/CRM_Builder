@@ -63,6 +63,7 @@ export interface ModulePermission {
   canConfigureColumns?: boolean; // data
   canExport?: boolean;         // data
   canImport?: boolean;         // data
+  canExecute?: boolean;        // actionChains
 }
 
 export interface ModulePermissions {
@@ -76,6 +77,10 @@ export interface ModulePermissions {
   data?: ModulePermission;
   roles?: ModulePermission;
   dashboardTemplates?: ModulePermission;
+  webhooks?: ModulePermission;
+  actionChains?: ModulePermission;
+  emailTemplates?: ModulePermission;
+  notifications?: ModulePermission;
 }
 
 export interface CustomRole {

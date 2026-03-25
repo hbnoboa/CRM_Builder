@@ -12,9 +12,11 @@ import {
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
+import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { CurrentUser as CurrentUserType } from '../../common/types';
 import { getEffectiveTenantId } from '../../common/utils/tenant.util';
+import { checkModulePermission } from '../../common/utils/check-module-permission';
 import { EntityAutomationService } from './entity-automation.service';
 import { CreateAutomationDto } from './dto/create-automation.dto';
 import { UpdateAutomationDto } from './dto/update-automation.dto';
@@ -50,6 +52,7 @@ export class EntityAutomationController {
     @Query('page') page?: string,
     @Query('limit') limit?: string,
   ) {
+    checkModulePermission(user, 'entities', 'canRead');
     const effectiveTenantId = getEffectiveTenantId(user, tenantId);
     return this.automationService.findAll(effectiveTenantId, entityId, {
       isActive: isActive !== undefined ? isActive === 'true' : undefined,
@@ -68,24 +71,28 @@ export class EntityAutomationController {
     @CurrentUser() user: CurrentUserType,
     @Query('tenantId') tenantId?: string,
   ) {
+    checkModulePermission(user, 'entities', 'canRead');
     const effectiveTenantId = getEffectiveTenantId(user, tenantId);
     return this.automationService.findOne(effectiveTenantId, entityId, id);
   }
 
   @Post()
   @ApiOperation({ summary: 'Cria nova automacao' })
+  @Roles('ADMIN', 'PLATFORM_ADMIN')
   async create(
     @Param('entityId') entityId: string,
     @Body() dto: CreateAutomationDto,
     @CurrentUser() user: CurrentUserType,
     @Query('tenantId') tenantId?: string,
   ) {
+    checkModulePermission(user, 'entities', 'canUpdate');
     const effectiveTenantId = getEffectiveTenantId(user, tenantId);
     return this.automationService.create(effectiveTenantId, entityId, dto);
   }
 
   @Patch(':id')
   @ApiOperation({ summary: 'Atualiza automacao' })
+  @Roles('ADMIN', 'PLATFORM_ADMIN')
   async update(
     @Param('entityId') entityId: string,
     @Param('id') id: string,
@@ -93,24 +100,28 @@ export class EntityAutomationController {
     @CurrentUser() user: CurrentUserType,
     @Query('tenantId') tenantId?: string,
   ) {
+    checkModulePermission(user, 'entities', 'canUpdate');
     const effectiveTenantId = getEffectiveTenantId(user, tenantId);
     return this.automationService.update(effectiveTenantId, entityId, id, dto);
   }
 
   @Delete(':id')
   @ApiOperation({ summary: 'Remove automacao' })
+  @Roles('ADMIN', 'PLATFORM_ADMIN')
   async remove(
     @Param('entityId') entityId: string,
     @Param('id') id: string,
     @CurrentUser() user: CurrentUserType,
     @Query('tenantId') tenantId?: string,
   ) {
+    checkModulePermission(user, 'entities', 'canDelete');
     const effectiveTenantId = getEffectiveTenantId(user, tenantId);
     return this.automationService.remove(effectiveTenantId, entityId, id);
   }
 
   @Post(':id/execute')
   @ApiOperation({ summary: 'Executa automacao manualmente' })
+  @Roles('ADMIN', 'PLATFORM_ADMIN')
   async executeManual(
     @Param('entityId') entityId: string,
     @Param('id') id: string,
@@ -118,6 +129,7 @@ export class EntityAutomationController {
     @CurrentUser() user: CurrentUserType,
     @Query('tenantId') tenantId?: string,
   ) {
+    checkModulePermission(user, 'entities', 'canUpdate');
     const effectiveTenantId = getEffectiveTenantId(user, tenantId);
     return this.automationService.executeManual(
       effectiveTenantId,
@@ -139,6 +151,7 @@ export class EntityAutomationController {
     @Query('page') page?: string,
     @Query('limit') limit?: string,
   ) {
+    checkModulePermission(user, 'entities', 'canRead');
     const effectiveTenantId = getEffectiveTenantId(user, tenantId);
     return this.automationService.getExecutions(
       effectiveTenantId,

@@ -708,7 +708,15 @@
       "auditLogs": "Registros de Auditoria",
       "auditLogsDesc": "Ver registros de auditoria del sistema",
       "dashboardTemplates": "Plantillas de Dashboard",
-      "dashboardTemplatesDesc": "Configurar plantillas de dashboard por rol"
+      "dashboardTemplatesDesc": "Configurar plantillas de dashboard por rol",
+      "webhooks": "Webhooks",
+      "webhooksDesc": "Integrar con servicios externos via HTTP",
+      "actionChains": "Automatizaciones",
+      "actionChainsDesc": "Crear flujos de acciones automatizadas",
+      "emailTemplates": "Plantillas de Email",
+      "emailTemplatesDesc": "Administrar plantillas de email del sistema",
+      "notifications": "Notificaciones",
+      "notificationsDesc": "Ver notificaciones del sistema"
     },
     "userRoles": {
       "title": "Gestionar Permisos",
@@ -774,7 +782,8 @@
       "canExport": "Exportar Registros",
       "canImport": "Importar Registros",
       "canEditLocked": "Editar Registros Bloqueados",
-      "canGenerate": "Generar PDF"
+      "canGenerate": "Generar PDF",
+      "canExecute": "Ejecutar Manualmente"
     },
     "permissionCategories": {
       "entities": "Tablas",
