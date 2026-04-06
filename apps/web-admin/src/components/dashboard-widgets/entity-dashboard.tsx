@@ -33,6 +33,8 @@ import { ZoneDiagramWidget } from './zone-diagram-widget';
 import { ImageGalleryWidget } from './image-gallery-widget';
 import { StatListWidget } from './stat-list-widget';
 import { DataTableWidget } from './data-table-widget';
+import SubEntityListWidget from './sub-entity-list-widget';
+import SubEntityTimelineWidget from './sub-entity-timeline-widget';
 import { cn } from '@/lib/utils';
 import type { WidgetConfig, WidgetType } from '@crm-builder/shared';
 
@@ -119,6 +121,10 @@ function renderWidget(
       return <StatListWidget {...commonProps} />;
     case 'data-table':
       return <DataTableWidget {...commonProps} />;
+    case 'sub-entity-list':
+      return <SubEntityListWidget config={widgetConfig.config} />;
+    case 'sub-entity-timeline':
+      return <SubEntityTimelineWidget config={widgetConfig.config} />;
     default:
       return (
         <WidgetWrapper title={widgetConfig.title}>

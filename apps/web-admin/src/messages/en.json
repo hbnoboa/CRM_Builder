@@ -717,7 +717,31 @@
       "emailTemplates": "Email Templates",
       "emailTemplatesDesc": "Manage system email templates",
       "notifications": "Notifications",
-      "notificationsDesc": "View system notifications"
+      "notificationsDesc": "View system notifications",
+      "automations": "Automations",
+      "automationsDesc": "Manage webhooks, action chains and entity automations",
+      "templates": "Templates",
+      "templatesDesc": "Manage PDF and email templates",
+      "logs": "Logs",
+      "logsDesc": "View audit and execution logs",
+      "publicLinks": "Public Links",
+      "publicLinksDesc": "Create and manage public form links",
+      "archive": "Archive",
+      "archiveDesc": "Archived records and trash",
+      "executionLogs": "Execution Logs",
+      "executionLogsDesc": "Automation execution logs",
+      "entityAutomation": "Entity Automations",
+      "entityAutomationDesc": "Entity-linked automations"
+    },
+    "subModules": {
+      "title": "Sub-modules",
+      "webhooks": "Webhooks",
+      "actionChains": "Action Chains",
+      "entityAutomation": "Entity Automations",
+      "pdfTemplates": "PDF Templates",
+      "emailTemplates": "Email Templates",
+      "auditLogs": "Audit Logs",
+      "executionLogs": "Execution Logs"
     },
     "userRoles": {
       "title": "Manage Permissions",
@@ -784,7 +808,36 @@
       "canImport": "Import Records",
       "canEditLocked": "Edit Locked Records",
       "canGenerate": "Generate PDF",
-      "canExecute": "Execute Manually"
+      "canExecute": "Execute Manually",
+      "canManageTenantAccess": "Manage Tenant Access",
+      "canPermanentDelete": "Permanently Delete"
+    },
+    "dataFilters": {
+      "title": "Data Filters",
+      "sectionTitle": "Data Filters ({count})",
+      "description": "Filters restrict which records users with this role can see in this entity.",
+      "operators": {
+        "contains": "Contains",
+        "equals": "Equals",
+        "startsWith": "Starts with",
+        "endsWith": "Ends with",
+        "isEmpty": "Is empty",
+        "isNotEmpty": "Is not empty",
+        "gt": "Greater than",
+        "gte": "Greater or equal",
+        "lt": "Less than",
+        "lte": "Less or equal",
+        "between": "Between"
+      }
+    },
+    "notificationRules": {
+      "title": "Notifications",
+      "active": "(active)",
+      "enableLabel": "Receive notifications from this entity",
+      "whenLabel": "When:",
+      "onCreate": "Creation",
+      "onUpdate": "Update",
+      "onDelete": "Deletion"
     },
     "permissionCategories": {
       "entities": "Tables",
@@ -838,6 +891,8 @@
       "plan": "Plan",
       "planPlaceholder": "Select a plan",
       "adminTitle": "Tenant Administrator",
+      "adminOptionalHint": "Leave blank to create the tenant without users. You can add users later.",
+      "optional": "optional",
       "adminName": "Administrator Name",
       "adminNamePlaceholder": "John Doe",
       "adminEmail": "Administrator Email",
@@ -850,6 +905,8 @@
       "themeTitle": "Theme",
       "themeReset": "Reset",
       "brandColor": "Brand Color",
+      "secondaryColor": "Secondary Color",
+      "accentColor": "Accent Color",
       "presetColors": "Preset colors",
       "darkModePreference": "Default dark mode",
       "darkMode": {
@@ -860,6 +917,7 @@
       "themePreview": "Preview",
       "previewButton": "Button",
       "previewSecondary": "Secondary",
+      "previewAccent": "Accent",
       "previewDelete": "Delete",
       "previewMutedText": "Sample muted text",
       "previewCard": "Sample card with border"
@@ -982,7 +1040,8 @@
     "apiPathRequired": "Path is required",
     "slugMinLength": "Slug must have at least 2 characters",
     "adminNameMinLength": "Admin name must have at least 2 characters",
-    "passwordMinLength": "Password must have at least 8 characters"
+    "passwordMinLength": "Password must have at least 8 characters",
+    "adminFieldsRequired": "If providing administrator details, all fields (name, email and password) are required"
   },
   "languageSwitcher": {
     "label": "Language"
