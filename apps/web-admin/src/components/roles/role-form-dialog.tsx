@@ -76,43 +76,6 @@ function countCrudActive(perm: ModulePermission): number {
   return count;
 }
 
-const OPERATORS_BY_TYPE: Record<string, { value: string; label: string }[]> = {
-  text: [
-    { value: 'contains', label: 'Contém' },
-    { value: 'equals', label: 'Igual a' },
-    { value: 'startsWith', label: 'Começa com' },
-    { value: 'endsWith', label: 'Termina com' },
-    { value: 'isEmpty', label: 'Está vazio' },
-    { value: 'isNotEmpty', label: 'Não está vazio' },
-  ],
-  number: [
-    { value: 'equals', label: 'Igual a' },
-    { value: 'gt', label: 'Maior que' },
-    { value: 'gte', label: 'Maior ou igual' },
-    { value: 'lt', label: 'Menor que' },
-    { value: 'lte', label: 'Menor ou igual' },
-    { value: 'between', label: 'Entre' },
-    { value: 'isEmpty', label: 'Está vazio' },
-  ],
-  date: [
-    { value: 'equals', label: 'Igual a' },
-    { value: 'gt', label: 'Depois de' },
-    { value: 'gte', label: 'A partir de' },
-    { value: 'lt', label: 'Antes de' },
-    { value: 'lte', label: 'Até' },
-    { value: 'between', label: 'Entre' },
-    { value: 'isEmpty', label: 'Está vazio' },
-  ],
-  boolean: [
-    { value: 'equals', label: 'Igual a' },
-  ],
-  select: [
-    { value: 'equals', label: 'Igual a' },
-    { value: 'isEmpty', label: 'Está vazio' },
-    { value: 'isNotEmpty', label: 'Não está vazio' },
-  ],
-};
-
 function getOperatorCategory(fieldType: string): string {
   const textTypes = ['text', 'textarea', 'richtext', 'email', 'phone', 'url', 'cpf', 'cnpj', 'cep', 'password'];
   const numberTypes = ['number', 'currency', 'percentage', 'rating', 'slider'];
@@ -128,21 +91,60 @@ function getOperatorCategory(fieldType: string): string {
   return 'text';
 }
 
-function getOperatorsForType(fieldType: string): { value: string; label: string }[] {
-  return OPERATORS_BY_TYPE[getOperatorCategory(fieldType)] || OPERATORS_BY_TYPE.text;
-}
-
 function DataFilterAdder({ fields, onAdd }: {
   fields: EntityField[];
   onAdd: (filter: DataFilter) => void;
 }) {
+  const t = useTranslations('rolesPage');
+  const tCommon = useTranslations('common');
   const [fieldSlug, setFieldSlug] = useState('');
   const [operator, setOperator] = useState('');
   const [value, setValue] = useState('');
   const [value2, setValue2] = useState('');
 
+  const getOperatorsForType = (fieldType: string): { value: string; label: string }[] => {
+    const category = getOperatorCategory(fieldType);
+    const OPERATORS_BY_TYPE: Record<string, { value: string; label: string }[]> = {
+      text: [
+        { value: 'contains', label: t('dataFilters.operators.contains') },
+        { value: 'equals', label: t('dataFilters.operators.equals') },
+        { value: 'startsWith', label: t('dataFilters.operators.startsWith') },
+        { value: 'endsWith', label: t('dataFilters.operators.endsWith') },
+        { value: 'isEmpty', label: t('dataFilters.operators.isEmpty') },
+        { value: 'isNotEmpty', label: t('dataFilters.operators.isNotEmpty') },
+      ],
+      number: [
+        { value: 'equals', label: t('dataFilters.operators.equals') },
+        { value: 'gt', label: t('dataFilters.operators.gt') },
+        { value: 'gte', label: t('dataFilters.operators.gte') },
+        { value: 'lt', label: t('dataFilters.operators.lt') },
+        { value: 'lte', label: t('dataFilters.operators.lte') },
+        { value: 'between', label: t('dataFilters.operators.between') },
+        { value: 'isEmpty', label: t('dataFilters.operators.isEmpty') },
+      ],
+      date: [
+        { value: 'equals', label: t('dataFilters.operators.equals') },
+        { value: 'gt', label: t('dataFilters.operators.gt') },
+        { value: 'gte', label: t('dataFilters.operators.gte') },
+        { value: 'lt', label: t('dataFilters.operators.lt') },
+        { value: 'lte', label: t('dataFilters.operators.lte') },
+        { value: 'between', label: t('dataFilters.operators.between') },
+        { value: 'isEmpty', label: t('dataFilters.operators.isEmpty') },
+      ],
+      boolean: [
+        { value: 'equals', label: t('dataFilters.operators.equals') },
+      ],
+      select: [
+        { value: 'equals', label: t('dataFilters.operators.equals') },
+        { value: 'isEmpty', label: t('dataFilters.operators.isEmpty') },
+        { value: 'isNotEmpty', label: t('dataFilters.operators.isNotEmpty') },
+      ],
+    };
+    return OPERATORS_BY_TYPE[category] || OPERATORS_BY_TYPE.text;
+  };
+
   const selectedField = fields.find(f => f.slug === fieldSlug);
-  const operators = selectedField ? getOperatorsForType(selectedField.type) : OPERATORS_BY_TYPE.text;
+  const operators = selectedField ? getOperatorsForType(selectedField.type) : getOperatorsForType('text');
   const category = selectedField ? getOperatorCategory(selectedField.type) : 'text';
   const needsValue = !['isEmpty', 'isNotEmpty'].includes(operator);
   const needsValue2 = operator === 'between';
@@ -151,7 +153,7 @@ function DataFilterAdder({ fields, onAdd }: {
   const handleFieldChange = (slug: string) => {
     setFieldSlug(slug);
     const field = fields.find(f => f.slug === slug);
-    const ops = field ? getOperatorsForType(field.type) : OPERATORS_BY_TYPE.text;
+    const ops = field ? getOperatorsForType(field.type) : getOperatorsForType('text');
     setOperator(ops[0]?.value || 'equals');
     setValue('');
     setValue2('');
@@ -215,8 +217,8 @@ function DataFilterAdder({ fields, onAdd }: {
             <SelectValue placeholder="Valor..." />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="true" className="text-xs">Sim</SelectItem>
-            <SelectItem value="false" className="text-xs">Não</SelectItem>
+            <SelectItem value="true" className="text-xs">{tCommon('yes')}</SelectItem>
+            <SelectItem value="false" className="text-xs">{tCommon('no')}</SelectItem>
           </SelectContent>
         </Select>
       )}
@@ -249,7 +251,7 @@ function DataFilterAdder({ fields, onAdd }: {
         disabled={!fieldSlug || !operator || (needsValue && !value.trim()) || (needsValue2 && !value2.trim())}
       >
         <Plus className="h-3 w-3 mr-1" />
-        Adicionar
+        {tCommon('add')}
       </Button>
     </div>
   );
@@ -587,7 +589,7 @@ export function RoleFormDialog({ open, onOpenChange, role, onSuccess }: RoleForm
     users: [
       { key: 'canAssignRole', label: t('permissions.canAssignRole') },
       { key: 'canChangeStatus', label: t('permissions.canChangeStatus') },
-      { key: 'canManageTenantAccess', label: 'Gerenciar acesso a tenants' },
+      { key: 'canManageTenantAccess', label: t('permissions.canManageTenantAccess') },
     ],
     roles: [
       { key: 'canSetDefault', label: t('permissions.canSetDefault') },
@@ -606,25 +608,25 @@ export function RoleFormDialog({ open, onOpenChange, role, onSuccess }: RoleForm
       { key: 'canExecute', label: t('permissions.canExecute') },
     ],
     archive: [
-      { key: 'canPermanentDelete', label: 'Excluir permanentemente' },
+      { key: 'canPermanentDelete', label: t('permissions.canPermanentDelete') },
     ],
   };
 
-  const MODULE_SUB_PERMISSIONS: Record<string, { key: string; label: string }[]> = {
+  const MODULE_SUB_PERMISSIONS = useMemo(() => ({
     automations: [
-      { key: 'webhooks', label: 'Webhooks' },
-      { key: 'actionChains', label: 'Action Chains' },
-      { key: 'entityAutomation', label: 'Automações de Entidade' },
+      { key: 'webhooks', label: t('subModules.webhooks') },
+      { key: 'actionChains', label: t('subModules.actionChains') },
+      { key: 'entityAutomation', label: t('subModules.entityAutomation') },
     ],
     templates: [
-      { key: 'pdfTemplates', label: 'Templates PDF' },
-      { key: 'emailTemplates', label: 'Templates de Email' },
+      { key: 'pdfTemplates', label: t('subModules.pdfTemplates') },
+      { key: 'emailTemplates', label: t('subModules.emailTemplates') },
     ],
     logs: [
-      { key: 'auditLogs', label: 'Logs de Auditoria' },
-      { key: 'executionLogs', label: 'Logs de Execução' },
+      { key: 'auditLogs', label: t('subModules.auditLogs') },
+      { key: 'executionLogs', label: t('subModules.executionLogs') },
     ],
-  };
+  }), [t]);
 
   const ENTITY_EXTRA_ACTIONS = [
     { key: 'canConfigureColumns', label: t('permissions.canConfigureColumns') },
@@ -848,7 +850,7 @@ export function RoleFormDialog({ open, onOpenChange, role, onSuccess }: RoleForm
                                   <Separator />
                                   <div>
                                     <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">
-                                      Sub-módulos
+                                      {t('subModules.title')}
                                     </span>
                                     <div className="space-y-2 mt-2">
                                       {MODULE_SUB_PERMISSIONS[key].map(({ key: subKey, label: subLabel }) => {
@@ -1060,7 +1062,7 @@ export function RoleFormDialog({ open, onOpenChange, role, onSuccess }: RoleForm
                                         onClick={(e) => { e.stopPropagation(); toggleDataFiltersExpand(perm.entitySlug); }}
                                       >
                                         <ListFilter className="h-3 w-3" />
-                                        Filtros de Dados ({perm.dataFilters?.length || 0})
+                                        {t('dataFilters.sectionTitle', { count: perm.dataFilters?.length || 0 })}
                                         <span className="ml-1">{expandedDataFilters.has(perm.entitySlug) ? '▾' : '▸'}</span>
                                       </button>
                                       {expandedDataFilters.has(perm.entitySlug) && (
@@ -1119,7 +1121,7 @@ export function RoleFormDialog({ open, onOpenChange, role, onSuccess }: RoleForm
                                         onClick={(e) => { e.stopPropagation(); toggleNotifRulesExpand(perm.entitySlug); }}
                                       >
                                         <Bell className="h-3 w-3" />
-                                        Notificações {perm.notificationRules?.enabled ? '(ativo)' : ''}
+                                        {t('notificationRules.title')} {perm.notificationRules?.enabled ? t('notificationRules.active') : ''}
                                         <span className="ml-1">{expandedNotifRules.has(perm.entitySlug) ? '▾' : '▸'}</span>
                                       </button>
                                       {expandedNotifRules.has(perm.entitySlug) && (
@@ -1131,17 +1133,17 @@ export function RoleFormDialog({ open, onOpenChange, role, onSuccess }: RoleForm
                                               onCheckedChange={() => toggleNotificationEnabled(perm.entitySlug)}
                                               className="h-3.5 w-3.5"
                                             />
-                                            Receber notificações desta entidade
+                                            {t('notificationRules.enableLabel')}
                                           </label>
                                           {perm.notificationRules?.enabled && (
                                             <div className="ml-5 space-y-2">
                                               {/* Operations */}
                                               <div className="flex items-center gap-3">
-                                                <span className="text-[10px] text-muted-foreground">Quando:</span>
+                                                <span className="text-[10px] text-muted-foreground">{t('notificationRules.whenLabel')}</span>
                                                 {([
-                                                  { key: 'onCreate' as const, label: 'Criação' },
-                                                  { key: 'onUpdate' as const, label: 'Edição' },
-                                                  { key: 'onDelete' as const, label: 'Exclusão' },
+                                                  { key: 'onCreate' as const, label: t('notificationRules.onCreate') },
+                                                  { key: 'onUpdate' as const, label: t('notificationRules.onUpdate') },
+                                                  { key: 'onDelete' as const, label: t('notificationRules.onDelete') },
                                                 ]).map(({ key, label }) => (
                                                   <label
                                                     key={key}

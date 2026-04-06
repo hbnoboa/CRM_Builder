@@ -31,6 +31,9 @@ ENV NODE_ENV=production
 # Copiar dist pre-compilado
 COPY --chown=nestjs:nodejs apps/api/dist ./dist
 
+# Copiar arquivos i18n
+COPY --chown=nestjs:nodejs apps/api/src/i18n ./dist/src/i18n
+
 # Criar diretorio de uploads
 RUN mkdir -p /app/uploads && chown nestjs:nodejs /app/uploads
 

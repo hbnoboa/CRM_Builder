@@ -1,0 +1,856 @@
+{
+  "name": "Sinistro de Transporte",
+  "slug": "sinistro-transporte",
+  "description": "Gestão completa de sinistros de transporte de cargas conforme normas SUSEP 2026",
+  "icon": "AlertTriangle",
+  "settings": {
+    "titleField": "numeroSinistro",
+    "searchFields": ["numeroSinistro", "numeroApolice", "seguradoNome", "descricaoDetalhada"],
+    "slaConfig": {
+      "enabled": true,
+      "field": "dataComunicacao",
+      "prazo": 30,
+      "unidade": "dias"
+    }
+  },
+  "fields": [
+    {
+      "section": "identificacao",
+      "title": "Identificação do Sinistro",
+      "fields": [
+        {
+          "slug": "numeroSinistro",
+          "name": "Número do Sinistro",
+          "type": "text",
+          "required": true,
+          "settings": {
+            "maxLength": 20,
+            "textTransform": "uppercase",
+            "readonly": true,
+            "defaultValue": "AUTO_INCREMENT"
+          }
+        },
+        {
+          "slug": "numeroApolice",
+          "name": "Número da Apólice",
+          "type": "text",
+          "required": true,
+          "settings": {
+            "maxLength": 30
+          }
+        },
+        {
+          "slug": "dataHoraOcorrencia",
+          "name": "Data e Hora da Ocorrência",
+          "type": "datetime",
+          "required": true,
+          "helpText": "Data e hora exatas em que o sinistro ocorreu"
+        },
+        {
+          "slug": "dataComunicacao",
+          "name": "Data de Comunicação",
+          "type": "date",
+          "required": true,
+          "settings": {
+            "disableFuture": true
+          }
+        },
+        {
+          "slug": "statusSinistro",
+          "name": "Status",
+          "type": "workflow-status",
+          "required": true,
+          "settings": {
+            "workflow": {
+              "states": [
+                { "id": "aberto", "label": "Aberto", "color": "#3B82F6" },
+                { "id": "em_analise", "label": "Em Análise", "color": "#F59E0B" },
+                { "id": "aguardando_docs", "label": "Aguardando Documentos", "color": "#EF4444" },
+                { "id": "vistoria_agendada", "label": "Vistoria Agendada", "color": "#8B5CF6" },
+                { "id": "em_vistoria", "label": "Em Vistoria", "color": "#06B6D4" },
+                { "id": "analise_pericial", "label": "Análise Pericial", "color": "#F97316" },
+                { "id": "aprovado", "label": "Aprovado", "color": "#10B981" },
+                { "id": "negado", "label": "Negado", "color": "#EF4444" },
+                { "id": "pagamento_pendente", "label": "Pagamento Pendente", "color": "#FBBF24" },
+                { "id": "encerrado", "label": "Encerrado", "color": "#6B7280" }
+              ],
+              "defaultState": "aberto"
+            }
+          }
+        },
+        {
+          "slug": "prioridade",
+          "name": "Prioridade",
+          "type": "select",
+          "required": true,
+          "settings": {
+            "options": [
+              { "value": "baixa", "label": "Baixa" },
+              { "value": "media", "label": "Média" },
+              { "value": "alta", "label": "Alta" },
+              { "value": "urgente", "label": "Urgente" }
+            ],
+            "defaultValue": "media"
+          }
+        },
+        {
+          "slug": "tipoSinistro",
+          "name": "Tipo de Sinistro",
+          "type": "select",
+          "required": true,
+          "settings": {
+            "options": [
+              { "value": "acidente", "label": "Acidente" },
+              { "value": "roubo", "label": "Roubo" },
+              { "value": "furto", "label": "Furto" },
+              { "value": "avaria", "label": "Avaria" },
+              { "value": "desaparecimento", "label": "Desaparecimento" },
+              { "value": "incendio", "label": "Incêndio" },
+              { "value": "capotamento", "label": "Capotamento" },
+              { "value": "tombamento", "label": "Tombamento" }
+            ]
+          }
+        },
+        {
+          "slug": "responsavel",
+          "name": "Responsável",
+          "type": "user-select",
+          "required": true,
+          "helpText": "Analista responsável pelo sinistro"
+        },
+        {
+          "slug": "slaStatus",
+          "name": "Status SLA",
+          "type": "sla-status",
+          "readonly": true,
+          "settings": {
+            "referenceDateField": "dataComunicacao",
+            "prazo": 30,
+            "unidade": "dias"
+          }
+        }
+      ]
+    },
+    {
+      "section": "segurado",
+      "title": "Dados do Segurado",
+      "fields": [
+        {
+          "slug": "seguradoNome",
+          "name": "Nome/Razão Social",
+          "type": "text",
+          "required": true
+        },
+        {
+          "slug": "seguradoTipo",
+          "name": "Tipo de Pessoa",
+          "type": "select",
+          "required": true,
+          "settings": {
+            "options": [
+              { "value": "pf", "label": "Pessoa Física" },
+              { "value": "pj", "label": "Pessoa Jurídica" }
+            ]
+          }
+        },
+        {
+          "slug": "seguradoCPF",
+          "name": "CPF",
+          "type": "cpf",
+          "conditionalDisplay": {
+            "field": "seguradoTipo",
+            "operator": "equals",
+            "value": "pf"
+          }
+        },
+        {
+          "slug": "seguradoCNPJ",
+          "name": "CNPJ",
+          "type": "cnpj",
+          "conditionalDisplay": {
+            "field": "seguradoTipo",
+            "operator": "equals",
+            "value": "pj"
+          }
+        },
+        {
+          "slug": "seguradoEmail",
+          "name": "E-mail",
+          "type": "email",
+          "required": true
+        },
+        {
+          "slug": "seguradoTelefone",
+          "name": "Telefone",
+          "type": "phone",
+          "required": true
+        },
+        {
+          "slug": "seguradoCEP",
+          "name": "CEP",
+          "type": "cep",
+          "settings": {
+            "autoFillFields": {
+              "logradouro": "seguradoEndereco",
+              "bairro": "seguradoBairro",
+              "cidade": "seguradoCidade",
+              "estado": "seguradoEstado"
+            }
+          }
+        },
+        {
+          "slug": "seguradoEndereco",
+          "name": "Endereço",
+          "type": "text"
+        },
+        {
+          "slug": "seguradoBairro",
+          "name": "Bairro",
+          "type": "text"
+        },
+        {
+          "slug": "seguradoCidade",
+          "name": "Cidade",
+          "type": "text"
+        },
+        {
+          "slug": "seguradoEstado",
+          "name": "Estado",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "section": "transportadora",
+      "title": "Dados da Transportadora",
+      "fields": [
+        {
+          "slug": "transportadoraNome",
+          "name": "Nome da Transportadora",
+          "type": "text",
+          "required": true
+        },
+        {
+          "slug": "transportadoraCNPJ",
+          "name": "CNPJ",
+          "type": "cnpj",
+          "required": true
+        },
+        {
+          "slug": "transportadoraTelefone",
+          "name": "Telefone",
+          "type": "phone"
+        },
+        {
+          "slug": "transportadoraEmail",
+          "name": "E-mail",
+          "type": "email"
+        },
+        {
+          "slug": "tipoTransporte",
+          "name": "Tipo de Transporte",
+          "type": "select",
+          "required": true,
+          "settings": {
+            "options": [
+              { "value": "rodoviario", "label": "Rodoviário" },
+              { "value": "ferroviario", "label": "Ferroviário" },
+              { "value": "aereo", "label": "Aéreo" },
+              { "value": "maritimo", "label": "Marítimo" },
+              { "value": "fluvial", "label": "Fluvial" }
+            ]
+          }
+        },
+        {
+          "slug": "tipoSeguro",
+          "name": "Tipo de Seguro",
+          "type": "select",
+          "required": true,
+          "settings": {
+            "options": [
+              { "value": "rctr-c", "label": "RCTR-C (Responsabilidade Civil Transporte Rodoviário)" },
+              { "value": "rc-dc", "label": "RC-DC (Responsabilidade Civil Desaparecimento de Carga)" },
+              { "value": "rcf-dc", "label": "RCF-DC (Responsabilidade Civil Ferroviário)" },
+              { "value": "rcv", "label": "RCV (Responsabilidade Civil Veículo)" }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "section": "veiculo",
+      "title": "Dados do Veículo",
+      "fields": [
+        {
+          "slug": "veiculoPlaca",
+          "name": "Placa do Veículo",
+          "type": "text",
+          "required": true,
+          "settings": {
+            "textTransform": "uppercase",
+            "maxLength": 8
+          }
+        },
+        {
+          "slug": "veiculoTipo",
+          "name": "Tipo de Veículo",
+          "type": "select",
+          "settings": {
+            "options": [
+              { "value": "caminhao", "label": "Caminhão" },
+              { "value": "carreta", "label": "Carreta" },
+              { "value": "bitrem", "label": "Bitrem" },
+              { "value": "rodotrem", "label": "Rodotrem" },
+              { "value": "van", "label": "Van" },
+              { "value": "truck", "label": "Truck" }
+            ]
+          }
+        },
+        {
+          "slug": "veiculoMarca",
+          "name": "Marca",
+          "type": "text"
+        },
+        {
+          "slug": "veiculoModelo",
+          "name": "Modelo",
+          "type": "text"
+        },
+        {
+          "slug": "motoristaNome",
+          "name": "Nome do Motorista",
+          "type": "text",
+          "required": true
+        },
+        {
+          "slug": "motoristaCPF",
+          "name": "CPF do Motorista",
+          "type": "cpf",
+          "required": true
+        },
+        {
+          "slug": "motoristaCNH",
+          "name": "CNH",
+          "type": "text"
+        },
+        {
+          "slug": "motoristaTelefone",
+          "name": "Telefone do Motorista",
+          "type": "phone"
+        }
+      ]
+    },
+    {
+      "section": "carga",
+      "title": "Dados da Carga",
+      "fields": [
+        {
+          "slug": "descricaoCarga",
+          "name": "Descrição da Carga",
+          "type": "richtext",
+          "required": true,
+          "helpText": "Descrição detalhada dos produtos transportados"
+        },
+        {
+          "slug": "valorCarga",
+          "name": "Valor Total da Carga",
+          "type": "currency",
+          "required": true,
+          "settings": {
+            "prefix": "R$",
+            "decimalPlaces": 2
+          }
+        },
+        {
+          "slug": "pesoCarga",
+          "name": "Peso da Carga (KG)",
+          "type": "number",
+          "settings": {
+            "min": 0,
+            "step": 0.01
+          }
+        },
+        {
+          "slug": "itensCarga",
+          "name": "Itens da Carga",
+          "type": "sub-entity",
+          "settings": {
+            "subEntitySlug": "item-carga",
+            "displayFields": ["descricao", "quantidade", "valorTotal", "avariado"]
+          }
+        },
+        {
+          "slug": "naturezaCarga",
+          "name": "Natureza da Carga",
+          "type": "select",
+          "settings": {
+            "options": [
+              { "value": "normal", "label": "Normal" },
+              { "value": "perecivel", "label": "Perecível" },
+              { "value": "fragil", "label": "Frágil" },
+              { "value": "perigosa", "label": "Perigosa" },
+              { "value": "valiosa", "label": "Valiosa" }
+            ]
+          }
+        },
+        {
+          "slug": "numeroNF",
+          "name": "Número da Nota Fiscal",
+          "type": "text",
+          "required": true
+        },
+        {
+          "slug": "dataEmissaoNF",
+          "name": "Data de Emissão da NF",
+          "type": "date"
+        },
+        {
+          "slug": "arquivoNF",
+          "name": "Arquivo da Nota Fiscal",
+          "type": "file",
+          "required": true,
+          "settings": {
+            "multiple": false,
+            "maxFiles": 1,
+            "acceptedTypes": ["application/pdf", "image/jpeg", "image/png"]
+          }
+        }
+      ]
+    },
+    {
+      "section": "viagem",
+      "title": "Dados da Viagem",
+      "fields": [
+        {
+          "slug": "origem",
+          "name": "Origem (Cidade/Estado)",
+          "type": "text",
+          "required": true
+        },
+        {
+          "slug": "origemCEP",
+          "name": "CEP de Origem",
+          "type": "cep"
+        },
+        {
+          "slug": "destino",
+          "name": "Destino (Cidade/Estado)",
+          "type": "text",
+          "required": true
+        },
+        {
+          "slug": "destinoCEP",
+          "name": "CEP de Destino",
+          "type": "cep"
+        },
+        {
+          "slug": "localSinistro",
+          "name": "Local Exato do Sinistro",
+          "type": "text",
+          "required": true,
+          "helpText": "Endereço ou referência exata onde ocorreu o sinistro"
+        },
+        {
+          "slug": "localSinistroCEP",
+          "name": "CEP do Local do Sinistro",
+          "type": "cep"
+        },
+        {
+          "slug": "localSinistroMapa",
+          "name": "Mapa do Local",
+          "type": "map",
+          "settings": {
+            "mapMode": "both",
+            "mapHeight": 400,
+            "defaultZoom": 15
+          }
+        },
+        {
+          "slug": "numeroCTe",
+          "name": "Número do CT-e",
+          "type": "text"
+        },
+        {
+          "slug": "arquivoCTe",
+          "name": "Arquivo do CT-e",
+          "type": "file",
+          "settings": {
+            "multiple": false,
+            "acceptedTypes": ["application/pdf", "application/xml"]
+          }
+        }
+      ]
+    },
+    {
+      "section": "ocorrencia",
+      "title": "Descrição do Sinistro",
+      "fields": [
+        {
+          "slug": "tipoOcorrencia",
+          "name": "Tipo de Ocorrência",
+          "type": "select",
+          "required": true,
+          "settings": {
+            "options": [
+              { "value": "colisao", "label": "Colisão" },
+              { "value": "capotamento", "label": "Capotamento" },
+              { "value": "tombamento", "label": "Tombamento" },
+              { "value": "incendio", "label": "Incêndio" },
+              { "value": "roubo", "label": "Roubo" },
+              { "value": "furto", "label": "Furto" },
+              { "value": "avaria", "label": "Avaria" },
+              { "value": "queda", "label": "Queda de carga" },
+              { "value": "molhamento", "label": "Molhamento" }
+            ]
+          }
+        },
+        {
+          "slug": "causaSinistro",
+          "name": "Causas do Sinistro",
+          "type": "multiselect",
+          "settings": {
+            "options": [
+              { "value": "condicao_estrada", "label": "Condição da estrada" },
+              { "value": "clima", "label": "Condições climáticas" },
+              { "value": "falha_mecanica", "label": "Falha mecânica" },
+              { "value": "erro_motorista", "label": "Erro do motorista" },
+              { "value": "terceiros", "label": "Ação de terceiros" },
+              { "value": "ma_amarracao", "label": "Má amarração da carga" },
+              { "value": "sobrecarga", "label": "Sobrecarga" },
+              { "value": "fadiga", "label": "Fadiga do motorista" }
+            ]
+          }
+        },
+        {
+          "slug": "descricaoDetalhada",
+          "name": "Descrição Detalhada",
+          "type": "richtext",
+          "required": true,
+          "helpText": "Relato completo de como o sinistro ocorreu"
+        },
+        {
+          "slug": "houveFeridos",
+          "name": "Houve Feridos?",
+          "type": "boolean"
+        },
+        {
+          "slug": "houveVitimas",
+          "name": "Houve Vítimas Fatais?",
+          "type": "boolean"
+        },
+        {
+          "slug": "houveBoletimOcorrencia",
+          "name": "Foi Registrado Boletim de Ocorrência?",
+          "type": "boolean"
+        },
+        {
+          "slug": "numeroBO",
+          "name": "Número do Boletim de Ocorrência",
+          "type": "text",
+          "conditionalDisplay": {
+            "field": "houveBoletimOcorrencia",
+            "operator": "equals",
+            "value": true
+          }
+        },
+        {
+          "slug": "arquivoBO",
+          "name": "Arquivo do Boletim de Ocorrência",
+          "type": "file",
+          "conditionalDisplay": {
+            "field": "houveBoletimOcorrencia",
+            "operator": "equals",
+            "value": true
+          }
+        },
+        {
+          "slug": "testemunhas",
+          "name": "Testemunhas",
+          "type": "array",
+          "helpText": "Nome e contato das testemunhas"
+        },
+        {
+          "slug": "fotosLocal",
+          "name": "Fotos do Local",
+          "type": "image",
+          "settings": {
+            "multiple": true,
+            "maxFiles": 20,
+            "imageSource": "both",
+            "imageDisplaySize": 150
+          }
+        },
+        {
+          "slug": "fotosCarga",
+          "name": "Fotos da Carga",
+          "type": "image",
+          "settings": {
+            "multiple": true,
+            "maxFiles": 30,
+            "imageSource": "both"
+          }
+        },
+        {
+          "slug": "fotosVeiculo",
+          "name": "Fotos do Veículo",
+          "type": "image",
+          "settings": {
+            "multiple": true,
+            "maxFiles": 20,
+            "imageSource": "both"
+          }
+        },
+        {
+          "slug": "diagramaAvarias",
+          "name": "Diagrama de Avarias",
+          "type": "zone-diagram",
+          "helpText": "Marque as áreas danificadas no diagrama"
+        }
+      ]
+    },
+    {
+      "section": "avaliacao",
+      "title": "Avaliação de Danos",
+      "fields": [
+        {
+          "slug": "percentualAvaria",
+          "name": "Percentual de Avaria",
+          "type": "percentage",
+          "settings": {
+            "min": 0,
+            "max": 100,
+            "decimalPlaces": 2
+          }
+        },
+        {
+          "slug": "valorPrejuizo",
+          "name": "Valor Estimado do Prejuízo",
+          "type": "currency",
+          "required": true,
+          "settings": {
+            "prefix": "R$",
+            "decimalPlaces": 2
+          }
+        },
+        {
+          "slug": "valorFranquia",
+          "name": "Valor da Franquia",
+          "type": "currency",
+          "settings": {
+            "prefix": "R$",
+            "decimalPlaces": 2
+          }
+        },
+        {
+          "slug": "valorIndenizacao",
+          "name": "Valor da Indenização",
+          "type": "formula",
+          "readonly": true,
+          "settings": {
+            "formula": "valorPrejuizo - valorFranquia - valorRecuperado"
+          }
+        },
+        {
+          "slug": "cargaRecuperavel",
+          "name": "Carga é Recuperável?",
+          "type": "boolean"
+        },
+        {
+          "slug": "cargaRecuperada",
+          "name": "Carga Foi Recuperada?",
+          "type": "boolean"
+        },
+        {
+          "slug": "valorRecuperado",
+          "name": "Valor Recuperado",
+          "type": "currency",
+          "settings": {
+            "prefix": "R$",
+            "decimalPlaces": 2
+          }
+        },
+        {
+          "slug": "localArmazenamento",
+          "name": "Local de Armazenamento da Carga",
+          "type": "text"
+        },
+        {
+          "slug": "laudoPericial",
+          "name": "Laudo Pericial",
+          "type": "file",
+          "settings": {
+            "acceptedTypes": ["application/pdf"]
+          }
+        },
+        {
+          "slug": "dataVistoria",
+          "name": "Data da Vistoria",
+          "type": "datetime"
+        },
+        {
+          "slug": "perito",
+          "name": "Perito Responsável",
+          "type": "user-select"
+        },
+        {
+          "slug": "statusVistoria",
+          "name": "Status da Vistoria",
+          "type": "select",
+          "settings": {
+            "options": [
+              { "value": "pendente", "label": "Pendente" },
+              { "value": "agendada", "label": "Agendada" },
+              { "value": "realizada", "label": "Realizada" },
+              { "value": "laudo_emitido", "label": "Laudo Emitido" }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "section": "documentacao",
+      "title": "Documentação",
+      "fields": [
+        {
+          "slug": "documentosRecebidos",
+          "name": "Documentos Recebidos",
+          "type": "checkbox-group",
+          "settings": {
+            "options": [
+              { "value": "nota_fiscal", "label": "Nota Fiscal" },
+              { "value": "cte", "label": "CT-e (Conhecimento de Transporte)" },
+              { "value": "boletim_ocorrencia", "label": "Boletim de Ocorrência" },
+              { "value": "laudo_pericial", "label": "Laudo Pericial" },
+              { "value": "fotos_sinistro", "label": "Fotos do Sinistro" },
+              { "value": "declaracao_motorista", "label": "Declaração do Motorista" },
+              { "value": "comprovante_entrega", "label": "Comprovante de Entrega" },
+              { "value": "apolice_seguro", "label": "Apólice de Seguro" },
+              { "value": "cnpj_transportadora", "label": "CNPJ da Transportadora" },
+              { "value": "rntrc", "label": "RNTRC (Registro Nacional de Transportadores)" }
+            ],
+            "layout": "vertical"
+          }
+        },
+        {
+          "slug": "documentosAdicionais",
+          "name": "Documentos Adicionais",
+          "type": "file",
+          "settings": {
+            "multiple": true,
+            "maxFiles": 50
+          }
+        },
+        {
+          "slug": "observacoesDocumentos",
+          "name": "Observações sobre Documentos",
+          "type": "textarea"
+        }
+      ]
+    },
+    {
+      "section": "pagamento",
+      "title": "Dados para Pagamento",
+      "fields": [
+        {
+          "slug": "bancoNome",
+          "name": "Nome do Banco",
+          "type": "text"
+        },
+        {
+          "slug": "bancoNumero",
+          "name": "Número do Banco",
+          "type": "text",
+          "settings": {
+            "maxLength": 3
+          }
+        },
+        {
+          "slug": "agencia",
+          "name": "Agência",
+          "type": "text"
+        },
+        {
+          "slug": "conta",
+          "name": "Conta",
+          "type": "text"
+        },
+        {
+          "slug": "tipoConta",
+          "name": "Tipo de Conta",
+          "type": "select",
+          "settings": {
+            "options": [
+              { "value": "corrente", "label": "Conta Corrente" },
+              { "value": "poupanca", "label": "Conta Poupança" }
+            ]
+          }
+        },
+        {
+          "slug": "favorecidoNome",
+          "name": "Nome do Favorecido",
+          "type": "text"
+        },
+        {
+          "slug": "favorecidoCPF",
+          "name": "CPF do Favorecido",
+          "type": "cpf"
+        },
+        {
+          "slug": "favorecidoCNPJ",
+          "name": "CNPJ do Favorecido",
+          "type": "cnpj"
+        },
+        {
+          "slug": "chavePix",
+          "name": "Chave PIX",
+          "type": "text"
+        },
+        {
+          "slug": "tipoChavePix",
+          "name": "Tipo de Chave PIX",
+          "type": "select",
+          "settings": {
+            "options": [
+              { "value": "cpf", "label": "CPF" },
+              { "value": "cnpj", "label": "CNPJ" },
+              { "value": "email", "label": "E-mail" },
+              { "value": "telefone", "label": "Telefone" },
+              { "value": "aleatoria", "label": "Chave Aleatória" }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "section": "observacoes",
+      "title": "Observações e Acompanhamento",
+      "fields": [
+        {
+          "slug": "observacoesInternas",
+          "name": "Observações Internas",
+          "type": "richtext",
+          "helpText": "Notas internas não visíveis ao segurado"
+        },
+        {
+          "slug": "comunicacoes",
+          "name": "Histórico de Comunicações",
+          "type": "sub-entity",
+          "settings": {
+            "subEntitySlug": "comunicacao-sinistro",
+            "displayFields": ["tipo", "data", "assunto", "usuario"]
+          }
+        },
+        {
+          "slug": "historicoStatus",
+          "name": "Histórico de Status",
+          "type": "sub-entity",
+          "readonly": true,
+          "settings": {
+            "subEntitySlug": "historico-status-sinistro",
+            "displayFields": ["statusAnterior", "statusNovo", "data", "usuario"]
+          }
+        }
+      ]
+    }
+  ]
+}

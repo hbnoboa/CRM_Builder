@@ -97,6 +97,11 @@ const MODULE_KEY_MAP: Record<string, keyof ModulePermissions> = {
   notifications: 'notifications',
   publicLinks: 'publicLinks',
   archive: 'archive',
+  // Sub-módulos que aparecem na sidebar
+  dashboardTemplates: 'templates',  // mapeia para templates
+  pdfTemplates: 'templates',        // mapeia para templates
+  auditLogs: 'logs',                // mapeia para logs
+  executionLogs: 'logs',            // mapeia para logs
 };
 
 const MODULE_KEYS: (keyof ModulePermissions)[] = ['dashboard', 'users', 'settings', 'entities', 'tenants', 'data', 'roles', 'automations', 'templates', 'logs', 'notifications', 'publicLinks', 'archive'];
@@ -170,7 +175,7 @@ export function usePermissions() {
     if (roleType === 'PLATFORM_ADMIN') return true;
 
     const permKey = MODULE_KEY_MAP[moduleKey];
-    if (!permKey) return true; // Se nao mapeado, permitir por padrao
+    if (!permKey) return false; // Se nao mapeado, negar por padrao (fail-secure)
 
     const perm = adjustedModulePermissions[permKey];
     if (!perm) return false;

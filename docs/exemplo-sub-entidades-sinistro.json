@@ -1,0 +1,617 @@
+{
+  "subEntities": [
+    {
+      "name": "Item da Carga",
+      "slug": "item-carga",
+      "description": "Itens individuais da carga transportada",
+      "parentEntity": "sinistro-transporte",
+      "fields": [
+        {
+          "slug": "descricao",
+          "name": "Descrição do Item",
+          "type": "text",
+          "required": true
+        },
+        {
+          "slug": "codigoNCM",
+          "name": "Código NCM",
+          "type": "text",
+          "settings": {
+            "maxLength": 8
+          },
+          "helpText": "Nomenclatura Comum do Mercosul"
+        },
+        {
+          "slug": "quantidade",
+          "name": "Quantidade",
+          "type": "number",
+          "required": true,
+          "settings": {
+            "min": 0,
+            "step": 1
+          }
+        },
+        {
+          "slug": "unidadeMedida",
+          "name": "Unidade de Medida",
+          "type": "select",
+          "settings": {
+            "options": [
+              { "value": "un", "label": "Unidade" },
+              { "value": "cx", "label": "Caixa" },
+              { "value": "kg", "label": "Quilograma" },
+              { "value": "ton", "label": "Tonelada" },
+              { "value": "m", "label": "Metro" },
+              { "value": "m2", "label": "Metro Quadrado" },
+              { "value": "m3", "label": "Metro Cúbico" },
+              { "value": "lt", "label": "Litro" }
+            ]
+          }
+        },
+        {
+          "slug": "valorUnitario",
+          "name": "Valor Unitário",
+          "type": "currency",
+          "required": true,
+          "settings": {
+            "prefix": "R$",
+            "decimalPlaces": 2
+          }
+        },
+        {
+          "slug": "valorTotal",
+          "name": "Valor Total",
+          "type": "formula",
+          "readonly": true,
+          "settings": {
+            "formula": "quantidade * valorUnitario"
+          }
+        },
+        {
+          "slug": "avariado",
+          "name": "Item Avariado?",
+          "type": "boolean",
+          "settings": {
+            "defaultValue": false
+          }
+        },
+        {
+          "slug": "percentualAvaria",
+          "name": "Percentual de Avaria",
+          "type": "percentage",
+          "conditionalDisplay": {
+            "field": "avariado",
+            "operator": "equals",
+            "value": true
+          },
+          "settings": {
+            "min": 0,
+            "max": 100,
+            "decimalPlaces": 2
+          }
+        },
+        {
+          "slug": "valorPrejuizo",
+          "name": "Valor do Prejuízo",
+          "type": "formula",
+          "readonly": true,
+          "conditionalDisplay": {
+            "field": "avariado",
+            "operator": "equals",
+            "value": true
+          },
+          "settings": {
+            "formula": "valorTotal * (percentualAvaria / 100)"
+          }
+        },
+        {
+          "slug": "fotosItem",
+          "name": "Fotos do Item",
+          "type": "image",
+          "settings": {
+            "multiple": true,
+            "maxFiles": 10,
+            "imageSource": "both"
+          }
+        },
+        {
+          "slug": "observacoes",
+          "name": "Observações",
+          "type": "textarea"
+        }
+      ]
+    },
+    {
+      "name": "Comunicação do Sinistro",
+      "slug": "comunicacao-sinistro",
+      "description": "Registro de comunicações relacionadas ao sinistro",
+      "parentEntity": "sinistro-transporte",
+      "fields": [
+        {
+          "slug": "tipo",
+          "name": "Tipo de Comunicação",
+          "type": "select",
+          "required": true,
+          "settings": {
+            "options": [
+              { "value": "email", "label": "E-mail" },
+              { "value": "telefone", "label": "Telefone" },
+              { "value": "whatsapp", "label": "WhatsApp" },
+              { "value": "presencial", "label": "Presencial" },
+              { "value": "carta", "label": "Carta Registrada" },
+              { "value": "sistema", "label": "Via Sistema" }
+            ]
+          }
+        },
+        {
+          "slug": "data",
+          "name": "Data e Hora",
+          "type": "datetime",
+          "required": true,
+          "settings": {
+            "defaultValue": "now"
+          }
+        },
+        {
+          "slug": "direcao",
+          "name": "Direção",
+          "type": "select",
+          "required": true,
+          "settings": {
+            "options": [
+              { "value": "enviada", "label": "Enviada" },
+              { "value": "recebida", "label": "Recebida" }
+            ]
+          }
+        },
+        {
+          "slug": "destinatario",
+          "name": "Destinatário/Remetente",
+          "type": "text",
+          "required": true
+        },
+        {
+          "slug": "assunto",
+          "name": "Assunto",
+          "type": "text",
+          "required": true
+        },
+        {
+          "slug": "descricao",
+          "name": "Descrição",
+          "type": "richtext",
+          "required": true
+        },
+        {
+          "slug": "usuario",
+          "name": "Usuário Responsável",
+          "type": "user-select",
+          "readonly": true,
+          "settings": {
+            "defaultValue": "currentUser"
+          }
+        },
+        {
+          "slug": "anexos",
+          "name": "Anexos",
+          "type": "file",
+          "settings": {
+            "multiple": true,
+            "maxFiles": 10
+          }
+        },
+        {
+          "slug": "lido",
+          "name": "Lido?",
+          "type": "boolean",
+          "settings": {
+            "defaultValue": false
+          }
+        }
+      ]
+    },
+    {
+      "name": "Histórico de Status do Sinistro",
+      "slug": "historico-status-sinistro",
+      "description": "Registro automático de mudanças de status",
+      "parentEntity": "sinistro-transporte",
+      "settings": {
+        "autoCreated": true,
+        "readonly": true
+      },
+      "fields": [
+        {
+          "slug": "statusAnterior",
+          "name": "Status Anterior",
+          "type": "text",
+          "readonly": true
+        },
+        {
+          "slug": "statusNovo",
+          "name": "Status Novo",
+          "type": "text",
+          "readonly": true
+        },
+        {
+          "slug": "data",
+          "name": "Data e Hora",
+          "type": "datetime",
+          "readonly": true,
+          "settings": {
+            "defaultValue": "now"
+          }
+        },
+        {
+          "slug": "usuario",
+          "name": "Usuário",
+          "type": "user-select",
+          "readonly": true,
+          "settings": {
+            "defaultValue": "currentUser"
+          }
+        },
+        {
+          "slug": "observacao",
+          "name": "Observação",
+          "type": "textarea"
+        },
+        {
+          "slug": "motivoMudanca",
+          "name": "Motivo da Mudança",
+          "type": "select",
+          "settings": {
+            "options": [
+              { "value": "documentos_recebidos", "label": "Documentos Recebidos" },
+              { "value": "vistoria_realizada", "label": "Vistoria Realizada" },
+              { "value": "analise_concluida", "label": "Análise Concluída" },
+              { "value": "aprovacao_diretoria", "label": "Aprovação da Diretoria" },
+              { "value": "negativa_diretoria", "label": "Negativa da Diretoria" },
+              { "value": "pagamento_efetuado", "label": "Pagamento Efetuado" },
+              { "value": "documentacao_incompleta", "label": "Documentação Incompleta" },
+              { "value": "outro", "label": "Outro" }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Documento do Sinistro",
+      "slug": "documento-sinistro",
+      "description": "Gerenciamento detalhado de documentos do sinistro",
+      "parentEntity": "sinistro-transporte",
+      "fields": [
+        {
+          "slug": "tipoDocumento",
+          "name": "Tipo de Documento",
+          "type": "select",
+          "required": true,
+          "settings": {
+            "options": [
+              { "value": "nota_fiscal", "label": "Nota Fiscal" },
+              { "value": "cte", "label": "CT-e" },
+              { "value": "boletim_ocorrencia", "label": "Boletim de Ocorrência" },
+              { "value": "laudo_pericial", "label": "Laudo Pericial" },
+              { "value": "apolice", "label": "Apólice de Seguro" },
+              { "value": "declaracao_motorista", "label": "Declaração do Motorista" },
+              { "value": "comprovante_entrega", "label": "Comprovante de Entrega" },
+              { "value": "protocolo_policia", "label": "Protocolo da Polícia" },
+              { "value": "fotos", "label": "Fotos" },
+              { "value": "video", "label": "Vídeo" },
+              { "value": "outro", "label": "Outro" }
+            ]
+          }
+        },
+        {
+          "slug": "numeroDocumento",
+          "name": "Número do Documento",
+          "type": "text"
+        },
+        {
+          "slug": "dataEmissao",
+          "name": "Data de Emissão",
+          "type": "date"
+        },
+        {
+          "slug": "dataRecebimento",
+          "name": "Data de Recebimento",
+          "type": "date",
+          "settings": {
+            "defaultValue": "today"
+          }
+        },
+        {
+          "slug": "arquivo",
+          "name": "Arquivo",
+          "type": "file",
+          "required": true,
+          "settings": {
+            "multiple": false,
+            "maxFiles": 1
+          }
+        },
+        {
+          "slug": "status",
+          "name": "Status",
+          "type": "select",
+          "required": true,
+          "settings": {
+            "options": [
+              { "value": "pendente", "label": "Pendente" },
+              { "value": "recebido", "label": "Recebido" },
+              { "value": "em_analise", "label": "Em Análise" },
+              { "value": "aprovado", "label": "Aprovado" },
+              { "value": "rejeitado", "label": "Rejeitado" },
+              { "value": "complementacao_solicitada", "label": "Complementação Solicitada" }
+            ],
+            "defaultValue": "recebido"
+          }
+        },
+        {
+          "slug": "obrigatorio",
+          "name": "Documento Obrigatório?",
+          "type": "boolean",
+          "settings": {
+            "defaultValue": false
+          }
+        },
+        {
+          "slug": "analisadoPor",
+          "name": "Analisado Por",
+          "type": "user-select"
+        },
+        {
+          "slug": "dataAnalise",
+          "name": "Data da Análise",
+          "type": "datetime"
+        },
+        {
+          "slug": "observacoes",
+          "name": "Observações",
+          "type": "textarea"
+        },
+        {
+          "slug": "motivoRejeicao",
+          "name": "Motivo da Rejeição",
+          "type": "textarea",
+          "conditionalDisplay": {
+            "field": "status",
+            "operator": "equals",
+            "value": "rejeitado"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Vistoria do Sinistro",
+      "slug": "vistoria-sinistro",
+      "description": "Registro de vistorias realizadas",
+      "parentEntity": "sinistro-transporte",
+      "fields": [
+        {
+          "slug": "tipoVistoria",
+          "name": "Tipo de Vistoria",
+          "type": "select",
+          "required": true,
+          "settings": {
+            "options": [
+              { "value": "presencial", "label": "Presencial" },
+              { "value": "remota", "label": "Remota (por fotos/vídeo)" },
+              { "value": "pericial", "label": "Pericial" }
+            ]
+          }
+        },
+        {
+          "slug": "dataAgendada",
+          "name": "Data Agendada",
+          "type": "datetime",
+          "required": true
+        },
+        {
+          "slug": "dataRealizada",
+          "name": "Data Realizada",
+          "type": "datetime"
+        },
+        {
+          "slug": "perito",
+          "name": "Perito Responsável",
+          "type": "user-select",
+          "required": true
+        },
+        {
+          "slug": "local",
+          "name": "Local da Vistoria",
+          "type": "text",
+          "required": true
+        },
+        {
+          "slug": "localMapa",
+          "name": "Mapa do Local",
+          "type": "map"
+        },
+        {
+          "slug": "status",
+          "name": "Status",
+          "type": "select",
+          "required": true,
+          "settings": {
+            "options": [
+              { "value": "agendada", "label": "Agendada" },
+              { "value": "em_andamento", "label": "Em Andamento" },
+              { "value": "realizada", "label": "Realizada" },
+              { "value": "cancelada", "label": "Cancelada" },
+              { "value": "reagendada", "label": "Reagendada" }
+            ],
+            "defaultValue": "agendada"
+          }
+        },
+        {
+          "slug": "constatacoes",
+          "name": "Constatações",
+          "type": "richtext"
+        },
+        {
+          "slug": "percentualAvariaConstatado",
+          "name": "Percentual de Avaria Constatado",
+          "type": "percentage",
+          "settings": {
+            "min": 0,
+            "max": 100,
+            "decimalPlaces": 2
+          }
+        },
+        {
+          "slug": "valorPrejuizoEstimado",
+          "name": "Valor do Prejuízo Estimado",
+          "type": "currency",
+          "settings": {
+            "prefix": "R$",
+            "decimalPlaces": 2
+          }
+        },
+        {
+          "slug": "fotosVistoria",
+          "name": "Fotos da Vistoria",
+          "type": "image",
+          "settings": {
+            "multiple": true,
+            "maxFiles": 50,
+            "imageSource": "camera"
+          }
+        },
+        {
+          "slug": "videosVistoria",
+          "name": "Vídeos da Vistoria",
+          "type": "file",
+          "settings": {
+            "multiple": true,
+            "maxFiles": 5,
+            "acceptedTypes": ["video/mp4", "video/quicktime", "video/x-msvideo"]
+          }
+        },
+        {
+          "slug": "laudoVistoria",
+          "name": "Laudo da Vistoria",
+          "type": "file",
+          "settings": {
+            "acceptedTypes": ["application/pdf"]
+          }
+        },
+        {
+          "slug": "assinaturaPerito",
+          "name": "Assinatura do Perito",
+          "type": "signature"
+        },
+        {
+          "slug": "observacoes",
+          "name": "Observações",
+          "type": "textarea"
+        }
+      ]
+    },
+    {
+      "name": "Pagamento do Sinistro",
+      "slug": "pagamento-sinistro",
+      "description": "Controle de pagamentos de indenizações",
+      "parentEntity": "sinistro-transporte",
+      "fields": [
+        {
+          "slug": "tipoPagamento",
+          "name": "Tipo de Pagamento",
+          "type": "select",
+          "required": true,
+          "settings": {
+            "options": [
+              { "value": "indenizacao_total", "label": "Indenização Total" },
+              { "value": "indenizacao_parcial", "label": "Indenização Parcial" },
+              { "value": "reembolso", "label": "Reembolso" },
+              { "value": "adiantamento", "label": "Adiantamento" }
+            ]
+          }
+        },
+        {
+          "slug": "valorAprovado",
+          "name": "Valor Aprovado",
+          "type": "currency",
+          "required": true,
+          "settings": {
+            "prefix": "R$",
+            "decimalPlaces": 2
+          }
+        },
+        {
+          "slug": "dataAprovacao",
+          "name": "Data de Aprovação",
+          "type": "date",
+          "required": true
+        },
+        {
+          "slug": "aprovadoPor",
+          "name": "Aprovado Por",
+          "type": "user-select",
+          "required": true
+        },
+        {
+          "slug": "formaPagamento",
+          "name": "Forma de Pagamento",
+          "type": "select",
+          "required": true,
+          "settings": {
+            "options": [
+              { "value": "ted", "label": "TED" },
+              { "value": "doc", "label": "DOC" },
+              { "value": "pix", "label": "PIX" },
+              { "value": "cheque", "label": "Cheque" },
+              { "value": "boleto", "label": "Boleto" }
+            ]
+          }
+        },
+        {
+          "slug": "dataPrevisaoPagamento",
+          "name": "Data Prevista para Pagamento",
+          "type": "date",
+          "required": true
+        },
+        {
+          "slug": "dataPagamento",
+          "name": "Data do Pagamento",
+          "type": "date"
+        },
+        {
+          "slug": "numeroComprovante",
+          "name": "Número do Comprovante",
+          "type": "text"
+        },
+        {
+          "slug": "comprovanteAnexo",
+          "name": "Comprovante de Pagamento",
+          "type": "file",
+          "settings": {
+            "acceptedTypes": ["application/pdf", "image/jpeg", "image/png"]
+          }
+        },
+        {
+          "slug": "statusPagamento",
+          "name": "Status do Pagamento",
+          "type": "select",
+          "required": true,
+          "settings": {
+            "options": [
+              { "value": "pendente", "label": "Pendente" },
+              { "value": "agendado", "label": "Agendado" },
+              { "value": "processando", "label": "Processando" },
+              { "value": "pago", "label": "Pago" },
+              { "value": "cancelado", "label": "Cancelado" },
+              { "value": "estornado", "label": "Estornado" }
+            ],
+            "defaultValue": "pendente"
+          }
+        },
+        {
+          "slug": "observacoes",
+          "name": "Observações",
+          "type": "textarea"
+        }
+      ]
+    }
+  ]
+}

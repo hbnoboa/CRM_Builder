@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CRM Builder - Sistema de Tickets (Mockup)</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="ticket-system-mockup.css">
+</head>
+<body>
+<div class="app-layout">
+
+  <!-- ========== SIDEBAR ========== -->
+  <aside class="sidebar">
+    <div class="sidebar-header">
+      <div class="sidebar-logo">CB</div>
+      <div>
+        <div class="sidebar-title">CRM Builder</div>
+        <div class="sidebar-subtitle">Sistema de Tickets</div>
+      </div>
+    </div>
+    <nav class="sidebar-nav">
+      <div class="nav-item active" data-section="dashboard" onclick="showSection('dashboard')">
+        <span class="icon">📊</span> Dashboard
+      </div>
+      <div class="nav-section">
+        <div class="nav-section-header" onclick="toggleSection(this)">
+          Registros <span class="chevron">▼</span>
+        </div>
+        <div class="nav-section-items">
+          <div class="nav-item" data-section="tickets" onclick="showSection('tickets')">
+            <span class="icon">🎫</span> Tickets <span class="badge">47</span>
+          </div>
+          <div class="nav-item" data-section="projects" onclick="showSection('projects')">
+            <span class="icon">📁</span> Projetos <span class="badge">3</span>
+          </div>
+        </div>
+      </div>
+      <div class="nav-section">
+        <div class="nav-section-header" onclick="toggleSection(this)">
+          Administracao <span class="chevron">▼</span>
+        </div>
+        <div class="nav-section-items">
+          <div class="nav-item" data-section="users" onclick="showSection('users')">
+            <span class="icon">👥</span> Usuarios <span class="badge">5</span>
+          </div>
+          <div class="nav-item" data-section="roles" onclick="showSection('roles')">
+            <span class="icon">🛡️</span> Roles <span class="badge">4</span>
+          </div>
+          <div class="nav-item" data-section="sla" onclick="showSection('sla')">
+            <span class="icon">⏱️</span> Politicas SLA
+          </div>
+          <div class="nav-item" data-section="tags" onclick="showSection('tags')">
+            <span class="icon">🏷️</span> Tags <span class="badge">12</span>
+          </div>
+        </div>
+      </div>
+      <div class="nav-section">
+        <div class="nav-section-header" onclick="toggleSection(this)">
+          Sistema <span class="chevron">▼</span>
+        </div>
+        <div class="nav-section-items">
+          <div class="nav-item" data-section="settings" onclick="showSection('settings')">
+            <span class="icon">⚙️</span> Configuracoes
+          </div>
+        </div>
+      </div>
+    </nav>
+    <div class="sidebar-footer">
+      <span class="sidebar-avatar avatar-1">U1</span>
+      <div class="sidebar-user-info">
+        <div class="sidebar-user-name">Usuario 1</div>
+        <span class="sidebar-user-role" style="background:rgba(239,68,68,0.15);color:#f87171">Admin</span>
+      </div>
+      <button class="sidebar-logout" title="Logout">⏻</button>
+    </div>
+  </aside>
+
+  <!-- ========== MAIN ========== -->
+  <div class="main-content">
+    <header class="topbar">
+      <div class="topbar-spacer"></div>
+      <span class="topbar-greeting">Ola, <strong>Usuario 1</strong></span>
+      <button class="notification-bell" id="notif-bell" onclick="toggleNotifications()">
+        🔔
+        <span class="notification-dot" id="notif-dot"></span>
+        <span class="notification-count" id="notif-badge">4</span>
+      </button>
+      <div class="notification-popover" id="notif-popover">
+        <div class="notif-header">
+          <h3>Notificacoes</h3>
+          <div class="notif-actions">
+            <button class="notif-action-btn" onclick="markAllRead()">Marcar lidas</button>
+            <button class="notif-action-btn" style="color:var(--destructive)" onclick="clearNotifs()">Limpar</button>
+          </div>
+        </div>
+        <div class="notif-list" id="notif-list"></div>
+      </div>
+    </header>
+
+    <div class="content-area">
+
+      <!-- DASHBOARD -->
+      <section class="section active" id="section-dashboard">
+        <div class="page-header">
+          <h1>Bem-vindo ao CRM Builder</h1>
+          <p>Visao geral do sistema de tickets</p>
+        </div>
+        <div class="kpi-grid">
+          <div class="kpi-card"><div class="kpi-label">📁 Entidades</div><div class="kpi-value">3</div><div class="kpi-sub">Tickets, Projetos, Tags</div></div>
+          <div class="kpi-card"><div class="kpi-label">📋 Registros</div><div class="kpi-value">47</div><div class="kpi-sub"><span class="up">+12</span> ultimos 7 dias</div></div>
+          <div class="kpi-card"><div class="kpi-label">👥 Usuarios</div><div class="kpi-value">5</div><div class="kpi-sub">4 ativos, 1 pendente</div></div>
+          <div class="kpi-card"><div class="kpi-label">📈 Atividades</div><div class="kpi-value">156</div><div class="kpi-sub"><span class="up">+23%</span> vs. semana anterior</div></div>
+        </div>
+        <div class="chart-grid">
+          <div class="chart-card"><div class="chart-header">Registros - Ultimos 30 dias</div><div class="chart-container" id="dash-area-chart"></div></div>
+          <div class="chart-card"><div class="chart-header">Distribuicao por Projeto</div><div class="chart-container" id="dash-bar-chart"></div></div>
+        </div>
+        <div class="chart-grid">
+          <div class="chart-card"><div class="chart-header">Atividade Recente</div><div class="card-content" id="dash-activity"></div></div>
+          <div class="chart-card"><div class="chart-header">Acoes Rapidas</div><div class="card-content"><div class="quick-actions">
+            <button class="btn btn-primary" onclick="showSection('form')">+ Novo Ticket</button>
+            <button class="btn btn-secondary" onclick="showSection('tickets')">📋 Ver Tickets</button>
+            <button class="btn btn-secondary" onclick="showSection('users')">👥 Usuarios</button>
+            <button class="btn btn-secondary" onclick="showSection('projects')">📁 Projetos</button>
+          </div></div></div>
+        </div>
+      </section>
+
+      <!-- TICKETS (Entity Dashboard) -->
+      <section class="section" id="section-tickets">
+        <div class="page-header"><h1>Tickets</h1><p>Gerenciamento de tickets do projeto</p></div>
+        <div class="template-selector">
+          <button class="template-pill active" onclick="switchTemplate(0)">Dashboard Geral</button>
+          <button class="template-pill" onclick="switchTemplate(1)">Por Equipe</button>
+          <button class="template-pill" onclick="switchTemplate(2)">SLA Report</button>
+        </div>
+        <div class="tabs-container">
+          <div class="tabs-header">
+            <button class="tab-btn active" data-tab="registros" onclick="switchTicketTab('registros')">Registros</button>
+            <button class="tab-btn" data-tab="overview" onclick="switchTicketTab('overview')">Visao Geral</button>
+            <button class="tab-btn" data-tab="members" onclick="switchTicketTab('members')">Por Membro</button>
+            <button class="tab-btn" data-tab="sla-tab" onclick="switchTicketTab('sla-tab')">SLA</button>
+            <button class="tab-btn" data-tab="kanban" onclick="switchTicketTab('kanban')">Kanban</button>
+          </div>
+          <div class="filter-bar">
+            <span class="filter-icon">🔍</span>
+            <span class="filter-label" id="filter-count">Filtros</span>
+            <span id="filter-badges"></span>
+            <button class="filter-clear" id="filter-clear-btn" style="display:none" onclick="clearAllFilters()">✕ Limpar</button>
+            <div class="filter-spacer"></div>
+            <span class="record-count" id="record-count">47 de 47 registros</span>
+          </div>
+
+          <!-- TAB: Registros -->
+          <div class="tab-content active" id="tab-registros">
+            <div class="card">
+              <div class="table-toolbar">
+                <div class="table-search-wrap">
+                  <span class="search-icon">🔍</span>
+                  <input type="text" class="table-search" id="table-search" placeholder="Buscar tickets..." oninput="searchTable(this.value)">
+                </div>
+                <div class="toolbar-spacer"></div>
+                <button class="toolbar-btn">🔽 Filtros</button>
+                <button class="toolbar-btn">📊 Colunas</button>
+                <button class="toolbar-btn">📤 Exportar</button>
+                <button class="toolbar-btn">📥 Importar</button>
+                <button class="toolbar-btn primary" onclick="showSection('form')">+ Novo Registro</button>
+              </div>
+              <div style="overflow-x:auto">
+                <table class="data-table">
+                  <thead><tr>
+                    <th style="width:40px"><input type="checkbox" class="checkbox" id="select-all" onchange="toggleSelectAll(this.checked)"></th>
+                    <th data-col="id" onclick="sortTable('id')">ID <span class="sort-indicator"></span></th>
+                    <th data-col="title" onclick="sortTable('title')">Titulo <span class="sort-indicator"></span></th>
+                    <th data-col="status" onclick="sortTable('status')">Status <span class="sort-indicator"></span></th>
+                    <th data-col="priority" onclick="sortTable('priority')">Prioridade <span class="sort-indicator"></span></th>
+                    <th data-col="type" onclick="sortTable('type')">Tipo <span class="sort-indicator"></span></th>
+                    <th data-col="assignee" onclick="sortTable('assignee')">Responsavel <span class="sort-indicator"></span></th>
+                    <th data-col="project" onclick="sortTable('project')">Projeto <span class="sort-indicator"></span></th>
+                    <th data-col="sla" onclick="sortTable('sla')">SLA <span class="sort-indicator"></span></th>
+                    <th data-col="createdAt" onclick="sortTable('createdAt')">Criado <span class="sort-indicator"></span></th>
+                  </tr></thead>
+                  <tbody id="ticket-tbody"></tbody>
+                </table>
+              </div>
+              <div class="table-footer" id="ticket-footer"></div>
+            </div>
+          </div>
+
+          <!-- TAB: Visao Geral -->
+          <div class="tab-content" id="tab-overview">
+            <div class="kpi-grid">
+              <div class="kpi-card"><div class="kpi-label">Total Tickets</div><div class="kpi-value">47</div></div>
+              <div class="kpi-card"><div class="kpi-label">Abertos</div><div class="kpi-value" style="color:#3b82f6">8</div></div>
+              <div class="kpi-card"><div class="kpi-label">Em Progresso</div><div class="kpi-value" style="color:#eab308">12</div></div>
+              <div class="kpi-card"><div class="kpi-label">Em Review</div><div class="kpi-value" style="color:#a855f7">8</div></div>
+              <div class="kpi-card"><div class="kpi-label">Concluidos</div><div class="kpi-value" style="color:#22c55e">19</div></div>
+            </div>
+            <div class="chart-grid">
+              <div class="chart-card"><div class="chart-header">Distribuicao por Status</div><div class="chart-container" id="chart-status-donut"></div></div>
+              <div class="chart-card"><div class="chart-header">Por Prioridade</div><div class="chart-container" id="chart-priority-bar"></div></div>
+            </div>
+            <div class="chart-grid">
+              <div class="chart-card"><div class="chart-header">Velocidade (Criados vs Resolvidos)</div><div class="chart-container" id="chart-velocity"></div></div>
+              <div class="chart-card"><div class="chart-header">Tickets por Membro</div><div class="chart-container" id="chart-member-bar"></div></div>
+            </div>
+          </div>
+
+          <!-- TAB: Por Membro -->
+          <div class="tab-content" id="tab-members">
+            <div class="kpi-grid">
+              <div class="kpi-card"><div class="kpi-label">U1 - Tickets</div><div class="kpi-value">12</div><div class="kpi-sub">3 abertos</div></div>
+              <div class="kpi-card"><div class="kpi-label">U2 - Tickets</div><div class="kpi-value">8</div><div class="kpi-sub">2 abertos</div></div>
+              <div class="kpi-card"><div class="kpi-label">U3 - Tickets</div><div class="kpi-value">15</div><div class="kpi-sub">1 aberto</div></div>
+              <div class="kpi-card"><div class="kpi-label">U4 - Tickets</div><div class="kpi-value">9</div><div class="kpi-sub">1 aberto</div></div>
+              <div class="kpi-card"><div class="kpi-label">U5 - Tickets</div><div class="kpi-value">3</div><div class="kpi-sub">1 aberto</div></div>
+            </div>
+            <div class="chart-grid">
+              <div class="chart-card"><div class="chart-header">Carga por Membro</div><div class="chart-container">
+                <div class="stat-list-item"><span class="stat-list-label">Usuario 3</span><div class="stat-bar-bg"><div class="stat-bar-fill" style="width:100%;background:#22c55e"></div></div><span class="stat-list-value">15</span></div>
+                <div class="stat-list-item"><span class="stat-list-label">Usuario 1</span><div class="stat-bar-bg"><div class="stat-bar-fill" style="width:80%;background:#3b82f6"></div></div><span class="stat-list-value">12</span></div>
+                <div class="stat-list-item"><span class="stat-list-label">Usuario 4</span><div class="stat-bar-bg"><div class="stat-bar-fill" style="width:60%;background:#f97316"></div></div><span class="stat-list-value">9</span></div>
+                <div class="stat-list-item"><span class="stat-list-label">Usuario 2</span><div class="stat-bar-bg"><div class="stat-bar-fill" style="width:53%;background:#a855f7"></div></div><span class="stat-list-value">8</span></div>
+                <div class="stat-list-item"><span class="stat-list-label">Usuario 5</span><div class="stat-bar-bg"><div class="stat-bar-fill" style="width:20%;background:#ec4899"></div></div><span class="stat-list-value">3</span></div>
+              </div></div>
+              <div class="chart-card"><div class="chart-header">Top Tags</div><div class="chart-container">
+                <div class="stat-list-item"><span class="stat-list-label">Backend</span><div class="stat-bar-bg"><div class="stat-bar-fill" style="width:100%;background:#22c55e"></div></div><span class="stat-list-value">15</span></div>
+                <div class="stat-list-item"><span class="stat-list-label">Frontend</span><div class="stat-bar-bg"><div class="stat-bar-fill" style="width:80%;background:#3b82f6"></div></div><span class="stat-list-value">12</span></div>
+                <div class="stat-list-item"><span class="stat-list-label">UI/UX</span><div class="stat-bar-bg"><div class="stat-bar-fill" style="width:60%;background:#ec4899"></div></div><span class="stat-list-value">9</span></div>
+                <div class="stat-list-item"><span class="stat-list-label">API</span><div class="stat-bar-bg"><div class="stat-bar-fill" style="width:53%;background:#8b5cf6"></div></div><span class="stat-list-value">8</span></div>
+                <div class="stat-list-item"><span class="stat-list-label">Testes</span><div class="stat-bar-bg"><div class="stat-bar-fill" style="width:53%;background:#a855f7"></div></div><span class="stat-list-value">8</span></div>
+              </div></div>
+            </div>
+          </div>
+
+          <!-- TAB: SLA -->
+          <div class="tab-content" id="tab-sla-tab">
+            <div class="kpi-grid" id="sla-kpis"></div>
+            <div class="chart-grid">
+              <div class="chart-card"><div class="chart-header">Tempo Medio de Resolucao</div><div class="chart-container">
+                <div class="stat-list-item"><span class="stat-list-label">Critica</span><div class="stat-bar-bg"><div class="stat-bar-fill" style="width:30%;background:#ef4444"></div></div><span class="stat-list-value">2.5h</span></div>
+                <div class="stat-list-item"><span class="stat-list-label">Alta</span><div class="stat-bar-bg"><div class="stat-bar-fill" style="width:55%;background:#f97316"></div></div><span class="stat-list-value">5.2h</span></div>
+                <div class="stat-list-item"><span class="stat-list-label">Media</span><div class="stat-bar-bg"><div class="stat-bar-fill" style="width:80%;background:#eab308"></div></div><span class="stat-list-value">12h</span></div>
+                <div class="stat-list-item"><span class="stat-list-label">Baixa</span><div class="stat-bar-bg"><div class="stat-bar-fill" style="width:100%;background:#22c55e"></div></div><span class="stat-list-value">24h</span></div>
+              </div></div>
+              <div class="chart-card"><div class="chart-header">Heatmap: Prioridade x Status</div><div class="chart-container" id="chart-heatmap"></div></div>
+            </div>
+          </div>
+
+          <!-- TAB: Kanban -->
+          <div class="tab-content" id="tab-kanban">
+            <div class="kanban-board" id="kanban-board"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- FORM -->
+      <section class="section" id="section-form">
+        <div class="page-header"><div class="flex items-center gap-2">
+          <button class="btn btn-ghost" onclick="showSection('tickets')">← Voltar</button>
+          <h1>Novo Registro</h1>
+        </div></div>
+        <div class="form-container"><div class="card"><div class="card-content"><div class="form-grid">
+          <div class="form-group"><label class="form-label">Titulo <span class="required">*</span></label><input type="text" class="form-input" placeholder="Titulo do ticket"></div>
+          <div class="form-group"><label class="form-label">Projeto</label><select class="form-select"><option value="">Selecione...</option><option>Projeto Alpha</option><option>Projeto Beta</option><option>Projeto Gamma</option></select></div>
+          <div class="form-group full-width"><label class="form-label">Descricao <span class="required">*</span></label><textarea class="form-textarea" placeholder="Descreva o ticket em detalhes..."></textarea></div>
+          <div class="form-group"><label class="form-label">Tipo</label><select class="form-select"><option>Bug</option><option>Feature</option><option>Melhoria</option><option>Tarefa</option></select></div>
+          <div class="form-group"><label class="form-label">Prioridade</label><select class="form-select"><option>Baixa</option><option selected>Media</option><option>Alta</option><option>Critica</option></select></div>
+          <div class="form-group"><label class="form-label">Nivel</label><select class="form-select"><option>N1</option><option>N2</option><option>N3</option></select></div>
+          <div class="form-group"><label class="form-label">Status Inicial</label><select class="form-select"><option>Aberto</option></select></div>
+          <div class="form-separator"></div>
+          <div class="form-section-title">Atribuicao</div>
+          <div class="form-group"><label class="form-label">Responsavel</label><select class="form-select"><option value="">Round-robin (automatico)</option><option>Usuario 1</option><option>Usuario 2</option><option>Usuario 3</option><option>Usuario 4</option><option>Usuario 5</option></select></div>
+          <div class="form-group"><label class="form-label">Sprint</label><select class="form-select"><option>Sprint 5</option><option>Sprint 6</option><option>Backlog</option></select></div>
+          <div class="form-group"><label class="form-label">Ticket Pai</label><select class="form-select"><option value="">Nenhum</option><option>TKT-001 - Corrigir erro de login</option><option>TKT-005 - Adicionar suporte CSV</option></select></div>
+          <div class="form-group"><label class="form-label">Estimativa</label><input type="text" class="form-input" placeholder="Ex: 4h, 2d"></div>
+          <div class="form-separator"></div>
+          <div class="form-section-title">SLA</div>
+          <div class="form-group"><label class="form-label">Politica SLA</label><select class="form-select"><option>Padrao</option><option>Premium</option><option>Emergencia</option><option>Sem SLA</option></select></div>
+          <div class="form-group"><label class="form-label">Data Limite</label><input type="date" class="form-input"></div>
+          <div class="form-separator"></div>
+          <div class="form-section-title">Anexos</div>
+          <div class="form-group full-width"><div class="drop-zone"><div class="dz-icon">📎</div><div class="dz-text">Arraste arquivos aqui ou clique para selecionar</div><div class="dz-sub">PDF, imagens, documentos ate 100MB</div></div></div>
+          <div class="form-actions">
+            <button class="btn btn-secondary" onclick="showSection('tickets')">Cancelar</button>
+            <button class="btn btn-primary" onclick="showSection('tickets')">Salvar Registro</button>
+          </div>
+        </div></div></div></div>
+      </section>
+
+      <!-- DETAIL -->
+      <section class="section" id="section-detail">
+        <div class="page-header"><button class="btn btn-ghost" onclick="showSection('tickets')">← Voltar para Tickets</button></div>
+        <div id="detail-content"></div>
+      </section>
+
+      <!-- PROJECTS -->
+      <section class="section" id="section-projects">
+        <div class="page-header"><div class="flex items-center justify-between"><div><h1>Projetos</h1><p>Gerencie os projetos da equipe</p></div><button class="btn btn-primary">+ Novo Projeto</button></div></div>
+        <div class="projects-grid" id="projects-grid"></div>
+      </section>
+
+      <!-- USERS -->
+      <section class="section" id="section-users">
+        <div class="page-header"><div class="flex items-center justify-between"><div><h1>Usuarios</h1><p>Gerenciar usuarios do sistema</p></div><button class="btn btn-primary" onclick="openDialog('user-dialog')">+ Novo Usuario</button></div></div>
+        <div class="kpi-grid">
+          <div class="kpi-card"><div class="kpi-label">Total</div><div class="kpi-value">5</div></div>
+          <div class="kpi-card"><div class="kpi-label">Ativos</div><div class="kpi-value" style="color:#22c55e">4</div></div>
+          <div class="kpi-card"><div class="kpi-label">Admins</div><div class="kpi-value" style="color:#ef4444">1</div></div>
+          <div class="kpi-card"><div class="kpi-label">Pendentes</div><div class="kpi-value" style="color:#eab308">1</div></div>
+        </div>
+        <div class="card"><div class="table-toolbar"><div class="table-search-wrap"><span class="search-icon">🔍</span><input type="text" class="table-search" placeholder="Buscar usuarios..."></div></div><div id="users-list"></div></div>
+      </section>
+
+      <!-- ROLES -->
+      <section class="section" id="section-roles">
+        <div class="page-header"><div class="flex items-center justify-between"><div><h1>Roles</h1><p>Papeis e permissoes do sistema</p></div><button class="btn btn-primary">+ Novo Role</button></div></div>
+        <div class="kpi-grid">
+          <div class="kpi-card"><div class="kpi-label">Total Roles</div><div class="kpi-value">4</div></div>
+          <div class="kpi-card"><div class="kpi-label">Usuarios Atribuidos</div><div class="kpi-value">5</div></div>
+          <div class="kpi-card"><div class="kpi-label">Roles Padrao</div><div class="kpi-value">3</div></div>
+        </div>
+        <div id="roles-list"></div>
+      </section>
+
+      <!-- SLA -->
+      <section class="section" id="section-sla">
+        <div class="page-header"><div class="flex items-center justify-between"><div><h1>Politicas SLA</h1><p>Configurar tempos de resposta e resolucao</p></div><button class="btn btn-primary">+ Nova Politica</button></div></div>
+        <div id="sla-list"></div>
+      </section>
+
+      <!-- TAGS -->
+      <section class="section" id="section-tags">
+        <div class="page-header"><div class="flex items-center justify-between"><div><h1>Tags</h1><p>Categorias para organizar tickets</p></div><button class="btn btn-primary" onclick="openDialog('tag-dialog')">+ Nova Tag</button></div></div>
+        <div class="tags-grid" id="tags-grid"></div>
+      </section>
+
+      <!-- SETTINGS -->
+      <section class="section" id="section-settings">
+        <div class="page-header"><h1>Configuracoes</h1><p>Configurar preferencias do tenant</p></div>
+        <div class="settings-grid">
+          <div class="card"><div class="card-header"><h3>Informacoes do Tenant</h3></div><div class="card-content">
+            <div class="form-grid" style="grid-template-columns:1fr">
+              <div class="form-group"><label class="form-label">Nome da Empresa</label><input type="text" class="form-input" value="Empresa Demo"></div>
+              <div class="form-group"><label class="form-label">Slug</label><input type="text" class="form-input" value="empresa-demo" disabled></div>
+              <div class="form-group"><label class="form-label">Email</label><input type="email" class="form-input" value="contato@empresa.com"></div>
+            </div>
+          </div></div>
+          <div class="card"><div class="card-header"><h3>Horario Comercial</h3></div><div class="card-content">
+            <div class="form-grid" style="grid-template-columns:1fr">
+              <div class="form-group"><label class="form-label">Timezone</label><select class="form-select"><option>America/Sao_Paulo (GMT-3)</option></select></div>
+              <div class="form-group"><label class="form-label">Inicio</label><input type="time" class="form-input" value="08:00"></div>
+              <div class="form-group"><label class="form-label">Fim</label><input type="time" class="form-input" value="18:00"></div>
+              <div class="form-group"><label class="form-label">Dias Uteis</label><div class="flex gap-2" style="flex-wrap:wrap">
+                <span class="badge badge-blue">Seg</span><span class="badge badge-blue">Ter</span><span class="badge badge-blue">Qua</span><span class="badge badge-blue">Qui</span><span class="badge badge-blue">Sex</span><span class="badge badge-gray">Sab</span><span class="badge badge-gray">Dom</span>
+              </div></div>
+            </div>
+          </div></div>
+          <div class="card" style="grid-column:1/-1"><div class="card-header"><h3>Notificacoes</h3></div><div class="card-content">
+            <div class="setting-row"><div><div class="setting-label">Notificacao por email</div><div class="setting-desc">Receber alertas por email</div></div><div class="toggle active" onclick="toggleSetting(this)"></div></div>
+            <div class="setting-row"><div><div class="setting-label">Notificacao push</div><div class="setting-desc">Receber alertas push no browser</div></div><div class="toggle active" onclick="toggleSetting(this)"></div></div>
+            <div class="setting-row"><div><div class="setting-label">Alertas de SLA</div><div class="setting-desc">Avisar quando SLA estiver proximo</div></div><div class="toggle active" onclick="toggleSetting(this)"></div></div>
+            <div class="setting-row"><div><div class="setting-label">Resumo diario</div><div class="setting-desc">Receber resumo diario por email</div></div><div class="toggle" onclick="toggleSetting(this)"></div></div>
+            <div class="setting-row"><div><div class="setting-label">Som de notificacao</div><div class="setting-desc">Tocar som ao receber notificacao</div></div><div class="toggle" onclick="toggleSetting(this)"></div></div>
+          </div></div>
+        </div>
+      </section>
+
+    </div>
+  </div>
+</div>
+
+<!-- DIALOG: Novo Usuario -->
+<div class="dialog-overlay" id="user-dialog">
+  <div class="dialog-content">
+    <div class="dialog-header"><h2>Novo Usuario</h2><button class="dialog-close" onclick="closeDialog('user-dialog')">&times;</button></div>
+    <div class="dialog-body"><div class="form-grid" style="grid-template-columns:1fr">
+      <div class="form-group"><label class="form-label">Nome <span class="required">*</span></label><input type="text" class="form-input" placeholder="Nome completo"></div>
+      <div class="form-group"><label class="form-label">Email <span class="required">*</span></label><input type="email" class="form-input" placeholder="email@empresa.com"></div>
+      <div class="form-group"><label class="form-label">Senha <span class="required">*</span></label><input type="password" class="form-input" placeholder="Minimo 8 caracteres"></div>
+      <div class="form-group"><label class="form-label">Role</label><select class="form-select"><option>Desenvolvedor</option><option>Gerente</option><option>Administrador</option><option>Visualizador</option></select></div>
+    </div></div>
+    <div class="dialog-footer"><button class="btn btn-secondary" onclick="closeDialog('user-dialog')">Cancelar</button><button class="btn btn-primary" onclick="closeDialog('user-dialog')">Criar Usuario</button></div>
+  </div>
+</div>
+
+<!-- DIALOG: Nova Tag -->
+<div class="dialog-overlay" id="tag-dialog">
+  <div class="dialog-content">
+    <div class="dialog-header"><h2>Nova Tag</h2><button class="dialog-close" onclick="closeDialog('tag-dialog')">&times;</button></div>
+    <div class="dialog-body"><div class="form-grid" style="grid-template-columns:1fr">
+      <div class="form-group"><label class="form-label">Nome <span class="required">*</span></label><input type="text" class="form-input" placeholder="Nome da tag"></div>
+      <div class="form-group"><label class="form-label">Cor</label><input type="color" class="form-input" value="#3b82f6" style="height:40px;padding:4px"></div>
+    </div></div>
+    <div class="dialog-footer"><button class="btn btn-secondary" onclick="closeDialog('tag-dialog')">Cancelar</button><button class="btn btn-primary" onclick="closeDialog('tag-dialog')">Criar Tag</button></div>
+  </div>
+</div>
+
+<script src="ticket-system-mockup.js"></script>
+</body>
+</html>

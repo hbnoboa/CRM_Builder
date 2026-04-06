@@ -35,6 +35,7 @@ import { StatListWidget } from './stat-list-widget';
 import { DataTableWidget } from './data-table-widget';
 import SubEntityListWidget from './sub-entity-list-widget';
 import SubEntityTimelineWidget from './sub-entity-timeline-widget';
+import { KanbanBoardWidget } from './kanban-board-widget';
 import { cn } from '@/lib/utils';
 import type { WidgetConfig, WidgetType } from '@crm-builder/shared';
 
@@ -125,6 +126,8 @@ function renderWidget(
       return <SubEntityListWidget config={widgetConfig.config} />;
     case 'sub-entity-timeline':
       return <SubEntityTimelineWidget config={widgetConfig.config} />;
+    case 'kanban-board':
+      return <KanbanBoardWidget {...commonProps} />;
     default:
       return (
         <WidgetWrapper title={widgetConfig.title}>

@@ -1,6 +1,8 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { ThrottlerModule } from '@nestjs/throttler';
+import { I18nModule, QueryResolver, HeaderResolver, AcceptLanguageResolver } from 'nestjs-i18n';
+import * as path from 'path';
 import { PrismaModule } from './prisma/prisma.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { UserModule } from './modules/user/user.module';
@@ -41,6 +43,20 @@ import { PublicLinkModule } from './modules/public-link/public-link.module';
       ttl: parseInt(process.env.THROTTLE_TTL || '60') * 1000,
       limit: parseInt(process.env.THROTTLE_LIMIT || '100'),
     }]),
+
+    // Internationalization
+    I18nModule.forRoot({
+      fallbackLanguage: 'pt-BR',
+      loaderOptions: {
+        path: path.join(__dirname, '/i18n/'),
+        watch: true,
+      },
+      resolvers: [
+        { use: QueryResolver, options: ['lang'] },
+        new HeaderResolver(['x-custom-lang']),
+        AcceptLanguageResolver,
+      ],
+    }),
 
     // Database
     PrismaModule,

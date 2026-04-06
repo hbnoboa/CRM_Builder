@@ -15,6 +15,16 @@ function isPublicContext(): boolean {
   return window.location.pathname.includes('/p/');
 }
 
+// Routes that should NOT receive auto-injected tenantId
+const TENANT_ID_EXCLUSIONS = [
+  '/tenants', // Creating/listing tenants (POST, GET /tenants)
+  '/auth/',   // Auth endpoints
+];
+
+function shouldInjectTenantId(url: string): boolean {
+  return !TENANT_ID_EXCLUSIONS.some(exclusion => url.includes(exclusion));
+}
+
 // Request interceptor - add auth token + tenant context
 api.interceptors.request.use(
   (config) => {
@@ -27,7 +37,8 @@ api.interceptors.request.use(
     // Auto-inject tenantId for PLATFORM_ADMIN cross-tenant browsing
     if (typeof window !== 'undefined') {
       const selectedTenantId = sessionStorage.getItem('selectedTenantId');
-      if (selectedTenantId) {
+      const url = config.url || '';
+      if (selectedTenantId && shouldInjectTenantId(url)) {
         // Query param (for GET, DELETE, and backend @Query('tenantId'))
         if (!config.params?.tenantId) {
           config.params = { ...config.params, tenantId: selectedTenantId };

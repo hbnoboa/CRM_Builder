@@ -1,0 +1,9 @@
+{
+  "tenant": {
+    "slugAlreadyExists": "El slug ya está en uso",
+    "notFound": "Tenant no encontrado",
+    "deletedSuccessfully": "Tenant eliminado exitosamente",
+    "initialRoleName": "Admin Inicial",
+    "initialRoleDescription": "Role inicial creado automáticamente. Configure los permisos adecuados."
+  }
+}

@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException, ConflictException, BadRequestException } from '@nestjs/common';
+import { I18nService } from 'nestjs-i18n';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateTenantDto, UpdateTenantDto, QueryTenantDto } from './dto/tenant.dto';
 import { Status, Prisma } from '@prisma/client';
@@ -10,7 +11,10 @@ import * as bcrypt from 'bcryptjs';
 
 @Injectable()
 export class TenantService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private readonly i18n: I18nService,
+  ) {}
 
   async create(dto: CreateTenantDto) {
     // Verificar se slug ja existe
@@ -19,7 +23,7 @@ export class TenantService {
     });
 
     if (existing) {
-      throw new ConflictException('Slug ja esta em uso');
+      throw new ConflictException(this.i18n.t('tenant.slugAlreadyExists'));
     }
 
     // Criar apenas o tenant (sem roles automaticas)
@@ -44,8 +48,8 @@ export class TenantService {
         const initialRole = await tx.customRole.create({
           data: {
             tenantId: createdTenant.id,
-            name: 'Admin Inicial',
-            description: 'Role inicial criada automaticamente. Configure as permissoes adequadas.',
+            name: this.i18n.t('tenant.initialRoleName'),
+            description: this.i18n.t('tenant.initialRoleDescription'),
             color: '#7c3aed',
             roleType: 'CUSTOM',
             isSystem: false,
@@ -129,7 +133,7 @@ export class TenantService {
     });
 
     if (!tenant) {
-      throw new NotFoundException('Tenant não encontrado');
+      throw new NotFoundException(this.i18n.t('tenant.notFound'));
     }
 
     return tenant;
@@ -167,7 +171,7 @@ export class TenantService {
 
     await this.prisma.tenant.delete({ where: { id } });
 
-    return { message: 'Tenant excluído com sucesso' };
+    return { message: this.i18n.t('tenant.deletedSuccessfully') };
   }
 
   async getStats() {

@@ -65,7 +65,7 @@ export class DashboardTemplateController {
     @CurrentUser() user: CurrentUserType,
     @Query('tenantId') tenantId?: string,
   ) {
-    checkModulePermission(user, 'dashboardTemplates', 'canUpdate');
+    checkModulePermission(user, 'dashboardTemplates', 'canCreate');
     return this.service.create(dto, user, tenantId);
   }
 
