@@ -141,7 +141,7 @@ function KanbanColumn({
 }
 
 export function KanbanBoardWidget({ entitySlug, title, config }: KanbanBoardWidgetProps) {
-  const { data, isLoading } = useEntityData();
+  const { sortedRecords: data, isLoading } = useEntityData();
   const [activeId, setActiveId] = useState<string | null>(null);
 
   const sensors = useSensors(
