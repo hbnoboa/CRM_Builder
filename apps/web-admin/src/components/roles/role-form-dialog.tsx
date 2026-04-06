@@ -51,7 +51,11 @@ function normalizeModulePermToRecord(mp: Record<string, unknown> | null | undefi
   return result;
 }
 
-const MODULE_KEYS = ['dashboard', 'users', 'roles', 'entities', 'data', 'apis', 'pdfTemplates', 'settings', 'tenants', 'auditLogs', 'dashboardTemplates', 'webhooks', 'actionChains', 'emailTemplates', 'notifications'] as const;
+const MODULE_KEYS = [
+  'dashboard', 'users', 'roles', 'entities', 'data', 'settings', 'tenants',
+  'automations', 'templates', 'logs',
+  'publicLinks', 'notifications', 'archive'
+] as const;
 
 function getDefaultModulePerms(): Record<string, ModulePermission> {
   const result: Record<string, ModulePermission> = {};
@@ -553,16 +557,13 @@ export function RoleFormDialog({ open, onOpenChange, role, onSuccess }: RoleForm
     users: <Users className="h-4 w-4" />,
     settings: <Settings className="h-4 w-4" />,
     apis: <Code className="h-4 w-4" />,
-    pdfTemplates: <FileText className="h-4 w-4" />,
+    templates: <FileText className="h-4 w-4" />,
     entities: <Database className="h-4 w-4" />,
     tenants: <Building2 className="h-4 w-4" />,
     data: <Globe className="h-4 w-4" />,
     roles: <Shield className="h-4 w-4" />,
-    auditLogs: <ScrollText className="h-4 w-4" />,
-    dashboardTemplates: <BarChart3 className="h-4 w-4" />,
-    webhooks: <Webhook className="h-4 w-4" />,
-    actionChains: <Zap className="h-4 w-4" />,
-    emailTemplates: <Mail className="h-4 w-4" />,
+    logs: <ScrollText className="h-4 w-4" />,
+    automations: <Zap className="h-4 w-4" />,
     notifications: <Bell className="h-4 w-4" />,
   };
 
@@ -574,11 +575,7 @@ export function RoleFormDialog({ open, onOpenChange, role, onSuccess }: RoleForm
   ];
 
   const MODULE_EXTRA_ACTIONS: Record<string, { key: string; label: string }[]> = {
-    apis: [
-      { key: 'canActivate', label: t('permissions.canActivate') },
-      { key: 'canTest', label: t('permissions.canTest') },
-    ],
-    pdfTemplates: [
+    templates: [
       { key: 'canGenerate', label: t('permissions.canGenerate') },
     ],
     entities: [
@@ -590,6 +587,7 @@ export function RoleFormDialog({ open, onOpenChange, role, onSuccess }: RoleForm
     users: [
       { key: 'canAssignRole', label: t('permissions.canAssignRole') },
       { key: 'canChangeStatus', label: t('permissions.canChangeStatus') },
+      { key: 'canManageTenantAccess', label: 'Gerenciar acesso a tenants' },
     ],
     roles: [
       { key: 'canSetDefault', label: t('permissions.canSetDefault') },
@@ -604,8 +602,27 @@ export function RoleFormDialog({ open, onOpenChange, role, onSuccess }: RoleForm
       { key: 'canExport', label: t('permissions.canExport') },
       { key: 'canImport', label: t('permissions.canImport') },
     ],
-    actionChains: [
+    automations: [
       { key: 'canExecute', label: t('permissions.canExecute') },
+    ],
+    archive: [
+      { key: 'canPermanentDelete', label: 'Excluir permanentemente' },
+    ],
+  };
+
+  const MODULE_SUB_PERMISSIONS: Record<string, { key: string; label: string }[]> = {
+    automations: [
+      { key: 'webhooks', label: 'Webhooks' },
+      { key: 'actionChains', label: 'Action Chains' },
+      { key: 'entityAutomation', label: 'Automações de Entidade' },
+    ],
+    templates: [
+      { key: 'pdfTemplates', label: 'Templates PDF' },
+      { key: 'emailTemplates', label: 'Templates de Email' },
+    ],
+    logs: [
+      { key: 'auditLogs', label: 'Logs de Auditoria' },
+      { key: 'executionLogs', label: 'Logs de Execução' },
     ],
   };
 
@@ -821,6 +838,76 @@ export function RoleFormDialog({ open, onOpenChange, role, onSuccess }: RoleForm
                                           {actionLabel}
                                         </label>
                                       ))}
+                                    </div>
+                                  </div>
+                                </>
+                              )}
+                              {/* Sub-permissions for consolidated modules */}
+                              {MODULE_SUB_PERMISSIONS[key] && MODULE_SUB_PERMISSIONS[key].length > 0 && (
+                                <>
+                                  <Separator />
+                                  <div>
+                                    <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">
+                                      Sub-módulos
+                                    </span>
+                                    <div className="space-y-2 mt-2">
+                                      {MODULE_SUB_PERMISSIONS[key].map(({ key: subKey, label: subLabel }) => {
+                                        const subPerm = (perm as Record<string, any>)[subKey] as ModulePermission || { ...EMPTY_MODULE_PERM };
+                                        const subCrudCount = countCrudActive(subPerm);
+
+                                        return (
+                                          <div key={subKey} className="border rounded-md p-2">
+                                            <div className="flex items-center justify-between mb-2">
+                                              <span className="text-xs font-medium">{subLabel}</span>
+                                              <Checkbox
+                                                checked={subCrudCount === 4}
+                                                onCheckedChange={(checked) => {
+                                                  const newValue = checked ? { canRead: true, canCreate: true, canUpdate: true, canDelete: true } : { ...EMPTY_MODULE_PERM };
+                                                  setModulePerms(prev => ({
+                                                    ...prev,
+                                                    [key]: {
+                                                      ...prev[key],
+                                                      [subKey]: newValue,
+                                                    },
+                                                  }));
+                                                }}
+                                                className="h-3.5 w-3.5"
+                                              />
+                                            </div>
+                                            <div className="flex flex-wrap items-center gap-1.5">
+                                              {crudActions.map(({ key: action, label: actionLabel, icon }) => (
+                                                <label
+                                                  key={action}
+                                                  className={`flex items-center gap-1 cursor-pointer rounded-md border px-2 py-1 text-[11px] font-medium transition-colors ${
+                                                    subPerm[action]
+                                                      ? 'border-primary/50 bg-primary/5 text-primary'
+                                                      : 'border-border text-muted-foreground hover:border-muted-foreground/30'
+                                                  }`}
+                                                >
+                                                  <Checkbox
+                                                    checked={subPerm[action] || false}
+                                                    onCheckedChange={() => {
+                                                      setModulePerms(prev => ({
+                                                        ...prev,
+                                                        [key]: {
+                                                          ...prev[key],
+                                                          [subKey]: {
+                                                            ...(prev[key][subKey] || EMPTY_MODULE_PERM),
+                                                            [action]: !(subPerm[action] || false),
+                                                          },
+                                                        },
+                                                      }));
+                                                    }}
+                                                    className="h-3 w-3"
+                                                  />
+                                                  {icon}
+                                                  {actionLabel}
+                                                </label>
+                                              ))}
+                                            </div>
+                                          </div>
+                                        );
+                                      })}
                                     </div>
                                   </div>
                                 </>

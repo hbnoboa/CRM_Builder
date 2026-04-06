@@ -14,15 +14,15 @@ import { ApiTags, ApiOperation, ApiBearerAuth, ApiResponse } from '@nestjs/swagg
 import { UserService } from './user.service';
 import { CreateUserDto, UpdateUserDto, QueryUserDto } from './dto/user.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
-import { RolesGuard } from '../../common/guards/roles.guard';
-import { Roles } from '../../common/decorators/roles.decorator';
+import { ModulePermissionGuard } from '../../common/guards/module-permission.guard';
+import { RequireModulePermission } from '../../common/decorators/module-permission.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { CurrentUser as CurrentUserType } from '../../common/types';
 import { checkModulePermission } from '../../common/utils/check-module-permission';
 
 @ApiTags('Users')
 @Controller('users')
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, ModulePermissionGuard)
 @ApiBearerAuth()
 export class UserController {
   constructor(private readonly userService: UserService) {}
@@ -43,7 +43,7 @@ export class UserController {
   }
 
   @Post()
-  @Roles('ADMIN', 'PLATFORM_ADMIN')
+  @RequireModulePermission('users', 'canCreate')
   @ApiOperation({ summary: 'Criar usuário' })
   @ApiResponse({ status: 201, description: 'Usuário criado' })
   async create(@Body() dto: CreateUserDto, @CurrentUser() user: CurrentUserType) {
@@ -51,21 +51,21 @@ export class UserController {
   }
 
   @Get()
-  @Roles('ADMIN', 'MANAGER', 'PLATFORM_ADMIN')
+  @RequireModulePermission('users', 'canRead')
   @ApiOperation({ summary: 'Listar usuários' })
   async findAll(@Query() query: QueryUserDto, @CurrentUser() user: CurrentUserType) {
     return this.userService.findAll(query, user);
   }
 
   @Get(':id')
-  @Roles('ADMIN', 'MANAGER', 'PLATFORM_ADMIN')
+  @RequireModulePermission('users', 'canRead')
   @ApiOperation({ summary: 'Buscar usuário por ID' })
   async findOne(@Param('id') id: string, @CurrentUser() user: CurrentUserType) {
     return this.userService.findOne(id, user);
   }
 
   @Patch(':id')
-  @Roles('ADMIN', 'MANAGER', 'PLATFORM_ADMIN')
+  @RequireModulePermission('users', 'canUpdate')
   @ApiOperation({ summary: 'Atualizar usuário' })
   async update(
     @Param('id') id: string,
@@ -82,7 +82,7 @@ export class UserController {
   }
 
   @Delete(':id')
-  @Roles('ADMIN', 'PLATFORM_ADMIN')
+  @RequireModulePermission('users', 'canDelete')
   @ApiOperation({ summary: 'Excluir usuário' })
   async remove(@Param('id') id: string, @CurrentUser() user: CurrentUserType) {
     return this.userService.remove(id, user);
@@ -93,7 +93,7 @@ export class UserController {
   // ═══════════════════════════════════════════════════════════════
 
   @Get(':userId/tenant-access')
-  @Roles('ADMIN', 'PLATFORM_ADMIN')
+  @RequireModulePermission('users', 'canManageTenantAccess')
   @ApiOperation({ summary: 'Listar acessos a tenants de um usuario' })
   async listUserTenantAccess(
     @Param('userId') userId: string,
@@ -103,7 +103,7 @@ export class UserController {
   }
 
   @Post(':userId/tenant-access')
-  @Roles('ADMIN', 'PLATFORM_ADMIN')
+  @RequireModulePermission('users', 'canManageTenantAccess')
   @ApiOperation({ summary: 'Conceder acesso a outro tenant' })
   async grantTenantAccess(
     @Param('userId') userId: string,
@@ -114,7 +114,7 @@ export class UserController {
   }
 
   @Delete('tenant-access/:accessId')
-  @Roles('ADMIN', 'PLATFORM_ADMIN')
+  @RequireModulePermission('users', 'canManageTenantAccess')
   @ApiOperation({ summary: 'Revogar acesso a tenant' })
   async revokeTenantAccess(
     @Param('accessId') accessId: string,

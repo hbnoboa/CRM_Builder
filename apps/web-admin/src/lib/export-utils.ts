@@ -39,8 +39,8 @@ export async function exportToXlsx(
   const headers = fields.map(f => f.label || f.name);
   const rows = records.map(r =>
     fields.map(f => {
-      const val = f.slug === 'createdAt' ? r.createdAt
-        : f.slug === 'updatedAt' ? r.updatedAt
+      const val = (f.slug === 'createdAt' || f.slug === '__createdAt') ? r.createdAt
+        : (f.slug === 'updatedAt' || f.slug === '__updatedAt') ? r.updatedAt
         : r.data?.[f.slug];
       return formatValue(val);
     }),

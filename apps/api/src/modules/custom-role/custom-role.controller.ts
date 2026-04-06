@@ -5,8 +5,8 @@ import { ApiTags, ApiOperation, ApiBearerAuth, ApiResponse } from '@nestjs/swagg
 import { CustomRoleService } from './custom-role.service';
 import { CreateCustomRoleDto, UpdateCustomRoleDto, QueryCustomRoleDto } from './dto/custom-role.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
-import { RolesGuard } from '../../common/guards/roles.guard';
-import { Roles } from '../../common/decorators/roles.decorator';
+import { ModulePermissionGuard } from '../../common/guards/module-permission.guard';
+import { RequireModulePermission } from '../../common/decorators/module-permission.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { CurrentUser as CurrentUserType } from '../../common/types';
 
@@ -21,13 +21,13 @@ function assertAdminRole(user: CurrentUserType): void {
 
 @ApiTags('Custom Roles')
 @Controller('custom-roles')
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, ModulePermissionGuard)
 @ApiBearerAuth()
 export class CustomRoleController {
   constructor(private readonly customRoleService: CustomRoleService) {}
 
   @Post()
-  @Roles('ADMIN', 'PLATFORM_ADMIN')
+  @RequireModulePermission('roles', 'canCreate')
   @ApiOperation({ summary: 'Criar role customizada' })
   @ApiResponse({ status: 201, description: 'Role criada com sucesso' })
   async create(@Body() dto: CreateCustomRoleDto, @CurrentUser() user: CurrentUserType) {
@@ -46,7 +46,7 @@ export class CustomRoleController {
   }
 
   @Get()
-  @Roles('ADMIN', 'PLATFORM_ADMIN')
+  @RequireModulePermission('roles', 'canRead')
   @ApiOperation({ summary: 'Listar roles customizadas' })
   async findAll(@Query() query: QueryCustomRoleDto, @CurrentUser() user: CurrentUserType) {
     assertAdminRole(user);
@@ -54,7 +54,7 @@ export class CustomRoleController {
   }
 
   @Get(':id')
-  @Roles('ADMIN', 'PLATFORM_ADMIN')
+  @RequireModulePermission('roles', 'canRead')
   @ApiOperation({ summary: 'Buscar role por ID' })
   async findOne(
     @Param('id') id: string,
@@ -66,7 +66,7 @@ export class CustomRoleController {
   }
 
   @Patch(':id')
-  @Roles('ADMIN', 'PLATFORM_ADMIN')
+  @RequireModulePermission('roles', 'canUpdate')
   @ApiOperation({ summary: 'Atualizar role customizada' })
   async update(
     @Param('id') id: string,
@@ -78,7 +78,7 @@ export class CustomRoleController {
   }
 
   @Delete(':id')
-  @Roles('ADMIN', 'PLATFORM_ADMIN')
+  @RequireModulePermission('roles', 'canDelete')
   @ApiOperation({ summary: 'Excluir role customizada' })
   async remove(
     @Param('id') id: string,
@@ -89,7 +89,7 @@ export class CustomRoleController {
   }
 
   @Post(':roleId/assign/:userId')
-  @Roles('ADMIN', 'PLATFORM_ADMIN')
+  @RequireModulePermission('roles', 'canUpdate')
   @ApiOperation({ summary: 'Atribuir role a um usuário' })
   async assignToUser(
     @Param('roleId') roleId: string,
@@ -101,7 +101,7 @@ export class CustomRoleController {
   }
 
   @Delete('user/:userId')
-  @Roles('ADMIN', 'PLATFORM_ADMIN')
+  @RequireModulePermission('roles', 'canDelete')
   @ApiOperation({ summary: 'Remover role de um usuário' })
   async removeFromUser(
     @Param('userId') userId: string,

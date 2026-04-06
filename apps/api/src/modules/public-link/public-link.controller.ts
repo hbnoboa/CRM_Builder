@@ -1,8 +1,8 @@
 import { Controller, Get, Post, Patch, Delete, Body, Param, Query, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
-import { RolesGuard } from '../../common/guards/roles.guard';
-import { Roles } from '../../common/decorators/roles.decorator';
+import { ModulePermissionGuard } from '../../common/guards/module-permission.guard';
+import { RequireModulePermission } from '../../common/decorators/module-permission.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { CurrentUser as CurrentUserType } from '../../common/types/auth.types';
 import { PublicLinkService } from './public-link.service';
@@ -11,8 +11,8 @@ import { CreatePublicLinkDto, UpdatePublicLinkDto, QueryPublicLinkDto } from './
 @Controller('public-links')
 @ApiTags('Public Links')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard, RolesGuard)
-@Roles('PLATFORM_ADMIN', 'ADMIN')
+@UseGuards(JwtAuthGuard, ModulePermissionGuard)
+@RequireModulePermission('publicLinks', 'canManage')
 export class PublicLinkController {
   constructor(private readonly publicLinkService: PublicLinkService) {}
 

@@ -30,121 +30,54 @@ function normalizeModulePermissions(mp: Record<string, unknown> | null | undefin
 }
 
 /**
- * Permissoes de modulo padrao por roleType (formato CRUD)
- * Usado apenas como fallback se customRole.modulePermissions nao estiver definido
+ * Permissoes de modulo padrao APENAS para PLATFORM_ADMIN.
+ * Todos os outros roles (ADMIN, MANAGER, USER, VIEWER, CUSTOM) devem ter
+ * permissoes definidas em modulePermissions no banco de dados.
  */
 const READ_ONLY: ModulePermission = { canRead: true, canCreate: false, canUpdate: false, canDelete: false };
 
 const PDF_READ_GENERATE: ModulePermission = { canRead: true, canCreate: false, canUpdate: false, canDelete: false, canGenerate: true } as ModulePermission;
 
-/**
- * Defaults espelham exatamente o seed (prisma/seed.ts).
- * Todos os 10 modulos definidos para cada role.
- */
 const DEFAULT_MODULE_PERMISSIONS: Record<RoleType, ModulePermissions> = {
   PLATFORM_ADMIN: {
     dashboard: FULL_CRUD,
     users: FULL_CRUD,
     settings: FULL_CRUD,
-    apis: FULL_CRUD,
-    pages: FULL_CRUD,
     entities: FULL_CRUD,
     tenants: FULL_CRUD,
     data: FULL_CRUD,
     roles: FULL_CRUD,
-    pdfTemplates: { ...FULL_CRUD, canGenerate: true } as ModulePermission,
-    auditLogs: READ_ONLY,
-    dashboardTemplates: FULL_CRUD,
-    webhooks: FULL_CRUD,
-    actionChains: FULL_CRUD,
-    emailTemplates: FULL_CRUD,
+    automations: {
+      ...FULL_CRUD,
+      canExecute: true,
+      // Sub-permissões para automações
+      webhooks: FULL_CRUD,
+      actionChains: FULL_CRUD,
+      entityAutomation: FULL_CRUD,
+    } as ModulePermission,
+    templates: {
+      ...FULL_CRUD,
+      canGenerate: true,
+      // Sub-permissões para templates
+      pdfTemplates: FULL_CRUD,
+      emailTemplates: FULL_CRUD,
+    } as ModulePermission,
+    logs: {
+      ...READ_ONLY,
+      // Sub-permissões para logs
+      auditLogs: READ_ONLY,
+      executionLogs: READ_ONLY,
+    } as ModulePermission,
     notifications: FULL_CRUD,
+    publicLinks: FULL_CRUD,
+    archive: FULL_CRUD,
   },
-  ADMIN: {
-    dashboard: FULL_CRUD,
-    users: FULL_CRUD,
-    settings: FULL_CRUD,
-    apis: FULL_CRUD,
-    pages: FULL_CRUD,
-    entities: FULL_CRUD,
-    tenants: NO_CRUD,
-    data: FULL_CRUD,
-    roles: FULL_CRUD,
-    pdfTemplates: { ...FULL_CRUD, canGenerate: true } as ModulePermission,
-    dashboardTemplates: FULL_CRUD,
-    webhooks: FULL_CRUD,
-    actionChains: FULL_CRUD,
-    emailTemplates: FULL_CRUD,
-    notifications: FULL_CRUD,
-  },
-  MANAGER: {
-    dashboard: READ_ONLY,
-    users: READ_ONLY,
-    settings: NO_CRUD,
-    apis: NO_CRUD,
-    pages: NO_CRUD,
-    entities: NO_CRUD,
-    tenants: NO_CRUD,
-    data: { canRead: true, canCreate: true, canUpdate: true, canDelete: false },
-    roles: READ_ONLY,
-    pdfTemplates: PDF_READ_GENERATE,
-    dashboardTemplates: NO_CRUD,
-    webhooks: READ_ONLY,
-    actionChains: READ_ONLY,
-    emailTemplates: READ_ONLY,
-    notifications: READ_ONLY,
-  },
-  USER: {
-    dashboard: READ_ONLY,
-    users: READ_ONLY,
-    settings: READ_ONLY,
-    apis: NO_CRUD,
-    pages: NO_CRUD,
-    entities: { canRead: true, canCreate: true, canUpdate: true, canDelete: false },
-    tenants: NO_CRUD,
-    data: { canRead: true, canCreate: true, canUpdate: true, canDelete: false },
-    roles: NO_CRUD,
-    pdfTemplates: PDF_READ_GENERATE,
-    dashboardTemplates: NO_CRUD,
-    webhooks: NO_CRUD,
-    actionChains: NO_CRUD,
-    emailTemplates: NO_CRUD,
-    notifications: READ_ONLY,
-  },
-  VIEWER: {
-    dashboard: READ_ONLY,
-    users: NO_CRUD,
-    settings: READ_ONLY,
-    apis: NO_CRUD,
-    pages: NO_CRUD,
-    entities: NO_CRUD,
-    tenants: NO_CRUD,
-    data: READ_ONLY,
-    roles: NO_CRUD,
-    pdfTemplates: PDF_READ_GENERATE,
-    dashboardTemplates: NO_CRUD,
-    webhooks: NO_CRUD,
-    actionChains: NO_CRUD,
-    emailTemplates: NO_CRUD,
-    notifications: READ_ONLY,
-  },
-  CUSTOM: {
-    dashboard: READ_ONLY,
-    users: NO_CRUD,
-    settings: NO_CRUD,
-    apis: NO_CRUD,
-    pages: NO_CRUD,
-    entities: NO_CRUD,
-    tenants: NO_CRUD,
-    data: NO_CRUD,
-    roles: NO_CRUD,
-    pdfTemplates: NO_CRUD,
-    dashboardTemplates: NO_CRUD,
-    webhooks: NO_CRUD,
-    actionChains: NO_CRUD,
-    emailTemplates: NO_CRUD,
-    notifications: NO_CRUD,
-  },
+  // Todos os outros roles usam apenas modulePermissions do DB
+  ADMIN: {},
+  MANAGER: {},
+  USER: {},
+  VIEWER: {},
+  CUSTOM: {},
 };
 
 /**
@@ -153,23 +86,20 @@ const DEFAULT_MODULE_PERMISSIONS: Record<RoleType, ModulePermissions> = {
 const MODULE_KEY_MAP: Record<string, keyof ModulePermissions> = {
   dashboard: 'dashboard',
   entities: 'entities',
-  apis: 'apis',
-  pages: 'pages',
   users: 'users',
   roles: 'roles',
   settings: 'settings',
   tenants: 'tenants',
   data: 'data',
-  pdfTemplates: 'pdfTemplates',
-  auditLogs: 'auditLogs',
-  dashboardTemplates: 'dashboardTemplates',
-  webhooks: 'webhooks',
-  actionChains: 'actionChains',
-  emailTemplates: 'emailTemplates',
+  automations: 'automations',
+  templates: 'templates',
+  logs: 'logs',
   notifications: 'notifications',
+  publicLinks: 'publicLinks',
+  archive: 'archive',
 };
 
-const MODULE_KEYS: (keyof ModulePermissions)[] = ['dashboard', 'users', 'settings', 'apis', 'pages', 'entities', 'tenants', 'data', 'roles', 'pdfTemplates', 'auditLogs', 'dashboardTemplates', 'webhooks', 'actionChains', 'emailTemplates', 'notifications'];
+const MODULE_KEYS: (keyof ModulePermissions)[] = ['dashboard', 'users', 'settings', 'entities', 'tenants', 'data', 'roles', 'automations', 'templates', 'logs', 'notifications', 'publicLinks', 'archive'];
 
 export function usePermissions() {
   const user = useAuthStore((s) => s.user);
@@ -180,25 +110,18 @@ export function usePermissions() {
   const modulePermissions = useMemo<ModulePermissions>(() => {
     if (!user || !roleType) return {};
 
-    // PLATFORM_ADMIN sempre tem tudo
+    // PLATFORM_ADMIN sempre tem tudo (hardcoded)
     if (roleType === 'PLATFORM_ADMIN') {
       return DEFAULT_MODULE_PERMISSIONS.PLATFORM_ADMIN;
     }
 
-    // Usar modulePermissions da customRole (normalizado de boolean → CRUD)
-    // Chaves ausentes usam o default do roleType (nao NO_CRUD)
+    // Todos os outros roles: usar APENAS modulePermissions do banco
     if (user.customRole?.modulePermissions) {
-      const normalized = normalizeModulePermissions(user.customRole.modulePermissions as Record<string, unknown>);
-      const defaults = DEFAULT_MODULE_PERMISSIONS[roleType] || DEFAULT_MODULE_PERMISSIONS.VIEWER;
-      const result: Record<string, ModulePermission> = {};
-      for (const key of MODULE_KEYS) {
-        result[key] = normalized[key] ?? defaults[key] ?? { ...NO_CRUD };
-      }
-      return result as ModulePermissions;
+      return normalizeModulePermissions(user.customRole.modulePermissions as Record<string, unknown>) as ModulePermissions;
     }
 
-    // Fallback: permissoes padrao do roleType
-    return DEFAULT_MODULE_PERMISSIONS[roleType] || DEFAULT_MODULE_PERMISSIONS.VIEWER;
+    // Sem modulePermissions no DB = sem acesso (exceto PLATFORM_ADMIN)
+    return {};
   }, [user, roleType]);
 
   const entityPermissions = useMemo<EntityPermission[]>(() => {
@@ -283,28 +206,10 @@ export function usePermissions() {
   ): boolean => {
     if (!user || !roleType) return false;
 
-    // PLATFORM_ADMIN tem acesso total
+    // APENAS PLATFORM_ADMIN tem acesso automatico
     if (roleType === 'PLATFORM_ADMIN') return true;
 
-    // ADMIN: usar permissoes baseadas em roleType defaults
-    if (roleType === 'ADMIN') return true;
-
-    // Usar permissoes baseadas em roleType
-    const defaults: Record<RoleType, Record<string, boolean>> = {
-      PLATFORM_ADMIN: { canCreate: true, canRead: true, canUpdate: true, canDelete: true },
-      ADMIN: { canCreate: true, canRead: true, canUpdate: true, canDelete: true },
-      MANAGER: { canCreate: true, canRead: true, canUpdate: true, canDelete: true },
-      USER: { canCreate: true, canRead: true, canUpdate: true, canDelete: false },
-      VIEWER: { canCreate: false, canRead: true, canUpdate: false, canDelete: false },
-      CUSTOM: { canCreate: false, canRead: false, canUpdate: false, canDelete: false },
-    };
-
-    // Se roleType nao e CUSTOM, usar defaults
-    if (roleType !== 'CUSTOM') {
-      return defaults[roleType]?.[action] ?? false;
-    }
-
-    // CUSTOM usa permissoes definidas na customRole
+    // Todos os outros roles: verificar permissions[entitySlug]
     const perm = entityPermissions.find((p) => p.entitySlug === entitySlug);
     if (!perm) return false;
 
@@ -316,13 +221,13 @@ export function usePermissions() {
    */
   const getEntityScope = (entitySlug: string): 'all' | 'own' => {
     if (!user || !roleType) return 'own';
-    if (roleType === 'PLATFORM_ADMIN' || roleType === 'ADMIN') return 'all';
-    if (roleType === 'MANAGER' || roleType === 'VIEWER') return 'all';
-    if (roleType === 'USER') return 'own';
 
-    // CUSTOM: usar scope definido nas permissoes
+    // APENAS PLATFORM_ADMIN tem scope automatico
+    if (roleType === 'PLATFORM_ADMIN') return 'all';
+
+    // Todos os outros: usar scope definido nas permissoes
     const perm = entityPermissions.find((p) => p.entitySlug === entitySlug);
-    return perm?.scope || 'all';
+    return perm?.scope || 'own';
   };
 
   /**
@@ -330,7 +235,9 @@ export function usePermissions() {
    */
   const hasModuleAction = (moduleKey: string, action: string): boolean => {
     if (!user || !roleType) return false;
-    if (roleType === 'PLATFORM_ADMIN' || roleType === 'ADMIN') return true;
+
+    // APENAS PLATFORM_ADMIN tem acesso automatico
+    if (roleType === 'PLATFORM_ADMIN') return true;
 
     const permKey = MODULE_KEY_MAP[moduleKey] || moduleKey as keyof ModulePermissions;
     const perm = adjustedModulePermissions[permKey] as Record<string, unknown> | undefined;
@@ -344,7 +251,9 @@ export function usePermissions() {
    */
   const hasEntityAction = (entitySlug: string, action: string): boolean => {
     if (!user || !roleType) return false;
-    if (roleType === 'PLATFORM_ADMIN' || roleType === 'ADMIN') return true;
+
+    // APENAS PLATFORM_ADMIN tem acesso automatico
+    if (roleType === 'PLATFORM_ADMIN') return true;
 
     const perm = entityPermissions.find((p) => p.entitySlug === entitySlug) as Record<string, unknown> | undefined;
     if (!perm) return false;
@@ -353,10 +262,10 @@ export function usePermissions() {
   };
 
   /**
-   * Verifica se o user e admin (PLATFORM_ADMIN ou ADMIN)
-   * IMPORTANTE: Roles CUSTOM nunca sao consideradas admin
+   * Verifica se o user e PLATFORM_ADMIN
+   * IMPORTANTE: Nenhum outro role (incluindo ADMIN) tem privilegios automaticos
    */
-  const isAdmin = roleType === 'PLATFORM_ADMIN' || roleType === 'ADMIN';
+  const isAdmin = roleType === 'PLATFORM_ADMIN';
 
   /**
    * Verifica se e PLATFORM_ADMIN
@@ -414,13 +323,13 @@ export function getDefaultRouteForUser(user: { customRole?: { roleType?: string;
 
   const roleType = user.customRole.roleType as RoleType;
 
+  // PLATFORM_ADMIN sempre vai para dashboard
   if (roleType === 'PLATFORM_ADMIN') return '/dashboard';
 
-  let modulePerms: ModulePermissions;
+  // Todos os outros: usar modulePermissions do DB
+  let modulePerms: ModulePermissions = {};
   if (user.customRole.modulePermissions) {
     modulePerms = normalizeModulePermissions(user.customRole.modulePermissions) as ModulePermissions;
-  } else {
-    modulePerms = DEFAULT_MODULE_PERMISSIONS[roleType] || DEFAULT_MODULE_PERMISSIONS.VIEWER;
   }
 
   const routePriority: { moduleKey: keyof ModulePermissions; href: string }[] = [

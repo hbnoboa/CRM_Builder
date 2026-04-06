@@ -4,59 +4,9 @@ import { CreateTenantDto, UpdateTenantDto, QueryTenantDto } from './dto/tenant.d
 import { Status, Prisma } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
 
-// CRUD module permission helpers
-const FULL = { canRead: true, canCreate: true, canUpdate: true, canDelete: true };
-const READ_ONLY = { canRead: true, canCreate: false, canUpdate: false, canDelete: false };
-const NONE = { canRead: false, canCreate: false, canUpdate: false, canDelete: false };
-
-// Configuracao das roles de sistema que serao criadas por tenant
-interface ModulePerm { canRead: boolean; canCreate: boolean; canUpdate: boolean; canDelete: boolean }
-
-interface SystemRoleConfig {
-  name: string;
-  description: string;
-  color: string;
-  roleType: string;
-  isSystem: boolean;
-  isDefault?: boolean;
-  modulePermissions: Record<string, ModulePerm>;
-}
-
-const SYSTEM_ROLES: Record<string, SystemRoleConfig> = {
-  ADMIN: {
-    name: 'Administrador',
-    description: 'Administrador do tenant com acesso completo',
-    color: '#7c3aed',
-    roleType: 'ADMIN',
-    isSystem: true,
-    modulePermissions: { dashboard: FULL, users: FULL, settings: FULL, apis: FULL, pages: FULL, entities: FULL, tenants: NONE },
-  },
-  MANAGER: {
-    name: 'Gerente',
-    description: 'Gerente com acesso a dados e equipe',
-    color: '#2563eb',
-    roleType: 'MANAGER',
-    isSystem: true,
-    modulePermissions: { dashboard: READ_ONLY, users: READ_ONLY, settings: NONE, apis: NONE, pages: NONE, entities: NONE, tenants: NONE },
-  },
-  USER: {
-    name: 'Usuario',
-    description: 'Usuario padrao com acesso a dados proprios',
-    color: '#059669',
-    roleType: 'USER',
-    isSystem: true,
-    isDefault: true,
-    modulePermissions: { dashboard: READ_ONLY, users: NONE, settings: NONE, apis: NONE, pages: NONE, entities: { canRead: true, canCreate: true, canUpdate: true, canDelete: false }, tenants: NONE },
-  },
-  VIEWER: {
-    name: 'Visualizador',
-    description: 'Apenas visualizacao de dados',
-    color: '#6b7280',
-    roleType: 'VIEWER',
-    isSystem: true,
-    modulePermissions: { dashboard: READ_ONLY, users: NONE, settings: NONE, apis: NONE, pages: NONE, entities: NONE, tenants: NONE },
-  },
-};
+// Removido: Nao criar roles de sistema automaticamente.
+// Apenas PLATFORM_ADMIN é hardcoded (criado no seed para o Platform tenant).
+// Todos os outros roles devem ser criados manualmente via interface.
 
 @Injectable()
 export class TenantService {
@@ -72,10 +22,10 @@ export class TenantService {
       throw new ConflictException('Slug ja esta em uso');
     }
 
-    // Criar tenant com roles de sistema e admin
+    // Criar apenas o tenant (sem roles automaticas)
     const tenant = await this.prisma.$transaction(async (tx) => {
       // 1. Criar tenant
-      const tenant = await tx.tenant.create({
+      const createdTenant = await tx.tenant.create({
         data: {
           name: dto.name,
           slug: dto.slug,
@@ -84,40 +34,41 @@ export class TenantService {
         },
       });
 
-      // 2. Criar roles de sistema para o tenant
-      const createdRoles: Record<string, { id: string }> = {};
-      for (const [key, roleConfig] of Object.entries(SYSTEM_ROLES)) {
-        const role = await tx.customRole.create({
+      // 2. Se informou dados de admin, criar usuario (mas sem role ainda)
+      // IMPORTANTE: PLATFORM_ADMIN precisa criar um role customizado primeiro
+      // e depois atribuir ao usuario via PATCH /users/:id
+      if (dto.adminEmail && dto.adminPassword && dto.adminName) {
+        const hashedPassword = await bcrypt.hash(dto.adminPassword, 12);
+
+        // Criar um role temporário "Admin Inicial" para o primeiro usuário
+        const initialRole = await tx.customRole.create({
           data: {
-            tenantId: tenant.id,
-            name: roleConfig.name,
-            description: roleConfig.description,
-            color: roleConfig.color,
-            roleType: roleConfig.roleType,
-            isSystem: roleConfig.isSystem,
-            isDefault: roleConfig.isDefault || false,
-            modulePermissions: roleConfig.modulePermissions as unknown as Prisma.InputJsonValue,
+            tenantId: createdTenant.id,
+            name: 'Admin Inicial',
+            description: 'Role inicial criada automaticamente. Configure as permissoes adequadas.',
+            color: '#7c3aed',
+            roleType: 'CUSTOM',
+            isSystem: false,
+            modulePermissions: {
+              dashboard: { canRead: true },
+            },
             permissions: [],
-            tenantPermissions: {},
           },
         });
-        createdRoles[key] = role;
+
+        await tx.user.create({
+          data: {
+            tenantId: createdTenant.id,
+            email: dto.adminEmail,
+            password: hashedPassword,
+            name: dto.adminName,
+            customRoleId: initialRole.id,
+            status: Status.ACTIVE,
+          },
+        });
       }
 
-      // 3. Criar usuario admin com role ADMIN
-      const hashedPassword = await bcrypt.hash(dto.adminPassword, 12);
-      await tx.user.create({
-        data: {
-          tenantId: tenant.id,
-          email: dto.adminEmail,
-          password: hashedPassword,
-          name: dto.adminName,
-          customRoleId: createdRoles.ADMIN.id,
-          status: Status.ACTIVE,
-        },
-      });
-
-      return tenant;
+      return createdTenant;
     });
 
     return tenant;

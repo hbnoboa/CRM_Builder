@@ -22,19 +22,22 @@ export class CreateTenantDto {
   @IsOptional()
   logo?: string;
 
-  // Admin inicial
-  @ApiProperty({ example: 'admin@empresa.com' })
+  // Admin inicial (OPCIONAL - se nao informado, apenas cria o tenant com roles de sistema)
+  @ApiPropertyOptional({ example: 'admin@empresa.com', description: 'Email do primeiro usuario admin (opcional)' })
   @IsEmail()
-  adminEmail: string;
+  @IsOptional()
+  adminEmail?: string;
 
-  @ApiProperty({ example: 'Admin da Empresa' })
+  @ApiPropertyOptional({ example: 'Admin da Empresa', description: 'Nome do primeiro usuario admin (opcional)' })
   @IsString()
-  adminName: string;
+  @IsOptional()
+  adminName?: string;
 
-  @ApiProperty({ example: 'Senha123!' })
+  @ApiPropertyOptional({ example: 'Senha123!', description: 'Senha do primeiro usuario admin (opcional)' })
   @IsString()
   @MinLength(8, { message: 'Senha deve ter no minimo 8 caracteres' })
-  adminPassword: string;
+  @IsOptional()
+  adminPassword?: string;
 }
 
 export class UpdateTenantDto extends PartialType(CreateTenantDto) {

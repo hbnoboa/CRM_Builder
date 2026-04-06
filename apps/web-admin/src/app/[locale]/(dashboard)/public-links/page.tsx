@@ -28,7 +28,7 @@ import { toast } from 'sonner';
 
 export default function PublicLinksPage() {
   const t = useTranslations('common');
-  const { hasModuleAccess, isAdmin } = usePermissions();
+  const { hasModulePermission } = usePermissions();
 
   const [search, setSearch] = useState('');
   const [formOpen, setFormOpen] = useState(false);
@@ -40,7 +40,12 @@ export default function PublicLinksPage() {
   const updateLink = useUpdatePublicLink();
   const deleteLink = useDeletePublicLink();
 
-  if (!isAdmin) {
+  const canManage = hasModulePermission('publicLinks', 'canRead');
+  const canCreate = hasModulePermission('publicLinks', 'canCreate');
+  const canUpdate = hasModulePermission('publicLinks', 'canUpdate');
+  const canDelete = hasModulePermission('publicLinks', 'canDelete');
+
+  if (!canManage) {
     return (
       <div className="max-w-3xl mx-auto mt-8 px-2">
         <Card>
@@ -48,7 +53,7 @@ export default function PublicLinksPage() {
             <Shield className="h-16 w-16 text-destructive mb-4" />
             <h2 className="text-xl font-semibold mb-2">Acesso restrito</h2>
             <p className="text-muted-foreground text-center">
-              Apenas administradores podem gerenciar links publicos.
+              Você não tem permissão para gerenciar links públicos.
             </p>
           </CardContent>
         </Card>
@@ -91,10 +96,12 @@ export default function PublicLinksPage() {
             Gere links para acesso externo a formularios
           </p>
         </div>
-        <Button onClick={() => { setSelectedLink(null); setFormOpen(true); }}>
-          <Plus className="h-4 w-4 mr-2" />
-          Novo Link
-        </Button>
+        {canCreate && (
+          <Button onClick={() => { setSelectedLink(null); setFormOpen(true); }}>
+            <Plus className="h-4 w-4 mr-2" />
+            Novo Link
+          </Button>
+        )}
       </div>
 
       {/* Search */}
@@ -119,10 +126,12 @@ export default function PublicLinksPage() {
             <p className="text-muted-foreground text-sm mb-4">
               Crie um link publico para permitir acesso externo a formularios.
             </p>
-            <Button onClick={() => { setSelectedLink(null); setFormOpen(true); }}>
-              <Plus className="h-4 w-4 mr-2" />
-              Criar primeiro link
-            </Button>
+            {canCreate && (
+              <Button onClick={() => { setSelectedLink(null); setFormOpen(true); }}>
+                <Plus className="h-4 w-4 mr-2" />
+                Criar primeiro link
+              </Button>
+            )}
           </CardContent>
         </Card>
       ) : (
@@ -155,10 +164,12 @@ export default function PublicLinksPage() {
                 </div>
 
                 <div className="flex items-center gap-2 ml-4">
-                  <Switch
-                    checked={link.isActive}
-                    onCheckedChange={() => handleToggleActive(link)}
-                  />
+                  {canUpdate && (
+                    <Switch
+                      checked={link.isActive}
+                      onCheckedChange={() => handleToggleActive(link)}
+                    />
+                  )}
                   <Button
                     variant="ghost"
                     size="icon"
@@ -184,24 +195,28 @@ export default function PublicLinksPage() {
                         <Copy className="h-4 w-4 mr-2" />
                         Copiar URL
                       </DropdownMenuItem>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem onClick={() => {
-                        setSelectedLink(link);
-                        setFormOpen(true);
-                      }}>
-                        <Pencil className="h-4 w-4 mr-2" />
-                        Editar
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        onClick={() => {
+                      {(canUpdate || canDelete) && <DropdownMenuSeparator />}
+                      {canUpdate && (
+                        <DropdownMenuItem onClick={() => {
                           setSelectedLink(link);
-                          setDeleteOpen(true);
-                        }}
-                        className="text-destructive"
-                      >
-                        <Trash2 className="h-4 w-4 mr-2" />
-                        Excluir
-                      </DropdownMenuItem>
+                          setFormOpen(true);
+                        }}>
+                          <Pencil className="h-4 w-4 mr-2" />
+                          Editar
+                        </DropdownMenuItem>
+                      )}
+                      {canDelete && (
+                        <DropdownMenuItem
+                          onClick={() => {
+                            setSelectedLink(link);
+                            setDeleteOpen(true);
+                          }}
+                          className="text-destructive"
+                        >
+                          <Trash2 className="h-4 w-4 mr-2" />
+                          Excluir
+                        </DropdownMenuItem>
+                      )}
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </div>

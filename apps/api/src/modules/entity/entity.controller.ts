@@ -14,21 +14,21 @@ import { EntityService, QueryEntityDto, CreateEntityDto, UpdateEntityDto } from 
 import { UpdateColumnConfigDto } from './dto/entity.dto';
 import { UpdateGlobalFiltersDto } from './dto/update-global-filters.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
-import { RolesGuard } from '../../common/guards/roles.guard';
-import { Roles } from '../../common/decorators/roles.decorator';
+import { ModulePermissionGuard } from '../../common/guards/module-permission.guard';
+import { RequireModulePermission } from '../../common/decorators/module-permission.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { CurrentUser as CurrentUserType } from '../../common/types';
-import { checkModulePermission, checkEntityAction } from '../../common/utils/check-module-permission';
+import { checkEntityAction } from '../../common/utils/check-module-permission';
 
 @ApiTags('Entities')
 @Controller('entities')
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, ModulePermissionGuard)
 @ApiBearerAuth()
 export class EntityController {
   constructor(private readonly entityService: EntityService) {}
 
   @Post()
-  @Roles('ADMIN', 'PLATFORM_ADMIN')
+  @RequireModulePermission('entities', 'canCreate')
   @ApiOperation({ summary: 'Criar entidade' })
   async create(@Body() dto: CreateEntityDto, @CurrentUser() user: CurrentUserType) {
     return this.entityService.create(dto, user);
@@ -74,25 +74,25 @@ export class EntityController {
   }
 
   @Patch(':id/global-filters')
+  @RequireModulePermission('entities', 'canUpdate')
   @ApiOperation({ summary: 'Atualizar filtros globais da entidade' })
   async updateGlobalFilters(
     @Param('id') id: string,
     @Body() dto: UpdateGlobalFiltersDto,
     @CurrentUser() user: CurrentUserType,
   ) {
-    checkModulePermission(user, 'entities', 'canUpdate');
     return this.entityService.updateGlobalFilters(id, dto.globalFilters, user);
   }
 
   @Patch(':id')
-  @Roles('ADMIN', 'PLATFORM_ADMIN')
+  @RequireModulePermission('entities', 'canUpdate')
   @ApiOperation({ summary: 'Atualizar entidade' })
   async update(@Param('id') id: string, @Body() dto: UpdateEntityDto, @CurrentUser() user: CurrentUserType) {
     return this.entityService.update(id, dto, user);
   }
 
   @Delete(':id')
-  @Roles('ADMIN', 'PLATFORM_ADMIN')
+  @RequireModulePermission('entities', 'canDelete')
   @ApiOperation({ summary: 'Excluir entidade' })
   async remove(@Param('id') id: string, @CurrentUser() user: CurrentUserType) {
     return this.entityService.remove(id, user);

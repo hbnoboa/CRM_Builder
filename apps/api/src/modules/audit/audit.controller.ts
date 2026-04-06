@@ -2,16 +2,16 @@ import { Controller, Get, Query, Res, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { Response } from 'express';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
-import { RolesGuard } from '../../common/guards/roles.guard';
-import { Roles } from '../../common/decorators/roles.decorator';
+import { ModulePermissionGuard } from '../../common/guards/module-permission.guard';
+import { RequireModulePermission } from '../../common/decorators/module-permission.decorator';
 import { AuditService } from './audit.service';
 import { QueryAuditLogDto, ExportAuditLogDto } from './dto/audit-log.dto';
 import { Prisma } from '@prisma/client';
 
 @ApiTags('Audit Logs')
 @Controller('audit-logs')
-@UseGuards(JwtAuthGuard, RolesGuard)
-@Roles('PLATFORM_ADMIN')
+@UseGuards(JwtAuthGuard, ModulePermissionGuard)
+@RequireModulePermission('logs', 'canRead', 'auditLogs')
 @ApiBearerAuth()
 export class AuditController {
   constructor(private readonly auditService: AuditService) {}
