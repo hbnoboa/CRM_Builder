@@ -19,7 +19,7 @@ import {
   Filter,
   LayoutList,
   LayoutGrid,
-  Timeline as TimelineIcon,
+  Activity as TimelineIcon,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
