@@ -147,19 +147,12 @@ export function TenantProvider({ children }: { children: ReactNode }) {
         setTenant(tenantRes.data);
       }
 
-      // Refresh accessible tenants
-      if (hasMultipleTenants) {
+      // Refresh accessible tenants (apenas para multi-tenant, nao para PLATFORM_ADMIN)
+      // PLATFORM_ADMIN: lista de tenants nao muda, nao precisa recarregar
+      if (hasMultipleTenants && !isPlatformAdmin) {
         const accessRes = await api.get('/auth/accessible-tenants');
         if (Array.isArray(accessRes.data)) {
           setAccessibleTenants(accessRes.data);
-        }
-      }
-
-      // PLATFORM_ADMIN: refresh all tenants list
-      if (isPlatformAdmin) {
-        const allRes = await api.get('/tenants', { params: { limit: 100 } });
-        if (allRes.data?.data) {
-          setAllTenants(allRes.data.data);
         }
       }
 
