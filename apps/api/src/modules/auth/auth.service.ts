@@ -723,6 +723,7 @@ export class AuthService {
       sub: user.id,
       tenantId: user.tenantId,
       customRoleId: user.customRoleId,
+      roleId: user.customRoleId, // roleId para PLATFORM_ADMIN JWT validation
       roleType: user.customRole.roleType as RoleType,
     };
 

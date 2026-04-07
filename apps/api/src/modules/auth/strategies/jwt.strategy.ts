@@ -51,8 +51,54 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       throw new UnauthorizedException('Usuario sem role definida');
     }
 
-    // Se o tenantId do token e diferente do home tenant, validar via UserTenantAccess
+    // Se o tenantId do token e diferente do home tenant, validar
     if (payload.tenantId && payload.tenantId !== user.tenantId) {
+      const isPlatformAdmin = user.customRole.roleType === 'PLATFORM_ADMIN';
+
+      // PLATFORM_ADMIN: buscar role diretamente do tenant via payload.roleId
+      if (isPlatformAdmin) {
+        if (!payload.roleId) {
+          throw new UnauthorizedException('PLATFORM_ADMIN token sem roleId');
+        }
+
+        const roleForTenant = await this.prisma.customRole.findUnique({
+          where: { id: payload.roleId },
+          select: {
+            id: true,
+            name: true,
+            roleType: true,
+            isSystem: true,
+            permissions: true,
+            modulePermissions: true,
+            tenantPermissions: true,
+            tenantId: true,
+          },
+        });
+
+        if (!roleForTenant || roleForTenant.tenantId !== payload.tenantId) {
+          throw new UnauthorizedException('Role invalida para o tenant');
+        }
+
+        // Retornar CurrentUser com o tenant e role do token
+        return {
+          id: user.id,
+          email: user.email,
+          name: user.name,
+          tenantId: payload.tenantId,
+          customRoleId: roleForTenant.id,
+          customRole: {
+            id: roleForTenant.id,
+            name: roleForTenant.name,
+            roleType: roleForTenant.roleType as CurrentUser['customRole']['roleType'],
+            isSystem: roleForTenant.isSystem,
+            permissions: roleForTenant.permissions as unknown[],
+            modulePermissions: roleForTenant.modulePermissions as Record<string, boolean>,
+            tenantPermissions: roleForTenant.tenantPermissions as Record<string, unknown>,
+          },
+        };
+      }
+
+      // Multi-tenant user: validar via UserTenantAccess
       const access = await this.prisma.userTenantAccess.findUnique({
         where: {
           userId_tenantId: {

@@ -39,6 +39,7 @@ export interface JwtPayload {
   email: string;
   tenantId: string;
   customRoleId: string;
+  roleId?: string; // Same as customRoleId, used for PLATFORM_ADMIN validation
   roleType: RoleType; // Para checks rapidos sem DB lookup
   iat?: number;
   exp?: number;
