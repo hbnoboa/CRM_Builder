@@ -112,14 +112,21 @@ export function TenantProvider({ children }: { children: ReactNode }) {
   }, [fetchTenantData]);
 
   const switchTenant = useCallback(async (tenantId: string | null) => {
-    if (!user || !tenantId) return;
+    if (!user) return;
 
     // Regular user com 1 tenant apenas nao pode trocar
     if (!isPlatformAdmin && !hasMultipleTenants) return;
 
+    // PLATFORM_ADMIN: null significa voltar para tenant home
+    // Multi-tenant/Regular: tenantId obrigatorio
+    if (!tenantId && !isPlatformAdmin) return;
+
     try {
+      // PLATFORM_ADMIN com tenantId null: buscar tenant home do user
+      const targetTenantId = tenantId || user.tenantId;
+
       // TODOS usam authSwitchTenant() (PLATFORM_ADMIN + Multi-tenant)
-      await authSwitchTenant(tenantId);
+      await authSwitchTenant(targetTenantId);
 
       // Clear all cached queries from previous tenant
       queryClient.removeQueries();
@@ -164,8 +171,10 @@ export function TenantProvider({ children }: { children: ReactNode }) {
         tenant,
         allTenants,
         accessibleTenants,
-        // Deprecated: JWT-based switching now handles this
-        selectedTenantId: null,
+        // selectedTenantId now reflects the current JWT tenant (for backward compatibility)
+        // PLATFORM_ADMIN: JWT changes to selected tenant
+        // Multi-tenant/Regular: JWT reflects current tenant
+        selectedTenantId: user?.tenantId || null,
         effectiveTenantId: user?.tenantId || null,
         switchTenant,
         isPlatformAdmin,
