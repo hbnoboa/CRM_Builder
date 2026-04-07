@@ -1419,6 +1419,136 @@ function PropertiesPanel({
       );
     }
 
+    if (config.type === 'kanban-board') {
+      const kanbanFields = entityFields.filter((f) =>
+        ['select', 'radio', 'checkbox', 'relation'].includes(f.type)
+      );
+
+      return (
+        <>
+          <div className="space-y-1.5">
+            <Label className="text-xs">Campo de agrupamento (colunas)</Label>
+            <p className="text-[10px] text-muted-foreground">
+              Apenas campos Select, Radio, Checkbox ou Relação
+            </p>
+            <Select
+              value={config.config.groupByField || ''}
+              onValueChange={(v) => updateField('groupByField', v)}
+            >
+              <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="Selecione" /></SelectTrigger>
+              <SelectContent>
+                {kanbanFields.map((f) => (
+                  <SelectItem key={f.slug} value={f.slug}>
+                    {f.label || f.name} ({f.type})
+                  </SelectItem>
+                ))}
+                {kanbanFields.length === 0 && (
+                  <div className="p-2 text-xs text-muted-foreground">
+                    Nenhum campo compatível encontrado
+                  </div>
+                )}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs">Campo do título do card</Label>
+            <Select
+              value={config.config.cardTitleField || ''}
+              onValueChange={(v) => updateField('cardTitleField', v)}
+            >
+              <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="Selecione" /></SelectTrigger>
+              <SelectContent>
+                {allFields.map((f) => (
+                  <SelectItem key={f.slug} value={f.slug}>{f.label || f.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs">Campos dos subtítulos (opcional)</Label>
+            <div className="space-y-1 max-h-32 overflow-y-auto border rounded-md p-2">
+              {allFields.map((f) => {
+                const selected = config.config.cardSubtitleFields || [];
+                const isChecked = selected.includes(f.slug);
+                return (
+                  <label key={f.slug} className="flex items-center gap-2 text-xs cursor-pointer hover:bg-accent/50 px-1 py-0.5 rounded">
+                    <input
+                      type="checkbox"
+                      className="rounded"
+                      checked={isChecked}
+                      onChange={() => {
+                        const newFields = isChecked
+                          ? selected.filter((s: string) => s !== f.slug)
+                          : [...selected, f.slug];
+                        updateField('cardSubtitleFields', newFields);
+                      }}
+                    />
+                    {f.label || f.name}
+                  </label>
+                );
+              })}
+            </div>
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs">Campo do badge (opcional)</Label>
+            <Select
+              value={config.config.cardBadgeField || '__none__'}
+              onValueChange={(v) => updateField('cardBadgeField', v === '__none__' ? undefined : v)}
+            >
+              <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__none__">Sem badge</SelectItem>
+                {allFields.map((f) => (
+                  <SelectItem key={f.slug} value={f.slug}>{f.label || f.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs">Ordenar cards por</Label>
+            <Select
+              value={config.config.sortBy || '__none__'}
+              onValueChange={(v) => updateField('sortBy', v === '__none__' ? undefined : v)}
+            >
+              <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__none__">Sem ordenação</SelectItem>
+                <SelectItem value="createdAt">Data de criação</SelectItem>
+                <SelectItem value="updatedAt">Data de atualização</SelectItem>
+                {allFields.map((f) => (
+                  <SelectItem key={f.slug} value={f.slug}>{f.label || f.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          {config.config.sortBy && (
+            <div className="space-y-1.5">
+              <Label className="text-xs">Ordem</Label>
+              <Select
+                value={config.config.sortOrder || 'desc'}
+                onValueChange={(v) => updateField('sortOrder', v)}
+              >
+                <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="asc">Crescente</SelectItem>
+                  <SelectItem value="desc">Decrescente</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+          <div className="space-y-1.5">
+            <Label className="text-xs">Limite de cards</Label>
+            <Input
+              type="number"
+              className="h-8 text-sm"
+              value={config.config.limit || 100}
+              onChange={(e) => updateField('limit', Number(e.target.value))}
+            />
+          </div>
+        </>
+      );
+    }
+
     if (config.type === 'stat-list') {
       return (
         <>

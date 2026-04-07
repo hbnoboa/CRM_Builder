@@ -27,10 +27,10 @@ export function WidgetWrapper({
   return (
     <Card className="h-full flex flex-col overflow-hidden">
       {(title || isEditMode) && (
-        <CardHeader className="pb-2 pt-3 px-4 flex-row items-center justify-between space-y-0">
+        <CardHeader className="widget-drag-handle pb-2 pt-3 px-4 flex-row items-center justify-between space-y-0 cursor-grab active:cursor-grabbing">
           <div className="flex items-center gap-2 min-w-0">
             {isEditMode && (
-              <div className="drag-handle cursor-grab active:cursor-grabbing">
+              <div className="drag-handle">
                 <GripVertical className="h-4 w-4 text-muted-foreground" />
               </div>
             )}

@@ -127,7 +127,7 @@ function renderWidget(
     case 'sub-entity-timeline':
       return <SubEntityTimelineWidget config={widgetConfig.config} />;
     case 'kanban-board':
-      return <KanbanBoardWidget {...commonProps} />;
+      return <KanbanBoardWidget {...commonProps} entityFields={effectiveFields} />;
     default:
       return (
         <WidgetWrapper title={widgetConfig.title}>
@@ -213,10 +213,14 @@ export function EntityDashboard({ entitySlug, entityFields, templateId, external
             cols={{ lg: 12, md: 10, sm: 6 }}
             rowHeight={30}
             margin={[12, 12]}
-            isDraggable={false}
-            isResizable={false}
+            isDraggable={true}
+            isResizable={true}
+            draggableHandle=".widget-drag-handle"
             compactType="vertical"
             containerPadding={[0, 0]}
+            onLayoutChange={(layout) => {
+              console.log('[Dashboard] Layout changed:', layout);
+            }}
           >
             {allWidgetEntries.map(([widgetId, widgetConfig]) => {
               const wc = widgetConfig as WidgetConfig;
@@ -289,10 +293,14 @@ export function EntityDashboard({ entitySlug, entityFields, templateId, external
                 cols={{ lg: 12, md: 10, sm: 6 }}
                 rowHeight={30}
                 margin={[12, 12]}
-                isDraggable={false}
-                isResizable={false}
+                isDraggable={true}
+                isResizable={true}
+                draggableHandle=".widget-drag-handle"
                 compactType="vertical"
                 containerPadding={[0, 0]}
+                onLayoutChange={(layout) => {
+                  console.log('[Dashboard] Layout changed:', layout);
+                }}
               >
                 {tabWidgetEntries.map(([widgetId, widgetConfig]) => {
                   const wc = widgetConfig as WidgetConfig;

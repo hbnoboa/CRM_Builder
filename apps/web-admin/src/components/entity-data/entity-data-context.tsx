@@ -178,16 +178,18 @@ interface EntityDataProviderProps {
   entitySlug: string;
   children: React.ReactNode;
   initialFilters?: Partial<UnifiedFilterState>;
+  disableWebSocketUpdates?: boolean;
 }
 
 export function EntityDataProvider({
   entitySlug,
+  disableWebSocketUpdates,
   children,
   initialFilters,
 }: EntityDataProviderProps) {
   const [serverDashFilters, setServerDashFilters] = React.useState<string | undefined>();
   const { records: allRecords, isLoading, error, totalServerRecords, isFullDataset, refresh } =
-    useEntityDataSource(entitySlug, serverDashFilters);
+    useEntityDataSource(entitySlug, serverDashFilters, disableWebSocketUpdates);
 
   const { data: rawEntity } = useEntityBySlug(entitySlug);
 

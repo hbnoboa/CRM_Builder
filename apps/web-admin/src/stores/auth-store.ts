@@ -157,19 +157,29 @@ export const useAuthStore = create<AuthState>()(
       },
 
       switchTenant: async (tenantId: string) => {
+        console.log('🔄 [AuthStore] switchTenant called with:', tenantId);
         set({ isLoading: true, error: null });
         try {
+          console.log('📡 [AuthStore] Sending POST /auth/switch-tenant...');
           const response = await api.post<AuthResponse>('/auth/switch-tenant', { tenantId });
+          console.log('📥 [AuthStore] Response received:', response.data);
+
           const { user, accessToken, refreshToken } = response.data;
 
+          console.log('💾 [AuthStore] Saving tokens to localStorage...');
           localStorage.setItem('accessToken', accessToken);
           localStorage.setItem('refreshToken', refreshToken);
 
+          console.log('📝 [AuthStore] Setting user in state:', user);
           set({ user, isLoading: false });
+
+          console.log('✅ [AuthStore] switchTenant completed successfully');
+          console.log('👤 [AuthStore] New user.tenantId:', user.tenantId);
 
           // Notificar componentes que o tenant mudou
           window.dispatchEvent(new CustomEvent('tenant-changed'));
         } catch (error: unknown) {
+          console.error('❌ [AuthStore] switchTenant error:', error);
           const message = isAxiosError<{ message?: string }>(error)
             ? error.response?.data?.message || 'Failed to switch tenant'
             : 'Failed to switch tenant';
