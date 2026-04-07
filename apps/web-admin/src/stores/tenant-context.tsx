@@ -112,21 +112,14 @@ export function TenantProvider({ children }: { children: ReactNode }) {
   }, [fetchTenantData]);
 
   const switchTenant = useCallback(async (tenantId: string | null) => {
-    if (!user) return;
+    if (!user || !tenantId) return;
 
     // Regular user com 1 tenant apenas nao pode trocar
     if (!isPlatformAdmin && !hasMultipleTenants) return;
 
-    // PLATFORM_ADMIN: null significa voltar para tenant home
-    // Multi-tenant/Regular: tenantId obrigatorio
-    if (!tenantId && !isPlatformAdmin) return;
-
     try {
-      // PLATFORM_ADMIN com tenantId null: buscar tenant home do user
-      const targetTenantId = tenantId || user.tenantId;
-
       // TODOS usam authSwitchTenant() (PLATFORM_ADMIN + Multi-tenant)
-      await authSwitchTenant(targetTenantId);
+      await authSwitchTenant(tenantId);
 
       // Clear all cached queries from previous tenant
       queryClient.removeQueries();
