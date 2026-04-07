@@ -139,18 +139,36 @@ export function useEntityDataSource(
 
         case 'updated': {
           if (detail.record) {
-            setRecords(prev =>
-              prev.map(r =>
-                r.id === detail.record!.id
-                  ? {
-                      ...r,
-                      // MERGE dos dados existentes com os novos (não substituir!)
-                      data: { ...r.data, ...detail.record!.data },
-                      updatedAt: detail.record!.updatedAt || new Date().toISOString(),
-                    }
-                  : r,
-              ),
-            );
+            // 🔍 LOG 5: Ver merge de dados no update
+            console.log('[Entity Data Update Event]', {
+              recordId: detail.record.id,
+              incomingData: detail.record.data,
+              entitySlug: detail.entitySlug,
+            });
+
+            setRecords(prev => {
+              const updated = prev.map(r => {
+                if (r.id === detail.record!.id) {
+                  const mergedData = { ...r.data, ...detail.record!.data };
+
+                  // 🔍 LOG 6: Ver resultado do merge
+                  console.log('[Entity Data After Merge]', {
+                    recordId: r.id,
+                    beforeData: r.data,
+                    afterData: mergedData,
+                    dataKeys: Object.keys(mergedData),
+                  });
+
+                  return {
+                    ...r,
+                    data: mergedData,
+                    updatedAt: detail.record!.updatedAt || new Date().toISOString(),
+                  };
+                }
+                return r;
+              });
+              return updated;
+            });
           }
           break;
         }
