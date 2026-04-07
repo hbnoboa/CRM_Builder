@@ -52,18 +52,33 @@ interface KanbanColumn {
 
 // Extrair valor de exibição de um campo (pode ser string, objeto, etc.)
 function getDisplayValue(value: unknown, showDashIfEmpty = false): string {
-  if (value === null || value === undefined) return showDashIfEmpty ? '-' : '';
+  if (value === null || value === undefined || value === '') return showDashIfEmpty ? '-' : '';
 
-  // Se for objeto, tentar extrair label/name/nome
+  // Se for objeto, tentar extrair label/name/nome (campos de relação retornam { value, label })
   if (typeof value === 'object' && value !== null) {
     const obj = value as any;
-    const extracted = obj.label || obj.name || obj.nome || obj.title || '';
-    return extracted || (showDashIfEmpty ? '-' : '');
+    const extracted = obj.label || obj.name || obj.nome || obj.title || obj.value || '';
+
+    // Se extraiu um valor, verificar se não é um ID técnico
+    if (extracted && typeof extracted === 'string') {
+      const str = extracted.trim();
+      // Se for ID técnico, não mostrar
+      if (
+        str.length > 15 &&
+        (/^[a-z]{2}[a-z0-9]{15,}$/i.test(str) ||
+         /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(str))
+      ) {
+        return showDashIfEmpty ? '-' : '';
+      }
+      return str;
+    }
+
+    return showDashIfEmpty ? '-' : '';
   }
 
   const strValue = String(value).trim();
 
-  // Detectar IDs técnicos (cuid/nanoid/uuid)
+  // Detectar IDs técnicos (cuid/nanoid/uuid) - não mostrar IDs diretamente
   if (
     strValue.length > 15 &&
     (/^[a-z]{2}[a-z0-9]{15,}$/i.test(strValue) ||

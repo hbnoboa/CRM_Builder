@@ -2274,7 +2274,8 @@ function TemplateBuilderContent() {
   const { data: template, isLoading } = useDashboardTemplate(isCreateMode ? undefined : templateId);
   const updateTemplate = useUpdateDashboardTemplate();
   const createTemplate = useCreateDashboardTemplate();
-  const { data: entities } = useEntities();
+  // Filter entities by template's tenant to avoid showing entities from other tenants
+  const { data: entities } = useEntities({ tenantId: template?.tenantId });
   const { data: roles } = useCustomRoles();
 
   const [layout, setLayout] = useState<LayoutItem[]>([]);
@@ -2395,12 +2396,25 @@ function TemplateBuilderContent() {
       },
     ]);
 
+    // Auto-populate config based on widget type
+    let defaultConfig: Record<string, unknown> = {};
+    if (type === 'data-table' && entityFields.length > 0) {
+      // Auto-populate displayFields with entity fields (limit to first 15)
+      defaultConfig = {
+        displayFields: entityFields.slice(0, 15).map(f => f.name),
+        showSearch: true,
+        showFilters: true,
+        showExport: true,
+        pageSize: 25,
+      };
+    }
+
     setWidgets((prev) => ({
       ...prev,
       [id]: {
         type,
         title: def.label,
-        config: {},
+        config: defaultConfig,
       },
     }));
 
@@ -2414,7 +2428,7 @@ function TemplateBuilderContent() {
     }
 
     setSelectedWidgetId(id);
-  }, [layout, activeEditorTabId, tabs]);
+  }, [layout, activeEditorTabId, tabs, entityFields]);
 
   const handleRemoveWidget = useCallback((widgetId: string) => {
     setLayout((prev) => prev.filter((item) => item.i !== widgetId));

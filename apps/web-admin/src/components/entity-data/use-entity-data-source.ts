@@ -144,7 +144,8 @@ export function useEntityDataSource(
                 r.id === detail.record!.id
                   ? {
                       ...r,
-                      data: detail.record!.data,
+                      // MERGE dos dados existentes com os novos (não substituir!)
+                      data: { ...r.data, ...detail.record!.data },
                       updatedAt: detail.record!.updatedAt || new Date().toISOString(),
                     }
                   : r,
