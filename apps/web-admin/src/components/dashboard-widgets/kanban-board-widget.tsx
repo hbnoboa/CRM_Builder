@@ -149,7 +149,7 @@ function KanbanCardItem({
 }
 
 function KanbanBoardContent({ entitySlug, title, config, entityFields }: KanbanBoardWidgetProps) {
-  const { sortedRecords: data, isLoading } = useEntityData();
+  const { sortedRecords: data, isLoading, updateRecord } = useEntityData();
   const [layouts, setLayouts] = useState<{ lg: any[]; md?: any[]; sm?: any[] }>({ lg: [] });
   const [isInitialLoad, setIsInitialLoad] = useState(true);
   const updateMutation = useUpdateEntityData({
@@ -350,6 +350,12 @@ function KanbanBoardContent({ entitySlug, title, config, entityFields }: KanbanB
 
         // Se mudou de coluna, atualizar via API
         if (currentColumnValue && currentColumnValue !== targetColumn.value) {
+          // Update otimista: atualizar localmente ANTES da API responder
+          updateRecord(cardId, {
+            [config.groupByField]: targetColumn.value,
+          });
+
+          // Enviar update para a API
           updateMutation.mutate({
             entitySlug,
             id: cardId,
