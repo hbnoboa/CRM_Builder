@@ -8,9 +8,15 @@ O **Kanban Board** agora é um widget normal, fácil de usar como qualquer outro
 
 ## 🎯 **O Que É**
 
-Widget de quadro Kanban com colunas agrupadas por um campo (geralmente status), permitindo visualização tipo "board" com drag & drop (arraste e solte) de cards entre colunas.
+Widget de quadro Kanban com colunas agrupadas por um **campo categórico**, permitindo visualização tipo "board" com drag & drop (arraste e solte) de cards entre colunas.
 
 **Tipo:** `kanban-board`
+
+**Campos suportados:**
+- ✅ **Select** - Mostra TODAS as opções (ex: Status, Prioridade, Fase)
+- ✅ **Radio** - Mostra TODAS as opções (ex: Tipo, Categoria)
+- ✅ **Checkbox** - 2 colunas fixas (✓ Sim / ✗ Não)
+- ✅ **Relação** - Colunas dinâmicas (apenas valores existentes nos dados)
 
 ---
 
@@ -63,14 +69,20 @@ Widget de quadro Kanban com colunas agrupadas por um campo (geralmente status), 
 
 | Parâmetro | Tipo | Obrigatório | Descrição |
 |-----------|------|-------------|-----------|
-| `groupByField` | string | ✅ Sim | Campo para agrupar em colunas (ex: "status") |
+| `groupByField` | string | ✅ Sim | Campo **Select, Radio, Checkbox ou Relação** para agrupar em colunas (ex: "Status") |
 | `cardTitleField` | string | ✅ Sim | Campo exibido como título do card (ex: "id") |
 | `cardSubtitleFields` | string[] | ❌ Não | Array de campos exibidos como subtítulos |
 | `cardBadgeField` | string | ❌ Não | Campo para badge/etiqueta (ex: "prioridade") |
 | `sortBy` | string | ❌ Não | Campo para ordenar cards dentro das colunas |
 | `sortOrder` | 'asc' \| 'desc' | ❌ Não | Ordem de classificação (padrão: 'desc') |
 | `limit` | number | ❌ Não | Limite de cards totais (padrão: 100) |
-| `columnOrder` | string[] | ❌ Não | Ordem específica das colunas |
+| `columnOrder` | string[] | ❌ Não | Ordem específica das colunas (deve conter valores das opções do Select) |
+
+**⚠️ IMPORTANTE:**
+- O campo `groupByField` **DEVE** ser do tipo `select`, `radio`, `checkbox` ou `relation`
+- **Select/Radio/Checkbox**: Mostra **todas as opções**, mesmo colunas vazias (sem registros)
+- **Relação**: Mostra apenas valores que existem nos dados (dinâmico)
+- Se usar `columnOrder`, os valores devem corresponder exatamente às opções do campo
 
 ---
 
@@ -92,10 +104,12 @@ Widget de quadro Kanban com colunas agrupadas por um campo (geralmente status), 
     "limit": 150,
     "columnOrder": [
       "Aberto",
+      "Pendente",
       "Em Andamento",
       "Aguardando Regulação",
       "Concluído",
-      "Cancelado"
+      "Cancelado",
+      "Negado"
     ]
   }
 }
@@ -132,6 +146,82 @@ Widget de quadro Kanban com colunas agrupadas por um campo (geralmente status), 
   }
 }
 ```
+
+### **4. Kanban com Checkbox (Pago/Não Pago)**
+
+```json
+{
+  "type": "kanban-board",
+  "title": "💰 Pagamentos",
+  "config": {
+    "groupByField": "pago",
+    "cardTitleField": "numero_fatura",
+    "cardSubtitleFields": ["cliente", "valor"],
+    "cardBadgeField": "vencimento",
+    "sortBy": "data_emissao",
+    "sortOrder": "desc"
+  }
+}
+```
+**Resultado:** 2 colunas fixas: "✓ Sim" (pagos) e "✗ Não" (pendentes)
+
+### **5. Kanban por Relação (Por Empresa)**
+
+```json
+{
+  "type": "kanban-board",
+  "title": "🏢 Sinistros por Empresa",
+  "config": {
+    "groupByField": "empresa_id",
+    "cardTitleField": "numero",
+    "cardSubtitleFields": ["segurado", "causa"],
+    "cardBadgeField": "Status",
+    "limit": 100
+  }
+}
+```
+**Resultado:** Colunas dinâmicas, uma para cada empresa que tem sinistros nos dados
+
+---
+
+## 📋 **Colunas do Kanban**
+
+O comportamento das colunas depende do **tipo de campo**:
+
+### **Select / Radio** → TODAS as opções (fixo)
+Se o campo "Status" (tipo Select) tem as opções:
+- Aberto
+- Pendente
+- Em Andamento
+- Aguardando Regulação
+- Concluído
+- Cancelado
+- Negado
+
+O Kanban vai mostrar **7 colunas**, mesmo que:
+- Não existam registros "Pendente" (coluna vazia com 0)
+- Não existam registros "Negado" (coluna vazia com 0)
+
+**Por quê?**
+- ✅ **Visibilidade completa** do fluxo de trabalho
+- ✅ Usuário vê **todas as etapas possíveis**
+- ✅ Fácil de arrastar cards para **qualquer status**
+
+### **Checkbox** → 2 colunas fixas
+O Kanban sempre mostra:
+- ✓ Sim (registros com valor `true`)
+- ✗ Não (registros com valor `false`)
+
+**Exemplo de uso:** Ativo/Inativo, Pago/Pendente, Concluído/Em aberto
+
+### **Relação** → Colunas dinâmicas
+O Kanban mostra apenas os valores que **existem nos dados**.
+
+**Exemplo:** Se agrupar por "Empresa" (relação):
+- Se existem 3 empresas nos registros → 3 colunas
+- Se uma empresa não tem sinistros → não aparece coluna vazia
+
+**Por quê?** Relações podem ter centenas de registros possíveis (empresas, usuários, etc.), então só mostramos os relevantes.
 
 ---
 

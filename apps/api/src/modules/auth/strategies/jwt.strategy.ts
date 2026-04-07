@@ -55,45 +55,24 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     if (payload.tenantId && payload.tenantId !== user.tenantId) {
       const isPlatformAdmin = user.customRole.roleType === 'PLATFORM_ADMIN';
 
-      // PLATFORM_ADMIN: buscar role diretamente do tenant via payload.roleId
+      // PLATFORM_ADMIN: mantém sua role original (para bypass de permissões)
+      // mas usa tenantId do JWT (para scope de queries)
       if (isPlatformAdmin) {
-        if (!payload.roleId) {
-          throw new UnauthorizedException('PLATFORM_ADMIN token sem roleId');
-        }
-
-        const roleForTenant = await this.prisma.customRole.findUnique({
-          where: { id: payload.roleId },
-          select: {
-            id: true,
-            name: true,
-            roleType: true,
-            isSystem: true,
-            permissions: true,
-            modulePermissions: true,
-            tenantPermissions: true,
-            tenantId: true,
-          },
-        });
-
-        if (!roleForTenant || roleForTenant.tenantId !== payload.tenantId) {
-          throw new UnauthorizedException('Role invalida para o tenant');
-        }
-
-        // Retornar CurrentUser com o tenant e role do token
+        // Retornar CurrentUser com tenantId do token, mas role original
         return {
           id: user.id,
           email: user.email,
           name: user.name,
           tenantId: payload.tenantId,
-          customRoleId: roleForTenant.id,
+          customRoleId: user.customRoleId,
           customRole: {
-            id: roleForTenant.id,
-            name: roleForTenant.name,
-            roleType: roleForTenant.roleType as CurrentUser['customRole']['roleType'],
-            isSystem: roleForTenant.isSystem,
-            permissions: roleForTenant.permissions as unknown[],
-            modulePermissions: roleForTenant.modulePermissions as Record<string, boolean>,
-            tenantPermissions: roleForTenant.tenantPermissions as Record<string, unknown>,
+            id: user.customRole.id,
+            name: user.customRole.name,
+            roleType: user.customRole.roleType as CurrentUser['customRole']['roleType'],
+            isSystem: user.customRole.isSystem,
+            permissions: user.customRole.permissions as unknown[],
+            modulePermissions: user.customRole.modulePermissions as Record<string, boolean>,
+            tenantPermissions: user.customRole.tenantPermissions as Record<string, unknown>,
           },
         };
       }

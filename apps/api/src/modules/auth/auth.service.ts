@@ -537,39 +537,14 @@ export class AuthService {
         throw new UnauthorizedException('Tenant suspenso ou inativo');
       }
 
-      // PLATFORM_ADMIN assume role ADMIN do tenant, ou primeiro role disponivel
-      let roleForTenant = await this.prisma.customRole.findFirst({
-        where: { tenantId: targetTenantId, roleType: 'ADMIN' },
-        select: {
-          id: true, name: true, description: true, color: true,
-          roleType: true, isSystem: true, permissions: true,
-          modulePermissions: true, tenantPermissions: true, isDefault: true,
-        },
-      });
-
-      if (!roleForTenant) {
-        // Fallback: buscar qualquer role do tenant
-        roleForTenant = await this.prisma.customRole.findFirst({
-          where: { tenantId: targetTenantId },
-          select: {
-            id: true, name: true, description: true, color: true,
-            roleType: true, isSystem: true, permissions: true,
-            modulePermissions: true, tenantPermissions: true, isDefault: true,
-          },
-        });
-
-        if (!roleForTenant) {
-          throw new BadRequestException('Tenant nao possui roles configurados');
-        }
-      }
-
-      // Gerar tokens com o tenant destino
+      // PLATFORM_ADMIN mantém sua role (para bypass de permissões)
+      // mas muda o tenantId no JWT (para scope de queries)
       const tokens = await this.generateTokens({
         id: user.id,
         email: user.email,
         tenantId: targetTenantId,
-        customRoleId: roleForTenant.id,
-        customRole: roleForTenant,
+        customRoleId: user.customRoleId,
+        customRole: user.customRole,
       });
 
       return {
@@ -578,8 +553,8 @@ export class AuthService {
           email: user.email,
           name: user.name,
           avatar: user.avatar,
-          customRoleId: roleForTenant.id,
-          customRole: roleForTenant,
+          customRoleId: user.customRoleId,
+          customRole: user.customRole,
           tenantId: targetTenantId,
           tenant: targetTenant,
           hasMultipleTenants: true,

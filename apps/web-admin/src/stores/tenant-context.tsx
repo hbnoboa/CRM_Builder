@@ -112,37 +112,27 @@ export function TenantProvider({ children }: { children: ReactNode }) {
   }, [fetchTenantData]);
 
   const switchTenant = useCallback(async (tenantId: string | null) => {
-    console.log('🔄 [TenantContext] switchTenant called with:', tenantId);
-    console.log('🔄 [TenantContext] Current user.tenantId:', user?.tenantId);
-
     if (!user || !tenantId) {
-      console.log('❌ [TenantContext] Aborting: no user or tenantId');
       return;
     }
 
     // Regular user com 1 tenant apenas nao pode trocar
     if (!isPlatformAdmin && !hasMultipleTenants) {
-      console.log('❌ [TenantContext] Aborting: not platform admin and no multi-tenant');
       return;
     }
 
     try {
-      console.log('📡 [TenantContext] Calling authSwitchTenant...');
       // TODOS usam authSwitchTenant() (PLATFORM_ADMIN + Multi-tenant)
       await authSwitchTenant(tenantId);
-      console.log('✅ [TenantContext] authSwitchTenant completed');
 
       // Clear all cached queries from previous tenant
       queryClient.removeQueries();
-      console.log('🗑️ [TenantContext] Cache cleared');
 
       // Disparar evento para WebSocket reconectar
       window.dispatchEvent(new CustomEvent('tenant-changed'));
-      console.log('📢 [TenantContext] tenant-changed event dispatched');
 
       // Fetch tenant info with new JWT (switched tenant)
       const tenantRes = await api.get('/tenants/me');
-      console.log('📥 [TenantContext] Fetched /tenants/me:', tenantRes.data);
       if (tenantRes.data) {
         setTenant(tenantRes.data);
       }
@@ -156,13 +146,9 @@ export function TenantProvider({ children }: { children: ReactNode }) {
         }
       }
 
-      // Check if user was updated
-      const updatedUser = useAuthStore.getState().user;
-      console.log('👤 [TenantContext] Updated user.tenantId:', updatedUser?.tenantId);
-
       toast.success('Tenant alterado com sucesso');
     } catch (error) {
-      console.error('❌ [TenantContext] Erro ao trocar tenant:', error);
+      console.error('Erro ao trocar tenant:', error);
       toast.error('Erro ao trocar tenant');
     }
   }, [user, isPlatformAdmin, hasMultipleTenants, authSwitchTenant, queryClient]);
