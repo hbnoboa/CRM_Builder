@@ -127,9 +127,29 @@ export function TenantProvider({ children }: { children: ReactNode }) {
       // Disparar evento para WebSocket reconectar
       window.dispatchEvent(new CustomEvent('tenant-changed'));
 
-      // Refresh page para recarregar contexto
+      // Fetch tenant info with new JWT (switched tenant)
+      const tenantRes = await api.get('/tenants/me');
+      if (tenantRes.data) {
+        setTenant(tenantRes.data);
+      }
+
+      // Refresh accessible tenants
+      if (hasMultipleTenants) {
+        const accessRes = await api.get('/auth/accessible-tenants');
+        if (Array.isArray(accessRes.data)) {
+          setAccessibleTenants(accessRes.data);
+        }
+      }
+
+      // PLATFORM_ADMIN: refresh all tenants list
+      if (isPlatformAdmin) {
+        const allRes = await api.get('/tenants', { params: { limit: 100 } });
+        if (allRes.data?.data) {
+          setAllTenants(allRes.data.data);
+        }
+      }
+
       toast.success('Tenant alterado com sucesso');
-      window.location.reload();
     } catch (error) {
       console.error('Erro ao trocar tenant:', error);
       toast.error('Erro ao trocar tenant');
