@@ -501,6 +501,8 @@ export class AuthService {
       throw new UnauthorizedException('Usuario nao encontrado');
     }
 
+    const isPlatformAdmin = user.customRole?.roleType === 'PLATFORM_ADMIN';
+
     // Trocar para o home tenant
     if (targetTenantId === user.tenantId) {
       const tokens = await this.generateTokens(user);
@@ -520,7 +522,73 @@ export class AuthService {
       };
     }
 
-    // Buscar acesso ao tenant destino
+    // PLATFORM_ADMIN: Validar se tenant existe, mas NAO requer UserTenantAccess
+    if (isPlatformAdmin) {
+      const targetTenant = await this.prisma.tenant.findUnique({
+        where: { id: targetTenantId },
+        select: { id: true, name: true, slug: true, status: true, settings: true },
+      });
+
+      if (!targetTenant) {
+        throw new BadRequestException('Tenant nao encontrado');
+      }
+
+      if (targetTenant.status !== 'ACTIVE') {
+        throw new UnauthorizedException('Tenant suspenso ou inativo');
+      }
+
+      // PLATFORM_ADMIN assume role ADMIN do tenant, ou primeiro role disponivel
+      let roleForTenant = await this.prisma.customRole.findFirst({
+        where: { tenantId: targetTenantId, roleType: 'ADMIN' },
+        select: {
+          id: true, name: true, description: true, color: true,
+          roleType: true, isSystem: true, permissions: true,
+          modulePermissions: true, tenantPermissions: true, isDefault: true,
+        },
+      });
+
+      if (!roleForTenant) {
+        // Fallback: buscar qualquer role do tenant
+        roleForTenant = await this.prisma.customRole.findFirst({
+          where: { tenantId: targetTenantId },
+          select: {
+            id: true, name: true, description: true, color: true,
+            roleType: true, isSystem: true, permissions: true,
+            modulePermissions: true, tenantPermissions: true, isDefault: true,
+          },
+        });
+
+        if (!roleForTenant) {
+          throw new BadRequestException('Tenant nao possui roles configurados');
+        }
+      }
+
+      // Gerar tokens com o tenant destino
+      const tokens = await this.generateTokens({
+        id: user.id,
+        email: user.email,
+        tenantId: targetTenantId,
+        customRoleId: roleForTenant.id,
+        customRole: roleForTenant,
+      });
+
+      return {
+        user: {
+          id: user.id,
+          email: user.email,
+          name: user.name,
+          avatar: user.avatar,
+          customRoleId: roleForTenant.id,
+          customRole: roleForTenant,
+          tenantId: targetTenantId,
+          tenant: targetTenant,
+          hasMultipleTenants: true,
+        },
+        ...tokens,
+      };
+    }
+
+    // Multi-tenant user: requer UserTenantAccess
     const access = await this.prisma.userTenantAccess.findUnique({
       where: {
         userId_tenantId: { userId, tenantId: targetTenantId },

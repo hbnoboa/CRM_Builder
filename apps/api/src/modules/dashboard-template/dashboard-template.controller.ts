@@ -21,7 +21,7 @@ export class DashboardTemplateController {
     @CurrentUser() user: CurrentUserType,
     @Query('tenantId') tenantId?: string,
   ) {
-    checkModulePermission(user, 'dashboardTemplates', 'canRead');
+    checkModulePermission(user, 'dashboard', 'canRead');
     return this.service.findAll(user, tenantId);
   }
 
@@ -54,7 +54,7 @@ export class DashboardTemplateController {
     @CurrentUser() user: CurrentUserType,
     @Query('tenantId') tenantId?: string,
   ) {
-    checkModulePermission(user, 'dashboardTemplates', 'canRead');
+    checkModulePermission(user, 'dashboard', 'canRead');
     return this.service.findOne(id, user, tenantId);
   }
 
@@ -65,7 +65,7 @@ export class DashboardTemplateController {
     @CurrentUser() user: CurrentUserType,
     @Query('tenantId') tenantId?: string,
   ) {
-    checkModulePermission(user, 'dashboardTemplates', 'canCreate');
+    checkModulePermission(user, 'dashboard', 'canCreate');
     return this.service.create(dto, user, tenantId);
   }
 
@@ -77,7 +77,7 @@ export class DashboardTemplateController {
     @CurrentUser() user: CurrentUserType,
     @Query('tenantId') tenantId?: string,
   ) {
-    checkModulePermission(user, 'dashboardTemplates', 'canUpdate');
+    checkModulePermission(user, 'dashboard', 'canUpdate');
     return this.service.update(id, dto, user, tenantId);
   }
 
@@ -88,7 +88,7 @@ export class DashboardTemplateController {
     @CurrentUser() user: CurrentUserType,
     @Query('tenantId') tenantId?: string,
   ) {
-    checkModulePermission(user, 'dashboardTemplates', 'canDelete');
+    checkModulePermission(user, 'dashboard', 'canDelete');
     return this.service.remove(id, user, tenantId);
   }
 }

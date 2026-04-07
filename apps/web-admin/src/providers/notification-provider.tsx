@@ -10,6 +10,7 @@ import {
 } from 'react';
 import { io, Socket } from 'socket.io-client';
 import { useAuthStore } from '@/stores/auth-store';
+import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 
 export interface Notification {
@@ -49,15 +50,23 @@ interface NotificationProviderProps {
 }
 
 export function NotificationProvider({ children }: NotificationProviderProps) {
+  console.log('🚀 [NotificationProvider] Componente renderizando');
   const { isAuthenticated } = useAuthStore();
+  console.log('🔑 [NotificationProvider] isAuthenticated:', isAuthenticated);
+  const queryClient = useQueryClient();
   const [socket, setSocket] = useState<Socket | null>(null);
   const [isConnected, setIsConnected] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [reconnectTrigger, setReconnectTrigger] = useState(0);
 
   // Conectar ao WebSocket quando autenticado
   useEffect(() => {
+    console.log('[WebSocket] useEffect executado - isAuthenticated:', isAuthenticated);
     const accessToken = localStorage.getItem('accessToken');
+    console.log('[WebSocket] accessToken existe:', !!accessToken);
+
     if (!isAuthenticated || !accessToken) {
+      console.log('[WebSocket] Não conectando - isAuthenticated:', isAuthenticated, 'hasToken:', !!accessToken);
       if (socket) {
         socket.disconnect();
         setSocket(null);
@@ -65,6 +74,8 @@ export function NotificationProvider({ children }: NotificationProviderProps) {
       }
       return;
     }
+
+    console.log('[WebSocket] Iniciando conexão em 500ms...');
 
     // Small delay to avoid connecting during transient auth state changes (login redirects)
     let cancelled = false;
@@ -75,6 +86,8 @@ export function NotificationProvider({ children }: NotificationProviderProps) {
 
       const envUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
       const apiUrl = (envUrl.startsWith('/') ? window.location.origin : envUrl).replace(/\/api\/v1\/?$/, '');
+      console.log('[WebSocket] Criando conexão Socket.IO para:', `${apiUrl}/notifications`);
+
       newSocket = io(
         `${apiUrl}/notifications`,
         {
@@ -86,6 +99,8 @@ export function NotificationProvider({ children }: NotificationProviderProps) {
           timeout: 10000,
         }
       );
+
+      console.log('[WebSocket] Instância Socket.IO criada, aguardando eventos...');
 
       newSocket.on('connect', () => {
         console.log('🔌 Conectado ao WebSocket');
@@ -101,14 +116,7 @@ export function NotificationProvider({ children }: NotificationProviderProps) {
 
       newSocket.on('connected', (data: unknown) => {
         console.log('✅ WebSocket autenticado:', data);
-
-        // PLATFORM_ADMIN: also join the selected tenant's room so we receive
-        // data-changed events for the tenant we're currently browsing
-        const selectedTenant = sessionStorage.getItem('selectedTenantId');
-        if (selectedTenant) {
-          newSocket!.emit('subscribe', { channel: `tenant:${selectedTenant}` });
-          console.log('📡 Subscribed to tenant room:', selectedTenant);
-        }
+        // Backend já subscreve automaticamente ao tenant correto via JWT
       });
 
       newSocket.on('notification', (notification: Notification) => {
@@ -142,6 +150,23 @@ export function NotificationProvider({ children }: NotificationProviderProps) {
 
       // Granular data-changed events (create/update/delete with record data)
       newSocket.on('data-changed', (payload: Record<string, unknown>) => {
+        console.log('🔔 [WebSocket] Evento data-changed recebido do servidor:', payload);
+
+        // Invalidate TanStack Query cache for dashboard widgets
+        const entitySlug = payload.entitySlug as string | undefined;
+        if (entitySlug) {
+          console.log('🔄 [WebSocket] Invalidando cache de entity-stats para:', entitySlug);
+          queryClient.invalidateQueries({
+            queryKey: ['entity-stats'],
+            // Apenas invalidar queries que contenham esse entitySlug
+            predicate: (query) => {
+              const key = query.queryKey as unknown[];
+              return key.includes(entitySlug);
+            }
+          });
+        }
+
+        // Dispatch event for useEntityDataSource (table widget)
         window.dispatchEvent(
           new CustomEvent('entity-data-changed', { detail: payload })
         );
@@ -161,18 +186,20 @@ export function NotificationProvider({ children }: NotificationProviderProps) {
         newSocket.disconnect();
       }
     };
-  }, [isAuthenticated]);
+  }, [isAuthenticated, reconnectTrigger]);
 
-  // PLATFORM_ADMIN: re-subscribe when selected tenant changes
+  // Handle tenant changes
   useEffect(() => {
     if (!socket || !isConnected) return;
 
     const handleTenantChange = () => {
-      const selectedTenant = sessionStorage.getItem('selectedTenantId');
-      if (selectedTenant) {
-        socket.emit('subscribe', { channel: `tenant:${selectedTenant}` });
-        console.log('📡 Tenant changed, subscribed to:', selectedTenant);
-      }
+      // TODOS reconectam WebSocket (JWT mudou para refletir novo tenant)
+      console.log('🔄 Reconnecting WebSocket with new JWT...');
+      socket.disconnect();
+      setSocket(null);
+      setIsConnected(false);
+      // Incrementar trigger para forçar reconexão
+      setReconnectTrigger(prev => prev + 1);
     };
 
     // Listen for custom event dispatched when tenant selector changes
