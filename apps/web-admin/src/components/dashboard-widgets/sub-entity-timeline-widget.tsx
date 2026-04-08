@@ -162,6 +162,7 @@ export default function SubEntityTimelineWidget({ config }: SubEntityTimelineWid
           limit,
           sortBy: dateField,
           sortOrder,
+          includeChildren: true, // SEMPRE buscar info do pai para _parentDisplay
         };
 
         if (parentRecordId) {
@@ -347,8 +348,8 @@ export default function SubEntityTimelineWidget({ config }: SubEntityTimelineWid
                           </p>
                         )}
 
-                        {/* Parent info */}
-                        {record._parentDisplay && (
+                        {/* Parent info - sempre mostra se disponível */}
+                        {record._parentDisplay && record._parentEntityName && (
                           <div className="flex items-center gap-1.5 text-xs text-muted-foreground mt-2 pt-2 border-t">
                             <ArrowRight className="h-3 w-3" />
                             <span className="font-medium">{record._parentEntityName}:</span>

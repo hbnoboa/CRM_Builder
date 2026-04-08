@@ -141,7 +141,7 @@ export default function SubEntityListWidget({ config }: SubEntityListWidgetProps
         // Load records
         const params: Record<string, unknown> = {
           limit,
-          includeChildren: showParentInfo,
+          includeChildren: true, // SEMPRE buscar info do pai para _parentDisplay
         };
 
         if (parentRecordId) {
@@ -345,8 +345,9 @@ function RecordCard({
   showParentInfo,
   onClick,
 }: RecordCardProps) {
-  const primaryField = displayFields[0];
-  const primaryValue = record._formatted?.[primaryField] ?? formatValue(record.data[primaryField]);
+  // Se não há displayFields, use o primeiro campo disponível ou ID
+  const primaryField = displayFields[0] || Object.keys(record.data)[0] || 'id';
+  const primaryValue = record._formatted?.[primaryField] ?? formatValue(record.data[primaryField]) ?? record.id;
 
   return (
     <div
@@ -373,8 +374,8 @@ function RecordCard({
         </div>
       </div>
 
-      {/* Parent info */}
-      {showParentInfo && record._parentDisplay && (
+      {/* Parent info - sempre busca da API, só controla exibição */}
+      {record._parentDisplay && record._parentEntityName && (
         <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-2 bg-muted/50 rounded px-2 py-1">
           <ArrowRight className="h-3 w-3" />
           <span className="font-medium">{record._parentEntityName}:</span>
