@@ -1490,36 +1490,19 @@ function PropertiesPanel({
             >
               <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="Selecione" /></SelectTrigger>
               <SelectContent>
-                {allFields.map((f) => (
-                  <SelectItem key={f.slug} value={f.slug}>{f.label || f.name}</SelectItem>
-                ))}
+                {renderFieldOptions(allFields, parentAllFields, false)}
               </SelectContent>
             </Select>
           </div>
           <div className="space-y-1.5">
-            <Label className="text-xs">Campos dos subtítulos (opcional)</Label>
-            <div className="space-y-1 max-h-32 overflow-y-auto border rounded-md p-2">
-              {allFields.map((f) => {
-                const selected = config.config.cardSubtitleFields || [];
-                const isChecked = selected.includes(f.slug);
-                return (
-                  <label key={f.slug} className="flex items-center gap-2 text-xs cursor-pointer hover:bg-accent/50 px-1 py-0.5 rounded">
-                    <input
-                      type="checkbox"
-                      className="rounded"
-                      checked={isChecked}
-                      onChange={() => {
-                        const newFields = isChecked
-                          ? selected.filter((s: string) => s !== f.slug)
-                          : [...selected, f.slug];
-                        updateField('cardSubtitleFields', newFields);
-                      }}
-                    />
-                    {f.label || f.name}
-                  </label>
-                );
-              })}
-            </div>
+            <Label className="text-xs">Campos dos subtítulos</Label>
+            <SortableFieldList
+              allFields={allFields.map(f => ({ slug: f.slug, name: f.name, label: f.label }))}
+              parentFields={hasParentFields ? parentAllFields.map(f => ({ slug: f.slug, name: f.name, label: f.label })) : undefined}
+              selectedSlugs={config.config.cardSubtitleFields || []}
+              onChange={(slugs) => updateField('cardSubtitleFields', slugs)}
+            />
+            <p className="text-[10px] text-muted-foreground">Arraste para reordenar</p>
           </div>
           <div className="space-y-1.5">
             <Label className="text-xs">Campo do badge (opcional)</Label>
@@ -1530,9 +1513,7 @@ function PropertiesPanel({
               <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="__none__">Sem badge</SelectItem>
-                {allFields.map((f) => (
-                  <SelectItem key={f.slug} value={f.slug}>{f.label || f.name}</SelectItem>
-                ))}
+                {renderFieldOptions(allFields, parentAllFields, false)}
               </SelectContent>
             </Select>
           </div>
@@ -1547,9 +1528,7 @@ function PropertiesPanel({
                 <SelectItem value="__none__">Sem ordenação</SelectItem>
                 <SelectItem value="createdAt">Data de criação</SelectItem>
                 <SelectItem value="updatedAt">Data de atualização</SelectItem>
-                {allFields.map((f) => (
-                  <SelectItem key={f.slug} value={f.slug}>{f.label || f.name}</SelectItem>
-                ))}
+                {renderFieldOptions(allFields, parentAllFields, false)}
               </SelectContent>
             </Select>
           </div>
@@ -1710,6 +1689,20 @@ function PropertiesPanel({
     }
 
     if (config.type === 'sub-entity-list' || config.type === 'sub-entity-timeline') {
+      // Get fields of the selected sub-entity
+      const subEntitySlug = config.config.subEntitySlug;
+      const subEntityObj = allEntities.find(e => e.slug === subEntitySlug);
+      const subEntityFields = subEntityObj?.fields || [];
+      const subGroupableFields = subEntityFields.filter((f: EntityField) =>
+        !['section-title', 'divider', 'sub-entity', 'file', 'image', 'signature', 'rich-text'].includes(f.type)
+      );
+      const subAllFields = subEntityFields.filter((f: EntityField) =>
+        !['section-title', 'divider', 'sub-entity'].includes(f.type)
+      );
+      const subDateFields = subEntityFields.filter((f: EntityField) =>
+        ['date', 'datetime'].includes(f.type)
+      );
+
       return (
         <>
           <div className="space-y-1.5">
@@ -1734,6 +1727,13 @@ function PropertiesPanel({
                 updateField('subEntitySlug', v);
                 // Auto-set entitySlugOverride para que o WidgetProvider saiba a entidade correta
                 updateField('entitySlugOverride', v);
+                // Clear field selections when changing entity
+                updateField('displayFields', []);
+                updateField('groupBy', undefined);
+                updateField('titleField', undefined);
+                updateField('descriptionField', undefined);
+                updateField('statusField', undefined);
+                updateField('dateField', 'createdAt');
               }}
             >
               <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="Selecione" /></SelectTrigger>
@@ -1752,24 +1752,44 @@ function PropertiesPanel({
             </Select>
             <p className="text-[10px] text-muted-foreground">Registros a exibir</p>
           </div>
-          {config.type === 'sub-entity-list' && (
+
+          {!subEntitySlug && (
+            <p className="text-xs text-muted-foreground bg-muted/50 p-2 rounded">
+              ⬆️ Selecione uma sub-entidade primeiro
+            </p>
+          )}
+
+          {subEntitySlug && subEntityFields.length === 0 && (
+            <p className="text-xs text-destructive bg-destructive/10 p-2 rounded">
+              ⚠️ Sub-entidade sem campos
+            </p>
+          )}
+
+          {config.type === 'sub-entity-list' && subEntitySlug && subEntityFields.length > 0 && (
             <>
               <div className="space-y-1.5">
                 <Label className="text-xs">Campos a Exibir</Label>
-                <p className="text-[10px] text-muted-foreground">Selecione os campos da sub-entidade</p>
-                <Input className="h-8 text-sm"
-                  value={(config.config.displayFields || []).join(', ')}
-                  onChange={(e) => {
-                    const val = e.target.value.trim();
-                    updateField('displayFields', val ? val.split(',').map((s: string) => s.trim()).filter(Boolean) : []);
-                  }}
-                  placeholder="Ex: nome, status, data" />
+                <SortableFieldList
+                  allFields={subAllFields.map((f: EntityField) => ({ slug: f.slug, name: f.name, label: f.label }))}
+                  selectedSlugs={config.config.displayFields || []}
+                  onChange={(slugs) => updateField('displayFields', slugs)}
+                />
+                <p className="text-[10px] text-muted-foreground">Arraste para reordenar</p>
               </div>
               <div className="space-y-1.5">
-                <Label className="text-xs">Agrupar Por</Label>
-                <Input className="h-8 text-sm" value={config.config.groupBy || ''}
-                  onChange={(e) => updateField('groupBy', e.target.value || undefined)}
-                  placeholder="Ex: status (opcional)" />
+                <Label className="text-xs">Agrupar Por (Opcional)</Label>
+                <Select
+                  value={config.config.groupBy || '__none__'}
+                  onValueChange={(v) => updateField('groupBy', v === '__none__' ? undefined : v)}
+                >
+                  <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">Nenhum</SelectItem>
+                    {subGroupableFields.map((f: EntityField) => (
+                      <SelectItem key={f.slug} value={f.slug}>{f.label || f.name} ({f.type})</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               <div className="flex items-center gap-2">
                 <Switch
@@ -1780,31 +1800,69 @@ function PropertiesPanel({
               </div>
             </>
           )}
-          {config.type === 'sub-entity-timeline' && (
+
+          {config.type === 'sub-entity-timeline' && subEntitySlug && subEntityFields.length > 0 && (
             <>
               <div className="space-y-1.5">
                 <Label className="text-xs">Campo Título</Label>
-                <Input className="h-8 text-sm" value={config.config.titleField || ''}
-                  onChange={(e) => updateField('titleField', e.target.value || undefined)}
-                  placeholder="Campo para título (auto se vazio)" />
+                <Select
+                  value={config.config.titleField || '__auto__'}
+                  onValueChange={(v) => updateField('titleField', v === '__auto__' ? undefined : v)}
+                >
+                  <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__auto__">Auto (1º campo)</SelectItem>
+                    {subAllFields.map((f: EntityField) => (
+                      <SelectItem key={f.slug} value={f.slug}>{f.label || f.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               <div className="space-y-1.5">
-                <Label className="text-xs">Campo Descrição</Label>
-                <Input className="h-8 text-sm" value={config.config.descriptionField || ''}
-                  onChange={(e) => updateField('descriptionField', e.target.value || undefined)}
-                  placeholder="Campo para descrição (opcional)" />
+                <Label className="text-xs">Campo Descrição (Opcional)</Label>
+                <Select
+                  value={config.config.descriptionField || '__none__'}
+                  onValueChange={(v) => updateField('descriptionField', v === '__none__' ? undefined : v)}
+                >
+                  <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">Nenhum</SelectItem>
+                    {subAllFields.map((f: EntityField) => (
+                      <SelectItem key={f.slug} value={f.slug}>{f.label || f.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               <div className="space-y-1.5">
-                <Label className="text-xs">Campo Status</Label>
-                <Input className="h-8 text-sm" value={config.config.statusField || ''}
-                  onChange={(e) => updateField('statusField', e.target.value || undefined)}
-                  placeholder="Campo de status (cores)" />
+                <Label className="text-xs">Campo Status (Cores)</Label>
+                <Select
+                  value={config.config.statusField || '__none__'}
+                  onValueChange={(v) => updateField('statusField', v === '__none__' ? undefined : v)}
+                >
+                  <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">Nenhum</SelectItem>
+                    {subGroupableFields.map((f: EntityField) => (
+                      <SelectItem key={f.slug} value={f.slug}>{f.label || f.name} ({f.type})</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               <div className="space-y-1.5">
                 <Label className="text-xs">Campo Data</Label>
-                <Input className="h-8 text-sm" value={config.config.dateField || 'createdAt'}
-                  onChange={(e) => updateField('dateField', e.target.value || 'createdAt')}
-                  placeholder="createdAt" />
+                <Select
+                  value={config.config.dateField || 'createdAt'}
+                  onValueChange={(v) => updateField('dateField', v)}
+                >
+                  <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="createdAt">Data de Criação</SelectItem>
+                    <SelectItem value="updatedAt">Data de Atualização</SelectItem>
+                    {subDateFields.map((f: EntityField) => (
+                      <SelectItem key={f.slug} value={f.slug}>{f.label || f.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               <div className="space-y-1.5">
                 <Label className="text-xs">Ordem</Label>
@@ -1821,11 +1879,14 @@ function PropertiesPanel({
               </div>
             </>
           )}
-          <div className="space-y-1.5">
-            <Label className="text-xs">Limite</Label>
-            <Input type="number" className="h-8 text-sm" value={config.config.limit || 10}
-              onChange={(e) => updateField('limit', Number(e.target.value))} />
-          </div>
+
+          {subEntitySlug && subEntityFields.length > 0 && (
+            <div className="space-y-1.5">
+              <Label className="text-xs">Limite</Label>
+              <Input type="number" className="h-8 text-sm" value={config.config.limit || 10}
+                onChange={(e) => updateField('limit', Number(e.target.value))} />
+            </div>
+          )}
         </>
       );
     }
@@ -1856,24 +1917,22 @@ function PropertiesPanel({
             >
               <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="Selecione" /></SelectTrigger>
               <SelectContent>
-                {allFields.map((f) => (
-                  <SelectItem key={f.slug} value={f.slug}>{f.label || f.name}</SelectItem>
-                ))}
+                {renderFieldOptions(allFields, parentAllFields, false)}
               </SelectContent>
             </Select>
           </div>
           <div className="space-y-1.5">
             <Label className="text-xs">Campos Subtítulo</Label>
-            <Input className="h-8 text-sm"
-              value={(config.config.cardSubtitleFields || []).join(', ')}
-              onChange={(e) => {
-                const val = e.target.value.trim();
-                updateField('cardSubtitleFields', val ? val.split(',').map((s: string) => s.trim()).filter(Boolean) : []);
-              }}
-              placeholder="Ex: cliente, valor, data" />
+            <SortableFieldList
+              allFields={allFields.map(f => ({ slug: f.slug, name: f.name, label: f.label }))}
+              parentFields={hasParentFields ? parentAllFields.map(f => ({ slug: f.slug, name: f.name, label: f.label })) : undefined}
+              selectedSlugs={config.config.cardSubtitleFields || []}
+              onChange={(slugs) => updateField('cardSubtitleFields', slugs)}
+            />
+            <p className="text-[10px] text-muted-foreground">Arraste para reordenar</p>
           </div>
           <div className="space-y-1.5">
-            <Label className="text-xs">Campo Badge</Label>
+            <Label className="text-xs">Campo Badge (Opcional)</Label>
             <Select
               value={config.config.cardBadgeField || '__none__'}
               onValueChange={(v) => updateField('cardBadgeField', v === '__none__' ? undefined : v)}
@@ -1881,14 +1940,12 @@ function PropertiesPanel({
               <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="__none__">Nenhum</SelectItem>
-                {allFields.map((f) => (
-                  <SelectItem key={f.slug} value={f.slug}>{f.label || f.name}</SelectItem>
-                ))}
+                {renderFieldOptions(allFields, parentAllFields, false)}
               </SelectContent>
             </Select>
           </div>
           <div className="space-y-1.5">
-            <Label className="text-xs">Ordem das Colunas</Label>
+            <Label className="text-xs">Ordem das Colunas (Opcional)</Label>
             <Input className="h-8 text-sm"
               value={(config.config.columnOrder || []).join(', ')}
               onChange={(e) => {
@@ -1896,7 +1953,7 @@ function PropertiesPanel({
                 updateField('columnOrder', val ? val.split(',').map((s: string) => s.trim()).filter(Boolean) : undefined);
               }}
               placeholder="Ex: Novo, Em Andamento, Concluído" />
-            <p className="text-[10px] text-muted-foreground">Vazio = ordem natural dos dados</p>
+            <p className="text-[10px] text-muted-foreground">Valores do campo de agrupamento na ordem desejada</p>
           </div>
         </>
       );
