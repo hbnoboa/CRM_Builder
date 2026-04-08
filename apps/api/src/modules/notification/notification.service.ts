@@ -348,8 +348,10 @@ export class NotificationService {
   /**
    * Emit data-changed event with operation details for granular frontend updates.
    */
-  emitDataChanged(tenantId: string, payload: { operation: string; entitySlug: string; [key: string]: unknown }) {
-    this.gateway.emitDataChanged(tenantId, payload);
+  emitDataChanged(tenantId: string, payload: { operation: string; entitySlug: string; userId?: string; [key: string]: unknown }) {
+    // Se o payload tem userId, excluir esse usuário do broadcast para evitar loops infinitos
+    const excludeUserId = payload.userId as string | undefined;
+    this.gateway.emitDataChanged(tenantId, payload, excludeUserId);
   }
 
   /**

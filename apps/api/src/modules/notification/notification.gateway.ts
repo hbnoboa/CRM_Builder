@@ -220,11 +220,22 @@ export class NotificationGateway
    * Emit data-changed event with operation details for granular frontend updates.
    * Payload includes operation type, record data, and userId so the frontend
    * can surgically update/remove/add records without a full page refetch.
+   *
+   * @param excludeUserId - Optional userId to exclude from receiving this event (avoids infinite loops)
    */
-  emitDataChanged(tenantId: string, payload: { operation: string; entitySlug: string; [key: string]: unknown }) {
+  emitDataChanged(tenantId: string, payload: { operation: string; entitySlug: string; [key: string]: unknown }, excludeUserId?: string) {
     const room = `tenant:${tenantId}`;
-    this.server.to(room).emit('data-changed', payload);
-    this.logger.log(`📡 data-changed: ${payload.operation} ${payload.entitySlug} → ${room}`);
+
+    if (excludeUserId) {
+      // Broadcast para todos no tenant EXCETO o usuário que originou a mudança
+      const userRoom = `user:${excludeUserId}`;
+      this.server.to(room).except(userRoom).emit('data-changed', payload);
+      this.logger.log(`📡 data-changed: ${payload.operation} ${payload.entitySlug} → ${room} (exceto ${excludeUserId})`);
+    } else {
+      // Broadcast para todos (comportamento antigo, para compatibilidade)
+      this.server.to(room).emit('data-changed', payload);
+      this.logger.log(`📡 data-changed: ${payload.operation} ${payload.entitySlug} → ${room}`);
+    }
   }
 
   /**
