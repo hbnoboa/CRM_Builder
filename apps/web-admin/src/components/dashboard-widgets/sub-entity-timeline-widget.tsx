@@ -30,6 +30,7 @@ import {
   XCircle,
   Circle,
 } from 'lucide-react';
+import { useDashboardFilters } from './dashboard-filter-context';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -129,6 +130,7 @@ export default function SubEntityTimelineWidget({ config }: SubEntityTimelineWid
   const t = useTranslations('widgets');
   const { tenantId } = useTenant();
   const router = useRouter();
+  const { crossFilters } = useDashboardFilters();
 
   const [loading, setLoading] = useState(true);
   const [records, setRecords] = useState<TimelineRecord[]>([]);
@@ -166,6 +168,22 @@ export default function SubEntityTimelineWidget({ config }: SubEntityTimelineWid
           params.parentRecordId = parentRecordId;
         }
 
+        // Apply cross filters from dashboard
+        if (crossFilters.length > 0) {
+          const apiFilters = crossFilters
+            .filter(f => f.fieldSlug.startsWith('parent.'))
+            .map(f => ({
+              fieldSlug: f.fieldSlug.replace('parent.', ''),
+              operator: 'in',
+              value: f.values,
+              fieldType: 'relation',
+            }));
+
+          if (apiFilters.length > 0) {
+            params.filters = JSON.stringify(apiFilters);
+          }
+        }
+
         const response = await api.get(`/data/${subEntitySlug}`, { params });
         const list = Array.isArray(response.data) ? response.data : response.data?.data || [];
         setRecords(list);
@@ -178,7 +196,7 @@ export default function SubEntityTimelineWidget({ config }: SubEntityTimelineWid
     }
 
     loadData();
-  }, [subEntitySlug, parentRecordId, limit, dateField, sortOrder, tenantId]);
+  }, [subEntitySlug, parentRecordId, limit, dateField, sortOrder, tenantId, crossFilters]);
 
   const handleViewAll = () => {
     const url = parentRecordId

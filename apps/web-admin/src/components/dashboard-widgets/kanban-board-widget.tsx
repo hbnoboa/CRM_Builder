@@ -126,29 +126,10 @@ function KanbanCardItem({
 }) {
   const cardData = (card as any).data || card;
 
-  // 🔍 LOG 1: Ver dados do card ao renderizar
-  console.log('[Kanban Card Render]', {
-    cardId: (card as any).id,
-    columnValue,
-    cardTitleField: config.cardTitleField,
-    titleValue: cardData[config.cardTitleField],
-    cardDataKeys: Object.keys(cardData),
-    fullCardData: cardData,
-  });
-
   const title = getDisplayValue(cardData[config.cardTitleField], true) || (card as any).id || '-';
   const subtitles = config.cardSubtitleFields?.map((field) => {
     const value = cardData[field];
-    const displayValue = getDisplayValue(value, true);
-
-    // 🔍 LOG 2: Ver cada subtitle individualmente
-    console.log('[Kanban Subtitle]', {
-      field,
-      rawValue: value,
-      displayValue,
-    });
-
-    return displayValue;
+    return getDisplayValue(value, true);
   }) || [];
   const badge = config.cardBadgeField ? getDisplayValue(cardData[config.cardBadgeField]) : null;
 
@@ -187,7 +168,7 @@ function KanbanCardItem({
 }
 
 function KanbanBoardContent({ entitySlug, title, config, entityFields }: KanbanBoardWidgetProps) {
-  const { sortedRecords: data, isLoading, updateRecord } = useEntityData();
+  const { sortedRecords: data, isLoading } = useEntityData();
   const [layouts, setLayouts] = useState<{ lg: any[]; md?: any[]; sm?: any[] }>({ lg: [] });
   const [isInitialLoad, setIsInitialLoad] = useState(true);
   const updateMutation = useUpdateEntityData({
@@ -211,12 +192,6 @@ function KanbanBoardContent({ entitySlug, title, config, entityFields }: KanbanB
 
   // Agrupar cards por coluna e gerar layout
   const { columns, gridLayout, cardColumnMap } = useMemo(() => {
-    // 🔍 LOG 4: Ver quando columns é recalculado
-    console.log('[Kanban useMemo Recalculate]', {
-      dataLength: data?.length,
-      isValidGroupField,
-      sampleRecord: data?.[0],
-    });
 
     if (!data || !Array.isArray(data) || !isValidGroupField) {
       return { columns: [], gridLayout: [], cardColumnMap: new Map() };
@@ -395,30 +370,23 @@ function KanbanBoardContent({ entitySlug, title, config, entityFields }: KanbanB
 
         // Se mudou de coluna, atualizar via API
         if (currentColumnValue && currentColumnValue !== targetColumn.value) {
-          // 🔍 LOG 3: Ver o que está sendo atualizado
-          console.log('[Kanban Update]', {
-            cardId,
-            groupByField: config.groupByField,
-            from: currentColumnValue,
-            to: targetColumn.value,
-            updateData: { [config.groupByField]: targetColumn.value },
-          });
-
-          // Update otimista: atualizar localmente ANTES da API responder
-          updateRecord(cardId, {
-            [config.groupByField]: targetColumn.value,
-          });
-
-          // Enviar update para a API
-          updateMutation.mutate({
-            entitySlug,
-            id: cardId,
-            data: {
-              [config.groupByField]: targetColumn.value,
+          // SOLUÇÃO: Enviar apenas o campo que mudou para a API
+          // e deixar o WebSocket fazer o update completo quando a API responder
+          // Isso preserva TODOS os campos, incluindo relações
+          updateMutation.mutate(
+            {
+              entitySlug,
+              id: cardId,
+              data: {
+                [config.groupByField]: targetColumn.value,
+              },
             },
-          });
-
-          toast.success(`Movido para "${targetColumn.title}"`);
+            {
+              onSuccess: () => {
+                toast.success(`Movido para "${targetColumn.title}"`);
+              },
+            }
+          );
         }
       });
     },

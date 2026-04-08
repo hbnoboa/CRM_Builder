@@ -82,6 +82,7 @@ import { ZoneDiagramWidget } from '@/components/dashboard-widgets/zone-diagram-w
 import { ImageGalleryWidget } from '@/components/dashboard-widgets/image-gallery-widget';
 import { StatListWidget } from '@/components/dashboard-widgets/stat-list-widget';
 import { DataTableWidget } from '@/components/dashboard-widgets/data-table-widget';
+import { KanbanBoardWidget } from '@/components/dashboard-widgets/kanban-board-widget';
 import { WidgetWrapper } from '@/components/dashboard-widgets/widget-wrapper';
 import type { WidgetConfig, WidgetType, LayoutItem } from '@crm-builder/shared';
 import type { EntityField } from '@/types';
@@ -2257,6 +2258,7 @@ function renderLiveWidget(
     case 'image-gallery': return <ImageGalleryWidget {...commonProps} />;
     case 'stat-list': return <StatListWidget {...commonProps} />;
     case 'data-table': return <DataTableWidget {...commonProps} />;
+    case 'kanban-board': return <KanbanBoardWidget {...commonProps} />;
     default: return <WidgetWrapper title={widgetConfig.title}><div /></WidgetWrapper>;
   }
 }
