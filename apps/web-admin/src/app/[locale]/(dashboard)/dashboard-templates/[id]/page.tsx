@@ -83,6 +83,8 @@ import { ImageGalleryWidget } from '@/components/dashboard-widgets/image-gallery
 import { StatListWidget } from '@/components/dashboard-widgets/stat-list-widget';
 import { DataTableWidget } from '@/components/dashboard-widgets/data-table-widget';
 import { KanbanBoardWidget } from '@/components/dashboard-widgets/kanban-board-widget';
+import SubEntityListWidget from '@/components/dashboard-widgets/sub-entity-list-widget';
+import SubEntityTimelineWidget from '@/components/dashboard-widgets/sub-entity-timeline-widget';
 import { WidgetWrapper } from '@/components/dashboard-widgets/widget-wrapper';
 import type { WidgetConfig, WidgetType, LayoutItem } from '@crm-builder/shared';
 import type { EntityField } from '@/types';
@@ -887,6 +889,35 @@ function PropertiesPanel({
       );
     }
 
+    if (config.type === 'pie-chart' || config.type === 'donut-chart') {
+      return (
+        <>
+          <div className="space-y-1.5">
+            <Label className="text-xs">Campo (agrupar por)</Label>
+            <Select
+              value={config.config.groupByField || config.config.fieldSlug || ''}
+              onValueChange={(v) => {
+                updateField('groupByField', v);
+                updateField('fieldSlug', v);
+              }}
+            >
+              <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="Selecione" /></SelectTrigger>
+              <SelectContent>
+                {renderFieldOptions(groupableFields, parentGroupableFields)}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs">Limite de segmentos</Label>
+            <Input type="number" className="h-8 text-sm" value={config.config.limit || 10}
+              onChange={(e) => updateField('limit', Number(e.target.value))}
+              placeholder="10" />
+            <p className="text-[10px] text-muted-foreground">Quantidade máxima de segmentos no gráfico</p>
+          </div>
+        </>
+      );
+    }
+
     if (config.type === 'funnel-chart' || config.type === 'treemap-chart') {
       return (
         <>
@@ -1678,6 +1709,199 @@ function PropertiesPanel({
       );
     }
 
+    if (config.type === 'sub-entity-list' || config.type === 'sub-entity-timeline') {
+      return (
+        <>
+          <div className="space-y-1.5">
+            <Label className="text-xs">Entidade Principal</Label>
+            <Select
+              value={config.config.entitySlug || ''}
+              onValueChange={(v) => updateField('entitySlug', v)}
+            >
+              <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="Selecione" /></SelectTrigger>
+              <SelectContent>
+                {allEntities.map((e) => (
+                  <SelectItem key={e.slug} value={e.slug}>{e.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs">Sub-Entidade</Label>
+            <Select
+              value={config.config.subEntitySlug || ''}
+              onValueChange={(v) => {
+                updateField('subEntitySlug', v);
+                // Auto-set entitySlugOverride para que o WidgetProvider saiba a entidade correta
+                updateField('entitySlugOverride', v);
+              }}
+            >
+              <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="Selecione" /></SelectTrigger>
+              <SelectContent>
+                {subEntities.length > 0 && (
+                  <SelectGroup>
+                    <SelectLabel className="text-xs">Sub-entidades</SelectLabel>
+                    {subEntities.map((e) => <SelectItem key={e.slug} value={e.slug}>{e.name}</SelectItem>)}
+                  </SelectGroup>
+                )}
+                <SelectGroup>
+                  <SelectLabel className="text-xs">Todas</SelectLabel>
+                  {allEntities.map((e) => <SelectItem key={e.slug} value={e.slug}>{e.name}</SelectItem>)}
+                </SelectGroup>
+              </SelectContent>
+            </Select>
+            <p className="text-[10px] text-muted-foreground">Registros a exibir</p>
+          </div>
+          {config.type === 'sub-entity-list' && (
+            <>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Campos a Exibir</Label>
+                <p className="text-[10px] text-muted-foreground">Selecione os campos da sub-entidade</p>
+                <Input className="h-8 text-sm"
+                  value={(config.config.displayFields || []).join(', ')}
+                  onChange={(e) => {
+                    const val = e.target.value.trim();
+                    updateField('displayFields', val ? val.split(',').map((s: string) => s.trim()).filter(Boolean) : []);
+                  }}
+                  placeholder="Ex: nome, status, data" />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Agrupar Por</Label>
+                <Input className="h-8 text-sm" value={config.config.groupBy || ''}
+                  onChange={(e) => updateField('groupBy', e.target.value || undefined)}
+                  placeholder="Ex: status (opcional)" />
+              </div>
+              <div className="flex items-center gap-2">
+                <Switch
+                  checked={config.config.showParentInfo || false}
+                  onCheckedChange={(v) => updateField('showParentInfo', v)}
+                />
+                <Label className="text-xs">Mostrar info do pai</Label>
+              </div>
+            </>
+          )}
+          {config.type === 'sub-entity-timeline' && (
+            <>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Campo Título</Label>
+                <Input className="h-8 text-sm" value={config.config.titleField || ''}
+                  onChange={(e) => updateField('titleField', e.target.value || undefined)}
+                  placeholder="Campo para título (auto se vazio)" />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Campo Descrição</Label>
+                <Input className="h-8 text-sm" value={config.config.descriptionField || ''}
+                  onChange={(e) => updateField('descriptionField', e.target.value || undefined)}
+                  placeholder="Campo para descrição (opcional)" />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Campo Status</Label>
+                <Input className="h-8 text-sm" value={config.config.statusField || ''}
+                  onChange={(e) => updateField('statusField', e.target.value || undefined)}
+                  placeholder="Campo de status (cores)" />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Campo Data</Label>
+                <Input className="h-8 text-sm" value={config.config.dateField || 'createdAt'}
+                  onChange={(e) => updateField('dateField', e.target.value || 'createdAt')}
+                  placeholder="createdAt" />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Ordem</Label>
+                <Select
+                  value={config.config.sortOrder || 'desc'}
+                  onValueChange={(v) => updateField('sortOrder', v)}
+                >
+                  <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="desc">Mais recentes primeiro</SelectItem>
+                    <SelectItem value="asc">Mais antigos primeiro</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </>
+          )}
+          <div className="space-y-1.5">
+            <Label className="text-xs">Limite</Label>
+            <Input type="number" className="h-8 text-sm" value={config.config.limit || 10}
+              onChange={(e) => updateField('limit', Number(e.target.value))} />
+          </div>
+        </>
+      );
+    }
+
+    if (config.type === 'kanban-board') {
+      return (
+        <>
+          <div className="space-y-1.5">
+            <Label className="text-xs">Campo de Agrupamento (Colunas)</Label>
+            <Select
+              value={config.config.groupByField || ''}
+              onValueChange={(v) => updateField('groupByField', v)}
+            >
+              <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="Selecione" /></SelectTrigger>
+              <SelectContent>
+                {groupableFields.map((f) => (
+                  <SelectItem key={f.slug} value={f.slug}>{f.label || f.name} ({f.type})</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-[10px] text-muted-foreground">Campo que define as colunas (ex: status)</p>
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs">Campo Título do Card</Label>
+            <Select
+              value={config.config.cardTitleField || ''}
+              onValueChange={(v) => updateField('cardTitleField', v)}
+            >
+              <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="Selecione" /></SelectTrigger>
+              <SelectContent>
+                {allFields.map((f) => (
+                  <SelectItem key={f.slug} value={f.slug}>{f.label || f.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs">Campos Subtítulo</Label>
+            <Input className="h-8 text-sm"
+              value={(config.config.cardSubtitleFields || []).join(', ')}
+              onChange={(e) => {
+                const val = e.target.value.trim();
+                updateField('cardSubtitleFields', val ? val.split(',').map((s: string) => s.trim()).filter(Boolean) : []);
+              }}
+              placeholder="Ex: cliente, valor, data" />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs">Campo Badge</Label>
+            <Select
+              value={config.config.cardBadgeField || '__none__'}
+              onValueChange={(v) => updateField('cardBadgeField', v === '__none__' ? undefined : v)}
+            >
+              <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__none__">Nenhum</SelectItem>
+                {allFields.map((f) => (
+                  <SelectItem key={f.slug} value={f.slug}>{f.label || f.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs">Ordem das Colunas</Label>
+            <Input className="h-8 text-sm"
+              value={(config.config.columnOrder || []).join(', ')}
+              onChange={(e) => {
+                const val = e.target.value.trim();
+                updateField('columnOrder', val ? val.split(',').map((s: string) => s.trim()).filter(Boolean) : undefined);
+              }}
+              placeholder="Ex: Novo, Em Andamento, Concluído" />
+            <p className="text-[10px] text-muted-foreground">Vazio = ordem natural dos dados</p>
+          </div>
+        </>
+      );
+    }
+
     return null;
   }
 
@@ -2113,11 +2337,16 @@ function PropertiesPanel({
     <div className="h-full flex flex-col">
       {/* Header */}
       <div className="px-3 py-2.5 flex items-center justify-between border-b">
-        <div className="flex items-center gap-2 min-w-0">
-          {widgetDef && <widgetDef.icon className="h-4 w-4 text-muted-foreground shrink-0" />}
-          <span className="text-xs font-medium uppercase tracking-wider truncate">
-            {widgetDef?.label || 'Widget'}
-          </span>
+        <div className="flex flex-col gap-1 min-w-0 flex-1">
+          <div className="flex items-center gap-2">
+            {widgetDef && <widgetDef.icon className="h-4 w-4 text-muted-foreground shrink-0" />}
+            <span className="text-xs font-medium uppercase tracking-wider truncate">
+              {widgetDef?.label || 'Widget'}
+            </span>
+          </div>
+          <Badge variant="outline" className="text-[9px] font-mono w-fit px-1.5 py-0 h-4">
+            {config.type}
+          </Badge>
         </div>
         <Button
           variant="ghost"
@@ -2259,6 +2488,8 @@ function renderLiveWidget(
     case 'stat-list': return <StatListWidget {...commonProps} />;
     case 'data-table': return <DataTableWidget {...commonProps} />;
     case 'kanban-board': return <KanbanBoardWidget {...commonProps} />;
+    case 'sub-entity-list': return <SubEntityListWidget config={widgetConfig.config} />;
+    case 'sub-entity-timeline': return <SubEntityTimelineWidget config={widgetConfig.config} />;
     default: return <WidgetWrapper title={widgetConfig.title}><div /></WidgetWrapper>;
   }
 }
