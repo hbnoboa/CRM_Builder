@@ -3,6 +3,7 @@ import {
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiResponse } from '@nestjs/swagger';
 import { CustomRoleService } from './custom-role.service';
+import { PermissionCacheService } from './permission-cache.service';
 import { CreateCustomRoleDto, UpdateCustomRoleDto, QueryCustomRoleDto } from './dto/custom-role.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { ModulePermissionGuard } from '../../common/guards/module-permission.guard';
@@ -24,7 +25,10 @@ function assertAdminRole(user: CurrentUserType): void {
 @UseGuards(JwtAuthGuard, ModulePermissionGuard)
 @ApiBearerAuth()
 export class CustomRoleController {
-  constructor(private readonly customRoleService: CustomRoleService) {}
+  constructor(
+    private readonly customRoleService: CustomRoleService,
+    private readonly permissionCache: PermissionCacheService,
+  ) {}
 
   @Post()
   @RequireModulePermission('roles', 'canCreate')
@@ -109,5 +113,52 @@ export class CustomRoleController {
     @CurrentUser() user: CurrentUserType,
   ) {
     return this.customRoleService.removeFromUser(userId, user, tenantId);
+  }
+
+  @Get('cache/stats')
+  @RequireModulePermission('roles', 'canRead')
+  @ApiOperation({ summary: 'Obter estatísticas do cache de permissions' })
+  @ApiResponse({
+    status: 200,
+    description: 'Estatísticas do cache',
+    schema: {
+      type: 'object',
+      properties: {
+        totalKeys: { type: 'number', example: 127 },
+        permissionKeys: { type: 'number', example: 127 },
+        averageTTL: { type: 'number', example: 245, description: 'TTL médio em segundos' },
+      },
+    },
+  })
+  async getCacheStats(@CurrentUser() user: CurrentUserType) {
+    assertAdminRole(user);
+    return this.permissionCache.getStats();
+  }
+
+  @Post('cache/invalidate/:userId')
+  @RequireModulePermission('roles', 'canUpdate')
+  @ApiOperation({ summary: 'Invalidar cache de permissions de um usuário' })
+  async invalidateUserCache(
+    @Param('userId') userId: string,
+    @CurrentUser() user: CurrentUserType,
+  ) {
+    assertAdminRole(user);
+    await this.permissionCache.invalidateUserPermissions(userId, user.tenantId);
+    return {
+      success: true,
+      message: `Cache de permissions do usuário ${userId} invalidado`,
+    };
+  }
+
+  @Post('cache/invalidate-tenant')
+  @RequireModulePermission('roles', 'canUpdate')
+  @ApiOperation({ summary: 'Invalidar TODOS os caches de permissions do tenant' })
+  async invalidateTenantCache(@CurrentUser() user: CurrentUserType) {
+    assertAdminRole(user);
+    await this.permissionCache.invalidateTenantPermissions(user.tenantId);
+    return {
+      success: true,
+      message: `Caches de permissions do tenant invalidados`,
+    };
   }
 }

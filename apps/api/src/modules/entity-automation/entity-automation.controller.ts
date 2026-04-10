@@ -17,6 +17,8 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { CurrentUser as CurrentUserType } from '../../common/types';
 import { getEffectiveTenantId } from '../../common/utils/tenant.util';
 import { EntityAutomationService } from './entity-automation.service';
+import { ExecutionContextService } from './execution-context.service';
+import { CircuitBreakerService } from './circuit-breaker.service';
 import { CreateAutomationDto } from './dto/create-automation.dto';
 import { UpdateAutomationDto } from './dto/update-automation.dto';
 import { IsString, IsOptional } from 'class-validator';
@@ -37,6 +39,8 @@ class ExecuteManualDto {
 export class EntityAutomationController {
   constructor(
     private readonly automationService: EntityAutomationService,
+    private readonly executionContextService: ExecutionContextService,
+    private readonly circuitBreakerService: CircuitBreakerService,
   ) {}
 
   @Get()
@@ -154,5 +158,43 @@ export class EntityAutomationController {
       page ? parseInt(page, 10) : 1,
       limit ? parseInt(limit, 10) : 20,
     );
+  }
+
+  // ==========================================
+  // Endpoints de Monitoramento (Loop Detection & Circuit Breaker)
+  // ==========================================
+
+  @Get('monitoring/execution-contexts')
+  @RequireModulePermission('automations', 'canRead', 'entityAutomation')
+  @ApiOperation({ summary: 'Lista contextos de execucao ativos' })
+  async getExecutionContexts() {
+    return {
+      activeContexts: this.executionContextService.getActiveContexts(),
+      totalActive: this.executionContextService.getActiveContextCount(),
+    };
+  }
+
+  @Get('monitoring/circuit-breakers')
+  @RequireModulePermission('automations', 'canRead', 'entityAutomation')
+  @ApiOperation({ summary: 'Lista estado dos circuit breakers' })
+  async getCircuitBreakers() {
+    return {
+      circuits: this.circuitBreakerService.getAllCircuits(),
+      summary: this.circuitBreakerService.getSummary(),
+    };
+  }
+
+  @Post(':id/circuit-breaker/reset')
+  @RequireModulePermission('automations', 'canUpdate', 'entityAutomation')
+  @ApiOperation({ summary: 'Reseta circuit breaker de uma automacao' })
+  async resetCircuitBreaker(
+    @Param('id') automationId: string,
+    @CurrentUser() user: CurrentUserType,
+  ) {
+    this.circuitBreakerService.reset(automationId);
+    return {
+      message: `Circuit breaker resetado para automacao ${automationId}`,
+      automation: automationId,
+    };
   }
 }

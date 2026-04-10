@@ -4,6 +4,7 @@ import { ThrottlerModule } from '@nestjs/throttler';
 import { I18nModule, QueryResolver, HeaderResolver, AcceptLanguageResolver } from 'nestjs-i18n';
 import * as path from 'path';
 import { PrismaModule } from './prisma/prisma.module';
+import { RedisModule } from './common/services/redis.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { UserModule } from './modules/user/user.module';
 import { TenantModule } from './modules/tenant/tenant.module';
@@ -60,6 +61,9 @@ import { PublicLinkModule } from './modules/public-link/public-link.module';
 
     // Database
     PrismaModule,
+
+    // Redis (Global)
+    RedisModule,
 
     // Health Check
     HealthModule,

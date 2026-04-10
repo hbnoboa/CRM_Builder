@@ -57,22 +57,50 @@ export class AuditService {
 
   /**
    * Query audit logs with pagination and filters. PLATFORM_ADMIN only.
+   * Busca em AuditLog (ativos) e ArchivedAuditLog (arquivados) quando necessário.
    */
   async findAll(query: QueryAuditLogDto) {
     const { page = 1, limit = 50, tenantId, action, resource, userId, dateFrom, dateTo, search } = query;
     const skip = (page - 1) * limit;
 
-    const where: Prisma.AuditLogWhereInput = {};
+    // Determinar se precisa buscar logs arquivados (> 90 dias)
+    const archiveCutoffDate = new Date();
+    archiveCutoffDate.setDate(archiveCutoffDate.getDate() - 90);
 
-    if (tenantId) where.tenantId = tenantId;
-    if (action) where.action = action;
-    if (resource) where.resource = resource;
-    if (userId) where.userId = userId;
+    const needsArchived = dateFrom && new Date(dateFrom) < archiveCutoffDate;
+
+    // Construir where clause
+    const where: Prisma.AuditLogWhereInput = {};
+    const whereArchived: Prisma.ArchivedAuditLogWhereInput = {};
+
+    if (tenantId) {
+      where.tenantId = tenantId;
+      whereArchived.tenantId = tenantId;
+    }
+    if (action) {
+      where.action = action;
+      whereArchived.action = action;
+    }
+    if (resource) {
+      where.resource = resource;
+      whereArchived.resource = resource;
+    }
+    if (userId) {
+      where.userId = userId;
+      whereArchived.userId = userId;
+    }
 
     if (dateFrom || dateTo) {
       where.createdAt = {};
-      if (dateFrom) where.createdAt.gte = new Date(dateFrom);
-      if (dateTo) where.createdAt.lte = new Date(dateTo);
+      whereArchived.createdAt = {};
+      if (dateFrom) {
+        where.createdAt.gte = new Date(dateFrom);
+        whereArchived.createdAt.gte = new Date(dateFrom);
+      }
+      if (dateTo) {
+        where.createdAt.lte = new Date(dateTo);
+        whereArchived.createdAt.lte = new Date(dateTo);
+      }
     }
 
     if (search) {
@@ -81,9 +109,15 @@ export class AuditService {
         { action: { contains: search, mode: 'insensitive' } },
         { resource: { contains: search, mode: 'insensitive' } },
       ];
+      whereArchived.OR = [
+        { resourceId: { contains: search, mode: 'insensitive' } },
+        { action: { contains: search, mode: 'insensitive' } },
+        { resource: { contains: search, mode: 'insensitive' } },
+      ];
     }
 
-    const [rawData, total] = await Promise.all([
+    // Buscar logs ativos e arquivados (se necessário)
+    const [activeLogs, activeTotal, archivedLogs, archivedTotal] = await Promise.all([
       this.prisma.auditLog.findMany({
         where,
         skip,
@@ -91,7 +125,25 @@ export class AuditService {
         orderBy: { createdAt: 'desc' },
       }),
       this.prisma.auditLog.count({ where }),
+      needsArchived
+        ? this.prisma.archivedAuditLog.findMany({
+            where: whereArchived,
+            skip,
+            take: limit,
+            orderBy: { createdAt: 'desc' },
+          })
+        : [],
+      needsArchived
+        ? this.prisma.archivedAuditLog.count({ where: whereArchived })
+        : 0,
     ]);
+
+    // Combinar e ordenar logs
+    const rawData = [...activeLogs, ...archivedLogs].sort(
+      (a, b) => b.createdAt.getTime() - a.createdAt.getTime()
+    );
+
+    const total = activeTotal + archivedTotal;
 
     // Enrich with user info
     const userIds = [...new Set(rawData.map((l) => l.userId).filter(Boolean))] as string[];
@@ -107,6 +159,7 @@ export class AuditService {
       ...log,
       userName: log.userId ? userMap.get(log.userId)?.name ?? null : null,
       userEmail: log.userId ? userMap.get(log.userId)?.email ?? null : null,
+      isArchived: 'archivedAt' in log, // Flag para indicar se é arquivado
     }));
 
     return {
@@ -116,6 +169,9 @@ export class AuditService {
         page,
         limit,
         totalPages: Math.ceil(total / limit),
+        includesArchived: needsArchived,
+        activeCount: activeTotal,
+        archivedCount: archivedTotal,
       },
     };
   }

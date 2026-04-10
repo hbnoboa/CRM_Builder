@@ -11,6 +11,7 @@ import { CustomRoleModule } from '../custom-role/custom-role.module';
 import { WebhookModule } from '../webhook/webhook.module';
 import { ActionChainModule } from '../action-chain/action-chain.module';
 import { EntityAutomationModule } from '../entity-automation/entity-automation.module';
+import { AutomationQueueModule } from '../automation-queue/automation-queue.module';
 import { EntityDataQueryModule } from '../../common/services/entity-data-query.module';
 
 @Module({
@@ -19,6 +20,7 @@ import { EntityDataQueryModule } from '../../common/services/entity-data-query.m
     EntityDataQueryModule,
     NotificationModule,
     CustomRoleModule,
+    AutomationQueueModule,
     forwardRef(() => WebhookModule),
     forwardRef(() => ActionChainModule),
     forwardRef(() => EntityAutomationModule),

@@ -346,6 +346,49 @@ export class NotificationService {
   }
 
   /**
+   * Notificar todos os administradores de um tenant
+   */
+  async notifyAdmins(
+    tenantId: string,
+    notification: CreateNotificationDto,
+  ): Promise<void> {
+    try {
+      // Buscar todos os admins do tenant (ADMIN e PLATFORM_ADMIN)
+      const admins = await this.prisma.user.findMany({
+        where: {
+          tenantId,
+          status: 'ACTIVE',
+          customRole: {
+            roleType: {
+              in: ['ADMIN', 'PLATFORM_ADMIN'],
+            },
+          },
+        },
+        select: {
+          id: true,
+        },
+      });
+
+      if (admins.length === 0) {
+        this.logger.warn(`Nenhum admin encontrado no tenant ${tenantId}`);
+        return;
+      }
+
+      // Notificar cada admin
+      for (const admin of admins) {
+        await this.notifyUser(admin.id, notification, tenantId, true);
+      }
+
+      this.logger.log(
+        `Notificação enviada para ${admins.length} admin(s) do tenant ${tenantId}`,
+      );
+    } catch (error) {
+      this.logger.error(`Falha ao notificar admins: ${error}`);
+      throw error;
+    }
+  }
+
+  /**
    * Emit data-changed event with operation details for granular frontend updates.
    */
   emitDataChanged(tenantId: string, payload: { operation: string; entitySlug: string; userId?: string; [key: string]: unknown }) {
