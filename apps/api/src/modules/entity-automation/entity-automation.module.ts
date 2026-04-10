@@ -21,6 +21,6 @@ import { NotificationModule } from '../notification/notification.module';
     ExecutionContextService,
     CircuitBreakerService,
   ],
-  exports: [EntityAutomationService],
+  exports: [EntityAutomationService, AutomationExecutorService],
 })
 export class EntityAutomationModule {}
