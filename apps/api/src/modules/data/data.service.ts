@@ -3,6 +3,7 @@ import { InjectQueue } from '@nestjs/bull';
 import { Queue } from 'bull';
 import { PrismaService } from '../../prisma/prisma.service';
 import { EntityService } from '../entity/entity.service';
+import { ComputedFieldMaterializerService } from '../entity/computed-field-materializer.service';
 import { NotificationService } from '../notification/notification.service';
 import { CustomRoleService } from '../custom-role/custom-role.service';
 import { ComputedFieldsService } from './computed-fields.service';
@@ -103,6 +104,7 @@ export class DataService {
   constructor(
     private prisma: PrismaService,
     private entityService: EntityService,
+    private materializer: ComputedFieldMaterializerService,
     private notificationService: NotificationService,
     private customRoleService: CustomRoleService,
     private auditService: AuditService,
@@ -278,6 +280,11 @@ export class DataService {
         createdById: currentUser.id,
         updatedById: currentUser.id,
       },
+    });
+
+    // Materializar computed fields (async, não bloqueia)
+    this.materializer.materialize(entity as any, record).catch((err) => {
+      this.logger.error(`Erro ao materializar computed fields: ${err.message}`);
     });
 
     // Enviar notificacao para o tenant
@@ -1451,6 +1458,19 @@ export class DataService {
           updatedById: currentUser.id,
         },
       });
+
+      // Materializar computed fields (async, não bloqueia)
+      this.materializer.materialize(entity as any, updatedRecord).catch((err) => {
+        this.logger.error(`Erro ao materializar computed fields: ${err.message}`);
+      });
+
+      // Invalidar rollups de registros pais (se este registro foi alterado)
+      const changedFields = Object.keys(inputData);
+      if (changedFields.length > 0) {
+        this.materializer.invalidateParentRollups(entity as any, updatedRecord).catch((err) => {
+          this.logger.error(`Erro ao invalidar rollups pais: ${err.message}`);
+        });
+      }
     }
 
     // Enviar notificacao para o tenant
