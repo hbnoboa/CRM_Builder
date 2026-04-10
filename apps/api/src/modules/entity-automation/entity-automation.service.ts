@@ -12,6 +12,7 @@ import { CreateAutomationDto } from './dto/create-automation.dto';
 import { UpdateAutomationDto } from './dto/update-automation.dto';
 import { ConditionEvaluator } from './condition-evaluator';
 import { AutomationTrigger, Prisma } from '@prisma/client';
+import { buildCursorResponse } from '../../common/utils/cursor-pagination.util';
 
 interface TriggerContext {
   event: string;
@@ -63,9 +64,10 @@ export class EntityAutomationService {
   async findAll(
     tenantId: string,
     entityId: string,
-    query?: { isActive?: boolean; trigger?: string; search?: string; page?: number; limit?: number },
+    query?: { isActive?: boolean; trigger?: string; search?: string; page?: number; limit?: number; cursor?: string },
   ) {
-    const { isActive, trigger, search, page = 1, limit = 50 } = query || {};
+    const { isActive, trigger, search, page = 1, limit = 50, cursor } = query || {};
+    const useCursor = !!cursor;
 
     const where: Prisma.EntityAutomationWhereInput = {
       tenantId,
@@ -80,6 +82,27 @@ export class EntityAutomationService {
       }),
     };
 
+    // Cursor pagination (mais eficiente)
+    if (useCursor) {
+      const takeWithExtra = limit + 1;
+      const items = await this.prisma.entityAutomation.findMany({
+        where,
+        take: takeWithExtra,
+        orderBy: { createdAt: 'desc' },
+        ...(cursor && {
+          cursor: { id: cursor },
+          skip: 1,
+        }),
+      });
+
+      return buildCursorResponse({
+        items,
+        limit,
+        getCursorValue: (item) => item.id,
+      });
+    }
+
+    // Offset pagination (legacy)
     const [data, total] = await Promise.all([
       this.prisma.entityAutomation.findMany({
         where,

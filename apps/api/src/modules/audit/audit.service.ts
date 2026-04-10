@@ -3,6 +3,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { Prisma } from '@prisma/client';
 import { CurrentUser } from '../../common/types/auth.types';
 import { QueryAuditLogDto } from './dto/audit-log.dto';
+import { buildCursorResponse } from '../../common/utils/cursor-pagination.util';
 
 export type AuditAction = 'create' | 'update' | 'delete';
 export type AuditResource =
@@ -60,8 +61,9 @@ export class AuditService {
    * Busca em AuditLog (ativos) e ArchivedAuditLog (arquivados) quando necessário.
    */
   async findAll(query: QueryAuditLogDto) {
-    const { page = 1, limit = 50, tenantId, action, resource, userId, dateFrom, dateTo, search } = query;
+    const { page = 1, limit = 50, cursor, tenantId, action, resource, userId, dateFrom, dateTo, search } = query;
     const skip = (page - 1) * limit;
+    const useCursor = !!cursor;
 
     // Determinar se precisa buscar logs arquivados (> 90 dias)
     const archiveCutoffDate = new Date();
@@ -116,7 +118,54 @@ export class AuditService {
       ];
     }
 
-    // Buscar logs ativos e arquivados (se necessário)
+    // Cursor pagination para logs recentes (mais eficiente)
+    if (useCursor && !needsArchived) {
+      const takeWithExtra = limit + 1;
+      const items = await this.prisma.auditLog.findMany({
+        where,
+        take: takeWithExtra,
+        orderBy: { createdAt: 'desc' },
+        ...(cursor && {
+          cursor: { id: cursor },
+          skip: 1,
+        }),
+      });
+
+      // Enrich with user info
+      const userIds = [...new Set(items.map((l) => l.userId).filter(Boolean))] as string[];
+      const users = userIds.length > 0
+        ? await this.prisma.user.findMany({
+            where: { id: { in: userIds } },
+            select: { id: true, name: true, email: true },
+          })
+        : [];
+      const userMap = new Map(users.map((u) => [u.id, u]));
+
+      const enrichedItems = items.map((log) => ({
+        ...log,
+        userName: log.userId ? userMap.get(log.userId)?.name ?? null : null,
+        userEmail: log.userId ? userMap.get(log.userId)?.email ?? null : null,
+        isArchived: false,
+      }));
+
+      const response = buildCursorResponse({
+        items: enrichedItems,
+        limit,
+        getCursorValue: (item) => item.id,
+      });
+
+      return {
+        ...response,
+        meta: {
+          ...response.meta,
+          includesArchived: false,
+          activeCount: null, // Não calculamos total em cursor mode
+          archivedCount: 0,
+        },
+      };
+    }
+
+    // Offset pagination (legacy ou com archived)
     const [activeLogs, activeTotal, archivedLogs, archivedTotal] = await Promise.all([
       this.prisma.auditLog.findMany({
         where,
