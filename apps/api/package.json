@@ -56,6 +56,7 @@
     "socket.io": "^4.8.3",
     "swagger-ui-express": "^5.0.1",
     "uuid": "^13.0.0",
+    "xlsx": "^0.18.5",
     "zod": "^3.23.0"
   },
   "devDependencies": {
@@ -68,6 +69,7 @@
     "@types/node": "^20.14.0",
     "@types/passport-jwt": "^4.0.1",
     "@types/pdfkit": "^0.13.0",
+    "@types/xlsx": "^0.0.36",
     "mongodb": "^7.1.0",
     "prisma": "^5.18.0",
     "ts-node": "^10.9.2",

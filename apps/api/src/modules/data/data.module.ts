@@ -1,10 +1,13 @@
 import { Module, forwardRef } from '@nestjs/common';
 import { MulterModule } from '@nestjs/platform-express';
+import { BullModule } from '@nestjs/bull';
 import { memoryStorage } from 'multer';
 import { DataService } from './data.service';
 import { DataIoService } from './data-io.service';
 import { ComputedFieldsService } from './computed-fields.service';
 import { DataController } from './data.controller';
+import { ImportController } from './import.controller';
+import { ImportQueueProcessor } from './import-queue.processor';
 import { EntityModule } from '../entity/entity.module';
 import { NotificationModule } from '../notification/notification.module';
 import { CustomRoleModule } from '../custom-role/custom-role.module';
@@ -28,9 +31,12 @@ import { EntityDataQueryModule } from '../../common/services/entity-data-query.m
       storage: memoryStorage(),
       limits: { fileSize: 10 * 1024 * 1024 }, // 10MB
     }),
+    BullModule.registerQueue({
+      name: 'data-import',
+    }),
   ],
-  controllers: [DataController],
-  providers: [DataService, DataIoService, ComputedFieldsService],
+  controllers: [DataController, ImportController],
+  providers: [DataService, DataIoService, ComputedFieldsService, ImportQueueProcessor],
   exports: [DataService, DataIoService, ComputedFieldsService],
 })
 export class DataModule {}
