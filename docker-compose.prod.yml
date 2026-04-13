@@ -54,6 +54,9 @@ services:
       PORT: 3001
       DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-crm_builder}?schema=public
       REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
       JWT_SECRET: ${JWT_SECRET}
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
       JWT_EXPIRATION: ${JWT_EXPIRATION:-8h}
@@ -177,6 +180,9 @@ services:
       PORT: 3001
       DATABASE_URL: postgresql://postgres:CrmBuilderDev2026Pass@postgres-dev:5432/crm_builder_dev?schema=public
       REDIS_URL: redis://:RedisDevPass2026@redis-dev:6379
+      REDIS_HOST: redis-dev
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: RedisDevPass2026
       JWT_SECRET: ${JWT_SECRET}
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
       JWT_EXPIRATION: ${JWT_EXPIRATION:-8h}
