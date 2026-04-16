@@ -28,7 +28,7 @@ dependencies:
   # Local Database (Drift + PowerSync)
   drift: ^2.22.1
   sqlite3_flutter_libs: ^0.5.28
-  powersync: ^1.9.3
+  powersync: ^1.18.0  # Atualizado para corrigir problemas de sync stream
 
   # Auth & Security
   flutter_secure_storage: ^9.2.3
