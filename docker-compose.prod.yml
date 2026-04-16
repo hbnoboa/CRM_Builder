@@ -67,7 +67,7 @@ services:
       GCS_KEY_FILE: ${GCS_KEY_FILE:-}
       GCS_CREDENTIALS: ${GCS_CREDENTIALS:-}
       GCS_BASE_URL: ${GCS_BASE_URL:-}
-      POWERSYNC_URL: https://iossystem.com.br
+      POWERSYNC_URL: https://iossystem.com.br/sync
     depends_on:
       postgres:
         condition: service_healthy
@@ -193,7 +193,7 @@ services:
       GCS_KEY_FILE: ${GCS_KEY_FILE:-}
       GCS_CREDENTIALS: ${GCS_CREDENTIALS:-}
       GCS_BASE_URL: ${GCS_BASE_URL:-}
-      POWERSYNC_URL: https://iossystem.com.br
+      POWERSYNC_URL: https://iossystem.com.br/sync
     depends_on:
       postgres-dev:
         condition: service_healthy
