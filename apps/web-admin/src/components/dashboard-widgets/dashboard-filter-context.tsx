@@ -260,6 +260,15 @@ export function useDashboardFilters(): DashboardFilters {
 
     const isMainEntity = mainEntity && widgetEntity === mainEntity;
 
+    // DEBUG: Log transformação de filtros
+    console.log('[useDashboardFilters] Context:', {
+      widgetEntity,
+      mainEntity,
+      isSubEntity,
+      isMainEntity,
+      allCrossFilters: ctx.allCrossFilters,
+    });
+
     const result: CrossFilter[] = [];
     for (const f of ctx.allCrossFilters) {
       if (!f.entitySlug) {

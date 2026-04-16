@@ -3,6 +3,8 @@ import { EntityAutomationService } from './entity-automation.service';
 import { EntityAutomationController } from './entity-automation.controller';
 import { AutomationExecutorService } from './automation-executor.service';
 import { AutomationSchedulerService } from './automation-scheduler.service';
+import { ExecutionContextService } from './execution-context.service';
+import { CircuitBreakerService } from './circuit-breaker.service';
 import { EmailTemplateModule } from '../email-template/email-template.module';
 import { NotificationModule } from '../notification/notification.module';
 
@@ -16,7 +18,9 @@ import { NotificationModule } from '../notification/notification.module';
     EntityAutomationService,
     AutomationExecutorService,
     AutomationSchedulerService,
+    ExecutionContextService,
+    CircuitBreakerService,
   ],
-  exports: [EntityAutomationService],
+  exports: [EntityAutomationService, AutomationExecutorService],
 })
 export class EntityAutomationModule {}

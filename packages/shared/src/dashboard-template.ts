@@ -24,7 +24,10 @@ export type WidgetType =
   | 'zone-diagram'
   | 'image-gallery'
   | 'stat-list'
-  | 'data-table';
+  | 'data-table'
+  | 'sub-entity-list'
+  | 'sub-entity-timeline'
+  | 'kanban-board';
 
 export interface WidgetConfig {
   type: WidgetType;
@@ -132,6 +135,12 @@ export interface WidgetConfig {
     pageSize?: number;
     defaultSortField?: string;
     defaultSortOrder?: 'asc' | 'desc';
+
+    // Kanban board
+    cardTitleField?: string;
+    cardSubtitleFields?: string[];
+    cardBadgeField?: string;
+    columnOrder?: string[];
 
     // Grouped mode (mini-table agrupado)
     groupByFields?: string[];

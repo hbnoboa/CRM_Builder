@@ -18,6 +18,11 @@ export class QueryAuditLogDto {
   @Type(() => Number)
   limit?: number;
 
+  @ApiPropertyOptional({ description: 'Cursor para paginação eficiente' })
+  @IsOptional()
+  @IsString()
+  cursor?: string;
+
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()

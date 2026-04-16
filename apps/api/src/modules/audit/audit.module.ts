@@ -2,6 +2,7 @@ import { Module, Global } from '@nestjs/common';
 import { ScheduleModule } from '@nestjs/schedule';
 import { AuditService } from './audit.service';
 import { AuditBackupService } from './audit-backup.service';
+import { AuditArchiveService } from './audit-archive.service';
 import { AuditController } from './audit.controller';
 import { UploadModule } from '../upload/upload.module';
 
@@ -12,7 +13,7 @@ import { UploadModule } from '../upload/upload.module';
     UploadModule,
   ],
   controllers: [AuditController],
-  providers: [AuditService, AuditBackupService],
+  providers: [AuditService, AuditBackupService, AuditArchiveService],
   exports: [AuditService],
 })
 export class AuditModule {}

@@ -10,12 +10,11 @@ import {
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
-import { RolesGuard } from '../../common/guards/roles.guard';
-import { Roles } from '../../common/decorators/roles.decorator';
+import { ModulePermissionGuard } from '../../common/guards/module-permission.guard';
+import { RequireModulePermission } from '../../common/decorators/module-permission.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { CurrentUser as CurrentUserType } from '../../common/types';
 import { EmailTemplateService } from './email-template.service';
-import { checkModulePermission } from '../../common/utils/check-module-permission';
 import { IsString, IsOptional, IsArray, IsBoolean } from 'class-validator';
 
 class CreateEmailTemplateDto {
@@ -80,60 +79,57 @@ class PreviewEmailTemplateDto {
 @ApiTags('Email Templates')
 @ApiBearerAuth()
 @Controller('email-templates')
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, ModulePermissionGuard)
 export class EmailTemplateController {
   constructor(private readonly emailTemplateService: EmailTemplateService) {}
 
   @Get()
+  @RequireModulePermission('templates', 'canRead', 'emailTemplates')
   @ApiOperation({ summary: 'Lista templates de email do tenant' })
   async findAll(@CurrentUser() user: CurrentUserType) {
-    checkModulePermission(user, 'emailTemplates', 'canRead');
     return this.emailTemplateService.findAll(user.tenantId);
   }
 
   @Get(':id')
+  @RequireModulePermission('templates', 'canRead', 'emailTemplates')
   @ApiOperation({ summary: 'Busca template por ID' })
   async findOne(@Param('id') id: string, @CurrentUser() user: CurrentUserType) {
-    checkModulePermission(user, 'emailTemplates', 'canRead');
     return this.emailTemplateService.findOne(id, user.tenantId);
   }
 
   @Post()
+  @RequireModulePermission('templates', 'canCreate', 'emailTemplates')
   @ApiOperation({ summary: 'Cria novo template de email' })
-  @Roles('ADMIN', 'PLATFORM_ADMIN')
   async create(@Body() dto: CreateEmailTemplateDto, @CurrentUser() user: CurrentUserType) {
-    checkModulePermission(user, 'emailTemplates', 'canCreate');
     return this.emailTemplateService.create(user.tenantId, dto);
   }
 
   @Put(':id')
+  @RequireModulePermission('templates', 'canUpdate', 'emailTemplates')
   @ApiOperation({ summary: 'Atualiza template de email' })
-  @Roles('ADMIN', 'PLATFORM_ADMIN')
   async update(
     @Param('id') id: string,
     @Body() dto: UpdateEmailTemplateDto,
     @CurrentUser() user: CurrentUserType,
   ) {
-    checkModulePermission(user, 'emailTemplates', 'canUpdate');
     return this.emailTemplateService.update(id, user.tenantId, dto);
   }
 
   @Delete(':id')
+  @RequireModulePermission('templates', 'canDelete', 'emailTemplates')
   @ApiOperation({ summary: 'Remove template de email' })
-  @Roles('ADMIN', 'PLATFORM_ADMIN')
   async delete(@Param('id') id: string, @CurrentUser() user: CurrentUserType) {
-    checkModulePermission(user, 'emailTemplates', 'canDelete');
     return this.emailTemplateService.delete(id, user.tenantId);
   }
 
   @Post(':id/preview')
+  @RequireModulePermission('templates', 'canRead', 'emailTemplates')
   @ApiOperation({ summary: 'Preview do template com dados de exemplo' })
   async preview(
     @Param('id') id: string,
     @Body() dto: PreviewEmailTemplateDto,
     @CurrentUser() user: CurrentUserType,
   ) {
-    checkModulePermission(user, 'emailTemplates', 'canRead');
     return this.emailTemplateService.previewTemplate(id, user.tenantId, dto);
   }
 }

@@ -269,8 +269,8 @@ export default function MapField({
         return;
       }
 
-      // Imediatamente atualiza coords
-      onChange({ ...rounded, ...value });
+      // Imediatamente atualiza coords (value primeiro, rounded depois para sobrescrever lat/lng antigos)
+      onChange({ ...value, ...rounded });
       setIsReverseGeocoding(true);
       try {
         const { formatted, parts } = await reverseGeocode(lat, lng);

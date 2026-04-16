@@ -1,7 +1,10 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { ThrottlerModule } from '@nestjs/throttler';
+import { I18nModule, QueryResolver, HeaderResolver, AcceptLanguageResolver } from 'nestjs-i18n';
+import * as path from 'path';
 import { PrismaModule } from './prisma/prisma.module';
+import { RedisModule } from './common/services/redis.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { UserModule } from './modules/user/user.module';
 import { TenantModule } from './modules/tenant/tenant.module';
@@ -42,8 +45,25 @@ import { PublicLinkModule } from './modules/public-link/public-link.module';
       limit: parseInt(process.env.THROTTLE_LIMIT || '100'),
     }]),
 
+    // Internationalization
+    I18nModule.forRoot({
+      fallbackLanguage: 'pt-BR',
+      loaderOptions: {
+        path: path.join(__dirname, '/i18n/'),
+        watch: true,
+      },
+      resolvers: [
+        { use: QueryResolver, options: ['lang'] },
+        new HeaderResolver(['x-custom-lang']),
+        AcceptLanguageResolver,
+      ],
+    }),
+
     // Database
     PrismaModule,
+
+    // Redis (Global)
+    RedisModule,
 
     // Health Check
     HealthModule,

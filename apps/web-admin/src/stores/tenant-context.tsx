@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
 import { useAuthStore } from './auth-store';
 import api from '@/lib/api';
 
@@ -61,7 +62,6 @@ export function TenantProvider({ children }: { children: ReactNode }) {
   const [tenant, setTenant] = useState<Tenant | null>(null);
   const [allTenants, setAllTenants] = useState<Tenant[]>([]);
   const [accessibleTenants, setAccessibleTenants] = useState<AccessibleTenant[]>([]);
-  const [selectedTenantId, setSelectedTenantId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   const isPlatformAdmin = user?.customRole?.roleType === 'PLATFORM_ADMIN';
@@ -111,53 +111,47 @@ export function TenantProvider({ children }: { children: ReactNode }) {
     fetchTenantData();
   }, [fetchTenantData]);
 
-  // Restore selected tenant from sessionStorage (PLATFORM_ADMIN only)
-  useEffect(() => {
-    if (isPlatformAdmin) {
-      const saved = sessionStorage.getItem('selectedTenantId');
-      if (saved) {
-        setSelectedTenantId(saved);
-      }
-    }
-  }, [isPlatformAdmin]);
-
   const switchTenant = useCallback(async (tenantId: string | null) => {
-    if (isPlatformAdmin) {
-      // PLATFORM_ADMIN: sessionStorage-based switching (existing mechanism)
-      setSelectedTenantId(tenantId);
-      if (tenantId) {
-        sessionStorage.setItem('selectedTenantId', tenantId);
-      } else {
-        sessionStorage.removeItem('selectedTenantId');
-      }
-      // Invalidate all cached queries so they refetch with new tenantId
+    if (!user || !tenantId) {
+      return;
+    }
+
+    // Regular user com 1 tenant apenas nao pode trocar
+    if (!isPlatformAdmin && !hasMultipleTenants) {
+      return;
+    }
+
+    try {
+      // TODOS usam authSwitchTenant() (PLATFORM_ADMIN + Multi-tenant)
+      await authSwitchTenant(tenantId);
+
+      // Clear all cached queries from previous tenant
       queryClient.removeQueries();
+
+      // Disparar evento para WebSocket reconectar
       window.dispatchEvent(new CustomEvent('tenant-changed'));
-    } else if (hasMultipleTenants && tenantId) {
-      // Regular multi-tenant user: JWT-based switching
-      try {
-        await authSwitchTenant(tenantId);
-        // Clear all cached queries from previous tenant
-        queryClient.removeQueries();
-        // Fetch tenant info with new JWT (switched tenant)
-        const tenantRes = await api.get('/tenants/me');
-        if (tenantRes.data) {
-          setTenant(tenantRes.data);
-        }
-        // Refresh accessible tenants
+
+      // Fetch tenant info with new JWT (switched tenant)
+      const tenantRes = await api.get('/tenants/me');
+      if (tenantRes.data) {
+        setTenant(tenantRes.data);
+      }
+
+      // Refresh accessible tenants (apenas para multi-tenant, nao para PLATFORM_ADMIN)
+      // PLATFORM_ADMIN: lista de tenants nao muda, nao precisa recarregar
+      if (hasMultipleTenants && !isPlatformAdmin) {
         const accessRes = await api.get('/auth/accessible-tenants');
         if (Array.isArray(accessRes.data)) {
           setAccessibleTenants(accessRes.data);
         }
-      } catch (error) {
-        console.error('Error switching tenant:', error);
       }
-    }
-  }, [isPlatformAdmin, hasMultipleTenants, authSwitchTenant, queryClient]);
 
-  const effectiveTenantId = isPlatformAdmin
-    ? (selectedTenantId || null)
-    : (user?.tenantId || null);
+      toast.success('Tenant alterado com sucesso');
+    } catch (error) {
+      console.error('Erro ao trocar tenant:', error);
+      toast.error('Erro ao trocar tenant');
+    }
+  }, [user, isPlatformAdmin, hasMultipleTenants, authSwitchTenant, queryClient]);
 
   return (
     <TenantContext.Provider
@@ -167,8 +161,11 @@ export function TenantProvider({ children }: { children: ReactNode }) {
         tenant,
         allTenants,
         accessibleTenants,
-        selectedTenantId,
-        effectiveTenantId,
+        // selectedTenantId now reflects the current JWT tenant (for backward compatibility)
+        // PLATFORM_ADMIN: JWT changes to selected tenant
+        // Multi-tenant/Regular: JWT reflects current tenant
+        selectedTenantId: user?.tenantId || null,
+        effectiveTenantId: user?.tenantId || null,
         switchTenant,
         isPlatformAdmin,
         hasMultipleTenants,

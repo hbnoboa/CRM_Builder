@@ -15,11 +15,10 @@ import {
 import { Response } from 'express';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiProduces } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
-import { RolesGuard } from '../../common/guards/roles.guard';
-import { Roles } from '../../common/decorators/roles.decorator';
+import { ModulePermissionGuard } from '../../common/guards/module-permission.guard';
+import { RequireModulePermission } from '../../common/decorators/module-permission.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { CurrentUser as CurrentUserType } from '../../common/types';
-import { checkModulePermission } from '../../common/utils/check-module-permission';
 
 import { PdfTemplateService } from './pdf-template.service';
 import { PdfGeneratorService } from './pdf-generator.service';
@@ -35,7 +34,7 @@ import {
 
 @ApiTags('PDF Templates')
 @Controller('pdf-templates')
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, ModulePermissionGuard)
 @ApiBearerAuth()
 export class PdfController {
   constructor(
@@ -46,48 +45,47 @@ export class PdfController {
   // ================= CRUD DE TEMPLATES =================
 
   @Post()
-  @Roles('ADMIN', 'PLATFORM_ADMIN')
+  @RequireModulePermission('templates', 'canCreate', 'pdfTemplates')
   @ApiOperation({ summary: 'Criar template de PDF' })
   async create(
     @Body() dto: CreatePdfTemplateDto,
     @Query('tenantId') tenantId: string | undefined,
     @CurrentUser() user: CurrentUserType,
   ) {
-    checkModulePermission(user, 'pdfTemplates', 'canCreate');
     return this.templateService.create({ ...dto, tenantId: tenantId || dto.tenantId }, user);
   }
 
   @Get()
+  @RequireModulePermission('templates', 'canRead', 'pdfTemplates')
   @ApiOperation({ summary: 'Listar templates do tenant' })
   async findAll(@Query() query: QueryPdfTemplateDto, @CurrentUser() user: CurrentUserType) {
-    checkModulePermission(user, 'pdfTemplates', 'canRead');
     return this.templateService.findAll(user, query);
   }
 
   @Get(':id')
+  @RequireModulePermission('templates', 'canRead', 'pdfTemplates')
   @ApiOperation({ summary: 'Buscar template por ID' })
   async findOne(
     @Param('id') id: string,
     @Query('tenantId') tenantId: string | undefined,
     @CurrentUser() user: CurrentUserType,
   ) {
-    checkModulePermission(user, 'pdfTemplates', 'canRead');
     return this.templateService.findOne(id, user, tenantId);
   }
 
   @Get('slug/:slug')
+  @RequireModulePermission('templates', 'canRead', 'pdfTemplates')
   @ApiOperation({ summary: 'Buscar template por slug' })
   async findBySlug(
     @Param('slug') slug: string,
     @Query('tenantId') tenantId: string | undefined,
     @CurrentUser() user: CurrentUserType,
   ) {
-    checkModulePermission(user, 'pdfTemplates', 'canRead');
     return this.templateService.findBySlug(slug, user, tenantId);
   }
 
   @Patch(':id')
-  @Roles('ADMIN', 'PLATFORM_ADMIN')
+  @RequireModulePermission('templates', 'canUpdate', 'pdfTemplates')
   @ApiOperation({ summary: 'Atualizar template' })
   async update(
     @Param('id') id: string,
@@ -95,61 +93,57 @@ export class PdfController {
     @Query('tenantId') tenantId: string | undefined,
     @CurrentUser() user: CurrentUserType,
   ) {
-    checkModulePermission(user, 'pdfTemplates', 'canUpdate');
     return this.templateService.update(id, { ...dto, tenantId: tenantId || dto.tenantId }, user);
   }
 
   @Delete(':id')
-  @Roles('ADMIN', 'PLATFORM_ADMIN')
+  @RequireModulePermission('templates', 'canDelete', 'pdfTemplates')
   @ApiOperation({ summary: 'Excluir template' })
   async remove(
     @Param('id') id: string,
     @Query('tenantId') tenantId: string | undefined,
     @CurrentUser() user: CurrentUserType,
   ) {
-    checkModulePermission(user, 'pdfTemplates', 'canDelete');
     return this.templateService.remove(id, user, tenantId);
   }
 
   @Post(':id/duplicate')
-  @Roles('ADMIN', 'PLATFORM_ADMIN')
+  @RequireModulePermission('templates', 'canCreate', 'pdfTemplates')
   @ApiOperation({ summary: 'Duplicar template' })
   async duplicate(
     @Param('id') id: string,
     @Query('tenantId') tenantId: string | undefined,
     @CurrentUser() user: CurrentUserType,
   ) {
-    checkModulePermission(user, 'pdfTemplates', 'canCreate');
     return this.templateService.duplicate(id, user, tenantId);
   }
 
   @Post(':id/publish')
-  @Roles('ADMIN', 'PLATFORM_ADMIN')
+  @RequireModulePermission('templates', 'canUpdate', 'pdfTemplates')
   @ApiOperation({ summary: 'Publicar template' })
   async publish(
     @Param('id') id: string,
     @Query('tenantId') tenantId: string | undefined,
     @CurrentUser() user: CurrentUserType,
   ) {
-    checkModulePermission(user, 'pdfTemplates', 'canUpdate');
     return this.templateService.publish(id, user, tenantId);
   }
 
   @Post(':id/unpublish')
-  @Roles('ADMIN', 'PLATFORM_ADMIN')
+  @RequireModulePermission('templates', 'canUpdate', 'pdfTemplates')
   @ApiOperation({ summary: 'Despublicar template' })
   async unpublish(
     @Param('id') id: string,
     @Query('tenantId') tenantId: string | undefined,
     @CurrentUser() user: CurrentUserType,
   ) {
-    checkModulePermission(user, 'pdfTemplates', 'canUpdate');
     return this.templateService.unpublish(id, user, tenantId);
   }
 
   // ================= GERACAO DE PDF =================
 
   @Post(':id/generate')
+  @RequireModulePermission('templates', 'canGenerate', 'pdfTemplates')
   @ApiOperation({ summary: 'Gerar PDF para um registro especifico' })
   @ApiProduces('application/pdf')
   async generateSingle(
@@ -159,8 +153,6 @@ export class PdfController {
     @CurrentUser() user: CurrentUserType,
     @Res() res: Response,
   ) {
-    checkModulePermission(user, 'pdfTemplates', 'canGenerate');
-
     const { buffer, fileName } = await this.generatorService.generateSingle(
       templateId,
       dto.recordId,
@@ -179,6 +171,7 @@ export class PdfController {
   }
 
   @Post(':id/generate-batch')
+  @RequireModulePermission('templates', 'canGenerate', 'pdfTemplates')
   @ApiOperation({ summary: 'Gerar PDF agregado em lote' })
   @ApiProduces('application/pdf')
   async generateBatch(
@@ -188,8 +181,6 @@ export class PdfController {
     @CurrentUser() user: CurrentUserType,
     @Res() res: Response,
   ) {
-    checkModulePermission(user, 'pdfTemplates', 'canGenerate');
-
     if (!dto.useAllRecords && (!dto.recordIds || dto.recordIds.length === 0)) {
       throw new BadRequestException('Informe recordIds ou use useAllRecords: true');
     }
@@ -209,6 +200,7 @@ export class PdfController {
   }
 
   @Post(':id/preview')
+  @RequireModulePermission('templates', 'canRead', 'pdfTemplates')
   @ApiOperation({ summary: 'Preview do PDF com dados de exemplo' })
   @ApiProduces('application/pdf')
   async preview(
@@ -218,8 +210,6 @@ export class PdfController {
     @CurrentUser() user: CurrentUserType,
     @Res() res: Response,
   ) {
-    checkModulePermission(user, 'pdfTemplates', 'canRead');
-
     const buffer = await this.generatorService.preview(templateId, user, dto, tenantId);
 
     res.set({
@@ -234,27 +224,28 @@ export class PdfController {
   // ================= HISTORICO DE GERACOES =================
 
   @Get('generations')
+  @RequireModulePermission('templates', 'canRead', 'pdfTemplates')
   @ApiOperation({ summary: 'Listar historico de geracoes' })
   async getGenerations(
     @Query() query: QueryPdfGenerationDto,
     @CurrentUser() user: CurrentUserType,
   ) {
-    checkModulePermission(user, 'pdfTemplates', 'canRead');
     return this.generatorService.getGenerations(user, query);
   }
 
   @Get('generations/:id')
+  @RequireModulePermission('templates', 'canRead', 'pdfTemplates')
   @ApiOperation({ summary: 'Buscar geracao por ID' })
   async getGeneration(
     @Param('id') id: string,
     @Query('tenantId') tenantId: string | undefined,
     @CurrentUser() user: CurrentUserType,
   ) {
-    checkModulePermission(user, 'pdfTemplates', 'canRead');
     return this.generatorService.getGeneration(id, user, tenantId);
   }
 
   @Get('generations/:id/download')
+  @RequireModulePermission('templates', 'canRead', 'pdfTemplates')
   @ApiOperation({ summary: 'Download do PDF gerado' })
   @ApiProduces('application/pdf', 'application/zip')
   async downloadGeneration(
@@ -263,8 +254,6 @@ export class PdfController {
     @CurrentUser() user: CurrentUserType,
     @Res() res: Response,
   ) {
-    checkModulePermission(user, 'pdfTemplates', 'canRead');
-
     const generation = await this.generatorService.getGeneration(id, user, tenantId);
 
     if (!generation.fileUrl) {

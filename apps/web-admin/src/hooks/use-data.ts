@@ -126,6 +126,14 @@ export function useCreateEntityData(messages?: MutationMessages) {
       queryClient.invalidateQueries({
         queryKey: dataKeys.list(entitySlug),
       });
+      // Invalidate dashboard widget queries
+      queryClient.invalidateQueries({
+        queryKey: ['entity-stats'],
+        predicate: (query) => {
+          const key = query.queryKey as unknown[];
+          return key.includes(entitySlug);
+        }
+      });
       if (messages?.success) toast.success(messages.success);
     },
     onError: (error: unknown) => {
@@ -156,6 +164,14 @@ export function useUpdateEntityData(messages?: MutationMessages) {
       queryClient.invalidateQueries({
         queryKey: dataKeys.detail(entitySlug, id),
       });
+      // Invalidate dashboard widget queries
+      queryClient.invalidateQueries({
+        queryKey: ['entity-stats'],
+        predicate: (query) => {
+          const key = query.queryKey as unknown[];
+          return key.includes(entitySlug);
+        }
+      });
       if (messages?.success) toast.success(messages.success);
     },
     onError: (error: unknown) => {
@@ -178,6 +194,14 @@ export function useDeleteEntityData(messages?: MutationMessages) {
     onSuccess: (_, { entitySlug }) => {
       queryClient.invalidateQueries({
         queryKey: dataKeys.list(entitySlug),
+      });
+      // Invalidate dashboard widget queries
+      queryClient.invalidateQueries({
+        queryKey: ['entity-stats'],
+        predicate: (query) => {
+          const key = query.queryKey as unknown[];
+          return key.includes(entitySlug);
+        }
       });
       if (messages?.success) toast.success(messages.success);
     },

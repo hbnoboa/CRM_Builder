@@ -2,26 +2,26 @@ import { Controller, Get, Post, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { ArchiveService } from './archive.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
-import { RolesGuard } from '../../common/guards/roles.guard';
-import { Roles } from '../../common/decorators/roles.decorator';
+import { ModulePermissionGuard } from '../../common/guards/module-permission.guard';
+import { RequireModulePermission } from '../../common/decorators/module-permission.decorator';
 
 @Controller('archive')
 @ApiTags('Archive')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, ModulePermissionGuard)
 export class ArchiveController {
   constructor(private readonly archiveService: ArchiveService) {}
 
   @Get('stats')
+  @RequireModulePermission('archive', 'canRead')
   @ApiOperation({ summary: 'Estatisticas de archival por entidade' })
-  @Roles('ADMIN', 'PLATFORM_ADMIN')
   async getStats() {
     return this.archiveService.getStats();
   }
 
   @Post('run')
+  @RequireModulePermission('archive', 'canPermanentDelete')
   @ApiOperation({ summary: 'Executar archival manualmente (PLATFORM_ADMIN)' })
-  @Roles('PLATFORM_ADMIN')
   async runArchival() {
     return this.archiveService.runArchival();
   }

@@ -166,8 +166,16 @@ class CrmPowerSyncConnector extends PowerSyncBackendConnector {
   /// Sends each operation to the NestJS API with exponential backoff retry.
   @override
   Future<void> uploadData(PowerSyncDatabase database) async {
+    _logger.i('PowerSync: uploadData() chamado');
+    final uploadStartTime = DateTime.now();
+
     final tx = await database.getCrudBatch();
-    if (tx == null) return;
+    if (tx == null) {
+      _logger.d('PowerSync: nenhuma operação pendente para upload');
+      return;
+    }
+
+    _logger.i('PowerSync: ${tx.crud.length} operações para upload');
 
     final dio = createApiClient();
     final backoff = _ExponentialBackoff();
@@ -313,7 +321,11 @@ class CrmPowerSyncConnector extends PowerSyncBackendConnector {
       }
     }
 
+    _logger.d('PowerSync: chamando tx.complete()...');
     await tx.complete();
-    _logger.i('PowerSync: batch upload complete');
+
+    final uploadDuration = DateTime.now().difference(uploadStartTime);
+    _logger.i('PowerSync: batch upload complete em ${uploadDuration.inMilliseconds}ms');
+    _logger.i('PowerSync: ⚠️  MONITORAR: sync stream deve continuar funcionando após este ponto');
   }
 }

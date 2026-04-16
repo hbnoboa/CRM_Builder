@@ -45,7 +45,11 @@ function toDataRecord(ed: EntityData): DataRecord {
 
 // ─── Hook ────────────────────────────────────────────────────────────
 
-export function useEntityDataSource(entitySlug: string | undefined, dashboardFilters?: string): DataSourceState {
+export function useEntityDataSource(
+  entitySlug: string | undefined,
+  dashboardFilters?: string,
+  disableWebSocketUpdates?: boolean
+): DataSourceState {
   const [records, setRecords] = useState<DataRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -98,11 +102,21 @@ export function useEntityDataSource(entitySlug: string | undefined, dashboardFil
 
   // Escutar eventos de WebSocket (entity-data-changed)
   useEffect(() => {
-    if (!entitySlug) return;
+    if (!entitySlug || disableWebSocketUpdates) return;
 
     const handler = (e: Event) => {
       const detail = (e as CustomEvent<EntityDataChangedDetail>).detail;
-      if (!detail || detail.entitySlug !== entitySlugRef.current) return;
+      console.log('[WebSocket] entity-data-changed recebido:', detail);
+
+      if (!detail || detail.entitySlug !== entitySlugRef.current) {
+        console.log('[WebSocket] Ignorando evento - entitySlug diferente:', {
+          received: detail?.entitySlug,
+          current: entitySlugRef.current,
+        });
+        return;
+      }
+
+      console.log(`[WebSocket] Processando ${detail.operation} para ${detail.entitySlug}`);
 
       switch (detail.operation) {
         case 'created': {
@@ -130,7 +144,7 @@ export function useEntityDataSource(entitySlug: string | undefined, dashboardFil
                 r.id === detail.record!.id
                   ? {
                       ...r,
-                      data: detail.record!.data,
+                      data: { ...r.data, ...detail.record!.data },
                       updatedAt: detail.record!.updatedAt || new Date().toISOString(),
                     }
                   : r,
@@ -157,7 +171,7 @@ export function useEntityDataSource(entitySlug: string | undefined, dashboardFil
 
     window.addEventListener('entity-data-changed', handler);
     return () => window.removeEventListener('entity-data-changed', handler);
-  }, [entitySlug, fetchAll]);
+  }, [entitySlug, fetchAll, disableWebSocketUpdates]);
 
   const isFullDataset = DASHBOARD_MAX_LIMIT === 0 || totalServerRecords <= DASHBOARD_MAX_LIMIT;
 

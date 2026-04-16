@@ -26,9 +26,50 @@ import type { Tenant } from '@/types';
 const createTenantSchemaFn = (t: (key: string) => string) => z.object({
   name: z.string().min(2, t('nameMinLength')),
   slug: z.string().min(2, t('slugMinLength')).regex(/^[a-z0-9-]+$/, t('slugFormat')),
-  adminEmail: z.string().email(t('emailInvalid')),
-  adminName: z.string().min(2, t('adminNameMinLength')),
-  adminPassword: z.string().min(8, t('passwordMinLength')),
+  adminEmail: z.string().optional().or(z.literal('')),
+  adminName: z.string().optional().or(z.literal('')),
+  adminPassword: z.string().optional().or(z.literal('')),
+}).refine((data) => {
+  const hasEmail = data.adminEmail && data.adminEmail.length > 0;
+  const hasName = data.adminName && data.adminName.length > 0;
+  const hasPassword = data.adminPassword && data.adminPassword.length > 0;
+
+  // Se algum campo estiver preenchido, todos devem estar
+  if (hasEmail || hasName || hasPassword) {
+    return hasEmail && hasName && hasPassword;
+  }
+  // Se nenhum estiver preenchido, está ok
+  return true;
+}, {
+  message: t('adminFieldsRequired'),
+  path: ['adminEmail'],
+}).refine((data) => {
+  // Se email foi preenchido, validar formato
+  if (data.adminEmail && data.adminEmail.length > 0) {
+    return z.string().email().safeParse(data.adminEmail).success;
+  }
+  return true;
+}, {
+  message: t('emailInvalid'),
+  path: ['adminEmail'],
+}).refine((data) => {
+  // Se nome foi preenchido, validar tamanho mínimo
+  if (data.adminName && data.adminName.length > 0) {
+    return data.adminName.length >= 2;
+  }
+  return true;
+}, {
+  message: t('adminNameMinLength'),
+  path: ['adminName'],
+}).refine((data) => {
+  // Se senha foi preenchida, validar tamanho mínimo
+  if (data.adminPassword && data.adminPassword.length > 0) {
+    return data.adminPassword.length >= 8;
+  }
+  return true;
+}, {
+  message: t('passwordMinLength'),
+  path: ['adminPassword'],
 });
 
 const updateTenantSchemaFn = (t: (key: string) => string) => z.object({
@@ -60,6 +101,8 @@ export function TenantFormDialog({ open, onOpenChange, tenant, onSuccess }: Tena
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
   const [brandColor, setBrandColor] = useState<string>('');
+  const [secondaryColor, setSecondaryColor] = useState<string>('');
+  const [accentColor, setAccentColor] = useState<string>('');
   const [darkModePreference, setDarkModePreference] = useState<'light' | 'dark' | 'system'>('system');
 
   const form = useForm<CreateTenantFormData | UpdateTenantFormData>({
@@ -87,6 +130,8 @@ export function TenantFormDialog({ open, onOpenChange, tenant, onSuccess }: Tena
       setLogoPreview(tenant.logo || null);
       const settings = tenant.settings as Record<string, any> | undefined;
       setBrandColor(settings?.theme?.brandColor || '');
+      setSecondaryColor(settings?.theme?.secondaryColor || '');
+      setAccentColor(settings?.theme?.accentColor || '');
       setDarkModePreference(settings?.theme?.darkMode || 'system');
     } else {
       form.reset({
@@ -98,6 +143,8 @@ export function TenantFormDialog({ open, onOpenChange, tenant, onSuccess }: Tena
       });
       setLogoPreview(null);
       setBrandColor('');
+      setSecondaryColor('');
+      setAccentColor('');
       setDarkModePreference('system');
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -159,7 +206,12 @@ export function TenantFormDialog({ open, onOpenChange, tenant, onSuccess }: Tena
       if (isEditing && tenant) {
         const existingSettings = (tenant.settings as Record<string, any>) || {};
         const themeSettings = brandColor
-          ? { brandColor, darkMode: darkModePreference }
+          ? {
+              brandColor,
+              secondaryColor: secondaryColor || undefined,
+              accentColor: accentColor || undefined,
+              darkMode: darkModePreference
+            }
           : undefined;
 
         await updateTenant.mutateAsync({
@@ -175,14 +227,24 @@ export function TenantFormDialog({ open, onOpenChange, tenant, onSuccess }: Tena
         });
       } else {
         const createData = data as CreateTenantFormData;
-        await createTenant.mutateAsync({
+
+        // Only include admin fields if they are filled
+        const payload: any = {
           name: createData.name,
           slug: createData.slug,
-          adminEmail: createData.adminEmail,
-          adminName: createData.adminName,
-          adminPassword: createData.adminPassword,
-          ...(logoUrl ? { logo: logoUrl } : {}),
-        });
+        };
+
+        if (createData.adminEmail && createData.adminName && createData.adminPassword) {
+          payload.adminEmail = createData.adminEmail;
+          payload.adminName = createData.adminName;
+          payload.adminPassword = createData.adminPassword;
+        }
+
+        if (logoUrl) {
+          payload.logo = logoUrl;
+        }
+
+        await createTenant.mutateAsync(payload);
       }
       onOpenChange(false);
       onSuccess?.();
@@ -201,11 +263,15 @@ export function TenantFormDialog({ open, onOpenChange, tenant, onSuccess }: Tena
   const themePreview = useMemo(() => {
     if (!brandColor) return null;
     try {
-      return generateThemeVariables(brandColor);
+      return generateThemeVariables(
+        brandColor,
+        secondaryColor || undefined,
+        accentColor || undefined
+      );
     } catch {
       return null;
     }
-  }, [brandColor]);
+  }, [brandColor, secondaryColor, accentColor]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -289,10 +355,13 @@ export function TenantFormDialog({ open, onOpenChange, tenant, onSuccess }: Tena
           {!isEditing && (
             <>
               <div className="border-t pt-4 mt-4">
-                <h4 className="font-medium mb-3">{t('form.adminTitle')}</h4>
+                <h4 className="font-medium mb-2">{t('form.adminTitle')}</h4>
+                <p className="text-sm text-muted-foreground mb-3">
+                  {t('form.adminOptionalHint')}
+                </p>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="adminName">{t('form.adminName')}</Label>
+                <Label htmlFor="adminName">{t('form.adminName')} <span className="text-muted-foreground text-xs">({tCommon('optional')})</span></Label>
                 <Input
                   id="adminName"
                   placeholder={t('form.adminNamePlaceholder')}
@@ -303,7 +372,7 @@ export function TenantFormDialog({ open, onOpenChange, tenant, onSuccess }: Tena
                 )}
               </div>
               <div className="space-y-2">
-                <Label htmlFor="adminEmail">{t('form.adminEmail')}</Label>
+                <Label htmlFor="adminEmail">{t('form.adminEmail')} <span className="text-muted-foreground text-xs">({tCommon('optional')})</span></Label>
                 <Input
                   id="adminEmail"
                   type="email"
@@ -315,7 +384,7 @@ export function TenantFormDialog({ open, onOpenChange, tenant, onSuccess }: Tena
                 )}
               </div>
               <div className="space-y-2">
-                <Label htmlFor="adminPassword">{t('form.adminPassword')}</Label>
+                <Label htmlFor="adminPassword">{t('form.adminPassword')} <span className="text-muted-foreground text-xs">({tCommon('optional')})</span></Label>
                 <Input
                   id="adminPassword"
                   type="password"
@@ -375,6 +444,54 @@ export function TenantFormDialog({ open, onOpenChange, tenant, onSuccess }: Tena
                 </div>
               </div>
 
+              {/* Secondary Color */}
+              <div className="space-y-2">
+                <Label>{t('form.secondaryColor')}</Label>
+                <div className="flex items-center gap-2">
+                  <div className="relative">
+                    <input
+                      type="color"
+                      value={secondaryColor || '#7c3aed'}
+                      onChange={(e) => setSecondaryColor(e.target.value)}
+                      className="w-10 h-10 rounded-lg border cursor-pointer bg-transparent p-0.5"
+                    />
+                  </div>
+                  <Input
+                    value={secondaryColor}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      if (v === '' || /^#[0-9a-fA-F]{0,6}$/.test(v)) setSecondaryColor(v);
+                    }}
+                    placeholder="#7c3aed"
+                    className="w-28 font-mono text-sm"
+                  />
+                </div>
+              </div>
+
+              {/* Accent Color */}
+              <div className="space-y-2">
+                <Label>{t('form.accentColor')}</Label>
+                <div className="flex items-center gap-2">
+                  <div className="relative">
+                    <input
+                      type="color"
+                      value={accentColor || '#059669'}
+                      onChange={(e) => setAccentColor(e.target.value)}
+                      className="w-10 h-10 rounded-lg border cursor-pointer bg-transparent p-0.5"
+                    />
+                  </div>
+                  <Input
+                    value={accentColor}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      if (v === '' || /^#[0-9a-fA-F]{0,6}$/.test(v)) setAccentColor(v);
+                    }}
+                    placeholder="#059669"
+                    className="w-28 font-mono text-sm"
+                  />
+                </div>
+              </div>
+
               {/* Preset Colors */}
               <div className="space-y-2">
                 <Label className="text-xs text-muted-foreground">{t('form.presetColors')}</Label>
@@ -423,6 +540,9 @@ export function TenantFormDialog({ open, onOpenChange, tenant, onSuccess }: Tena
                       <div className="px-3 py-1.5 rounded-md text-xs font-medium border" style={{ background: `hsl(${themePreview.light['--secondary']})`, color: `hsl(${themePreview.light['--secondary-foreground']})`, borderColor: `hsl(${themePreview.light['--border']})` }}>
                         {t('form.previewSecondary')}
                       </div>
+                      <div className="px-3 py-1.5 rounded-md text-xs font-medium" style={{ background: `hsl(${themePreview.light['--accent']})`, color: `hsl(${themePreview.light['--accent-foreground']})` }}>
+                        {t('form.previewAccent')}
+                      </div>
                       <div className="px-3 py-1.5 rounded-md text-xs font-medium" style={{ background: `hsl(${themePreview.light['--destructive']})`, color: `hsl(${themePreview.light['--destructive-foreground']})` }}>
                         {t('form.previewDelete')}
                       </div>
@@ -442,6 +562,9 @@ export function TenantFormDialog({ open, onOpenChange, tenant, onSuccess }: Tena
                       </div>
                       <div className="px-3 py-1.5 rounded-md text-xs font-medium border" style={{ background: `hsl(${themePreview.dark['--secondary']})`, color: `hsl(${themePreview.dark['--secondary-foreground']})`, borderColor: `hsl(${themePreview.dark['--border']})` }}>
                         {t('form.previewSecondary')}
+                      </div>
+                      <div className="px-3 py-1.5 rounded-md text-xs font-medium" style={{ background: `hsl(${themePreview.dark['--accent']})`, color: `hsl(${themePreview.dark['--accent-foreground']})` }}>
+                        {t('form.previewAccent')}
                       </div>
                       <div className="px-3 py-1.5 rounded-md text-xs font-medium" style={{ background: `hsl(${themePreview.dark['--destructive']})`, color: `hsl(${themePreview.dark['--destructive-foreground']})` }}>
                         {t('form.previewDelete')}

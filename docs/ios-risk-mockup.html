@@ -1,0 +1,683 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>iOS Risk — Gestao de Sinistros</title>
+  <link rel="stylesheet" href="ios-risk-mockup.css">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+  <div class="app-layout">
+    <!-- ========== SIDEBAR ========== -->
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <div class="sidebar-logo">iR</div>
+        <div>
+          <div class="sidebar-title">iOS Risk</div>
+          <div class="sidebar-subtitle">Gestao de Sinistros</div>
+        </div>
+      </div>
+
+      <nav class="sidebar-nav">
+        <!-- Dashboard -->
+        <div class="nav-item active" data-section="dashboard" onclick="showSection('dashboard')">
+          <span class="icon">📊</span> Dashboard
+        </div>
+
+        <div class="nav-divider"></div>
+
+        <!-- Sinistros -->
+        <div class="nav-item" data-section="sinistros" onclick="showSection('sinistros')">
+          <span class="icon">🔥</span> Sinistros <span class="badge" id="sinistros-count">30</span>
+        </div>
+
+        <div class="nav-divider"></div>
+
+        <!-- Cadastros -->
+        <div class="nav-section">
+          <div class="nav-section-header" onclick="toggleSection(this)">
+            Cadastros <span class="chevron">▼</span>
+          </div>
+          <div class="nav-section-items">
+            <div class="nav-item" data-section="segurados" onclick="showSection('segurados')">
+              <span class="icon">👤</span> Segurados <span class="badge">6</span>
+            </div>
+            <div class="nav-item" data-section="seguradoras" onclick="showSection('seguradoras')">
+              <span class="icon">🏢</span> Seguradoras <span class="badge">4</span>
+            </div>
+            <div class="nav-item" data-section="corretores" onclick="showSection('corretores')">
+              <span class="icon">👔</span> Corretores <span class="badge">4</span>
+            </div>
+            <div class="nav-item" data-section="transportadoras" onclick="showSection('transportadoras')">
+              <span class="icon">🚛</span> Transportadoras <span class="badge">4</span>
+            </div>
+            <div class="nav-item" data-section="reguladoras" onclick="showSection('reguladoras')">
+              <span class="icon">📋</span> Reguladoras <span class="badge">3</span>
+            </div>
+            <div class="nav-item" data-section="gerenciadoras" onclick="showSection('gerenciadoras')">
+              <span class="icon">🛡️</span> Gerenciadoras <span class="badge">3</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="nav-divider"></div>
+
+        <!-- Administracao -->
+        <div class="nav-section">
+          <div class="nav-section-header" onclick="toggleSection(this)">
+            Administracao <span class="chevron">▼</span>
+          </div>
+          <div class="nav-section-items">
+            <div class="nav-item" data-section="usuarios" onclick="showSection('usuarios')">
+              <span class="icon">👥</span> Usuarios
+            </div>
+            <div class="nav-item" data-section="roles" onclick="showSection('roles')">
+              <span class="icon">🔐</span> Roles
+            </div>
+            <div class="nav-item" data-section="sla" onclick="showSection('sla')">
+              <span class="icon">⏱️</span> Politicas SLA
+            </div>
+            <div class="nav-item" data-section="tags" onclick="showSection('tags')">
+              <span class="icon">🏷️</span> Tags
+            </div>
+          </div>
+        </div>
+
+        <div class="nav-divider"></div>
+
+        <!-- Configuracoes -->
+        <div class="nav-item" data-section="settings" onclick="showSection('settings')">
+          <span class="icon">⚙️</span> Configuracoes
+        </div>
+      </nav>
+
+      <div class="sidebar-footer">
+        <div class="sidebar-avatar">C1</div>
+        <div class="sidebar-user-info">
+          <div class="sidebar-user-name">Corretor 1</div>
+          <span class="sidebar-role-badge role-user">CORRETOR</span>
+        </div>
+        <button class="sidebar-logout" title="Sair">⏻</button>
+      </div>
+    </aside>
+
+    <!-- ========== MAIN ========== -->
+    <div class="main-content">
+      <!-- Topbar -->
+      <header class="topbar">
+        <div class="topbar-spacer"></div>
+        <span class="topbar-greeting">Ola, <strong>Corretor 1</strong></span>
+        <button class="topbar-bell" onclick="toggleNotifications()">
+          🔔 <span class="notif-count" id="notif-count">8</span>
+        </button>
+      </header>
+
+      <!-- Notification Popover -->
+      <div class="notif-popover" id="notif-popover">
+        <div class="notif-header">
+          <span class="notif-header-title">Notificacoes</span>
+          <div class="notif-header-actions">
+            <button class="btn btn-ghost btn-sm" onclick="markAllRead()">Marcar lidas</button>
+            <button class="btn btn-ghost btn-sm" onclick="clearNotifs()">Limpar</button>
+          </div>
+        </div>
+        <div class="notif-list" id="notif-list"></div>
+      </div>
+
+      <!-- Content Area -->
+      <div class="content-area">
+
+        <!-- ===== DASHBOARD (Home) ===== -->
+        <section class="section active" id="section-dashboard">
+          <div class="section-header">
+            <div class="section-title">Bem-vindo ao iOS Risk</div>
+            <div class="section-subtitle">Visao geral do sistema de sinistros</div>
+          </div>
+          <div id="dashboard-home-content"></div>
+        </section>
+
+        <!-- ===== SINISTROS ===== -->
+        <section class="section" id="section-sinistros">
+          <div class="section-header">
+            <div class="flex items-center justify-between">
+              <div>
+                <div class="section-title">Sinistros</div>
+                <div class="section-subtitle">Gestao completa de sinistros de transporte</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Template selector -->
+          <div class="template-selector">
+            <button class="template-pill active" onclick="switchTemplate(0)">Dashboard Geral</button>
+            <button class="template-pill" onclick="switchTemplate(1)">Por Seguradora</button>
+            <button class="template-pill" onclick="switchTemplate(2)">SLA Report</button>
+          </div>
+
+          <!-- Filter bar -->
+          <div class="filter-bar" id="filter-bar">
+            <span class="filter-bar-label">🔍 Filtros</span>
+            <div id="filter-bar-content"></div>
+            <span class="record-count" id="record-count"></span>
+          </div>
+
+          <!-- Tabs -->
+          <div class="tabs-container">
+            <div class="tabs-header">
+              <button class="tab-btn active" data-tab="registros" onclick="switchSinistroTab('registros')">📋 Registros</button>
+              <button class="tab-btn" data-tab="overview" onclick="switchSinistroTab('overview')">📊 Visao Geral</button>
+              <button class="tab-btn" data-tab="corretor" onclick="switchSinistroTab('corretor')">👔 Por Corretor</button>
+              <button class="tab-btn" data-tab="sla-tab" onclick="switchSinistroTab('sla-tab')">⏱️ SLA</button>
+              <button class="tab-btn" data-tab="kanban" onclick="switchSinistroTab('kanban')">📌 Kanban</button>
+            </div>
+
+            <!-- Tab: Registros -->
+            <div class="tab-content active" id="tab-registros">
+              <div class="table-toolbar">
+                <input type="text" class="table-search" placeholder="Buscar sinistros..." oninput="searchTable(this.value)">
+                <div class="table-toolbar-actions">
+                  <button class="btn btn-secondary btn-sm">🔽 Exportar</button>
+                  <button class="btn btn-secondary btn-sm">🔼 Importar</button>
+                  <button class="btn btn-primary btn-sm" onclick="showSection('form')">+ Novo Sinistro</button>
+                </div>
+              </div>
+              <div class="card">
+                <table class="data-table">
+                  <thead>
+                    <tr>
+                      <th class="checkbox-cell"><input type="checkbox" onchange="toggleSelectAll()"></th>
+                      <th onclick="sortTable('id')">ID <span class="sort-icon">↕</span></th>
+                      <th onclick="sortTable('corretor')">Corretor <span class="sort-icon">↕</span></th>
+                      <th onclick="sortTable('seguradora')">Seguradora <span class="sort-icon">↕</span></th>
+                      <th onclick="sortTable('segurado')">Segurado <span class="sort-icon">↕</span></th>
+                      <th onclick="sortTable('numSeguradora')">No Seg. <span class="sort-icon">↕</span></th>
+                      <th onclick="sortTable('status')">Status <span class="sort-icon">↕</span></th>
+                      <th onclick="sortTable('prioridade')">Prioridade <span class="sort-icon">↕</span></th>
+                      <th onclick="sortTable('causa')">Causa <span class="sort-icon">↕</span></th>
+                      <th>Docs</th>
+                      <th>SLA</th>
+                      <th onclick="sortTable('createdAt')">Data <span class="sort-icon">↕</span></th>
+                    </tr>
+                  </thead>
+                  <tbody id="sinistros-tbody"></tbody>
+                </table>
+                <div class="table-pagination" id="table-pagination"></div>
+              </div>
+            </div>
+
+            <!-- Tab: Visao Geral -->
+            <div class="tab-content" id="tab-overview">
+              <div id="overview-content"></div>
+            </div>
+
+            <!-- Tab: Por Corretor -->
+            <div class="tab-content" id="tab-corretor">
+              <div id="corretor-content"></div>
+            </div>
+
+            <!-- Tab: SLA -->
+            <div class="tab-content" id="tab-sla-tab">
+              <div id="sla-tab-content"></div>
+            </div>
+
+            <!-- Tab: Kanban -->
+            <div class="tab-content" id="tab-kanban">
+              <div class="kanban-board" id="kanban-board"></div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ===== DETAIL ===== -->
+        <section class="section" id="section-detail">
+          <div id="detail-content"></div>
+        </section>
+
+        <!-- ===== FORM (Novo Sinistro) ===== -->
+        <section class="section" id="section-form">
+          <div class="section-header">
+            <div class="flex items-center gap-3">
+              <button class="btn btn-ghost btn-sm" onclick="showSection('sinistros')">← Voltar</button>
+              <div>
+                <div class="section-title">Novo Sinistro</div>
+                <div class="section-subtitle">Cadastrar novo registro de sinistro</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="form-container">
+            <!-- Partes Envolvidas -->
+            <div class="form-section-title">👥 Partes Envolvidas</div>
+            <div class="form-grid">
+              <div class="form-group">
+                <label class="form-label">Corretor <span class="required">*</span></label>
+                <select class="form-select">
+                  <option value="">Selecione...</option>
+                  <option>Corretor 1</option><option>Corretor 2</option><option>Corretor 3</option><option>Gestor</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Seguradora <span class="required">*</span></label>
+                <select class="form-select">
+                  <option value="">Selecione...</option>
+                  <option>Seguradora Alpha</option><option>Seguradora Beta</option><option>Seguradora Gamma</option><option>Seguradora Delta</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Segurado <span class="required">*</span></label>
+                <select class="form-select">
+                  <option value="">Selecione...</option>
+                  <option>Segurado 1</option><option>Segurado 2</option><option>Segurado 3</option><option>Segurado 4</option><option>Segurado 5</option><option>Segurado 6</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Transportadora</label>
+                <select class="form-select">
+                  <option value="">Selecione...</option>
+                  <option>Transportadora 1</option><option>Transportadora 2</option><option>Transportadora 3</option><option>Transportadora 4</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Reguladora</label>
+                <select class="form-select">
+                  <option value="">Selecione...</option>
+                  <option>Reguladora 1</option><option>Reguladora 2</option><option>Reguladora 3</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Gerenciadora de Risco</label>
+                <select class="form-select">
+                  <option value="">Selecione...</option>
+                  <option>Gerenciadora 1</option><option>Gerenciadora 2</option><option>Gerenciadora 3</option>
+                </select>
+              </div>
+            </div>
+
+            <!-- Identificacao -->
+            <div class="form-section-title">📝 Identificacao</div>
+            <div class="form-grid">
+              <div class="form-group">
+                <label class="form-label">CNPJ Segurado</label>
+                <input type="text" class="form-input" placeholder="00.000.000/0000-00">
+              </div>
+              <div class="form-group">
+                <label class="form-label">No Apolice <span class="required">*</span></label>
+                <input type="text" class="form-input" placeholder="APL-2024-00000">
+              </div>
+              <div class="form-group">
+                <label class="form-label">Ramo</label>
+                <select class="form-select">
+                  <option value="">Selecione...</option>
+                  <option>Transporte Nacional</option><option>Transporte Internacional</option><option>RCTR-C</option><option>RCF-DC</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label class="form-label">No Seguradora</label>
+                <input type="text" class="form-input" placeholder="SEG-000000">
+              </div>
+              <div class="form-group">
+                <label class="form-label">No Reguladora</label>
+                <input type="text" class="form-input" placeholder="REG-000000">
+              </div>
+            </div>
+
+            <!-- Evento -->
+            <div class="form-section-title">⚡ Evento</div>
+            <div class="form-grid">
+              <div class="form-group">
+                <label class="form-label">Causa <span class="required">*</span></label>
+                <select class="form-select">
+                  <option value="">Selecione...</option>
+                  <option>ACIDENTE</option><option>AVARIA</option><option>ROUBO</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Classificacao</label>
+                <select class="form-select">
+                  <option value="">Selecione...</option>
+                  <option>COLISAO</option><option>TOMBAMENTO</option><option>FURTO</option><option>INCENDIO</option><option>AVARIA</option><option>ROUBO</option><option>EXTRAVIO</option><option>QUEBRA</option><option>MOLHADURA</option><option>VAZAMENTO</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Mercadoria</label>
+                <select class="form-select">
+                  <option value="">Selecione...</option>
+                  <option>Alimentos</option><option>Eletronicos</option><option>Combustivel</option><option>Graos</option><option>Calcados</option><option>Cosmeticos</option><option>Medicamentos</option><option>Aco/Aluminio</option><option>Bebidas</option><option>Textil</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Data/Hora do Evento <span class="required">*</span></label>
+                <input type="datetime-local" class="form-input">
+              </div>
+              <div class="form-group">
+                <label class="form-label">Data/Hora do Aviso</label>
+                <input type="datetime-local" class="form-input">
+              </div>
+              <div class="form-group">
+                <label class="form-label">Local do Evento</label>
+                <input type="text" class="form-input" placeholder="BR-101, km 342 - SC">
+              </div>
+            </div>
+
+            <!-- Prioridade e SLA (NOVO) -->
+            <div class="form-section-title">⏱️ Prioridade e SLA</div>
+            <div class="form-grid">
+              <div class="form-group">
+                <label class="form-label">Prioridade <span class="required">*</span></label>
+                <select class="form-select">
+                  <option value="">Selecione...</option>
+                  <option>Baixa</option><option>Media</option><option>Alta</option><option>Urgente</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Politica SLA</label>
+                <select class="form-select">
+                  <option value="">Selecione...</option>
+                  <option>Padrao</option><option>Premium</option><option>Emergencia</option>
+                </select>
+              </div>
+            </div>
+
+            <!-- Valores -->
+            <div class="form-section-title">💰 Valores</div>
+            <div class="form-grid form-grid-3">
+              <div class="form-group">
+                <label class="form-label">Valor Nota</label>
+                <input type="text" class="form-input" placeholder="R$ 0,00">
+              </div>
+              <div class="form-group">
+                <label class="form-label">Prejuizo</label>
+                <input type="text" class="form-input" placeholder="R$ 0,00">
+              </div>
+              <div class="form-group">
+                <label class="form-label">Valor Indenizado</label>
+                <input type="text" class="form-input" placeholder="R$ 0,00">
+              </div>
+              <div class="form-group">
+                <label class="form-label">Franquia/POS</label>
+                <input type="text" class="form-input" placeholder="R$ 0,00">
+              </div>
+              <div class="form-group">
+                <label class="form-label">Salvados</label>
+                <input type="text" class="form-input" placeholder="R$ 0,00">
+              </div>
+              <div class="form-group">
+                <label class="form-label">Despesas de Regulacao</label>
+                <input type="text" class="form-input" placeholder="R$ 0,00">
+              </div>
+            </div>
+
+            <!-- Motorista e Rota -->
+            <div class="form-section-title">🚛 Motorista e Rota</div>
+            <div class="form-grid">
+              <div class="form-group">
+                <label class="form-label">Motorista</label>
+                <input type="text" class="form-input" placeholder="Nome do motorista">
+              </div>
+              <div class="form-group">
+                <label class="form-label">CPF Motorista</label>
+                <input type="text" class="form-input" placeholder="000.000.000-00">
+              </div>
+              <div class="form-group">
+                <label class="form-label">Remetente</label>
+                <input type="text" class="form-input" placeholder="Nome do remetente">
+              </div>
+              <div class="form-group">
+                <label class="form-label">Local de Origem</label>
+                <input type="text" class="form-input" placeholder="Cidade/UF">
+              </div>
+              <div class="form-group">
+                <label class="form-label">Destinatario</label>
+                <input type="text" class="form-input" placeholder="Nome do destinatario">
+              </div>
+              <div class="form-group">
+                <label class="form-label">Local de Destino</label>
+                <input type="text" class="form-input" placeholder="Cidade/UF">
+              </div>
+            </div>
+
+            <!-- Descricao -->
+            <div class="form-section-title">📄 Descricao</div>
+            <div class="form-grid">
+              <div class="form-group full-width">
+                <label class="form-label">Descricao do Sinistro <span class="required">*</span></label>
+                <textarea class="form-textarea" rows="4" placeholder="Descreva o sinistro em detalhes..."></textarea>
+              </div>
+              <div class="form-group full-width">
+                <label class="form-label">Observacoes</label>
+                <textarea class="form-textarea" rows="3" placeholder="Observacoes adicionais..."></textarea>
+              </div>
+            </div>
+
+            <!-- Actions -->
+            <div class="form-actions">
+              <button class="btn btn-secondary" onclick="showSection('sinistros')">Cancelar</button>
+              <button class="btn btn-primary" onclick="showSection('sinistros')">💾 Salvar Sinistro</button>
+            </div>
+          </div>
+        </section>
+
+        <!-- ===== CADASTROS ===== -->
+        <section class="section" id="section-segurados">
+          <div class="section-header">
+            <div class="flex items-center justify-between">
+              <div><div class="section-title">Segurados</div><div class="section-subtitle">Cadastro de clientes segurados</div></div>
+              <button class="btn btn-primary btn-sm" onclick="openDialog('dialog-cadastro')">+ Novo Segurado</button>
+            </div>
+          </div>
+          <div id="cadastro-segurados"></div>
+        </section>
+
+        <section class="section" id="section-seguradoras">
+          <div class="section-header">
+            <div class="flex items-center justify-between">
+              <div><div class="section-title">Seguradoras</div><div class="section-subtitle">Seguradoras parceiras</div></div>
+              <button class="btn btn-primary btn-sm" onclick="openDialog('dialog-cadastro')">+ Nova Seguradora</button>
+            </div>
+          </div>
+          <div id="cadastro-seguradoras"></div>
+        </section>
+
+        <section class="section" id="section-corretores">
+          <div class="section-header">
+            <div class="flex items-center justify-between">
+              <div><div class="section-title">Corretores</div><div class="section-subtitle">Equipe de corretores</div></div>
+              <button class="btn btn-primary btn-sm" onclick="openDialog('dialog-cadastro')">+ Novo Corretor</button>
+            </div>
+          </div>
+          <div id="cadastro-corretores"></div>
+        </section>
+
+        <section class="section" id="section-transportadoras">
+          <div class="section-header">
+            <div class="flex items-center justify-between">
+              <div><div class="section-title">Transportadoras</div><div class="section-subtitle">Transportadoras envolvidas nos sinistros</div></div>
+              <button class="btn btn-primary btn-sm" onclick="openDialog('dialog-cadastro')">+ Nova Transportadora</button>
+            </div>
+          </div>
+          <div id="cadastro-transportadoras"></div>
+        </section>
+
+        <section class="section" id="section-reguladoras">
+          <div class="section-header">
+            <div class="flex items-center justify-between">
+              <div><div class="section-title">Reguladoras</div><div class="section-subtitle">Reguladoras de sinistro</div></div>
+              <button class="btn btn-primary btn-sm" onclick="openDialog('dialog-cadastro')">+ Nova Reguladora</button>
+            </div>
+          </div>
+          <div id="cadastro-reguladoras"></div>
+        </section>
+
+        <section class="section" id="section-gerenciadoras">
+          <div class="section-header">
+            <div class="flex items-center justify-between">
+              <div><div class="section-title">Gerenciadoras de Risco</div><div class="section-subtitle">Gerenciadoras de risco</div></div>
+              <button class="btn btn-primary btn-sm" onclick="openDialog('dialog-cadastro')">+ Nova Gerenciadora</button>
+            </div>
+          </div>
+          <div id="cadastro-gerenciadoras"></div>
+        </section>
+
+        <!-- ===== USUARIOS ===== -->
+        <section class="section" id="section-usuarios">
+          <div class="section-header">
+            <div class="flex items-center justify-between">
+              <div><div class="section-title">Usuarios</div><div class="section-subtitle">Gerenciamento de usuarios do sistema</div></div>
+              <button class="btn btn-primary btn-sm" onclick="openDialog('dialog-user')">+ Novo Usuario</button>
+            </div>
+          </div>
+          <div id="users-content"></div>
+        </section>
+
+        <!-- ===== ROLES ===== -->
+        <section class="section" id="section-roles">
+          <div class="section-header">
+            <div class="section-title">Roles e Permissoes</div>
+            <div class="section-subtitle">Configuracao de papeis e permissoes de acesso</div>
+          </div>
+          <div id="roles-content"></div>
+        </section>
+
+        <!-- ===== SLA ===== -->
+        <section class="section" id="section-sla">
+          <div class="section-header">
+            <div class="flex items-center justify-between">
+              <div><div class="section-title">Politicas de SLA</div><div class="section-subtitle">Definicao de tempos de resposta por prioridade</div></div>
+              <button class="btn btn-primary btn-sm">+ Nova Politica</button>
+            </div>
+          </div>
+          <div id="sla-content"></div>
+        </section>
+
+        <!-- ===== TAGS ===== -->
+        <section class="section" id="section-tags">
+          <div class="section-header">
+            <div class="flex items-center justify-between">
+              <div><div class="section-title">Tags</div><div class="section-subtitle">Etiquetas para classificar sinistros</div></div>
+              <button class="btn btn-primary btn-sm" onclick="openDialog('dialog-tag')">+ Nova Tag</button>
+            </div>
+          </div>
+          <div id="tags-content"></div>
+        </section>
+
+        <!-- ===== SETTINGS ===== -->
+        <section class="section" id="section-settings">
+          <div class="section-header">
+            <div class="section-title">Configuracoes</div>
+            <div class="section-subtitle">Configuracoes gerais do tenant</div>
+          </div>
+          <div id="settings-content"></div>
+        </section>
+
+      </div><!-- /content-area -->
+    </div><!-- /main-content -->
+  </div><!-- /app-layout -->
+
+  <!-- ========== DIALOGS ========== -->
+
+  <!-- Dialog: Novo Usuario -->
+  <div class="dialog-overlay" id="dialog-user">
+    <div class="dialog-content">
+      <div class="dialog-header">
+        <span class="dialog-title">Novo Usuario</span>
+        <button class="dialog-close" onclick="closeDialog('dialog-user')">✕</button>
+      </div>
+      <div class="dialog-body">
+        <div class="form-grid">
+          <div class="form-group full-width">
+            <label class="form-label">Nome <span class="required">*</span></label>
+            <input type="text" class="form-input" placeholder="Nome completo">
+          </div>
+          <div class="form-group">
+            <label class="form-label">E-mail <span class="required">*</span></label>
+            <input type="email" class="form-input" placeholder="usuario@email.com">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Telefone</label>
+            <input type="text" class="form-input" placeholder="(00) 00000-0000">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Role <span class="required">*</span></label>
+            <select class="form-select">
+              <option value="">Selecione...</option>
+              <option>Admin</option><option>Gerente</option><option>Corretor</option><option>Visualizador</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Senha <span class="required">*</span></label>
+            <input type="password" class="form-input" placeholder="Senha">
+          </div>
+        </div>
+      </div>
+      <div class="dialog-footer">
+        <button class="btn btn-secondary" onclick="closeDialog('dialog-user')">Cancelar</button>
+        <button class="btn btn-primary" onclick="closeDialog('dialog-user')">Criar Usuario</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Dialog: Nova Tag -->
+  <div class="dialog-overlay" id="dialog-tag">
+    <div class="dialog-content" style="max-width:400px">
+      <div class="dialog-header">
+        <span class="dialog-title">Nova Tag</span>
+        <button class="dialog-close" onclick="closeDialog('dialog-tag')">✕</button>
+      </div>
+      <div class="dialog-body">
+        <div class="form-group mb-4">
+          <label class="form-label">Nome <span class="required">*</span></label>
+          <input type="text" class="form-input" placeholder="Nome da tag">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Cor</label>
+          <input type="color" class="form-input" value="#3b82f6" style="height:40px;padding:4px">
+        </div>
+      </div>
+      <div class="dialog-footer">
+        <button class="btn btn-secondary" onclick="closeDialog('dialog-tag')">Cancelar</button>
+        <button class="btn btn-primary" onclick="closeDialog('dialog-tag')">Criar Tag</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Dialog: Cadastro generico -->
+  <div class="dialog-overlay" id="dialog-cadastro">
+    <div class="dialog-content">
+      <div class="dialog-header">
+        <span class="dialog-title">Novo Registro</span>
+        <button class="dialog-close" onclick="closeDialog('dialog-cadastro')">✕</button>
+      </div>
+      <div class="dialog-body">
+        <div class="form-grid">
+          <div class="form-group full-width">
+            <label class="form-label">Nome / Razao Social <span class="required">*</span></label>
+            <input type="text" class="form-input">
+          </div>
+          <div class="form-group">
+            <label class="form-label">CNPJ/CPF</label>
+            <input type="text" class="form-input" placeholder="00.000.000/0000-00">
+          </div>
+          <div class="form-group">
+            <label class="form-label">E-mail</label>
+            <input type="email" class="form-input">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Telefone</label>
+            <input type="text" class="form-input">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Cidade</label>
+            <input type="text" class="form-input">
+          </div>
+        </div>
+      </div>
+      <div class="dialog-footer">
+        <button class="btn btn-secondary" onclick="closeDialog('dialog-cadastro')">Cancelar</button>
+        <button class="btn btn-primary" onclick="closeDialog('dialog-cadastro')">Salvar</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="ios-risk-mockup.js"></script>
+</body>
+</html>

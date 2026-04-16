@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException, ConflictException, ForbiddenException, Logger } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
+import { PermissionCacheService } from './permission-cache.service';
 import { CreateCustomRoleDto, UpdateCustomRoleDto, QueryCustomRoleDto, RoleType, DataFilterDto } from './dto/custom-role.dto';
 import { getEffectiveTenantId } from '../../common/utils/tenant.util';
 import { Prisma } from '@prisma/client';
@@ -51,6 +52,7 @@ export class CustomRoleService {
   constructor(
     private prisma: PrismaService,
     private auditService: AuditService,
+    private permissionCache: PermissionCacheService,
   ) {}
 
   async create(dto: CreateCustomRoleDto, currentUser: CurrentUser, requestedTenantId?: string) {
@@ -254,6 +256,19 @@ export class CustomRoleService {
       metadata: { name: updatedRole.name },
     }).catch(() => {});
 
+    // Invalidar cache de permissions
+    // Buscar todos os usuários com essa role e invalidar cache
+    const usersWithRole = await this.prisma.user.findMany({
+      where: { customRoleId: id },
+      select: { id: true, tenantId: true },
+    });
+
+    if (usersWithRole.length > 0) {
+      const userIds = usersWithRole.map(u => u.id);
+      await this.permissionCache.invalidateMultipleUsers(userIds, tenantId);
+      this.logger.log(`🗑️ Invalidados caches de ${userIds.length} usuários após update de role ${updatedRole.name}`);
+    }
+
     return updatedRole;
   }
 
@@ -325,6 +340,10 @@ export class CustomRoleService {
       newData: { userId, roleName: role.name },
       metadata: { subAction: 'assign_role', userId, userName: user.name },
     }).catch(() => {});
+
+    // Invalidar cache de permissions do usuário (mudou de role)
+    await this.permissionCache.invalidateUserPermissions(userId, tenantId);
+    this.logger.log(`🗑️ Invalidado cache de permissions do usuário ${user.name} após atribuição de role ${role.name}`);
 
     return updatedUser;
   }
@@ -567,23 +586,41 @@ export class CustomRoleService {
   /**
    * Retorna as permissoes de modulo do usuario (formato CRUD)
    */
-  async getUserModulePermissions(userId: string): Promise<NormalizedModulePermissions> {
+  async getUserModulePermissions(userId: string, tenantId?: string): Promise<NormalizedModulePermissions> {
+    // Buscar user para ter tenantId (necessário para cache)
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
       select: {
+        tenantId: true,
         customRole: {
-          select: { roleType: true, modulePermissions: true },
+          select: {
+            id: true,
+            roleType: true,
+            modulePermissions: true,
+            permissions: true,
+          },
         },
       },
     });
 
     if (!user || !user.customRole) return {};
 
+    const effectiveTenantId = tenantId || user.tenantId;
+
+    // Tentar buscar do cache
+    const cached = await this.permissionCache.getUserPermissions(userId, effectiveTenantId);
+    if (cached) {
+      return normalizeModulePermissions(cached.modulePermissions as Record<string, unknown>);
+    }
+
+    // Cache miss - buscar do banco
     const roleType = user.customRole.roleType as RoleType;
+
+    let modulePermissions: NormalizedModulePermissions;
 
     // PLATFORM_ADMIN tem acesso total a tudo
     if (roleType === 'PLATFORM_ADMIN') {
-      return {
+      modulePermissions = {
         dashboard: FULL_CRUD,
         users: FULL_CRUD,
         settings: FULL_CRUD,
@@ -592,10 +629,19 @@ export class CustomRoleService {
         entities: FULL_CRUD,
         tenants: FULL_CRUD,
       };
+    } else {
+      // Demais roles: usar modulePermissions configuradas (normalizado de boolean → CRUD)
+      modulePermissions = normalizeModulePermissions(user.customRole.modulePermissions as Record<string, unknown>);
     }
 
-    // Demais roles: usar modulePermissions configuradas (normalizado de boolean → CRUD)
-    return normalizeModulePermissions(user.customRole.modulePermissions as Record<string, unknown>);
+    // Salvar no cache
+    await this.permissionCache.setUserPermissions(userId, effectiveTenantId, {
+      roleType,
+      modulePermissions: user.customRole.modulePermissions as Record<string, unknown>,
+      entityPermissions: (user.customRole.permissions as any[]) || [],
+    });
+
+    return modulePermissions;
   }
 
   /**

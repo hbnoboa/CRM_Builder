@@ -716,7 +716,31 @@
       "emailTemplates": "Plantillas de Email",
       "emailTemplatesDesc": "Administrar plantillas de email del sistema",
       "notifications": "Notificaciones",
-      "notificationsDesc": "Ver notificaciones del sistema"
+      "notificationsDesc": "Ver notificaciones del sistema",
+      "automations": "Automatizaciones",
+      "automationsDesc": "Gestionar webhooks, action chains y automatizaciones de entidades",
+      "templates": "Plantillas",
+      "templatesDesc": "Gestionar plantillas de PDF y email",
+      "logs": "Registros",
+      "logsDesc": "Ver registros de auditoría y ejecución",
+      "publicLinks": "Enlaces Públicos",
+      "publicLinksDesc": "Crear y gestionar enlaces públicos de formularios",
+      "archive": "Archivo",
+      "archiveDesc": "Registros archivados y papelera",
+      "executionLogs": "Registros de Ejecución",
+      "executionLogsDesc": "Registros de ejecución de automatizaciones",
+      "entityAutomation": "Automatizaciones de Entidad",
+      "entityAutomationDesc": "Automatizaciones vinculadas a entidades"
+    },
+    "subModules": {
+      "title": "Submódulos",
+      "webhooks": "Webhooks",
+      "actionChains": "Cadenas de Acción",
+      "entityAutomation": "Automatizaciones de Entidad",
+      "pdfTemplates": "Plantillas PDF",
+      "emailTemplates": "Plantillas de Email",
+      "auditLogs": "Registros de Auditoría",
+      "executionLogs": "Registros de Ejecución"
     },
     "userRoles": {
       "title": "Gestionar Permisos",
@@ -783,7 +807,36 @@
       "canImport": "Importar Registros",
       "canEditLocked": "Editar Registros Bloqueados",
       "canGenerate": "Generar PDF",
-      "canExecute": "Ejecutar Manualmente"
+      "canExecute": "Ejecutar Manualmente",
+      "canManageTenantAccess": "Gestionar Acceso a Tenants",
+      "canPermanentDelete": "Eliminar Permanentemente"
+    },
+    "dataFilters": {
+      "title": "Filtros de Datos",
+      "sectionTitle": "Filtros de Datos ({count})",
+      "description": "Los filtros restringen qué registros pueden ver los usuarios con este rol en esta entidad.",
+      "operators": {
+        "contains": "Contiene",
+        "equals": "Igual a",
+        "startsWith": "Comienza con",
+        "endsWith": "Termina con",
+        "isEmpty": "Está vacío",
+        "isNotEmpty": "No está vacío",
+        "gt": "Mayor que",
+        "gte": "Mayor o igual",
+        "lt": "Menor que",
+        "lte": "Menor o igual",
+        "between": "Entre"
+      }
+    },
+    "notificationRules": {
+      "title": "Notificaciones",
+      "active": "(activo)",
+      "enableLabel": "Recibir notificaciones de esta entidad",
+      "whenLabel": "Cuando:",
+      "onCreate": "Creación",
+      "onUpdate": "Edición",
+      "onDelete": "Eliminación"
     },
     "permissionCategories": {
       "entities": "Tablas",
@@ -837,6 +890,8 @@
       "plan": "Plan",
       "planPlaceholder": "Selecciona un plan",
       "adminTitle": "Administrador del Tenant",
+      "adminOptionalHint": "Deja en blanco para crear el tenant sin usuarios. Puedes agregar usuarios más tarde.",
+      "optional": "opcional",
       "adminName": "Nombre del Administrador",
       "adminNamePlaceholder": "Juan Pérez",
       "adminEmail": "Email del Administrador",
@@ -849,6 +904,8 @@
       "themeTitle": "Tema",
       "themeReset": "Restablecer",
       "brandColor": "Color Principal",
+      "secondaryColor": "Color Secundario",
+      "accentColor": "Color de Acento",
       "presetColors": "Colores predefinidos",
       "darkModePreference": "Modo oscuro por defecto",
       "darkMode": {
@@ -859,6 +916,7 @@
       "themePreview": "Vista previa",
       "previewButton": "Botón",
       "previewSecondary": "Secundario",
+      "previewAccent": "Acento",
       "previewDelete": "Eliminar",
       "previewMutedText": "Texto secundario de ejemplo",
       "previewCard": "Card de ejemplo con borde"
@@ -981,7 +1039,8 @@
     "apiPathRequired": "La ruta es obligatoria",
     "slugMinLength": "El slug debe tener al menos 2 caracteres",
     "adminNameMinLength": "El nombre del admin debe tener al menos 2 caracteres",
-    "passwordMinLength": "La contrasena debe tener al menos 8 caracteres"
+    "passwordMinLength": "La contrasena debe tener al menos 8 caracteres",
+    "adminFieldsRequired": "Si proporciona datos del administrador, todos los campos (nombre, email y contraseña) son obligatorios"
   },
   "languageSwitcher": {
     "label": "Idioma"
@@ -1131,6 +1190,7 @@
     "created": "Creado",
     "recordRemoved": "Registro eliminado",
     "removeError": "Error al eliminar registro",
+    "search": "Buscar...",
     "deleteConfirm": {
       "title": "¿Eliminar registro?",
       "message": "¿Estás seguro de que deseas eliminar este registro de {name}? Esta acción no se puede deshacer."

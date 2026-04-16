@@ -14,6 +14,9 @@ import {
   ScatterChart,
   Image,
   List,
+  FileText,
+  Clock,
+  Kanban,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -189,6 +192,27 @@ export const WIDGET_REGISTRY: Record<WidgetType, WidgetDefinition> = {
     icon: Table2,
     category: 'data',
     defaultLayout: { w: 12, h: 18, minW: 6, minH: 16 },
+  },
+  'sub-entity-list': {
+    type: 'sub-entity-list',
+    label: 'Lista Sub-Entidade',
+    icon: FileText,
+    category: 'data',
+    defaultLayout: { w: 6, h: 8, minW: 4, minH: 6 },
+  },
+  'sub-entity-timeline': {
+    type: 'sub-entity-timeline',
+    label: 'Timeline Sub-Entidade',
+    icon: Clock,
+    category: 'data',
+    defaultLayout: { w: 6, h: 10, minW: 4, minH: 8 },
+  },
+  'kanban-board': {
+    type: 'kanban-board',
+    label: 'Kanban',
+    icon: Kanban,
+    category: 'data',
+    defaultLayout: { w: 12, h: 16, minW: 8, minH: 12 },
   },
 };
 

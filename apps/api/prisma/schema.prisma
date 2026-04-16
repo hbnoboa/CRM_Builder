@@ -31,7 +31,6 @@ enum HttpMethod {
   DELETE
 }
 
-
 // ═══════════════════════════════════════════════════════════════════════════
 // PDF TEMPLATES - Enums
 // ═══════════════════════════════════════════════════════════════════════════
@@ -72,21 +71,21 @@ model Tenant {
   updatedAt DateTime @updatedAt
 
   // Relacionamentos
-  users           User[]
-  entities        Entity[]
-  entityData      EntityData[]
-  archivedData    ArchivedEntityData[]
-  customRoles     CustomRole[]
-  notifications   Notification[]
-  pdfTemplates    PdfTemplate[]
-  pdfGenerations  PdfGeneration[]
+  users            User[]
+  entities         Entity[]
+  entityData       EntityData[]
+  archivedData     ArchivedEntityData[]
+  customRoles      CustomRole[]
+  notifications    Notification[]
+  pdfTemplates     PdfTemplate[]
+  pdfGenerations   PdfGeneration[]
   userTenantAccess UserTenantAccess[]
 
   // Automacoes
-  webhooks        Webhook[]
-  emailTemplates  EmailTemplate[]
-  actionChains    ActionChain[]
-  scheduledTasks  ScheduledTask[]
+  webhooks       Webhook[]
+  emailTemplates EmailTemplate[]
+  actionChains   ActionChain[]
+  scheduledTasks ScheduledTask[]
 
   // Automacoes Unificadas
   entityAutomations    EntityAutomation[]
@@ -206,13 +205,13 @@ model Entity {
   updatedAt DateTime @updatedAt
 
   // Relacionamentos
-  tenant          Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  data            EntityData[]
-  archivedData    ArchivedEntityData[]
-  pdfTemplates    PdfTemplate[]
-  automations     EntityAutomation[]
-  fieldRules      EntityFieldRule[]
-  publicLinks     PublicLink[]
+  tenant       Tenant               @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  data         EntityData[]
+  archivedData ArchivedEntityData[]
+  pdfTemplates PdfTemplate[]
+  automations  EntityAutomation[]
+  fieldRules   EntityFieldRule[]
+  publicLinks  PublicLink[]
 
   @@unique([tenantId, slug])
   @@index([tenantId])
@@ -230,6 +229,10 @@ model EntityData {
   entityId String
 
   data Json
+
+  // Materialized computed field values (formulas, rollups, timers, sla-status)
+  // Invalidated and recomputed when dependencies change
+  computedValues Json @default("{}")
 
   // Sub-entity support: links child records to a parent record
   parentRecordId String?
@@ -260,8 +263,8 @@ model EntityData {
   // Trigger-maintained: PowerSync-compatible columns derived from _visibleToRoles
   // _hasRoleFilter: true if any role has data filters for this entity
   // _visibleToRolesJson: JSONB array of role IDs (PowerSync IN operator needs JSONB, not TEXT[])
-  hasRoleFilter    Boolean @default(false) @map("_hasRoleFilter")
-  visibleToRolesJson Json  @default("[]")  @map("_visibleToRolesJson")
+  hasRoleFilter      Boolean @default(false) @map("_hasRoleFilter")
+  visibleToRolesJson Json    @default("[]") @map("_visibleToRolesJson")
 
   entity       Entity       @relation(fields: [entityId], references: [id], onDelete: Cascade)
   tenant       Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
@@ -283,6 +286,7 @@ model EntityData {
   @@index([updatedById])
   @@index([updatedAt])
   @@index([deletedAt])
+  @@index([computedValues], type: Gin)
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -294,6 +298,7 @@ model ArchivedEntityData {
   tenantId       String
   entityId       String
   data           Json
+  computedValues Json     @default("{}")
   parentRecordId String?
   createdAt      DateTime
   updatedAt      DateTime
@@ -310,6 +315,7 @@ model ArchivedEntityData {
   @@index([tenantId, entityId, createdAt(sort: Desc)])
   @@index([createdAt])
   @@index([archivedAt])
+  @@index([computedValues], type: Gin)
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -339,6 +345,24 @@ model AuditLog {
   @@index([tenantId, userId])
   @@index([resource, resourceId])
   @@index([tenantId, action, resource])
+}
+
+model ArchivedAuditLog {
+  id         String   @id @default(cuid())
+  tenantId   String
+  userId     String?
+  action     String
+  resource   String
+  resourceId String?
+  oldData    Json?
+  newData    Json?
+  metadata   Json?
+  createdAt  DateTime
+  archivedAt DateTime @default(now())
+
+  @@index([tenantId])
+  @@index([tenantId, createdAt(sort: Desc)])
+  @@index([archivedAt])
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -411,8 +435,8 @@ model CustomRole {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  users  User[]
+  tenant            Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  users             User[]
   tenantAccessUsers UserTenantAccess[]
   publicLinks       PublicLink[]
 
@@ -563,16 +587,16 @@ enum WebhookStatus {
 }
 
 model Webhook {
-  id       String @id @default(cuid())
+  id       String  @id @default(cuid())
   tenantId String
   entityId String?
 
-  name        String
-  description String?
-  url         String
-  method      HttpMethod @default(POST)
-  headers     Json?      // { "Authorization": "Bearer {{secret}}", "Content-Type": "application/json" }
-  bodyTemplate Json?     // Template do body com placeholders
+  name         String
+  description  String?
+  url          String
+  method       HttpMethod @default(POST)
+  headers      Json? // { "Authorization": "Bearer {{secret}}", "Content-Type": "application/json" }
+  bodyTemplate Json? // Template do body com placeholders
 
   // Eventos que disparam o webhook
   events String[] // ['created', 'updated', 'deleted', 'status-changed']
@@ -593,7 +617,7 @@ model Webhook {
   updatedAt DateTime @updatedAt
 
   // Relacionamentos
-  tenant     Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenant     Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   executions WebhookExecution[]
 
   @@index([tenantId])
@@ -626,7 +650,7 @@ model WebhookExecution {
   // Status
   status       String // 'success', 'error', 'timeout', 'retry'
   errorMessage String?
-  retryCount   Int    @default(0)
+  retryCount   Int     @default(0)
 
   createdAt DateTime @default(now())
 
@@ -653,9 +677,9 @@ model EmailTemplate {
   description String?
 
   // Conteudo
-  subject   String
-  bodyHtml  String  @db.Text
-  bodyText  String? @db.Text
+  subject  String
+  bodyHtml String  @db.Text
+  bodyText String? @db.Text
 
   // Variaveis disponiveis no template
   variables String[] // ['user.name', 'record.data.name', 'now']
@@ -684,14 +708,14 @@ model EmailTemplate {
 // ═══════════════════════════════════════════════════════════════════════════
 
 enum ActionChainTrigger {
-  MANUAL      // Disparado por botao
-  WEBHOOK     // Disparado por webhook recebido
-  SCHEDULE    // Disparado por cron
-  EVENT       // Disparado por evento (create, update, status-change)
+  MANUAL // Disparado por botao
+  WEBHOOK // Disparado por webhook recebido
+  SCHEDULE // Disparado por cron
+  EVENT // Disparado por evento (create, update, status-change)
 }
 
 model ActionChain {
-  id       String @id @default(cuid())
+  id       String  @id @default(cuid())
   tenantId String
   entityId String?
 
@@ -719,7 +743,7 @@ model ActionChain {
   updatedAt DateTime @updatedAt
 
   // Relacionamentos
-  tenant     Tenant                @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenant     Tenant                 @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   executions ActionChainExecution[]
 
   @@index([tenantId])
@@ -736,7 +760,7 @@ model ActionChainExecution {
   tenantId      String
 
   // Contexto de execucao
-  triggeredBy String  // 'manual:userId', 'event:created', 'schedule:cron', 'webhook'
+  triggeredBy String // 'manual:userId', 'event:created', 'schedule:cron', 'webhook'
   recordId    String?
   inputData   Json?
 
@@ -770,7 +794,7 @@ model ActionChainExecution {
 // ═══════════════════════════════════════════════════════════════════════════
 
 model ScheduledTask {
-  id       String @id @default(cuid())
+  id       String  @id @default(cuid())
   tenantId String
   entityId String?
 
@@ -792,15 +816,15 @@ model ScheduledTask {
   nextRunAt DateTime?
 
   // Estatisticas
-  runCount      Int @default(0)
-  successCount  Int @default(0)
-  failureCount  Int @default(0)
+  runCount     Int @default(0)
+  successCount Int @default(0)
+  failureCount Int @default(0)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   // Relacionamentos
-  tenant     Tenant               @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenant     Tenant                   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   executions ScheduledTaskExecution[]
 
   @@index([tenantId])
@@ -816,11 +840,11 @@ model ScheduledTaskExecution {
   tenantId        String
 
   status       String // 'success', 'error', 'timeout'
-  duration     Int?   // ms
+  duration     Int? // ms
   outputData   Json?
   errorMessage String?
 
-  startedAt   DateTime @default(now())
+  startedAt   DateTime  @default(now())
   completedAt DateTime?
 
   scheduledTask ScheduledTask @relation(fields: [scheduledTaskId], references: [id], onDelete: Cascade)
@@ -837,11 +861,11 @@ model ScheduledTaskExecution {
 // ═══════════════════════════════════════════════════════════════════════════
 
 model ApiExecutionLog {
-  id             String @id @default(cuid())
-  tenantId       String
-  customApiId    String?
-  webhookId      String?
-  actionChainId  String?
+  id            String  @id @default(cuid())
+  tenantId      String
+  customApiId   String?
+  webhookId     String?
+  actionChainId String?
 
   // Request
   method       String
@@ -898,8 +922,8 @@ model EntityAutomation {
   // Trigger
   trigger       AutomationTrigger
   triggerConfig Json? // ON_FIELD_CHANGE: { fieldSlug, fromValue?, toValue? }
-                      // ON_STATUS_CHANGE: { fromStatus?, toStatus? }
-                      // SCHEDULE: { cronExpression, timezone }
+  // ON_STATUS_CHANGE: { fromStatus?, toStatus? }
+  // SCHEDULE: { cronExpression, timezone }
 
   // Condicoes para execucao (AND logico)
   conditions Json? // [{ field, operator, value }]
@@ -933,12 +957,12 @@ model EntityAutomation {
 }
 
 model AutomationExecution {
-  id           String @id @default(cuid())
+  id           String  @id @default(cuid())
   automationId String
   tenantId     String
   recordId     String?
 
-  triggeredBy String  // 'system:on_create', 'user:<userId>', 'cron'
+  triggeredBy String // 'system:on_create', 'user:<userId>', 'cron'
   inputData   Json?
 
   currentStep Int    @default(0)
@@ -1051,7 +1075,7 @@ model PublicLink {
   customRoleId String
 
   // Metadados
-  name        String  // Nome amigavel (ex: "Inspecao de Caminhoes")
+  name        String // Nome amigavel (ex: "Inspecao de Caminhoes")
   description String?
 
   // Controles
@@ -1075,4 +1099,3 @@ model PublicLink {
   @@index([tenantId])
   @@index([tenantId, entitySlug])
 }
-

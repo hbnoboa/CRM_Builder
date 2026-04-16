@@ -178,16 +178,18 @@ interface EntityDataProviderProps {
   entitySlug: string;
   children: React.ReactNode;
   initialFilters?: Partial<UnifiedFilterState>;
+  disableWebSocketUpdates?: boolean;
 }
 
 export function EntityDataProvider({
   entitySlug,
+  disableWebSocketUpdates,
   children,
   initialFilters,
 }: EntityDataProviderProps) {
   const [serverDashFilters, setServerDashFilters] = React.useState<string | undefined>();
   const { records: allRecords, isLoading, error, totalServerRecords, isFullDataset, refresh } =
-    useEntityDataSource(entitySlug, serverDashFilters);
+    useEntityDataSource(entitySlug, serverDashFilters, disableWebSocketUpdates);
 
   const { data: rawEntity } = useEntityBySlug(entitySlug);
 
@@ -283,13 +285,14 @@ export function EntityDataProvider({
     );
   }, [entitySlug]);
 
-  const updateRecord = useCallback((id: string, data: Record<string, unknown>) => {
+  const updateRecord = useCallback((id: string, partialData: Record<string, unknown>) => {
+    // Emitir evento de atualização otimista (será processado pelo useEntityDataSource)
     window.dispatchEvent(
       new CustomEvent('entity-data-changed', {
         detail: {
           operation: 'updated',
           entitySlug,
-          record: { id, data, updatedAt: new Date().toISOString() },
+          record: { id, data: partialData, updatedAt: new Date().toISOString() },
         },
       }),
     );

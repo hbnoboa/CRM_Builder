@@ -5,6 +5,7 @@ import { PushService } from '../push/push.service';
 import { NotificationType, Prisma } from '@prisma/client';
 import { v4 as uuidv4 } from 'uuid';
 import { evaluateConditions } from '../../common/utils/evaluate-notification-conditions';
+import { buildCursorResponse } from '../../common/utils/cursor-pagination.util';
 
 export interface CreateNotificationDto {
   type: 'info' | 'success' | 'warning' | 'error';
@@ -16,6 +17,7 @@ export interface CreateNotificationDto {
 export interface QueryNotificationDto {
   page?: number;
   limit?: number;
+  cursor?: string; // Cursor pagination
   unreadOnly?: boolean;
 }
 
@@ -346,10 +348,55 @@ export class NotificationService {
   }
 
   /**
+   * Notificar todos os administradores de um tenant
+   */
+  async notifyAdmins(
+    tenantId: string,
+    notification: CreateNotificationDto,
+  ): Promise<void> {
+    try {
+      // Buscar todos os admins do tenant (ADMIN e PLATFORM_ADMIN)
+      const admins = await this.prisma.user.findMany({
+        where: {
+          tenantId,
+          status: 'ACTIVE',
+          customRole: {
+            roleType: {
+              in: ['ADMIN', 'PLATFORM_ADMIN'],
+            },
+          },
+        },
+        select: {
+          id: true,
+        },
+      });
+
+      if (admins.length === 0) {
+        this.logger.warn(`Nenhum admin encontrado no tenant ${tenantId}`);
+        return;
+      }
+
+      // Notificar cada admin
+      for (const admin of admins) {
+        await this.notifyUser(admin.id, notification, tenantId, true);
+      }
+
+      this.logger.log(
+        `Notificação enviada para ${admins.length} admin(s) do tenant ${tenantId}`,
+      );
+    } catch (error) {
+      this.logger.error(`Falha ao notificar admins: ${error}`);
+      throw error;
+    }
+  }
+
+  /**
    * Emit data-changed event with operation details for granular frontend updates.
    */
-  emitDataChanged(tenantId: string, payload: { operation: string; entitySlug: string; [key: string]: unknown }) {
-    this.gateway.emitDataChanged(tenantId, payload);
+  emitDataChanged(tenantId: string, payload: { operation: string; entitySlug: string; userId?: string; [key: string]: unknown }) {
+    // Se o payload tem userId, excluir esse usuário do broadcast para evitar loops infinitos
+    const excludeUserId = payload.userId as string | undefined;
+    this.gateway.emitDataChanged(tenantId, payload, excludeUserId);
   }
 
   /**
@@ -378,8 +425,8 @@ export class NotificationService {
     tenantId: string,
     query: QueryNotificationDto = {},
   ) {
-    const { page = 1, limit = 20, unreadOnly = false } = query;
-    const skip = (page - 1) * limit;
+    const { page = 1, limit = 20, cursor, unreadOnly = false } = query;
+    const useCursor = !!cursor;
 
     const where: Prisma.NotificationWhereInput = {
       userId,
@@ -390,6 +437,40 @@ export class NotificationService {
       where.read = false;
     }
 
+    // Cursor pagination (mais eficiente para listas grandes)
+    if (useCursor) {
+      const takeWithExtra = limit + 1;
+      const items = await this.prisma.notification.findMany({
+        where,
+        take: takeWithExtra,
+        orderBy: { createdAt: 'desc' },
+        ...(cursor && {
+          cursor: { id: cursor },
+          skip: 1, // Pular o item do cursor
+        }),
+      });
+
+      const unreadCount = await this.prisma.notification.count({
+        where: { userId, tenantId, read: false },
+      });
+
+      const response = buildCursorResponse({
+        items,
+        limit,
+        getCursorValue: (item) => item.id,
+      });
+
+      return {
+        ...response,
+        meta: {
+          ...response.meta,
+          unreadCount,
+        },
+      };
+    }
+
+    // Offset pagination (legacy - mantido para compatibilidade)
+    const skip = (page - 1) * limit;
     const [data, total, unreadCount] = await Promise.all([
       this.prisma.notification.findMany({
         where,

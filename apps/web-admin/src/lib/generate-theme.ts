@@ -81,19 +81,35 @@ export interface ThemeVariables {
   dark: Record<string, string>;
 }
 
-export function generateThemeVariables(hex: string): ThemeVariables {
-  const brand = hexToHSL(hex);
-  const h = brand.h;
-  const s = brand.s;
+export function generateThemeVariables(
+  hex: string,
+  secondaryHex?: string,
+  accentHex?: string
+): ThemeVariables {
+  const primary = hexToHSL(hex);
+  const secondary = secondaryHex ? hexToHSL(secondaryHex) : null;
+  const accent = accentHex ? hexToHSL(accentHex) : null;
+
+  const h = primary.h;
+  const s = primary.s;
 
   // ---- LIGHT MODE ----
-  // Background: very light gray with ~5% brand color tint
   const lightBg: HSL = { h, s: clamp(s * 0.05, 1, 4), l: 98.5 };
   const lightPrimary = ensureContrast(
-    { h, s: clamp(s, 40, 90), l: clamp(brand.l, 15, 45) },
+    { h, s: clamp(s, 40, 90), l: clamp(primary.l, 15, 45) },
     lightBg,
-    true, // darken to get contrast on white
+    true,
   );
+
+  // Secondary color - use provided or derive from primary
+  const lightSecondary = secondary
+    ? ensureContrast({ h: secondary.h, s: clamp(secondary.s, 35, 80), l: clamp(secondary.l, 20, 50) }, lightBg, true)
+    : { h, s: clamp(s * 0.6, 15, 40), l: 70 };
+
+  // Accent color - use provided or derive from primary
+  const lightAccent = accent
+    ? ensureContrast({ h: accent.h, s: clamp(accent.s, 35, 80), l: clamp(accent.l, 20, 50) }, lightBg, true)
+    : { h: (h + 30) % 360, s: clamp(s * 0.7, 20, 50), l: 65 };
 
   const light: Record<string, string> = {
     '--background': hsl(h, clamp(s * 0.05, 1, 4), 98.5),
@@ -104,12 +120,12 @@ export function generateThemeVariables(hex: string): ThemeVariables {
     '--popover-foreground': hsl(h, clamp(s * 0.1, 3, 10), 8),
     '--primary': hsl(lightPrimary.h, lightPrimary.s, lightPrimary.l),
     '--primary-foreground': lightPrimary.l < 50 ? hsl(0, 0, 100) : hsl(h, clamp(s, 40, 80), 5),
-    '--secondary': hsl(h, clamp(s * 0.08, 2, 8), 95.5),
-    '--secondary-foreground': hsl(lightPrimary.h, lightPrimary.s, lightPrimary.l),
+    '--secondary': hsl(lightSecondary.h, lightSecondary.s, lightSecondary.l),
+    '--secondary-foreground': hsl(0, 0, 100),
     '--muted': hsl(h, clamp(s * 0.06, 1, 6), 96),
     '--muted-foreground': hsl(h, clamp(s * 0.08, 3, 10), 46),
-    '--accent': hsl((h + 15) % 360, clamp(s * 0.08, 2, 8), 95.5),
-    '--accent-foreground': hsl(lightPrimary.h, lightPrimary.s, lightPrimary.l),
+    '--accent': hsl(lightAccent.h, lightAccent.s, lightAccent.l),
+    '--accent-foreground': hsl(0, 0, 100),
     '--destructive': hsl(0, 84.2, 60.2),
     '--destructive-foreground': hsl(0, 0, 100),
     '--border': hsl(h, clamp(s * 0.06, 2, 6), 91),
@@ -118,13 +134,20 @@ export function generateThemeVariables(hex: string): ThemeVariables {
   };
 
   // ---- DARK MODE ----
-  // Background: very dark gray (almost black) with ~5% brand color tint
   const darkBg: HSL = { h, s: clamp(s * 0.05, 1, 4), l: 6 };
   const darkPrimary = ensureContrast(
-    { h, s: clamp(s * 0.85, 35, 85), l: clamp(brand.l > 50 ? brand.l : 100 - brand.l, 55, 75) },
+    { h, s: clamp(s * 0.85, 35, 85), l: clamp(primary.l > 50 ? primary.l : 100 - primary.l, 55, 75) },
     darkBg,
-    false, // lighten to get contrast on dark bg
+    false,
   );
+
+  const darkSecondary = secondary
+    ? ensureContrast({ h: secondary.h, s: clamp(secondary.s * 0.8, 30, 75), l: clamp(secondary.l > 50 ? secondary.l : 100 - secondary.l, 50, 70) }, darkBg, false)
+    : { h, s: clamp(s * 0.6, 15, 40), l: 60 };
+
+  const darkAccent = accent
+    ? ensureContrast({ h: accent.h, s: clamp(accent.s * 0.8, 30, 75), l: clamp(accent.l > 50 ? accent.l : 100 - accent.l, 50, 70) }, darkBg, false)
+    : { h: (h + 30) % 360, s: clamp(s * 0.7, 20, 50), l: 55 };
 
   const dark: Record<string, string> = {
     '--background': hsl(h, clamp(s * 0.05, 1, 4), 6),
@@ -135,11 +158,11 @@ export function generateThemeVariables(hex: string): ThemeVariables {
     '--popover-foreground': hsl(h, clamp(s * 0.05, 1, 4), 98),
     '--primary': hsl(darkPrimary.h, darkPrimary.s, darkPrimary.l),
     '--primary-foreground': hsl(h, clamp(s, 40, 80), 8),
-    '--secondary': hsl(h, clamp(s * 0.08, 2, 8), 14),
+    '--secondary': hsl(darkSecondary.h, darkSecondary.s, darkSecondary.l),
     '--secondary-foreground': hsl(h, clamp(s * 0.05, 1, 4), 98),
     '--muted': hsl(h, clamp(s * 0.06, 1, 6), 14),
     '--muted-foreground': hsl(h, clamp(s * 0.05, 2, 6), 65),
-    '--accent': hsl((h + 15) % 360, clamp(s * 0.08, 2, 8), 14),
+    '--accent': hsl(darkAccent.h, darkAccent.s, darkAccent.l),
     '--accent-foreground': hsl(h, clamp(s * 0.05, 1, 4), 98),
     '--destructive': hsl(0, 62.8, 30.6),
     '--destructive-foreground': hsl(0, 0, 98),

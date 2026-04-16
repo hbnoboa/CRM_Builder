@@ -720,7 +720,31 @@
       "emailTemplates": "Templates de Email",
       "emailTemplatesDesc": "Gerenciar templates de email do sistema",
       "notifications": "Notificações",
-      "notificationsDesc": "Ver notificações do sistema"
+      "notificationsDesc": "Ver notificações do sistema",
+      "automations": "Automações",
+      "automationsDesc": "Gerenciar webhooks, action chains e automações de entidades",
+      "templates": "Templates",
+      "templatesDesc": "Gerenciar templates de PDF e email",
+      "logs": "Registros",
+      "logsDesc": "Visualizar logs de auditoria e execução",
+      "publicLinks": "Links Públicos",
+      "publicLinksDesc": "Criar e gerenciar links públicos de formulários",
+      "archive": "Arquivo",
+      "archiveDesc": "Registros arquivados e lixeira",
+      "executionLogs": "Logs de Execução",
+      "executionLogsDesc": "Logs de execução de automações",
+      "entityAutomation": "Automações de Entidade",
+      "entityAutomationDesc": "Automações vinculadas a entidades"
+    },
+    "subModules": {
+      "title": "Sub-módulos",
+      "webhooks": "Webhooks",
+      "actionChains": "Action Chains",
+      "entityAutomation": "Automações de Entidade",
+      "pdfTemplates": "Templates PDF",
+      "emailTemplates": "Templates de Email",
+      "auditLogs": "Logs de Auditoria",
+      "executionLogs": "Logs de Execução"
     },
     "userRoles": {
       "title": "Gerenciar Permissões",
@@ -787,7 +811,36 @@
       "canImport": "Importar Registros",
       "canEditLocked": "Editar Registros Travados",
       "canGenerate": "Gerar PDF",
-      "canExecute": "Executar Manualmente"
+      "canExecute": "Executar Manualmente",
+      "canManageTenantAccess": "Gerenciar Acesso a Tenants",
+      "canPermanentDelete": "Excluir Permanentemente"
+    },
+    "dataFilters": {
+      "title": "Filtros de Dados",
+      "sectionTitle": "Filtros de Dados ({count})",
+      "description": "Filtros restringem quais registros usuários com esta role podem ver nesta entidade.",
+      "operators": {
+        "contains": "Contém",
+        "equals": "Igual a",
+        "startsWith": "Começa com",
+        "endsWith": "Termina com",
+        "isEmpty": "Está vazio",
+        "isNotEmpty": "Não está vazio",
+        "gt": "Maior que",
+        "gte": "Maior ou igual",
+        "lt": "Menor que",
+        "lte": "Menor ou igual",
+        "between": "Entre"
+      }
+    },
+    "notificationRules": {
+      "title": "Notificações",
+      "active": "(ativo)",
+      "enableLabel": "Receber notificações desta entidade",
+      "whenLabel": "Quando:",
+      "onCreate": "Criação",
+      "onUpdate": "Edição",
+      "onDelete": "Exclusão"
     },
     "permissionCategories": {
       "entities": "Tabelas",
@@ -841,6 +894,8 @@
       "plan": "Plano",
       "planPlaceholder": "Selecione um plano",
       "adminTitle": "Administrador do Tenant",
+      "adminOptionalHint": "Deixe em branco para criar o tenant sem usuários. Você pode adicionar usuários depois.",
+      "optional": "opcional",
       "adminName": "Nome do Administrador",
       "adminNamePlaceholder": "João Silva",
       "adminEmail": "Email do Administrador",
@@ -853,6 +908,8 @@
       "themeTitle": "Tema",
       "themeReset": "Resetar",
       "brandColor": "Cor Principal",
+      "secondaryColor": "Cor Secundária",
+      "accentColor": "Cor de Destaque",
       "presetColors": "Cores predefinidas",
       "darkModePreference": "Modo escuro padrão",
       "darkMode": {
@@ -863,6 +920,7 @@
       "themePreview": "Pré-visualização",
       "previewButton": "Botão",
       "previewSecondary": "Secundário",
+      "previewAccent": "Destaque",
       "previewDelete": "Excluir",
       "previewMutedText": "Texto secundário de exemplo",
       "previewCard": "Card de exemplo com borda"
@@ -985,7 +1043,8 @@
     "apiPathRequired": "Path e obrigatorio",
     "slugMinLength": "Slug deve ter pelo menos 2 caracteres",
     "adminNameMinLength": "Nome do admin deve ter pelo menos 2 caracteres",
-    "passwordMinLength": "Senha deve ter pelo menos 8 caracteres"
+    "passwordMinLength": "Senha deve ter pelo menos 8 caracteres",
+    "adminFieldsRequired": "Se informar dados do administrador, todos os campos (nome, email e senha) são obrigatórios"
   },
   "languageSwitcher": {
     "label": "Idioma"
@@ -1138,6 +1197,7 @@
     "created": "Criado",
     "recordRemoved": "Registro removido",
     "removeError": "Erro ao excluir registro",
+    "search": "Buscar...",
     "deleteConfirm": {
       "title": "Excluir registro?",
       "message": "Tem certeza que deseja excluir este registro de {name}? Esta ação não pode ser desfeita."

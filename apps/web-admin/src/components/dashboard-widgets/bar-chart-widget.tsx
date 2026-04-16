@@ -30,6 +30,11 @@ export function BarChartWidget({ entitySlug, config, title, isEditMode }: BarCha
 
   const handleClick = (entry: { value: string }) => {
     if (fieldSlug) {
+      console.log('[BarChartWidget] Emitting cross filter:', {
+        fieldSlug,
+        value: entry.value,
+        entitySlug,
+      });
       toggleCrossFilter(fieldSlug, entry.value);
     }
   };

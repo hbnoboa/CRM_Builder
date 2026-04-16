@@ -3,10 +3,11 @@ import {
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiResponse } from '@nestjs/swagger';
 import { CustomRoleService } from './custom-role.service';
+import { PermissionCacheService } from './permission-cache.service';
 import { CreateCustomRoleDto, UpdateCustomRoleDto, QueryCustomRoleDto } from './dto/custom-role.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
-import { RolesGuard } from '../../common/guards/roles.guard';
-import { Roles } from '../../common/decorators/roles.decorator';
+import { ModulePermissionGuard } from '../../common/guards/module-permission.guard';
+import { RequireModulePermission } from '../../common/decorators/module-permission.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { CurrentUser as CurrentUserType } from '../../common/types';
 
@@ -21,13 +22,16 @@ function assertAdminRole(user: CurrentUserType): void {
 
 @ApiTags('Custom Roles')
 @Controller('custom-roles')
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, ModulePermissionGuard)
 @ApiBearerAuth()
 export class CustomRoleController {
-  constructor(private readonly customRoleService: CustomRoleService) {}
+  constructor(
+    private readonly customRoleService: CustomRoleService,
+    private readonly permissionCache: PermissionCacheService,
+  ) {}
 
   @Post()
-  @Roles('ADMIN', 'PLATFORM_ADMIN')
+  @RequireModulePermission('roles', 'canCreate')
   @ApiOperation({ summary: 'Criar role customizada' })
   @ApiResponse({ status: 201, description: 'Role criada com sucesso' })
   async create(@Body() dto: CreateCustomRoleDto, @CurrentUser() user: CurrentUserType) {
@@ -46,7 +50,7 @@ export class CustomRoleController {
   }
 
   @Get()
-  @Roles('ADMIN', 'PLATFORM_ADMIN')
+  @RequireModulePermission('roles', 'canRead')
   @ApiOperation({ summary: 'Listar roles customizadas' })
   async findAll(@Query() query: QueryCustomRoleDto, @CurrentUser() user: CurrentUserType) {
     assertAdminRole(user);
@@ -54,7 +58,7 @@ export class CustomRoleController {
   }
 
   @Get(':id')
-  @Roles('ADMIN', 'PLATFORM_ADMIN')
+  @RequireModulePermission('roles', 'canRead')
   @ApiOperation({ summary: 'Buscar role por ID' })
   async findOne(
     @Param('id') id: string,
@@ -66,7 +70,7 @@ export class CustomRoleController {
   }
 
   @Patch(':id')
-  @Roles('ADMIN', 'PLATFORM_ADMIN')
+  @RequireModulePermission('roles', 'canUpdate')
   @ApiOperation({ summary: 'Atualizar role customizada' })
   async update(
     @Param('id') id: string,
@@ -78,7 +82,7 @@ export class CustomRoleController {
   }
 
   @Delete(':id')
-  @Roles('ADMIN', 'PLATFORM_ADMIN')
+  @RequireModulePermission('roles', 'canDelete')
   @ApiOperation({ summary: 'Excluir role customizada' })
   async remove(
     @Param('id') id: string,
@@ -89,7 +93,7 @@ export class CustomRoleController {
   }
 
   @Post(':roleId/assign/:userId')
-  @Roles('ADMIN', 'PLATFORM_ADMIN')
+  @RequireModulePermission('roles', 'canUpdate')
   @ApiOperation({ summary: 'Atribuir role a um usuário' })
   async assignToUser(
     @Param('roleId') roleId: string,
@@ -101,7 +105,7 @@ export class CustomRoleController {
   }
 
   @Delete('user/:userId')
-  @Roles('ADMIN', 'PLATFORM_ADMIN')
+  @RequireModulePermission('roles', 'canDelete')
   @ApiOperation({ summary: 'Remover role de um usuário' })
   async removeFromUser(
     @Param('userId') userId: string,
@@ -109,5 +113,52 @@ export class CustomRoleController {
     @CurrentUser() user: CurrentUserType,
   ) {
     return this.customRoleService.removeFromUser(userId, user, tenantId);
+  }
+
+  @Get('cache/stats')
+  @RequireModulePermission('roles', 'canRead')
+  @ApiOperation({ summary: 'Obter estatísticas do cache de permissions' })
+  @ApiResponse({
+    status: 200,
+    description: 'Estatísticas do cache',
+    schema: {
+      type: 'object',
+      properties: {
+        totalKeys: { type: 'number', example: 127 },
+        permissionKeys: { type: 'number', example: 127 },
+        averageTTL: { type: 'number', example: 245, description: 'TTL médio em segundos' },
+      },
+    },
+  })
+  async getCacheStats(@CurrentUser() user: CurrentUserType) {
+    assertAdminRole(user);
+    return this.permissionCache.getStats();
+  }
+
+  @Post('cache/invalidate/:userId')
+  @RequireModulePermission('roles', 'canUpdate')
+  @ApiOperation({ summary: 'Invalidar cache de permissions de um usuário' })
+  async invalidateUserCache(
+    @Param('userId') userId: string,
+    @CurrentUser() user: CurrentUserType,
+  ) {
+    assertAdminRole(user);
+    await this.permissionCache.invalidateUserPermissions(userId, user.tenantId);
+    return {
+      success: true,
+      message: `Cache de permissions do usuário ${userId} invalidado`,
+    };
+  }
+
+  @Post('cache/invalidate-tenant')
+  @RequireModulePermission('roles', 'canUpdate')
+  @ApiOperation({ summary: 'Invalidar TODOS os caches de permissions do tenant' })
+  async invalidateTenantCache(@CurrentUser() user: CurrentUserType) {
+    assertAdminRole(user);
+    await this.permissionCache.invalidateTenantPermissions(user.tenantId);
+    return {
+      success: true,
+      message: `Caches de permissions do tenant invalidados`,
+    };
   }
 }

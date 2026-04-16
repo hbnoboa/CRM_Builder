@@ -170,6 +170,7 @@ export const useAuthStore = create<AuthState>()(
           // Notificar componentes que o tenant mudou
           window.dispatchEvent(new CustomEvent('tenant-changed'));
         } catch (error: unknown) {
+          console.error('Erro ao trocar tenant:', error);
           const message = isAxiosError<{ message?: string }>(error)
             ? error.response?.data?.message || 'Failed to switch tenant'
             : 'Failed to switch tenant';

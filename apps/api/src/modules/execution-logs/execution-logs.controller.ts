@@ -2,18 +2,19 @@ import { Controller, Get, Query, Param, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
 import { ExecutionLogsService } from './execution-logs.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
-import { RolesGuard } from '../../common/guards/roles.guard';
-import { Roles } from '../../common/decorators/roles.decorator';
+import { ModulePermissionGuard } from '../../common/guards/module-permission.guard';
+import { RequireModulePermission } from '../../common/decorators/module-permission.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 
 @ApiTags('Execution Logs')
 @ApiBearerAuth()
 @Controller('execution-logs')
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, ModulePermissionGuard)
 export class ExecutionLogsController {
   constructor(private readonly executionLogsService: ExecutionLogsService) {}
 
   @Get()
+  @RequireModulePermission('logs', 'canRead', 'executionLogs')
   @ApiOperation({ summary: 'Lista execucoes de automacoes' })
   @ApiQuery({ name: 'page', required: false, type: Number })
   @ApiQuery({ name: 'limit', required: false, type: Number })
@@ -21,7 +22,6 @@ export class ExecutionLogsController {
   @ApiQuery({ name: 'status', required: false, enum: ['success', 'error', 'timeout'] })
   @ApiQuery({ name: 'startDate', required: false, type: String })
   @ApiQuery({ name: 'endDate', required: false, type: String })
-  @Roles('ADMIN', 'PLATFORM_ADMIN')
   async findAll(
     @CurrentUser() user: { tenantId: string },
     @Query('page') page?: string,
@@ -42,9 +42,9 @@ export class ExecutionLogsController {
   }
 
   @Get('stats')
+  @RequireModulePermission('logs', 'canRead', 'executionLogs')
   @ApiOperation({ summary: 'Estatisticas de execucoes' })
   @ApiQuery({ name: 'period', required: false, enum: ['day', 'week', 'month'] })
-  @Roles('ADMIN', 'PLATFORM_ADMIN')
   async getStats(
     @CurrentUser() user: { tenantId: string },
     @Query('period') period?: 'day' | 'week' | 'month',
@@ -53,8 +53,8 @@ export class ExecutionLogsController {
   }
 
   @Get(':type/:id')
+  @RequireModulePermission('logs', 'canRead', 'executionLogs')
   @ApiOperation({ summary: 'Detalhes de uma execucao' })
-  @Roles('ADMIN', 'PLATFORM_ADMIN')
   async findOne(
     @CurrentUser() user: { tenantId: string },
     @Param('type') type: string,

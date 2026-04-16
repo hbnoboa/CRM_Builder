@@ -1,6 +1,9 @@
 import { Injectable, NotFoundException, ForbiddenException, BadRequestException, Logger, Inject, Optional } from '@nestjs/common';
+import { InjectQueue } from '@nestjs/bull';
+import { Queue } from 'bull';
 import { PrismaService } from '../../prisma/prisma.service';
 import { EntityService } from '../entity/entity.service';
+import { ComputedFieldMaterializerService } from '../entity/computed-field-materializer.service';
 import { NotificationService } from '../notification/notification.service';
 import { CustomRoleService } from '../custom-role/custom-role.service';
 import { ComputedFieldsService } from './computed-fields.service';
@@ -101,11 +104,13 @@ export class DataService {
   constructor(
     private prisma: PrismaService,
     private entityService: EntityService,
+    private materializer: ComputedFieldMaterializerService,
     private notificationService: NotificationService,
     private customRoleService: CustomRoleService,
     private auditService: AuditService,
     private computedFieldsService: ComputedFieldsService,
     private queryService: EntityDataQueryService,
+    @InjectQueue('automation-execution') private automationQueue: Queue,
     @Optional() @Inject(WebhookService) private webhookService?: WebhookService,
     @Optional() @Inject(ActionChainService) private actionChainService?: ActionChainService,
     @Optional() @Inject(EntityAutomationService) private entityAutomationService?: EntityAutomationService,
@@ -131,14 +136,14 @@ export class DataService {
       entity: { id: entity.id, slug: entity.slug, name: entity.name },
     };
 
-    // Disparar webhooks (legado)
+    // Disparar webhooks (legado) - ainda síncrono pois são fire-and-forget
     if (this.webhookService) {
       this.webhookService.triggerWebhooks(tenantId, context).catch((err) => {
         this.logger.error(`Erro ao disparar webhooks: ${err.message}`);
       });
     }
 
-    // Disparar action chains (legado)
+    // Disparar action chains (legado) - ainda síncrono pois são fire-and-forget
     if (this.actionChainService) {
       this.actionChainService.triggerByEvent(tenantId, event, {
         recordId: record.id as string,
@@ -150,18 +155,64 @@ export class DataService {
       });
     }
 
-    // Disparar automacoes unificadas (novo sistema)
-    if (this.entityAutomationService) {
-      this.entityAutomationService.triggerByEvent(tenantId, entity.id, event, {
-        event,
-        recordId: record.id as string,
-        record,
-        previousRecord,
-        user: context.user,
-        entity: context.entity,
-      }).catch((err) => {
-        this.logger.error(`Erro ao disparar automacoes unificadas: ${err.message}`);
+    // Buscar automações que devem ser disparadas
+    // NOVO: Adicionar à fila ao invés de executar diretamente
+    try {
+      // Buscar automações ativas para este evento
+      const automations = await this.prisma.entityAutomation.findMany({
+        where: {
+          entityId: entity.id,
+          tenantId,
+          isActive: true,
+          trigger: event === 'status-changed' ? 'ON_STATUS_CHANGE' :
+                  event === 'created' ? 'ON_CREATE' :
+                  event === 'updated' ? 'ON_UPDATE' :
+                  'ON_DELETE',
+        },
+        select: { id: true, name: true },
       });
+
+      if (automations.length > 0) {
+        this.logger.log(
+          `[Automations] Enfileirando ${automations.length} automation(s) para ${event} em ${entity.slug} (record: ${record.id})`
+        );
+
+        // Adicionar cada automation à fila
+        for (const automation of automations) {
+          await this.automationQueue.add({
+            automationId: automation.id,
+            recordId: record.id as string,
+            trigger: event,
+            userId: user.id,
+            tenantId,
+            entitySlug: entity.slug,
+            metadata: {
+              automationName: automation.name,
+              previousRecord,
+            },
+          }, {
+            attempts: 3, // Retry até 3x
+            backoff: {
+              type: 'exponential',
+              delay: 2000, // 2s, 4s, 8s
+            },
+            removeOnComplete: 100, // Manter últimos 100 jobs completados
+            removeOnFail: 500, // Manter últimos 500 erros para debug
+          });
+        }
+
+        this.logger.log(
+          `[Automations] ${automations.length} automation(s) enfileirada(s) com sucesso`
+        );
+      }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorStack = error instanceof Error ? error.stack : undefined;
+      this.logger.error(
+        `[Automations] Erro ao enfileirar automations: ${errorMessage}`,
+        errorStack
+      );
+      // Não lançar erro para não bloquear a operação principal
     }
   }
 
@@ -229,6 +280,11 @@ export class DataService {
         createdById: currentUser.id,
         updatedById: currentUser.id,
       },
+    });
+
+    // Materializar computed fields (async, não bloqueia)
+    this.materializer.materialize(entity as any, record).catch((err) => {
+      this.logger.error(`Erro ao materializar computed fields: ${err.message}`);
     });
 
     // Enviar notificacao para o tenant
@@ -1402,6 +1458,19 @@ export class DataService {
           updatedById: currentUser.id,
         },
       });
+
+      // Materializar computed fields (async, não bloqueia)
+      this.materializer.materialize(entity as any, updatedRecord).catch((err) => {
+        this.logger.error(`Erro ao materializar computed fields: ${err.message}`);
+      });
+
+      // Invalidar rollups de registros pais (se este registro foi alterado)
+      const changedFields = Object.keys(inputData);
+      if (changedFields.length > 0) {
+        this.materializer.invalidateParentRollups(entity as any, updatedRecord).catch((err) => {
+          this.logger.error(`Erro ao invalidar rollups pais: ${err.message}`);
+        });
+      }
     }
 
     // Enviar notificacao para o tenant

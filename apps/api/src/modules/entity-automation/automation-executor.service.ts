@@ -4,6 +4,8 @@ import { EmailTemplateService } from '../email-template/email-template.service';
 import { NotificationService } from '../notification/notification.service';
 import { Prisma, EntityAutomation } from '@prisma/client';
 import { ConditionEvaluator } from './condition-evaluator';
+import { ExecutionContextService, ExecutionContext, LoopDetectedException, MaxDepthExceededException } from './execution-context.service';
+import { CircuitBreakerService, CircuitOpenException } from './circuit-breaker.service';
 import * as vm from 'vm';
 
 interface ActionConfig {
@@ -41,11 +43,77 @@ export class AutomationExecutorService {
 
   constructor(
     private readonly prisma: PrismaService,
+    private readonly executionContextService: ExecutionContextService,
+    private readonly circuitBreakerService: CircuitBreakerService,
     @Optional() @Inject(EmailTemplateService)
     private readonly emailTemplateService?: EmailTemplateService,
     @Optional() @Inject(NotificationService)
     private readonly notificationService?: NotificationService,
   ) {}
+
+  /**
+   * Executa uma automação por ID (usado pela fila)
+   * Busca a automação, o registro e chama executeAutomation
+   */
+  async executeById(
+    automationId: string,
+    params: {
+      recordId: string;
+      trigger: string;
+      userId: string;
+      tenantId: string;
+      entitySlug: string;
+      metadata?: Record<string, unknown>;
+    }
+  ): Promise<string> {
+    // Buscar automation
+    const automation = await this.prisma.entityAutomation.findUnique({
+      where: { id: automationId },
+      include: { entity: true },
+    });
+
+    if (!automation) {
+      throw new Error(`Automation ${automationId} não encontrada`);
+    }
+
+    // Buscar registro
+    const record = await this.prisma.entityData.findUnique({
+      where: { id: params.recordId },
+    });
+
+    if (!record) {
+      throw new Error(`Registro ${params.recordId} não encontrado`);
+    }
+
+    // Buscar usuário
+    const user = await this.prisma.user.findUnique({
+      where: { id: params.userId },
+      select: { id: true, name: true, email: true },
+    });
+
+    if (!user) {
+      throw new Error(`Usuário ${params.userId} não encontrado`);
+    }
+
+    // Montar contexto
+    const context: AutomationContext = {
+      tenantId: params.tenantId,
+      triggeredBy: params.userId,
+      recordId: params.recordId,
+      record: record.data as Record<string, unknown>,
+      previousRecord: params.metadata?.previousRecord as Record<string, unknown> | undefined,
+      user: { id: user.id, name: user.name, email: user.email },
+      entity: {
+        id: automation.entity.id,
+        slug: automation.entity.slug,
+        name: automation.entity.name
+      },
+      lookupResults: {},
+    };
+
+    // Executar automation
+    return this.executeAutomation(automation, context);
+  }
 
   /**
    * Executa uma automacao completa, criando registro de execucao
@@ -54,171 +122,247 @@ export class AutomationExecutorService {
   async executeAutomation(
     automation: EntityAutomation,
     context: AutomationContext,
+    parentContext?: ExecutionContext,
   ): Promise<string> {
-    const actions = (
-      (automation.actions as unknown as ActionConfig[]) || []
-    ).sort((a, b) => a.order - b.order);
-
-    // Inicializar lookupResults para compartilhar dados entre acoes
-    context.lookupResults = context.lookupResults || {};
-
-    // Verificar rate limiting
-    const recentExecutions = await this.prisma.automationExecution.count({
-      where: {
-        automationId: automation.id,
-        startedAt: {
-          gte: new Date(Date.now() - 60 * 60 * 1000), // ultima hora
-        },
-      },
-    });
-
-    if (recentExecutions >= automation.maxExecutionsPerHour) {
-      this.logger.warn(
-        `Automacao ${automation.id} atingiu limite de ${automation.maxExecutionsPerHour} execucoes/hora`,
-      );
-      throw new Error(
-        `Rate limit excedido: ${recentExecutions}/${automation.maxExecutionsPerHour} execucoes na ultima hora`,
-      );
-    }
-
-    // Avaliar condicoes globais
-    const conditions = automation.conditions as Array<{
-      field: string;
-      operator: string;
-      value: unknown;
-    }> | null;
-
-    if (conditions && context.record) {
-      const passes = ConditionEvaluator.evaluate(conditions, context.record);
-      if (!passes) {
-        this.logger.debug(
-          `Automacao ${automation.id} ignorada: condicoes nao satisfeitas`,
-        );
-        return '';
-      }
-    }
-
-    // Criar registro de execucao
-    const execution = await this.prisma.automationExecution.create({
-      data: {
-        automationId: automation.id,
-        tenantId: context.tenantId,
-        recordId: context.recordId,
-        triggeredBy: context.triggeredBy,
-        inputData: context.inputData as Prisma.InputJsonValue,
-        totalSteps: actions.length,
-        status: 'running',
-      },
-    });
-
-    // Executar acoes sequencialmente
-    const stepResults: StepResult[] = [];
-    let currentData: Record<string, unknown> = {
-      ...context.inputData,
-      record: context.record,
-      previousRecord: context.previousRecord,
-    };
-    let hasError = false;
-
-    for (let i = 0; i < actions.length; i++) {
-      const action = actions[i];
-      const stepStart = Date.now();
-
-      // Atualizar progresso
-      await this.prisma.automationExecution.update({
-        where: { id: execution.id },
-        data: { currentStep: i + 1 },
-      });
-
-      try {
-        // Verificar condicao da acao individual
-        if (action.condition) {
-          const passes = ConditionEvaluator.evaluate(
-            [action.condition],
-            currentData,
-          );
-          if (!passes) {
-            stepResults.push({
-              step: action.order,
-              type: action.type,
-              status: 'skipped',
-              duration: Date.now() - stepStart,
-            });
-            continue;
-          }
-        }
-
-        // Executar acao
-        const output = await this.executeAction(action.type, action.config, {
-          ...context,
-          inputData: currentData,
-        });
-
-        // Merge output para proximas acoes
-        if (output && typeof output === 'object') {
-          currentData = {
-            ...currentData,
-            [`step_${action.order}_output`]: output,
-          };
-        }
-
-        stepResults.push({
-          step: action.order,
-          type: action.type,
-          status: 'success',
-          input: action.config,
-          output,
-          duration: Date.now() - stepStart,
-        });
-      } catch (err) {
-        const error = err as Error;
-        hasError = true;
-
-        this.logger.error(
-          `Erro na acao ${action.type} (step ${action.order}) da automacao ${automation.id}: ${error.message}`,
-        );
-
-        stepResults.push({
-          step: action.order,
-          type: action.type,
-          status: 'error',
-          error: error.message,
-          duration: Date.now() - stepStart,
-        });
-
-        if (automation.errorHandling === 'stop') {
-          break;
-        }
-        // errorHandling === 'continue': segue para proxima acao
-      }
-    }
-
-    // Finalizar execucao
-    const finalStatus = hasError ? 'failed' : 'completed';
-    await this.prisma.automationExecution.update({
-      where: { id: execution.id },
-      data: {
-        status: finalStatus,
-        stepResults: stepResults as unknown as Prisma.InputJsonValue,
-        completedAt: new Date(),
-        duration: Date.now() - execution.startedAt.getTime(),
-        ...(hasError && {
-          errorMessage: stepResults.find((s) => s.status === 'error')?.error,
-        }),
-      },
-    });
-
-    // Atualizar lastRunAt da automacao
-    await this.prisma.entityAutomation.update({
-      where: { id: automation.id },
-      data: { lastRunAt: new Date() },
-    });
-
-    this.logger.log(
-      `Automacao ${automation.id} finalizada: ${finalStatus} (${stepResults.length} steps)`,
+    // Iniciar contexto de execução (detecta loops e max depth)
+    const execContext = this.executionContextService.startExecution(
+      automation.id,
+      automation.name,
+      context.recordId || 'no-record',
+      'automation',
+      parentContext,
     );
 
-    return execution.id;
+    try {
+      // Executar com circuit breaker (previne cascata de falhas)
+      return await this.circuitBreakerService.call(
+        automation.id,
+        automation.name,
+        async () => {
+          const actions = (
+            (automation.actions as unknown as ActionConfig[]) || []
+          ).sort((a, b) => a.order - b.order);
+
+          // Inicializar lookupResults para compartilhar dados entre acoes
+          context.lookupResults = context.lookupResults || {};
+
+          // Verificar rate limiting
+          const recentExecutions = await this.prisma.automationExecution.count({
+            where: {
+              automationId: automation.id,
+              startedAt: {
+                gte: new Date(Date.now() - 60 * 60 * 1000), // ultima hora
+              },
+            },
+          });
+
+          if (recentExecutions >= automation.maxExecutionsPerHour) {
+            this.logger.warn(
+              `Automacao ${automation.id} atingiu limite de ${automation.maxExecutionsPerHour} execucoes/hora`,
+            );
+            throw new Error(
+              `Rate limit excedido: ${recentExecutions}/${automation.maxExecutionsPerHour} execucoes na ultima hora`,
+            );
+          }
+
+          // Avaliar condicoes globais
+          const conditions = automation.conditions as Array<{
+            field: string;
+            operator: string;
+            value: unknown;
+          }> | null;
+
+          if (conditions && context.record) {
+            const passes = ConditionEvaluator.evaluate(conditions, context.record);
+            if (!passes) {
+              this.logger.debug(
+                `Automacao ${automation.id} ignorada: condicoes nao satisfeitas`,
+              );
+              return '';
+            }
+          }
+
+          // Criar registro de execucao
+          const execution = await this.prisma.automationExecution.create({
+            data: {
+              automationId: automation.id,
+              tenantId: context.tenantId,
+              recordId: context.recordId,
+              triggeredBy: context.triggeredBy,
+              inputData: context.inputData as Prisma.InputJsonValue,
+              totalSteps: actions.length,
+              status: 'running',
+            },
+          });
+
+          // Executar acoes sequencialmente
+          const stepResults: StepResult[] = [];
+          let currentData: Record<string, unknown> = {
+            ...context.inputData,
+            record: context.record,
+            previousRecord: context.previousRecord,
+          };
+          let hasError = false;
+
+          for (let i = 0; i < actions.length; i++) {
+            const action = actions[i];
+            const stepStart = Date.now();
+
+            // Atualizar progresso
+            await this.prisma.automationExecution.update({
+              where: { id: execution.id },
+              data: { currentStep: i + 1 },
+            });
+
+            try {
+              // Verificar condicao da acao individual
+              if (action.condition) {
+                const passes = ConditionEvaluator.evaluate(
+                  [action.condition],
+                  currentData,
+                );
+                if (!passes) {
+                  stepResults.push({
+                    step: action.order,
+                    type: action.type,
+                    status: 'skipped',
+                    duration: Date.now() - stepStart,
+                  });
+                  continue;
+                }
+              }
+
+              // Executar acao
+              const output = await this.executeAction(action.type, action.config, {
+                ...context,
+                inputData: currentData,
+              });
+
+              // Merge output para proximas acoes
+              if (output && typeof output === 'object') {
+                currentData = {
+                  ...currentData,
+                  [`step_${action.order}_output`]: output,
+                };
+              }
+
+              stepResults.push({
+                step: action.order,
+                type: action.type,
+                status: 'success',
+                input: action.config,
+                output,
+                duration: Date.now() - stepStart,
+              });
+            } catch (err) {
+              const error = err as Error;
+              hasError = true;
+
+              this.logger.error(
+                `Erro na acao ${action.type} (step ${action.order}) da automacao ${automation.id}: ${error.message}`,
+              );
+
+              stepResults.push({
+                step: action.order,
+                type: action.type,
+                status: 'error',
+                error: error.message,
+                duration: Date.now() - stepStart,
+              });
+
+              if (automation.errorHandling === 'stop') {
+                break;
+              }
+              // errorHandling === 'continue': segue para proxima acao
+            }
+          }
+
+          // Finalizar execucao
+          const finalStatus = hasError ? 'failed' : 'completed';
+          await this.prisma.automationExecution.update({
+            where: { id: execution.id },
+            data: {
+              status: finalStatus,
+              stepResults: stepResults as unknown as Prisma.InputJsonValue,
+              completedAt: new Date(),
+              duration: Date.now() - execution.startedAt.getTime(),
+              ...(hasError && {
+                errorMessage: stepResults.find((s) => s.status === 'error')?.error,
+              }),
+            },
+          });
+
+          // Atualizar lastRunAt da automacao
+          await this.prisma.entityAutomation.update({
+            where: { id: automation.id },
+            data: { lastRunAt: new Date() },
+          });
+
+          this.logger.log(
+            `Automacao ${automation.id} finalizada: ${finalStatus} (${stepResults.length} steps)`,
+          );
+
+          return execution.id;
+        },
+      );
+    } catch (error) {
+      // Capturar exceções específicas de loop e circuit breaker
+      if (error instanceof LoopDetectedException) {
+        this.logger.error(
+          `🔴 Loop infinito detectado: ${error.message}\n` +
+          `   Caminho: ${error.pathNames.join(' → ')}`
+        );
+        // Criar notificação para admin
+        if (this.notificationService) {
+          await this.notificationService.notifyAdmins(
+            context.tenantId,
+            {
+              type: 'error',
+              title: 'Loop Infinito Detectado',
+              message: `Automation "${automation.name}" entrou em loop. Caminho: ${error.pathNames.join(' → ')}`,
+              data: { automationId: automation.id, path: error.path },
+            },
+          ).catch(() => {}); // Não falhar se notificação falhar
+        }
+        throw error;
+      }
+
+      if (error instanceof MaxDepthExceededException) {
+        this.logger.error(
+          `🔴 Profundidade máxima excedida: ${error.message}\n` +
+          `   Caminho: ${error.pathNames.join(' → ')}\n` +
+          `   Profundidade: ${error.depth}`
+        );
+        // Criar notificação para admin
+        if (this.notificationService) {
+          await this.notificationService.notifyAdmins(
+            context.tenantId,
+            {
+              type: 'error',
+              title: 'Profundidade Máxima Excedida',
+              message: `Automation "${automation.name}" excedeu profundidade máxima (${error.depth}). Caminho: ${error.pathNames.join(' → ')}`,
+              data: { automationId: automation.id, path: error.path, depth: error.depth },
+            },
+          ).catch(() => {});
+        }
+        throw error;
+      }
+
+      if (error instanceof CircuitOpenException) {
+        this.logger.warn(
+          `⚠️ Circuit aberto: ${error.message}\n` +
+          `   Automation: ${error.automationName} (${error.automationId})\n` +
+          `   Falhas: ${error.failures}`
+        );
+        throw error;
+      }
+
+      // Re-lançar outros erros
+      throw error;
+    } finally {
+      // Sempre finalizar contexto de execução
+      this.executionContextService.endExecution(context.recordId || 'no-record');
+    }
   }
 
   /**

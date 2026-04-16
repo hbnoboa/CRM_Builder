@@ -79,6 +79,7 @@ import { RecordFormDialog } from '@/components/data/record-form-dialog';
 import { ImportDialog } from '@/components/data/import-dialog';
 import { exportToJson, exportToXlsx } from '@/lib/export-utils';
 import { pdfTemplatesService, type PdfTemplate } from '@/services/pdf-templates.service';
+import { dataService } from '@/services/data.service';
 import { formatFieldValue, type FormatFieldOptions } from '@crm-builder/shared';
 import { useEntityBySlug } from '@/hooks/use-entities';
 import { api } from '@/lib/api';
@@ -250,7 +251,7 @@ export function DataTableWidget({ entitySlug, config, title }: DataTableWidgetPr
 function DataTableWidgetInner({ entitySlug, config, title, ctx }: DataTableWidgetProps & { ctx: NonNullable<ReturnType<typeof useEntityDataOptional>> }) {
   const t = useTranslations('data');
   const tCommon = useTranslations('common');
-  const { hasEntityPermission } = usePermissions();
+  const { hasEntityPermission, hasModuleAction, hasEntityAction } = usePermissions();
   const deleteRecord = useDeleteEntityData();
 
   const {
@@ -310,6 +311,9 @@ function DataTableWidgetInner({ entitySlug, config, title, ctx }: DataTableWidge
   const canCreate = allowCreate && hasEntityPermission(entitySlug, 'canCreate');
   const canEdit = allowEdit && hasEntityPermission(entitySlug, 'canUpdate');
   const canDelete = allowDelete && hasEntityPermission(entitySlug, 'canDelete');
+  // Export/Import permissions check both module-level and entity-level (same as backend)
+  const canExport = allowExport && (hasModuleAction('data', 'canExport') || hasEntityAction(entitySlug, 'canExport'));
+  const canImport = allowImport && (hasModuleAction('data', 'canImport') || hasEntityAction(entitySlug, 'canImport'));
 
   // ─── Cross-entity metadata for filter popover ────────────────────
 
@@ -583,19 +587,61 @@ function DataTableWidgetInner({ entitySlug, config, title, ctx }: DataTableWidge
   }, [refresh]);
 
   // Export
-  const handleExport = useCallback((format: 'json' | 'xlsx') => {
-    const recordsToExport = selectedIds.size > 0
-      ? sortedRecords.filter(r => selectedIds.has(r.id))
-      : sortedRecords;
+  const handleExport = useCallback(async (format: 'json' | 'xlsx') => {
+    try {
+      // Build query params with all active filters
+      const params: Record<string, string> = {
+        format,
+      };
 
-    const entityName = entity?.name || entitySlug;
-    if (format === 'json') {
-      exportToJson(recordsToExport, entityName);
-    } else {
-      exportToXlsx(recordsToExport, visibleFields, entityName);
+      // If there are selected records, export only those
+      if (selectedIds.size > 0) {
+        params.recordIds = JSON.stringify(Array.from(selectedIds));
+      } else {
+        // Otherwise, apply all filters
+        if (filters.searchTerm) {
+          params.search = filters.searchTerm;
+        }
+        if (filters.sortBy) {
+          params.sortBy = filters.sortBy;
+          params.sortOrder = filters.sortOrder;
+        }
+        // Convert fieldFilters to backend format
+        if (filters.fieldFilters.length > 0) {
+          const backendFilters = filters.fieldFilters.map(f => ({
+            fieldSlug: f.fieldSlug,
+            operator: f.operator,
+            value: f.value,
+            ...(f.value2 !== undefined ? { value2: f.value2 } : {}),
+            fieldType: f.fieldType,
+          }));
+          params.filters = JSON.stringify(backendFilters);
+        }
+      }
+
+      const blob = await dataService.exportData(entitySlug, format, params);
+
+      // Download the file
+      const entityName = entity?.name || entitySlug;
+      const dateStr = new Date().toISOString().split('T')[0];
+      const extension = format === 'json' ? 'json' : 'xlsx';
+      const fileName = `${entityName}_${dateStr}.${extension}`;
+
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      const count = selectedIds.size > 0 ? selectedIds.size : 'Todos os';
+      toast.success(`${count} registros exportados`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Erro ao exportar');
     }
-    toast.success(`${recordsToExport.length} registros exportados`);
-  }, [selectedIds, sortedRecords, entity?.name, entitySlug, visibleFields]);
+  }, [selectedIds, filters, entity?.name, entitySlug]);
 
   // PDF export
   const handlePdfExport = useCallback(async (template: PdfTemplate) => {
@@ -903,7 +949,7 @@ function DataTableWidgetInner({ entitySlug, config, title, ctx }: DataTableWidge
           </DropdownMenu>
 
           {/* Export */}
-          {allowExport && (
+          {canExport && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="outline" size="sm" className="h-9">
@@ -950,7 +996,7 @@ function DataTableWidgetInner({ entitySlug, config, title, ctx }: DataTableWidge
           )}
 
           {/* Import */}
-          {allowImport && hasEntityPermission(entitySlug, 'canCreate') && (
+          {canImport && (
             <Button variant="outline" size="sm" className="h-9" onClick={() => setImportOpen(true)}>
               <Upload className="h-4 w-4 mr-1" />
               {tCommon('import')}

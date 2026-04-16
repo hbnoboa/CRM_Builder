@@ -11,91 +11,50 @@ const NONE = { canRead: false, canCreate: false, canUpdate: false, canDelete: fa
 // Helpers para permissoes de modulo especificas
 const PDF_READ_GENERATE = { canRead: true, canCreate: false, canUpdate: false, canDelete: false, canGenerate: true };
 
-// Configuracao de roles de sistema
-// IMPORTANTE: Todos os 10 modulos devem ser definidos para cada role.
-// O backend usa DB exclusivamente quando modulePermissions existe.
-const SYSTEM_ROLES = {
-  PLATFORM_ADMIN: {
-    name: 'Super Admin',
-    description: 'Super administrador com acesso total a plataforma',
-    color: '#dc2626',
-    roleType: 'PLATFORM_ADMIN',
-    isSystem: true,
-    modulePermissions: { dashboard: FULL, users: FULL, settings: FULL, apis: FULL, pages: FULL, entities: FULL, tenants: FULL, data: FULL, roles: FULL, pdfTemplates: { ...FULL, canGenerate: true }, auditLogs: READ_ONLY, dashboardTemplates: FULL },
-    tenantPermissions: { canAccessAllTenants: true },
+// Configuracao APENAS de PLATFORM_ADMIN
+// Todos os outros roles devem ser criados via interface (customizados)
+const PLATFORM_ADMIN_CONFIG = {
+  name: 'Super Admin',
+  description: 'Super administrador com acesso total a plataforma',
+  color: '#dc2626',
+  roleType: 'PLATFORM_ADMIN',
+  isSystem: true,
+  // PLATFORM_ADMIN tem acesso a TODOS os modulos
+  modulePermissions: {
+    dashboard: FULL,
+    users: FULL,
+    settings: FULL,
+    entities: FULL,
+    tenants: FULL,
+    data: FULL,
+    roles: FULL,
+    automations: {
+      ...FULL,
+      canExecute: true,
+      // Sub-permissões para automações
+      webhooks: FULL,
+      actionChains: FULL,
+      entityAutomation: FULL,
+    },
+    templates: {
+      ...FULL,
+      canGenerate: true,
+      // Sub-permissões para templates
+      pdfTemplates: FULL,
+      emailTemplates: FULL,
+    },
+    logs: {
+      ...READ_ONLY,
+      // Sub-permissões para logs
+      auditLogs: READ_ONLY,
+      executionLogs: READ_ONLY,
+    },
+    notifications: FULL,
+    publicLinks: FULL,
+    archive: FULL,
   },
-  ADMIN: {
-    name: 'Administrador',
-    description: 'Administrador do tenant com acesso completo',
-    color: '#7c3aed',
-    roleType: 'ADMIN',
-    isSystem: true,
-    modulePermissions: { dashboard: FULL, users: FULL, settings: FULL, apis: FULL, pages: FULL, entities: FULL, tenants: NONE, data: FULL, roles: FULL, pdfTemplates: { ...FULL, canGenerate: true }, auditLogs: NONE, dashboardTemplates: FULL },
-  },
-  MANAGER: {
-    name: 'Gerente',
-    description: 'Gerente com acesso a dados e equipe',
-    color: '#2563eb',
-    roleType: 'MANAGER',
-    isSystem: true,
-    modulePermissions: { dashboard: READ_ONLY, users: READ_ONLY, settings: NONE, apis: NONE, pages: NONE, entities: NONE, tenants: NONE, data: { canRead: true, canCreate: true, canUpdate: true, canDelete: false }, roles: READ_ONLY, pdfTemplates: PDF_READ_GENERATE, auditLogs: NONE, dashboardTemplates: NONE },
-  },
-  USER: {
-    name: 'Usuario',
-    description: 'Usuario padrao com acesso a dados proprios',
-    color: '#059669',
-    roleType: 'USER',
-    isSystem: true,
-    isDefault: true,
-    modulePermissions: { dashboard: READ_ONLY, users: READ_ONLY, settings: READ_ONLY, apis: NONE, pages: NONE, entities: { canRead: true, canCreate: true, canUpdate: true, canDelete: false }, tenants: NONE, data: { canRead: true, canCreate: true, canUpdate: true, canDelete: false }, roles: NONE, pdfTemplates: PDF_READ_GENERATE, auditLogs: NONE, dashboardTemplates: NONE },
-  },
-  VIEWER: {
-    name: 'Visualizador',
-    description: 'Apenas visualizacao de dados',
-    color: '#6b7280',
-    roleType: 'VIEWER',
-    isSystem: true,
-    modulePermissions: { dashboard: READ_ONLY, users: NONE, settings: READ_ONLY, apis: NONE, pages: NONE, entities: NONE, tenants: NONE, data: READ_ONLY, roles: NONE, pdfTemplates: PDF_READ_GENERATE, auditLogs: NONE, dashboardTemplates: NONE },
-  },
+  tenantPermissions: { canAccessAllTenants: true },
 };
-
-async function createSystemRolesForTenant(tenantId: string, excludePlatformAdmin = true) {
-  const roles: Record<string, string> = {};
-
-  for (const [roleType, config] of Object.entries(SYSTEM_ROLES)) {
-    // Pular PLATFORM_ADMIN para tenants normais
-    if (excludePlatformAdmin && roleType === 'PLATFORM_ADMIN') continue;
-
-    const role = await prisma.customRole.upsert({
-      where: {
-        tenantId_name: {
-          tenantId,
-          name: config.name,
-        },
-      },
-      update: {
-        modulePermissions: config.modulePermissions,
-        tenantPermissions: (config as { tenantPermissions?: object }).tenantPermissions || {},
-      },
-      create: {
-        tenantId,
-        name: config.name,
-        description: config.description,
-        color: config.color,
-        roleType: config.roleType,
-        isSystem: true,
-        isDefault: (config as { isDefault?: boolean }).isDefault || false,
-        permissions: [],
-        modulePermissions: config.modulePermissions,
-        tenantPermissions: (config as { tenantPermissions?: object }).tenantPermissions || {},
-      },
-    });
-
-    roles[roleType] = role.id;
-  }
-
-  return roles;
-}
 
 async function main() {
   console.log('Iniciando seed...');
@@ -127,23 +86,21 @@ async function main() {
   const platformAdminRole = await prisma.customRole.create({
     data: {
       tenantId: platformTenant.id,
-      name: SYSTEM_ROLES.PLATFORM_ADMIN.name,
-      description: SYSTEM_ROLES.PLATFORM_ADMIN.description,
-      color: SYSTEM_ROLES.PLATFORM_ADMIN.color,
+      name: PLATFORM_ADMIN_CONFIG.name,
+      description: PLATFORM_ADMIN_CONFIG.description,
+      color: PLATFORM_ADMIN_CONFIG.color,
       roleType: 'PLATFORM_ADMIN',
       isSystem: true,
       isDefault: false,
       permissions: [],
-      modulePermissions: SYSTEM_ROLES.PLATFORM_ADMIN.modulePermissions,
-      tenantPermissions: SYSTEM_ROLES.PLATFORM_ADMIN.tenantPermissions,
+      modulePermissions: PLATFORM_ADMIN_CONFIG.modulePermissions,
+      tenantPermissions: PLATFORM_ADMIN_CONFIG.tenantPermissions,
     },
   });
 
   console.log('Role PLATFORM_ADMIN criada.');
-
-  // Criar tambem as outras roles de sistema para o Platform tenant
-  await createSystemRolesForTenant(platformTenant.id, true);
-  console.log('Roles de sistema criadas para Platform tenant.');
+  console.log('IMPORTANTE: Nenhuma outra role pre-definida foi criada.');
+  console.log('Crie roles customizadas via interface para outros usuarios.');
 
   // Criar Platform Admin user
   const platformAdminPassword = await bcrypt.hash('superadmin123', 12);

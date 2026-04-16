@@ -33,6 +33,9 @@ import { ZoneDiagramWidget } from './zone-diagram-widget';
 import { ImageGalleryWidget } from './image-gallery-widget';
 import { StatListWidget } from './stat-list-widget';
 import { DataTableWidget } from './data-table-widget';
+import SubEntityListWidget from './sub-entity-list-widget';
+import SubEntityTimelineWidget from './sub-entity-timeline-widget';
+import { KanbanBoardWidget } from './kanban-board-widget';
 import { cn } from '@/lib/utils';
 import type { WidgetConfig, WidgetType } from '@crm-builder/shared';
 
@@ -119,6 +122,12 @@ function renderWidget(
       return <StatListWidget {...commonProps} />;
     case 'data-table':
       return <DataTableWidget {...commonProps} />;
+    case 'sub-entity-list':
+      return <SubEntityListWidget config={widgetConfig.config} />;
+    case 'sub-entity-timeline':
+      return <SubEntityTimelineWidget config={widgetConfig.config} />;
+    case 'kanban-board':
+      return <KanbanBoardWidget {...commonProps} entityFields={effectiveFields} />;
     default:
       return (
         <WidgetWrapper title={widgetConfig.title}>
@@ -204,10 +213,14 @@ export function EntityDashboard({ entitySlug, entityFields, templateId, external
             cols={{ lg: 12, md: 10, sm: 6 }}
             rowHeight={30}
             margin={[12, 12]}
-            isDraggable={false}
-            isResizable={false}
+            isDraggable={true}
+            isResizable={true}
+            draggableHandle=".widget-drag-handle"
             compactType="vertical"
             containerPadding={[0, 0]}
+            onLayoutChange={(layout) => {
+              console.log('[Dashboard] Layout changed:', layout);
+            }}
           >
             {allWidgetEntries.map(([widgetId, widgetConfig]) => {
               const wc = widgetConfig as WidgetConfig;
@@ -280,10 +293,14 @@ export function EntityDashboard({ entitySlug, entityFields, templateId, external
                 cols={{ lg: 12, md: 10, sm: 6 }}
                 rowHeight={30}
                 margin={[12, 12]}
-                isDraggable={false}
-                isResizable={false}
+                isDraggable={true}
+                isResizable={true}
+                draggableHandle=".widget-drag-handle"
                 compactType="vertical"
                 containerPadding={[0, 0]}
+                onLayoutChange={(layout) => {
+                  console.log('[Dashboard] Layout changed:', layout);
+                }}
               >
                 {tabWidgetEntries.map(([widgetId, widgetConfig]) => {
                   const wc = widgetConfig as WidgetConfig;

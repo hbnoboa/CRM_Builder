@@ -51,8 +51,33 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       throw new UnauthorizedException('Usuario sem role definida');
     }
 
-    // Se o tenantId do token e diferente do home tenant, validar via UserTenantAccess
+    // Se o tenantId do token e diferente do home tenant, validar
     if (payload.tenantId && payload.tenantId !== user.tenantId) {
+      const isPlatformAdmin = user.customRole.roleType === 'PLATFORM_ADMIN';
+
+      // PLATFORM_ADMIN: mantém sua role original (para bypass de permissões)
+      // mas usa tenantId do JWT (para scope de queries)
+      if (isPlatformAdmin) {
+        // Retornar CurrentUser com tenantId do token, mas role original
+        return {
+          id: user.id,
+          email: user.email,
+          name: user.name,
+          tenantId: payload.tenantId,
+          customRoleId: user.customRoleId,
+          customRole: {
+            id: user.customRole.id,
+            name: user.customRole.name,
+            roleType: user.customRole.roleType as CurrentUser['customRole']['roleType'],
+            isSystem: user.customRole.isSystem,
+            permissions: user.customRole.permissions as unknown[],
+            modulePermissions: user.customRole.modulePermissions as Record<string, boolean>,
+            tenantPermissions: user.customRole.tenantPermissions as Record<string, unknown>,
+          },
+        };
+      }
+
+      // Multi-tenant user: validar via UserTenantAccess
       const access = await this.prisma.userTenantAccess.findUnique({
         where: {
           userId_tenantId: {
