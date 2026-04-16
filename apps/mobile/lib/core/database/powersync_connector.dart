@@ -96,17 +96,32 @@ class CrmPowerSyncConnector extends PowerSyncBackendConnector {
         endpoint = Env.powerSyncUrl;
       }
 
-      _logger.i('PowerSync: connecting to $endpoint');
+      final tokenString = data['token'] as String;
+      final userId = _extractUserIdFromToken(tokenString);
+      final expiresAtString = data['expiresAt'] as String?;
+      final expiresAt = expiresAtString != null
+          ? DateTime.parse(expiresAtString)
+          : null;
+
+      _logger.i('PowerSync: connecting to $endpoint (userId: $userId)');
+
       return PowerSyncCredentials(
         endpoint: endpoint,
-        token: data['token'] as String,
+        token: tokenString,
+        userId: userId,
+        expiresAt: expiresAt,
       );
     } catch (e) {
       _logger.e('PowerSync: failed to get sync credentials', error: e);
       // Fallback: use access token directly (won't have tenant override)
+      final userId = _extractUserIdFromToken(token);
+      _logger.w('PowerSync: using fallback credentials (userId: $userId)');
+
       return PowerSyncCredentials(
         endpoint: Env.powerSyncUrl,
         token: token,
+        userId: userId,
+        // No expiresAt in fallback - will use token's exp claim
       );
     }
   }
@@ -131,6 +146,25 @@ class CrmPowerSyncConnector extends PowerSyncBackendConnector {
       return DateTime.now().isAfter(expiresAt.subtract(const Duration(seconds: 30)));
     } catch (_) {
       return true;
+    }
+  }
+
+  /// Extract userId from JWT token (uses 'user_id' or fallback to 'sub')
+  String? _extractUserIdFromToken(String token) {
+    try {
+      final parts = token.split('.');
+      if (parts.length != 3) return null;
+
+      final payload = parts[1];
+      final normalized = base64Url.normalize(payload);
+      final decoded = utf8.decode(base64Url.decode(normalized));
+      final map = jsonDecode(decoded) as Map<String, dynamic>;
+
+      // PowerSync JWT uses 'user_id', but 'sub' is standard fallback
+      return map['user_id'] as String? ?? map['sub'] as String?;
+    } catch (e) {
+      _logger.w('PowerSync: failed to extract userId from token', error: e);
+      return null;
     }
   }
 
