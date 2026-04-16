@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:powersync/powersync.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:crm_mobile/core/database/powersync_connector.dart';
+import 'package:crm_mobile/core/database/sync_watchdog.dart';
 
 /// PowerSync schema matching the Prisma models we sync.
 /// Reads happen from local SQLite. Writes go through API.
@@ -146,6 +147,7 @@ class AppDatabase {
   static final instance = AppDatabase._();
 
   late PowerSyncDatabase db;
+  SyncWatchdog? _watchdog;
 
   Future<void> initialize() async {
     final dir = await getApplicationDocumentsDirectory();
@@ -166,22 +168,41 @@ class AppDatabase {
     try {
       final connector = CrmPowerSyncConnector();
       await db.connect(connector: connector);
+
+      // Iniciar watchdog para monitorar e reconectar automaticamente
+      // se o sync stream travar (problema comum após editar registros)
+      _watchdog = SyncWatchdog(
+        database: db,
+        checkInterval: const Duration(seconds: 30),
+        maxInactivityDuration: const Duration(minutes: 2),
+      );
+      _watchdog?.start();
+      debugPrint('[AppDatabase] Watchdog iniciado');
     } catch (e) {
       // Silently ignore connection errors - we work offline-first
       // The sync will automatically retry when connection is available
+      debugPrint('[AppDatabase] Erro ao conectar: $e');
     }
   }
 
   /// Disconnect from sync service.
   /// Call on logout.
   Future<void> disconnect() async {
+    _watchdog?.stop();
+    _watchdog = null;
+    debugPrint('[AppDatabase] Watchdog parado');
     await db.disconnect();
   }
 
   /// Clear all local data (on user change/logout).
   Future<void> clearData() async {
     debugPrint('[AppDatabase] Disconnecting and clearing all local data...');
+    _watchdog?.stop();
+    _watchdog = null;
     await db.disconnectAndClear();
     debugPrint('[AppDatabase] Local data cleared successfully');
   }
+
+  /// Acesso ao watchdog (para debug/monitoring)
+  SyncWatchdog? get watchdog => _watchdog;
 }
