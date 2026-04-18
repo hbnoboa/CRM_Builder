@@ -2458,7 +2458,36 @@ export class PdfGeneratorService {
       return defaultValue || this.emptyFieldDefault || '-';
     }
 
-    if (!format) return String(value);
+    if (!format) {
+      // Tentar extrair label de objetos {value, label} (campos select, relation, api-select)
+      if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
+        const obj = value as Record<string, unknown>;
+        // Ordem de prioridade: label > name > value > toString
+        if ('label' in obj && obj.label !== undefined && obj.label !== null) {
+          return String(obj.label);
+        }
+        if ('name' in obj && obj.name !== undefined && obj.name !== null) {
+          return String(obj.name);
+        }
+        if ('value' in obj && obj.value !== undefined && obj.value !== null) {
+          return String(obj.value);
+        }
+      }
+      // Arrays de objetos (multiselect)
+      if (Array.isArray(value)) {
+        return value
+          .map((v) => {
+            if (typeof v === 'object' && v !== null) {
+              const obj = v as Record<string, unknown>;
+              return obj.label || obj.name || obj.value || String(v);
+            }
+            return String(v);
+          })
+          .filter(Boolean)
+          .join(', ');
+      }
+      return String(value);
+    }
 
     // textTransform sao tratados separadamente (nao sao FieldType)
     const textTransformMap: Record<string, 'uppercase' | 'lowercase' | 'titlecase'> = {
