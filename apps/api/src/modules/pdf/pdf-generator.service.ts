@@ -1775,7 +1775,7 @@ export class PdfGeneratorService {
         if (captionDataFields && captionDataFields.length >= parentCols) {
           doc.font('Helvetica').fontSize(captionFontSize).fillColor('#000000');
           for (let i = 0; i < parentCols; i++) {
-            const captionValue = String(data[captionDataFields[i]] || '');
+            const captionValue = this.formatValue(data[captionDataFields[i]], undefined, '');
             const x = doc.page.margins.left + i * columnWidth;
             doc.text(captionValue, x, rowY + imageHeight + 2, { width: columnWidth, align: 'center' });
           }
@@ -1798,7 +1798,7 @@ export class PdfGeneratorService {
           const colIdx = parentCols + i;
           const fieldName = captionDataFields[colIdx];
           if (fieldName) {
-            const captionValue = String(childRecord[fieldName] || '');
+            const captionValue = this.formatValue(childRecord[fieldName], undefined, '');
             const x = doc.page.margins.left + colIdx * columnWidth;
             doc.text(captionValue, x, rowY + imageHeight + 2, { width: columnWidth, align: 'center' });
           }
@@ -1921,7 +1921,7 @@ export class PdfGeneratorService {
         if (captionDataFields && captionDataFields.length >= parentCols) {
           doc.font('Helvetica').fontSize(captionFontSize).fillColor('#000000');
           for (let i = 0; i < parentCols; i++) {
-            const captionValue = String(data[captionDataFields[i]] || '');
+            const captionValue = this.formatValue(data[captionDataFields[i]], undefined, '');
             const x = doc.page.margins.left + i * columnWidth;
             doc.text(captionValue, x, rowY + imageHeight + 2, { width: columnWidth, align: 'center' });
           }
@@ -1944,7 +1944,7 @@ export class PdfGeneratorService {
           const colIdx = parentCols + i;
           const fieldName = captionDataFields[colIdx];
           if (fieldName) {
-            const captionValue = String(childRecord[fieldName] || '');
+            const captionValue = this.formatValue(childRecord[fieldName], undefined, '');
             const x = doc.page.margins.left + colIdx * columnWidth;
             doc.text(captionValue, x, rowY + imageHeight + 2, { width: columnWidth, align: 'center' });
           }
