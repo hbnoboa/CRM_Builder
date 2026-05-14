@@ -43,6 +43,9 @@ class _ExponentialBackoff {
 /// - fetchCredentials: calls /sync/credentials to get a PowerSync-specific JWT
 ///   that includes the effective tenantId (supports PLATFORM_ADMIN tenant switching)
 /// - uploadData: sends offline mutations to NestJS API
+///
+/// Write checkpoints são gerenciados automaticamente pelo PowerSync Service v1.20.5+.
+/// Bug fix na v1.20.5: corrigida race condition que causava sync stream travar após uploads.
 class CrmPowerSyncConnector extends PowerSyncBackendConnector {
   CrmPowerSyncConnector();
 
