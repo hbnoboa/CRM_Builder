@@ -251,7 +251,7 @@ export function DataTableWidget({ entitySlug, config, title }: DataTableWidgetPr
 function DataTableWidgetInner({ entitySlug, config, title, ctx }: DataTableWidgetProps & { ctx: NonNullable<ReturnType<typeof useEntityDataOptional>> }) {
   const t = useTranslations('data');
   const tCommon = useTranslations('common');
-  const { hasEntityPermission, hasModuleAction, hasEntityAction } = usePermissions();
+  const { hasEntityPermission, hasModulePermission, hasModuleAction, hasEntityAction } = usePermissions();
   const deleteRecord = useDeleteEntityData();
 
   const {
@@ -308,9 +308,11 @@ function DataTableWidgetInner({ entitySlug, config, title, ctx }: DataTableWidge
   }, [entity?.id]);
 
   // Permissions - check both module-level and entity-level (same as backend)
-  const canCreate = allowCreate && (hasModuleAction('data', 'canCreate') || hasEntityPermission(entitySlug, 'canCreate'));
-  const canEdit = allowEdit && (hasModuleAction('data', 'canUpdate') || hasEntityPermission(entitySlug, 'canUpdate'));
-  const canDelete = allowDelete && (hasModuleAction('data', 'canDelete') || hasEntityPermission(entitySlug, 'canDelete'));
+  // CRUD básico usa hasModulePermission (para canCreate, canUpdate, canDelete)
+  // Ações sub-granulares usam hasModuleAction (para canExport, canImport, etc)
+  const canCreate = allowCreate && (hasModulePermission('data', 'canCreate') || hasEntityPermission(entitySlug, 'canCreate'));
+  const canEdit = allowEdit && (hasModulePermission('data', 'canUpdate') || hasEntityPermission(entitySlug, 'canUpdate'));
+  const canDelete = allowDelete && (hasModulePermission('data', 'canDelete') || hasEntityPermission(entitySlug, 'canDelete'));
   const canExport = allowExport && (hasModuleAction('data', 'canExport') || hasEntityAction(entitySlug, 'canExport'));
   const canImport = allowImport && (hasModuleAction('data', 'canImport') || hasEntityAction(entitySlug, 'canImport'));
 
