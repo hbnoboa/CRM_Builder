@@ -307,11 +307,10 @@ function DataTableWidgetInner({ entitySlug, config, title, ctx }: DataTableWidge
       .catch(() => setPdfTemplates([]));
   }, [entity?.id]);
 
-  // Permissions
-  const canCreate = allowCreate && hasEntityPermission(entitySlug, 'canCreate');
-  const canEdit = allowEdit && hasEntityPermission(entitySlug, 'canUpdate');
-  const canDelete = allowDelete && hasEntityPermission(entitySlug, 'canDelete');
-  // Export/Import permissions check both module-level and entity-level (same as backend)
+  // Permissions - check both module-level and entity-level (same as backend)
+  const canCreate = allowCreate && (hasModuleAction('data', 'canCreate') || hasEntityPermission(entitySlug, 'canCreate'));
+  const canEdit = allowEdit && (hasModuleAction('data', 'canUpdate') || hasEntityPermission(entitySlug, 'canUpdate'));
+  const canDelete = allowDelete && (hasModuleAction('data', 'canDelete') || hasEntityPermission(entitySlug, 'canDelete'));
   const canExport = allowExport && (hasModuleAction('data', 'canExport') || hasEntityAction(entitySlug, 'canExport'));
   const canImport = allowImport && (hasModuleAction('data', 'canImport') || hasEntityAction(entitySlug, 'canImport'));
 
@@ -589,35 +588,48 @@ function DataTableWidgetInner({ entitySlug, config, title, ctx }: DataTableWidge
   // Export
   const handleExport = useCallback(async (format: 'json' | 'xlsx') => {
     try {
+      console.log('🔍 [Export] Iniciando export:', {
+        format,
+        hasSelectedIds: selectedIds.size > 0,
+        selectedCount: selectedIds.size,
+        filters,
+      });
+
       // Build query params with all active filters
       const params: Record<string, string> = {
         format,
       };
 
-      // If there are selected records, export only those
+      // SEMPRE aplicar filtros (search, sort, field filters)
+      if (filters.searchTerm) {
+        params.search = filters.searchTerm;
+        console.log('🔍 [Export] Aplicando search:', params.search);
+      }
+      if (filters.sortBy) {
+        params.sortBy = filters.sortBy;
+        params.sortOrder = filters.sortOrder;
+        console.log('↕️ [Export] Aplicando sort:', params.sortBy, params.sortOrder);
+      }
+      // Convert fieldFilters to backend format
+      if (filters.fieldFilters.length > 0) {
+        const backendFilters = filters.fieldFilters.map(f => ({
+          fieldSlug: f.fieldSlug,
+          operator: f.operator,
+          value: f.value,
+          ...(f.value2 !== undefined ? { value2: f.value2 } : {}),
+          fieldType: f.fieldType,
+        }));
+        params.filters = JSON.stringify(backendFilters);
+        console.log('🎯 [Export] Aplicando filtros de campo:', backendFilters);
+      }
+
+      // Se houver registros selecionados, exportar apenas esses (mas respeitando os filtros acima)
       if (selectedIds.size > 0) {
         params.recordIds = JSON.stringify(Array.from(selectedIds));
-      } else {
-        // Otherwise, apply all filters
-        if (filters.searchTerm) {
-          params.search = filters.searchTerm;
-        }
-        if (filters.sortBy) {
-          params.sortBy = filters.sortBy;
-          params.sortOrder = filters.sortOrder;
-        }
-        // Convert fieldFilters to backend format
-        if (filters.fieldFilters.length > 0) {
-          const backendFilters = filters.fieldFilters.map(f => ({
-            fieldSlug: f.fieldSlug,
-            operator: f.operator,
-            value: f.value,
-            ...(f.value2 !== undefined ? { value2: f.value2 } : {}),
-            fieldType: f.fieldType,
-          }));
-          params.filters = JSON.stringify(backendFilters);
-        }
+        console.log('📌 [Export] Exportando apenas registros selecionados:', params.recordIds);
       }
+
+      console.log('📤 [Export] Params finais:', params);
 
       const blob = await dataService.exportData(entitySlug, format, params);
 
