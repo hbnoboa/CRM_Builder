@@ -169,6 +169,18 @@ export class AuthService {
       data: { lastLoginAt: new Date() },
     });
 
+    // Verificar se usuario tem acesso a outros tenants
+    const accessCount = await this.prisma.userTenantAccess.count({
+      where: {
+        userId: user.id,
+        status: 'ACTIVE',
+        OR: [
+          { expiresAt: null },
+          { expiresAt: { gt: new Date() } },
+        ],
+      },
+    });
+
     this.logger.log(`Login: ${user.email}${dto.rememberMe ? ' (remember me)' : ''}`);
 
     return {
@@ -181,6 +193,7 @@ export class AuthService {
         customRole: user.customRole,
         tenantId: user.tenantId,
         tenant: user.tenant,
+        hasMultipleTenants: accessCount > 0,
       },
       ...tokens,
     };
