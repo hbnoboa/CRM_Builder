@@ -168,7 +168,14 @@ export class EntityService {
 
     // Auto-criar dashboard template com data-table para a nova entidade
     this.autoCreateDashboardTemplate(entity, processedFields, targetTenantId, currentUser)
-      .catch((err) => this.logger.error('Failed to auto-create dashboard template', err));
+      .catch((err) => {
+        this.logger.error('Failed to auto-create dashboard template', {
+          error: err.message,
+          stack: err.stack,
+          entityId: entity.id,
+          entitySlug: entity.slug,
+        });
+      });
 
     return entity;
   }
@@ -522,6 +529,40 @@ export class EntityService {
       throw new NotFoundException(`Entidade "${slug}" nao encontrada`);
     }
 
+    // Adicionar campos de sistema ao array de fields
+    const fields = (entity.fields as any[]) || [];
+    const hasCreatedAt = fields.some((f: any) => f.slug === 'createdAt');
+    const hasUpdatedAt = fields.some((f: any) => f.slug === 'updatedAt');
+
+    const systemFields: any[] = [];
+    if (!hasCreatedAt) {
+      systemFields.push({
+        slug: 'createdAt',
+        name: 'Data de Criação',
+        label: 'Data de Criação',
+        type: 'datetime',
+        required: false,
+        unique: false,
+      });
+    }
+    if (!hasUpdatedAt) {
+      systemFields.push({
+        slug: 'updatedAt',
+        name: 'Data de Atualização',
+        label: 'Data de Atualização',
+        type: 'datetime',
+        required: false,
+        unique: false,
+      });
+    }
+
+    if (systemFields.length > 0) {
+      return {
+        ...entity,
+        fields: [...fields, ...systemFields],
+      };
+    }
+
     return entity;
   }
 
@@ -544,6 +585,40 @@ export class EntityService {
 
     if (!entity) {
       throw new NotFoundException('Entidade nao encontrada');
+    }
+
+    // Adicionar campos de sistema ao array de fields
+    const fields = (entity.fields as any[]) || [];
+    const hasCreatedAt = fields.some((f: any) => f.slug === 'createdAt');
+    const hasUpdatedAt = fields.some((f: any) => f.slug === 'updatedAt');
+
+    const systemFields: any[] = [];
+    if (!hasCreatedAt) {
+      systemFields.push({
+        slug: 'createdAt',
+        name: 'Data de Criação',
+        label: 'Data de Criação',
+        type: 'datetime',
+        required: false,
+        unique: false,
+      });
+    }
+    if (!hasUpdatedAt) {
+      systemFields.push({
+        slug: 'updatedAt',
+        name: 'Data de Atualização',
+        label: 'Data de Atualização',
+        type: 'datetime',
+        required: false,
+        unique: false,
+      });
+    }
+
+    if (systemFields.length > 0) {
+      return {
+        ...entity,
+        fields: [...fields, ...systemFields],
+      };
     }
 
     return entity;
