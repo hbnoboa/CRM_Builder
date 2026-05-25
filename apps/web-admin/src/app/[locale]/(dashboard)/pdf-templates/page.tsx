@@ -114,7 +114,7 @@ function GenerateModal({
   const filterableFields = useMemo(() => {
     return entityFields.filter(
       (f: { type: string; slug: string; name: string }) =>
-        ['text', 'short_text', 'string', 'select', 'number'].includes(f.type)
+        ['text', 'short_text', 'string', 'select', 'number', 'datetime', 'date', 'boolean'].includes(f.type)
     );
   }, [entityFields]);
 
