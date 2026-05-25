@@ -61,7 +61,7 @@ export function TableDataEditor({
 }: TableDataEditorProps) {
   const columnFields = (element.dataSource && subEntities?.[element.dataSource]?.fields)
     ? [...subEntities[element.dataSource].fields!, ...SYSTEM_FIELDS]
-    : availableFields;
+    : [...availableFields, ...SYSTEM_FIELDS];
 
   const handleColumnChange = (index: number, updates: Partial<TableColumn>) => {
     const newColumns = [...element.columns];
