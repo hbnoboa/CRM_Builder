@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, BadRequestException, ConflictException, Logger } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, ConflictException, UnauthorizedException, Logger } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuthService } from '../auth/auth.service';
 import { CreatePublicLinkDto, UpdatePublicLinkDto, PublicRegisterDto, PublicLoginDto, QueryPublicLinkDto } from './dto/public-link.dto';
@@ -63,7 +63,7 @@ export class PublicLinkService {
       },
       include: {
         entity: { select: { name: true, slug: true } },
-        customRole: { select: { id: true, name: true, roleType: true } },
+        customRole: { select: { id: true, name: true } },
       },
     });
 
@@ -110,7 +110,7 @@ export class PublicLinkService {
       where: { id, tenantId },
       include: {
         entity: { select: { name: true, slug: true, fields: true } },
-        customRole: { select: { id: true, name: true, roleType: true } },
+        customRole: { select: { id: true, name: true } },
       },
     });
     if (!link) throw new NotFoundException('Link nao encontrado');
@@ -203,7 +203,7 @@ export class PublicLinkService {
     const link = await this.prisma.publicLink.findUnique({
       where: { slug },
       include: {
-        customRole: { select: { id: true, roleType: true, permissions: true } },
+        customRole: { select: { id: true, permissions: true } },
         entity: { select: { name: true, slug: true } },
         tenant: { select: { id: true, name: true, status: true } },
       },
@@ -234,66 +234,65 @@ export class PublicLinkService {
       throw new BadRequestException('CPF invalido');
     }
 
-    // Verificar email unico no tenant
-    const existingEmail = await this.prisma.user.findFirst({
-      where: { email: normalizedEmail, tenantId: link.tenantId },
-    });
+    // Identidade GLOBAL (#10): email/cpf/phone sao unicos no sistema todo.
+    const existingEmail = await this.prisma.user.findFirst({ where: { email: normalizedEmail } });
     if (existingEmail) throw new ConflictException('Email ja esta em uso');
 
-    // Verificar CPF unico no tenant
     if (cpf) {
-      const existingCpf = await this.prisma.user.findFirst({
-        where: { cpf, tenantId: link.tenantId },
-      });
+      const existingCpf = await this.prisma.user.findFirst({ where: { cpf } });
       if (existingCpf) throw new ConflictException('CPF ja esta em uso');
     }
 
-    // Verificar phone unico no tenant
     if (phone) {
-      const existingPhone = await this.prisma.user.findFirst({
-        where: { phone, tenantId: link.tenantId },
-      });
+      const existingPhone = await this.prisma.user.findFirst({ where: { phone } });
       if (existingPhone) throw new ConflictException('Telefone ja esta em uso');
     }
 
     // Hash da senha
     const hashedPassword = await bcrypt.hash(dto.password, 12);
 
-    // Criar usuario e incrementar contador em transacao
-    const user = await this.prisma.$transaction(async (tx) => {
+    // Criar IDENTIDADE + membership home (primaria) em transacao.
+    const { user, role } = await this.prisma.$transaction(async (tx) => {
       const created = await tx.user.create({
         data: {
           email: normalizedEmail,
           password: hashedPassword,
           name: dto.name,
-          tenantId: link.tenantId,
-          customRoleId: link.customRoleId,
           status: Status.ACTIVE,
           cpf,
           cnpj,
           phone,
         },
-        include: {
-          customRole: { select: { id: true, roleType: true, name: true } },
-        },
+        select: { id: true, email: true, name: true },
       });
 
-      // Incrementar contador atomicamente
+      // #19 item 5 + #10: principal EFEMERO e ESCOPADO no MESMO motor de auth.
+      // A Membership (primaria) e a fonte do tenant + cargo; expiracao herdada do link.
+      const membership = await tx.userTenantAccess.create({
+        data: {
+          userId: created.id,
+          tenantId: link.tenantId,
+          customRoleId: link.customRoleId,
+          status: Status.ACTIVE,
+          isPrimary: true,
+          expiresAt: link.expiresAt ?? null,
+        },
+        include: { customRole: { select: { id: true, name: true } } },
+      });
+
       await tx.publicLink.update({
         where: { id: link.id },
         data: { registrationCount: { increment: 1 } },
       });
 
-      return created;
+      return { user: created, role: membership.customRole };
     });
 
-    // Gerar tokens
     const tokens = await this.authService.generateTokensForUser({
       id: user.id,
       email: user.email,
-      tenantId: user.tenantId,
-      customRoleId: user.customRoleId,
-      customRole: user.customRole,
+      tenantId: link.tenantId,
+      customRoleId: link.customRoleId,
     });
 
     this.logger.log(`Usuario registrado via link publico: ${user.email} (link: ${link.name})`);
@@ -304,9 +303,9 @@ export class PublicLinkService {
         id: user.id,
         email: user.email,
         name: user.name,
-        tenantId: user.tenantId,
-        customRoleId: user.customRoleId,
-        customRole: user.customRole,
+        tenantId: link.tenantId,
+        customRoleId: link.customRoleId,
+        customRole: role,
       },
     };
   }
@@ -315,7 +314,7 @@ export class PublicLinkService {
     const link = await this.prisma.publicLink.findUnique({
       where: { slug },
       include: {
-        customRole: { select: { id: true, roleType: true, permissions: true } },
+        customRole: { select: { id: true, permissions: true } },
         entity: { select: { slug: true } },
         tenant: { select: { status: true } },
       },
@@ -332,75 +331,83 @@ export class PublicLinkService {
     // Identificar tipo de login
     const identifier = dto.identifier.trim();
     const cleaned = identifier.replace(/\D/g, '');
-    const roleInclude = { customRole: { select: { id: true, roleType: true, name: true, permissions: true, modulePermissions: true, tenantId: true } } };
-
-    let user;
-
+    // Identidade GLOBAL (#10): acha a identidade; o vinculo com o tenant do link
+    // vem da membership.
+    let identity: { id: string; email: string; name: string; password: string } | null = null;
     if (identifier.includes('@')) {
-      // Login por email (normalizado para lowercase)
-      user = await this.prisma.user.findFirst({
-        where: { email: identifier.toLowerCase(), tenantId: link.tenantId, status: Status.ACTIVE },
-        include: roleInclude,
+      identity = await this.prisma.user.findFirst({
+        where: { email: identifier.toLowerCase(), status: Status.ACTIVE },
+        select: { id: true, email: true, name: true, password: true },
       });
     } else {
-      // Digitos puros: pode ser CPF (11), telefone (10-11) ou outro
-      // Uma unica query com OR cobre todos os casos
-      user = await this.prisma.user.findFirst({
-        where: {
-          tenantId: link.tenantId,
-          status: Status.ACTIVE,
-          OR: [
-            { cpf: cleaned },
-            { phone: cleaned },
-          ],
-        },
-        include: roleInclude,
+      identity = await this.prisma.user.findFirst({
+        where: { status: Status.ACTIVE, OR: [{ cpf: cleaned }, { phone: cleaned }] },
+        select: { id: true, email: true, name: true, password: true },
       });
     }
 
-    if (!user) {
+    if (!identity) {
       throw new BadRequestException('Credenciais invalidas');
     }
 
-    // Validar senha
-    const validPassword = await bcrypt.compare(dto.password, user.password);
+    const validPassword = await bcrypt.compare(dto.password, identity.password);
     if (!validPassword) {
       throw new BadRequestException('Credenciais invalidas');
     }
 
-    // Acumular permissoes: se a role do usuario nao tem permissao para a entidade do link, adicionar
-    await this.accumulatePermissions(user, link.entity.slug);
+    // O usuario precisa ter membership ativa no tenant do link.
+    const roleSel = { id: true, name: true, permissions: true, modulePermissions: true, tenantId: true } as const;
+    const membership = await this.prisma.userTenantAccess.findUnique({
+      where: { userId_tenantId: { userId: identity.id, tenantId: link.tenantId } },
+      include: { customRole: { select: roleSel } },
+    });
+    if (!membership || membership.status !== Status.ACTIVE || membership.deletedAt !== null) {
+      throw new BadRequestException('Credenciais invalidas');
+    }
+    if (membership.expiresAt && membership.expiresAt < new Date()) {
+      throw new UnauthorizedException('Acesso ao tenant expirado');
+    }
 
-    // Atualizar ultimo login
+    // Acumular permissoes na role da membership (pode clonar a role e trocar o vinculo).
+    await this.accumulatePermissions(
+      {
+        id: identity.id,
+        email: identity.email,
+        name: identity.name,
+        tenantId: link.tenantId,
+        customRoleId: membership.customRoleId,
+        customRole: membership.customRole,
+      },
+      link.entity.slug,
+    );
+
     await this.prisma.user.update({
-      where: { id: user.id },
+      where: { id: identity.id },
       data: { lastLoginAt: new Date() },
     });
 
-    // Re-buscar usuario com permissoes atualizadas
-    const updatedUser = await this.prisma.user.findUniqueOrThrow({
-      where: { id: user.id },
-      include: { customRole: { select: { id: true, roleType: true, name: true } } },
+    // Re-busca a membership (accumulate pode ter trocado o cargo).
+    const finalMembership = await this.prisma.userTenantAccess.findUniqueOrThrow({
+      where: { userId_tenantId: { userId: identity.id, tenantId: link.tenantId } },
+      include: { customRole: { select: { id: true, name: true } } },
     });
 
-    // Gerar tokens
     const tokens = await this.authService.generateTokensForUser({
-      id: updatedUser.id,
-      email: updatedUser.email,
-      tenantId: updatedUser.tenantId,
-      customRoleId: updatedUser.customRoleId,
-      customRole: updatedUser.customRole,
+      id: identity.id,
+      email: identity.email,
+      tenantId: link.tenantId,
+      customRoleId: finalMembership.customRoleId,
     });
 
     return {
       ...tokens,
       user: {
-        id: updatedUser.id,
-        email: updatedUser.email,
-        name: updatedUser.name,
-        tenantId: updatedUser.tenantId,
-        customRoleId: updatedUser.customRoleId,
-        customRole: updatedUser.customRole,
+        id: identity.id,
+        email: identity.email,
+        name: identity.name,
+        tenantId: link.tenantId,
+        customRoleId: finalMembership.customRoleId,
+        customRole: finalMembership.customRole,
       },
     };
   }
@@ -424,7 +431,6 @@ export class PublicLinkService {
         tenantId,
         name: roleName,
         description: `Role criada automaticamente para link publico de ${entityName}`,
-        roleType: 'CUSTOM',
         isSystem: false,
         permissions: [
           {
@@ -451,9 +457,9 @@ export class PublicLinkService {
 
     if (hasPermission) return; // Ja tem acesso
 
-    // Fix #1: Verificar se a role é compartilhada (usada por outros usuarios)
-    const roleUserCount = await this.prisma.user.count({
-      where: { customRoleId: user.customRoleId },
+    // Fix #1: Verificar se a role é compartilhada (usada por outras memberships)
+    const roleUserCount = await this.prisma.userTenantAccess.count({
+      where: { customRoleId: user.customRoleId, deletedAt: null },
     });
 
     const newPermission = {
@@ -472,16 +478,15 @@ export class PublicLinkService {
           tenantId: user.customRole.tenantId,
           name: `${user.customRole.name} - ${user.name || user.email}`,
           description: `Role pessoal clonada de "${user.customRole.name}"`,
-          roleType: user.customRole.roleType,
           isSystem: false,
           permissions: [...currentPermissions, newPermission],
           modulePermissions: user.customRole.modulePermissions || {},
         },
       });
 
-      // Reatribuir usuario para a role clonada
-      await this.prisma.user.update({
-        where: { id: user.id },
+      // Reatribuir a MEMBERSHIP do usuario para a role clonada (#10).
+      await this.prisma.userTenantAccess.update({
+        where: { userId_tenantId: { userId: user.id, tenantId: user.tenantId } },
         data: { customRoleId: clonedRole.id },
       });
 

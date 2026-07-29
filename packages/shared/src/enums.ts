@@ -1,17 +1,5 @@
-// ============================================================================
-// ROLE TYPES
-// ============================================================================
-
-export type RoleType = 'PLATFORM_ADMIN' | 'ADMIN' | 'MANAGER' | 'USER' | 'VIEWER' | 'CUSTOM';
-
-export const ROLE_TYPES: RoleType[] = [
-  'PLATFORM_ADMIN',
-  'ADMIN',
-  'MANAGER',
-  'USER',
-  'VIEWER',
-  'CUSTOM',
-];
+// ROLE TYPES removidos (Fase 3): autorizacao e 100% permission-driven
+// (modulePermissions/permissions[]). Nao existe mais tier por roleType.
 
 // ============================================================================
 // STATUS

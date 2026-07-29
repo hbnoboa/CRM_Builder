@@ -1,15 +1,19 @@
-import { Controller, Get, Post, Query, Res, UseGuards } from '@nestjs/common';
+import { ServiceScope } from '../../common/service-scope/service-scope.decorator';
+import { Controller, Get, Post, Param, Query, Res, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { Response } from 'express';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { ModulePermissionGuard } from '../../common/guards/module-permission.guard';
 import { RequireModulePermission } from '../../common/decorators/module-permission.decorator';
+import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import { CurrentUser as CurrentUserType } from '../../common/types';
 import { AuditService } from './audit.service';
 import { AuditArchiveService } from './audit-archive.service';
 import { QueryAuditLogDto, ExportAuditLogDto } from './dto/audit-log.dto';
 import { Prisma } from '@prisma/client';
 
 @ApiTags('Audit Logs')
+@ServiceScope('admin')
 @Controller('audit-logs')
 @UseGuards(JwtAuthGuard, ModulePermissionGuard)
 @RequireModulePermission('logs', 'canRead', 'auditLogs')
@@ -55,6 +59,13 @@ export class AuditController {
   @ApiOperation({ summary: 'Estatísticas de audit logs (ativos vs arquivados)' })
   async getStats() {
     return this.archiveService.getStats();
+  }
+
+  @Post(':id/revert')
+  @RequireModulePermission('logs', 'canUpdate', 'auditLogs')
+  @ApiOperation({ summary: 'Desfazer (revert) uma mutacao auditada de entity_data' })
+  async revert(@Param('id') id: string, @CurrentUser() user: CurrentUserType) {
+    return this.auditService.revert(user, id);
   }
 
   @Post('archive/manual')

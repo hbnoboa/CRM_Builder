@@ -234,7 +234,7 @@ export function TenantAccessDialog({ open, onOpenChange, user }: TenantAccessDia
                         <SelectValue placeholder={t('tenantAccess.selectRole')} />
                       </SelectTrigger>
                       <SelectContent>
-                        {roles.map((r: { id: string; name: string; roleType: string }) => (
+                        {roles.map((r: { id: string; name: string }) => (
                           <SelectItem key={r.id} value={r.id}>
                             {r.name}
                           </SelectItem>

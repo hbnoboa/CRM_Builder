@@ -52,7 +52,6 @@ interface UserFormDialogProps {
 
 export function UserFormDialog({ open, onOpenChange, user, onSuccess }: UserFormDialogProps) {
   const t = useTranslations('users');
-  const tRoles = useTranslations('roles');
   const tCommon = useTranslations('common');
   const tValidation = useTranslations('validation');
   const isEditing = !!user;
@@ -238,11 +237,6 @@ export function UserFormDialog({ open, onOpenChange, user, onSuccess }: UserForm
                   <SelectItem key={role.id} value={role.id}>
                     <div className="flex items-center gap-2">
                       <span>{role.name}</span>
-                      {role.isSystem && (
-                        <span className="text-xs text-muted-foreground">
-                          ({tRoles(role.roleType)})
-                        </span>
-                      )}
                     </div>
                   </SelectItem>
                 ))}

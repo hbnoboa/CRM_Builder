@@ -71,7 +71,7 @@ model Tenant {
   updatedAt DateTime @updatedAt
 
   // Relacionamentos
-  users            User[]
+  // users diretos REMOVIDOS (#10): o vinculo agora e via UserTenantAccess (membership).
   entities         Entity[]
   entityData       EntityData[]
   archivedData     ArchivedEntityData[]
@@ -96,29 +96,30 @@ model Tenant {
 
   @@index([slug])
   @@index([status])
+  deletedAt DateTime?
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
 // USERS
 // ═══════════════════════════════════════════════════════════════════════════
 
+// IDENTIDADE GLOBAL (#10): o User e identidade pura. O vinculo usuario<->tenant<->cargo
+// vive 100% em UserTenantAccess (Membership). Sem tenantId/customRoleId aqui.
+// email/cpf/phone sao unicos GLOBALmente (uma pessoa = uma identidade, N tenants).
 model User {
   id       String @id @default(cuid())
-  tenantId String
 
-  email    String
+  email    String  @unique
   password String
   name     String
   avatar   String?
 
   // Identificacao adicional (para usuarios publicos via weblinks)
-  cpf   String? // Digitos: 00000000000
+  cpf   String? @unique // Digitos: 00000000000
   cnpj  String? // Digitos: 00000000000000
-  phone String? // Digitos: 00000000000
+  phone String? @unique // Digitos: 00000000000
 
-  // role REMOVIDO - agora usamos apenas customRole.roleType
-  customRoleId String
-  status       Status @default(ACTIVE)
+  status Status @default(ACTIVE)
 
   lastLoginAt       DateTime?
   resetToken        String?
@@ -127,8 +128,6 @@ model User {
   updatedAt         DateTime  @updatedAt
 
   // Relacionamentos
-  tenant        Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  customRole    CustomRole     @relation(fields: [customRoleId], references: [id])
   refreshTokens RefreshToken[]
   notifications Notification[]
   deviceTokens  DeviceToken[]
@@ -140,20 +139,14 @@ model User {
   // PDFs solicitados por este usuario
   pdfGenerations PdfGeneration[]
 
-  // Acessos a outros tenants (multi-tenant por usuario)
+  // Vinculo com tenants (fonte da verdade de tenant + cargo)
   tenantAccess UserTenantAccess[]
 
-  @@unique([tenantId, email])
-  @@unique([tenantId, cpf])
-  @@unique([tenantId, phone])
-  @@index([tenantId])
   @@index([email])
   @@index([cpf])
   @@index([phone])
   @@index([status])
-  @@index([tenantId, status])
-  @@index([customRoleId])
-  @@index([tenantId, createdAt(sort: Desc)])
+  deletedAt DateTime?
 }
 
 model RefreshToken {
@@ -217,6 +210,7 @@ model Entity {
   @@index([tenantId])
   @@index([tenantId, name])
   @@index([tenantId, category])
+  deletedAt DateTime?
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -265,6 +259,12 @@ model EntityData {
   // _visibleToRolesJson: JSONB array of role IDs (PowerSync IN operator needs JSONB, not TEXT[])
   hasRoleFilter      Boolean @default(false) @map("_hasRoleFilter")
   visibleToRolesJson Json    @default("[]") @map("_visibleToRolesJson")
+
+  // Trigger-maintained: roles that can read this record ONLY if they created it
+  // (permission scope='own'). PowerSync own_entity_data bucket pairs this with
+  // createdById = request.user_id(). Disjoint from _visibleToRolesJson (a role
+  // lands in one or the other per record, by its scope for the entity).
+  visibleToRolesOwnJson Json @default("[]") @map("_visibleToRolesOwnJson")
 
   entity       Entity       @relation(fields: [entityId], references: [id], onDelete: Cascade)
   tenant       Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
@@ -332,6 +332,9 @@ model AuditLog {
   oldData    Json?
   newData    Json?
   metadata   Json?
+  // Impersonacao: ator REAL que executou a acao assumindo a identidade de userId.
+  impersonatedById   String?
+  impersonatedByName String?
   createdAt  DateTime @default(now())
 
   @@index([tenantId])
@@ -400,6 +403,7 @@ model Notification {
   @@index([userId, createdAt(sort: Desc)])
   @@index([tenantId, userId])
   @@index([entitySlug])
+  deletedAt DateTime?
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -413,10 +417,10 @@ model CustomRole {
   description String?
   color       String? @default("#6366f1")
 
-  // Tipo da role: PLATFORM_ADMIN, ADMIN, MANAGER, USER, VIEWER, CUSTOM
-  roleType String @default("CUSTOM")
+  // roleType REMOVIDO (Fase 3): autorizacao e 100% permission-driven
+  // (modulePermissions + permissions[]/'*' + rank). Ver RELATORIO §11.
 
-  // Marca roles pre-configuradas do sistema (nome e roleType protegidos)
+  // Marca roles pre-configuradas do sistema (nome protegido)
   isSystem Boolean @default(false)
 
   // JSON array de permissoes por entidade
@@ -436,16 +440,19 @@ model CustomRole {
   updatedAt DateTime @updatedAt
 
   tenant            Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  users             User[]
+  // users diretos REMOVIDOS (#10): cargo agora vem via UserTenantAccess (membership).
   tenantAccessUsers UserTenantAccess[]
   publicLinks       PublicLink[]
 
-  @@unique([tenantId, name])
+  // Unicidade de nome via INDICE PARCIAL (WHERE deletedAt IS NULL) — permite recriar
+  // um nome apos soft delete. Criado por SQL raw na migration (Prisma nao expressa
+  // unique parcial): CREATE UNIQUE INDEX "CustomRole_tenantId_name_active_key"
+  //   ON "CustomRole"("tenantId","name") WHERE "deletedAt" IS NULL;
   @@index([tenantId])
   @@index([isSystem])
-  @@index([roleType])
   @@index([tenantId, isDefault])
-  @@index([tenantId, roleType])
+  deletedAt DateTime?
+  rank      Int      @default(100)
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -458,6 +465,8 @@ model UserTenantAccess {
   tenantId     String
   customRoleId String
   status       Status    @default(ACTIVE)
+  // Membership "home": tenant default no login. Exatamente uma por usuario.
+  isPrimary    Boolean   @default(false)
   grantedAt    DateTime  @default(now())
   expiresAt    DateTime?
   grantedById  String?
@@ -472,6 +481,7 @@ model UserTenantAccess {
   @@index([userId])
   @@index([tenantId])
   @@index([customRoleId])
+  deletedAt DateTime?
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -526,6 +536,7 @@ model PdfTemplate {
   @@index([sourceEntityId])
   @@index([isPublished])
   @@index([tenantId, isPublished])
+  deletedAt DateTime?
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -625,6 +636,7 @@ model Webhook {
   @@index([status])
   @@index([tenantId, status])
   @@index([tenantId, entityId])
+  deletedAt DateTime?
 }
 
 model WebhookExecution {
@@ -701,6 +713,7 @@ model EmailTemplate {
   @@index([tenantId])
   @@index([isActive])
   @@index([tenantId, isActive])
+  deletedAt DateTime?
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -752,6 +765,7 @@ model ActionChain {
   @@index([isActive])
   @@index([tenantId, isActive])
   @@index([tenantId, entityId])
+  deletedAt DateTime?
 }
 
 model ActionChainExecution {
@@ -832,6 +846,7 @@ model ScheduledTask {
   @@index([isActive])
   @@index([nextRunAt])
   @@index([tenantId, isActive])
+  deletedAt DateTime?
 }
 
 model ScheduledTaskExecution {
@@ -954,6 +969,7 @@ model EntityAutomation {
   @@index([tenantId, entityId, isActive])
   @@index([trigger, isActive])
   @@index([nextRunAt])
+  deletedAt DateTime?
 }
 
 model AutomationExecution {
@@ -1015,6 +1031,7 @@ model EntityFieldRule {
 
   @@index([entityId, fieldSlug])
   @@index([tenantId, entityId])
+  deletedAt DateTime?
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -1039,6 +1056,9 @@ model DashboardTemplate {
   // Abas do dashboard: [{ id, label, icon?, widgetIds[] }]
   tabs Json @default("[]")
 
+  // Preferencias do dashboard (ex.: { headerCountEntitySlug }) - nao afeta a estrutura visual
+  settings Json @default("{}")
+
   // IDs das CustomRoles atribuidas
   roleIds String[]
 
@@ -1054,6 +1074,7 @@ model DashboardTemplate {
   @@unique([tenantId, name])
   @@index([tenantId])
   @@index([tenantId, entitySlug])
+  deletedAt DateTime?
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -1098,4 +1119,110 @@ model PublicLink {
 
   @@index([tenantId])
   @@index([tenantId, entitySlug])
+  deletedAt DateTime?
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Módulo Chat + Bot (fatia 1: canais + mensagens). Ver docs/chat-bot-module-spec.md
+// FKs para User/Entity/Tenant são escalares (sem back-relation), como Notification.
+// ─────────────────────────────────────────────────────────────────────────────
+model Channel {
+  id          String   @id @default(cuid())
+  tenantId    String
+  type        String   // 'group' | 'dm' | 'record'
+  entityId    String?  // tabela dona (canal de grupo/record); null em DM
+  recordId    String?  // thread de um registro específico (type='record')
+  name        String?
+  createdById String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  members  ChannelMember[]
+  messages Message[]
+
+  // Unicidade garantida por índices PARCIAIS (criados via SQL na migração, pois o
+  // Prisma não expressa `WHERE` em @@unique):
+  //   - 1 canal de grupo por tabela:   UNIQUE(tenantId, entityId) WHERE recordId IS NULL AND type='group'
+  //   - 1 thread por registro:         UNIQUE(tenantId, recordId) WHERE recordId IS NOT NULL
+  @@index([tenantId, entityId])
+  @@index([tenantId, type])
+}
+
+model ChannelMember {
+  id         String    @id @default(cuid())
+  channelId  String
+  userId     String
+  role       String    @default("member") // 'admin' | 'member'
+  lastReadAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  channel Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+
+  @@unique([channelId, userId])
+  @@index([userId])
+}
+
+model Message {
+  id        String   @id @default(cuid())
+  tenantId  String
+  channelId String
+  senderId  String?  // null = bot/sistema
+  type      String   @default("text") // text | form_submission | command | bot | system
+  content   String?
+  meta      Json?    // { templateSlug, values, recordId, requestedById, before, after }
+  createdAt DateTime @default(now())
+
+  channel Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+
+  @@index([channelId, createdAt])
+}
+
+// CommandTemplate: comandos do chat (Trilho A: form-command; Trilho B: bot).
+// Configurável por tenant via builder. Ver docs/chat-bot-module-spec.md §4/§8.
+model CommandTemplate {
+  id               String   @id @default(cuid())
+  tenantId         String
+  slug             String   // '/avaria'
+  description      String?
+  icon             String?
+  targetEntitySlug String?  // tabela alvo
+  fields           Json?    // subconjunto de slugs de campo (null = todos)
+  actionType       String   @default("create_record") // create_record | update_field | query | run_action_chain | post_only
+  actionConfig     Json     @default("{}")
+  execMode         String   @default("as_user") // as_user | as_bot
+  elevation        Json?    // { requesterRoles, requireConfirmation }
+  llm              Json?    // { enabled, model, systemPrompt }
+  isActive         Boolean  @default(true)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@unique([tenantId, slug])
+  @@index([tenantId, isActive])
+}
+
+/// Anexação N:N entre canal e comando: define QUAIS comandos aparecem em CADA chat.
+/// Um mesmo comando pode ser reusado em vários chats; cada chat tem o seu conjunto.
+/// Se um canal não tem nenhuma linha aqui, cai no fallback (grupo=comandos da tabela).
+model ChannelCommand {
+  id                String   @id @default(cuid())
+  tenantId          String
+  channelId         String
+  commandTemplateId String
+  createdAt         DateTime @default(now())
+
+  @@unique([channelId, commandTemplateId])
+  @@index([channelId])
+  @@index([tenantId])
+}
+
+// Identidade do bot por tenant: usuário-bot (p/ updatedById/audit) + cargo-teto.
+model BotIdentity {
+  id           String   @id @default(cuid())
+  tenantId     String   @unique
+  userId       String   // usuário-bot real (audit/updatedById)
+  customRoleId String   // teto do bot (máximo que ele pode fazer)
+  name         String   @default("Assistente")
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 }

@@ -1,3 +1,4 @@
+import { ServiceScope } from '../../common/service-scope/service-scope.decorator';
 import {
   Controller, Get, Post, Patch, Delete, Body, Param, Query, UseGuards, ForbiddenException,
 } from '@nestjs/common';
@@ -10,17 +11,24 @@ import { ModulePermissionGuard } from '../../common/guards/module-permission.gua
 import { RequireModulePermission } from '../../common/decorators/module-permission.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { CurrentUser as CurrentUserType } from '../../common/types';
-
-const ADMIN_ROLES = ['PLATFORM_ADMIN', 'ADMIN'];
+import { hasPlatformAccess, hasFullTenantAccess } from '../../common/utils/platform-access';
 
 function assertAdminRole(user: CurrentUserType): void {
-  const roleType = user.customRole?.roleType;
-  if (!roleType || !ADMIN_ROLES.includes(roleType)) {
-    throw new ForbiddenException('Acesso negado. Roles necessarias: ADMIN, PLATFORM_ADMIN');
+  // Gerir cargos = permissão (platform, acesso total ao tenant, OU roles.canUpdate).
+  if (
+    hasPlatformAccess(user.customRole?.modulePermissions) ||
+    hasFullTenantAccess(user.customRole?.modulePermissions)
+  ) {
+    return;
+  }
+  const mp = user.customRole?.modulePermissions as Record<string, Record<string, boolean>> | undefined;
+  if (mp?.roles?.canUpdate !== true) {
+    throw new ForbiddenException('Acesso negado. Requer permissão de gerir cargos ou acesso de plataforma.');
   }
 }
 
 @ApiTags('Custom Roles')
+@ServiceScope('admin')
 @Controller('custom-roles')
 @UseGuards(JwtAuthGuard, ModulePermissionGuard)
 @ApiBearerAuth()
@@ -43,7 +51,7 @@ export class CustomRoleController {
   @ApiOperation({ summary: 'Obter permissões do usuário logado' })
   async getMyPermissions(@CurrentUser() user: CurrentUserType) {
     const [entities, modules] = await Promise.all([
-      this.customRoleService.getUserAccessibleEntities(user.id),
+      this.customRoleService.getAccessibleEntitySlugs(user.id),
       this.customRoleService.getUserModulePermissions(user.id),
     ]);
     return { entities, modules };
@@ -94,14 +102,15 @@ export class CustomRoleController {
 
   @Post(':roleId/assign/:userId')
   @RequireModulePermission('roles', 'canUpdate')
-  @ApiOperation({ summary: 'Atribuir role a um usuário' })
+  @ApiOperation({ summary: 'Atribuir role a um usuário (acesso temporário via expiresAt opcional)' })
   async assignToUser(
     @Param('roleId') roleId: string,
     @Param('userId') userId: string,
     @Query('tenantId') tenantId: string | undefined,
     @CurrentUser() user: CurrentUserType,
+    @Body() body?: { expiresAt?: string | null },
   ) {
-    return this.customRoleService.assignToUser(roleId, userId, user, tenantId);
+    return this.customRoleService.assignToUser(roleId, userId, user, tenantId, body?.expiresAt);
   }
 
   @Delete('user/:userId')

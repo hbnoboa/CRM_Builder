@@ -58,6 +58,12 @@ export class CopyModulesDto {
   @IsString({ each: true })
   @IsOptional()
   fieldRules?: string[];
+
+  @ApiPropertyOptional({ description: 'IDs dos templates de dashboard a copiar' })
+  @IsArray()
+  @IsString({ each: true })
+  @IsOptional()
+  dashboardTemplates?: string[];
 }
 
 export class CopyTenantDataDto {

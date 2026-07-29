@@ -49,7 +49,10 @@ export default function LoginPage() {
     try {
       await login(data);
       const user = useAuthStore.getState().user;
-      router.push(getDefaultRouteForUser(user));
+      // Tenant na URL: prefixa o slug do tenant "home" do usuário (#15 robusto).
+      const slug = (user as { tenant?: { slug?: string } } | null)?.tenant?.slug;
+      const route = getDefaultRouteForUser(user); // '/home'
+      router.push(slug ? `/${slug}${route}` : route);
     } catch (err) {
       // Error is handled by the store
     }

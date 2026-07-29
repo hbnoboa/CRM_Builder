@@ -1,3 +1,4 @@
+import { ServiceScope } from '../../common/service-scope/service-scope.decorator';
 import {
   Controller,
   Post,
@@ -14,7 +15,6 @@ import {
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiConsumes } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
-import { RolesGuard } from '../../common/guards/roles.guard';
 import { CurrentUser as CurrentUserDecorator } from '../../common/decorators/current-user.decorator';
 import { CurrentUser } from '../../common/types';
 import { checkModulePermission } from '../../common/utils/check-module-permission';
@@ -28,9 +28,10 @@ import * as path from 'path';
 import { v4 as uuid } from 'uuid';
 import { createReadStream } from 'fs';
 
+@ServiceScope('user')
 @Controller('data')
 @ApiTags('Data Import')
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard)
 @ApiBearerAuth()
 export class ImportController {
   constructor(

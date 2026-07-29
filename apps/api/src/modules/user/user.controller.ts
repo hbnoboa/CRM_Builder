@@ -1,3 +1,4 @@
+import { ServiceScope } from '../../common/service-scope/service-scope.decorator';
 import {
   Controller,
   Get,
@@ -21,6 +22,7 @@ import { CurrentUser as CurrentUserType } from '../../common/types';
 import { checkModulePermission } from '../../common/utils/check-module-permission';
 
 @ApiTags('Users')
+@ServiceScope('admin')
 @Controller('users')
 @UseGuards(JwtAuthGuard, ModulePermissionGuard)
 @ApiBearerAuth()

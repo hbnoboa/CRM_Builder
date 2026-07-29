@@ -141,14 +141,18 @@
     "publicLinks": "Public Links",
     "profile": "Profile",
     "hello": "Hello,",
-    "admin": "Admin"
+    "admin": "Admin",
+    "home": "Home",
+    "chat": "Chat",
+    "operational": "Operational"
   },
   "roles": {
     "PLATFORM_ADMIN": "Super Admin",
     "ADMIN": "Administrator",
     "MANAGER": "Manager",
     "USER": "User",
-    "VIEWER": "Viewer"
+    "VIEWER": "Viewer",
+    "CUSTOM": "Custom"
   },
   "roleDescriptions": {
     "PLATFORM_ADMIN": "Full platform access, including all tenants",
@@ -274,6 +278,11 @@
       "grant": "Grant",
       "granted": "Access granted successfully",
       "revoked": "Access revoked successfully"
+    },
+    "impersonate": {
+      "menu": "Log in as this user",
+      "success": "You are now {name}",
+      "error": "Failed to impersonate user"
     }
   },
   "entities": {
@@ -539,6 +548,7 @@
       "operators": {
         "contains": "Contains",
         "equals": "Equals",
+        "notEquals": "Not equal to",
         "startsWith": "Starts with",
         "endsWith": "Ends with",
         "isEmpty": "Is empty",
@@ -810,7 +820,9 @@
       "canGenerate": "Generate PDF",
       "canExecute": "Execute Manually",
       "canManageTenantAccess": "Manage Tenant Access",
-      "canPermanentDelete": "Permanently Delete"
+      "canPermanentDelete": "Permanently Delete",
+      "canManage": "Manage",
+      "canManageOrg": "Organization settings"
     },
     "dataFilters": {
       "title": "Data Filters",
@@ -819,6 +831,7 @@
       "operators": {
         "contains": "Contains",
         "equals": "Equals",
+        "notEquals": "Not equal to",
         "startsWith": "Starts with",
         "endsWith": "Ends with",
         "isEmpty": "Is empty",
@@ -861,6 +874,57 @@
       "invite": "Invite",
       "assign": "Assign",
       "upload": "Upload"
+    },
+    "acts": {
+      "dashboard_canRead": "View dashboards and their statistics.",
+      "dashboard_canCreate": "Create new dashboard templates.",
+      "dashboard_canUpdate": "Edit existing dashboard templates.",
+      "dashboard_canDelete": "Delete dashboard templates.",
+      "data_canRead": "Open the Records section and view data (respecting per-table permissions).",
+      "data_canCreate": "Show the create-record action (effective permission is set per table).",
+      "data_canUpdate": "Show the edit-record action (effective per table).",
+      "data_canDelete": "Show the delete-record action (effective per table).",
+      "entities_canRead": "View the table structure.",
+      "entities_canCreate": "Create new tables.",
+      "entities_canUpdate": "Edit table structure (fields and layout).",
+      "entities_canDelete": "Delete tables.",
+      "users_canRead": "View the user list.",
+      "users_canCreate": "Invite or create users.",
+      "users_canUpdate": "Edit user data.",
+      "users_canDelete": "Remove users.",
+      "users_canAssignRole": "Set a user's role.",
+      "users_canChangeStatus": "Activate or deactivate users.",
+      "users_canManageTenantAccess": "Manage which tenants a user can access.",
+      "roles_canRead": "View roles.",
+      "roles_canCreate": "Create roles.",
+      "roles_canUpdate": "Edit roles.",
+      "roles_canDelete": "Delete roles.",
+      "roles_canSetDefault": "Set the default role for new users.",
+      "roles_canManagePermissions": "Edit role permissions (this screen).",
+      "settings_canRead": "View organization settings.",
+      "settings_canUpdate": "Access and change the organization settings (brand, theme). Personal tabs (profile, language, theme) need no permission.",
+      "tenants_canRead": "View the tenant list.",
+      "tenants_canCreate": "Create new tenants.",
+      "tenants_canUpdate": "Edit tenants.",
+      "tenants_canDelete": "Delete tenants.",
+      "tenants_canSuspend": "Suspend a tenant.",
+      "tenants_canActivate": "Reactivate a suspended tenant.",
+      "automations_canRead": "View webhooks and automations.",
+      "automations_canCreate": "Create webhooks and automations.",
+      "automations_canUpdate": "Edit webhooks and automations.",
+      "automations_canDelete": "Delete webhooks and automations.",
+      "automations_canExecute": "Run or trigger automations manually.",
+      "templates_canRead": "View PDF templates.",
+      "templates_canCreate": "Create PDF templates.",
+      "templates_canUpdate": "Edit PDF templates.",
+      "templates_canDelete": "Delete PDF templates.",
+      "templates_canGenerate": "Generate PDF documents from templates.",
+      "logs_canRead": "View audit and execution logs.",
+      "logs_canUpdate": "Edit or annotate audit logs.",
+      "logs_canDelete": "Delete audit logs.",
+      "publicLinks_canManage": "Create and manage public sharing links.",
+      "archive_canRead": "View archived records.",
+      "archive_canPermanentDelete": "Permanently delete archived records (irreversible)."
     }
   },
   "tenants": {
@@ -1011,6 +1075,15 @@
       "darkDesc": "Theme with dark background and light text",
       "system": "System",
       "systemDesc": "Follows your device settings"
+    },
+    "org": {
+      "tab": "Organization",
+      "title": "Organization Settings",
+      "description": "Settings that apply to the whole tenant.",
+      "tenantName": "Tenant name",
+      "tenantSlug": "Identifier (slug)",
+      "brandColor": "Brand color",
+      "readonly": "Read-only — requires settings permission."
     }
   },
   "validation": {
@@ -1366,5 +1439,34 @@
       "today": "Today",
       "thisMonth": "This Month"
     }
+  },
+  "home": {
+    "title": "Home",
+    "greeting": "Hi, {name}",
+    "subtitle": "What do you want to do today?",
+    "records": "Records",
+    "recordsDesc": "View and enter data",
+    "newTable": "New Table",
+    "newTableDesc": "Define a data structure",
+    "users": "Users",
+    "usersDesc": "Manage the team",
+    "roles": "Roles",
+    "rolesDesc": "Permissions and access",
+    "pdf": "PDF Templates",
+    "pdfDesc": "Document models",
+    "dashboards": "Dashboards",
+    "dashboardsDesc": "Configurable panels",
+    "publicLinks": "Public Links",
+    "publicLinksDesc": "External forms",
+    "logs": "Audit",
+    "logsDesc": "Action history",
+    "tenants": "Tenants",
+    "tenantsDesc": "Manage organizations",
+    "reports": "Reports",
+    "reportsDesc": "Analytics view",
+    "settings": "Settings",
+    "settingsDesc": "Account and organization",
+    "tablesTitle": "Your tables",
+    "empty": "No actions available for your profile."
   }
 }

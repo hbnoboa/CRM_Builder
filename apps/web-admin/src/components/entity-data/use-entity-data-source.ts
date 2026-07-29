@@ -89,7 +89,9 @@ export function useEntityDataSource(
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Erro ao carregar dados';
       setError(msg);
-      setRecords([]);
+      // NÃO apagar os registros já carregados: um refetch que falha (ex: token
+      // expirado, evento de websocket, troca de filtro) deixava tudo zerado até o
+      // F5. Mantém os dados anteriores e só sinaliza o erro.
     } finally {
       setIsLoading(false);
     }

@@ -19,6 +19,41 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
       datasourceUrl: process.env.DATABASE_URL,
     });
 
+    // ── Soft delete GLOBAL (middleware) ──────────────────────────────────────
+    // Para os models do allowlist: delete/deleteMany viram soft (deletedAt) e
+    // find*/count ganham deletedAt:null automaticamente. Respeita filtros de
+    // deletedAt ja presentes (ex.: restore). findUnique fica intacto (lookups por
+    // id/unique internos). EntityData/ArchivedEntityData FORA (archive + cascata proprios).
+    // Notification fica FORA: e transiente (sino/avisos); delete fisico e o correto
+    // (o cleanup cron deve remover de verdade, nao acumular soft rows).
+    const SOFT_DELETE_MODELS = new Set([
+      'Tenant', 'User', 'Entity', 'CustomRole', 'UserTenantAccess',
+      'PdfTemplate', 'Webhook', 'EmailTemplate', 'ActionChain', 'ScheduledTask',
+      'EntityAutomation', 'EntityFieldRule', 'DashboardTemplate', 'PublicLink',
+    ]);
+    const READ_OPS = new Set(['findFirst', 'findFirstOrThrow', 'findMany', 'count', 'aggregate', 'groupBy']);
+
+    this.$use(async (params, next) => {
+      const model = params.model;
+      if (model && SOFT_DELETE_MODELS.has(model)) {
+        if (params.action === 'delete') {
+          params.action = 'update';
+          params.args = { ...(params.args || {}), data: { deletedAt: new Date() } };
+        } else if (params.action === 'deleteMany') {
+          params.action = 'updateMany';
+          params.args = params.args || {};
+          params.args.data = { ...(params.args.data || {}), deletedAt: new Date() };
+        } else if (READ_OPS.has(params.action)) {
+          params.args = params.args || {};
+          params.args.where = params.args.where || {};
+          if (params.args.where.deletedAt === undefined) {
+            params.args.where.deletedAt = null;
+          }
+        }
+      }
+      return next(params);
+    });
+
     // Log slow queries in development
     if (process.env.NODE_ENV === 'development') {
       // @ts-expect-error - Prisma event typing

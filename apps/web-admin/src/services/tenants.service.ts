@@ -38,7 +38,6 @@ export interface TenantStats {
 export interface CopyableRole {
   id: string;
   name: string;
-  roleType: string;
   color: string | null;
   isSystem: boolean;
   _count: { users: number };
@@ -85,6 +84,13 @@ export interface CopyableFieldRule {
   entity: { name: string; slug: string };
 }
 
+export interface CopyableDashboard {
+  id: string;
+  name: string;
+  entitySlug: string | null;
+  isActive: boolean;
+}
+
 export interface CopyableData {
   roles: CopyableRole[];
   entities: CopyableEntity[];
@@ -92,6 +98,7 @@ export interface CopyableData {
   automations: CopyableAutomation[];
   webhooks: CopyableWebhook[];
   fieldRules: CopyableFieldRule[];
+  dashboardTemplates: CopyableDashboard[];
 }
 
 export interface CopyEntitySelection {
@@ -110,6 +117,7 @@ export interface CopyTenantDataPayload {
     automations?: string[];
     webhooks?: string[];
     fieldRules?: string[];
+    dashboardTemplates?: string[];
   };
 }
 
@@ -122,6 +130,7 @@ export interface CopyResult {
     automations: number;
     webhooks: number;
     fieldRules: number;
+    dashboardTemplates: number;
   };
   skipped: string[];
   warnings: string[];

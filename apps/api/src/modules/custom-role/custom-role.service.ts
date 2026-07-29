@@ -1,9 +1,11 @@
-import { Injectable, NotFoundException, ConflictException, ForbiddenException, Logger } from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException, ForbiddenException, BadRequestException, Logger } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { PermissionCacheService } from './permission-cache.service';
-import { CreateCustomRoleDto, UpdateCustomRoleDto, QueryCustomRoleDto, RoleType, DataFilterDto } from './dto/custom-role.dto';
+import { CreateCustomRoleDto, UpdateCustomRoleDto, QueryCustomRoleDto, DataFilterDto } from './dto/custom-role.dto';
 import { getEffectiveTenantId } from '../../common/utils/tenant.util';
+import { hasPlatformAccess, hasFullTenantAccess } from '../../common/utils/platform-access';
+import { assertPermissionsSubset, assertCanActOnRank, assertNotImpersonating } from '../../common/utils/permission-governance';
 import { Prisma } from '@prisma/client';
 import {
   CurrentUser,
@@ -55,16 +57,59 @@ export class CustomRoleService {
     private permissionCache: PermissionCacheService,
   ) {}
 
+  /**
+   * Identidade global (#10): o cargo do usuario vem da Membership. Resolve o
+   * cargo no tenant dado (ou na membership primaria, se tenant omitido).
+   */
+  private async resolveMembershipRole(userId: string, tenantId?: string) {
+    const sel = { permissions: true, modulePermissions: true } as const;
+    if (tenantId) {
+      const m = await this.prisma.userTenantAccess.findUnique({
+        where: { userId_tenantId: { userId, tenantId } },
+        select: { tenantId: true, customRoleId: true, status: true, deletedAt: true, customRole: { select: sel } },
+      });
+      if (m && m.status === 'ACTIVE' && m.deletedAt === null) return m;
+    }
+    const list = await this.prisma.userTenantAccess.findMany({
+      where: { userId, status: 'ACTIVE', deletedAt: null },
+      select: { tenantId: true, customRoleId: true, status: true, deletedAt: true, customRole: { select: sel } },
+      orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }],
+      take: 1,
+    });
+    return list[0] ?? null;
+  }
+
   async create(dto: CreateCustomRoleDto, currentUser: CurrentUser, requestedTenantId?: string) {
+    assertNotImpersonating(currentUser, 'criar cargo');
     const tenantId = getEffectiveTenantId(currentUser, requestedTenantId);
 
     // Verificar se nome já existe no tenant
-    const existing = await this.prisma.customRole.findUnique({
-      where: { tenantId_name: { tenantId, name: dto.name } },
+    const existing = await this.prisma.customRole.findFirst({
+      where: { tenantId, name: dto.name, deletedAt: null },
     });
 
     if (existing) {
       throw new ConflictException('Já existe uma role com este nome');
+    }
+
+    // Governanca anti-escalada: so concede permissoes que o proprio ator possui.
+    assertPermissionsSubset(currentUser.customRole?.modulePermissions, dto.modulePermissions);
+
+    // RANK: numero MENOR = mais poder. Cargo criado deve ser SUBORDINADO ao criador
+    // (rank estritamente MAIOR), senao a governanca trava (cargos no mesmo rank nao
+    // se gerenciam nem podem ser atribuidos). Plataforma define livremente.
+    const isPlatform = hasPlatformAccess(currentUser.customRole?.modulePermissions);
+    const actorRank = currentUser.customRole?.rank ?? 999999;
+    let rank: number;
+    if (dto.rank !== undefined) {
+      if (!isPlatform && dto.rank <= actorRank) {
+        throw new ForbiddenException(
+          `Rank invalido: voce so cria cargos de rank maior que o seu (${actorRank}); rank menor/igual concederia poder igual ou superior.`,
+        );
+      }
+      rank = dto.rank;
+    } else {
+      rank = isPlatform ? 100 : actorRank + 10;
     }
 
     const newRole = await this.prisma.customRole.create({
@@ -73,14 +118,14 @@ export class CustomRoleService {
         name: dto.name,
         description: dto.description,
         color: dto.color,
-        roleType: 'CUSTOM', // Roles criadas manualmente sao sempre CUSTOM
         isSystem: false,
+        rank,
         permissions: dto.permissions as unknown as Prisma.InputJsonValue,
         modulePermissions: (dto.modulePermissions || {}) as unknown as Prisma.InputJsonValue,
         isDefault: dto.isDefault || false,
       },
       include: {
-        _count: { select: { users: true } },
+        _count: { select: { tenantAccessUsers: true } },
       },
     });
 
@@ -89,7 +134,7 @@ export class CustomRoleService {
       action: 'create',
       resource: 'custom_role',
       resourceId: newRole.id,
-      newData: { name: newRole.name, description: newRole.description, color: newRole.color, roleType: newRole.roleType },
+      newData: { name: newRole.name, description: newRole.description, color: newRole.color },
       metadata: { name: newRole.name },
     }).catch(() => {});
 
@@ -103,7 +148,7 @@ export class CustomRoleService {
     const { search, cursor, sortBy = 'createdAt', sortOrder = 'desc' } = query;
     const tenantId = getEffectiveTenantId(currentUser, query.tenantId);
 
-    const where: Prisma.CustomRoleWhereInput = { tenantId };
+    const where: Prisma.CustomRoleWhereInput = { tenantId, deletedAt: null };
 
     if (search) {
       where.OR = [
@@ -137,7 +182,7 @@ export class CustomRoleService {
       take: takeWithExtra,
       orderBy,
       include: {
-        _count: { select: { users: true } },
+        _count: { select: { tenantAccessUsers: true } },
       },
     };
 
@@ -189,10 +234,12 @@ export class CustomRoleService {
     const role = await this.prisma.customRole.findFirst({
       where: { id, tenantId },
       include: {
-        _count: { select: { users: true } },
-        users: {
-          select: { id: true, name: true, email: true, avatar: true },
+        _count: { select: { tenantAccessUsers: true } },
+        // Identidade global (#10): usuarios do cargo vem via membership.
+        tenantAccessUsers: {
           take: 10,
+          where: { deletedAt: null, status: 'ACTIVE' },
+          select: { user: { select: { id: true, name: true, email: true, avatar: true } } },
         },
       },
     });
@@ -201,31 +248,64 @@ export class CustomRoleService {
       throw new NotFoundException('Role não encontrada');
     }
 
-    return role;
+    // Mantem o shape `users` esperado pelo frontend.
+    const { tenantAccessUsers, ...rest } = role;
+    return { ...rest, users: tenantAccessUsers.map((m) => m.user) };
   }
 
   async update(id: string, dto: UpdateCustomRoleDto, currentUser: CurrentUser, requestedTenantId?: string) {
+    assertNotImpersonating(currentUser, 'editar cargo');
     const tenantId = getEffectiveTenantId(currentUser, requestedTenantId);
 
     const role = await this.findOne(id, currentUser, requestedTenantId);
 
-    // Proteger roles de sistema: nome e roleType nao podem ser alterados
+    // RANK RULE: so edita cargos de rank inferior (numero maior) ao seu.
+    assertCanActOnRank(currentUser.customRole?.modulePermissions, currentUser.customRole?.rank ?? 999999, role.rank ?? 0);
+
+    // Proteger roles de sistema: nome nao pode ser alterado
     if (role.isSystem) {
       if (dto.name && dto.name !== role.name) {
         throw new ForbiddenException('Nome de roles do sistema nao pode ser alterado');
-      }
-      if (dto.roleType && dto.roleType !== role.roleType) {
-        throw new ForbiddenException('Tipo de roles do sistema nao pode ser alterado');
       }
     }
 
     // Verificar conflito de nome
     if (dto.name && dto.name !== role.name) {
       const existing = await this.prisma.customRole.findFirst({
-        where: { tenantId, name: dto.name, id: { not: id } },
+        where: { tenantId, name: dto.name, id: { not: id }, deletedAt: null },
       });
       if (existing) {
         throw new ConflictException('Ja existe uma role com este nome');
+      }
+    }
+
+    // Governanca anti-escalada: so concede permissoes que o proprio ator possui.
+    if (dto.modulePermissions !== undefined) {
+      assertPermissionsSubset(currentUser.customRole?.modulePermissions, dto.modulePermissions);
+
+      // CAPABILITY FLOOR (anti-lockout): nao remover o ultimo acesso de plataforma.
+      // Aplica-se a TODOS (inclusive plataforma) — invariante de seguranca.
+      const hadPlatform = hasPlatformAccess(role.modulePermissions);
+      const willHavePlatform = hasPlatformAccess(dto.modulePermissions);
+      if (hadPlatform && !willHavePlatform) {
+        const others = await this.countActivePlatformUsers(id);
+        if (others === 0) {
+          throw new ForbiddenException(
+            'Capability floor: nao e possivel remover o ultimo acesso de plataforma (lockout).',
+          );
+        }
+      }
+    }
+
+    // RANK: ator nao-plataforma so pode mover um cargo para rank estritamente MAIOR
+    // que o seu (nunca igual/abaixo = nao pode criar par ou superior a si).
+    if (dto.rank !== undefined) {
+      const isPlatform = hasPlatformAccess(currentUser.customRole?.modulePermissions);
+      const actorRank = currentUser.customRole?.rank ?? 999999;
+      if (!isPlatform && dto.rank <= actorRank) {
+        throw new ForbiddenException(
+          `Rank invalido: voce so define rank maior que o seu (${actorRank}).`,
+        );
       }
     }
 
@@ -234,6 +314,7 @@ export class CustomRoleService {
     if (dto.description !== undefined) data.description = dto.description;
     if (dto.color !== undefined) data.color = dto.color;
     if (dto.isDefault !== undefined) data.isDefault = dto.isDefault;
+    if (dto.rank !== undefined) data.rank = dto.rank;
     if (dto.permissions !== undefined) data.permissions = dto.permissions as unknown as Prisma.InputJsonValue;
     if (dto.modulePermissions !== undefined) data.modulePermissions = (dto.modulePermissions || {}) as unknown as Prisma.InputJsonValue;
     if (dto.tenantPermissions !== undefined) data.tenantPermissions = dto.tenantPermissions as unknown as Prisma.InputJsonValue;
@@ -242,7 +323,7 @@ export class CustomRoleService {
       where: { id },
       data,
       include: {
-        _count: { select: { users: true } },
+        _count: { select: { tenantAccessUsers: true } },
       },
     });
 
@@ -256,15 +337,14 @@ export class CustomRoleService {
       metadata: { name: updatedRole.name },
     }).catch(() => {});
 
-    // Invalidar cache de permissions
-    // Buscar todos os usuários com essa role e invalidar cache
-    const usersWithRole = await this.prisma.user.findMany({
-      where: { customRoleId: id },
-      select: { id: true, tenantId: true },
+    // Invalidar cache de permissions: usuarios com essa role vem via membership.
+    const memberships = await this.prisma.userTenantAccess.findMany({
+      where: { customRoleId: id, deletedAt: null },
+      select: { userId: true },
     });
 
-    if (usersWithRole.length > 0) {
-      const userIds = usersWithRole.map(u => u.id);
+    if (memberships.length > 0) {
+      const userIds = memberships.map((m) => m.userId);
       await this.permissionCache.invalidateMultipleUsers(userIds, tenantId);
       this.logger.log(`🗑️ Invalidados caches de ${userIds.length} usuários após update de role ${updatedRole.name}`);
     }
@@ -273,23 +353,28 @@ export class CustomRoleService {
   }
 
   async remove(id: string, currentUser: CurrentUser, requestedTenantId?: string) {
+    assertNotImpersonating(currentUser, 'excluir cargo');
     const role = await this.findOne(id, currentUser, requestedTenantId);
+
+    // RANK RULE: so exclui cargos de rank inferior (numero maior) ao seu.
+    assertCanActOnRank(currentUser.customRole?.modulePermissions, currentUser.customRole?.rank ?? 999999, role.rank ?? 0);
 
     // Roles de sistema nao podem ser excluidas
     if (role.isSystem) {
       throw new ForbiddenException('Roles do sistema nao podem ser excluidas');
     }
 
-    // Verificar se ha usuarios usando esta role
-    const usersCount = await this.prisma.user.count({
-      where: { customRoleId: id },
+    // Verificar se ha usuarios usando esta role (via membership)
+    const usersCount = await this.prisma.userTenantAccess.count({
+      where: { customRoleId: id, deletedAt: null },
     });
 
     if (usersCount > 0) {
       throw new ConflictException(`Esta role esta atribuida a ${usersCount} usuario(s). Reassine-os antes de excluir.`);
     }
 
-    await this.prisma.customRole.delete({ where: { id } });
+    // Soft delete (mantem historico; a listagem ja filtra deletedAt:null).
+    await this.prisma.customRole.update({ where: { id }, data: { deletedAt: new Date() } });
 
     // Audit log
     this.auditService.log(currentUser, {
@@ -303,8 +388,29 @@ export class CustomRoleService {
     return { message: 'Role excluida com sucesso' };
   }
 
-  async assignToUser(roleId: string, userId: string, currentUser: CurrentUser, requestedTenantId?: string) {
+  async assignToUser(
+    roleId: string,
+    userId: string,
+    currentUser: CurrentUser,
+    requestedTenantId?: string,
+    expiresAt?: string | null,
+  ) {
+    assertNotImpersonating(currentUser, 'atribuir cargo');
     const tenantId = getEffectiveTenantId(currentUser, requestedTenantId);
+
+    // #19 item 6: acesso temporario. expiresAt opcional (null/ausente = permanente).
+    // Generaliza o tempo-limitado da impersonacao para memberships/grants.
+    let expiresAtDate: Date | null = null;
+    if (expiresAt) {
+      const parsed = new Date(expiresAt);
+      if (isNaN(parsed.getTime())) {
+        throw new BadRequestException('expiresAt invalido (use ISO 8601)');
+      }
+      if (parsed <= new Date()) {
+        throw new BadRequestException('expiresAt deve estar no futuro');
+      }
+      expiresAtDate = parsed;
+    }
 
     // Verificar se a role existe e pertence ao tenant
     const role = await this.prisma.customRole.findFirst({
@@ -312,25 +418,33 @@ export class CustomRoleService {
     });
     if (!role) throw new NotFoundException('Role não encontrada');
 
-    // Verificar se o usuário existe e pertence ao tenant
-    const user = await this.prisma.user.findFirst({
-      where: { id: userId, tenantId },
+    // Governanca anti-escalada: so atribui cargo cujas permissoes o ator possui
+    // e de rank inferior (numero maior) ao seu.
+    assertPermissionsSubset(currentUser.customRole?.modulePermissions, role.modulePermissions);
+    assertCanActOnRank(currentUser.customRole?.modulePermissions, currentUser.customRole?.rank ?? 999999, role.rank ?? 0);
+
+    // Verificar se o usuário (identidade) existe
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, name: true, email: true },
     });
     if (!user) throw new NotFoundException('Usuário não encontrado');
 
-    const updatedUser = await this.prisma.user.update({
-      where: { id: userId },
-      data: { customRoleId: roleId },
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        customRoleId: true,
-        customRole: {
-          select: { id: true, name: true, roleType: true, isSystem: true },
-        },
-      },
+    // Membership autoritativa (#10): o cargo do usuario no tenant VIVE aqui.
+    // Cria (= adiciona ao tenant) ou atualiza o vinculo. expiresAt opcional.
+    await this.prisma.userTenantAccess.upsert({
+      where: { userId_tenantId: { userId, tenantId } },
+      update: { customRoleId: roleId, deletedAt: null, expiresAt: expiresAtDate },
+      create: { userId, tenantId, customRoleId: roleId, status: 'ACTIVE', expiresAt: expiresAtDate },
     });
+
+    const updatedUser = {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      customRoleId: roleId,
+      customRole: { id: role.id, name: role.name, isSystem: role.isSystem },
+    };
 
     // Audit log
     this.auditService.log(currentUser, {
@@ -351,8 +465,16 @@ export class CustomRoleService {
   async removeFromUser(userId: string, currentUser: CurrentUser, requestedTenantId?: string) {
     const tenantId = getEffectiveTenantId(currentUser, requestedTenantId);
 
-    const user = await this.prisma.user.findFirst({
-      where: { id: userId, tenantId },
+    // Membership do usuario neste tenant (fonte da verdade).
+    const membership = await this.prisma.userTenantAccess.findUnique({
+      where: { userId_tenantId: { userId, tenantId } },
+      select: { customRoleId: true },
+    });
+    if (!membership) throw new NotFoundException('Usuario nao pertence a este tenant');
+
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, name: true, email: true },
     });
     if (!user) throw new NotFoundException('Usuario nao encontrado');
 
@@ -365,22 +487,21 @@ export class CustomRoleService {
       throw new NotFoundException('Tenant sem role default configurada');
     }
 
-    const oldRoleId = user.customRoleId;
+    const oldRoleId = membership.customRoleId;
 
-    // Atribuir role default ao inves de null
-    const updatedUser = await this.prisma.user.update({
-      where: { id: userId },
-      data: { customRoleId: defaultRole.id },
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        customRoleId: true,
-        customRole: {
-          select: { id: true, name: true, roleType: true, isSystem: true },
-        },
-      },
+    // Membership autoritativa (#10): volta o vinculo para o cargo default.
+    await this.prisma.userTenantAccess.update({
+      where: { userId_tenantId: { userId, tenantId } },
+      data: { customRoleId: defaultRole.id, deletedAt: null },
     });
+
+    const updatedUser = {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      customRoleId: defaultRole.id,
+      customRole: { id: defaultRole.id, name: defaultRole.name, isSystem: defaultRole.isSystem },
+    };
 
     // Audit log
     this.auditService.log(currentUser, {
@@ -396,61 +517,48 @@ export class CustomRoleService {
   }
 
   /**
-   * Verifica se um usuario tem permissao para uma entidade especifica
+   * Acha a permissao por entidade em permissions[]. Match EXATO do entitySlug tem
+   * prioridade; senao cai no coringa '*' (entrada "todas as tabelas"). Modelo
+   * permission-driven: NAO depende mais de roleType (toda role e CUSTOM).
+   */
+  private findEntityPerm<T extends { entitySlug: string }>(
+    permissions: unknown,
+    entitySlug: string,
+  ): T | null {
+    const perms = (permissions || []) as T[];
+    if (!Array.isArray(perms)) return null;
+    return (
+      perms.find((p) => p.entitySlug === entitySlug) ??
+      perms.find((p) => p.entitySlug === '*') ??
+      null
+    );
+  }
+
+  /**
+   * Verifica se um usuario tem permissao para uma entidade especifica.
+   * Decisao por permissao (platform access OU permissions[]/'*'), nunca por roleType.
    */
   async hasEntityPermission(
     userId: string,
     entitySlug: string,
     action: 'canCreate' | 'canRead' | 'canUpdate' | 'canDelete',
   ): Promise<boolean> {
-    const user = await this.prisma.user.findUnique({
-      where: { id: userId },
-      select: {
-        customRoleId: true,
-        customRole: {
-          select: { roleType: true, permissions: true },
-        },
-      },
-    });
+    const m = await this.resolveMembershipRole(userId);
+    if (!m || !m.customRole) return false;
 
-    if (!user || !user.customRole) return false;
-
-    const roleType = user.customRole.roleType as RoleType;
-
-    // PLATFORM_ADMIN e ADMIN tem acesso total
-    if (roleType === 'PLATFORM_ADMIN' || roleType === 'ADMIN') {
+    // Acesso de plataforma (cross-tenant) ou acesso total ao tenant libera tudo.
+    if (
+      hasPlatformAccess(m.customRole.modulePermissions) ||
+      hasFullTenantAccess(m.customRole.modulePermissions)
+    ) {
       return true;
     }
 
-    // MANAGER tem acesso total a CRUD
-    if (roleType === 'MANAGER') {
-      return ['canCreate', 'canRead', 'canUpdate', 'canDelete'].includes(action);
-    }
-
-    // USER tem acesso a criar, ler e atualizar proprios
-    if (roleType === 'USER') {
-      return ['canCreate', 'canRead', 'canUpdate'].includes(action);
-    }
-
-    // VIEWER so pode ler
-    if (roleType === 'VIEWER') {
-      return action === 'canRead';
-    }
-
-    // CUSTOM: usa permissoes definidas
-    const permissions = user.customRole.permissions as unknown as Array<{
+    const entry = this.findEntityPerm<{
       entitySlug: string;
-      canCreate: boolean;
-      canRead: boolean;
-      canUpdate: boolean;
-      canDelete: boolean;
-      scope?: 'all' | 'own';
-    }>;
-
-    const entityPerm = permissions.find((p) => p.entitySlug === entitySlug);
-    if (!entityPerm) return false;
-
-    return entityPerm[action] === true;
+      canCreate?: boolean; canRead?: boolean; canUpdate?: boolean; canDelete?: boolean;
+    }>(m.customRole.permissions, entitySlug);
+    return !!entry && entry[action] === true;
   }
 
   /**
@@ -461,51 +569,22 @@ export class CustomRoleService {
     userId: string,
     entitySlug: string,
   ): Promise<'all' | 'own' | null> {
-    const user = await this.prisma.user.findUnique({
-      where: { id: userId },
-      select: {
-        customRole: {
-          select: { roleType: true, permissions: true },
-        },
-      },
-    });
+    const m = await this.resolveMembershipRole(userId);
+    if (!m || !m.customRole) return null;
 
-    if (!user || !user.customRole) return null;
-
-    const roleType = user.customRole.roleType as RoleType;
-
-    // PLATFORM_ADMIN e ADMIN veem tudo
-    if (roleType === 'PLATFORM_ADMIN' || roleType === 'ADMIN') {
+    // Acesso de plataforma OU acesso total ao tenant vê tudo.
+    if (
+      hasPlatformAccess(m.customRole.modulePermissions) ||
+      hasFullTenantAccess(m.customRole.modulePermissions)
+    ) {
       return 'all';
     }
 
-    // MANAGER ve tudo do tenant
-    if (roleType === 'MANAGER') {
-      return 'all';
-    }
-
-    // VIEWER ve tudo mas nao edita
-    if (roleType === 'VIEWER') {
-      return 'all';
-    }
-
-    // USER ve apenas proprios
-    if (roleType === 'USER') {
-      return 'own';
-    }
-
-    // CUSTOM: usa permissoes definidas
-    const permissions = user.customRole.permissions as unknown as Array<{
-      entitySlug: string;
-      canRead: boolean;
-      scope?: 'all' | 'own';
-    }>;
-
-    const entityPerm = permissions.find((p) => p.entitySlug === entitySlug);
-    if (!entityPerm || !entityPerm.canRead) return null;
-
-    // Default scope = 'all' para manter compatibilidade
-    return entityPerm.scope || 'all';
+    const entry = this.findEntityPerm<{
+      entitySlug: string; canRead?: boolean; scope?: 'all' | 'own';
+    }>(m.customRole.permissions, entitySlug);
+    if (!entry || entry.canRead !== true) return null;
+    return entry.scope === 'own' ? 'own' : 'all';
   }
 
   /**
@@ -516,93 +595,76 @@ export class CustomRoleService {
     userId: string,
     entitySlug: string,
   ): Promise<Array<{ fieldSlug: string; canView: boolean; canEdit: boolean }> | null> {
-    const user = await this.prisma.user.findUnique({
-      where: { id: userId },
-      select: {
-        customRole: {
-          select: { roleType: true, permissions: true },
-        },
-      },
-    });
+    const m = await this.resolveMembershipRole(userId);
+    if (!m || !m.customRole) return null;
 
-    if (!user || !user.customRole) return null;
+    // Acesso de plataforma OU acesso total ao tenant vê todos os campos (sem restrição).
+    if (
+      hasPlatformAccess(m.customRole.modulePermissions) ||
+      hasFullTenantAccess(m.customRole.modulePermissions)
+    ) {
+      return null;
+    }
 
-    const roleType = user.customRole.roleType as RoleType;
-
-    // PLATFORM_ADMIN e ADMIN veem todos os campos
-    if (roleType === 'PLATFORM_ADMIN' || roleType === 'ADMIN') return null;
-
-    // Para roles nao-CUSTOM sem fieldPermissions definidas, retornar null (sem restricao)
-    if (roleType !== 'CUSTOM') return null;
-
-    const permissions = user.customRole.permissions as unknown as Array<{
+    const entry = this.findEntityPerm<{
       entitySlug: string;
       fieldPermissions?: Array<{ fieldSlug: string; canView: boolean; canEdit: boolean }>;
-    }>;
+    }>(m.customRole.permissions, entitySlug);
+    if (!entry?.fieldPermissions || entry.fieldPermissions.length === 0) return null;
 
-    const entityPerm = permissions.find((p) => p.entitySlug === entitySlug);
-    if (!entityPerm?.fieldPermissions || entityPerm.fieldPermissions.length === 0) return null;
-
-    return entityPerm.fieldPermissions;
+    return entry.fieldPermissions;
   }
 
   /**
-   * Retorna todas as entidades que o usuario pode acessar
+   * Retorna as entidades acessiveis (canRead): '*' = TODAS (platform access ou
+   * coringa em permissions[]), ou a lista explicita de slugs. Quem chama trata '*'
+   * como "sem filtro de slug" (escopo de tenant ja aplicado no caller).
    */
-  async getUserAccessibleEntities(userId: string): Promise<string[]> {
-    const user = await this.prisma.user.findUnique({
-      where: { id: userId },
-      select: {
-        tenantId: true,
-        customRole: {
-          select: { roleType: true, permissions: true },
-        },
-      },
-    });
+  async getUserAccessibleEntities(userId: string): Promise<'*' | string[]> {
+    const m = await this.resolveMembershipRole(userId);
+    if (!m || !m.customRole) return [];
 
-    if (!user || !user.customRole) return [];
-
-    const roleType = user.customRole.roleType as RoleType;
-
-    // PLATFORM_ADMIN, ADMIN, MANAGER, USER e VIEWER acessam todas entidades
-    // A diferenca esta no escopo (all vs own) verificado em getEntityScope
-    if (['PLATFORM_ADMIN', 'ADMIN', 'MANAGER', 'USER', 'VIEWER'].includes(roleType)) {
-      const entities = await this.prisma.entity.findMany({
-        where: { tenantId: user.tenantId },
-        select: { slug: true },
-      });
-      return entities.map((e) => e.slug);
+    // Acesso de plataforma OU acesso total ao tenant vê todas as entidades.
+    if (
+      hasPlatformAccess(m.customRole.modulePermissions) ||
+      hasFullTenantAccess(m.customRole.modulePermissions)
+    ) {
+      return '*';
     }
 
-    // CUSTOM: usa permissoes definidas
-    const permissions = user.customRole.permissions as unknown as Array<{
+    const permissions = (m.customRole.permissions || []) as Array<{
       entitySlug: string;
-      canRead: boolean;
+      canRead?: boolean;
     }>;
+    // Coringa '*' com canRead => todas as tabelas (incl. futuras), por escolha.
+    if (permissions.some((p) => p.entitySlug === '*' && p.canRead === true)) return '*';
 
-    return permissions.filter((p) => p.canRead).map((p) => p.entitySlug);
+    return permissions.filter((p) => p.canRead === true).map((p) => p.entitySlug);
+  }
+
+  /**
+   * Mesma decisao que getUserAccessibleEntities, mas SEMPRE materializa em lista de
+   * slugs concreta (resolve '*' para todas as entidades do tenant do usuario).
+   * Para endpoints que expoem a lista ao frontend.
+   */
+  async getAccessibleEntitySlugs(userId: string): Promise<string[]> {
+    const accessible = await this.getUserAccessibleEntities(userId);
+    if (accessible !== '*') return accessible;
+    const m = await this.resolveMembershipRole(userId);
+    if (!m) return [];
+    const entities = await this.prisma.entity.findMany({
+      where: { tenantId: m.tenantId },
+      select: { slug: true },
+    });
+    return entities.map((e) => e.slug);
   }
 
   /**
    * Retorna as permissoes de modulo do usuario (formato CRUD)
    */
   async getUserModulePermissions(userId: string, tenantId?: string): Promise<NormalizedModulePermissions> {
-    // Buscar user para ter tenantId (necessário para cache)
-    const user = await this.prisma.user.findUnique({
-      where: { id: userId },
-      select: {
-        tenantId: true,
-        customRole: {
-          select: {
-            id: true,
-            roleType: true,
-            modulePermissions: true,
-            permissions: true,
-          },
-        },
-      },
-    });
-
+    // Cargo via membership (do tenant dado, ou primaria).
+    const user = await this.resolveMembershipRole(userId, tenantId);
     if (!user || !user.customRole) return {};
 
     const effectiveTenantId = tenantId || user.tenantId;
@@ -614,12 +676,14 @@ export class CustomRoleService {
     }
 
     // Cache miss - buscar do banco
-    const roleType = user.customRole.roleType as RoleType;
-
     let modulePermissions: NormalizedModulePermissions;
 
-    // PLATFORM_ADMIN tem acesso total a tudo
-    if (roleType === 'PLATFORM_ADMIN') {
+    // Acesso de plataforma OU acesso total ao tenant tem CRUD em tudo. (Módulos futuros
+    // são cobertos dinamicamente pelo bypass no guard/hook; aqui é só o retrato de display.)
+    if (
+      hasPlatformAccess(user.customRole.modulePermissions) ||
+      hasFullTenantAccess(user.customRole.modulePermissions)
+    ) {
       modulePermissions = {
         dashboard: FULL_CRUD,
         users: FULL_CRUD,
@@ -636,7 +700,6 @@ export class CustomRoleService {
 
     // Salvar no cache
     await this.permissionCache.setUserPermissions(userId, effectiveTenantId, {
-      roleType,
       modulePermissions: user.customRole.modulePermissions as Record<string, unknown>,
       entityPermissions: (user.customRole.permissions as any[]) || [],
     });
@@ -649,22 +712,37 @@ export class CustomRoleService {
    * Fonte unica: permissions[].dataFilters (inline por entidade).
    * PLATFORM_ADMIN/ADMIN retornam [] (sem filtros).
    */
+  /** Conta usuarios ativos com acesso de plataforma (platform.crossTenant), excluindo um cargo. */
+  private async countActivePlatformUsers(excludeRoleId?: string): Promise<number> {
+    // Identidade global (#10): acesso de plataforma vem da membership.
+    const rows = await this.prisma.userTenantAccess.findMany({
+      where: {
+        status: 'ACTIVE',
+        deletedAt: null,
+        ...(excludeRoleId ? { customRoleId: { not: excludeRoleId } } : {}),
+        customRole: {
+          modulePermissions: { path: ['platform', 'crossTenant'], equals: true },
+        },
+        user: { status: 'ACTIVE', deletedAt: null },
+      },
+      select: { userId: true },
+      distinct: ['userId'],
+    });
+    return rows.length;
+  }
+
   getRoleDataFilters(
-    customRole: { roleType: string; permissions: unknown },
+    customRole: { permissions: unknown; modulePermissions?: unknown },
     entitySlug: string,
   ): DataFilterDto[] {
-    const roleType = customRole.roleType as RoleType;
-
-    // PLATFORM_ADMIN e ADMIN nao tem filtros por role
-    if (roleType === 'PLATFORM_ADMIN' || roleType === 'ADMIN') {
+    // Acesso de plataforma nao tem filtros por role.
+    if (hasPlatformAccess(customRole.modulePermissions)) {
       return [];
     }
 
-    const permissions = (customRole.permissions || []) as Array<{
-      entitySlug: string;
-      dataFilters?: DataFilterDto[];
-    }>;
-    const entityPerm = permissions.find((p) => p.entitySlug === entitySlug);
-    return entityPerm?.dataFilters?.length ? [...entityPerm.dataFilters] : [];
+    const entry = this.findEntityPerm<{
+      entitySlug: string; dataFilters?: DataFilterDto[];
+    }>(customRole.permissions, entitySlug);
+    return entry?.dataFilters?.length ? [...entry.dataFilters] : [];
   }
 }

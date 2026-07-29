@@ -1,3 +1,4 @@
+import { ServiceScope } from '../../common/service-scope/service-scope.decorator';
 import {
   Controller,
   Get,
@@ -19,13 +20,13 @@ import { Response } from 'express';
 import { DataService, QueryDataDto } from './data.service';
 import { DataIoService } from './data-io.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
-import { RolesGuard } from '../../common/guards/roles.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { CurrentUser as CurrentUserType } from '../../common/types';
 
 @ApiTags('Data')
+@ServiceScope('user')
 @Controller('data')
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard)
 @ApiBearerAuth()
 export class DataController {
   constructor(
@@ -146,6 +147,17 @@ export class DataController {
     // A verificacao de permissao e feita no service via checkEntityPermission
     // que verifica permissions[entitySlug].canUpdate
     return this.dataService.update(entitySlug, id, dto, user);
+  }
+
+  @Post(':entitySlug/:id/restore')
+  @ApiOperation({ summary: 'Restaurar registro soft-deletado (bloqueia se valor unico ja em uso)' })
+  async restore(
+    @Param('entitySlug') entitySlug: string,
+    @Param('id') id: string,
+    @Query('tenantId') tenantId: string | undefined,
+    @CurrentUser() user: CurrentUserType,
+  ) {
+    return this.dataService.restore(entitySlug, id, user, tenantId);
   }
 
   @Delete(':entitySlug/:id')

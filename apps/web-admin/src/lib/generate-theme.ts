@@ -1,7 +1,16 @@
 // Pure TypeScript HSL-based theme generation from a single brand color.
 // No external dependencies — all math is inline.
+//
+// Garante contraste WCAG AA (>= 4.5:1) em TODO par superfície/texto, para
+// QUALQUER cor de marca. A cor do texto (claro/escuro) é escolhida por
+// contraste real (luminância percebida), nunca por limiar de lightness HSL,
+// e a superfície é ajustada automaticamente quando necessário.
 
 type HSL = { h: number; s: number; l: number };
+
+// Alvo interno com margem acima do mínimo AA (4.5) para nunca encostar na
+// borda por arredondamento ao serializar as variáveis.
+const AA = 4.6;
 
 export function hexToHSL(hex: string): HSL {
   hex = hex.replace('#', '');
@@ -46,9 +55,9 @@ function luminance(r: number, g: number, b: number): number {
   return 0.2126 * rs + 0.7152 * gs + 0.0722 * bs;
 }
 
-function contrastRatio(hsl1: HSL, hsl2: HSL): number {
-  const [r1, g1, b1] = hslToRGB(hsl1.h, hsl1.s, hsl1.l);
-  const [r2, g2, b2] = hslToRGB(hsl2.h, hsl2.s, hsl2.l);
+function contrastRatio(a: HSL, b: HSL): number {
+  const [r1, g1, b1] = hslToRGB(a.h, a.s, a.l);
+  const [r2, g2, b2] = hslToRGB(b.h, b.s, b.l);
   const l1 = luminance(r1, g1, b1);
   const l2 = luminance(r2, g2, b2);
   const lighter = Math.max(l1, l2);
@@ -60,20 +69,48 @@ function hsl(h: number, s: number, l: number): string {
   return `${h} ${s}% ${l}%`;
 }
 
+function hslStr(c: HSL): string {
+  return hsl(c.h, c.s, c.l);
+}
+
 function clamp(val: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, val));
 }
 
-// Ensure primary has at least 4.5:1 contrast ratio against the given background
-function ensureContrast(primary: HSL, bg: HSL, darken: boolean): HSL {
-  const p = { ...primary };
+// Pick the text color (near-white or hue-tinted near-black) with the BEST
+// real contrast against the given surface — by luminance, not HSL lightness.
+function pickForeground(bg: HSL): HSL {
+  const white: HSL = { h: bg.h, s: clamp(bg.s * 0.1, 0, 8), l: 99 };
+  const black: HSL = { h: bg.h, s: clamp(bg.s * 0.2, 0, 14), l: 11 };
+  return contrastRatio(bg, white) >= contrastRatio(bg, black) ? white : black;
+}
+
+// Guarantee AA: keep the best foreground and nudge the SURFACE lightness
+// toward the extreme until contrast >= 4.5. Works for any input color.
+function withAA(surface: HSL): { bg: HSL; fg: HSL } {
+  const bg: HSL = { ...surface };
+  let fg = pickForeground(bg);
   let attempts = 0;
-  while (contrastRatio(p, bg) < 4.5 && attempts < 40) {
-    p.l = darken ? p.l - 2 : p.l + 2;
-    p.l = clamp(p.l, 5, 95);
+  while (contrastRatio(bg, fg) < AA && attempts < 80) {
+    // fg light -> darken surface; fg dark -> lighten surface
+    bg.l = fg.l > 50 ? clamp(bg.l - 1.5, 0, 100) : clamp(bg.l + 1.5, 0, 100);
+    fg = pickForeground(bg);
     attempts++;
   }
-  return p;
+  return { bg, fg };
+}
+
+// Ensure a foreground-on-fixed-background pair reaches AA by moving the
+// FOREGROUND (used for muted text where the surface must stay put).
+function foregroundFor(bg: HSL, hint: HSL): HSL {
+  const fg: HSL = { ...hint };
+  const darken = luminance(...hslToRGB(bg.h, bg.s, bg.l)) > 0.4; // light bg -> dark text
+  let attempts = 0;
+  while (contrastRatio(bg, fg) < AA && attempts < 80) {
+    fg.l = darken ? clamp(fg.l - 2, 0, 100) : clamp(fg.l + 2, 0, 100);
+    attempts++;
+  }
+  return fg;
 }
 
 export interface ThemeVariables {
@@ -84,7 +121,7 @@ export interface ThemeVariables {
 export function generateThemeVariables(
   hex: string,
   secondaryHex?: string,
-  accentHex?: string
+  accentHex?: string,
 ): ThemeVariables {
   const primary = hexToHSL(hex);
   const secondary = secondaryHex ? hexToHSL(secondaryHex) : null;
@@ -93,82 +130,88 @@ export function generateThemeVariables(
   const h = primary.h;
   const s = primary.s;
 
-  // ---- LIGHT MODE ----
-  const lightBg: HSL = { h, s: clamp(s * 0.05, 1, 4), l: 98.5 };
-  const lightPrimary = ensureContrast(
-    { h, s: clamp(s, 40, 90), l: clamp(primary.l, 15, 45) },
-    lightBg,
-    true,
+  // ---------- LIGHT MODE ----------
+  const lBgTint = clamp(s * 0.05, 1, 4);
+  const lBackground: HSL = { h, s: lBgTint, l: 98.5 };
+  const lCard: HSL = { h, s: lBgTint, l: 99.5 };
+  const lMuted: HSL = { h, s: clamp(s * 0.06, 1, 6), l: 96 };
+  const lBorder = { h, s: clamp(s * 0.06, 2, 6), l: 90 };
+
+  const lPrimary = withAA({ h, s: clamp(s, 35, 95), l: clamp(primary.l, 20, 50) });
+  const lSecondary = withAA(
+    secondary
+      ? { h: secondary.h, s: clamp(secondary.s, 25, 85), l: clamp(secondary.l, 20, 55) }
+      : { h, s: clamp(s * 0.5, 12, 38), l: 45 },
   );
-
-  // Secondary color - use provided or derive from primary
-  const lightSecondary = secondary
-    ? ensureContrast({ h: secondary.h, s: clamp(secondary.s, 35, 80), l: clamp(secondary.l, 20, 50) }, lightBg, true)
-    : { h, s: clamp(s * 0.6, 15, 40), l: 70 };
-
-  // Accent color - use provided or derive from primary
-  const lightAccent = accent
-    ? ensureContrast({ h: accent.h, s: clamp(accent.s, 35, 80), l: clamp(accent.l, 20, 50) }, lightBg, true)
-    : { h: (h + 30) % 360, s: clamp(s * 0.7, 20, 50), l: 65 };
+  const lAccent = withAA(
+    accent
+      ? { h: accent.h, s: clamp(accent.s, 25, 85), l: clamp(accent.l, 20, 55) }
+      : { h: (h + 30) % 360, s: clamp(s * 0.6, 18, 55), l: 45 },
+  );
+  const lDestructive = withAA({ h: 0, s: 75, l: 50 });
 
   const light: Record<string, string> = {
-    '--background': hsl(h, clamp(s * 0.05, 1, 4), 98.5),
-    '--foreground': hsl(h, clamp(s * 0.1, 3, 10), 8),
-    '--card': hsl(h, clamp(s * 0.05, 1, 4), 99),
-    '--card-foreground': hsl(h, clamp(s * 0.1, 3, 10), 8),
-    '--popover': hsl(h, clamp(s * 0.05, 1, 4), 99),
-    '--popover-foreground': hsl(h, clamp(s * 0.1, 3, 10), 8),
-    '--primary': hsl(lightPrimary.h, lightPrimary.s, lightPrimary.l),
-    '--primary-foreground': lightPrimary.l < 50 ? hsl(0, 0, 100) : hsl(h, clamp(s, 40, 80), 5),
-    '--secondary': hsl(lightSecondary.h, lightSecondary.s, lightSecondary.l),
-    '--secondary-foreground': hsl(0, 0, 100),
-    '--muted': hsl(h, clamp(s * 0.06, 1, 6), 96),
-    '--muted-foreground': hsl(h, clamp(s * 0.08, 3, 10), 46),
-    '--accent': hsl(lightAccent.h, lightAccent.s, lightAccent.l),
-    '--accent-foreground': hsl(0, 0, 100),
-    '--destructive': hsl(0, 84.2, 60.2),
-    '--destructive-foreground': hsl(0, 0, 100),
-    '--border': hsl(h, clamp(s * 0.06, 2, 6), 91),
-    '--input': hsl(h, clamp(s * 0.06, 2, 6), 91),
-    '--ring': hsl(lightPrimary.h, lightPrimary.s, lightPrimary.l),
+    '--background': hslStr(lBackground),
+    '--foreground': hslStr(foregroundFor(lBackground, { h, s: clamp(s * 0.1, 3, 12), l: 12 })),
+    '--card': hslStr(lCard),
+    '--card-foreground': hslStr(foregroundFor(lCard, { h, s: clamp(s * 0.1, 3, 12), l: 12 })),
+    '--popover': hslStr(lCard),
+    '--popover-foreground': hslStr(foregroundFor(lCard, { h, s: clamp(s * 0.1, 3, 12), l: 12 })),
+    '--primary': hslStr(lPrimary.bg),
+    '--primary-foreground': hslStr(lPrimary.fg),
+    '--secondary': hslStr(lSecondary.bg),
+    '--secondary-foreground': hslStr(lSecondary.fg),
+    '--muted': hslStr(lMuted),
+    '--muted-foreground': hslStr(foregroundFor(lMuted, { h, s: clamp(s * 0.1, 3, 12), l: 40 })),
+    '--accent': hslStr(lAccent.bg),
+    '--accent-foreground': hslStr(lAccent.fg),
+    '--destructive': hslStr(lDestructive.bg),
+    '--destructive-foreground': hslStr(lDestructive.fg),
+    '--border': hsl(lBorder.h, lBorder.s, lBorder.l),
+    '--input': hsl(lBorder.h, lBorder.s, lBorder.l),
+    '--ring': hslStr(lPrimary.bg),
   };
 
-  // ---- DARK MODE ----
-  const darkBg: HSL = { h, s: clamp(s * 0.05, 1, 4), l: 6 };
-  const darkPrimary = ensureContrast(
-    { h, s: clamp(s * 0.85, 35, 85), l: clamp(primary.l > 50 ? primary.l : 100 - primary.l, 55, 75) },
-    darkBg,
-    false,
+  // ---------- DARK MODE ----------
+  const dBgTint = clamp(s * 0.08, 1, 6);
+  const dBackground: HSL = { h, s: dBgTint, l: 6 };
+  const dCard: HSL = { h, s: dBgTint, l: 8 };
+  const dMuted: HSL = { h, s: clamp(s * 0.08, 1, 8), l: 15 };
+  const dBorder = { h, s: clamp(s * 0.08, 2, 8), l: 18 };
+
+  const dPrimary = withAA({ h, s: clamp(s * 0.9, 35, 90), l: clamp(primary.l > 50 ? primary.l : 100 - primary.l, 55, 78) });
+  const dSecondary = withAA(
+    secondary
+      ? { h: secondary.h, s: clamp(secondary.s * 0.85, 25, 80), l: clamp(secondary.l > 50 ? secondary.l : 100 - secondary.l, 50, 72) }
+      : { h, s: clamp(s * 0.45, 12, 36), l: 62 },
   );
-
-  const darkSecondary = secondary
-    ? ensureContrast({ h: secondary.h, s: clamp(secondary.s * 0.8, 30, 75), l: clamp(secondary.l > 50 ? secondary.l : 100 - secondary.l, 50, 70) }, darkBg, false)
-    : { h, s: clamp(s * 0.6, 15, 40), l: 60 };
-
-  const darkAccent = accent
-    ? ensureContrast({ h: accent.h, s: clamp(accent.s * 0.8, 30, 75), l: clamp(accent.l > 50 ? accent.l : 100 - accent.l, 50, 70) }, darkBg, false)
-    : { h: (h + 30) % 360, s: clamp(s * 0.7, 20, 50), l: 55 };
+  const dAccent = withAA(
+    accent
+      ? { h: accent.h, s: clamp(accent.s * 0.85, 25, 80), l: clamp(accent.l > 50 ? accent.l : 100 - accent.l, 50, 72) }
+      : { h: (h + 30) % 360, s: clamp(s * 0.55, 18, 55), l: 60 },
+  );
+  const dDestructive = withAA({ h: 0, s: 62, l: 55 });
 
   const dark: Record<string, string> = {
-    '--background': hsl(h, clamp(s * 0.05, 1, 4), 6),
-    '--foreground': hsl(h, clamp(s * 0.05, 1, 4), 98),
-    '--card': hsl(h, clamp(s * 0.05, 1, 4), 7),
-    '--card-foreground': hsl(h, clamp(s * 0.05, 1, 4), 98),
-    '--popover': hsl(h, clamp(s * 0.05, 1, 4), 7),
-    '--popover-foreground': hsl(h, clamp(s * 0.05, 1, 4), 98),
-    '--primary': hsl(darkPrimary.h, darkPrimary.s, darkPrimary.l),
-    '--primary-foreground': hsl(h, clamp(s, 40, 80), 8),
-    '--secondary': hsl(darkSecondary.h, darkSecondary.s, darkSecondary.l),
-    '--secondary-foreground': hsl(h, clamp(s * 0.05, 1, 4), 98),
-    '--muted': hsl(h, clamp(s * 0.06, 1, 6), 14),
-    '--muted-foreground': hsl(h, clamp(s * 0.05, 2, 6), 65),
-    '--accent': hsl(darkAccent.h, darkAccent.s, darkAccent.l),
-    '--accent-foreground': hsl(h, clamp(s * 0.05, 1, 4), 98),
-    '--destructive': hsl(0, 62.8, 30.6),
-    '--destructive-foreground': hsl(0, 0, 98),
-    '--border': hsl(h, clamp(s * 0.06, 2, 6), 16),
-    '--input': hsl(h, clamp(s * 0.06, 2, 6), 16),
-    '--ring': hsl(darkPrimary.h, clamp(darkPrimary.s * 0.6, 15, 30), 83),
+    '--background': hslStr(dBackground),
+    '--foreground': hslStr(foregroundFor(dBackground, { h, s: clamp(s * 0.05, 1, 6), l: 96 })),
+    '--card': hslStr(dCard),
+    '--card-foreground': hslStr(foregroundFor(dCard, { h, s: clamp(s * 0.05, 1, 6), l: 96 })),
+    '--popover': hslStr(dCard),
+    '--popover-foreground': hslStr(foregroundFor(dCard, { h, s: clamp(s * 0.05, 1, 6), l: 96 })),
+    '--primary': hslStr(dPrimary.bg),
+    '--primary-foreground': hslStr(dPrimary.fg),
+    '--secondary': hslStr(dSecondary.bg),
+    '--secondary-foreground': hslStr(dSecondary.fg),
+    '--muted': hslStr(dMuted),
+    '--muted-foreground': hslStr(foregroundFor(dMuted, { h, s: clamp(s * 0.05, 2, 8), l: 68 })),
+    '--accent': hslStr(dAccent.bg),
+    '--accent-foreground': hslStr(dAccent.fg),
+    '--destructive': hslStr(dDestructive.bg),
+    '--destructive-foreground': hslStr(dDestructive.fg),
+    '--border': hsl(dBorder.h, dBorder.s, dBorder.l),
+    '--input': hsl(dBorder.h, dBorder.s, dBorder.l),
+    '--ring': hslStr(dPrimary.bg),
   };
 
   return { light, dark };

@@ -32,7 +32,7 @@ import { GroupedBarChartWidget } from './grouped-bar-chart-widget';
 import { ZoneDiagramWidget } from './zone-diagram-widget';
 import { ImageGalleryWidget } from './image-gallery-widget';
 import { StatListWidget } from './stat-list-widget';
-import { DataTableWidget } from './data-table-widget';
+import { DataTableWidget, ScopedFilterBridge } from './data-table-widget';
 import SubEntityListWidget from './sub-entity-list-widget';
 import SubEntityTimelineWidget from './sub-entity-timeline-widget';
 import { KanbanBoardWidget } from './kanban-board-widget';
@@ -122,10 +122,25 @@ function renderWidget(
       return <StatListWidget {...commonProps} />;
     case 'data-table':
       return <DataTableWidget {...commonProps} />;
-    case 'sub-entity-list':
-      return <SubEntityListWidget config={widgetConfig.config} />;
-    case 'sub-entity-timeline':
-      return <SubEntityTimelineWidget config={widgetConfig.config} />;
+    case 'sub-entity-list': {
+      // Re-escopa o contexto do widget para a entidade FILHA (subEntitySlug), para
+      // que useWidgetFilters() traduza os filtros do pai como `parent.<campo>`
+      // (resolvidos no backend via parentRecordId). Centraliza no resolvedor único.
+      const childSlug = (widgetConfig.config as { subEntitySlug?: string }).subEntitySlug || effectiveSlug;
+      return (
+        <WidgetProvider entitySlug={childSlug} widgetId={widgetId}>
+          <SubEntityListWidget config={widgetConfig.config} />
+        </WidgetProvider>
+      );
+    }
+    case 'sub-entity-timeline': {
+      const childSlug = (widgetConfig.config as { subEntitySlug?: string }).subEntitySlug || effectiveSlug;
+      return (
+        <WidgetProvider entitySlug={childSlug} widgetId={widgetId}>
+          <SubEntityTimelineWidget config={widgetConfig.config} />
+        </WidgetProvider>
+      );
+    }
     case 'kanban-board':
       return <KanbanBoardWidget {...commonProps} entityFields={effectiveFields} />;
     default:
@@ -152,24 +167,57 @@ export function EntityDashboard({ entitySlug, entityFields, templateId, external
     return list as EntityLike[];
   }, [entitiesData]);
 
-  const layouts = useMemo(() => {
-    if (!template?.layout) return {};
+  // Fallback: se a entidade nao tem dashboard template (auto-create falhou, role sem
+  // template, etc.), renderiza uma tabela default com todos os campos em vez de tela
+  // branca. Garante que Registros sempre mostre os dados.
+  const fallbackTemplate = useMemo(() => {
+    const widgetId = 'w-data-table-1';
+    const displayFields = (entityFields || [])
+      .filter((f) => !['sub-entity', 'map', 'json', 'signature'].includes(f.type))
+      .map((f) => f.slug);
     return {
-      lg: template.layout,
-      md: template.layout.map((item) => ({
+      layout: [{ i: widgetId, x: 0, y: 0, w: 12, h: 10, minW: 6, minH: 6 }],
+      widgets: {
+        [widgetId]: {
+          type: 'data-table',
+          title: '',
+          config: {
+            displayFields,
+            pageSize: 25,
+            allowCreate: true,
+            allowEdit: true,
+            allowDelete: true,
+            allowExport: true,
+            allowImport: true,
+            allowBatchSelect: true,
+          },
+        },
+      },
+    } as unknown as NonNullable<typeof template>;
+  }, [entityFields]);
+
+  // Enquanto carrega = null (mostra nada); carregou sem template = fallback.
+  // Usa || (nao ??) porque a API retorna corpo vazio ('') quando nao ha template.
+  const effectiveTemplate = template || (isLoading ? null : fallbackTemplate);
+
+  const layouts = useMemo(() => {
+    if (!effectiveTemplate?.layout) return {};
+    return {
+      lg: effectiveTemplate.layout,
+      md: effectiveTemplate.layout.map((item) => ({
         ...item,
         w: Math.min(item.w, 10),
       })),
-      sm: template.layout.map((item) => ({
+      sm: effectiveTemplate.layout.map((item) => ({
         ...item,
         w: Math.min(item.w, 6),
         x: 0,
       })),
     };
-  }, [template?.layout]);
+  }, [effectiveTemplate?.layout]);
 
   // Tabs support
-  const tabs = (template as { tabs?: { id: string; label: string; icon?: string; widgetIds: string[] }[] })?.tabs;
+  const tabs = (effectiveTemplate as { tabs?: { id: string; label: string; icon?: string; widgetIds: string[] }[] })?.tabs;
   const hasTabs = tabs && tabs.length > 1;
   const [activeTabId, setActiveTabId] = useState<string | undefined>(undefined);
   // Track visited tabs so we can keep them mounted (avoid remount on tab switch)
@@ -189,10 +237,13 @@ export function EntityDashboard({ entitySlug, entityFields, templateId, external
     });
   }, [hasTabs, effectiveTabId]);
 
-  if (isLoading || !template) return null;
+  if (!effectiveTemplate) return null;
 
-  const allWidgetEntries = Object.entries(template.widgets || {});
+  const allWidgetEntries = Object.entries(effectiveTemplate.widgets || {});
   if (allWidgetEntries.length === 0) return null;
+
+  // settings.headerCountEntitySlug: contador do topo reflete outra entidade (opcional)
+  const headerCountSlug = ((effectiveTemplate as { settings?: { headerCountEntitySlug?: string } }).settings?.headerCountEntitySlug) || undefined;
 
   // For non-tabbed dashboards, render all widgets
   if (!hasTabs) {
@@ -205,7 +256,7 @@ export function EntityDashboard({ entitySlug, entityFields, templateId, external
         <div className="mb-4">
 
           <DashboardFilterBar entityFields={entityFields} />
-          <RecordCountBadge />
+          <RecordCountBadge countEntitySlug={headerCountSlug} mainEntitySlug={entitySlug} />
           <ResponsiveGridLayout
             className="layout"
             layouts={layouts}
@@ -250,7 +301,7 @@ export function EntityDashboard({ entitySlug, entityFields, templateId, external
       </WidgetProvider>
       <div className="mb-4">
         <DashboardFilterBar entityFields={entityFields} />
-        <RecordCountBadge />
+        <RecordCountBadge countEntitySlug={headerCountSlug} mainEntitySlug={entitySlug} />
         <div className="flex gap-1 mb-3 border-b">
           {tabs.map((tab) => (
             <button
@@ -275,11 +326,11 @@ export function EntityDashboard({ entitySlug, entityFields, templateId, external
           const tabWidgetEntries = allWidgetEntries.filter(([id]) => tab.widgetIds.includes(id));
           const tabWidgetIds = new Set(tabWidgetEntries.map(([id]) => id));
           const tabLayouts = {
-            lg: (template.layout || []).filter((item) => tabWidgetIds.has(item.i)),
-            md: (template.layout || []).filter((item) => tabWidgetIds.has(item.i)).map((item) => ({
+            lg: (effectiveTemplate.layout || []).filter((item) => tabWidgetIds.has(item.i)),
+            md: (effectiveTemplate.layout || []).filter((item) => tabWidgetIds.has(item.i)).map((item) => ({
               ...item, w: Math.min(item.w, 10),
             })),
-            sm: (template.layout || []).filter((item) => tabWidgetIds.has(item.i)).map((item) => ({
+            sm: (effectiveTemplate.layout || []).filter((item) => tabWidgetIds.has(item.i)).map((item) => ({
               ...item, w: Math.min(item.w, 6), x: 0,
             })),
           };
@@ -405,7 +456,12 @@ function DashboardFilterBridge() {
 }
 
 
-function RecordCountBadge() {
+function RecordCountBadge({ countEntitySlug, mainEntitySlug }: { countEntitySlug?: string; mainEntitySlug?: string } = {}) {
+  // settings.headerCountEntitySlug: o contador do topo pode refletir OUTRA entidade
+  // (ex.: dashboard de Operacoes mostrando a contagem de Veiculos), sem mudar o resto.
+  if (countEntitySlug && countEntitySlug !== mainEntitySlug) {
+    return <ScopedCountBadge countEntitySlug={countEntitySlug} />;
+  }
   const ctx = useEntityDataOptional();
   if (!ctx) return null;
   const total = ctx.allRecords.length;
@@ -418,6 +474,32 @@ function RecordCountBadge() {
         ? <span>{filtered.toLocaleString('pt-BR')} de {total.toLocaleString('pt-BR')} registros</span>
         : <span>{total.toLocaleString('pt-BR')} registros</span>
       }
+    </div>
+  );
+}
+
+// Contador do topo escopado a outra entidade (provider proprio + ponte de filtros).
+function ScopedCountBadge({ countEntitySlug }: { countEntitySlug: string }) {
+  return (
+    <WidgetProvider entitySlug={countEntitySlug} widgetId="__header-count__">
+      <EntityDataProvider entitySlug={countEntitySlug}>
+        <ScopedFilterBridge />
+        <ScopedCountInner />
+      </EntityDataProvider>
+    </WidgetProvider>
+  );
+}
+
+function ScopedCountInner() {
+  const ctx = useEntityDataOptional();
+  if (!ctx) return null;
+  // Para datasets grandes (paginados no servidor) usa totalServerRecords (ja reflete filtros);
+  // para datasets pequenos (carregados client-side) usa a contagem filtrada local.
+  const count = ctx.isFullDataset ? ctx.sortedRecords.length : ctx.totalServerRecords;
+  return (
+    <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-2">
+      <Database className="h-3.5 w-3.5" />
+      <span>{count.toLocaleString('pt-BR')} registros</span>
     </div>
   );
 }

@@ -1,11 +1,11 @@
 import api from '@/lib/api';
-import { User, UserRole, Status, PaginatedResponse } from '@/types';
+import { User, Status, PaginatedResponse } from '@/types';
 
 export interface QueryUsersParams {
   page?: number;
   limit?: number;
   search?: string;
-  role?: UserRole;
+  role?: string;
   status?: Status;
   tenantId?: string;
   cursor?: string;
@@ -17,7 +17,7 @@ export interface CreateUserData {
   email: string;
   password: string;
   name: string;
-  role?: UserRole;
+  role?: string;
   avatar?: string;
 }
 
@@ -25,7 +25,7 @@ export interface UpdateUserData {
   email?: string;
   password?: string;
   name?: string;
-  role?: UserRole;
+  role?: string;
   status?: Status;
   avatar?: string;
 }
@@ -80,7 +80,7 @@ export interface TenantAccessItem {
   grantedAt: string;
   expiresAt: string | null;
   tenant: { id: string; name: string; slug: string };
-  customRole: { id: string; name: string; roleType: string; color?: string };
+  customRole: { id: string; name: string; color?: string };
 }
 
 export interface GrantTenantAccessData {

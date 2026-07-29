@@ -17,7 +17,6 @@ const PLATFORM_ADMIN_CONFIG = {
   name: 'Super Admin',
   description: 'Super administrador com acesso total a plataforma',
   color: '#dc2626',
-  roleType: 'PLATFORM_ADMIN',
   isSystem: true,
   // PLATFORM_ADMIN tem acesso a TODOS os modulos
   modulePermissions: {
@@ -52,6 +51,9 @@ const PLATFORM_ADMIN_CONFIG = {
     notifications: FULL,
     publicLinks: FULL,
     archive: FULL,
+    // Escopo de PLATAFORMA (acima de qualquer tenant). Substitui o bypass por
+    // roleType: poder de plataforma vira PERMISSAO. "Admin com tudo" tem tudo aqui.
+    platform: { crossTenant: true, impersonateAny: true, manageTenants: true },
   },
   tenantPermissions: { canAccessAllTenants: true },
 };
@@ -89,9 +91,9 @@ async function main() {
       name: PLATFORM_ADMIN_CONFIG.name,
       description: PLATFORM_ADMIN_CONFIG.description,
       color: PLATFORM_ADMIN_CONFIG.color,
-      roleType: 'PLATFORM_ADMIN',
       isSystem: true,
       isDefault: false,
+      rank: 1, // topo (1 = mais poderoso); regra: so age sobre rank estritamente maior
       permissions: [],
       modulePermissions: PLATFORM_ADMIN_CONFIG.modulePermissions,
       tenantPermissions: PLATFORM_ADMIN_CONFIG.tenantPermissions,
@@ -107,16 +109,28 @@ async function main() {
 
   const platformAdmin = await prisma.user.create({
     data: {
-      tenantId: platformTenant.id,
       email: 'superadmin@platform.com',
       password: platformAdminPassword,
       name: 'Super Admin',
-      customRoleId: platformAdminRole.id,
       status: Status.ACTIVE,
     },
   });
 
   console.log('Platform Admin criado:', platformAdmin.email);
+
+  // Identidade global (#10): tenant + cargo vivem SO na membership (primaria).
+  await prisma.userTenantAccess.upsert({
+    where: { userId_tenantId: { userId: platformAdmin.id, tenantId: platformTenant.id } },
+    update: { customRoleId: platformAdminRole.id, status: Status.ACTIVE, isPrimary: true },
+    create: {
+      userId: platformAdmin.id,
+      tenantId: platformTenant.id,
+      customRoleId: platformAdminRole.id,
+      status: Status.ACTIVE,
+      isPrimary: true,
+    },
+  });
+  console.log('Membership home criada para o Platform Admin.');
 
   console.log('\n===================================================');
   console.log('SEED COMPLETO!');

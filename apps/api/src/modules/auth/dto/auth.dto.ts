@@ -86,7 +86,6 @@ export class AuthResponseDto {
     customRole: {
       id: string;
       name: string;
-      roleType: string;
       isSystem: boolean;
     };
     tenantId: string;
@@ -145,4 +144,10 @@ export class ResetPasswordDto {
     message: 'Nova senha deve conter pelo menos uma letra maiuscula, uma minuscula e um numero',
   })
   newPassword: string;
+}
+
+export class ImpersonateDto {
+  @ApiProperty({ example: 'user_123', description: 'ID do usuario a ser impersonado' })
+  @IsString()
+  targetUserId: string;
 }

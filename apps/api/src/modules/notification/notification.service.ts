@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { NotificationGateway, Notification } from './notification.gateway';
 import { PrismaService } from '../../prisma/prisma.service';
+import { hasPlatformAccess } from '../../common/utils/platform-access';
 import { PushService } from '../push/push.service';
 import { NotificationType, Prisma } from '@prisma/client';
 import { v4 as uuidv4 } from 'uuid';
@@ -129,24 +130,22 @@ export class NotificationService {
     recordData?: Record<string, unknown>,
   ): Promise<void> {
     try {
-      const users = await this.prisma.user.findMany({
-        where: { tenantId, status: 'ACTIVE' },
+      // Identidade global (#10): usuarios do tenant + cargo vem das memberships.
+      const memberships = await this.prisma.userTenantAccess.findMany({
+        where: { tenantId, deletedAt: null, status: 'ACTIVE', user: { status: 'ACTIVE' } },
         select: {
-          id: true,
+          userId: true,
           customRoleId: true,
-          customRole: {
-            select: { roleType: true, permissions: true },
-          },
+          customRole: { select: { permissions: true, modulePermissions: true } },
         },
       });
+      const users = memberships.map((m) => ({ id: m.userId, customRoleId: m.customRoleId, customRole: m.customRole }));
 
       // Filtrar usuarios com acesso
       const eligibleUserIds: string[] = [];
       for (const user of users) {
-        const roleType = user.customRole?.roleType;
-
-        // PLATFORM_ADMIN e ADMIN recebem tudo
-        if (roleType === 'PLATFORM_ADMIN' || roleType === 'ADMIN') {
+        // Acesso de plataforma recebe tudo; demais derivam de permissions[]/'*'.
+        if (hasPlatformAccess(user.customRole?.modulePermissions)) {
           eligibleUserIds.push(user.id);
           continue;
         }
@@ -165,7 +164,7 @@ export class NotificationService {
             };
           }>;
           const entityPerm = permissions.find(
-            (p) => p.entitySlug === entitySlug && p.canRead,
+            (p) => (p.entitySlug === entitySlug || p.entitySlug === '*') && p.canRead,
           );
 
           if (!entityPerm) continue;
@@ -355,21 +354,24 @@ export class NotificationService {
     notification: CreateNotificationDto,
   ): Promise<void> {
     try {
-      // Buscar todos os admins do tenant (ADMIN e PLATFORM_ADMIN)
-      const admins = await this.prisma.user.findMany({
+      // Admins do tenant (#10): via membership — ADMIN do tenant OU acesso de plataforma.
+      const adminMemberships = await this.prisma.userTenantAccess.findMany({
         where: {
           tenantId,
+          deletedAt: null,
           status: 'ACTIVE',
+          user: { status: 'ACTIVE' },
           customRole: {
-            roleType: {
-              in: ['ADMIN', 'PLATFORM_ADMIN'],
-            },
+            // "admin do tenant" = permissao (gerir cargos) OU acesso de plataforma.
+            OR: [
+              { modulePermissions: { path: ['roles', 'canUpdate'], equals: true } },
+              { modulePermissions: { path: ['platform', 'crossTenant'], equals: true } },
+            ],
           },
         },
-        select: {
-          id: true,
-        },
+        select: { userId: true },
       });
+      const admins = adminMemberships.map((m) => ({ id: m.userId }));
 
       if (admins.length === 0) {
         this.logger.warn(`Nenhum admin encontrado no tenant ${tenantId}`);

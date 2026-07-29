@@ -15,7 +15,6 @@ export interface CreateCustomRoleData {
   name: string;
   description?: string;
   color?: string;
-  roleType?: string;
   isSystem?: boolean;
   permissions: EntityPermission[];
   modulePermissions?: ModulePermissions;
@@ -28,7 +27,6 @@ export interface UpdateCustomRoleData {
   name?: string;
   description?: string;
   color?: string;
-  roleType?: string;
   permissions?: EntityPermission[];
   modulePermissions?: ModulePermissions;
   tenantPermissions?: TenantPermissions;

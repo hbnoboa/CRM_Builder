@@ -1,13 +1,16 @@
+import { ServiceScope } from '../../common/service-scope/service-scope.decorator';
 import { Controller, Get, Post, Delete, Param, Query, UseGuards, NotFoundException, BadRequestException } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { InjectQueue } from '@nestjs/bull';
 import { Queue } from 'bull';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { ModulePermissionGuard } from '../../common/guards/module-permission.guard';
+import { hasPlatformAccess } from '../../common/utils/platform-access';
 import { RequireModulePermission } from '../../common/decorators/module-permission.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { CurrentUser as CurrentUserType } from '../../common/types';
 
+@ServiceScope('admin')
 @Controller('automation-queue')
 @UseGuards(JwtAuthGuard, ModulePermissionGuard)
 @ApiTags('Automation Queue')
@@ -230,9 +233,9 @@ export class AutomationQueueController {
   @RequireModulePermission('automations', 'canDelete')
   @ApiOperation({ summary: 'Limpar TODOS os jobs (CUIDADO!)' })
   async clearQueue(@CurrentUser() user: CurrentUserType) {
-    // Apenas PLATFORM_ADMIN pode limpar tudo
-    if (user.customRole.roleType !== 'PLATFORM_ADMIN') {
-      throw new BadRequestException('Apenas PLATFORM_ADMIN pode limpar a fila completamente');
+    // Apenas acesso de plataforma pode limpar tudo
+    if (!hasPlatformAccess(user.customRole?.modulePermissions)) {
+      throw new BadRequestException('Apenas acesso de plataforma pode limpar a fila completamente');
     }
 
     await this.queue.empty();

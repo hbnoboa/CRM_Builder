@@ -1,5 +1,4 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { Cron } from '@nestjs/schedule';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { UploadService } from '../upload/upload.service';
@@ -17,20 +16,12 @@ export class ArchiveService {
   ) {}
 
   /**
-   * Runs at 03:00 on the 1st of every month.
-   * Archives EntityData older than 3 months:
-   *   1. Copy to ArchivedEntityData (lightweight table)
-   *   2. Backup JSON to GCS
+   * Engine de arquivamento de EntityData (hot -> warm + backup GCS).
+   * Agendamento centralizado em DataLifecycleService; aqui fica só a lógica,
+   * reutilizável por cron, trigger manual e testes.
+   *   1. Copy to ArchivedEntityData (lightweight table, fonte de leitura)
+   *   2. Backup JSON to GCS (cold, apenas disaster-recovery)
    *   3. Delete from EntityData (frees PowerSync indexes)
-   */
-  @Cron('0 3 1 * *')
-  async handleMonthlyArchival() {
-    this.logger.log('Starting monthly EntityData archival...');
-    await this.runArchival();
-  }
-
-  /**
-   * Manual trigger for archival (called from controller).
    */
   async runArchival(): Promise<{
     totalArchived: number;

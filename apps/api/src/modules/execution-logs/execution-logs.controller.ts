@@ -1,3 +1,4 @@
+import { ServiceScope } from '../../common/service-scope/service-scope.decorator';
 import { Controller, Get, Query, Param, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
 import { ExecutionLogsService } from './execution-logs.service';
@@ -8,6 +9,7 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
 
 @ApiTags('Execution Logs')
 @ApiBearerAuth()
+@ServiceScope('admin')
 @Controller('execution-logs')
 @UseGuards(JwtAuthGuard, ModulePermissionGuard)
 export class ExecutionLogsController {

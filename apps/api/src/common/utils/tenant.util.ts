@@ -1,15 +1,16 @@
-import { RoleType } from '@crm-builder/shared';
+import { hasPlatformAccess } from './platform-access';
 
 /**
- * Retorna o tenantId efetivo. PLATFORM_ADMIN pode acessar qualquer tenant.
- * Para outros roles, sempre retorna o tenantId do usuario autenticado.
+ * Retorna o tenantId efetivo. Quem tem acesso de PLATAFORMA (permissao
+ * platform.crossTenant) pode acessar qualquer tenant solicitado.
+ * Para os demais, sempre retorna o tenantId do usuario autenticado.
+ * (Antes dependia de roleType === 'PLATFORM_ADMIN'.)
  */
 export function getEffectiveTenantId(
-  currentUser: { tenantId: string; customRole?: { roleType: string } },
+  currentUser: { tenantId: string; customRole?: { modulePermissions?: unknown } },
   requestedTenantId?: string,
 ): string {
-  const roleType = currentUser.customRole?.roleType as RoleType | undefined;
-  if (roleType === 'PLATFORM_ADMIN' && requestedTenantId) {
+  if (hasPlatformAccess(currentUser.customRole?.modulePermissions) && requestedTenantId) {
     return requestedTenantId;
   }
   return currentUser.tenantId;

@@ -49,6 +49,10 @@ export class CreateDashboardTemplateDto {
   @ApiPropertyOptional()
   @IsOptional()
   tabs?: unknown;
+
+  @ApiPropertyOptional({ description: 'Preferencias do dashboard (ex.: headerCountEntitySlug)' })
+  @IsOptional()
+  settings?: unknown;
 }
 
 export class UpdateDashboardTemplateDto {
@@ -97,4 +101,8 @@ export class UpdateDashboardTemplateDto {
   @ApiPropertyOptional()
   @IsOptional()
   tabs?: unknown;
+
+  @ApiPropertyOptional({ description: 'Preferencias do dashboard (ex.: headerCountEntitySlug)' })
+  @IsOptional()
+  settings?: unknown;
 }

@@ -1,6 +1,8 @@
 import { Module } from '@nestjs/common';
+import { APP_GUARD } from '@nestjs/core';
 import { ConfigModule } from '@nestjs/config';
 import { ThrottlerModule } from '@nestjs/throttler';
+import { ServiceScopeGuard } from './common/service-scope/service-scope.guard';
 import { I18nModule, QueryResolver, HeaderResolver, AcceptLanguageResolver } from 'nestjs-i18n';
 import * as path from 'path';
 import { PrismaModule } from './prisma/prisma.module';
@@ -20,6 +22,7 @@ import { PushModule } from './modules/push/push.module';
 import { PdfModule } from './modules/pdf/pdf.module';
 import { AuditModule } from './modules/audit/audit.module';
 import { ArchiveModule } from './modules/archive/archive.module';
+import { DataLifecycleModule } from './modules/data-lifecycle/data-lifecycle.module';
 import { WebhookModule } from './modules/webhook/webhook.module';
 import { EmailTemplateModule } from './modules/email-template/email-template.module';
 import { ActionChainModule } from './modules/action-chain/action-chain.module';
@@ -30,6 +33,7 @@ import { EntityAutomationModule } from './modules/entity-automation/entity-autom
 import { EntityFieldRuleModule } from './modules/entity-field-rule/entity-field-rule.module';
 import { DashboardTemplateModule } from './modules/dashboard-template/dashboard-template.module';
 import { PublicLinkModule } from './modules/public-link/public-link.module';
+import { ChatModule } from './modules/chat/chat.module';
 
 @Module({
   imports: [
@@ -83,6 +87,7 @@ import { PublicLinkModule } from './modules/public-link/public-link.module';
     PdfModule,
     AuditModule,
     ArchiveModule,
+    DataLifecycleModule,
 
     // Automacoes (Sprint 3)
     WebhookModule,
@@ -103,6 +108,12 @@ import { PublicLinkModule } from './modules/public-link/public-link.module';
 
     // Public Links (formularios externos)
     PublicLinkModule,
+    ChatModule,
+  ],
+  providers: [
+    // Separacao admin x user (#18): guard global de ambiente. Roda antes dos
+    // guards de rota, entao rotas fora do scope respondem 404.
+    { provide: APP_GUARD, useClass: ServiceScopeGuard },
   ],
 })
 export class AppModule {}

@@ -15,6 +15,7 @@ import {
   Zap,
   Globe,
   ListChecks,
+  LayoutDashboard,
 } from 'lucide-react';
 import {
   Dialog,
@@ -64,6 +65,7 @@ interface SelectedItems {
   automations: Set<string>;
   webhooks: Set<string>;
   fieldRules: Set<string>;
+  dashboardTemplates: Set<string>;
 }
 
 const emptySelection = (): SelectedItems => ({
@@ -73,6 +75,7 @@ const emptySelection = (): SelectedItems => ({
   automations: new Set(),
   webhooks: new Set(),
   fieldRules: new Set(),
+  dashboardTemplates: new Set(),
 });
 
 export function CopyTenantDataDialog({
@@ -106,7 +109,8 @@ export function CopyTenantDataDialog({
       selected.pdfTemplates.size +
       selected.automations.size +
       selected.webhooks.size +
-      selected.fieldRules.size,
+      selected.fieldRules.size +
+      selected.dashboardTemplates.size,
     [selected],
   );
 
@@ -146,6 +150,7 @@ export function CopyTenantDataDialog({
       automations?: string[];
       webhooks?: string[];
       fieldRules?: string[];
+      dashboardTemplates?: string[];
     } = {};
 
     if (selected.roles.size > 0) modules.roles = [...selected.roles];
@@ -159,6 +164,7 @@ export function CopyTenantDataDialog({
     if (selected.automations.size > 0) modules.automations = [...selected.automations];
     if (selected.webhooks.size > 0) modules.webhooks = [...selected.webhooks];
     if (selected.fieldRules.size > 0) modules.fieldRules = [...selected.fieldRules];
+    if (selected.dashboardTemplates.size > 0) modules.dashboardTemplates = Array.from(selected.dashboardTemplates);
 
     try {
       const res = await copyMutation.mutateAsync({
@@ -286,6 +292,25 @@ export function CopyTenantDataDialog({
     });
   };
 
+  const toggleDashboard = (id: string) => {
+    setSelected((prev) => {
+      const next = new Set(prev.dashboardTemplates);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return { ...prev, dashboardTemplates: next };
+    });
+  };
+
+  const toggleAllDashboards = (data: CopyableData) => {
+    setSelected((prev) => {
+      const allSelected = data.dashboardTemplates.every((d) => prev.dashboardTemplates.has(d.id));
+      return {
+        ...prev,
+        dashboardTemplates: allSelected ? new Set() : new Set(data.dashboardTemplates.map((d) => d.id)),
+      };
+    });
+  };
+
   const togglePdfTemplate = (id: string) => {
     setSelected((prev) => {
       const next = new Set(prev.pdfTemplates);
@@ -390,7 +415,7 @@ export function CopyTenantDataDialog({
                 <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
               </div>
             ) : copyableData ? (
-              <Accordion type="multiple" defaultValue={['roles', 'entities', 'pdfTemplates', 'automations', 'webhooks', 'fieldRules']} className="w-full">
+              <Accordion type="multiple" defaultValue={['roles', 'entities', 'pdfTemplates', 'automations', 'webhooks', 'fieldRules', 'dashboardTemplates']} className="w-full">
                 {/* Roles */}
                 {copyableData.roles.length > 0 && (
                   <AccordionItem value="roles">
@@ -421,7 +446,6 @@ export function CopyTenantDataDialog({
                               style={{ backgroundColor: role.color || '#6366f1' }}
                             />
                             <span className="flex-1">{role.name}</span>
-                            <span className="text-xs text-muted-foreground">{role.roleType}</span>
                           </label>
                         ))}
                       </div>
@@ -583,6 +607,42 @@ export function CopyTenantDataDialog({
                   </AccordionItem>
                 )}
 
+                {/* Dashboards */}
+                {copyableData.dashboardTemplates.length > 0 && (
+                  <AccordionItem value="dashboardTemplates">
+                    <AccordionTrigger className="hover:no-underline">
+                      <div className="flex items-center gap-2">
+                        <LayoutDashboard className="h-4 w-4" />
+                        <span>Dashboards</span>
+                        <Badge variant="secondary">{copyableData.dashboardTemplates.length}</Badge>
+                      </div>
+                    </AccordionTrigger>
+                    <AccordionContent>
+                      <div className="space-y-2 pl-2">
+                        <label className="flex items-center gap-2 text-sm font-medium cursor-pointer">
+                          <Checkbox
+                            checked={copyableData.dashboardTemplates.every((d) => selected.dashboardTemplates.has(d.id))}
+                            onCheckedChange={() => toggleAllDashboards(copyableData)}
+                          />
+                          {t('copyData.selectAll')}
+                        </label>
+                        {copyableData.dashboardTemplates.map((dash) => (
+                          <label key={dash.id} className="flex items-center gap-2 text-sm cursor-pointer pl-4">
+                            <Checkbox
+                              checked={selected.dashboardTemplates.has(dash.id)}
+                              onCheckedChange={() => toggleDashboard(dash.id)}
+                            />
+                            <span className="flex-1">{dash.name}</span>
+                            {dash.entitySlug && (
+                              <span className="text-xs text-muted-foreground">{dash.entitySlug}</span>
+                            )}
+                          </label>
+                        ))}
+                      </div>
+                    </AccordionContent>
+                  </AccordionItem>
+                )}
+
                 {/* PDF Templates */}
                 {copyableData.pdfTemplates.length > 0 && (
                   <AccordionItem value="pdfTemplates">
@@ -670,6 +730,12 @@ export function CopyTenantDataDialog({
                 <div className="bg-muted rounded-lg p-3 text-center">
                   <div className="text-lg font-bold">{result.copied.pdfTemplates}</div>
                   <div className="text-xs text-muted-foreground">{t('copyData.modules.pdfTemplates')}</div>
+                </div>
+              )}
+              {result.copied.dashboardTemplates > 0 && (
+                <div className="bg-muted rounded-lg p-3 text-center">
+                  <div className="text-lg font-bold">{result.copied.dashboardTemplates}</div>
+                  <div className="text-xs text-muted-foreground">Dashboards</div>
                 </div>
               )}
             </div>

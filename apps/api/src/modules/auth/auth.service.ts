@@ -1,21 +1,43 @@
 import { Injectable, UnauthorizedException, ConflictException, BadRequestException, Logger } from '@nestjs/common';
+import { randomUUID } from 'crypto';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcryptjs';
 import { PrismaService } from '../../prisma/prisma.service';
 import { LoginDto, RegisterDto, RefreshTokenDto, UpdateProfileDto, ChangePasswordDto, ForgotPasswordDto, ResetPasswordDto } from './dto/auth.dto';
 import { Status } from '@prisma/client';
-import { RoleType } from '../../common/decorators/roles.decorator';
+import { hasPlatformAccess, canImpersonateAny } from '../../common/utils/platform-access';
+import { assertCanActOnRank, assertNotImpersonating } from '../../common/utils/permission-governance';
+import { CurrentUser } from '../../common/types';
 
 export interface UserForTokenGeneration {
   id: string;
   email: string;
   tenantId: string;
   customRoleId: string;
-  customRole: {
-    roleType: string;
-  };
 }
+
+// Identidade global (#10): tenant + cargo vem SEMPRE da Membership (UserTenantAccess).
+const FULL_ROLE_SELECT = {
+  id: true,
+  name: true,
+  description: true,
+  color: true,
+  isSystem: true,
+  rank: true,
+  permissions: true,
+  modulePermissions: true,
+  tenantPermissions: true,
+  isDefault: true,
+} as const;
+
+const TENANT_SELECT = {
+  id: true,
+  name: true,
+  slug: true,
+  status: true,
+  settings: true,
+} as const;
 
 @Injectable()
 export class AuthService {
@@ -27,23 +49,49 @@ export class AuthService {
     private configService: ConfigService,
   ) {}
 
-  async register(dto: RegisterDto) {
-    // Verificar se email ja existe no tenant
-    const existingUser = await this.prisma.user.findFirst({
+  // ── Resolucao de Membership (fonte da verdade de tenant + cargo) ────────────
+  /** Membership "home": primaria (isPrimary) ou, na falta, a mais antiga ativa. */
+  private async loadPrimaryMembership(userId: string) {
+    const memberships = await this.prisma.userTenantAccess.findMany({
       where: {
-        email: dto.email,
-        tenantId: dto.tenantId,
+        userId,
+        status: 'ACTIVE',
+        deletedAt: null,
+        OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
+      },
+      include: {
+        tenant: { select: TENANT_SELECT },
+        customRole: { select: FULL_ROLE_SELECT },
+      },
+      orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }],
+    });
+    return memberships[0] ?? null;
+  }
+
+  /** Membership de (usuario, tenant) especifico. */
+  private async loadMembership(userId: string, tenantId: string) {
+    return this.prisma.userTenantAccess.findUnique({
+      where: { userId_tenantId: { userId, tenantId } },
+      include: {
+        tenant: { select: TENANT_SELECT },
+        customRole: { select: FULL_ROLE_SELECT },
       },
     });
+  }
 
+  private isMembershipUsable(m: { status: string; expiresAt: Date | null } | null): boolean {
+    return !!m && m.status === 'ACTIVE' && (!m.expiresAt || m.expiresAt > new Date());
+  }
+
+  async register(dto: RegisterDto) {
+    // Email agora e identidade GLOBAL.
+    const existingUser = await this.prisma.user.findUnique({ where: { email: dto.email } });
     if (existingUser) {
       throw new ConflictException('Email ja esta em uso');
     }
 
-    // Buscar role default do tenant ou role especificada
+    // Resolver cargo (do tenant) — validado contra o tenant informado.
     let customRoleId = dto.customRoleId;
-
-    // Validar que customRoleId pertence ao tenant
     if (customRoleId) {
       const roleExists = await this.prisma.customRole.findFirst({
         where: { id: customRoleId, tenantId: dto.tenantId },
@@ -53,131 +101,83 @@ export class AuthService {
         throw new BadRequestException('Role nao encontrada para este tenant');
       }
     }
-
     if (!customRoleId) {
-      // Buscar role default (USER) do tenant
       const defaultRole = await this.prisma.customRole.findFirst({
-        where: {
-          tenantId: dto.tenantId,
-          isDefault: true,
-        },
+        where: { tenantId: dto.tenantId, isDefault: true },
         select: { id: true },
       });
-
       if (!defaultRole) {
         throw new BadRequestException('Tenant sem role default configurada');
       }
-
       customRoleId = defaultRole.id;
     }
 
-    // Hash da senha
     const hashedPassword = await bcrypt.hash(dto.password, 12);
-
-    // Normalizar CPF/phone: armazenar apenas digitos
     const cpf = dto.cpf ? dto.cpf.replace(/\D/g, '') || null : null;
     const cnpj = dto.cnpj ? dto.cnpj.replace(/\D/g, '') || null : null;
     const phone = dto.phone ? dto.phone.replace(/\D/g, '') || null : null;
 
-    // Criar usuario
+    // Cria a identidade (sem tenant/cargo) + a membership home (primaria).
     const user = await this.prisma.user.create({
-      data: {
-        email: dto.email,
-        password: hashedPassword,
-        name: dto.name,
-        tenantId: dto.tenantId,
-        customRoleId: customRoleId,
-        status: Status.ACTIVE,
-        cpf,
-        cnpj,
-        phone,
-      },
-      select: {
-        id: true,
-        email: true,
-        name: true,
-        tenantId: true,
-        customRoleId: true,
-        createdAt: true,
-      },
+      data: { email: dto.email, password: hashedPassword, name: dto.name, status: Status.ACTIVE, cpf, cnpj, phone },
+      select: { id: true, email: true, name: true, createdAt: true },
+    });
+
+    await this.prisma.userTenantAccess.upsert({
+      where: { userId_tenantId: { userId: user.id, tenantId: dto.tenantId } },
+      update: { customRoleId, status: Status.ACTIVE, deletedAt: null, isPrimary: true },
+      create: { userId: user.id, tenantId: dto.tenantId, customRoleId, status: Status.ACTIVE, isPrimary: true },
     });
 
     this.logger.log(`Usuario registrado: ${user.email}`);
-    return user;
+    return { ...user, tenantId: dto.tenantId, customRoleId };
   }
 
   async login(dto: LoginDto) {
-    // Buscar usuario
     const user = await this.prisma.user.findFirst({
-      where: {
-        email: dto.email,
-        status: Status.ACTIVE,
-      },
-      include: {
-        tenant: {
-          select: {
-            id: true,
-            name: true,
-            slug: true,
-            status: true,
-            settings: true,
-          },
-        },
-        customRole: {
-          select: {
-            id: true,
-            name: true,
-            description: true,
-            color: true,
-            roleType: true,
-            isSystem: true,
-            permissions: true,
-            modulePermissions: true,
-            tenantPermissions: true,
-            isDefault: true,
-          },
-        },
-      },
+      where: { email: dto.email, status: Status.ACTIVE },
+      select: { id: true, email: true, name: true, avatar: true, password: true },
     });
 
     if (!user) {
       throw new UnauthorizedException('Credenciais invalidas');
     }
 
-    // Verificar se usuario tem customRole
-    if (!user.customRole || !user.customRoleId) {
-      throw new UnauthorizedException('Usuario sem role definida');
+    // Tenant + cargo vem da membership home.
+    const membership = await this.loadPrimaryMembership(user.id);
+    if (!membership) {
+      throw new UnauthorizedException('Usuario sem acesso a nenhum tenant');
     }
-
-    // Verificar se tenant esta ativo
-    if (user.tenant.status !== Status.ACTIVE) {
+    if (membership.tenant.status !== Status.ACTIVE) {
       throw new UnauthorizedException('Tenant suspenso ou inativo');
     }
 
-    // Verificar senha
     const isPasswordValid = await bcrypt.compare(dto.password, user.password);
     if (!isPasswordValid) {
       throw new UnauthorizedException('Credenciais invalidas');
     }
 
-    // Gerar tokens (com TTL estendido se rememberMe)
-    const tokens = await this.generateTokens(user, dto.rememberMe);
+    const tokens = await this.generateTokens(
+      {
+        id: user.id,
+        email: user.email,
+        tenantId: membership.tenantId,
+        customRoleId: membership.customRoleId,
+      },
+      dto.rememberMe,
+    );
 
-    // Atualizar ultimo login
     await this.prisma.user.update({
       where: { id: user.id },
       data: { lastLoginAt: new Date() },
     });
 
-    // Verificar se usuario tem acesso a outros tenants
+    // Quantos tenants ele alcanca (home incluso). >1 = multi-tenant.
     const accessCount = await this.prisma.userTenantAccess.count({
       where: {
         userId: user.id,
         status: 'ACTIVE',
-        OR: [
-          { expiresAt: null },
-          { expiresAt: { gt: new Date() } },
-        ],
+        OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
       },
     });
 
@@ -189,11 +189,11 @@ export class AuthService {
         email: user.email,
         name: user.name,
         avatar: user.avatar,
-        customRoleId: user.customRoleId,
-        customRole: user.customRole,
-        tenantId: user.tenantId,
-        tenant: user.tenant,
-        hasMultipleTenants: accessCount > 0,
+        customRoleId: membership.customRoleId,
+        customRole: membership.customRole,
+        tenantId: membership.tenantId,
+        tenant: membership.tenant,
+        hasMultipleTenants: accessCount > 1,
       },
       ...tokens,
     };
@@ -201,88 +201,79 @@ export class AuthService {
 
   async refreshToken(dto: RefreshTokenDto) {
     try {
-      // Verificar refresh token
       this.jwtService.verify(dto.refreshToken, {
         secret: this.configService.get<string>('JWT_REFRESH_SECRET'),
       });
 
-      // Buscar e deletar token atomicamente para prevenir reuso
+      // Rotacao de uso unico (como o portal do CLIENTE do segmob): o refresh token e
+      // revogado imediatamente e um novo e emitido. A robustez contra logout vem do
+      // frontend (single-flight unico: interceptor + ensureAuth nunca disparam 2 refresh).
       const storedToken = await this.prisma.$transaction(async (tx) => {
         const token = await tx.refreshToken.findUnique({
           where: { token: dto.refreshToken },
-          include: {
-            user: {
-              include: {
-                tenant: true,
-                customRole: {
-                  select: {
-                    id: true,
-                    roleType: true,
-                  },
-                },
-              },
-            },
-          },
+          include: { user: { select: { id: true, email: true, status: true } } },
         });
 
         if (!token || token.expiresAt < new Date()) {
           throw new UnauthorizedException('Refresh token invalido ou expirado');
         }
 
-        // Deletar token dentro da mesma transacao
-        await tx.refreshToken.delete({
-          where: { id: token.id },
-        });
-
+        await tx.refreshToken.delete({ where: { id: token.id } });
         return token;
       });
 
-      // Decodificar refresh token para preservar contexto (tenant switch + rememberMe)
-      const decoded = this.jwtService.decode(dto.refreshToken) as { tenantId?: string; customRoleId?: string; rememberMe?: boolean } | null;
-      const switchedTenantId = decoded?.tenantId;
-      const wasRememberMe = decoded?.rememberMe ?? false;
-
-      if (switchedTenantId && switchedTenantId !== storedToken.user.tenantId) {
-        // Usuario esta em contexto de tenant trocado - preservar
-        const access = await this.prisma.userTenantAccess.findUnique({
-          where: {
-            userId_tenantId: {
-              userId: storedToken.user.id,
-              tenantId: switchedTenantId,
-            },
-          },
-          include: {
-            customRole: { select: { id: true, roleType: true } },
-          },
-        });
-
-        if (access && access.status === 'ACTIVE' && (!access.expiresAt || access.expiresAt > new Date())) {
-          const tokens = await this.generateTokens({
-            ...storedToken.user,
-            tenantId: switchedTenantId,
-            customRoleId: access.customRoleId,
-            customRole: access.customRole,
-          }, wasRememberMe);
-          return tokens;
-        }
+      if (storedToken.user.status !== Status.ACTIVE) {
+        throw new UnauthorizedException('Usuario inativo');
       }
 
-      // Gerar novos tokens com home tenant
-      const tokens = await this.generateTokens(storedToken.user, wasRememberMe);
+      // Preserva o contexto de tenant trocado + rememberMe do token anterior.
+      const decoded = this.jwtService.decode(dto.refreshToken) as { tenantId?: string; rememberMe?: boolean } | null;
+      const requestedTenantId = decoded?.tenantId;
+      const wasRememberMe = decoded?.rememberMe ?? false;
 
-      return tokens;
+      const ctx = await this.resolveTokenContext(storedToken.user.id, requestedTenantId);
+      if (!ctx) {
+        throw new UnauthorizedException('Usuario sem acesso a nenhum tenant');
+      }
+
+      return this.generateTokens(
+        {
+          id: storedToken.user.id,
+          email: storedToken.user.email,
+          tenantId: ctx.tenantId,
+          customRoleId: ctx.customRoleId,
+        },
+        wasRememberMe,
+      );
     } catch (error) {
       if (error instanceof UnauthorizedException) throw error;
       throw new UnauthorizedException('Refresh token invalido');
     }
   }
 
-  async logout(userId: string) {
-    // Remover todos os refresh tokens do usuario
-    await this.prisma.refreshToken.deleteMany({
-      where: { userId },
-    });
+  /**
+   * Resolve {tenantId, customRoleId, roleType} para um tenant solicitado:
+   * membership do tenant -> senao acesso de plataforma (mantem cargo home) -> senao home.
+   * Espelha a logica do jwt.strategy.
+   */
+  private async resolveTokenContext(userId: string, requestedTenantId?: string) {
+    const primary = await this.loadPrimaryMembership(userId);
+    if (!primary) return null;
 
+    if (requestedTenantId && requestedTenantId !== primary.tenantId) {
+      const m = await this.loadMembership(userId, requestedTenantId);
+      if (this.isMembershipUsable(m)) {
+        return { tenantId: requestedTenantId, customRoleId: m!.customRoleId };
+      }
+      if (hasPlatformAccess(primary.customRole.modulePermissions)) {
+        return { tenantId: requestedTenantId, customRoleId: primary.customRoleId };
+      }
+    }
+    return { tenantId: primary.tenantId, customRoleId: primary.customRoleId };
+  }
+
+  async logout(userId: string) {
+    await this.prisma.refreshToken.deleteMany({ where: { userId } });
     return { message: 'Logout realizado com sucesso' };
   }
 
@@ -295,32 +286,8 @@ export class AuthService {
         name: true,
         avatar: true,
         status: true,
-        tenantId: true,
-        customRoleId: true,
         lastLoginAt: true,
         createdAt: true,
-        tenant: {
-          select: {
-            id: true,
-            name: true,
-            slug: true,
-            settings: true,
-          },
-        },
-        customRole: {
-          select: {
-            id: true,
-            name: true,
-            description: true,
-            color: true,
-            roleType: true,
-            isSystem: true,
-            permissions: true,
-            modulePermissions: true,
-            tenantPermissions: true,
-            isDefault: true,
-          },
-        },
       },
     });
 
@@ -328,53 +295,57 @@ export class AuthService {
       throw new UnauthorizedException('Usuario nao encontrado');
     }
 
-    // Verificar se usuario tem acesso a outros tenants
+    const primary = await this.loadPrimaryMembership(userId);
+    if (!primary) {
+      throw new UnauthorizedException('Usuario sem acesso a nenhum tenant');
+    }
+
     const accessCount = await this.prisma.userTenantAccess.count({
       where: {
         userId,
         status: 'ACTIVE',
-        OR: [
-          { expiresAt: null },
-          { expiresAt: { gt: new Date() } },
-        ],
+        OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
       },
     });
 
-    // Se o JWT tem um tenantId diferente do home, retornar dados do tenant trocado
-    if (jwtTenantId && jwtTenantId !== user.tenantId) {
-      const access = await this.prisma.userTenantAccess.findUnique({
-        where: {
-          userId_tenantId: { userId, tenantId: jwtTenantId },
-        },
-        include: {
-          tenant: {
-            select: { id: true, name: true, slug: true, settings: true },
-          },
-          customRole: {
-            select: {
-              id: true, name: true, description: true, color: true,
-              roleType: true, isSystem: true, permissions: true,
-              modulePermissions: true, tenantPermissions: true, isDefault: true,
-            },
-          },
-        },
-      });
+    const target = jwtTenantId || primary.tenantId;
 
-      if (access && access.status === 'ACTIVE') {
+    // Membership no tenant solicitado.
+    const membership = target === primary.tenantId ? primary : await this.loadMembership(userId, target);
+    if (this.isMembershipUsable(membership)) {
+      return {
+        ...user,
+        tenantId: membership!.tenantId,
+        tenant: membership!.tenant,
+        customRoleId: membership!.customRoleId,
+        customRole: membership!.customRole,
+        hasMultipleTenants: accessCount > 1,
+      };
+    }
+
+    // Acesso de plataforma: honra o tenant solicitado com o cargo home (F1).
+    if (hasPlatformAccess(primary.customRole.modulePermissions)) {
+      const tenant = await this.prisma.tenant.findUnique({ where: { id: target }, select: TENANT_SELECT });
+      if (tenant) {
         return {
           ...user,
-          tenantId: jwtTenantId,
-          tenant: access.tenant,
-          customRoleId: access.customRoleId,
-          customRole: access.customRole,
-          hasMultipleTenants: accessCount > 0,
+          tenantId: target,
+          tenant,
+          customRoleId: primary.customRoleId,
+          customRole: primary.customRole,
+          hasMultipleTenants: accessCount > 1,
         };
       }
     }
 
+    // Fallback: home.
     return {
       ...user,
-      hasMultipleTenants: accessCount > 0,
+      tenantId: primary.tenantId,
+      tenant: primary.tenant,
+      customRoleId: primary.customRoleId,
+      customRole: primary.customRole,
+      hasMultipleTenants: accessCount > 1,
     };
   }
 
@@ -385,14 +356,7 @@ export class AuthService {
         ...(dto.name && { name: dto.name }),
         ...(dto.avatar && { avatar: dto.avatar }),
       },
-      select: {
-        id: true,
-        email: true,
-        name: true,
-        avatar: true,
-        tenantId: true,
-        customRoleId: true,
-      },
+      select: { id: true, email: true, name: true, avatar: true },
     });
 
     this.logger.log(`Perfil atualizado: ${user.email}`);
@@ -425,38 +389,26 @@ export class AuthService {
   }
 
   async forgotPassword(dto: ForgotPasswordDto) {
-    const where: any = { email: dto.email, status: Status.ACTIVE };
-    if (dto.tenantId) {
-      where.tenantId = dto.tenantId;
-    }
-
+    // Email e global -> nao filtra por tenant.
     const user = await this.prisma.user.findFirst({
-      where,
+      where: { email: dto.email, status: Status.ACTIVE },
       select: { id: true, email: true, name: true },
     });
 
-    // Always return success to prevent email enumeration
     if (!user) {
       return { message: 'Se o email existir, voce recebera um link de recuperacao' };
     }
 
-    // Generate reset token (valid for 1 hour)
     const resetToken = require('crypto').randomBytes(32).toString('hex');
     const resetExpires = new Date();
     resetExpires.setHours(resetExpires.getHours() + 1);
 
     await this.prisma.user.update({
       where: { id: user.id },
-      data: {
-        resetToken,
-        resetTokenExpires: resetExpires,
-      },
+      data: { resetToken, resetTokenExpires: resetExpires },
     });
 
-    // TODO: Send email with reset link
-    // In production, integrate with email service
     this.logger.log(`Reset token gerado para: ${user.email}`);
-
     return { message: 'Se o email existir, voce recebera um link de recuperacao' };
   }
 
@@ -477,17 +429,10 @@ export class AuthService {
     const hashedPassword = await bcrypt.hash(dto.newPassword, 12);
     await this.prisma.user.update({
       where: { id: user.id },
-      data: {
-        password: hashedPassword,
-        resetToken: null,
-        resetTokenExpires: null,
-      },
+      data: { password: hashedPassword, resetToken: null, resetTokenExpires: null },
     });
 
-    // Invalidate all refresh tokens
-    await this.prisma.refreshToken.deleteMany({
-      where: { userId: user.id },
-    });
+    await this.prisma.refreshToken.deleteMany({ where: { userId: user.id } });
 
     this.logger.log(`Senha resetada: ${user.email}`);
     return { message: 'Senha redefinida com sucesso' };
@@ -496,207 +441,155 @@ export class AuthService {
   async switchTenant(userId: string, targetTenantId: string) {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
-      include: {
-        tenant: {
-          select: { id: true, name: true, slug: true, status: true, settings: true },
-        },
-        customRole: {
-          select: {
-            id: true, name: true, description: true, color: true,
-            roleType: true, isSystem: true, permissions: true,
-            modulePermissions: true, tenantPermissions: true, isDefault: true,
-          },
-        },
-      },
+      select: { id: true, email: true, name: true, avatar: true, status: true },
     });
-
-    if (!user) {
+    if (!user || user.status !== Status.ACTIVE) {
       throw new UnauthorizedException('Usuario nao encontrado');
     }
 
-    const isPlatformAdmin = user.customRole?.roleType === 'PLATFORM_ADMIN';
+    const primary = await this.loadPrimaryMembership(userId);
+    if (!primary) {
+      throw new UnauthorizedException('Usuario sem acesso a nenhum tenant');
+    }
+    const isPlatformAdmin = hasPlatformAccess(primary.customRole.modulePermissions);
 
-    // Trocar para o home tenant
-    if (targetTenantId === user.tenantId) {
-      const tokens = await this.generateTokens(user);
-      return {
+    const buildResult = (
+      tenantId: string,
+      tenant: unknown,
+      customRoleId: string,
+      customRole: unknown,
+    ) =>
+      this.generateTokens({
+        id: user.id,
+        email: user.email,
+        tenantId,
+        customRoleId,
+      }).then((tokens) => ({
         user: {
           id: user.id,
           email: user.email,
           name: user.name,
           avatar: user.avatar,
-          customRoleId: user.customRoleId,
-          customRole: user.customRole,
-          tenantId: user.tenantId,
-          tenant: user.tenant,
+          customRoleId,
+          customRole,
+          tenantId,
+          tenant,
           hasMultipleTenants: true,
         },
         ...tokens,
-      };
+      }));
+
+    // Home tenant (primaria).
+    if (targetTenantId === primary.tenantId) {
+      return buildResult(primary.tenantId, primary.tenant, primary.customRoleId, primary.customRole);
     }
 
-    // PLATFORM_ADMIN: Validar se tenant existe, mas NAO requer UserTenantAccess
-    if (isPlatformAdmin) {
-      const targetTenant = await this.prisma.tenant.findUnique({
-        where: { id: targetTenantId },
-        select: { id: true, name: true, slug: true, status: true, settings: true },
-      });
-
-      if (!targetTenant) {
-        throw new BadRequestException('Tenant nao encontrado');
-      }
-
-      if (targetTenant.status !== 'ACTIVE') {
+    // Membership no tenant destino?
+    const access = await this.loadMembership(userId, targetTenantId);
+    if (this.isMembershipUsable(access)) {
+      if (access!.tenant.status !== 'ACTIVE') {
         throw new UnauthorizedException('Tenant suspenso ou inativo');
       }
-
-      // PLATFORM_ADMIN mantém sua role (para bypass de permissões)
-      // mas muda o tenantId no JWT (para scope de queries)
-      const tokens = await this.generateTokens({
-        id: user.id,
-        email: user.email,
-        tenantId: targetTenantId,
-        customRoleId: user.customRoleId,
-        customRole: user.customRole,
-      });
-
-      return {
-        user: {
-          id: user.id,
-          email: user.email,
-          name: user.name,
-          avatar: user.avatar,
-          customRoleId: user.customRoleId,
-          customRole: user.customRole,
-          tenantId: targetTenantId,
-          tenant: targetTenant,
-          hasMultipleTenants: true,
-        },
-        ...tokens,
-      };
+      return buildResult(targetTenantId, access!.tenant, access!.customRoleId, access!.customRole);
     }
 
-    // Multi-tenant user: requer UserTenantAccess
-    const access = await this.prisma.userTenantAccess.findUnique({
-      where: {
-        userId_tenantId: { userId, tenantId: targetTenantId },
-      },
-      include: {
-        tenant: {
-          select: { id: true, name: true, slug: true, status: true, settings: true },
-        },
-        customRole: {
-          select: {
-            id: true, name: true, description: true, color: true,
-            roleType: true, isSystem: true, permissions: true,
-            modulePermissions: true, tenantPermissions: true, isDefault: true,
-          },
-        },
-      },
-    });
-
-    if (!access || access.status !== 'ACTIVE') {
-      throw new UnauthorizedException('Sem acesso a este tenant');
+    // Sem membership: so com acesso de plataforma (cross-tenant), mantendo o cargo home.
+    if (isPlatformAdmin) {
+      const targetTenant = await this.prisma.tenant.findUnique({ where: { id: targetTenantId }, select: TENANT_SELECT });
+      if (!targetTenant) throw new BadRequestException('Tenant nao encontrado');
+      if (targetTenant.status !== 'ACTIVE') throw new UnauthorizedException('Tenant suspenso ou inativo');
+      return buildResult(targetTenantId, targetTenant, primary.customRoleId, primary.customRole);
     }
 
-    if (access.expiresAt && access.expiresAt < new Date()) {
-      throw new UnauthorizedException('Acesso ao tenant expirado');
-    }
-
-    if (access.tenant.status !== 'ACTIVE') {
-      throw new UnauthorizedException('Tenant suspenso ou inativo');
-    }
-
-    // Gerar tokens com o tenant destino
-    const tokens = await this.generateTokens({
-      id: user.id,
-      email: user.email,
-      tenantId: targetTenantId,
-      customRoleId: access.customRoleId,
-      customRole: access.customRole,
-    });
-
-    return {
-      user: {
-        id: user.id,
-        email: user.email,
-        name: user.name,
-        avatar: user.avatar,
-        customRoleId: access.customRoleId,
-        customRole: access.customRole,
-        tenantId: targetTenantId,
-        tenant: access.tenant,
-        hasMultipleTenants: true,
-      },
-      ...tokens,
-    };
+    throw new UnauthorizedException('Sem acesso a este tenant');
   }
 
   async getAccessibleTenants(userId: string) {
-    const user = await this.prisma.user.findUnique({
-      where: { id: userId },
-      select: {
-        tenantId: true,
-        customRoleId: true,
-        tenant: {
-          select: { id: true, name: true, slug: true, logo: true },
-        },
-        customRole: {
-          select: { id: true, name: true, roleType: true },
-        },
-      },
-    });
-
-    if (!user) {
-      throw new UnauthorizedException('Usuario nao encontrado');
-    }
-
     const accessList = await this.prisma.userTenantAccess.findMany({
       where: {
         userId,
         status: 'ACTIVE',
-        OR: [
-          { expiresAt: null },
-          { expiresAt: { gt: new Date() } },
-        ],
+        OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
       },
       include: {
-        tenant: {
-          select: { id: true, name: true, slug: true, logo: true },
-        },
-        customRole: {
-          select: { id: true, name: true, roleType: true },
-        },
+        tenant: { select: { id: true, name: true, slug: true, logo: true } },
+        customRole: { select: { id: true, name: true } },
       },
-      orderBy: { tenant: { name: 'asc' } },
+      orderBy: [{ isPrimary: 'desc' }, { tenant: { name: 'asc' } }],
     });
 
-    return [
-      {
-        id: user.tenant.id,
-        name: user.tenant.name,
-        slug: user.tenant.slug,
-        logo: user.tenant.logo,
-        isHome: true,
-        customRole: {
-          id: user.customRole.id,
-          name: user.customRole.name,
-          roleType: user.customRole.roleType,
-        },
+    return accessList.map((a) => ({
+      id: a.tenant.id,
+      name: a.tenant.name,
+      slug: a.tenant.slug,
+      logo: a.tenant.logo,
+      isHome: a.isPrimary,
+      customRole: {
+        id: a.customRole.id,
+        name: a.customRole.name,
       },
-      ...accessList.map((a) => ({
-        id: a.tenant.id,
-        name: a.tenant.name,
-        slug: a.tenant.slug,
-        logo: a.tenant.logo,
-        isHome: false,
-        customRole: {
-          id: a.customRole.id,
-          name: a.customRole.name,
-          roleType: a.customRole.roleType,
-        },
-      })),
-    ];
+    }));
+  }
+
+  /**
+   * Impersonacao: o ator assume a identidade de um usuario-alvo.
+   * Requer permissao platform.impersonateAny. Nao pode impersonar rank igual/menor.
+   * O token carrega impersonatedBy para auditoria; "parar" e client-side (restaura backup).
+   */
+  async impersonate(currentUser: CurrentUser, targetUserId: string) {
+    assertNotImpersonating(currentUser, 'impersonar'); // sem impersonacao aninhada
+    if (!canImpersonateAny(currentUser.customRole?.modulePermissions)) {
+      throw new UnauthorizedException('Sem permissao para impersonar (platform.impersonateAny)');
+    }
+
+    const target = await this.prisma.user.findFirst({
+      where: { id: targetUserId, status: Status.ACTIVE, deletedAt: null },
+      select: { id: true, email: true, name: true, avatar: true },
+    });
+    if (!target) {
+      throw new UnauthorizedException('Usuario alvo nao encontrado');
+    }
+
+    const targetMembership = await this.loadPrimaryMembership(target.id);
+    if (!targetMembership) {
+      throw new UnauthorizedException('Usuario alvo sem acesso a nenhum tenant');
+    }
+
+    // Rank rule: nao se impersona quem tem rank igual ou superior (intocavel).
+    assertCanActOnRank(
+      currentUser.customRole?.modulePermissions,
+      currentUser.customRole?.rank ?? 999999,
+      targetMembership.customRole.rank ?? 0,
+    );
+
+    const impersonatedBy = { id: currentUser.id, name: currentUser.name };
+    const tokens = await this.generateTokens(
+      {
+        id: target.id,
+        email: target.email,
+        tenantId: targetMembership.tenantId,
+        customRoleId: targetMembership.customRoleId,
+      },
+      false,
+      impersonatedBy,
+    );
+
+    this.logger.log(`Impersonate: ${currentUser.email} -> ${target.email}`);
+
+    return {
+      user: {
+        id: target.id,
+        email: target.email,
+        name: target.name,
+        avatar: target.avatar,
+        tenantId: targetMembership.tenantId,
+        tenant: targetMembership.tenant,
+        customRoleId: targetMembership.customRoleId,
+        customRole: targetMembership.customRole,
+      },
+      impersonatedBy,
+      ...tokens,
+    };
   }
 
   /**
@@ -706,31 +599,34 @@ export class AuthService {
     return this.generateTokens(user, rememberMe);
   }
 
-  private async generateTokens(user: UserForTokenGeneration, rememberMe = false) {
+  private async generateTokens(
+    user: UserForTokenGeneration,
+    rememberMe = false,
+    impersonatedBy?: { id: string; name: string },
+  ) {
     const payload = {
       sub: user.id,
       tenantId: user.tenantId,
       customRoleId: user.customRoleId,
-      roleId: user.customRoleId, // roleId para PLATFORM_ADMIN JWT validation
-      roleType: user.customRole.roleType as RoleType,
+      roleId: user.customRoleId,
+      ...(impersonatedBy ? { impersonatedBy } : {}),
     };
 
-    // Access Token (duracao configuravel via JWT_EXPIRATION)
     const accessToken = this.jwtService.sign(payload);
 
-    // Refresh Token TTL: 30 dias se rememberMe, 7 dias padrao
-    const refreshDays = rememberMe ? 30 : 7;
+    // Modelo CLIENTE do segmob: refresh sempre 30 dias (independe de rememberMe).
+    const refreshDays = 30;
     const refreshExpiration = new Date();
     refreshExpiration.setDate(refreshExpiration.getDate() + refreshDays);
 
-    // Refresh Token (longa duracao) - inclui rememberMe para preservar no refresh
-    const refreshPayload = { ...payload, rememberMe };
+    // jti unico (como o cliente do segmob) garante que cada refresh token e distinto —
+    // sem ele, dois tokens gerados no mesmo segundo ficam identicos e a rotacao/reuse falha.
+    const refreshPayload = { ...payload, rememberMe, jti: randomUUID() };
     const refreshToken = this.jwtService.sign(refreshPayload, {
       secret: this.configService.get<string>('JWT_REFRESH_SECRET'),
-      expiresIn: rememberMe ? '30d' : (this.configService.get<string>('JWT_REFRESH_EXPIRATION') || '7d'),
+      expiresIn: this.configService.get<string>('JWT_REFRESH_EXPIRATION') || '30d',
     });
 
-    // Salvar refresh token no banco
     await this.prisma.refreshToken.create({
       data: {
         userId: user.id,
@@ -742,7 +638,7 @@ export class AuthService {
     return {
       accessToken,
       refreshToken,
-      expiresIn: this.configService.get<string>('JWT_EXPIRATION') || '8h',
+      expiresIn: this.configService.get<string>('JWT_EXPIRATION') || '1h',
     };
   }
 }

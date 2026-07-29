@@ -11,10 +11,11 @@ import {
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiResponse } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { AuthService } from './auth.service';
-import { LoginDto, RegisterDto, RefreshTokenDto, UpdateProfileDto, ChangePasswordDto, ForgotPasswordDto, ResetPasswordDto } from './dto/auth.dto';
+import { LoginDto, RegisterDto, RefreshTokenDto, UpdateProfileDto, ChangePasswordDto, ForgotPasswordDto, ResetPasswordDto, ImpersonateDto } from './dto/auth.dto';
 import { SwitchTenantDto } from './dto/switch-tenant.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import { CurrentUser as CurrentUserType } from '../../common/types';
 
 @ApiTags('Auth')
 @Controller('auth')
@@ -113,6 +114,20 @@ export class AuthController {
     @Body() dto: SwitchTenantDto,
   ) {
     return this.authService.switchTenant(userId, dto.tenantId);
+  }
+
+  @Post('impersonate')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Impersonar um usuario (requer platform.impersonateAny)' })
+  @ApiResponse({ status: 200, description: 'Tokens da sessao de impersonacao' })
+  @ApiResponse({ status: 401, description: 'Sem permissao de impersonacao' })
+  async impersonate(
+    @CurrentUser() currentUser: CurrentUserType,
+    @Body() dto: ImpersonateDto,
+  ) {
+    return this.authService.impersonate(currentUser, dto.targetUserId);
   }
 
   @Get('accessible-tenants')

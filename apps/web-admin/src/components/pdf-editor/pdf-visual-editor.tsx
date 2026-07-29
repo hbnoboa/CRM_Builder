@@ -69,7 +69,9 @@ export function PdfVisualEditor({ template }: PdfVisualEditorProps) {
   const [hasChanges, setHasChanges] = useState(false);
 
   const [selected, setSelected] = useState<SelectedZone>(null);
-  const [showPreview, setShowPreview] = useState(false);
+  // WYSIWYG: o PDF real (render do backend) fica sempre visível por padrão, como
+  // fonte da verdade ao lado do canvas de edição. O canvas é só p/ posicionar/selecionar.
+  const [showPreview, setShowPreview] = useState(true);
   const [elementPickerOpen, setElementPickerOpen] = useState(false);
   const [computedFieldsOpen, setComputedFieldsOpen] = useState(false);
 
@@ -321,8 +323,8 @@ export function PdfVisualEditor({ template }: PdfVisualEditorProps) {
 
       {/* ═══ Main Area ═══ */}
       <div className="flex flex-1 overflow-hidden">
-        {/* ─── Canvas ─── */}
-        <div className="flex-1 overflow-y-auto bg-muted/30">
+        {/* ─── Canvas (estrutura / edição) ─── */}
+        <div className="flex-1 min-w-[300px] overflow-y-auto bg-muted/30">
           <PdfCanvas
             content={localContent}
             selected={selected}
@@ -332,6 +334,24 @@ export function PdfVisualEditor({ template }: PdfVisualEditorProps) {
             orientation={localOrientation}
           />
         </div>
+
+        {/* ─── Preview Panel: PDF real = fonte da verdade (WYSIWYG), co-igual ao canvas ─── */}
+        {showPreview && (
+          <div className="flex-1 min-w-[360px] border-l bg-card overflow-y-auto">
+            <Card className="border-0 shadow-none rounded-none h-full">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-lg">Resultado real (PDF)</CardTitle>
+                <CardDescription>WYSIWYG — exatamente como o PDF sai</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <PdfPreview
+                  template={localTemplate}
+                  content={localContent}
+                />
+              </CardContent>
+            </Card>
+          </div>
+        )}
 
         {/* ─── Properties Panel ─── */}
         <div className="w-64 md:w-72 lg:w-80 border-l bg-card flex-shrink-0 overflow-y-auto">
@@ -356,24 +376,6 @@ export function PdfVisualEditor({ template }: PdfVisualEditorProps) {
             />
           )}
         </div>
-
-        {/* ─── Preview Panel (optional) ─── */}
-        {showPreview && (
-          <div className="w-72 lg:w-96 border-l bg-card flex-shrink-0 overflow-y-auto">
-            <Card className="border-0 shadow-none rounded-none h-full">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-lg">Preview PDF</CardTitle>
-                <CardDescription>Gerado pelo backend</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <PdfPreview
-                  template={localTemplate}
-                  content={localContent}
-                />
-              </CardContent>
-            </Card>
-          </div>
-        )}
       </div>
 
       {/* ═══ Modals ═══ */}

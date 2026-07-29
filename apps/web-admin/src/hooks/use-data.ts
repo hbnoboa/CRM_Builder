@@ -3,6 +3,7 @@ import { useCallback, useMemo } from 'react';
 import { toast } from 'sonner';
 import { dataService, QueryDataParams, EntityDataResponse } from '@/services/data.service';
 import { getErrorMessage } from '@/lib/get-error-message';
+import { entityKeys } from '@/hooks/use-entities';
 
 export const dataKeys = {
   all: ['entityData'] as const,
@@ -134,6 +135,8 @@ export function useCreateEntityData(messages?: MutationMessages) {
           return key.includes(entitySlug);
         }
       });
+      // Atualiza o _count exibido no badge da sidebar (entities agrupadas)
+      queryClient.invalidateQueries({ queryKey: entityKeys.grouped() });
       if (messages?.success) toast.success(messages.success);
     },
     onError: (error: unknown) => {
@@ -203,6 +206,8 @@ export function useDeleteEntityData(messages?: MutationMessages) {
           return key.includes(entitySlug);
         }
       });
+      // Atualiza o _count exibido no badge da sidebar (entities agrupadas)
+      queryClient.invalidateQueries({ queryKey: entityKeys.grouped() });
       if (messages?.success) toast.success(messages.success);
     },
     onError: (error: unknown) => {

@@ -2,7 +2,6 @@ import { Injectable, Logger } from '@nestjs/common';
 import { RedisService } from '../../common/services/redis.service';
 
 export interface UserPermissions {
-  roleType: string;
   modulePermissions: Record<string, unknown>;
   entityPermissions: Array<{
     entitySlug: string;

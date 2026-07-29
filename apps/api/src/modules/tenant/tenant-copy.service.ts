@@ -17,6 +17,7 @@ export interface CopyResult {
     automations: number;
     webhooks: number;
     fieldRules: number;
+    dashboardTemplates: number;
   };
   skipped: string[];
   warnings: string[];
@@ -41,16 +42,15 @@ export class TenantCopyService {
       throw new NotFoundException('Tenant nao encontrado');
     }
 
-    const [roles, entities, pdfTemplates, automations, webhooks, fieldRules] = await Promise.all([
+    const [roles, entities, pdfTemplates, automations, webhooks, fieldRules, dashboardTemplates] = await Promise.all([
       this.prisma.customRole.findMany({
         where: { tenantId },
         select: {
           id: true,
           name: true,
-          roleType: true,
           color: true,
           isSystem: true,
-          _count: { select: { users: true } },
+          _count: { select: { tenantAccessUsers: true } },
         },
         orderBy: { name: 'asc' },
       }),
@@ -110,9 +110,19 @@ export class TenantCopyService {
         },
         orderBy: { fieldSlug: 'asc' },
       }),
+      this.prisma.dashboardTemplate.findMany({
+        where: { tenantId },
+        select: {
+          id: true,
+          name: true,
+          entitySlug: true,
+          isActive: true,
+        },
+        orderBy: { name: 'asc' },
+      }),
     ]);
 
-    return { roles, entities, pdfTemplates, automations, webhooks, fieldRules };
+    return { roles, entities, pdfTemplates, automations, webhooks, fieldRules, dashboardTemplates };
   }
 
   /**
@@ -140,7 +150,8 @@ export class TenantCopyService {
       modules.pdfTemplates?.length ||
       modules.automations?.length ||
       modules.webhooks?.length ||
-      modules.fieldRules?.length;
+      modules.fieldRules?.length ||
+      modules.dashboardTemplates?.length;
 
     if (!hasAnything) {
       throw new BadRequestException('Nenhum item selecionado para copiar');
@@ -155,10 +166,11 @@ export class TenantCopyService {
       async (tx) => {
         const roleIdMap = new Map<string, string>();
         const entityIdMap = new Map<string, string>();
+        const entitySlugMap = new Map<string, string>(); // slug origem -> slug destino (p/ dashboards/public links)
         const entityDataIdMap = new Map<string, string>();
         const skipped: string[] = [];
         const warnings: string[] = [];
-        const copied = { roles: 0, entities: 0, entityData: 0, pdfTemplates: 0, automations: 0, webhooks: 0, fieldRules: 0 };
+        const copied = { roles: 0, entities: 0, entityData: 0, pdfTemplates: 0, automations: 0, webhooks: 0, fieldRules: 0, dashboardTemplates: 0 };
 
         // ═══════════════════════════════════════
         // 1. COPY ROLES
@@ -200,7 +212,6 @@ export class TenantCopyService {
                 name,
                 description: role.description,
                 color: role.color,
-                roleType: role.roleType,
                 isSystem: false, // Copied roles are never system roles
                 isDefault: false,
                 permissions: role.permissions as Prisma.InputJsonValue,
@@ -239,6 +250,9 @@ export class TenantCopyService {
             if (existingSlugs.has(slug)) {
               if (conflictStrategy === 'skip') {
                 skipped.push(`Entidade: ${name} (${slug})`);
+                // entidade ja existe no destino com o mesmo slug -> dashboards
+                // apontam para o slug existente.
+                entitySlugMap.set(entity.slug, entity.slug);
                 continue;
               }
               slug = `${slug}-copy`;
@@ -269,6 +283,7 @@ export class TenantCopyService {
             });
 
             entityIdMap.set(entity.id, newEntity.id);
+            entitySlugMap.set(entity.slug, slug);
             existingSlugs.add(slug);
             copied.entities++;
           }
@@ -547,6 +562,56 @@ export class TenantCopyService {
             });
 
             copied.fieldRules++;
+          }
+        }
+
+        // ═══════════════════════════════════════
+        // 9. COPY DASHBOARD TEMPLATES
+        // ═══════════════════════════════════════
+        if (modules.dashboardTemplates?.length) {
+          const sourceDashboards = await tx.dashboardTemplate.findMany({
+            where: { id: { in: modules.dashboardTemplates }, tenantId: sourceTenantId },
+          });
+
+          for (const dash of sourceDashboards) {
+            // entitySlug: remapear se a entidade foi copiada/renomeada; se nao consta
+            // no mapa, manter o slug original (pode ja existir no destino).
+            let entitySlug = dash.entitySlug;
+            if (entitySlug && entitySlugMap.has(entitySlug)) {
+              entitySlug = entitySlugMap.get(entitySlug)!;
+            } else if (entitySlug) {
+              const exists = await tx.entity.findFirst({
+                where: { tenantId: targetTenantId, slug: entitySlug, deletedAt: null },
+                select: { id: true },
+              });
+              if (!exists) {
+                warnings.push(
+                  `Dashboard "${dash.name}": entidade "${entitySlug}" nao existe no destino (template pode ficar sem dados).`,
+                );
+              }
+            }
+
+            // roleIds: remapear para os roles do destino; descartar os que nao foram copiados.
+            const newRoleIds = (dash.roleIds || [])
+              .map((rid) => roleIdMap.get(rid))
+              .filter((rid): rid is string => !!rid);
+
+            await tx.dashboardTemplate.create({
+              data: {
+                tenantId: targetTenantId,
+                name: dash.name,
+                description: dash.description,
+                entitySlug,
+                layout: dash.layout as Prisma.InputJsonValue,
+                widgets: dash.widgets as Prisma.InputJsonValue,
+                tabs: dash.tabs as Prisma.InputJsonValue,
+                roleIds: newRoleIds,
+                priority: dash.priority,
+                isActive: dash.isActive,
+              },
+            });
+
+            copied.dashboardTemplates++;
           }
         }
 

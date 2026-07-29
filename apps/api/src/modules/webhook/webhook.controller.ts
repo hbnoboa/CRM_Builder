@@ -1,3 +1,4 @@
+import { ServiceScope } from '../../common/service-scope/service-scope.decorator';
 import {
   Controller,
   Get,
@@ -90,6 +91,7 @@ class UpdateWebhookDto extends CreateWebhookDto {
 
 @ApiTags('Webhooks')
 @ApiBearerAuth()
+@ServiceScope('admin')
 @Controller('webhooks')
 @UseGuards(JwtAuthGuard, ModulePermissionGuard)
 export class WebhookController {

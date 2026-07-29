@@ -1,5 +1,4 @@
 import { Request } from 'express';
-import { RoleType } from '@crm-builder/shared';
 
 /**
  * Interface para custom role no usuario autenticado
@@ -7,8 +6,8 @@ import { RoleType } from '@crm-builder/shared';
 export interface CurrentUserCustomRole {
   id: string;
   name: string;
-  roleType: RoleType;
   isSystem: boolean;
+  rank: number; // 1 = topo; regra: so age sobre rank estritamente maior
   permissions: unknown[];
   modulePermissions: Record<string, unknown>;
   tenantPermissions: Record<string, unknown>;
@@ -29,6 +28,8 @@ export interface CurrentUser {
   tenantId: string;
   customRoleId: string;
   customRole: CurrentUserCustomRole;
+  // Presente quando a sessao e uma impersonacao (ator real que assumiu este usuario).
+  impersonatedBy?: { id: string; name: string };
 }
 
 /**
@@ -40,7 +41,7 @@ export interface JwtPayload {
   tenantId: string;
   customRoleId: string;
   roleId?: string; // Same as customRoleId, used for PLATFORM_ADMIN validation
-  roleType: RoleType; // Para checks rapidos sem DB lookup
+  impersonatedBy?: { id: string; name: string }; // sessao de impersonacao
   iat?: number;
   exp?: number;
 }

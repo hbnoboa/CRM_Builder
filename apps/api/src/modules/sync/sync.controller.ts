@@ -1,8 +1,9 @@
+import { ServiceScope } from '../../common/service-scope/service-scope.decorator';
 import { Controller, Post, Body, UseGuards, Request } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
-import { RolesGuard } from '../../common/guards/roles.guard';
 import { AuthenticatedRequest } from '../../common/types';
+import { hasPlatformAccess } from '../../common/utils/platform-access';
 
 /**
  * Sync credentials endpoint for PowerSync.
@@ -15,8 +16,9 @@ import { AuthenticatedRequest } from '../../common/types';
  * PLATFORM_ADMIN users can override tenantId to view
  * another tenant's data (mirrors web-admin tenant switching).
  */
+@ServiceScope('user')
 @Controller('sync')
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard)
 export class SyncController {
   constructor(private readonly jwtService: JwtService) {}
 
@@ -27,21 +29,25 @@ export class SyncController {
   ) {
     const user = req.user;
 
+    const platformAdmin = hasPlatformAccess(user.customRole?.modulePermissions);
+
     // PLATFORM_ADMIN can override tenantId to sync another tenant's data
     const effectiveTenantId =
-      user.customRole?.roleType === 'PLATFORM_ADMIN' && body.tenantId
-        ? body.tenantId
-        : user.tenantId;
+      platformAdmin && body.tenantId ? body.tenantId : user.tenantId;
 
     // Generate a PowerSync-specific token with sync-relevant claims.
     // PowerSync reads these via request.jwt() ->> 'key' in sync rules.
+    // `platformAdmin` replaces the removed roleType claim: it gates the
+    // cross-tenant bypass bucket (admin_all_entity_data) so a platform admin
+    // syncing another tenant still receives role-filtered records whose
+    // _visibleToRolesJson does not contain their (foreign) customRoleId.
     const token = this.jwtService.sign(
       {
         sub: user.id,
         user_id: user.id,
         tenantId: effectiveTenantId,
         customRoleId: user.customRoleId,
-        roleType: user.customRole?.roleType || 'USER',
+        platformAdmin,
       },
       { expiresIn: '1h' },
     );
