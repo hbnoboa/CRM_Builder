@@ -2,21 +2,38 @@ name: Deploy
 
 # Build no runner do GitHub (cache) -> push na Google Artifact Registry ->
 # deploy na VM via `gcloud compute ssh` (auth keyless por Workload Identity Federation).
-# SEM secret, SEM runner self-hosted.  push develop=DEV / push main=PROD.
-# O job de deploy usa `environment:` -> PROD pode exigir aprovacao (Settings > Environments).
+# SEM secret, SEM runner self-hosted.
+#
+# GATILHO POR BRANCH (modelo SegAqui):
+#   - push em `develop`            -> deploy DEV automatico (iteracao rapida)
+#   - workflow_dispatch env=prod   -> deploy PROD MANUAL, SO a partir da branch `main`
+#                                     (o job setup barra se rodar de outra ref). Prod nunca sobe sozinho.
+#   - workflow_dispatch env=dev    -> deploy DEV manual avulso (de qualquer ref)
+#
+# Imagens: tag `:<env>` (movel, o compose referencia) + `:<env>-<sha>` (imutavel, rollback).
+# Gate opcional por cima: environment `prod` com required reviewer (Settings > Environments).
+
+run-name: 🚀 Deploy → ${{ (github.event_name == 'workflow_dispatch' && inputs.environment == 'prod') && 'PROD' || 'DEV' }} · ${{ github.ref_name }} · por ${{ github.actor }}
 
 on:
   push:
-    branches: [main, develop]
+    branches: [develop]
   workflow_dispatch:
-
-concurrency:
-  group: deploy-${{ github.ref }}
-  cancel-in-progress: true
+    inputs:
+      environment:
+        description: Ambiente alvo (prod so roda a partir da branch main)
+        type: choice
+        options: [dev, prod]
+        default: dev
 
 permissions:
   contents: read
-  id-token: write   # necessario pro WIF (OIDC)
+  id-token: write   # WIF (OIDC)
+
+# Um deploy por ambiente de cada vez; NAO cancela (deploy nao deve ser interrompido).
+concurrency:
+  group: deploy-${{ inputs.environment || 'dev' }}
+  cancel-in-progress: false
 
 env:
   GAR_HOST: us-central1-docker.pkg.dev
@@ -30,21 +47,34 @@ env:
   VM_DIR: /home/hbnoboa11/crm-builder
 
 jobs:
-  # =========================================================================
-  # 1) BUILD + PUSH (sem gate) — sempre roda, gera as imagens na GAR
-  # =========================================================================
-  build:
-    name: Build & Push (${{ github.ref_name }})
+  # ---- resolve o ambiente + guard: PROD so a partir da main ---------------
+  setup:
     runs-on: ubuntu-latest
     outputs:
-      env_name: ${{ steps.env.outputs.env_name }}
+      env: ${{ steps.pick.outputs.env }}
+    steps:
+      - id: pick
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            ENV="${{ inputs.environment }}"
+          else
+            ENV="dev"
+          fi
+          if [ "$ENV" = "prod" ] && [ "${{ github.ref }}" != "refs/heads/main" ]; then
+            echo "::error title=Branch errada pra PROD::Deploy de PROD so roda a partir da branch 'main' (ref atual: ${{ github.ref }})."
+            exit 1
+          fi
+          echo "env=$ENV" >> "$GITHUB_OUTPUT"
+          echo "Ambiente alvo: $ENV (event=${{ github.event_name }}, ref=${{ github.ref }})"
+
+  # ---- build + push das imagens na GAR ------------------------------------
+  build:
+    name: Build & Push (${{ needs.setup.outputs.env }})
+    needs: setup
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
-      - name: Resolver ambiente
-        id: env
-        run: echo "env_name=${{ github.ref == 'refs/heads/main' && 'prod' || 'dev' }}" >> "$GITHUB_OUTPUT"
-
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
@@ -72,8 +102,8 @@ jobs:
           file: apps/api/Dockerfile
           push: true
           tags: |
-            ${{ env.GAR_HOST }}/${{ env.GCP_PROJECT }}/${{ env.GAR_REPO }}/crm-builder-api:${{ steps.env.outputs.env_name }}
-            ${{ env.GAR_HOST }}/${{ env.GCP_PROJECT }}/${{ env.GAR_REPO }}/crm-builder-api:${{ github.sha }}
+            ${{ env.GAR_HOST }}/${{ env.GCP_PROJECT }}/${{ env.GAR_REPO }}/crm-builder-api:${{ needs.setup.outputs.env }}
+            ${{ env.GAR_HOST }}/${{ env.GCP_PROJECT }}/${{ env.GAR_REPO }}/crm-builder-api:${{ needs.setup.outputs.env }}-${{ github.sha }}
           cache-from: type=gha,scope=api
           cache-to: type=gha,mode=max,scope=api
 
@@ -86,20 +116,17 @@ jobs:
             NEXT_PUBLIC_API_URL=/api/v1
           push: true
           tags: |
-            ${{ env.GAR_HOST }}/${{ env.GCP_PROJECT }}/${{ env.GAR_REPO }}/crm-builder-web:${{ steps.env.outputs.env_name }}
-            ${{ env.GAR_HOST }}/${{ env.GCP_PROJECT }}/${{ env.GAR_REPO }}/crm-builder-web:${{ github.sha }}
+            ${{ env.GAR_HOST }}/${{ env.GCP_PROJECT }}/${{ env.GAR_REPO }}/crm-builder-web:${{ needs.setup.outputs.env }}
+            ${{ env.GAR_HOST }}/${{ env.GCP_PROJECT }}/${{ env.GAR_REPO }}/crm-builder-web:${{ needs.setup.outputs.env }}-${{ github.sha }}
           cache-from: type=gha,scope=web
           cache-to: type=gha,mode=max,scope=web
 
-  # =========================================================================
-  # 2) DEPLOY na VM — gated por `environment`. PROD pausa p/ aprovacao se o
-  #    environment "prod" tiver required reviewers (Settings > Environments).
-  # =========================================================================
+  # ---- deploy na VM (gated por environment; prod pode exigir aprovacao) ----
   deploy:
-    name: Deploy (${{ needs.build.outputs.env_name }})
-    needs: build
+    name: Deploy (${{ needs.setup.outputs.env }})
+    needs: [setup, build]
     runs-on: ubuntu-latest
-    environment: ${{ needs.build.outputs.env_name }}
+    environment: ${{ needs.setup.outputs.env }}
     steps:
       - uses: google-github-actions/auth@v2
         with:
@@ -109,7 +136,7 @@ jobs:
 
       - name: Deploy na VM (gcloud ssh)
         env:
-          ENV_NAME: ${{ needs.build.outputs.env_name }}
+          ENV_NAME: ${{ needs.setup.outputs.env }}
           REF: ${{ github.ref_name }}
         run: |
           gcloud compute ssh "${VM_USER}@${VM_NAME}" \
