@@ -67,6 +67,25 @@ interface RecordData {
   data: Record<string, unknown>;
 }
 
+interface RecordFormFieldsProps {
+  entity: Entity;
+  record?: RecordData | null;
+  onSuccess?: () => void;
+  parentRecordId?: string;
+  editableFields?: string[];
+  /** Builder/preview: desabilita todos os inputs e não busca opções de API. */
+  readOnly?: boolean;
+  /** Esconde o rodapé (cancelar/salvar) — usado no builder. */
+  hideFooter?: boolean;
+  /** Chamado ao cancelar (substitui o antigo onOpenChange(false)). */
+  onCancel?: () => void;
+  /** Chamado após salvar com sucesso (substitui o onOpenChange(false) do submit). */
+  onSubmitted?: () => void;
+  /** Se fornecido (apenas criação), substitui o create padrão — recebe os dados
+   *  processados e cuida do save (ex.: comando de chat /avaria → executeCommand). */
+  submitOverride?: (data: Record<string, unknown>) => Promise<void>;
+}
+
 interface RecordFormDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -75,6 +94,7 @@ interface RecordFormDialogProps {
   onSuccess?: () => void;
   parentRecordId?: string;
   editableFields?: string[];
+  submitOverride?: (data: Record<string, unknown>) => Promise<void>;
 }
 
 // ─── Masks ──────────────────────────────────────────────────────────────────
@@ -123,15 +143,20 @@ function formatCurrencyDisplay(value: string | number): string {
 }
 
 // ─── Component ──────────────────────────────────────────────────────────────
-export function RecordFormDialog({
-  open,
-  onOpenChange,
+export function RecordFormFields({
   entity,
   record,
   onSuccess,
   parentRecordId,
   editableFields,
-}: RecordFormDialogProps) {
+  readOnly = false,
+  hideFooter = false,
+  onCancel,
+  onSubmitted,
+  submitOverride,
+}: RecordFormFieldsProps) {
+  // Sempre montado = "aberto". Mantém as effects/usos de `open` existentes intactos.
+  const open = true;
   const t = useTranslations('data');
   const tCommon = useTranslations('common');
   const tPlaceholders = useTranslations('placeholders');
@@ -260,11 +285,11 @@ export function RecordFormDialog({
 
   // Load options when dialog opens
   useEffect(() => {
-    if (open && entity.fields) {
+    if (!readOnly && entity.fields) {
       entity.fields.filter(f => f.type === 'api-select' && f.apiEndpoint).forEach(fetchApiOptions);
       entity.fields.filter(f => f.type === 'relation' && f.relatedEntitySlug).forEach(fetchRelationOptions);
     }
-  }, [open, entity.fields, fetchApiOptions, fetchRelationOptions]);
+  }, [readOnly, entity.fields, fetchApiOptions, fetchRelationOptions]);
 
   const handleApiSelectChange = (field: EntityField, value: string) => {
     handleFieldChange(field.slug, value);
@@ -558,6 +583,12 @@ export function RecordFormDialog({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    // A sub-entidade abre um RecordFormDialog ANINHADO. O Radix portala o conteúdo,
+    // mas mantém a árvore React — então o submit do form filho borbulharia até o
+    // <form> do pai, salvando/fechando o registro pai (UX ruim: "sai do modal").
+    // stopPropagation impede o bubble; o guard ignora submits que não são deste form.
+    e.stopPropagation();
+    if (e.target !== e.currentTarget) return;
     if (!validateForm()) return;
 
     const processedData: Record<string, unknown> = {};
@@ -625,10 +656,13 @@ export function RecordFormDialog({
     try {
       if (isEditing && record) {
         await updateRecord.mutateAsync({ entitySlug: entity.slug, id: record.id, data: processedData, tenantId: effectiveTenantId || undefined });
+      } else if (submitOverride) {
+        // Save delegado (ex.: comando de chat cria via executeCommand + posta card).
+        await submitOverride(processedData);
       } else {
         await createRecord.mutateAsync({ entitySlug: entity.slug, data: processedData, parentRecordId, tenantId: effectiveTenantId || undefined });
       }
-      onOpenChange(false);
+      onSubmitted?.();
       onSuccess?.();
     } catch (error) { /* handled by hook */ }
   };
@@ -721,7 +755,7 @@ export function RecordFormDialog({
     const value = formData[field.slug];
     const error = errors[field.slug];
     const helpText = field.helpText;
-    const isFieldDisabled = isLocked || field.disabled || isFieldReadOnly(field) || (editableFields ? !editableFields.includes(field.slug) : false);
+    const isFieldDisabled = readOnly || isLocked || field.disabled || isFieldReadOnly(field) || (editableFields ? !editableFields.includes(field.slug) : false);
     const fieldRequired = isFieldRequired(field);
 
     const fieldLabel = (
@@ -1638,6 +1672,77 @@ export function RecordFormDialog({
   };
 
   // ─── Render ──────────────────────────────────────────────────────────────
+  // Apenas o corpo do formulário (sem o chrome de Dialog). O RecordFormDialog
+  // abaixo embrulha isto num Dialog; o builder usa direto (readOnly).
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      {errors._form && (
+        <div className="bg-destructive/10 border border-destructive/20 text-destructive px-4 py-3 rounded-md text-sm">{errors._form}</div>
+      )}
+
+      {entity.fields?.length > 0 ? (
+        fieldRows.length > 0 ? (
+          <div className="space-y-4">
+            {fieldRows.map((row, rowIdx) => (
+              <div key={rowIdx} className="flex flex-col md:grid md:grid-cols-12 gap-4">
+                {row.map((field) => {
+                  const colSpan = (field.type === 'sub-entity' || field.type === 'zone-diagram' || field.type === 'section-title') ? 12 : (field.gridColSpan || 12);
+                  const colStart = field.gridColStart;
+                  return (
+                    <div key={field.slug} style={{ gridColumn: colStart ? `${colStart} / span ${colSpan}` : `span ${colSpan}` }}>
+                      {renderFieldWithPermission(field)}
+                    </div>
+                  );
+                })}
+              </div>
+            ))}
+          </div>
+        ) : (
+          entity.fields.filter(f => f.type !== 'hidden' && !f.hidden).map((field) => renderFieldWithPermission(field))
+        )
+      ) : (
+        <p className="text-sm text-muted-foreground text-center py-4">{tCommon('noResults')}</p>
+      )}
+
+      {/* Hidden fields (type === 'hidden' OU hidden === true) */}
+      {entity.fields?.filter(f => f.type === 'hidden' || f.hidden).map(field => (
+        <input key={field.slug} type="hidden" value={String(formData[field.slug] || field.default || '')} />
+      ))}
+
+      {!hideFooter && (
+        <DialogFooter>
+          {isLocked && (
+            <p className="text-xs text-amber-600 mr-auto flex items-center gap-1">
+              <AlertTriangle className="h-3.5 w-3.5" />
+              {t('recordLocked')}
+            </p>
+          )}
+          <Button type="button" variant="outline" onClick={() => onCancel?.()}>{tCommon('cancel')}</Button>
+          {!isLocked && (
+            <Button type="submit" disabled={isLoading || !entity.fields?.length}>
+              {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {isLoading ? tCommon('saving') : isEditing ? tCommon('save') : tCommon('create')}
+            </Button>
+          )}
+        </DialogFooter>
+      )}
+    </form>
+  );
+}
+
+// ─── Dialog wrapper (API externa idêntica à de antes) ────────────────────────
+export function RecordFormDialog({
+  open,
+  onOpenChange,
+  entity,
+  record,
+  onSuccess,
+  parentRecordId,
+  editableFields,
+  submitOverride,
+}: RecordFormDialogProps) {
+  const t = useTranslations('data');
+  const isEditing = !!record;
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-5xl max-h-[90vh] overflow-y-auto" onInteractOutside={(e) => e.preventDefault()} onPointerDownOutside={(e) => e.preventDefault()}>
@@ -1645,56 +1750,16 @@ export function RecordFormDialog({
           <DialogTitle>{isEditing ? t('editRecord') : t('newRecord')} - {entity.name}</DialogTitle>
           <DialogDescription>{isEditing ? t('toast.updated').replace('!', '') : t('toast.created').replace('!', '')}</DialogDescription>
         </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          {errors._form && (
-            <div className="bg-destructive/10 border border-destructive/20 text-destructive px-4 py-3 rounded-md text-sm">{errors._form}</div>
-          )}
-
-          {entity.fields?.length > 0 ? (
-            fieldRows.length > 0 ? (
-              <div className="space-y-4">
-                {fieldRows.map((row, rowIdx) => (
-                  <div key={rowIdx} className="grid grid-cols-12 gap-4">
-                    {row.map((field) => {
-                      const colSpan = (field.type === 'sub-entity' || field.type === 'zone-diagram' || field.type === 'section-title') ? 12 : (field.gridColSpan || 12);
-                      const colStart = field.gridColStart;
-                      return (
-                        <div key={field.slug} style={{ gridColumn: colStart ? `${colStart} / span ${colSpan}` : `span ${colSpan}` }}>
-                          {renderFieldWithPermission(field)}
-                        </div>
-                      );
-                    })}
-                  </div>
-                ))}
-              </div>
-            ) : (
-              entity.fields.filter(f => f.type !== 'hidden' && !f.hidden).map((field) => renderFieldWithPermission(field))
-            )
-          ) : (
-            <p className="text-sm text-muted-foreground text-center py-4">{tCommon('noResults')}</p>
-          )}
-
-          {/* Hidden fields (type === 'hidden' OU hidden === true) */}
-          {entity.fields?.filter(f => f.type === 'hidden' || f.hidden).map(field => (
-            <input key={field.slug} type="hidden" value={String(formData[field.slug] || field.default || '')} />
-          ))}
-
-          <DialogFooter>
-            {isLocked && (
-              <p className="text-xs text-amber-600 mr-auto flex items-center gap-1">
-                <AlertTriangle className="h-3.5 w-3.5" />
-                {t('recordLocked')}
-              </p>
-            )}
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>{tCommon('cancel')}</Button>
-            {!isLocked && (
-              <Button type="submit" disabled={isLoading || !entity.fields?.length}>
-                {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                {isLoading ? tCommon('saving') : isEditing ? tCommon('save') : tCommon('create')}
-              </Button>
-            )}
-          </DialogFooter>
-        </form>
+        <RecordFormFields
+          entity={entity}
+          record={record}
+          onSuccess={onSuccess}
+          parentRecordId={parentRecordId}
+          editableFields={editableFields}
+          submitOverride={submitOverride}
+          onCancel={() => onOpenChange(false)}
+          onSubmitted={() => onOpenChange(false)}
+        />
       </DialogContent>
     </Dialog>
   );

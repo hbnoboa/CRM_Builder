@@ -1,9 +1,11 @@
 'use client';
 
-import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback, useMemo, useRef, ReactNode } from 'react';
+import { useParams } from 'next/navigation';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { useAuthStore } from './auth-store';
+import { readPlatformAccess } from '@/hooks/use-permissions';
 import api from '@/lib/api';
 
 interface Tenant {
@@ -29,7 +31,6 @@ interface AccessibleTenant {
   customRole: {
     id: string;
     name: string;
-    roleType: string;
   };
 }
 
@@ -43,8 +44,10 @@ interface TenantContextType {
   accessibleTenants: AccessibleTenant[];
   /** Currently selected tenant for cross-tenant browsing (PLATFORM_ADMIN only) */
   selectedTenantId: string | null;
-  /** The effective tenantId to use for API calls (selected or own) */
+  /** The effective tenantId to use for API calls / query keys (derivado do slug da URL) */
   effectiveTenantId: string | null;
+  /** Slug do tenant atual (fonte da verdade = URL). */
+  slug: string | null;
   /** Switch to a different tenant context */
   switchTenant: (tenantId: string | null) => void;
   /** Whether the user is a PLATFORM_ADMIN */
@@ -64,8 +67,30 @@ export function TenantProvider({ children }: { children: ReactNode }) {
   const [accessibleTenants, setAccessibleTenants] = useState<AccessibleTenant[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const isPlatformAdmin = user?.customRole?.roleType === 'PLATFORM_ADMIN';
+  // FONTE DA VERDADE do tenant atual = slug da URL (/{locale}/{tenant}/...).
+  const params = useParams();
+  const tenantParam = params?.tenant;
+  const urlSlug = typeof tenantParam === 'string'
+    ? tenantParam
+    : Array.isArray(tenantParam) ? tenantParam[0] : undefined;
+
+  // Poder de plataforma agora vem de PERMISSAO (permission-driven), nao roleType.
+  const isPlatformAdmin = readPlatformAccess(
+    user?.customRole?.modulePermissions as Record<string, unknown> | undefined,
+  );
   const hasMultipleTenants = !!(user as Record<string, unknown>)?.hasMultipleTenants;
+
+  // Resolve o slug da URL -> id (síncrono, das listas já carregadas). Único ponto
+  // de "tenant atual" -> elimina cache/estado defasado em todos os consumidores.
+  const resolvedTenantId = useMemo(() => {
+    if (!urlSlug) return tenant?.id ?? user?.tenantId ?? null;
+    if (tenant?.slug === urlSlug) return tenant.id;
+    const fromAccessible = accessibleTenants.find((t) => t.slug === urlSlug);
+    if (fromAccessible) return fromAccessible.id;
+    const fromAll = allTenants.find((t) => t.slug === urlSlug);
+    if (fromAll) return fromAll.id;
+    return tenant?.id ?? user?.tenantId ?? null;
+  }, [urlSlug, tenant, accessibleTenants, allTenants, user]);
 
   const fetchTenantData = useCallback(async () => {
     const token = localStorage.getItem('accessToken');
@@ -107,9 +132,21 @@ export function TenantProvider({ children }: { children: ReactNode }) {
     }
   }, [user, isPlatformAdmin, hasMultipleTenants]);
 
+  // Re-busca ao mudar de usuário OU de tenant na URL (cobre navegação direta + switcher).
   useEffect(() => {
     fetchTenantData();
-  }, [fetchTenantData]);
+  }, [fetchTenantData, urlSlug]);
+
+  // CENTRALIZAÇÃO do cache: qualquer troca de tenant (URL direta, login, link, switcher)
+  // limpa o react-query, garantindo refetch do tenant certo mesmo p/ hooks cuja
+  // queryKey não inclui o tenant. Não dispara no 1º mount.
+  const prevSlugRef = useRef<string | undefined>(urlSlug);
+  useEffect(() => {
+    if (prevSlugRef.current !== undefined && prevSlugRef.current !== urlSlug) {
+      queryClient.removeQueries();
+    }
+    prevSlugRef.current = urlSlug;
+  }, [urlSlug, queryClient]);
 
   const switchTenant = useCallback(async (tenantId: string | null) => {
     if (!user || !tenantId) {
@@ -156,16 +193,15 @@ export function TenantProvider({ children }: { children: ReactNode }) {
   return (
     <TenantContext.Provider
       value={{
-        tenantId: user?.tenantId || null,
+        // Tudo derivado do slug da URL (resolvido p/ id). Fonte única.
+        tenantId: resolvedTenantId,
         loading,
         tenant,
         allTenants,
         accessibleTenants,
-        // selectedTenantId now reflects the current JWT tenant (for backward compatibility)
-        // PLATFORM_ADMIN: JWT changes to selected tenant
-        // Multi-tenant/Regular: JWT reflects current tenant
-        selectedTenantId: user?.tenantId || null,
-        effectiveTenantId: user?.tenantId || null,
+        selectedTenantId: resolvedTenantId,
+        effectiveTenantId: resolvedTenantId,
+        slug: urlSlug ?? null,
         switchTenant,
         isPlatformAdmin,
         hasMultipleTenants,
@@ -183,4 +219,14 @@ export function useTenant() {
     throw new Error('useTenant must be used within a TenantProvider');
   }
   return context;
+}
+
+/**
+ * Fonte ÚNICA do tenant atual (derivado do slug da URL).
+ * Use `slug` em queryKeys e `id` em chamadas que precisam do tenantId.
+ * Evita ler `user.tenantId`/`activeTenantId` (defasados) espalhados pelo código.
+ */
+export function useActiveTenant(): { slug: string | null; id: string | null } {
+  const { slug, effectiveTenantId } = useTenant();
+  return { slug, id: effectiveTenantId };
 }

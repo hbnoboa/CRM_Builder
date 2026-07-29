@@ -22,14 +22,13 @@ import {
   ApiBody,
 } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
-import { RolesGuard } from '../../common/guards/roles.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { CurrentUser as CurrentUserType } from '../../common/types';
 import { UploadService, UploadedFile as UploadedFileType } from './upload.service';
 
 @ApiTags('Upload')
 @Controller('upload')
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard)
 @ApiBearerAuth()
 export class UploadController {
   constructor(private readonly uploadService: UploadService) {}

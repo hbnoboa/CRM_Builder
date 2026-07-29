@@ -1,3 +1,4 @@
+import { ServiceScope } from '../../common/service-scope/service-scope.decorator';
 import {
   Controller,
   Get,
@@ -11,7 +12,6 @@ import {
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
-import { RolesGuard } from '../../common/guards/roles.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { CurrentUser as CurrentUserType } from '../../common/types';
 import { getEffectiveTenantId } from '../../common/utils/tenant.util';
@@ -21,8 +21,9 @@ import { UpdateFieldRuleDto } from './dto/update-field-rule.dto';
 
 @ApiTags('Entity Field Rules')
 @ApiBearerAuth()
+@ServiceScope('admin')
 @Controller('entities/:entityId/field-rules')
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard)
 export class EntityFieldRuleController {
   constructor(
     private readonly entityFieldRuleService: EntityFieldRuleService,

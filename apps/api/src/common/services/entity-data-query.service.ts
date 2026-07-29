@@ -4,7 +4,7 @@ import { EntityService } from '../../modules/entity/entity.service';
 import { CustomRoleService } from '../../modules/custom-role/custom-role.service';
 import { Prisma, Entity } from '@prisma/client';
 import { CurrentUser } from '../types';
-import { RoleType } from '../decorators/roles.decorator';
+import { hasPlatformAccess, hasFullTenantAccess } from '../utils/platform-access';
 import { getEffectiveTenantId } from '../utils/tenant.util';
 import { buildFilterClause } from '../utils/build-filter-clause';
 
@@ -94,11 +94,13 @@ export class EntityDataQueryService {
     // 2. Base where
     const where: Prisma.EntityDataWhereInput = {
       entityId: entity.id,
+      // F2: soft delete — nunca retornar registros marcados como excluidos.
+      // Ponto unico: toda leitura de EntityData passa por aqui.
+      deletedAt: null,
     };
 
-    // 3. Tenant isolation
-    const userRoleType = user.customRole?.roleType as RoleType | undefined;
-    if (userRoleType === 'PLATFORM_ADMIN') {
+    // 3. Tenant isolation — acesso de plataforma (permissao) pode cross-tenant.
+    if (hasPlatformAccess(user.customRole?.modulePermissions)) {
       if (queryTenantId) {
         where.tenantId = queryTenantId;
       }
@@ -210,8 +212,7 @@ export class EntityDataQueryService {
    * Busca entidade por slug com cache de 5s para evitar queries duplicadas.
    */
   async getEntityCached(entitySlug: string, currentUser: CurrentUser, tenantId?: string): Promise<Entity> {
-    const roleType = currentUser.customRole?.roleType as RoleType | undefined;
-    const effectiveTenantId = roleType === 'PLATFORM_ADMIN' && !tenantId
+    const effectiveTenantId = hasPlatformAccess(currentUser.customRole?.modulePermissions) && !tenantId
       ? undefined
       : getEffectiveTenantId(currentUser, tenantId);
     const cacheKey = `${entitySlug}:${effectiveTenantId || 'any'}`;
@@ -778,12 +779,18 @@ export class EntityDataQueryService {
     user: CurrentUser,
     entitySlug: string,
   ): void {
-    const roleType = user.customRole?.roleType as RoleType | undefined;
-    if (roleType === 'PLATFORM_ADMIN' || roleType === 'ADMIN') return;
+    // Acesso de plataforma OU acesso total ao tenant não recebe filtros de dados
+    // (vê todos os registros do tenant); demais derivam de permissions[]/'*'.
+    if (
+      hasPlatformAccess(user.customRole?.modulePermissions) ||
+      hasFullTenantAccess(user.customRole?.modulePermissions)
+    ) {
+      return;
+    }
     if (!user.customRole) return;
 
     const roleFilters = this.customRoleService.getRoleDataFilters(
-      user.customRole as { roleType: string; permissions: unknown },
+      user.customRole as { permissions: unknown; modulePermissions?: unknown },
       entitySlug,
     );
 

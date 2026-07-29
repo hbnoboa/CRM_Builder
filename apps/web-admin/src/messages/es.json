@@ -141,14 +141,18 @@
     "publicLinks": "Links Publicos",
     "profile": "Perfil",
     "hello": "Hola,",
-    "admin": "Admin"
+    "admin": "Admin",
+    "home": "Inicio",
+    "chat": "Chat",
+    "operational": "Operativo"
   },
   "roles": {
     "PLATFORM_ADMIN": "Super Admin",
     "ADMIN": "Administrador",
     "MANAGER": "Gerente",
     "USER": "Usuario",
-    "VIEWER": "Visualizador"
+    "VIEWER": "Visualizador",
+    "CUSTOM": "Personalizado"
   },
   "roleDescriptions": {
     "PLATFORM_ADMIN": "Acceso total a la plataforma, incluyendo todos los tenants",
@@ -273,6 +277,11 @@
       "grant": "Conceder",
       "granted": "Acceso concedido exitosamente",
       "revoked": "Acceso revocado exitosamente"
+    },
+    "impersonate": {
+      "menu": "Entrar como este usuario",
+      "success": "Ahora eres {name}",
+      "error": "Error al impersonar usuario"
     }
   },
   "entities": {
@@ -538,6 +547,7 @@
       "operators": {
         "contains": "Contiene",
         "equals": "Igual a",
+        "notEquals": "Distinto de",
         "startsWith": "Comienza con",
         "endsWith": "Termina con",
         "isEmpty": "Está vacío",
@@ -809,7 +819,9 @@
       "canGenerate": "Generar PDF",
       "canExecute": "Ejecutar Manualmente",
       "canManageTenantAccess": "Gestionar Acceso a Tenants",
-      "canPermanentDelete": "Eliminar Permanentemente"
+      "canPermanentDelete": "Eliminar Permanentemente",
+      "canManage": "Gestionar",
+      "canManageOrg": "Configuración de la organización"
     },
     "dataFilters": {
       "title": "Filtros de Datos",
@@ -818,6 +830,7 @@
       "operators": {
         "contains": "Contiene",
         "equals": "Igual a",
+        "notEquals": "Distinto de",
         "startsWith": "Comienza con",
         "endsWith": "Termina con",
         "isEmpty": "Está vacío",
@@ -860,6 +873,57 @@
       "invite": "Invitar",
       "assign": "Asignar",
       "upload": "Subir"
+    },
+    "acts": {
+      "dashboard_canRead": "Ver los paneles y sus estadísticas.",
+      "dashboard_canCreate": "Crear nuevas plantillas de panel.",
+      "dashboard_canUpdate": "Editar plantillas de panel existentes.",
+      "dashboard_canDelete": "Eliminar plantillas de panel.",
+      "data_canRead": "Abrir la sección de Registros y ver datos (respetando los permisos por tabla).",
+      "data_canCreate": "Mostrar la acción de crear registro (el permiso efectivo se define por tabla).",
+      "data_canUpdate": "Mostrar la acción de editar registro (efectivo por tabla).",
+      "data_canDelete": "Mostrar la acción de eliminar registro (efectivo por tabla).",
+      "entities_canRead": "Ver la estructura de las tablas.",
+      "entities_canCreate": "Crear nuevas tablas.",
+      "entities_canUpdate": "Editar la estructura de tablas (campos y diseño).",
+      "entities_canDelete": "Eliminar tablas.",
+      "users_canRead": "Ver la lista de usuarios.",
+      "users_canCreate": "Invitar o crear usuarios.",
+      "users_canUpdate": "Editar datos de usuarios.",
+      "users_canDelete": "Eliminar usuarios.",
+      "users_canAssignRole": "Definir el rol de un usuario.",
+      "users_canChangeStatus": "Activar o desactivar usuarios.",
+      "users_canManageTenantAccess": "Gestionar a qué tenants tiene acceso el usuario.",
+      "roles_canRead": "Ver los roles.",
+      "roles_canCreate": "Crear roles.",
+      "roles_canUpdate": "Editar roles.",
+      "roles_canDelete": "Eliminar roles.",
+      "roles_canSetDefault": "Definir el rol predeterminado para nuevos usuarios.",
+      "roles_canManagePermissions": "Editar los permisos de los roles (esta pantalla).",
+      "settings_canRead": "Ver la configuración de la organización.",
+      "settings_canUpdate": "Acceder y cambiar la configuración de la organización (marca, tema). Las pestañas personales (perfil, idioma, tema) no requieren permiso.",
+      "tenants_canRead": "Ver la lista de tenants.",
+      "tenants_canCreate": "Crear nuevos tenants.",
+      "tenants_canUpdate": "Editar tenants.",
+      "tenants_canDelete": "Eliminar tenants.",
+      "tenants_canSuspend": "Suspender un tenant.",
+      "tenants_canActivate": "Reactivar un tenant suspendido.",
+      "automations_canRead": "Ver webhooks y automatizaciones.",
+      "automations_canCreate": "Crear webhooks y automatizaciones.",
+      "automations_canUpdate": "Editar webhooks y automatizaciones.",
+      "automations_canDelete": "Eliminar webhooks y automatizaciones.",
+      "automations_canExecute": "Ejecutar o disparar automatizaciones manualmente.",
+      "templates_canRead": "Ver plantillas de PDF.",
+      "templates_canCreate": "Crear plantillas de PDF.",
+      "templates_canUpdate": "Editar plantillas de PDF.",
+      "templates_canDelete": "Eliminar plantillas de PDF.",
+      "templates_canGenerate": "Generar documentos PDF a partir de las plantillas.",
+      "logs_canRead": "Ver registros de auditoría y ejecución.",
+      "logs_canUpdate": "Editar o anotar registros de auditoría.",
+      "logs_canDelete": "Eliminar registros de auditoría.",
+      "publicLinks_canManage": "Crear y gestionar enlaces públicos de compartición.",
+      "archive_canRead": "Ver registros archivados.",
+      "archive_canPermanentDelete": "Eliminar permanentemente registros archivados (irreversible)."
     }
   },
   "tenants": {
@@ -1010,6 +1074,15 @@
       "darkDesc": "Tema con fondo oscuro y texto claro",
       "system": "Sistema",
       "systemDesc": "Sigue la configuracion de tu dispositivo"
+    },
+    "org": {
+      "tab": "Organización",
+      "title": "Configuración de la Organización",
+      "description": "Ajustes que aplican a todo el tenant.",
+      "tenantName": "Nombre del tenant",
+      "tenantSlug": "Identificador (slug)",
+      "brandColor": "Color de marca",
+      "readonly": "Solo lectura — requiere permiso de configuración."
     }
   },
   "validation": {
@@ -1363,5 +1436,34 @@
       "today": "Hoy",
       "thisMonth": "Este Mes"
     }
+  },
+  "home": {
+    "title": "Inicio",
+    "greeting": "Hola, {name}",
+    "subtitle": "¿Qué quieres hacer hoy?",
+    "records": "Registros",
+    "recordsDesc": "Ver e ingresar datos",
+    "newTable": "Nueva Tabla",
+    "newTableDesc": "Define una estructura de datos",
+    "users": "Usuarios",
+    "usersDesc": "Gestiona el equipo",
+    "roles": "Cargos",
+    "rolesDesc": "Permisos y accesos",
+    "pdf": "Plantillas PDF",
+    "pdfDesc": "Modelos de documentos",
+    "dashboards": "Dashboards",
+    "dashboardsDesc": "Paneles configurables",
+    "publicLinks": "Enlaces Públicos",
+    "publicLinksDesc": "Formularios externos",
+    "logs": "Auditoría",
+    "logsDesc": "Historial de acciones",
+    "tenants": "Tenants",
+    "tenantsDesc": "Gestionar organizaciones",
+    "reports": "Informes",
+    "reportsDesc": "Vista analítica",
+    "settings": "Configuración",
+    "settingsDesc": "Cuenta y organización",
+    "tablesTitle": "Tus tablas",
+    "empty": "No hay acciones disponibles para tu perfil."
   }
 }

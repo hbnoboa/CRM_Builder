@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useCallback, useEffect } from 'react';
+import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { useTranslations } from 'next-intl';
 import {
   Table,
@@ -46,6 +46,7 @@ import {
   ArrowUp,
   ArrowDown,
   MoreHorizontal,
+  MessageSquare,
   Loader2,
   Columns3,
   Eye,
@@ -72,8 +73,9 @@ import {
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { toast } from 'sonner';
-import { useEntityDataOptional } from '@/components/entity-data/entity-data-context';
+import { useEntityDataOptional, useEntityData, EntityDataProvider } from '@/components/entity-data/entity-data-context';
 import { usePermissions } from '@/hooks/use-permissions';
+import { useRouter } from '@/i18n/tenant-navigation';
 import { useDeleteEntityData } from '@/hooks/use-data';
 import { RecordFormDialog } from '@/components/data/record-form-dialog';
 import { ImportDialog } from '@/components/data/import-dialog';
@@ -86,7 +88,7 @@ import { api } from '@/lib/api';
 import { useDashboardFilters } from './dashboard-filter-context';
 import { WidgetWrapper } from './widget-wrapper';
 import type { WidgetConfig } from '@crm-builder/shared';
-import type { DataRecord, EntityField } from '@/components/entity-data/unified-filter-types';
+import type { DataRecord, EntityField, CrossFilter, FieldFilter } from '@/components/entity-data/unified-filter-types';
 import type { Entity } from '@/types';
 
 // ─── Filter Operators ────────────────────────────────────────────────
@@ -245,12 +247,83 @@ export function DataTableWidget({ entitySlug, config, title }: DataTableWidgetPr
     );
   }
 
+  // Widget aponta p/ uma entidade DIFERENTE da pagina (entitySlugOverride: ex. tabela de
+  // Veiculos num dashboard de Operacoes). O ctx da pagina e da entidade errada, entao damos
+  // ao widget seu PROPRIO EntityDataProvider — assim a data-table completa funciona p/ filhas.
+  if (entitySlug && ctx.entitySlug && entitySlug !== ctx.entitySlug) {
+    return (
+      <EntityDataProvider entitySlug={entitySlug}>
+        <DataTableWidgetScoped entitySlug={entitySlug} config={config} title={title} />
+      </EntityDataProvider>
+    );
+  }
+
   return <DataTableWidgetInner entitySlug={entitySlug} config={config} title={title} ctx={ctx} />;
+}
+
+// Le o ctx do EntityDataProvider proprio (entidade do override) e renderiza a tabela.
+// Inclui uma ponte que injeta os filtros do dashboard (ja traduzidos p/ parent.*/child.*
+// pelo contexto do widget) no provider proprio — senao o data-table do override ignoraria
+// os filtros (ex.: filtrar Veiculos por campo da Operacao pai).
+function DataTableWidgetScoped({ entitySlug, config, title }: DataTableWidgetProps) {
+  const ctx = useEntityData();
+  return (
+    <>
+      <ScopedFilterBridge />
+      <DataTableWidgetInner entitySlug={entitySlug} config={config} title={title} ctx={ctx} />
+    </>
+  );
+}
+
+// Espelha a DashboardFilterBridge, mas para o EntityDataProvider PROPRIO do widget (override).
+// Exportado p/ reuso (ex.: contador do topo escopado a outra entidade).
+export function ScopedFilterBridge() {
+  const { crossFilters, slicerFilters, dateRange } = useDashboardFilters();
+  const ctx = useEntityData();
+  const prevRef = useRef<string>('');
+  const prevServerRef = useRef<string>('');
+  const isCross = (s: string) => s.startsWith('parent.') || s.startsWith('child.') || s.startsWith('_hasChildren');
+
+  useEffect(() => {
+    const clientCross: CrossFilter[] = [];
+    const serverItems: Array<{ fieldSlug: string; operator: string; value: unknown; fieldType?: string }> = [];
+
+    for (const cf of crossFilters) {
+      if (isCross(cf.fieldSlug)) {
+        serverItems.push({ fieldSlug: cf.fieldSlug, operator: cf.values.length > 1 ? 'in' : 'equals', value: cf.values.length > 1 ? cf.values : cf.values[0] });
+      } else {
+        clientCross.push({ fieldSlug: cf.fieldSlug, values: cf.values, entitySlug: cf.entitySlug });
+      }
+    }
+    for (const sf of slicerFilters) {
+      if (isCross(sf.fieldSlug)) {
+        serverItems.push({ fieldSlug: sf.fieldSlug, operator: sf.operator, value: sf.value, ...(sf.fieldType && { fieldType: sf.fieldType }) });
+      }
+    }
+    const slicerFieldFilters: FieldFilter[] = slicerFilters
+      .filter((sf) => !isCross(sf.fieldSlug))
+      .map((sf) => ({ id: `slicer-${sf.fieldSlug}`, fieldSlug: sf.fieldSlug, fieldType: sf.fieldType || 'text', operator: sf.operator as FieldFilter['operator'], value: sf.value }));
+
+    const clientKey = JSON.stringify({ cf: clientCross, sf: slicerFieldFilters, dr: dateRange });
+    if (clientKey !== prevRef.current) {
+      prevRef.current = clientKey;
+      ctx.setFilters({ crossFilters: clientCross, fieldFilters: slicerFieldFilters, dateRange });
+    }
+    const serverKey = JSON.stringify(serverItems);
+    if (serverKey !== prevServerRef.current) {
+      prevServerRef.current = serverKey;
+      ctx.setServerDashFilters(serverItems.length > 0 ? serverKey : undefined);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [crossFilters, slicerFilters, dateRange]);
+
+  return null;
 }
 
 function DataTableWidgetInner({ entitySlug, config, title, ctx }: DataTableWidgetProps & { ctx: NonNullable<ReturnType<typeof useEntityDataOptional>> }) {
   const t = useTranslations('data');
   const tCommon = useTranslations('common');
+  const router = useRouter();
   const { hasEntityPermission, hasModulePermission, hasModuleAction, hasEntityAction } = usePermissions();
   const deleteRecord = useDeleteEntityData();
 
@@ -313,6 +386,8 @@ function DataTableWidgetInner({ entitySlug, config, title, ctx }: DataTableWidge
   const canCreate = allowCreate && (hasModulePermission('data', 'canCreate') || hasEntityPermission(entitySlug, 'canCreate'));
   const canEdit = allowEdit && (hasModulePermission('data', 'canUpdate') || hasEntityPermission(entitySlug, 'canUpdate'));
   const canDelete = allowDelete && (hasModulePermission('data', 'canDelete') || hasEntityPermission(entitySlug, 'canDelete'));
+  // Coluna de ações sempre presente: "Abrir chat" vale para qualquer um que veja a linha.
+  const showRowActions = true;
   const canExport = allowExport && (hasModuleAction('data', 'canExport') || hasEntityAction(entitySlug, 'canExport'));
   const canImport = allowImport && (hasModuleAction('data', 'canImport') || hasEntityAction(entitySlug, 'canImport'));
 
@@ -803,7 +878,7 @@ function DataTableWidgetInner({ entitySlug, config, title, ctx }: DataTableWidge
           />
         </div>
 
-        <div className="flex items-center gap-1.5 ml-auto">
+        <div className="flex items-center gap-1.5 ml-auto flex-wrap justify-end">
           {/* Filter */}
           <Popover open={filterPopoverOpen} onOpenChange={setFilterPopoverOpen}>
             <PopoverTrigger asChild>
@@ -1087,7 +1162,7 @@ function DataTableWidgetInner({ entitySlug, config, title, ctx }: DataTableWidge
                   </div>
                 </TableHead>
               ))}
-              {(canEdit || canDelete) && (
+              {showRowActions && (
                 <TableHead className="w-[80px]" />
               )}
             </TableRow>
@@ -1096,7 +1171,7 @@ function DataTableWidgetInner({ entitySlug, config, title, ctx }: DataTableWidge
             {isLoading ? (
               <TableRow>
                 <TableCell
-                  colSpan={visibleFields.length + (allowBatchSelect ? 1 : 0) + ((canEdit || canDelete) ? 1 : 0)}
+                  colSpan={visibleFields.length + (allowBatchSelect ? 1 : 0) + (showRowActions ? 1 : 0)}
                   className="h-24 text-center"
                 >
                   <Loader2 className="h-5 w-5 animate-spin mx-auto" />
@@ -1105,7 +1180,7 @@ function DataTableWidgetInner({ entitySlug, config, title, ctx }: DataTableWidge
             ) : displayedRecords.length === 0 ? (
               <TableRow>
                 <TableCell
-                  colSpan={visibleFields.length + (allowBatchSelect ? 1 : 0) + ((canEdit || canDelete) ? 1 : 0)}
+                  colSpan={visibleFields.length + (allowBatchSelect ? 1 : 0) + (showRowActions ? 1 : 0)}
                   className="h-24 text-center text-muted-foreground"
                 >
                   {filters.searchTerm || filters.fieldFilters.length > 0
@@ -1145,8 +1220,7 @@ function DataTableWidgetInner({ entitySlug, config, title, ctx }: DataTableWidge
                       {renderCellValue(record, field)}
                     </TableCell>
                   ))}
-                  {(canEdit || canDelete) && (
-                    <TableCell>
+                  <TableCell>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                           <Button variant="ghost" size="icon" className="h-8 w-8">
@@ -1154,11 +1228,18 @@ function DataTableWidgetInner({ entitySlug, config, title, ctx }: DataTableWidge
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={() => router.push(`/chat?thread=${entitySlug}:${record.id}`)}>
+                            <MessageSquare className="h-4 w-4 mr-2" />
+                            Abrir chat
+                          </DropdownMenuItem>
                           {canEdit && (
+                            <>
+                            <DropdownMenuSeparator />
                             <DropdownMenuItem onClick={() => handleEdit(record)}>
                               <Pencil className="h-4 w-4 mr-2" />
                               {tCommon('edit')}
                             </DropdownMenuItem>
+                            </>
                           )}
                           {canDelete && (
                             <>
@@ -1175,7 +1256,6 @@ function DataTableWidgetInner({ entitySlug, config, title, ctx }: DataTableWidge
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </TableCell>
-                  )}
                 </TableRow>
               ))
             )}

@@ -1,3 +1,4 @@
+import { ServiceScope } from '../../common/service-scope/service-scope.decorator';
 import {
   Controller,
   Get,
@@ -34,6 +35,7 @@ class ExecuteManualDto {
 
 @ApiTags('Entity Automations')
 @ApiBearerAuth()
+@ServiceScope('admin')
 @Controller('entities/:entityId/automations')
 @UseGuards(JwtAuthGuard, ModulePermissionGuard)
 export class EntityAutomationController {

@@ -1,5 +1,4 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { Cron, CronExpression } from '@nestjs/schedule';
 import { PrismaService } from '../../prisma/prisma.service';
 
 @Injectable()
@@ -14,13 +13,9 @@ export class AuditArchiveService {
   constructor(private readonly prisma: PrismaService) {}
 
   /**
-   * Cron job diário (3h AM): Arquiva logs antigos > 90 dias
-   * Move logs de AuditLog para ArchivedAuditLog
+   * Engine: arquiva logs > 90 dias (AuditLog -> ArchivedAuditLog).
+   * Agendamento centralizado em DataLifecycleService.
    */
-  @Cron('0 3 * * *', {
-    name: 'archive-old-audit-logs',
-    timeZone: 'America/Sao_Paulo',
-  })
   async archiveOldLogs(): Promise<void> {
     const startTime = Date.now();
     this.logger.log('🗄️ Iniciando arquivamento de audit logs antigos...');
@@ -102,12 +97,10 @@ export class AuditArchiveService {
   }
 
   /**
-   * Cron job semanal (Domingo 4h AM): Deleta logs arquivados muito antigos > 1 ano
+   * Engine (legado): deleta logs arquivados > 1 ano SEM backup.
+   * NAO use diretamente — o cold-tier de DataLifecycleService exporta pro GCS
+   * antes de deletar. Mantido apenas para compatibilidade/ad-hoc.
    */
-  @Cron('0 4 * * 0', {
-    name: 'delete-very-old-audit-logs',
-    timeZone: 'America/Sao_Paulo',
-  })
   async deleteVeryOldLogs(): Promise<void> {
     const startTime = Date.now();
     this.logger.log('🗑️ Iniciando deleção de audit logs arquivados muito antigos...');

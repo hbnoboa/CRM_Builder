@@ -1,8 +1,7 @@
-import { IsEmail, IsString, MinLength, IsOptional, IsEnum, IsIn } from 'class-validator';
+import { IsEmail, IsString, MinLength, IsOptional, IsEnum } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional, PartialType } from '@nestjs/swagger';
 import { Status } from '@prisma/client';
 import { Type } from 'class-transformer';
-import { ROLE_TYPES, RoleType } from '../../custom-role/dto/custom-role.dto';
 
 export class CreateUserDto {
   @ApiProperty({ example: 'usuario@empresa.com' })
@@ -86,10 +85,10 @@ export class QueryUserDto {
   @IsOptional()
   sortOrder?: 'asc' | 'desc';
 
-  @ApiPropertyOptional({ description: 'Filtrar por roleType', enum: ROLE_TYPES })
-  @IsIn(ROLE_TYPES)
+  @ApiPropertyOptional({ description: 'Filtrar por customRoleId' })
+  @IsString()
   @IsOptional()
-  role?: RoleType;
+  role?: string;
 
   @ApiPropertyOptional({ enum: Status })
   @IsEnum(Status)

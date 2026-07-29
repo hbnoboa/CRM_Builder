@@ -20,8 +20,8 @@ import {
   MAX_LIMIT,
 } from '../../common/types';
 import { DASHBOARD_MAX_LIMIT } from '@crm-builder/shared';
-import { RoleType } from '../../common/decorators/roles.decorator';
 import { getEffectiveTenantId } from '../../common/utils/tenant.util';
+import { hasPlatformAccess } from '../../common/utils/platform-access';
 import { EntityDataQueryService } from '../../common/services/entity-data-query.service';
 import { AuditService } from '../audit/audit.service';
 import { formatRecordData } from '../../common/utils/format-record';
@@ -548,6 +548,7 @@ export class DataService {
           where: {
             entityId: sortSubEntityField.subEntityId!,
             parentRecordId: { not: null },
+            deletedAt: null, // nao contar filhos soft-deletados
           },
           _count: { id: true },
         }),
@@ -802,6 +803,7 @@ export class DataService {
               where: {
                 entityId: subField.subEntityId!,
                 parentRecordId: { in: recordIds },
+                deletedAt: null, // badge "N filhos" nao conta soft-deletados
               },
               _count: { id: true },
             }),
@@ -1077,8 +1079,7 @@ export class DataService {
       entityId: entity.id,
     };
 
-    const userRoleType = currentUser.customRole?.roleType as RoleType | undefined;
-    if (userRoleType === 'PLATFORM_ADMIN') {
+    if (hasPlatformAccess(currentUser.customRole?.modulePermissions)) {
       if (queryTenantId) where.tenantId = queryTenantId;
     } else {
       where.tenantId = currentUser.tenantId;
@@ -1185,14 +1186,13 @@ export class DataService {
     const effectiveTenantId = getEffectiveTenantId(currentUser, tenantId);
     const entity = await this.queryService.getEntityCached(entitySlug, currentUser, effectiveTenantId);
 
-    // PLATFORM_ADMIN pode ver registro de qualquer tenant
-    const roleType = currentUser.customRole?.roleType as RoleType | undefined;
     const whereClause: Prisma.EntityDataWhereInput = {
       id,
       entityId: entity.id,
+      deletedAt: null, // registro soft-deletado nao deve abrir como ativo
     };
 
-    if (roleType !== 'PLATFORM_ADMIN') {
+    if (!hasPlatformAccess(currentUser.customRole?.modulePermissions)) {
       whereClause.tenantId = currentUser.tenantId;
     }
 
@@ -1219,7 +1219,7 @@ export class DataService {
         id,
         entityId: entity.id,
       };
-      if (roleType !== 'PLATFORM_ADMIN') {
+      if (!hasPlatformAccess(currentUser.customRole?.modulePermissions)) {
         archivedWhereClause.tenantId = currentUser.tenantId;
       }
 
@@ -1258,7 +1258,7 @@ export class DataService {
     }
 
     // Verificar scope: se usuario tem scope 'own', so pode ver proprios registros
-    if (roleType !== 'PLATFORM_ADMIN') {
+    if (!hasPlatformAccess(currentUser.customRole?.modulePermissions)) {
       const scope = await this.customRoleService.getEntityScope(currentUser.id, entitySlug);
       if (scope === 'own' && recordResult.createdById !== currentUser.id) {
         throw new ForbiddenException('Acesso negado a este registro');
@@ -1266,7 +1266,7 @@ export class DataService {
     }
 
     // Verificar filtros de dados por role (apenas para registros ativos — archived nao tem role filters)
-    if (!recordResult._isArchived && roleType !== 'PLATFORM_ADMIN' && roleType !== 'ADMIN') {
+    if (!recordResult._isArchived && !hasPlatformAccess(currentUser.customRole?.modulePermissions)) {
       const roleFilterWhere: Prisma.EntityDataWhereInput = { id: recordResult.id };
       this.queryService.applyRoleDataFilters(roleFilterWhere, currentUser, entitySlug);
 
@@ -1326,14 +1326,13 @@ export class DataService {
     const effectiveTenantId = getEffectiveTenantId(currentUser, dto.tenantId);
     const entity = await this.queryService.getEntityCached(entitySlug, currentUser, effectiveTenantId);
 
-    // PLATFORM_ADMIN pode editar registro de qualquer tenant
-    const roleType = currentUser.customRole?.roleType as RoleType | undefined;
     const whereClause: Prisma.EntityDataWhereInput = {
       id,
       entityId: entity.id,
+      deletedAt: null, // nao editar registro soft-deletado
     };
 
-    if (roleType !== 'PLATFORM_ADMIN') {
+    if (!hasPlatformAccess(currentUser.customRole?.modulePermissions)) {
       whereClause.tenantId = currentUser.tenantId;
     }
 
@@ -1352,7 +1351,7 @@ export class DataService {
         id,
         entityId: entity.id,
       };
-      if (roleType !== 'PLATFORM_ADMIN') {
+      if (!hasPlatformAccess(currentUser.customRole?.modulePermissions)) {
         archivedWhereClause.tenantId = currentUser.tenantId;
       }
       archivedRecord = await this.prisma.archivedEntityData.findFirst({
@@ -1367,7 +1366,7 @@ export class DataService {
     const activeRecord = record || archivedRecord;
 
     // Verificar permissao de escopo (exceto PLATFORM_ADMIN)
-    if (roleType !== 'PLATFORM_ADMIN') {
+    if (!hasPlatformAccess(currentUser.customRole?.modulePermissions)) {
       // Para archived: verificar scope manualmente (checkScope espera EntityData)
       if (isArchivedRecord) {
         const scope = await this.customRoleService.getEntityScope(currentUser.id, entitySlug);
@@ -1384,12 +1383,12 @@ export class DataService {
     if (lockSettings?.lockField) {
       const recordData = activeRecord.data as Record<string, unknown>;
       if (recordData[lockSettings.lockField] === true) {
-        const rt = currentUser.customRole?.roleType;
-        const isPrivileged = rt === 'PLATFORM_ADMIN' || rt === 'ADMIN';
-        if (!isPrivileged) {
-          // Checar canEditLocked na permission da entidade
+        // Privilégio por permissão (platform) ou canEditLocked na permission da
+        // entidade (match exato ou coringa '*'). Sem roleType.
+        if (!hasPlatformAccess(currentUser.customRole?.modulePermissions)) {
           const permissions = currentUser.customRole?.permissions as Array<Record<string, unknown>> | undefined;
-          const entityPerm = permissions?.find((p) => p.entitySlug === entitySlug);
+          const entityPerm = permissions?.find((p) => p.entitySlug === entitySlug)
+            ?? permissions?.find((p) => p.entitySlug === '*');
           if (!entityPerm?.canEditLocked) {
             throw new ForbiddenException('Este registro esta finalizado e nao pode ser editado');
           }
@@ -1530,6 +1529,74 @@ export class DataService {
     return updatedRecord;
   }
 
+  /**
+   * Restaura um registro soft-deletado. GUARDA: não reativa se já existir um
+   * registro VIVO com o mesmo valor de campo único (politica A + guard de restore).
+   */
+  async restore(entitySlug: string, id: string, currentUser: CurrentUser, tenantId?: string) {
+    await this.checkEntityPermission(currentUser.id, entitySlug, 'canUpdate');
+
+    const effectiveTenantId = getEffectiveTenantId(currentUser, tenantId);
+    const entity = await this.queryService.getEntityCached(entitySlug, currentUser, effectiveTenantId);
+
+    const whereClause: Prisma.EntityDataWhereInput = {
+      id,
+      entityId: entity.id,
+      deletedAt: { not: null },
+    };
+    if (!hasPlatformAccess(currentUser.customRole?.modulePermissions)) {
+      whereClause.tenantId = currentUser.tenantId;
+    }
+
+    const record = await this.prisma.entityData.findFirst({ where: whereClause });
+    if (!record) {
+      throw new NotFoundException('Registro soft-deletado nao encontrado');
+    }
+
+    // Escopo (own)
+    if (!hasPlatformAccess(currentUser.customRole?.modulePermissions)) {
+      const scope = await this.customRoleService.getEntityScope(currentUser.id, entitySlug);
+      if (scope === 'own' && record.createdById !== currentUser.id) {
+        throw new ForbiddenException('Acesso negado a este registro');
+      }
+    }
+
+    // RESTORE-CASCATA: reativa o pai + descendentes que cairam na MESMA operacao
+    // (mesmo deletedAt timestamp). Nao toca em filhos deletados separadamente.
+    const ts = record.deletedAt as Date;
+    const descendantIds = await this.collectDeletedDescendantIds([id], record.tenantId, ts);
+    const allIds = [id, ...descendantIds];
+
+    const recs = await this.prisma.entityData.findMany({
+      where: { id: { in: allIds } },
+      select: { id: true, entityId: true, tenantId: true, data: true },
+    });
+
+    // GUARDA atomica: se QUALQUER registro a restaurar conflitar com um VIVO
+    // num campo unico, bloqueia o restore inteiro. Valida com os fields da entidade certa.
+    const fieldsByEntity = new Map<string, EntityField[]>();
+    fieldsByEntity.set(entity.id, ((entity.fields as unknown) as EntityField[]) || []);
+    for (const r of recs) {
+      if (!fieldsByEntity.has(r.entityId)) {
+        const ent = await this.prisma.entity.findFirst({ where: { id: r.entityId }, select: { fields: true } });
+        fieldsByEntity.set(r.entityId, ((ent?.fields as unknown) as EntityField[]) || []);
+      }
+      await this.validateUniqueFields(
+        fieldsByEntity.get(r.entityId)!,
+        r.data as Record<string, unknown>,
+        r.entityId,
+        r.tenantId,
+        r.id,
+      );
+    }
+
+    await this.prisma.entityData.updateMany({
+      where: { id: { in: allIds } },
+      data: { deletedAt: null },
+    });
+    return { restored: allIds.length };
+  }
+
   async remove(entitySlug: string, id: string, currentUser: CurrentUser, tenantId?: string) {
     // Verificar permissao de exclusao na entidade
     await this.checkEntityPermission(currentUser.id, entitySlug, 'canDelete');
@@ -1537,14 +1604,12 @@ export class DataService {
     const effectiveTenantId = getEffectiveTenantId(currentUser, tenantId);
     const entity = await this.queryService.getEntityCached(entitySlug, currentUser, effectiveTenantId);
 
-    // PLATFORM_ADMIN pode deletar registro de qualquer tenant
-    const roleType = currentUser.customRole?.roleType as RoleType | undefined;
     const whereClause: Prisma.EntityDataWhereInput = {
       id,
       entityId: entity.id,
     };
 
-    if (roleType !== 'PLATFORM_ADMIN') {
+    if (!hasPlatformAccess(currentUser.customRole?.modulePermissions)) {
       whereClause.tenantId = currentUser.tenantId;
     }
 
@@ -1562,7 +1627,7 @@ export class DataService {
         id,
         entityId: entity.id,
       };
-      if (roleType !== 'PLATFORM_ADMIN') {
+      if (!hasPlatformAccess(currentUser.customRole?.modulePermissions)) {
         archivedWhereClause.tenantId = currentUser.tenantId;
       }
       const archivedRecord = await this.prisma.archivedEntityData.findFirst({
@@ -1576,7 +1641,7 @@ export class DataService {
     }
 
     // Verificar permissao de escopo (exceto PLATFORM_ADMIN)
-    if (roleType !== 'PLATFORM_ADMIN') {
+    if (!hasPlatformAccess(currentUser.customRole?.modulePermissions)) {
       if (isArchivedDeletion) {
         const scope = await this.customRoleService.getEntityScope(currentUser.id, entitySlug);
         if (scope === 'own' && targetRecord.createdById !== currentUser.id) {
@@ -1596,7 +1661,15 @@ export class DataService {
     if (isArchivedDeletion) {
       await this.prisma.archivedEntityData.delete({ where: { id } });
     } else {
-      await this.prisma.entityData.delete({ where: { id } });
+      // Soft delete em CASCATA: marca deletedAt no registro e em todos os
+      // descendentes (sub-entidades via parentRecordId). A leitura ja filtra
+      // deletedAt:null (EntityDataQueryService.buildWhere) -> filhos somem juntos.
+      const now = new Date();
+      const ids = [id, ...(await this.collectDescendantIds([id], record!.tenantId))];
+      await this.prisma.entityData.updateMany({
+        where: { id: { in: ids }, deletedAt: null },
+        data: { deletedAt: now },
+      });
     }
 
     // Enviar notificacao para o tenant
@@ -1684,6 +1757,44 @@ export class DataService {
     }));
   }
 
+  /** Coleta descendentes deletados na MESMA operacao (deletedAt = ts) — para restore-cascata. */
+  private async collectDeletedDescendantIds(parentIds: string[], tenantId: string, ts: Date): Promise<string[]> {
+    const all: string[] = [];
+    let frontier = parentIds;
+    for (let depth = 0; depth < 20 && frontier.length > 0; depth++) {
+      const children = await this.prisma.entityData.findMany({
+        where: { parentRecordId: { in: frontier }, tenantId, deletedAt: ts },
+        select: { id: true },
+      });
+      const childIds = children
+        .map((c) => c.id)
+        .filter((cid) => !all.includes(cid) && !parentIds.includes(cid));
+      if (childIds.length === 0) break;
+      all.push(...childIds);
+      frontier = childIds;
+    }
+    return all;
+  }
+
+  /** Coleta recursivamente os ids de descendentes VIVOS (sub-entidades via parentRecordId). */
+  private async collectDescendantIds(parentIds: string[], tenantId: string): Promise<string[]> {
+    const all: string[] = [];
+    let frontier = parentIds;
+    for (let depth = 0; depth < 20 && frontier.length > 0; depth++) {
+      const children = await this.prisma.entityData.findMany({
+        where: { parentRecordId: { in: frontier }, tenantId, deletedAt: null },
+        select: { id: true },
+      });
+      const childIds = children
+        .map((c) => c.id)
+        .filter((cid) => !all.includes(cid) && !parentIds.includes(cid));
+      if (childIds.length === 0) break;
+      all.push(...childIds);
+      frontier = childIds;
+    }
+    return all;
+  }
+
   // Validar campos marcados como unique
   private async validateUniqueFields(
     fields: EntityField[],
@@ -1703,6 +1814,7 @@ export class DataService {
         where: {
           entityId,
           tenantId,
+          deletedAt: null, // unicidade so considera registros VIVOS (soft-deletado libera o valor)
           ...(excludeRecordId ? { id: { not: excludeRecordId } } : {}),
         },
         select: { id: true, data: true },
@@ -1723,39 +1835,15 @@ export class DataService {
 
   // Verificar se usuario pode modificar o registro
   private async checkScope(record: EntityData, user: CurrentUser, entitySlug: string) {
-    const roleType = user.customRole?.roleType as RoleType | undefined;
+    // Acesso de plataforma pode tudo.
+    if (hasPlatformAccess(user.customRole?.modulePermissions)) return;
 
-    // Admin e Platform Admin podem tudo
-    if (roleType === 'PLATFORM_ADMIN' || roleType === 'ADMIN') {
-      return;
-    }
-
-    // Viewer nao pode modificar
-    if (roleType === 'VIEWER') {
-      throw new ForbiddenException('Voce nao tem permissao para modificar registros');
-    }
-
-    // Manager pode modificar registros do tenant
-    if (roleType === 'MANAGER') {
-      return;
-    }
-
-    // CUSTOM: respeitar o scope da permissao (all ou own)
-    if (roleType === 'CUSTOM') {
-      const scope = await this.customRoleService.getEntityScope(user.id, entitySlug);
-      if (scope === 'all') return;
-      // scope === 'own' ou null: so pode modificar proprios registros
-      if (record.createdById !== user.id) {
-        throw new ForbiddenException('Voce so pode modificar registros criados por voce');
-      }
-      return;
-    }
-
-    // USER so pode modificar proprios registros
-    if (roleType === 'USER') {
-      if (record.createdById !== user.id) {
-        throw new ForbiddenException('Voce so pode modificar registros criados por voce');
-      }
+    // Permission-driven: escopo vem de permissions[]/'*'. 'all' => livre;
+    // 'own'/sem-acesso => só registros do proprio usuario.
+    const scope = await this.customRoleService.getEntityScope(user.id, entitySlug);
+    if (scope === 'all') return;
+    if (record.createdById !== user.id) {
+      throw new ForbiddenException('Voce so pode modificar registros criados por voce');
     }
   }
 }

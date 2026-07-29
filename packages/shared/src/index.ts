@@ -1,6 +1,5 @@
 // Enums & type unions
 export type {
-  RoleType,
   Status,
   TenantStatus,
   PermissionScope,
@@ -10,7 +9,6 @@ export type {
   SortOrder,
   NotificationType,
 } from './enums';
-export { ROLE_TYPES } from './enums';
 
 // Pagination
 export type {

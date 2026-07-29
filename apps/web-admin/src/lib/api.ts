@@ -15,6 +15,17 @@ function isPublicContext(): boolean {
   return window.location.pathname.includes('/p/');
 }
 
+// Modelo B: o tenant é o 1º segmento depois do locale na URL (/{locale}/{tenant}/...).
+// Segmentos não-tenant (auth/público) são ignorados.
+const NON_TENANT_SEGMENTS = new Set(['login', 'register', 'forgot-password', 'p', 'api']);
+function tenantSlugFromUrl(): string | null {
+  if (typeof window === 'undefined') return null;
+  const segs = window.location.pathname.split('/').filter(Boolean); // [locale, tenant?, ...]
+  const seg = segs[1];
+  if (seg && !NON_TENANT_SEGMENTS.has(seg)) return seg;
+  return null;
+}
+
 // Request interceptor - add auth token
 api.interceptors.request.use(
   (config) => {
@@ -22,6 +33,20 @@ api.interceptors.request.use(
     const token = localStorage.getItem(tokenKey);
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
+    }
+
+    // Modelo B: tenant ativo vai como X-Tenant-Id (persistido -> sobrevive ao F5).
+    // O backend resolve tenant+role via Membership a partir deste header.
+    if (!isPublicContext()) {
+      // Preferencial: tenant da URL (slug). Fallback: activeTenantId (localStorage).
+      const slug = tenantSlugFromUrl();
+      if (slug) {
+        config.headers['X-Tenant-Slug'] = slug;
+      }
+      const activeTenantId = localStorage.getItem('activeTenantId');
+      if (activeTenantId) {
+        config.headers['X-Tenant-Id'] = activeTenantId;
+      }
     }
 
     return config;

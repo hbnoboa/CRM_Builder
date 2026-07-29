@@ -1,4 +1,4 @@
-import { RoleType, PermissionScope } from './enums';
+import { PermissionScope } from './enums';
 import { TenantPermissions } from './tenant';
 
 export interface FieldPermission {
@@ -88,12 +88,13 @@ export interface CustomRole {
   name: string;
   description?: string;
   color?: string;
-  roleType: RoleType;
   isSystem: boolean;
   permissions: EntityPermission[];
   modulePermissions?: ModulePermissions;
   tenantPermissions?: TenantPermissions;
   isDefault?: boolean;
+  /** Rank de governanca: numero MENOR = mais poder (1 = topo). */
+  rank?: number;
   tenantId: string;
   _count?: { users: number };
   users?: Array<{ id: string; name: string; email: string; avatar?: string }>;

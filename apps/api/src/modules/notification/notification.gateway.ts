@@ -167,9 +167,10 @@ export class NotificationGateway
     @ConnectedSocket() client: AuthenticatedSocket,
     @MessageBody() data: { channel: string },
   ) {
-    // Validar que usuario so pode se inscrever em canais do proprio tenant
+    // Validar que usuario so pode se inscrever em canais do proprio tenant.
+    // Canais: `tenant:<tenantId>` ou (escopo por entidade) `tenant:<tenantId>:entity:<slug>`.
     if (data.channel.startsWith('tenant:')) {
-      const channelTenantId = data.channel.replace('tenant:', '');
+      const channelTenantId = data.channel.split(':')[1];
       if (channelTenantId !== client.tenantId) {
         this.logger.warn(`Usuario ${client.userId} tentou subscribe cross-tenant: ${data.channel}`);
         return { event: 'error', data: { message: 'Acesso negado' } };
@@ -224,17 +225,22 @@ export class NotificationGateway
    * @param excludeUserId - Optional userId to exclude from receiving this event (avoids infinite loops)
    */
   emitDataChanged(tenantId: string, payload: { operation: string; entitySlug: string; [key: string]: unknown }, excludeUserId?: string) {
-    const room = `tenant:${tenantId}`;
+    // #19 item 8: escopo por (tenant, entidade). Emite para a sala do tenant
+    // (todos que ouvem o tenant inteiro) E para a sala da entidade
+    // (clientes que assinam so aquela entidade). socket.io deduplica a entrega
+    // para sockets presentes nas duas salas. Backward-compat: a sala do tenant
+    // continua recebendo tudo.
+    const tenantRoom = `tenant:${tenantId}`;
+    const entityRoom = `tenant:${tenantId}:entity:${payload.entitySlug}`;
+    const target = this.server.to(tenantRoom).to(entityRoom);
 
     if (excludeUserId) {
-      // Broadcast para todos no tenant EXCETO o usuário que originou a mudança
-      const userRoom = `user:${excludeUserId}`;
-      this.server.to(room).except(userRoom).emit('data-changed', payload);
-      this.logger.log(`📡 data-changed: ${payload.operation} ${payload.entitySlug} → ${room} (exceto ${excludeUserId})`);
+      // Broadcast EXCETO o usuário que originou a mudança (evita loop)
+      target.except(`user:${excludeUserId}`).emit('data-changed', payload);
+      this.logger.log(`📡 data-changed: ${payload.operation} ${payload.entitySlug} → ${tenantRoom}+${entityRoom} (exceto ${excludeUserId})`);
     } else {
-      // Broadcast para todos (comportamento antigo, para compatibilidade)
-      this.server.to(room).emit('data-changed', payload);
-      this.logger.log(`📡 data-changed: ${payload.operation} ${payload.entitySlug} → ${room}`);
+      target.emit('data-changed', payload);
+      this.logger.log(`📡 data-changed: ${payload.operation} ${payload.entitySlug} → ${tenantRoom}+${entityRoom}`);
     }
   }
 

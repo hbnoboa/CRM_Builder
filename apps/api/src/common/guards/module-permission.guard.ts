@@ -2,6 +2,7 @@ import { Injectable, CanActivate, ExecutionContext, ForbiddenException } from '@
 import { Reflector } from '@nestjs/core';
 import { MODULE_PERMISSION_KEY, ModulePermissionMetadata } from '../decorators/module-permission.decorator';
 import type { CurrentUser } from '../types';
+import { hasPlatformAccess, hasFullTenantAccess } from '../utils/platform-access';
 
 /**
  * Guard que verifica se o usuário tem permissão em um módulo específico.
@@ -30,10 +31,15 @@ export class ModulePermissionGuard implements CanActivate {
     }
 
     const { module, action, subModule } = metadata;
-    const roleType = user.customRole?.roleType;
 
-    // APENAS PLATFORM_ADMIN tem acesso automatico
-    if (roleType === 'PLATFORM_ADMIN') {
+    // Acesso de plataforma (permissao) tem acesso automatico. (Antes: roleType PLATFORM_ADMIN.)
+    if (hasPlatformAccess(user.customRole?.modulePermissions)) {
+      return true;
+    }
+
+    // Acesso total ao tenant: libera qualquer módulo/ação DENTRO do tenant, de forma
+    // dinâmica (módulos novos já entram, sem re-grant). Não é poder de plataforma.
+    if (hasFullTenantAccess(user.customRole?.modulePermissions)) {
       return true;
     }
 

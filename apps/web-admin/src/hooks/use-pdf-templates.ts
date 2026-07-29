@@ -2,6 +2,7 @@
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
+import { useActiveTenant } from '@/stores/tenant-context';
 import {
   pdfTemplatesService,
   type PdfTemplate,
@@ -26,8 +27,9 @@ export const pdfTemplateKeys = {
 // ================= HOOKS =================
 
 export function usePdfTemplates(params?: QueryPdfTemplateParams) {
+  const { slug } = useActiveTenant();
   return useQuery({
-    queryKey: pdfTemplateKeys.list(params),
+    queryKey: [...pdfTemplateKeys.list(params), slug],
     queryFn: () => pdfTemplatesService.getAll(params),
   });
 }

@@ -2532,6 +2532,7 @@ export class PdfGeneratorService {
               entityId: field.subEntityId,
               parentRecordId: recordId,
               tenantId,
+              deletedAt: null, // PDF nao inclui sub-registros soft-deletados
             },
             orderBy: { createdAt: 'asc' },
           }),

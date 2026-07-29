@@ -27,7 +27,7 @@ import {
   BarChart3,
   AlertCircle,
 } from 'lucide-react';
-import { useDashboardFilters } from './dashboard-filter-context';
+import { useWidgetFilters } from './dashboard-filter-context';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -87,7 +87,6 @@ function getStatusVariant(status: unknown): 'default' | 'secondary' | 'destructi
 
 export default function SubEntityListWidget({ config }: SubEntityListWidgetProps) {
   const {
-    entitySlug,
     subEntitySlug,
     parentRecordId,
     displayFields = [],
@@ -100,17 +99,9 @@ export default function SubEntityListWidget({ config }: SubEntityListWidgetProps
   const t = useTranslations('widgets');
   const { tenantId } = useTenant();
   const router = useRouter();
-  const { crossFilters } = useDashboardFilters();
-
-  // DEBUG: Verificar se cross filters estão chegando corretamente
-  useEffect(() => {
-    console.log('[SubEntityListWidget] Cross Filters:', {
-      subEntitySlug,
-      entitySlug,
-      crossFilters,
-      filteredCrossFilters: crossFilters.filter(f => f.fieldSlug.startsWith('parent.')),
-    });
-  }, [crossFilters, subEntitySlug, entitySlug]);
+  // Resolvedor central: já traduz filtros do pai como `parent.<campo>` e exclui o
+  // próprio widget. Enviado como `dashboardFilters` -> backend resolve via parentRecordId.
+  const { filters: dashboardFilters } = useWidgetFilters();
 
   const [loading, setLoading] = useState(true);
   const [records, setRecords] = useState<SubRecord[]>([]);
@@ -148,25 +139,10 @@ export default function SubEntityListWidget({ config }: SubEntityListWidgetProps
           params.parentRecordId = parentRecordId;
         }
 
-        // Apply cross filters from dashboard
-        // Converte cross filters para formato de filtros da API
-        if (crossFilters.length > 0) {
-          const apiFilters = crossFilters
-            .filter(f => {
-              // Filtrar apenas filtros relevantes
-              // Se o filtro tem prefixo parent., aplicar ao sub-entity
-              return f.fieldSlug.startsWith('parent.');
-            })
-            .map(f => ({
-              fieldSlug: f.fieldSlug.replace('parent.', ''), // Remove prefixo parent.
-              operator: 'in',
-              value: f.values,
-              fieldType: 'relation',
-            }));
-
-          if (apiFilters.length > 0) {
-            params.filters = JSON.stringify(apiFilters);
-          }
+        // Filtros do dashboard (já resolvidos pelo resolvedor central, com prefixos
+        // parent./child. preservados) vão como dashboardFilters -> applyDashboardFilters.
+        if (dashboardFilters) {
+          params.dashboardFilters = dashboardFilters;
         }
 
         const response = await api.get(`/data/${subEntitySlug}`, { params });
@@ -194,7 +170,7 @@ export default function SubEntityListWidget({ config }: SubEntityListWidgetProps
     }
 
     loadData();
-  }, [subEntitySlug, parentRecordId, limit, groupBy, showParentInfo, tenantId, crossFilters]);
+  }, [subEntitySlug, parentRecordId, limit, groupBy, showParentInfo, tenantId, dashboardFilters]);
 
   const getFieldLabel = (slug: string) => {
     const field = subEntity?.fields?.find(f => f.slug === slug);

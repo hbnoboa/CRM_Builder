@@ -47,6 +47,28 @@ export function buildFilterClause(
   // Tipos especiais (nao filtráveis)
   const specialTypes = ['sla-status', 'action-button'];
 
+  // notEquals: negacao de equals para qualquer tipo, INCLUINDO registros sem o
+  // campo (null/ausente) — espelha a semantica do PowerSync (record_value IS
+  // DISTINCT FROM value, onde NULL passa). Sem isto, role dataFilters / global
+  // filters / dashboard filters com 'notEquals' eram silenciosamente ignorados.
+  if (operator === 'notEquals') {
+    let eqVal: Prisma.InputJsonValue;
+    if (type === 'boolean') {
+      eqVal = value === true || value === 'true' || value === 1 || value === '1';
+    } else if (numberTypes.includes(type)) {
+      eqVal = Number(value);
+    } else {
+      eqVal = String(value ?? '');
+    }
+    return {
+      OR: [
+        { NOT: { data: { path: [fieldSlug], equals: eqVal } } },
+        { data: { path: [fieldSlug], equals: Prisma.DbNull } },
+        { data: { path: [fieldSlug], equals: Prisma.JsonNull } },
+      ],
+    };
+  }
+
   if (type === 'boolean') {
     if (operator === 'equals') {
       let boolValue: boolean;
@@ -57,6 +79,19 @@ export function buildFilterClause(
       }
       return { data: { path: [fieldSlug], equals: boolValue } };
     }
+  }
+
+  // Selects podem ter sido gravados como string pura ("Colisão") OU como objeto
+  // {value,label} (formato legado). Para `equals`, casar AMBOS os formatos via OR,
+  // senao filtros/dashboards perdem registros historicos.
+  if (selectTypes.includes(type) && operator === 'equals') {
+    const strValue = String(value || '');
+    return {
+      OR: [
+        { data: { path: [fieldSlug], equals: strValue } },
+        { data: { path: [fieldSlug, 'value'], equals: strValue } },
+      ],
+    };
   }
 
   if (textTypes.includes(type) || selectTypes.includes(type)) {

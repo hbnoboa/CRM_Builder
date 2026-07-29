@@ -11,6 +11,7 @@ import type {
   UpdateDashboardTemplateData,
 } from '@crm-builder/shared';
 import { getErrorMessage } from '@/lib/get-error-message';
+import { useActiveTenant } from '@/stores/tenant-context';
 
 // ═══════════════════════════════════════════════════════════════════════
 // Dashboard Filter Params (passed to API)
@@ -55,8 +56,9 @@ export const entityStatsKeys = {
 // ═══════════════════════════════════════════════════════════════════════
 
 export function useDashboardTemplates() {
+  const { slug } = useActiveTenant();
   return useQuery({
-    queryKey: dashboardTemplateKeys.lists(),
+    queryKey: [...dashboardTemplateKeys.lists(), slug],
     queryFn: () => dashboardTemplatesService.getAll(),
   });
 }
@@ -70,8 +72,9 @@ export function useDashboardTemplate(id: string | undefined) {
 }
 
 export function useMyDashboardTemplate(entitySlug: string | undefined) {
+  const { slug } = useActiveTenant();
   return useQuery({
-    queryKey: dashboardTemplateKeys.my(entitySlug || ''),
+    queryKey: [...dashboardTemplateKeys.my(entitySlug || ''), slug],
     queryFn: () => dashboardTemplatesService.getMyTemplate(entitySlug!),
     enabled: !!entitySlug,
     staleTime: 30_000,
@@ -79,8 +82,9 @@ export function useMyDashboardTemplate(entitySlug: string | undefined) {
 }
 
 export function useMyDashboardTemplates(entitySlug: string | undefined) {
+  const { slug } = useActiveTenant();
   return useQuery({
-    queryKey: [...dashboardTemplateKeys.all, 'my-all', entitySlug || ''],
+    queryKey: [...dashboardTemplateKeys.all, 'my-all', entitySlug || '', slug],
     queryFn: () => dashboardTemplatesService.getMyTemplates(entitySlug!),
     enabled: !!entitySlug,
     staleTime: 30_000,
@@ -139,8 +143,9 @@ export function useEntityRecordCount(
   entitySlug: string | undefined,
   options?: { comparePeriod?: boolean; days?: number } & DashboardFilterParams,
 ) {
+  const { slug: tenantSlug } = useActiveTenant();
   return useQuery({
-    queryKey: entityStatsKeys.recordCount(entitySlug || '', options),
+    queryKey: [...entityStatsKeys.recordCount(entitySlug || '', options), tenantSlug],
     queryFn: () => entityStatsService.recordCount(entitySlug!, options),
     enabled: !!entitySlug,
     staleTime: 30_000,
@@ -152,8 +157,9 @@ export function useEntityRecordsOverTime(
   days?: number,
   dashFilters?: DashboardFilterParams,
 ) {
+  const { slug: tenantSlug } = useActiveTenant();
   return useQuery({
-    queryKey: entityStatsKeys.recordsOverTime(entitySlug || '', days, dashFilters),
+    queryKey: [...entityStatsKeys.recordsOverTime(entitySlug || '', days, dashFilters), tenantSlug],
     queryFn: () => entityStatsService.recordsOverTime(entitySlug!, days, dashFilters),
     enabled: !!entitySlug,
     staleTime: 30_000,
@@ -166,8 +172,9 @@ export function useFieldDistribution(
   limit?: number,
   dashFilters?: DashboardFilterParams,
 ) {
+  const { slug: tenantSlug } = useActiveTenant();
   return useQuery({
-    queryKey: entityStatsKeys.fieldDistribution(entitySlug || '', fieldSlug || '', limit, dashFilters),
+    queryKey: [...entityStatsKeys.fieldDistribution(entitySlug || '', fieldSlug || '', limit, dashFilters), tenantSlug],
     queryFn: () => entityStatsService.fieldDistribution(entitySlug!, fieldSlug!, limit, dashFilters),
     enabled: !!entitySlug && !!fieldSlug,
     staleTime: 30_000,
@@ -180,8 +187,9 @@ export function useFieldAggregation(
   aggregation?: string,
   options?: { comparePeriod?: boolean; days?: number } & DashboardFilterParams,
 ) {
+  const { slug: tenantSlug } = useActiveTenant();
   return useQuery({
-    queryKey: entityStatsKeys.fieldAggregation(entitySlug || '', fieldSlug || '', aggregation, options),
+    queryKey: [...entityStatsKeys.fieldAggregation(entitySlug || '', fieldSlug || '', aggregation, options), tenantSlug],
     queryFn: () => entityStatsService.fieldAggregation(entitySlug!, fieldSlug!, aggregation, options),
     enabled: !!entitySlug && !!fieldSlug,
     staleTime: 30_000,
@@ -195,8 +203,9 @@ export function useFieldTrend(
   days?: number,
   dashFilters?: DashboardFilterParams,
 ) {
+  const { slug: tenantSlug } = useActiveTenant();
   return useQuery({
-    queryKey: entityStatsKeys.fieldTrend(entitySlug || '', fieldSlug || '', aggregation, days, dashFilters),
+    queryKey: [...entityStatsKeys.fieldTrend(entitySlug || '', fieldSlug || '', aggregation, days, dashFilters), tenantSlug],
     queryFn: () => entityStatsService.fieldTrend(entitySlug!, fieldSlug!, aggregation, days, dashFilters),
     enabled: !!entitySlug && !!fieldSlug,
     staleTime: 30_000,
@@ -208,8 +217,9 @@ export function useEntityRecentActivity(
   limit?: number,
   dashFilters?: DashboardFilterParams,
 ) {
+  const { slug: tenantSlug } = useActiveTenant();
   return useQuery({
-    queryKey: entityStatsKeys.recentActivity(entitySlug || '', limit, dashFilters),
+    queryKey: [...entityStatsKeys.recentActivity(entitySlug || '', limit, dashFilters), tenantSlug],
     queryFn: () => entityStatsService.recentActivity(entitySlug!, limit, dashFilters),
     enabled: !!entitySlug,
     staleTime: 30_000,
@@ -220,8 +230,9 @@ export function useEntityTopRecords(
   entitySlug: string | undefined,
   options?: { limit?: number; sortBy?: string; sortOrder?: string; fields?: string[] } & DashboardFilterParams,
 ) {
+  const { slug: tenantSlug } = useActiveTenant();
   return useQuery({
-    queryKey: entityStatsKeys.topRecords(entitySlug || '', options),
+    queryKey: [...entityStatsKeys.topRecords(entitySlug || '', options), tenantSlug],
     queryFn: () => entityStatsService.topRecords(entitySlug!, options),
     enabled: !!entitySlug,
     staleTime: 30_000,
@@ -234,8 +245,9 @@ export function useEntityFunnel(
   stages?: string[],
   dashFilters?: DashboardFilterParams,
 ) {
+  const { slug: tenantSlug } = useActiveTenant();
   return useQuery({
-    queryKey: entityStatsKeys.funnel(entitySlug || '', fieldSlug || '', stages, dashFilters),
+    queryKey: [...entityStatsKeys.funnel(entitySlug || '', fieldSlug || '', stages, dashFilters), tenantSlug],
     queryFn: () => entityStatsService.funnel(entitySlug!, fieldSlug!, stages, dashFilters),
     enabled: !!entitySlug && !!fieldSlug,
     staleTime: 30_000,
@@ -248,8 +260,9 @@ export function useFieldRatio(
   denominatorField: string | undefined,
   options?: { aggregation?: string; comparePeriod?: boolean; days?: number; denominatorEntitySlug?: string } & DashboardFilterParams,
 ) {
+  const { slug: tenantSlug } = useActiveTenant();
   return useQuery({
-    queryKey: entityStatsKeys.fieldRatio(entitySlug || '', numeratorField || '', denominatorField || '', options),
+    queryKey: [...entityStatsKeys.fieldRatio(entitySlug || '', numeratorField || '', denominatorField || '', options), tenantSlug],
     queryFn: () => entityStatsService.fieldRatio(entitySlug!, numeratorField!, denominatorField!, options),
     enabled: !!entitySlug && !!numeratorField && !!denominatorField,
     staleTime: 30_000,
@@ -261,8 +274,9 @@ export function useDistinctCount(
   fields: string[] | undefined,
   options?: { comparePeriod?: boolean; days?: number; filterField?: string; filterValue?: string } & DashboardFilterParams,
 ) {
+  const { slug: tenantSlug } = useActiveTenant();
   return useQuery({
-    queryKey: entityStatsKeys.distinctCount(entitySlug || '', fields || [], options),
+    queryKey: [...entityStatsKeys.distinctCount(entitySlug || '', fields || [], options), tenantSlug],
     queryFn: () => entityStatsService.distinctCount(entitySlug!, fields!, options),
     enabled: !!entitySlug && !!fields && fields.length > 0,
     staleTime: 30_000,
@@ -280,8 +294,9 @@ export function useGroupedData(
     sortOrder?: string;
   } & DashboardFilterParams,
 ) {
+  const { slug: tenantSlug } = useActiveTenant();
   return useQuery({
-    queryKey: entityStatsKeys.groupedData(entitySlug || '', groupBy || [], options),
+    queryKey: [...entityStatsKeys.groupedData(entitySlug || '', groupBy || [], options), tenantSlug],
     queryFn: () => entityStatsService.groupedData(entitySlug!, groupBy!, options),
     enabled: !!entitySlug && !!groupBy && groupBy.length > 0,
     staleTime: 30_000,
@@ -294,8 +309,9 @@ export function useCrossFieldDistribution(
   columnField: string | undefined,
   options?: { limit?: number } & DashboardFilterParams,
 ) {
+  const { slug: tenantSlug } = useActiveTenant();
   return useQuery({
-    queryKey: entityStatsKeys.crossFieldDist(entitySlug || '', rowField || '', columnField || '', options),
+    queryKey: [...entityStatsKeys.crossFieldDist(entitySlug || '', rowField || '', columnField || '', options), tenantSlug],
     queryFn: () => entityStatsService.crossFieldDistribution(entitySlug!, rowField!, columnField!, options),
     enabled: !!entitySlug && !!rowField && !!columnField,
     staleTime: 30_000,

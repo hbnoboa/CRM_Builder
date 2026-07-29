@@ -1,9 +1,11 @@
+import { ServiceScope } from '../../common/service-scope/service-scope.decorator';
 import { Controller, Get, Post, Body, Param } from '@nestjs/common';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { PublicLinkService } from './public-link.service';
 import { PublicRegisterDto, PublicLoginDto } from './dto/public-link.dto';
 
+@ServiceScope('user')
 @Controller('p')
 @ApiTags('Public Link - Public')
 export class PublicLinkPublicController {

@@ -1,12 +1,12 @@
-import { IsString, IsOptional, IsBoolean, IsArray, ValidateNested, IsIn, Allow } from 'class-validator';
+import { IsString, IsOptional, IsBoolean, IsArray, ValidateNested, IsIn, IsInt, Min, Allow, IsObject } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional, PartialType } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { RoleType, PermissionScope, ROLE_TYPES } from '@crm-builder/shared';
+import { PermissionScope } from '@crm-builder/shared';
 
-export { RoleType, PermissionScope, ROLE_TYPES };
+export { PermissionScope };
 
 const VALID_FILTER_OPERATORS = [
-  'equals', 'contains', 'startsWith', 'endsWith',
+  'equals', 'notEquals', 'contains', 'startsWith', 'endsWith',
   'gt', 'gte', 'lt', 'lte', 'between',
   'isEmpty', 'isNotEmpty',
 ] as const;
@@ -280,15 +280,7 @@ export class CreateCustomRoleDto {
   @IsOptional()
   color?: string;
 
-  @ApiPropertyOptional({
-    enum: ROLE_TYPES,
-    default: 'CUSTOM',
-    description: 'Tipo da role: PLATFORM_ADMIN, ADMIN, MANAGER, USER, VIEWER, CUSTOM'
-  })
-  @IsString()
-  @IsIn(ROLE_TYPES)
-  @IsOptional()
-  roleType?: RoleType;
+  // roleType REMOVIDO (Fase 3): autorizacao e permission-driven (permissions[]/'*').
 
   @ApiPropertyOptional({
     default: false,
@@ -304,11 +296,15 @@ export class CreateCustomRoleDto {
   @Type(() => EntityPermissionDto)
   permissions: EntityPermissionDto[];
 
-  @ApiPropertyOptional({ type: ModulePermissionsDto })
-  @ValidateNested()
-  @Type(() => ModulePermissionsDto)
+  // modulePermissions é JSON flexível (módulos + submódulos aninhados + chaves
+  // especiais como `platform`). NÃO usar DTO whitelistado aqui: com whitelist:true
+  // qualquer chave não declarada (platform, automations, templates, logs, archive…)
+  // era SILENCIOSAMENTE removida, descartando permissões a cada save. A validação
+  // semântica/anti-escalada acontece no service (assertPermissionsSubset).
+  @ApiPropertyOptional({ type: Object })
+  @IsObject()
   @IsOptional()
-  modulePermissions?: ModulePermissionsDto;
+  modulePermissions?: Record<string, unknown>;
 
   @ApiPropertyOptional({
     type: TenantPermissionsDto,
@@ -323,6 +319,16 @@ export class CreateCustomRoleDto {
   @IsBoolean()
   @IsOptional()
   isDefault?: boolean;
+
+  @ApiPropertyOptional({
+    minimum: 1,
+    description:
+      'Rank de governanca (numero MENOR = mais poder; 1 = topo). Um ator nao-plataforma so cria/edita cargos de rank estritamente MAIOR que o seu. Se omitido, recebe um rank subordinado ao do criador.',
+  })
+  @IsInt()
+  @Min(1)
+  @IsOptional()
+  rank?: number;
 }
 
 export class UpdateCustomRoleDto extends PartialType(CreateCustomRoleDto) {}

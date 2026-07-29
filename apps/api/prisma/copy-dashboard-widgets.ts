@@ -55,7 +55,7 @@ async function main() {
     console.log('⚠️  Dashboard target não encontrado, criando...');
     // Buscar uma role para associar o dashboard
     const role = await prisma.customRole.findFirst({
-      where: { tenantId: tenant.id, roleType: 'ADMIN' },
+      where: { tenantId: tenant.id },
     });
 
     if (!role) {

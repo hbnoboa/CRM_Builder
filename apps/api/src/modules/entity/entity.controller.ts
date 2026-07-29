@@ -19,6 +19,7 @@ import { RequireModulePermission } from '../../common/decorators/module-permissi
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { CurrentUser as CurrentUserType } from '../../common/types';
 import { checkEntityAction } from '../../common/utils/check-module-permission';
+import { ServiceScope } from '../../common/service-scope/service-scope.decorator';
 
 @ApiTags('Entities')
 @Controller('entities')
@@ -28,6 +29,7 @@ export class EntityController {
   constructor(private readonly entityService: EntityService) {}
 
   @Post()
+  @ServiceScope('admin')
   @RequireModulePermission('entities', 'canCreate')
   @ApiOperation({ summary: 'Criar entidade' })
   async create(@Body() dto: CreateEntityDto, @CurrentUser() user: CurrentUserType) {
@@ -62,6 +64,7 @@ export class EntityController {
   }
 
   @Patch(':id/column-config')
+  @ServiceScope('admin')
   @ApiOperation({ summary: 'Atualizar configuracao de colunas' })
   async updateColumnConfig(
     @Param('id') id: string,
@@ -74,6 +77,7 @@ export class EntityController {
   }
 
   @Patch(':id/global-filters')
+  @ServiceScope('admin')
   @RequireModulePermission('entities', 'canUpdate')
   @ApiOperation({ summary: 'Atualizar filtros globais da entidade' })
   async updateGlobalFilters(
@@ -85,6 +89,7 @@ export class EntityController {
   }
 
   @Patch(':id')
+  @ServiceScope('admin')
   @RequireModulePermission('entities', 'canUpdate')
   @ApiOperation({ summary: 'Atualizar entidade' })
   async update(@Param('id') id: string, @Body() dto: UpdateEntityDto, @CurrentUser() user: CurrentUserType) {
@@ -92,9 +97,18 @@ export class EntityController {
   }
 
   @Delete(':id')
+  @ServiceScope('admin')
   @RequireModulePermission('entities', 'canDelete')
   @ApiOperation({ summary: 'Excluir entidade' })
   async remove(@Param('id') id: string, @CurrentUser() user: CurrentUserType) {
     return this.entityService.remove(id, user);
+  }
+
+  @Post(':id/restore')
+  @ServiceScope('admin')
+  @RequireModulePermission('entities', 'canUpdate')
+  @ApiOperation({ summary: 'Restaurar entidade soft-deletada (+ sub-entidades e registros)' })
+  async restore(@Param('id') id: string, @CurrentUser() user: CurrentUserType) {
+    return this.entityService.restore(id, user);
   }
 }

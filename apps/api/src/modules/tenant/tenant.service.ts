@@ -44,30 +44,51 @@ export class TenantService {
       if (dto.adminEmail && dto.adminPassword && dto.adminName) {
         const hashedPassword = await bcrypt.hash(dto.adminPassword, 12);
 
-        // Criar um role temporário "Admin Inicial" para o primeiro usuário
+        // Cargo admin inicial do tenant = ACESSO TOTAL ao tenant (dinâmico): o flag
+        // `allAccess` libera todos os módulos e tabelas — inclusive os criados no
+        // futuro, sem re-grant. Coringa `*` cobre entidades; rank 1 = topo do tenant
+        // (gerencia todos os cargos subordinados). Não dá poder de plataforma.
         const initialRole = await tx.customRole.create({
           data: {
             tenantId: createdTenant.id,
             name: this.i18n.t('tenant.initialRoleName'),
             description: this.i18n.t('tenant.initialRoleDescription'),
             color: '#7c3aed',
-            roleType: 'CUSTOM',
             isSystem: false,
-            modulePermissions: {
-              dashboard: { canRead: true },
-            },
-            permissions: [],
+            rank: 1,
+            modulePermissions: { allAccess: true },
+            permissions: [
+              {
+                entitySlug: '*',
+                scope: 'all',
+                canRead: true,
+                canCreate: true,
+                canUpdate: true,
+                canDelete: true,
+                canExport: true,
+                canImport: true,
+              },
+            ],
           },
         });
 
-        await tx.user.create({
+        const createdAdmin = await tx.user.create({
           data: {
-            tenantId: createdTenant.id,
             email: dto.adminEmail,
             password: hashedPassword,
             name: dto.adminName,
+            status: Status.ACTIVE,
+          },
+        });
+
+        // Membership home (primaria) — fonte da verdade do vinculo + cargo (#10).
+        await tx.userTenantAccess.create({
+          data: {
+            userId: createdAdmin.id,
+            tenantId: createdTenant.id,
             customRoleId: initialRole.id,
             status: Status.ACTIVE,
+            isPrimary: true,
           },
         });
       }
@@ -101,7 +122,7 @@ export class TenantService {
         include: {
           _count: {
             select: {
-              users: true,
+              userTenantAccess: true,
             },
           },
         },
@@ -126,7 +147,7 @@ export class TenantService {
       include: {
         _count: {
           select: {
-            users: true,
+            userTenantAccess: true,
           },
         },
       },

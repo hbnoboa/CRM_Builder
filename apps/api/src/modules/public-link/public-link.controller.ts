@@ -1,3 +1,4 @@
+import { ServiceScope } from '../../common/service-scope/service-scope.decorator';
 import { Controller, Get, Post, Patch, Delete, Body, Param, Query, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
@@ -8,6 +9,7 @@ import { CurrentUser as CurrentUserType } from '../../common/types/auth.types';
 import { PublicLinkService } from './public-link.service';
 import { CreatePublicLinkDto, UpdatePublicLinkDto, QueryPublicLinkDto } from './dto/public-link.dto';
 
+@ServiceScope('admin')
 @Controller('public-links')
 @ApiTags('Public Links')
 @ApiBearerAuth()

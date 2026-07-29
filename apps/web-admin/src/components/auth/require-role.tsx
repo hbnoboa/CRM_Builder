@@ -5,17 +5,17 @@ import { ShieldAlert } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useAuthStore } from '@/stores/auth-store';
-import { usePermissions } from '@/hooks/use-permissions';
-import type { UserRole } from '@/types';
-
+import { usePermissions, readPlatformAccess } from '@/hooks/use-permissions';
 interface RequireRoleProps {
   children: ReactNode;
-  // Roles permitidas (fallback legado)
-  roles?: UserRole[];
-  // Se true, apenas PLATFORM_ADMIN e ADMIN podem acessar (fallback legado)
+  // Cargos permitidos por nome (fallback legado, permission-driven)
+  roles?: string[];
+  // Se true, exige acesso administrativo (fallback legado, permission-driven)
   adminOnly?: boolean;
   /** Chave do módulo para verificar via customRole (dashboard, entities, apis, users, settings, pages) */
   module?: string;
+  /** Acao CRUD especifica no modulo (canRead/canCreate/canUpdate/canDelete). Default: canRead. */
+  action?: 'canRead' | 'canCreate' | 'canUpdate' | 'canDelete';
   // Mensagem customizada
   message?: string;
   // Se true, redireciona ao inves de mostrar mensagem
@@ -27,42 +27,34 @@ export function RequireRole({
   roles,
   adminOnly,
   module,
+  action,
   message = 'Voce nao tem permissao para acessar esta pagina.',
 }: RequireRoleProps) {
   const { user } = useAuthStore();
-  const { hasModuleAccess } = usePermissions();
-  const userRole = user?.customRole?.roleType as UserRole | undefined;
+  const { hasModuleAccess, hasModulePermission, isPlatformAdmin } = usePermissions();
+  // Autorizacao e permission-driven: nome do cargo so para exibicao.
+  const roleName = user?.customRole?.name;
 
   // Verifica se tem acesso
   const hasAccess = (() => {
-    if (!userRole) return false;
+    if (!user?.customRole) return false;
 
-    // PLATFORM_ADMIN sempre tem acesso total
-    if (userRole === 'PLATFORM_ADMIN') return true;
+    // Acesso de plataforma (permission-driven) sempre tem acesso total
+    if (isPlatformAdmin) return true;
 
-    // Se tem módulo definido, verificar via usePermissions (customRole + fallback role)
+    // Se tem módulo definido, verificar via usePermissions (customRole)
     if (module) {
-      return hasModuleAccess(module);
+      return action ? hasModulePermission(module, action) : hasModuleAccess(module);
     }
 
-    // Fallback legado: se adminOnly, verificar via usePermissions
+    // Fallback legado: se adminOnly, verificar módulos administrativos
     if (adminOnly) {
-      // Se tem customRole, verificar os módulos relevantes
-      if (user?.customRole) {
-        return hasModuleAccess('entities') || hasModuleAccess('settings') || hasModuleAccess('apis');
-      }
-      return userRole === 'ADMIN';
+      return hasModuleAccess('entities') || hasModuleAccess('settings') || hasModuleAccess('users');
     }
 
-    // Se tem roles especificas, verificar base role + customRole modulePermissions
+    // Fallback legado: roles por nome do cargo
     if (roles && roles.length > 0) {
-      if (roles.includes(userRole)) {
-        return true;
-      }
-      if (user?.customRole) {
-        return hasModuleAccess('users') || hasModuleAccess('entities');
-      }
-      return false;
+      return !!roleName && roles.includes(roleName);
     }
 
     // Sem restricoes
@@ -80,7 +72,7 @@ export function RequireRole({
               {message}
             </p>
             <p className="text-sm text-muted-foreground mb-4">
-              Sua role atual: <span className="font-medium">{userRole || 'Nao definida'}</span>
+              Sua role atual: <span className="font-medium">{roleName || 'Nao definida'}</span>
             </p>
             <Button variant="outline" asChild>
               <a href="/dashboard">Voltar ao Dashboard</a>
@@ -94,39 +86,34 @@ export function RequireRole({
   return <>{children}</>;
 }
 
-// Hook para verificar role (agora com suporte a customRole)
-export function useHasRole(roles?: UserRole[], adminOnly?: boolean): boolean {
+// Hook para verificar role (permission-driven via customRole)
+export function useHasRole(roles?: string[], adminOnly?: boolean): boolean {
   const { user } = useAuthStore();
-  const { hasModuleAccess, isAdmin, isPlatformAdmin } = usePermissions();
-  const userRole = user?.customRole?.roleType as UserRole | undefined;
+  const { hasModuleAccess, isPlatformAdmin } = usePermissions();
+  const roleName = user?.customRole?.name;
 
-  if (!userRole) return false;
   if (isPlatformAdmin) return true;
+  if (!user?.customRole) return false;
 
   if (adminOnly) {
-    if (isAdmin && !user?.customRole) return true;
-    if (user?.customRole) {
-      return hasModuleAccess('entities') || hasModuleAccess('settings') || hasModuleAccess('apis');
-    }
-    return isAdmin;
+    return hasModuleAccess('entities') || hasModuleAccess('settings') || hasModuleAccess('users');
   }
 
   if (roles && roles.length > 0) {
-    return roles.includes(userRole);
+    return !!roleName && roles.includes(roleName);
   }
 
   return true;
 }
 
-// Hook para verificar se e admin
+// Hook para verificar se e admin (permission-driven: "admin com tudo" = acesso de plataforma)
 export function useIsAdmin(): boolean {
   const { user } = useAuthStore();
-  const roleType = user?.customRole?.roleType;
-  return roleType === 'PLATFORM_ADMIN' || roleType === 'ADMIN';
+  return readPlatformAccess(user?.customRole?.modulePermissions as Record<string, unknown> | undefined);
 }
 
-// Hook para verificar se e platform admin
+// Hook para verificar se e platform admin (permission-driven)
 export function useIsPlatformAdmin(): boolean {
   const { user } = useAuthStore();
-  return user?.customRole?.roleType === 'PLATFORM_ADMIN';
+  return readPlatformAccess(user?.customRole?.modulePermissions as Record<string, unknown> | undefined);
 }

@@ -2,6 +2,7 @@
 
 import { Building2, ChevronDown, Globe, Home } from 'lucide-react';
 import { useTranslations } from 'next-intl';
+import { useParams } from 'next/navigation';
 import { useRouter } from '@/i18n/navigation';
 import { useTenant } from '@/stores/tenant-context';
 import {
@@ -17,22 +18,25 @@ import { cn } from '@/lib/utils';
 
 export function TenantSelector() {
   const router = useRouter();
+  const params = useParams();
+  // Fonte da verdade do tenant atual = slug na URL (sempre em sincronia, sem race).
+  const currentSlug = typeof params?.tenant === 'string' ? params.tenant : undefined;
   const {
     isPlatformAdmin,
     hasMultipleTenants,
     allTenants,
     accessibleTenants,
-    tenantId: currentTenantId,
     switchTenant,
     tenant: ownTenant,
   } = useTenant();
 
-  const handleSwitchTenant = (tenantId: string) => {
+  const handleSwitchTenant = (tenantId: string, slug?: string) => {
     switchTenant(tenantId);
-    router.push('/dashboard');
+    // Tenant na URL: navega para a home do tenant destino (/{slug}/home).
+    router.push(slug ? `/${slug}/home` : '/home');
   };
 
-  // Show for PLATFORM_ADMIN or users with multi-tenant access
+  // Mostra p/ acesso de plataforma (permission-driven) ou usuarios multi-tenant
   if (!isPlatformAdmin && !hasMultipleTenants) return null;
 
   // PLATFORM_ADMIN: use allTenants, Multi-tenant: use accessibleTenants
@@ -40,12 +44,13 @@ export function TenantSelector() {
     ? allTenants.map(t => ({
         id: t.id,
         name: t.name,
+        slug: t.slug,
         isHome: false,
-        customRole: { id: '', name: 'Admin', roleType: 'ADMIN' }
+        customRole: { id: '', name: 'Admin' }
       }))
     : accessibleTenants;
 
-  const currentTenant = tenants.find((t) => t.id === currentTenantId);
+  const currentTenant = tenants.find((t) => t.slug === currentSlug);
   const currentTenantName = currentTenant?.name || ownTenant?.name || 'Tenant';
 
   return (
@@ -65,8 +70,8 @@ export function TenantSelector() {
         {tenants.map((t) => (
           <DropdownMenuItem
             key={t.id}
-            onClick={() => handleSwitchTenant(t.id)}
-            className={cn(t.id === currentTenantId && 'bg-accent')}
+            onClick={() => handleSwitchTenant(t.id, t.slug)}
+            className={cn(t.slug === currentSlug && 'bg-accent')}
           >
             <Building2 className="h-4 w-4 mr-2 flex-shrink-0" />
             <div className="flex-1 min-w-0">
@@ -76,7 +81,7 @@ export function TenantSelector() {
               </div>
               <span className="text-[10px] text-muted-foreground">{t.customRole.name}</span>
             </div>
-            {t.id === currentTenantId && (
+            {t.slug === currentSlug && (
               <Badge variant="secondary" className="ml-auto text-[10px] px-1">
                 ✓
               </Badge>

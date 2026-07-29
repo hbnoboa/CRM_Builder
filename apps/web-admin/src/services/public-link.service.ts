@@ -18,7 +18,7 @@ export interface PublicLink {
   createdAt: string;
   updatedAt: string;
   entity?: { name: string; slug: string };
-  customRole?: { id: string; name: string; roleType?: string };
+  customRole?: { id: string; name: string };
 }
 
 export interface CreatePublicLinkPayload {

@@ -809,6 +809,7 @@ export class AutomationExecutorService {
         where: {
           entityId: entity.id,
           tenantId: context.tenantId,
+          deletedAt: null,
         },
       });
 
@@ -915,6 +916,7 @@ export class AutomationExecutorService {
           where: {
             entityId: entity.id,
             tenantId: context.tenantId,
+            deletedAt: null,
           },
         });
 
@@ -1029,6 +1031,7 @@ export class AutomationExecutorService {
           where: {
             entityId: entity.id,
             tenantId: context.tenantId,
+            deletedAt: null,
           },
         });
 
@@ -1041,6 +1044,7 @@ export class AutomationExecutorService {
         where: {
           entityId: entity.id,
           tenantId: context.tenantId,
+          deletedAt: null,
         },
       });
 

@@ -3,8 +3,8 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { CustomRoleService } from '../custom-role/custom-role.service';
 import { EntityDataQueryService, type DashboardFilterOptions } from '../../common/services/entity-data-query.service';
 import { CurrentUser } from '../../common/types';
-import { RoleType } from '../../common/decorators/roles.decorator';
 import { getEffectiveTenantId } from '../../common/utils/tenant.util';
+import { hasPlatformAccess } from '../../common/utils/platform-access';
 import { Prisma, type PrismaClient } from '@prisma/client';
 
 @Injectable()
@@ -19,16 +19,25 @@ export class StatsService {
 
   // Helper: resolve tenantId e roleType a partir do user
   private resolveContext(user: CurrentUser, queryTenantId?: string) {
-    const roleType = (user.customRole?.roleType || 'USER') as RoleType;
+    // roleType removido (Fase 3): sentinel "tenant" so distingue de "platform" no escopo.
+    const roleType = 'tenant';
+    // Acesso de plataforma = permissao (nao roleType). 'platform' e sentinel interno.
+    const isPlatform = hasPlatformAccess(user.customRole?.modulePermissions);
     const effectiveTenantId = getEffectiveTenantId(user, queryTenantId);
-    const effectiveRole = (roleType === 'PLATFORM_ADMIN' && queryTenantId) ? 'filtered' : roleType;
-    return { effectiveTenantId, roleType, effectiveRole };
+    const effectiveRole = (isPlatform && queryTenantId) ? 'filtered' : (isPlatform ? 'platform' : roleType);
+    return { effectiveTenantId, roleType, effectiveRole, isPlatform };
   }
 
   // Helper: base where para tenant
   private getWhere(tenantId: string, effectiveRole: string) {
-    if (effectiveRole === 'PLATFORM_ADMIN') return {};
+    if (effectiveRole === 'platform') return {};
     return { tenantId };
+  }
+
+  /** Identidade global (#10): "usuarios do tenant" = quem tem membership nele. */
+  private getUserWhere(tenantId: string, effectiveRole: string): Prisma.UserWhereInput {
+    if (effectiveRole === 'platform') return {};
+    return { tenantAccess: { some: { tenantId, deletedAt: null } } };
   }
 
   /**
@@ -63,15 +72,16 @@ export class StatsService {
   private async getAccessibleEntities(
     user: CurrentUser,
     effectiveTenantId: string,
-    roleType: RoleType | string,
+    _roleType?: string,
   ) {
     const where: Prisma.EntityWhereInput = { tenantId: effectiveTenantId };
 
-    // CUSTOM role: filtrar por entidades com canRead
-    if (roleType === 'CUSTOM') {
-      const accessibleSlugs = await this.customRoleService.getUserAccessibleEntities(user.id);
-      if (accessibleSlugs.length === 0) return [];
-      where.slug = { in: accessibleSlugs };
+    // Permission-driven: '*' (platform/coringa) = todas; senao restringe aos slugs
+    // com canRead em permissions[]. Sem roleType.
+    const accessible = await this.customRoleService.getUserAccessibleEntities(user.id);
+    if (accessible !== '*') {
+      if (accessible.length === 0) return [];
+      where.slug = { in: accessible };
     }
 
     const entities = await this.prisma.entity.findMany({
@@ -101,7 +111,7 @@ export class StatsService {
     entity: { id: string; slug: string; settings: unknown },
     user: CurrentUser,
     effectiveTenantId: string,
-    _roleType: RoleType | string,
+    _roleType?: string,
   ): Promise<{ active: number; archived: number }> {
     const result = await this.buildEntityWhere(user, entity.slug, effectiveTenantId);
     if (!result) return { active: 0, archived: 0 };
@@ -119,7 +129,7 @@ export class StatsService {
 
 
   async getDashboardStats(user: CurrentUser, queryTenantId?: string) {
-    const { effectiveTenantId, roleType, effectiveRole } = this.resolveContext(user, queryTenantId);
+    const { effectiveTenantId, roleType, effectiveRole, isPlatform } = this.resolveContext(user, queryTenantId);
     const where = this.getWhere(effectiveTenantId, effectiveRole);
 
     // Buscar entidades acessiveis
@@ -135,8 +145,8 @@ export class StatsService {
     }
 
     const [totalUsers, totalTenants] = await Promise.all([
-      this.prisma.user.count({ where }),
-      roleType === 'PLATFORM_ADMIN'
+      this.prisma.user.count({ where: this.getUserWhere(effectiveTenantId, effectiveRole) }),
+      isPlatform
         ? this.prisma.tenant.count()
         : Promise.resolve(0),
     ]);
@@ -145,7 +155,7 @@ export class StatsService {
       totalEntities: entities.length,
       totalRecords,
       totalUsers,
-      ...(roleType === 'PLATFORM_ADMIN' ? { totalTenants } : {}),
+      ...(isPlatform ? { totalTenants } : {}),
     };
   }
 
@@ -167,18 +177,13 @@ export class StatsService {
       entityId: { in: entityIds },
       tenantId: effectiveTenantId,
       createdAt: { gte: startDate },
+      deletedAt: null, // serie temporal nao conta soft-deletados
     };
 
-    // Aplicar scope para USER/CUSTOM
-    if (roleType === 'USER') {
+    // Escopo own permission-driven (sem roleType): aplica só se alguma entidade
+    // acessível tiver scope 'own'. Platform/canRead-all => 'all' => sem restricao.
+    if (await this.hasAnyOwnScope(user, entities)) {
       where.createdById = user.id;
-    } else if (roleType === 'CUSTOM') {
-      // Para CUSTOM, verificar se alguma entidade tem scope 'own'
-      // Simplificacao: se todas as entidades tem scope 'own', filtrar
-      const hasOwnScope = await this.hasAnyOwnScope(user, entities);
-      if (hasOwnScope) {
-        where.createdById = user.id;
-      }
     }
 
     const archivedWhere = {
@@ -271,7 +276,7 @@ export class StatsService {
 
   async getUsersActivity(user: CurrentUser, queryTenantId?: string, days: number = 7) {
     const { effectiveTenantId, effectiveRole } = this.resolveContext(user, queryTenantId);
-    const where = this.getWhere(effectiveTenantId, effectiveRole);
+    const where = this.getUserWhere(effectiveTenantId, effectiveRole);
 
     const users = await this.prisma.user.findMany({
       where,
@@ -1411,17 +1416,13 @@ export class StatsService {
 
     const recordsWhere: Prisma.EntityDataWhereInput = {
       ...where,
+      deletedAt: null, // atividade recente nao lista soft-deletados
       ...(entityIds.length > 0 ? { entityId: { in: entityIds } } : { entityId: '__none__' }),
     };
 
-    // Aplicar scope para USER/CUSTOM
-    if (roleType === 'USER') {
+    // Escopo own permission-driven (sem roleType).
+    if (await this.hasAnyOwnScope(user, entities)) {
       recordsWhere.createdById = user.id;
-    } else if (roleType === 'CUSTOM') {
-      const hasOwnScope = await this.hasAnyOwnScope(user, entities);
-      if (hasOwnScope) {
-        recordsWhere.createdById = user.id;
-      }
     }
 
     const archivedWhere = {
