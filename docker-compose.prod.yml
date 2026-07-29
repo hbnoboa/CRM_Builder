@@ -43,6 +43,7 @@ services:
   # API (NestJS)
   # ===================
   api:
+    image: ${API_IMAGE:-crm-builder-api:latest}
     build:
       context: .
       dockerfile: apps/api/Dockerfile
@@ -88,6 +89,7 @@ services:
   # WEB (Next.js)
   # ===================
   web:
+    image: ${WEB_IMAGE:-crm-builder-web:latest}
     build:
       context: .
       dockerfile: apps/web-admin/Dockerfile
@@ -169,6 +171,7 @@ services:
   # DEV API (NestJS)
   # ===================
   api-dev:
+    image: ${API_DEV_IMAGE:-crm-builder-api-dev:latest}
     build:
       context: .
       dockerfile: apps/api/Dockerfile
@@ -214,6 +217,7 @@ services:
   # DEV WEB (Next.js)
   # ===================
   web-dev:
+    image: ${WEB_DEV_IMAGE:-crm-builder-web-dev:latest}
     build:
       context: .
       dockerfile: apps/web-admin/Dockerfile

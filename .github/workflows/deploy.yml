@@ -1,0 +1,105 @@
+name: Deploy
+
+# Build no runner do GitHub (cache) -> push na Google Artifact Registry ->
+# deploy na VM via `gcloud compute ssh` (auth keyless por Workload Identity Federation).
+# SEM secret, SEM runner self-hosted.  push develop=DEV / push main=PROD.
+
+on:
+  push:
+    branches: [main, develop]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  id-token: write   # necessario pro WIF (OIDC)
+
+env:
+  GAR_HOST: us-central1-docker.pkg.dev
+  GCP_PROJECT: ios-forms-299fb
+  GAR_REPO: crm
+  WIF_PROVIDER: projects/35661851099/locations/global/workloadIdentityPools/github/providers/github-provider
+  WIF_SA: crm-ci@ios-forms-299fb.iam.gserviceaccount.com
+  VM_NAME: ios-vm
+  VM_ZONE: us-central1-f
+  VM_USER: hbnoboa11
+  VM_DIR: /home/hbnoboa11/crm-builder
+  NODE_VERSION: '20'
+  PNPM_VERSION: '9'
+
+jobs:
+  deploy:
+    name: Build & Deploy (${{ github.ref_name }})
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolver ambiente
+        id: env
+        run: echo "env_name=${{ github.ref == 'refs/heads/main' && 'prod' || 'dev' }}" >> "$GITHUB_OUTPUT"
+
+      # --- Build dos artefatos (dist / .next) que os Dockerfiles copiam ---
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+      - run: pnpm install --frozen-lockfile
+      - run: cd apps/api && pnpm prisma generate
+      - name: Build (shared -> api + web)
+        run: pnpm build
+        env:
+          NEXT_PUBLIC_API_URL: /api/v1
+
+      # --- Auth keyless na GCP (WIF) ---
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ env.WIF_PROVIDER }}
+          service_account: ${{ env.WIF_SA }}
+      - uses: google-github-actions/setup-gcloud@v2
+      - name: Docker login GAR
+        run: gcloud auth configure-docker ${{ env.GAR_HOST }} --quiet
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build & push API
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: apps/api/Dockerfile
+          push: true
+          tags: |
+            ${{ env.GAR_HOST }}/${{ env.GCP_PROJECT }}/${{ env.GAR_REPO }}/crm-builder-api:${{ steps.env.outputs.env_name }}
+            ${{ env.GAR_HOST }}/${{ env.GCP_PROJECT }}/${{ env.GAR_REPO }}/crm-builder-api:${{ github.sha }}
+          cache-from: type=gha,scope=api
+          cache-to: type=gha,mode=max,scope=api
+
+      - name: Build & push Web
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: apps/web-admin/Dockerfile
+          build-args: |
+            NEXT_PUBLIC_API_URL=/api/v1
+          push: true
+          tags: |
+            ${{ env.GAR_HOST }}/${{ env.GCP_PROJECT }}/${{ env.GAR_REPO }}/crm-builder-web:${{ steps.env.outputs.env_name }}
+            ${{ env.GAR_HOST }}/${{ env.GCP_PROJECT }}/${{ env.GAR_REPO }}/crm-builder-web:${{ github.sha }}
+          cache-from: type=gha,scope=web
+          cache-to: type=gha,mode=max,scope=web
+
+      # --- Deploy na VM: git pull (compose) + docker pull + up. SEM build na VM. ---
+      - name: Deploy na VM (gcloud ssh)
+        env:
+          ENV_NAME: ${{ steps.env.outputs.env_name }}
+          REF: ${{ github.ref_name }}
+        run: |
+          gcloud compute ssh "${VM_USER}@${VM_NAME}" \
+            --zone "${VM_ZONE}" --project "${GCP_PROJECT}" --quiet \
+            --ssh-flag="-o StrictHostKeyChecking=no" \
+            --command "cd '${VM_DIR}' && git fetch --quiet origin '${REF}' && git reset --hard --quiet 'origin/${REF}' && ENV_NAME='${ENV_NAME}' bash scripts/vm-deploy.sh"
