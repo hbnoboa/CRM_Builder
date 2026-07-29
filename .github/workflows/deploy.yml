@@ -3,6 +3,7 @@ name: Deploy
 # Build no runner do GitHub (cache) -> push na Google Artifact Registry ->
 # deploy na VM via `gcloud compute ssh` (auth keyless por Workload Identity Federation).
 # SEM secret, SEM runner self-hosted.  push develop=DEV / push main=PROD.
+# O job de deploy usa `environment:` -> PROD pode exigir aprovacao (Settings > Environments).
 
 on:
   push:
@@ -27,13 +28,16 @@ env:
   VM_ZONE: us-central1-f
   VM_USER: hbnoboa11
   VM_DIR: /home/hbnoboa11/crm-builder
-  NODE_VERSION: '20'
-  PNPM_VERSION: '9'
 
 jobs:
-  deploy:
-    name: Build & Deploy (${{ github.ref_name }})
+  # =========================================================================
+  # 1) BUILD + PUSH (sem gate) — sempre roda, gera as imagens na GAR
+  # =========================================================================
+  build:
+    name: Build & Push (${{ github.ref_name }})
     runs-on: ubuntu-latest
+    outputs:
+      env_name: ${{ steps.env.outputs.env_name }}
     steps:
       - uses: actions/checkout@v4
 
@@ -41,11 +45,10 @@ jobs:
         id: env
         run: echo "env_name=${{ github.ref == 'refs/heads/main' && 'prod' || 'dev' }}" >> "$GITHUB_OUTPUT"
 
-      # --- Build dos artefatos (dist / .next) que os Dockerfiles copiam ---
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: ${{ env.NODE_VERSION }}
+          node-version: '20'
           cache: 'pnpm'
       - run: pnpm install --frozen-lockfile
       - run: cd apps/api && pnpm prisma generate
@@ -54,15 +57,12 @@ jobs:
         env:
           NEXT_PUBLIC_API_URL: /api/v1
 
-      # --- Auth keyless na GCP (WIF) ---
       - uses: google-github-actions/auth@v2
         with:
           workload_identity_provider: ${{ env.WIF_PROVIDER }}
           service_account: ${{ env.WIF_SA }}
       - uses: google-github-actions/setup-gcloud@v2
-      - name: Docker login GAR
-        run: gcloud auth configure-docker ${{ env.GAR_HOST }} --quiet
-
+      - run: gcloud auth configure-docker ${{ env.GAR_HOST }} --quiet
       - uses: docker/setup-buildx-action@v3
 
       - name: Build & push API
@@ -91,10 +91,25 @@ jobs:
           cache-from: type=gha,scope=web
           cache-to: type=gha,mode=max,scope=web
 
-      # --- Deploy na VM: git pull (compose) + docker pull + up. SEM build na VM. ---
+  # =========================================================================
+  # 2) DEPLOY na VM — gated por `environment`. PROD pausa p/ aprovacao se o
+  #    environment "prod" tiver required reviewers (Settings > Environments).
+  # =========================================================================
+  deploy:
+    name: Deploy (${{ needs.build.outputs.env_name }})
+    needs: build
+    runs-on: ubuntu-latest
+    environment: ${{ needs.build.outputs.env_name }}
+    steps:
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ env.WIF_PROVIDER }}
+          service_account: ${{ env.WIF_SA }}
+      - uses: google-github-actions/setup-gcloud@v2
+
       - name: Deploy na VM (gcloud ssh)
         env:
-          ENV_NAME: ${{ steps.env.outputs.env_name }}
+          ENV_NAME: ${{ needs.build.outputs.env_name }}
           REF: ${{ github.ref_name }}
         run: |
           gcloud compute ssh "${VM_USER}@${VM_NAME}" \
