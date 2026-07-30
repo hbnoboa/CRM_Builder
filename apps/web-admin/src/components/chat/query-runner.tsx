@@ -1,13 +1,45 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Loader2, ArrowLeft, Search, FileSpreadsheet, FileJson, FileText } from 'lucide-react';
 import { toast } from 'sonner';
 import api from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 
-type FieldDef = { slug: string; label?: string; name?: string; type?: string };
+type FieldDef = { slug: string; label?: string; name?: string; type?: string; options?: Array<{ label: string; value: string }> };
+
+/** Input com autocomplete de valores do campo (igual à busca de chassi do /avaria). */
+function FieldSuggestInput({ entitySlug, field, value, placeholder, onChange }: {
+  entitySlug: string; field: string; value: string; placeholder?: string; onChange: (v: string) => void;
+}) {
+  const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [open, setOpen] = useState(false);
+  useEffect(() => {
+    if (value.trim().length < 1) { setSuggestions([]); return; }
+    const t = setTimeout(async () => {
+      try {
+        const r = await api.get(`/chat/field-suggestions?entitySlug=${entitySlug}&field=${field}&q=${encodeURIComponent(value)}`);
+        setSuggestions(r.data || []);
+      } catch { setSuggestions([]); }
+    }, 200);
+    return () => clearTimeout(t);
+  }, [value, entitySlug, field]);
+  return (
+    <div className="relative">
+      <Input value={value} placeholder={placeholder} onChange={(e) => { onChange(e.target.value); setOpen(true); }}
+        onFocus={() => setOpen(true)} onBlur={() => setTimeout(() => setOpen(false), 150)} />
+      {open && suggestions.length > 0 && (
+        <div className="absolute z-20 mt-1 w-full border rounded-md bg-popover shadow max-h-40 overflow-y-auto">
+          {suggestions.map((s) => (
+            <button key={s} type="button" className="w-full text-left px-2 py-1 text-sm hover:bg-accent truncate"
+              onMouseDown={() => { onChange(s); setOpen(false); }}>{s}</button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 interface EntityLite { id: string; slug: string; name: string; fields?: unknown[] }
 interface ChatCommand { slug: string; description?: string; targetEntitySlug?: string; actionConfig?: Record<string, unknown> }
 
@@ -135,10 +167,22 @@ export function QueryRunner({ channelId, cmd, entity, onDone, onCancel }: {
                 </div>
               );
             }
+            const options = f.options || [];
+            const isSelect = (type === 'select' || type === 'multiselect') && options.length > 0;
             return (
               <div key={f.slug} className="space-y-1">
                 <label className="text-[11px] text-muted-foreground">{label}</label>
-                <Input value={values[f.slug] || ''} placeholder={`Filtrar por ${label.toLowerCase()}`} onChange={(e) => setValues((v) => ({ ...v, [f.slug]: e.target.value }))} />
+                {isSelect ? (
+                  <select className="w-full h-9 rounded-md border border-input bg-background px-2 text-sm"
+                    value={values[f.slug] || ''} onChange={(e) => setValues((v) => ({ ...v, [f.slug]: e.target.value }))}>
+                    <option value="">Todos</option>
+                    {options.map((o) => <option key={String(o.value)} value={String(o.value)}>{o.label}</option>)}
+                  </select>
+                ) : (
+                  <FieldSuggestInput entitySlug={entity.slug} field={f.slug} value={values[f.slug] || ''}
+                    placeholder={`Buscar ${label.toLowerCase()}…`}
+                    onChange={(val) => setValues((v) => ({ ...v, [f.slug]: val }))} />
+                )}
               </div>
             );
           })}

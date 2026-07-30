@@ -750,7 +750,7 @@ export class ChatService {
 
     const entity = await this.prisma.entity.findFirst({
       where: { tenantId: user.tenantId, slug: entitySlug, deletedAt: null },
-      select: { name: true, fields: true },
+      select: { id: true, name: true, fields: true },
     });
     const fieldDefs = ((entity?.fields || []) as Array<{ slug: string; label?: string; name?: string; type?: string }>)
       .filter((f) => !['image', 'sub-entity', 'file'].includes(f.type || ''));
@@ -815,8 +815,33 @@ export class ChatService {
       const chosenTemplate =
         input.pdfTemplateId && allowedTemplateIds.has(input.pdfTemplateId) ? input.pdfTemplateId : undefined;
       if (chosenTemplate) {
-        const ids = data.map((r) => r.id).slice(0, 300); // teto p/ template
-        const gen = await this.pdfGenerator.generateBatch(chosenTemplate, ids, user, true, user.tenantId);
+        // Descobre a entidade do template. Se for a MESMA da consulta, usa os ids direto.
+        // Se for uma entidade FILHA (ex.: consulta = operações, template = veículos), pega
+        // os registros filhos daquelas operações — "muda o jeito que o registro é pego",
+        // mantendo o conteúdo do documento por veículo igual.
+        const tplRow = await this.prisma.pdfTemplate.findFirst({
+          where: { id: chosenTemplate, tenantId: user.tenantId },
+          select: { sourceEntityId: true },
+        });
+        let recordIds: string[];
+        if (tplRow?.sourceEntityId && entity?.id && tplRow.sourceEntityId !== entity.id) {
+          const parentIds = data.map((r) => r.id);
+          const children = await this.prisma.entityData.findMany({
+            where: {
+              tenantId: user.tenantId,
+              entityId: tplRow.sourceEntityId,
+              parentRecordId: { in: parentIds },
+              deletedAt: null,
+            },
+            select: { id: true },
+            take: 300,
+          });
+          recordIds = children.map((c) => c.id);
+        } else {
+          recordIds = data.map((r) => r.id).slice(0, 300);
+        }
+        if (recordIds.length === 0) throw new NotFoundException('Nenhum registro para gerar o relatório.');
+        const gen = await this.pdfGenerator.generateBatch(chosenTemplate, recordIds, user, true, user.tenantId);
         buffer = gen.buffer;
       } else {
         buffer = await this.generateTablePdf(title, `${total} registro(s)`, cols, tableRows);
