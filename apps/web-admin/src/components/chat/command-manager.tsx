@@ -81,6 +81,7 @@ export function CommandManager({ open, onOpenChange, entities, roles, onChanged 
   const [loading, setLoading] = useState(false);
   const [editing, setEditing] = useState<CommandTpl | null>(null);
   const [saving, setSaving] = useState(false);
+  const [pdfTemplates, setPdfTemplates] = useState<Array<{ id: string; name: string }>>([]);
 
   const reload = useCallback(async () => {
     setLoading(true);
@@ -98,6 +99,9 @@ export function CommandManager({ open, onOpenChange, entities, roles, onChanged 
     if (open) {
       setEditing(null);
       void reload();
+      api.get('/pdf')
+        .then((r) => setPdfTemplates((r.data?.data || r.data || []).map((t: { id: string; name: string }) => ({ id: t.id, name: t.name }))))
+        .catch(() => setPdfTemplates([]));
     }
   }, [open, reload]);
 
@@ -214,6 +218,7 @@ export function CommandManager({ open, onOpenChange, entities, roles, onChanged 
             setDraft={setEditing}
             entities={entities}
             roles={roles}
+            pdfTemplates={pdfTemplates}
             saving={saving}
             onSave={save}
             onCancel={() => setEditing(null)}
@@ -225,12 +230,13 @@ export function CommandManager({ open, onOpenChange, entities, roles, onChanged 
 }
 
 function CommandForm({
-  draft, setDraft, entities, roles, saving, onSave, onCancel,
+  draft, setDraft, entities, roles, pdfTemplates, saving, onSave, onCancel,
 }: {
   draft: CommandTpl;
   setDraft: (c: CommandTpl) => void;
   entities: EntityLite[];
   roles: RoleLite[];
+  pdfTemplates: Array<{ id: string; name: string }>;
   saving: boolean;
   onSave: () => void;
   onCancel: () => void;
@@ -467,6 +473,19 @@ function CommandForm({
                 })}
               </div>
             </div>
+            {((cfg.formats as string[]) || ['card', 'xlsx', 'json', 'pdf']).includes('pdf') && (
+              <div className="space-y-1">
+                <label className="text-xs font-medium">PDF: usar template desenhado (opcional)</label>
+                <Select value={(cfg.pdfTemplateId as string) || '__table__'} onValueChange={(v) => setCfg({ pdfTemplateId: v === '__table__' ? undefined : v })}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__table__">Tabela simples (padrão)</SelectItem>
+                    {pdfTemplates.map((t) => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+                <p className="text-[10px] text-muted-foreground">Com template: 1 documento desenhado por registro (mesclado, até 300). Sem: tabela simples.</p>
+              </div>
+            )}
           </div>
         )}
       </Section>

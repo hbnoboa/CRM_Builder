@@ -11,6 +11,7 @@ import { CurrentUser } from '../../common/types';
 import { hasPlatformAccess, hasFullTenantAccess } from '../../common/utils/platform-access';
 import { DataService } from '../data/data.service';
 import { AuditService } from '../audit/audit.service';
+import { PdfGeneratorService } from '../pdf/pdf-generator.service';
 import { createBotProvider, BOT_TOOLS, BotLlmProvider } from './bot-provider';
 import * as ExcelJS from 'exceljs';
 
@@ -38,6 +39,7 @@ export class ChatService {
     private readonly prisma: PrismaService,
     private readonly dataService: DataService,
     private readonly auditService: AuditService,
+    private readonly pdfGenerator: PdfGeneratorService,
   ) {}
 
   /** Permissão de uma ação na entidade (permissions[] slug/'*' + platform). */
@@ -735,7 +737,7 @@ export class ChatService {
     if (!entitySlug) throw new ForbiddenException('Comando sem tabela alvo');
     if (!this.canReadEntity(user, entitySlug)) throw new ForbiddenException('Sem acesso a esta tabela');
 
-    const cfg = (tpl.actionConfig || {}) as { columns?: string[]; formats?: string[] };
+    const cfg = (tpl.actionConfig || {}) as { columns?: string[]; formats?: string[]; pdfTemplateId?: string };
     const format = input.format || 'card';
     if (Array.isArray(cfg.formats) && cfg.formats.length > 0 && !cfg.formats.includes(format)) {
       throw new ForbiddenException(`Formato ${format} não habilitado neste comando.`);
@@ -799,7 +801,15 @@ export class ChatService {
       buffer = await this.generateXlsx(title, cols, tableRows);
       contentType = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'; ext = 'xlsx';
     } else {
-      buffer = await this.generateTablePdf(title, `${total} registro(s)`, cols, tableRows);
+      // PDF: se o comando aponta um Template PDF desenhado, gera em lote (1 doc por
+      // registro, mesclado) com esse template; senão, cai na tabela simples.
+      if (cfg.pdfTemplateId) {
+        const ids = data.map((r) => r.id).slice(0, 300); // teto p/ template
+        const gen = await this.pdfGenerator.generateBatch(cfg.pdfTemplateId, ids, user, true, user.tenantId);
+        buffer = gen.buffer;
+      } else {
+        buffer = await this.generateTablePdf(title, `${total} registro(s)`, cols, tableRows);
+      }
       contentType = 'application/pdf'; ext = 'pdf';
     }
     const filename = `${tpl.slug}-${total}.${ext}`;
