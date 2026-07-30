@@ -205,6 +205,7 @@ export class PdfTemplateService {
     const fields = (template.sourceEntity?.fields as Array<{ type: string; slug: string; subEntityId?: string }>) || [];
     const subEntityFields = fields.filter(f => f.type === 'sub-entity' && f.subEntityId);
 
+    let subEntitiesMap: Record<string, { id: string; name: string; slug: string; fields: unknown }> | undefined;
     if (subEntityFields.length > 0) {
       const subEntityIds = subEntityFields.map(f => f.subEntityId as string);
       const subEntities = await this.prisma.entity.findMany({
@@ -212,7 +213,7 @@ export class PdfTemplateService {
         select: { id: true, name: true, slug: true, fields: true },
       });
 
-      const subEntitiesMap: Record<string, { id: string; name: string; slug: string; fields: unknown }> = {};
+      subEntitiesMap = {};
       for (const sef of subEntityFields) {
         const subEntity = subEntities.find(se => se.id === sef.subEntityId);
         if (subEntity) {
@@ -224,8 +225,35 @@ export class PdfTemplateService {
           };
         }
       }
+    }
 
-      return { ...template, subEntities: subEntitiesMap };
+    // Carregar entidades-pai: aquelas cujo campo sub-entity aponta pra fonte deste
+    // template (ex.: Operacao -> Veiculos). Permite ligar campos do pai no editor
+    // (fonte "_parent") sem digitar token magico. Poucas entidades por tenant, entao
+    // filtramos em memoria (fields e JSON).
+    let parentEntities: Array<{ id: string; name: string; slug: string; fields: unknown }> | undefined;
+    const sourceEntityId = template.sourceEntity?.id;
+    if (sourceEntityId) {
+      const candidates = await this.prisma.entity.findMany({
+        where: { tenantId: targetTenantId, deletedAt: null },
+        select: { id: true, name: true, slug: true, fields: true },
+      });
+      const parents = candidates.filter((e) =>
+        ((e.fields as Array<{ type?: string; subEntityId?: string }>) || []).some(
+          (f) => f.type === 'sub-entity' && f.subEntityId === sourceEntityId,
+        ),
+      );
+      if (parents.length > 0) {
+        parentEntities = parents.map((p) => ({ id: p.id, name: p.name, slug: p.slug, fields: p.fields }));
+      }
+    }
+
+    if (subEntitiesMap || parentEntities) {
+      return {
+        ...template,
+        ...(subEntitiesMap ? { subEntities: subEntitiesMap } : {}),
+        ...(parentEntities ? { parentEntities } : {}),
+      };
     }
 
     return template;

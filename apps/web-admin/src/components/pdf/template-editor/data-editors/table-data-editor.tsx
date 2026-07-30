@@ -63,6 +63,12 @@ export function TableDataEditor({
     ? [...subEntities[element.dataSource].fields!, ...SYSTEM_FIELDS]
     : [...availableFields, ...SYSTEM_FIELDS];
 
+  // Opcoes de sub-tabela: campos que sao listas (sub-entidade/relacao/array).
+  // Cada uma vira "uma linha por item filho".
+  const subOptions = availableFields.filter(
+    (f) => f.type === 'relation' || f.type === 'array' || f.type === 'sub-entity',
+  );
+
   const handleColumnChange = (index: number, updates: Partial<TableColumn>) => {
     const newColumns = [...element.columns];
     newColumns[index] = { ...newColumns[index], ...updates };
@@ -128,7 +134,7 @@ export function TableDataEditor({
     <div className="space-y-4">
       {/* Fonte de dados */}
       <div className="space-y-2">
-        <Label>De onde vem os dados?</Label>
+        <Label>1. De onde vêm as linhas da tabela?</Label>
         <Select
           value={element.dataSource || '_self'}
           onValueChange={(value) => onChange({ dataSource: value === '_self' ? undefined : value })}
@@ -137,19 +143,23 @@ export function TableDataEditor({
             <SelectValue placeholder="Selecione" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="_self">Registro principal</SelectItem>
-            {availableFields
-              .filter((f) => f.type === 'relation' || f.type === 'array' || f.type === 'sub-entity')
-              .map((f) => (
-                <SelectItem key={f.slug} value={f.slug}>
-                  {f.label || f.name}
-                </SelectItem>
-              ))}
+            <SelectItem value="_self">Registro principal (1 linha)</SelectItem>
+            {subOptions.map((f) => (
+              <SelectItem key={f.slug} value={f.slug}>
+                {f.label || f.name} (uma linha por item)
+              </SelectItem>
+            ))}
           </SelectContent>
         </Select>
-        {element.dataSource && subEntities?.[element.dataSource] && (
+        {element.dataSource && subEntities?.[element.dataSource] ? (
           <p className="text-xs text-blue-600">
-            Usando campos de: {subEntities[element.dataSource].name}
+            Uma linha para cada <strong>{subEntities[element.dataSource].name}</strong>. As colunas abaixo são os campos dessa lista.
+          </p>
+        ) : (
+          <p className="text-xs text-muted-foreground">
+            {subOptions.length > 0
+              ? '“Registro principal” faz uma linha só. Escolha uma sub-lista para ter uma linha por item (ex.: cada não conformidade).'
+              : '“Registro principal” faz uma linha com os campos do próprio registro.'}
           </p>
         )}
       </div>
@@ -157,12 +167,18 @@ export function TableDataEditor({
       {/* Colunas */}
       <div className="space-y-2">
         <div className="flex items-center justify-between">
-          <Label>Colunas da tabela</Label>
+          <Label>2. Colunas da tabela</Label>
           <Button variant="outline" size="sm" onClick={handleAddColumn}>
             <Plus className="h-4 w-4 mr-1" />
             Coluna
           </Button>
         </div>
+
+        {element.columns.length === 0 && (
+          <p className="text-xs text-muted-foreground border border-dashed rounded-md p-3 text-center">
+            Nenhuma coluna ainda. Clique em <strong>+ Coluna</strong> — cada coluna mostra um campo (ex.: Chassi, Peça, Avaria).
+          </p>
+        )}
 
         <div className="space-y-2">
           {element.columns.map((column, index) => (

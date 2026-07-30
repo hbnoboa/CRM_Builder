@@ -95,7 +95,7 @@ function getFormatsForFieldType(fieldType: string | undefined): Array<{ value: s
 }
 
 function parseBinding(slug: string): { source: string; field: string } {
-  for (const prefix of ['_first.', '_last.', '_max.', '_min.']) {
+  for (const prefix of ['_first.', '_last.', '_max.', '_min.', '_parent.']) {
     if (slug.startsWith(prefix)) {
       return { source: prefix.slice(0, -1), field: slug.slice(prefix.length) };
     }
@@ -116,6 +116,8 @@ interface FieldGroupDataEditorProps {
   onChange: (updates: Partial<FieldGroupElement>) => void;
   availableFields: Array<{ slug: string; name: string; label?: string; type: string }>;
   isBatch?: boolean;
+  parentFields?: Array<{ slug: string; name: string; label?: string; type: string }>;
+  parentEntityName?: string;
   computedFields?: Array<{ slug: string; label: string }>;
 }
 
@@ -124,11 +126,29 @@ export function FieldGroupDataEditor({
   onChange,
   availableFields,
   isBatch,
+  parentFields,
+  parentEntityName,
   computedFields,
 }: FieldGroupDataEditorProps) {
   const entityFields = useMemo(
     () => availableFields.filter((f) => !['image', 'images', 'sub-entity', 'array'].includes(f.type)),
     [availableFields],
+  );
+
+  // Campos escalares da tabela-pai (fonte "_parent"). So aparece se o backend
+  // resolveu uma entidade-pai pra fonte deste template.
+  const parentScalar = useMemo(
+    () => (parentFields || []).filter((f) => !['image', 'images', 'sub-entity', 'array'].includes(f.type)),
+    [parentFields],
+  );
+
+  // Fontes disponiveis no batch: as padrao + "Tabela-pai" quando houver campos do pai.
+  const parentSourceLabel = parentEntityName ? `${parentEntityName} (tabela-pai)` : 'Tabela-pai';
+  const sources = useMemo(
+    () => (parentScalar.length > 0
+      ? [...BATCH_SOURCES, { value: '_parent', label: parentSourceLabel } as const]
+      : [...BATCH_SOURCES]),
+    [parentScalar.length, parentSourceLabel],
   );
 
   const calcFields = useMemo(
@@ -187,9 +207,12 @@ export function FieldGroupDataEditor({
           const bindingSlug = field.binding.replace(/\{\{|\}\}/g, '');
           const parsed = parseBinding(bindingSlug);
 
+          const isParentSource = parsed.source === '_parent';
           let fieldType: string | undefined;
           if (parsed.source === '_meta') {
             fieldType = BATCH_META_FIELDS.find((m) => m.value === parsed.field)?.type;
+          } else if (isParentSource) {
+            fieldType = parentScalar.find((f) => f.slug === parsed.field)?.type;
           } else {
             fieldType = selectableFields.find((f) => f.slug === parsed.field)?.type
               || availableFields.find((f) => f.slug === parsed.field)?.type;
@@ -245,9 +268,13 @@ export function FieldGroupDataEditor({
                       } else if (newSource === '_direct') {
                         handleFieldChange(index, { binding: `{{${parsed.field}}}` });
                       } else {
-                        const fieldSlug = parsed.source === '_meta'
-                          ? (selectableFields[0]?.slug || '')
-                          : parsed.field;
+                        // Ao trocar pra "Tabela-pai", parte do 1o campo do pai;
+                        // trocando entre fontes de registro, mantem o campo atual.
+                        const fieldSlug = newSource === '_parent'
+                          ? (parentScalar.some((f) => f.slug === parsed.field) ? parsed.field : (parentScalar[0]?.slug || ''))
+                          : parsed.source === '_meta'
+                            ? (selectableFields[0]?.slug || '')
+                            : parsed.field;
                         handleFieldChange(index, {
                           binding: `{{${buildBinding(newSource, fieldSlug)}}}`,
                         });
@@ -258,7 +285,7 @@ export function FieldGroupDataEditor({
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      {BATCH_SOURCES.map((s) => (
+                      {sources.map((s) => (
                         <SelectItem key={s.value} value={s.value}>
                           {s.label}
                         </SelectItem>
@@ -290,7 +317,7 @@ export function FieldGroupDataEditor({
                   </Select>
                 ) : (
                   <Select
-                    value={selectableFields.some((f) => f.slug === parsed.field) ? parsed.field : '_unknown'}
+                    value={(isParentSource ? parentScalar : selectableFields).some((f) => f.slug === parsed.field) ? parsed.field : '_unknown'}
                     onValueChange={(newField) => {
                       const slug = buildBinding(parsed.source, newField);
                       handleFieldChange(index, {
@@ -303,23 +330,36 @@ export function FieldGroupDataEditor({
                       <SelectValue placeholder="Selecionar campo..." />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectGroup>
-                        <SelectLabel>Campos da entidade</SelectLabel>
-                        {entityFields.map((f) => (
-                          <SelectItem key={f.slug} value={f.slug}>
-                            {f.label || f.name}
-                          </SelectItem>
-                        ))}
-                      </SelectGroup>
-                      {calcFields.length > 0 && (
+                      {isParentSource ? (
                         <SelectGroup>
-                          <SelectLabel>Campos calculados</SelectLabel>
-                          {calcFields.map((f) => (
+                          <SelectLabel>Campos de {parentEntityName || 'tabela-pai'}</SelectLabel>
+                          {parentScalar.map((f) => (
                             <SelectItem key={f.slug} value={f.slug}>
-                              {f.label}
+                              {f.label || f.name}
                             </SelectItem>
                           ))}
                         </SelectGroup>
+                      ) : (
+                        <>
+                          <SelectGroup>
+                            <SelectLabel>Campos da entidade</SelectLabel>
+                            {entityFields.map((f) => (
+                              <SelectItem key={f.slug} value={f.slug}>
+                                {f.label || f.name}
+                              </SelectItem>
+                            ))}
+                          </SelectGroup>
+                          {calcFields.length > 0 && (
+                            <SelectGroup>
+                              <SelectLabel>Campos calculados</SelectLabel>
+                              {calcFields.map((f) => (
+                                <SelectItem key={f.slug} value={f.slug}>
+                                  {f.label}
+                                </SelectItem>
+                              ))}
+                            </SelectGroup>
+                          )}
+                        </>
                       )}
                     </SelectContent>
                   </Select>
