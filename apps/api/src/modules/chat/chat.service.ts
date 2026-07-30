@@ -417,6 +417,27 @@ export class ChatService {
     });
   }
 
+  /** Exclui um canal (criador do canal OU quem gerencia o chat). Mensagens e
+   *  membros caem por cascade; comandos anexados (ChannelCommand, sem FK) são
+   *  removidos explicitamente. */
+  async deleteChannel(user: CurrentUser, channelId: string) {
+    const channel = await this.prisma.channel.findUnique({
+      where: { id: channelId },
+      select: { id: true, tenantId: true, createdById: true },
+    });
+    if (!channel || channel.tenantId !== user.tenantId) {
+      throw new NotFoundException('Canal não encontrado');
+    }
+    if (channel.createdById !== user.id && !this.canManageChat(user)) {
+      throw new ForbiddenException('Sem permissão para excluir este canal.');
+    }
+    await this.prisma.$transaction([
+      this.prisma.channelCommand.deleteMany({ where: { channelId } }),
+      this.prisma.channel.delete({ where: { id: channelId } }),
+    ]);
+    return { ok: true };
+  }
+
   /** Garante que o usuário pode ver/postar no canal; devolve o canal. */
   private async assertAccess(user: CurrentUser, channelId: string) {
     const channel = await this.prisma.channel.findUnique({
