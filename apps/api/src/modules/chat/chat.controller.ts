@@ -188,6 +188,7 @@ export class ChatController {
       filters?: Array<{ fieldSlug: string; fieldType?: string; operator: string; value?: unknown; value2?: unknown }>;
       format?: 'card' | 'json' | 'xlsx' | 'pdf';
       limit?: number;
+      pdfTemplateId?: string;
     },
     @CurrentUser() user: CurrentUserType,
   ) {
@@ -195,6 +196,7 @@ export class ChatController {
       filters: body?.filters || [],
       format: body?.format || 'card',
       limit: body?.limit,
+      pdfTemplateId: body?.pdfTemplateId,
     });
   }
 

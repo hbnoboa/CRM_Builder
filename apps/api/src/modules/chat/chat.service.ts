@@ -725,7 +725,7 @@ export class ChatService {
     user: CurrentUser,
     channelId: string,
     slug: string,
-    input: { filters?: ReportFilter[]; format: 'card' | 'json' | 'xlsx' | 'pdf'; limit?: number },
+    input: { filters?: ReportFilter[]; format: 'card' | 'json' | 'xlsx' | 'pdf'; limit?: number; pdfTemplateId?: string },
   ) {
     await this.assertAccess(user, channelId);
     const tpl = await this.prisma.commandTemplate.findUnique({
@@ -737,7 +737,12 @@ export class ChatService {
     if (!entitySlug) throw new ForbiddenException('Comando sem tabela alvo');
     if (!this.canReadEntity(user, entitySlug)) throw new ForbiddenException('Sem acesso a esta tabela');
 
-    const cfg = (tpl.actionConfig || {}) as { columns?: string[]; formats?: string[]; pdfTemplateId?: string };
+    const cfg = (tpl.actionConfig || {}) as {
+      columns?: string[];
+      formats?: string[];
+      pdfTemplateId?: string; // legado (1 template fixo)
+      pdfTemplates?: Array<{ id: string; name: string }>; // allowlist de templates ofertados
+    };
     const format = input.format || 'card';
     if (Array.isArray(cfg.formats) && cfg.formats.length > 0 && !cfg.formats.includes(format)) {
       throw new ForbiddenException(`Formato ${format} não habilitado neste comando.`);
@@ -801,11 +806,17 @@ export class ChatService {
       buffer = await this.generateXlsx(title, cols, tableRows);
       contentType = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'; ext = 'xlsx';
     } else {
-      // PDF: se o comando aponta um Template PDF desenhado, gera em lote (1 doc por
-      // registro, mesclado) com esse template; senão, cai na tabela simples.
-      if (cfg.pdfTemplateId) {
+      // PDF: se o usuário escolheu um Template PDF (dentre os ofertados), gera em lote
+      // (1 doc desenhado por registro, mesclado); senão, tabela simples.
+      const allowedTemplateIds = new Set<string>([
+        ...(cfg.pdfTemplates?.map((t) => t.id) || []),
+        ...(cfg.pdfTemplateId ? [cfg.pdfTemplateId] : []),
+      ]);
+      const chosenTemplate =
+        input.pdfTemplateId && allowedTemplateIds.has(input.pdfTemplateId) ? input.pdfTemplateId : undefined;
+      if (chosenTemplate) {
         const ids = data.map((r) => r.id).slice(0, 300); // teto p/ template
-        const gen = await this.pdfGenerator.generateBatch(cfg.pdfTemplateId, ids, user, true, user.tenantId);
+        const gen = await this.pdfGenerator.generateBatch(chosenTemplate, ids, user, true, user.tenantId);
         buffer = gen.buffer;
       } else {
         buffer = await this.generateTablePdf(title, `${total} registro(s)`, cols, tableRows);

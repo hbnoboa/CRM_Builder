@@ -37,10 +37,20 @@ export function QueryRunner({ channelId, cmd, entity, onDone, onCancel }: {
   onDone: () => void;
   onCancel: () => void;
 }) {
-  const cfg = (cmd.actionConfig || {}) as { filterFields?: string[]; formats?: string[] };
+  const cfg = (cmd.actionConfig || {}) as {
+    filterFields?: string[];
+    formats?: string[];
+    pdfTemplateId?: string;
+    pdfTemplates?: Array<{ id: string; name: string }>;
+  };
   const allFields = (entity.fields || []) as FieldDef[];
   const filterFields = (cfg.filterFields || []).map((s) => allFields.find((f) => f.slug === s)).filter(Boolean) as FieldDef[];
   const formats = cfg.formats?.length ? cfg.formats : ['card', 'xlsx', 'json', 'pdf'];
+  const pdfTemplates = cfg.pdfTemplates?.length
+    ? cfg.pdfTemplates
+    : cfg.pdfTemplateId
+      ? [{ id: cfg.pdfTemplateId, name: 'Template' }]
+      : [];
 
   const [values, setValues] = useState<Record<string, string>>({});
   const [range, setRange] = useState<Record<string, { from?: string; to?: string }>>({});
@@ -61,10 +71,10 @@ export function QueryRunner({ channelId, cmd, entity, onDone, onCancel }: {
     return out;
   };
 
-  const run = async (format: string) => {
-    setRunning(format);
+  const run = async (format: string, key: string, pdfTemplateId?: string) => {
+    setRunning(key);
     try {
-      const res = await api.post(`/chat/channels/${channelId}/query/${cmd.slug}`, { filters: buildFilters(), format });
+      const res = await api.post(`/chat/channels/${channelId}/query/${cmd.slug}`, { filters: buildFilters(), format, pdfTemplateId });
       if (format !== 'card' && res.data?.file) {
         const { base64, filename, contentType } = res.data.file;
         downloadBase64(base64, filename, contentType);
@@ -85,6 +95,19 @@ export function QueryRunner({ channelId, cmd, entity, onDone, onCancel }: {
     json: { label: 'JSON', icon: <FileJson className="h-4 w-4" /> },
     pdf: { label: 'PDF', icon: <FileText className="h-4 w-4" /> },
   };
+
+  // PDF vira vários botões: "PDF (tabela)" + um por template desenhado ofertado.
+  const buttons: Array<{ key: string; label: string; icon: React.ReactNode; format: string; pdfTemplateId?: string }> = [];
+  for (const fmt of formats) {
+    if (fmt === 'pdf') {
+      buttons.push({ key: 'pdf', label: 'PDF (tabela)', icon: <FileText className="h-4 w-4" />, format: 'pdf' });
+      for (const t of pdfTemplates) {
+        buttons.push({ key: `pdf:${t.id}`, label: `PDF · ${t.name}`, icon: <FileText className="h-4 w-4" />, format: 'pdf', pdfTemplateId: t.id });
+      }
+    } else {
+      buttons.push({ key: fmt, label: fmtBtn[fmt]?.label || fmt, icon: fmtBtn[fmt]?.icon, format: fmt });
+    }
+  }
 
   return (
     <div className="border-t p-3 space-y-3 bg-muted/20">
@@ -123,10 +146,10 @@ export function QueryRunner({ channelId, cmd, entity, onDone, onCancel }: {
       )}
 
       <div className="flex flex-wrap gap-2">
-        {formats.map((fmt) => (
-          <Button key={fmt} size="sm" variant={fmt === 'card' ? 'default' : 'outline'} className="gap-1.5" disabled={!!running} onClick={() => run(fmt)}>
-            {running === fmt ? <Loader2 className="h-4 w-4 animate-spin" /> : fmtBtn[fmt]?.icon}
-            {fmtBtn[fmt]?.label || fmt}
+        {buttons.map((b) => (
+          <Button key={b.key} size="sm" variant={b.format === 'card' ? 'default' : 'outline'} className="gap-1.5" disabled={!!running} onClick={() => run(b.format, b.key, b.pdfTemplateId)}>
+            {running === b.key ? <Loader2 className="h-4 w-4 animate-spin" /> : b.icon}
+            {b.label}
           </Button>
         ))}
       </div>

@@ -474,16 +474,25 @@ function CommandForm({
               </div>
             </div>
             {((cfg.formats as string[]) || ['card', 'xlsx', 'json', 'pdf']).includes('pdf') && (
-              <div className="space-y-1">
-                <label className="text-xs font-medium">PDF: usar template desenhado (opcional)</label>
-                <Select value={(cfg.pdfTemplateId as string) || '__table__'} onValueChange={(v) => setCfg({ pdfTemplateId: v === '__table__' ? undefined : v })}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__table__">Tabela simples (padrão)</SelectItem>
-                    {pdfTemplates.map((t) => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-                <p className="text-[10px] text-muted-foreground">Com template: 1 documento desenhado por registro (mesclado, até 300). Sem: tabela simples.</p>
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium">PDF: templates desenhados oferecidos (opcional)</label>
+                <div className="grid grid-cols-2 gap-1.5">
+                  {pdfTemplates.map((t) => {
+                    const cur = (cfg.pdfTemplates as Array<{ id: string; name: string }>) || [];
+                    const chosen = cur.some((x) => x.id === t.id);
+                    return (
+                      <label key={t.id} className="flex items-center gap-2 text-sm cursor-pointer">
+                        <Checkbox
+                          checked={chosen}
+                          onCheckedChange={() => setCfg({ pdfTemplates: chosen ? cur.filter((x) => x.id !== t.id) : [...cur, { id: t.id, name: t.name }] })}
+                        />
+                        <span className="truncate">{t.name}</span>
+                      </label>
+                    );
+                  })}
+                  {pdfTemplates.length === 0 && <p className="text-xs text-muted-foreground col-span-2">Nenhum template PDF cadastrado.</p>}
+                </div>
+                <p className="text-[10px] text-muted-foreground">Cada template vira uma opção de PDF no comando (1 doc desenhado por registro, até 300). &quot;Tabela simples&quot; fica sempre disponível.</p>
               </div>
             )}
           </div>
