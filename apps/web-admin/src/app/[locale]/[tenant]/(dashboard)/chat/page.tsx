@@ -11,7 +11,7 @@ import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import { RecordFormDialog } from '@/components/data/record-form-dialog';
 import { QuickCaptureForm } from '@/components/chat/quick-capture-form';
-import { QueryRunner } from '@/components/chat/query-runner';
+import { QueryRunner, triggerDownload, resolveFileUrl } from '@/components/chat/query-runner';
 import { RecordEditForm } from '@/components/chat/record-edit-form';
 import { CommandManager } from '@/components/chat/command-manager';
 import { CommandPickerDialog } from '@/components/chat/command-picker-dialog';
@@ -430,12 +430,24 @@ export default function ChatPage() {
                         {Number(m.meta?.total ?? 0) > qRows.length && <p className="text-[10px] text-muted-foreground mt-1">Mostrando {qRows.length} de {String(m.meta?.total)} — gere um relatório para ver tudo.</p>}
                       </div>
                     ) : isReport ? (
-                      <div className="rounded-lg border bg-emerald-500/10 border-emerald-500/30 px-3 py-2 text-sm w-full">
-                        <div className="flex items-center gap-1.5 text-xs font-medium text-emerald-600">
-                          <FileText className="h-3.5 w-3.5" /> Relatório /{String(m.meta?.templateSlug || '')} — {String(m.meta?.format || '').toUpperCase()} · {String(m.meta?.total ?? 0)} registro(s)
-                        </div>
-                        <p className="text-[10px] text-muted-foreground mt-0.5">{String(m.meta?.filename || '')} · baixado ao gerar</p>
-                      </div>
+                      (() => {
+                        const reportUrl = m.meta?.url ? resolveFileUrl(String(m.meta.url)) : null;
+                        return (
+                          <button
+                            type="button"
+                            disabled={!reportUrl}
+                            onClick={() => reportUrl && triggerDownload(reportUrl, String(m.meta?.filename || 'relatorio'))}
+                            className="rounded-lg border bg-emerald-500/10 border-emerald-500/30 px-3 py-2 text-sm w-full text-left hover:bg-emerald-500/20 transition-colors disabled:opacity-60 disabled:cursor-default"
+                          >
+                            <div className="flex items-center gap-1.5 text-xs font-medium text-emerald-600">
+                              <FileText className="h-3.5 w-3.5" /> Relatório /{String(m.meta?.templateSlug || '')} — {String(m.meta?.format || '').toUpperCase()} · {String(m.meta?.total ?? 0)} registro(s)
+                            </div>
+                            <p className="text-[10px] text-muted-foreground mt-0.5">
+                              {String(m.meta?.filename || '')} · {reportUrl ? 'clique para baixar' : 'indisponível'}
+                            </p>
+                          </button>
+                        );
+                      })()
                     ) : (
                       <div className={cn('rounded-2xl px-3 py-1.5 text-sm whitespace-pre-line', mine ? 'bg-primary text-primary-foreground' : isBot ? 'bg-amber-500/15 border border-amber-500/30' : 'bg-muted')}>
                         {m.content}

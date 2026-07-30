@@ -5,9 +5,10 @@ import { PrismaModule } from '../../prisma/prisma.module';
 import { DataModule } from '../data/data.module';
 import { AuditModule } from '../audit/audit.module';
 import { PdfModule } from '../pdf/pdf.module';
+import { UploadModule } from '../upload/upload.module';
 
 @Module({
-  imports: [PrismaModule, DataModule, AuditModule, PdfModule],
+  imports: [PrismaModule, DataModule, AuditModule, PdfModule, UploadModule],
   controllers: [ChatController],
   providers: [ChatService],
   exports: [ChatService],

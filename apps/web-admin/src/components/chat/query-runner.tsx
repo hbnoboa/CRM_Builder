@@ -57,7 +57,7 @@ type Filter = { fieldSlug: string; fieldType?: string; operator: string; value?:
 
 const DATE_TYPES = ['date', 'datetime', 'time'];
 
-function triggerDownload(href: string, filename: string, revoke?: () => void) {
+export function triggerDownload(href: string, filename: string, revoke?: () => void) {
   const a = document.createElement('a');
   a.href = href;
   a.download = filename;
@@ -68,16 +68,8 @@ function triggerDownload(href: string, filename: string, revoke?: () => void) {
   revoke?.();
 }
 
-function downloadBase64(base64: string, filename: string, contentType: string) {
-  const bin = atob(base64);
-  const bytes = new Uint8Array(bin.length);
-  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-  const url = URL.createObjectURL(new Blob([bytes], { type: contentType }));
-  triggerDownload(url, filename, () => URL.revokeObjectURL(url));
-}
-
 /** Resolve URL relativa do storage local (/uploads/...) contra a origem da API. */
-function resolveFileUrl(url: string): string {
+export function resolveFileUrl(url: string): string {
   if (/^https?:\/\//i.test(url)) return url;
   try {
     const base = (api.defaults.baseURL as string) || window.location.origin;
@@ -134,15 +126,10 @@ export function QueryRunner({ channelId, cmd, entity, scopeParentId, onDone, onC
     setRunning(key);
     try {
       const res = await api.post(`/chat/channels/${channelId}/query/${cmd.slug}`, { filters: buildFilters(), format, pdfTemplateId, scopeParentId });
-      if (format !== 'card' && res.data?.file) {
-        const { base64, url, filename, contentType } = res.data.file as { base64?: string; url?: string; filename: string; contentType: string };
-        if (url) {
-          // Caminho leve: baixa direto do storage, sem trafegar base64 pelo backend.
-          triggerDownload(resolveFileUrl(url), filename);
-        } else if (base64) {
-          downloadBase64(base64, filename, contentType);
-        }
-        toast.success(`Relatório gerado (${res.data.total} registro(s)).`);
+      // Não baixa automático: o relatório vira um card no chat e qualquer
+      // participante clica para baixar quando quiser.
+      if (format !== 'card') {
+        toast.success(`Relatório gerado — clique na mensagem para baixar (${res.data?.total ?? 0} registro(s)).`);
       }
       onDone();
     } catch (e) {
