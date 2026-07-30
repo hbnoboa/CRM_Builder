@@ -12,6 +12,17 @@ import { hasPlatformAccess, hasFullTenantAccess } from '../../common/utils/platf
 import { DataService } from '../data/data.service';
 import { AuditService } from '../audit/audit.service';
 import { createBotProvider, BOT_TOOLS, BotLlmProvider } from './bot-provider';
+import * as ExcelJS from 'exceljs';
+
+// Filtro de campo (mesmo formato do pipeline de EntityDataQueryService).
+type ReportFilter = {
+  fieldSlug: string;
+  fieldType?: string;
+  operator: string;
+  value?: unknown;
+  value2?: unknown;
+};
+type ReportColumn = { slug: string; label: string };
 
 /**
  * Chat — fatia 1: canais (grupo por tabela + DM) e mensagens.
@@ -30,7 +41,7 @@ export class ChatService {
   ) {}
 
   /** Permissão de uma ação na entidade (permissions[] slug/'*' + platform). */
-  private canEntity(user: CurrentUser, entitySlug: string, action: 'canRead' | 'canCreate'): boolean {
+  private canEntity(user: CurrentUser, entitySlug: string, action: 'canRead' | 'canCreate' | 'canUpdate'): boolean {
     if (
       hasPlatformAccess(user.customRole?.modulePermissions) ||
       hasFullTenantAccess(user.customRole?.modulePermissions)
@@ -520,9 +531,10 @@ export class ChatService {
       orderBy: { slug: 'asc' },
     });
     return templates.filter((t) => {
-      if (t.actionType === 'create_record' && t.targetEntitySlug) {
-        return this.canEntity(user, t.targetEntitySlug, 'canCreate');
-      }
+      if (!t.targetEntitySlug) return true;
+      if (t.actionType === 'create_record') return this.canEntity(user, t.targetEntitySlug, 'canCreate');
+      if (t.actionType === 'update_record') return this.canEntity(user, t.targetEntitySlug, 'canUpdate');
+      if (t.actionType === 'query') return this.canReadEntity(user, t.targetEntitySlug);
       return true;
     });
   }
@@ -577,6 +589,7 @@ export class ChatService {
     slug: string,
     input: {
       values: Record<string, unknown>;
+      recordId?: string;
       parentRecordId?: string;
       parent?: { entitySlug: string; values: Record<string, unknown> };
       parentUpdate?: Record<string, unknown>;
@@ -587,10 +600,14 @@ export class ChatService {
       where: { tenantId_slug: { tenantId: user.tenantId, slug } },
     });
     if (!tpl || !tpl.isActive) throw new NotFoundException('Comando não encontrado');
-    if (tpl.actionType !== 'create_record') {
-      throw new ForbiddenException(`actionType não suportado nesta fatia: ${tpl.actionType}`);
-    }
     if (!tpl.targetEntitySlug) throw new ForbiddenException('Comando sem tabela alvo');
+    // update_record: edita um registro existente (form pré-preenchido). Ver executeUpdateRecord.
+    if (tpl.actionType === 'update_record') {
+      return this.executeUpdateRecord(user, channelId, tpl, input);
+    }
+    if (tpl.actionType !== 'create_record') {
+      throw new ForbiddenException(`actionType não suportado no formulário: ${tpl.actionType}`);
+    }
 
     const values = input.values || {};
     const cfg = (tpl.actionConfig || {}) as { parentEntitySlug?: string };
@@ -640,6 +657,193 @@ export class ChatService {
       },
     });
     return { message, recordId: record?.id, parentRecordId: parentRecordId ?? null };
+  }
+
+  /** update_record: edita um registro EXISTENTE (form pré-preenchido). O usuário
+   *  seleciona o registro (front busca+enxerga) e envia os valores editados. */
+  private async executeUpdateRecord(
+    user: CurrentUser,
+    channelId: string,
+    tpl: { slug: string; targetEntitySlug: string | null },
+    input: { recordId?: string; values: Record<string, unknown> },
+  ) {
+    if (!input.recordId) throw new BadRequestException('Selecione o registro a editar.');
+    const entitySlug = tpl.targetEntitySlug as string;
+    // Confirma que o usuário ENXERGA o registro (canRead + scope) antes de editar.
+    const before = await this.dataService.findOne(entitySlug, input.recordId, user).catch(() => null);
+    if (!before) throw new NotFoundException('Registro não encontrado ou sem acesso');
+    // update faz merge dos campos; checa canUpdate + pipeline.
+    await this.dataService.update(
+      entitySlug,
+      input.recordId,
+      { data: (input.values || {}) as Record<string, unknown> },
+      user,
+    );
+    const summary = Object.entries(input.values || {})
+      .map(([k, v]) => `${k}: ${v}`)
+      .join(' · ');
+    const message = await this.prisma.message.create({
+      data: {
+        tenantId: user.tenantId,
+        channelId,
+        senderId: user.id,
+        type: 'form_submission',
+        content: `/${tpl.slug} — ${summary}`,
+        meta: {
+          templateSlug: tpl.slug,
+          entitySlug,
+          values: (input.values || {}) as object,
+          recordId: input.recordId,
+          edited: true,
+        },
+      },
+    });
+    return { message, recordId: input.recordId };
+  }
+
+  // ── query/report: consulta com filtros → card no chat OU relatório (xlsx/json/pdf) ──
+
+  private formatCell(v: unknown): string {
+    if (v === null || v === undefined) return '';
+    if (typeof v === 'boolean') return v ? 'Sim' : 'Não';
+    if (Array.isArray(v)) return v.map((x) => this.formatCell(x)).join(', ');
+    if (typeof v === 'object') {
+      const o = v as Record<string, unknown>;
+      // Select/relation guardam { label, value } — mostra o label legível.
+      if ('label' in o || 'value' in o) return String(o.label ?? o.value ?? '');
+      return JSON.stringify(v);
+    }
+    return String(v);
+  }
+
+  /** Executa um comando de consulta/relatório: findAll com filtros (respeita
+   *  permissões/scope) → card no chat (JSON de linhas) OU arquivo (xlsx/json/pdf,
+   *  base64 pro front baixar). Ver actionType='query'. */
+  async runQuery(
+    user: CurrentUser,
+    channelId: string,
+    slug: string,
+    input: { filters?: ReportFilter[]; format: 'card' | 'json' | 'xlsx' | 'pdf'; limit?: number },
+  ) {
+    await this.assertAccess(user, channelId);
+    const tpl = await this.prisma.commandTemplate.findUnique({
+      where: { tenantId_slug: { tenantId: user.tenantId, slug } },
+    });
+    if (!tpl || !tpl.isActive) throw new NotFoundException('Comando não encontrado');
+    if (tpl.actionType !== 'query') throw new ForbiddenException('Este comando não é de consulta.');
+    const entitySlug = tpl.targetEntitySlug;
+    if (!entitySlug) throw new ForbiddenException('Comando sem tabela alvo');
+    if (!this.canReadEntity(user, entitySlug)) throw new ForbiddenException('Sem acesso a esta tabela');
+
+    const cfg = (tpl.actionConfig || {}) as { columns?: string[]; formats?: string[] };
+    const format = input.format || 'card';
+    if (Array.isArray(cfg.formats) && cfg.formats.length > 0 && !cfg.formats.includes(format)) {
+      throw new ForbiddenException(`Formato ${format} não habilitado neste comando.`);
+    }
+
+    const entity = await this.prisma.entity.findFirst({
+      where: { tenantId: user.tenantId, slug: entitySlug, deletedAt: null },
+      select: { name: true, fields: true },
+    });
+    const fieldDefs = ((entity?.fields || []) as Array<{ slug: string; label?: string; name?: string; type?: string }>)
+      .filter((f) => !['image', 'sub-entity', 'file'].includes(f.type || ''));
+    const chosen = cfg.columns?.length ? cfg.columns : fieldDefs.map((f) => f.slug);
+    const cols: ReportColumn[] = chosen.map((s) => ({
+      slug: s,
+      label: fieldDefs.find((f) => f.slug === s)?.label || fieldDefs.find((f) => f.slug === s)?.name || s,
+    }));
+
+    const filters = (input.filters || []).filter((f) => f && f.fieldSlug && f.operator);
+    const isFile = format !== 'card';
+    const query: Record<string, unknown> = {
+      ...(filters.length ? { filters: JSON.stringify(filters) } : {}),
+      includeChildren: 'true',
+      // Arquivo: teto de 5000 linhas por relatório (_skipMaxLimit ignora o cap de página).
+      ...(isFile ? { limit: 5000, _skipMaxLimit: true } : { limit: Math.min(input.limit || 20, 50) }),
+    };
+    const res = (await this.dataService.findAll(
+      entitySlug,
+      query as unknown as Record<string, unknown>,
+      user,
+    )) as unknown as {
+      data?: Array<{ id: string; data: Record<string, unknown> }>;
+      meta?: { total?: number };
+      total?: number;
+    };
+    const data = res.data || [];
+    const total = res.meta?.total ?? res.total ?? data.length;
+    const tableRows = data.map((r) => cols.map((c) => this.formatCell(r.data?.[c.slug])));
+
+    if (format === 'card') {
+      const message = await this.prisma.message.create({
+        data: {
+          tenantId: user.tenantId, channelId, senderId: user.id, type: 'query_result',
+          content: `/${tpl.slug} — ${total} resultado(s)`,
+          meta: {
+            templateSlug: tpl.slug, entitySlug, total,
+            columns: cols as object, rows: tableRows.slice(0, 20) as object,
+          } as Prisma.InputJsonValue,
+        },
+      });
+      return { message, columns: cols, rows: tableRows.slice(0, 20), total };
+    }
+
+    const title = entity?.name || entitySlug;
+    let buffer: Buffer;
+    let contentType: string;
+    let ext: string;
+    if (format === 'json') {
+      buffer = Buffer.from(JSON.stringify(data.map((r) => ({ id: r.id, ...r.data })), null, 2));
+      contentType = 'application/json'; ext = 'json';
+    } else if (format === 'xlsx') {
+      buffer = await this.generateXlsx(title, cols, tableRows);
+      contentType = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'; ext = 'xlsx';
+    } else {
+      buffer = await this.generateTablePdf(title, `${total} registro(s)`, cols, tableRows);
+      contentType = 'application/pdf'; ext = 'pdf';
+    }
+    const filename = `${tpl.slug}-${total}.${ext}`;
+    const message = await this.prisma.message.create({
+      data: {
+        tenantId: user.tenantId, channelId, senderId: user.id, type: 'report',
+        content: `Relatório /${tpl.slug} — ${format.toUpperCase()} (${total} registro(s))`,
+        meta: { templateSlug: tpl.slug, entitySlug, total, format, filename } as Prisma.InputJsonValue,
+      },
+    });
+    return { message, total, file: { base64: buffer.toString('base64'), contentType, filename } };
+  }
+
+  private async generateXlsx(title: string, cols: ReportColumn[], rows: string[][]): Promise<Buffer> {
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet((title || 'Relatório').slice(0, 30));
+    ws.addRow(cols.map((c) => c.label));
+    ws.getRow(1).font = { bold: true };
+    rows.forEach((r) => ws.addRow(r));
+    ws.columns.forEach((col) => { col.width = 22; });
+    return (await wb.xlsx.writeBuffer()) as unknown as Buffer;
+  }
+
+  private async generateTablePdf(
+    title: string, subtitle: string, cols: ReportColumn[], rows: string[][],
+  ): Promise<Buffer> {
+    // Gerador tabular limpo (pdfkit-table), independente dos templates desenhados.
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const PDFDocument = require('pdfkit-table');
+    const doc = new PDFDocument({ size: 'A4', layout: 'landscape', margin: 36 });
+    const chunks: Buffer[] = [];
+    doc.on('data', (c: Buffer) => chunks.push(c));
+    doc.font('Helvetica-Bold').fontSize(16).fillColor('#111827').text(title);
+    if (subtitle) doc.moveDown(0.15).font('Helvetica').fontSize(9).fillColor('#6b7280').text(subtitle);
+    doc.moveDown(0.6);
+    await doc.table(
+      { headers: cols.map((c) => c.label), rows },
+      {
+        prepareHeader: () => doc.font('Helvetica-Bold').fontSize(9).fillColor('#111827'),
+        prepareRow: () => doc.font('Helvetica').fontSize(8).fillColor('#374151'),
+      },
+    );
+    doc.end();
+    return new Promise<Buffer>((resolve) => doc.on('end', () => resolve(Buffer.concat(chunks))));
   }
 
   // ── Fatia 3: bot read-only (toolbelt fechado, as_user) ─────────────────────

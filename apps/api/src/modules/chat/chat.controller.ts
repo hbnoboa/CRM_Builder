@@ -162,6 +162,7 @@ export class ChatController {
     @Body()
     body: {
       values?: Record<string, unknown>;
+      recordId?: string;
       parentRecordId?: string;
       parent?: { entitySlug: string; values: Record<string, unknown> };
       parentUpdate?: Record<string, unknown>;
@@ -170,9 +171,30 @@ export class ChatController {
   ) {
     return this.chatService.executeCommand(user, id, slug, {
       values: body.values || {},
+      recordId: body.recordId,
       parentRecordId: body.parentRecordId,
       parent: body.parent,
       parentUpdate: body.parentUpdate,
+    });
+  }
+
+  @Post('channels/:id/query/:slug')
+  @ApiOperation({ summary: 'Executa um comando de consulta/relatório (card no chat ou arquivo)' })
+  async runQuery(
+    @Param('id') id: string,
+    @Param('slug') slug: string,
+    @Body()
+    body: {
+      filters?: Array<{ fieldSlug: string; fieldType?: string; operator: string; value?: unknown; value2?: unknown }>;
+      format?: 'card' | 'json' | 'xlsx' | 'pdf';
+      limit?: number;
+    },
+    @CurrentUser() user: CurrentUserType,
+  ) {
+    return this.chatService.runQuery(user, id, slug, {
+      filters: body?.filters || [],
+      format: body?.format || 'card',
+      limit: body?.limit,
     });
   }
 

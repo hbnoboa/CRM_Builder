@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Hash, Send, MessageSquare, User as UserIcon, Loader2, Slash, FileText, Settings2, ArrowLeft, Pencil, Check, X } from 'lucide-react';
+import { Hash, Send, MessageSquare, User as UserIcon, Loader2, Slash, FileText, Settings2, ArrowLeft, Pencil, Check, X, Search } from 'lucide-react';
 import { useSearchParams } from 'next/navigation';
 import api from '@/lib/api';
 import { useAuthStore } from '@/stores/auth-store';
@@ -11,6 +11,8 @@ import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import { RecordFormDialog } from '@/components/data/record-form-dialog';
 import { QuickCaptureForm } from '@/components/chat/quick-capture-form';
+import { QueryRunner } from '@/components/chat/query-runner';
+import { RecordEditForm } from '@/components/chat/record-edit-form';
 import { CommandManager } from '@/components/chat/command-manager';
 import { CommandPickerDialog } from '@/components/chat/command-picker-dialog';
 import type { Entity } from '@/types';
@@ -18,7 +20,7 @@ import type { Entity } from '@/types';
 interface EntityLite { id: string; slug: string; name: string; fields?: unknown[] }
 interface Channel { id: string; type: 'group' | 'dm'; entityId?: string | null; name?: string | null; createdById?: string; entity?: { slug: string; name: string; icon?: string; color?: string } }
 interface Message { id: string; senderId: string | null; type: string; content: string | null; meta?: Record<string, unknown>; createdAt: string }
-interface ChatCommand { slug: string; description?: string; targetEntitySlug?: string; actionConfig?: Record<string, unknown> }
+interface ChatCommand { slug: string; description?: string; targetEntitySlug?: string; actionType?: string; actionConfig?: Record<string, unknown> }
 type ThreadChannel = Channel & { recordId?: string | null; entity?: { slug: string; name: string } };
 type Active = { id: string; label: string; kind: 'group' | 'dm' | 'record'; entitySlug?: string; scopeRecordId?: string };
 
@@ -40,6 +42,8 @@ export default function ChatPage() {
   const [opening, setOpening] = useState(false);
   const [runningCmd, setRunningCmd] = useState<{ cmd: ChatCommand; entity: Entity } | null>(null);
   const [quickCmd, setQuickCmd] = useState<{ cmd: ChatCommand; entity: EntityLite; parentEntity: EntityLite | null } | null>(null);
+  const [queryCmd, setQueryCmd] = useState<{ cmd: ChatCommand; entity: EntityLite } | null>(null);
+  const [editCmd, setEditCmd] = useState<{ cmd: ChatCommand; entity: EntityLite } | null>(null);
   const [slashIndex, setSlashIndex] = useState(0);
   const [showCmdManager, setShowCmdManager] = useState(false);
   const [pickerFor, setPickerFor] = useState<{ entitySlug: string; recordId: string } | null>(null);
@@ -115,8 +119,8 @@ export default function ChatPage() {
       .catch(() => setRoles([]));
   }, [canManageCommands]);
 
-  // Fecha o modo renomear ao trocar de canal.
-  useEffect(() => { setRenaming(false); }, [active?.id]);
+  // Fecha modo renomear / runners de comando ao trocar de canal.
+  useEffect(() => { setRenaming(false); setQueryCmd(null); setEditCmd(null); }, [active?.id]);
 
   const loadMessages = useCallback(async (channelId: string) => {
     try { const res = await api.get(`/chat/channels/${channelId}/messages`); setMessages(res.data || []); } catch { /* ignore */ }
@@ -195,9 +199,11 @@ export default function ChatPage() {
   }, [searchParams]);
 
   function openCommand(cmd: ChatCommand) {
-    const entity = tables.find((t) => t.slug === cmd.targetEntitySlug);
-    if (!entity) return;
     setDraft('');
+    const entity = allEntities.find((t) => t.slug === cmd.targetEntitySlug) || tables.find((t) => t.slug === cmd.targetEntitySlug);
+    if (!entity) return;
+    if (cmd.actionType === 'query') { setQueryCmd({ cmd, entity }); return; }
+    if (cmd.actionType === 'update_record') { setEditCmd({ cmd, entity }); return; }
     const cfg = (cmd.actionConfig || {}) as { quickFields?: string[]; parentEntitySlug?: string };
     // Captura rápida inline quando o comando tem quickFields; senão, form completo (modal).
     if (Array.isArray(cfg.quickFields) && cfg.quickFields.length > 0) {
@@ -382,19 +388,53 @@ export default function ChatPage() {
                 const mine = m.senderId === user?.id;
                 const isBot = m.senderId === null;
                 const isCard = m.type === 'form_submission';
+                const isQuery = m.type === 'query_result';
+                const isReport = m.type === 'report';
                 const values = (m.meta?.values || {}) as Record<string, unknown>;
+                const qCols = (m.meta?.columns || []) as Array<{ slug: string; label: string }>;
+                const qRows = (m.meta?.rows || []) as string[][];
                 return (
-                  <div key={m.id} className={cn('flex flex-col max-w-[75%]', mine ? 'ml-auto items-end' : 'items-start')}>
+                  <div key={m.id} className={cn('flex flex-col', isQuery ? 'w-full max-w-full' : 'max-w-[75%]', mine ? 'ml-auto items-end' : 'items-start')}>
                     {isCard ? (
                       <div className="rounded-lg border bg-muted/40 px-3 py-2 text-sm w-full">
                         <div className="flex items-center gap-1.5 text-xs font-medium text-primary mb-1">
-                          <FileText className="h-3.5 w-3.5" /> {String(m.meta?.templateSlug ? '/' + m.meta.templateSlug : 'Registro')} · {String(m.meta?.entitySlug || '')}
+                          <FileText className="h-3.5 w-3.5" /> {String(m.meta?.templateSlug ? '/' + m.meta.templateSlug : 'Registro')} · {String(m.meta?.entitySlug || '')}{m.meta?.edited ? ' · editado' : ''}
                         </div>
                         <div className="grid grid-cols-2 gap-x-3 gap-y-0.5">
                           {Object.entries(values).map(([k, v]) => (
                             <div key={k} className="flex gap-1 text-xs"><span className="text-muted-foreground">{k}:</span><span className="truncate">{String(v)}</span></div>
                           ))}
                         </div>
+                      </div>
+                    ) : isQuery ? (
+                      <div className="rounded-lg border bg-muted/40 px-3 py-2 text-sm w-full overflow-x-auto">
+                        <div className="flex items-center gap-1.5 text-xs font-medium text-primary mb-1.5">
+                          <Search className="h-3.5 w-3.5" /> /{String(m.meta?.templateSlug || '')} — {String(m.meta?.total ?? qRows.length)} resultado(s)
+                        </div>
+                        {qRows.length === 0 ? (
+                          <p className="text-xs text-muted-foreground">Nenhum resultado.</p>
+                        ) : (
+                          <table className="text-xs w-full">
+                            <thead><tr className="text-left text-muted-foreground border-b">
+                              {qCols.map((c) => <th key={c.slug} className="py-1 pr-3 font-medium whitespace-nowrap">{c.label}</th>)}
+                            </tr></thead>
+                            <tbody>
+                              {qRows.map((r, i) => (
+                                <tr key={i} className="border-b border-border/50">
+                                  {r.map((cell, j) => <td key={j} className="py-1 pr-3 whitespace-nowrap max-w-[220px] truncate">{cell}</td>)}
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        )}
+                        {Number(m.meta?.total ?? 0) > qRows.length && <p className="text-[10px] text-muted-foreground mt-1">Mostrando {qRows.length} de {String(m.meta?.total)} — gere um relatório para ver tudo.</p>}
+                      </div>
+                    ) : isReport ? (
+                      <div className="rounded-lg border bg-emerald-500/10 border-emerald-500/30 px-3 py-2 text-sm w-full">
+                        <div className="flex items-center gap-1.5 text-xs font-medium text-emerald-600">
+                          <FileText className="h-3.5 w-3.5" /> Relatório /{String(m.meta?.templateSlug || '')} — {String(m.meta?.format || '').toUpperCase()} · {String(m.meta?.total ?? 0)} registro(s)
+                        </div>
+                        <p className="text-[10px] text-muted-foreground mt-0.5">{String(m.meta?.filename || '')} · baixado ao gerar</p>
                       </div>
                     ) : (
                       <div className={cn('rounded-2xl px-3 py-1.5 text-sm whitespace-pre-line', mine ? 'bg-primary text-primary-foreground' : isBot ? 'bg-amber-500/15 border border-amber-500/30' : 'bg-muted')}>
@@ -410,7 +450,24 @@ export default function ChatPage() {
               <div ref={endRef} />
             </div>
 
-            {quickCmd ? (
+            {editCmd ? (
+              <RecordEditForm
+                channelId={active.id}
+                cmd={editCmd.cmd}
+                entity={editCmd.entity}
+                scopeParentId={active.kind === 'record' ? active.scopeRecordId : undefined}
+                onCancel={() => setEditCmd(null)}
+                onDone={() => { setEditCmd(null); loadMessages(active.id); }}
+              />
+            ) : queryCmd ? (
+              <QueryRunner
+                channelId={active.id}
+                cmd={queryCmd.cmd}
+                entity={queryCmd.entity}
+                onCancel={() => setQueryCmd(null)}
+                onDone={() => { setQueryCmd(null); loadMessages(active.id); }}
+              />
+            ) : quickCmd ? (
               <QuickCaptureForm
                 channelId={active.id}
                 cmd={quickCmd.cmd}

@@ -194,7 +194,7 @@ export function CommandManager({ open, onOpenChange, entities, roles, onChanged 
                       </div>
                       <p className="text-xs text-muted-foreground truncate">
                         {c.description || '—'} · {entityName(c.targetEntitySlug)} ·{' '}
-                        {c.actionType === 'create_record' ? 'cria registro' : 'altera campo'}
+                        {({ create_record: 'cria registro', update_record: 'edita registro', query: 'consulta/relatório', update_field: 'altera campo' } as Record<string, string>)[c.actionType] || c.actionType}
                       </p>
                     </div>
                     <Button variant="ghost" size="icon" onClick={() => setEditing({ ...c, elevation: c.elevation || { requesterRoles: [], requireConfirmation: true }, visibleToRoleIds: c.visibleToRoleIds || [] })}>
@@ -284,7 +284,9 @@ function CommandForm({
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="create_record">Cria um registro (formulário)</SelectItem>
-                <SelectItem value="update_field">Altera um campo (ação)</SelectItem>
+                <SelectItem value="update_record">Edita um registro (formulário)</SelectItem>
+                <SelectItem value="query">Consulta / relatório</SelectItem>
+                <SelectItem value="update_field">Altera um campo (via bot)</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -414,6 +416,59 @@ function CommandForm({
         </div>
       )}
 
+        {draft.actionType === 'update_record' && (
+          <div className="space-y-3 rounded-md border p-3">
+            <p className="text-[11px] text-muted-foreground">Edita um registro existente: o usuário busca o registro, o form abre pré-preenchido e salva.</p>
+            <div className="space-y-1">
+              <label className="text-xs font-medium">Buscar o registro por</label>
+              <Select value={(cfg.searchField as string) || ''} onValueChange={(v) => setCfg({ searchField: v })}>
+                <SelectTrigger><SelectValue placeholder="ex.: chassi" /></SelectTrigger>
+                <SelectContent>
+                  {targetFields.map((f) => <SelectItem key={f.slug} value={f.slug}>{f.label}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <FieldPicker
+              title="Campos editáveis no formulário"
+              fields={targetFields}
+              selected={(cfg.fields as string[]) || []}
+              onToggle={(s) => setCfg({ fields: toggle((cfg.fields as string[]) || [], s) })}
+            />
+          </div>
+        )}
+
+        {draft.actionType === 'query' && (
+          <div className="space-y-3 rounded-md border p-3">
+            <p className="text-[11px] text-muted-foreground">Consulta a tabela com filtros e mostra no chat (card) ou gera relatório (Excel/JSON/PDF).</p>
+            <FieldPicker
+              title="Colunas do resultado (vazio = todas)"
+              fields={targetFields}
+              selected={(cfg.columns as string[]) || []}
+              onToggle={(s) => setCfg({ columns: toggle((cfg.columns as string[]) || [], s) })}
+            />
+            <FieldPicker
+              title="Filtros que o usuário pode usar (vazio = nenhum)"
+              fields={targetFields}
+              selected={(cfg.filterFields as string[]) || []}
+              onToggle={(s) => setCfg({ filterFields: toggle((cfg.filterFields as string[]) || [], s) })}
+            />
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium">Formatos de saída</label>
+              <div className="flex flex-wrap gap-3">
+                {(['card', 'xlsx', 'json', 'pdf'] as const).map((fmt) => {
+                  const formats = (cfg.formats as string[]) || ['card', 'xlsx', 'json', 'pdf'];
+                  const label = { card: 'Card no chat', xlsx: 'Excel', json: 'JSON', pdf: 'PDF' }[fmt];
+                  return (
+                    <label key={fmt} className="flex items-center gap-2 text-sm cursor-pointer">
+                      <Checkbox checked={formats.includes(fmt)} onCheckedChange={() => setCfg({ formats: toggle(formats, fmt) })} />
+                      {label}
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        )}
       </Section>
 
       <Section n={3} title="Quem vê o comando" subtitle="Vazio = todos os cargos. Selecione para restringir a alguns.">
