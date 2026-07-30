@@ -702,6 +702,8 @@
     "modules": {
       "dashboard": "Dashboard",
       "dashboardDesc": "Overview and statistics",
+      "chat": "Chat",
+      "chatDesc": "Create/rename channels and manage commands",
       "users": "Users",
       "usersDesc": "Manage user accounts",
       "settings": "Settings",

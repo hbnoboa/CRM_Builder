@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { Loader2, Plus, Pencil, Trash2, ArrowLeft, Bot, User as UserIcon } from 'lucide-react';
 import { toast } from 'sonner';
 import api from '@/lib/api';
@@ -42,6 +42,7 @@ interface CommandTpl {
   actionConfig?: Record<string, unknown> | null;
   execMode: string;
   elevation?: Record<string, unknown> | null;
+  visibleToRoleIds?: string[];
   isActive: boolean;
 }
 
@@ -62,6 +63,7 @@ const emptyDraft = (): CommandTpl => ({
   actionConfig: {},
   execMode: 'as_user',
   elevation: { requesterRoles: [], requireConfirmation: true },
+  visibleToRoleIds: [],
   isActive: true,
 });
 
@@ -115,6 +117,7 @@ export function CommandManager({ open, onOpenChange, entities, roles, onChanged 
       actionConfig: editing.actionConfig || {},
       execMode: editing.execMode,
       elevation: editing.actionType === 'update_field' ? editing.elevation : null,
+      visibleToRoleIds: editing.visibleToRoleIds || [],
       isActive: editing.isActive,
     };
     try {
@@ -194,7 +197,7 @@ export function CommandManager({ open, onOpenChange, entities, roles, onChanged 
                         {c.actionType === 'create_record' ? 'cria registro' : 'altera campo'}
                       </p>
                     </div>
-                    <Button variant="ghost" size="icon" onClick={() => setEditing({ ...c, elevation: c.elevation || { requesterRoles: [], requireConfirmation: true } })}>
+                    <Button variant="ghost" size="icon" onClick={() => setEditing({ ...c, elevation: c.elevation || { requesterRoles: [], requireConfirmation: true }, visibleToRoleIds: c.visibleToRoleIds || [] })}>
                       <Pencil className="h-4 w-4" />
                     </Button>
                     <Button variant="ghost" size="icon" onClick={() => remove(c)}>
@@ -251,16 +254,50 @@ function CommandForm({
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-2 gap-3">
-        <div className="space-y-1">
-          <label className="text-xs font-medium">Nome do comando (slug)</label>
-          <Input
-            value={draft.slug}
-            disabled={!!draft.id}
-            placeholder="avaria"
-            onChange={(e) => set({ slug: e.target.value.replace(/\s+/g, '_').toLowerCase() })}
-          />
-          {draft.id && <p className="text-[10px] text-muted-foreground">O slug não pode ser alterado.</p>}
+      <Section n={1} title="Identidade" subtitle="Como o comando aparece no chat quando alguém digita /nome.">
+        <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-1">
+            <label className="text-xs font-medium">Nome do comando</label>
+            <div className="flex items-center gap-1">
+              <span className="text-sm text-muted-foreground">/</span>
+              <Input
+                value={draft.slug}
+                disabled={!!draft.id}
+                placeholder="avaria"
+                onChange={(e) => set({ slug: e.target.value.replace(/\s+/g, '_').toLowerCase() })}
+              />
+            </div>
+            {draft.id && <p className="text-[10px] text-muted-foreground">O nome não pode ser alterado.</p>}
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs font-medium">Descrição</label>
+            <Input value={draft.description || ''} placeholder="Registrar avaria do veículo" onChange={(e) => set({ description: e.target.value })} />
+          </div>
+        </div>
+      </Section>
+
+      <Section n={2} title="O que o comando faz" subtitle="A ação executada e sobre qual tabela ela age.">
+        <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-1">
+            <label className="text-xs font-medium">Ação</label>
+            <Select value={draft.actionType} onValueChange={(v) => set({ actionType: v })}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="create_record">Cria um registro (formulário)</SelectItem>
+                <SelectItem value="update_field">Altera um campo (ação)</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs font-medium">Executa como</label>
+            <Select value={draft.execMode} onValueChange={(v) => set({ execMode: v })}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="as_user">Usuário (com as permissões dele)</SelectItem>
+                <SelectItem value="as_bot">Bot (teto próprio / ação elevada)</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </div>
         <div className="space-y-1">
           <label className="text-xs font-medium">Tabela-alvo</label>
@@ -271,35 +308,6 @@ function CommandForm({
             </SelectContent>
           </Select>
         </div>
-      </div>
-
-      <div className="space-y-1">
-        <label className="text-xs font-medium">Descrição</label>
-        <Input value={draft.description || ''} placeholder="Registrar avaria do veículo" onChange={(e) => set({ description: e.target.value })} />
-      </div>
-
-      <div className="grid grid-cols-2 gap-3">
-        <div className="space-y-1">
-          <label className="text-xs font-medium">O que faz</label>
-          <Select value={draft.actionType} onValueChange={(v) => set({ actionType: v })}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="create_record">Cria um registro (formulário)</SelectItem>
-              <SelectItem value="update_field">Altera um campo (ação)</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="space-y-1">
-          <label className="text-xs font-medium">Executa como</label>
-          <Select value={draft.execMode} onValueChange={(v) => set({ execMode: v })}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="as_user">Usuário (com as permissões dele)</SelectItem>
-              <SelectItem value="as_bot">Bot (teto próprio / ação elevada)</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
 
       {draft.actionType === 'create_record' && (
         <div className="space-y-4 rounded-md border p-3">
@@ -406,19 +414,56 @@ function CommandForm({
         </div>
       )}
 
-      <label className="flex items-center justify-between text-sm">
-        <span>Comando ativo</span>
+      </Section>
+
+      <Section n={3} title="Quem vê o comando" subtitle="Vazio = todos os cargos. Selecione para restringir a alguns.">
+        <div className="grid grid-cols-2 gap-1.5">
+          {roles.map((r) => {
+            const sel = (draft.visibleToRoleIds || []).includes(r.id);
+            return (
+              <label key={r.id} className="flex items-center gap-2 text-sm cursor-pointer">
+                <Checkbox checked={sel} onCheckedChange={() => set({ visibleToRoleIds: toggle(draft.visibleToRoleIds || [], r.id) })} />
+                <span className="truncate">{r.name}</span>
+              </label>
+            );
+          })}
+          {roles.length === 0 && <p className="text-xs text-muted-foreground col-span-2">Nenhum cargo cadastrado.</p>}
+        </div>
+        <p className="text-[11px] text-muted-foreground">
+          {(draft.visibleToRoleIds || []).length === 0
+            ? 'Visível para todos os cargos.'
+            : `Restrito a ${(draft.visibleToRoleIds || []).length} cargo(s).`}
+        </p>
+      </Section>
+
+      <label className="flex items-center justify-between text-sm px-1">
+        <span className="font-medium">Comando ativo</span>
         <Switch checked={draft.isActive} onCheckedChange={(v) => set({ isActive: v })} />
       </label>
 
-      <div className="flex justify-between pt-2">
+      <div className="flex justify-between pt-1">
         <Button variant="ghost" onClick={onCancel}><ArrowLeft className="h-4 w-4 mr-1" /> Voltar</Button>
         <Button onClick={onSave} disabled={saving}>
           {saving && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
-          Salvar
+          Salvar comando
         </Button>
       </div>
     </div>
+  );
+}
+
+function Section({ n, title, subtitle, children }: { n: number; title: string; subtitle?: string; children: ReactNode }) {
+  return (
+    <section className="rounded-lg border bg-muted/20">
+      <div className="flex items-start gap-2.5 px-3 pt-3">
+        <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary text-xs font-semibold">{n}</span>
+        <div className="min-w-0">
+          <h4 className="text-sm font-semibold leading-tight">{title}</h4>
+          {subtitle && <p className="text-[11px] text-muted-foreground">{subtitle}</p>}
+        </div>
+      </div>
+      <div className="p-3 pt-2.5 space-y-3">{children}</div>
+    </section>
   );
 }
 

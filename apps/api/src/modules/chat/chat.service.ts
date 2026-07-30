@@ -52,6 +52,31 @@ export class ChatService {
     return this.canEntity(user, entitySlug, 'canRead');
   }
 
+  /** Permissão dedicada de gerir canais/comandos do chat (criar, renomear). */
+  private canManageChat(user: CurrentUser): boolean {
+    if (
+      hasPlatformAccess(user.customRole?.modulePermissions) ||
+      hasFullTenantAccess(user.customRole?.modulePermissions)
+    ) {
+      return true;
+    }
+    const mp = user.customRole?.modulePermissions as
+      | Record<string, Record<string, boolean>>
+      | undefined;
+    return mp?.chat?.manage === true;
+  }
+
+  private assertCanManageChat(user: CurrentUser): void {
+    if (!this.canManageChat(user)) {
+      throw new ForbiddenException('Sem permissão para criar/gerir canais do chat.');
+    }
+  }
+
+  /** Chave canônica do par de usuários de um DM (evita canal duplicado). */
+  private dmKeyFor(a: string, b: string): string {
+    return [a, b].sort().join(':');
+  }
+
   /** Lista canais visíveis: grupos de tabelas que o usuário pode ler + DMs dele. */
   async listChannels(user: CurrentUser) {
     const tenantId = user.tenantId;
@@ -169,6 +194,8 @@ export class ChatService {
       where: { tenantId, entityId: entity.id, recordId: null, type: 'group' },
     });
     if (existing) return existing;
+    // Só quem gerencia o chat CRIA o canal (qualquer um que lê a tabela abre o existente).
+    this.assertCanManageChat(user);
     try {
       return await this.prisma.channel.create({
         data: {
@@ -319,31 +346,57 @@ export class ChatService {
     });
     if (!otherAccess) throw new NotFoundException('Usuário não está neste tenant');
 
-    // Procura DM existente com exatamente esses dois membros.
+    // Anti-duplicado: DM identificado pela chave canônica do par (dmKey).
+    const dmKey = this.dmKeyFor(user.id, otherUserId);
     const existing = await this.prisma.channel.findFirst({
-      where: {
-        tenantId,
-        type: 'dm',
-        AND: [
-          { members: { some: { userId: user.id } } },
-          { members: { some: { userId: otherUserId } } },
-        ],
-      },
+      where: { tenantId, type: 'dm', dmKey },
     });
     if (existing) return existing;
+    this.assertCanManageChat(user);
 
-    return this.prisma.channel.create({
-      data: {
-        tenantId,
-        type: 'dm',
-        createdById: user.id,
-        members: {
-          create: [
-            { userId: user.id, role: 'member' },
-            { userId: otherUserId, role: 'member' },
-          ],
+    try {
+      return await this.prisma.channel.create({
+        data: {
+          tenantId,
+          type: 'dm',
+          dmKey,
+          createdById: user.id,
+          members: {
+            create: [
+              { userId: user.id, role: 'member' },
+              { userId: otherUserId, role: 'member' },
+            ],
+          },
         },
-      },
+      });
+    } catch {
+      // Corrida: o índice único (tenantId, dmKey) rejeita o 2º insert — devolve o existente.
+      const again = await this.prisma.channel.findFirst({
+        where: { tenantId, type: 'dm', dmKey },
+      });
+      if (again) return again;
+      throw new ForbiddenException('Não foi possível abrir a conversa.');
+    }
+  }
+
+  /** Renomeia um canal. Permitido para o criador do canal OU quem gerencia o chat. */
+  async renameChannel(user: CurrentUser, channelId: string, name: string) {
+    const channel = await this.prisma.channel.findUnique({
+      where: { id: channelId },
+      select: { id: true, tenantId: true, createdById: true, type: true },
+    });
+    if (!channel || channel.tenantId !== user.tenantId) {
+      throw new NotFoundException('Canal não encontrado');
+    }
+    if (channel.createdById !== user.id && !this.canManageChat(user)) {
+      throw new ForbiddenException('Sem permissão para renomear este canal.');
+    }
+    const clean = (name || '').trim().slice(0, 120);
+    if (!clean) throw new BadRequestException('Informe um nome.');
+    return this.prisma.channel.update({
+      where: { id: channelId },
+      data: { name: clean },
+      select: { id: true, name: true, type: true },
     });
   }
 
@@ -442,6 +495,10 @@ export class ChatService {
       }
     }
 
+    // Visibilidade por cargo: allowlist vazia = todos; senão só cargos listados.
+    // Quem gerencia o chat vê todos (para gerir/anexar). canCreate segue como piso.
+    const seesAll = this.canManageChat(user);
+    const roleId = user.customRoleId || '';
     const templates = await this.prisma.commandTemplate.findMany({
       where: {
         tenantId: user.tenantId,
@@ -451,6 +508,14 @@ export class ChatService {
           : fallbackEntitySlug
             ? { targetEntitySlug: fallbackEntitySlug }
             : {}),
+        ...(seesAll
+          ? {}
+          : {
+              OR: [
+                { visibleToRoleIds: { isEmpty: true } },
+                { visibleToRoleIds: { has: roleId } },
+              ],
+            }),
       },
       orderBy: { slug: 'asc' },
     });
@@ -835,6 +900,9 @@ export class ChatService {
         actionConfig: (dto.actionConfig as object) || {},
         execMode: (dto.execMode as string) || 'as_user',
         elevation: (dto.elevation as object) ?? undefined,
+        visibleToRoleIds: Array.isArray(dto.visibleToRoleIds)
+          ? (dto.visibleToRoleIds as string[])
+          : [],
         isActive: dto.isActive === undefined ? true : !!dto.isActive,
       },
     });
@@ -853,6 +921,9 @@ export class ChatService {
     if (dto.actionConfig !== undefined) data.actionConfig = dto.actionConfig;
     if (dto.execMode !== undefined) data.execMode = dto.execMode;
     if (dto.elevation !== undefined) data.elevation = dto.elevation;
+    if (dto.visibleToRoleIds !== undefined) {
+      data.visibleToRoleIds = Array.isArray(dto.visibleToRoleIds) ? dto.visibleToRoleIds : [];
+    }
     if (dto.isActive !== undefined) data.isActive = !!dto.isActive;
     return this.prisma.commandTemplate.update({ where: { id }, data });
   }

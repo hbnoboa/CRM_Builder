@@ -68,6 +68,16 @@ export class ChatController {
     return this.chatService.openRecordChannel(user, entitySlug, recordId, body?.commandIds);
   }
 
+  @Patch('channels/:id')
+  @ApiOperation({ summary: 'Renomeia um canal (criador do canal ou quem gerencia o chat)' })
+  async renameChannel(
+    @Param('id') id: string,
+    @Body() body: { name: string },
+    @CurrentUser() user: CurrentUserType,
+  ) {
+    return this.chatService.renameChannel(user, id, body?.name || '');
+  }
+
   @Put('channels/:id/commands')
   @ApiOperation({ summary: 'Define quais comandos aparecem neste chat' })
   async setChannelCommands(

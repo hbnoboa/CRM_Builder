@@ -701,6 +701,8 @@
     "modules": {
       "dashboard": "Panel",
       "dashboardDesc": "Vista general y estadísticas",
+      "chat": "Chat",
+      "chatDesc": "Crear/renombrar canales y gestionar comandos",
       "users": "Usuarios",
       "usersDesc": "Gestionar cuentas de usuarios",
       "settings": "Configuración",
