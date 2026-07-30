@@ -55,6 +55,16 @@
   * {
     @apply border-border;
   }
+  html,
+  body {
+    /* Celular: sem elastico de "pull-to-refresh" e sem arrastar a pagina pros
+       lados (rubber-band horizontal), mesmo quando nao ha conteudo lateral.
+       overflow-x: clip corta o overflow horizontal residual da pagina sem criar
+       scroll-container (clip != hidden) — nao quebra sticky nem o scroll interno
+       de tabelas largas, que continuam rolando dentro do proprio wrapper. */
+    overscroll-behavior: none;
+    overflow-x: clip;
+  }
   body {
     @apply bg-background text-foreground;
   }

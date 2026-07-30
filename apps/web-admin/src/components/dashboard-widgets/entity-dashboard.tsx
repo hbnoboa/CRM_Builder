@@ -213,8 +213,30 @@ export function EntityDashboard({ entitySlug, entityFields, templateId, external
         w: Math.min(item.w, 6),
         x: 0,
       })),
+      // Celular: empilha (xs = 4 cols; xxs = 1 col full-width).
+      xs: effectiveTemplate.layout.map((item) => ({
+        ...item,
+        w: Math.min(item.w, 4),
+        x: 0,
+      })),
+      xxs: effectiveTemplate.layout.map((item) => ({
+        ...item,
+        w: 1,
+        x: 0,
+      })),
     };
   }, [effectiveTemplate?.layout]);
+
+  // Celular: desliga drag/resize (senão o toque para ROLAR arrasta/redimensiona os
+  // widgets — o "dashboard bugado") e o grid cai para 1 coluna (breakpoint xxs).
+  const [isNarrow, setIsNarrow] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 767px)');
+    const update = () => setIsNarrow(mq.matches);
+    update();
+    mq.addEventListener('change', update);
+    return () => mq.removeEventListener('change', update);
+  }, []);
 
   // Tabs support
   const tabs = (effectiveTemplate as { tabs?: { id: string; label: string; icon?: string; widgetIds: string[] }[] })?.tabs;
@@ -260,12 +282,12 @@ export function EntityDashboard({ entitySlug, entityFields, templateId, external
           <ResponsiveGridLayout
             className="layout"
             layouts={layouts}
-            breakpoints={{ lg: 1200, md: 996, sm: 768 }}
-            cols={{ lg: 12, md: 10, sm: 6 }}
+            breakpoints={{ lg: 1200, md: 996, sm: 768, xs: 480, xxs: 0 }}
+            cols={{ lg: 12, md: 10, sm: 6, xs: 4, xxs: 1 }}
             rowHeight={30}
             margin={[12, 12]}
-            isDraggable={true}
-            isResizable={true}
+            isDraggable={!isNarrow}
+            isResizable={!isNarrow}
             draggableHandle=".widget-drag-handle"
             compactType="vertical"
             containerPadding={[0, 0]}
@@ -333,6 +355,12 @@ export function EntityDashboard({ entitySlug, entityFields, templateId, external
             sm: (effectiveTemplate.layout || []).filter((item) => tabWidgetIds.has(item.i)).map((item) => ({
               ...item, w: Math.min(item.w, 6), x: 0,
             })),
+            xs: (effectiveTemplate.layout || []).filter((item) => tabWidgetIds.has(item.i)).map((item) => ({
+              ...item, w: Math.min(item.w, 4), x: 0,
+            })),
+            xxs: (effectiveTemplate.layout || []).filter((item) => tabWidgetIds.has(item.i)).map((item) => ({
+              ...item, w: 1, x: 0,
+            })),
           };
 
           return (
@@ -340,12 +368,12 @@ export function EntityDashboard({ entitySlug, entityFields, templateId, external
               <ResponsiveGridLayout
                 className="layout"
                 layouts={tabLayouts}
-                breakpoints={{ lg: 1200, md: 996, sm: 768 }}
-                cols={{ lg: 12, md: 10, sm: 6 }}
+                breakpoints={{ lg: 1200, md: 996, sm: 768, xs: 480, xxs: 0 }}
+                cols={{ lg: 12, md: 10, sm: 6, xs: 4, xxs: 1 }}
                 rowHeight={30}
                 margin={[12, 12]}
-                isDraggable={true}
-                isResizable={true}
+                isDraggable={!isNarrow}
+                isResizable={!isNarrow}
                 draggableHandle=".widget-drag-handle"
                 compactType="vertical"
                 containerPadding={[0, 0]}
