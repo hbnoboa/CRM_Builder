@@ -56,7 +56,7 @@ type ModuleActionDef = { key: string; label: string; desc: string; writes?: stri
 // notifications removido: era um modulo "fantasma" (nenhum endpoint/guard o verifica).
 const MODULE_KEYS = [
   'dashboard', 'data', 'entities', 'users', 'roles', 'settings', 'tenants',
-  'automations', 'templates', 'logs', 'publicLinks', 'archive'
+  'automations', 'templates', 'logs', 'publicLinks', 'archive', 'chat'
 ] as const;
 
 function getDefaultModulePerms(): Record<string, ModulePermission> {
@@ -692,6 +692,10 @@ export function RoleFormDialog({ open, onOpenChange, role, onSuccess }: RoleForm
     archive: [
       R('archive'),
       A('canPermanentDelete', t('permissions.canPermanentDelete'), 'archive_canPermanentDelete', { danger: true }),
+    ],
+    // chat: permissão dedicada de gerir canais/comandos (criar canal, renomear, gerir comandos).
+    chat: [
+      { key: 'manage', label: 'Gerenciar chat', desc: 'Criar e renomear canais; gerenciar comandos do chat' },
     ],
   };
 

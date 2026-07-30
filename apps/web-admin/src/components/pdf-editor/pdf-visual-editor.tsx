@@ -92,6 +92,26 @@ export function PdfVisualEditor({ template }: PdfVisualEditorProps) {
     ...SYSTEM_FIELDS,
   ];
 
+  // Campos da tabela-pai (fonte "_parent"): entidades cujo sub-registro e a fonte
+  // deste template. Union dos campos escalares — permite ligar campos do pai no
+  // cabecalho sem token magico. Vem do backend em template.parentEntities.
+  const parentEntities =
+    (template as { parentEntities?: Array<{ name: string; fields?: Array<{ slug: string; name: string; label?: string; type: string }> }> })
+      .parentEntities || [];
+  const parentFields = (() => {
+    const seen = new Set<string>();
+    const out: Array<{ slug: string; name: string; label?: string; type: string }> = [];
+    for (const p of parentEntities) {
+      for (const f of p.fields || []) {
+        if (f.type === 'sub-entity' || seen.has(f.slug)) continue;
+        seen.add(f.slug);
+        out.push(f);
+      }
+    }
+    return out;
+  })();
+  const parentEntityName = parentEntities[0]?.name;
+
   // ─── Handlers ────────────────────────────────────────
 
   const handleContentChange = useCallback((newContent: PdfTemplateContent) => {
@@ -364,6 +384,8 @@ export function PdfVisualEditor({ template }: PdfVisualEditorProps) {
               onDeselect={() => setSelected(null)}
               availableFields={availableFields}
               subEntities={template.subEntities}
+              parentFields={parentFields}
+              parentEntityName={parentEntityName}
               computedFields={localContent.computedFields}
               templateType={template.templateType}
             />

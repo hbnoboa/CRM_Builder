@@ -67,6 +67,8 @@ interface ElementPropertiesPanelProps {
     slug: string;
     fields?: AvailableField[];
   }>;
+  parentFields?: AvailableField[];
+  parentEntityName?: string;
   computedFields?: ComputedField[];
   templateType: 'single' | 'batch';
 }
@@ -114,6 +116,8 @@ function BodyElementEditor({
   onDelete,
   availableFields,
   subEntities,
+  parentFields,
+  parentEntityName,
   computedFields,
   templateType,
 }: {
@@ -123,6 +127,8 @@ function BodyElementEditor({
   onDelete: () => void;
   availableFields: AvailableField[];
   subEntities?: ElementPropertiesPanelProps['subEntities'];
+  parentFields?: AvailableField[];
+  parentEntityName?: string;
   computedFields?: ComputedField[];
   templateType: 'single' | 'batch';
 }) {
@@ -213,6 +219,8 @@ function BodyElementEditor({
                 onChange={handleElementChange}
                 availableFields={availableFields}
                 isBatch={templateType === 'batch'}
+                parentFields={parentFields}
+                parentEntityName={parentEntityName}
                 computedFields={computedFields?.map((cf) => ({ slug: cf.slug, label: cf.label }))}
               />
             )}
@@ -289,6 +297,8 @@ export function ElementPropertiesPanel({
   onDeselect,
   availableFields,
   subEntities,
+  parentFields,
+  parentEntityName,
   computedFields,
   templateType,
 }: ElementPropertiesPanelProps) {
@@ -342,6 +352,8 @@ export function ElementPropertiesPanel({
         onDelete={() => onDelete(element.id)}
         availableFields={availableFields}
         subEntities={subEntities}
+        parentFields={parentFields}
+        parentEntityName={parentEntityName}
         computedFields={computedFields}
         templateType={templateType}
       />

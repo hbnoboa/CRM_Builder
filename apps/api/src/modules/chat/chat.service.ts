@@ -11,7 +11,20 @@ import { CurrentUser } from '../../common/types';
 import { hasPlatformAccess, hasFullTenantAccess } from '../../common/utils/platform-access';
 import { DataService } from '../data/data.service';
 import { AuditService } from '../audit/audit.service';
+import { PdfGeneratorService } from '../pdf/pdf-generator.service';
+import { RedisService } from '../../common/services/redis.service';
 import { createBotProvider, BOT_TOOLS, BotLlmProvider } from './bot-provider';
+import * as ExcelJS from 'exceljs';
+
+// Filtro de campo (mesmo formato do pipeline de EntityDataQueryService).
+type ReportFilter = {
+  fieldSlug: string;
+  fieldType?: string;
+  operator: string;
+  value?: unknown;
+  value2?: unknown;
+};
+type ReportColumn = { slug: string; label: string };
 
 /**
  * Chat — fatia 1: canais (grupo por tabela + DM) e mensagens.
@@ -27,10 +40,12 @@ export class ChatService {
     private readonly prisma: PrismaService,
     private readonly dataService: DataService,
     private readonly auditService: AuditService,
+    private readonly pdfGenerator: PdfGeneratorService,
+    private readonly redis: RedisService,
   ) {}
 
   /** Permissão de uma ação na entidade (permissions[] slug/'*' + platform). */
-  private canEntity(user: CurrentUser, entitySlug: string, action: 'canRead' | 'canCreate'): boolean {
+  private canEntity(user: CurrentUser, entitySlug: string, action: 'canRead' | 'canCreate' | 'canUpdate'): boolean {
     if (
       hasPlatformAccess(user.customRole?.modulePermissions) ||
       hasFullTenantAccess(user.customRole?.modulePermissions)
@@ -50,6 +65,31 @@ export class ChatService {
 
   private canReadEntity(user: CurrentUser, entitySlug: string): boolean {
     return this.canEntity(user, entitySlug, 'canRead');
+  }
+
+  /** Permissão dedicada de gerir canais/comandos do chat (criar, renomear). */
+  private canManageChat(user: CurrentUser): boolean {
+    if (
+      hasPlatformAccess(user.customRole?.modulePermissions) ||
+      hasFullTenantAccess(user.customRole?.modulePermissions)
+    ) {
+      return true;
+    }
+    const mp = user.customRole?.modulePermissions as
+      | Record<string, Record<string, boolean>>
+      | undefined;
+    return mp?.chat?.manage === true;
+  }
+
+  private assertCanManageChat(user: CurrentUser): void {
+    if (!this.canManageChat(user)) {
+      throw new ForbiddenException('Sem permissão para criar/gerir canais do chat.');
+    }
+  }
+
+  /** Chave canônica do par de usuários de um DM (evita canal duplicado). */
+  private dmKeyFor(a: string, b: string): string {
+    return [a, b].sort().join(':');
   }
 
   /** Lista canais visíveis: grupos de tabelas que o usuário pode ler + DMs dele. */
@@ -169,6 +209,8 @@ export class ChatService {
       where: { tenantId, entityId: entity.id, recordId: null, type: 'group' },
     });
     if (existing) return existing;
+    // Só quem gerencia o chat CRIA o canal (qualquer um que lê a tabela abre o existente).
+    this.assertCanManageChat(user);
     try {
       return await this.prisma.channel.create({
         data: {
@@ -319,31 +361,57 @@ export class ChatService {
     });
     if (!otherAccess) throw new NotFoundException('Usuário não está neste tenant');
 
-    // Procura DM existente com exatamente esses dois membros.
+    // Anti-duplicado: DM identificado pela chave canônica do par (dmKey).
+    const dmKey = this.dmKeyFor(user.id, otherUserId);
     const existing = await this.prisma.channel.findFirst({
-      where: {
-        tenantId,
-        type: 'dm',
-        AND: [
-          { members: { some: { userId: user.id } } },
-          { members: { some: { userId: otherUserId } } },
-        ],
-      },
+      where: { tenantId, type: 'dm', dmKey },
     });
     if (existing) return existing;
+    this.assertCanManageChat(user);
 
-    return this.prisma.channel.create({
-      data: {
-        tenantId,
-        type: 'dm',
-        createdById: user.id,
-        members: {
-          create: [
-            { userId: user.id, role: 'member' },
-            { userId: otherUserId, role: 'member' },
-          ],
+    try {
+      return await this.prisma.channel.create({
+        data: {
+          tenantId,
+          type: 'dm',
+          dmKey,
+          createdById: user.id,
+          members: {
+            create: [
+              { userId: user.id, role: 'member' },
+              { userId: otherUserId, role: 'member' },
+            ],
+          },
         },
-      },
+      });
+    } catch {
+      // Corrida: o índice único (tenantId, dmKey) rejeita o 2º insert — devolve o existente.
+      const again = await this.prisma.channel.findFirst({
+        where: { tenantId, type: 'dm', dmKey },
+      });
+      if (again) return again;
+      throw new ForbiddenException('Não foi possível abrir a conversa.');
+    }
+  }
+
+  /** Renomeia um canal. Permitido para o criador do canal OU quem gerencia o chat. */
+  async renameChannel(user: CurrentUser, channelId: string, name: string) {
+    const channel = await this.prisma.channel.findUnique({
+      where: { id: channelId },
+      select: { id: true, tenantId: true, createdById: true, type: true },
+    });
+    if (!channel || channel.tenantId !== user.tenantId) {
+      throw new NotFoundException('Canal não encontrado');
+    }
+    if (channel.createdById !== user.id && !this.canManageChat(user)) {
+      throw new ForbiddenException('Sem permissão para renomear este canal.');
+    }
+    const clean = (name || '').trim().slice(0, 120);
+    if (!clean) throw new BadRequestException('Informe um nome.');
+    return this.prisma.channel.update({
+      where: { id: channelId },
+      data: { name: clean },
+      select: { id: true, name: true, type: true },
     });
   }
 
@@ -442,6 +510,10 @@ export class ChatService {
       }
     }
 
+    // Visibilidade por cargo: allowlist vazia = todos; senão só cargos listados.
+    // Quem gerencia o chat vê todos (para gerir/anexar). canCreate segue como piso.
+    const seesAll = this.canManageChat(user);
+    const roleId = user.customRoleId || '';
     const templates = await this.prisma.commandTemplate.findMany({
       where: {
         tenantId: user.tenantId,
@@ -451,13 +523,22 @@ export class ChatService {
           : fallbackEntitySlug
             ? { targetEntitySlug: fallbackEntitySlug }
             : {}),
+        ...(seesAll
+          ? {}
+          : {
+              OR: [
+                { visibleToRoleIds: { isEmpty: true } },
+                { visibleToRoleIds: { has: roleId } },
+              ],
+            }),
       },
       orderBy: { slug: 'asc' },
     });
     return templates.filter((t) => {
-      if (t.actionType === 'create_record' && t.targetEntitySlug) {
-        return this.canEntity(user, t.targetEntitySlug, 'canCreate');
-      }
+      if (!t.targetEntitySlug) return true;
+      if (t.actionType === 'create_record') return this.canEntity(user, t.targetEntitySlug, 'canCreate');
+      if (t.actionType === 'update_record') return this.canEntity(user, t.targetEntitySlug, 'canUpdate');
+      if (t.actionType === 'query') return this.canReadEntity(user, t.targetEntitySlug);
       return true;
     });
   }
@@ -485,23 +566,46 @@ export class ChatService {
     return (res.data || []).map((r) => ({ id: r.id, data: r.data }));
   }
 
-  /** Valores distintos já usados num campo (autocomplete de texto). */
-  async fieldSuggestions(user: CurrentUser, entitySlug: string, field: string, q: string, limit = 8) {
+  /** Valores distintos já usados num campo (autocomplete de texto).
+   *  Leve sob carga: exige >=2 chars (evita scan que casa quase tudo) e cacheia no
+   *  Redis por 60s (buscas repetidas/concorrentes caem no cache, não no banco). */
+  async fieldSuggestions(
+    user: CurrentUser,
+    entitySlug: string,
+    field: string,
+    q: string,
+    limit = 8,
+    scopeParentId?: string,
+  ) {
+    const term = (q || '').trim();
+    if (term.length < 2) return [];
     if (!this.canReadEntity(user, entitySlug)) {
       throw new ForbiddenException('Sem acesso a esta tabela');
     }
+    // Escopo por chat: no thread de um registro (ex.: operação), só valores dos FILHOS
+    // daquele registro (ex.: chassi só dos veículos DAQUELA operação).
+    const cacheKey = `fieldsug:${user.tenantId}:${entitySlug}:${scopeParentId || '-'}:${field}:${term.toLowerCase().slice(0, 40)}`;
+    const cached = await this.redis.get<string[]>(cacheKey).catch(() => null);
+    if (cached) return cached;
+
     const entity = await this.prisma.entity.findFirst({
       where: { tenantId: user.tenantId, slug: entitySlug, deletedAt: null },
       select: { id: true },
     });
     if (!entity) return [];
+    const parentClause = scopeParentId
+      ? Prisma.sql`AND "parentRecordId" = ${scopeParentId}`
+      : Prisma.empty;
     const rows = (await this.prisma.$queryRaw`
       SELECT DISTINCT data->>${field} AS v
       FROM "EntityData"
       WHERE "tenantId" = ${user.tenantId} AND "entityId" = ${entity.id} AND "deletedAt" IS NULL
-        AND data->>${field} ILIKE ${'%' + q + '%'}
+        ${parentClause}
+        AND data->>${field} ILIKE ${'%' + term + '%'}
       LIMIT ${limit}`) as Array<{ v: string | null }>;
-    return rows.map((r) => r.v).filter((v): v is string => !!v);
+    const values = rows.map((r) => r.v).filter((v): v is string => !!v);
+    await this.redis.set(cacheKey, values, 60).catch(() => undefined);
+    return values;
   }
 
   /** Executa um comando-formulário: cria o registro (as_user) e posta o card.
@@ -512,6 +616,7 @@ export class ChatService {
     slug: string,
     input: {
       values: Record<string, unknown>;
+      recordId?: string;
       parentRecordId?: string;
       parent?: { entitySlug: string; values: Record<string, unknown> };
       parentUpdate?: Record<string, unknown>;
@@ -522,10 +627,14 @@ export class ChatService {
       where: { tenantId_slug: { tenantId: user.tenantId, slug } },
     });
     if (!tpl || !tpl.isActive) throw new NotFoundException('Comando não encontrado');
-    if (tpl.actionType !== 'create_record') {
-      throw new ForbiddenException(`actionType não suportado nesta fatia: ${tpl.actionType}`);
-    }
     if (!tpl.targetEntitySlug) throw new ForbiddenException('Comando sem tabela alvo');
+    // update_record: edita um registro existente (form pré-preenchido). Ver executeUpdateRecord.
+    if (tpl.actionType === 'update_record') {
+      return this.executeUpdateRecord(user, channelId, tpl, input);
+    }
+    if (tpl.actionType !== 'create_record') {
+      throw new ForbiddenException(`actionType não suportado no formulário: ${tpl.actionType}`);
+    }
 
     const values = input.values || {};
     const cfg = (tpl.actionConfig || {}) as { parentEntitySlug?: string };
@@ -575,6 +684,271 @@ export class ChatService {
       },
     });
     return { message, recordId: record?.id, parentRecordId: parentRecordId ?? null };
+  }
+
+  /** update_record: edita um registro EXISTENTE (form pré-preenchido). O usuário
+   *  seleciona o registro (front busca+enxerga) e envia os valores editados. */
+  private async executeUpdateRecord(
+    user: CurrentUser,
+    channelId: string,
+    tpl: { slug: string; targetEntitySlug: string | null },
+    input: { recordId?: string; values: Record<string, unknown> },
+  ) {
+    if (!input.recordId) throw new BadRequestException('Selecione o registro a editar.');
+    const entitySlug = tpl.targetEntitySlug as string;
+    // Confirma que o usuário ENXERGA o registro (canRead + scope) antes de editar.
+    const before = await this.dataService.findOne(entitySlug, input.recordId, user).catch(() => null);
+    if (!before) throw new NotFoundException('Registro não encontrado ou sem acesso');
+    // update faz merge dos campos; checa canUpdate + pipeline.
+    await this.dataService.update(
+      entitySlug,
+      input.recordId,
+      { data: (input.values || {}) as Record<string, unknown> },
+      user,
+    );
+    const summary = Object.entries(input.values || {})
+      .map(([k, v]) => `${k}: ${v}`)
+      .join(' · ');
+    const message = await this.prisma.message.create({
+      data: {
+        tenantId: user.tenantId,
+        channelId,
+        senderId: user.id,
+        type: 'form_submission',
+        content: `/${tpl.slug} — ${summary}`,
+        meta: {
+          templateSlug: tpl.slug,
+          entitySlug,
+          values: (input.values || {}) as object,
+          recordId: input.recordId,
+          edited: true,
+        },
+      },
+    });
+    return { message, recordId: input.recordId };
+  }
+
+  // ── query/report: consulta com filtros → card no chat OU relatório (xlsx/json/pdf) ──
+
+  private formatCell(v: unknown): string {
+    if (v === null || v === undefined) return '';
+    if (typeof v === 'boolean') return v ? 'Sim' : 'Não';
+    if (Array.isArray(v)) return v.map((x) => this.formatCell(x)).join(', ');
+    if (typeof v === 'object') {
+      const o = v as Record<string, unknown>;
+      // Select/relation guardam { label, value } — mostra o label legível.
+      if ('label' in o || 'value' in o) return String(o.label ?? o.value ?? '');
+      return JSON.stringify(v);
+    }
+    return String(v);
+  }
+
+  /** Executa um comando de consulta/relatório: findAll com filtros (respeita
+   *  permissões/scope) → card no chat (JSON de linhas) OU arquivo (xlsx/json/pdf,
+   *  base64 pro front baixar). Ver actionType='query'. */
+  async runQuery(
+    user: CurrentUser,
+    channelId: string,
+    slug: string,
+    input: {
+      filters?: ReportFilter[];
+      format: 'card' | 'json' | 'xlsx' | 'pdf';
+      limit?: number;
+      pdfTemplateId?: string;
+      scopeParentId?: string;
+    },
+  ) {
+    await this.assertAccess(user, channelId);
+    const tpl = await this.prisma.commandTemplate.findUnique({
+      where: { tenantId_slug: { tenantId: user.tenantId, slug } },
+    });
+    if (!tpl || !tpl.isActive) throw new NotFoundException('Comando não encontrado');
+    if (tpl.actionType !== 'query') throw new ForbiddenException('Este comando não é de consulta.');
+    const entitySlug = tpl.targetEntitySlug;
+    if (!entitySlug) throw new ForbiddenException('Comando sem tabela alvo');
+    if (!this.canReadEntity(user, entitySlug)) throw new ForbiddenException('Sem acesso a esta tabela');
+
+    const cfg = (tpl.actionConfig || {}) as {
+      columns?: string[];
+      formats?: string[];
+      pdfTemplateId?: string; // legado (1 template fixo)
+      pdfTemplates?: Array<{ id: string; name: string }>; // allowlist de templates ofertados
+    };
+    const format = input.format || 'card';
+    if (Array.isArray(cfg.formats) && cfg.formats.length > 0 && !cfg.formats.includes(format)) {
+      throw new ForbiddenException(`Formato ${format} não habilitado neste comando.`);
+    }
+
+    const entity = await this.prisma.entity.findFirst({
+      where: { tenantId: user.tenantId, slug: entitySlug, deletedAt: null },
+      select: { id: true, name: true, fields: true },
+    });
+    const fieldDefs = ((entity?.fields || []) as Array<{ slug: string; label?: string; name?: string; type?: string }>)
+      .filter((f) => !['image', 'sub-entity', 'file'].includes(f.type || ''));
+    const chosen = cfg.columns?.length ? cfg.columns : fieldDefs.map((f) => f.slug);
+    const cols: ReportColumn[] = chosen.map((s) => ({
+      slug: s,
+      label: fieldDefs.find((f) => f.slug === s)?.label || fieldDefs.find((f) => f.slug === s)?.name || s,
+    }));
+
+    const filters = (input.filters || []).filter((f) => f && f.fieldSlug && f.operator);
+    const isFile = format !== 'card';
+    // Escopo por chat: no thread de um registro, limita ao contexto dele. Se a consulta
+    // é da MESMA entidade do thread (ex.: relatório de operações no chat de UMA operação),
+    // usa o próprio registro; se é de uma entidade FILHA (ex.: veículos no chat da operação),
+    // usa os filhos daquele registro. Fora de thread, inclui filhos normalmente.
+    let scopeClause: Record<string, unknown> = { includeChildren: 'true' };
+    if (input.scopeParentId) {
+      const scopeRec = await this.prisma.entityData.findUnique({
+        where: { id: input.scopeParentId },
+        select: { entityId: true },
+      });
+      scopeClause =
+        scopeRec?.entityId === entity?.id
+          ? { recordIds: JSON.stringify([input.scopeParentId]) }
+          : { parentRecordId: input.scopeParentId };
+    }
+    const query: Record<string, unknown> = {
+      ...(filters.length ? { filters: JSON.stringify(filters) } : {}),
+      ...scopeClause,
+      // Arquivo: teto de 5000 linhas por relatório (_skipMaxLimit ignora o cap de página).
+      ...(isFile ? { limit: 5000, _skipMaxLimit: true } : { limit: Math.min(input.limit || 20, 50) }),
+    };
+    const res = (await this.dataService.findAll(
+      entitySlug,
+      query as unknown as Record<string, unknown>,
+      user,
+    )) as unknown as {
+      data?: Array<{ id: string; data: Record<string, unknown> }>;
+      meta?: { total?: number };
+      total?: number;
+    };
+    const data = res.data || [];
+    const total = res.meta?.total ?? res.total ?? data.length;
+    const tableRows = data.map((r) => cols.map((c) => this.formatCell(r.data?.[c.slug])));
+
+    if (format === 'card') {
+      const message = await this.prisma.message.create({
+        data: {
+          tenantId: user.tenantId, channelId, senderId: user.id, type: 'query_result',
+          content: `/${tpl.slug} — ${total} resultado(s)`,
+          meta: {
+            templateSlug: tpl.slug, entitySlug, total,
+            columns: cols as object, rows: tableRows.slice(0, 20) as object,
+          } as Prisma.InputJsonValue,
+        },
+      });
+      return { message, columns: cols, rows: tableRows.slice(0, 20), total };
+    }
+
+    const title = entity?.name || entitySlug;
+    let buffer: Buffer | undefined;
+    // Caminho leve: relatorios de template ja sao enviados ao storage (GCS/disco).
+    // Em vez de trafegar o PDF como base64 no JSON (pico de memoria enorme com
+    // relatorios grandes), devolvemos a URL de download.
+    let fileUrl: string | undefined;
+    let contentType: string;
+    let ext: string;
+    if (format === 'json') {
+      buffer = Buffer.from(JSON.stringify(data.map((r) => ({ id: r.id, ...r.data })), null, 2));
+      contentType = 'application/json'; ext = 'json';
+    } else if (format === 'xlsx') {
+      buffer = await this.generateXlsx(title, cols, tableRows);
+      contentType = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'; ext = 'xlsx';
+    } else {
+      // PDF: se o usuário escolheu um Template PDF (dentre os ofertados), gera em lote
+      // (1 doc desenhado por registro, mesclado); senão, tabela simples.
+      const allowedTemplateIds = new Set<string>([
+        ...(cfg.pdfTemplates?.map((t) => t.id) || []),
+        ...(cfg.pdfTemplateId ? [cfg.pdfTemplateId] : []),
+      ]);
+      const chosenTemplate =
+        input.pdfTemplateId && allowedTemplateIds.has(input.pdfTemplateId) ? input.pdfTemplateId : undefined;
+      if (chosenTemplate) {
+        // Descobre a entidade do template. Se for a MESMA da consulta, usa os ids direto.
+        // Se for uma entidade FILHA (ex.: consulta = operações, template = veículos), pega
+        // os registros filhos daquelas operações — "muda o jeito que o registro é pego",
+        // mantendo o conteúdo do documento por veículo igual.
+        const tplRow = await this.prisma.pdfTemplate.findFirst({
+          where: { id: chosenTemplate, tenantId: user.tenantId },
+          select: { sourceEntityId: true },
+        });
+        // Teto de seguranca alto: mostra TODOS os veiculos da operacao, so
+        // protege o servidor de um PDF gigante acidental.
+        const REPORT_RECORD_CEILING = 20000;
+        let recordIds: string[];
+        if (tplRow?.sourceEntityId && entity?.id && tplRow.sourceEntityId !== entity.id) {
+          const parentIds = data.map((r) => r.id);
+          const children = await this.prisma.entityData.findMany({
+            where: {
+              tenantId: user.tenantId,
+              entityId: tplRow.sourceEntityId,
+              parentRecordId: { in: parentIds },
+              deletedAt: null,
+            },
+            select: { id: true },
+            take: REPORT_RECORD_CEILING,
+          });
+          recordIds = children.map((c) => c.id);
+        } else {
+          recordIds = data.map((r) => r.id).slice(0, REPORT_RECORD_CEILING);
+        }
+        if (recordIds.length === 0) throw new NotFoundException('Nenhum registro para gerar o relatório.');
+        const gen = await this.pdfGenerator.generateBatch(chosenTemplate, recordIds, user, true, user.tenantId);
+        // Se subiu pro storage, devolve a URL e descarta o buffer (nao segura o
+        // PDF grande em memoria nem base64ifica). Fallback: base64 do buffer.
+        if (gen.fileUrl) fileUrl = gen.fileUrl;
+        else buffer = gen.buffer;
+      } else {
+        buffer = await this.generateTablePdf(title, `${total} registro(s)`, cols, tableRows);
+      }
+      contentType = 'application/pdf'; ext = 'pdf';
+    }
+    const filename = `${tpl.slug}-${total}.${ext}`;
+    const file = fileUrl
+      ? { url: fileUrl, contentType, filename }
+      : { base64: (buffer as Buffer).toString('base64'), contentType, filename };
+    const message = await this.prisma.message.create({
+      data: {
+        tenantId: user.tenantId, channelId, senderId: user.id, type: 'report',
+        content: `Relatório /${tpl.slug} — ${format.toUpperCase()} (${total} registro(s))`,
+        meta: { templateSlug: tpl.slug, entitySlug, total, format, filename, ...(fileUrl ? { url: fileUrl } : {}) } as Prisma.InputJsonValue,
+      },
+    });
+    return { message, total, file };
+  }
+
+  private async generateXlsx(title: string, cols: ReportColumn[], rows: string[][]): Promise<Buffer> {
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet((title || 'Relatório').slice(0, 30));
+    ws.addRow(cols.map((c) => c.label));
+    ws.getRow(1).font = { bold: true };
+    rows.forEach((r) => ws.addRow(r));
+    ws.columns.forEach((col) => { col.width = 22; });
+    return (await wb.xlsx.writeBuffer()) as unknown as Buffer;
+  }
+
+  private async generateTablePdf(
+    title: string, subtitle: string, cols: ReportColumn[], rows: string[][],
+  ): Promise<Buffer> {
+    // Gerador tabular limpo (pdfkit-table), independente dos templates desenhados.
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const PDFDocument = require('pdfkit-table');
+    const doc = new PDFDocument({ size: 'A4', layout: 'landscape', margin: 36 });
+    const chunks: Buffer[] = [];
+    doc.on('data', (c: Buffer) => chunks.push(c));
+    doc.font('Helvetica-Bold').fontSize(16).fillColor('#111827').text(title);
+    if (subtitle) doc.moveDown(0.15).font('Helvetica').fontSize(9).fillColor('#6b7280').text(subtitle);
+    doc.moveDown(0.6);
+    await doc.table(
+      { headers: cols.map((c) => c.label), rows },
+      {
+        prepareHeader: () => doc.font('Helvetica-Bold').fontSize(9).fillColor('#111827'),
+        prepareRow: () => doc.font('Helvetica').fontSize(8).fillColor('#374151'),
+      },
+    );
+    doc.end();
+    return new Promise<Buffer>((resolve) => doc.on('end', () => resolve(Buffer.concat(chunks))));
   }
 
   // ── Fatia 3: bot read-only (toolbelt fechado, as_user) ─────────────────────
@@ -835,6 +1209,9 @@ export class ChatService {
         actionConfig: (dto.actionConfig as object) || {},
         execMode: (dto.execMode as string) || 'as_user',
         elevation: (dto.elevation as object) ?? undefined,
+        visibleToRoleIds: Array.isArray(dto.visibleToRoleIds)
+          ? (dto.visibleToRoleIds as string[])
+          : [],
         isActive: dto.isActive === undefined ? true : !!dto.isActive,
       },
     });
@@ -853,6 +1230,9 @@ export class ChatService {
     if (dto.actionConfig !== undefined) data.actionConfig = dto.actionConfig;
     if (dto.execMode !== undefined) data.execMode = dto.execMode;
     if (dto.elevation !== undefined) data.elevation = dto.elevation;
+    if (dto.visibleToRoleIds !== undefined) {
+      data.visibleToRoleIds = Array.isArray(dto.visibleToRoleIds) ? dto.visibleToRoleIds : [];
+    }
     if (dto.isActive !== undefined) data.isActive = !!dto.isActive;
     return this.prisma.commandTemplate.update({ where: { id }, data });
   }

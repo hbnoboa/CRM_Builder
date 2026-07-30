@@ -68,6 +68,16 @@ export class ChatController {
     return this.chatService.openRecordChannel(user, entitySlug, recordId, body?.commandIds);
   }
 
+  @Patch('channels/:id')
+  @ApiOperation({ summary: 'Renomeia um canal (criador do canal ou quem gerencia o chat)' })
+  async renameChannel(
+    @Param('id') id: string,
+    @Body() body: { name: string },
+    @CurrentUser() user: CurrentUserType,
+  ) {
+    return this.chatService.renameChannel(user, id, body?.name || '');
+  }
+
   @Put('channels/:id/commands')
   @ApiOperation({ summary: 'Define quais comandos aparecem neste chat' })
   async setChannelCommands(
@@ -139,9 +149,10 @@ export class ChatController {
     @Query('entitySlug') entitySlug: string,
     @Query('field') field: string,
     @Query('q') q: string,
+    @Query('parentId') parentId: string | undefined,
     @CurrentUser() user: CurrentUserType,
   ) {
-    return this.chatService.fieldSuggestions(user, entitySlug, field, q || '');
+    return this.chatService.fieldSuggestions(user, entitySlug, field, q || '', 8, parentId || undefined);
   }
 
   @Post('channels/:id/commands/:slug')
@@ -152,6 +163,7 @@ export class ChatController {
     @Body()
     body: {
       values?: Record<string, unknown>;
+      recordId?: string;
       parentRecordId?: string;
       parent?: { entitySlug: string; values: Record<string, unknown> };
       parentUpdate?: Record<string, unknown>;
@@ -160,9 +172,34 @@ export class ChatController {
   ) {
     return this.chatService.executeCommand(user, id, slug, {
       values: body.values || {},
+      recordId: body.recordId,
       parentRecordId: body.parentRecordId,
       parent: body.parent,
       parentUpdate: body.parentUpdate,
+    });
+  }
+
+  @Post('channels/:id/query/:slug')
+  @ApiOperation({ summary: 'Executa um comando de consulta/relatório (card no chat ou arquivo)' })
+  async runQuery(
+    @Param('id') id: string,
+    @Param('slug') slug: string,
+    @Body()
+    body: {
+      filters?: Array<{ fieldSlug: string; fieldType?: string; operator: string; value?: unknown; value2?: unknown }>;
+      format?: 'card' | 'json' | 'xlsx' | 'pdf';
+      limit?: number;
+      pdfTemplateId?: string;
+      scopeParentId?: string;
+    },
+    @CurrentUser() user: CurrentUserType,
+  ) {
+    return this.chatService.runQuery(user, id, slug, {
+      filters: body?.filters || [],
+      format: body?.format || 'card',
+      limit: body?.limit,
+      pdfTemplateId: body?.pdfTemplateId,
+      scopeParentId: body?.scopeParentId,
     });
   }
 

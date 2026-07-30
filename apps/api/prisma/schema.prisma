@@ -1133,6 +1133,7 @@ model Channel {
   entityId    String?  // tabela dona (canal de grupo/record); null em DM
   recordId    String?  // thread de um registro específico (type='record')
   name        String?
+  dmKey       String?  // DM: chave canônica do par (userIds ordenados) p/ evitar duplicado
   createdById String
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -1144,6 +1145,7 @@ model Channel {
   // Prisma não expressa `WHERE` em @@unique):
   //   - 1 canal de grupo por tabela:   UNIQUE(tenantId, entityId) WHERE recordId IS NULL AND type='group'
   //   - 1 thread por registro:         UNIQUE(tenantId, recordId) WHERE recordId IS NOT NULL
+  //   - 1 DM por par de usuários:      UNIQUE(tenantId, dmKey)    WHERE type='dm'
   @@index([tenantId, entityId])
   @@index([tenantId, type])
 }
@@ -1192,6 +1194,7 @@ model CommandTemplate {
   execMode         String   @default("as_user") // as_user | as_bot
   elevation        Json?    // { requesterRoles, requireConfirmation }
   llm              Json?    // { enabled, model, systemPrompt }
+  visibleToRoleIds String[] @default([]) // allowlist de cargos que veem/executam ([] = todos)
   isActive         Boolean  @default(true)
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt

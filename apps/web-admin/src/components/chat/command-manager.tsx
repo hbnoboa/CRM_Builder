@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { Loader2, Plus, Pencil, Trash2, ArrowLeft, Bot, User as UserIcon } from 'lucide-react';
 import { toast } from 'sonner';
 import api from '@/lib/api';
@@ -42,6 +42,7 @@ interface CommandTpl {
   actionConfig?: Record<string, unknown> | null;
   execMode: string;
   elevation?: Record<string, unknown> | null;
+  visibleToRoleIds?: string[];
   isActive: boolean;
 }
 
@@ -62,6 +63,7 @@ const emptyDraft = (): CommandTpl => ({
   actionConfig: {},
   execMode: 'as_user',
   elevation: { requesterRoles: [], requireConfirmation: true },
+  visibleToRoleIds: [],
   isActive: true,
 });
 
@@ -79,6 +81,7 @@ export function CommandManager({ open, onOpenChange, entities, roles, onChanged 
   const [loading, setLoading] = useState(false);
   const [editing, setEditing] = useState<CommandTpl | null>(null);
   const [saving, setSaving] = useState(false);
+  const [pdfTemplates, setPdfTemplates] = useState<Array<{ id: string; name: string }>>([]);
 
   const reload = useCallback(async () => {
     setLoading(true);
@@ -96,6 +99,9 @@ export function CommandManager({ open, onOpenChange, entities, roles, onChanged 
     if (open) {
       setEditing(null);
       void reload();
+      api.get('/pdf')
+        .then((r) => setPdfTemplates((r.data?.data || r.data || []).map((t: { id: string; name: string }) => ({ id: t.id, name: t.name }))))
+        .catch(() => setPdfTemplates([]));
     }
   }, [open, reload]);
 
@@ -115,6 +121,7 @@ export function CommandManager({ open, onOpenChange, entities, roles, onChanged 
       actionConfig: editing.actionConfig || {},
       execMode: editing.execMode,
       elevation: editing.actionType === 'update_field' ? editing.elevation : null,
+      visibleToRoleIds: editing.visibleToRoleIds || [],
       isActive: editing.isActive,
     };
     try {
@@ -191,10 +198,10 @@ export function CommandManager({ open, onOpenChange, entities, roles, onChanged 
                       </div>
                       <p className="text-xs text-muted-foreground truncate">
                         {c.description || '—'} · {entityName(c.targetEntitySlug)} ·{' '}
-                        {c.actionType === 'create_record' ? 'cria registro' : 'altera campo'}
+                        {({ create_record: 'cria registro', update_record: 'edita registro', query: 'consulta/relatório', update_field: 'altera campo' } as Record<string, string>)[c.actionType] || c.actionType}
                       </p>
                     </div>
-                    <Button variant="ghost" size="icon" onClick={() => setEditing({ ...c, elevation: c.elevation || { requesterRoles: [], requireConfirmation: true } })}>
+                    <Button variant="ghost" size="icon" onClick={() => setEditing({ ...c, elevation: c.elevation || { requesterRoles: [], requireConfirmation: true }, visibleToRoleIds: c.visibleToRoleIds || [] })}>
                       <Pencil className="h-4 w-4" />
                     </Button>
                     <Button variant="ghost" size="icon" onClick={() => remove(c)}>
@@ -211,6 +218,7 @@ export function CommandManager({ open, onOpenChange, entities, roles, onChanged 
             setDraft={setEditing}
             entities={entities}
             roles={roles}
+            pdfTemplates={pdfTemplates}
             saving={saving}
             onSave={save}
             onCancel={() => setEditing(null)}
@@ -222,12 +230,13 @@ export function CommandManager({ open, onOpenChange, entities, roles, onChanged 
 }
 
 function CommandForm({
-  draft, setDraft, entities, roles, saving, onSave, onCancel,
+  draft, setDraft, entities, roles, pdfTemplates, saving, onSave, onCancel,
 }: {
   draft: CommandTpl;
   setDraft: (c: CommandTpl) => void;
   entities: EntityLite[];
   roles: RoleLite[];
+  pdfTemplates: Array<{ id: string; name: string }>;
   saving: boolean;
   onSave: () => void;
   onCancel: () => void;
@@ -251,16 +260,52 @@ function CommandForm({
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-2 gap-3">
-        <div className="space-y-1">
-          <label className="text-xs font-medium">Nome do comando (slug)</label>
-          <Input
-            value={draft.slug}
-            disabled={!!draft.id}
-            placeholder="avaria"
-            onChange={(e) => set({ slug: e.target.value.replace(/\s+/g, '_').toLowerCase() })}
-          />
-          {draft.id && <p className="text-[10px] text-muted-foreground">O slug não pode ser alterado.</p>}
+      <Section n={1} title="Identidade" subtitle="Como o comando aparece no chat quando alguém digita /nome.">
+        <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-1">
+            <label className="text-xs font-medium">Nome do comando</label>
+            <div className="flex items-center gap-1">
+              <span className="text-sm text-muted-foreground">/</span>
+              <Input
+                value={draft.slug}
+                disabled={!!draft.id}
+                placeholder="avaria"
+                onChange={(e) => set({ slug: e.target.value.replace(/\s+/g, '_').toLowerCase() })}
+              />
+            </div>
+            {draft.id && <p className="text-[10px] text-muted-foreground">O nome não pode ser alterado.</p>}
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs font-medium">Descrição</label>
+            <Input value={draft.description || ''} placeholder="Registrar avaria do veículo" onChange={(e) => set({ description: e.target.value })} />
+          </div>
+        </div>
+      </Section>
+
+      <Section n={2} title="O que o comando faz" subtitle="A ação executada e sobre qual tabela ela age.">
+        <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-1">
+            <label className="text-xs font-medium">Ação</label>
+            <Select value={draft.actionType} onValueChange={(v) => set({ actionType: v })}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="create_record">Cria um registro (formulário)</SelectItem>
+                <SelectItem value="update_record">Edita um registro (formulário)</SelectItem>
+                <SelectItem value="query">Consulta / relatório</SelectItem>
+                <SelectItem value="update_field">Altera um campo (via bot)</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs font-medium">Executa como</label>
+            <Select value={draft.execMode} onValueChange={(v) => set({ execMode: v })}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="as_user">Usuário (com as permissões dele)</SelectItem>
+                <SelectItem value="as_bot">Bot (teto próprio / ação elevada)</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </div>
         <div className="space-y-1">
           <label className="text-xs font-medium">Tabela-alvo</label>
@@ -271,35 +316,6 @@ function CommandForm({
             </SelectContent>
           </Select>
         </div>
-      </div>
-
-      <div className="space-y-1">
-        <label className="text-xs font-medium">Descrição</label>
-        <Input value={draft.description || ''} placeholder="Registrar avaria do veículo" onChange={(e) => set({ description: e.target.value })} />
-      </div>
-
-      <div className="grid grid-cols-2 gap-3">
-        <div className="space-y-1">
-          <label className="text-xs font-medium">O que faz</label>
-          <Select value={draft.actionType} onValueChange={(v) => set({ actionType: v })}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="create_record">Cria um registro (formulário)</SelectItem>
-              <SelectItem value="update_field">Altera um campo (ação)</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="space-y-1">
-          <label className="text-xs font-medium">Executa como</label>
-          <Select value={draft.execMode} onValueChange={(v) => set({ execMode: v })}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="as_user">Usuário (com as permissões dele)</SelectItem>
-              <SelectItem value="as_bot">Bot (teto próprio / ação elevada)</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
 
       {draft.actionType === 'create_record' && (
         <div className="space-y-4 rounded-md border p-3">
@@ -406,19 +422,131 @@ function CommandForm({
         </div>
       )}
 
-      <label className="flex items-center justify-between text-sm">
-        <span>Comando ativo</span>
+        {draft.actionType === 'update_record' && (
+          <div className="space-y-3 rounded-md border p-3">
+            <p className="text-[11px] text-muted-foreground">Edita um registro existente: o usuário busca o registro, o form abre pré-preenchido e salva.</p>
+            <div className="space-y-1">
+              <label className="text-xs font-medium">Buscar o registro por</label>
+              <Select value={(cfg.searchField as string) || ''} onValueChange={(v) => setCfg({ searchField: v })}>
+                <SelectTrigger><SelectValue placeholder="ex.: chassi" /></SelectTrigger>
+                <SelectContent>
+                  {targetFields.map((f) => <SelectItem key={f.slug} value={f.slug}>{f.label}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <FieldPicker
+              title="Campos editáveis no formulário"
+              fields={targetFields}
+              selected={(cfg.fields as string[]) || []}
+              onToggle={(s) => setCfg({ fields: toggle((cfg.fields as string[]) || [], s) })}
+            />
+          </div>
+        )}
+
+        {draft.actionType === 'query' && (
+          <div className="space-y-3 rounded-md border p-3">
+            <p className="text-[11px] text-muted-foreground">Consulta a tabela com filtros e mostra no chat (card) ou gera relatório (Excel/JSON/PDF).</p>
+            <FieldPicker
+              title="Colunas do resultado (vazio = todas)"
+              fields={targetFields}
+              selected={(cfg.columns as string[]) || []}
+              onToggle={(s) => setCfg({ columns: toggle((cfg.columns as string[]) || [], s) })}
+            />
+            <FieldPicker
+              title="Filtros que o usuário pode usar (vazio = nenhum)"
+              fields={targetFields}
+              selected={(cfg.filterFields as string[]) || []}
+              onToggle={(s) => setCfg({ filterFields: toggle((cfg.filterFields as string[]) || [], s) })}
+            />
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium">Formatos de saída</label>
+              <div className="flex flex-wrap gap-3">
+                {(['card', 'xlsx', 'json', 'pdf'] as const).map((fmt) => {
+                  const formats = (cfg.formats as string[]) || ['card', 'xlsx', 'json', 'pdf'];
+                  const label = { card: 'Card no chat', xlsx: 'Excel', json: 'JSON', pdf: 'PDF' }[fmt];
+                  return (
+                    <label key={fmt} className="flex items-center gap-2 text-sm cursor-pointer">
+                      <Checkbox checked={formats.includes(fmt)} onCheckedChange={() => setCfg({ formats: toggle(formats, fmt) })} />
+                      {label}
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
+            {((cfg.formats as string[]) || ['card', 'xlsx', 'json', 'pdf']).includes('pdf') && (
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium">PDF: templates desenhados oferecidos (opcional)</label>
+                <div className="grid grid-cols-2 gap-1.5">
+                  {pdfTemplates.map((t) => {
+                    const cur = (cfg.pdfTemplates as Array<{ id: string; name: string }>) || [];
+                    const chosen = cur.some((x) => x.id === t.id);
+                    return (
+                      <label key={t.id} className="flex items-center gap-2 text-sm cursor-pointer">
+                        <Checkbox
+                          checked={chosen}
+                          onCheckedChange={() => setCfg({ pdfTemplates: chosen ? cur.filter((x) => x.id !== t.id) : [...cur, { id: t.id, name: t.name }] })}
+                        />
+                        <span className="truncate">{t.name}</span>
+                      </label>
+                    );
+                  })}
+                  {pdfTemplates.length === 0 && <p className="text-xs text-muted-foreground col-span-2">Nenhum template PDF cadastrado.</p>}
+                </div>
+                <p className="text-[10px] text-muted-foreground">Cada template vira uma opção de PDF no comando (1 doc desenhado por registro, até 300). &quot;Tabela simples&quot; fica sempre disponível.</p>
+              </div>
+            )}
+          </div>
+        )}
+      </Section>
+
+      <Section n={3} title="Quem vê o comando" subtitle="Vazio = todos os cargos. Selecione para restringir a alguns.">
+        <div className="grid grid-cols-2 gap-1.5">
+          {roles.map((r) => {
+            const sel = (draft.visibleToRoleIds || []).includes(r.id);
+            return (
+              <label key={r.id} className="flex items-center gap-2 text-sm cursor-pointer">
+                <Checkbox checked={sel} onCheckedChange={() => set({ visibleToRoleIds: toggle(draft.visibleToRoleIds || [], r.id) })} />
+                <span className="truncate">{r.name}</span>
+              </label>
+            );
+          })}
+          {roles.length === 0 && <p className="text-xs text-muted-foreground col-span-2">Nenhum cargo cadastrado.</p>}
+        </div>
+        <p className="text-[11px] text-muted-foreground">
+          {(draft.visibleToRoleIds || []).length === 0
+            ? 'Visível para todos os cargos.'
+            : `Restrito a ${(draft.visibleToRoleIds || []).length} cargo(s).`}
+        </p>
+      </Section>
+
+      <label className="flex items-center justify-between text-sm px-1">
+        <span className="font-medium">Comando ativo</span>
         <Switch checked={draft.isActive} onCheckedChange={(v) => set({ isActive: v })} />
       </label>
 
-      <div className="flex justify-between pt-2">
+      <div className="flex justify-between pt-1">
         <Button variant="ghost" onClick={onCancel}><ArrowLeft className="h-4 w-4 mr-1" /> Voltar</Button>
         <Button onClick={onSave} disabled={saving}>
           {saving && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
-          Salvar
+          Salvar comando
         </Button>
       </div>
     </div>
+  );
+}
+
+function Section({ n, title, subtitle, children }: { n: number; title: string; subtitle?: string; children: ReactNode }) {
+  return (
+    <section className="rounded-lg border bg-muted/20">
+      <div className="flex items-start gap-2.5 px-3 pt-3">
+        <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary text-xs font-semibold">{n}</span>
+        <div className="min-w-0">
+          <h4 className="text-sm font-semibold leading-tight">{title}</h4>
+          {subtitle && <p className="text-[11px] text-muted-foreground">{subtitle}</p>}
+        </div>
+      </div>
+      <div className="p-3 pt-2.5 space-y-3">{children}</div>
+    </section>
   );
 }
 
