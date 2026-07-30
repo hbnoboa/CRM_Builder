@@ -12,6 +12,7 @@ import { hasPlatformAccess, hasFullTenantAccess } from '../../common/utils/platf
 import { DataService } from '../data/data.service';
 import { AuditService } from '../audit/audit.service';
 import { PdfGeneratorService } from '../pdf/pdf-generator.service';
+import { RedisService } from '../../common/services/redis.service';
 import { createBotProvider, BOT_TOOLS, BotLlmProvider } from './bot-provider';
 import * as ExcelJS from 'exceljs';
 
@@ -40,6 +41,7 @@ export class ChatService {
     private readonly dataService: DataService,
     private readonly auditService: AuditService,
     private readonly pdfGenerator: PdfGeneratorService,
+    private readonly redis: RedisService,
   ) {}
 
   /** Permissão de uma ação na entidade (permissions[] slug/'*' + platform). */
@@ -564,11 +566,19 @@ export class ChatService {
     return (res.data || []).map((r) => ({ id: r.id, data: r.data }));
   }
 
-  /** Valores distintos já usados num campo (autocomplete de texto). */
+  /** Valores distintos já usados num campo (autocomplete de texto).
+   *  Leve sob carga: exige >=2 chars (evita scan que casa quase tudo) e cacheia no
+   *  Redis por 60s (buscas repetidas/concorrentes caem no cache, não no banco). */
   async fieldSuggestions(user: CurrentUser, entitySlug: string, field: string, q: string, limit = 8) {
+    const term = (q || '').trim();
+    if (term.length < 2) return [];
     if (!this.canReadEntity(user, entitySlug)) {
       throw new ForbiddenException('Sem acesso a esta tabela');
     }
+    const cacheKey = `fieldsug:${user.tenantId}:${entitySlug}:${field}:${term.toLowerCase().slice(0, 40)}`;
+    const cached = await this.redis.get<string[]>(cacheKey).catch(() => null);
+    if (cached) return cached;
+
     const entity = await this.prisma.entity.findFirst({
       where: { tenantId: user.tenantId, slug: entitySlug, deletedAt: null },
       select: { id: true },
@@ -578,9 +588,11 @@ export class ChatService {
       SELECT DISTINCT data->>${field} AS v
       FROM "EntityData"
       WHERE "tenantId" = ${user.tenantId} AND "entityId" = ${entity.id} AND "deletedAt" IS NULL
-        AND data->>${field} ILIKE ${'%' + q + '%'}
+        AND data->>${field} ILIKE ${'%' + term + '%'}
       LIMIT ${limit}`) as Array<{ v: string | null }>;
-    return rows.map((r) => r.v).filter((v): v is string => !!v);
+    const values = rows.map((r) => r.v).filter((v): v is string => !!v);
+    await this.redis.set(cacheKey, values, 60).catch(() => undefined);
+    return values;
   }
 
   /** Executa um comando-formulário: cria o registro (as_user) e posta o card.

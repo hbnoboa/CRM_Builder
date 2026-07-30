@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Loader2, ArrowLeft, Search, FileSpreadsheet, FileJson, FileText } from 'lucide-react';
 import { toast } from 'sonner';
 import api from '@/lib/api';
@@ -15,15 +15,24 @@ function FieldSuggestInput({ entitySlug, field, value, placeholder, onChange }: 
 }) {
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [open, setOpen] = useState(false);
+  // Cache local por termo — re-digitar um prefixo já visto não bate no backend.
+  const cacheRef = useRef<Map<string, string[]>>(new Map());
   useEffect(() => {
-    if (value.trim().length < 1) { setSuggestions([]); return; }
+    const term = value.trim();
+    if (term.length < 2) { setSuggestions([]); return; } // >=2 chars: não busca a cada 1 letra
+    const key = term.toLowerCase();
+    const hit = cacheRef.current.get(key);
+    if (hit) { setSuggestions(hit); return; }
+    const ctrl = new AbortController(); // aborta o request anterior ao digitar de novo
     const t = setTimeout(async () => {
       try {
-        const r = await api.get(`/chat/field-suggestions?entitySlug=${entitySlug}&field=${field}&q=${encodeURIComponent(value)}`);
-        setSuggestions(r.data || []);
-      } catch { setSuggestions([]); }
-    }, 200);
-    return () => clearTimeout(t);
+        const r = await api.get(`/chat/field-suggestions?entitySlug=${entitySlug}&field=${field}&q=${encodeURIComponent(term)}`, { signal: ctrl.signal });
+        const vals = (r.data || []) as string[];
+        cacheRef.current.set(key, vals);
+        setSuggestions(vals);
+      } catch { /* abortado ou erro: ignora */ }
+    }, 250);
+    return () => { clearTimeout(t); ctrl.abort(); };
   }, [value, entitySlug, field]);
   return (
     <div className="relative">
