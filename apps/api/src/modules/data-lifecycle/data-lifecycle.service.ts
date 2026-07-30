@@ -50,12 +50,10 @@ export class DataLifecycleService {
     await this.runAuditColdTier();
   }
 
-  /** Mensal dia 1, 03:00: EntityData hot -> warm + backup GCS. */
-  @Cron('0 3 1 * *', { name: 'lifecycle-entitydata-archive' })
-  async monthlyEntityDataArchive(): Promise<void> {
-    this.logger.log('[lifecycle] EntityData hot -> warm...');
-    await this.archiveService.runArchival();
-  }
+  // Arquivamento automatico de EntityData REMOVIDO: o cron mensal
+  // (@Cron '0 3 1 * *' -> archiveService.runArchival) movia EntityData > 3 meses
+  // para ArchivedEntityData, o que atrapalhava o uso operacional dos dados.
+  // O arquivamento segue disponivel sob demanda via ArchiveController/runAll.
 
   /**
    * Cold tier de audit: exporta ArchivedAuditLog > 365d para o GCS (backup) e
