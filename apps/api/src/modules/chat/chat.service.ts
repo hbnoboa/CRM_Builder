@@ -12,6 +12,7 @@ import { hasPlatformAccess, hasFullTenantAccess } from '../../common/utils/platf
 import { DataService } from '../data/data.service';
 import { AuditService } from '../audit/audit.service';
 import { PdfGeneratorService } from '../pdf/pdf-generator.service';
+import { UploadService } from '../upload/upload.service';
 import { RedisService } from '../../common/services/redis.service';
 import { createBotProvider, BOT_TOOLS, BotLlmProvider } from './bot-provider';
 import * as ExcelJS from 'exceljs';
@@ -41,6 +42,7 @@ export class ChatService {
     private readonly dataService: DataService,
     private readonly auditService: AuditService,
     private readonly pdfGenerator: PdfGeneratorService,
+    private readonly uploadService: UploadService,
     private readonly redis: RedisService,
   ) {}
 
@@ -905,6 +907,17 @@ export class ChatService {
       contentType = 'application/pdf'; ext = 'pdf';
     }
     const filename = `${tpl.slug}-${total}.${ext}`;
+    // Sobe TODO relatório pro storage e guarda a URL na mensagem. Assim o download
+    // não é forçado só pra quem gerou: o relatório vira um card no chat e qualquer
+    // participante baixa quando clicar. (Templates de PDF já sobem no generateBatch.)
+    if (!fileUrl && buffer) {
+      try {
+        const uploaded = await this.uploadService.uploadBuffer(buffer, filename, contentType, user.tenantId, 'relatorios');
+        fileUrl = uploaded.publicUrl;
+      } catch {
+        /* upload falhou: cai no base64 abaixo (download só imediato) */
+      }
+    }
     const file = fileUrl
       ? { url: fileUrl, contentType, filename }
       : { base64: (buffer as Buffer).toString('base64'), contentType, filename };
@@ -912,7 +925,7 @@ export class ChatService {
       data: {
         tenantId: user.tenantId, channelId, senderId: user.id, type: 'report',
         content: `Relatório /${tpl.slug} — ${format.toUpperCase()} (${total} registro(s))`,
-        meta: { templateSlug: tpl.slug, entitySlug, total, format, filename, ...(fileUrl ? { url: fileUrl } : {}) } as Prisma.InputJsonValue,
+        meta: { templateSlug: tpl.slug, entitySlug, total, format, filename, contentType, ...(fileUrl ? { url: fileUrl } : {}) } as Prisma.InputJsonValue,
       },
     });
     return { message, total, file };
