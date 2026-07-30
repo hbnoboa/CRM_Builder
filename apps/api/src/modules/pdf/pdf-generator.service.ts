@@ -197,7 +197,7 @@ export class PdfGeneratorService {
     useAllRecords?: boolean,
     filters?: string,
     search?: string,
-  ): Promise<{ buffer: Buffer; fileName: string }> {
+  ): Promise<{ buffer: Buffer; fileName: string; fileUrl?: string }> {
     const targetTenantId = getEffectiveTenantId(currentUser, tenantId);
 
     // Buscar template
@@ -393,6 +393,32 @@ export class PdfGeneratorService {
       }
     }
 
+    // Injetar registro-pai quando todos os registros pertencem a uma mesma
+    // operacao (batch de sub-entidade). Expoe os campos reais do pai em
+    // _parent.* para o cabecalho (ex.: navio, viagem, data_inicio, data_fim,
+    // total_veiculos) sem quebrar o corpo por registro nem as fotos (netas).
+    let parentData: Record<string, unknown> = {};
+    const parentIds = Array.from(
+      new Set(records.map((r) => r.parentRecordId).filter((p): p is string => !!p)),
+    );
+    if (parentIds.length === 1) {
+      const parent =
+        (await this.prisma.entityData.findFirst({
+          where: { id: parentIds[0], tenantId: targetTenantId },
+        })) ||
+        (await this.prisma.archivedEntityData.findFirst({
+          where: { id: parentIds[0], tenantId: targetTenantId },
+        }));
+      if (parent) {
+        parentData = {
+          ...(parent.data as Record<string, unknown>),
+          id: parent.id,
+          createdAt: parent.createdAt,
+          updatedAt: parent.updatedAt,
+        };
+      }
+    }
+
     // Montar dados agregados para o template
     const batchData: Record<string, unknown> = {
       _items: enrichedRecords,
@@ -403,6 +429,7 @@ export class PdfGeneratorService {
       _lastUpdatedAt: lastUpdatedAt,
       _first: enrichedRecords[0] || {},
       _last: enrichedRecords[enrichedRecords.length - 1] || {},
+      _parent: parentData,
       _max: maxValues,
       _min: minValues,
     };
@@ -460,7 +487,7 @@ export class PdfGeneratorService {
       },
     });
 
-    return { buffer, fileName };
+    return { buffer, fileName, fileUrl: fileUrl ?? undefined };
   }
 
   /**

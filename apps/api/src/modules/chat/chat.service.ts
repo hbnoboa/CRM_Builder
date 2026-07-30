@@ -842,7 +842,11 @@ export class ChatService {
     }
 
     const title = entity?.name || entitySlug;
-    let buffer: Buffer;
+    let buffer: Buffer | undefined;
+    // Caminho leve: relatorios de template ja sao enviados ao storage (GCS/disco).
+    // Em vez de trafegar o PDF como base64 no JSON (pico de memoria enorme com
+    // relatorios grandes), devolvemos a URL de download.
+    let fileUrl: string | undefined;
     let contentType: string;
     let ext: string;
     if (format === 'json') {
@@ -869,6 +873,9 @@ export class ChatService {
           where: { id: chosenTemplate, tenantId: user.tenantId },
           select: { sourceEntityId: true },
         });
+        // Teto de seguranca alto: mostra TODOS os veiculos da operacao, so
+        // protege o servidor de um PDF gigante acidental.
+        const REPORT_RECORD_CEILING = 20000;
         let recordIds: string[];
         if (tplRow?.sourceEntityId && entity?.id && tplRow.sourceEntityId !== entity.id) {
           const parentIds = data.map((r) => r.id);
@@ -880,29 +887,35 @@ export class ChatService {
               deletedAt: null,
             },
             select: { id: true },
-            take: 300,
+            take: REPORT_RECORD_CEILING,
           });
           recordIds = children.map((c) => c.id);
         } else {
-          recordIds = data.map((r) => r.id).slice(0, 300);
+          recordIds = data.map((r) => r.id).slice(0, REPORT_RECORD_CEILING);
         }
         if (recordIds.length === 0) throw new NotFoundException('Nenhum registro para gerar o relatório.');
         const gen = await this.pdfGenerator.generateBatch(chosenTemplate, recordIds, user, true, user.tenantId);
-        buffer = gen.buffer;
+        // Se subiu pro storage, devolve a URL e descarta o buffer (nao segura o
+        // PDF grande em memoria nem base64ifica). Fallback: base64 do buffer.
+        if (gen.fileUrl) fileUrl = gen.fileUrl;
+        else buffer = gen.buffer;
       } else {
         buffer = await this.generateTablePdf(title, `${total} registro(s)`, cols, tableRows);
       }
       contentType = 'application/pdf'; ext = 'pdf';
     }
     const filename = `${tpl.slug}-${total}.${ext}`;
+    const file = fileUrl
+      ? { url: fileUrl, contentType, filename }
+      : { base64: (buffer as Buffer).toString('base64'), contentType, filename };
     const message = await this.prisma.message.create({
       data: {
         tenantId: user.tenantId, channelId, senderId: user.id, type: 'report',
         content: `Relatório /${tpl.slug} — ${format.toUpperCase()} (${total} registro(s))`,
-        meta: { templateSlug: tpl.slug, entitySlug, total, format, filename } as Prisma.InputJsonValue,
+        meta: { templateSlug: tpl.slug, entitySlug, total, format, filename, ...(fileUrl ? { url: fileUrl } : {}) } as Prisma.InputJsonValue,
       },
     });
-    return { message, total, file: { base64: buffer.toString('base64'), contentType, filename } };
+    return { message, total, file };
   }
 
   private async generateXlsx(title: string, cols: ReportColumn[], rows: string[][]): Promise<Buffer> {
