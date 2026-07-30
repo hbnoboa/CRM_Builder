@@ -28,8 +28,21 @@ else
   SERVICES="api-dev web-dev"
 fi
 
-# 3. Pull (imagem pronta) + up (sem rebuild), refresh do nginx, limpa lixo
+# 3. Pull das imagens prontas (ja buildadas no CI)
 docker compose -f "$COMPOSE" pull $SERVICES
+
+# 4. Migrations do banco, usando a imagem NOVA ja puxada, ANTES de subir o codigo.
+#    Se falhar, o `set -e` aborta o deploy e o codigo atual segue no ar (nada foi trocado).
+#    NOTA prod: o ledger (_prisma_migrations) precisa estar baseline — migrations ja
+#    existentes marcadas como aplicadas via `prisma migrate resolve --applied` — antes
+#    do primeiro deploy com migrate; senao o migrate deploy tentaria re-aplicar o que
+#    ja existe. Dev ja foi baseline. Prod: fazer o rollout controlado + baseline primeiro.
+API_SVC=$(printf '%s\n' $SERVICES | grep -m1 api)
+echo "==> prisma migrate deploy ($API_SVC)"
+docker compose -f "$COMPOSE" run --rm --no-deps "$API_SVC" \
+  sh -c "node_modules/.bin/prisma migrate deploy --schema prisma/schema.prisma"
+
+# 5. Up (sem rebuild), refresh do nginx, limpa lixo
 docker compose -f "$COMPOSE" up -d --no-deps $SERVICES
 docker compose -f "$COMPOSE" restart nginx
 docker image prune -f
