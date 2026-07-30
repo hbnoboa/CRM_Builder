@@ -149,9 +149,10 @@ export class ChatController {
     @Query('entitySlug') entitySlug: string,
     @Query('field') field: string,
     @Query('q') q: string,
+    @Query('parentId') parentId: string | undefined,
     @CurrentUser() user: CurrentUserType,
   ) {
-    return this.chatService.fieldSuggestions(user, entitySlug, field, q || '');
+    return this.chatService.fieldSuggestions(user, entitySlug, field, q || '', 8, parentId || undefined);
   }
 
   @Post('channels/:id/commands/:slug')
@@ -189,6 +190,7 @@ export class ChatController {
       format?: 'card' | 'json' | 'xlsx' | 'pdf';
       limit?: number;
       pdfTemplateId?: string;
+      scopeParentId?: string;
     },
     @CurrentUser() user: CurrentUserType,
   ) {
@@ -197,6 +199,7 @@ export class ChatController {
       format: body?.format || 'card',
       limit: body?.limit,
       pdfTemplateId: body?.pdfTemplateId,
+      scopeParentId: body?.scopeParentId,
     });
   }
 

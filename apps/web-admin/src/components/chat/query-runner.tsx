@@ -10,8 +10,8 @@ import { Input } from '@/components/ui/input';
 type FieldDef = { slug: string; label?: string; name?: string; type?: string; options?: Array<{ label: string; value: string }> };
 
 /** Input com autocomplete de valores do campo (igual à busca de chassi do /avaria). */
-function FieldSuggestInput({ entitySlug, field, value, placeholder, onChange }: {
-  entitySlug: string; field: string; value: string; placeholder?: string; onChange: (v: string) => void;
+function FieldSuggestInput({ entitySlug, field, value, placeholder, scopeParentId, onChange }: {
+  entitySlug: string; field: string; value: string; placeholder?: string; scopeParentId?: string; onChange: (v: string) => void;
 }) {
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [open, setOpen] = useState(false);
@@ -20,20 +20,21 @@ function FieldSuggestInput({ entitySlug, field, value, placeholder, onChange }: 
   useEffect(() => {
     const term = value.trim();
     if (term.length < 2) { setSuggestions([]); return; } // >=2 chars: não busca a cada 1 letra
-    const key = term.toLowerCase();
+    const key = `${scopeParentId || ''}:${term.toLowerCase()}`;
     const hit = cacheRef.current.get(key);
     if (hit) { setSuggestions(hit); return; }
     const ctrl = new AbortController(); // aborta o request anterior ao digitar de novo
     const t = setTimeout(async () => {
       try {
-        const r = await api.get(`/chat/field-suggestions?entitySlug=${entitySlug}&field=${field}&q=${encodeURIComponent(term)}`, { signal: ctrl.signal });
+        const scope = scopeParentId ? `&parentId=${scopeParentId}` : '';
+        const r = await api.get(`/chat/field-suggestions?entitySlug=${entitySlug}&field=${field}&q=${encodeURIComponent(term)}${scope}`, { signal: ctrl.signal });
         const vals = (r.data || []) as string[];
         cacheRef.current.set(key, vals);
         setSuggestions(vals);
       } catch { /* abortado ou erro: ignora */ }
     }, 250);
     return () => { clearTimeout(t); ctrl.abort(); };
-  }, [value, entitySlug, field]);
+  }, [value, entitySlug, field, scopeParentId]);
   return (
     <div className="relative">
       <Input value={value} placeholder={placeholder} onChange={(e) => { onChange(e.target.value); setOpen(true); }}
@@ -71,10 +72,11 @@ function downloadBase64(base64: string, filename: string, contentType: string) {
 }
 
 /** Roda um comando de consulta/relatório: monta os filtros e escolhe o formato. */
-export function QueryRunner({ channelId, cmd, entity, onDone, onCancel }: {
+export function QueryRunner({ channelId, cmd, entity, scopeParentId, onDone, onCancel }: {
   channelId: string;
   cmd: ChatCommand;
   entity: EntityLite;
+  scopeParentId?: string;
   onDone: () => void;
   onCancel: () => void;
 }) {
@@ -115,7 +117,7 @@ export function QueryRunner({ channelId, cmd, entity, onDone, onCancel }: {
   const run = async (format: string, key: string, pdfTemplateId?: string) => {
     setRunning(key);
     try {
-      const res = await api.post(`/chat/channels/${channelId}/query/${cmd.slug}`, { filters: buildFilters(), format, pdfTemplateId });
+      const res = await api.post(`/chat/channels/${channelId}/query/${cmd.slug}`, { filters: buildFilters(), format, pdfTemplateId, scopeParentId });
       if (format !== 'card' && res.data?.file) {
         const { base64, filename, contentType } = res.data.file;
         downloadBase64(base64, filename, contentType);
@@ -189,7 +191,7 @@ export function QueryRunner({ channelId, cmd, entity, onDone, onCancel }: {
                   </select>
                 ) : (
                   <FieldSuggestInput entitySlug={entity.slug} field={f.slug} value={values[f.slug] || ''}
-                    placeholder={`Buscar ${label.toLowerCase()}…`}
+                    placeholder={`Buscar ${label.toLowerCase()}…`} scopeParentId={scopeParentId}
                     onChange={(val) => setValues((v) => ({ ...v, [f.slug]: val }))} />
                 )}
               </div>

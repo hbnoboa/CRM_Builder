@@ -569,13 +569,22 @@ export class ChatService {
   /** Valores distintos já usados num campo (autocomplete de texto).
    *  Leve sob carga: exige >=2 chars (evita scan que casa quase tudo) e cacheia no
    *  Redis por 60s (buscas repetidas/concorrentes caem no cache, não no banco). */
-  async fieldSuggestions(user: CurrentUser, entitySlug: string, field: string, q: string, limit = 8) {
+  async fieldSuggestions(
+    user: CurrentUser,
+    entitySlug: string,
+    field: string,
+    q: string,
+    limit = 8,
+    scopeParentId?: string,
+  ) {
     const term = (q || '').trim();
     if (term.length < 2) return [];
     if (!this.canReadEntity(user, entitySlug)) {
       throw new ForbiddenException('Sem acesso a esta tabela');
     }
-    const cacheKey = `fieldsug:${user.tenantId}:${entitySlug}:${field}:${term.toLowerCase().slice(0, 40)}`;
+    // Escopo por chat: no thread de um registro (ex.: operação), só valores dos FILHOS
+    // daquele registro (ex.: chassi só dos veículos DAQUELA operação).
+    const cacheKey = `fieldsug:${user.tenantId}:${entitySlug}:${scopeParentId || '-'}:${field}:${term.toLowerCase().slice(0, 40)}`;
     const cached = await this.redis.get<string[]>(cacheKey).catch(() => null);
     if (cached) return cached;
 
@@ -584,10 +593,14 @@ export class ChatService {
       select: { id: true },
     });
     if (!entity) return [];
+    const parentClause = scopeParentId
+      ? Prisma.sql`AND "parentRecordId" = ${scopeParentId}`
+      : Prisma.empty;
     const rows = (await this.prisma.$queryRaw`
       SELECT DISTINCT data->>${field} AS v
       FROM "EntityData"
       WHERE "tenantId" = ${user.tenantId} AND "entityId" = ${entity.id} AND "deletedAt" IS NULL
+        ${parentClause}
         AND data->>${field} ILIKE ${'%' + term + '%'}
       LIMIT ${limit}`) as Array<{ v: string | null }>;
     const values = rows.map((r) => r.v).filter((v): v is string => !!v);
@@ -737,7 +750,13 @@ export class ChatService {
     user: CurrentUser,
     channelId: string,
     slug: string,
-    input: { filters?: ReportFilter[]; format: 'card' | 'json' | 'xlsx' | 'pdf'; limit?: number; pdfTemplateId?: string },
+    input: {
+      filters?: ReportFilter[];
+      format: 'card' | 'json' | 'xlsx' | 'pdf';
+      limit?: number;
+      pdfTemplateId?: string;
+      scopeParentId?: string;
+    },
   ) {
     await this.assertAccess(user, channelId);
     const tpl = await this.prisma.commandTemplate.findUnique({
@@ -774,9 +793,24 @@ export class ChatService {
 
     const filters = (input.filters || []).filter((f) => f && f.fieldSlug && f.operator);
     const isFile = format !== 'card';
+    // Escopo por chat: no thread de um registro, limita ao contexto dele. Se a consulta
+    // é da MESMA entidade do thread (ex.: relatório de operações no chat de UMA operação),
+    // usa o próprio registro; se é de uma entidade FILHA (ex.: veículos no chat da operação),
+    // usa os filhos daquele registro. Fora de thread, inclui filhos normalmente.
+    let scopeClause: Record<string, unknown> = { includeChildren: 'true' };
+    if (input.scopeParentId) {
+      const scopeRec = await this.prisma.entityData.findUnique({
+        where: { id: input.scopeParentId },
+        select: { entityId: true },
+      });
+      scopeClause =
+        scopeRec?.entityId === entity?.id
+          ? { recordIds: JSON.stringify([input.scopeParentId]) }
+          : { parentRecordId: input.scopeParentId };
+    }
     const query: Record<string, unknown> = {
       ...(filters.length ? { filters: JSON.stringify(filters) } : {}),
-      includeChildren: 'true',
+      ...scopeClause,
       // Arquivo: teto de 5000 linhas por relatório (_skipMaxLimit ignora o cap de página).
       ...(isFile ? { limit: 5000, _skipMaxLimit: true } : { limit: Math.min(input.limit || 20, 50) }),
     };

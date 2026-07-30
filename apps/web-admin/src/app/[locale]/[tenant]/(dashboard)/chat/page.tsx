@@ -464,6 +464,7 @@ export default function ChatPage() {
                 channelId={active.id}
                 cmd={queryCmd.cmd}
                 entity={queryCmd.entity}
+                scopeParentId={active.kind === 'record' ? active.scopeRecordId : undefined}
                 onCancel={() => setQueryCmd(null)}
                 onDone={() => { setQueryCmd(null); loadMessages(active.id); }}
               />
