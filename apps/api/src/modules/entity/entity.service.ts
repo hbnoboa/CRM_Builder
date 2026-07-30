@@ -194,16 +194,14 @@ export class EntityService {
     const { page, limit, skip } = parsePaginationParams(query);
     const { search, sortBy = 'name', sortOrder = 'asc', tenantId: queryTenantId, cursor } = query;
 
-    // PLATFORM_ADMIN pode ver de qualquer tenant ou todos
-    const where: Prisma.EntityWhereInput = {};
-
-    if (hasPlatformAccess(currentUser.customRole?.modulePermissions)) {
-      if (queryTenantId) {
-        where.tenantId = queryTenantId;
-      }
-    } else {
-      where.tenantId = currentUser.tenantId;
-    }
+    // Modelo B: escopo = tenant efetivo (tenant da URL, resolvido em
+    // currentUser.tenantId pelo header X-Tenant-Slug). PLATFORM_ADMIN pode focar
+    // outro tenant passando ?tenantId explicito, mas SEM ele NAO vaza entidades de
+    // todos os tenants (antes ficava sem filtro -> chat/pickers/dashboard mostravam
+    // tabelas de outros tenants). Consistente com findAllGrouped.
+    const where: Prisma.EntityWhereInput = {
+      tenantId: getEffectiveTenantId(currentUser, queryTenantId),
+    };
 
     if (search) {
       where.OR = [
