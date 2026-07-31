@@ -78,6 +78,7 @@ export function QuickCaptureForm({ channelId, cmd, entity, parentEntity, scopePa
   const [parentIndex, setParentIndex] = useState(0);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [savedCount, setSavedCount] = useState(0); // avarias já lançadas neste chassi (salvar e adicionar outra)
 
   // Autocomplete do pai (ex.: veículo por chassi).
   useEffect(() => {
@@ -94,14 +95,51 @@ export function QuickCaptureForm({ channelId, cmd, entity, parentEntity, scopePa
   }, [parentQuery, parentSlug, parent, parentSearchField, scopeParentId]);
 
   const fieldDef = (slug: string) => ((entity.fields || []) as FieldDef[]).find((f) => f.slug === slug);
+  const parentFieldDef = (slug: string) => ((parentEntity?.fields || []) as FieldDef[]).find((f) => f.slug === slug);
   const setVal = (slug: string, v: unknown) => setValues((p) => ({ ...p, [slug]: v }));
 
-  async function submit() {
+  const labelFor = (slug: string, isParent: boolean) => {
+    const f = isParent ? parentFieldDef(slug) : fieldDef(slug);
+    return f?.label || f?.name || slug;
+  };
+
+  // Todos os campos são obrigatórios (fotos do veículo + campos da avaria).
+  const isEmpty = (slug: string, isParent: boolean) => {
+    const f = isParent ? parentFieldDef(slug) : fieldDef(slug);
+    const v = isParent ? parentValues[slug] : values[slug];
+    if (f?.type === 'zone-diagram') {
+      if (typeof v === 'string') return v.trim() === '';
+      return !v || Object.keys((v as object) || {}).length === 0;
+    }
+    return v === undefined || v === null || String(v).trim() === '';
+  };
+
+  // Ordem de validação = ordem de exibição (fotos do veículo → peça → chips → fotos da avaria).
+  const requiredFields: Array<[string, boolean]> = [
+    ...parentFields.map((s) => [s, true] as [string, boolean]),
+    ...heavyFields.map((s) => [s, false] as [string, boolean]),
+    ...quickFields.map((s) => [s, false] as [string, boolean]),
+  ];
+
+  async function submit(keepOpen: boolean) {
     if (parentSlug && !parent) { setError(`Selecione: ${parentEntity?.name || 'registro pai'}`); return; }
+    const missing = requiredFields.filter(([s, p]) => isEmpty(s, p)).map(([s, p]) => labelFor(s, p));
+    if (missing.length > 0) {
+      setError(`Preencha todos os campos. Falta: ${missing.join(', ')}`);
+      return;
+    }
     setSubmitting(true); setError(null);
     try {
       await api.post(`/chat/channels/${channelId}/commands/${cmd.slug}`, { parentRecordId: parent?.id, values, parentUpdate: parentValues });
-      onDone();
+      if (keepOpen) {
+        // Mantém o chassi; limpa TODOS os campos (fotos do veículo + avaria) p/ re-preencher.
+        setValues({});
+        setParentValues({});
+        setSavedCount((c) => c + 1);
+        setSubmitting(false);
+      } else {
+        onDone();
+      }
     } catch (e) {
       const err = e as { response?: { data?: { message?: string } } };
       setError(err?.response?.data?.message || 'Erro ao registrar');
@@ -155,11 +193,30 @@ export function QuickCaptureForm({ channelId, cmd, entity, parentEntity, scopePa
         </div>
       )}
 
+      {/* Fotos do VEÍCULO (obrigatórias) — ANTES de qualquer campo de avaria */}
+      {parent && parentFields.length > 0 && (
+        <div className="space-y-2 rounded-md border border-dashed p-2.5">
+          <div className="text-[11px] uppercase tracking-wider text-muted-foreground font-medium">Fotos do veículo *</div>
+          <div className="grid grid-cols-2 gap-2">
+            {parentFields.map((slug) => {
+              const f = parentFieldDef(slug);
+              if (!f) return null;
+              return (
+                <div key={slug} className="space-y-1 col-span-2 sm:col-span-1">
+                  <label className="text-xs font-medium">{f.label || f.name || slug} *</label>
+                  <ImageUploadField mode="image" folder="images" imageSource="both" imageDisplaySize={110} value={(parentValues[slug] as string) || ''} onChange={(v) => setParentValues((p) => ({ ...p, [slug]: v }))} />
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {/* Peça (zone-diagram) — ANTES de Tipo/Nível */}
       {heavyFields.map((slug) => {
         const f = fieldDef(slug);
         if (!f) return null;
-        const label = f.label || f.name || slug;
+        const label = `${f.label || f.name || slug} *`;
         if (f.type === 'zone-diagram') {
           const isTextMode = f.diagramSaveMode === 'text';
           return (
@@ -191,7 +248,7 @@ export function QuickCaptureForm({ channelId, cmd, entity, parentEntity, scopePa
         {quickFields.map((slug) => {
           const f = fieldDef(slug);
           if (!f || f.type === 'image') return null;
-          const label = f.label || f.name || slug;
+          const label = `${f.label || f.name || slug} *`;
           const opts = normalizeOptions(f.options);
           return (
             <div key={slug} className="space-y-0.5 col-span-2 sm:col-span-1">
@@ -213,27 +270,17 @@ export function QuickCaptureForm({ channelId, cmd, entity, parentEntity, scopePa
         })}
       </div>
 
-      {/* Fotos (obrigatórias): imagens da avaria + fotos do veículo */}
-      {(imageFields.length > 0 || (parent && parentFields.length > 0)) && (
+      {/* Fotos da AVARIA (obrigatórias) */}
+      {imageFields.length > 0 && (
         <div className="space-y-2 rounded-md border border-dashed p-2.5">
-          <div className="text-[11px] uppercase tracking-wider text-muted-foreground font-medium">Fotos</div>
+          <div className="text-[11px] uppercase tracking-wider text-muted-foreground font-medium">Fotos da avaria *</div>
           <div className="grid grid-cols-2 gap-2">
             {imageFields.map((slug) => {
               const f = fieldDef(slug)!;
               return (
                 <div key={slug} className="space-y-1 col-span-2 sm:col-span-1">
-                  <label className="text-xs font-medium">{f.label || f.name || slug}</label>
+                  <label className="text-xs font-medium">{f.label || f.name || slug} *</label>
                   <ImageUploadField mode="image" folder="images" imageSource="both" imageDisplaySize={110} value={(values[slug] as string) || ''} onChange={(v) => setVal(slug, v)} />
-                </div>
-              );
-            })}
-            {parent && parentFields.map((slug) => {
-              const f = ((parentEntity?.fields || []) as FieldDef[]).find((x) => x.slug === slug);
-              if (!f) return null;
-              return (
-                <div key={slug} className="space-y-1 col-span-2 sm:col-span-1">
-                  <label className="text-xs font-medium">{f.label || f.name || slug}</label>
-                  <ImageUploadField mode="image" folder="images" imageSource="both" imageDisplaySize={110} value={(parentValues[slug] as string) || ''} onChange={(v) => setParentValues((p) => ({ ...p, [slug]: v }))} />
                 </div>
               );
             })}
@@ -241,10 +288,14 @@ export function QuickCaptureForm({ channelId, cmd, entity, parentEntity, scopePa
         </div>
       )}
 
+      {savedCount > 0 && !error && (
+        <p className="text-xs text-green-600">✓ {savedCount} avaria(s) registrada(s) neste chassi. Preencha a próxima.</p>
+      )}
       {error && <p className="text-xs text-red-600">{error}</p>}
-      <div className="flex justify-end gap-2">
-        <Button type="button" variant="outline" size="sm" onClick={onCancel}>Cancelar</Button>
-        <Button type="button" size="sm" onClick={submit} disabled={submitting}>{submitting ? 'Registrando…' : 'Registrar'}</Button>
+      <div className="flex flex-wrap justify-end gap-2">
+        <Button type="button" variant="outline" size="sm" onClick={onCancel}>{savedCount > 0 ? 'Fechar' : 'Cancelar'}</Button>
+        <Button type="button" variant="secondary" size="sm" onClick={() => submit(true)} disabled={submitting}>{submitting ? 'Salvando…' : 'Salvar e adicionar outra'}</Button>
+        <Button type="button" size="sm" onClick={() => submit(false)} disabled={submitting}>{submitting ? 'Registrando…' : 'Registrar'}</Button>
       </div>
     </div>
   );
