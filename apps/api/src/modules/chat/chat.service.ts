@@ -94,6 +94,18 @@ export class ChatService {
     return [a, b].sort().join(':');
   }
 
+  /** Converte [{fieldSlug,value}] do actionConfig em objeto {slug: value} — os
+   *  "valores fixos" que o comando aplica automaticamente (o usuário não preenche). */
+  private fixedValuesToObj(arr: unknown): Record<string, unknown> {
+    if (!Array.isArray(arr)) return {};
+    const out: Record<string, unknown> = {};
+    for (const f of arr) {
+      const ff = f as { fieldSlug?: string; value?: unknown };
+      if (ff?.fieldSlug) out[ff.fieldSlug] = ff.value;
+    }
+    return out;
+  }
+
   /** Lista canais visíveis: grupos de tabelas que o usuário pode ler + DMs dele. */
   async listChannels(user: CurrentUser) {
     const tenantId = user.tenantId;
@@ -642,9 +654,14 @@ export class ChatService {
       throw new ForbiddenException(`actionType não suportado no formulário: ${tpl.actionType}`);
     }
 
-    const values = input.values || {};
-    const cfg = (tpl.actionConfig || {}) as { parentEntitySlug?: string };
-    const parentUpdate = input.parentUpdate || {};
+    const cfg = (tpl.actionConfig || {}) as { parentEntitySlug?: string; fixedValues?: unknown; parentFixed?: unknown };
+    // Valores FIXOS do comando (auto-aplicados; o usuário não preenche nem vê):
+    // fixedValues no registro criado (ex.: avaria) + parentFixed no PAI (ex.:
+    // marcar o veículo concluido=true ao registrar a avaria).
+    const fixedValues = this.fixedValuesToObj(cfg.fixedValues);
+    const parentFixed = this.fixedValuesToObj(cfg.parentFixed);
+    const values = { ...(input.values || {}), ...fixedValues };
+    const parentUpdate = { ...(input.parentUpdate || {}), ...parentFixed };
 
     // Pai NOVO: cria primeiro (precisa do id pro filho), já com as fotos do veículo.
     let parentRecordId = input.parentRecordId;
@@ -665,7 +682,8 @@ export class ChatService {
       user,
     )) as { id?: string };
 
-    // Pai EXISTENTE: só depois do filho ok, atualiza os campos (ex.: fotos) — checa canUpdate.
+    // Pai EXISTENTE: só depois do filho ok, atualiza os campos (fotos + valores
+    // fixos, ex.: concluido=true) — checa canUpdate.
     if (!input.parent?.entitySlug && parentRecordId && cfg.parentEntitySlug && Object.keys(parentUpdate).length > 0) {
       await this.dataService.update(cfg.parentEntitySlug, parentRecordId, { data: parentUpdate }, user);
     }
@@ -697,7 +715,7 @@ export class ChatService {
   private async executeUpdateRecord(
     user: CurrentUser,
     channelId: string,
-    tpl: { slug: string; targetEntitySlug: string | null },
+    tpl: { slug: string; targetEntitySlug: string | null; actionConfig?: unknown },
     input: { recordId?: string; values: Record<string, unknown> },
   ) {
     if (!input.recordId) throw new BadRequestException('Selecione o registro a editar.');
@@ -705,14 +723,17 @@ export class ChatService {
     // Confirma que o usuário ENXERGA o registro (canRead + scope) antes de editar.
     const before = await this.dataService.findOne(entitySlug, input.recordId, user).catch(() => null);
     if (!before) throw new NotFoundException('Registro não encontrado ou sem acesso');
+    // Valores FIXOS do comando (auto-aplicados sobre o que o usuário editou).
+    const fixedValues = this.fixedValuesToObj((tpl.actionConfig as { fixedValues?: unknown })?.fixedValues);
+    const data = { ...(input.values || {}), ...fixedValues };
     // update faz merge dos campos; checa canUpdate + pipeline.
     await this.dataService.update(
       entitySlug,
       input.recordId,
-      { data: (input.values || {}) as Record<string, unknown> },
+      { data: data as Record<string, unknown> },
       user,
     );
-    const summary = Object.entries(input.values || {})
+    const summary = Object.entries(data)
       .map(([k, v]) => `${k}: ${v}`)
       .join(' · ');
     const message = await this.prisma.message.create({

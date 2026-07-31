@@ -85,6 +85,59 @@ function optionsOf(options: unknown): string[] {
     .filter((v): v is string => !!v);
 }
 
+type FixedRule = { fieldSlug: string; value: unknown };
+
+/** Editor de VALORES FIXOS: campos que o comando sempre define automaticamente
+ *  (o usuário não vê nem preenche). Deixa claro que é definido pelo comando. */
+function FixedValues({ title, fields, rules, onChange }: {
+  title: string;
+  fields: Array<{ slug: string; label: string; type: string; options?: unknown }>;
+  rules: FixedRule[];
+  onChange: (r: FixedRule[]) => void;
+}) {
+  return (
+    <div className="space-y-1.5 rounded-md bg-muted/40 p-2">
+      <div className="flex items-center justify-between">
+        <label className="text-xs font-medium">{title}</label>
+        <Button type="button" variant="outline" size="sm" className="h-7 text-xs" disabled={fields.length === 0}
+          onClick={() => onChange([...rules, { fieldSlug: fields[0]?.slug || '', value: '' }])}>
+          + valor fixo
+        </Button>
+      </div>
+      <p className="text-[10px] text-muted-foreground">Definido automaticamente pelo comando — o usuário não vê nem edita. (Ex.: sempre marcar concluído = Sim.)</p>
+      {rules.map((r, i) => {
+        const fd = fields.find((x) => x.slug === r.fieldSlug);
+        const type = fd?.type || 'text';
+        const opts = optionsOf(fd?.options);
+        const upd = (patch: Partial<FixedRule>) => { const a = [...rules]; a[i] = { ...a[i], ...patch }; onChange(a); };
+        return (
+          <div key={i} className="flex items-center gap-2">
+            <Select value={r.fieldSlug} onValueChange={(v) => upd({ fieldSlug: v, value: '' })}>
+              <SelectTrigger className="h-8 flex-1 text-xs"><SelectValue /></SelectTrigger>
+              <SelectContent>{fields.map((f) => <SelectItem key={f.slug} value={f.slug}>{f.label}</SelectItem>)}</SelectContent>
+            </Select>
+            <span className="text-xs text-muted-foreground">=</span>
+            {type === 'boolean' ? (
+              <Select value={String(r.value)} onValueChange={(v) => upd({ value: v === 'true' })}>
+                <SelectTrigger className="h-8 w-24 text-xs"><SelectValue placeholder="valor" /></SelectTrigger>
+                <SelectContent><SelectItem value="true">Sim</SelectItem><SelectItem value="false">Não</SelectItem></SelectContent>
+              </Select>
+            ) : opts.length > 0 ? (
+              <Select value={String(r.value ?? '')} onValueChange={(v) => upd({ value: v })}>
+                <SelectTrigger className="h-8 flex-1 text-xs"><SelectValue placeholder="valor" /></SelectTrigger>
+                <SelectContent>{opts.map((o) => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
+              </Select>
+            ) : (
+              <Input className="h-8 flex-1 text-xs" placeholder="valor" value={String(r.value ?? '')} onChange={(e) => upd({ value: e.target.value })} />
+            )}
+            <button type="button" className="text-muted-foreground hover:text-destructive px-1" onClick={() => onChange(rules.filter((_, j) => j !== i))}>×</button>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 export function CommandManager({ open, onOpenChange, entities, roles, onChanged }: Props) {
   const [list, setList] = useState<CommandTpl[]>([]);
   const [loading, setLoading] = useState(false);
@@ -347,6 +400,12 @@ function CommandForm({
             selected={heavyFields}
             onToggle={(s) => setCfg({ heavyFields: toggle(heavyFields, s) })}
           />
+          <FixedValues
+            title="Valores fixos no registro criado"
+            fields={targetFields}
+            rules={(cfg.fixedValues as FixedRule[]) || []}
+            onChange={(r) => setCfg({ fixedValues: r })}
+          />
           <div className="space-y-1">
             <label className="text-xs font-medium">Tabela-pai (opcional)</label>
             <Select value={parentSlug || '__none__'} onValueChange={(v) => setCfg({ parentEntitySlug: v === '__none__' ? '' : v, parentFields: [], parentSearchField: '' })}>
@@ -415,6 +474,12 @@ function CommandForm({
                   );
                 })}
               </div>
+              <FixedValues
+                title={`Valores fixos no ${parentLabel} (ex.: concluído = Sim ao registrar)`}
+                fields={parentFieldsAll}
+                rules={(cfg.parentFixed as FixedRule[]) || []}
+                onChange={(r) => setCfg({ parentFixed: r })}
+              />
             </div>
           )}
         </div>
@@ -493,6 +558,12 @@ function CommandForm({
               fields={targetFields}
               selected={(cfg.fields as string[]) || []}
               onToggle={(s) => setCfg({ fields: toggle((cfg.fields as string[]) || [], s) })}
+            />
+            <FixedValues
+              title="Valores fixos ao salvar"
+              fields={targetFields}
+              rules={(cfg.fixedValues as FixedRule[]) || []}
+              onChange={(r) => setCfg({ fixedValues: r })}
             />
           </div>
         )}
