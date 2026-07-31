@@ -136,14 +136,14 @@ export class ChatService {
         select: { id: true, slug: true, name: true, namePlural: true, icon: true, color: true },
       }),
       this.prisma.channel.findMany({
-        where: { tenantId, type: 'group' },
+        where: { tenantId, type: 'group', deletedAt: null },
       }),
       this.prisma.channel.findMany({
-        where: { tenantId, type: 'record' },
+        where: { tenantId, type: 'record', deletedAt: null },
         orderBy: { updatedAt: 'desc' },
       }),
       this.prisma.channelMember.findMany({
-        where: { userId: user.id, channel: { tenantId, type: 'dm' } },
+        where: { userId: user.id, channel: { tenantId, type: 'dm', deletedAt: null } },
         include: { channel: { include: { members: true } } },
       }),
     ]);
@@ -240,7 +240,7 @@ export class ChatService {
     // find+create manual (não há mais @@unique simples; a unicidade é via índice
     // parcial WHERE recordId IS NULL). Em corrida, o índice rejeita o 2º insert.
     const existing = await this.prisma.channel.findFirst({
-      where: { tenantId, entityId: entity.id, recordId: null, type: 'group' },
+      where: { tenantId, entityId: entity.id, recordId: null, type: 'group', deletedAt: null },
     });
     if (existing) return existing;
     // Só quem gerencia o chat CRIA o canal (qualquer um que lê a tabela abre o existente).
@@ -258,7 +258,7 @@ export class ChatService {
       });
     } catch {
       const again = await this.prisma.channel.findFirst({
-        where: { tenantId, entityId: entity.id, recordId: null, type: 'group' },
+        where: { tenantId, entityId: entity.id, recordId: null, type: 'group', deletedAt: null },
       });
       if (again) return again;
       throw new ForbiddenException('Não foi possível abrir o canal.');
@@ -300,7 +300,7 @@ export class ChatService {
       `${entity.name} ${recordId.slice(-6)}`;
 
     const existing = await this.prisma.channel.findFirst({
-      where: { tenantId, recordId, type: 'record' },
+      where: { tenantId, recordId, type: 'record', deletedAt: null },
     });
     if (existing) return existing; // já existe: NÃO mexe nos comandos (seletor é só na criação)
     let created: { id: string };
@@ -317,7 +317,7 @@ export class ChatService {
       });
     } catch {
       const again = await this.prisma.channel.findFirst({
-        where: { tenantId, recordId, type: 'record' },
+        where: { tenantId, recordId, type: 'record', deletedAt: null },
       });
       if (again) return again;
       throw new ForbiddenException('Não foi possível abrir o chat do registro.');
@@ -340,7 +340,7 @@ export class ChatService {
       return { exists: false, channelId: null, commandIds: [] as string[] };
     }
     const channel = await this.prisma.channel.findFirst({
-      where: { tenantId: user.tenantId, recordId, type: 'record' },
+      where: { tenantId: user.tenantId, recordId, type: 'record', deletedAt: null },
       select: { id: true },
     });
     if (!channel) return { exists: false, channelId: null, commandIds: [] as string[] };
@@ -398,7 +398,7 @@ export class ChatService {
     // Anti-duplicado: DM identificado pela chave canônica do par (dmKey).
     const dmKey = this.dmKeyFor(user.id, otherUserId);
     const existing = await this.prisma.channel.findFirst({
-      where: { tenantId, type: 'dm', dmKey },
+      where: { tenantId, type: 'dm', dmKey, deletedAt: null },
     });
     if (existing) return existing;
     this.assertCanManageChat(user);
@@ -421,7 +421,7 @@ export class ChatService {
     } catch {
       // Corrida: o índice único (tenantId, dmKey) rejeita o 2º insert — devolve o existente.
       const again = await this.prisma.channel.findFirst({
-        where: { tenantId, type: 'dm', dmKey },
+        where: { tenantId, type: 'dm', dmKey, deletedAt: null },
       });
       if (again) return again;
       throw new ForbiddenException('Não foi possível abrir a conversa.');
@@ -430,8 +430,8 @@ export class ChatService {
 
   /** Renomeia um canal. Permitido para o criador do canal OU quem gerencia o chat. */
   async renameChannel(user: CurrentUser, channelId: string, name: string) {
-    const channel = await this.prisma.channel.findUnique({
-      where: { id: channelId },
+    const channel = await this.prisma.channel.findFirst({
+      where: { id: channelId, deletedAt: null },
       select: { id: true, tenantId: true, createdById: true, type: true },
     });
     if (!channel || channel.tenantId !== user.tenantId) {
@@ -449,10 +449,32 @@ export class ChatService {
     });
   }
 
+  /** Exclui um canal (criador do canal OU quem gerencia o chat). SOFT-DELETE:
+   *  marca deletedAt (preserva o histórico de mensagens; os índices únicos
+   *  parciais ignoram canais excluídos, então dá pra recriar o do registro).
+   *  Os comandos anexados (ChannelCommand, sem FK) são removidos. */
+  async deleteChannel(user: CurrentUser, channelId: string) {
+    const channel = await this.prisma.channel.findFirst({
+      where: { id: channelId, deletedAt: null },
+      select: { id: true, tenantId: true, createdById: true },
+    });
+    if (!channel || channel.tenantId !== user.tenantId) {
+      throw new NotFoundException('Canal não encontrado');
+    }
+    if (channel.createdById !== user.id && !this.canManageChat(user)) {
+      throw new ForbiddenException('Sem permissão para excluir este canal.');
+    }
+    await this.prisma.$transaction([
+      this.prisma.channelCommand.deleteMany({ where: { channelId } }),
+      this.prisma.channel.update({ where: { id: channelId }, data: { deletedAt: new Date() } }),
+    ]);
+    return { ok: true };
+  }
+
   /** Garante que o usuário pode ver/postar no canal; devolve o canal. */
   private async assertAccess(user: CurrentUser, channelId: string) {
-    const channel = await this.prisma.channel.findUnique({
-      where: { id: channelId },
+    const channel = await this.prisma.channel.findFirst({
+      where: { id: channelId, deletedAt: null },
       include: { members: true },
     });
     if (!channel || channel.tenantId !== user.tenantId) {
@@ -567,7 +589,7 @@ export class ChatService {
     // grupo → comandos da tabela; thread → todos.
     if (opts.channelId) {
       const channel = await this.prisma.channel.findFirst({
-        where: { id: opts.channelId, tenantId: user.tenantId },
+        where: { id: opts.channelId, tenantId: user.tenantId, deletedAt: null },
         select: { entityId: true, type: true },
       });
       const links = await this.prisma.channelCommand.findMany({
