@@ -96,14 +96,34 @@ export class ChatService {
 
   /** Converte [{fieldSlug,value}] do actionConfig em objeto {slug: value} — os
    *  "valores fixos" que o comando aplica automaticamente (o usuário não preenche). */
+  /** Resolve tokens dinâmicos de valores fixos no momento da execução:
+   *  '@now' -> data/hora atual (ISO); '@today' -> só a data. Usado por comandos
+   *  que carimbam o instante do uso (ex.: /inicio e /fim marcam data_inicio/fim). */
+  private resolveFixedValue(v: unknown): unknown {
+    if (v === '@now') return new Date().toISOString();
+    if (v === '@today') return new Date().toISOString().slice(0, 10);
+    return v;
+  }
+
   private fixedValuesToObj(arr: unknown): Record<string, unknown> {
     if (!Array.isArray(arr)) return {};
     const out: Record<string, unknown> = {};
     for (const f of arr) {
       const ff = f as { fieldSlug?: string; value?: unknown };
-      if (ff?.fieldSlug) out[ff.fieldSlug] = ff.value;
+      if (ff?.fieldSlug) out[ff.fieldSlug] = this.resolveFixedValue(ff.value);
     }
     return out;
+  }
+
+  /** Valor de um campo em texto legível (select guarda { label, value }). Usado
+   *  no identificador que aparece na mensagem do chat (ex.: chassi do veículo). */
+  private cellLabel(v: unknown): string {
+    if (v === null || v === undefined) return '';
+    if (typeof v === 'object') {
+      const o = v as Record<string, unknown>;
+      return String(o.label ?? o.value ?? '');
+    }
+    return String(v);
   }
 
   /** Lista canais visíveis: grupos de tabelas que o usuário pode ler + DMs dele. */
@@ -467,14 +487,55 @@ export class ChatService {
     return channel;
   }
 
-  async getMessages(user: CurrentUser, channelId: string, limit = 50) {
+  /** Mensagens do canal (ordem cronológica).
+   *  `before` (ISO): as `limit` mensagens ANTERIORES a esse instante (paginação p/ trás).
+   *  `after` (ISO): as `limit` mensagens POSTERIORES (contexto abaixo de uma msg — usado
+   *  ao "pular" para um resultado de busca, carregando os dois lados). */
+  async getMessages(user: CurrentUser, channelId: string, limit = 50, before?: string, after?: string) {
     await this.assertAccess(user, channelId);
+    const take = Math.min(limit, 200);
+    const afterDate = after ? new Date(after) : null;
+    if (afterDate && !isNaN(afterDate.getTime())) {
+      return this.prisma.message.findMany({
+        where: { channelId, createdAt: { gt: afterDate } },
+        orderBy: { createdAt: 'asc' },
+        take,
+      });
+    }
+    const beforeDate = before ? new Date(before) : null;
     const messages = await this.prisma.message.findMany({
-      where: { channelId },
+      where: {
+        channelId,
+        ...(beforeDate && !isNaN(beforeDate.getTime()) ? { createdAt: { lt: beforeDate } } : {}),
+      },
       orderBy: { createdAt: 'desc' },
-      take: Math.min(limit, 200),
+      take,
     });
     return messages.reverse(); // ordem cronológica
+  }
+
+  /** Busca mensagens por SUBSTRING dentro de um canal, ignorando ACENTO e caixa
+   *  (f_unaccent(content) ILIKE ...), como Telegram/WhatsApp. Cobre TODO o histórico
+   *  do canal (não depende do que está carregado na tela); acelerado pelo índice GIN
+   *  trigram (pg_trgm) sobre f_unaccent(content). Ordem cronológica. */
+  async searchMessages(user: CurrentUser, channelId: string, q: string, limit = 30) {
+    await this.assertAccess(user, channelId);
+    const term = (q || '').trim();
+    if (term.length < 1) return [];
+    // Escapa os curingas do LIKE (%, _, \) para tratá-los como texto literal.
+    const like = '%' + term.replace(/[\\%_]/g, '\\$&') + '%';
+    const take = Math.min(limit, 100);
+    const messages = await this.prisma.$queryRaw<
+      Array<{ id: string; senderId: string | null; type: string; content: string | null; meta: unknown; createdAt: Date }>
+    >`
+      SELECT "id", "senderId", "type", "content", "meta", "createdAt"
+      FROM "Message"
+      WHERE "channelId" = ${channelId}
+        AND f_unaccent(content) ILIKE f_unaccent(${like})
+      ORDER BY "createdAt" DESC
+      LIMIT ${take}
+    `;
+    return messages.reverse();
   }
 
   async postMessage(user: CurrentUser, channelId: string, content: string) {
@@ -584,6 +645,50 @@ export class ChatService {
     return (res.data || []).map((r) => ({ id: r.id, data: r.data }));
   }
 
+  /** Colunas disponíveis de uma tabela para consulta: campos declarados +
+   *  QUALQUER chave observada no `data` (amostra) + geo (_geolocation.lat/lng/address)
+   *  + campos de sistema (criado/atualizado em/por). Usado pelo wizard para marcar
+   *  colunas de resultado. */
+  async entityColumns(user: CurrentUser, entitySlug: string) {
+    if (!this.canReadEntity(user, entitySlug)) {
+      throw new ForbiddenException('Sem acesso a esta tabela');
+    }
+    const entity = await this.prisma.entity.findFirst({
+      where: { tenantId: user.tenantId, slug: entitySlug, deletedAt: null },
+      select: { id: true, fields: true },
+    });
+    if (!entity) throw new NotFoundException('Tabela não encontrada');
+
+    type Col = { slug: string; label: string; type: string; group: 'field' | 'data' | 'geo' | 'system' };
+    const declared = ((entity.fields || []) as Array<{ slug: string; label?: string; name?: string; type?: string }>)
+      .map((f) => ({ slug: f.slug, label: f.label || f.name || f.slug, type: f.type || 'text', group: 'field' as const }));
+    const declaredSlugs = new Set(declared.map((d) => d.slug));
+
+    // Chaves REAIS no data (amostra p/ não escanear a tabela toda).
+    const rows = await this.prisma.$queryRaw<Array<{ k: string }>>`
+      SELECT DISTINCT jsonb_object_keys(data) AS k
+      FROM (SELECT data FROM "EntityData" WHERE "entityId" = ${entity.id} AND "deletedAt" IS NULL LIMIT 500) s
+    `;
+    const extra: Col[] = [];
+    for (const { k } of rows) {
+      if (declaredSlugs.has(k)) continue;
+      if (k === '_geolocation') {
+        extra.push({ slug: '_geolocation.lat', label: 'Latitude', type: 'number', group: 'geo' });
+        extra.push({ slug: '_geolocation.lng', label: 'Longitude', type: 'number', group: 'geo' });
+        extra.push({ slug: '_geolocation.address', label: 'Endereço (geo)', type: 'text', group: 'geo' });
+      } else if (!k.startsWith('_')) {
+        extra.push({ slug: k, label: k, type: 'text', group: 'data' });
+      }
+    }
+    const system: Col[] = [
+      { slug: 'createdAt', label: 'Criado em', type: 'datetime', group: 'system' },
+      { slug: 'updatedAt', label: 'Atualizado em', type: 'datetime', group: 'system' },
+      { slug: 'createdBy', label: 'Criado por', type: 'text', group: 'system' },
+      { slug: 'updatedBy', label: 'Atualizado por', type: 'text', group: 'system' },
+    ];
+    return [...declared, ...extra, ...system];
+  }
+
   /** Valores distintos já usados num campo (autocomplete de texto).
    *  Leve sob carga: exige >=2 chars (evita scan que casa quase tudo) e cacheia no
    *  Redis por 60s (buscas repetidas/concorrentes caem no cache, não no banco). */
@@ -654,7 +759,7 @@ export class ChatService {
       throw new ForbiddenException(`actionType não suportado no formulário: ${tpl.actionType}`);
     }
 
-    const cfg = (tpl.actionConfig || {}) as { parentEntitySlug?: string; fixedValues?: unknown; parentFixed?: unknown };
+    const cfg = (tpl.actionConfig || {}) as { parentEntitySlug?: string; parentSearchField?: string; fixedValues?: unknown; parentFixed?: unknown; labelField?: { slug?: string; source?: string } };
     // Valores FIXOS do comando (auto-aplicados; o usuário não preenche nem vê):
     // fixedValues no registro criado (ex.: avaria) + parentFixed no PAI (ex.:
     // marcar o veículo concluido=true ao registrar a avaria).
@@ -688,6 +793,23 @@ export class ChatService {
       await this.dataService.update(cfg.parentEntitySlug, parentRecordId, { data: parentUpdate }, user);
     }
 
+    // Identificador exibido na mensagem (configurável no wizard: labelField {slug, source}).
+    // Default: o campo de busca do pai (ex.: chassi do veículo), se houver pai.
+    let labelSlug = cfg.labelField?.slug;
+    let labelSource = cfg.labelField?.source;
+    if (!labelSlug && cfg.parentEntitySlug && cfg.parentSearchField) {
+      labelSlug = cfg.parentSearchField; labelSource = 'parent';
+    }
+    let label = '';
+    if (labelSlug) {
+      if (labelSource === 'parent' && parentRecordId && cfg.parentEntitySlug) {
+        const p = (await this.dataService.findOne(cfg.parentEntitySlug, parentRecordId, user).catch(() => null)) as { data?: Record<string, unknown> } | null;
+        label = this.cellLabel(p?.data?.[labelSlug]);
+      } else {
+        label = this.cellLabel((values as Record<string, unknown>)[labelSlug]);
+      }
+    }
+
     const summary = Object.entries(values)
       .map(([k, v]) => `${k}: ${v}`)
       .join(' · ');
@@ -697,13 +819,14 @@ export class ChatService {
         channelId,
         senderId: user.id,
         type: 'form_submission',
-        content: `/${tpl.slug} — ${summary}`,
+        content: `/${tpl.slug}${label ? ` · ${label}` : ''} — ${summary}`,
         meta: {
           templateSlug: tpl.slug,
           entitySlug: tpl.targetEntitySlug,
           values: values as object,
           recordId: record?.id,
           parentRecordId: parentRecordId ?? null,
+          ...(label ? { label } : {}),
         },
       },
     });
@@ -733,6 +856,11 @@ export class ChatService {
       { data: data as Record<string, unknown> },
       user,
     );
+    // Identificador na mensagem: labelField do wizard, ou o campo de busca por padrão.
+    const ucfg = (tpl.actionConfig || {}) as { labelField?: { slug?: string }; searchField?: string };
+    const labelSlug = ucfg.labelField?.slug || ucfg.searchField;
+    const label = labelSlug ? this.cellLabel((before as { data?: Record<string, unknown> }).data?.[labelSlug]) : '';
+
     const summary = Object.entries(data)
       .map(([k, v]) => `${k}: ${v}`)
       .join(' · ');
@@ -742,13 +870,14 @@ export class ChatService {
         channelId,
         senderId: user.id,
         type: 'form_submission',
-        content: `/${tpl.slug} — ${summary}`,
+        content: `/${tpl.slug}${label ? ` · ${label}` : ''} — ${summary}`,
         meta: {
           templateSlug: tpl.slug,
           entitySlug,
           values: (input.values || {}) as object,
           recordId: input.recordId,
           edited: true,
+          ...(label ? { label } : {}),
         },
       },
     });
@@ -759,6 +888,7 @@ export class ChatService {
 
   private formatCell(v: unknown): string {
     if (v === null || v === undefined) return '';
+    if (v instanceof Date) return v.toLocaleString('pt-BR');
     if (typeof v === 'boolean') return v ? 'Sim' : 'Não';
     if (Array.isArray(v)) return v.map((x) => this.formatCell(x)).join(', ');
     if (typeof v === 'object') {
@@ -812,10 +942,15 @@ export class ChatService {
     });
     const fieldDefs = ((entity?.fields || []) as Array<{ slug: string; label?: string; name?: string; type?: string }>)
       .filter((f) => !['image', 'sub-entity', 'file'].includes(f.type || ''));
+    // Rótulos amigáveis de colunas de sistema/geo (chaves fora de entity.fields).
+    const SYS_LABELS: Record<string, string> = {
+      createdAt: 'Criado em', updatedAt: 'Atualizado em', createdBy: 'Criado por', updatedBy: 'Atualizado por',
+      '_geolocation.lat': 'Latitude', '_geolocation.lng': 'Longitude', '_geolocation.address': 'Endereço',
+    };
     const chosen = cfg.columns?.length ? cfg.columns : fieldDefs.map((f) => f.slug);
     const cols: ReportColumn[] = chosen.map((s) => ({
       slug: s,
-      label: fieldDefs.find((f) => f.slug === s)?.label || fieldDefs.find((f) => f.slug === s)?.name || s,
+      label: SYS_LABELS[s] || fieldDefs.find((f) => f.slug === s)?.label || fieldDefs.find((f) => f.slug === s)?.name || s,
     }));
 
     const filters = (input.filters || []).filter((f) => f && f.fieldSlug && f.operator);
@@ -852,7 +987,32 @@ export class ChatService {
     };
     const data = res.data || [];
     const total = res.meta?.total ?? res.total ?? data.length;
-    const tableRows = data.map((r) => cols.map((c) => this.formatCell(r.data?.[c.slug])));
+
+    // Colunas de sistema (createdAt/updatedAt/createdBy/updatedBy) vêm das colunas
+    // REAIS da EntityData — busca em lote pelos ids exibidos.
+    const SYS_COLS = ['createdAt', 'updatedAt', 'createdBy', 'updatedBy'];
+    const sysMap = new Map<string, { createdAt: Date; updatedAt: Date; createdBy: { name: string } | null; updatedBy: { name: string } | null }>();
+    if (cols.some((c) => SYS_COLS.includes(c.slug)) && data.length) {
+      const sysRows = await this.prisma.entityData.findMany({
+        where: { id: { in: data.map((r) => r.id) } },
+        select: { id: true, createdAt: true, updatedAt: true, createdBy: { select: { name: true } }, updatedBy: { select: { name: true } } },
+      });
+      for (const s of sysRows) sysMap.set(s.id, s);
+    }
+    // Resolve o valor de uma coluna: sistema, caminho aninhado (ex.: _geolocation.lat)
+    // ou chave direta do data.
+    const resolveCol = (r: { id: string; data: Record<string, unknown> }, slug: string): unknown => {
+      const sys = sysMap.get(r.id);
+      if (slug === 'createdAt') return sys?.createdAt;
+      if (slug === 'updatedAt') return sys?.updatedAt;
+      if (slug === 'createdBy') return sys?.createdBy?.name;
+      if (slug === 'updatedBy') return sys?.updatedBy?.name;
+      if (slug.includes('.')) {
+        return slug.split('.').reduce<unknown>((o, k) => (o == null ? o : (o as Record<string, unknown>)[k]), r.data);
+      }
+      return r.data?.[slug];
+    };
+    const tableRows = data.map((r) => cols.map((c) => this.formatCell(resolveCol(r, c.slug))));
 
     if (format === 'card') {
       const message = await this.prisma.message.create({

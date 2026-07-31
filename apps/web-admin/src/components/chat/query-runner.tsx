@@ -57,6 +57,12 @@ type Filter = { fieldSlug: string; fieldType?: string; operator: string; value?:
 
 const DATE_TYPES = ['date', 'datetime', 'time'];
 
+// Campos de SISTEMA que podem virar filtro de range (não estão em entity.fields).
+const SYSTEM_FILTER_FIELDS: FieldDef[] = [
+  { slug: 'createdAt', label: 'Criado em', type: 'datetime' },
+  { slug: 'updatedAt', label: 'Atualizado em', type: 'datetime' },
+];
+
 export function triggerDownload(href: string, filename: string, revoke?: () => void) {
   const a = document.createElement('a');
   a.href = href;
@@ -95,7 +101,9 @@ export function QueryRunner({ channelId, cmd, entity, scopeParentId, onDone, onC
     pdfTemplates?: Array<{ id: string; name: string }>;
   };
   const allFields = (entity.fields || []) as FieldDef[];
-  const filterFields = (cfg.filterFields || []).map((s) => allFields.find((f) => f.slug === s)).filter(Boolean) as FieldDef[];
+  // Inclui campos de sistema (criado/atualizado em) para o filtro achar o tipo datetime.
+  const lookupFields = [...allFields, ...SYSTEM_FILTER_FIELDS];
+  const filterFields = (cfg.filterFields || []).map((s) => lookupFields.find((f) => f.slug === s)).filter(Boolean) as FieldDef[];
   const formats = cfg.formats?.length ? cfg.formats : ['card', 'xlsx', 'json', 'pdf'];
   const pdfTemplates = cfg.pdfTemplates?.length
     ? cfg.pdfTemplates

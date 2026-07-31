@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import ImageUploadField from '@/components/form/image-upload-field';
+import { deriveFormFields, type FormFieldCfg } from './command-fields';
 
 const ZoneDiagramField = dynamic(() => import('@/components/form/zone-diagram-field'), { ssr: false });
 
@@ -63,14 +64,15 @@ export function QuickCaptureForm({ channelId, cmd, entity, parentEntity, scopePa
   onDone: () => void;
   onCancel: () => void;
 }) {
-  const cfg = (cmd.actionConfig || {}) as { quickFields?: string[]; parentEntitySlug?: string; parentSearchField?: string; parentFields?: string[]; heavyFields?: string[]; parentFilter?: unknown[] };
-  const quickFields = cfg.quickFields || [];
-  const heavyFields = cfg.heavyFields || [];
-  const parentSlug = cfg.parentEntitySlug;
-  const parentSearchField = cfg.parentSearchField || 'chassi';
-  const parentFields = cfg.parentFields || [];
+  const cfg = (cmd.actionConfig || {}) as Record<string, unknown>;
+  const parentSlug = (cfg.parentEntitySlug as string) || '';
+  const parentSearchField = (cfg.parentSearchField as string) || 'chassi';
+  // Campos do formulário na ordem/obrigatoriedade definidas no wizard (com fallback ao legado).
+  const formFields = deriveFormFields(cfg);
+  // Permite lançar vários registros para o mesmo pai sem fechar o formulário.
+  const allowMultiple = cfg.allowMultiple === true;
   // Filtro FIXO do comando na busca do pai (ex.: só veículos concluido=false).
-  const parentFilterParam = Array.isArray(cfg.parentFilter) && cfg.parentFilter.length > 0
+  const parentFilterParam = Array.isArray(cfg.parentFilter) && (cfg.parentFilter as unknown[]).length > 0
     ? `&filters=${encodeURIComponent(JSON.stringify(cfg.parentFilter))}`
     : '';
 
@@ -82,7 +84,7 @@ export function QuickCaptureForm({ channelId, cmd, entity, parentEntity, scopePa
   const [parentIndex, setParentIndex] = useState(0);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [savedCount, setSavedCount] = useState(0); // avarias já lançadas neste chassi (salvar e adicionar outra)
+  const [savedCount, setSavedCount] = useState(0); // registros já lançados (salvar e adicionar outra)
 
   // Autocomplete do pai (ex.: veículo por chassi).
   useEffect(() => {
@@ -100,17 +102,21 @@ export function QuickCaptureForm({ channelId, cmd, entity, parentEntity, scopePa
 
   const fieldDef = (slug: string) => ((entity.fields || []) as FieldDef[]).find((f) => f.slug === slug);
   const parentFieldDef = (slug: string) => ((parentEntity?.fields || []) as FieldDef[]).find((f) => f.slug === slug);
-  const setVal = (slug: string, v: unknown) => setValues((p) => ({ ...p, [slug]: v }));
+  const defFor = (ff: FormFieldCfg) => (ff.source === 'parent' ? parentFieldDef(ff.slug) : fieldDef(ff.slug));
+  const valueFor = (ff: FormFieldCfg) => (ff.source === 'parent' ? parentValues[ff.slug] : values[ff.slug]);
+  const setValueFor = (ff: FormFieldCfg, v: unknown) =>
+    ff.source === 'parent'
+      ? setParentValues((p) => ({ ...p, [ff.slug]: v }))
+      : setValues((p) => ({ ...p, [ff.slug]: v }));
 
-  const labelFor = (slug: string, isParent: boolean) => {
-    const f = isParent ? parentFieldDef(slug) : fieldDef(slug);
-    return f?.label || f?.name || slug;
+  const labelFor = (ff: FormFieldCfg) => {
+    const f = defFor(ff);
+    return f?.label || f?.name || ff.slug;
   };
 
-  // Todos os campos são obrigatórios (fotos do veículo + campos da avaria).
-  const isEmpty = (slug: string, isParent: boolean) => {
-    const f = isParent ? parentFieldDef(slug) : fieldDef(slug);
-    const v = isParent ? parentValues[slug] : values[slug];
+  const isEmpty = (ff: FormFieldCfg) => {
+    const f = defFor(ff);
+    const v = valueFor(ff);
     if (f?.type === 'zone-diagram') {
       if (typeof v === 'string') return v.trim() === '';
       return !v || Object.keys((v as object) || {}).length === 0;
@@ -118,25 +124,18 @@ export function QuickCaptureForm({ channelId, cmd, entity, parentEntity, scopePa
     return v === undefined || v === null || String(v).trim() === '';
   };
 
-  // Ordem de validação = ordem de exibição (fotos do veículo → peça → chips → fotos da avaria).
-  const requiredFields: Array<[string, boolean]> = [
-    ...parentFields.map((s) => [s, true] as [string, boolean]),
-    ...heavyFields.map((s) => [s, false] as [string, boolean]),
-    ...quickFields.map((s) => [s, false] as [string, boolean]),
-  ];
-
   async function submit(keepOpen: boolean) {
     if (parentSlug && !parent) { setError(`Selecione: ${parentEntity?.name || 'registro pai'}`); return; }
-    const missing = requiredFields.filter(([s, p]) => isEmpty(s, p)).map(([s, p]) => labelFor(s, p));
+    const missing = formFields.filter((ff) => ff.required && isEmpty(ff)).map(labelFor);
     if (missing.length > 0) {
-      setError(`Preencha todos os campos. Falta: ${missing.join(', ')}`);
+      setError(`Preencha os campos obrigatórios. Falta: ${missing.join(', ')}`);
       return;
     }
     setSubmitting(true); setError(null);
     try {
       await api.post(`/chat/channels/${channelId}/commands/${cmd.slug}`, { parentRecordId: parent?.id, values, parentUpdate: parentValues });
       if (keepOpen) {
-        // Mantém o chassi; limpa TODOS os campos (fotos do veículo + avaria) p/ re-preencher.
+        // Mantém o pai; limpa os campos para re-preencher o próximo registro.
         setValues({});
         setParentValues({});
         setSavedCount((c) => c + 1);
@@ -151,10 +150,62 @@ export function QuickCaptureForm({ channelId, cmd, entity, parentEntity, scopePa
     }
   }
 
-  const imageFields = quickFields.filter((s) => fieldDef(s)?.type === 'image');
+  // Renderiza um campo conforme o tipo (imagem, diagrama, chips, sim/não, texto).
+  function renderField(ff: FormFieldCfg) {
+    const f = defFor(ff);
+    if (!f) return null;
+    // Campos do pai só aparecem depois que o pai é selecionado.
+    if (ff.source === 'parent' && !parent) return null;
+    const req = ff.required ? ' *' : '';
+    const label = `${f.label || f.name || ff.slug}${req}`;
+    const v = valueFor(ff);
+
+    if (f.type === 'zone-diagram') {
+      const isTextMode = f.diagramSaveMode === 'text';
+      return (
+        <ZoneDiagramField key={`${ff.source}:${ff.slug}`}
+          value={isTextMode ? (v as string) || '' : (v as Record<string, string>) || {}}
+          onChange={(val: Record<string, string> | string) => setValueFor(ff, val)}
+          saveMode={f.diagramSaveMode || 'object'}
+          diagramImage={f.diagramImage}
+          zones={f.diagramZones as never}
+          label={label}
+          readOnly={false}
+        />
+      );
+    }
+
+    const opts = normalizeOptions(f.options);
+    return (
+      <div key={`${ff.source}:${ff.slug}`} className="space-y-1">
+        <label className="text-xs font-medium flex items-center gap-1.5">
+          {label}
+          {ff.source === 'parent' && parentEntity && (
+            <span className="rounded bg-muted px-1 py-0.5 text-[9px] uppercase tracking-wide text-muted-foreground">{parentEntity.name}</span>
+          )}
+        </label>
+        {f.type === 'image' ? (
+          <ImageUploadField mode="image" folder="images" imageSource="both" imageDisplaySize={110}
+            value={(v as string) || ''} onChange={(val) => setValueFor(ff, val)} />
+        ) : SELECT_TYPES.includes(f.type) && opts.length > 0 ? (
+          <div className="flex flex-wrap gap-1">
+            {opts.map((o) => (
+              <button key={o} type="button" onClick={() => setValueFor(ff, v === o ? undefined : o)}
+                className={cn('rounded-full border px-2 py-0.5 text-xs transition-colors', v === o ? 'border-primary bg-primary text-primary-foreground' : 'hover:bg-accent')}>{o}</button>
+            ))}
+          </div>
+        ) : f.type === 'boolean' ? (
+          <button type="button" onClick={() => setValueFor(ff, !v)}
+            className={cn('rounded-md border px-3 py-1 text-xs', v ? 'border-primary bg-primary/10 text-primary' : 'hover:bg-accent')}>{v ? 'Sim' : 'Não'}</button>
+        ) : (
+          <TextAutocomplete entitySlug={ff.source === 'parent' ? parentSlug : entity.slug} field={ff.slug} value={String(v ?? '')} onChange={(val) => setValueFor(ff, val)} />
+        )}
+      </div>
+    );
+  }
 
   return (
-    <div className="border-t p-2.5 space-y-2 bg-muted/20 max-h-[55vh] overflow-y-auto">
+    <div className="border-t p-2.5 space-y-2.5 bg-muted/20 max-h-[55vh] overflow-y-auto">
       <div className="flex items-center justify-between">
         <span className="text-sm font-medium">/{cmd.slug}{cmd.description ? ` — ${cmd.description}` : ''}</span>
         <button type="button" onClick={onCancel} className="text-muted-foreground hover:text-foreground"><X className="h-4 w-4" /></button>
@@ -197,108 +248,18 @@ export function QuickCaptureForm({ channelId, cmd, entity, parentEntity, scopePa
         </div>
       )}
 
-      {/* Fotos do VEÍCULO (obrigatórias) — ANTES de qualquer campo de avaria */}
-      {parent && parentFields.length > 0 && (
-        <div className="space-y-2 rounded-md border border-dashed p-2.5">
-          <div className="text-[11px] uppercase tracking-wider text-muted-foreground font-medium">Fotos do veículo *</div>
-          <div className="grid grid-cols-2 gap-2">
-            {parentFields.map((slug) => {
-              const f = parentFieldDef(slug);
-              if (!f) return null;
-              return (
-                <div key={slug} className="space-y-1 col-span-2 sm:col-span-1">
-                  <label className="text-xs font-medium">{f.label || f.name || slug} *</label>
-                  <ImageUploadField mode="image" folder="images" imageSource="both" imageDisplaySize={110} value={(parentValues[slug] as string) || ''} onChange={(v) => setParentValues((p) => ({ ...p, [slug]: v }))} />
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
-      {/* Peça (zone-diagram) — ANTES de Tipo/Nível */}
-      {heavyFields.map((slug) => {
-        const f = fieldDef(slug);
-        if (!f) return null;
-        const label = `${f.label || f.name || slug} *`;
-        if (f.type === 'zone-diagram') {
-          const isTextMode = f.diagramSaveMode === 'text';
-          return (
-            <ZoneDiagramField key={slug}
-              value={isTextMode ? (values[slug] as string) || '' : (values[slug] as Record<string, string>) || {}}
-              onChange={(val: Record<string, string> | string) => setVal(slug, val)}
-              saveMode={f.diagramSaveMode || 'object'}
-              diagramImage={f.diagramImage}
-              zones={f.diagramZones as never}
-              label={label}
-              readOnly={false}
-            />
-          );
-        }
-        return (
-          <div key={slug} className="space-y-1">
-            <label className="text-xs font-medium">{label}</label>
-            {f.type === 'image' ? (
-              <ImageUploadField mode="image" folder="images" imageSource="both" imageDisplaySize={110} value={(values[slug] as string) || ''} onChange={(v) => setVal(slug, v)} />
-            ) : (
-              <TextAutocomplete entitySlug={entity.slug} field={slug} value={String(values[slug] ?? '')} onChange={(v) => setVal(slug, v)} />
-            )}
-          </div>
-        );
-      })}
-
-      {/* Chips: Tipo / Nível / Quadrante / Medida / Local */}
-      <div className="grid grid-cols-2 gap-x-3 gap-y-1.5">
-        {quickFields.map((slug) => {
-          const f = fieldDef(slug);
-          if (!f || f.type === 'image') return null;
-          const label = `${f.label || f.name || slug} *`;
-          const opts = normalizeOptions(f.options);
-          return (
-            <div key={slug} className="space-y-0.5 col-span-2 sm:col-span-1">
-              <label className="text-[11px] font-medium text-muted-foreground">{label}</label>
-              {SELECT_TYPES.includes(f.type) && opts.length > 0 ? (
-                <div className="flex flex-wrap gap-1">
-                  {opts.map((o) => (
-                    <button key={o} type="button" onClick={() => setVal(slug, values[slug] === o ? undefined : o)}
-                      className={cn('rounded-full border px-2 py-0.5 text-xs transition-colors', values[slug] === o ? 'border-primary bg-primary text-primary-foreground' : 'hover:bg-accent')}>{o}</button>
-                  ))}
-                </div>
-              ) : f.type === 'boolean' ? (
-                <button type="button" onClick={() => setVal(slug, !values[slug])} className={cn('rounded-md border px-3 py-1 text-xs', values[slug] ? 'border-primary bg-primary/10 text-primary' : 'hover:bg-accent')}>{values[slug] ? 'Sim' : 'Não'}</button>
-              ) : (
-                <TextAutocomplete entitySlug={entity.slug} field={slug} value={String(values[slug] ?? '')} onChange={(v) => setVal(slug, v)} />
-              )}
-            </div>
-          );
-        })}
-      </div>
-
-      {/* Fotos da AVARIA (obrigatórias) */}
-      {imageFields.length > 0 && (
-        <div className="space-y-2 rounded-md border border-dashed p-2.5">
-          <div className="text-[11px] uppercase tracking-wider text-muted-foreground font-medium">Fotos da avaria *</div>
-          <div className="grid grid-cols-2 gap-2">
-            {imageFields.map((slug) => {
-              const f = fieldDef(slug)!;
-              return (
-                <div key={slug} className="space-y-1 col-span-2 sm:col-span-1">
-                  <label className="text-xs font-medium">{f.label || f.name || slug} *</label>
-                  <ImageUploadField mode="image" folder="images" imageSource="both" imageDisplaySize={110} value={(values[slug] as string) || ''} onChange={(v) => setVal(slug, v)} />
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
+      {/* Campos na ordem definida no wizard (obrigatórios marcados com *). */}
+      {formFields.map(renderField)}
 
       {savedCount > 0 && !error && (
-        <p className="text-xs text-green-600">✓ {savedCount} avaria(s) registrada(s) neste chassi. Preencha a próxima.</p>
+        <p className="text-xs text-green-600">✓ {savedCount} registro(s) adicionado(s). Preencha o próximo.</p>
       )}
       {error && <p className="text-xs text-red-600">{error}</p>}
       <div className="flex flex-wrap justify-end gap-2">
         <Button type="button" variant="outline" size="sm" onClick={onCancel}>{savedCount > 0 ? 'Fechar' : 'Cancelar'}</Button>
-        <Button type="button" variant="secondary" size="sm" onClick={() => submit(true)} disabled={submitting}>{submitting ? 'Salvando…' : 'Salvar e adicionar outra'}</Button>
+        {allowMultiple && (
+          <Button type="button" variant="secondary" size="sm" onClick={() => submit(true)} disabled={submitting}>{submitting ? 'Salvando…' : 'Salvar e adicionar outra'}</Button>
+        )}
         <Button type="button" size="sm" onClick={() => submit(false)} disabled={submitting}>{submitting ? 'Registrando…' : 'Registrar'}</Button>
       </div>
     </div>

@@ -13,6 +13,42 @@ export function buildFilterClause(
 ): Prisma.EntityDataWhereInput | null {
   const type = fieldType?.toLowerCase() || 'text';
 
+  // Campos de SISTEMA (colunas reais, nao JSON): createdAt / updatedAt. Filtra por
+  // intervalo na propria coluna timestamp (ex.: consulta de veiculos por "atualizado
+  // entre X e Y"). Suporta between/gt/gte/lt/lte/equals; datas date-only pegam o dia
+  // inteiro (limite superior = inicio do dia seguinte, exclusivo).
+  if (fieldSlug === 'createdAt' || fieldSlug === 'updatedAt') {
+    const parse = (v: unknown): Date | null => {
+      if (v === null || v === undefined || v === '') return null;
+      const d = new Date(String(v));
+      return isNaN(d.getTime()) ? null : d;
+    };
+    const nextDay = (d: Date) => new Date(d.getTime() + 86400000);
+    const from = parse(value);
+    const to = parse(value2);
+    const wrap = (cond: Record<string, unknown>): Prisma.EntityDataWhereInput =>
+      ({ [fieldSlug]: cond } as Prisma.EntityDataWhereInput);
+    switch (operator) {
+      case 'between':
+        if (from && to) return wrap({ gte: from, lt: nextDay(to) });
+        if (from) return wrap({ gte: from });
+        if (to) return wrap({ lt: nextDay(to) });
+        return null;
+      case 'gt':
+        return from ? wrap({ gt: from }) : null;
+      case 'gte':
+        return from ? wrap({ gte: from }) : null;
+      case 'lt':
+        return from ? wrap({ lt: from }) : null;
+      case 'lte':
+        return from ? wrap({ lt: nextDay(from) }) : null; // inclui o dia inteiro
+      case 'equals':
+        return from ? wrap({ gte: from, lt: nextDay(from) }) : null;
+      default:
+        return null;
+    }
+  }
+
   // Operadores que nao precisam de valor
   if (operator === 'isEmpty') {
     return {

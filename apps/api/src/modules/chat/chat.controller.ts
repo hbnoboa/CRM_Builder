@@ -144,6 +144,15 @@ export class ChatController {
     return this.chatService.searchRecords(user, entitySlug, q || '', 8, parentId || undefined, filters || undefined);
   }
 
+  @Get('entity-columns')
+  @ApiOperation({ summary: 'Colunas disponíveis p/ consulta (campos + chaves do data + geo + sistema)' })
+  async entityColumns(
+    @Query('entitySlug') entitySlug: string,
+    @CurrentUser() user: CurrentUserType,
+  ) {
+    return this.chatService.entityColumns(user, entitySlug);
+  }
+
   @Get('field-suggestions')
   @ApiOperation({ summary: 'Valores distintos já usados num campo (autocomplete)' })
   async fieldSuggestions(
@@ -215,13 +224,25 @@ export class ChatController {
   }
 
   @Get('channels/:id/messages')
-  @ApiOperation({ summary: 'Lista mensagens de um canal' })
+  @ApiOperation({ summary: 'Lista mensagens de um canal (before = pagina p/ trás)' })
   async getMessages(
     @Param('id') id: string,
     @Query('limit') limit: string | undefined,
+    @Query('before') before: string | undefined,
+    @Query('after') after: string | undefined,
     @CurrentUser() user: CurrentUserType,
   ) {
-    return this.chatService.getMessages(user, id, limit ? Number(limit) : 50);
+    return this.chatService.getMessages(user, id, limit ? Number(limit) : 50, before || undefined, after || undefined);
+  }
+
+  @Get('channels/:id/messages/search')
+  @ApiOperation({ summary: 'Busca mensagens por texto dentro do canal' })
+  async searchMessages(
+    @Param('id') id: string,
+    @Query('q') q: string,
+    @CurrentUser() user: CurrentUserType,
+  ) {
+    return this.chatService.searchMessages(user, id, q || '');
   }
 
   @Post('channels/:id/messages')
