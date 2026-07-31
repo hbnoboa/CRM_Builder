@@ -30,7 +30,7 @@ export interface EntityLite {
   name: string;
   fields?: unknown[];
 }
-type FieldDef = { slug: string; label?: string; name?: string; type?: string };
+type FieldDef = { slug: string; label?: string; name?: string; type?: string; options?: unknown };
 interface RoleLite { id: string; name: string }
 
 interface CommandTpl {
@@ -73,7 +73,16 @@ function fieldsOf(entities: EntityLite[], slug?: string | null) {
     slug: f.slug,
     label: f.label || f.name || f.slug,
     type: f.type || 'text',
+    options: (f as { options?: unknown }).options,
   }));
+}
+
+/** Normaliza options de select para string[] (aceita string[] ou {value,label}[]). */
+function optionsOf(options: unknown): string[] {
+  if (!Array.isArray(options)) return [];
+  return options
+    .map((o) => (typeof o === 'string' ? o : (o as { value?: string; label?: string })?.value ?? (o as { label?: string })?.label))
+    .filter((v): v is string => !!v);
 }
 
 export function CommandManager({ open, onOpenChange, entities, roles, onChanged }: Props) {
@@ -254,6 +263,13 @@ function CommandForm({
   const parentSlug = (cfg.parentEntitySlug as string) || '';
   const parentFieldsAll = fieldsOf(entities, parentSlug);
   const parentFields = (cfg.parentFields as string[]) || [];
+  const parentLabel = entities.find((e) => e.slug === parentSlug)?.name || 'pai';
+
+  // Filtro FIXO do pai na busca (ex.: /avaria só mostra veículos concluido=false).
+  type PFilter = { fieldSlug: string; fieldType?: string; operator: string; value: unknown };
+  const parentFilter = (cfg.parentFilter as PFilter[]) || [];
+  const setParentFilter = (arr: PFilter[]) => setCfg({ parentFilter: arr });
+  const opForType = (t?: string) => (['text', 'textarea', 'string'].includes(t || '') ? 'contains' : 'equals');
 
   const toggle = (arr: string[], v: string) =>
     arr.includes(v) ? arr.filter((x) => x !== v) : [...arr, v];
@@ -361,6 +377,44 @@ function CommandForm({
                 selected={parentFields}
                 onToggle={(s) => setCfg({ parentFields: toggle(parentFields, s) })}
               />
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-medium">Filtrar {parentLabel} por (opcional)</label>
+                  <Button type="button" variant="outline" size="sm" className="h-7 text-xs" disabled={parentFieldsAll.length === 0}
+                    onClick={() => { const f0 = parentFieldsAll[0]; setParentFilter([...parentFilter, { fieldSlug: f0?.slug || '', fieldType: f0?.type, operator: opForType(f0?.type), value: '' }]); }}>
+                    + filtro
+                  </Button>
+                </div>
+                <p className="text-[10px] text-muted-foreground">Só aparecem na busca os registros que batem (ex.: concluído = Não).</p>
+                {parentFilter.map((flt, i) => {
+                  const fd = parentFieldsAll.find((x) => x.slug === flt.fieldSlug);
+                  const type = fd?.type || 'text';
+                  const opts = optionsOf(fd?.options);
+                  const update = (patch: Partial<PFilter>) => { const arr = [...parentFilter]; arr[i] = { ...arr[i], ...patch }; setParentFilter(arr); };
+                  return (
+                    <div key={i} className="flex items-center gap-2">
+                      <Select value={flt.fieldSlug} onValueChange={(v) => { const nf = parentFieldsAll.find((x) => x.slug === v); update({ fieldSlug: v, fieldType: nf?.type, operator: opForType(nf?.type), value: '' }); }}>
+                        <SelectTrigger className="h-8 flex-1 text-xs"><SelectValue /></SelectTrigger>
+                        <SelectContent>{parentFieldsAll.map((f) => <SelectItem key={f.slug} value={f.slug}>{f.label}</SelectItem>)}</SelectContent>
+                      </Select>
+                      {type === 'boolean' ? (
+                        <Select value={String(flt.value)} onValueChange={(v) => update({ value: v === 'true' })}>
+                          <SelectTrigger className="h-8 w-24 text-xs"><SelectValue placeholder="valor" /></SelectTrigger>
+                          <SelectContent><SelectItem value="true">Sim</SelectItem><SelectItem value="false">Não</SelectItem></SelectContent>
+                        </Select>
+                      ) : opts.length > 0 ? (
+                        <Select value={String(flt.value ?? '')} onValueChange={(v) => update({ value: v })}>
+                          <SelectTrigger className="h-8 flex-1 text-xs"><SelectValue placeholder="valor" /></SelectTrigger>
+                          <SelectContent>{opts.map((o) => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
+                        </Select>
+                      ) : (
+                        <Input className="h-8 flex-1 text-xs" placeholder="valor" value={String(flt.value ?? '')} onChange={(e) => update({ value: e.target.value })} />
+                      )}
+                      <button type="button" className="text-muted-foreground hover:text-destructive px-1" onClick={() => setParentFilter(parentFilter.filter((_, j) => j !== i))}>×</button>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           )}
         </div>

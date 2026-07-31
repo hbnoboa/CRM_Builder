@@ -138,9 +138,10 @@ export class ChatController {
     @Query('entitySlug') entitySlug: string,
     @Query('q') q: string,
     @Query('parentId') parentId: string | undefined,
+    @Query('filters') filters: string | undefined,
     @CurrentUser() user: CurrentUserType,
   ) {
-    return this.chatService.searchRecords(user, entitySlug, q || '', 8, parentId || undefined);
+    return this.chatService.searchRecords(user, entitySlug, q || '', 8, parentId || undefined, filters || undefined);
   }
 
   @Get('field-suggestions')

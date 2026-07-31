@@ -552,6 +552,7 @@ export class ChatService {
     q: string,
     limit = 8,
     scopeParentId?: string,
+    filters?: string,
   ) {
     // findAll já força canRead + scope + dataFilters do cargo → a busca SÓ retorna
     // o que o usuário pode ver. scopeParentId restringe aos filhos de um registro
@@ -560,6 +561,9 @@ export class ChatService {
     const query: Record<string, unknown> = scopeParentId
       ? { search: q, limit, parentRecordId: scopeParentId }
       : { search: q, limit, includeChildren: 'true' };
+    // filters (JSON GlobalFilter[]): filtro FIXO do comando (ex.: /avaria só busca
+    // veículos concluido=false). Vem do actionConfig.parentFilter via query param.
+    if (filters) query.filters = filters;
     const res = (await this.dataService.findAll(
       entitySlug,
       query as unknown as Record<string, unknown>,

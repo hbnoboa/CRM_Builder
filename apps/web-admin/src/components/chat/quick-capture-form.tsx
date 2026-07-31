@@ -63,12 +63,16 @@ export function QuickCaptureForm({ channelId, cmd, entity, parentEntity, scopePa
   onDone: () => void;
   onCancel: () => void;
 }) {
-  const cfg = (cmd.actionConfig || {}) as { quickFields?: string[]; parentEntitySlug?: string; parentSearchField?: string; parentFields?: string[]; heavyFields?: string[] };
+  const cfg = (cmd.actionConfig || {}) as { quickFields?: string[]; parentEntitySlug?: string; parentSearchField?: string; parentFields?: string[]; heavyFields?: string[]; parentFilter?: unknown[] };
   const quickFields = cfg.quickFields || [];
   const heavyFields = cfg.heavyFields || [];
   const parentSlug = cfg.parentEntitySlug;
   const parentSearchField = cfg.parentSearchField || 'chassi';
   const parentFields = cfg.parentFields || [];
+  // Filtro FIXO do comando na busca do pai (ex.: só veículos concluido=false).
+  const parentFilterParam = Array.isArray(cfg.parentFilter) && cfg.parentFilter.length > 0
+    ? `&filters=${encodeURIComponent(JSON.stringify(cfg.parentFilter))}`
+    : '';
 
   const [values, setValues] = useState<Record<string, unknown>>({});
   const [parentValues, setParentValues] = useState<Record<string, unknown>>({});
@@ -86,13 +90,13 @@ export function QuickCaptureForm({ channelId, cmd, entity, parentEntity, scopePa
     const t = setTimeout(async () => {
       try {
         const scope = scopeParentId ? `&parentId=${scopeParentId}` : '';
-        const r = await api.get(`/chat/search?entitySlug=${parentSlug}&q=${encodeURIComponent(parentQuery)}${scope}`);
+        const r = await api.get(`/chat/search?entitySlug=${parentSlug}&q=${encodeURIComponent(parentQuery)}${scope}${parentFilterParam}`);
         const rows = (r.data || []) as Array<{ id: string; data: Record<string, unknown> }>;
         setParentResults(rows.map((x) => ({ id: x.id, label: String(x.data?.[parentSearchField] ?? x.id) })));
       } catch { setParentResults([]); }
     }, 250);
     return () => clearTimeout(t);
-  }, [parentQuery, parentSlug, parent, parentSearchField, scopeParentId]);
+  }, [parentQuery, parentSlug, parent, parentSearchField, scopeParentId, parentFilterParam]);
 
   const fieldDef = (slug: string) => ((entity.fields || []) as FieldDef[]).find((f) => f.slug === slug);
   const parentFieldDef = (slug: string) => ((parentEntity?.fields || []) as FieldDef[]).find((f) => f.slug === slug);
