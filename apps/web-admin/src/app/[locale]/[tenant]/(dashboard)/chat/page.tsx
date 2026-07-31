@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Hash, Send, MessageSquare, User as UserIcon, Loader2, Slash, FileText, Settings2, ArrowLeft, Pencil, Check, X, Search, Plus, Trash2 } from 'lucide-react';
+import { Hash, Send, MessageSquare, User as UserIcon, Loader2, Slash, FileText, Settings2, ArrowLeft, Pencil, Check, X, Search, ChevronDown, Plus, Trash2 } from 'lucide-react';
 import { useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
 import api from '@/lib/api';
@@ -25,6 +25,18 @@ interface Message { id: string; senderId: string | null; type: string; content: 
 interface ChatCommand { slug: string; description?: string; targetEntitySlug?: string; actionType?: string; actionConfig?: Record<string, unknown> }
 type ThreadChannel = Channel & { recordId?: string | null; entity?: { slug: string; name: string } };
 type Active = { id: string; label: string; kind: 'group' | 'dm' | 'record'; entitySlug?: string; scopeRecordId?: string };
+
+const PAGE_SIZE = 80;
+/** Une duas listas de mensagens por id, em ordem cronológica (mantém histórico
+ *  já carregado ao paginar/atualizar via polling — não reinicia a lista). */
+function mergeMessages(a: Message[], b: Message[]): Message[] {
+  const map = new Map<string, Message>();
+  for (const m of a) map.set(m.id, m);
+  for (const m of b) map.set(m.id, m);
+  return Array.from(map.values()).sort(
+    (x, y) => new Date(x.createdAt).getTime() - new Date(y.createdAt).getTime(),
+  );
+}
 
 export default function ChatPage() {
   const user = useAuthStore((s) => s.user);
@@ -54,6 +66,16 @@ export default function ChatPage() {
   const [newChatOpen, setNewChatOpen] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const atBottomRef = useRef(true); // só rola sozinho pro fim quando o usuário já está no fim
+  const [atBottom, setAtBottom] = useState(true);
+  const [hasMore, setHasMore] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchQ, setSearchQ] = useState('');
+  const [searchResults, setSearchResults] = useState<Message[]>([]);
+  const [highlightId, setHighlightId] = useState<string | null>(null);
+  const lastMsgIdRef = useRef<string | null>(null);
 
   const canManageCommands = (() => {
     const mp = user?.customRole?.modulePermissions as Record<string, Record<string, unknown> | boolean> | undefined;
@@ -126,14 +148,44 @@ export default function ChatPage() {
   // Fecha modo renomear / runners de comando ao trocar de canal.
   useEffect(() => { setRenaming(false); setQueryCmd(null); setEditCmd(null); setConfirmDelete(false); }, [active?.id]);
 
-  const loadMessages = useCallback(async (channelId: string) => {
-    try { const res = await api.get(`/chat/channels/${channelId}/messages`); setMessages(res.data || []); } catch { /* ignore */ }
+  const loadMessages = useCallback(async (channelId: string, opts?: { replace?: boolean }) => {
+    try {
+      const res = await api.get(`/chat/channels/${channelId}/messages?limit=${PAGE_SIZE}`);
+      const fetched: Message[] = res.data || [];
+      if (opts?.replace) {
+        setMessages(fetched);
+        setHasMore(fetched.length >= PAGE_SIZE);
+      } else {
+        // polling: mescla (mantém histórico já carregado + adiciona novas)
+        setMessages((prev) => mergeMessages(prev, fetched));
+      }
+    } catch { /* ignore */ }
   }, []);
+
+  // Carrega mensagens ANTERIORES (paginação p/ trás), preservando a rolagem.
+  const loadOlder = useCallback(async () => {
+    if (!active || loadingMore || messages.length === 0) return;
+    setLoadingMore(true);
+    const el = scrollRef.current;
+    const prevHeight = el?.scrollHeight ?? 0;
+    const oldest = messages[0];
+    try {
+      const res = await api.get(`/chat/channels/${active.id}/messages?limit=${PAGE_SIZE}&before=${encodeURIComponent(oldest.createdAt)}`);
+      const older: Message[] = res.data || [];
+      setHasMore(older.length >= PAGE_SIZE);
+      if (older.length) {
+        setMessages((prev) => mergeMessages(older, prev));
+        // mantém o ponto de leitura: reposiciona pela diferença de altura
+        requestAnimationFrame(() => { const e2 = scrollRef.current; if (e2) e2.scrollTop = e2.scrollHeight - prevHeight; });
+      }
+    } catch { /* ignore */ } finally { setLoadingMore(false); }
+  }, [active, loadingMore, messages]);
 
   // Mensagens do canal ativo (polling; Socket.IO numa fatia futura).
   useEffect(() => {
     if (!active) return;
-    loadMessages(active.id);
+    atBottomRef.current = true; setAtBottom(true);
+    loadMessages(active.id, { replace: true });
     const t = setInterval(() => loadMessages(active.id), 4000);
     return () => clearInterval(t);
   }, [active, loadMessages]);
@@ -146,7 +198,65 @@ export default function ChatPage() {
     api.get(`/chat/commands?channelId=${active.id}`).then((r) => setCommands(r.data || [])).catch(() => setCommands([]));
   }, [active]);
 
-  useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
+  // Rola pro fim SÓ quando chega mensagem NOVA (não a cada poll) E o usuário já está
+  // no fim. Assim o polling não te puxa pra baixo enquanto você lê o histórico.
+  useEffect(() => {
+    const lastId = messages.length ? messages[messages.length - 1].id : null;
+    const isNew = lastId !== lastMsgIdRef.current;
+    lastMsgIdRef.current = lastId;
+    if (isNew && atBottomRef.current) endRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
+
+  const onMessagesScroll = () => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const near = el.scrollHeight - el.scrollTop - el.clientHeight < 120;
+    atBottomRef.current = near;
+    setAtBottom(near);
+  };
+
+  const jumpToBottom = () => {
+    if (!active) return;
+    atBottomRef.current = true; setAtBottom(true);
+    loadMessages(active.id, { replace: true });
+    requestAnimationFrame(() => endRef.current?.scrollIntoView({ behavior: 'smooth' }));
+  };
+
+  // Busca no histórico do canal (debounce).
+  useEffect(() => {
+    if (!searchOpen || !active || searchQ.trim().length < 1) { setSearchResults([]); return; }
+    const chId = active.id;
+    const t = setTimeout(async () => {
+      try { const res = await api.get(`/chat/channels/${chId}/messages/search?q=${encodeURIComponent(searchQ)}`); setSearchResults(res.data || []); }
+      catch { setSearchResults([]); }
+    }, 300);
+    return () => clearTimeout(t);
+  }, [searchQ, searchOpen, active]);
+
+  // Vai até uma mensagem encontrada: carrega contexto dos DOIS lados (antes e depois),
+  // deixando a mensagem no MEIO — senão ela vira o "fim" e o polling desliza pro final.
+  const jumpToMessage = useCallback(async (msg: Message) => {
+    if (!active) return;
+    const t = new Date(msg.createdAt).getTime();
+    const beforeIso = new Date(t + 1).toISOString(); // inclui a própria msg (topo da janela de cima)
+    const afterIso = new Date(t).toISOString();       // contexto ABAIXO da msg
+    try {
+      const [b, a] = await Promise.all([
+        api.get(`/chat/channels/${active.id}/messages?limit=40&before=${encodeURIComponent(beforeIso)}`),
+        api.get(`/chat/channels/${active.id}/messages?limit=25&after=${encodeURIComponent(afterIso)}`),
+      ]);
+      const windowMsgs = mergeMessages(b.data || [], a.data || []);
+      setMessages(windowMsgs);
+      setHasMore(true);
+      atBottomRef.current = false; setAtBottom(false);
+      // trava o auto-scroll: a última msg da janela não conta como "nova".
+      lastMsgIdRef.current = windowMsgs.length ? windowMsgs[windowMsgs.length - 1].id : null;
+      setSearchOpen(false); setSearchQ(''); setSearchResults([]);
+      setHighlightId(msg.id);
+      requestAnimationFrame(() => document.getElementById(`msg-${msg.id}`)?.scrollIntoView({ block: 'center' }));
+      setTimeout(() => setHighlightId((h) => (h === msg.id ? null : h)), 2500);
+    } catch { /* ignore */ }
+  }, [active]);
 
   async function openTable(e: EntityLite) {
     setOpening(true);
@@ -400,13 +510,19 @@ export default function ChatPage() {
               )}
               {opening && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />}
               {commands.length > 0 && (
-                <span className="text-[11px] text-muted-foreground flex items-center gap-1">
-                  <Slash className="h-3 w-3" /> {commands.map((c) => '/' + c.slug).join(' ')}
+                <span className="text-[11px] text-muted-foreground flex items-center gap-1 min-w-0 truncate">
+                  <Slash className="h-3 w-3 shrink-0" /> {commands.map((c) => '/' + c.slug).join(' ')}
                 </span>
               )}
+              <button
+                className={cn('ml-auto p-1.5 rounded hover:bg-accent shrink-0', searchOpen ? 'bg-accent text-foreground' : 'text-muted-foreground')}
+                title="Buscar mensagens" onClick={() => setSearchOpen((o) => !o)}
+              >
+                <Search className="h-4 w-4" />
+              </button>
               {active.kind === 'record' && canManageCommands && active.entitySlug && active.scopeRecordId && (
                 <Button
-                  variant="ghost" size="sm" className="ml-auto h-7 gap-1 text-xs"
+                  variant="ghost" size="sm" className="h-7 gap-1 text-xs shrink-0"
                   onClick={async () => {
                     try {
                       const meta = await api.get(`/chat/channels/record/${active.entitySlug}/${active.scopeRecordId}/meta`);
@@ -419,8 +535,44 @@ export default function ChatPage() {
               )}
             </header>
 
-            <div className="flex-1 overflow-y-auto p-4 space-y-3">
-              {messages.length === 0 && <p className="text-center text-xs text-muted-foreground py-8">Sem mensagens ainda. Diga olá 👋</p>}
+            {searchOpen && (
+              <div className="border-b bg-muted/30 px-3 py-2 space-y-2">
+                <div className="relative">
+                  <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+                  <Input autoFocus value={searchQ} onChange={(e) => setSearchQ(e.target.value)}
+                    placeholder="Buscar no histórico do chat…" className="pl-8 h-9 text-sm" />
+                  <button className="absolute right-2 top-2 text-muted-foreground hover:text-foreground"
+                    onClick={() => { setSearchOpen(false); setSearchQ(''); setSearchResults([]); }} aria-label="Fechar busca"><X className="h-4 w-4" /></button>
+                </div>
+                {searchQ.trim().length > 0 && (
+                  searchResults.length === 0 ? (
+                    <p className="px-1 py-1 text-xs text-muted-foreground">Nenhuma mensagem encontrada.</p>
+                  ) : (
+                    <div className="max-h-52 divide-y overflow-y-auto rounded-md border bg-background">
+                      {searchResults.map((r) => (
+                        <button key={r.id} onClick={() => jumpToMessage(r)} className="w-full px-2.5 py-1.5 text-left hover:bg-accent">
+                          <div className="truncate text-xs">{r.content || '(sem texto)'}</div>
+                          <div className="text-[10px] text-muted-foreground">
+                            {r.senderId === user?.id ? 'Você' : r.senderId === null ? 'Bot' : 'Outro'} · {new Date(r.createdAt).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  )
+                )}
+              </div>
+            )}
+
+            <div className="relative flex-1 min-h-0">
+              <div ref={scrollRef} onScroll={onMessagesScroll} className="absolute inset-0 overflow-y-auto p-4 space-y-3">
+                {hasMore && (
+                  <div className="flex justify-center pb-1">
+                    <Button variant="outline" size="sm" className="h-7 text-xs" onClick={loadOlder} disabled={loadingMore}>
+                      {loadingMore ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Carregar mensagens anteriores'}
+                    </Button>
+                  </div>
+                )}
+                {messages.length === 0 && <p className="text-center text-xs text-muted-foreground py-8">Sem mensagens ainda. Diga olá 👋</p>}
               {messages.map((m) => {
                 const mine = m.senderId === user?.id;
                 const isBot = m.senderId === null;
@@ -431,11 +583,13 @@ export default function ChatPage() {
                 const qCols = (m.meta?.columns || []) as Array<{ slug: string; label: string }>;
                 const qRows = (m.meta?.rows || []) as string[][];
                 return (
-                  <div key={m.id} className={cn('flex flex-col', isQuery ? 'w-full max-w-full' : 'max-w-[75%]', mine ? 'ml-auto items-end' : 'items-start')}>
+                  <div key={m.id} id={`msg-${m.id}`} className={cn('flex flex-col scroll-mt-4 rounded-lg transition-colors', isQuery ? 'w-full max-w-full' : 'max-w-[75%]', mine ? 'ml-auto items-end' : 'items-start', highlightId === m.id && 'bg-primary/5 ring-2 ring-primary/50')}>
                     {isCard ? (
                       <div className="rounded-lg border bg-muted/40 px-3 py-2 text-sm w-full">
-                        <div className="flex items-center gap-1.5 text-xs font-medium text-primary mb-1">
-                          <FileText className="h-3.5 w-3.5" /> {String(m.meta?.templateSlug ? '/' + m.meta.templateSlug : 'Registro')} · {String(m.meta?.entitySlug || '')}{m.meta?.edited ? ' · editado' : ''}
+                        <div className="flex flex-wrap items-center gap-1.5 text-xs font-medium text-primary mb-1">
+                          <FileText className="h-3.5 w-3.5" /> {String(m.meta?.templateSlug ? '/' + m.meta.templateSlug : 'Registro')}
+                          {m.meta?.label ? <span className="rounded bg-primary/15 px-1.5 py-0.5 text-primary">{String(m.meta.label)}</span> : null}
+                          <span className="text-muted-foreground">· {String(m.meta?.entitySlug || '')}{m.meta?.edited ? ' · editado' : ''}</span>
                         </div>
                         <div className="grid grid-cols-2 gap-x-3 gap-y-0.5">
                           {Object.entries(values).map(([k, v]) => (
@@ -496,7 +650,14 @@ export default function ChatPage() {
                   </div>
                 );
               })}
-              <div ref={endRef} />
+                <div ref={endRef} />
+              </div>
+              {!atBottom && (
+                <button onClick={jumpToBottom}
+                  className="absolute bottom-3 right-3 flex items-center gap-1 rounded-full border bg-background px-2.5 py-1 text-xs shadow-md hover:bg-accent">
+                  <ChevronDown className="h-3.5 w-3.5" /> Descer
+                </button>
+              )}
             </div>
 
             {editCmd ? (

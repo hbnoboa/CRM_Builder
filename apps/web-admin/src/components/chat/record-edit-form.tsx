@@ -21,9 +21,16 @@ export function RecordEditForm({ channelId, cmd, entity, scopeParentId, onDone, 
   onDone: () => void;
   onCancel: () => void;
 }) {
-  const cfg = (cmd.actionConfig || {}) as { searchField?: string; fields?: string[] };
+  const cfg = (cmd.actionConfig || {}) as { searchField?: string; fields?: string[]; searchFilter?: unknown[] };
+  // Filtro FIXO do comando na busca do registro (ex.: só concluído = Não).
+  const searchFilterParam = Array.isArray(cfg.searchFilter) && cfg.searchFilter.length > 0
+    ? `&filters=${encodeURIComponent(JSON.stringify(cfg.searchFilter))}`
+    : '';
   const allFields = (entity.fields || []) as FieldDef[];
-  const editFields = (cfg.fields?.length ? cfg.fields : allFields.map((f) => f.slug))
+  // fields indefinido = todos editáveis; fields = [] = nenhum (comando só confirma
+  // e aplica valores automáticos, ex.: /concluido, /inicio, /fim).
+  const editSlugs = cfg.fields === undefined ? allFields.map((f) => f.slug) : cfg.fields;
+  const editFields = editSlugs
     .map((s) => allFields.find((f) => f.slug === s))
     .filter(Boolean) as FieldDef[];
   const searchLabel = allFields.find((f) => f.slug === cfg.searchField)?.label || cfg.searchField || 'registro';
@@ -39,12 +46,12 @@ export function RecordEditForm({ channelId, cmd, entity, scopeParentId, onDone, 
     const t = setTimeout(async () => {
       try {
         const scope = scopeParentId ? `&parentId=${scopeParentId}` : '';
-        const r = await api.get(`/chat/search?entitySlug=${entity.slug}&q=${encodeURIComponent(query)}${scope}`);
+        const r = await api.get(`/chat/search?entitySlug=${entity.slug}&q=${encodeURIComponent(query)}${scope}${searchFilterParam}`);
         setResults(r.data || []);
       } catch { setResults([]); }
     }, 250);
     return () => clearTimeout(t);
-  }, [query, picked, entity.slug, scopeParentId]);
+  }, [query, picked, entity.slug, scopeParentId, searchFilterParam]);
 
   const pick = (r: { id: string; data: Record<string, unknown> }) => {
     setPicked(r);
@@ -98,7 +105,10 @@ export function RecordEditForm({ channelId, cmd, entity, scopeParentId, onDone, 
         </div>
       ) : (
         <div className="space-y-2.5">
-          <div className="text-xs text-muted-foreground">Editando: <span className="font-medium text-foreground">{labelOf(picked)}</span></div>
+          <div className="text-xs text-muted-foreground">{editFields.length === 0 ? 'Confirmar' : 'Editando'}: <span className="font-medium text-foreground">{labelOf(picked)}</span></div>
+          {editFields.length === 0 && (
+            <p className="text-[11px] text-muted-foreground">Este comando só confirma o registro e aplica os valores automáticos.</p>
+          )}
           {editFields.map((f) => {
             const type = f.type || 'text';
             const label = f.label || f.name || f.slug;
