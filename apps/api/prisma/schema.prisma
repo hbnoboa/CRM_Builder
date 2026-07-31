@@ -1137,6 +1137,7 @@ model Channel {
   createdById String
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+  deletedAt   DateTime? // soft-delete: canal excluído (preserva histórico de mensagens)
 
   members  ChannelMember[]
   messages Message[]

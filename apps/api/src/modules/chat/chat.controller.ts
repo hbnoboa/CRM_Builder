@@ -78,6 +78,15 @@ export class ChatController {
     return this.chatService.renameChannel(user, id, body?.name || '');
   }
 
+  @Delete('channels/:id')
+  @ApiOperation({ summary: 'Exclui um canal (criador do canal ou quem gerencia o chat)' })
+  async deleteChannel(
+    @Param('id') id: string,
+    @CurrentUser() user: CurrentUserType,
+  ) {
+    return this.chatService.deleteChannel(user, id);
+  }
+
   @Put('channels/:id/commands')
   @ApiOperation({ summary: 'Define quais comandos aparecem neste chat' })
   async setChannelCommands(

@@ -1,8 +1,9 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Hash, Send, MessageSquare, User as UserIcon, Loader2, Slash, FileText, Settings2, ArrowLeft, Pencil, Check, X, Search } from 'lucide-react';
+import { Hash, Send, MessageSquare, User as UserIcon, Loader2, Slash, FileText, Settings2, ArrowLeft, Pencil, Check, X, Search, Plus, Trash2 } from 'lucide-react';
 import { useSearchParams } from 'next/navigation';
+import { toast } from 'sonner';
 import api from '@/lib/api';
 import { useAuthStore } from '@/stores/auth-store';
 import { useTenant } from '@/stores/tenant-context';
@@ -15,6 +16,7 @@ import { QueryRunner, triggerDownload, resolveFileUrl } from '@/components/chat/
 import { RecordEditForm } from '@/components/chat/record-edit-form';
 import { CommandManager } from '@/components/chat/command-manager';
 import { CommandPickerDialog } from '@/components/chat/command-picker-dialog';
+import { NewChatDialog } from '@/components/chat/new-chat-dialog';
 import type { Entity } from '@/types';
 
 interface EntityLite { id: string; slug: string; name: string; fields?: unknown[] }
@@ -49,6 +51,8 @@ export default function ChatPage() {
   const [pickerFor, setPickerFor] = useState<{ entitySlug: string; recordId: string } | null>(null);
   const [managePicker, setManagePicker] = useState<{ channelId: string; initial: string[] } | null>(null);
   const [roles, setRoles] = useState<Array<{ id: string; name: string }>>([]);
+  const [newChatOpen, setNewChatOpen] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);
 
   const canManageCommands = (() => {
@@ -120,7 +124,7 @@ export default function ChatPage() {
   }, [canManageCommands]);
 
   // Fecha modo renomear / runners de comando ao trocar de canal.
-  useEffect(() => { setRenaming(false); setQueryCmd(null); setEditCmd(null); }, [active?.id]);
+  useEffect(() => { setRenaming(false); setQueryCmd(null); setEditCmd(null); setConfirmDelete(false); }, [active?.id]);
 
   const loadMessages = useCallback(async (channelId: string) => {
     try { const res = await api.get(`/chat/channels/${channelId}/messages`); setMessages(res.data || []); } catch { /* ignore */ }
@@ -270,10 +274,31 @@ export default function ChatPage() {
     setRenaming(false);
   }
 
+  async function submitDelete() {
+    if (!active) return;
+    const id = active.id;
+    try {
+      await api.delete(`/chat/channels/${id}`);
+      setConfirmDelete(false);
+      setActive(null);
+      setThreads((p) => p.filter((c) => c.id !== id));
+      setDms((p) => p.filter((c) => c.id !== id));
+      setGroups((p) => p.filter((c) => c.id !== id));
+      await reloadChannels();
+      toast.success('Chat excluído.');
+    } catch (e) {
+      const msg = (e as { response?: { data?: { message?: string } } })?.response?.data?.message;
+      toast.error(msg || 'Erro ao excluir o chat.');
+    }
+  }
+
   return (
     <div className="flex h-[calc(100vh-7rem)] gap-4">
       <aside className={cn('shrink-0 border rounded-lg overflow-y-auto bg-card', active ? 'hidden md:block md:w-64' : 'w-full md:w-64')}>
         <div className="p-3">
+          <Button size="sm" className="w-full mb-2 justify-start gap-2" onClick={() => setNewChatOpen(true)}>
+            <Plus className="h-4 w-4" /> Novo chat
+          </Button>
           {canManageCommands && (
             <Button variant="outline" size="sm" className="w-full mb-3 justify-start gap-2" onClick={() => setShowCmdManager(true)}>
               <Settings2 className="h-4 w-4" /> Comandos do bot
@@ -353,12 +378,24 @@ export default function ChatPage() {
               ) : (
                 <>
                   <span className="font-medium text-sm">{active.label}</span>
-                  {canRenameActive && (
+                  {canRenameActive && !confirmDelete && (
                     <button className="p-1 rounded hover:bg-accent text-muted-foreground" title="Renomear"
                       onClick={() => { setRenameDraft(active.label); setRenaming(true); }}>
                       <Pencil className="h-3.5 w-3.5" />
                     </button>
                   )}
+                  {canRenameActive && (confirmDelete ? (
+                    <span className="flex items-center gap-1 text-xs">
+                      <span className="text-muted-foreground">Excluir chat?</span>
+                      <button className="p-1 rounded hover:bg-destructive/10 text-destructive" onClick={submitDelete} title="Confirmar exclusão"><Check className="h-3.5 w-3.5" /></button>
+                      <button className="p-1 rounded hover:bg-accent" onClick={() => setConfirmDelete(false)} title="Cancelar"><X className="h-3.5 w-3.5" /></button>
+                    </span>
+                  ) : (
+                    <button className="p-1 rounded hover:bg-accent text-muted-foreground hover:text-destructive" title="Excluir chat"
+                      onClick={() => setConfirmDelete(true)}>
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  ))}
                 </>
               )}
               {opening && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />}
@@ -557,6 +594,15 @@ export default function ChatPage() {
             setPickerFor(null);
             if (p) await openThread(p.entitySlug, p.recordId, ids);
           }}
+        />
+      )}
+
+      {/* Novo chat de registro: escolhe tabela + registro e abre o chat dele */}
+      {newChatOpen && (
+        <NewChatDialog
+          entities={tables}
+          onClose={() => setNewChatOpen(false)}
+          onPick={(slug, recordId) => { setNewChatOpen(false); openThread(slug, recordId); }}
         />
       )}
 
