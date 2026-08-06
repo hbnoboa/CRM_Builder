@@ -69,6 +69,8 @@ jobs:
           node-version: '20'
           cache: 'pnpm'
       - run: pnpm install --frozen-lockfile
+      # Builda o pacote compartilhado (a API resolve @crm-builder/shared via dist/).
+      - run: pnpm --filter @crm-builder/shared build
       # Gera o Prisma Client (senão o tsc não acha @prisma/client — PrismaClient/Prisma).
       - run: cd apps/api && pnpm prisma generate
       - name: Type check API (bloqueia o deploy)
