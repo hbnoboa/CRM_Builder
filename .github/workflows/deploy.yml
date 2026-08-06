@@ -69,6 +69,8 @@ jobs:
           node-version: '20'
           cache: 'pnpm'
       - run: pnpm install --frozen-lockfile
+      # Gera o Prisma Client (senão o tsc não acha @prisma/client — PrismaClient/Prisma).
+      - run: cd apps/api && pnpm prisma generate
       - name: Type check API (bloqueia o deploy)
         run: cd apps/api && pnpm exec tsc --noEmit
       - name: Lint (informativo — dívida pré-existente)
