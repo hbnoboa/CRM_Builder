@@ -34,9 +34,11 @@ export function NewChatDialog({ entities, onPick, onClose }: {
   const [hits, setHits] = useState<RecordHit[]>([]);
   const [loading, setLoading] = useState(false);
 
+  // Carrega os registros RECENTES ao abrir/trocar de tabela (q vazio) e filtra ao digitar
+  // — assim dá pra navegar sem precisar digitar. Leve: o backend limita a poucos.
   useEffect(() => {
+    if (!entitySlug) { setHits([]); return; }
     const term = q.trim();
-    if (!entitySlug || term.length < 1) { setHits([]); setLoading(false); return; }
     const ctrl = new AbortController();
     setLoading(true);
     const t = setTimeout(async () => {
@@ -44,9 +46,11 @@ export function NewChatDialog({ entities, onPick, onClose }: {
         const r = await api.get(`/chat/search?entitySlug=${entitySlug}&q=${encodeURIComponent(term)}`, { signal: ctrl.signal });
         setHits((r.data || []) as RecordHit[]);
       } catch { /* abortado ou erro: ignora */ } finally { setLoading(false); }
-    }, 250);
+    }, term ? 250 : 0);
     return () => { clearTimeout(t); ctrl.abort(); };
   }, [q, entitySlug]);
+
+  const entityName = entities.find((e) => e.slug === entitySlug)?.name || 'registro';
 
   return (
     <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
@@ -65,13 +69,16 @@ export function NewChatDialog({ entities, onPick, onClose }: {
           </select>
           <div className="relative">
             <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar registro…" className="pl-8" />
+            <Input autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder={`Buscar em ${entityName}…`} className="pl-8" />
             {loading && <Loader2 className="absolute right-2 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-muted-foreground" />}
           </div>
+          {!q.trim() && hits.length > 0 && (
+            <p className="px-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Recentes</p>
+          )}
           <div className="max-h-64 overflow-y-auto border rounded-md divide-y">
             {hits.length === 0 ? (
               <p className="text-xs text-muted-foreground px-3 py-4 text-center">
-                {q.trim() ? 'Nenhum registro encontrado.' : 'Digite para buscar um registro.'}
+                {loading ? 'Carregando…' : q.trim() ? 'Nenhum registro encontrado.' : 'Nenhum registro nesta tabela.'}
               </p>
             ) : hits.map((h) => {
               const label = recordLabel(h.data);
