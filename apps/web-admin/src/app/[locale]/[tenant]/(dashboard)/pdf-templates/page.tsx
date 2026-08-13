@@ -635,7 +635,7 @@ function PdfTemplatesPageContent() {
                     </Link>
                   )}
                   {template.isPublished &&
-                    hasModulePermission('pdfTemplates', 'canGenerate') && (
+                    hasModulePermission('pdfTemplates', 'canGenerate' as 'canRead') && (
                       <Button
                         variant="default"
                         size="sm"

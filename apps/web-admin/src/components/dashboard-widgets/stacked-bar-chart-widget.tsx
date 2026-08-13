@@ -132,7 +132,7 @@ export function StackedBarChartWidget({ entitySlug, config, title, isEditMode }:
           layout={isHorizontal ? 'vertical' : 'horizontal'}
           onClick={(state) => {
             if (state?.activeLabel && rowField) {
-              toggleCrossFilter(rowField, state.activeLabel);
+              toggleCrossFilter(rowField, String(state.activeLabel));
             }
           }}
         >
@@ -152,7 +152,7 @@ export function StackedBarChartWidget({ entitySlug, config, title, isEditMode }:
             contentStyle={TOOLTIP_STYLE}
             labelStyle={TOOLTIP_LABEL_STYLE}
             itemStyle={TOOLTIP_ITEM_STYLE}
-            formatter={(v: number) => [(v ?? 0).toLocaleString('pt-BR')]}
+            formatter={((v: number) => [(v ?? 0).toLocaleString('pt-BR')]) as never}
           />
           {config.showLegend !== false && <Legend wrapperStyle={LEGEND_STYLE} />}
           {segments.map((seg, idx) => (

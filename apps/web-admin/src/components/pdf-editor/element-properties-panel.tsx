@@ -137,8 +137,9 @@ function BodyElementEditor({
   const handleElementChange = (updates: Partial<PdfElement>) => {
     onChange({
       ...content,
+      // Cast: o spread com Partial<PdfElement> quebra a uniao discriminada
       body: content.body.map((el) =>
-        el.id === element.id ? { ...el, ...updates } : el,
+        el.id === element.id ? ({ ...el, ...updates } as PdfElement) : el,
       ),
     });
   };

@@ -190,7 +190,7 @@ export function ExecutionHistoryDialog({
                                     {result.error && (
                                       <p className="text-destructive text-xs mt-1">{result.error}</p>
                                     )}
-                                    {result.output && (
+                                    {Boolean(result.output) && (
                                       <details className="mt-1">
                                         <summary className="text-xs text-muted-foreground cursor-pointer hover:text-foreground">
                                           Ver saida

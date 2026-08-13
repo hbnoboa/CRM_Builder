@@ -120,6 +120,7 @@ export function UserFormDialog({ open, onOpenChange, user, onSuccess }: UserForm
         }
         await updateUser.mutateAsync({ id: user.id, data: updateData });
       } else {
+        // Cast local: customRoleId/cpf/cnpj/phone sao aceitos pela API mas nao estao na interface CreateUserData
         await createUser.mutateAsync({
           name: data.name,
           email: data.email,
@@ -128,7 +129,7 @@ export function UserFormDialog({ open, onOpenChange, user, onSuccess }: UserForm
           cpf: data.cpf ? unmask(data.cpf) : undefined,
           cnpj: data.cnpj ? unmask(data.cnpj) : undefined,
           phone: data.phone ? unmask(data.phone) : undefined,
-        });
+        } as Parameters<typeof createUser.mutateAsync>[0]);
       }
       onOpenChange(false);
       onSuccess?.();

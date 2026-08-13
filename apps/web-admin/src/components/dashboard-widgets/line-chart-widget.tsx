@@ -137,10 +137,10 @@ export function LineChartWidget({ entitySlug, config, title, isEditMode }: LineC
               if (isGroupedMode) return v as string;
               try { return format(parseISO(v as string), 'dd MMM yyyy', { locale: ptBR }); } catch { return v as string; }
             }}
-            formatter={(v: number) => [
+            formatter={((v: number) => [
               isGroupedMode ? `${(v ?? 0).toLocaleString('pt-BR', { maximumFractionDigits: 1 })}%` : (v ?? 0).toLocaleString('pt-BR'),
               title || '',
-            ]}
+            ]) as never}
           />
           <Line
             type="monotone"

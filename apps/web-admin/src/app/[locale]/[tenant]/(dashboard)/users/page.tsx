@@ -177,7 +177,8 @@ function UsersPageContent() {
         <Card>
           <CardContent className="p-3 sm:p-4">
             <div className="text-xl sm:text-2xl font-bold text-yellow-600">
-              {users.filter((u) => u.status === 'PENDING').length}
+              {/* Cast local: 'PENDING' pode chegar da API mas nao esta na uniao Status. Somente tipagem. */}
+              {users.filter((u) => (u.status as string) === 'PENDING').length}
             </div>
             <p className="text-xs sm:text-sm text-muted-foreground">{t('stats.pending')}</p>
           </CardContent>

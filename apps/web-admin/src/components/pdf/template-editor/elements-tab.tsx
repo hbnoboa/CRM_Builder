@@ -199,7 +199,7 @@ export function ElementsTab({
   const handleAddElement = (type: string) => {
     const newElement = createDefaultElement(type);
     onChange([...elements, newElement]);
-    setExpandedElements((prev) => new Set([...prev, newElement.id]));
+    setExpandedElements((prev) => new Set([...Array.from(prev), newElement.id]));
   };
 
   const handleRemoveElement = (id: string) => {
@@ -213,7 +213,8 @@ export function ElementsTab({
 
   const handleUpdateElement = (id: string, updates: Partial<PdfElement>) => {
     onChange(
-      elements.map((el) => (el.id === id ? { ...el, ...updates } : el))
+      // Cast: o spread com Partial<PdfElement> quebra a uniao discriminada
+      elements.map((el) => (el.id === id ? ({ ...el, ...updates } as PdfElement) : el))
     );
   };
 

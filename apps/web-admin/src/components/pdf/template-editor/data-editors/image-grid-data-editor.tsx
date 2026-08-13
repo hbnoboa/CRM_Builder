@@ -31,7 +31,10 @@ export function ImageGridDataEditor({
   availableFields,
   subEntities,
 }: ImageGridDataEditorProps) {
-  const selectedSubEntity = element.dataSource && subEntities?.[element.dataSource];
+  // Narrowing: quando dataSource e "" o && retorna string vazia; forcamos undefined
+  const selectedSubEntity = element.dataSource
+    ? subEntities?.[element.dataSource]
+    : undefined;
   const subEntityImageFields = selectedSubEntity?.fields?.filter(
     (f) => f.type === 'image'
   ) || [];

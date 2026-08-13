@@ -81,6 +81,15 @@ export interface ModulePermissions {
   actionChains?: ModulePermission;
   emailTemplates?: ModulePermission;
   notifications?: ModulePermission;
+  // Chaves agrupadas usadas pela sidebar (agregam sub-modulos):
+  // automations = webhooks + actionChains + entityAutomation
+  // templates   = pdfTemplates + emailTemplates + dashboardTemplates
+  // logs        = auditLogs + executionLogs
+  automations?: ModulePermission;
+  templates?: ModulePermission;
+  logs?: ModulePermission;
+  publicLinks?: ModulePermission;
+  archive?: ModulePermission;
 }
 
 export interface CustomRole {

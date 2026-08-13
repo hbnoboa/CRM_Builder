@@ -106,10 +106,10 @@ export function ScatterChartWidget({ entitySlug, config, title, isEditMode }: Sc
           <ZAxis type="number" dataKey="z" range={[40, 400]} name="Quantidade" />
           <Tooltip
             contentStyle={TOOLTIP_STYLE}
-            formatter={(value: number, name: string) => {
+            formatter={((value: number, name: string) => {
               if (name === 'Quantidade') return [value.toLocaleString('pt-BR'), name];
               return [value, name];
-            }}
+            }) as never}
             labelFormatter={() => ''}
             content={({ payload }) => {
               if (!payload || payload.length === 0) return null;

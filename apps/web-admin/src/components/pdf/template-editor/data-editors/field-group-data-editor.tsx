@@ -368,7 +368,7 @@ export function FieldGroupDataEditor({
                 {formatOptions.length > 0 && (
                   <Select
                     value={field.format || '_none'}
-                    onValueChange={(value) => handleFieldChange(index, { format: value === '_none' ? undefined : value })}
+                    onValueChange={(value) => handleFieldChange(index, { format: value === '_none' ? undefined : (value as NonNullable<FieldGroupElement['fields'][0]['format']>) })}
                   >
                     <SelectTrigger className="flex-1 min-w-0">
                       <SelectValue placeholder="Formato" />

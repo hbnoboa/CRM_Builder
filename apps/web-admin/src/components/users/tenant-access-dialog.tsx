@@ -116,8 +116,8 @@ export function TenantAccessDialog({ open, onOpenChange, user }: TenantAccessDia
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
                   <span className="text-sm font-medium truncate">
-                    {(user as Record<string, unknown>).tenant
-                      ? ((user as Record<string, unknown>).tenant as { name: string }).name
+                    {(user as unknown as Record<string, unknown>).tenant
+                      ? ((user as unknown as Record<string, unknown>).tenant as { name: string }).name
                       : 'Home Tenant'}
                   </span>
                   <Badge variant="outline" className="text-[10px]">

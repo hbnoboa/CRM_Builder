@@ -197,7 +197,7 @@ function KanbanBoardContent({ entitySlug, title, config, entityFields }: KanbanB
       return { columns: [], gridLayout: [], cardColumnMap: new Map() };
     }
 
-    const records = data.slice(0, config.limit || 100) as KanbanCard[];
+    const records = data.slice(0, config.limit || 100) as unknown as KanbanCard[];
 
     // Criar mapa de registros por valor
     const recordsByValue = new Map<string, KanbanCard[]>();
@@ -493,8 +493,8 @@ function KanbanBoardContent({ entitySlug, title, config, entityFields }: KanbanB
             compactType="vertical"
             containerPadding={[0, 0]}
             preventCollision={false}
-            onDrag={handleDrag}
-            onLayoutChange={handleLayoutChange}
+            onDrag={handleDrag as never}
+            onLayoutChange={handleLayoutChange as never}
           >
             {columns.flatMap((column) =>
               column.cards.map((card) => (

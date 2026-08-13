@@ -129,7 +129,7 @@ function renderWidget(
       const childSlug = (widgetConfig.config as { subEntitySlug?: string }).subEntitySlug || effectiveSlug;
       return (
         <WidgetProvider entitySlug={childSlug} widgetId={widgetId}>
-          <SubEntityListWidget config={widgetConfig.config} />
+          <SubEntityListWidget config={widgetConfig.config as never} />
         </WidgetProvider>
       );
     }
@@ -137,12 +137,12 @@ function renderWidget(
       const childSlug = (widgetConfig.config as { subEntitySlug?: string }).subEntitySlug || effectiveSlug;
       return (
         <WidgetProvider entitySlug={childSlug} widgetId={widgetId}>
-          <SubEntityTimelineWidget config={widgetConfig.config} />
+          <SubEntityTimelineWidget config={widgetConfig.config as never} />
         </WidgetProvider>
       );
     }
     case 'kanban-board':
-      return <KanbanBoardWidget {...commonProps} entityFields={effectiveFields} />;
+      return <KanbanBoardWidget {...commonProps} config={commonProps.config as never} entityFields={effectiveFields} />;
     default:
       return (
         <WidgetWrapper title={widgetConfig.title}>

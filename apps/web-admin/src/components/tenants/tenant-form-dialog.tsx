@@ -216,6 +216,7 @@ export function TenantFormDialog({ open, onOpenChange, tenant, onSuccess }: Tena
 
         await updateTenant.mutateAsync({
           id: tenant.id,
+          // Cast local: logo pode ser '' (remocao) e nao apenas string, alem de settings.theme opcional
           data: {
             name: data.name,
             ...(logoUrl !== undefined ? { logo: logoUrl } : {}),
@@ -223,7 +224,7 @@ export function TenantFormDialog({ open, onOpenChange, tenant, onSuccess }: Tena
               ...existingSettings,
               theme: themeSettings,
             },
-          },
+          } as Parameters<typeof updateTenant.mutateAsync>[0]['data'],
         });
       } else {
         const createData = data as CreateTenantFormData;

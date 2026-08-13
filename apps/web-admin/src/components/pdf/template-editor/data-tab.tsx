@@ -84,7 +84,7 @@ function slugify(text: string): string {
     .replace(/^_|_$/g, '');
 }
 
-function createDefaultConfig(type: ComputedFieldType): ArithmeticConfig | ConditionalConfig | FilteredCountConfig | ConcatConfig {
+function createDefaultConfig(type: ComputedFieldType): ArithmeticConfig | ConditionalConfig | FilteredCountConfig | ConcatConfig | MapConfig | SubEntityAggregateConfig {
   switch (type) {
     case 'arithmetic':
       return {
@@ -167,7 +167,7 @@ export function DataTab({
       config: createDefaultConfig(type),
     };
     onChange([...computedFields, newField]);
-    setExpandedFields((prev) => new Set([...prev, newField.id]));
+    setExpandedFields((prev) => new Set([...Array.from(prev), newField.id]));
   };
 
   const handleRemove = (id: string) => {

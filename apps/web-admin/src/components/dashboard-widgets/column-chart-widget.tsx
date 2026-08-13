@@ -60,7 +60,7 @@ export function ColumnChartWidget({ entitySlug, config, title, isEditMode }: Col
             contentStyle={TOOLTIP_STYLE}
             labelStyle={TOOLTIP_LABEL_STYLE}
             itemStyle={TOOLTIP_ITEM_STYLE}
-            formatter={(v: number) => [(v ?? 0).toLocaleString('pt-BR'), title || '']}
+            formatter={((v: number) => [(v ?? 0).toLocaleString('pt-BR'), title || '']) as never}
           />
           <Bar
             dataKey="count"
@@ -69,7 +69,7 @@ export function ColumnChartWidget({ entitySlug, config, title, isEditMode }: Col
               const entry = (data || [])[idx];
               if (entry) handleClick(entry);
             }}
-            label={config.showRatio && total > 0 ? {
+            label={config.showRatio && total > 0 ? ({
               position: 'top' as const,
               fontSize: 9,
               fill: 'hsl(var(--muted-foreground))',
@@ -77,7 +77,7 @@ export function ColumnChartWidget({ entitySlug, config, title, isEditMode }: Col
                 const pct = ((v / total) * 100).toFixed(0);
                 return `${v}/${total} (${pct}%)`;
               },
-            } : false}
+            } as never) : false}
           >
             {(data || []).map((entry, idx) => (
               <Cell
