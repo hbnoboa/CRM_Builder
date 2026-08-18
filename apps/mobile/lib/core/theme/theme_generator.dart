@@ -110,11 +110,11 @@ Color hslToColor(double h, double s, double l) {
 }
 
 double _luminance(Color c) {
-  double channel(int v) {
-    final s = v / 255;
+  // c.r/.g/.b sao componentes normalizados (0..1) na API atual do Color.
+  double channel(double s) {
     return s <= 0.03928 ? s / 12.92 : math.pow((s + 0.055) / 1.055, 2.4).toDouble();
   }
-  return 0.2126 * channel(c.red) + 0.7152 * channel(c.green) + 0.0722 * channel(c.blue);
+  return 0.2126 * channel(c.r) + 0.7152 * channel(c.g) + 0.0722 * channel(c.b);
 }
 
 double _contrastRatio(HSL a, HSL b) {
