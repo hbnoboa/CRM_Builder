@@ -257,7 +257,7 @@ class Auth extends _$Auth {
             final response = await dio.post('/auth/login', data: {
               'email': cachedEmail,
               'password': cachedPassword,
-            });
+            },);
             final data = response.data as Map<String, dynamic>;
             final freshUser = User.fromJson(data['user'] as Map<String, dynamic>);
             final accessToken = data['accessToken'] as String;
@@ -801,7 +801,7 @@ class Auth extends _$Auth {
           baseUrl: Env.apiUrl,
           connectTimeout: const Duration(seconds: 5),
           receiveTimeout: const Duration(seconds: 5),
-        ));
+        ),);
         final token = await SecureStorage.getAccessToken();
         if (token != null) {
           dio.options.headers['Authorization'] = 'Bearer $token';

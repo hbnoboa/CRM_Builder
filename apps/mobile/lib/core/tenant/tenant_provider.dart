@@ -1,5 +1,4 @@
 import 'package:flutter/foundation.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:crm_mobile/core/auth/auth_provider.dart';
 import 'package:crm_mobile/core/auth/secure_storage.dart';
@@ -174,7 +173,7 @@ class TenantSwitch extends _$TenantSwitch {
       final dio = ref.read(apiClientProvider);
       final response = await dio.get('/tenants', queryParameters: {
         'limit': 100,
-      });
+      },);
 
       final data = response.data as Map<String, dynamic>;
       final items = (data['data'] as List<dynamic>?) ?? [];
@@ -288,7 +287,7 @@ class TenantSwitch extends _$TenantSwitch {
       final dio = ref.read(apiClientProvider);
       final response = await dio.post('/auth/switch-tenant', data: {
         'tenantId': tenantId,
-      });
+      },);
 
       final data = response.data as Map<String, dynamic>;
       final user = User.fromJson(data['user'] as Map<String, dynamic>);

@@ -225,7 +225,7 @@ class _DataListPageState extends ConsumerState<DataListPage> {
 
                     if (records.isEmpty) {
                       final canCreate = perms.hasEntityPermission(
-                        widget.entitySlug, 'canCreate');
+                        widget.entitySlug, 'canCreate',);
                       final showCreateButton = canCreate &&
                           _search.isEmpty;
 
@@ -282,7 +282,7 @@ class _DataListPageState extends ConsumerState<DataListPage> {
                                         const SizedBox(height: 24),
                                         ElevatedButton.icon(
                                           onPressed: () => context.push(
-                                            '/data/${widget.entitySlug}/new'),
+                                            '/data/${widget.entitySlug}/new',),
                                           icon: const Icon(Icons.add),
                                           label: const Text('Criar Primeiro'),
                                           style: ElevatedButton.styleFrom(
@@ -342,7 +342,7 @@ class _DataListPageState extends ConsumerState<DataListPage> {
                           child: RefreshIndicator(
                       onRefresh: () async {
                         setState(
-                            () => _limit = AppConstants.defaultPageSize);
+                            () => _limit = AppConstants.defaultPageSize,);
                         await Future.delayed(
                           const Duration(milliseconds: 500),
                         );
@@ -426,7 +426,7 @@ class _DataListPageState extends ConsumerState<DataListPage> {
                                     BorderRadius.circular(AppColors.radius),
                               ),
                               child: const Icon(Icons.delete_outlined,
-                                  color: Colors.white),
+                                  color: Colors.white,),
                             ),
                             child: card,
                           );
