@@ -3,7 +3,7 @@
 import { useState, useMemo } from 'react';
 import { useTranslations } from 'next-intl';
 import { Link, useRouter } from '@/i18n/navigation';
-import { useForm } from 'react-hook-form';
+import { useForm, type Resolver } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Eye, EyeOff, Loader2 } from 'lucide-react';
@@ -39,7 +39,9 @@ export default function LoginPage() {
     handleSubmit,
     formState: { errors },
   } = useForm<LoginForm>({
-    resolver: zodResolver(loginSchema),
+    // Cast local: o schema tem rememberMe com default, deixando o input opcional,
+    // o que diverge do tipo LoginForm (rememberMe obrigatorio). Somente tipagem.
+    resolver: zodResolver(loginSchema) as unknown as Resolver<LoginForm>,
     defaultValues: {
       rememberMe: false,
     },

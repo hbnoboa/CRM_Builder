@@ -136,6 +136,8 @@ api.interceptors.response.use(
         onRefreshFailed(refreshError);
 
         // Clear tokens and redirect appropriately
+        // isPublic recalculado aqui pois o do bloco try esta fora de escopo no catch
+        const isPublic = isPublicContext();
         if (isPublic) {
           localStorage.removeItem('publicAccessToken');
           localStorage.removeItem('publicRefreshToken');

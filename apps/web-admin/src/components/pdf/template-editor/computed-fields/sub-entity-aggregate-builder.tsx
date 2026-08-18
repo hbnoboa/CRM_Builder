@@ -54,7 +54,10 @@ export function SubEntityAggregateBuilder({
     (f) => f.type === 'sub-entity' || f.type === 'relation' || f.type === 'array',
   );
 
-  const selectedSubEntity = config.subEntityField && subEntities?.[config.subEntityField];
+  // Narrowing: quando subEntityField e "" o && retorna string vazia; forcamos undefined
+  const selectedSubEntity = config.subEntityField
+    ? subEntities?.[config.subEntityField]
+    : undefined;
   const subFields = selectedSubEntity?.fields || [];
 
   const aggregationInfo = AGGREGATIONS.find((a) => a.value === config.aggregation);

@@ -78,7 +78,7 @@ export function HeaderRowEditor({ rows, onChange, availableFields = [] }: Header
       verticalAlign: 'center',
     };
     onChange([...rows, newRow]);
-    setExpandedRows((prev) => new Set([...prev, newRow.id]));
+    setExpandedRows((prev) => new Set([...Array.from(prev), newRow.id]));
   };
 
   const handleRemoveRow = (rowId: string) => {

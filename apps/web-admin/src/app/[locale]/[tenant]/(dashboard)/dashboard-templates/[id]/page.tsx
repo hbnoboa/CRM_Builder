@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
+import { useState, useCallback, useMemo, useEffect, useRef, type ComponentProps } from 'react';
 import { useParams } from 'next/navigation';
 import { Responsive, WidthProvider } from 'react-grid-layout/legacy';
 import { RequireRole } from '@/components/auth/require-role';
@@ -730,7 +730,9 @@ function PropertiesPanel({
             <Label className="text-xs">Fonte de dados</Label>
             <Select
               value={config.config.dataSource || 'records-over-time'}
-              onValueChange={(v) => {
+              onValueChange={(rawV) => {
+                // Cast local: o Select devolve string; dataSource e uma uniao restrita. Somente tipagem.
+                const v = rawV as NonNullable<typeof config.config.dataSource>;
                 if (v === 'grouped-ratio') {
                   onUpdate({ ...config, config: { ...config.config, dataSource: v, groupByFields: config.config.groupByFields || [] } });
                 } else {
@@ -891,7 +893,8 @@ function PropertiesPanel({
       );
     }
 
-    if (config.type === 'pie-chart' || config.type === 'donut-chart') {
+    // Cast local: 'pie-chart'/'donut-chart' nao estao na uniao atual de WidgetType, mas o runtime pode receber. Somente tipagem.
+    if ((config.type as string) === 'pie-chart' || (config.type as string) === 'donut-chart') {
       return (
         <>
           <div className="space-y-1.5">
@@ -1162,8 +1165,8 @@ function PropertiesPanel({
           </div>
           {isGroupedStacked ? (
             <>
-              <GroupByFieldsConfig entityFields={effectiveFields} selected={config.config.groupByFields || []} onChange={(f) => updateField('groupByFields', f)} />
-              <AggregationsConfig aggregations={config.config.aggregations || []} entityFields={effectiveFields} onChange={(a) => updateField('aggregations', a)} />
+              <GroupByFieldsConfig entityFields={entityFields} selected={config.config.groupByFields || []} onChange={(f) => updateField('groupByFields', f)} />
+              <AggregationsConfig aggregations={config.config.aggregations || []} entityFields={entityFields} onChange={(a) => updateField('aggregations', a)} />
               <CrossEntityCountConfig value={config.config.crossEntityCount} allEntities={allEntities} subEntities={subEntities} onChange={(v) => updateField('crossEntityCount', v)} />
               <GroupedSortConfig config={config.config} updateField={updateField} />
             </>
@@ -2182,7 +2185,8 @@ function PropertiesPanel({
               <Select value={cc.type || 'percentage'}
                 onValueChange={(v) => {
                   const newCc = [...computed];
-                  newCc[idx] = { ...newCc[idx], type: v };
+                  // Cast local: o Select devolve string; type e uma uniao restrita. Somente tipagem.
+                  newCc[idx] = { ...newCc[idx], type: v as 'percentage' | 'duration' | 'difference' };
                   updateField('computedColumns', newCc);
                 }}>
                 <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
@@ -2546,9 +2550,10 @@ function renderLiveWidget(
     case 'image-gallery': return <ImageGalleryWidget {...commonProps} />;
     case 'stat-list': return <StatListWidget {...commonProps} />;
     case 'data-table': return <DataTableWidget {...commonProps} />;
-    case 'kanban-board': return <KanbanBoardWidget {...commonProps} />;
-    case 'sub-entity-list': return <SubEntityListWidget config={widgetConfig.config} />;
-    case 'sub-entity-timeline': return <SubEntityTimelineWidget config={widgetConfig.config} />;
+    // Cast local: commonProps.config e o WidgetConfig completo (superset); cada widget espera um config mais estreito. Somente tipagem.
+    case 'kanban-board': return <KanbanBoardWidget {...(commonProps as ComponentProps<typeof KanbanBoardWidget>)} />;
+    case 'sub-entity-list': return <SubEntityListWidget config={widgetConfig.config as ComponentProps<typeof SubEntityListWidget>['config']} />;
+    case 'sub-entity-timeline': return <SubEntityTimelineWidget config={widgetConfig.config as ComponentProps<typeof SubEntityTimelineWidget>['config']} />;
     default: return <WidgetWrapper title={widgetConfig.title}><div /></WidgetWrapper>;
   }
 }
@@ -2973,8 +2978,8 @@ function TemplateBuilderContent() {
                   isDraggable
                   isResizable
                   compactType="vertical"
-                  onLayoutChange={handleLayoutChange}
-                  onDragStart={(_layout: LayoutItem[], oldItem: LayoutItem) => {
+                  onLayoutChange={handleLayoutChange as ComponentProps<typeof ResponsiveGrid>['onLayoutChange']}
+                  onDragStart={((_layout: LayoutItem[], oldItem: LayoutItem) => {
                     isDraggingRef.current = true;
                     draggingWidgetIdRef.current = oldItem.i;
 
@@ -3016,7 +3021,8 @@ function TemplateBuilderContent() {
 
                     window.addEventListener('mousemove', handleMouseMove);
                     dragMoveCleanupRef.current = () => window.removeEventListener('mousemove', handleMouseMove);
-                  }}
+                  // Cast local: os handlers usam LayoutItem local; RGL espera seus proprios tipos. Somente tipagem.
+                  }) as unknown as ComponentProps<typeof ResponsiveGrid>['onDragStart']}
                   onDragStop={() => {
                     setTimeout(() => { isDraggingRef.current = false; }, 100);
                     draggingWidgetIdRef.current = null;

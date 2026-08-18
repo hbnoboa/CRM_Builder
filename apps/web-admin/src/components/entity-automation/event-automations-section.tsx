@@ -57,7 +57,7 @@ const triggerColors: Record<string, string> = {
 
 function getActionsSummary(actions: EntityAutomation['actions']): string {
   if (!actions || actions.length === 0) return 'Sem acoes';
-  const types = [...new Set(actions.map(a => a.type))];
+  const types = Array.from(new Set(actions.map(a => a.type)));
   return `${actions.length} acao(oes): ${types.join(', ')}`;
 }
 
@@ -157,9 +157,9 @@ export function EventAutomationsSection({ entityId, fields }: EventAutomationsSe
                         <Badge className={`text-xs ${triggerColors[automation.trigger] || ''}`}>
                           {triggerLabels[automation.trigger] || automation.trigger}
                         </Badge>
-                        {automation.trigger === 'ON_FIELD_CHANGE' && automation.triggerConfig?.fieldSlug && (
+                        {automation.trigger === 'ON_FIELD_CHANGE' && Boolean(automation.triggerConfig?.fieldSlug) && (
                           <Badge variant="outline" className="text-xs">
-                            Campo: {String(automation.triggerConfig.fieldSlug)}
+                            Campo: {String(automation.triggerConfig?.fieldSlug)}
                           </Badge>
                         )}
                       </div>

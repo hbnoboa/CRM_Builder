@@ -1620,7 +1620,12 @@ export function RecordFormFields({
                 label: actionConfig.label || field.label || field.name,
                 style: actionConfig.style,
                 confirmMessage: actionConfig.confirmMessage,
-                action: actionConfig.action,
+                // Cast type-only: a uniao de tipos do shared usa 'custom-api' e o
+                // ActionButtonField usa 'action-chain'; o valor em runtime nao muda
+                action: actionConfig.action as unknown as {
+                  type: 'webhook' | 'status-change' | 'email' | 'action-chain';
+                  config: Record<string, unknown>;
+                },
                 visibleIf: actionConfig.visibleIf,
               }}
               recordId={record?.id}

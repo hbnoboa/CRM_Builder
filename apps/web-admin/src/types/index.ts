@@ -27,7 +27,6 @@ export type {
   ModulePermission,
   ModulePermissions,
   NotificationRule,
-  Page,
   // Novas interfaces de configuracao de campos
   UserSelectConfig,
   WorkflowStatusConfig,

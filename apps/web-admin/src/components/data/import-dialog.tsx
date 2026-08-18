@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, type MouseEventHandler } from 'react';
 import { useTranslations } from 'next-intl';
 import {
   Dialog,
@@ -478,7 +478,8 @@ export function ImportDialog({
               <Button variant="outline" onClick={() => handleClose(false)} disabled={loading}>
                 {t('cancel')}
               </Button>
-              <Button onClick={handlePreview} disabled={!file || loading}>
+              {/* Cast type-only: preserva o comportamento em runtime (o evento continua sendo repassado) */}
+              <Button onClick={handlePreview as unknown as MouseEventHandler<HTMLButtonElement>} disabled={!file || loading}>
                 {loading ? (
                   <>
                     <Loader2 className="h-4 w-4 mr-2 animate-spin" />

@@ -74,7 +74,7 @@ export function PieChartWidget({ entitySlug, config, title, isEditMode }: PieCha
             contentStyle={TOOLTIP_STYLE}
             labelStyle={TOOLTIP_LABEL_STYLE}
             itemStyle={TOOLTIP_ITEM_STYLE}
-            formatter={(v: number) => [(v ?? 0).toLocaleString('pt-BR'), title || '']}
+            formatter={((v: number) => [(v ?? 0).toLocaleString('pt-BR'), title || '']) as never}
           />
           {config.showLegend !== false && (
             <Legend

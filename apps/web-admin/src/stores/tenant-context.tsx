@@ -78,7 +78,7 @@ export function TenantProvider({ children }: { children: ReactNode }) {
   const isPlatformAdmin = readPlatformAccess(
     user?.customRole?.modulePermissions as Record<string, unknown> | undefined,
   );
-  const hasMultipleTenants = !!(user as Record<string, unknown>)?.hasMultipleTenants;
+  const hasMultipleTenants = !!(user as unknown as Record<string, unknown>)?.hasMultipleTenants;
 
   // Resolve o slug da URL -> id (síncrono, das listas já carregadas). Único ponto
   // de "tenant atual" -> elimina cache/estado defasado em todos os consumidores.

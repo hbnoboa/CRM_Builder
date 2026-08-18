@@ -89,17 +89,21 @@ export function DonutChartWidget({ entitySlug, config, title, isEditMode }: Donu
             innerRadius="55%"
             outerRadius="75%"
             paddingAngle={2}
-            label={({ cx, cy, midAngle, outerRadius: oR, count }) => {
+            label={((props: Record<string, unknown>) => {
+              const { cx, cy, midAngle, outerRadius: oR, count } = props as {
+                cx?: number; cy?: number; midAngle?: number; outerRadius?: number; count?: number;
+              };
               const RADIAN = Math.PI / 180;
+              const angle = midAngle ?? 0;
               const radius = (oR as number) + 16;
-              const x = (cx as number) + radius * Math.cos(-midAngle * RADIAN);
-              const y = (cy as number) + radius * Math.sin(-midAngle * RADIAN);
+              const x = (cx as number) + radius * Math.cos(-angle * RADIAN);
+              const y = (cy as number) + radius * Math.sin(-angle * RADIAN);
               return (
                 <text x={x} y={y} textAnchor="middle" dominantBaseline="central" className="fill-foreground text-[11px] font-medium">
                   {(count as number).toLocaleString('pt-BR')}
                 </text>
               );
-            }}
+            }) as never}
             labelLine={false}
             onClick={(_, idx) => {
               const entry = chartData[idx];
@@ -131,7 +135,7 @@ export function DonutChartWidget({ entitySlug, config, title, isEditMode }: Donu
             contentStyle={TOOLTIP_STYLE}
             labelStyle={TOOLTIP_LABEL_STYLE}
             itemStyle={TOOLTIP_ITEM_STYLE}
-            formatter={(v: number) => [(v ?? 0).toLocaleString('pt-BR'), title || '']}
+            formatter={((v: number) => [(v ?? 0).toLocaleString('pt-BR'), title || '']) as never}
           />
           {config.showLegend !== false && (
             <Legend

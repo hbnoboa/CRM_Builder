@@ -153,17 +153,17 @@ export function CopyTenantDataDialog({
       dashboardTemplates?: string[];
     } = {};
 
-    if (selected.roles.size > 0) modules.roles = [...selected.roles];
+    if (selected.roles.size > 0) modules.roles = Array.from(selected.roles);
     if (selected.entities.size > 0) {
-      modules.entities = [...selected.entities.entries()].map(([id, includeData]) => ({
+      modules.entities = Array.from(selected.entities.entries()).map(([id, includeData]) => ({
         id,
         includeData,
       }));
     }
-    if (selected.pdfTemplates.size > 0) modules.pdfTemplates = [...selected.pdfTemplates];
-    if (selected.automations.size > 0) modules.automations = [...selected.automations];
-    if (selected.webhooks.size > 0) modules.webhooks = [...selected.webhooks];
-    if (selected.fieldRules.size > 0) modules.fieldRules = [...selected.fieldRules];
+    if (selected.pdfTemplates.size > 0) modules.pdfTemplates = Array.from(selected.pdfTemplates);
+    if (selected.automations.size > 0) modules.automations = Array.from(selected.automations);
+    if (selected.webhooks.size > 0) modules.webhooks = Array.from(selected.webhooks);
+    if (selected.fieldRules.size > 0) modules.fieldRules = Array.from(selected.fieldRules);
     if (selected.dashboardTemplates.size > 0) modules.dashboardTemplates = Array.from(selected.dashboardTemplates);
 
     try {
@@ -415,7 +415,7 @@ export function CopyTenantDataDialog({
                 <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
               </div>
             ) : copyableData ? (
-              <Accordion type="multiple" defaultValue={['roles', 'entities', 'pdfTemplates', 'automations', 'webhooks', 'fieldRules', 'dashboardTemplates']} className="w-full">
+              <Accordion type="multiple" {...({ defaultValue: ['roles', 'entities', 'pdfTemplates', 'automations', 'webhooks', 'fieldRules', 'dashboardTemplates'] } as Record<string, unknown>)} className="w-full">
                 {/* Roles */}
                 {copyableData.roles.length > 0 && (
                   <AccordionItem value="roles">

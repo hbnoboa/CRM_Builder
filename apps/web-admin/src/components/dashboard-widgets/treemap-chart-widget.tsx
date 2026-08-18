@@ -102,11 +102,11 @@ export function TreemapChartWidget({ entitySlug, config, title, isEditMode }: Tr
           dataKey="value"
           aspectRatio={4 / 3}
           stroke="hsl(var(--background))"
-          onClick={(node: { originalValue?: string }) => {
+          onClick={((node: { originalValue?: string }) => {
             if (fieldSlug && node?.originalValue) {
               toggleCrossFilter(fieldSlug, node.originalValue);
             }
-          }}
+          }) as never}
           content={<CustomContent />}
           isAnimationActive={false}
         >
@@ -114,7 +114,7 @@ export function TreemapChartWidget({ entitySlug, config, title, isEditMode }: Tr
             contentStyle={TOOLTIP_STYLE}
             labelStyle={TOOLTIP_LABEL_STYLE}
             itemStyle={TOOLTIP_ITEM_STYLE}
-            formatter={(v: number) => [(v ?? 0).toLocaleString('pt-BR'), title || '']}
+            formatter={((v: number) => [(v ?? 0).toLocaleString('pt-BR'), title || '']) as never}
           />
         </Treemap>
       </ResponsiveContainer>

@@ -324,7 +324,7 @@ export default function SubEntityTimelineWidget({ config }: SubEntityTimelineWid
                           </div>
 
                           {/* Status badge */}
-                          {status && (
+                          {Boolean(status) && (
                             <Badge variant="outline" className="text-xs shrink-0">
                               {formatValue(status)}
                             </Badge>

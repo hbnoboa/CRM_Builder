@@ -1053,7 +1053,8 @@ export function AutomationWizard({
         );
 
       case 'change_status': {
-        const statusFields = fields.filter(f => f.type === 'select' || f.type === 'radio' || f.type === 'workflow-status');
+        // Cast local: 'radio' pode nao estar na union de tipos mas e um valor valido em runtime
+        const statusFields = fields.filter(f => f.type === 'select' || (f.type as string) === 'radio' || f.type === 'workflow-status');
         const selectedStatusField = statusFields.find(f => f.slug === getConfigValue(action.config, 'fieldSlug'));
         const statusOptions = getFieldOptions(selectedStatusField);
         return (
@@ -1465,8 +1466,9 @@ export function AutomationWizard({
       case 'aggregate_records': {
         const agEntitySlug = getConfigValue(action.config, 'entitySlug');
         const agTargetFields = getEntityFieldsBySlug(entities, agEntitySlug);
+        // Cast local: 'integer' pode nao estar na union de tipos mas e um valor valido em runtime
         const agNumericFields = agTargetFields.filter(f =>
-          f.type === 'number' || f.type === 'currency' || f.type === 'integer'
+          f.type === 'number' || f.type === 'currency' || (f.type as string) === 'integer'
         );
         const agIsCount = getConfigValue(action.config, 'operation', 'count') === 'count';
         return (
@@ -1692,10 +1694,11 @@ export function AutomationWizard({
               )}
 
               {form.trigger === 'ON_STATUS_CHANGE' && (() => {
+                // Cast local: 'radio' pode nao estar na union de tipos mas e um valor valido em runtime
                 const allStatusOpts = fields
-                  .filter(f => f.type === 'select' || f.type === 'radio' || f.type === 'workflow-status')
+                  .filter(f => f.type === 'select' || (f.type as string) === 'radio' || f.type === 'workflow-status')
                   .flatMap(f => getFieldOptions(f));
-                const uniqueOpts = [...new Map(allStatusOpts.map(o => [o.value, o])).values()];
+                const uniqueOpts = Array.from(new Map(allStatusOpts.map(o => [o.value, o])).values());
                 return (
                   <div className="grid grid-cols-2 gap-2 p-3 bg-muted/50 rounded-lg">
                     <div className="space-y-1">

@@ -448,10 +448,10 @@ function DataTableWidgetInner({ entitySlug, config, title, ctx }: DataTableWidge
 
     // Parent fields (if sub-entity)
     if (parentEntityData && parentEntitySlug) {
-      const parentFields = ((parentEntityData as Record<string, unknown>).fields as EntityField[] || []).filter((f: EntityField) =>
+      const parentFields = ((parentEntityData as unknown as Record<string, unknown>).fields as EntityField[] || []).filter((f: EntityField) =>
         !['hidden', 'file', 'image', 'json', 'richtext', 'sub-entity'].includes(f.type)
       );
-      const parentName = (parentEntityData as Record<string, unknown>).name as string || parentEntitySlug;
+      const parentName = (parentEntityData as unknown as Record<string, unknown>).name as string || parentEntitySlug;
       for (const f of parentFields) {
         result.push({
           ...f,
@@ -464,7 +464,7 @@ function DataTableWidgetInner({ entitySlug, config, title, ctx }: DataTableWidge
     }
 
     // Child entity fields + _hasChildren
-    for (const [childSlug, { name: childName, fields }] of childEntitiesFields) {
+    for (const [childSlug, { name: childName, fields }] of Array.from(childEntitiesFields)) {
       // Virtual "has children" field
       result.push({
         slug: `_hasChildren:${childSlug}`,

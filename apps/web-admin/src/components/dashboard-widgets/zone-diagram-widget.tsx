@@ -80,7 +80,7 @@ export function ZoneDiagramWidget({ entitySlug, config, title, isEditMode }: Zon
               onClick={() => !isEditMode && zoneField && toggleCrossFilter(zoneField, zone.key)}
               className="border rounded-md p-2 text-center transition-colors cursor-pointer hover:opacity-80"
               style={{
-                opacity: activeFilter && activeFilter.value !== zone.key ? 0.35 : 1,
+                opacity: activeFilter && !activeFilter.values.includes(zone.key) ? 0.35 : 1,
                 backgroundColor: zone.count > 0
                   ? `rgba(239, 68, 68, ${0.08 + zone.intensity * 0.25})`
                   : 'hsl(var(--muted) / 0.1)',

@@ -51,7 +51,7 @@ export function FieldPickerModal({ open, onClose, onSelect }: FieldPickerModalPr
     if (!search.trim()) {
       if (activeCategory) {
         const blocks = categories.get(activeCategory);
-        return blocks ? new Map([[activeCategory, blocks]]) : new Map();
+        return blocks ? new Map([[activeCategory, blocks]]) : new Map<string, BlockDef[]>();
       }
       return categories;
     }
@@ -59,7 +59,7 @@ export function FieldPickerModal({ open, onClose, onSelect }: FieldPickerModalPr
     const term = search.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
     const result = new Map<string, BlockDef[]>();
 
-    for (const [cat, blocks] of categories) {
+    for (const [cat, blocks] of Array.from(categories)) {
       const filtered = blocks.filter((b) => {
         const label = b.label.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
         const type = b.fieldType.toLowerCase();

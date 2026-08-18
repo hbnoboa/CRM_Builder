@@ -293,7 +293,7 @@ export default function AuditLogsPage() {
                     </Badge>
                     <div>
                       <span className="text-sm">{t(`resources.${log.resource}` as 'resources.user')}</span>
-                      {log.metadata && (log.metadata as Record<string, unknown>).entitySlug && (
+                      {log.metadata && Boolean((log.metadata as Record<string, unknown>).entitySlug) && (
                         <p className="text-xs text-muted-foreground">{(log.metadata as Record<string, unknown>).entitySlug as string}</p>
                       )}
                     </div>
