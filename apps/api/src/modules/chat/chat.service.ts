@@ -513,16 +513,29 @@ export class ChatService {
    *  `before` (ISO): as `limit` mensagens ANTERIORES a esse instante (paginação p/ trás).
    *  `after` (ISO): as `limit` mensagens POSTERIORES (contexto abaixo de uma msg — usado
    *  ao "pular" para um resultado de busca, carregando os dois lados). */
+  /** Anexa o NOME do remetente (senderName) a cada mensagem, resolvendo os ids em
+   *  lote (o front mostra nome + avatar, estilo WhatsApp). senderId null = bot. */
+  private async attachSenderNames<T extends { senderId: string | null }>(messages: T[]): Promise<(T & { senderName: string | null })[]> {
+    const ids = [...new Set(messages.map((m) => m.senderId).filter((x): x is string => !!x))];
+    const nameById = new Map<string, string>();
+    if (ids.length) {
+      const users = await this.prisma.user.findMany({ where: { id: { in: ids } }, select: { id: true, name: true } });
+      for (const u of users) nameById.set(u.id, u.name);
+    }
+    return messages.map((m) => ({ ...m, senderName: m.senderId ? (nameById.get(m.senderId) ?? null) : null }));
+  }
+
   async getMessages(user: CurrentUser, channelId: string, limit = 50, before?: string, after?: string) {
     await this.assertAccess(user, channelId);
     const take = Math.min(limit, 200);
     const afterDate = after ? new Date(after) : null;
     if (afterDate && !isNaN(afterDate.getTime())) {
-      return this.prisma.message.findMany({
+      const asc = await this.prisma.message.findMany({
         where: { channelId, createdAt: { gt: afterDate } },
         orderBy: { createdAt: 'asc' },
         take,
       });
+      return this.attachSenderNames(asc);
     }
     const beforeDate = before ? new Date(before) : null;
     const messages = await this.prisma.message.findMany({
@@ -533,7 +546,7 @@ export class ChatService {
       orderBy: { createdAt: 'desc' },
       take,
     });
-    return messages.reverse(); // ordem cronológica
+    return this.attachSenderNames(messages.reverse()); // ordem cronológica
   }
 
   /** Busca mensagens por SUBSTRING dentro de um canal, ignorando ACENTO e caixa
@@ -557,7 +570,7 @@ export class ChatService {
       ORDER BY "createdAt" DESC
       LIMIT ${take}
     `;
-    return messages.reverse();
+    return this.attachSenderNames(messages.reverse());
   }
 
   async postMessage(user: CurrentUser, channelId: string, content: string) {

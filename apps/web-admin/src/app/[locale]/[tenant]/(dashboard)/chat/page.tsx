@@ -1,7 +1,7 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { Hash, Send, MessageSquare, User as UserIcon, Loader2, Slash, FileText, Settings2, ArrowLeft, Pencil, Check, X, Search, ChevronDown, Plus, Trash2 } from 'lucide-react';
+import { useCallback, useEffect, useRef, useState, Fragment } from 'react';
+import { Hash, Send, MessageSquare, User as UserIcon, Loader2, Slash, FileText, Settings2, ArrowLeft, Pencil, Check, X, Search, ChevronDown, Plus, Trash2, Image as ImageIcon, Bot, ListChecks, FilePlus2, FileEdit, Download } from 'lucide-react';
 import { useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
 import api from '@/lib/api';
@@ -21,7 +21,7 @@ import type { Entity } from '@/types';
 
 interface EntityLite { id: string; slug: string; name: string; fields?: unknown[] }
 interface Channel { id: string; type: 'group' | 'dm'; entityId?: string | null; name?: string | null; createdById?: string; entity?: { slug: string; name: string; icon?: string; color?: string } }
-interface Message { id: string; senderId: string | null; type: string; content: string | null; meta?: Record<string, unknown>; createdAt: string }
+interface Message { id: string; senderId: string | null; senderName?: string | null; type: string; content: string | null; meta?: Record<string, unknown>; createdAt: string }
 interface ChatCommand { slug: string; description?: string; targetEntitySlug?: string; actionType?: string; actionConfig?: Record<string, unknown> }
 type ThreadChannel = Channel & { recordId?: string | null; entity?: { slug: string; name: string } };
 type Active = { id: string; label: string; kind: 'group' | 'dm' | 'record'; entitySlug?: string; scopeRecordId?: string };
@@ -36,6 +36,45 @@ function mergeMessages(a: Message[], b: Message[]): Message[] {
   return Array.from(map.values()).sort(
     (x, y) => new Date(x.createdAt).getTime() - new Date(y.createdAt).getTime(),
   );
+}
+
+// ── Helpers de apresentação (estilo WhatsApp) ──────────────────────────────
+function hashStr(s: string): number { let h = 0; for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0; return Math.abs(h); }
+/** Cor determinística por pessoa (nome colorido + avatar), como no WhatsApp em grupo. */
+function hueFor(id: string): number { return hashStr(id) % 360; }
+function initials(name: string): string {
+  const p = (name || '?').trim().split(/\s+/).filter(Boolean);
+  return (((p[0]?.[0] || '') + (p.length > 1 ? p[p.length - 1][0] : '')) || '?').toUpperCase();
+}
+const isSameDay = (a: Date, b: Date) => a.toDateString() === b.toDateString();
+function dayLabel(d: Date): string {
+  const today = new Date(); const yest = new Date(); yest.setDate(today.getDate() - 1);
+  if (isSameDay(d, today)) return 'Hoje';
+  if (isSameDay(d, yest)) return 'Ontem';
+  return d.toLocaleDateString('pt-BR', { day: 'numeric', month: 'long', ...(d.getFullYear() !== today.getFullYear() ? { year: 'numeric' } : {}) });
+}
+const hhmm = (d: Date) => d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+/** Heurística: valor parece uma imagem (path/url de imagem)? */
+function looksLikeImage(v: unknown): boolean {
+  return typeof v === 'string' && (/\.(png|jpe?g|gif|webp|svg|avif)(\?|$)/i.test(v) || /^\/?uploads?\//i.test(v) || /^https?:.*(image|photo|foto)/i.test(v));
+}
+
+/** Miniatura de imagem com fallback (path quebrado -> ícone). */
+function Thumb({ url }: { url: string }) {
+  const [err, setErr] = useState(false);
+  const src = resolveFileUrl(url);
+  if (err || !src) return <div className="flex h-14 w-14 items-center justify-center rounded-md border bg-black/5 text-muted-foreground"><ImageIcon className="h-5 w-5" /></div>;
+  // eslint-disable-next-line @next/next/no-img-element
+  return <a href={src} target="_blank" rel="noreferrer" className="shrink-0"><img src={src} alt="" onError={() => setErr(true)} className="h-14 w-14 rounded-md border object-cover hover:opacity-90" /></a>;
+}
+
+/** Destaca a 1ª ocorrência do termo buscado (case-insensitive) no texto. */
+function highlightText(text: string, term: string) {
+  const t = (term || '').trim();
+  if (!t) return text;
+  const i = text.toLowerCase().indexOf(t.toLowerCase());
+  if (i < 0) return text;
+  return <>{text.slice(0, i)}<mark className="rounded bg-yellow-300/70 px-0.5 text-inherit">{text.slice(i, i + t.length)}</mark>{text.slice(i + t.length)}</>;
 }
 
 export default function ChatPage() {
@@ -76,6 +115,13 @@ export default function ChatPage() {
   const [searchResults, setSearchResults] = useState<Message[]>([]);
   const [highlightId, setHighlightId] = useState<string | null>(null);
   const lastMsgIdRef = useRef<string | null>(null);
+
+  // Rótulo/tipo de um campo (pra mostrar "Peça" em vez de "peca" e detectar imagem).
+  const fieldMeta = useCallback((entitySlug: string | undefined, slug: string): { label: string; type?: string } => {
+    const ent = allEntities.find((e) => e.slug === entitySlug);
+    const f = ((ent?.fields || []) as Array<{ slug: string; label?: string; name?: string; type?: string }>).find((x) => x.slug === slug);
+    return { label: f?.label || f?.name || slug, type: f?.type };
+  }, [allEntities]);
 
   const canManageCommands = (() => {
     const mp = user?.customRole?.modulePermissions as Record<string, Record<string, unknown> | boolean> | undefined;
@@ -549,14 +595,21 @@ export default function ChatPage() {
                     <p className="px-1 py-1 text-xs text-muted-foreground">Nenhuma mensagem encontrada.</p>
                   ) : (
                     <div className="max-h-52 divide-y overflow-y-auto rounded-md border bg-background">
-                      {searchResults.map((r) => (
-                        <button key={r.id} onClick={() => jumpToMessage(r)} className="w-full px-2.5 py-1.5 text-left hover:bg-accent">
-                          <div className="truncate text-xs">{r.content || '(sem texto)'}</div>
-                          <div className="text-[10px] text-muted-foreground">
-                            {r.senderId === user?.id ? 'Você' : r.senderId === null ? 'Bot' : 'Outro'} · {new Date(r.createdAt).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
-                          </div>
-                        </button>
-                      ))}
+                      {searchResults.map((r) => {
+                        const who = r.senderId === user?.id ? 'Você' : r.senderId === null ? 'Bot' : (r.senderName || 'Usuário');
+                        return (
+                          <button key={r.id} onClick={() => jumpToMessage(r)} className="flex w-full items-center gap-2 px-2.5 py-2 text-left hover:bg-accent">
+                            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[11px] font-semibold text-white"
+                              style={{ backgroundColor: r.senderId === null ? 'hsl(38 92% 50%)' : `hsl(${hueFor(r.senderId || 'me')} 55% 45%)` }}>
+                              {r.senderId === null ? <Bot className="h-3.5 w-3.5" /> : initials(who)}
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <div className="truncate text-xs">{highlightText(r.content || '(sem texto)', searchQ)}</div>
+                              <div className="text-[10px] text-muted-foreground">{who} · {new Date(r.createdAt).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</div>
+                            </div>
+                          </button>
+                        );
+                      })}
                     </div>
                   )
                 )}
@@ -573,81 +626,112 @@ export default function ChatPage() {
                   </div>
                 )}
                 {messages.length === 0 && <p className="text-center text-xs text-muted-foreground py-8">Sem mensagens ainda. Diga olá 👋</p>}
-              {messages.map((m) => {
+              {messages.map((m, idx) => {
+                const prev = messages[idx - 1];
                 const mine = m.senderId === user?.id;
                 const isBot = m.senderId === null;
                 const isCard = m.type === 'form_submission';
                 const isQuery = m.type === 'query_result';
                 const isReport = m.type === 'report';
+                const isText = !isCard && !isQuery && !isReport;
                 const values = (m.meta?.values || {}) as Record<string, unknown>;
                 const qCols = (m.meta?.columns || []) as Array<{ slug: string; label: string }>;
                 const qRows = (m.meta?.rows || []) as string[][];
+                const entitySlug = m.meta?.entitySlug as string | undefined;
+                const dt = new Date(m.createdAt);
+                const prevDt = prev ? new Date(prev.createdAt) : null;
+                const showDate = !prevDt || !isSameDay(prevDt, dt);
+                const firstOfGroup = showDate || !prev || prev.senderId !== m.senderId || (dt.getTime() - (prevDt?.getTime() || 0)) > 5 * 60 * 1000;
+                const displayName = mine ? 'Você' : isBot ? 'Bot' : (m.senderName || 'Usuário');
+                const hue = hueFor(m.senderId || 'bot');
+                const entries = Object.entries(values);
+                const isImg = ([k, v]: [string, unknown]) => !!v && (fieldMeta(entitySlug, k).type === 'image' || looksLikeImage(v));
+                const imgs = entries.filter(isImg);
+                const fields = entries.filter((e) => !isImg(e));
                 return (
-                  <div key={m.id} id={`msg-${m.id}`} className={cn('flex flex-col scroll-mt-4 rounded-lg transition-colors', isQuery ? 'w-full max-w-full' : 'max-w-[75%]', mine ? 'ml-auto items-end' : 'items-start', highlightId === m.id && 'bg-primary/5 ring-2 ring-primary/50')}>
-                    {isCard ? (
-                      <div className="rounded-lg border bg-muted/40 px-3 py-2 text-sm w-full">
-                        <div className="flex flex-wrap items-center gap-1.5 text-xs font-medium text-primary mb-1">
-                          <FileText className="h-3.5 w-3.5" /> {String(m.meta?.templateSlug ? '/' + m.meta.templateSlug : 'Registro')}
-                          {m.meta?.label ? <span className="rounded bg-primary/15 px-1.5 py-0.5 text-primary">{String(m.meta.label)}</span> : null}
-                          <span className="text-muted-foreground">· {String(m.meta?.entitySlug || '')}{m.meta?.edited ? ' · editado' : ''}</span>
-                        </div>
-                        <div className="grid grid-cols-2 gap-x-3 gap-y-0.5">
-                          {Object.entries(values).map(([k, v]) => (
-                            <div key={k} className="flex gap-1 text-xs"><span className="text-muted-foreground">{k}:</span><span className="truncate">{String(v)}</span></div>
-                          ))}
-                        </div>
-                      </div>
-                    ) : isQuery ? (
-                      <div className="rounded-lg border bg-muted/40 px-3 py-2 text-sm w-full overflow-x-auto">
-                        <div className="flex items-center gap-1.5 text-xs font-medium text-primary mb-1.5">
-                          <Search className="h-3.5 w-3.5" /> /{String(m.meta?.templateSlug || '')} — {String(m.meta?.total ?? qRows.length)} resultado(s)
-                        </div>
-                        {qRows.length === 0 ? (
-                          <p className="text-xs text-muted-foreground">Nenhum resultado.</p>
-                        ) : (
-                          <table className="text-xs w-full">
-                            <thead><tr className="text-left text-muted-foreground border-b">
-                              {qCols.map((c) => <th key={c.slug} className="py-1 pr-3 font-medium whitespace-nowrap">{c.label}</th>)}
-                            </tr></thead>
-                            <tbody>
-                              {qRows.map((r, i) => (
-                                <tr key={i} className="border-b border-border/50">
-                                  {r.map((cell, j) => <td key={j} className="py-1 pr-3 whitespace-nowrap max-w-[220px] truncate">{cell}</td>)}
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        )}
-                        {Number(m.meta?.total ?? 0) > qRows.length && <p className="text-[10px] text-muted-foreground mt-1">Mostrando {qRows.length} de {String(m.meta?.total)} — gere um relatório para ver tudo.</p>}
-                      </div>
-                    ) : isReport ? (
-                      (() => {
-                        const reportUrl = m.meta?.url ? resolveFileUrl(String(m.meta.url)) : null;
-                        return (
-                          <button
-                            type="button"
-                            disabled={!reportUrl}
-                            onClick={() => reportUrl && triggerDownload(reportUrl, String(m.meta?.filename || 'relatorio'))}
-                            className="rounded-lg border bg-emerald-500/10 border-emerald-500/30 px-3 py-2 text-sm w-full text-left hover:bg-emerald-500/20 transition-colors disabled:opacity-60 disabled:cursor-default"
-                          >
-                            <div className="flex items-center gap-1.5 text-xs font-medium text-emerald-600">
-                              <FileText className="h-3.5 w-3.5" /> Relatório /{String(m.meta?.templateSlug || '')} — {String(m.meta?.format || '').toUpperCase()} · {String(m.meta?.total ?? 0)} registro(s)
-                            </div>
-                            <p className="text-[10px] text-muted-foreground mt-0.5">
-                              {String(m.meta?.filename || '')} · {reportUrl ? 'clique para baixar' : 'indisponível'}
-                            </p>
-                          </button>
-                        );
-                      })()
-                    ) : (
-                      <div className={cn('rounded-2xl px-3 py-1.5 text-sm whitespace-pre-line', mine ? 'bg-primary text-primary-foreground' : isBot ? 'bg-amber-500/15 border border-amber-500/30' : 'bg-muted')}>
-                        {m.content}
+                  <Fragment key={m.id}>
+                    {showDate && (
+                      <div className="flex justify-center py-1">
+                        <span className="rounded-full bg-muted px-3 py-0.5 text-[11px] font-medium text-muted-foreground shadow-sm">{dayLabel(dt)}</span>
                       </div>
                     )}
-                    <span className="text-[10px] text-muted-foreground mt-0.5 px-1">
-                      {mine ? 'Você' : isBot ? 'Bot' : 'Outro'} · {new Date(m.createdAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
-                    </span>
-                  </div>
+                    <div className={cn('flex items-end gap-2', mine && 'flex-row-reverse', firstOfGroup ? 'mt-1.5' : 'mt-0.5')}>
+                      {!mine && (firstOfGroup ? (
+                        <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[11px] font-semibold text-white"
+                          style={{ backgroundColor: isBot ? 'hsl(38 92% 50%)' : `hsl(${hue} 55% 45%)` }}>
+                          {isBot ? <Bot className="h-4 w-4" /> : initials(displayName)}
+                        </div>
+                      ) : <div className="w-7 shrink-0" />)}
+                      <div id={`msg-${m.id}`}
+                        className={cn('scroll-mt-4 rounded-2xl px-2.5 py-1.5 text-sm shadow-sm',
+                          isQuery ? 'w-full max-w-full' : 'max-w-[80%]',
+                          isText ? (mine ? 'bg-primary text-primary-foreground' : isBot ? 'bg-amber-500/15 border border-amber-500/30' : 'bg-muted') : 'bg-background border',
+                          firstOfGroup && (mine ? 'rounded-tr-md' : 'rounded-tl-md'),
+                          highlightId === m.id && 'ring-2 ring-yellow-400')}>
+                        {!mine && firstOfGroup && (
+                          <div className="mb-0.5 text-xs font-semibold" style={{ color: isBot ? 'hsl(38 92% 42%)' : `hsl(${hue} 60% 42%)` }}>{displayName}</div>
+                        )}
+                        {isCard ? (
+                          <div>
+                            <div className="mb-1 flex flex-wrap items-center gap-1.5 text-[13px] font-medium text-primary">
+                              {m.meta?.edited ? <FileEdit className="h-3.5 w-3.5" /> : <FilePlus2 className="h-3.5 w-3.5" />}
+                              {m.meta?.edited ? 'Editou' : 'Registrou'}
+                              {m.meta?.label ? <span className="rounded bg-primary/15 px-1.5 py-0.5 text-xs font-semibold text-primary">{String(m.meta.label)}</span> : null}
+                            </div>
+                            {fields.length > 0 && (
+                              <div className="grid grid-cols-2 gap-x-3 gap-y-0.5">
+                                {fields.map(([k, v]) => (
+                                  <div key={k} className="flex min-w-0 gap-1 text-xs"><span className="text-muted-foreground">{fieldMeta(entitySlug, k).label}:</span><span className="truncate">{String(v)}</span></div>
+                                ))}
+                              </div>
+                            )}
+                            {imgs.length > 0 && (
+                              <div className="mt-1.5 flex flex-wrap gap-1.5">{imgs.map(([k, v]) => <Thumb key={k} url={String(v)} />)}</div>
+                            )}
+                          </div>
+                        ) : isQuery ? (
+                          <div className="overflow-x-auto">
+                            <div className="mb-1.5 flex items-center gap-1.5 text-[13px] font-medium text-primary">
+                              <ListChecks className="h-3.5 w-3.5" /> {String(m.meta?.total ?? qRows.length)} resultado(s)
+                            </div>
+                            {qRows.length === 0 ? <p className="text-xs text-muted-foreground">Nenhum resultado.</p> : (
+                              <table className="w-full text-xs">
+                                <thead><tr className="border-b text-left text-muted-foreground">
+                                  {qCols.map((c) => <th key={c.slug} className="whitespace-nowrap py-1 pr-3 font-medium">{c.label}</th>)}
+                                </tr></thead>
+                                <tbody>
+                                  {qRows.map((r, i) => (
+                                    <tr key={i} className="border-b border-border/40">
+                                      {r.map((cell, j) => <td key={j} className="max-w-[220px] truncate whitespace-nowrap py-1 pr-3">{cell}</td>)}
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            )}
+                            {Number(m.meta?.total ?? 0) > qRows.length && <p className="mt-1 text-[10px] text-muted-foreground">Mostrando {qRows.length} de {String(m.meta?.total)} — gere um relatório para ver tudo.</p>}
+                          </div>
+                        ) : isReport ? (
+                          (() => {
+                            const reportUrl = m.meta?.url ? resolveFileUrl(String(m.meta.url)) : null;
+                            return (
+                              <button type="button" disabled={!reportUrl}
+                                onClick={() => reportUrl && triggerDownload(reportUrl, String(m.meta?.filename || 'relatorio'))}
+                                className="flex w-full items-center gap-2 text-left disabled:cursor-default disabled:opacity-60">
+                                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-emerald-500/15 text-emerald-600"><Download className="h-4 w-4" /></div>
+                                <div className="min-w-0">
+                                  <div className="truncate text-[13px] font-medium">{String(m.meta?.filename || 'Relatório')}</div>
+                                  <div className="text-[10px] text-muted-foreground">{String(m.meta?.format || '').toUpperCase()} · {String(m.meta?.total ?? 0)} registro(s) · {reportUrl ? 'toque para baixar' : 'indisponível'}</div>
+                                </div>
+                              </button>
+                            );
+                          })()
+                        ) : (
+                          <div className="whitespace-pre-line">{m.content}</div>
+                        )}
+                        <div className={cn('mt-0.5 text-right text-[10px] leading-none', isText && mine ? 'text-primary-foreground/60' : 'text-muted-foreground')}>{hhmm(dt)}</div>
+                      </div>
+                    </div>
+                  </Fragment>
                 );
               })}
                 <div ref={endRef} />
