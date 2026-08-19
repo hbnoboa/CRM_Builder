@@ -76,6 +76,22 @@ class ChatRepository {
     );
   }
 
+  /// Definicoes de campo de uma entidade (do Entity local sincronizado). Usado
+  /// pelo formulario dinamico do comando (reusa DynamicFieldInput).
+  Future<List<dynamic>> entityFields(String slug) async {
+    final db = AppDatabase.instance.db;
+    final rows =
+        await db.getAll('SELECT fields FROM Entity WHERE slug = ?', [slug]);
+    if (rows.isEmpty) return const [];
+    final raw = rows.first['fields'];
+    if (raw is String && raw.isNotEmpty) {
+      try {
+        return jsonDecode(raw) as List<dynamic>;
+      } catch (_) {}
+    }
+    return const [];
+  }
+
   // ═══════════════════════════════════════════════════════
   // LOCAL WRITE (otimista) — TEXTO
   // ═══════════════════════════════════════════════════════

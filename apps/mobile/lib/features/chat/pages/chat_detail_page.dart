@@ -6,6 +6,7 @@ import 'package:crm_mobile/core/theme/app_typography.dart';
 import 'package:crm_mobile/features/chat/data/chat_repository.dart';
 import 'package:crm_mobile/features/chat/providers/chat_providers.dart';
 import 'package:crm_mobile/features/chat/widgets/chat_format.dart';
+import 'package:crm_mobile/features/chat/widgets/command_sheet.dart';
 import 'package:crm_mobile/features/chat/widgets/message_bubble.dart';
 import 'package:crm_mobile/features/chat/widgets/message_composer.dart';
 
@@ -20,6 +21,7 @@ class ChatDetailPage extends ConsumerWidget {
     final colors = context.colors;
     final messagesAsync = ref.watch(chatMessagesProvider(channelId));
     final currentUserId = ref.watch(authProvider).user?.id ?? '';
+    final commands = ref.watch(chatCommandsProvider(channelId)).valueOrNull ?? const [];
 
     // Nome do canal a partir da lista ja carregada (cache local).
     final title = ref.watch(chatChannelsProvider).maybeWhen(
@@ -90,8 +92,12 @@ class ChatDetailPage extends ConsumerWidget {
             ),
           ),
           MessageComposer(
+            commands: commands,
             onSend: (text) async {
               await ref.read(chatRepositoryProvider).sendText(channelId, text);
+            },
+            onCommandSelected: (command) {
+              CommandSheet.show(context, channelId, command);
             },
           ),
         ],
