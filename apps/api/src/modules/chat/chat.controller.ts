@@ -258,9 +258,10 @@ export class ChatController {
   @ApiOperation({ summary: 'Posta uma mensagem de texto' })
   async postMessage(
     @Param('id') id: string,
-    @Body() body: { content: string },
+    @Body() body: { content: string; id?: string },
     @CurrentUser() user: CurrentUserType,
   ) {
-    return this.chatService.postMessage(user, id, body.content);
+    // body.id: cuid gerado pelo app (envio otimista) -> upsert idempotente.
+    return this.chatService.postMessage(user, id, body.content, body.id);
   }
 }

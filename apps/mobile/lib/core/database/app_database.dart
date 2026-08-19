@@ -109,6 +109,36 @@ const schema = Schema([
     Column.integer('isHome'),
     Column.text('createdAt'),
   ]),
+  // ── CHAT ── (sync rules em powersync.yaml: chat_*). O `id` é implícito.
+  // Visibilidade decidida no servidor (colunas _visibleToRolesJson NÃO sincronizam).
+  Table('Channel', [
+    Column.text('tenantId'),
+    Column.text('type'),        // group | dm | record
+    Column.text('entityId'),    // tabela dona (group/record)
+    Column.text('recordId'),    // registro (type='record')
+    Column.text('name'),
+    Column.text('dmKey'),
+    Column.text('createdById'),
+    Column.text('createdAt'),
+    Column.text('updatedAt'),
+    Column.text('deletedAt'),
+  ]),
+  Table('Message', [
+    Column.text('tenantId'),
+    Column.text('channelId'),
+    Column.text('senderId'),    // null = bot/sistema
+    Column.text('type'),        // text | form_submission | query_result | report | bot | system
+    Column.text('content'),
+    Column.text('meta'),        // JSON string
+    Column.text('createdAt'),
+  ]),
+  Table('ChannelMember', [
+    Column.text('channelId'),
+    Column.text('userId'),
+    Column.text('role'),        // admin | member
+    Column.text('lastReadAt'),
+    Column.text('createdAt'),
+  ]),
   // Local-only table for offline upload queue (never synced to server)
   Table.localOnly('file_upload_queue', [
     Column.text('local_path'),

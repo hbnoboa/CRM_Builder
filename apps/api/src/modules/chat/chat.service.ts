@@ -573,19 +573,36 @@ export class ChatService {
     return this.attachSenderNames(messages.reverse());
   }
 
-  async postMessage(user: CurrentUser, channelId: string, content: string) {
+  async postMessage(
+    user: CurrentUser,
+    channelId: string,
+    content: string,
+    clientId?: string,
+  ) {
     await this.assertAccess(user, channelId);
     const text = (content || '').trim();
     if (!text) throw new ForbiddenException('Mensagem vazia');
-    return this.prisma.message.create({
-      data: {
-        tenantId: user.tenantId,
-        channelId,
-        senderId: user.id,
-        type: 'text',
-        content: text,
-      },
-    });
+    // Sempre type='text': cards (form_submission/query_result/report) sao criados
+    // pelos endpoints de comando/consulta no servidor, nunca postados pelo cliente.
+    const data = {
+      ...(clientId ? { id: clientId } : {}),
+      tenantId: user.tenantId,
+      channelId,
+      senderId: user.id,
+      type: 'text',
+      content: text,
+    };
+    // clientId (cuid gerado no app p/ envio otimista): upsert torna o POST
+    // idempotente — reenvio do uploadData (retry) nao duplica; o sync de volta
+    // encontra a MESMA mensagem (mesmo id) e nao cria uma duplicata no SQLite.
+    if (clientId) {
+      return this.prisma.message.upsert({
+        where: { id: clientId },
+        create: data,
+        update: {},
+      });
+    }
+    return this.prisma.message.create({ data });
   }
 
   // ── Trilho A: comandos-formulário ──────────────────────────────────────────

@@ -322,6 +322,33 @@ class CrmPowerSyncConnector extends PowerSyncBackendConnector {
               await dio.patch('/notifications/${op.id}/read');
             }
             success = true;
+          } else if (table == 'Message') {
+            // Envio otimista de texto: o app inseriu a mensagem localmente e o
+            // PowerSync roteia a escrita aqui. O `id` (cuid do cliente) vai no
+            // corpo -> upsert idempotente no servidor: o sync de volta encontra
+            // a MESMA mensagem (mesmo id) e nao cria duplicata no SQLite.
+            if (op.op == UpdateType.put) {
+              var channelId = opData['channelId'] as String?;
+              if (channelId == null) {
+                final rows = await database.getAll(
+                  'SELECT channelId FROM Message WHERE id = ?', [op.id],);
+                if (rows.isNotEmpty) {
+                  channelId = rows.first['channelId'] as String?;
+                }
+              }
+              if (channelId == null) {
+                _logger.w('Message sem channelId (${op.id}), skipping');
+                success = true;
+                continue;
+              }
+              await dio.post('/chat/channels/$channelId/messages', data: {
+                'id': op.id,
+                'content': opData['content'],
+              },);
+              _logger.i('Posted message ${op.id} to channel $channelId');
+            }
+            // PATCH/DELETE de mensagem (editar/apagar) nao expostos no MVP.
+            success = true;
           } else {
             // Log unhandled tables - Entity, CustomRole, User are read-only (sync from server)
             // If mutations happen on these tables, they're likely client bugs
