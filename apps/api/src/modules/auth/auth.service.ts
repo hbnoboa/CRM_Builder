@@ -604,11 +604,19 @@ export class AuthService {
     rememberMe = false,
     impersonatedBy?: { id: string; name: string },
   ) {
+    // permsV: versao das permissoes do cargo no momento do mint. O JwtStrategy
+    // rejeita (401) tokens com permsV defasado -> o cliente faz refresh silencioso.
+    const roleForV = await this.prisma.customRole.findUnique({
+      where: { id: user.customRoleId },
+      select: { permsVersion: true },
+    });
+
     const payload = {
       sub: user.id,
       tenantId: user.tenantId,
       customRoleId: user.customRoleId,
       roleId: user.customRoleId,
+      permsV: roleForV?.permsVersion ?? 0,
       ...(impersonatedBy ? { impersonatedBy } : {}),
     };
 

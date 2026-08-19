@@ -319,6 +319,14 @@ export class CustomRoleService {
     if (dto.modulePermissions !== undefined) data.modulePermissions = (dto.modulePermissions || {}) as unknown as Prisma.InputJsonValue;
     if (dto.tenantPermissions !== undefined) data.tenantPermissions = dto.tenantPermissions as unknown as Prisma.InputJsonValue;
 
+    // Qualquer mudanca de autorizacao bumpa permsVersion -> tokens ativos com permsV
+    // defasado tomam 401 e fazem refresh silencioso (JwtStrategy.ensurePermsFresh).
+    const authChanged =
+      dto.permissions !== undefined ||
+      dto.modulePermissions !== undefined ||
+      dto.tenantPermissions !== undefined;
+    if (authChanged) data.permsVersion = { increment: 1 };
+
     // Entidades cujo filtro/scope mudou -> precisam recomputar a visibilidade do
     // PowerSync. O enfileiramento vai na MESMA transacao do update (enqueue
     // transacional; um consumidor async recomputa em lotes). Ver VisibilityRecomputeJob.

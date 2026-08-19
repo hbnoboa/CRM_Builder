@@ -435,6 +435,10 @@ model CustomRole {
   // Formato: { "canAccessAllTenants": true, "allowedTenantIds": [] }
   tenantPermissions Json @default("{}")
 
+  /// Incrementado a cada mudanca de autorizacao. Vai no claim `permsV` do token;
+  /// token defasado -> 401 -> refresh silencioso no cliente. Ver JwtStrategy.
+  permsVersion Int @default(0)
+
   isDefault Boolean  @default(false)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

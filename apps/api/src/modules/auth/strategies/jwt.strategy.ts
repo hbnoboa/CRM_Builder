@@ -15,6 +15,7 @@ type RoleSel = {
   permissions: unknown;
   modulePermissions: unknown;
   tenantPermissions: unknown;
+  permsVersion: number;
 };
 
 const ROLE_SELECT = {
@@ -25,6 +26,7 @@ const ROLE_SELECT = {
   permissions: true,
   modulePermissions: true,
   tenantPermissions: true,
+  permsVersion: true,
 } as const;
 
 @Injectable()
@@ -130,6 +132,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       if (membership.expiresAt && membership.expiresAt < new Date()) {
         throw new UnauthorizedException('Acesso ao tenant expirado');
       }
+      this.ensurePermsFresh(payload, membership.customRole as RoleSel);
       return this.buildCurrentUser(
         user,
         requestedTenantId,
@@ -145,6 +148,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       hasPlatformAccess(m.customRole.modulePermissions),
     );
     if (platformMembership) {
+      this.ensurePermsFresh(payload, platformMembership.customRole as RoleSel);
       return this.buildCurrentUser(
         user,
         requestedTenantId,
@@ -155,5 +159,20 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     }
 
     throw new UnauthorizedException('Sem acesso a este tenant');
+  }
+
+  /**
+   * Refresh silencioso: se o token foi mintado com um permsV mais antigo que o
+   * permsVersion atual do cargo, rejeita com 401 (PERMS_STALE). O cliente cai no
+   * fluxo 401 -> refresh que ja existe e recebe token + permissoes frescas.
+   * - Impersonacao: nao forca (sessao curta; "parar" e client-side).
+   * - Tokens antigos sem permsV: nao sao checados (compat retroativa).
+   */
+  private ensurePermsFresh(payload: JwtPayload, role: RoleSel): void {
+    if (payload.impersonatedBy) return;
+    if (payload.permsV == null) return;
+    if (payload.permsV !== role.permsVersion) {
+      throw new UnauthorizedException('PERMS_STALE');
+    }
   }
 }
