@@ -23,11 +23,20 @@ class RecordSearchField extends ConsumerStatefulWidget {
     required this.label,
     required this.onPicked,
     this.parentId,
+    this.filters,
+    this.initial,
   });
 
   final String entitySlug;
   final String label;
   final String? parentId;
+
+  /// Registro ja selecionado (ex.: rascunho restaurado) — exibe o rotulo.
+  final Map<String, dynamic>? initial;
+
+  /// JSON de GlobalFilter[] (parentFilter/searchFilter do comando) — ex.: so
+  /// veiculos concluido=false.
+  final String? filters;
   final void Function(Map<String, dynamic>? record) onPicked;
 
   @override
@@ -40,6 +49,17 @@ class _RecordSearchFieldState extends ConsumerState<RecordSearchField> {
   List<Map<String, dynamic>> _hits = [];
   Map<String, dynamic>? _selected;
   bool _loading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.initial != null) {
+      _selected = widget.initial;
+      _controller.text = recordLabel(
+        (widget.initial!['data'] as Map?)?.cast<String, dynamic>() ?? {},
+      );
+    }
+  }
 
   @override
   void dispose() {
@@ -61,6 +81,7 @@ class _RecordSearchFieldState extends ConsumerState<RecordSearchField> {
               widget.entitySlug,
               q.trim(),
               parentId: widget.parentId,
+              filters: widget.filters,
             );
         if (mounted) setState(() => _hits = hits);
       } finally {

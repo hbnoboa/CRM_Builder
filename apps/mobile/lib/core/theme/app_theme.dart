@@ -109,9 +109,13 @@ class AppTheme {
         scrolledUnderElevation: 1,
         surfaceTintColor: Colors.transparent,
         shadowColor: onSurface.withValues(alpha: 0.1),
-        systemOverlayStyle: isLight
-            ? SystemUiOverlayStyle.dark
-            : SystemUiOverlayStyle.light,
+        // Status bar transparente: mostra o fundo do AppBar (surface) -> mesma
+        // cor do app, sem a "listra" cinza padrao. Icones seguem o brilho do tema.
+        systemOverlayStyle: SystemUiOverlayStyle(
+          statusBarColor: Colors.transparent,
+          statusBarIconBrightness: isLight ? Brightness.dark : Brightness.light,
+          statusBarBrightness: isLight ? Brightness.light : Brightness.dark,
+        ),
         centerTitle: false,
         titleTextStyle: TextStyle(
           fontFamily: AppTypography.fontFamily,

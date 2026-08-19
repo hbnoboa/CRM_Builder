@@ -17,6 +17,7 @@ import 'package:crm_mobile/core/theme/app_typography.dart';
 import 'package:crm_mobile/core/upload/local_file_storage.dart';
 import 'package:crm_mobile/core/upload/upload_queue_service.dart';
 import 'package:crm_mobile/features/data/data/data_repository.dart';
+import 'package:crm_mobile/shared/utils/file_url.dart';
 
 /// Image/file picker + upload widget for entity data forms.
 /// Picks from camera or gallery, compresses, uploads to API.
@@ -326,6 +327,55 @@ class _ImageFieldInputState extends ConsumerState<ImageFieldInput> {
     );
   }
 
+  /// Imagem do preview. Prioriza o arquivo LOCAL (recem-escolhido / upload
+  /// pendente); se ele nao existe mais (State recriado num rebuild), cai para a
+  /// URL do servidor resolvida (o upload ja concluiu). O backend grava caminho
+  /// RELATIVO (/uploads/...), entao resolvemos contra a origem da API.
+  Widget _previewImage() {
+    if (_localPreview != null) {
+      return Image.file(
+        _localPreview!,
+        height: 200,
+        width: double.infinity,
+        fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) => _remoteImage(),
+      );
+    }
+    return _remoteImage();
+  }
+
+  Widget _remoteImage() {
+    // local:// pendente sem arquivo resolvido, ou vazio -> placeholder neutro.
+    final resolved =
+        (_currentUrl != null && !_currentUrl!.startsWith('local://'))
+            ? resolveFileUrl(_currentUrl)
+            : null;
+    if (resolved == null) {
+      return Container(
+        height: 200,
+        color: context.colors.muted,
+        child: const Center(child: Icon(Icons.image_outlined, size: 48)),
+      );
+    }
+    return CachedNetworkImage(
+      imageUrl: resolved,
+      cacheManager: CrmCacheManager(),
+      height: 200,
+      width: double.infinity,
+      fit: BoxFit.cover,
+      placeholder: (_, __) => Container(
+        height: 200,
+        color: context.colors.muted,
+        child: const Center(child: CircularProgressIndicator()),
+      ),
+      errorWidget: (_, __, ___) => Container(
+        height: 200,
+        color: context.colors.muted,
+        child: const Icon(Icons.broken_image_outlined, size: 48),
+      ),
+    );
+  }
+
   Widget _buildPreview() {
     return GestureDetector(
       onTap: _showPickerSheet,
@@ -333,38 +383,7 @@ class _ImageFieldInputState extends ConsumerState<ImageFieldInput> {
         children: [
           ClipRRect(
             borderRadius: BorderRadius.circular(AppColors.radius),
-            child: _localPreview != null
-                ? Image.file(
-                    _localPreview!,
-                    height: 200,
-                    width: double.infinity,
-                    fit: BoxFit.cover,
-                  )
-                : (_currentUrl != null && _currentUrl!.startsWith('http'))
-                    ? CachedNetworkImage(
-                        imageUrl: _currentUrl!,
-                        cacheManager: CrmCacheManager(),
-                        height: 200,
-                        width: double.infinity,
-                        fit: BoxFit.cover,
-                        placeholder: (_, __) => Container(
-                          height: 200,
-                          color: context.colors.muted,
-                          child: const Center(child: CircularProgressIndicator()),
-                        ),
-                        errorWidget: (_, __, ___) => Container(
-                          height: 200,
-                          color: context.colors.muted,
-                          child: const Icon(Icons.broken_image_outlined, size: 48),
-                        ),
-                      )
-                    : Container(
-                        height: 200,
-                        color: context.colors.muted,
-                        child: const Center(
-                          child: Icon(Icons.image_outlined, size: 48),
-                        ),
-                      ),
+            child: _previewImage(),
           ),
           // Pending upload indicator
           if (_isPendingUpload)

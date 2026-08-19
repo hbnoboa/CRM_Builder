@@ -28,11 +28,14 @@ class ChatRepository {
   // ═══════════════════════════════════════════════════════
 
   /// Canais visiveis (cache local do PowerSync). Ordena por atividade recente.
+  /// Converte cada Row para Map puro (o Row do PowerSync quebra firstWhere/orElse).
   Stream<List<Map<String, dynamic>>> watchChannels() {
     final db = AppDatabase.instance.db;
-    return db.watch(
-      'SELECT * FROM Channel WHERE deletedAt IS NULL ORDER BY updatedAt DESC',
-    );
+    return db
+        .watch(
+          'SELECT * FROM Channel WHERE deletedAt IS NULL ORDER BY updatedAt DESC',
+        )
+        .map((rs) => rs.map((r) => Map<String, dynamic>.from(r)).toList());
   }
 
   /// Mensagens de um canal (mais recentes primeiro; a UI inverte). `limit`
@@ -42,10 +45,12 @@ class ChatRepository {
     int limit = 50,
   }) {
     final db = AppDatabase.instance.db;
-    return db.watch(
-      'SELECT * FROM Message WHERE channelId = ? ORDER BY createdAt DESC LIMIT ?',
-      parameters: [channelId, limit],
-    );
+    return db
+        .watch(
+          'SELECT * FROM Message WHERE channelId = ? ORDER BY createdAt DESC LIMIT ?',
+          parameters: [channelId, limit],
+        )
+        .map((rs) => rs.map((r) => Map<String, dynamic>.from(r)).toList());
   }
 
   /// Total de mensagens do canal (para saber se ha mais a paginar).
@@ -168,11 +173,14 @@ class ChatRepository {
     return (r.data ?? []).map((e) => (e as Map).cast<String, dynamic>()).toList();
   }
 
-  /// Autocomplete de registros (pai/alvo de comando).
+  /// Autocomplete de registros (pai/alvo de comando). `filters` e um JSON de
+  /// GlobalFilter[] (ex.: o parentFilter/searchFilter do comando — so veiculos
+  /// concluido=false). `parentId` escopa aos filhos de um registro (thread).
   Future<List<Map<String, dynamic>>> searchRecords(
     String entitySlug,
     String q, {
     String? parentId,
+    String? filters,
   }) async {
     final r = await _dio.get<List<dynamic>>(
       '/chat/search',
@@ -180,6 +188,7 @@ class ChatRepository {
         'entitySlug': entitySlug,
         'q': q,
         if (parentId != null) 'parentId': parentId,
+        if (filters != null) 'filters': filters,
       },
     );
     return (r.data ?? []).map((e) => (e as Map).cast<String, dynamic>()).toList();
@@ -203,15 +212,21 @@ class ChatRepository {
     String channelId,
     String slug, {
     Map<String, dynamic> values = const {},
+    List<Map<String, dynamic>>? items,
     String? recordId,
     String? parentRecordId,
+    Map<String, dynamic> parentUpdate = const {},
   }) async {
     final r = await _dio.post<Map<String, dynamic>>(
       '/chat/channels/$channelId/commands/$slug',
       data: {
         'values': values,
+        // Batch: varios registros-filho num card so (ex.: varias avarias).
+        if (items != null && items.isNotEmpty) 'items': items,
         if (recordId != null) 'recordId': recordId,
         if (parentRecordId != null) 'parentRecordId': parentRecordId,
+        // Campos source:'parent' (ex.: foto do veiculo) atualizam o pai.
+        if (parentUpdate.isNotEmpty) 'parentUpdate': parentUpdate,
       },
     );
     return r.data ?? {};

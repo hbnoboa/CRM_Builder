@@ -178,6 +178,12 @@ class _ChatDetailPageState extends ConsumerState<ChatDetailPage> {
 
     return Scaffold(
       appBar: AppBar(
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          tooltip: 'Voltar',
+          onPressed: () =>
+              context.canPop() ? context.pop() : context.go('/chat'),
+        ),
         title: _searching
             ? TextField(
                 controller: _searchCtrl,

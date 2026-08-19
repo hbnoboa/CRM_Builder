@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:crm_mobile/core/config/env.dart';
@@ -59,13 +60,21 @@ class MessageBubble extends StatelessWidget {
       );
     }
 
-    final bubbleColor = isMine
-        ? theme.colorScheme.primary
-        : isBot
-            ? colors.warning.withValues(alpha: 0.15)
-            : colors.muted;
+    // Cards de comando (form/consulta/relatorio) tem fundo neutro proprio, para
+    // ficarem legiveis mesmo quando o autor e o proprio usuario (balao primario).
+    final isCard = type == 'form_submission' ||
+        type == 'query_result' ||
+        type == 'report';
+    final bubbleColor = isCard
+        ? theme.colorScheme.surface
+        : isMine
+            ? theme.colorScheme.primary
+            : isBot
+                ? colors.warning.withValues(alpha: 0.15)
+                : colors.muted;
+    final onLight = isCard || !isMine;
     final textColor =
-        isMine ? theme.colorScheme.onPrimary : theme.colorScheme.onSurface;
+        onLight ? theme.colorScheme.onSurface : theme.colorScheme.onPrimary;
 
     final content = _content(context, type, textColor);
 
@@ -82,9 +91,11 @@ class MessageBubble extends StatelessWidget {
           bottomLeft: const Radius.circular(14),
           bottomRight: const Radius.circular(14),
         ),
-        border: isBot
-            ? Border.all(color: colors.warning.withValues(alpha: 0.4))
-            : null,
+        border: isCard
+            ? Border.all(color: colors.border)
+            : isBot
+                ? Border.all(color: colors.warning.withValues(alpha: 0.4))
+                : null,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -111,7 +122,7 @@ class MessageBubble extends StatelessWidget {
             hhmm(created),
             style: AppTypography.caption.copyWith(
               fontSize: 10,
-              color: (isMine ? theme.colorScheme.onPrimary : colors.mutedForeground)
+              color: (onLight ? colors.mutedForeground : theme.colorScheme.onPrimary)
                   .withValues(alpha: 0.7),
             ),
           ),
@@ -159,10 +170,9 @@ class MessageBubble extends StatelessWidget {
   Widget _content(BuildContext context, String type, Color textColor) {
     switch (type) {
       case 'form_submission':
-        return _card(context, Icons.edit_note, message['content'] as String?);
+        return _card(context, Icons.assignment_turned_in_outlined);
       case 'query_result':
-        return _card(context, Icons.table_chart_outlined,
-            message['content'] as String?,);
+        return _card(context, Icons.table_chart_outlined);
       case 'report':
         return _reportCard(context);
       default:
@@ -173,42 +183,201 @@ class MessageBubble extends StatelessWidget {
     }
   }
 
-  Widget _card(BuildContext context, IconData icon, String? label) {
-    final colors = context.colors;
-    Map<String, dynamic> meta = {};
+  Map<String, dynamic> _meta() {
     final raw = message['meta'];
     if (raw is String && raw.isNotEmpty) {
       try {
-        meta = (jsonDecode(raw) as Map).cast<String, dynamic>();
+        return (jsonDecode(raw) as Map).cast<String, dynamic>();
       } catch (_) {}
-    } else if (raw is Map) {
-      meta = raw.cast<String, dynamic>();
     }
+    if (raw is Map) return raw.cast<String, dynamic>();
+    return const {};
+  }
+
+  bool _isImageUrl(String v) =>
+      v.startsWith('http') || v.startsWith('/uploads') || v.startsWith('local://');
+
+  /// Valor legivel de uma celula: selects vem como {label,value}; listas juntam.
+  String _cellText(dynamic v) {
+    if (v is Map) return (v['label'] ?? v['value'] ?? '').toString();
+    if (v is List) return v.map(_cellText).where((s) => s.isNotEmpty).join(', ');
+    return v.toString();
+  }
+
+  /// slug -> "Rotulo Legivel" (troca _ por espaco, capitaliza).
+  String _pretty(String s) => s
+      .replaceAll('_', ' ')
+      .split(' ')
+      .where((w) => w.isNotEmpty)
+      .map((w) => '${w[0].toUpperCase()}${w.substring(1)}')
+      .join(' ');
+
+  /// Card de comando (form_submission / query_result): titulo da acao + chip do
+  /// registro + miniaturas das imagens + campos "Rotulo: valor" (sem URLs cruas).
+  Widget _card(BuildContext context, IconData icon) {
+    final colors = context.colors;
+    final theme = Theme.of(context);
+    final meta = _meta();
     final values = (meta['values'] as Map?)?.cast<String, dynamic>() ?? {};
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Row(mainAxisSize: MainAxisSize.min, children: [
-          Icon(icon, size: 16, color: colors.mutedForeground),
-          const SizedBox(width: 4),
-          Flexible(
-            child: Text(
-              label ?? meta['label']?.toString() ?? 'Registro',
-              style: AppTypography.bodyMedium
-                  .copyWith(fontWeight: FontWeight.w600),
-            ),
-          ),
-        ],),
-        if (values.isNotEmpty) const SizedBox(height: 4),
-        ...values.entries.take(6).map(
-              (e) => Text(
-                '${e.key}: ${e.value}',
-                style: AppTypography.caption
-                    .copyWith(color: colors.mutedForeground),
+    final label = meta['label']?.toString();
+    final slug = meta['templateSlug']?.toString() ?? '';
+    final isQuery = message['type'] == 'query_result';
+
+    // Secoes em ordem HIERARQUICA: pai(s) -> tabela -> filho(s). Sem `groups`
+    // (cards antigos/query), cai numa unica secao com os `values`.
+    final groups = (meta['groups'] as List?) ?? const [];
+    final sections = groups.isNotEmpty
+        ? groups
+            .whereType<Map>()
+            .map((g) => (
+                  title: (g['title'] ?? '').toString(),
+                  values: (g['values'] as Map?)?.cast<String, dynamic>() ??
+                      const <String, dynamic>{},
+                ),)
+            .toList()
+        : [(title: '', values: values)];
+
+    final title = isQuery
+        ? ((message['content'] as String?) ?? 'Consulta')
+        : (slug.isNotEmpty ? _pretty(slug) : 'Registro');
+
+    return ConstrainedBox(
+      constraints: const BoxConstraints(minWidth: 180, maxWidth: 260),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Cabecalho: icone + acao + chip do registro (chassi).
+          Row(children: [
+            Container(
+              padding: const EdgeInsets.all(5),
+              decoration: BoxDecoration(
+                color: theme.colorScheme.primary.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(8),
               ),
+              child: Icon(icon, size: 15, color: theme.colorScheme.primary),
             ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTypography.bodyMedium
+                      .copyWith(fontWeight: FontWeight.w700),),
+            ),
+          ],),
+          if (label != null && label.isNotEmpty) ...[
+            const SizedBox(height: 6),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+              decoration: BoxDecoration(
+                color: colors.muted,
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: Text(label,
+                  style: AppTypography.caption
+                      .copyWith(fontWeight: FontWeight.w600),),
+            ),
+          ],
+          for (final s in sections)
+            ..._sectionBody(s.title, s.values, colors, theme),
+        ],
+      ),
+    );
+  }
+
+  /// Uma secao do card (pai/tabela/filho): titulo opcional + miniaturas das
+  /// imagens + campos "Rotulo: valor" (sem URLs cruas nem vazios).
+  List<Widget> _sectionBody(
+    String title,
+    Map<String, dynamic> values,
+    dynamic colors,
+    ThemeData theme,
+  ) {
+    final images = <String>[];
+    final rows = <MapEntry<String, dynamic>>[];
+    for (final e in values.entries) {
+      final v = e.value;
+      if (v == null || v.toString().trim().isEmpty) continue;
+      if (v is String && _isImageUrl(v)) {
+        images.add(v);
+      } else {
+        rows.add(e);
+      }
+    }
+    if (images.isEmpty && rows.isEmpty) return const [];
+    return [
+      if (title.isNotEmpty) ...[
+        const SizedBox(height: 8),
+        Text(title.toUpperCase(),
+            style: AppTypography.caption.copyWith(
+              color: colors.mutedForeground,
+              fontWeight: FontWeight.w700,
+              fontSize: 10,
+              letterSpacing: 0.5,
+            ),),
       ],
+      if (images.isNotEmpty) ...[
+        const SizedBox(height: 6),
+        Wrap(
+          spacing: 6,
+          runSpacing: 6,
+          children: images.map((u) => _thumb(u, colors)).toList(),
+        ),
+      ],
+      if (rows.isNotEmpty) ...[
+        const SizedBox(height: 6),
+        ...rows.take(10).map((e) => Padding(
+              padding: const EdgeInsets.only(bottom: 3),
+              child: RichText(
+                text: TextSpan(
+                  style: AppTypography.caption
+                      .copyWith(color: colors.mutedForeground),
+                  children: [
+                    TextSpan(text: '${_pretty(e.key)}: '),
+                    TextSpan(
+                      text: _cellText(e.value),
+                      style: TextStyle(
+                        color: theme.colorScheme.onSurface,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),),
+      ],
+    ];
+  }
+
+  Widget _thumb(String url, dynamic colors) {
+    final uri = resolveReportUrl(url);
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(8),
+      child: CachedNetworkImage(
+        imageUrl: uri?.toString() ?? url,
+        width: 54,
+        height: 54,
+        fit: BoxFit.cover,
+        placeholder: (_, __) => Container(
+          width: 54,
+          height: 54,
+          color: colors.muted,
+          child: const Center(
+            child: SizedBox(
+                width: 14,
+                height: 14,
+                child: CircularProgressIndicator(strokeWidth: 2),),
+          ),
+        ),
+        errorWidget: (_, __, ___) => Container(
+          width: 54,
+          height: 54,
+          color: colors.muted,
+          child: Icon(Icons.broken_image_outlined,
+              size: 18, color: colors.mutedForeground,),
+        ),
+      ),
     );
   }
 

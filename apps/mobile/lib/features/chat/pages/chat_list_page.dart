@@ -82,7 +82,8 @@ class _ChannelTile extends StatelessWidget {
         type == 'record' ? 'Chat do registro' : (type == 'dm' ? 'Direta' : 'Tabela'),
         style: AppTypography.caption.copyWith(color: colors.mutedForeground),
       ),
-      onTap: () => context.go('/chat/${channel['id']}'),
+      // push (nao go) para o thread ter botao voltar e voltar pra esta lista.
+      onTap: () => context.push('/chat/${channel['id']}'),
     );
   }
 }

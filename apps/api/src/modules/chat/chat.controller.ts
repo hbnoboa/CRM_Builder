@@ -182,6 +182,7 @@ export class ChatController {
     @Body()
     body: {
       values?: Record<string, unknown>;
+      items?: Array<Record<string, unknown>>;
       recordId?: string;
       parentRecordId?: string;
       parent?: { entitySlug: string; values: Record<string, unknown> };
@@ -191,6 +192,7 @@ export class ChatController {
   ) {
     return this.chatService.executeCommand(user, id, slug, {
       values: body.values || {},
+      items: body.items,
       recordId: body.recordId,
       parentRecordId: body.parentRecordId,
       parent: body.parent,
