@@ -319,12 +319,43 @@ export class CustomRoleService {
     if (dto.modulePermissions !== undefined) data.modulePermissions = (dto.modulePermissions || {}) as unknown as Prisma.InputJsonValue;
     if (dto.tenantPermissions !== undefined) data.tenantPermissions = dto.tenantPermissions as unknown as Prisma.InputJsonValue;
 
-    const updatedRole = await this.prisma.customRole.update({
-      where: { id },
-      data,
-      include: {
-        _count: { select: { tenantAccessUsers: true } },
-      },
+    // Qualquer mudanca de autorizacao bumpa permsVersion -> tokens ativos com permsV
+    // defasado tomam 401 e fazem refresh silencioso (JwtStrategy.ensurePermsFresh).
+    const authChanged =
+      dto.permissions !== undefined ||
+      dto.modulePermissions !== undefined ||
+      dto.tenantPermissions !== undefined;
+    if (authChanged) data.permsVersion = { increment: 1 };
+
+    // Entidades cujo filtro/scope mudou -> precisam recomputar a visibilidade do
+    // PowerSync. O enfileiramento vai na MESMA transacao do update (enqueue
+    // transacional; um consumidor async recomputa em lotes). Ver VisibilityRecomputeJob.
+    const affected = this.affectedEntitySlugs(role.permissions, dto.permissions);
+
+    const updatedRole = await this.prisma.$transaction(async (tx) => {
+      const r = await tx.customRole.update({
+        where: { id },
+        data,
+        include: {
+          _count: { select: { tenantAccessUsers: true } },
+        },
+      });
+      if (affected === '*') {
+        await tx.$executeRawUnsafe(
+          `INSERT INTO "visibility_recompute" ("tenantId", "entitySlug")
+             SELECT $1, slug FROM "Entity" WHERE "tenantId" = $1 AND "deletedAt" IS NULL`,
+          tenantId,
+        );
+      } else {
+        for (const slug of affected) {
+          await tx.$executeRawUnsafe(
+            `INSERT INTO "visibility_recompute" ("tenantId", "entitySlug") VALUES ($1, $2)`,
+            tenantId,
+            slug,
+          );
+        }
+      }
+      return r;
     });
 
     // Audit log
@@ -350,6 +381,37 @@ export class CustomRoleService {
     }
 
     return updatedRole;
+  }
+
+  /**
+   * Slugs de entidade cujo filtro/scope de leitura mudou entre as permissoes
+   * antiga e nova (added/removed/modified) — sao as que precisam recomputar a
+   * visibilidade. Retorna '*' se o coringa mudou (recomputa todas as entidades).
+   * [] quando permissions nao foi tocado no update.
+   */
+  private affectedEntitySlugs(
+    oldPerms: unknown,
+    newPerms: unknown,
+  ): string[] | '*' {
+    if (newPerms === undefined) return [];
+    const toMap = (arr: unknown): Map<string, string> => {
+      const m = new Map<string, string>();
+      if (Array.isArray(arr)) {
+        for (const p of arr) {
+          const slug = (p as { entitySlug?: string })?.entitySlug;
+          if (slug) m.set(slug, JSON.stringify(p));
+        }
+      }
+      return m;
+    };
+    const o = toMap(oldPerms);
+    const n = toMap(newPerms);
+    const changed: string[] = [];
+    for (const slug of new Set([...o.keys(), ...n.keys()])) {
+      if (o.get(slug) !== n.get(slug)) changed.push(slug);
+    }
+    if (changed.includes('*')) return '*';
+    return changed;
   }
 
   async remove(id: string, currentUser: CurrentUser, requestedTenantId?: string) {
