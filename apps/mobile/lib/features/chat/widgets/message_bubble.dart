@@ -1,8 +1,21 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
+import 'package:crm_mobile/core/config/env.dart';
 import 'package:crm_mobile/core/theme/app_colors_extension.dart';
 import 'package:crm_mobile/core/theme/app_typography.dart';
 import 'package:crm_mobile/features/chat/widgets/chat_format.dart';
+
+/// Resolve uma URL de arquivo relativa (/uploads/...) contra a ORIGEM da API.
+Uri? resolveReportUrl(String url) {
+  if (url.isEmpty) return null;
+  if (RegExp(r'^https?://', caseSensitive: false).hasMatch(url)) {
+    return Uri.tryParse(url);
+  }
+  final base = Uri.tryParse(Env.apiUrl);
+  if (base == null) return null;
+  return base.replace(path: url, query: null); // origem + caminho absoluto
+}
 
 /// Balao de mensagem estilo WhatsApp. Roteia por `type`:
 /// text | form_submission | query_result | report | bot | system.
@@ -210,17 +223,40 @@ class MessageBubble extends StatelessWidget {
     } else if (raw is Map) {
       meta = raw.cast<String, dynamic>();
     }
-    return Row(mainAxisSize: MainAxisSize.min, children: [
-      Icon(Icons.download_rounded, size: 18, color: colors.info),
-      const SizedBox(width: 6),
-      Flexible(
-        child: Text(
-          meta['filename']?.toString() ??
-              (message['content'] as String?) ??
-              'Relatório',
-          style: AppTypography.bodyMedium,
+    final url = meta['url']?.toString();
+    final label = meta['filename']?.toString() ??
+        (message['content'] as String?) ??
+        'Relatório';
+    return InkWell(
+      onTap: () => _openReport(context, url),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        Icon(Icons.download_rounded, size: 18, color: colors.info),
+        const SizedBox(width: 6),
+        Flexible(
+          child: Text(label,
+              style: AppTypography.bodyMedium.copyWith(
+                color: colors.info,
+                decoration: TextDecoration.underline,
+              ),),
         ),
-      ),
-    ],);
+      ],),
+    );
+  }
+
+  Future<void> _openReport(BuildContext context, String? url) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final uri = url != null ? resolveReportUrl(url) : null;
+    if (uri == null) {
+      messenger.showSnackBar(const SnackBar(
+        content: Text('Relatório sem link de download (gere novamente).'),
+      ),);
+      return;
+    }
+    final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
+    if (!ok) {
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Não foi possível abrir o relatório.')),
+      );
+    }
   }
 }

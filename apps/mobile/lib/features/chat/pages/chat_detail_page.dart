@@ -274,9 +274,13 @@ class _ChatDetailPageState extends ConsumerState<ChatDetailPage> {
             MessageComposer(
               commands: commands,
               onSend: (text) async {
-                await ref
-                    .read(chatRepositoryProvider)
-                    .sendText(widget.channelId, text);
+                final repo = ref.read(chatRepositoryProvider);
+                // "@bot ..." pergunta ao bot (read-only); resposta volta pelo sync.
+                if (RegExp(r'^@bot\b', caseSensitive: false).hasMatch(text)) {
+                  await repo.askBot(widget.channelId, text);
+                } else {
+                  await repo.sendText(widget.channelId, text);
+                }
               },
               onCommandSelected: (command) {
                 CommandSheet.show(context, widget.channelId, command);

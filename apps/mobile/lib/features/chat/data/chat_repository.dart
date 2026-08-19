@@ -143,6 +143,12 @@ class ChatRepository {
     return r.data?['id'] as String?;
   }
 
+  /// Pergunta ao bot (read-only). O servidor posta a pergunta + a resposta como
+  /// mensagens, que voltam pelo sync — nao inserimos nada localmente.
+  Future<void> askBot(String channelId, String message) async {
+    await _dio.post('/chat/channels/$channelId/bot', data: {'message': message});
+  }
+
   /// Renomeia o canal (backend valida: criador do canal ou quem gerencia chat).
   Future<void> renameChannel(String channelId, String name) async {
     await _dio.patch('/chat/channels/$channelId', data: {'name': name});
