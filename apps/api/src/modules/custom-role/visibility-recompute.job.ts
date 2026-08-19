@@ -78,6 +78,14 @@ export class VisibilityRecomputeJob {
         const lastId = res[0]?.last_id ?? job.cursor;
 
         if (n < VisibilityRecomputeJob.BATCH) {
+          // Canais herdam a visibilidade da entidade dona: ao concluir o recompute
+          // do EntityData, recomputa os Channels (grupo + threads de registro) dela.
+          // Poucas linhas por entidade; transacao curta. Ver recompute_channel_visibility.
+          await tx.$executeRawUnsafe(
+            `SELECT recompute_channel_visibility($1, $2)`,
+            job.tenantId,
+            entity.id,
+          );
           // lote parcial/vazio => acabou essa entidade
           await tx.$executeRawUnsafe(
             `DELETE FROM "visibility_recompute" WHERE id = $1::bigint`,
