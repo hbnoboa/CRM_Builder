@@ -7,6 +7,7 @@ import 'package:crm_mobile/core/database/app_database.dart';
 import 'package:crm_mobile/core/permissions/permission_provider.dart';
 import 'package:crm_mobile/core/theme/app_colors_extension.dart';
 import 'package:crm_mobile/core/theme/app_typography.dart';
+import 'package:crm_mobile/features/chat/data/chat_repository.dart';
 import 'package:crm_mobile/features/data/data/data_repository.dart';
 import 'package:crm_mobile/features/data/widgets/dynamic_field.dart';
 import 'package:crm_mobile/features/data/widgets/sub_entity_section.dart';
@@ -34,6 +35,12 @@ class DataDetailPage extends ConsumerWidget {
           onPressed: () => context.pop(),
         ),
         actions: [
+          // Chat do registro (thread)
+          IconButton(
+            icon: const Icon(Icons.chat_bubble_outline),
+            tooltip: 'Chat do registro',
+            onPressed: () => _openRecordChat(context, ref),
+          ),
           // Share button
           IconButton(
             icon: const Icon(Icons.share_outlined),
@@ -327,6 +334,35 @@ class DataDetailPage extends ConsumerWidget {
       }
     }
     return 'Registro';
+  }
+
+  /// Abre (ou cria) o chat deste registro e navega para a conversa. O backend
+  /// confirma que o usuario enxerga o registro; a linha do canal volta via sync.
+  Future<void> _openRecordChat(BuildContext context, WidgetRef ref) async {
+    final messenger = ScaffoldMessenger.of(context);
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(child: CircularProgressIndicator()),
+    );
+    try {
+      final channelId = await ref
+          .read(chatRepositoryProvider)
+          .openRecordChannel(entitySlug, recordId);
+      if (context.mounted) Navigator.of(context).pop(); // fecha o loading
+      if (channelId == null || channelId.isEmpty) {
+        messenger.showSnackBar(
+          const SnackBar(content: Text('Nao foi possivel abrir o chat.')),
+        );
+        return;
+      }
+      if (context.mounted) context.push('/chat/$channelId');
+    } catch (e) {
+      if (context.mounted) Navigator.of(context).pop();
+      messenger.showSnackBar(
+        SnackBar(content: Text('Erro ao abrir o chat: $e')),
+      );
+    }
   }
 
   Future<void> _shareRecord(BuildContext context, WidgetRef ref) async {

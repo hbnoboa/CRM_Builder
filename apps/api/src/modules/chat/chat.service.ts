@@ -573,19 +573,36 @@ export class ChatService {
     return this.attachSenderNames(messages.reverse());
   }
 
-  async postMessage(user: CurrentUser, channelId: string, content: string) {
+  async postMessage(
+    user: CurrentUser,
+    channelId: string,
+    content: string,
+    clientId?: string,
+  ) {
     await this.assertAccess(user, channelId);
     const text = (content || '').trim();
     if (!text) throw new ForbiddenException('Mensagem vazia');
-    return this.prisma.message.create({
-      data: {
-        tenantId: user.tenantId,
-        channelId,
-        senderId: user.id,
-        type: 'text',
-        content: text,
-      },
-    });
+    // Sempre type='text': cards (form_submission/query_result/report) sao criados
+    // pelos endpoints de comando/consulta no servidor, nunca postados pelo cliente.
+    const data = {
+      ...(clientId ? { id: clientId } : {}),
+      tenantId: user.tenantId,
+      channelId,
+      senderId: user.id,
+      type: 'text',
+      content: text,
+    };
+    // clientId (cuid gerado no app p/ envio otimista): upsert torna o POST
+    // idempotente — reenvio do uploadData (retry) nao duplica; o sync de volta
+    // encontra a MESMA mensagem (mesmo id) e nao cria uma duplicata no SQLite.
+    if (clientId) {
+      return this.prisma.message.upsert({
+        where: { id: clientId },
+        create: data,
+        update: {},
+      });
+    }
+    return this.prisma.message.create({ data });
   }
 
   // ── Trilho A: comandos-formulário ──────────────────────────────────────────
@@ -774,6 +791,8 @@ export class ChatService {
     slug: string,
     input: {
       values: Record<string, unknown>;
+      // Batch: varios registros-filho num card so (ex.: varias avarias do veiculo).
+      items?: Array<Record<string, unknown>>;
       recordId?: string;
       parentRecordId?: string;
       parent?: { entitySlug: string; values: Record<string, unknown> };
@@ -800,10 +819,16 @@ export class ChatService {
     // marcar o veículo concluido=true ao registrar a avaria).
     const fixedValues = this.fixedValuesToObj(cfg.fixedValues);
     const parentFixed = this.fixedValuesToObj(cfg.parentFixed);
-    const values = { ...(input.values || {}), ...fixedValues };
     const parentUpdate = { ...(input.parentUpdate || {}), ...parentFixed };
+    // Batch: normaliza para uma LISTA de registros-filho (com os fixedValues em
+    // cada um). Um so item = comportamento antigo.
+    const rawItems = Array.isArray(input.items) && input.items.length > 0
+      ? input.items
+      : [input.values || {}];
+    const items = rawItems.map((v) => ({ ...(v || {}), ...fixedValues }));
+    const values = items[0]; // usado no resumo/label da mensagem
 
-    // Pai NOVO: cria primeiro (precisa do id pro filho), já com as fotos do veículo.
+    // Pai NOVO: cria primeiro (precisa do id pros filhos), já com as fotos.
     let parentRecordId = input.parentRecordId;
     if (input.parent?.entitySlug) {
       const parentRec = (await this.dataService.create(
@@ -814,15 +839,20 @@ export class ChatService {
       parentRecordId = parentRec?.id;
     }
 
-    // Cria a avaria PRIMEIRO (canCreate + pipeline). Se falhar (validação), o pai
-    // existente não é tocado — evita estado parcial.
-    const record = (await this.dataService.create(
-      tpl.targetEntitySlug,
-      { data: values as Record<string, unknown>, parentRecordId },
-      user,
-    )) as { id?: string };
+    // Cria CADA filho (ex.: cada avaria). Se um falhar (validação), aborta — evita
+    // estado parcial; o pai existente só é tocado depois de todos ok.
+    const created: Array<{ id?: string }> = [];
+    for (const v of items) {
+      const rec = (await this.dataService.create(
+        tpl.targetEntitySlug,
+        { data: v as Record<string, unknown>, parentRecordId },
+        user,
+      )) as { id?: string };
+      created.push(rec);
+    }
+    const record = created[0];
 
-    // Pai EXISTENTE: só depois do filho ok, atualiza os campos (fotos + valores
+    // Pai EXISTENTE: só depois dos filhos ok, atualiza os campos (fotos + valores
     // fixos, ex.: concluido=true) — checa canUpdate.
     if (!input.parent?.entitySlug && parentRecordId && cfg.parentEntitySlug && Object.keys(parentUpdate).length > 0) {
       await this.dataService.update(cfg.parentEntitySlug, parentRecordId, { data: parentUpdate }, user);
@@ -848,6 +878,56 @@ export class ChatService {
     const summary = Object.entries(values)
       .map(([k, v]) => `${k}: ${v}`)
       .join(' · ');
+
+    // Card em ordem HIERARQUICA: pai(s) -> tabela -> filho(s). Hoje o formFields
+    // distingue source 'parent'/'target'; a estrutura `groups` (ordenada) permite
+    // acrescentar niveis (avo/filho) no futuro sem mudar o cliente.
+    const formFieldsCfg = (Array.isArray((cfg as { formFields?: unknown }).formFields)
+      ? ((cfg as { formFields?: Array<{ slug: string; source?: string }> }).formFields as Array<{ slug: string; source?: string }>)
+      : []);
+    const parentVals: Record<string, unknown> = {};
+    const selfSlugs: string[] = [];
+    // Valores do PAI para o card: le o registro-pai JA ATUALIZADO — assim campos
+    // de exibicao (ex.: chassi) aparecem mesmo sem serem editados/enviados.
+    let parentData: Record<string, unknown> = { ...parentUpdate };
+    if (parentRecordId && cfg.parentEntitySlug) {
+      const p = (await this.dataService
+        .findOne(cfg.parentEntitySlug, parentRecordId, user)
+        .catch(() => null)) as { data?: Record<string, unknown> } | null;
+      if (p?.data) parentData = p.data;
+    }
+    for (const ff of formFieldsCfg) {
+      if (ff.source === 'parent') parentVals[ff.slug] = parentData[ff.slug];
+      else selfSlugs.push(ff.slug);
+    }
+    const [parentEntityName, targetEntityName] = await Promise.all([
+      cfg.parentEntitySlug
+        ? this.prisma.entity
+            .findFirst({ where: { tenantId: user.tenantId, slug: cfg.parentEntitySlug, deletedAt: null }, select: { name: true } })
+            .then((e) => e?.name)
+        : Promise.resolve(null),
+      this.prisma.entity
+        .findFirst({ where: { tenantId: user.tenantId, slug: tpl.targetEntitySlug, deletedAt: null }, select: { name: true } })
+        .then((e) => e?.name),
+    ]);
+    // Ordem hierarquica: PAI (uma vez) -> cada FILHO (ex.: cada avaria). Com 1 so
+    // filho fica sem titulo (comportamento antigo); com varios, um titulo por item.
+    const groups: Array<{ level: string; title: string; values: Record<string, unknown> }> = [];
+    if (Object.keys(parentVals).length) {
+      groups.push({ level: 'parent', title: parentEntityName || 'Pai', values: parentVals });
+    }
+    const multi = items.length > 1;
+    items.forEach((item, i) => {
+      const selfVals: Record<string, unknown> = {};
+      const slugs = selfSlugs.length ? selfSlugs : Object.keys(item);
+      for (const s of slugs) selfVals[s] = (item as Record<string, unknown>)[s];
+      groups.push({
+        level: multi ? 'child' : 'self',
+        title: multi ? `${targetEntityName || 'Item'} ${i + 1}` : '',
+        values: selfVals,
+      });
+    });
+
     const message = await this.prisma.message.create({
       data: {
         tenantId: user.tenantId,
@@ -859,6 +939,8 @@ export class ChatService {
           templateSlug: tpl.slug,
           entitySlug: tpl.targetEntitySlug,
           values: values as object,
+          // pai -> tabela -> (filho) — o card renderiza nesta ordem
+          groups: groups as unknown as Prisma.InputJsonValue,
           recordId: record?.id,
           parentRecordId: parentRecordId ?? null,
           ...(label ? { label } : {}),

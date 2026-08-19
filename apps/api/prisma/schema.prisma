@@ -1143,6 +1143,14 @@ model Channel {
   updatedAt   DateTime @updatedAt
   deletedAt   DateTime? // soft-delete: canal excluído (preserva histórico de mensagens)
 
+  // Visibilidade desnormalizada p/ o PowerSync (mantida por trigger + outbox).
+  // group -> cargos que leem a entidade; record -> herda do registro; dm -> [].
+  visibleToRolesJson    Json    @default("[]") @map("_visibleToRolesJson")
+  visibleToRolesOwnJson Json    @default("[]") @map("_visibleToRolesOwnJson")
+  hasRoleFilter         Boolean @default(false) @map("_hasRoleFilter")
+  // record: dono do REGISTRO (nao do canal), p/ o bucket own de thread.
+  recordCreatedById     String? @map("_recordCreatedById")
+
   members  ChannelMember[]
   messages Message[]
 
@@ -1200,6 +1208,8 @@ model CommandTemplate {
   elevation        Json?    // { requesterRoles, requireConfirmation }
   llm              Json?    // { enabled, model, systemPrompt }
   visibleToRoleIds String[] @default([]) // allowlist de cargos que veem/executam ([] = todos)
+  // Espelho JSONB da allowlist p/ o PowerSync (mantido por trigger). [] = todos.
+  visibleToRolesJson Json   @default("[]") @map("_visibleToRolesJson")
   isActive         Boolean  @default(true)
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt

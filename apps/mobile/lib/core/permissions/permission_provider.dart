@@ -200,6 +200,7 @@ const _moduleKeys = [
   'tenants',
   'data',
   'roles',
+  'chat',
 ];
 
 // ═══════════════════════════════════════════════════════
@@ -377,6 +378,15 @@ PermissionsState permissions(Ref ref) {
     // Fallback to defaults for roleType
     modulePerms = _defaultModulePermissions[roleType] ??
         _defaultModulePermissions['VIEWER']!;
+  }
+
+  // Chat: feature operacional disponivel a qualquer cargo autenticado — a
+  // VISIBILIDADE de canais/mensagens e enforçada pelo PowerSync (server-side),
+  // entao o modulo em si e universal. Se o cargo nao definir 'chat', concede
+  // read+create (envio de texto/comandos). (Refino futuro: respeitar disable explicito.)
+  if (!(modulePerms['chat']?.canRead ?? false)) {
+    modulePerms = Map<String, ModulePermission>.from(modulePerms);
+    modulePerms['chat'] = _dataReadCreate;
   }
 
   // Build entity permissions

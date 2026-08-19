@@ -85,7 +85,8 @@ class AccessibleTenantRole {
       AccessibleTenantRole(
         id: json['id'] as String,
         name: json['name'] as String,
-        roleType: json['roleType'] as String,
+        // Modelo permission-driven removeu roleType do backend; default seguro.
+        roleType: json['roleType'] as String? ?? 'CUSTOM',
       );
 
   final String id;

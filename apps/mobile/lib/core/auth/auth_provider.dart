@@ -81,7 +81,9 @@ class CustomRole {
         name: json['name'] as String,
         description: json['description'] as String?,
         color: json['color'] as String?,
-        roleType: json['roleType'] as String,
+        // Modelo permission-driven removeu roleType do backend; o app nao gateia
+        // por ele (permissions/modulePermissions decidem tudo). Default seguro.
+        roleType: json['roleType'] as String? ?? 'CUSTOM',
         isSystem: json['isSystem'] as bool? ?? false,
         permissions: json['permissions'] as List<dynamic>?,
         modulePermissions: json['modulePermissions'] as Map<String, dynamic>?,

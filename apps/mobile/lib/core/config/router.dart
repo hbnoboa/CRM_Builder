@@ -9,10 +9,13 @@ import 'package:crm_mobile/features/auth/pages/login_page.dart';
 import 'package:crm_mobile/features/auth/pages/register_page.dart';
 import 'package:crm_mobile/features/auth/pages/forgot_password_page.dart';
 import 'package:crm_mobile/features/auth/pages/permissions_onboarding_page.dart';
+import 'package:crm_mobile/features/auth/pages/splash_page.dart';
 import 'package:crm_mobile/features/dashboard/pages/dashboard_page.dart';
 import 'package:crm_mobile/features/data/pages/data_entities_page.dart';
 import 'package:crm_mobile/features/data/pages/data_list_page.dart';
 import 'package:crm_mobile/features/data/pages/data_detail_page.dart';
+import 'package:crm_mobile/features/chat/pages/chat_list_page.dart';
+import 'package:crm_mobile/features/chat/pages/chat_detail_page.dart';
 import 'package:crm_mobile/features/data/pages/data_form_page.dart';
 import 'package:crm_mobile/core/push/push_notification_service.dart';
 import 'package:crm_mobile/shared/widgets/shell_scaffold.dart';
@@ -52,7 +55,7 @@ GoRouter router(Ref ref) {
 
   return GoRouter(
     navigatorKey: _rootNavigatorKey,
-    initialLocation: '/login',
+    initialLocation: '/splash',
     debugLogDiagnostics: true,
     refreshListenable: authListenable,
     redirect: (context, state) {
@@ -66,14 +69,26 @@ GoRouter router(Ref ref) {
           state.matchedLocation.startsWith('/forgot-password');
       final isOnboardingRoute =
           state.matchedLocation == '/permissions-onboarding';
+      final isSplash = state.matchedLocation == '/splash';
 
       debugPrint('[Router] redirect called: location=${state.matchedLocation}, isAuth=$isAuthenticated, isLoading=$isLoading');
 
-      // Still loading auth state - stay on auth routes or redirect to login
+      // Restaurando a sessao (cold start): mostra o splash em vez de piscar o
+      // formulario de login. Excecao: se o usuario ja esta numa rota de auth
+      // (login manual em andamento), fica la para exibir o spinner do botao.
       if (isLoading) {
-        debugPrint('[Router] Still loading, staying on auth route');
-        if (!isAuthRoute) return '/login';
-        return null;
+        debugPrint('[Router] Still loading auth state');
+        if (isAuthRoute) return null;
+        return isSplash ? null : '/splash';
+      }
+
+      // Terminou de carregar: sai do splash para o destino certo.
+      if (isSplash) {
+        if (!isAuthenticated) return '/login';
+        final devicePerms = ref.read(devicePermissionsProvider);
+        return devicePerms.onboardingCompleted
+            ? _getDefaultRoute(permissions)
+            : '/permissions-onboarding';
       }
 
       // Not authenticated -> go to login (allow auth routes + onboarding)
@@ -120,12 +135,23 @@ GoRouter router(Ref ref) {
           debugPrint('[Router] No data permission, redirecting to /dashboard');
           return '/dashboard';
         }
+
+        // Check permission for chat access
+        if (state.matchedLocation.startsWith('/chat') &&
+            !permissions.hasModuleAccess('chat')) {
+          return _getDefaultRoute(permissions);
+        }
       }
 
       debugPrint('[Router] No redirect needed');
       return null;
     },
     routes: [
+      // Splash / restauracao de sessao (sem bottom nav)
+      GoRoute(
+        path: '/splash',
+        builder: (context, state) => const SplashPage(),
+      ),
       // Auth routes (no bottom nav)
       GoRoute(
         path: '/login',
@@ -170,6 +196,20 @@ GoRouter router(Ref ref) {
             path: '/data/:entitySlug',
             builder: (context, state) => DataListPage(
               entitySlug: state.pathParameters['entitySlug']!,
+            ),
+          ),
+          // Chat — lista de canais
+          GoRoute(
+            path: '/chat',
+            pageBuilder: (context, state) => const NoTransitionPage(
+              child: ChatListPage(),
+            ),
+          ),
+          // Chat — conversa de um canal
+          GoRoute(
+            path: '/chat/:channelId',
+            builder: (context, state) => ChatDetailPage(
+              channelId: state.pathParameters['channelId']!,
             ),
           ),
         ],

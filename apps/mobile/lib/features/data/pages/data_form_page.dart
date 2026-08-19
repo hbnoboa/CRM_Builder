@@ -10,6 +10,7 @@ import 'package:crm_mobile/core/field_rules/field_rule_evaluator.dart';
 import 'package:crm_mobile/features/data/data/data_repository.dart';
 import 'package:crm_mobile/features/data/widgets/dynamic_field.dart';
 import 'package:crm_mobile/features/data/widgets/sub_entity_section.dart';
+import 'package:crm_mobile/shared/utils/select_normalize.dart';
 
 /// Dynamic form for creating/editing entity data records.
 /// Renders form fields based on entity.fields JSON schema.
@@ -263,12 +264,16 @@ class _DataFormPageState extends ConsumerState<DataFormPage> {
     try {
       final repo = ref.read(dataRepositoryProvider);
 
-      // Only send editable fields to avoid overwriting restricted data
-      final dataToSend = editableFields != null
-          ? Map<String, dynamic>.fromEntries(
-              _values.entries.where((e) => editableFields.contains(e.key)),
-            )
-          : Map<String, dynamic>.from(_values);
+      // Only send editable fields to avoid overwriting restricted data.
+      // Normaliza selects para o `value` puro (fidelidade de dado, igual a web).
+      final dataToSend = normalizeSelectValues(
+        editableFields != null
+            ? Map<String, dynamic>.fromEntries(
+                _values.entries.where((e) => editableFields.contains(e.key)),
+              )
+            : Map<String, dynamic>.from(_values),
+        _fields,
+      );
 
       // Auto-capture geolocation if entity has captureLocation enabled
       // Injected after permission filtering so _geolocation is always included

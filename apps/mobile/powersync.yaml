@@ -171,4 +171,140 @@ sync_rules:
               AND "_parentMatchesFilter" = true
               AND "_hasRoleFilter" = true
 
+      # ══════════════════════ CHAT (mobile) ══════════════════════
+      # PowerSync: cada data query cobre TODOS os params do bucket; sem OR entre
+      # params diferentes -> buckets SEPARADOS unrestricted vs role (como EntityData).
+
+      # Canais de grupo/record SEM filtro de role (todo mundo do tenant vê).
+      chat_channels_unrestricted:
+        parameters: |
+          SELECT request.jwt() ->> 'tenantId' as tenant_id
+        data:
+          - SELECT id, "tenantId", type, "entityId", "recordId", name, "dmKey", "createdById", "createdAt", "updatedAt", "deletedAt"
+            FROM "Channel"
+            WHERE "tenantId" = bucket.tenant_id AND "deletedAt" IS NULL
+              AND type != 'dm' AND "_hasRoleFilter" = false
+
+      # Canais de grupo/record COM filtro de role (herdam visibilidade da entidade).
+      chat_channels_role:
+        parameters: |
+          SELECT
+            request.jwt() ->> 'tenantId' as tenant_id,
+            request.jwt() ->> 'customRoleId' as role_id
+        data:
+          - SELECT id, "tenantId", type, "entityId", "recordId", name, "dmKey", "createdById", "createdAt", "updatedAt", "deletedAt"
+            FROM "Channel"
+            WHERE "tenantId" = bucket.tenant_id AND "deletedAt" IS NULL
+              AND type != 'dm' AND "_hasRoleFilter" = true
+              AND bucket.role_id IN "_visibleToRolesJson"
+
+      # Threads de REGISTRO para cargos scope='own' — so o DONO do registro recebe.
+      # Espelha o bucket 4b de EntityData: (role_id IN own) AND (dono = user).
+      chat_channels_record_own:
+        parameters: |
+          SELECT
+            request.jwt() ->> 'tenantId' as tenant_id,
+            request.jwt() ->> 'customRoleId' as role_id,
+            request.user_id() as user_id
+        data:
+          - SELECT id, "tenantId", type, "entityId", "recordId", name, "dmKey", "createdById", "createdAt", "updatedAt", "deletedAt"
+            FROM "Channel"
+            WHERE "tenantId" = bucket.tenant_id AND "deletedAt" IS NULL
+              AND type = 'record'
+              AND "_recordCreatedById" = bucket.user_id
+              AND bucket.role_id IN "_visibleToRolesOwnJson"
+
+      # DMs por membership (parameter query multi-linha).
+      chat_dm_channels:
+        parameters: |
+          SELECT "channelId" as channel_id
+          FROM "ChannelMember"
+          WHERE "userId" = request.user_id()
+        data:
+          - SELECT id, "tenantId", type, "entityId", "recordId", name, "dmKey", "createdById", "createdAt", "updatedAt", "deletedAt"
+            FROM "Channel"
+            WHERE id = bucket.channel_id AND type = 'dm' AND "deletedAt" IS NULL
+
+      # Membros dos canais do usuário.
+      chat_channel_members:
+        parameters: |
+          SELECT "channelId" as channel_id
+          FROM "ChannelMember"
+          WHERE "userId" = request.user_id()
+        data:
+          - SELECT id, "channelId", "userId", role, "lastReadAt", "createdAt"
+            FROM "ChannelMember"
+            WHERE "channelId" = bucket.channel_id
+
+      # Mensagens de grupo/record SEM filtro de role (channelIds via parameter query).
+      chat_messages_unrestricted:
+        parameters: |
+          SELECT id as channel_id
+          FROM "Channel"
+          WHERE "tenantId" = request.jwt() ->> 'tenantId'
+            AND "deletedAt" IS NULL AND type != 'dm' AND "_hasRoleFilter" = false
+        data:
+          - SELECT id, "tenantId", "channelId", "senderId", type, content, meta, "createdAt"
+            FROM "Message"
+            WHERE "channelId" = bucket.channel_id
+
+      # Mensagens de grupo/record COM filtro de role.
+      chat_messages_role:
+        parameters: |
+          SELECT id as channel_id
+          FROM "Channel"
+          WHERE "tenantId" = request.jwt() ->> 'tenantId'
+            AND "deletedAt" IS NULL AND type != 'dm' AND "_hasRoleFilter" = true
+            AND request.jwt() ->> 'customRoleId' IN "_visibleToRolesJson"
+        data:
+          - SELECT id, "tenantId", "channelId", "senderId", type, content, meta, "createdAt"
+            FROM "Message"
+            WHERE "channelId" = bucket.channel_id
+
+      # Mensagens de thread de registro para cargos scope='own' (so o dono).
+      chat_messages_record_own:
+        parameters: |
+          SELECT id as channel_id
+          FROM "Channel"
+          WHERE "tenantId" = request.jwt() ->> 'tenantId'
+            AND "deletedAt" IS NULL AND type = 'record'
+            AND "_recordCreatedById" = request.user_id()
+            AND request.jwt() ->> 'customRoleId' IN "_visibleToRolesOwnJson"
+        data:
+          - SELECT id, "tenantId", "channelId", "senderId", type, content, meta, "createdAt"
+            FROM "Message"
+            WHERE "channelId" = bucket.channel_id
+
+      # Mensagens de DM por membership.
+      chat_dm_messages:
+        parameters: |
+          SELECT "channelId" as channel_id
+          FROM "ChannelMember"
+          WHERE "userId" = request.user_id()
+        data:
+          - SELECT id, "tenantId", "channelId", "senderId", type, content, meta, "createdAt"
+            FROM "Message"
+            WHERE "channelId" = bucket.channel_id
+
+      # Comandos SEM allowlist (visíveis a todos os cargos).
+      chat_commands_unrestricted:
+        parameters: |
+          SELECT request.jwt() ->> 'tenantId' as tenant_id
+        data:
+          - SELECT id, "tenantId", slug, description, icon, "targetEntitySlug", fields, "actionType", "actionConfig", "execMode", "isActive", "createdAt", "updatedAt"
+            FROM "CommandTemplate"
+            WHERE "tenantId" = bucket.tenant_id AND "isActive" = true AND "_visibleToRolesJson" = '[]'
+
+      # Comandos com allowlist do cargo do usuário.
+      chat_commands_role:
+        parameters: |
+          SELECT
+            request.jwt() ->> 'tenantId' as tenant_id,
+            request.jwt() ->> 'customRoleId' as role_id
+        data:
+          - SELECT id, "tenantId", slug, description, icon, "targetEntitySlug", fields, "actionType", "actionConfig", "execMode", "isActive", "createdAt", "updatedAt"
+            FROM "CommandTemplate"
+            WHERE "tenantId" = bucket.tenant_id AND "isActive" = true
+              AND bucket.role_id IN "_visibleToRolesJson"
+
 # touch: force re-snapshot 2026-06-28-final

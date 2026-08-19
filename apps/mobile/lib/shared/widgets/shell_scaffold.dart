@@ -40,6 +40,15 @@ class ShellScaffold extends ConsumerWidget {
       ),);
     }
 
+    if (permissions.hasModuleAccess('chat')) {
+      navItems.add(const _NavItem(
+        icon: Icons.chat_bubble_outline,
+        activeIcon: Icons.chat_bubble_rounded,
+        label: 'Chat',
+        path: '/chat',
+      ),);
+    }
+
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
       body: child,
