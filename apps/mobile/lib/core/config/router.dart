@@ -13,6 +13,8 @@ import 'package:crm_mobile/features/dashboard/pages/dashboard_page.dart';
 import 'package:crm_mobile/features/data/pages/data_entities_page.dart';
 import 'package:crm_mobile/features/data/pages/data_list_page.dart';
 import 'package:crm_mobile/features/data/pages/data_detail_page.dart';
+import 'package:crm_mobile/features/chat/pages/chat_list_page.dart';
+import 'package:crm_mobile/features/chat/pages/chat_detail_page.dart';
 import 'package:crm_mobile/features/data/pages/data_form_page.dart';
 import 'package:crm_mobile/core/push/push_notification_service.dart';
 import 'package:crm_mobile/shared/widgets/shell_scaffold.dart';
@@ -120,6 +122,12 @@ GoRouter router(Ref ref) {
           debugPrint('[Router] No data permission, redirecting to /dashboard');
           return '/dashboard';
         }
+
+        // Check permission for chat access
+        if (state.matchedLocation.startsWith('/chat') &&
+            !permissions.hasModuleAccess('chat')) {
+          return _getDefaultRoute(permissions);
+        }
       }
 
       debugPrint('[Router] No redirect needed');
@@ -170,6 +178,20 @@ GoRouter router(Ref ref) {
             path: '/data/:entitySlug',
             builder: (context, state) => DataListPage(
               entitySlug: state.pathParameters['entitySlug']!,
+            ),
+          ),
+          // Chat — lista de canais
+          GoRoute(
+            path: '/chat',
+            pageBuilder: (context, state) => const NoTransitionPage(
+              child: ChatListPage(),
+            ),
+          ),
+          // Chat — conversa de um canal
+          GoRoute(
+            path: '/chat/:channelId',
+            builder: (context, state) => ChatDetailPage(
+              channelId: state.pathParameters['channelId']!,
             ),
           ),
         ],
