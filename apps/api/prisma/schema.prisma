@@ -1230,3 +1230,17 @@ model BotIdentity {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 }
+
+/// Outbox do recompute de visibilidade do PowerSync. A app enfileira aqui (na mesma
+/// transacao do update do cargo) as entidades cujo filtro/scope mudou; o
+/// VisibilityRecomputeJob (@nestjs/schedule) processa em lotes. Ver a migration
+/// 20260820000000_visibility_recompute_outbox. Acessada via SQL cru (nao pelo client).
+model VisibilityRecompute {
+  id         BigInt   @id @default(autoincrement())
+  tenantId   String
+  entitySlug String
+  cursor     String   @default("")
+  createdAt  DateTime @default(now())
+
+  @@map("visibility_recompute")
+}
