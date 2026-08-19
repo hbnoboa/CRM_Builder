@@ -13,12 +13,16 @@ class MessageBubble extends StatelessWidget {
     required this.isMine,
     required this.firstOfGroup,
     this.senderName,
+    this.highlighted = false,
   });
 
   final Map<String, dynamic> message;
   final bool isMine;
   final bool firstOfGroup;
   final String? senderName;
+
+  /// Realce temporario apos "pular para" pela busca.
+  final bool highlighted;
 
   @override
   Widget build(BuildContext context) {
@@ -102,11 +106,16 @@ class MessageBubble extends StatelessWidget {
       ),
     );
 
-    return Padding(
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 300),
+      color: highlighted
+          ? theme.colorScheme.primary.withValues(alpha: 0.12)
+          : Colors.transparent,
       padding: EdgeInsets.only(
         top: firstOfGroup ? 8 : 2,
         left: 8,
         right: 8,
+        bottom: 2,
       ),
       child: Row(
         mainAxisAlignment:
