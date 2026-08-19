@@ -143,6 +143,16 @@ class ChatRepository {
     return r.data?['id'] as String?;
   }
 
+  /// Renomeia o canal (backend valida: criador do canal ou quem gerencia chat).
+  Future<void> renameChannel(String channelId, String name) async {
+    await _dio.patch('/chat/channels/$channelId', data: {'name': name});
+  }
+
+  /// Exclui o canal (soft-delete no servidor; some da lista via sync).
+  Future<void> deleteChannel(String channelId) async {
+    await _dio.delete('/chat/channels/$channelId');
+  }
+
   /// Comandos disponiveis no canal (filtrados por permissao no servidor).
   Future<List<Map<String, dynamic>>> fetchCommands(String channelId) async {
     final r = await _dio.get<List<dynamic>>(

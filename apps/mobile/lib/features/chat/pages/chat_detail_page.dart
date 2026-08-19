@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:crm_mobile/core/auth/auth_provider.dart';
 import 'package:crm_mobile/core/theme/app_colors_extension.dart';
 import 'package:crm_mobile/core/theme/app_typography.dart';
@@ -92,6 +93,69 @@ class _ChatDetailPageState extends ConsumerState<ChatDetailPage> {
     });
   }
 
+  Future<void> _renameChannel(String current) async {
+    final ctrl = TextEditingController(text: current);
+    final messenger = ScaffoldMessenger.of(context);
+    final name = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Renomear canal'),
+        content: TextField(
+          controller: ctrl,
+          autofocus: true,
+          decoration: const InputDecoration(hintText: 'Nome do canal'),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(ctrl.text.trim()),
+            child: const Text('Salvar'),
+          ),
+        ],
+      ),
+    );
+    if (name == null || name.isEmpty || name == current) return;
+    try {
+      await ref.read(chatRepositoryProvider).renameChannel(widget.channelId, name);
+    } catch (e) {
+      messenger.showSnackBar(SnackBar(content: Text('Erro ao renomear: $e')));
+    }
+  }
+
+  Future<void> _deleteChannel() async {
+    final messenger = ScaffoldMessenger.of(context);
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Excluir canal'),
+        content: const Text(
+            'Excluir este canal? O historico e preservado, mas ele some da lista.',),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancelar'),
+          ),
+          TextButton(
+            style: TextButton.styleFrom(
+                foregroundColor: context.colors.destructive,),
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Excluir'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    try {
+      await ref.read(chatRepositoryProvider).deleteChannel(widget.channelId);
+      if (mounted) context.pop();
+    } catch (e) {
+      messenger.showSnackBar(SnackBar(content: Text('Erro ao excluir: $e')));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
@@ -101,17 +165,16 @@ class _ChatDetailPageState extends ConsumerState<ChatDetailPage> {
     final commands =
         ref.watch(chatCommandsProvider(widget.channelId)).valueOrNull ?? const [];
 
-    final title = ref.watch(chatChannelsProvider).maybeWhen(
-          data: (chs) {
-            final c = chs.firstWhere(
-              (e) => e['id'] == widget.channelId,
-              orElse: () => const <String, dynamic>{},
-            );
-            final n = (c['name'] as String?)?.trim();
-            return (n != null && n.isNotEmpty) ? n : 'Chat';
-          },
-          orElse: () => 'Chat',
+    final channel = ref.watch(chatChannelsProvider).maybeWhen(
+          data: (chs) => chs.firstWhere(
+            (e) => e['id'] == widget.channelId,
+            orElse: () => const <String, dynamic>{},
+          ),
+          orElse: () => const <String, dynamic>{},
         );
+    final chName = (channel['name'] as String?)?.trim();
+    final title = (chName != null && chName.isNotEmpty) ? chName : 'Chat';
+    final iCreated = channel['createdById'] == currentUserId;
 
     return Scaffold(
       appBar: AppBar(
@@ -139,6 +202,17 @@ class _ChatDetailPageState extends ConsumerState<ChatDetailPage> {
               }
             }),
           ),
+          if (!_searching && iCreated)
+            PopupMenuButton<String>(
+              onSelected: (v) {
+                if (v == 'rename') _renameChannel(title);
+                if (v == 'delete') _deleteChannel();
+              },
+              itemBuilder: (_) => const [
+                PopupMenuItem(value: 'rename', child: Text('Renomear')),
+                PopupMenuItem(value: 'delete', child: Text('Excluir canal')),
+              ],
+            ),
         ],
       ),
       body: Column(
