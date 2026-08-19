@@ -198,6 +198,22 @@ sync_rules:
               AND type != 'dm' AND "_hasRoleFilter" = true
               AND bucket.role_id IN "_visibleToRolesJson"
 
+      # Threads de REGISTRO para cargos scope='own' — so o DONO do registro recebe.
+      # Espelha o bucket 4b de EntityData: (role_id IN own) AND (dono = user).
+      chat_channels_record_own:
+        parameters: |
+          SELECT
+            request.jwt() ->> 'tenantId' as tenant_id,
+            request.jwt() ->> 'customRoleId' as role_id,
+            request.user_id() as user_id
+        data:
+          - SELECT id, "tenantId", type, "entityId", "recordId", name, "dmKey", "createdById", "createdAt", "updatedAt", "deletedAt"
+            FROM "Channel"
+            WHERE "tenantId" = bucket.tenant_id AND "deletedAt" IS NULL
+              AND type = 'record'
+              AND "_recordCreatedById" = bucket.user_id
+              AND bucket.role_id IN "_visibleToRolesOwnJson"
+
       # DMs por membership (parameter query multi-linha).
       chat_dm_channels:
         parameters: |
@@ -240,6 +256,20 @@ sync_rules:
           WHERE "tenantId" = request.jwt() ->> 'tenantId'
             AND "deletedAt" IS NULL AND type != 'dm' AND "_hasRoleFilter" = true
             AND request.jwt() ->> 'customRoleId' IN "_visibleToRolesJson"
+        data:
+          - SELECT id, "tenantId", "channelId", "senderId", type, content, meta, "createdAt"
+            FROM "Message"
+            WHERE "channelId" = bucket.channel_id
+
+      # Mensagens de thread de registro para cargos scope='own' (so o dono).
+      chat_messages_record_own:
+        parameters: |
+          SELECT id as channel_id
+          FROM "Channel"
+          WHERE "tenantId" = request.jwt() ->> 'tenantId'
+            AND "deletedAt" IS NULL AND type = 'record'
+            AND "_recordCreatedById" = request.user_id()
+            AND request.jwt() ->> 'customRoleId' IN "_visibleToRolesOwnJson"
         data:
           - SELECT id, "tenantId", "channelId", "senderId", type, content, meta, "createdAt"
             FROM "Message"

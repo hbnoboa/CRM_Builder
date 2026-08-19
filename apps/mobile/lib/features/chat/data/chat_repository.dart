@@ -133,6 +133,16 @@ class ChatRepository {
     return out;
   }
 
+  /// Abre (ou encontra) o chat de um registro. Online: o servidor confirma que
+  /// o usuario ENXERGA o registro (canRead + scope + dataFilters) e devolve o
+  /// canal; a linha do Channel volta pelo PowerSync. Retorna o channelId.
+  Future<String?> openRecordChannel(String entitySlug, String recordId) async {
+    final r = await _dio.post<Map<String, dynamic>>(
+      '/chat/channels/record/$entitySlug/$recordId',
+    );
+    return r.data?['id'] as String?;
+  }
+
   /// Comandos disponiveis no canal (filtrados por permissao no servidor).
   Future<List<Map<String, dynamic>>> fetchCommands(String channelId) async {
     final r = await _dio.get<List<dynamic>>(
