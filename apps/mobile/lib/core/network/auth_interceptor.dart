@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:crm_mobile/core/auth/secure_storage.dart';
 import 'package:crm_mobile/core/config/env.dart';
+import 'package:crm_mobile/core/network/plan_errors.dart';
 
 /// Mirrors web-admin's api.ts interceptors:
 /// - Adds Bearer token to every request
@@ -29,6 +30,9 @@ class AuthInterceptor extends QueuedInterceptor {
     DioException err,
     ErrorInterceptorHandler handler,
   ) async {
+    // Empresa suspensa / app fora do plano: o AuthNotifier encerra a sessao.
+    PlanErrors.handle(err);
+
     if (err.response?.statusCode != 401 || _isRefreshing) {
       return handler.next(err);
     }

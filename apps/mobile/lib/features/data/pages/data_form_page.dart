@@ -7,6 +7,7 @@ import 'package:crm_mobile/core/location/geolocation_service.dart';
 import 'package:crm_mobile/core/theme/app_colors_extension.dart';
 import 'package:crm_mobile/core/permissions/permission_provider.dart';
 import 'package:crm_mobile/core/field_rules/field_rule_evaluator.dart';
+import 'package:crm_mobile/core/network/plan_errors.dart';
 import 'package:crm_mobile/features/data/data/data_repository.dart';
 import 'package:crm_mobile/features/data/widgets/dynamic_field.dart';
 import 'package:crm_mobile/features/data/widgets/sub_entity_section.dart';
@@ -317,7 +318,7 @@ class _DataFormPageState extends ConsumerState<DataFormPage> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erro: $e')),
+          SnackBar(content: Text(PlanErrors.message(e, 'Erro ao salvar: $e'))),
         );
       }
     } finally {

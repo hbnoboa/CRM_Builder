@@ -9,6 +9,7 @@ import 'package:crm_mobile/core/auth/secure_storage.dart';
 import 'package:crm_mobile/core/config/env.dart';
 import 'package:crm_mobile/core/database/app_database.dart';
 import 'package:crm_mobile/core/network/api_client.dart';
+import 'package:crm_mobile/core/network/plan_errors.dart';
 import 'package:crm_mobile/core/push/push_notification_service.dart';
 import 'package:crm_mobile/core/cache/crm_cache_manager.dart';
 import 'package:crm_mobile/core/theme/theme_provider.dart';
@@ -164,6 +165,16 @@ class Auth extends _$Auth {
 
   @override
   AuthState build() {
+    // Empresa suspensa ou app fora do plano (vindo de qualquer request): logout
+    // completo — inclusive o cache offline, senao o login offline continuaria
+    // abrindo os dados — e o motivo aparece na tela de login.
+    final sessionEndSub = PlanErrors.sessionEnded.listen((reason) async {
+      if (!state.isAuthenticated) return;
+      await logout(clearOfflineCache: true);
+      state = AuthState(error: PlanErrors.sessionEndMessage(reason));
+    });
+    ref.onDispose(sessionEndSub.cancel);
+
     // Schedule session check after state is initialized
     Future.microtask(() => _checkExistingSession());
     return const AuthState(isLoading: true);
