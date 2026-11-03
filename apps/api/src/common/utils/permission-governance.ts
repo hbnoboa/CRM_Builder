@@ -5,6 +5,9 @@ import { hasPlatformAccess, hasFullTenantAccess } from './platform-access';
 // SUBSET RULE: ninguem concede (cria/edita/atribui) uma permissao que ele proprio
 // nao tem. Quem tem acesso de plataforma tem tudo -> concede qualquer coisa.
 
+// Modulos que dao poder sobre OUTRAS empresas (fora do proprio tenant).
+const ABOVE_TENANT_MODULES = ['platform', 'tenants'] as const;
+
 // Retorna o caminho da primeira permissao pedida que o ator NAO tem (ou null).
 function firstMissing(actor: unknown, requested: unknown): string | null {
   if (requested === true) {
@@ -28,7 +31,30 @@ function firstMissing(actor: unknown, requested: unknown): string | null {
 export function assertPermissionsSubset(
   actorModulePermissions: unknown,
   requestedModulePermissions: unknown,
+  // Na edicao: valores ja existentes no cargo podem ser mantidos sem o ator possui-los.
+  currentModulePermissions?: unknown,
 ): void {
+  // Poder ACIMA do tenant (platform.* = cross-tenant/impersonar; tenants = gerir
+  // TODAS as empresas) nunca vem do allAccess: um admin de tenant (todo cadastro
+  // self-service e um) nao pode se dar acesso aos dados de outras empresas.
+  // So concede quem ja tem exatamente aquilo (subset estrito).
+  const requested = (requestedModulePermissions || {}) as Record<string, unknown>;
+  const actor = (actorModulePermissions || {}) as Record<string, unknown>;
+  const current = (currentModulePermissions || {}) as Record<string, unknown>;
+  for (const key of ABOVE_TENANT_MODULES) {
+    if (requested[key] === undefined || requested[key] === false) continue;
+    // Mantendo (ou reduzindo) o que o cargo ja tinha: nao e concessao nova.
+    if (firstMissing(current[key], requested[key]) === null) continue;
+    // Quem ja e cross-tenant ja alcanca a gestao de tenants.
+    if (key === 'tenants' && hasPlatformAccess(actorModulePermissions)) continue;
+    const missing = firstMissing(actor[key], requested[key]);
+    if (missing !== null) {
+      throw new ForbiddenException(
+        `Sem permissao para conceder: ${missing ? `${key}.${missing}` : key} (acesso de plataforma so pelo console da plataforma)`,
+      );
+    }
+  }
+
   // Plataforma tem tudo; acesso total ao tenant (allAccess) possui todos os
   // modulos/tabelas do tenant -> pode conceder qualquer permissao dentro dele.
   if (hasPlatformAccess(actorModulePermissions) || hasFullTenantAccess(actorModulePermissions)) return;

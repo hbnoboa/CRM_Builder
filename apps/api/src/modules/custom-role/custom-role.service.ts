@@ -281,7 +281,7 @@ export class CustomRoleService {
 
     // Governanca anti-escalada: so concede permissoes que o proprio ator possui.
     if (dto.modulePermissions !== undefined) {
-      assertPermissionsSubset(currentUser.customRole?.modulePermissions, dto.modulePermissions);
+      assertPermissionsSubset(currentUser.customRole?.modulePermissions, dto.modulePermissions, role.modulePermissions);
 
       // CAPABILITY FLOOR (anti-lockout): nao remover o ultimo acesso de plataforma.
       // Aplica-se a TODOS (inclusive plataforma) — invariante de seguranca.
