@@ -17,7 +17,7 @@ export type FeatureKey = (typeof FEATURE_KEYS)[number];
 
 export type TenantFeatures = Record<FeatureKey, boolean>;
 
-export const LIMIT_KEYS = ['maxUsers', 'maxRecords'] as const;
+export const LIMIT_KEYS = ['maxUsers', 'maxRecords', 'maxStorageMb'] as const;
 
 export type LimitKey = (typeof LIMIT_KEYS)[number];
 

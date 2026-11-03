@@ -176,6 +176,12 @@ export function useSetTenantFeatures(id: string) {
   );
 }
 
+export function useRecomputeTenantStorage(id: string) {
+  return useInvalidatingMutation(async () =>
+    (await platformApi.post<{ storageMb: number }>(`/tenants/${id}/storage/recompute`)).data,
+  );
+}
+
 export interface PlatformImpersonation {
   user: { id: string; tenantId: string; tenant: { slug: string } };
   impersonatedBy: { id: string; name: string };

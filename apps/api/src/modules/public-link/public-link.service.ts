@@ -1,6 +1,7 @@
-import { Injectable, NotFoundException, BadRequestException, ConflictException, UnauthorizedException, Logger } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, ConflictException, UnauthorizedException, Logger, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuthService } from '../auth/auth.service';
+import { TenantPlanService } from '../../common/services/tenant-plan.service';
 import { CreatePublicLinkDto, UpdatePublicLinkDto, PublicRegisterDto, PublicLoginDto, QueryPublicLinkDto } from './dto/public-link.dto';
 import { CurrentUser } from '../../common/types/auth.types';
 import { getEffectiveTenantId } from '../../common/utils/tenant.util';
@@ -15,6 +16,7 @@ export class PublicLinkService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly authService: AuthService,
+    private readonly tenantPlan: TenantPlanService,
   ) {}
 
   // ═══════════════════════════════════════════════════════════════
@@ -186,6 +188,7 @@ export class PublicLinkService {
     if (!link) throw new NotFoundException('Link nao encontrado');
 
     this.validateLinkActive(link);
+    await this.assertLinkAvailable(link.tenantId);
 
     // Retornar apenas dados publicos (nunca dados sensiveis)
     return {
@@ -211,6 +214,7 @@ export class PublicLinkService {
 
     if (!link) throw new NotFoundException('Link nao encontrado');
     this.validateLinkActive(link);
+    await this.assertLinkAvailable(link.tenantId);
 
     if (link.tenant.status !== Status.ACTIVE) {
       throw new BadRequestException('Tenant inativo');
@@ -322,6 +326,7 @@ export class PublicLinkService {
 
     if (!link) throw new NotFoundException('Link nao encontrado');
     this.validateLinkActive(link);
+    await this.assertLinkAvailable(link.tenantId);
 
     // Fix #5: Verificar status do tenant
     if (link.tenant.status !== Status.ACTIVE) {
@@ -501,6 +506,18 @@ export class PublicLinkService {
       });
 
       this.logger.log(`Permissao acumulada: ${user.email} agora tem acesso a ${entitySlug}`);
+    }
+  }
+
+  /**
+   * Formulario publico so funciona com a empresa ativa e a funcao "Links publicos"
+   * ligada no plano. Mesma mensagem nos dois casos: o visitante nao precisa saber o motivo.
+   */
+  private async assertLinkAvailable(tenantId: string) {
+    const tenant = await this.prisma.tenant.findUnique({ where: { id: tenantId }, select: { status: true } });
+    const enabled = await this.tenantPlan.isFeatureEnabled(tenantId, 'publicLinks');
+    if (tenant?.status !== Status.ACTIVE || !enabled) {
+      throw new ForbiddenException({ code: 'FEATURE_DISABLED', message: 'Este formulario nao esta disponivel no momento' });
     }
   }
 

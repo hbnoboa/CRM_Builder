@@ -1526,7 +1526,8 @@
     "limits": {
       "maxUsers": "Users",
       "maxRecords": "Records",
-      "unlimited": "Unlimited"
+      "unlimited": "Unlimited",
+      "maxStorageMb": "Storage (MB)"
     },
     "login": {
       "title": "Platform console",
@@ -1600,7 +1601,11 @@
         "users": "Users",
         "records": "Records",
         "entities": "Tables",
-        "lastAccess": "Last access"
+        "lastAccess": "Last access",
+        "storage": "Storage (MB)",
+        "recompute": "recalculate",
+        "recomputing": "recalculating...",
+        "recomputed": "Storage recalculated: {mb} MB"
       },
       "lifecycle": {
         "title": "Status",
@@ -1760,7 +1765,8 @@
           "lifecycle_changed": "changed the status",
           "plan_changed": "changed the plan",
           "features_changed": "changed the features",
-          "impersonated": "signed in as a user"
+          "impersonated": "signed in as a user",
+          "storage_recomputed": "recalculated storage"
         }
       }
     }
@@ -1778,7 +1784,8 @@
       "contact": "To change plans, contact us.",
       "usage": {
         "users": "Users",
-        "records": "Records"
+        "records": "Records",
+        "storage": "Storage"
       },
       "unlimited": "unlimited",
       "nearLimit": "Close to the plan limit.",

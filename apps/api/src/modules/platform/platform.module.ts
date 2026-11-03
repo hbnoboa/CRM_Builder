@@ -3,6 +3,7 @@ import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
 import { AuthModule } from '../auth/auth.module';
 import { TenantModule } from '../tenant/tenant.module';
+import { UploadModule } from '../upload/upload.module';
 import { PlatformAuthController, PlatformController } from './platform.controller';
 import { PlatformJwtStrategy } from './platform-jwt.strategy';
 import { PlatformAuditService } from './platform-audit.service';
@@ -16,7 +17,7 @@ import { PlatformTenantsService } from './platform-tenants.service';
  * separada dos usuarios e cargos dos tenants.
  */
 @Module({
-  imports: [PassportModule, JwtModule.register({}), AuthModule, TenantModule],
+  imports: [PassportModule, JwtModule.register({}), AuthModule, TenantModule, UploadModule],
   controllers: [PlatformAuthController, PlatformController],
   providers: [
     PlatformJwtStrategy,

@@ -13,7 +13,8 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
-import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
+import { Throttle } from '@nestjs/throttler';
+import { AuthThrottlerGuard } from '../../common/guards/auth-throttler.guard';
 import type { Request } from 'express';
 import { ServiceScope } from '../../common/service-scope/service-scope.decorator';
 import {
@@ -51,7 +52,7 @@ export class PlatformAuthController {
   constructor(private readonly staffService: PlatformStaffService) {}
 
   @Post('login')
-  @UseGuards(ThrottlerGuard)
+  @UseGuards(AuthThrottlerGuard)
   @Throttle({ default: { limit: 5, ttl: 60000 } })
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Login da equipe da plataforma' })
@@ -160,6 +161,13 @@ export class PlatformController {
     @Body() dto: PlatformTenantFeaturesDto,
   ) {
     return this.tenants.setFeatures(actor, id, dto);
+  }
+
+  @Post('tenants/:id/storage/recompute')
+  @RequirePlatformPermission('tenants.update')
+  @HttpCode(HttpStatus.OK)
+  recomputeStorage(@CurrentStaff() actor: PlatformStaffPrincipal, @Param('id') id: string) {
+    return this.tenants.recomputeStorage(actor, id);
   }
 
   @Post('tenants/:id/users/:userId/impersonate')

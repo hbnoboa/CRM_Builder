@@ -18,6 +18,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { LifecycleBadge, UsageLine, useFormatDate } from '@/components/platform/platform-ui';
 import {
   useImpersonateTenantUser,
+  useRecomputeTenantStorage,
   usePlatformAudit,
   usePlatformCan,
   usePlatformPlans,
@@ -88,6 +89,17 @@ export default function PlatformTenantDetailPage() {
 function UsageCard({ tenant }: { tenant: PlatformTenantDetail }) {
   const t = useTranslations('platform.tenant.usage');
   const formatDate = useFormatDate();
+  const can = usePlatformCan();
+  const recompute = useRecomputeTenantStorage(tenant.id);
+
+  const runRecompute = async () => {
+    try {
+      const result = await recompute.mutateAsync(undefined);
+      toast.success(t('recomputed', { mb: result.storageMb }));
+    } catch (error) {
+      toast.error(getErrorMessage(error));
+    }
+  };
   return (
     <Card>
       <CardHeader>
@@ -101,6 +113,17 @@ function UsageCard({ tenant }: { tenant: PlatformTenantDetail }) {
         <div>
           <div className="mb-1 text-xs text-muted-foreground">{t('records')}</div>
           <UsageLine used={tenant.usage.records} limit={tenant.limits.maxRecords} />
+        </div>
+        <div data-testid="usage-storage">
+          <div className="mb-1 flex items-center justify-between text-xs text-muted-foreground">
+            <span>{t('storage')}</span>
+            {can('tenants.update') && (
+              <button type="button" className="underline" onClick={runRecompute} disabled={recompute.isPending} data-testid="recompute-storage">
+                {recompute.isPending ? t('recomputing') : t('recompute')}
+              </button>
+            )}
+          </div>
+          <UsageLine used={tenant.usage.storageMb ?? 0} limit={tenant.limits.maxStorageMb} />
         </div>
         <div className="grid grid-cols-2 gap-2 text-sm">
           <div>

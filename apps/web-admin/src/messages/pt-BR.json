@@ -1530,7 +1530,8 @@
     "limits": {
       "maxUsers": "Usuários",
       "maxRecords": "Registros",
-      "unlimited": "Ilimitado"
+      "unlimited": "Ilimitado",
+      "maxStorageMb": "Armazenamento (MB)"
     },
     "login": {
       "title": "Console da plataforma",
@@ -1604,7 +1605,11 @@
         "users": "Usuários",
         "records": "Registros",
         "entities": "Tabelas",
-        "lastAccess": "Último acesso"
+        "lastAccess": "Último acesso",
+        "storage": "Armazenamento (MB)",
+        "recompute": "recalcular",
+        "recomputing": "recalculando...",
+        "recomputed": "Armazenamento recalculado: {mb} MB"
       },
       "lifecycle": {
         "title": "Situação",
@@ -1764,7 +1769,8 @@
           "lifecycle_changed": "mudou a situação",
           "plan_changed": "mudou o plano",
           "features_changed": "mudou as funções",
-          "impersonated": "entrou como usuário"
+          "impersonated": "entrou como usuário",
+          "storage_recomputed": "recalculou o armazenamento"
         }
       }
     }
@@ -1782,7 +1788,8 @@
       "contact": "Para mudar de plano, fale com a gente.",
       "usage": {
         "users": "Usuários",
-        "records": "Registros"
+        "records": "Registros",
+        "storage": "Armazenamento"
       },
       "unlimited": "ilimitado",
       "nearLimit": "Perto do limite do plano.",

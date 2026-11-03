@@ -7,7 +7,7 @@ export const FEATURE_KEYS = ['chat', 'pdf', 'automations', 'webhooks', 'publicLi
 export type FeatureKey = (typeof FEATURE_KEYS)[number];
 export type TenantFeatures = Record<FeatureKey, boolean>;
 
-export const LIMIT_KEYS = ['maxUsers', 'maxRecords'] as const;
+export const LIMIT_KEYS = ['maxUsers', 'maxRecords', 'maxStorageMb'] as const;
 export type LimitKey = (typeof LIMIT_KEYS)[number];
 export type PlanLimits = Partial<Record<LimitKey, number | null>>;
 
@@ -50,6 +50,7 @@ export interface TenantUsage {
   records: number;
   lastLoginAt: string | null;
   entities?: number;
+  storageMb?: number;
 }
 
 export interface PlatformTenantRow {
@@ -125,5 +126,5 @@ export interface TenantSubscription {
   plan: { id: string; name: string; slug: string } | null;
   features: TenantFeatures;
   limits: PlanLimits;
-  usage: { users: number; records: number; entities: number };
+  usage: { users: number; records: number; entities: number; storageMb: number };
 }

@@ -44,7 +44,7 @@ export class SubscriptionController {
       plan: info.plan,
       features: info.features,
       limits: info.limits,
-      usage: { users: usage.maxUsers, records: usage.maxRecords, entities },
+      usage: { users: usage.maxUsers, records: usage.maxRecords, storageMb: usage.maxStorageMb, entities },
     };
   }
 }

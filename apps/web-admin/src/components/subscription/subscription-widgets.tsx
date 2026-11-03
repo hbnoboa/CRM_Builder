@@ -72,6 +72,7 @@ export function SubscriptionPanel() {
   const rows: Array<{ key: string; used: number; limit?: number | null }> = [
     { key: 'users', used: data.usage.users, limit: data.limits.maxUsers },
     { key: 'records', used: data.usage.records, limit: data.limits.maxRecords },
+    { key: 'storage', used: data.usage.storageMb, limit: data.limits.maxStorageMb },
   ];
 
   return (
@@ -99,6 +100,7 @@ export function SubscriptionPanel() {
                   <span>{t(`usage.${row.key}`)}</span>
                   <span className="tabular-nums text-muted-foreground">
                     {row.used.toLocaleString()} / {row.limit == null ? t('unlimited') : row.limit.toLocaleString()}
+                    {row.key === 'storage' && ' MB'}
                   </span>
                 </div>
                 {row.limit != null && (

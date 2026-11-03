@@ -76,6 +76,9 @@ model Tenant {
   plan             Plan?           @relation(fields: [planId], references: [id])
   // Sobrescreve as funcoes do plano para este tenant: { "chat": false, "pdf": true }
   featureOverrides Json            @default("{}")
+  // Armazenamento usado (KB) — somado/subtraido no upload/exclusao; o console
+  // recalcula a partir dos arquivos reais (inclui os anteriores ao contador).
+  storageUsedKb    Int             @default(0)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -134,7 +137,7 @@ model Plan {
   name        String
   slug        String  @unique
   description String?
-  // { "maxUsers": 10, "maxRecords": 50000 } — ausente/null = ilimitado
+  // { "maxUsers": 10, "maxRecords": 50000, "maxStorageMb": 2048 } — ausente/null = ilimitado
   limits      Json    @default("{}")
   // { "chat": true, "pdf": true, "automations": true, ... } — ver plan-features.ts
   features    Json    @default("{}")

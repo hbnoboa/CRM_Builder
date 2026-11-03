@@ -2,7 +2,8 @@ import { BadRequestException, Injectable, Logger, NotFoundException } from '@nes
 import { Cron } from '@nestjs/schedule';
 import { Prisma, Status, TenantLifecycle } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
-import { TenantPlanService } from '../../common/services/tenant-plan.service';
+import { TenantPlanService, kbToMb } from '../../common/services/tenant-plan.service';
+import { UploadService } from '../upload/upload.service';
 import { FEATURE_KEYS, getPlanLimits, isFeatureKey } from '../../common/utils/plan-features';
 import { TenantService } from '../tenant/tenant.service';
 import { AuthService } from '../auth/auth.service';
@@ -36,6 +37,7 @@ export class PlatformTenantsService {
     private readonly tenantPlan: TenantPlanService,
     private readonly authService: AuthService,
     private readonly audit: PlatformAuditService,
+    private readonly uploadService: UploadService,
   ) {}
 
   // ── Leitura ─────────────────────────────────────────────────────────────
@@ -111,6 +113,7 @@ export class PlatformTenantsService {
           lifecycle: true,
           trialEndsAt: true,
           createdAt: true,
+          storageUsedKb: true,
           plan: { select: { id: true, name: true, limits: true } },
         },
       }),
@@ -118,11 +121,11 @@ export class PlatformTenantsService {
     ]);
 
     const usage = await this.usageFor(tenants.map((t) => t.id));
-    const data = tenants.map((t) => ({
+    const data = tenants.map(({ storageUsedKb, ...t }) => ({
       ...t,
       plan: t.plan ? { id: t.plan.id, name: t.plan.name } : null,
       limits: getPlanLimits(t.plan?.limits),
-      usage: usage.get(t.id) ?? { users: 0, records: 0, lastLoginAt: null },
+      usage: { ...(usage.get(t.id) ?? { users: 0, records: 0, lastLoginAt: null }), storageMb: kbToMb(storageUsedKb) },
     }));
 
     return { data, meta: { total, page, limit, totalPages: Math.ceil(total / limit) } };
@@ -141,11 +144,13 @@ export class PlatformTenantsService {
         lifecycle: true,
         trialEndsAt: true,
         featureOverrides: true,
+        storageUsedKb: true,
         createdAt: true,
         plan: { select: { id: true, name: true, slug: true, features: true, limits: true } },
       },
     });
     if (!tenant) throw new NotFoundException('Tenant nao encontrado');
+    const { storageUsedKb, ...tenantData } = tenant;
 
     this.tenantPlan.invalidate(id);
     const [info, usage, entities] = await Promise.all([
@@ -155,10 +160,14 @@ export class PlatformTenantsService {
     ]);
 
     return {
-      ...tenant,
+      ...tenantData,
       features: info?.features,
       limits: info?.limits,
-      usage: { ...(usage.get(id) ?? { users: 0, records: 0, lastLoginAt: null }), entities },
+      usage: {
+        ...(usage.get(id) ?? { users: 0, records: 0, lastLoginAt: null }),
+        entities,
+        storageMb: kbToMb(storageUsedKb),
+      },
     };
   }
 
@@ -369,6 +378,22 @@ export class PlatformTenantsService {
     };
   }
 
+  /** Recalcula o armazenamento usado a partir dos arquivos reais do tenant. */
+  async recomputeStorage(actor: PlatformStaffPrincipal, id: string) {
+    await this.assertExists(id);
+    const before = (await this.tenantPlan.getUsage(id)).maxStorageMb;
+    const bytes = await this.uploadService.recomputeTenantStorage(id);
+    const storageMb = kbToMb(Math.ceil(bytes / 1024));
+    await this.audit.log(actor, {
+      action: 'tenant.storage_recomputed',
+      targetType: 'tenant',
+      targetId: id,
+      tenantId: id,
+      metadata: { beforeMb: before, afterMb: storageMb },
+    });
+    return { storageMb };
+  }
+
   // ── Trial ───────────────────────────────────────────────────────────────
 
   /** Trial vencido -> suspenso (bloqueia o acesso). Roda todo dia as 04:30. */
@@ -407,6 +432,8 @@ export class PlatformTenantsService {
         WHERE uta."tenantId" = ANY(${tenantIds})
           AND uta."deletedAt" IS NULL
           AND uta.status = 'ACTIVE'
+          -- usuarios de formulario publico nao ocupam vaga (mesma regra do TenantPlanService)
+          AND NOT EXISTS (SELECT 1 FROM "PublicLink" pl WHERE pl."customRoleId" = uta."customRoleId")
         GROUP BY uta."tenantId"`,
     ]);
 
