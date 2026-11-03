@@ -5,7 +5,8 @@ import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcryptjs';
 import { PrismaService } from '../../prisma/prisma.service';
 import { LoginDto, RegisterDto, RefreshTokenDto, UpdateProfileDto, ChangePasswordDto, ForgotPasswordDto, ResetPasswordDto } from './dto/auth.dto';
-import { Status } from '@prisma/client';
+import { Status, TenantLifecycle } from '@prisma/client';
+import { TenantService, RESERVED_TENANT_SLUGS } from '../tenant/tenant.service';
 import { hasPlatformAccess, canImpersonateAny } from '../../common/utils/platform-access';
 import { assertCanActOnRank, assertNotImpersonating } from '../../common/utils/permission-governance';
 import { CurrentUser } from '../../common/types';
@@ -47,6 +48,7 @@ export class AuthService {
     private prisma: PrismaService,
     private jwtService: JwtService,
     private configService: ConfigService,
+    private tenantService: TenantService,
   ) {}
 
   // ── Resolucao de Membership (fonte da verdade de tenant + cargo) ────────────
@@ -83,54 +85,59 @@ export class AuthService {
     return !!m && m.status === 'ACTIVE' && (!m.expiresAt || m.expiresAt > new Date());
   }
 
+  /**
+   * Cadastro self-service: cria uma empresa nova (tenant em TRIAL no plano
+   * padrao) com o usuario como administrador e ja devolve a sessao (mesmo
+   * formato do login). Unico caminho publico de criacao de conta.
+   */
   async register(dto: RegisterDto) {
-    // Email agora e identidade GLOBAL.
     const existingUser = await this.prisma.user.findUnique({ where: { email: dto.email } });
     if (existingUser) {
       throw new ConflictException('Email ja esta em uso');
     }
 
-    // Resolver cargo (do tenant) — validado contra o tenant informado.
-    let customRoleId = dto.customRoleId;
-    if (customRoleId) {
-      const roleExists = await this.prisma.customRole.findFirst({
-        where: { id: customRoleId, tenantId: dto.tenantId },
-        select: { id: true },
-      });
-      if (!roleExists) {
-        throw new BadRequestException('Role nao encontrada para este tenant');
-      }
-    }
-    if (!customRoleId) {
-      const defaultRole = await this.prisma.customRole.findFirst({
-        where: { tenantId: dto.tenantId, isDefault: true },
-        select: { id: true },
-      });
-      if (!defaultRole) {
-        throw new BadRequestException('Tenant sem role default configurada');
-      }
-      customRoleId = defaultRole.id;
-    }
-
-    const hashedPassword = await bcrypt.hash(dto.password, 12);
-    const cpf = dto.cpf ? dto.cpf.replace(/\D/g, '') || null : null;
-    const cnpj = dto.cnpj ? dto.cnpj.replace(/\D/g, '') || null : null;
-    const phone = dto.phone ? dto.phone.replace(/\D/g, '') || null : null;
-
-    // Cria a identidade (sem tenant/cargo) + a membership home (primaria).
-    const user = await this.prisma.user.create({
-      data: { email: dto.email, password: hashedPassword, name: dto.name, status: Status.ACTIVE, cpf, cnpj, phone },
-      select: { id: true, email: true, name: true, createdAt: true },
+    const slug = await this.uniqueTenantSlug(dto.tenantName);
+    const plan = await this.prisma.plan.findFirst({
+      where: { isDefault: true, isActive: true },
+      select: { id: true },
     });
+    const trialDays = parseInt(this.configService.get<string>('SIGNUP_TRIAL_DAYS') || '14', 10);
+    const trialEndsAt = new Date(Date.now() + trialDays * 24 * 60 * 60 * 1000);
 
-    await this.prisma.userTenantAccess.upsert({
-      where: { userId_tenantId: { userId: user.id, tenantId: dto.tenantId } },
-      update: { customRoleId, status: Status.ACTIVE, deletedAt: null, isPrimary: true },
-      create: { userId: user.id, tenantId: dto.tenantId, customRoleId, status: Status.ACTIVE, isPrimary: true },
-    });
+    await this.tenantService.create(
+      {
+        name: dto.tenantName,
+        slug,
+        adminName: dto.name,
+        adminEmail: dto.email,
+        adminPassword: dto.password,
+      },
+      { planId: plan?.id ?? null, lifecycle: TenantLifecycle.TRIAL, trialEndsAt },
+    );
 
-    this.logger.log(`Usuario registrado: ${user.email}`);
-    return { ...user, tenantId: dto.tenantId, customRoleId };
+    this.logger.log(`Cadastro self-service: ${dto.email} -> tenant ${slug} (trial ${trialDays}d)`);
+    return this.login({ email: dto.email, password: dto.password });
+  }
+
+  /** Slug a partir do nome da empresa, sem colidir com tenants nem rotas reservadas. */
+  private async uniqueTenantSlug(name: string): Promise<string> {
+    const base =
+      name
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '')
+        .slice(0, 32)
+        .replace(/-+$/, '') || 'empresa';
+
+    for (let i = 1; i <= 20; i++) {
+      const candidate = i === 1 ? base : `${base}-${i}`;
+      if (RESERVED_TENANT_SLUGS.has(candidate)) continue;
+      const taken = await this.prisma.tenant.findUnique({ where: { slug: candidate }, select: { id: true } });
+      if (!taken) return candidate;
+    }
+    return `${base}-${randomUUID().slice(0, 6)}`;
   }
 
   async login(dto: LoginDto) {
@@ -227,7 +234,11 @@ export class AuthService {
       }
 
       // Preserva o contexto de tenant trocado + rememberMe do token anterior.
-      const decoded = this.jwtService.decode(dto.refreshToken) as { tenantId?: string; rememberMe?: boolean } | null;
+      const decoded = this.jwtService.decode(dto.refreshToken) as {
+        tenantId?: string;
+        rememberMe?: boolean;
+        impersonatedBy?: { id: string; name: string };
+      } | null;
       const requestedTenantId = decoded?.tenantId;
       const wasRememberMe = decoded?.rememberMe ?? false;
 
@@ -244,6 +255,8 @@ export class AuthService {
           customRoleId: ctx.customRoleId,
         },
         wasRememberMe,
+        // Sessao impersonada continua impersonada apos o refresh (auditoria + banner).
+        decoded?.impersonatedBy,
       );
     } catch (error) {
       if (error instanceof UnauthorizedException) throw error;
@@ -595,8 +608,12 @@ export class AuthService {
   /**
    * Gera tokens JWT para um usuario. Usado internamente e pelo PublicLink module.
    */
-  async generateTokensForUser(user: UserForTokenGeneration, rememberMe = false) {
-    return this.generateTokens(user, rememberMe);
+  async generateTokensForUser(
+    user: UserForTokenGeneration,
+    rememberMe = false,
+    impersonatedBy?: { id: string; name: string },
+  ) {
+    return this.generateTokens(user, rememberMe, impersonatedBy);
   }
 
   private async generateTokens(

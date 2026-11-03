@@ -1,3 +1,4 @@
+import { RequireFeature } from '../../common/decorators/require-feature.decorator';
 import { ServiceScope } from '../../common/service-scope/service-scope.decorator';
 import {
   Controller,
@@ -35,6 +36,7 @@ import {
 
 @ApiTags('PDF Templates')
 @ServiceScope('admin')
+@RequireFeature('pdf')
 @Controller('pdf-templates')
 @UseGuards(JwtAuthGuard, ModulePermissionGuard)
 @ApiBearerAuth()

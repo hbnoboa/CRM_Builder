@@ -1,3 +1,4 @@
+import { RequireFeature } from '../../common/decorators/require-feature.decorator';
 import {
   Body,
   Controller,
@@ -17,6 +18,7 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { CurrentUser as CurrentUserType } from '../../common/types';
 
 @ApiTags('Chat')
+@RequireFeature('chat')
 @Controller('chat')
 @UseGuards(JwtAuthGuard)
 @ApiBearerAuth()

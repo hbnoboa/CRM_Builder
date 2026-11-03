@@ -1,3 +1,4 @@
+import { RequireFeature } from '../../common/decorators/require-feature.decorator';
 import { ServiceScope } from '../../common/service-scope/service-scope.decorator';
 import {
   Controller,
@@ -53,6 +54,7 @@ class UpdateScheduledTaskDto extends CreateScheduledTaskDto {
 @ApiTags('Scheduled Tasks')
 @ApiBearerAuth()
 @ServiceScope('admin')
+@RequireFeature('automations')
 @Controller('scheduled-tasks')
 @UseGuards(JwtAuthGuard)
 export class ScheduledTaskController {

@@ -1,3 +1,4 @@
+import { RequireFeature } from '../../common/decorators/require-feature.decorator';
 import { ServiceScope } from '../../common/service-scope/service-scope.decorator';
 import {
   Controller,
@@ -92,6 +93,7 @@ class UpdateWebhookDto extends CreateWebhookDto {
 @ApiTags('Webhooks')
 @ApiBearerAuth()
 @ServiceScope('admin')
+@RequireFeature('webhooks')
 @Controller('webhooks')
 @UseGuards(JwtAuthGuard, ModulePermissionGuard)
 export class WebhookController {

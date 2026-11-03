@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { ForbiddenException, Injectable, UnauthorizedException } from '@nestjs/common';
 import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
 import { ConfigService } from '@nestjs/config';
@@ -89,6 +89,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
             customRoleId: true,
             isPrimary: true,
             expiresAt: true,
+            tenant: { select: { status: true } },
             customRole: { select: ROLE_SELECT },
           },
         },
@@ -131,6 +132,11 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     if (membership) {
       if (membership.expiresAt && membership.expiresAt < new Date()) {
         throw new UnauthorizedException('Acesso ao tenant expirado');
+      }
+      // Tenant suspenso/cancelado pelo console: corta sessoes ja abertas, nao so o
+      // proximo login. 403 (nao 401) para o cliente nao entrar em loop de refresh.
+      if (membership.tenant.status !== 'ACTIVE') {
+        throw new ForbiddenException({ code: 'TENANT_SUSPENDED', message: 'Tenant suspenso ou inativo' });
       }
       this.ensurePermsFresh(payload, membership.customRole as RoleSel);
       return this.buildCurrentUser(

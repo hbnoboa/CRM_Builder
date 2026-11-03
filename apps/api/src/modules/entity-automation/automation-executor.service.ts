@@ -7,6 +7,7 @@ import { ConditionEvaluator } from './condition-evaluator';
 import { ExecutionContextService, ExecutionContext, LoopDetectedException, MaxDepthExceededException } from './execution-context.service';
 import { CircuitBreakerService, CircuitOpenException } from './circuit-breaker.service';
 import * as vm from 'vm';
+import { TenantPlanService } from '../../common/services/tenant-plan.service';
 
 interface ActionConfig {
   order: number;
@@ -45,6 +46,7 @@ export class AutomationExecutorService {
     private readonly prisma: PrismaService,
     private readonly executionContextService: ExecutionContextService,
     private readonly circuitBreakerService: CircuitBreakerService,
+    private readonly tenantPlan: TenantPlanService,
     @Optional() @Inject(EmailTemplateService)
     private readonly emailTemplateService?: EmailTemplateService,
     @Optional() @Inject(NotificationService)
@@ -620,6 +622,8 @@ export class AutomationExecutorService {
         context,
       ) as Record<string, unknown>;
     }
+
+    await this.tenantPlan.assertCanAddRecords(context.tenantId);
 
     const newRecord = await this.prisma.entityData.create({
       data: {

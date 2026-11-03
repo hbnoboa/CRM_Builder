@@ -2,8 +2,21 @@ import { Injectable, NotFoundException, ConflictException, BadRequestException }
 import { I18nService } from 'nestjs-i18n';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateTenantDto, UpdateTenantDto, QueryTenantDto } from './dto/tenant.dto';
-import { Status, Prisma } from '@prisma/client';
+import { Status, Prisma, TenantLifecycle } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
+
+// Slugs que colidem com rotas do web-admin (/{locale}/{slug}/...) ou da API.
+export const RESERVED_TENANT_SLUGS = new Set([
+  'admin', 'api', 'app', 'p', 'login', 'register', 'signup', 'forgot-password',
+  'platform', 'home', 'www', 'dashboard', 'settings', 'profile',
+]);
+
+/** Campos comerciais definidos na criacao (console da plataforma / cadastro). */
+export interface CreateTenantOptions {
+  planId?: string | null;
+  lifecycle?: TenantLifecycle;
+  trialEndsAt?: Date | null;
+}
 
 // Removido: Nao criar roles de sistema automaticamente.
 // Apenas PLATFORM_ADMIN é hardcoded (criado no seed para o Platform tenant).
@@ -16,7 +29,11 @@ export class TenantService {
     private readonly i18n: I18nService,
   ) {}
 
-  async create(dto: CreateTenantDto) {
+  async create(dto: CreateTenantDto, options: CreateTenantOptions = {}) {
+    if (RESERVED_TENANT_SLUGS.has(dto.slug)) {
+      throw new BadRequestException(`Slug reservado: ${dto.slug}`);
+    }
+
     // Verificar se slug ja existe
     const existing = await this.prisma.tenant.findUnique({
       where: { slug: dto.slug },
@@ -35,6 +52,9 @@ export class TenantService {
           slug: dto.slug,
           domain: dto.domain,
           logo: dto.logo,
+          planId: options.planId ?? undefined,
+          lifecycle: options.lifecycle,
+          trialEndsAt: options.trialEndsAt ?? undefined,
         },
       });
 
@@ -174,7 +194,7 @@ export class TenantService {
 
     return this.prisma.tenant.update({
       where: { id },
-      data: { status: Status.SUSPENDED },
+      data: { status: Status.SUSPENDED, lifecycle: TenantLifecycle.SUSPENDED },
     });
   }
 
@@ -183,7 +203,7 @@ export class TenantService {
 
     return this.prisma.tenant.update({
       where: { id },
-      data: { status: Status.ACTIVE },
+      data: { status: Status.ACTIVE, lifecycle: TenantLifecycle.ACTIVE },
     });
   }
 

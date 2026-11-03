@@ -9,7 +9,7 @@ import {
   HttpStatus,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiResponse } from '@nestjs/swagger';
-import { Throttle } from '@nestjs/throttler';
+import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
 import { AuthService } from './auth.service';
 import { LoginDto, RegisterDto, RefreshTokenDto, UpdateProfileDto, ChangePasswordDto, ForgotPasswordDto, ResetPasswordDto, ImpersonateDto } from './dto/auth.dto';
 import { SwitchTenantDto } from './dto/switch-tenant.dto';
@@ -23,8 +23,11 @@ export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
   @Post('register')
+  // ThrottlerGuard so aqui: o @Throttle das outras rotas de auth nao e aplicado
+  // (o guard nao e global) — cadastro publico precisa de limite de verdade.
+  @UseGuards(ThrottlerGuard)
   @Throttle({ default: { limit: 3, ttl: 60000 } }) // 3 requests per minute
-  @ApiOperation({ summary: 'Registrar novo usuario' })
+  @ApiOperation({ summary: 'Cadastro self-service: cria empresa (trial) + administrador e devolve a sessao' })
   @ApiResponse({ status: 201, description: 'Usuario criado' })
   @ApiResponse({ status: 409, description: 'Email ja em uso' })
   @ApiResponse({ status: 429, description: 'Muitas tentativas. Tente novamente em 1 minuto.' })
