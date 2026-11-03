@@ -21,6 +21,8 @@ import { SyncModule } from './modules/sync/sync.module';
 import { PushModule } from './modules/push/push.module';
 import { PdfModule } from './modules/pdf/pdf.module';
 import { AuditModule } from './modules/audit/audit.module';
+import { InvitationModule } from './modules/invitation/invitation.module';
+import { EmailModule } from './modules/email/email.module';
 import { ArchiveModule } from './modules/archive/archive.module';
 import { DataLifecycleModule } from './modules/data-lifecycle/data-lifecycle.module';
 import { WebhookModule } from './modules/webhook/webhook.module';
@@ -92,6 +94,8 @@ import { TenantFeatureInterceptor } from './common/interceptors/tenant-feature.i
     PushModule,
     PdfModule,
     AuditModule,
+    EmailModule,
+    InvitationModule,
     ArchiveModule,
     DataLifecycleModule,
 

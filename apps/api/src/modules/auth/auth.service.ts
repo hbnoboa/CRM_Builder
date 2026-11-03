@@ -7,6 +7,9 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { LoginDto, RegisterDto, RefreshTokenDto, UpdateProfileDto, ChangePasswordDto, ForgotPasswordDto, ResetPasswordDto } from './dto/auth.dto';
 import { Status, TenantLifecycle } from '@prisma/client';
 import { TenantService, RESERVED_TENANT_SLUGS } from '../tenant/tenant.service';
+import { EmailService } from '../email/email.service';
+import { transactionalEmail } from '../email/email-layout';
+import { appUrl } from '../../common/utils/app-url';
 
 export interface UserForTokenGeneration {
   id: string;
@@ -46,6 +49,7 @@ export class AuthService {
     private jwtService: JwtService,
     private configService: ConfigService,
     private tenantService: TenantService,
+    private email: EmailService,
   ) {}
 
   // ── Resolucao de Membership (fonte da verdade de tenant + cargo) ────────────
@@ -400,7 +404,16 @@ export class AuthService {
       data: { resetToken, resetTokenExpires: resetExpires },
     });
 
-    this.logger.log(`Reset token gerado para: ${user.email}`);
+    const url = `${appUrl()}/pt-BR/reset-password?token=${resetToken}`;
+    const { html, text } = transactionalEmail({
+      title: 'Redefinir sua senha',
+      paragraphs: [`Olá, ${user.name}!`, 'Recebemos um pedido para redefinir a sua senha. O link vale por 1 hora.'],
+      buttonLabel: 'Criar nova senha',
+      url,
+      footer: 'Se você não pediu, ignore este e-mail: sua senha continua a mesma.',
+    });
+    const result = await this.email.send({ to: user.email, subject: 'Redefinir sua senha', html, text });
+    this.logger.log(`Reset de senha para ${user.email}: e-mail ${result.sent ? 'enviado' : 'NAO enviado (sem provedor)'}`);
     return { message: 'Se o email existir, voce recebera um link de recuperacao' };
   }
 

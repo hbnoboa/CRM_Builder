@@ -19,7 +19,7 @@ export class TenantOverviewService {
     const since7 = new Date(Date.now() - 7 * DAY_MS);
     const activeMember = { tenantAccess: { some: { tenantId, deletedAt: null, status: 'ACTIVE' as const } }, deletedAt: null, status: 'ACTIVE' as const };
 
-    const [neverLoggedIn, inactive30, roles, failed] = await Promise.all([
+    const [neverLoggedIn, inactive30, roles, failed, invites] = await Promise.all([
       this.prisma.user.findMany({
         where: { ...activeMember, lastLoginAt: null },
         select: { id: true, name: true, email: true },
@@ -40,6 +40,7 @@ export class TenantOverviewService {
         this.prisma.webhookExecution.count({ where: { tenantId, status: { in: ['error', 'timeout'] }, createdAt: { gte: since7 } } }),
         this.prisma.scheduledTaskExecution.count({ where: { tenantId, status: { in: ['error', 'timeout'] }, startedAt: { gte: since7 } } }),
       ]).then((counts) => counts.reduce((a, b) => a + b, 0)),
+      this.prisma.invitation.count({ where: { tenantId, acceptedAt: null, revokedAt: null, expiresAt: { gt: new Date() } } }),
     ]);
 
     return {
@@ -48,6 +49,7 @@ export class TenantOverviewService {
         inactive30,
         unusedRoles: roles.filter((r) => r._count.tenantAccessUsers === 0 && r._count.publicLinks === 0).length,
         failedRuns7d: failed,
+        pendingInvites: invites,
       },
       activity: this.canSeeActivity(currentUser) ? await this.recentActivity(tenantId) : null,
     };

@@ -19,7 +19,8 @@ export type AuditResource =
   | 'entity'
   | 'custom_role'
   | 'custom_api'
-  | 'page';
+  | 'page'
+  | 'invitation';
 
 export interface AuditLogInput {
   action: AuditAction;
