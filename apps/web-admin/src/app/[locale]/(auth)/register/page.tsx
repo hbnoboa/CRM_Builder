@@ -47,7 +47,10 @@ export default function RegisterPage() {
     try {
       await registerUser(data);
       const user = useAuthStore.getState().user;
-      router.push(getDefaultRouteForUser(user));
+      // Empresa nova criada no cadastro: entra direto no tenant (slug na URL), como o login.
+      const slug = (user as { tenant?: { slug?: string } } | null)?.tenant?.slug;
+      const route = getDefaultRouteForUser(user);
+      router.push(slug ? `/${slug}${route}` : route);
     } catch (err) {
       // handled by store
     }

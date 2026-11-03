@@ -89,11 +89,12 @@
       "signIn": "Sign In",
       "signingIn": "Signing in...",
       "noAccount": "Don't have an account?",
-      "createAccount": "Create account"
+      "createAccount": "Create account",
+      "tenantSuspended": "Access for this company is suspended. Contact your administrator or support."
     },
     "register": {
       "title": "CRM Builder",
-      "subtitle": "Create your account to access the dashboard",
+      "subtitle": "Create your company and try it free for 14 days",
       "name": "Name",
       "namePlaceholder": "Your full name",
       "company": "Company",
@@ -1086,6 +1087,9 @@
       "tenantSlug": "Identifier (slug)",
       "brandColor": "Brand color",
       "readonly": "Read-only — requires settings permission."
+    },
+    "plan": {
+      "tab": "Plan"
     }
   },
   "validation": {
@@ -1470,5 +1474,335 @@
     "settingsDesc": "Account and organization",
     "tablesTitle": "Your tables",
     "empty": "No actions available for your profile."
+  },
+  "platform": {
+    "brand": "Platform console",
+    "nav": {
+      "overview": "Overview",
+      "tenants": "Customers",
+      "plans": "Plans",
+      "staff": "Team",
+      "audit": "Audit"
+    },
+    "roles": {
+      "OWNER": "Owner",
+      "SUPPORT": "Support",
+      "FINANCE": "Finance",
+      "READONLY": "Read only"
+    },
+    "lifecycle": {
+      "TRIAL": "Trial",
+      "ACTIVE": "Active",
+      "PAST_DUE": "Past due",
+      "SUSPENDED": "Suspended",
+      "CANCELED": "Canceled"
+    },
+    "features": {
+      "chat": {
+        "name": "Chat",
+        "description": "Channels, commands and bot"
+      },
+      "pdf": {
+        "name": "PDF templates",
+        "description": "PDF report editor and generation"
+      },
+      "automations": {
+        "name": "Automations",
+        "description": "Automations, action chains and scheduled tasks"
+      },
+      "webhooks": {
+        "name": "Webhooks",
+        "description": "Send events to external systems"
+      },
+      "publicLinks": {
+        "name": "Public links",
+        "description": "External forms without login"
+      },
+      "mobile": {
+        "name": "Mobile app",
+        "description": "Offline sync for the app"
+      }
+    },
+    "limits": {
+      "maxUsers": "Users",
+      "maxRecords": "Records",
+      "unlimited": "Unlimited"
+    },
+    "login": {
+      "title": "Platform console",
+      "subtitle": "Team access only",
+      "email": "Email",
+      "password": "Password",
+      "submit": "Sign in",
+      "error": "Could not sign in"
+    },
+    "account": {
+      "changePassword": "Change password",
+      "logout": "Sign out",
+      "currentPassword": "Current password",
+      "newPassword": "New password",
+      "passwordRule": "At least 10 characters, with uppercase, lowercase and a number.",
+      "passwordChanged": "Password changed",
+      "save": "Save"
+    },
+    "overview": {
+      "title": "Overview",
+      "subtitle": "Status of the platform customers",
+      "totalTenants": "Customers",
+      "activeUsers": "Active users",
+      "trialsEnding": "Trials ending in the next 7 days",
+      "recentSignups": "New customers (30 days)",
+      "none": "Nothing here."
+    },
+    "tenants": {
+      "title": "Customers",
+      "subtitle": "Companies using the platform",
+      "new": "New customer",
+      "search": "Search by name or slug",
+      "allLifecycles": "All statuses",
+      "empty": "No customers found.",
+      "noPlan": "No plan",
+      "trialUntil": "until {date}",
+      "page": "Page {page} of {total}",
+      "previous": "Previous",
+      "next": "Next",
+      "columns": {
+        "name": "Customer",
+        "status": "Status",
+        "plan": "Plan",
+        "users": "Users",
+        "records": "Records",
+        "lastAccess": "Last access",
+        "createdAt": "Created"
+      },
+      "create": {
+        "title": "New customer",
+        "name": "Company name",
+        "slug": "Address (slug)",
+        "slugHint": "Shown in the URL. Lowercase letters, numbers and hyphens.",
+        "plan": "Plan",
+        "noPlan": "No plan (everything enabled)",
+        "lifecycle": "Initial status",
+        "admin": "Company administrator",
+        "adminName": "Name",
+        "adminEmail": "Email",
+        "adminPassword": "Initial password",
+        "passwordRule": "At least 8 characters, with uppercase, lowercase and a number.",
+        "submit": "Create customer",
+        "created": "Customer created"
+      }
+    },
+    "tenant": {
+      "back": "Customers",
+      "since": "customer since {date}",
+      "usage": {
+        "title": "Usage",
+        "users": "Users",
+        "records": "Records",
+        "entities": "Tables",
+        "lastAccess": "Last access"
+      },
+      "lifecycle": {
+        "title": "Status",
+        "trialEnd": "Trial ends",
+        "save": "Save status",
+        "saved": "Status updated",
+        "hint": {
+          "TRIAL": "Access until the trial ends; then the customer is suspended automatically.",
+          "ACTIVE": "Paying customer with normal access.",
+          "PAST_DUE": "Late payment: access continues and the customer sees a warning.",
+          "SUSPENDED": "Access blocked. Data is kept.",
+          "CANCELED": "Contract ended. Access blocked; data is kept."
+        }
+      },
+      "plan": {
+        "title": "Plan",
+        "none": "No plan",
+        "noneHint": "No plan: every feature enabled and no limits.",
+        "save": "Change plan",
+        "saved": "Plan updated"
+      },
+      "features": {
+        "title": "Features",
+        "subtitle": "They come from the plan; here you turn them on or off for this customer only.",
+        "fromPlan": "From plan",
+        "custom": "This customer only",
+        "reset": "back to plan"
+      },
+      "details": {
+        "title": "Details",
+        "name": "Name",
+        "domain": "Custom domain",
+        "slug": "Address (slug)",
+        "slugHint": "The slug cannot change after creation: it is in users’ links.",
+        "save": "Save",
+        "saved": "Details updated"
+      },
+      "members": {
+        "title": "Users",
+        "name": "User",
+        "role": "Role",
+        "lastAccess": "Last access",
+        "inactive": "inactive",
+        "enterAs": "Sign in as",
+        "inactiveHint": "Reactivate the customer to sign in as a user."
+      }
+    },
+    "plans": {
+      "title": "Plans",
+      "subtitle": "Limits and features of each plan",
+      "new": "New plan",
+      "edit": "Edit",
+      "empty": "No plans yet. Without a plan, customers have everything enabled and no limits.",
+      "default": "Signup default",
+      "inactive": "Inactive",
+      "tenantsCount": "{count, plural, =0 {no customers} one {# customer} other {# customers}}",
+      "form": {
+        "newTitle": "New plan",
+        "editTitle": "Edit plan",
+        "name": "Name",
+        "slug": "Identifier",
+        "description": "Description",
+        "limits": "Limits",
+        "limitsHint": "Leave blank for unlimited.",
+        "features": "Included features",
+        "isDefault": "Signup default",
+        "isDefaultHint": "Companies that sign up on their own get this plan.",
+        "isActive": "Active (can be assigned)",
+        "save": "Save plan",
+        "saved": "Plan saved"
+      }
+    },
+    "staff": {
+      "title": "Team",
+      "subtitle": "Who can access this console",
+      "new": "Add person",
+      "you": "you",
+      "saved": "Team updated",
+      "deactivate": "Deactivate",
+      "activate": "Activate",
+      "resetPassword": "New password",
+      "remove": "Remove",
+      "rolesTitle": "What each role can do",
+      "roleHelp": {
+        "OWNER": "everything, including managing the team.",
+        "SUPPORT": "view and create customers, change features and sign in as a user to help.",
+        "FINANCE": "view customers, change plan and status (trial, active, suspended) and manage plans.",
+        "READONLY": "view only."
+      },
+      "status": {
+        "ACTIVE": "Active",
+        "INACTIVE": "Inactive",
+        "SUSPENDED": "Suspended"
+      },
+      "columns": {
+        "name": "Person",
+        "role": "Role",
+        "status": "Status",
+        "lastLogin": "Last access"
+      },
+      "create": {
+        "title": "Add to the team",
+        "subtitle": "They sign in at /admin with this email and password.",
+        "name": "Name",
+        "email": "Email",
+        "role": "Role",
+        "password": "Initial password",
+        "passwordRule": "At least 10 characters, with uppercase, lowercase and a number.",
+        "submit": "Add",
+        "created": "Person added"
+      },
+      "reset": {
+        "title": "New password for {name}",
+        "password": "New password",
+        "passwordRule": "At least 10 characters, with uppercase, lowercase and a number.",
+        "submit": "Set password",
+        "done": "Password reset"
+      },
+      "removeDialog": {
+        "title": "Remove {name} from the team?",
+        "description": "They lose console access immediately. Audit history is kept.",
+        "cancel": "Cancel",
+        "confirm": "Remove",
+        "done": "Removed from the team"
+      }
+    },
+    "audit": {
+      "title": "Audit",
+      "subtitle": "Everything the team did in the console",
+      "tenantTitle": "Team history for this customer",
+      "empty": "No actions recorded.",
+      "page": "Page {page} of {total}",
+      "previous": "Previous",
+      "next": "Next",
+      "columns": {
+        "when": "When",
+        "who": "Who",
+        "action": "Action",
+        "target": "Target",
+        "ip": "IP"
+      },
+      "actions": {
+        "staff": {
+          "login": "signed in to the console",
+          "created": "added a team member",
+          "updated": "changed a team member",
+          "removed": "removed a team member",
+          "password_changed": "changed their password"
+        },
+        "plan": {
+          "created": "created a plan",
+          "updated": "changed a plan"
+        },
+        "tenant": {
+          "created": "created a customer",
+          "updated": "changed customer details",
+          "lifecycle_changed": "changed the status",
+          "plan_changed": "changed the plan",
+          "features_changed": "changed the features",
+          "impersonated": "signed in as a user"
+        }
+      }
+    }
+  },
+  "subscription": {
+    "banner": {
+      "trial": "{days, plural, one {# day} other {# days}} left in your trial.",
+      "trialLastDay": "Today is the last day of your trial.",
+      "seePlan": "See plan",
+      "pastDue": "A payment is pending. Contact us to avoid access being suspended."
+    },
+    "panel": {
+      "noPlan": "Full plan",
+      "trialLeft": "{days, plural, one {# day} other {# days}} of trial left. To keep going afterwards, contact us.",
+      "contact": "To change plans, contact us.",
+      "usage": {
+        "users": "Users",
+        "records": "Records"
+      },
+      "unlimited": "unlimited",
+      "nearLimit": "Close to the plan limit.",
+      "features": "Features in your plan",
+      "notIncluded": "not included in the plan"
+    },
+    "onboarding": {
+      "title": "Getting started",
+      "progress": "{done} of {total} done",
+      "dismiss": "Dismiss",
+      "steps": {
+        "table": {
+          "title": "Create your first table",
+          "description": "Define the fields for what you want to track: customers, orders, vehicles..."
+        },
+        "record": {
+          "title": "Add the first record",
+          "description": "Fill in a record in the table you created."
+        },
+        "team": {
+          "title": "Invite your team",
+          "description": "Add the people who will use the system with you."
+        }
+      }
+    }
   }
 }

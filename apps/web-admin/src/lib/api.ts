@@ -17,7 +17,7 @@ function isPublicContext(): boolean {
 
 // Modelo B: o tenant é o 1º segmento depois do locale na URL (/{locale}/{tenant}/...).
 // Segmentos não-tenant (auth/público) são ignorados.
-const NON_TENANT_SEGMENTS = new Set(['login', 'register', 'forgot-password', 'p', 'api']);
+const NON_TENANT_SEGMENTS = new Set(['login', 'register', 'forgot-password', 'p', 'api', 'admin']);
 function tenantSlugFromUrl(): string | null {
   if (typeof window === 'undefined') return null;
   const segs = window.location.pathname.split('/').filter(Boolean); // [locale, tenant?, ...]
@@ -79,6 +79,10 @@ function subscribeToRefresh(): Promise<string> {
   });
 }
 
+// Sessao encerrada por empresa suspensa: as requests paralelas que ainda voltarem
+// (401 sem token) nao podem disparar o redirect generico por cima do aviso.
+let sessionEndedBySuspension = false;
+
 // Auth endpoints that should NOT trigger token refresh on 401
 const AUTH_ENDPOINTS = ['/auth/login', '/auth/register', '/auth/refresh'];
 
@@ -86,6 +90,26 @@ const AUTH_ENDPOINTS = ['/auth/login', '/auth/register', '/auth/refresh'];
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
+    // Empresa suspensa/cancelada pelo console da plataforma: encerra a sessao
+    // (refresh nao resolve) e mostra o motivo na tela de login.
+    if (
+      error.response?.status === 403 &&
+      error.response?.data?.code === 'TENANT_SUSPENDED' &&
+      !isPublicContext() &&
+      typeof window !== 'undefined'
+    ) {
+      if (sessionEndedBySuspension) return Promise.reject(error);
+      sessionEndedBySuspension = true;
+      localStorage.removeItem('accessToken');
+      localStorage.removeItem('refreshToken');
+      localStorage.removeItem('activeTenantId');
+      const locale = window.location.pathname.split('/').filter(Boolean)[0] || 'pt-BR';
+      window.location.href = `/${locale}/login?reason=suspended`;
+      return Promise.reject(error);
+    }
+
+    if (sessionEndedBySuspension) return Promise.reject(error);
+
     const originalRequest = error.config;
     const url = originalRequest?.url || '';
     const isAuthEndpoint = AUTH_ENDPOINTS.some((path) => url.endsWith(path));

@@ -1,7 +1,8 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { User, Languages, Palette, Sun, Moon, Monitor, Building2 } from 'lucide-react';
+import { useState, useEffect, Suspense } from 'react';
+import { User, Languages, Palette, Sun, Moon, Monitor, Building2, CreditCard } from 'lucide-react';
+import { useSearchParams } from 'next/navigation';
 import { useTranslations, useLocale } from 'next-intl';
 import { useTheme } from 'next-themes';
 import { Button } from '@/components/ui/button';
@@ -14,6 +15,7 @@ import { usePermissions } from '@/hooks/use-permissions';
 import { useTenant } from '@/stores/tenant-context';
 import { Link, useRouter, usePathname } from '@/i18n/tenant-navigation';
 import { cn } from '@/lib/utils';
+import { SubscriptionPanel } from '@/components/subscription/subscription-widgets';
 
 // Conta (todos): profile/language/theme. Organização (gated): org.
 const ACCOUNT_TABS = ['profile', 'language', 'theme'] as const;
@@ -22,6 +24,7 @@ const TAB_ICONS: Record<string, typeof User> = {
   language: Languages,
   theme: Palette,
   org: Building2,
+  plan: CreditCard,
 };
 
 const LANGUAGES = [
@@ -45,9 +48,14 @@ function SettingsPageContent() {
 
   // Organização só para quem tem a caixa de configurações do tenant.
   const canOrg = hasModulePermission('settings', 'canUpdate');
-  const TAB_IDS = (canOrg ? [...ACCOUNT_TABS, 'org'] : [...ACCOUNT_TABS]) as string[];
+  const TAB_IDS = (canOrg ? [...ACCOUNT_TABS, 'org', 'plan'] : [...ACCOUNT_TABS]) as string[];
 
-  const [activeTab, setActiveTab] = useState<string>('profile');
+  // ?tab=plan abre direto na aba (link do banner de trial).
+  const searchParams = useSearchParams();
+  const requestedTab = searchParams.get('tab');
+  const [activeTab, setActiveTab] = useState<string>(
+    requestedTab && TAB_IDS.includes(requestedTab) ? requestedTab : 'profile',
+  );
   const { theme, setTheme } = useTheme();
 
   // Profile form state
@@ -129,7 +137,7 @@ function SettingsPageContent() {
                 )}
               >
                 <Icon className="h-4 w-4 md:h-5 md:w-5 shrink-0" />
-                {tabId === 'org' ? t('org.tab') : t(`tabs.${tabId}`)}
+                {tabId === 'org' ? t('org.tab') : tabId === 'plan' ? t('plan.tab') : t(`tabs.${tabId}`)}
               </button>
             );
           })}
@@ -312,6 +320,8 @@ function SettingsPageContent() {
           )}
 
           {/* Organização (gated por settings.canUpdate) — ajustes do tenant */}
+          {activeTab === 'plan' && canOrg && <SubscriptionPanel />}
+
           {activeTab === 'org' && canOrg && (
             <Card>
               <CardHeader>
@@ -349,5 +359,9 @@ function SettingsPageContent() {
 
 export default function SettingsPage() {
   // Conta é de todos (#21); o tab "Organização" dentro é gated por permissão.
-  return <SettingsPageContent />;
+  return (
+    <Suspense>
+      <SettingsPageContent />
+    </Suspense>
+  );
 }
