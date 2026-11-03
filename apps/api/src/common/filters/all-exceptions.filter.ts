@@ -71,6 +71,12 @@ export class AllExceptionsFilter implements ExceptionFilter {
       message = 'Dados invalidos';
     }
 
+    // Throttler responde em ingles ("ThrottlerException: Too Many Requests") e isso
+    // vai direto para a tela de login.
+    if (status === HttpStatus.TOO_MANY_REQUESTS) {
+      message = 'Muitas tentativas. Aguarde um minuto e tente novamente.';
+    }
+
     // Log the full error internally
     this.logger.error(
       `${request.method} ${request.url} - ${status}`,

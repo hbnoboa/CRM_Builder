@@ -9,7 +9,8 @@ import {
   HttpStatus,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiResponse } from '@nestjs/swagger';
-import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
+import { Throttle } from '@nestjs/throttler';
+import { AuthThrottlerGuard } from '../../common/guards/auth-throttler.guard';
 import { AuthService } from './auth.service';
 import { LoginDto, RegisterDto, RefreshTokenDto, UpdateProfileDto, ChangePasswordDto, ForgotPasswordDto, ResetPasswordDto, ImpersonateDto } from './dto/auth.dto';
 import { SwitchTenantDto } from './dto/switch-tenant.dto';
@@ -23,9 +24,8 @@ export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
   @Post('register')
-  // ThrottlerGuard so aqui: o @Throttle das outras rotas de auth nao e aplicado
-  // (o guard nao e global) — cadastro publico precisa de limite de verdade.
-  @UseGuards(ThrottlerGuard)
+  // Throttle so nas rotas publicas de auth (o guard nao e global): ver AuthThrottlerGuard.
+  @UseGuards(AuthThrottlerGuard)
   @Throttle({ default: { limit: 3, ttl: 60000 } }) // 3 requests per minute
   @ApiOperation({ summary: 'Cadastro self-service: cria empresa (trial) + administrador e devolve a sessao' })
   @ApiResponse({ status: 201, description: 'Usuario criado' })
@@ -36,6 +36,7 @@ export class AuthController {
   }
 
   @Post('login')
+  @UseGuards(AuthThrottlerGuard)
   @Throttle({ default: { limit: 5, ttl: 60000 } }) // 5 requests per minute
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Login' })
@@ -47,6 +48,7 @@ export class AuthController {
   }
 
   @Post('refresh')
+  @UseGuards(AuthThrottlerGuard)
   @Throttle({ default: { limit: 10, ttl: 60000 } }) // 10 requests per minute
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Renovar tokens' })
@@ -143,6 +145,7 @@ export class AuthController {
   }
 
   @Post('forgot-password')
+  @UseGuards(AuthThrottlerGuard)
   @Throttle({ default: { limit: 3, ttl: 60000 } }) // 3 requests per minute
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Solicitar recuperacao de senha' })
@@ -153,6 +156,7 @@ export class AuthController {
   }
 
   @Post('reset-password')
+  @UseGuards(AuthThrottlerGuard)
   @Throttle({ default: { limit: 3, ttl: 60000 } }) // 3 requests per minute
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Redefinir senha com token' })

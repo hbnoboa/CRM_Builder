@@ -9,6 +9,7 @@ import {
 import { Reflector } from '@nestjs/core';
 import { PlatformStaffRole } from '@prisma/client';
 import type { Request } from 'express';
+import { clientIp } from '../../common/utils/client-ip';
 
 /** Staff autenticado no console (req.user nas rotas /platform). */
 export interface PlatformStaffPrincipal {
@@ -82,7 +83,5 @@ export const CurrentStaff = createParamDecorator(
 );
 
 export function requestIp(req: Request): string | undefined {
-  const fwd = req.headers['x-forwarded-for'];
-  const first = Array.isArray(fwd) ? fwd[0] : fwd?.split(',')[0];
-  return first?.trim() || req.ip || undefined;
+  return clientIp(req);
 }
