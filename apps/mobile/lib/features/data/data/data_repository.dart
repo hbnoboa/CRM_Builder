@@ -180,8 +180,17 @@ class DataRepository {
   }) {
     if (customRole == null) return [];
 
-    final roleType = customRole['roleType'] as String? ?? '';
-    if (roleType == 'PLATFORM_ADMIN' || roleType == 'ADMIN') return [];
+    // Full tenant access (modulePermissions.allAccess) receives no data filters,
+    // mirroring the API's EntityDataQueryService.applyRoleDataFilters.
+    dynamic modulePermsRaw = customRole['modulePermissions'];
+    if (modulePermsRaw is String) {
+      try {
+        modulePermsRaw = jsonDecode(modulePermsRaw);
+      } catch (_) {
+        modulePermsRaw = null;
+      }
+    }
+    if (modulePermsRaw is Map && modulePermsRaw['allAccess'] == true) return [];
 
     final result = <RoleFilter>[];
 
@@ -341,11 +350,7 @@ class DataRepository {
   }
 
   Future<String> _getTenantId() async {
-    // Primeiro tenta o tenant selecionado (para PLATFORM_ADMIN)
-    final selected = await SecureStorage.getSelectedTenantId();
-    if (selected != null && selected.isNotEmpty) return selected;
-
-    // Senao, pega do token
+    // Tenant atual do usuario (claim tenantId do access token)
     final token = await SecureStorage.getAccessToken();
     if (token == null) return '';
     try {

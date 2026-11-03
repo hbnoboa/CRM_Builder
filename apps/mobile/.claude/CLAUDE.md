@@ -108,6 +108,6 @@ Endpoints principais:
 
 ## Multi-tenancy
 
-- PLATFORM_ADMIN pode selecionar tenant (via `SecureStorage.setSelectedTenantId`)
-- `TenantInterceptor` injeta `tenantId` automaticamente em todas as requests
+- O tenant e sempre o do token JWT (a API ignora `tenantId` em query/body)
+- Usuarios com mais de um vinculo trocam de tenant via `/auth/accessible-tenants` + `/auth/switch-tenant` (`switchTenantWithJwt`, novos tokens)
 - PowerSync sync rules filtram dados por `tenantId` do token JWT

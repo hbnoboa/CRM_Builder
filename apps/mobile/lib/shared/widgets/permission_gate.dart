@@ -12,7 +12,6 @@ class PermissionGate extends ConsumerWidget {
     this.entitySlug,
     this.entityAction,
     this.requireAdmin = false,
-    this.requirePlatformAdmin = false,
     this.fallback,
     required this.child,
   });
@@ -29,11 +28,8 @@ class PermissionGate extends ConsumerWidget {
   /// Entity CRUD action
   final String? entityAction;
 
-  /// Require ADMIN or PLATFORM_ADMIN
+  /// Require full tenant access (modulePermissions.allAccess) or legacy ADMIN
   final bool requireAdmin;
-
-  /// Require PLATFORM_ADMIN only
-  final bool requirePlatformAdmin;
 
   /// Widget to show when no permission (default: nothing)
   final Widget? fallback;
@@ -46,9 +42,7 @@ class PermissionGate extends ConsumerWidget {
 
     bool hasAccess = true;
 
-    if (requirePlatformAdmin) {
-      hasAccess = perms.isPlatformAdmin;
-    } else if (requireAdmin) {
+    if (requireAdmin) {
       hasAccess = perms.isAdmin;
     } else if (module != null && action != null) {
       hasAccess = perms.hasModulePermission(module!, action!);

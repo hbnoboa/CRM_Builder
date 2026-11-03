@@ -22,11 +22,7 @@ class AppDrawer extends ConsumerWidget {
     final permissions = ref.watch(permissionsProvider);
     final currentPath = GoRouterState.of(context).uri.path;
     final tenantState = ref.watch(tenantSwitchProvider);
-    final isPlatformAdmin = user?.customRole?.roleType == 'PLATFORM_ADMIN';
     final hasMultipleTenants = user?.hasMultipleTenants ?? false;
-
-    // Show tenant selector for PLATFORM_ADMIN or multi-tenant users
-    final showTenantSelector = isPlatformAdmin || hasMultipleTenants;
 
     // Get current tenant name
     String? currentTenantName;
@@ -113,12 +109,12 @@ class AppDrawer extends ConsumerWidget {
               ),
             ),
 
-            // Tenant selector (PLATFORM_ADMIN or multi-tenant users)
-            if (showTenantSelector)
+            // Tenant selector (multi-tenant users)
+            if (hasMultipleTenants)
               ListTile(
                 dense: true,
                 leading: Icon(
-                  isPlatformAdmin ? Icons.swap_horiz : Icons.business,
+                  Icons.business,
                   size: 20,
                   color: colors.mutedForeground,
                 ),
@@ -137,12 +133,7 @@ class AppDrawer extends ConsumerWidget {
                         child: CircularProgressIndicator(strokeWidth: 2),
                       )
                     : Icon(Icons.unfold_more, size: 18, color: colors.mutedForeground),
-                onTap: () => _showTenantSelector(
-                  context,
-                  ref,
-                  isPlatformAdmin: isPlatformAdmin,
-                  hasMultipleTenants: hasMultipleTenants,
-                ),
+                onTap: () => _showTenantSelector(context, ref),
               ),
 
             // Menu items
@@ -199,34 +190,19 @@ class AppDrawer extends ConsumerWidget {
     );
   }
 
-  Future<void> _showTenantSelector(
-    BuildContext context,
-    WidgetRef ref, {
-    required bool isPlatformAdmin,
-    required bool hasMultipleTenants,
-  }) async {
+  Future<void> _showTenantSelector(BuildContext context, WidgetRef ref) async {
     final tenantNotifier = ref.read(tenantSwitchProvider.notifier);
     final tenantState = ref.read(tenantSwitchProvider);
 
-    // Load appropriate tenant list
-    if (isPlatformAdmin) {
-      if (tenantState.tenants.isEmpty && !tenantState.isLoading) {
-        tenantNotifier.loadTenants();
-      }
-    } else if (hasMultipleTenants) {
-      if (tenantState.accessibleTenants.isEmpty && !tenantState.isLoading) {
-        tenantNotifier.loadAccessibleTenants();
-      }
+    if (tenantState.accessibleTenants.isEmpty && !tenantState.isLoading) {
+      tenantNotifier.loadAccessibleTenants();
     }
 
     await showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (ctx) => _TenantSelectorSheet(
-        parentRef: ref,
-        isPlatformAdmin: isPlatformAdmin,
-      ),
+      builder: (ctx) => _TenantSelectorSheet(parentRef: ref),
     );
   }
 
@@ -377,16 +353,14 @@ class _SyncRow extends StatelessWidget {
   }
 }
 
-/// Bottom sheet for selecting a tenant.
-/// Works for both PLATFORM_ADMIN (all tenants) and multi-tenant users (accessible tenants).
+/// Bottom sheet for switching between the tenants the user is a member of
+/// (accessible tenants, JWT-based switch).
 class _TenantSelectorSheet extends ConsumerStatefulWidget {
   const _TenantSelectorSheet({
     required this.parentRef,
-    required this.isPlatformAdmin,
   });
 
   final WidgetRef parentRef;
-  final bool isPlatformAdmin;
 
   @override
   ConsumerState<_TenantSelectorSheet> createState() => _TenantSelectorSheetState();
@@ -401,14 +375,8 @@ class _TenantSelectorSheetState extends ConsumerState<_TenantSelectorSheet> {
     final state = ref.read(tenantSwitchProvider);
     final notifier = ref.read(tenantSwitchProvider.notifier);
 
-    if (widget.isPlatformAdmin) {
-      if (state.tenants.isEmpty && !state.isLoading) {
-        notifier.loadTenants();
-      }
-    } else {
-      if (state.accessibleTenants.isEmpty && !state.isLoading) {
-        notifier.loadAccessibleTenants();
-      }
+    if (state.accessibleTenants.isEmpty && !state.isLoading) {
+      notifier.loadAccessibleTenants();
     }
   }
 
@@ -421,22 +389,13 @@ class _TenantSelectorSheetState extends ConsumerState<_TenantSelectorSheet> {
     final currentTenantId = authState.user?.tenantId;
 
     // Filter tenants based on search
-    final List<dynamic> filteredTenants;
-    if (widget.isPlatformAdmin) {
-      filteredTenants = tenantState.tenants.where((t) {
-        if (_search.isEmpty) return true;
-        final searchLower = _search.toLowerCase();
-        return t.name.toLowerCase().contains(searchLower) ||
-            t.slug.toLowerCase().contains(searchLower);
-      }).toList();
-    } else {
-      filteredTenants = tenantState.accessibleTenants.where((t) {
-        if (_search.isEmpty) return true;
-        final searchLower = _search.toLowerCase();
-        return t.name.toLowerCase().contains(searchLower) ||
-            t.slug.toLowerCase().contains(searchLower);
-      }).toList();
-    }
+    final List<AccessibleTenant> filteredTenants =
+        tenantState.accessibleTenants.where((t) {
+      if (_search.isEmpty) return true;
+      final searchLower = _search.toLowerCase();
+      return t.name.toLowerCase().contains(searchLower) ||
+          t.slug.toLowerCase().contains(searchLower);
+    }).toList();
 
     return Container(
       constraints: BoxConstraints(
@@ -470,18 +429,9 @@ class _TenantSelectorSheetState extends ConsumerState<_TenantSelectorSheet> {
                 Icon(Icons.business, color: theme.colorScheme.primary),
                 const SizedBox(width: 12),
                 Text(
-                  widget.isPlatformAdmin ? 'Selecionar Tenant' : 'Trocar de Workspace',
+                  'Trocar de Workspace',
                   style: AppTypography.h4,
                 ),
-                const Spacer(),
-                if (widget.isPlatformAdmin && tenantState.selectedTenantId != null)
-                  TextButton(
-                    onPressed: () async {
-                      await ref.read(tenantSwitchProvider.notifier).clearSelection();
-                      if (context.mounted) Navigator.pop(context);
-                    },
-                    child: const Text('Limpar'),
-                  ),
               ],
             ),
           ),
@@ -533,11 +483,7 @@ class _TenantSelectorSheetState extends ConsumerState<_TenantSelectorSheet> {
                               const SizedBox(height: 16),
                               ElevatedButton(
                                 onPressed: () {
-                                  if (widget.isPlatformAdmin) {
-                                    ref.read(tenantSwitchProvider.notifier).loadTenants();
-                                  } else {
-                                    ref.read(tenantSwitchProvider.notifier).loadAccessibleTenants();
-                                  }
+                                  ref.read(tenantSwitchProvider.notifier).loadAccessibleTenants();
                                 },
                                 child: const Text('Tentar novamente'),
                               ),
@@ -564,43 +510,23 @@ class _TenantSelectorSheetState extends ConsumerState<_TenantSelectorSheet> {
                             padding: const EdgeInsets.only(bottom: 16),
                             itemCount: filteredTenants.length,
                             itemBuilder: (ctx, index) {
-                              if (widget.isPlatformAdmin) {
-                                final tenant = filteredTenants[index] as TenantInfo;
-                                final isSelected = tenant.id == tenantState.selectedTenantId;
+                              final tenant = filteredTenants[index];
+                              final isSelected = tenant.id == currentTenantId;
 
-                                return _TenantListTile(
-                                  id: tenant.id,
-                                  name: tenant.name,
-                                  subtitle: tenant.slug,
-                                  isSelected: isSelected,
-                                  isHome: false,
-                                  isSwitching: tenantState.isSwitching,
-                                  onTap: () async {
-                                    await ref
-                                        .read(tenantSwitchProvider.notifier)
-                                        .switchTenant(tenant.id, tenant.name);
-                                    if (context.mounted) Navigator.pop(context);
-                                  },
-                                );
-                              } else {
-                                final tenant = filteredTenants[index] as AccessibleTenant;
-                                final isSelected = tenant.id == currentTenantId;
-
-                                return _TenantListTile(
-                                  id: tenant.id,
-                                  name: tenant.name,
-                                  subtitle: tenant.customRole.name,
-                                  isSelected: isSelected,
-                                  isHome: tenant.isHome,
-                                  isSwitching: tenantState.isSwitching,
-                                  onTap: () async {
-                                    await ref
-                                        .read(tenantSwitchProvider.notifier)
-                                        .switchTenantWithJwt(tenant.id);
-                                    if (context.mounted) Navigator.pop(context);
-                                  },
-                                );
-                              }
+                              return _TenantListTile(
+                                id: tenant.id,
+                                name: tenant.name,
+                                subtitle: tenant.customRole.name,
+                                isSelected: isSelected,
+                                isHome: tenant.isHome,
+                                isSwitching: tenantState.isSwitching,
+                                onTap: () async {
+                                  await ref
+                                      .read(tenantSwitchProvider.notifier)
+                                      .switchTenantWithJwt(tenant.id);
+                                  if (context.mounted) Navigator.pop(context);
+                                },
+                              );
                             },
                           ),
           ),

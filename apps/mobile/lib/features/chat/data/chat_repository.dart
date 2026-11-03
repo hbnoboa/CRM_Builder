@@ -258,8 +258,6 @@ class ChatRepository {
   // ═══════════════════════════════════════════════════════
 
   Future<String> _getTenantId() async {
-    final selected = await SecureStorage.getSelectedTenantId();
-    if (selected != null && selected.isNotEmpty) return selected;
     return (await _claim('tenantId')) ?? '';
   }
 

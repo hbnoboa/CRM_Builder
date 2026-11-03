@@ -123,17 +123,6 @@ const _dataReadCreate = ModulePermission(
 );
 
 const Map<String, Map<String, ModulePermission>> _defaultModulePermissions = {
-  'PLATFORM_ADMIN': {
-    'dashboard': _fullCrud,
-    'users': _fullCrud,
-    'settings': _fullCrud,
-    'apis': _fullCrud,
-
-    'entities': _fullCrud,
-    'tenants': _fullCrud,
-    'data': _fullCrud,
-    'roles': _fullCrud,
-  },
   'ADMIN': {
     'dashboard': _fullCrud,
     'users': _fullCrud,
@@ -213,19 +202,23 @@ class PermissionsState {
     this.modulePermissions = const {},
     this.entityPermissions = const [],
     this.isAdmin = false,
-    this.isPlatformAdmin = false,
+    this.hasFullAccess = false,
   });
 
   final String? roleType;
   final Map<String, ModulePermission> modulePermissions;
   final List<EntityPermission> entityPermissions;
   final bool isAdmin;
-  final bool isPlatformAdmin;
+
+  /// "Full tenant access" (`customRole.modulePermissions.allAccess == true`):
+  /// every module/entity permission INSIDE the user's own tenant. Mirrors the
+  /// API's hasFullTenantAccess(); never grants access to other tenants.
+  final bool hasFullAccess;
 
   /// Check if user has read access to a module.
   bool hasModuleAccess(String moduleKey) {
     if (roleType == null) return false;
-    if (isPlatformAdmin) return true;
+    if (hasFullAccess) return true;
 
     final perm = modulePermissions[moduleKey];
     return perm?.canRead ?? false;
@@ -234,7 +227,7 @@ class PermissionsState {
   /// Check CRUD permission on a module.
   bool hasModulePermission(String moduleKey, String action) {
     if (roleType == null) return false;
-    if (isPlatformAdmin) return true;
+    if (hasFullAccess) return true;
 
     final perm = modulePermissions[moduleKey];
     if (perm == null) return false;
@@ -256,7 +249,7 @@ class PermissionsState {
   /// Check CRUD permission on an entity.
   bool hasEntityPermission(String entitySlug, String action) {
     if (roleType == null) return false;
-    if (isPlatformAdmin || roleType == 'ADMIN') return true;
+    if (hasFullAccess || roleType == 'ADMIN') return true;
 
     // Non-CUSTOM roles: use defaults
     if (roleType != 'CUSTOM') {
@@ -284,7 +277,7 @@ class PermissionsState {
     }
 
     // CUSTOM: use entity-specific permissions
-    final perm = entityPermissions.where((p) => p.entitySlug == entitySlug).firstOrNull;
+    final perm = _entityPermission(entitySlug);
     if (perm == null) return false;
 
     switch (action) {
@@ -302,16 +295,14 @@ class PermissionsState {
   }
 
   /// Get field-level permissions for an entity.
-  /// Returns null if no restrictions (ADMIN/PLATFORM_ADMIN or no fieldPermissions defined).
+  /// Returns null if no restrictions (full access/ADMIN or no fieldPermissions defined).
   /// Returns the list of FieldPermission otherwise.
   List<FieldPermission>? getFieldPermissions(String entitySlug) {
     if (roleType == null) return null;
-    if (isPlatformAdmin || isAdmin) return null;
+    if (hasFullAccess || isAdmin) return null;
     if (roleType != 'CUSTOM') return null;
 
-    final perm = entityPermissions
-        .where((p) => p.entitySlug == entitySlug)
-        .firstOrNull;
+    final perm = _entityPermission(entitySlug);
     if (perm == null || perm.fieldPermissions.isEmpty) return null;
     return perm.fieldPermissions;
   }
@@ -335,14 +326,19 @@ class PermissionsState {
   /// Get scope for an entity (all | own).
   String getEntityScope(String entitySlug) {
     if (roleType == null) return 'own';
-    if (isPlatformAdmin || isAdmin) return 'all';
+    if (hasFullAccess || isAdmin) return 'all';
     if (roleType == 'MANAGER' || roleType == 'VIEWER') return 'all';
     if (roleType == 'USER') return 'own';
 
     // CUSTOM: use scope from permissions
-    final perm = entityPermissions.where((p) => p.entitySlug == entitySlug).firstOrNull;
+    final perm = _entityPermission(entitySlug);
     return perm?.scope ?? 'all';
   }
+
+  /// Permissao da tabela, ou a do coringa '*' (todas as tabelas), como na API.
+  EntityPermission? _entityPermission(String entitySlug) =>
+      entityPermissions.where((p) => p.entitySlug == entitySlug).firstOrNull ??
+      entityPermissions.where((p) => p.entitySlug == '*').firstOrNull;
 }
 
 // ═══════════════════════════════════════════════════════
@@ -359,14 +355,15 @@ PermissionsState permissions(Ref ref) {
   final roleType = user.customRole?.roleType;
   if (roleType == null) return const PermissionsState();
 
-  final isPlatformAdmin = roleType == 'PLATFORM_ADMIN';
-  final isAdmin = isPlatformAdmin || roleType == 'ADMIN';
+  // Full tenant access comes from modulePermissions.allAccess (same as the API).
+  final hasFullAccess = user.customRole?.modulePermissions?['allAccess'] == true;
+  final isAdmin = hasFullAccess || roleType == 'ADMIN';
 
   // Build module permissions
   Map<String, ModulePermission> modulePerms;
 
-  if (isPlatformAdmin) {
-    modulePerms = _defaultModulePermissions['PLATFORM_ADMIN']!;
+  if (hasFullAccess) {
+    modulePerms = {for (final key in _moduleKeys) key: _fullCrud};
   } else if (user.customRole?.modulePermissions != null) {
     // Normalize from customRole (boolean → CRUD)
     final mp = user.customRole!.modulePermissions!;
@@ -417,6 +414,6 @@ PermissionsState permissions(Ref ref) {
     modulePermissions: modulePerms,
     entityPermissions: entityPerms,
     isAdmin: isAdmin,
-    isPlatformAdmin: isPlatformAdmin,
+    hasFullAccess: hasFullAccess,
   );
 }
