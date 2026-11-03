@@ -136,7 +136,6 @@
     "permissions": "Permissões",
     "pdfTemplates": "Templates PDF",
     "settings": "Configurações",
-    "tenants": "Tenants",
     "auditLogs": "Logs de Auditoria",
     "dashboardTemplates": "Dashboards",
     "publicLinks": "Links Publicos",
@@ -148,7 +147,6 @@
     "operational": "Operacional"
   },
   "roles": {
-    "PLATFORM_ADMIN": "Super Admin",
     "ADMIN": "Administrador",
     "MANAGER": "Gerente",
     "USER": "Usuário",
@@ -156,7 +154,6 @@
     "CUSTOM": "Personalizado"
   },
   "roleDescriptions": {
-    "PLATFORM_ADMIN": "Acesso total à plataforma, incluindo todos os tenants",
     "ADMIN": "Acesso total ao tenant, pode gerenciar usuários e configurações",
     "MANAGER": "Pode gerenciar equipe e ver dados da organização",
     "USER": "Acesso padrão, pode ver e editar seus próprios dados",
@@ -266,25 +263,7 @@
       "updated": "Usuário atualizado com sucesso",
       "deleted": "Usuário excluído com sucesso"
     },
-    "tenantAccess": {
-      "menu": "Acesso a Tenants",
-      "title": "Acesso a Tenants",
-      "description": "Gerencie os tenants que {name} pode acessar",
-      "home": "Principal",
-      "additionalAccess": "Acessos Adicionais",
-      "noAccess": "Nenhum acesso adicional configurado",
-      "grantAccess": "Conceder Acesso",
-      "selectTenant": "Selecione o tenant",
-      "selectRole": "Selecione a role",
-      "grant": "Conceder",
-      "granted": "Acesso concedido com sucesso",
-      "revoked": "Acesso revogado com sucesso"
-    },
-    "impersonate": {
-      "menu": "Entrar como este usuário",
-      "success": "Agora você está como {name}",
-      "error": "Falha ao entrar como usuário"
-    }
+    "owner": "Dono"
   },
   "entities": {
     "title": "Tabelas",
@@ -714,8 +693,6 @@
       "settingsDesc": "Ajustes gerais do sistema",
       "entities": "Tabelas",
       "entitiesDesc": "Definir estrutura de tabelas",
-      "tenants": "Tenants",
-      "tenantsDesc": "Gerenciar empresas e clientes",
       "data": "Registros",
       "dataDesc": "Registros de cada tabela",
       "roles": "Perfis de Acesso",
@@ -806,11 +783,9 @@
         "canDelete": "Excluir"
       },
       "specialActions": "Ações Específicas",
-      "canActivate": "Ativar / Desativar",
       "canTest": "Testar Endpoint",
       "canPublish": "Publicar / Despublicar",
       "canDuplicate": "Duplicar Página",
-      "canSuspend": "Suspender",
       "canAssignRole": "Atribuir Cargo",
       "canChangeStatus": "Alterar Status do Usuário",
       "canSetDefault": "Definir como Padrão",
@@ -909,12 +884,6 @@
       "roles_canManagePermissions": "Editar as permissões dos cargos (esta tela).",
       "settings_canRead": "Ver as configurações da organização.",
       "settings_canUpdate": "Acessar e alterar as configurações da organização (marca, tema). As abas pessoais (perfil, idioma, tema) não exigem permissão.",
-      "tenants_canRead": "Ver a lista de tenants.",
-      "tenants_canCreate": "Criar novos tenants.",
-      "tenants_canUpdate": "Editar tenants.",
-      "tenants_canDelete": "Excluir tenants.",
-      "tenants_canSuspend": "Suspender um tenant.",
-      "tenants_canActivate": "Reativar um tenant suspenso.",
       "automations_canRead": "Ver webhooks e automações.",
       "automations_canCreate": "Criar webhooks e automações.",
       "automations_canUpdate": "Editar webhooks e automações.",
@@ -931,113 +900,10 @@
       "publicLinks_canManage": "Criar e gerenciar links públicos de compartilhamento.",
       "archive_canRead": "Ver registros arquivados.",
       "archive_canPermanentDelete": "Excluir permanentemente registros arquivados (irreversível)."
-    }
-  },
-  "tenants": {
-    "title": "Tenants",
-    "subtitle": "Gerencie os tenants da plataforma",
-    "newTenant": "Novo Tenant",
-    "accessRestricted": "Acesso Restrito",
-    "platformAdminOnly": "Esta página é restrita a administradores da plataforma (PLATFORM_ADMIN).",
-    "stats": {
-      "total": "Total de Tenants",
-      "active": "Ativos",
-      "suspended": "Suspensos",
-      "premium": "Planos Premium"
     },
-    "searchPlaceholder": "Buscar tenants...",
-    "noTenantsFound": "Nenhum tenant encontrado",
-    "noTenantsMatchSearch": "Nenhum tenant corresponde à sua busca.",
-    "createTenantsToStart": "Crie tenants para começar.",
-    "suspend": "Suspender",
-    "activate": "Ativar",
-    "form": {
-      "name": "Nome da Empresa",
-      "namePlaceholder": "Minha Empresa",
-      "slug": "Slug (URL)",
-      "slugPlaceholder": "minha-empresa",
-      "domain": "Domínio Personalizado (opcional)",
-      "domainPlaceholder": "app.minhaempresa.com",
-      "plan": "Plano",
-      "planPlaceholder": "Selecione um plano",
-      "adminTitle": "Administrador do Tenant",
-      "adminOptionalHint": "Deixe em branco para criar o tenant sem usuários. Você pode adicionar usuários depois.",
-      "optional": "opcional",
-      "adminName": "Nome do Administrador",
-      "adminNamePlaceholder": "João Silva",
-      "adminEmail": "Email do Administrador",
-      "adminEmailPlaceholder": "admin@empresa.com",
-      "adminPassword": "Senha do Administrador",
-      "adminPasswordPlaceholder": "Senha segura",
-      "createDescription": "Preencha os dados para criar um novo tenant.",
-      "editDescription": "Atualize as informações do tenant.",
-      "logoHint": "Clique para adicionar o logo da empresa",
-      "themeTitle": "Tema",
-      "themeReset": "Resetar",
-      "brandColor": "Cor Principal",
-      "secondaryColor": "Cor Secundária",
-      "accentColor": "Cor de Destaque",
-      "presetColors": "Cores predefinidas",
-      "darkModePreference": "Modo escuro padrão",
-      "darkMode": {
-        "light": "Claro",
-        "dark": "Escuro",
-        "system": "Sistema"
-      },
-      "themePreview": "Pré-visualização",
-      "previewButton": "Botão",
-      "previewSecondary": "Secundário",
-      "previewAccent": "Destaque",
-      "previewDelete": "Excluir",
-      "previewMutedText": "Texto secundário de exemplo",
-      "previewCard": "Card de exemplo com borda"
-    },
-    "deleteConfirm": {
-      "title": "Excluir Tenant",
-      "message": "Tem certeza que deseja excluir o tenant {name}?",
-      "warning": "Esta ação não pode ser desfeita e todos os dados associados serão removidos."
-    },
-    "toast": {
-      "created": "Tenant criado com sucesso",
-      "updated": "Tenant atualizado com sucesso",
-      "deleted": "Tenant excluído com sucesso",
-      "suspended": "Tenant suspenso com sucesso",
-      "activated": "Tenant ativado com sucesso"
-    },
-    "copyData": {
-      "button": "Copiar Dados",
-      "title": "Copiar Dados entre Tenants",
-      "description": "Copie roles, tabelas, registros, paginas, APIs e templates de um tenant para outro.",
-      "sourceTenant": "Tenant de Origem",
-      "targetTenant": "Tenant de Destino",
-      "selectTenant": "Selecione um tenant",
-      "conflictStrategy": "Em caso de conflito",
-      "skip": "Pular existentes",
-      "skipDescription": "Itens com mesmo nome/slug no destino serao ignorados.",
-      "suffix": "Renomear com sufixo",
-      "suffixDescription": "Itens duplicados serao criados com sufixo '(copia)'.",
-      "next": "Proximo",
-      "back": "Voltar",
-      "copy": "Copiar",
-      "copying": "Copiando...",
-      "selectAll": "Selecionar todos",
-      "includeData": "Incluir dados",
-      "records": "registros",
-      "itemsSelected": "itens selecionados",
-      "modules": {
-        "roles": "Perfis de Acesso",
-        "entities": "Tabelas",
-        "pdfTemplates": "Templates PDF",
-        "automations": "Automacoes",
-        "webhooks": "Webhooks",
-        "fieldRules": "Regras de Campo"
-      },
-      "result": {
-        "title": "Copia concluida com sucesso!",
-        "skipped": "Itens pulados",
-        "warnings": "Avisos"
-      }
-    }
+    "orderHint": "A ordem define quem gerencia quem: cada cargo administra os que estão abaixo dele.",
+    "moveUp": "Subir",
+    "moveDown": "Descer"
   },
   "profile": {
     "title": "Perfil",
@@ -1411,7 +1277,6 @@
     "clearFilters": "Limpar Filtros",
     "allActions": "Todas as acoes",
     "allResources": "Todos os recursos",
-    "allTenants": "Todos os tenants",
     "dateFrom": "Data inicial",
     "dateTo": "Data final",
     "searchPlaceholder": "Buscar por ID do recurso...",
@@ -1470,8 +1335,6 @@
     "publicLinksDesc": "Formulários externos",
     "logs": "Auditoria",
     "logsDesc": "Histórico de ações",
-    "tenants": "Tenants",
-    "tenantsDesc": "Gerenciar organizações",
     "reports": "Relatórios",
     "reportsDesc": "Visão analítica",
     "settings": "Configurações",
@@ -1654,7 +1517,33 @@
         "lastAccess": "Último acesso",
         "inactive": "inativo",
         "enterAs": "Entrar como",
-        "inactiveHint": "Reative o cliente para entrar como usuário."
+        "inactiveHint": "Reative o cliente para entrar como usuário.",
+        "owner": "Dono",
+        "makeOwner": "Tornar dono",
+        "ownerChanged": "Dono da empresa alterado",
+        "add": "Adicionar membro",
+        "addTitle": "Adicionar membro existente",
+        "addHint": "Dá acesso a esta empresa para alguém que já tem conta (por exemplo, colaborador de outra empresa).",
+        "email": "E-mail",
+        "chooseRole": "Escolha o cargo",
+        "addSubmit": "Adicionar",
+        "added": "Membro adicionado"
+      },
+      "owner": "dono: {name}",
+      "copyFromOther": "Copiar dados de outra empresa",
+      "roles": {
+        "title": "Cargos",
+        "subtitle": "Cargos da empresa, do mais alto para o mais baixo.",
+        "unusedHint": "{count, plural, one {# cargo sem uso pode ser removido.} other {# cargos sem uso podem ser removidos.}}",
+        "name": "Cargo",
+        "members": "Membros",
+        "fullAccess": "Acesso total",
+        "default": "Padrão",
+        "unused": "Sem uso",
+        "remove": "Remover",
+        "confirm": "Confirmar remoção",
+        "cancel": "Cancelar",
+        "removed": "Cargo removido"
       }
     },
     "plans": {
@@ -1770,8 +1659,46 @@
           "plan_changed": "mudou o plano",
           "features_changed": "mudou as funções",
           "impersonated": "entrou como usuário",
-          "storage_recomputed": "recalculou o armazenamento"
+          "storage_recomputed": "recalculou o armazenamento",
+          "role_deleted": "removeu um cargo sem uso",
+          "owner_changed": "trocou o dono da empresa",
+          "member_added": "adicionou um membro",
+          "data_copied": "copiou dados de outra empresa"
         }
+      }
+    },
+    "copyData": {
+      "button": "Copiar Dados",
+      "title": "Copiar Dados entre Tenants",
+      "description": "Copie roles, tabelas, registros, paginas, APIs e templates de um tenant para outro.",
+      "sourceTenant": "Tenant de Origem",
+      "targetTenant": "Tenant de Destino",
+      "selectTenant": "Selecione um tenant",
+      "conflictStrategy": "Em caso de conflito",
+      "skip": "Pular existentes",
+      "skipDescription": "Itens com mesmo nome/slug no destino serao ignorados.",
+      "suffix": "Renomear com sufixo",
+      "suffixDescription": "Itens duplicados serao criados com sufixo '(copia)'.",
+      "next": "Proximo",
+      "back": "Voltar",
+      "copy": "Copiar",
+      "copying": "Copiando...",
+      "selectAll": "Selecionar todos",
+      "includeData": "Incluir dados",
+      "records": "registros",
+      "itemsSelected": "itens selecionados",
+      "modules": {
+        "roles": "Perfis de Acesso",
+        "entities": "Tabelas",
+        "pdfTemplates": "Templates PDF",
+        "automations": "Automacoes",
+        "webhooks": "Webhooks",
+        "fieldRules": "Regras de Campo"
+      },
+      "result": {
+        "title": "Copia concluida com sucesso!",
+        "skipped": "Itens pulados",
+        "warnings": "Avisos"
       }
     }
   },
@@ -1814,6 +1741,15 @@
           "description": "Adicione as pessoas que vão usar o sistema com você."
         }
       }
+    },
+    "owner": {
+      "title": "Dono da empresa",
+      "current": "{name} é o dono: contato de plano e suporte, e não pode ser removido pelos outros administradores.",
+      "none": "Sem dono definido. Fale com o suporte.",
+      "hint": "Para passar a empresa para outra pessoa, escolha um membro com cargo de acesso total (ex.: Administrador).",
+      "choose": "Escolha o novo dono",
+      "transfer": "Transferir",
+      "transferred": "Propriedade transferida"
     }
   }
 }

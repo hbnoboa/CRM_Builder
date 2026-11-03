@@ -7,7 +7,6 @@ export interface QueryUsersParams {
   search?: string;
   role?: string;
   status?: Status;
-  tenantId?: string;
   cursor?: string;
   sortBy?: string;
   sortOrder?: 'asc' | 'desc';
@@ -54,37 +53,4 @@ export const usersService = {
   async delete(id: string): Promise<void> {
     await api.delete(`/users/${id}`);
   },
-
-  // Tenant Access
-  async getUserTenantAccess(userId: string): Promise<TenantAccessItem[]> {
-    const response = await api.get<TenantAccessItem[]>(`/users/${userId}/tenant-access`);
-    return response.data;
-  },
-
-  async grantTenantAccess(userId: string, data: GrantTenantAccessData): Promise<TenantAccessItem> {
-    const response = await api.post<TenantAccessItem>(`/users/${userId}/tenant-access`, data);
-    return response.data;
-  },
-
-  async revokeTenantAccess(accessId: string): Promise<void> {
-    await api.delete(`/users/tenant-access/${accessId}`);
-  },
 };
-
-export interface TenantAccessItem {
-  id: string;
-  userId: string;
-  tenantId: string;
-  customRoleId: string;
-  status: string;
-  grantedAt: string;
-  expiresAt: string | null;
-  tenant: { id: string; name: string; slug: string };
-  customRole: { id: string; name: string; color?: string };
-}
-
-export interface GrantTenantAccessData {
-  tenantId: string;
-  customRoleId: string;
-  expiresAt?: string;
-}

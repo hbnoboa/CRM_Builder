@@ -112,6 +112,19 @@ export function useCreateCustomRole(messages?: MutationMessages) {
   });
 }
 
+export function useReorderCustomRoles() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (orderedIds: string[]) => customRolesService.reorder(orderedIds),
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: customRoleKeys.lists() });
+    },
+    onError: (error: unknown) => {
+      toast.error(getErrorMessage(error));
+    },
+  });
+}
+
 export function useUpdateCustomRole(messages?: MutationMessages) {
   const queryClient = useQueryClient();
   return useMutation({
@@ -131,8 +144,8 @@ export function useUpdateCustomRole(messages?: MutationMessages) {
 export function useDeleteCustomRole(messages?: MutationMessages) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, tenantId }: { id: string; tenantId?: string }) =>
-      customRolesService.delete(id, tenantId),
+    mutationFn: ({ id }: { id: string }) =>
+      customRolesService.delete(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: customRoleKeys.lists() });
       if (messages?.success) toast.success(messages.success);

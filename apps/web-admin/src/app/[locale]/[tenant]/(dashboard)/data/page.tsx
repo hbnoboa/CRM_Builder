@@ -86,9 +86,7 @@ function DataPageContent() {
 
   const fetchEntities = async () => {
     try {
-      const params: Record<string, string> = {};
-      if (effectiveTenantId) params.tenantId = effectiveTenantId;
-      const response = await api.get('/entities', { params });
+      const response = await api.get('/entities');
       const allEntities: Entity[] = Array.isArray(response.data) ? response.data : response.data?.data || [];
 
       // Identify sub-entity slugs (entities referenced via sub-entity fields)

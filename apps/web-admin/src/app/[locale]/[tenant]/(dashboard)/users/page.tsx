@@ -2,8 +2,7 @@
 
 import { useState } from 'react';
 import { Link, useRouter } from '@/i18n/tenant-navigation';
-import { toast } from 'sonner';
-import { useTranslations, useLocale } from 'next-intl';
+import { useTranslations } from 'next-intl';
 import {
   Plus,
   Search,
@@ -15,11 +14,10 @@ import {
   Phone,
   UserCheck,
   UserX,
-  Shield,
-  LogIn,
+  Crown,
 } from 'lucide-react';
 import { RequireRole } from '@/components/auth/require-role';
-import { usePermissions, readPlatformAccess } from '@/hooks/use-permissions';
+import { usePermissions, readFullTenantAccess } from '@/hooks/use-permissions';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
@@ -31,16 +29,16 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { useUsers } from '@/hooks/use-users';
-import { UserFormDialog, DeleteUserDialog, TenantAccessDialog } from '@/components/users';
+import { UserFormDialog, DeleteUserDialog } from '@/components/users';
 import { useAuthStore } from '@/stores/auth-store';
 import { useTenant } from '@/stores/tenant-context';
 import { formatCpf, formatPhone } from '@/lib/masks';
 import type { User } from '@/types';
 
-// "Administrador" agora e permission-driven: quem gere cargos ou tem acesso de plataforma.
+// "Administrador" agora e permission-driven: quem gere cargos ou tem acesso total ao tenant.
 function isAdminRole(role?: User['customRole']): boolean {
   const mp = role?.modulePermissions as Record<string, unknown> | undefined;
-  return readPlatformAccess(mp) || role?.modulePermissions?.roles?.canUpdate === true;
+  return readFullTenantAccess(mp) || role?.modulePermissions?.roles?.canUpdate === true;
 }
 
 function UsersPageContent() {
@@ -48,20 +46,16 @@ function UsersPageContent() {
   const tCommon = useTranslations('common');
   const tNav = useTranslations('navigation');
   const tAuth = useTranslations('auth');
-  const { user: currentUser, impersonate } = useAuthStore();
+  const { user: currentUser } = useAuthStore();
+  const { tenant } = useTenant();
   const router = useRouter();
-  const locale = useLocale();
   const { hasModulePermission } = usePermissions();
-  const { effectiveTenantId } = useTenant();
   const [search, setSearch] = useState('');
   const [formOpen, setFormOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
-  const [tenantAccessOpen, setTenantAccessOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
-  const isPlatformAdmin = readPlatformAccess(currentUser?.customRole?.modulePermissions as Record<string, unknown> | undefined);
 
-  const queryParams = effectiveTenantId ? { tenantId: effectiveTenantId } : undefined;
-  const { data, isLoading, refetch } = useUsers(queryParams);
+  const { data, isLoading, refetch } = useUsers();
 
   // Extrai array de users de forma segura (igual ao padrao de /roles)
   const users: User[] = (() => {
@@ -98,33 +92,20 @@ function UsersPageContent() {
     refetch();
   };
 
-  // Impersonacao: so quem tem acesso de plataforma, e nunca a si mesmo.
-  // O backend ainda valida platform.impersonateAny + regra de rank.
-  const canImpersonate = (target: User) =>
-    isPlatformAdmin && target.id !== currentUser?.id && target.status === 'ACTIVE';
-
-  const handleImpersonate = async (target: User) => {
-    try {
-      await impersonate(target.id);
-      // Recarrega na home do tenant do ALVO (pode ser outro tenant). Full reload
-      // garante token/permissões frescos e o slug certo na URL.
-      const u = useAuthStore.getState().user as { tenant?: { slug?: string } } | null;
-      const slug = u?.tenant?.slug;
-      toast.success(t('impersonate.success', { name: target.name }));
-      window.location.href = slug ? `/${locale}/${slug}/home` : `/${locale}/home`;
-    } catch {
-      toast.error(t('impersonate.error'));
-    }
-  };
-
+  // Mesma regra da API: o dono gerencia todos; os demais so quem esta num cargo
+  // abaixo do seu; no dono ninguem mexe alem dele mesmo.
+  const ownerId = tenant?.ownerId ?? null;
+  const iAmOwner = !!currentUser && currentUser.id === ownerId;
+  const myRank = currentUser?.customRole?.rank ?? Number.MAX_SAFE_INTEGER;
+  const canManage = (target: User) =>
+    target.id !== ownerId && (iAmOwner || (target.customRole?.rank ?? Number.MAX_SAFE_INTEGER) > myRank);
   const canEditUser = (target: User) => {
     if (!currentUser) return false;
-    if (hasModulePermission('users', 'canUpdate')) return true;
-    return currentUser.id === target.id;
+    if (currentUser.id === target.id) return true;
+    return hasModulePermission('users', 'canUpdate') && canManage(target);
   };
-  const canDeleteUser = () => {
-    return hasModulePermission('users', 'canDelete');
-  };
+  const canDeleteUser = (target: User) =>
+    hasModulePermission('users', 'canDelete') && currentUser?.id !== target.id && canManage(target);
   return (
     <div className="space-y-4 sm:space-y-6">
       {/* Breadcrumbs */}
@@ -243,15 +224,16 @@ function UsersPageContent() {
                         <span className="px-2 py-0.5 text-xs font-medium rounded whitespace-nowrap bg-indigo-100 text-indigo-800">
                           {user.customRole?.name || 'Sem role'}
                         </span>
+                        {user.id === ownerId && (
+                          <span className="flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded whitespace-nowrap bg-amber-100 text-amber-800" data-testid="owner-badge">
+                            <Crown className="h-3 w-3" />
+                            {t('owner')}
+                          </span>
+                        )}
                         {user.status === 'ACTIVE' ? (
                           <UserCheck className="h-4 w-4 text-green-500 flex-shrink-0" />
                         ) : (
                           <UserX className="h-4 w-4 text-gray-400 flex-shrink-0" />
-                        )}
-                        {isPlatformAdmin && (
-                          <span className="px-2 py-0.5 text-xs rounded bg-gray-200 text-gray-700 truncate max-w-[80px] sm:max-w-[120px] md:max-w-[160px]" title={user.tenantId}>
-                            {user.tenant?.name ? user.tenant.name : user.tenantId}
-                          </span>
                         )}
                       </div>
                       <div className="flex items-center gap-4 mt-1 text-xs sm:text-sm text-muted-foreground flex-wrap">
@@ -282,7 +264,7 @@ function UsersPageContent() {
                         {tCommon('edit')}
                       </Button>
                     )}
-                    {(canEditUser(user) || canDeleteUser()) && (
+                    {(canEditUser(user) || canDeleteUser(user)) && (
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                           <Button variant="ghost" size="icon" className="h-8 w-8">
@@ -296,23 +278,8 @@ function UsersPageContent() {
                               {tCommon('edit')}
                             </DropdownMenuItem>
                           )}
-                          {isPlatformAdmin && (
-                            <>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem onClick={() => { setSelectedUser(user); setTenantAccessOpen(true); }}>
-                              <Shield className="h-4 w-4 mr-2" />
-                              {t('tenantAccess.menu')}
-                            </DropdownMenuItem>
-                            </>
-                          )}
-                          {canImpersonate(user) && (
-                            <DropdownMenuItem onClick={() => handleImpersonate(user)}>
-                              <LogIn className="h-4 w-4 mr-2" />
-                              {t('impersonate.menu')}
-                            </DropdownMenuItem>
-                          )}
-                          {canEditUser(user) && canDeleteUser() && <DropdownMenuSeparator />}
-                          {canDeleteUser() && (
+                          {canEditUser(user) && canDeleteUser(user) && <DropdownMenuSeparator />}
+                          {canDeleteUser(user) && (
                             <DropdownMenuItem
                               onClick={() => handleDeleteUser(user)}
                               className="text-destructive focus:text-destructive"
@@ -344,11 +311,6 @@ function UsersPageContent() {
         onOpenChange={setDeleteOpen}
         user={selectedUser}
         onSuccess={handleSuccess}
-      />
-      <TenantAccessDialog
-        open={tenantAccessOpen}
-        onOpenChange={setTenantAccessOpen}
-        user={selectedUser}
       />
     </div>
   );

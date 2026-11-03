@@ -5,7 +5,7 @@ import { ShieldAlert } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useAuthStore } from '@/stores/auth-store';
-import { usePermissions, readPlatformAccess } from '@/hooks/use-permissions';
+import { usePermissions, readFullTenantAccess } from '@/hooks/use-permissions';
 interface RequireRoleProps {
   children: ReactNode;
   // Cargos permitidos por nome (fallback legado, permission-driven)
@@ -31,16 +31,13 @@ export function RequireRole({
   message = 'Voce nao tem permissao para acessar esta pagina.',
 }: RequireRoleProps) {
   const { user } = useAuthStore();
-  const { hasModuleAccess, hasModulePermission, isPlatformAdmin } = usePermissions();
+  const { hasModuleAccess, hasModulePermission } = usePermissions();
   // Autorizacao e permission-driven: nome do cargo so para exibicao.
   const roleName = user?.customRole?.name;
 
   // Verifica se tem acesso
   const hasAccess = (() => {
     if (!user?.customRole) return false;
-
-    // Acesso de plataforma (permission-driven) sempre tem acesso total
-    if (isPlatformAdmin) return true;
 
     // Se tem módulo definido, verificar via usePermissions (customRole)
     if (module) {
@@ -89,10 +86,9 @@ export function RequireRole({
 // Hook para verificar role (permission-driven via customRole)
 export function useHasRole(roles?: string[], adminOnly?: boolean): boolean {
   const { user } = useAuthStore();
-  const { hasModuleAccess, isPlatformAdmin } = usePermissions();
+  const { hasModuleAccess } = usePermissions();
   const roleName = user?.customRole?.name;
 
-  if (isPlatformAdmin) return true;
   if (!user?.customRole) return false;
 
   if (adminOnly) {
@@ -106,14 +102,8 @@ export function useHasRole(roles?: string[], adminOnly?: boolean): boolean {
   return true;
 }
 
-// Hook para verificar se e admin (permission-driven: "admin com tudo" = acesso de plataforma)
+// Hook para verificar se e admin (permission-driven: "admin com tudo" = acesso total ao tenant)
 export function useIsAdmin(): boolean {
   const { user } = useAuthStore();
-  return readPlatformAccess(user?.customRole?.modulePermissions as Record<string, unknown> | undefined);
-}
-
-// Hook para verificar se e platform admin (permission-driven)
-export function useIsPlatformAdmin(): boolean {
-  const { user } = useAuthStore();
-  return readPlatformAccess(user?.customRole?.modulePermissions as Record<string, unknown> | undefined);
+  return readFullTenantAccess(user?.customRole?.modulePermissions as Record<string, unknown> | undefined);
 }

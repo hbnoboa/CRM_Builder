@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { useLocale, useTranslations } from 'next-intl';
-import { ArrowLeft, Loader2, LogIn } from 'lucide-react';
+import { ArrowLeft, Copy, Crown, Loader2, LogIn, Trash2, UserPlus } from 'lucide-react';
 import { toast } from 'sonner';
 import { Link } from '@/i18n/navigation';
 import { Button } from '@/components/ui/button';
@@ -15,9 +15,15 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { CopyTenantDataDialog } from '@/components/platform/copy-tenant-data-dialog';
 import { LifecycleBadge, UsageLine, useFormatDate } from '@/components/platform/platform-ui';
 import {
+  useAddTenantMember,
+  useDeleteTenantRole,
   useImpersonateTenantUser,
+  usePlatformTenantRoles,
+  useSetTenantOwner,
   useRecomputeTenantStorage,
   usePlatformAudit,
   usePlatformCan,
@@ -39,7 +45,9 @@ export default function PlatformTenantDetailPage() {
   const { id } = useParams<{ id: string }>();
   const t = useTranslations('platform.tenant');
   const formatDate = useFormatDate();
+  const can = usePlatformCan();
   const { data: tenant, isLoading } = usePlatformTenant(id);
+  const [copyOpen, setCopyOpen] = useState(false);
 
   if (isLoading || !tenant) {
     return (
@@ -66,7 +74,14 @@ export default function PlatformTenantDetailPage() {
         </div>
         <p className="mt-1 text-sm text-muted-foreground">
           {tenant.slug} · {t('since', { date: formatDate(tenant.createdAt) })}
+          {tenant.owner && <> · {t('owner', { name: tenant.owner.name })}</>}
         </p>
+        {can('tenants.update') && (
+          <Button size="sm" variant="outline" className="mt-3" onClick={() => setCopyOpen(true)} data-testid="copy-tenant-data">
+            <Copy className="mr-2 h-4 w-4" />
+            {t('copyFromOther')}
+          </Button>
+        )}
       </div>
 
       <div className="grid gap-4 lg:grid-cols-3">
@@ -81,7 +96,9 @@ export default function PlatformTenantDetailPage() {
       </div>
 
       <MembersCard tenantId={tenant.id} active={tenant.status === 'ACTIVE'} />
+      <RolesCard tenantId={tenant.id} />
       <TenantAuditCard tenantId={tenant.id} />
+      <CopyTenantDataDialog open={copyOpen} onOpenChange={setCopyOpen} targetTenantId={tenant.id} />
     </div>
   );
 }
@@ -377,7 +394,9 @@ function MembersCard({ tenantId, active }: { tenantId: string; active: boolean }
   const can = usePlatformCan();
   const { data: members, isLoading } = usePlatformTenantMembers(tenantId);
   const impersonate = useImpersonateTenantUser(tenantId);
+  const setOwner = useSetTenantOwner(tenantId);
   const [pendingId, setPendingId] = useState<string | null>(null);
+  const [addOpen, setAddOpen] = useState(false);
 
   const enterAs = async (userId: string) => {
     setPendingId(userId);
@@ -390,13 +409,31 @@ function MembersCard({ tenantId, active }: { tenantId: string; active: boolean }
     }
   };
 
+  const makeOwner = async (userId: string) => {
+    try {
+      await setOwner.mutateAsync(userId);
+      toast.success(t('ownerChanged'));
+    } catch (error) {
+      toast.error(getErrorMessage(error));
+    }
+  };
+
   const canEnter = can('tenants.impersonate') && active;
+  const canManage = can('tenants.update');
 
   return (
     <Card>
-      <CardHeader>
-        <CardTitle className="text-base">{t('title')}</CardTitle>
-        {can('tenants.impersonate') && !active && <CardDescription>{t('inactiveHint')}</CardDescription>}
+      <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-2 space-y-0">
+        <div className="space-y-1.5">
+          <CardTitle className="text-base">{t('title')}</CardTitle>
+          {can('tenants.impersonate') && !active && <CardDescription>{t('inactiveHint')}</CardDescription>}
+        </div>
+        {canManage && (
+          <Button size="sm" variant="outline" onClick={() => setAddOpen(true)} data-testid="add-member">
+            <UserPlus className="mr-2 h-4 w-4" />
+            {t('add')}
+          </Button>
+        )}
       </CardHeader>
       <div className="overflow-x-auto">
         <Table>
@@ -419,9 +456,17 @@ function MembersCard({ tenantId, active }: { tenantId: string; active: boolean }
             {members?.map((m) => {
               const usable = m.membershipStatus === 'ACTIVE' && m.status === 'ACTIVE';
               return (
-                <TableRow key={m.id}>
+                <TableRow key={m.id} data-testid={`member-${m.email}`}>
                   <TableCell>
-                    <div className="font-medium">{m.name}</div>
+                    <div className="flex items-center gap-2 font-medium">
+                      {m.name}
+                      {m.isOwner && (
+                        <Badge variant="secondary" className="gap-1" data-testid="owner-badge">
+                          <Crown className="h-3 w-3" />
+                          {t('owner')}
+                        </Badge>
+                      )}
+                    </div>
                     <div className="text-xs text-muted-foreground">{m.email}</div>
                   </TableCell>
                   <TableCell className="text-sm">
@@ -430,11 +475,164 @@ function MembersCard({ tenantId, active }: { tenantId: string; active: boolean }
                   </TableCell>
                   <TableCell className="text-sm">{formatDate(m.lastLoginAt, true)}</TableCell>
                   <TableCell>
-                    {canEnter && usable && (
-                      <Button size="sm" variant="outline" disabled={pendingId !== null} onClick={() => enterAs(m.id)} data-testid={`impersonate-${m.email}`}>
-                        {pendingId === m.id ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <LogIn className="mr-2 h-4 w-4" />}
-                        {t('enterAs')}
-                      </Button>
+                    <div className="flex justify-end gap-2">
+                      {canManage && usable && !m.isOwner && m.role.fullAccess && (
+                        <Button size="sm" variant="ghost" disabled={setOwner.isPending} onClick={() => makeOwner(m.id)} data-testid={`make-owner-${m.email}`}>
+                          <Crown className="mr-2 h-4 w-4" />
+                          {t('makeOwner')}
+                        </Button>
+                      )}
+                      {canEnter && usable && (
+                        <Button size="sm" variant="outline" disabled={pendingId !== null} onClick={() => enterAs(m.id)} data-testid={`impersonate-${m.email}`}>
+                          {pendingId === m.id ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <LogIn className="mr-2 h-4 w-4" />}
+                          {t('enterAs')}
+                        </Button>
+                      )}
+                    </div>
+                  </TableCell>
+                </TableRow>
+              );
+            })}
+          </TableBody>
+        </Table>
+      </div>
+      <AddMemberDialog tenantId={tenantId} open={addOpen} onOpenChange={setAddOpen} />
+    </Card>
+  );
+}
+
+function AddMemberDialog({ tenantId, open, onOpenChange }: { tenantId: string; open: boolean; onOpenChange: (open: boolean) => void }) {
+  const t = useTranslations('platform.tenant.members');
+  const { data: roles } = usePlatformTenantRoles(tenantId);
+  const add = useAddTenantMember(tenantId);
+  const [email, setEmail] = useState('');
+  const [roleId, setRoleId] = useState('');
+
+  useEffect(() => {
+    if (!open) return;
+    setEmail('');
+    setRoleId(roles?.find((r) => r.isDefault)?.id ?? '');
+  }, [open, roles]);
+
+  const submit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    try {
+      await add.mutateAsync({ email, customRoleId: roleId });
+      toast.success(t('added'));
+      onOpenChange(false);
+    } catch (error) {
+      toast.error(getErrorMessage(error));
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <form onSubmit={submit} className="space-y-4">
+          <DialogHeader>
+            <DialogTitle>{t('addTitle')}</DialogTitle>
+            <DialogDescription>{t('addHint')}</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Label htmlFor="member-email">{t('email')}</Label>
+            <Input id="member-email" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
+          </div>
+          <div className="space-y-2">
+            <Label>{t('role')}</Label>
+            <Select value={roleId} onValueChange={setRoleId}>
+              <SelectTrigger data-testid="member-role">
+                <SelectValue placeholder={t('chooseRole')} />
+              </SelectTrigger>
+              <SelectContent>
+                {roles?.map((r) => (
+                  <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <DialogFooter>
+            <Button type="submit" disabled={!email || !roleId || add.isPending}>
+              {add.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {t('addSubmit')}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function RolesCard({ tenantId }: { tenantId: string }) {
+  const t = useTranslations('platform.tenant.roles');
+  const can = usePlatformCan();
+  const { data: roles, isLoading } = usePlatformTenantRoles(tenantId);
+  const remove = useDeleteTenantRole(tenantId);
+  const [confirmId, setConfirmId] = useState<string | null>(null);
+
+  const unused = roles?.filter((r) => r.members === 0 && r.publicLinks === 0 && !r.isDefault) ?? [];
+
+  const doRemove = async (roleId: string) => {
+    try {
+      await remove.mutateAsync(roleId);
+      toast.success(t('removed'));
+    } catch (error) {
+      toast.error(getErrorMessage(error));
+    } finally {
+      setConfirmId(null);
+    }
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base">{t('title')}</CardTitle>
+        <CardDescription>{unused.length ? t('unusedHint', { count: unused.length }) : t('subtitle')}</CardDescription>
+      </CardHeader>
+      <div className="overflow-x-auto">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>{t('name')}</TableHead>
+              <TableHead>{t('members')}</TableHead>
+              <TableHead className="w-0" />
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {isLoading && (
+              <TableRow>
+                <TableCell colSpan={3} className="py-6 text-center">
+                  <Loader2 className="mx-auto h-5 w-5 animate-spin text-muted-foreground" />
+                </TableCell>
+              </TableRow>
+            )}
+            {roles?.map((r) => {
+              const isUnused = unused.includes(r);
+              return (
+                <TableRow key={r.id} data-testid={`role-${r.name}`}>
+                  <TableCell>
+                    <div className="flex flex-wrap items-center gap-2 font-medium">
+                      {r.name}
+                      {r.fullAccess && <Badge variant="secondary">{t('fullAccess')}</Badge>}
+                      {r.isDefault && <Badge variant="outline">{t('default')}</Badge>}
+                      {isUnused && <Badge variant="warning">{t('unused')}</Badge>}
+                    </div>
+                  </TableCell>
+                  <TableCell className="text-sm tabular-nums">{r.members}</TableCell>
+                  <TableCell>
+                    {can('tenants.update') && isUnused && (
+                      confirmId === r.id ? (
+                        <div className="flex justify-end gap-2">
+                          <Button size="sm" variant="destructive" disabled={remove.isPending} onClick={() => doRemove(r.id)} data-testid={`confirm-remove-role-${r.name}`}>
+                            {t('confirm')}
+                          </Button>
+                          <Button size="sm" variant="ghost" onClick={() => setConfirmId(null)}>{t('cancel')}</Button>
+                        </div>
+                      ) : (
+                        <Button size="sm" variant="ghost" onClick={() => setConfirmId(r.id)} data-testid={`remove-role-${r.name}`}>
+                          <Trash2 className="mr-2 h-4 w-4" />
+                          {t('remove')}
+                        </Button>
+                      )
                     )}
                   </TableCell>
                 </TableRow>

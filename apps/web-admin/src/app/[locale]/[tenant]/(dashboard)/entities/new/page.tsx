@@ -13,14 +13,12 @@ import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import api from '@/lib/api';
-import { useTenant } from '@/stores/tenant-context';
 import { entityTemplates, templateCategories } from '@/lib/entity-templates';
 import type { EntityTemplate } from '@/lib/entity-templates';
 
 function NewEntityPageContent() {
   const router = useRouter();
   const t = useTranslations('entities');
-  const { effectiveTenantId } = useTenant();
 
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
@@ -55,7 +53,6 @@ function NewEntityPageContent() {
         fields: selectedTemplate?.fields || [],
       };
       if (category.trim()) payload.category = category.trim();
-      if (effectiveTenantId) payload.tenantId = effectiveTenantId;
 
       const entityResult = await api.post('/entities', payload);
       const entityId = entityResult.data?.id;

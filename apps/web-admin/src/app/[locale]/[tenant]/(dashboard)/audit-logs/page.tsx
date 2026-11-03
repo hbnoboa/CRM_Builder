@@ -16,8 +16,6 @@ import {
 } from '@/components/ui/select';
 import { useAuditLogs } from '@/hooks/use-audit-logs';
 import { usePermissions } from '@/hooks/use-permissions';
-import { useTenants } from '@/hooks/use-tenants';
-import { useTenant } from '@/stores/tenant-context';
 import { auditLogsService, type AuditLog } from '@/services/audit-logs.service';
 import { cn } from '@/lib/utils';
 
@@ -34,24 +32,22 @@ export default function AuditLogsPage() {
   const t = useTranslations('auditLogsPage');
   const tNav = useTranslations('navigation');
   const tAuth = useTranslations('auth');
-  const { isPlatformAdmin } = usePermissions();
-  const { effectiveTenantId } = useTenant();
+  const { modulePermissions, hasModulePermission, isAdmin } = usePermissions();
+  // Espelha o guard da API (audit.controller): logs.canRead + logs.auditLogs.canRead
+  // (ou acesso total ao tenant). A API sempre escopa ao tenant do usuario.
+  const auditLogsPerm = ((modulePermissions as Record<string, unknown>).logs as Record<string, unknown> | undefined)?.auditLogs as
+    | { canRead?: boolean }
+    | undefined;
+  const canReadAuditLogs = isAdmin || (hasModulePermission('logs', 'canRead') && auditLogsPerm?.canRead === true);
 
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
   const [action, setAction] = useState<string>('');
   const [resource, setResource] = useState<string>('');
-  const [tenantFilter, setTenantFilter] = useState<string>('');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [expandedRow, setExpandedRow] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
-
-  const { data: tenantsData } = useTenants({ limit: 100 });
-  const tenants = tenantsData?.data ?? [];
-
-  // Use effectiveTenantId from tenant selector, override with local filter if set
-  const resolvedTenantId = tenantFilter || effectiveTenantId || '';
 
   const queryParams = useMemo(() => ({
     page,
@@ -59,18 +55,17 @@ export default function AuditLogsPage() {
     ...(search && { search }),
     ...(action && { action }),
     ...(resource && { resource }),
-    ...(resolvedTenantId && { tenantId: resolvedTenantId }),
     ...(dateFrom && { dateFrom }),
     ...(dateTo && { dateTo }),
-  }), [page, search, action, resource, resolvedTenantId, dateFrom, dateTo]);
+  }), [page, search, action, resource, dateFrom, dateTo]);
 
   const { data, isLoading } = useAuditLogs(queryParams);
   const logs = data?.data ?? [];
   const meta = data?.meta;
 
-  const hasFilters = !!(action || resource || tenantFilter || dateFrom || dateTo || search);
+  const hasFilters = !!(action || resource || dateFrom || dateTo || search);
 
-  if (!isPlatformAdmin) {
+  if (!canReadAuditLogs) {
     return (
       <div className="max-w-3xl mx-auto mt-4 sm:mt-8 px-2 sm:px-0">
         <Card>
@@ -95,7 +90,6 @@ export default function AuditLogsPage() {
   const clearFilters = () => {
     setAction('');
     setResource('');
-    setTenantFilter('');
     setDateFrom('');
     setDateTo('');
     setSearch('');
@@ -108,7 +102,6 @@ export default function AuditLogsPage() {
       const blob = await auditLogsService.exportJson({
         dateFrom: dateFrom || undefined,
         dateTo: dateTo || undefined,
-        tenantId: resolvedTenantId || undefined,
       });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -127,11 +120,6 @@ export default function AuditLogsPage() {
       day: '2-digit', month: '2-digit', year: 'numeric',
       hour: '2-digit', minute: '2-digit',
     });
-  };
-
-  const getTenantName = (tid: string) => {
-    const tenant = tenants.find((t: { id: string; name: string }) => t.id === tid);
-    return tenant?.name || tid.slice(0, 8) + '...';
   };
 
   return (
@@ -176,7 +164,7 @@ export default function AuditLogsPage() {
               </Button>
             )}
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3">
             <Select value={action} onValueChange={(v) => { setAction(v === 'all' ? '' : v); setPage(1); }}>
               <SelectTrigger><SelectValue placeholder={t('allActions')} /></SelectTrigger>
               <SelectContent>
@@ -193,16 +181,6 @@ export default function AuditLogsPage() {
                 <SelectItem value="all">{t('allResources')}</SelectItem>
                 {RESOURCES.map((r) => (
                   <SelectItem key={r} value={r}>{t(`resources.${r}`)}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-
-            <Select value={tenantFilter} onValueChange={(v) => { setTenantFilter(v === 'all' ? '' : v); setPage(1); }}>
-              <SelectTrigger><SelectValue placeholder={t('allTenants')} /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">{t('allTenants')}</SelectItem>
-                {tenants.map((tenant: { id: string; name: string }) => (
-                  <SelectItem key={tenant.id} value={tenant.id}>{tenant.name}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -340,12 +318,6 @@ export default function AuditLogsPage() {
               {expandedRow === log.id && (
                 <Card className="border-t-0 rounded-t-none border-primary/20">
                   <CardContent className="p-4 space-y-4">
-                    {/* Tenant */}
-                    <div className="flex items-center gap-2 text-sm">
-                      <span className="font-medium text-muted-foreground">Tenant:</span>
-                      <span>{getTenantName(log.tenantId)}</span>
-                    </div>
-
                     {/* Metadata */}
                     {log.metadata && Object.keys(log.metadata).length > 0 && (
                       <div>

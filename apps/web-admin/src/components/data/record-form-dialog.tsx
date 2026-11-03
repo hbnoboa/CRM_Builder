@@ -241,7 +241,6 @@ export function RecordFormFields({
     setLoadingRelations(prev => ({ ...prev, [field.slug]: true }));
     try {
       const params: Record<string, string | number> = { limit: 500 };
-      if (effectiveTenantId) params.tenantId = effectiveTenantId;
       const response = await api.get(`/data/${field.relatedEntitySlug}`, { params });
       const data = Array.isArray(response.data) ? response.data : response.data?.data || [];
       const displayField = field.relatedDisplayField || '';
@@ -281,7 +280,7 @@ export function RecordFormFields({
     } finally {
       setLoadingRelations(prev => ({ ...prev, [field.slug]: false }));
     }
-  }, [effectiveTenantId, t]);
+  }, [t]);
 
   // Load options when dialog opens
   useEffect(() => {
@@ -655,12 +654,12 @@ export function RecordFormFields({
 
     try {
       if (isEditing && record) {
-        await updateRecord.mutateAsync({ entitySlug: entity.slug, id: record.id, data: processedData, tenantId: effectiveTenantId || undefined });
+        await updateRecord.mutateAsync({ entitySlug: entity.slug, id: record.id, data: processedData });
       } else if (submitOverride) {
         // Save delegado (ex.: comando de chat cria via executeCommand + posta card).
         await submitOverride(processedData);
       } else {
-        await createRecord.mutateAsync({ entitySlug: entity.slug, data: processedData, parentRecordId, tenantId: effectiveTenantId || undefined });
+        await createRecord.mutateAsync({ entitySlug: entity.slug, data: processedData, parentRecordId });
       }
       onSubmitted?.();
       onSuccess?.();

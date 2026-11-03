@@ -97,14 +97,12 @@ export default function DashboardPage() {
 
   const fetchDashboardDate = async () => {
     try {
-      const params: Record<string, string> = {};
-      if (effectiveTenantId) params.tenantId = effectiveTenantId;
       const [statsRes, recordsRes, distributionRes, usersRes, activityRes] = await Promise.all([
-        api.get('/stats/dashboard', { params }),
-        api.get('/stats/records-over-time', { params: { days: 30, ...params } }),
-        api.get('/stats/entities-distribution', { params }),
-        api.get('/stats/users-activity', { params: { days: 7, ...params } }),
-        api.get('/stats/recent-activity', { params: { limit: 15, ...params } }),
+        api.get('/stats/dashboard'),
+        api.get('/stats/records-over-time', { params: { days: 30 } }),
+        api.get('/stats/entities-distribution'),
+        api.get('/stats/users-activity', { params: { days: 7 } }),
+        api.get('/stats/recent-activity', { params: { limit: 15 } }),
       ]);
 
       setStats(statsRes.data);

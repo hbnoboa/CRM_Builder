@@ -4,17 +4,11 @@ import { useTranslations } from 'next-intl';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Link } from '@/i18n/tenant-navigation';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { ArrowLeft, Shield, Crown, UserCog, Users, User, Eye } from 'lucide-react';
+import { ArrowLeft, Shield, UserCog, Users, User, Eye } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 
 const SYSTEM_ROLES = [
-  {
-    key: 'PLATFORM_ADMIN',
-    icon: Crown,
-    color: 'text-purple-600',
-    bgColor: 'bg-purple-100',
-  },
   {
     key: 'ADMIN',
     icon: Shield,

@@ -2,6 +2,9 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import api from '@/lib/api';
 import { getPlatformToken, platformApi } from '@/lib/platform-api';
 import type {
+  CopyableData,
+  CopyResult,
+  CopyTenantDataPayload,
   Paginated,
   Plan,
   PlanLimits,
@@ -12,6 +15,7 @@ import type {
   PlatformStaffRow,
   PlatformTenantDetail,
   PlatformTenantMember,
+  PlatformTenantRole,
   PlatformTenantRow,
   TenantFeatures,
   TenantLifecycle,
@@ -25,6 +29,8 @@ export const platformKeys = {
   tenants: (params?: object) => [...platformKeys.all, 'tenants', params ?? {}] as const,
   tenant: (id: string) => [...platformKeys.all, 'tenant', id] as const,
   members: (id: string) => [...platformKeys.all, 'tenant', id, 'members'] as const,
+  roles: (id: string) => [...platformKeys.all, 'tenant', id, 'roles'] as const,
+  copyable: (id: string) => [...platformKeys.all, 'tenant', id, 'copyable'] as const,
   plans: () => [...platformKeys.all, 'plans'] as const,
   staff: () => [...platformKeys.all, 'staff'] as const,
   audit: (params?: object) => [...platformKeys.all, 'audit', params ?? {}] as const,
@@ -93,6 +99,22 @@ export function usePlatformTenantMembers(id: string) {
     queryKey: platformKeys.members(id),
     queryFn: async () => (await platformApi.get<PlatformTenantMember[]>(`/tenants/${id}/members`)).data,
     enabled: !!id,
+  });
+}
+
+export function usePlatformTenantRoles(id: string) {
+  return useQuery({
+    queryKey: platformKeys.roles(id),
+    queryFn: async () => (await platformApi.get<PlatformTenantRole[]>(`/tenants/${id}/roles`)).data,
+    enabled: !!id,
+  });
+}
+
+export function usePlatformCopyableData(tenantId: string | null) {
+  return useQuery({
+    queryKey: platformKeys.copyable(tenantId ?? ''),
+    queryFn: async () => (await platformApi.get<CopyableData>(`/tenants/${tenantId}/copyable-data`)).data,
+    enabled: !!tenantId,
   });
 }
 
@@ -179,6 +201,30 @@ export function useSetTenantFeatures(id: string) {
 export function useRecomputeTenantStorage(id: string) {
   return useInvalidatingMutation(async () =>
     (await platformApi.post<{ storageMb: number }>(`/tenants/${id}/storage/recompute`)).data,
+  );
+}
+
+export function useDeleteTenantRole(tenantId: string) {
+  return useInvalidatingMutation(async (roleId: string) =>
+    (await platformApi.delete(`/tenants/${tenantId}/roles/${roleId}`)).data,
+  );
+}
+
+export function useSetTenantOwner(tenantId: string) {
+  return useInvalidatingMutation(async (userId: string) =>
+    (await platformApi.patch(`/tenants/${tenantId}/owner`, { userId })).data,
+  );
+}
+
+export function useAddTenantMember(tenantId: string) {
+  return useInvalidatingMutation(async (body: { email: string; customRoleId: string }) =>
+    (await platformApi.post(`/tenants/${tenantId}/members`, body)).data,
+  );
+}
+
+export function usePlatformCopyTenantData() {
+  return useInvalidatingMutation(async (payload: CopyTenantDataPayload) =>
+    (await platformApi.post<CopyResult>('/tenants/copy-data', payload)).data,
   );
 }
 

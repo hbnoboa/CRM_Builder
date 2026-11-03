@@ -125,7 +125,6 @@ export default function ChatPage() {
 
   const canManageCommands = (() => {
     const mp = user?.customRole?.modulePermissions as Record<string, Record<string, unknown> | boolean> | undefined;
-    if (mp?.platform && (mp.platform as Record<string, unknown>).crossTenant === true) return true;
     if (mp?.allAccess === true) return true;
     return (mp?.entities as Record<string, unknown>)?.canUpdate === true
       || (mp?.roles as Record<string, unknown>)?.canManagePermissions === true;
@@ -134,14 +133,12 @@ export default function ChatPage() {
   // Permissão dedicada de gerir canais: quem cria/renomeia canais e vê todas as tabelas.
   const canManageChat = (() => {
     const mp = user?.customRole?.modulePermissions as Record<string, Record<string, unknown> | boolean> | undefined;
-    if (mp?.platform && (mp.platform as Record<string, unknown>).crossTenant === true) return true;
     if (mp?.allAccess === true) return true;
     return (mp?.chat as Record<string, unknown>)?.manage === true;
   })();
 
   const canReadEntity = useCallback((slug: string) => {
     const mp = user?.customRole?.modulePermissions as Record<string, Record<string, unknown> | boolean> | undefined;
-    if (mp?.platform && (mp.platform as Record<string, unknown>).crossTenant === true) return true;
     if (mp?.allAccess === true) return true;
     const perms = user?.customRole?.permissions as Array<Record<string, unknown>> | undefined;
     if (!Array.isArray(perms)) return false;

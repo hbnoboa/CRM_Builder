@@ -12,7 +12,6 @@ import {
   LogOut,
   Menu,
   X,
-  Building2,
   Shield,
   Plus,
   Database,
@@ -79,7 +78,6 @@ const topNavigation: NavItemConfig[] = [
 ];
 
 const adminNavigation: NavItemConfig[] = [
-  { titleKey: 'tenants', href: '/tenants', icon: <Building2 className="h-5 w-5" />, moduleKey: 'tenants' },
   { titleKey: 'users', href: '/users', icon: <Users className="h-5 w-5" />, moduleKey: 'users' },
   { titleKey: 'roles', href: '/roles', icon: <Shield className="h-5 w-5" />, moduleKey: 'roles' },
   { titleKey: 'pdfTemplates', href: '/pdf-templates', icon: <FileText className="h-5 w-5" />, moduleKey: 'pdfTemplates', featureKey: 'pdf' },

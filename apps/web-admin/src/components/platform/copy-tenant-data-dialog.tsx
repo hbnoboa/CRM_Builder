@@ -2,6 +2,8 @@
 
 import { useState, useMemo, useCallback } from 'react';
 import { useTranslations } from 'next-intl';
+import { toast } from 'sonner';
+import { getErrorMessage } from '@/lib/get-error-message';
 import {
   Copy,
   ChevronRight,
@@ -42,17 +44,19 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from '@/components/ui/accordion';
-import { useTenants, useCopyableData, useCopyTenantData } from '@/hooks/use-tenants';
+import { usePlatformCopyableData, usePlatformCopyTenantData, usePlatformTenants } from '@/hooks/use-platform';
 import type {
   CopyableData,
   CopyEntitySelection,
   CopyResult,
-} from '@/services/tenants.service';
-import type { Tenant } from '@/types';
+  PlatformTenantRow,
+} from '@/types/platform';
 
 interface CopyTenantDataDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** Empresa de destino ja escolhida (aberto a partir da tela do cliente no console). */
+  targetTenantId?: string;
   onSuccess?: () => void;
 }
 
@@ -81,26 +85,27 @@ const emptySelection = (): SelectedItems => ({
 export function CopyTenantDataDialog({
   open,
   onOpenChange,
+  targetTenantId: presetTargetId = '',
   onSuccess,
 }: CopyTenantDataDialogProps) {
-  const t = useTranslations('tenants');
+  const t = useTranslations('platform');
   const tCommon = useTranslations('common');
 
   const [step, setStep] = useState<Step>('select-tenants');
   const [sourceTenantId, setSourceTenantId] = useState<string>('');
-  const [targetTenantId, setTargetTenantId] = useState<string>('');
+  const [targetTenantId, setTargetTenantId] = useState<string>(presetTargetId);
   const [conflictStrategy, setConflictStrategy] = useState<'skip' | 'suffix'>('skip');
   const [selected, setSelected] = useState<SelectedItems>(emptySelection());
   const [result, setResult] = useState<CopyResult | null>(null);
 
-  const { data: tenantsData } = useTenants({ limit: 100 });
-  const tenants: Tenant[] = Array.isArray(tenantsData?.data) ? tenantsData.data : [];
+  const { data: tenantsData } = usePlatformTenants({ limit: 100 });
+  const tenants: PlatformTenantRow[] = Array.isArray(tenantsData?.data) ? tenantsData.data : [];
 
-  const { data: copyableData, isLoading: loadingCopyable } = useCopyableData(
+  const { data: copyableData, isLoading: loadingCopyable } = usePlatformCopyableData(
     step === 'select-items' ? sourceTenantId : null,
   );
 
-  const copyMutation = useCopyTenantData();
+  const copyMutation = usePlatformCopyTenantData();
 
   const totalSelected = useMemo(
     () =>
@@ -117,11 +122,11 @@ export function CopyTenantDataDialog({
   const resetDialog = useCallback(() => {
     setStep('select-tenants');
     setSourceTenantId('');
-    setTargetTenantId('');
+    setTargetTenantId(presetTargetId);
     setConflictStrategy('skip');
     setSelected(emptySelection());
     setResult(null);
-  }, []);
+  }, [presetTargetId]);
 
   const handleOpenChange = useCallback(
     (open: boolean) => {
@@ -176,8 +181,8 @@ export function CopyTenantDataDialog({
       setResult(res);
       setStep('result');
       onSuccess?.();
-    } catch {
-      // Error handled by mutation hook
+    } catch (error) {
+      toast.error(getErrorMessage(error));
     }
   }, [selected, sourceTenantId, targetTenantId, conflictStrategy, copyMutation, onSuccess]);
 

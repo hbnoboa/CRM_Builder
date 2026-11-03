@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useTranslations } from 'next-intl';
 import {
   Plus, Search, MoreVertical, Pencil, Trash2, Shield,
-  ArrowLeft, Users,
+  ArrowLeft, Users, ChevronUp, ChevronDown,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -14,9 +14,9 @@ import {
   DropdownMenuSeparator, DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Badge } from '@/components/ui/badge';
-import { useCustomRoles, useDeleteCustomRole } from '@/hooks/use-custom-roles';
+import { useCustomRoles, useReorderCustomRoles } from '@/hooks/use-custom-roles';
+import { useAuthStore } from '@/stores/auth-store';
 import { usePermissions } from '@/hooks/use-permissions';
-import { useTenant } from '@/stores/tenant-context';
 import { Link } from '@/i18n/tenant-navigation';
 import { RoleFormDialog } from '@/components/roles/role-form-dialog';
 import { DeleteRoleDialog } from '@/components/roles/delete-role-dialog';
@@ -27,18 +27,33 @@ export default function RolesPage() {
   const tNav = useTranslations('navigation');
   const tCommon = useTranslations('common');
   const tAuth = useTranslations('auth');
-  const { hasModuleAccess, hasModulePermission, isAdmin: isAdminUser } = usePermissions();
+  const { hasModuleAccess, hasModulePermission } = usePermissions();
+  const myRank = useAuthStore((s) => s.user?.customRole?.rank) ?? Number.MAX_SAFE_INTEGER;
+  const reorder = useReorderCustomRoles();
   const canAccessRoles = hasModuleAccess('roles');
-  const { effectiveTenantId } = useTenant();
 
   const [search, setSearch] = useState('');
   const [formOpen, setFormOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [selectedRole, setSelectedRole] = useState<CustomRole | null>(null);
 
-  const queryParams = effectiveTenantId ? { tenantId: effectiveTenantId } : undefined;
-  const { data, isLoading, refetch } = useCustomRoles(queryParams);
-  const roles = Array.isArray(data?.data) ? data.data : [];
+  const { data, isLoading, refetch } = useCustomRoles();
+  // Do mais alto para o mais baixo: quem esta acima gerencia quem esta abaixo.
+  const roles = (Array.isArray(data?.data) ? [...data.data] : []).sort(
+    (a: CustomRole, b: CustomRole) => (a.rank ?? 100) - (b.rank ?? 100) || a.name.localeCompare(b.name),
+  );
+  // So da para reordenar os cargos abaixo do seu (mesma regra da API).
+  const below = roles.filter((r: CustomRole) => (r.rank ?? 100) > myRank);
+  const canReorder = hasModulePermission('roles', 'canUpdate') && !search && below.length > 1;
+
+  const move = (role: CustomRole, delta: -1 | 1) => {
+    const ids = below.map((r: CustomRole) => r.id);
+    const from = ids.indexOf(role.id);
+    const to = from + delta;
+    if (from < 0 || to < 0 || to >= ids.length) return;
+    [ids[from], ids[to]] = [ids[to], ids[from]];
+    reorder.mutate(ids);
+  };
 
   const filteredRoles = roles.filter(
     (role: CustomRole) =>
@@ -85,6 +100,7 @@ export default function RolesPage() {
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold">{t('rolesPage.title')}</h1>
           <p className="text-muted-foreground mt-1 text-sm sm:text-base">{t('rolesPage.subtitle')}</p>
+          <p className="text-muted-foreground mt-1 text-xs sm:text-sm">{t('rolesPage.orderHint')}</p>
         </div>
         {hasModulePermission('roles', 'canCreate') && (
         <Button onClick={handleCreate} className="w-full sm:w-auto">
@@ -100,7 +116,7 @@ export default function RolesPage() {
         </CardContent></Card>
         <Card><CardContent className="p-3 sm:p-4">
           <div className="text-xl sm:text-2xl font-bold text-blue-600">
-            {roles.reduce((acc: number, r: CustomRole) => acc + (r._count?.users || 0), 0)}
+            {roles.reduce((acc: number, r: CustomRole) => acc + (r._count?.tenantAccessUsers || 0), 0)}
           </div>
           <p className="text-xs sm:text-sm text-muted-foreground">{t('rolesPage.stats.usersAssigned')}</p>
         </CardContent></Card>
@@ -151,6 +167,24 @@ export default function RolesPage() {
                 <CardContent className="p-3 sm:p-4">
                   <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
                     <div className="flex items-center gap-3 sm:gap-4 min-w-0">
+                      {canReorder && (
+                        <div className="flex flex-col" data-testid={`order-${role.name}`}>
+                          {below.includes(role) ? (
+                            <>
+                              <Button variant="ghost" size="icon" className="h-6 w-6" disabled={reorder.isPending || below[0] === role}
+                                onClick={() => move(role, -1)} aria-label={t('rolesPage.moveUp')} data-testid={`move-up-${role.name}`}>
+                                <ChevronUp className="h-4 w-4" />
+                              </Button>
+                              <Button variant="ghost" size="icon" className="h-6 w-6" disabled={reorder.isPending || below[below.length - 1] === role}
+                                onClick={() => move(role, 1)} aria-label={t('rolesPage.moveDown')} data-testid={`move-down-${role.name}`}>
+                                <ChevronDown className="h-4 w-4" />
+                              </Button>
+                            </>
+                          ) : (
+                            <div className="w-6" />
+                          )}
+                        </div>
+                      )}
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
                           <h3 className="font-semibold text-sm sm:text-base">{role.name}</h3>
@@ -168,7 +202,7 @@ export default function RolesPage() {
                         <div className="flex flex-wrap items-center gap-2 mt-1.5">
                           <span className="flex items-center gap-1 text-xs text-muted-foreground">
                             <Users className="h-3 w-3" />
-                            {role._count?.users || 0} {t('rolesPage.usersCount')}
+                            {role._count?.tenantAccessUsers || 0} {t('rolesPage.usersCount')}
                           </span>
                         </div>
                       </div>

@@ -11,7 +11,6 @@ import {
   BarChart3,
   Link2,
   ScrollText,
-  Building2,
   LineChart,
   Settings as SettingsIcon,
   CircleDot,
@@ -52,7 +51,6 @@ export default function HomePage() {
     { key: 'dashboards', title: t('dashboards'), desc: t('dashboardsDesc'), href: '/dashboard-templates', icon: <BarChart3 className="h-6 w-6" />, show: hasModuleAccess('dashboardTemplates'), tone: 'neutral' },
     { key: 'publicLinks', title: t('publicLinks'), desc: t('publicLinksDesc'), href: '/public-links', icon: <Link2 className="h-6 w-6" />, show: hasModuleAccess('publicLinks') && features.publicLinks, tone: 'neutral' },
     { key: 'logs', title: t('logs'), desc: t('logsDesc'), href: '/audit-logs', icon: <ScrollText className="h-6 w-6" />, show: hasModuleAccess('auditLogs'), tone: 'neutral' },
-    { key: 'tenants', title: t('tenants'), desc: t('tenantsDesc'), href: '/tenants', icon: <Building2 className="h-6 w-6" />, show: hasModuleAccess('tenants'), tone: 'neutral' },
     // Conta (todos)
     { key: 'settings', title: t('settings'), desc: t('settingsDesc'), href: '/settings', icon: <SettingsIcon className="h-6 w-6" />, show: true, tone: 'neutral' },
   ];

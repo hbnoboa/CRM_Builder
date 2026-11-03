@@ -15,7 +15,7 @@ import { usePermissions } from '@/hooks/use-permissions';
 import { useTenant } from '@/stores/tenant-context';
 import { Link, useRouter, usePathname } from '@/i18n/tenant-navigation';
 import { cn } from '@/lib/utils';
-import { SubscriptionPanel } from '@/components/subscription/subscription-widgets';
+import { OwnershipCard, SubscriptionPanel } from '@/components/subscription/subscription-widgets';
 
 // Conta (todos): profile/language/theme. Organização (gated): org.
 const ACCOUNT_TABS = ['profile', 'language', 'theme'] as const;
@@ -320,7 +320,12 @@ function SettingsPageContent() {
           )}
 
           {/* Organização (gated por settings.canUpdate) — ajustes do tenant */}
-          {activeTab === 'plan' && canOrg && <SubscriptionPanel />}
+          {activeTab === 'plan' && canOrg && (
+            <div className="space-y-4">
+              <SubscriptionPanel />
+              <OwnershipCard />
+            </div>
+          )}
 
           {activeTab === 'org' && canOrg && (
             <Card>

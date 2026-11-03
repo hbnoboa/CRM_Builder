@@ -37,7 +37,13 @@ const STATUS_CONFIG: Record<string, { label: string; icon: typeof CheckCircle; c
 };
 
 export default function ExecutionLogsPage() {
-  const { isPlatformAdmin, isAdmin } = usePermissions();
+  const { modulePermissions, hasModulePermission, isAdmin } = usePermissions();
+  // Espelha o guard da API (execution-logs.controller): logs.canRead + logs.executionLogs.canRead
+  // (ou acesso total ao tenant).
+  const executionLogsPerm = ((modulePermissions as Record<string, unknown>).logs as Record<string, unknown> | undefined)?.executionLogs as
+    | { canRead?: boolean }
+    | undefined;
+  const canReadExecutionLogs = isAdmin || (hasModulePermission('logs', 'canRead') && executionLogsPerm?.canRead === true);
 
   const [page, setPage] = useState(1);
   const [typeFilter, setTypeFilter] = useState<string>('');
@@ -61,7 +67,7 @@ export default function ExecutionLogsPage() {
   const hasFilters = !!(typeFilter || statusFilter);
 
   // Verificar permissao
-  if (!isPlatformAdmin && !isAdmin) {
+  if (!canReadExecutionLogs) {
     return (
       <div className="max-w-3xl mx-auto mt-4 sm:mt-8 px-2 sm:px-0">
         <Card>

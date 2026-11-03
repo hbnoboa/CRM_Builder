@@ -2571,8 +2571,7 @@ function TemplateBuilderContent() {
   const { data: template, isLoading } = useDashboardTemplate(isCreateMode ? undefined : templateId);
   const updateTemplate = useUpdateDashboardTemplate();
   const createTemplate = useCreateDashboardTemplate();
-  // Filter entities by template's tenant to avoid showing entities from other tenants
-  const { data: entities } = useEntities({ tenantId: template?.tenantId });
+  const { data: entities } = useEntities();
   const { data: roles } = useCustomRoles();
 
   const [layout, setLayout] = useState<LayoutItem[]>([]);

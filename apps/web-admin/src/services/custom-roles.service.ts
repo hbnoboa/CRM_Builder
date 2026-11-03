@@ -1,5 +1,5 @@
 import api from '@/lib/api';
-import { CustomRole, EntityPermission, ModulePermissions, TenantPermissions, PaginatedResponse } from '@/types';
+import { CustomRole, EntityPermission, ModulePermissions, PaginatedResponse } from '@/types';
 
 export interface QueryCustomRolesParams {
   page?: number;
@@ -8,7 +8,6 @@ export interface QueryCustomRolesParams {
   cursor?: string;
   sortBy?: string;
   sortOrder?: 'asc' | 'desc';
-  tenantId?: string;
 }
 
 export interface CreateCustomRoleData {
@@ -18,9 +17,7 @@ export interface CreateCustomRoleData {
   isSystem?: boolean;
   permissions: EntityPermission[];
   modulePermissions?: ModulePermissions;
-  tenantPermissions?: TenantPermissions;
   isDefault?: boolean;
-  tenantId?: string;
 }
 
 export interface UpdateCustomRoleData {
@@ -29,9 +26,7 @@ export interface UpdateCustomRoleData {
   color?: string;
   permissions?: EntityPermission[];
   modulePermissions?: ModulePermissions;
-  tenantPermissions?: TenantPermissions;
   isDefault?: boolean;
-  tenantId?: string;
 }
 
 export const customRolesService = {
@@ -40,8 +35,8 @@ export const customRolesService = {
     return response.data;
   },
 
-  async getById(id: string, tenantId?: string): Promise<CustomRole> {
-    const response = await api.get<CustomRole>(`/custom-roles/${id}`, { params: tenantId ? { tenantId } : undefined });
+  async getById(id: string): Promise<CustomRole> {
+    const response = await api.get<CustomRole>(`/custom-roles/${id}`);
     return response.data;
   },
 
@@ -55,12 +50,17 @@ export const customRolesService = {
     return response.data;
   },
 
-  async delete(id: string, tenantId?: string): Promise<void> {
-    await api.delete(`/custom-roles/${id}`, { params: tenantId ? { tenantId } : undefined });
+  async delete(id: string): Promise<void> {
+    await api.delete(`/custom-roles/${id}`);
   },
 
-  async assignToUser(roleId: string, userId: string, tenantId?: string): Promise<void> {
-    await api.post(`/custom-roles/${roleId}/assign/${userId}`, undefined, { params: tenantId ? { tenantId } : undefined });
+  /** Nova ordem (do mais alto ao mais baixo) dos cargos abaixo do seu. */
+  async reorder(orderedIds: string[]): Promise<void> {
+    await api.post('/custom-roles/reorder', { orderedIds });
+  },
+
+  async assignToUser(roleId: string, userId: string): Promise<void> {
+    await api.post(`/custom-roles/${roleId}/assign/${userId}`);
   },
 
   async getMyPermissions(): Promise<{ entities: string[]; modules: Record<string, boolean> }> {

@@ -22,9 +22,7 @@ export function TenantSelector() {
   // Fonte da verdade do tenant atual = slug na URL (sempre em sincronia, sem race).
   const currentSlug = typeof params?.tenant === 'string' ? params.tenant : undefined;
   const {
-    isPlatformAdmin,
     hasMultipleTenants,
-    allTenants,
     accessibleTenants,
     switchTenant,
     tenant: ownTenant,
@@ -36,19 +34,10 @@ export function TenantSelector() {
     router.push(slug ? `/${slug}/home` : '/home');
   };
 
-  // Mostra p/ acesso de plataforma (permission-driven) ou usuarios multi-tenant
-  if (!isPlatformAdmin && !hasMultipleTenants) return null;
+  // Mostra apenas para usuarios com membership em multiplos tenants
+  if (!hasMultipleTenants) return null;
 
-  // PLATFORM_ADMIN: use allTenants, Multi-tenant: use accessibleTenants
-  const tenants = isPlatformAdmin
-    ? allTenants.map(t => ({
-        id: t.id,
-        name: t.name,
-        slug: t.slug,
-        isHome: false,
-        customRole: { id: '', name: 'Admin' }
-      }))
-    : accessibleTenants;
+  const tenants = accessibleTenants;
 
   const currentTenant = tenants.find((t) => t.slug === currentSlug);
   const currentTenantName = currentTenant?.name || ownTenant?.name || 'Tenant';
