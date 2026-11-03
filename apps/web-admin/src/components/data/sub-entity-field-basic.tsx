@@ -28,7 +28,6 @@ import {
 } from '@/components/ui/alert-dialog';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
-import { useTenant } from '@/stores/tenant-context';
 import { RecordFormDialog } from './record-form-dialog';
 import type { EntityField } from '@/types';
 
@@ -79,7 +78,6 @@ export default function SubEntityField({
   const t = useTranslations('subEntity');
   const tCommon = useTranslations('common');
   const tBool = useTranslations('booleanValues');
-  const { tenantId } = useTenant();
   const [subEntity, setSubEntity] = useState<SubEntity | null>(null);
   const [records, setRecords] = useState<SubRecord[]>([]);
   const [loading, setLoading] = useState(true);
@@ -97,9 +95,7 @@ export default function SubEntityField({
   // Load sub-entity definition (by slug for tenant-safe resolution)
   const loadSubEntity = useCallback(async () => {
     try {
-      const params: Record<string, string> = {};
-      if (tenantId) params.tenantId = tenantId;
-      const response = await api.get('/entities', { params });
+      const response = await api.get('/entities');
       const allEntities = Array.isArray(response.data) ? response.data : response.data?.data || [];
       const found = allEntities.find((e: SubEntity) => e.slug === subEntitySlug || e.id === subEntityId);
       if (found) {
@@ -109,7 +105,7 @@ export default function SubEntityField({
       console.error('Error loading sub-entity:', error);
       toast.error(t('loadError'));
     }
-  }, [subEntitySlug, subEntityId, tenantId, t]);
+  }, [subEntitySlug, subEntityId, t]);
 
   // Load sub-records
   const loadRecords = useCallback(async () => {

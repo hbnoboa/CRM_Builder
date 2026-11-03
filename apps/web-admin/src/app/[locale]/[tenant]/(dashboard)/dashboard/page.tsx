@@ -97,14 +97,12 @@ export default function DashboardPage() {
 
   const fetchDashboardDate = async () => {
     try {
-      const params: Record<string, string> = {};
-      if (effectiveTenantId) params.tenantId = effectiveTenantId;
       const [statsRes, recordsRes, distributionRes, usersRes, activityRes] = await Promise.all([
-        api.get('/stats/dashboard', { params }),
-        api.get('/stats/records-over-time', { params: { days: 30, ...params } }),
-        api.get('/stats/entities-distribution', { params }),
-        api.get('/stats/users-activity', { params: { days: 7, ...params } }),
-        api.get('/stats/recent-activity', { params: { limit: 15, ...params } }),
+        api.get('/stats/dashboard'),
+        api.get('/stats/records-over-time', { params: { days: 30 } }),
+        api.get('/stats/entities-distribution'),
+        api.get('/stats/users-activity', { params: { days: 7 } }),
+        api.get('/stats/recent-activity', { params: { limit: 15 } }),
       ]);
 
       setStats(statsRes.data);
@@ -174,7 +172,7 @@ export default function DashboardPage() {
       icon: <Users className="h-4 w-4 sm:h-5 sm:w-5" />,
       color: 'text-pink-500',
       bgColor: 'bg-pink-500/10',
-      href: '/users',
+      href: '/gestao/users',
       moduleKey: 'users',
       sub: t('stats.activeUsers7d', { count: usersActivity.length }),
     },
@@ -441,7 +439,7 @@ export default function DashboardPage() {
                   <div className="text-center">
                     <Database className="h-12 w-12 mx-auto mb-4 opacity-50" />
                     <p>{t('empty.noEntities')}</p>
-                    <Link href="/entities/new">
+                    <Link href="/gestao/entities/new">
                       <Button variant="link" className="mt-2">
                         {t('empty.createFirstEntity')}
                       </Button>
@@ -587,7 +585,7 @@ export default function DashboardPage() {
         <CardContent>
           <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
             {hasModulePermission('entities', 'canCreate') && (
-              <Link href="/entities/new">
+              <Link href="/gestao/entities/new">
                 <Card className="hover:border-primary/50 transition-colors cursor-pointer h-full">
                   <CardContent className="p-4 sm:p-6">
                     <div className="flex items-center gap-3 sm:gap-4">
@@ -627,7 +625,7 @@ export default function DashboardPage() {
             )}
 
             {hasModuleAccess('users') && (
-              <Link href="/users">
+              <Link href="/gestao/users">
                 <Card className="hover:border-primary/50 transition-colors cursor-pointer h-full">
                   <CardContent className="p-4 sm:p-6">
                     <div className="flex items-center gap-3 sm:gap-4">

@@ -12,13 +12,10 @@ import {
   LogOut,
   Menu,
   X,
-  Building2,
-  Shield,
   Plus,
   Database,
   PanelLeftClose,
   PanelLeftOpen,
-  ScrollText,
   ChevronDown,
   ChevronRight,
   Target,
@@ -33,11 +30,9 @@ import {
   UserCheck,
   CircleDot,
   Layers,
-  FileText,
-  BarChart3,
   Settings2,
-  Link2,
   MessageSquare,
+  ShieldCheck,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -56,6 +51,7 @@ import { ImpersonationBanner } from '@/components/impersonation-banner';
 import { NotificationBell } from '@/components/notifications/notification-bell';
 import { TenantSelector } from '@/components/tenant-selector';
 import { OperationalShell } from '@/components/layout/operational-shell';
+import { GestaoShell } from '@/components/layout/gestao-shell';
 import { cn } from '@/lib/utils';
 import { TrialBanner, useTenantFeatures } from '@/components/subscription/subscription-widgets';
 import type { FeatureKey } from '@/types/platform';
@@ -76,16 +72,6 @@ const topNavigation: NavItemConfig[] = [
   { titleKey: 'home', href: '/home', icon: <Home className="h-5 w-5" /> },
   { titleKey: 'dashboard', href: '/dashboard', icon: <LayoutDashboard className="h-5 w-5" />, moduleKey: 'dashboard' },
   { titleKey: 'chat', href: '/chat', icon: <MessageSquare className="h-5 w-5" />, featureKey: 'chat' },
-];
-
-const adminNavigation: NavItemConfig[] = [
-  { titleKey: 'tenants', href: '/tenants', icon: <Building2 className="h-5 w-5" />, moduleKey: 'tenants' },
-  { titleKey: 'users', href: '/users', icon: <Users className="h-5 w-5" />, moduleKey: 'users' },
-  { titleKey: 'roles', href: '/roles', icon: <Shield className="h-5 w-5" />, moduleKey: 'roles' },
-  { titleKey: 'pdfTemplates', href: '/pdf-templates', icon: <FileText className="h-5 w-5" />, moduleKey: 'pdfTemplates', featureKey: 'pdf' },
-  { titleKey: 'auditLogs', href: '/audit-logs', icon: <ScrollText className="h-5 w-5" />, moduleKey: 'auditLogs' },
-  { titleKey: 'dashboardTemplates', href: '/dashboard-templates', icon: <BarChart3 className="h-5 w-5" />, moduleKey: 'dashboardTemplates' },
-  { titleKey: 'publicLinks', href: '/public-links', icon: <Link2 className="h-5 w-5" />, moduleKey: 'publicLinks', featureKey: 'publicLinks' },
 ];
 
 const bottomNavigation: NavItemConfig[] = [
@@ -121,7 +107,7 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
   const t = useTranslations();
   const tNav = useTranslations('navigation');
   const { user, isAuthenticated, logout, ensureAuth, isLoading } = useAuthStore();
-  const { hasModuleAccess, hasModulePermission, getDefaultRoute, isOperationalSurface } = usePermissions();
+  const { hasModuleAccess, hasModulePermission, getDefaultRoute, isOperationalSurface, canAccessAdminArea, canAccessAdminSection } = usePermissions();
   const { tenant, effectiveTenantId } = useTenant();
   const features = useTenantFeatures();
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -172,16 +158,6 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
     [user?.customRole?.modulePermissions, user?.customRoleId, features]
   );
 
-  const filteredAdminNav = useMemo(
-    () => adminNavigation.filter((item) => {
-      if (item.featureKey && !features[item.featureKey]) return false;
-      if (!item.moduleKey) return true;
-      return hasModuleAccess(item.moduleKey);
-    }),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [user?.customRole?.modulePermissions, user?.customRoleId, features]
-  );
-
   const filteredBottomNav = useMemo(
     () => bottomNavigation.filter((item) => {
       if (item.featureKey && !features[item.featureKey]) return false;
@@ -192,13 +168,8 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
     [user?.customRole?.modulePermissions, user?.customRoleId, features]
   );
 
-  const isAdminOpen = openCategories['__admin__'] !== false;
-  const isAdminActive = filteredAdminNav.some(
-    (item) => pathname === item.href || pathname.startsWith(item.href + '/')
-  );
-
   const isRegistrosOpen = openCategories['__registros__'] !== false;
-  const isRegistrosActive = pathname === '/data' || pathname.startsWith('/entities');
+  const isRegistrosActive = pathname === '/data';
 
   useEffect(() => {
     setMounted(true);
@@ -218,7 +189,12 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
     if (!mounted || isLoading || !isAuthenticated || !user) return;
 
     // Map pathname to moduleKey
-    const segment = pathname.split('/').filter(Boolean)[0];
+    const [segment, section] = pathname.split('/').filter(Boolean);
+    // Administracao da empresa: regra por secao (ver ADMIN_SECTION_RULES).
+    if (segment === 'gestao') {
+      if (!canAccessAdminSection(section)) router.replace(canAccessAdminArea ? '/gestao' : getDefaultRoute());
+      return;
+    }
     // Rotas disponíveis a qualquer usuário autenticado (sem módulo próprio).
     // A visibilidade interna (ex.: canais do chat por tabela) é checada lá dentro.
     const ALWAYS_ALLOWED = ['home', 'chat'];
@@ -228,7 +204,7 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
         router.replace(defaultRoute);
       }
     }
-  }, [mounted, isLoading, isAuthenticated, user, pathname, hasModuleAccess, getDefaultRoute, router]);
+  }, [mounted, isLoading, isAuthenticated, user, pathname, hasModuleAccess, getDefaultRoute, router, canAccessAdminArea, canAccessAdminSection]);
 
   const handleLogout = async () => {
     await logout();
@@ -307,12 +283,16 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
   // Superficie OPERACIONAL (#18): usuarios sem modulos de gestao ganham um shell
   // proprio (slim, identidade "Operacional"), nao o console de admin. O guard de
   // rota acima ja redireciona URLs admin digitadas na mao para a home deles.
+  if (pathname === '/gestao' || pathname.startsWith('/gestao/')) {
+    return <GestaoShell>{children}</GestaoShell>;
+  }
+
   if (isOperationalSurface) {
     return <OperationalShell>{children}</OperationalShell>;
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background pt-[var(--banner-h,0px)]">
       {sidebarOpen && (
         <div
           className="fixed inset-0 z-40 bg-black/50 lg:hidden"
@@ -322,7 +302,7 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
 
       <aside
         className={cn(
-          'fixed inset-y-0 left-0 z-50 max-w-[calc(100vw-3rem)] lg:max-w-none bg-card border-r transform transition-all duration-200 ease-in-out lg:translate-x-0 overflow-hidden',
+          'fixed bottom-0 top-[var(--banner-h,0px)] left-0 z-50 max-w-[calc(100vw-3rem)] lg:max-w-none bg-card border-r transform transition-all duration-200 ease-in-out lg:translate-x-0 overflow-hidden',
           sidebarCollapsed ? 'lg:w-16' : 'lg:w-64',
           'w-64',
           sidebarOpen ? 'translate-x-0' : '-translate-x-full'
@@ -371,56 +351,36 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
               {/* Separator */}
               <div className={cn('my-3 border-t', sidebarCollapsed && 'lg:mx-1')} />
 
-              {/* 2. Admin section - collapsible */}
-              {filteredAdminNav.length > 0 && (
+              {/* 2. Entrada da administracao da empresa (modo separado, /gestao) */}
+              {canAccessAdminArea && (
                 <>
-                  <div className="mb-1">
-                    {sidebarCollapsed ? (
-                      <div className="space-y-1">
-                        {filteredAdminNav.map((item) => renderNavLink(item))}
-                      </div>
-                    ) : (
-                      <>
-                        <button
-                          onClick={() => toggleCategory('__admin__')}
-                          className={cn(
-                            'flex items-center gap-2 w-full px-3 py-2 text-sm font-medium rounded-lg transition-colors',
-                            isAdminActive
-                              ? 'text-foreground'
-                              : 'text-muted-foreground hover:text-foreground hover:bg-muted'
-                          )}
+                  {sidebarCollapsed ? (
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Link
+                          href="/gestao"
+                          prefetch={false}
+                          data-testid="enter-gestao"
+                          className="hidden lg:flex items-center justify-center rounded-lg min-h-[44px] bg-zinc-950 text-white hover:bg-zinc-800 transition-colors"
                         >
-                          <Shield className="h-5 w-5" />
-                          <span className="flex-1 text-left">{tNav('admin')}</span>
-                          {isAdminOpen ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
-                        </button>
-                        {isAdminOpen && (
-                          <div className="space-y-0.5 mt-0.5">
-                            {filteredAdminNav.map((item) => {
-                              const isActive = pathname === item.href || pathname.startsWith(item.href + '/');
-                              return (
-                                <Link
-                                  key={item.href}
-                                  href={item.href}
-                                  prefetch={false}
-                                  className={cn(
-                                    'flex items-center rounded-lg text-sm transition-all min-h-[36px] gap-2.5 pl-7 pr-3 py-1.5',
-                                    isActive
-                                      ? 'bg-primary text-primary-foreground shadow-sm'
-                                      : 'text-muted-foreground hover:text-foreground hover:bg-muted'
-                                  )}
-                                  onClick={() => setSidebarOpen(false)}
-                                >
-                                  {item.icon}
-                                  <span className="flex-1 truncate text-[13px]">{tNav(item.titleKey)}</span>
-                                </Link>
-                              );
-                            })}
-                          </div>
-                        )}
-                      </>
-                    )}
-                  </div>
+                          <ShieldCheck className="h-5 w-5" />
+                        </Link>
+                      </TooltipTrigger>
+                      <TooltipContent side="right">{tNav('gestao')}</TooltipContent>
+                    </Tooltip>
+                  ) : (
+                    <Link
+                      href="/gestao"
+                      prefetch={false}
+                      data-testid="enter-gestao"
+                      onClick={() => setSidebarOpen(false)}
+                      className="flex items-center gap-3 rounded-lg min-h-[44px] px-3 py-2.5 text-sm font-medium bg-zinc-950 text-white hover:bg-zinc-800 dark:bg-zinc-800 dark:hover:bg-zinc-700 transition-colors"
+                    >
+                      <ShieldCheck className="h-5 w-5" />
+                      <span className="flex-1">{tNav('gestao')}</span>
+                      <ChevronRight className="h-4 w-4 opacity-60" />
+                    </Link>
+                  )}
                   <div className={cn('my-3 border-t', sidebarCollapsed && 'lg:mx-1')} />
                 </>
               )}
@@ -451,7 +411,7 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
                           <Tooltip>
                             <TooltipTrigger asChild>
                               <Link
-                                href="/entities/new"
+                                href="/gestao/entities/new"
                                 prefetch={false}
                                 className="hidden lg:flex items-center justify-center rounded-lg min-h-[40px] transition-all text-muted-foreground hover:text-foreground hover:bg-muted"
                                 onClick={() => setSidebarOpen(false)}
@@ -519,7 +479,7 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
                         <Tooltip>
                           <TooltipTrigger asChild>
                             <Link
-                              href="/entities/new"
+                              href="/gestao/entities/new"
                               prefetch={false}
                               className="p-1.5 mr-1 rounded text-muted-foreground/50 hover:text-foreground hover:bg-muted transition-colors"
                               onClick={(e) => { e.stopPropagation(); setSidebarOpen(false); }}
@@ -586,7 +546,7 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
                                           </Link>
                                           {canEditEntities && (
                                             <Link
-                                              href={`/entities/${entity.id}`}
+                                              href={`/gestao/entities/${entity.id}`}
                                               prefetch={false}
                                               className="opacity-0 group-hover:opacity-100 transition-opacity p-1 mr-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground"
                                               onClick={(e) => { e.stopPropagation(); setSidebarOpen(false); }}
@@ -598,8 +558,8 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
                                         {canEditEntities && subEntities && subEntities.length > 0 && (
                                           <div className="space-y-0.5 mt-0.5">
                                             {subEntities.map((sub) => {
-                                              const subHref = `/entities/${sub.id}`;
-                                              const isSubActive = pathname === `/entities/${sub.id}`;
+                                              const subHref = `/gestao/entities/${sub.id}`;
+                                              const isSubActive = pathname === `/gestao/entities/${sub.id}`;
                                               return (
                                                 <Link
                                                   key={sub.id}
@@ -678,7 +638,7 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
       </aside>
 
       <div className={cn('transition-all duration-200', sidebarCollapsed ? 'lg:pl-16' : 'lg:pl-64')}>
-        <header className="sticky top-0 z-30 h-16 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+        <header className="sticky top-[var(--banner-h,0px)] z-30 h-16 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
           <div className="flex items-center gap-2 sm:gap-4 h-full px-3 sm:px-4">
             <button
               className="lg:hidden p-2 -ml-2 rounded-lg hover:bg-muted active:bg-muted/80 transition-colors"

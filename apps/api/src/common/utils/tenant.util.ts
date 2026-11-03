@@ -1,17 +1,11 @@
-import { hasPlatformAccess } from './platform-access';
-
 /**
- * Retorna o tenantId efetivo. Quem tem acesso de PLATAFORMA (permissao
- * platform.crossTenant) pode acessar qualquer tenant solicitado.
- * Para os demais, sempre retorna o tenantId do usuario autenticado.
- * (Antes dependia de roleType === 'PLATFORM_ADMIN'.)
+ * Retorna o tenantId efetivo: SEMPRE o tenant ativo do usuario autenticado.
+ * `_requestedTenantId` e ignorado (mantido so para nao mexer em todos os callers);
+ * usuario de tenant nunca age fora do tenant em que tem membership ativa.
  */
 export function getEffectiveTenantId(
-  currentUser: { tenantId: string; customRole?: { modulePermissions?: unknown } },
-  requestedTenantId?: string,
+  currentUser: { tenantId: string },
+  _requestedTenantId?: string,
 ): string {
-  if (hasPlatformAccess(currentUser.customRole?.modulePermissions) && requestedTenantId) {
-    return requestedTenantId;
-  }
   return currentUser.tenantId;
 }

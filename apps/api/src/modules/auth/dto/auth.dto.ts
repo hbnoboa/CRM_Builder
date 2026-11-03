@@ -131,9 +131,3 @@ export class ResetPasswordDto {
   })
   newPassword: string;
 }
-
-export class ImpersonateDto {
-  @ApiProperty({ example: 'user_123', description: 'ID do usuario a ser impersonado' })
-  @IsString()
-  targetUserId: string;
-}

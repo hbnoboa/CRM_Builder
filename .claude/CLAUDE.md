@@ -43,14 +43,12 @@ Tenant (Empresa)
 └── Webhook[], ActionChain[], EntityAutomation[]
 ```
 
-## Hierarquia de Roles (CustomRole.roleType)
+## Cargos e Plataforma
 
-1. **PLATFORM_ADMIN** - Super admin (acesso cross-tenant)
-2. **ADMIN** - Admin do tenant (tudo dentro do tenant)
-3. **MANAGER** - Gerente (scope: all)
-4. **USER** - Padrao (scope: own)
-5. **VIEWER** - Apenas leitura (scope: all)
-6. **CUSTOM** - Permissoes configuradas por entidade
+- **Cargos de empresa (CustomRole)**: permission-driven (`modulePermissions` + `permissions[]` por tabela, coringa `*`) e `rank` (menor = mais poder; so se age sobre cargos de rank maior). `modulePermissions.allAccess` = acesso total DENTRO da empresa.
+- **Modelo padrao** de toda empresa nova (`common/utils/default-roles.ts`): Administrador (10, allAccess) · Gerente (30) · Operador (50, padrao) · Visualizador (70).
+- **Dono da empresa** (`Tenant.ownerId`): nao pode ser removido, desativado nem rebaixado pelos outros admins; a troca e feita pelo proprio dono ou pelo console.
+- **Nenhum cargo de empresa alcanca outra empresa.** Nao existe mais `platform.*` nem modulo `tenants` em cargos. Gestao de empresas, "entrar como", copia de dados entre empresas e planos ficam so no **console da plataforma** (`/admin` no web, `modules/platform` na API), com login e equipe proprios (`PlatformStaff`: OWNER, SUPPORT, FINANCE, READONLY).
 
 ## Camada Centralizada de Dados
 

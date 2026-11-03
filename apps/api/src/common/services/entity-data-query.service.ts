@@ -4,7 +4,7 @@ import { EntityService } from '../../modules/entity/entity.service';
 import { CustomRoleService } from '../../modules/custom-role/custom-role.service';
 import { Prisma, Entity } from '@prisma/client';
 import { CurrentUser } from '../types';
-import { hasPlatformAccess, hasFullTenantAccess } from '../utils/platform-access';
+import { hasFullTenantAccess } from '../utils/platform-access';
 import { getEffectiveTenantId } from '../utils/tenant.util';
 import { buildFilterClause } from '../utils/build-filter-clause';
 
@@ -99,14 +99,8 @@ export class EntityDataQueryService {
       deletedAt: null,
     };
 
-    // 3. Tenant isolation — acesso de plataforma (permissao) pode cross-tenant.
-    if (hasPlatformAccess(user.customRole?.modulePermissions)) {
-      if (queryTenantId) {
-        where.tenantId = queryTenantId;
-      }
-    } else {
-      where.tenantId = user.tenantId;
-    }
+    // 3. Tenant isolation — sempre o tenant ativo do usuario (sem bypass cross-tenant).
+    where.tenantId = effectiveTenantId;
 
     // 4. Sub-entidade / parentRecordId
     if (parentRecordId) {
@@ -212,9 +206,7 @@ export class EntityDataQueryService {
    * Busca entidade por slug com cache de 5s para evitar queries duplicadas.
    */
   async getEntityCached(entitySlug: string, currentUser: CurrentUser, tenantId?: string): Promise<Entity> {
-    const effectiveTenantId = hasPlatformAccess(currentUser.customRole?.modulePermissions) && !tenantId
-      ? undefined
-      : getEffectiveTenantId(currentUser, tenantId);
+    const effectiveTenantId = getEffectiveTenantId(currentUser, tenantId);
     const cacheKey = `${entitySlug}:${effectiveTenantId || 'any'}`;
     const cached = entityCache.get(cacheKey);
 
@@ -772,19 +764,16 @@ export class EntityDataQueryService {
 
   /**
    * Aplica filtros de dados por role na query.
-   * PLATFORM_ADMIN/ADMIN nao recebem filtros.
+   * Cargos com allAccess nao recebem filtros.
    */
   applyRoleDataFilters(
     where: Prisma.EntityDataWhereInput,
     user: CurrentUser,
     entitySlug: string,
   ): void {
-    // Acesso de plataforma OU acesso total ao tenant não recebe filtros de dados
-    // (vê todos os registros do tenant); demais derivam de permissions[]/'*'.
-    if (
-      hasPlatformAccess(user.customRole?.modulePermissions) ||
-      hasFullTenantAccess(user.customRole?.modulePermissions)
-    ) {
+    // Acesso total ao tenant não recebe filtros de dados (vê todos os registros
+    // do tenant); demais derivam de permissions[]/'*'.
+    if (hasFullTenantAccess(user.customRole?.modulePermissions)) {
       return;
     }
     if (!user.customRole) return;

@@ -20,19 +20,7 @@ function normalizeModulePermission(value: unknown): ModulePermission {
   return { ...NO_CRUD };
 }
 
-/**
- * Acesso de PLATAFORMA agora vem de PERMISSAO (modulePermissions.platform.*),
- * nao mais de platformAccess (removido no redesenho). Espelha o
- * hasPlatformAccess() do backend. Qualquer um dos 3 sinaliza poder de plataforma.
- */
-export function readPlatformAccess(mp: Record<string, unknown> | null | undefined): boolean {
-  if (!mp || typeof mp !== 'object') return false;
-  const platform = (mp as Record<string, unknown>).platform as Record<string, unknown> | undefined;
-  if (!platform || typeof platform !== 'object') return false;
-  return !!(platform.crossTenant || platform.impersonateAny || platform.manageTenants);
-}
-
-/** Acesso total DENTRO do tenant (todos os módulos/tabelas, presente e futuro). Não é plataforma. */
+/** Acesso total DENTRO do tenant (todos os módulos/tabelas, presente e futuro). */
 export function readFullTenantAccess(mp: Record<string, unknown> | null | undefined): boolean {
   return !!mp && typeof mp === 'object' && (mp as Record<string, unknown>).allAccess === true;
 }
@@ -47,18 +35,17 @@ function normalizeModulePermissions(mp: Record<string, unknown> | null | undefin
 }
 
 /**
- * Permissoes de modulo concedidas a quem tem ACESSO DE PLATAFORMA
- * (modulePermissions.platform.*). Nao existe mais tier por roleType:
+ * Permissoes de modulo concedidas a quem tem ACESSO TOTAL ao tenant
+ * (modulePermissions.allAccess). Nao existe tier por roleType:
  * todos os demais cargos usam exclusivamente modulePermissions do banco.
  */
 const READ_ONLY: ModulePermission = { canRead: true, canCreate: false, canUpdate: false, canDelete: false };
 
-const PLATFORM_FULL_PERMISSIONS: ModulePermissions = {
+const FULL_TENANT_PERMISSIONS: ModulePermissions = {
   dashboard: FULL_CRUD,
   users: FULL_CRUD,
   settings: FULL_CRUD,
   entities: FULL_CRUD,
-  tenants: FULL_CRUD,
   data: FULL_CRUD,
   roles: FULL_CRUD,
   automations: {
@@ -96,7 +83,6 @@ const MODULE_KEY_MAP: Record<string, keyof ModulePermissions> = {
   users: 'users',
   roles: 'roles',
   settings: 'settings',
-  tenants: 'tenants',
   data: 'data',
   automations: 'automations',
   templates: 'templates',
@@ -111,28 +97,31 @@ const MODULE_KEY_MAP: Record<string, keyof ModulePermissions> = {
   executionLogs: 'logs',            // mapeia para logs
 };
 
-const MODULE_KEYS: (keyof ModulePermissions)[] = ['dashboard', 'users', 'settings', 'entities', 'tenants', 'data', 'roles', 'automations', 'templates', 'logs', 'notifications', 'publicLinks', 'archive'];
+/** Modulos da camada "administracao da empresa" (espelha ADMIN_AREA_MODULES da API). */
+const ADMIN_AREA_MODULES = ['entities', 'users', 'roles', 'settings', 'automations', 'templates', 'logs', 'publicLinks'] as const;
 
-/**
- * Modulos EXCLUSIVOS DE PLATAFORMA (gestao acima do tenant, ex.: gerir
- * organizacoes). `allAccess` (acesso total DENTRO do tenant) NAO os libera —
- * so quem tem poder de plataforma (platform.*). Espelha o backend, que ja
- * responde 403 nessas rotas para admin de tenant. Sem isso, o menu mostraria
- * uma porta que leva a 403.
- */
-const PLATFORM_ONLY_MODULES = new Set<string>(['tenants']);
+/** Secao de /gestao -> permissao que abre a secao. */
+const ADMIN_SECTION_RULES: Record<string, { module: string; action: 'canRead' | 'canUpdate' | 'any' }> = {
+  users: { module: 'users', action: 'canRead' },
+  roles: { module: 'roles', action: 'canRead' },
+  permissions: { module: 'roles', action: 'canRead' },
+  entities: { module: 'entities', action: 'any' },
+  'pdf-templates': { module: 'pdfTemplates', action: 'canRead' },
+  'dashboard-templates': { module: 'dashboardTemplates', action: 'canRead' },
+  'public-links': { module: 'publicLinks', action: 'any' },
+  'audit-logs': { module: 'auditLogs', action: 'canRead' },
+  'execution-logs': { module: 'executionLogs', action: 'canRead' },
+  organization: { module: 'settings', action: 'canUpdate' },
+  plan: { module: 'settings', action: 'canUpdate' },
+};
+
+const MODULE_KEYS: (keyof ModulePermissions)[] = ['dashboard', 'users', 'settings', 'entities', 'data', 'roles', 'automations', 'templates', 'logs', 'notifications', 'publicLinks', 'archive'];
 
 export function usePermissions() {
   const user = useAuthStore((s) => s.user);
 
   // Toda autorizacao e permission-driven: basta o usuario ter um cargo (customRole).
   const hasRole = !!user?.customRole;
-
-  // Poder de plataforma = PERMISSAO (modulePermissions.platform.*), nao roleType.
-  const platformAccess = useMemo(
-    () => readPlatformAccess(user?.customRole?.modulePermissions as Record<string, unknown> | undefined),
-    [user],
-  );
 
   // Acesso total ao tenant = modulePermissions.allAccess (dinâmico, sem cross-tenant).
   const fullAccess = useMemo(
@@ -143,9 +132,9 @@ export function usePermissions() {
   const modulePermissions = useMemo<ModulePermissions>(() => {
     if (!user || !hasRole) return {};
 
-    // Acesso de plataforma ou total ao tenant libera tudo (hardcoded)
-    if (platformAccess || fullAccess) {
-      return PLATFORM_FULL_PERMISSIONS;
+    // Acesso total ao tenant libera tudo (hardcoded)
+    if (fullAccess) {
+      return FULL_TENANT_PERMISSIONS;
     }
 
     // Demais cargos: usar APENAS modulePermissions do banco
@@ -153,15 +142,12 @@ export function usePermissions() {
       return normalizeModulePermissions(user.customRole.modulePermissions as Record<string, unknown>) as ModulePermissions;
     }
 
-    // Sem modulePermissions no DB = sem acesso (exceto plataforma)
+    // Sem modulePermissions no DB = sem acesso
     return {};
-  }, [user, hasRole, platformAccess, fullAccess]);
+  }, [user, hasRole, fullAccess]);
 
   const entityPermissions = useMemo<EntityPermission[]>(() => {
     if (!user || !hasRole) return [];
-
-    // Acesso de plataforma tem acesso total a tudo
-    if (platformAccess) return [];
 
     if (user.customRole?.permissions) {
       return Array.isArray(user.customRole.permissions)
@@ -170,7 +156,7 @@ export function usePermissions() {
     }
 
     return [];
-  }, [user, hasRole, platformAccess]);
+  }, [user, hasRole]);
 
   // Se tem entidades com canRead, garantir acesso ao modulo data
   const adjustedModulePermissions = useMemo<ModulePermissions>(() => {
@@ -199,11 +185,8 @@ export function usePermissions() {
   const hasModuleAccess = (moduleKey: string): boolean => {
     if (!user || !hasRole) return false;
 
-    // Modulo exclusivo de plataforma: allAccess NAO libera, so platform.*
-    if (PLATFORM_ONLY_MODULES.has(moduleKey)) return platformAccess;
-
-    // PLATFORM_ADMIN sempre tem acesso
-    if (platformAccess || fullAccess) return true;
+    // Acesso total ao tenant sempre tem acesso
+    if (fullAccess) return true;
 
     const permKey = MODULE_KEY_MAP[moduleKey];
     if (!permKey) return false; // Se nao mapeado, negar por padrao (fail-secure)
@@ -223,11 +206,8 @@ export function usePermissions() {
   ): boolean => {
     if (!user || !hasRole) return false;
 
-    // Modulo exclusivo de plataforma: allAccess NAO libera, so platform.*
-    if (PLATFORM_ONLY_MODULES.has(moduleKey)) return platformAccess;
-
-    // PLATFORM_ADMIN sempre tem acesso
-    if (platformAccess || fullAccess) return true;
+    // Acesso total ao tenant sempre tem acesso
+    if (fullAccess) return true;
 
     const permKey = MODULE_KEY_MAP[moduleKey] || moduleKey as keyof ModulePermissions;
     const perm = adjustedModulePermissions[permKey];
@@ -245,8 +225,8 @@ export function usePermissions() {
   ): boolean => {
     if (!user || !hasRole) return false;
 
-    // APENAS PLATFORM_ADMIN tem acesso automatico
-    if (platformAccess || fullAccess) return true;
+    // Acesso total ao tenant tem acesso automatico
+    if (fullAccess) return true;
 
     // Todos os outros roles: verificar permissions[entitySlug]
     const perm = entityPermissions.find((p) => p.entitySlug === entitySlug);
@@ -261,8 +241,8 @@ export function usePermissions() {
   const getEntityScope = (entitySlug: string): 'all' | 'own' => {
     if (!user || !hasRole) return 'own';
 
-    // APENAS PLATFORM_ADMIN tem scope automatico
-    if (platformAccess || fullAccess) return 'all';
+    // Acesso total ao tenant tem scope automatico
+    if (fullAccess) return 'all';
 
     // Todos os outros: usar scope definido nas permissoes
     const perm = entityPermissions.find((p) => p.entitySlug === entitySlug);
@@ -275,11 +255,8 @@ export function usePermissions() {
   const hasModuleAction = (moduleKey: string, action: string): boolean => {
     if (!user || !hasRole) return false;
 
-    // Modulo exclusivo de plataforma: allAccess NAO libera, so platform.*
-    if (PLATFORM_ONLY_MODULES.has(moduleKey)) return platformAccess;
-
-    // APENAS PLATFORM_ADMIN tem acesso automatico
-    if (platformAccess || fullAccess) return true;
+    // Acesso total ao tenant tem acesso automatico
+    if (fullAccess) return true;
 
     const permKey = MODULE_KEY_MAP[moduleKey] || moduleKey as keyof ModulePermissions;
     const perm = adjustedModulePermissions[permKey] as Record<string, unknown> | undefined;
@@ -294,8 +271,8 @@ export function usePermissions() {
   const hasEntityAction = (entitySlug: string, action: string): boolean => {
     if (!user || !hasRole) return false;
 
-    // APENAS PLATFORM_ADMIN tem acesso automatico
-    if (platformAccess || fullAccess) return true;
+    // Acesso total ao tenant tem acesso automatico
+    if (fullAccess) return true;
 
     const perm = entityPermissions.find((p) => p.entitySlug === entitySlug) as Record<string, unknown> | undefined;
     if (!perm) return false;
@@ -304,31 +281,47 @@ export function usePermissions() {
   };
 
   /**
-   * SUPERFICIE OPERACIONAL (espelha o SERVICE_SCOPE=user do backend, #18).
-   * Um usuario e "operacional" quando NAO tem acesso a nenhum modulo de gestao
-   * (builder de entidades, tenants, usuarios, cargos, templates, logs, links
-   * publicos, automacoes) e nao tem poder de plataforma/allAccess. Esse usuario
-   * ganha um shell proprio (nav slim), sem o chrome do console de admin.
-   * Admin NAO alterna: para ver o operacional, ele impersona um usuario.
+   * Administracao da empresa (/gestao): mesma regra do hasAdminArea da API —
+   * acesso total, ou qualquer permissao num modulo de gestao (settings: so canUpdate).
    */
-  const isOperationalSurface = useMemo(() => {
-    if (!user || !hasRole) return false; // sessao ainda carregando -> nao forcar
-    if (platformAccess || fullAccess) return false; // tem console completo
-    const ADMIN_SURFACE_KEYS = ['entities', 'tenants', 'users', 'roles', 'templates', 'logs', 'publicLinks', 'automations'] as const;
-    const perms = adjustedModulePermissions as Record<string, ModulePermission | undefined>;
-    return !ADMIN_SURFACE_KEYS.some((k) => perms[k]?.canRead === true);
-  }, [user, hasRole, platformAccess, fullAccess, adjustedModulePermissions]);
+  const canAccessAdminArea = useMemo(() => {
+    if (!user || !hasRole) return false;
+    if (fullAccess) return true;
+    const raw = (user.customRole?.modulePermissions ?? {}) as Record<string, unknown>;
+    return ADMIN_AREA_MODULES.some((key) => {
+      const perm = raw[key];
+      if (perm === true) return true;
+      if (!perm || typeof perm !== 'object') return false;
+      const p = perm as Record<string, unknown>;
+      // settings: so editar a organizacao; templates: ver/gerar e operacao (gerar PDF).
+      if (key === 'settings') return p.canUpdate === true;
+      if (key === 'templates') return p.canCreate === true || p.canUpdate === true || p.canDelete === true;
+      return Object.values(p).some((v) => v === true);
+    });
+  }, [user, hasRole, fullAccess]);
 
   /**
-   * "Admin com tudo" = quem tem acesso de plataforma (permission-driven).
-   * Nao existe mais tier hardcoded; o poder vem das caixas marcadas.
+   * SUPERFICIE OPERACIONAL (espelha o SERVICE_SCOPE=user do backend, #18): quem nao
+   * entra na administracao usa o shell operacional (nav slim, sem chrome de gestao).
    */
-  const isAdmin = platformAccess;
+  const isOperationalSurface = !!user && hasRole && !canAccessAdminArea;
+
+  /** Pode abrir esta secao da administracao? (`section` = 1o segmento depois de /gestao) */
+  const canAccessAdminSection = (section: string | undefined): boolean => {
+    if (!canAccessAdminArea) return false;
+    if (fullAccess || !section) return true;
+    const rule = ADMIN_SECTION_RULES[section];
+    if (!rule) return false;
+    return rule.action === 'any'
+      ? (['canRead', 'canCreate', 'canUpdate', 'canDelete'] as const).some((a) => hasModulePermission(rule.module, a))
+      : hasModulePermission(rule.module, rule.action);
+  };
 
   /**
-   * Acesso de plataforma (cross-tenant/impersonate/manage-tenants).
+   * "Admin com tudo" = acesso total DENTRO do tenant (modulePermissions.allAccess).
+   * Poderes de plataforma vivem apenas no console de staff (/admin).
    */
-  const isPlatformAdmin = platformAccess;
+  const isAdmin = fullAccess;
 
   /**
    * #21: a Home de ação (cards permission-aware) é o landing universal.
@@ -347,8 +340,9 @@ export function usePermissions() {
     getEntityScope,
     getDefaultRoute,
     isAdmin,
-    isPlatformAdmin,
     isOperationalSurface,
+    canAccessAdminArea,
+    canAccessAdminSection,
   };
 }
 

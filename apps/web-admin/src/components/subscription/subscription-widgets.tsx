@@ -3,12 +3,19 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
-import { AlertTriangle, CheckCircle2, Circle, Clock, X } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Circle, Clock, Crown, Loader2, X } from 'lucide-react';
+import { toast } from 'sonner';
 import { Link } from '@/i18n/tenant-navigation';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useSubscription } from '@/hooks/use-platform';
+import { useUsers } from '@/hooks/use-users';
+import api from '@/lib/api';
+import { getErrorMessage } from '@/lib/get-error-message';
+import { useAuthStore } from '@/stores/auth-store';
+import { useTenant } from '@/stores/tenant-context';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { usePermissions } from '@/hooks/use-permissions';
 import { FEATURE_KEYS, type FeatureKey } from '@/types/platform';
 
@@ -54,7 +61,7 @@ export function TrialBanner() {
       <Clock className="h-4 w-4 shrink-0" />
       <span>{data.trialDaysLeft === 0 ? t('trialLastDay') : t('trial', { days: data.trialDaysLeft })}</span>
       {hasModulePermission('settings', 'canUpdate') && (
-        <Link href="/settings?tab=plan" className="font-medium underline">{t('seePlan')}</Link>
+        <Link href="/gestao/plan" className="font-medium underline">{t('seePlan')}</Link>
       )}
     </div>
   );
@@ -161,9 +168,9 @@ export function OnboardingChecklist() {
   if (!data || dismissed || !hasModulePermission('entities', 'canCreate')) return null;
 
   const steps = [
-    { key: 'table', done: data.usage.entities > 0, href: '/entities/new', show: true },
+    { key: 'table', done: data.usage.entities > 0, href: '/gestao/entities/new', show: true },
     { key: 'record', done: data.usage.records > 0, href: '/data', show: hasModuleAccess('data') },
-    { key: 'team', done: data.usage.users > 1, href: '/users', show: hasModuleAccess('users') },
+    { key: 'team', done: data.usage.users > 1, href: '/gestao/users', show: hasModuleAccess('users') },
   ].filter((s) => s.show);
 
   if (steps.every((s) => s.done)) return null;
@@ -206,6 +213,69 @@ export function OnboardingChecklist() {
           </Link>
         ))}
       </CardContent>
+    </Card>
+  );
+}
+
+/** Dono da empresa (aba Plano). So o proprio dono transfere a propriedade. */
+export function OwnershipCard() {
+  const t = useTranslations('subscription.owner');
+  const { tenant, refresh } = useTenant();
+  const me = useAuthStore((st) => st.user);
+  const iAmOwner = !!me && me.id === tenant?.ownerId;
+  const { data } = useUsers();
+  const [nextOwnerId, setNextOwnerId] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  const members = (Array.isArray(data?.data) ? data.data : []).filter((u) => u.status === 'ACTIVE');
+  const owner = members.find((u) => u.id === tenant?.ownerId);
+
+  const transfer = async () => {
+    setSaving(true);
+    try {
+      await api.patch('/tenants/me/owner', { userId: nextOwnerId });
+      await refresh();
+      setNextOwnerId('');
+      toast.success(t('transferred'));
+    } catch (error) {
+      toast.error(getErrorMessage(error));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Card data-testid="ownership-card">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-base">
+          <Crown className="h-4 w-4" />
+          {t('title')}
+        </CardTitle>
+        <CardDescription>
+          {owner ? t('current', { name: owner.name || owner.email }) : t('none')}
+        </CardDescription>
+      </CardHeader>
+      {iAmOwner && (
+        <CardContent className="space-y-3">
+          <p className="text-sm text-muted-foreground">{t('hint')}</p>
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <Select value={nextOwnerId} onValueChange={setNextOwnerId}>
+              <SelectTrigger className="sm:max-w-xs" data-testid="next-owner">
+                <SelectValue placeholder={t('choose')} />
+              </SelectTrigger>
+              <SelectContent>
+                {members.filter((u) => u.id !== me?.id).map((u) => (
+                  <SelectItem key={u.id} value={u.id}>{u.name || u.email} · {u.customRole?.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Button variant="outline" disabled={!nextOwnerId || saving} onClick={transfer} data-testid="transfer-owner">
+              {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {t('transfer')}
+            </Button>
+          </div>
+        </CardContent>
+      )}
     </Card>
   );
 }

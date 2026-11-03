@@ -27,6 +27,8 @@ import {
   PlatformQueryTenantsDto,
   PlatformTenantFeaturesDto,
   PlatformTenantLifecycleDto,
+  PlatformTenantAddMemberDto,
+  PlatformTenantOwnerDto,
   PlatformTenantPlanDto,
   PlatformUpdateTenantDto,
   UpdatePlanDto,
@@ -44,6 +46,8 @@ import { PlatformAuditService } from './platform-audit.service';
 import { PlatformPlansService } from './platform-plans.service';
 import { PlatformStaffService } from './platform-staff.service';
 import { PlatformTenantsService } from './platform-tenants.service';
+import { PlatformTenantTeamService } from './platform-tenant-team.service';
+import { CopyTenantDataDto } from '../tenant/dto/copy-tenant-data.dto';
 
 @ApiTags('Platform')
 @ServiceScope('admin')
@@ -87,6 +91,7 @@ export class PlatformController {
     private readonly plans: PlatformPlansService,
     private readonly staff: PlatformStaffService,
     private readonly audit: PlatformAuditService,
+    private readonly team: PlatformTenantTeamService,
   ) {}
 
   // ── Visao geral ─────────────────────────────────────────────────────────
@@ -180,6 +185,54 @@ export class PlatformController {
     @Req() req: Request,
   ) {
     return this.tenants.impersonate(actor, id, userId, requestIp(req));
+  }
+
+  @Get('tenants/:id/roles')
+  @RequirePlatformPermission('tenants.read')
+  findRoles(@Param('id') id: string) {
+    return this.team.findRoles(id);
+  }
+
+  @Delete('tenants/:id/roles/:roleId')
+  @RequirePlatformPermission('tenants.update')
+  deleteUnusedRole(
+    @CurrentStaff() actor: PlatformStaffPrincipal,
+    @Param('id') id: string,
+    @Param('roleId') roleId: string,
+  ) {
+    return this.team.deleteUnusedRole(actor, id, roleId);
+  }
+
+  @Patch('tenants/:id/owner')
+  @RequirePlatformPermission('tenants.update')
+  setOwner(
+    @CurrentStaff() actor: PlatformStaffPrincipal,
+    @Param('id') id: string,
+    @Body() dto: PlatformTenantOwnerDto,
+  ) {
+    return this.team.setOwner(actor, id, dto.userId);
+  }
+
+  @Post('tenants/:id/members')
+  @RequirePlatformPermission('tenants.update')
+  addMember(
+    @CurrentStaff() actor: PlatformStaffPrincipal,
+    @Param('id') id: string,
+    @Body() dto: PlatformTenantAddMemberDto,
+  ) {
+    return this.team.addMember(actor, id, dto);
+  }
+
+  @Get('tenants/:id/copyable-data')
+  @RequirePlatformPermission('tenants.read')
+  getCopyableData(@Param('id') id: string) {
+    return this.team.getCopyableData(id);
+  }
+
+  @Post('tenants/copy-data')
+  @RequirePlatformPermission('tenants.update')
+  copyData(@CurrentStaff() actor: PlatformStaffPrincipal, @Body() dto: CopyTenantDataDto) {
+    return this.team.copyData(actor, dto);
   }
 
   // ── Planos ──────────────────────────────────────────────────────────────

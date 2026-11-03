@@ -136,7 +136,6 @@
     "permissions": "Permissions",
     "pdfTemplates": "PDF Templates",
     "settings": "Settings",
-    "tenants": "Tenants",
     "auditLogs": "Audit Logs",
     "dashboardTemplates": "Dashboards",
     "publicLinks": "Public Links",
@@ -145,10 +144,10 @@
     "admin": "Admin",
     "home": "Home",
     "chat": "Chat",
-    "operational": "Operational"
+    "operational": "Operational",
+    "gestao": "Administration"
   },
   "roles": {
-    "PLATFORM_ADMIN": "Super Admin",
     "ADMIN": "Administrator",
     "MANAGER": "Manager",
     "USER": "User",
@@ -156,7 +155,6 @@
     "CUSTOM": "Custom"
   },
   "roleDescriptions": {
-    "PLATFORM_ADMIN": "Full platform access, including all tenants",
     "ADMIN": "Full tenant access, can manage users and settings",
     "MANAGER": "Can manage team and view organization data",
     "USER": "Standard access, can view and edit own data",
@@ -266,24 +264,31 @@
       "updated": "User updated successfully",
       "deleted": "User deleted successfully"
     },
-    "tenantAccess": {
-      "menu": "Tenant Access",
-      "title": "Tenant Access",
-      "description": "Manage tenants that {name} can access",
-      "home": "Home",
-      "additionalAccess": "Additional Access",
-      "noAccess": "No additional access configured",
-      "grantAccess": "Grant Access",
-      "selectTenant": "Select tenant",
-      "selectRole": "Select role",
-      "grant": "Grant",
-      "granted": "Access granted successfully",
-      "revoked": "Access revoked successfully"
-    },
-    "impersonate": {
-      "menu": "Log in as this user",
-      "success": "You are now {name}",
-      "error": "Failed to impersonate user"
+    "owner": "Owner",
+    "invite": {
+      "button": "Invite",
+      "title": "Invite someone",
+      "description": "They get a link to set their own password and join the company.",
+      "email": "Email",
+      "name": "Name (optional)",
+      "namePlaceholder": "The person's name",
+      "role": "Role",
+      "chooseRole": "Choose a role",
+      "submit": "Send invite",
+      "sent": "Invite sent to {email}. You can also copy the link:",
+      "notSent": "Email is not configured: copy the link and send it to {email} (e.g. WhatsApp).",
+      "copy": "Copy link",
+      "another": "Invite someone else",
+      "done": "Done",
+      "pendingTitle": "{count, plural, one {# pending invite} other {# pending invites}}",
+      "by": "by {name}",
+      "expiresAt": "valid until {date}",
+      "expiredAt": "expired on {date}",
+      "expired": "Expired",
+      "resend": "Resend",
+      "revoke": "Cancel",
+      "revoked": "Invite canceled",
+      "resentTitle": "New invite link"
     }
   },
   "entities": {
@@ -711,8 +716,6 @@
       "settingsDesc": "General system settings",
       "entities": "Tables",
       "entitiesDesc": "Define table structure",
-      "tenants": "Tenants",
-      "tenantsDesc": "Manage companies and clients",
       "data": "Records",
       "dataDesc": "Records for each table",
       "roles": "Access Roles",
@@ -803,11 +806,9 @@
         "canDelete": "Delete"
       },
       "specialActions": "Special Actions",
-      "canActivate": "Activate / Deactivate",
       "canTest": "Test Endpoint",
       "canPublish": "Publish / Unpublish",
       "canDuplicate": "Duplicate Page",
-      "canSuspend": "Suspend",
       "canAssignRole": "Assign Role",
       "canChangeStatus": "Change User Status",
       "canSetDefault": "Set as Default",
@@ -906,12 +907,6 @@
       "roles_canManagePermissions": "Edit role permissions (this screen).",
       "settings_canRead": "View organization settings.",
       "settings_canUpdate": "Access and change the organization settings (brand, theme). Personal tabs (profile, language, theme) need no permission.",
-      "tenants_canRead": "View the tenant list.",
-      "tenants_canCreate": "Create new tenants.",
-      "tenants_canUpdate": "Edit tenants.",
-      "tenants_canDelete": "Delete tenants.",
-      "tenants_canSuspend": "Suspend a tenant.",
-      "tenants_canActivate": "Reactivate a suspended tenant.",
       "automations_canRead": "View webhooks and automations.",
       "automations_canCreate": "Create webhooks and automations.",
       "automations_canUpdate": "Edit webhooks and automations.",
@@ -928,113 +923,10 @@
       "publicLinks_canManage": "Create and manage public sharing links.",
       "archive_canRead": "View archived records.",
       "archive_canPermanentDelete": "Permanently delete archived records (irreversible)."
-    }
-  },
-  "tenants": {
-    "title": "Tenants",
-    "subtitle": "Manage platform tenants",
-    "newTenant": "New Tenant",
-    "accessRestricted": "Access Restricted",
-    "platformAdminOnly": "This page is restricted to platform administrators (PLATFORM_ADMIN).",
-    "stats": {
-      "total": "Total Tenants",
-      "active": "Active",
-      "suspended": "Suspended",
-      "premium": "Premium Plans"
     },
-    "searchPlaceholder": "Search tenants...",
-    "noTenantsFound": "No tenants found",
-    "noTenantsMatchSearch": "No tenants match your search.",
-    "createTenantsToStart": "Create tenants to get started.",
-    "suspend": "Suspend",
-    "activate": "Activate",
-    "form": {
-      "name": "Company Name",
-      "namePlaceholder": "My Company",
-      "slug": "Slug (URL)",
-      "slugPlaceholder": "my-company",
-      "domain": "Custom Domain (optional)",
-      "domainPlaceholder": "app.mycompany.com",
-      "plan": "Plan",
-      "planPlaceholder": "Select a plan",
-      "adminTitle": "Tenant Administrator",
-      "adminOptionalHint": "Leave blank to create the tenant without users. You can add users later.",
-      "optional": "optional",
-      "adminName": "Administrator Name",
-      "adminNamePlaceholder": "John Doe",
-      "adminEmail": "Administrator Email",
-      "adminEmailPlaceholder": "admin@company.com",
-      "adminPassword": "Administrator Password",
-      "adminPasswordPlaceholder": "Secure password",
-      "createDescription": "Fill in the details to create a new tenant.",
-      "editDescription": "Update tenant information.",
-      "logoHint": "Click to add the company logo",
-      "themeTitle": "Theme",
-      "themeReset": "Reset",
-      "brandColor": "Brand Color",
-      "secondaryColor": "Secondary Color",
-      "accentColor": "Accent Color",
-      "presetColors": "Preset colors",
-      "darkModePreference": "Default dark mode",
-      "darkMode": {
-        "light": "Light",
-        "dark": "Dark",
-        "system": "System"
-      },
-      "themePreview": "Preview",
-      "previewButton": "Button",
-      "previewSecondary": "Secondary",
-      "previewAccent": "Accent",
-      "previewDelete": "Delete",
-      "previewMutedText": "Sample muted text",
-      "previewCard": "Sample card with border"
-    },
-    "deleteConfirm": {
-      "title": "Delete Tenant",
-      "message": "Are you sure you want to delete tenant {name}?",
-      "warning": "This action cannot be undone and all associated data will be removed."
-    },
-    "toast": {
-      "created": "Tenant created successfully",
-      "updated": "Tenant updated successfully",
-      "deleted": "Tenant deleted successfully",
-      "suspended": "Tenant suspended successfully",
-      "activated": "Tenant activated successfully"
-    },
-    "copyData": {
-      "button": "Copy Data",
-      "title": "Copy Data Between Tenants",
-      "description": "Copy roles, entities, data, pages, APIs and templates from one tenant to another.",
-      "sourceTenant": "Source Tenant",
-      "targetTenant": "Target Tenant",
-      "selectTenant": "Select a tenant",
-      "conflictStrategy": "On conflict",
-      "skip": "Skip existing",
-      "skipDescription": "Items with the same name/slug in the target will be skipped.",
-      "suffix": "Rename with suffix",
-      "suffixDescription": "Duplicate items will be created with a '(copy)' suffix.",
-      "next": "Next",
-      "back": "Back",
-      "copy": "Copy",
-      "copying": "Copying...",
-      "selectAll": "Select all",
-      "includeData": "Include data",
-      "records": "records",
-      "itemsSelected": "items selected",
-      "modules": {
-        "roles": "Roles",
-        "entities": "Tables",
-        "pdfTemplates": "PDF Templates",
-        "automations": "Automations",
-        "webhooks": "Webhooks",
-        "fieldRules": "Field Rules"
-      },
-      "result": {
-        "title": "Copy completed successfully!",
-        "skipped": "Skipped items",
-        "warnings": "Warnings"
-      }
-    }
+    "orderHint": "The order defines who manages whom: each role manages the roles below it.",
+    "moveUp": "Move up",
+    "moveDown": "Move down"
   },
   "profile": {
     "title": "Profile",
@@ -1407,7 +1299,6 @@
     "clearFilters": "Clear Filters",
     "allActions": "All actions",
     "allResources": "All resources",
-    "allTenants": "All tenants",
     "dateFrom": "Start date",
     "dateTo": "End date",
     "searchPlaceholder": "Search by resource ID...",
@@ -1466,8 +1357,6 @@
     "publicLinksDesc": "External forms",
     "logs": "Audit",
     "logsDesc": "Action history",
-    "tenants": "Tenants",
-    "tenantsDesc": "Manage organizations",
     "reports": "Reports",
     "reportsDesc": "Analytics view",
     "settings": "Settings",
@@ -1650,7 +1539,33 @@
         "lastAccess": "Last access",
         "inactive": "inactive",
         "enterAs": "Sign in as",
-        "inactiveHint": "Reactivate the customer to sign in as a user."
+        "inactiveHint": "Reactivate the customer to sign in as a user.",
+        "owner": "Owner",
+        "makeOwner": "Make owner",
+        "ownerChanged": "Company owner changed",
+        "add": "Add member",
+        "addTitle": "Add existing member",
+        "addHint": "Gives access to this company to someone who already has an account (e.g. a collaborator from another company).",
+        "email": "Email",
+        "chooseRole": "Choose a role",
+        "addSubmit": "Add",
+        "added": "Member added"
+      },
+      "owner": "owner: {name}",
+      "copyFromOther": "Copy data from another company",
+      "roles": {
+        "title": "Roles",
+        "subtitle": "The company's roles, from highest to lowest.",
+        "unusedHint": "{count, plural, one {# unused role can be removed.} other {# unused roles can be removed.}}",
+        "name": "Role",
+        "members": "Members",
+        "fullAccess": "Full access",
+        "default": "Default",
+        "unused": "Unused",
+        "remove": "Remove",
+        "confirm": "Confirm removal",
+        "cancel": "Cancel",
+        "removed": "Role removed"
       }
     },
     "plans": {
@@ -1766,8 +1681,46 @@
           "plan_changed": "changed the plan",
           "features_changed": "changed the features",
           "impersonated": "signed in as a user",
-          "storage_recomputed": "recalculated storage"
+          "storage_recomputed": "recalculated storage",
+          "role_deleted": "removed an unused role",
+          "owner_changed": "changed the company owner",
+          "member_added": "added a member",
+          "data_copied": "copied data from another company"
         }
+      }
+    },
+    "copyData": {
+      "button": "Copy Data",
+      "title": "Copy Data Between Tenants",
+      "description": "Copy roles, entities, data, pages, APIs and templates from one tenant to another.",
+      "sourceTenant": "Source Tenant",
+      "targetTenant": "Target Tenant",
+      "selectTenant": "Select a tenant",
+      "conflictStrategy": "On conflict",
+      "skip": "Skip existing",
+      "skipDescription": "Items with the same name/slug in the target will be skipped.",
+      "suffix": "Rename with suffix",
+      "suffixDescription": "Duplicate items will be created with a '(copy)' suffix.",
+      "next": "Next",
+      "back": "Back",
+      "copy": "Copy",
+      "copying": "Copying...",
+      "selectAll": "Select all",
+      "includeData": "Include data",
+      "records": "records",
+      "itemsSelected": "items selected",
+      "modules": {
+        "roles": "Roles",
+        "entities": "Tables",
+        "pdfTemplates": "PDF Templates",
+        "automations": "Automations",
+        "webhooks": "Webhooks",
+        "fieldRules": "Field Rules"
+      },
+      "result": {
+        "title": "Copy completed successfully!",
+        "skipped": "Skipped items",
+        "warnings": "Warnings"
       }
     }
   },
@@ -1810,6 +1763,124 @@
           "description": "Add the people who will use the system with you."
         }
       }
+    },
+    "owner": {
+      "title": "Company owner",
+      "current": "{name} is the owner: the plan and support contact, and cannot be removed by other administrators.",
+      "none": "No owner set. Contact support.",
+      "hint": "To hand the company over, pick a member with a full-access role (e.g. Administrator).",
+      "choose": "Choose the new owner",
+      "transfer": "Transfer",
+      "transferred": "Ownership transferred"
     }
+  },
+  "gestao": {
+    "label": "Administration",
+    "openMenu": "Open menu",
+    "closeMenu": "Close menu",
+    "backToOperation": "Back to operations",
+    "groups": {
+      "team": "Team",
+      "structure": "Structure",
+      "security": "Security",
+      "company": "Company"
+    },
+    "nav": {
+      "dashboard": "Overview",
+      "users": "Users",
+      "roles": "Roles",
+      "permissions": "Permissions guide",
+      "entities": "Tables",
+      "pdfTemplates": "PDF templates",
+      "dashboardTemplates": "Dashboards",
+      "publicLinks": "Public links",
+      "auditLogs": "Audit",
+      "executionLogs": "Executions",
+      "organization": "Organization",
+      "plan": "Plan"
+    },
+    "home": {
+      "title": "Hello, {name}",
+      "subtitle": "{company} administration: team, structure and plan in one place.",
+      "usage": {
+        "users": "Users",
+        "records": "Records",
+        "storage": "Storage",
+        "entities": "Tables",
+        "unlimited": "unlimited"
+      },
+      "pending": {
+        "title": "Needs attention",
+        "none": "All caught up here.",
+        "neverLoggedIn": "{count, plural, one {# user never signed in} other {# users never signed in}}",
+        "inactive30": "{count, plural, one {# user inactive for over 30 days} other {# users inactive for over 30 days}}",
+        "unusedRoles": "{count, plural, one {# unused role} other {# unused roles}}",
+        "failedRuns": "{count, plural, one {# automation failed in the last 7 days} other {# automations failed in the last 7 days}}",
+        "trial": "{days, plural, =0 {The trial ends today} one {# trial day left} other {# trial days left}}",
+        "invites": "{count, plural, one {# invite awaiting reply} other {# invites awaiting reply}}"
+      },
+      "activity": {
+        "title": "Recent activity",
+        "empty": "No actions recorded yet.",
+        "noAccess": "Your role can't see the company logs.",
+        "system": "System",
+        "by": "by {name}"
+      },
+      "shortcuts": "Shortcuts"
+    },
+    "plan": {
+      "title": "Plan",
+      "subtitle": "The company's plan usage, limits and features, and who the owner is."
+    },
+    "organization": {
+      "title": "Organization",
+      "subtitle": "The company's details and branding."
+    },
+    "entities": {
+      "title": "Tables",
+      "subtitle": "The company's table structure. Records live in operations.",
+      "new": "New table",
+      "empty": "No tables yet.",
+      "meta": "{fields} fields · {records} records"
+    }
+  },
+  "invite": {
+    "title": "Join {company}",
+    "subtitle": "You've been invited as {role}.",
+    "subtitleBy": "{name} invited you as {role}.",
+    "email": "Email",
+    "name": "Your name",
+    "newPassword": "Create a password",
+    "confirmPassword": "Confirm password",
+    "passwordHint": "At least 8 characters, with upper and lower case and a number.",
+    "currentPassword": "Your password",
+    "existingHint": "You already have an account with this email. Sign in with your password to accept.",
+    "createAndJoin": "Create account and join",
+    "join": "Accept and join",
+    "forgot": "Forgot my password",
+    "goToLogin": "Go to login",
+    "errors": {
+      "weakPassword": "The password needs 8+ characters, with upper and lower case and a number.",
+      "mismatch": "Passwords don't match."
+    },
+    "unavailable": {
+      "title": "Invite unavailable",
+      "invalid": "This invite link is not valid.",
+      "expired": "This invite has expired. Ask the company administrator for a new one.",
+      "revoked": "This invite was canceled.",
+      "accepted": "This invite was already used. Sign in with your email and password."
+    }
+  },
+  "resetPassword": {
+    "title": "New password",
+    "subtitle": "Choose a new password for your account.",
+    "newPassword": "New password",
+    "confirmPassword": "Confirm password",
+    "hint": "At least 8 characters, with upper and lower case and a number.",
+    "save": "Save password",
+    "done": "Password changed. You can now sign in with the new password.",
+    "goToLogin": "Go to login",
+    "weakPassword": "The password needs 8+ characters, with upper and lower case and a number.",
+    "mismatch": "Passwords don't match."
   }
 }

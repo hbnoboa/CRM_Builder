@@ -116,9 +116,7 @@ export default function SubEntityListWidget({ config }: SubEntityListWidgetProps
 
       try {
         // Load sub-entity definition
-        const entitiesRes = await api.get('/entities', {
-          params: tenantId ? { tenantId } : {},
-        });
+        const entitiesRes = await api.get('/entities');
         const entities = Array.isArray(entitiesRes.data) ? entitiesRes.data : entitiesRes.data?.data || [];
         const found = entities.find((e: { slug: string }) => e.slug === subEntitySlug);
 

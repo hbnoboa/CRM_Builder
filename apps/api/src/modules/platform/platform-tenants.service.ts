@@ -5,6 +5,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { TenantPlanService, kbToMb } from '../../common/services/tenant-plan.service';
 import { UploadService } from '../upload/upload.service';
 import { FEATURE_KEYS, getPlanLimits, isFeatureKey } from '../../common/utils/plan-features';
+import { hasFullTenantAccess } from '../../common/utils/platform-access';
 import { TenantService } from '../tenant/tenant.service';
 import { AuthService } from '../auth/auth.service';
 import {
@@ -146,6 +147,7 @@ export class PlatformTenantsService {
         featureOverrides: true,
         storageUsedKb: true,
         createdAt: true,
+        owner: { select: { id: true, name: true, email: true } },
         plan: { select: { id: true, name: true, slug: true, features: true, limits: true } },
       },
     });
@@ -173,21 +175,23 @@ export class PlatformTenantsService {
 
   async findMembers(tenantId: string) {
     await this.assertExists(tenantId);
+    const tenant = await this.prisma.tenant.findUnique({ where: { id: tenantId }, select: { ownerId: true } });
     const members = await this.prisma.userTenantAccess.findMany({
       where: { tenantId, deletedAt: null },
       select: {
         status: true,
         isPrimary: true,
         user: { select: { id: true, name: true, email: true, status: true, lastLoginAt: true } },
-        customRole: { select: { id: true, name: true, rank: true } },
+        customRole: { select: { id: true, name: true, rank: true, modulePermissions: true } },
       },
       orderBy: [{ customRole: { rank: 'asc' } }, { user: { name: 'asc' } }],
     });
-    return members.map((m) => ({
+    return members.map(({ customRole: { modulePermissions, ...role }, ...m }) => ({
       ...m.user,
       membershipStatus: m.status,
       isPrimary: m.isPrimary,
-      role: m.customRole,
+      isOwner: m.user.id === tenant?.ownerId,
+      role: { ...role, fullAccess: hasFullTenantAccess(modulePermissions) },
     }));
   }
 

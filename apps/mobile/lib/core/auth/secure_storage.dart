@@ -54,24 +54,6 @@ class SecureStorage {
   }
 
   // ═══════════════════════════════════════════════════════
-  // PLATFORM_ADMIN cross-tenant (mirrors sessionStorage)
-  // ═══════════════════════════════════════════════════════
-
-  static const _keySelectedTenantId = 'selectedTenantId';
-
-  static Future<String?> getSelectedTenantId() async {
-    return _storage.read(key: _keySelectedTenantId);
-  }
-
-  static Future<void> setSelectedTenantId(String? tenantId) async {
-    if (tenantId == null) {
-      await _storage.delete(key: _keySelectedTenantId);
-    } else {
-      await _storage.write(key: _keySelectedTenantId, value: tenantId);
-    }
-  }
-
-  // ═══════════════════════════════════════════════════════
   // BIOMETRIC
   // ═══════════════════════════════════════════════════════
 
@@ -157,7 +139,6 @@ class SecureStorage {
     await Future.wait([
       _storage.delete(key: AppConstants.keyAccessToken),
       _storage.delete(key: AppConstants.keyRefreshToken),
-      _storage.delete(key: _keySelectedTenantId),
     ]);
   }
 

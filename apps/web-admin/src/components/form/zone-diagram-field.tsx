@@ -25,7 +25,6 @@ import {
   CollapsibleTrigger,
 } from '@/components/ui/collapsible';
 import { api } from '@/lib/api';
-import { useTenant } from '@/stores/tenant-context';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -71,7 +70,6 @@ export default function ZoneDiagramField({
   const t = useTranslations('zoneDiagram');
   const tCommon = useTranslations('common');
   const tUpload = useTranslations('upload');
-  const { tenantId } = useTenant();
   const displayLabel = label || t('title');
   const [activeZone, setActiveZone] = useState<string | null>(null);
   const [entityOptions, setEntityOptions] = useState<Record<string, string[]>>({});
@@ -111,7 +109,7 @@ export default function ZoneDiagramField({
     setLoadingEntity(prev => ({ ...prev, [zone.id]: true }));
     try {
       const res = await api.get(`/data/${zone.sourceEntitySlug}`, {
-        params: { tenantId, limit: 500 },
+        params: { limit: 500 },
       });
       const records = res.data?.data || [];
       const fieldSlug = zone.sourceFieldSlug;
@@ -138,7 +136,7 @@ export default function ZoneDiagramField({
     } finally {
       setLoadingEntity(prev => ({ ...prev, [zone.id]: false }));
     }
-  }, [tenantId, entityOptions, loadingEntity]);
+  }, [entityOptions, loadingEntity]);
 
   // Pre-load entity options for all entity-source zones
   useEffect(() => {

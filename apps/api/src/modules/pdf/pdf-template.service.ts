@@ -31,7 +31,7 @@ export class PdfTemplateService {
    * Criar novo template
    */
   async create(dto: CreatePdfTemplateDto, currentUser: CurrentUser): Promise<PdfTemplate> {
-    const targetTenantId = getEffectiveTenantId(currentUser, dto.tenantId);
+    const targetTenantId = getEffectiveTenantId(currentUser);
 
     // Verificar se slug ja existe
     const existing = await this.prisma.pdfTemplate.findFirst({
@@ -95,7 +95,7 @@ export class PdfTemplateService {
    * Listar templates do tenant
    */
   async findAll(currentUser: CurrentUser, query: QueryPdfTemplateDto) {
-    const targetTenantId = getEffectiveTenantId(currentUser, query.tenantId);
+    const targetTenantId = getEffectiveTenantId(currentUser);
     const limit = Math.min(parseInt(query.limit || String(DEFAULT_LIMIT)), MAX_LIMIT);
 
     const where: Prisma.PdfTemplateWhereInput = {
@@ -297,7 +297,7 @@ export class PdfTemplateService {
     dto: UpdatePdfTemplateDto,
     currentUser: CurrentUser,
   ): Promise<PdfTemplate> {
-    const targetTenantId = getEffectiveTenantId(currentUser, dto.tenantId);
+    const targetTenantId = getEffectiveTenantId(currentUser);
 
     // Verificar se template existe
     const existing = await this.prisma.pdfTemplate.findFirst({

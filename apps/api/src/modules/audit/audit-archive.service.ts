@@ -137,9 +137,9 @@ export class AuditArchiveService {
   }
 
   /**
-   * Método manual para arquivar logs (útil para testes ou execução ad-hoc)
+   * Método manual para arquivar logs de UM tenant (execução ad-hoc pelo admin do tenant).
    */
-  async manualArchive(daysOld: number = this.ARCHIVE_AFTER_DAYS): Promise<{
+  async manualArchive(tenantId: string, daysOld: number = this.ARCHIVE_AFTER_DAYS): Promise<{
     archived: number;
     cutoffDate: string;
     durationMs: number;
@@ -156,6 +156,7 @@ export class AuditArchiveService {
     while (hasMore) {
       const logs = await this.prisma.auditLog.findMany({
         where: {
+          tenantId,
           createdAt: { lt: cutoffDate },
         },
         take: this.BATCH_SIZE,
@@ -202,9 +203,9 @@ export class AuditArchiveService {
   }
 
   /**
-   * Método manual para deletar logs arquivados (útil para testes)
+   * Método manual para deletar logs arquivados de UM tenant.
    */
-  async manualDelete(daysOld: number = this.DELETE_AFTER_DAYS): Promise<{
+  async manualDelete(tenantId: string, daysOld: number = this.DELETE_AFTER_DAYS): Promise<{
     deleted: number;
     cutoffDate: string;
     durationMs: number;
@@ -217,6 +218,7 @@ export class AuditArchiveService {
 
     const result = await this.prisma.archivedAuditLog.deleteMany({
       where: {
+        tenantId,
         createdAt: { lt: cutoffDate },
       },
     });
@@ -231,9 +233,10 @@ export class AuditArchiveService {
   }
 
   /**
-   * Retorna estatísticas sobre audit logs
+   * Retorna estatísticas sobre audit logs. Com `tenantId`, restringe ao tenant
+   * (endpoint do app); sem, visao global (uso interno: DataLifecycleService).
    */
-  async getStats(): Promise<{
+  async getStats(tenantId?: string): Promise<{
     active: {
       total: number;
       oldestDate: Date | null;
@@ -252,6 +255,8 @@ export class AuditArchiveService {
       batchSize: number;
     };
   }> {
+    const scope = tenantId ? { tenantId } : {};
+
     // Estatísticas de logs ativos
     const [
       activeTotal,
@@ -259,17 +264,20 @@ export class AuditArchiveService {
       activeNewest,
       activeByTenant,
     ] = await Promise.all([
-      this.prisma.auditLog.count(),
+      this.prisma.auditLog.count({ where: scope }),
       this.prisma.auditLog.findFirst({
+        where: scope,
         orderBy: { createdAt: 'asc' },
         select: { createdAt: true },
       }),
       this.prisma.auditLog.findFirst({
+        where: scope,
         orderBy: { createdAt: 'desc' },
         select: { createdAt: true },
       }),
       this.prisma.auditLog.groupBy({
         by: ['tenantId'],
+        where: scope,
         _count: { tenantId: true },
         orderBy: { _count: { tenantId: 'desc' } },
         take: 10,
@@ -283,17 +291,20 @@ export class AuditArchiveService {
       archivedNewest,
       archivedByTenant,
     ] = await Promise.all([
-      this.prisma.archivedAuditLog.count(),
+      this.prisma.archivedAuditLog.count({ where: scope }),
       this.prisma.archivedAuditLog.findFirst({
+        where: scope,
         orderBy: { createdAt: 'asc' },
         select: { createdAt: true },
       }),
       this.prisma.archivedAuditLog.findFirst({
+        where: scope,
         orderBy: { createdAt: 'desc' },
         select: { createdAt: true },
       }),
       this.prisma.archivedAuditLog.groupBy({
         by: ['tenantId'],
+        where: scope,
         _count: { tenantId: true },
         orderBy: { _count: { tenantId: 'desc' } },
         take: 10,

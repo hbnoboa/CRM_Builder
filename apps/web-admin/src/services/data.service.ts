@@ -8,7 +8,6 @@ export interface QueryDataParams {
   sortBy?: string;
   sortOrder?: 'asc' | 'desc';
   parentRecordId?: string;
-  tenantId?: string;
   // Cursor pagination (melhor para listas grandes)
   cursor?: string;
   // Sparse fieldsets - reduz payload
@@ -69,12 +68,11 @@ export const dataService = {
   async create(
     entitySlug: string,
     data: Record<string, unknown>,
-    parentRecordId?: string,
-    tenantId?: string
+    parentRecordId?: string
   ): Promise<EntityData> {
     const response = await api.post<EntityData>(
       `/data/${entitySlug}`,
-      { data, parentRecordId, tenantId }
+      { data, parentRecordId }
     );
     return response.data;
   },
@@ -82,12 +80,11 @@ export const dataService = {
   async update(
     entitySlug: string,
     id: string,
-    data: Record<string, unknown>,
-    tenantId?: string
+    data: Record<string, unknown>
   ): Promise<EntityData> {
     const response = await api.patch<EntityData>(
       `/data/${entitySlug}/${id}`,
-      { data, tenantId }
+      { data }
     );
     return response.data;
   },

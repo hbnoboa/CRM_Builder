@@ -241,7 +241,7 @@ export function PdfVisualEditor({ template }: PdfVisualEditorProps) {
           variant="ghost"
           size="icon"
           className="h-8 w-8"
-          onClick={() => router.push('/pdf-templates')}
+          onClick={() => router.push('/gestao/pdf-templates')}
         >
           <ArrowLeft className="h-4 w-4" />
         </Button>

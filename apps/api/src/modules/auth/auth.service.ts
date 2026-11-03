@@ -7,9 +7,9 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { LoginDto, RegisterDto, RefreshTokenDto, UpdateProfileDto, ChangePasswordDto, ForgotPasswordDto, ResetPasswordDto } from './dto/auth.dto';
 import { Status, TenantLifecycle } from '@prisma/client';
 import { TenantService, RESERVED_TENANT_SLUGS } from '../tenant/tenant.service';
-import { hasPlatformAccess, canImpersonateAny } from '../../common/utils/platform-access';
-import { assertCanActOnRank, assertNotImpersonating } from '../../common/utils/permission-governance';
-import { CurrentUser } from '../../common/types';
+import { EmailService } from '../email/email.service';
+import { transactionalEmail } from '../email/email-layout';
+import { appUrl } from '../../common/utils/app-url';
 
 export interface UserForTokenGeneration {
   id: string;
@@ -49,6 +49,7 @@ export class AuthService {
     private jwtService: JwtService,
     private configService: ConfigService,
     private tenantService: TenantService,
+    private email: EmailService,
   ) {}
 
   // ── Resolucao de Membership (fonte da verdade de tenant + cargo) ────────────
@@ -265,8 +266,8 @@ export class AuthService {
   }
 
   /**
-   * Resolve {tenantId, customRoleId, roleType} para um tenant solicitado:
-   * membership do tenant -> senao acesso de plataforma (mantem cargo home) -> senao home.
+   * Resolve {tenantId, customRoleId} para um tenant solicitado:
+   * membership usavel do tenant -> senao home (nunca tenant sem membership).
    * Espelha a logica do jwt.strategy.
    */
   private async resolveTokenContext(userId: string, requestedTenantId?: string) {
@@ -277,9 +278,6 @@ export class AuthService {
       const m = await this.loadMembership(userId, requestedTenantId);
       if (this.isMembershipUsable(m)) {
         return { tenantId: requestedTenantId, customRoleId: m!.customRoleId };
-      }
-      if (hasPlatformAccess(primary.customRole.modulePermissions)) {
-        return { tenantId: requestedTenantId, customRoleId: primary.customRoleId };
       }
     }
     return { tenantId: primary.tenantId, customRoleId: primary.customRoleId };
@@ -334,21 +332,6 @@ export class AuthService {
         customRole: membership!.customRole,
         hasMultipleTenants: accessCount > 1,
       };
-    }
-
-    // Acesso de plataforma: honra o tenant solicitado com o cargo home (F1).
-    if (hasPlatformAccess(primary.customRole.modulePermissions)) {
-      const tenant = await this.prisma.tenant.findUnique({ where: { id: target }, select: TENANT_SELECT });
-      if (tenant) {
-        return {
-          ...user,
-          tenantId: target,
-          tenant,
-          customRoleId: primary.customRoleId,
-          customRole: primary.customRole,
-          hasMultipleTenants: accessCount > 1,
-        };
-      }
     }
 
     // Fallback: home.
@@ -421,7 +404,16 @@ export class AuthService {
       data: { resetToken, resetTokenExpires: resetExpires },
     });
 
-    this.logger.log(`Reset token gerado para: ${user.email}`);
+    const url = `${appUrl()}/pt-BR/reset-password?token=${resetToken}`;
+    const { html, text } = transactionalEmail({
+      title: 'Redefinir sua senha',
+      paragraphs: [`Olá, ${user.name}!`, 'Recebemos um pedido para redefinir a sua senha. O link vale por 1 hora.'],
+      buttonLabel: 'Criar nova senha',
+      url,
+      footer: 'Se você não pediu, ignore este e-mail: sua senha continua a mesma.',
+    });
+    const result = await this.email.send({ to: user.email, subject: 'Redefinir sua senha', html, text });
+    this.logger.log(`Reset de senha para ${user.email}: e-mail ${result.sent ? 'enviado' : 'NAO enviado (sem provedor)'}`);
     return { message: 'Se o email existir, voce recebera um link de recuperacao' };
   }
 
@@ -464,7 +456,6 @@ export class AuthService {
     if (!primary) {
       throw new UnauthorizedException('Usuario sem acesso a nenhum tenant');
     }
-    const isPlatformAdmin = hasPlatformAccess(primary.customRole.modulePermissions);
 
     const buildResult = (
       tenantId: string,
@@ -506,14 +497,7 @@ export class AuthService {
       return buildResult(targetTenantId, access!.tenant, access!.customRoleId, access!.customRole);
     }
 
-    // Sem membership: so com acesso de plataforma (cross-tenant), mantendo o cargo home.
-    if (isPlatformAdmin) {
-      const targetTenant = await this.prisma.tenant.findUnique({ where: { id: targetTenantId }, select: TENANT_SELECT });
-      if (!targetTenant) throw new BadRequestException('Tenant nao encontrado');
-      if (targetTenant.status !== 'ACTIVE') throw new UnauthorizedException('Tenant suspenso ou inativo');
-      return buildResult(targetTenantId, targetTenant, primary.customRoleId, primary.customRole);
-    }
-
+    // Sem membership usavel: nunca entra (acesso cross-tenant so pelo console da plataforma).
     throw new UnauthorizedException('Sem acesso a este tenant');
   }
 
@@ -542,67 +526,6 @@ export class AuthService {
         name: a.customRole.name,
       },
     }));
-  }
-
-  /**
-   * Impersonacao: o ator assume a identidade de um usuario-alvo.
-   * Requer permissao platform.impersonateAny. Nao pode impersonar rank igual/menor.
-   * O token carrega impersonatedBy para auditoria; "parar" e client-side (restaura backup).
-   */
-  async impersonate(currentUser: CurrentUser, targetUserId: string) {
-    assertNotImpersonating(currentUser, 'impersonar'); // sem impersonacao aninhada
-    if (!canImpersonateAny(currentUser.customRole?.modulePermissions)) {
-      throw new UnauthorizedException('Sem permissao para impersonar (platform.impersonateAny)');
-    }
-
-    const target = await this.prisma.user.findFirst({
-      where: { id: targetUserId, status: Status.ACTIVE, deletedAt: null },
-      select: { id: true, email: true, name: true, avatar: true },
-    });
-    if (!target) {
-      throw new UnauthorizedException('Usuario alvo nao encontrado');
-    }
-
-    const targetMembership = await this.loadPrimaryMembership(target.id);
-    if (!targetMembership) {
-      throw new UnauthorizedException('Usuario alvo sem acesso a nenhum tenant');
-    }
-
-    // Rank rule: nao se impersona quem tem rank igual ou superior (intocavel).
-    assertCanActOnRank(
-      currentUser.customRole?.modulePermissions,
-      currentUser.customRole?.rank ?? 999999,
-      targetMembership.customRole.rank ?? 0,
-    );
-
-    const impersonatedBy = { id: currentUser.id, name: currentUser.name };
-    const tokens = await this.generateTokens(
-      {
-        id: target.id,
-        email: target.email,
-        tenantId: targetMembership.tenantId,
-        customRoleId: targetMembership.customRoleId,
-      },
-      false,
-      impersonatedBy,
-    );
-
-    this.logger.log(`Impersonate: ${currentUser.email} -> ${target.email}`);
-
-    return {
-      user: {
-        id: target.id,
-        email: target.email,
-        name: target.name,
-        avatar: target.avatar,
-        tenantId: targetMembership.tenantId,
-        tenant: targetMembership.tenant,
-        customRoleId: targetMembership.customRoleId,
-        customRole: targetMembership.customRole,
-      },
-      impersonatedBy,
-      ...tokens,
-    };
   }
 
   /**

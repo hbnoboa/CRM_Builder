@@ -2,6 +2,22 @@
   "slugAlreadyExists": "El slug ya está en uso",
   "notFound": "Tenant no encontrado",
   "deletedSuccessfully": "Tenant eliminado exitosamente",
-  "initialRoleName": "Admin Inicial",
-  "initialRoleDescription": "Role inicial creado automáticamente. Configure los permisos adecuados."
+  "roles": {
+    "admin": {
+      "name": "Administrador",
+      "description": "Acceso total a la empresa: tablas, usuarios, cargos y configuración."
+    },
+    "manager": {
+      "name": "Gerente",
+      "description": "Ve y edita todos los registros y supervisa al equipo."
+    },
+    "operator": {
+      "name": "Operador",
+      "description": "Crea y edita sus propios registros. Cargo predeterminado de nuevos usuarios."
+    },
+    "viewer": {
+      "name": "Visualizador",
+      "description": "Solo consulta registros y dashboards."
+    }
+  }
 }

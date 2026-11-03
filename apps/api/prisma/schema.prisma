@@ -79,6 +79,10 @@ model Tenant {
   // Armazenamento usado (KB) — somado/subtraido no upload/exclusao; o console
   // recalcula a partir dos arquivos reais (inclui os anteriores ao contador).
   storageUsedKb    Int             @default(0)
+  // Dono da empresa: contato de plano/suporte. Nao pode ser removido nem rebaixado
+  // pelos outros admins do tenant; troca so pelo proprio dono ou pelo console.
+  ownerId          String?
+  owner            User?           @relation("TenantOwner", fields: [ownerId], references: [id], onDelete: SetNull)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -106,10 +110,12 @@ model Tenant {
   dashboardTemplates   DashboardTemplate[]
   publicLinks          PublicLink[]
 
+  invitations      Invitation[]
   @@index([slug])
   @@index([status])
   @@index([lifecycle])
   @@index([planId])
+  @@index([ownerId])
   deletedAt DateTime?
 }
 
@@ -234,7 +240,9 @@ model User {
 
   // Vinculo com tenants (fonte da verdade de tenant + cargo)
   tenantAccess UserTenantAccess[]
+  ownedTenants Tenant[]           @relation("TenantOwner")
 
+  invitationsSent Invitation[]     @relation("InvitationsSent")
   @@index([email])
   @@index([cpf])
   @@index([phone])
@@ -545,6 +553,7 @@ model CustomRole {
   // um nome apos soft delete. Criado por SQL raw na migration (Prisma nao expressa
   // unique parcial): CREATE UNIQUE INDEX "CustomRole_tenantId_name_active_key"
   //   ON "CustomRole"("tenantId","name") WHERE "deletedAt" IS NULL;
+  invitations       Invitation[]
   @@index([tenantId])
   @@index([isSystem])
   @@index([tenantId, isDefault])
@@ -1350,4 +1359,29 @@ model VisibilityRecompute {
   createdAt  DateTime @default(now())
 
   @@map("visibility_recompute")
+}
+
+// Convite para entrar numa empresa: o admin escolhe e-mail e cargo; a pessoa abre o
+// link, define a propria senha (ou entra com a que ja tem) e vira membro.
+model Invitation {
+  id           String    @id @default(cuid())
+  tenantId     String
+  email        String
+  name         String?
+  customRoleId String
+  // sha256 do token do link (o token puro so existe no e-mail/link copiado)
+  tokenHash    String    @unique
+  invitedById  String?
+  expiresAt    DateTime
+  acceptedAt   DateTime?
+  revokedAt    DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  tenant     Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  customRole CustomRole @relation(fields: [customRoleId], references: [id], onDelete: Cascade)
+  invitedBy  User?      @relation("InvitationsSent", fields: [invitedById], references: [id], onDelete: SetNull)
+
+  @@index([tenantId])
+  @@index([tenantId, email])
 }

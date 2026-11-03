@@ -23,7 +23,7 @@ import {
 } from '@/components/ui/select';
 import {
   Eye, Plus, Pencil, Trash2, Shield, Database, Users,
-  Settings, Code, LayoutDashboard, Globe, User, Building2,
+  Settings, Code, LayoutDashboard, Globe, User,
   ChevronRight, ListFilter, X, FileText, Bell, ScrollText, BarChart3,
   Webhook, Zap, Mail,
 } from 'lucide-react';
@@ -55,7 +55,7 @@ type ModuleActionDef = { key: string; label: string; desc: string; writes?: stri
 
 // notifications removido: era um modulo "fantasma" (nenhum endpoint/guard o verifica).
 const MODULE_KEYS = [
-  'dashboard', 'data', 'entities', 'users', 'roles', 'settings', 'tenants',
+  'dashboard', 'data', 'entities', 'users', 'roles', 'settings',
   'automations', 'templates', 'logs', 'publicLinks', 'archive', 'chat'
 ] as const;
 
@@ -282,7 +282,6 @@ export function RoleFormDialog({ open, onOpenChange, role, onSuccess }: RoleForm
   const [description, setDescription] = useState('');
   const [color, setColor] = useState('#6366f1');
   const [isDefault, setIsDefault] = useState(false);
-  const [rank, setRank] = useState<string>('');
   const [permissions, setPermissions] = useState<EntityPermission[]>([]);
   const [modulePerms, setModulePerms] = useState<Record<string, ModulePermission>>(getDefaultModulePerms);
   // Acesso total ao tenant (dinâmico): flag que libera tudo, inclusive módulos/tabelas futuros.
@@ -295,7 +294,6 @@ export function RoleFormDialog({ open, onOpenChange, role, onSuccess }: RoleForm
     queryKey: ['entities-for-roles', effectiveTenantId],
     queryFn: async () => {
       const params: Record<string, unknown> = { limit: 100 };
-      if (effectiveTenantId) params.tenantId = effectiveTenantId;
       const res = await api.get('/entities', { params });
       return res.data;
     },
@@ -317,7 +315,6 @@ export function RoleFormDialog({ open, onOpenChange, role, onSuccess }: RoleForm
       setDescription(role.description || '');
       setColor(role.color || '#6366f1');
       setIsDefault(role.isDefault || false);
-      setRank(role.rank != null ? String(role.rank) : '');
       setPermissions(Array.isArray(role.permissions) ? role.permissions : []);
 
       const normalized = normalizeModulePermToRecord(role.modulePermissions as Record<string, unknown>);
@@ -337,7 +334,6 @@ export function RoleFormDialog({ open, onOpenChange, role, onSuccess }: RoleForm
       setDescription('');
       setColor('#6366f1');
       setIsDefault(false);
-      setRank('');
       setPermissions([]);
       setModulePerms(getDefaultModulePerms());
     }
@@ -567,15 +563,6 @@ export function RoleFormDialog({ open, onOpenChange, role, onSuccess }: RoleForm
     e.preventDefault();
     if (!name.trim()) return;
 
-    // Preserva chaves de modulePermissions que este form NAO renderiza (ex.: 'platform'
-    // com crossTenant/manageTenants/impersonateAny). Sem isso, salvar o cargo Super Admin
-    // apagaria o acesso de plataforma e o backend bloquearia por anti-lockout (403).
-    const known = new Set<string>(MODULE_KEYS);
-    const passthrough = Object.fromEntries(
-      Object.entries((role?.modulePermissions ?? {}) as Record<string, unknown>)
-        .filter(([k]) => !known.has(k)),
-    );
-
     const data = {
       name: name.trim(),
       description: description.trim() || undefined,
@@ -597,9 +584,7 @@ export function RoleFormDialog({ open, onOpenChange, role, onSuccess }: RoleForm
       })),
       // allAccess: flag dinâmico de "acesso total ao tenant". Sempre enviado (true/false)
       // para ligar/desligar de forma explícita no banco.
-      modulePermissions: { ...passthrough, ...modulePerms, allAccess } as ModulePermissions,
-      ...(rank.trim() !== '' && Number.isFinite(Number(rank)) ? { rank: Number(rank) } : {}),
-      ...(effectiveTenantId ? { tenantId: effectiveTenantId } : {}),
+      modulePermissions: { ...modulePerms, allAccess } as ModulePermissions,
     };
 
     try {
@@ -622,7 +607,6 @@ export function RoleFormDialog({ open, onOpenChange, role, onSuccess }: RoleForm
     apis: <Code className="h-4 w-4" />,
     templates: <FileText className="h-4 w-4" />,
     entities: <Database className="h-4 w-4" />,
-    tenants: <Building2 className="h-4 w-4" />,
     data: <Globe className="h-4 w-4" />,
     roles: <Shield className="h-4 w-4" />,
     logs: <ScrollText className="h-4 w-4" />,
@@ -669,12 +653,6 @@ export function RoleFormDialog({ open, onOpenChange, role, onSuccess }: RoleForm
     // settings: unica permissao real e abrir/editar a aba "Organizacao"
     // (perfil/idioma/tema sao pessoais e nao exigem permissao).
     settings: [A('canUpdate', t('permissions.canManageOrg'), 'settings_canUpdate')],
-    // tenants: sem canRead (nao verificado); CUD sao operacoes de plataforma.
-    tenants: [
-      C('tenants'), U('tenants'), D('tenants'),
-      A('canSuspend', t('permissions.canSuspend'), 'tenants_canSuspend'),
-      A('canActivate', t('permissions.canActivate'), 'tenants_canActivate'),
-    ],
     automations: [
       R('automations'), C('automations'), U('automations'), D('automations'),
       A('canExecute', t('permissions.canExecute'), 'automations_canExecute'),
@@ -772,24 +750,6 @@ export function RoleFormDialog({ open, onOpenChange, role, onSuccess }: RoleForm
                   placeholder="#6366f1"
                 />
               </div>
-            </div>
-          </div>
-
-          {/* Rank de governanca */}
-          <div className="flex items-start gap-3 p-3 rounded-lg border">
-            <Input
-              type="number"
-              min={1}
-              value={rank}
-              onChange={(e) => setRank(e.target.value)}
-              placeholder="auto"
-              className="w-24"
-            />
-            <div>
-              <Label className="font-medium">Rank de governança</Label>
-              <p className="text-xs text-muted-foreground">
-                Número menor = mais poder (1 = topo). Quem gerencia só age sobre cargos de rank maior que o próprio. Deixe vazio para herdar um rank subordinado automaticamente.
-              </p>
             </div>
           </div>
 

@@ -2,7 +2,7 @@ import { Injectable, CanActivate, ExecutionContext, ForbiddenException } from '@
 import { Reflector } from '@nestjs/core';
 import { MODULE_PERMISSION_KEY, ModulePermissionMetadata } from '../decorators/module-permission.decorator';
 import type { CurrentUser } from '../types';
-import { hasPlatformAccess, hasFullTenantAccess } from '../utils/platform-access';
+import { hasFullTenantAccess } from '../utils/platform-access';
 
 /**
  * Guard que verifica se o usuário tem permissão em um módulo específico.
@@ -32,13 +32,8 @@ export class ModulePermissionGuard implements CanActivate {
 
     const { module, action, subModule } = metadata;
 
-    // Acesso de plataforma (permissao) tem acesso automatico. (Antes: roleType PLATFORM_ADMIN.)
-    if (hasPlatformAccess(user.customRole?.modulePermissions)) {
-      return true;
-    }
-
     // Acesso total ao tenant: libera qualquer módulo/ação DENTRO do tenant, de forma
-    // dinâmica (módulos novos já entram, sem re-grant). Não é poder de plataforma.
+    // dinâmica (módulos novos já entram, sem re-grant).
     if (hasFullTenantAccess(user.customRole?.modulePermissions)) {
       return true;
     }
@@ -65,9 +60,11 @@ export class ModulePermissionGuard implements CanActivate {
       throw new ForbiddenException(`Sem permissão no módulo principal: ${module}.${action}`);
     }
 
-    // Segundo: sub-módulo deve ter a permissão
+    // Segundo: sub-modulo. O editor de cargos marca o GRUPO (templates, logs,
+    // automations); sem bloco proprio, o sub-modulo herda o grupo. Um bloco
+    // explicito continua restringindo.
     const subModulePerm = modulePerm[subModule] as Record<string, boolean> | undefined;
-    if (subModulePerm && subModulePerm[action] === true) {
+    if (subModulePerm === undefined || subModulePerm[action] === true) {
       return true;
     }
 

@@ -53,10 +53,9 @@ export class PdfController {
   @ApiOperation({ summary: 'Criar template de PDF' })
   async create(
     @Body() dto: CreatePdfTemplateDto,
-    @Query('tenantId') tenantId: string | undefined,
     @CurrentUser() user: CurrentUserType,
   ) {
-    return this.templateService.create({ ...dto, tenantId: tenantId || dto.tenantId }, user);
+    return this.templateService.create(dto, user);
   }
 
   @Get()
@@ -140,10 +139,9 @@ export class PdfController {
   async update(
     @Param('id') id: string,
     @Body() dto: UpdatePdfTemplateDto,
-    @Query('tenantId') tenantId: string | undefined,
     @CurrentUser() user: CurrentUserType,
   ) {
-    return this.templateService.update(id, { ...dto, tenantId: tenantId || dto.tenantId }, user);
+    return this.templateService.update(id, dto, user);
   }
 
   @Delete(':id')

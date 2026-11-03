@@ -69,6 +69,14 @@ services:
       GCS_CREDENTIALS: ${GCS_CREDENTIALS:-}
       GCS_BASE_URL: ${GCS_BASE_URL:-}
       POWERSYNC_URL: https://iossystem.com.br/sync
+      # E-mail (convites e nova senha). Sem EMAIL_PROVIDER=smtp, nada e enviado.
+      EMAIL_PROVIDER: ${EMAIL_PROVIDER:-}
+      EMAIL_FROM: ${EMAIL_FROM:-}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_SECURE: ${SMTP_SECURE:-false}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
     depends_on:
       postgres:
         condition: service_healthy
@@ -197,6 +205,14 @@ services:
       GCS_CREDENTIALS: ${GCS_CREDENTIALS:-}
       GCS_BASE_URL: ${GCS_BASE_URL:-}
       POWERSYNC_URL: https://iossystem.com.br/sync
+      # E-mail (convites e nova senha). Sem EMAIL_PROVIDER=smtp, nada e enviado.
+      EMAIL_PROVIDER: ${EMAIL_PROVIDER:-}
+      EMAIL_FROM: ${EMAIL_FROM:-}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_SECURE: ${SMTP_SECURE:-false}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
     depends_on:
       postgres-dev:
         condition: service_healthy

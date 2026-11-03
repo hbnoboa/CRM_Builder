@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, Suspense } from 'react';
-import { User, Languages, Palette, Sun, Moon, Monitor, Building2, CreditCard } from 'lucide-react';
+import { User, Languages, Palette, Sun, Moon, Monitor } from 'lucide-react';
 import { useSearchParams } from 'next/navigation';
 import { useTranslations, useLocale } from 'next-intl';
 import { useTheme } from 'next-themes';
@@ -11,20 +11,17 @@ import { Label } from '@/components/ui/label';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { useAuthStore } from '@/stores/auth-store';
 import { useUpdateProfile, useChangePassword } from '@/hooks/use-auth';
-import { usePermissions } from '@/hooks/use-permissions';
-import { useTenant } from '@/stores/tenant-context';
 import { Link, useRouter, usePathname } from '@/i18n/tenant-navigation';
 import { cn } from '@/lib/utils';
-import { SubscriptionPanel } from '@/components/subscription/subscription-widgets';
 
-// Conta (todos): profile/language/theme. Organização (gated): org.
+// So a conta pessoal. Organizacao e plano moraram aqui e agora ficam na
+// administracao da empresa (/gestao/organization e /gestao/plan).
 const ACCOUNT_TABS = ['profile', 'language', 'theme'] as const;
+const MOVED_TABS: Record<string, string> = { org: '/gestao/organization', plan: '/gestao/plan' };
 const TAB_ICONS: Record<string, typeof User> = {
   profile: User,
   language: Languages,
   theme: Palette,
-  org: Building2,
-  plan: CreditCard,
 };
 
 const LANGUAGES = [
@@ -40,19 +37,18 @@ function SettingsPageContent() {
   const { user } = useAuthStore();
   const updateProfile = useUpdateProfile();
   const changePassword = useChangePassword();
-  const { hasModulePermission } = usePermissions();
-  const { tenant } = useTenant();
   const locale = useLocale();
   const router = useRouter();
   const pathname = usePathname();
 
-  // Organização só para quem tem a caixa de configurações do tenant.
-  const canOrg = hasModulePermission('settings', 'canUpdate');
-  const TAB_IDS = (canOrg ? [...ACCOUNT_TABS, 'org', 'plan'] : [...ACCOUNT_TABS]) as string[];
+  const TAB_IDS = [...ACCOUNT_TABS] as string[];
 
-  // ?tab=plan abre direto na aba (link do banner de trial).
+  // Links antigos (?tab=plan / ?tab=org) vao para a administracao.
   const searchParams = useSearchParams();
   const requestedTab = searchParams.get('tab');
+  useEffect(() => {
+    if (requestedTab && MOVED_TABS[requestedTab]) router.replace(MOVED_TABS[requestedTab]);
+  }, [requestedTab, router]);
   const [activeTab, setActiveTab] = useState<string>(
     requestedTab && TAB_IDS.includes(requestedTab) ? requestedTab : 'profile',
   );
@@ -137,7 +133,7 @@ function SettingsPageContent() {
                 )}
               >
                 <Icon className="h-4 w-4 md:h-5 md:w-5 shrink-0" />
-                {tabId === 'org' ? t('org.tab') : tabId === 'plan' ? t('plan.tab') : t(`tabs.${tabId}`)}
+                {t(`tabs.${tabId}`)}
               </button>
             );
           })}
@@ -319,38 +315,6 @@ function SettingsPageContent() {
             </Card>
           )}
 
-          {/* Organização (gated por settings.canUpdate) — ajustes do tenant */}
-          {activeTab === 'plan' && canOrg && <SubscriptionPanel />}
-
-          {activeTab === 'org' && canOrg && (
-            <Card>
-              <CardHeader>
-                <CardTitle>{t('org.title')}</CardTitle>
-                <CardDescription>{t('org.description')}</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <Label>{t('org.tenantName')}</Label>
-                  <Input value={tenant?.name || ''} readOnly />
-                </div>
-                <div className="space-y-2">
-                  <Label>{t('org.tenantSlug')}</Label>
-                  <Input value={tenant?.slug || ''} readOnly />
-                </div>
-                <div className="space-y-2">
-                  <Label>{t('org.brandColor')}</Label>
-                  <div className="flex items-center gap-3">
-                    <span
-                      className="inline-block h-8 w-8 rounded border"
-                      style={{ backgroundColor: tenant?.settings?.theme?.brandColor || '#7c3aed' }}
-                    />
-                    <Input value={tenant?.settings?.theme?.brandColor || '#7c3aed'} readOnly className="max-w-[160px]" />
-                  </div>
-                </div>
-                <p className="text-xs text-muted-foreground">{t('org.readonly')}</p>
-              </CardContent>
-            </Card>
-          )}
         </div>
       </div>
     </div>
@@ -358,7 +322,7 @@ function SettingsPageContent() {
 }
 
 export default function SettingsPage() {
-  // Conta é de todos (#21); o tab "Organização" dentro é gated por permissão.
+  // Conta pessoal: de todos (#21).
   return (
     <Suspense>
       <SettingsPageContent />

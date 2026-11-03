@@ -73,7 +73,6 @@ export interface ModulePermissions {
   apis?: ModulePermission;
   pdfTemplates?: ModulePermission;
   entities?: ModulePermission;
-  tenants?: ModulePermission;
   data?: ModulePermission;
   roles?: ModulePermission;
   dashboardTemplates?: ModulePermission;
@@ -105,7 +104,7 @@ export interface CustomRole {
   /** Rank de governanca: numero MENOR = mais poder (1 = topo). */
   rank?: number;
   tenantId: string;
-  _count?: { users: number };
+  _count?: { tenantAccessUsers: number };
   users?: Array<{ id: string; name: string; email: string; avatar?: string }>;
   createdAt?: string;
   updatedAt?: string;

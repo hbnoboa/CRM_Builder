@@ -12,11 +12,11 @@ interface AuthState {
 
   login: (credentials: LoginCredentials) => Promise<void>;
   register: (data: RegisterDate) => Promise<void>;
+  acceptInvitation: (token: string, body: { name?: string; password: string }) => Promise<User>;
   logout: () => Promise<void>;
   getProfile: () => Promise<void>;
   ensureAuth: () => Promise<'ok' | 'redirect'>;
   switchTenant: (tenantId: string) => Promise<void>;
-  impersonate: (targetUserId: string) => Promise<void>;
   stopImpersonation: () => Promise<void>;
   setUser: (user: User) => void;
   clearError: () => void;
@@ -70,6 +70,17 @@ export const useAuthStore = create<AuthState>()(
           set({ error: message, isLoading: false });
           throw error;
         }
+      },
+
+      /** Aceita um convite e ja entra na empresa que convidou. */
+      acceptInvitation: async (token: string, body: { name?: string; password: string }) => {
+        const response = await api.post<AuthResponse>(`/invitations/public/${token}/accept`, body);
+        const { user, accessToken, refreshToken } = response.data;
+        localStorage.setItem('accessToken', accessToken);
+        localStorage.setItem('refreshToken', refreshToken);
+        if (user?.tenantId) localStorage.setItem('activeTenantId', user.tenantId);
+        set({ user, isAuthenticated: true, isLoading: false, error: null });
+        return user;
       },
 
       logout: async () => {
@@ -164,38 +175,6 @@ export const useAuthStore = create<AuthState>()(
           const message = isAxiosError<{ message?: string }>(error)
             ? error.response?.data?.message || 'Failed to switch tenant'
             : 'Failed to switch tenant';
-          set({ error: message, isLoading: false });
-          throw error;
-        }
-      },
-
-      impersonate: async (targetUserId: string) => {
-        set({ isLoading: true, error: null });
-        try {
-          const response = await api.post<AuthResponse & { impersonatedBy?: { id: string; name: string } }>(
-            '/auth/impersonate',
-            { targetUserId },
-          );
-          const { user, accessToken, refreshToken, impersonatedBy } = response.data;
-          // Backup da sessao atual para poder voltar (stop).
-          localStorage.setItem(
-            'impersonationBackup',
-            JSON.stringify({
-              accessToken: localStorage.getItem('accessToken'),
-              refreshToken: localStorage.getItem('refreshToken'),
-              activeTenantId: localStorage.getItem('activeTenantId'),
-            }),
-          );
-          localStorage.setItem('accessToken', accessToken);
-          localStorage.setItem('refreshToken', refreshToken);
-          if (user?.tenantId) localStorage.setItem('activeTenantId', user.tenantId);
-          if (impersonatedBy) localStorage.setItem('impersonatedBy', JSON.stringify(impersonatedBy));
-          set({ user, isLoading: false });
-          window.dispatchEvent(new CustomEvent('tenant-changed'));
-        } catch (error: unknown) {
-          const message = isAxiosError<{ message?: string }>(error)
-            ? error.response?.data?.message || 'Falha ao impersonar'
-            : 'Falha ao impersonar';
           set({ error: message, isLoading: false });
           throw error;
         }

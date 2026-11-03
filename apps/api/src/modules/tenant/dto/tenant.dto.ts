@@ -72,3 +72,9 @@ export class QueryTenantDto {
   @IsOptional()
   status?: Status;
 }
+
+export class TransferOwnershipDto {
+  @ApiProperty({ description: 'Membro ativo, num cargo com acesso total' })
+  @IsString()
+  userId: string;
+}

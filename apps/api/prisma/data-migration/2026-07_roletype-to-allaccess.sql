@@ -15,7 +15,8 @@
 --
 -- Mapa de rank por tier:
 --   PLATFORM_ADMIN=1 · ADMIN=10 · MANAGER=30 · USER=50 · VIEWER=70 · CUSTOM=50
--- Superadmins pedidos: hbnoboa, viviane, paulo (ios-risk) -> PLATFORM_ADMIN.
+-- Superadmins (hbnoboa, viviane, paulo): viram equipe do console (pnpm platform:create-owner),
+-- nao cargo de empresa.
 -- ============================================================================
 
 BEGIN;
@@ -71,42 +72,12 @@ WHERE "roleType" = 'ADMIN'
   AND COALESCE("modulePermissions" ->> 'allAccess', 'false') <> 'true';
 
 -- ---------------------------------------------------------------------------
--- 4. PLATFORM nos cargos PLATFORM_ADMIN (tier -> permission-driven).
---    Marca platform.* para o motor novo reconhecer poder de plataforma.
--- ---------------------------------------------------------------------------
+-- 4. PLATFORM_ADMIN vira acesso total DENTRO da propria empresa (sem platform.*):
+-- poder entre empresas agora so existe no console da plataforma (PlatformStaff).
+-- A equipe IOS entra nos clientes pelo console ("Entrar como"), nao por cargo.
 UPDATE "CustomRole"
-SET "modulePermissions" = jsonb_set(
-      COALESCE("modulePermissions", '{}'::jsonb),
-      '{platform}',
-      '{"crossTenant": true, "impersonateAny": true, "manageTenants": true}'::jsonb,
-      true)
+SET "modulePermissions" = jsonb_set(COALESCE("modulePermissions", '{}'::jsonb), '{allAccess}', 'true'::jsonb, true)
 WHERE "roleType" = 'PLATFORM_ADMIN';
-
--- ---------------------------------------------------------------------------
--- 5. SUPERADMINS: hbnoboa, viviane, paulo (ios-risk) -> cargo "Super Admin" (PLATFORM_ADMIN).
---    Aponta User.customRoleId E a membership para o role Super Admin (cmli1g12100014hslvbgvb21h).
---    Henrique já está; Viviane/Paulo sobem de ADMIN.
--- ---------------------------------------------------------------------------
-WITH sa AS (
-  SELECT r.id AS role_id FROM "CustomRole" r
-  WHERE r."roleType" = 'PLATFORM_ADMIN' AND r.name = 'Super Admin'
-  LIMIT 1
-), targets AS (
-  SELECT u.id AS user_id FROM "User" u
-  WHERE u.email IN ('hbnoboa@iosrisk.com.br', 'viviane@iosrisk.com.br', 'noboa@iosrisk.com.br')
-)
-UPDATE "User" u SET "customRoleId" = (SELECT role_id FROM sa)
-FROM targets WHERE u.id = targets.user_id;
-
-WITH sa AS (
-  SELECT r.id AS role_id FROM "CustomRole" r
-  WHERE r."roleType" = 'PLATFORM_ADMIN' AND r.name = 'Super Admin' LIMIT 1
-), targets AS (
-  SELECT u.id AS user_id FROM "User" u
-  WHERE u.email IN ('hbnoboa@iosrisk.com.br', 'viviane@iosrisk.com.br', 'noboa@iosrisk.com.br')
-)
-UPDATE "UserTenantAccess" a SET "customRoleId" = (SELECT role_id FROM sa)
-FROM targets WHERE a."userId" = targets.user_id;
 
 -- ---------------------------------------------------------------------------
 -- DRY-RUN: confira ANTES de commitar
@@ -114,11 +85,11 @@ FROM targets WHERE a."userId" = targets.user_id;
 \echo '--- cargos: rank + allAccess + platform ---'
 SELECT t.slug, r.name, r."roleType", r."rank",
        (r."modulePermissions" ->> 'allAccess') AS all_access,
-       (r."modulePermissions" -> 'platform') IS NOT NULL AS has_platform
+       (r."modulePermissions" -> 'platform') IS NOT NULL AS has_platform  -- deve ser sempre false
 FROM "CustomRole" r JOIN "Tenant" t ON t.id = r."tenantId"
 WHERE t.slug IN ('ios-risk','jbs','nexus') ORDER BY t.slug, r."rank";
 
-\echo '--- superadmins pedidos ---'
+\echo '--- equipe IOS (cargo na propria empresa) ---'
 SELECT u.email, cr.name AS cargo, cr."roleType", cr."rank"
 FROM "User" u LEFT JOIN "CustomRole" cr ON cr.id = u."customRoleId"
 WHERE u.email IN ('hbnoboa@iosrisk.com.br','viviane@iosrisk.com.br','noboa@iosrisk.com.br');

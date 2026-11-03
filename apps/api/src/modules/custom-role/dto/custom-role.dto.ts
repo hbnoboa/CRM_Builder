@@ -1,4 +1,4 @@
-import { IsString, IsOptional, IsBoolean, IsArray, ValidateNested, IsIn, IsInt, Min, Allow, IsObject } from 'class-validator';
+import { IsString, IsOptional, IsBoolean, IsArray, ValidateNested, IsIn, IsInt, Min, Allow, IsObject, ArrayMinSize } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional, PartialType } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import { PermissionScope } from '@crm-builder/shared';
@@ -226,12 +226,6 @@ export class ModulePermissionsDto {
   @ValidateNested()
   @Type(() => ModulePermissionDto)
   @IsOptional()
-  tenants?: ModulePermissionDto;
-
-  @ApiPropertyOptional({ type: ModulePermissionDto })
-  @ValidateNested()
-  @Type(() => ModulePermissionDto)
-  @IsOptional()
   data?: ModulePermissionDto;
 
   @ApiPropertyOptional({ type: ModulePermissionDto })
@@ -241,31 +235,7 @@ export class ModulePermissionsDto {
   roles?: ModulePermissionDto;
 }
 
-export class TenantPermissionsDto {
-  @ApiPropertyOptional({
-    default: false,
-    description: 'Se true, pode acessar todos os tenants (apenas PLATFORM_ADMIN)'
-  })
-  @IsBoolean()
-  @IsOptional()
-  canAccessAllTenants?: boolean;
-
-  @ApiPropertyOptional({
-    type: [String],
-    description: 'Lista de IDs de tenants permitidos (se canAccessAllTenants = false)'
-  })
-  @IsArray()
-  @IsString({ each: true })
-  @IsOptional()
-  allowedTenantIds?: string[];
-}
-
 export class CreateCustomRoleDto {
-  @ApiPropertyOptional({ description: 'Tenant ID (apenas PLATFORM_ADMIN pode especificar)' })
-  @IsString()
-  @IsOptional()
-  tenantId?: string;
-
   @ApiProperty({ example: 'Vendedor' })
   @IsString()
   name: string;
@@ -297,23 +267,14 @@ export class CreateCustomRoleDto {
   permissions: EntityPermissionDto[];
 
   // modulePermissions é JSON flexível (módulos + submódulos aninhados + chaves
-  // especiais como `platform`). NÃO usar DTO whitelistado aqui: com whitelist:true
-  // qualquer chave não declarada (platform, automations, templates, logs, archive…)
+  // especiais como `allAccess`). NÃO usar DTO whitelistado aqui: com whitelist:true
+  // qualquer chave não declarada (allAccess, automations, templates, logs, archive…)
   // era SILENCIOSAMENTE removida, descartando permissões a cada save. A validação
   // semântica/anti-escalada acontece no service (assertPermissionsSubset).
   @ApiPropertyOptional({ type: Object })
   @IsObject()
   @IsOptional()
   modulePermissions?: Record<string, unknown>;
-
-  @ApiPropertyOptional({
-    type: TenantPermissionsDto,
-    description: 'Permissoes de tenant (apenas para PLATFORM_ADMIN)'
-  })
-  @ValidateNested()
-  @Type(() => TenantPermissionsDto)
-  @IsOptional()
-  tenantPermissions?: TenantPermissionsDto;
 
   @ApiPropertyOptional({ default: false })
   @IsBoolean()
@@ -323,7 +284,7 @@ export class CreateCustomRoleDto {
   @ApiPropertyOptional({
     minimum: 1,
     description:
-      'Rank de governanca (numero MENOR = mais poder; 1 = topo). Um ator nao-plataforma so cria/edita cargos de rank estritamente MAIOR que o seu. Se omitido, recebe um rank subordinado ao do criador.',
+      'Rank de governanca (numero MENOR = mais poder; 1 = topo). Um ator so cria/edita cargos de rank estritamente MAIOR que o seu. Se omitido, recebe um rank subordinado ao do criador.',
   })
   @IsInt()
   @Min(1)
@@ -363,9 +324,12 @@ export class QueryCustomRoleDto {
   @IsString()
   @IsOptional()
   sortOrder?: 'asc' | 'desc';
+}
 
-  @ApiPropertyOptional({ description: 'Tenant ID para cross-tenant browsing (PLATFORM_ADMIN)' })
-  @IsString()
-  @IsOptional()
-  tenantId?: string;
+export class ReorderCustomRolesDto {
+  @ApiProperty({ description: 'Cargos abaixo do seu, do mais alto ao mais baixo', type: [String] })
+  @IsArray()
+  @ArrayMinSize(1)
+  @IsString({ each: true })
+  orderedIds: string[];
 }

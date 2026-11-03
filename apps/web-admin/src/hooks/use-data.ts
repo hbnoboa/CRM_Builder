@@ -116,13 +116,11 @@ export function useCreateEntityData(messages?: MutationMessages) {
       entitySlug,
       data,
       parentRecordId,
-      tenantId,
     }: {
       entitySlug: string;
       data: Record<string, unknown>;
       parentRecordId?: string;
-      tenantId?: string;
-    }) => dataService.create(entitySlug, data, parentRecordId, tenantId),
+    }) => dataService.create(entitySlug, data, parentRecordId),
     onSuccess: (_, { entitySlug }) => {
       queryClient.invalidateQueries({
         queryKey: dataKeys.list(entitySlug),
@@ -153,13 +151,11 @@ export function useUpdateEntityData(messages?: MutationMessages) {
       entitySlug,
       id,
       data,
-      tenantId,
     }: {
       entitySlug: string;
       id: string;
       data: Record<string, unknown>;
-      tenantId?: string;
-    }) => dataService.update(entitySlug, id, data, tenantId),
+    }) => dataService.update(entitySlug, id, data),
     onSuccess: (_, { entitySlug, id }) => {
       queryClient.invalidateQueries({
         queryKey: dataKeys.list(entitySlug),

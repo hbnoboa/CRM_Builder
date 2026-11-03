@@ -12,11 +12,6 @@ export class ProcessImportDto {
   })
   @IsObject()
   fieldMapping: Record<string, string>;
-
-  @ApiProperty({ description: 'Tenant ID (opcional para PLATFORM_ADMIN)', required: false })
-  @IsOptional()
-  @IsString()
-  tenantId?: string;
 }
 
 export interface ImportPreview {

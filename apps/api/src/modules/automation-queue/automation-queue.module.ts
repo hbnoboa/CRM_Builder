@@ -1,7 +1,6 @@
 import { Module } from '@nestjs/common';
 import { BullModule } from '@nestjs/bull';
 import { AutomationQueueProcessor } from './automation-queue.processor';
-import { AutomationQueueController } from './automation-queue.controller';
 import { EntityAutomationModule } from '../entity-automation/entity-automation.module';
 
 @Module({
@@ -19,7 +18,8 @@ import { EntityAutomationModule } from '../entity-automation/entity-automation.m
     EntityAutomationModule,
   ],
   providers: [AutomationQueueProcessor],
-  controllers: [AutomationQueueController],
+  // Sem controller: as operacoes sao globais (todas as empresas) e nao cabem em
+  // nenhum cargo de empresa. Se voltarem, entram no console da plataforma.
   exports: [BullModule],
 })
 export class AutomationQueueModule {}

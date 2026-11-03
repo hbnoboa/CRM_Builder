@@ -10,7 +10,6 @@ export interface CreateEntityData {
   category?: string;
   fields?: EntityField[];
   settings?: Record<string, unknown>;
-  tenantId?: string;
 }
 
 export interface UpdateEntityData {
@@ -33,7 +32,6 @@ export interface QueryEntitiesParams {
   page?: number;
   limit?: number;
   search?: string;
-  tenantId?: string;
   cursor?: string;
   sortBy?: string;
   sortOrder?: 'asc' | 'desc';
@@ -79,10 +77,8 @@ export const entitiesService = {
     return response.data;
   },
 
-  async getAllGrouped(tenantId?: string): Promise<EntityGrouped[]> {
-    const params: Record<string, string> = {};
-    if (tenantId) params.tenantId = tenantId;
-    const response = await api.get<EntityGrouped[]>('/entities/grouped', { params });
+  async getAllGrouped(): Promise<EntityGrouped[]> {
+    const response = await api.get<EntityGrouped[]>('/entities/grouped');
     return response.data;
   },
 

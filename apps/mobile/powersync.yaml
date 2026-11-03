@@ -17,7 +17,7 @@ api:
     - !env PS_API_TOKEN
 
 # Client authentication (validates Flutter app JWTs using HS256)
-# JWT claims: sub/user_id, tenantId, customRoleId, platformAdmin
+# JWT claims: sub/user_id, tenantId, customRoleId
 client_auth:
   audience: ["powersync"]
   jwks:
@@ -33,7 +33,7 @@ storage:
   uri: !env PS_MONGO_URI
 
 # Sync rules: define which data each user can access
-# JWT payload: { sub/user_id, tenantId, customRoleId, platformAdmin }
+# JWT payload: { sub/user_id, tenantId, customRoleId }
 #
 # PowerSync supported SQL: =, !=, <, >, AND, OR, NOT, IS NULL, IS NOT NULL
 # PowerSync IN operator: works with JSONB arrays (bucket.param IN json_column)
@@ -45,7 +45,6 @@ storage:
 # 1. unrestricted_entity_data: records every tenant role can read (_hasRoleFilter=false)
 # 2. role_filtered_entity_data: scope='all' — bucket.role_id IN "_visibleToRolesJson"
 # 3. own_entity_data: scope='own' — role_id IN "_visibleToRolesOwnJson" AND createdById = user
-# 4. admin_all_entity_data: platform admins bypass (gated by platformAdmin claim)
 sync_rules:
   content: |
     bucket_definitions:
@@ -114,8 +113,7 @@ sync_rules:
       # Uses PowerSync IN operator on JSONB array column
       # bucket.role_id comes from JWT customRoleId claim
       # _visibleToRolesJson is a JSONB array like ["role-id-1", "role-id-2"]
-      # For same-tenant ADMIN roles, their ID is already in the array.
-      # For cross-tenant PLATFORM_ADMIN, this returns 0 records (handled by bucket 5).
+      # Which roles are in the array is computed by Postgres triggers (server-side).
       role_filtered_entity_data:
         parameters: |
           SELECT
@@ -150,26 +148,6 @@ sync_rules:
               AND "_parentMatchesFilter" = true
               AND "createdById" = bucket.user_id
               AND bucket.role_id IN "_visibleToRolesOwnJson"
-
-      # Bucket 5: platform admins bypass role filters entirely.
-      # A platform admin is cross-tenant — their customRoleId belongs to a
-      # different tenant, so it's NOT in _visibleToRolesJson. This bucket gives
-      # them all role-filtered records of the (overridden) tenant.
-      # PowerSync deduplicates if records also match bucket 4.
-      # Gated by the platformAdmin claim (replaces the removed roleType claim).
-      admin_all_entity_data:
-        parameters: |
-          SELECT
-            request.jwt() ->> 'tenantId' as tenant_id
-          WHERE request.jwt() ->> 'platformAdmin' = 'true'
-        data:
-          - SELECT id, "tenantId", "entityId", data, "parentRecordId", "createdById", "updatedById", "createdAt", "updatedAt", "deletedAt"
-            FROM "EntityData"
-            WHERE "tenantId" = bucket.tenant_id
-              AND "deletedAt" IS NULL
-              AND "_matchesGlobalFilter" = true
-              AND "_parentMatchesFilter" = true
-              AND "_hasRoleFilter" = true
 
       # ══════════════════════ CHAT (mobile) ══════════════════════
       # PowerSync: cada data query cobre TODOS os params do bucket; sem OR entre

@@ -42,7 +42,7 @@ class _ExponentialBackoff {
 
 /// Connects PowerSync to the backend:
 /// - fetchCredentials: calls /sync/credentials to get a PowerSync-specific JWT
-///   that includes the effective tenantId (supports PLATFORM_ADMIN tenant switching)
+///   scoped to the user's current tenant (taken from the access token by the API)
 /// - uploadData: sends offline mutations to NestJS API
 ///
 /// Write checkpoints são gerenciados automaticamente pelo PowerSync Service v1.20.5+.
@@ -81,14 +81,10 @@ class CrmPowerSyncConnector extends PowerSyncBackendConnector {
 
     try {
       // Call /sync/credentials to get a PowerSync-specific JWT.
-      // This endpoint returns a token with the effective tenantId
-      // (supports PLATFORM_ADMIN tenant override via selectedTenantId).
+      // The tenant comes from the access token (current tenant of the user).
       final dio = createApiClient();
-      final selectedTenantId = await SecureStorage.getSelectedTenantId();
 
-      final response = await dio.post('/sync/credentials', data: {
-        if (selectedTenantId != null) 'tenantId': selectedTenantId,
-      },);
+      final response = await dio.post('/sync/credentials');
 
       final data = response.data as Map<String, dynamic>;
 
@@ -117,7 +113,7 @@ class CrmPowerSyncConnector extends PowerSyncBackendConnector {
       );
     } catch (e) {
       _logger.e('PowerSync: failed to get sync credentials', error: e);
-      // Fallback: use access token directly (won't have tenant override)
+      // Fallback: use access token directly
       final userId = _extractUserIdFromToken(token);
       _logger.w('PowerSync: using fallback credentials (userId: $userId)');
 

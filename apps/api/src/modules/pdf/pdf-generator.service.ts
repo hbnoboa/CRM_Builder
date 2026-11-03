@@ -651,7 +651,7 @@ export class PdfGeneratorService {
    * Lista historico de geracoes
    */
   async getGenerations(currentUser: CurrentUser, query: QueryPdfGenerationDto) {
-    const targetTenantId = getEffectiveTenantId(currentUser, query.tenantId);
+    const targetTenantId = getEffectiveTenantId(currentUser);
     const limit = Math.min(parseInt(query.limit || String(DEFAULT_LIMIT)), MAX_LIMIT);
 
     const where: Prisma.PdfGenerationWhereInput = {
