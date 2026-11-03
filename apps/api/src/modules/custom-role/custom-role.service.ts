@@ -4,8 +4,9 @@ import { AuditService } from '../audit/audit.service';
 import { PermissionCacheService } from './permission-cache.service';
 import { CreateCustomRoleDto, UpdateCustomRoleDto, QueryCustomRoleDto, DataFilterDto } from './dto/custom-role.dto';
 import { getEffectiveTenantId } from '../../common/utils/tenant.util';
-import { hasPlatformAccess, hasFullTenantAccess } from '../../common/utils/platform-access';
+import { hasFullTenantAccess } from '../../common/utils/platform-access';
 import { assertPermissionsSubset, assertCanActOnRank, assertNotImpersonating } from '../../common/utils/permission-governance';
+import { assertAssignableRole, loadManagedMember } from '../../common/utils/member-governance';
 import { Prisma } from '@prisma/client';
 import {
   CurrentUser,
@@ -97,19 +98,18 @@ export class CustomRoleService {
 
     // RANK: numero MENOR = mais poder. Cargo criado deve ser SUBORDINADO ao criador
     // (rank estritamente MAIOR), senao a governanca trava (cargos no mesmo rank nao
-    // se gerenciam nem podem ser atribuidos). Plataforma define livremente.
-    const isPlatform = hasPlatformAccess(currentUser.customRole?.modulePermissions);
+    // se gerenciam nem podem ser atribuidos).
     const actorRank = currentUser.customRole?.rank ?? 999999;
     let rank: number;
     if (dto.rank !== undefined) {
-      if (!isPlatform && dto.rank <= actorRank) {
+      if (dto.rank <= actorRank) {
         throw new ForbiddenException(
           `Rank invalido: voce so cria cargos de rank maior que o seu (${actorRank}); rank menor/igual concederia poder igual ou superior.`,
         );
       }
       rank = dto.rank;
     } else {
-      rank = isPlatform ? 100 : actorRank + 10;
+      rank = actorRank + 10;
     }
 
     const newRole = await this.prisma.customRole.create({
@@ -146,7 +146,7 @@ export class CustomRoleService {
     const limit = Math.min(MAX_LIMIT, Math.max(1, query.limit || DEFAULT_LIMIT));
     const skip = (page - 1) * limit;
     const { search, cursor, sortBy = 'createdAt', sortOrder = 'desc' } = query;
-    const tenantId = getEffectiveTenantId(currentUser, query.tenantId);
+    const tenantId = getEffectiveTenantId(currentUser);
 
     const where: Prisma.CustomRoleWhereInput = { tenantId, deletedAt: null };
 
@@ -260,7 +260,7 @@ export class CustomRoleService {
     const role = await this.findOne(id, currentUser, requestedTenantId);
 
     // RANK RULE: so edita cargos de rank inferior (numero maior) ao seu.
-    assertCanActOnRank(currentUser.customRole?.modulePermissions, currentUser.customRole?.rank ?? 999999, role.rank ?? 0);
+    assertCanActOnRank(currentUser.customRole?.rank ?? 999999, role.rank ?? 0);
 
     // Proteger roles de sistema: nome nao pode ser alterado
     if (role.isSystem) {
@@ -282,27 +282,13 @@ export class CustomRoleService {
     // Governanca anti-escalada: so concede permissoes que o proprio ator possui.
     if (dto.modulePermissions !== undefined) {
       assertPermissionsSubset(currentUser.customRole?.modulePermissions, dto.modulePermissions, role.modulePermissions);
-
-      // CAPABILITY FLOOR (anti-lockout): nao remover o ultimo acesso de plataforma.
-      // Aplica-se a TODOS (inclusive plataforma) — invariante de seguranca.
-      const hadPlatform = hasPlatformAccess(role.modulePermissions);
-      const willHavePlatform = hasPlatformAccess(dto.modulePermissions);
-      if (hadPlatform && !willHavePlatform) {
-        const others = await this.countActivePlatformUsers(id);
-        if (others === 0) {
-          throw new ForbiddenException(
-            'Capability floor: nao e possivel remover o ultimo acesso de plataforma (lockout).',
-          );
-        }
-      }
     }
 
-    // RANK: ator nao-plataforma so pode mover um cargo para rank estritamente MAIOR
-    // que o seu (nunca igual/abaixo = nao pode criar par ou superior a si).
+    // RANK: ator so pode mover um cargo para rank estritamente MAIOR que o seu
+    // (nunca igual/abaixo = nao pode criar par ou superior a si).
     if (dto.rank !== undefined) {
-      const isPlatform = hasPlatformAccess(currentUser.customRole?.modulePermissions);
       const actorRank = currentUser.customRole?.rank ?? 999999;
-      if (!isPlatform && dto.rank <= actorRank) {
+      if (dto.rank <= actorRank) {
         throw new ForbiddenException(
           `Rank invalido: voce so define rank maior que o seu (${actorRank}).`,
         );
@@ -317,14 +303,12 @@ export class CustomRoleService {
     if (dto.rank !== undefined) data.rank = dto.rank;
     if (dto.permissions !== undefined) data.permissions = dto.permissions as unknown as Prisma.InputJsonValue;
     if (dto.modulePermissions !== undefined) data.modulePermissions = (dto.modulePermissions || {}) as unknown as Prisma.InputJsonValue;
-    if (dto.tenantPermissions !== undefined) data.tenantPermissions = dto.tenantPermissions as unknown as Prisma.InputJsonValue;
 
     // Qualquer mudanca de autorizacao bumpa permsVersion -> tokens ativos com permsV
     // defasado tomam 401 e fazem refresh silencioso (JwtStrategy.ensurePermsFresh).
     const authChanged =
       dto.permissions !== undefined ||
-      dto.modulePermissions !== undefined ||
-      dto.tenantPermissions !== undefined;
+      dto.modulePermissions !== undefined;
     if (authChanged) data.permsVersion = { increment: 1 };
 
     // Entidades cujo filtro/scope mudou -> precisam recomputar a visibilidade do
@@ -419,7 +403,7 @@ export class CustomRoleService {
     const role = await this.findOne(id, currentUser, requestedTenantId);
 
     // RANK RULE: so exclui cargos de rank inferior (numero maior) ao seu.
-    assertCanActOnRank(currentUser.customRole?.modulePermissions, currentUser.customRole?.rank ?? 999999, role.rank ?? 0);
+    assertCanActOnRank(currentUser.customRole?.rank ?? 999999, role.rank ?? 0);
 
     // Roles de sistema nao podem ser excluidas
     if (role.isSystem) {
@@ -448,6 +432,35 @@ export class CustomRoleService {
     }).catch(() => {});
 
     return { message: 'Role excluida com sucesso' };
+  }
+
+  /**
+   * Nova ordem dos cargos ABAIXO do ator (do mais alto ao mais baixo). Os niveis
+   * viram actorRank+10, +20... — a tela mostra so a ordem, nunca o numero.
+   */
+  async reorder(orderedIds: string[], currentUser: CurrentUser) {
+    assertNotImpersonating(currentUser, 'reordenar cargos');
+    const actorRank = currentUser.customRole?.rank ?? Number.MAX_SAFE_INTEGER;
+    const below = await this.prisma.customRole.findMany({
+      where: { tenantId: currentUser.tenantId, deletedAt: null, rank: { gt: actorRank } },
+      select: { id: true },
+    });
+    const expected = new Set(below.map((r) => r.id));
+    if (orderedIds.length !== expected.size || new Set(orderedIds).size !== expected.size || orderedIds.some((id) => !expected.has(id))) {
+      throw new BadRequestException('Envie todos os cargos abaixo do seu, cada um uma vez');
+    }
+
+    await this.prisma.$transaction(
+      orderedIds.map((id, index) =>
+        this.prisma.customRole.update({ where: { id }, data: { rank: actorRank + 10 * (index + 1) } }),
+      ),
+    );
+    this.auditService.log(currentUser, {
+      action: 'update',
+      resource: 'custom_role',
+      metadata: { subAction: 'reorder', orderedIds },
+    }).catch(() => {});
+    return { success: true };
   }
 
   async assignToUser(
@@ -483,9 +496,13 @@ export class CustomRoleService {
     // Governanca anti-escalada: so atribui cargo cujas permissoes o ator possui
     // e de rank inferior (numero maior) ao seu.
     assertPermissionsSubset(currentUser.customRole?.modulePermissions, role.modulePermissions);
-    assertCanActOnRank(currentUser.customRole?.modulePermissions, currentUser.customRole?.rank ?? 999999, role.rank ?? 0);
 
-    // Verificar se o usuário (identidade) existe
+    // So troca o cargo de quem ja e membro desta empresa e esta abaixo do ator
+    // (adicionar gente nova passa por /users, que respeita o limite do plano).
+    const target = await loadManagedMember(this.prisma, currentUser, userId);
+    if (target.isSelf) throw new ForbiddenException('Voce nao pode mudar o proprio cargo');
+    await assertAssignableRole(this.prisma, currentUser, roleId);
+
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
       select: { id: true, name: true, email: true },
@@ -493,11 +510,9 @@ export class CustomRoleService {
     if (!user) throw new NotFoundException('Usuário não encontrado');
 
     // Membership autoritativa (#10): o cargo do usuario no tenant VIVE aqui.
-    // Cria (= adiciona ao tenant) ou atualiza o vinculo. expiresAt opcional.
-    await this.prisma.userTenantAccess.upsert({
-      where: { userId_tenantId: { userId, tenantId } },
-      update: { customRoleId: roleId, deletedAt: null, expiresAt: expiresAtDate },
-      create: { userId, tenantId, customRoleId: roleId, status: 'ACTIVE', expiresAt: expiresAtDate },
+    await this.prisma.userTenantAccess.update({
+      where: { id: target.membership.id },
+      data: { customRoleId: roleId, expiresAt: expiresAtDate },
     });
 
     const updatedUser = {
@@ -533,6 +548,8 @@ export class CustomRoleService {
       select: { customRoleId: true },
     });
     if (!membership) throw new NotFoundException('Usuario nao pertence a este tenant');
+    const target = await loadManagedMember(this.prisma, currentUser, userId);
+    if (target.isSelf) throw new ForbiddenException('Voce nao pode mudar o proprio cargo');
 
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
@@ -598,7 +615,7 @@ export class CustomRoleService {
 
   /**
    * Verifica se um usuario tem permissao para uma entidade especifica.
-   * Decisao por permissao (platform access OU permissions[]/'*'), nunca por roleType.
+   * Decisao por permissao (allAccess OU permissions[]/'*'), nunca por roleType.
    */
   async hasEntityPermission(
     userId: string,
@@ -608,11 +625,8 @@ export class CustomRoleService {
     const m = await this.resolveMembershipRole(userId);
     if (!m || !m.customRole) return false;
 
-    // Acesso de plataforma (cross-tenant) ou acesso total ao tenant libera tudo.
-    if (
-      hasPlatformAccess(m.customRole.modulePermissions) ||
-      hasFullTenantAccess(m.customRole.modulePermissions)
-    ) {
+    // Acesso total ao tenant libera tudo.
+    if (hasFullTenantAccess(m.customRole.modulePermissions)) {
       return true;
     }
 
@@ -634,11 +648,8 @@ export class CustomRoleService {
     const m = await this.resolveMembershipRole(userId);
     if (!m || !m.customRole) return null;
 
-    // Acesso de plataforma OU acesso total ao tenant vê tudo.
-    if (
-      hasPlatformAccess(m.customRole.modulePermissions) ||
-      hasFullTenantAccess(m.customRole.modulePermissions)
-    ) {
+    // Acesso total ao tenant vê tudo.
+    if (hasFullTenantAccess(m.customRole.modulePermissions)) {
       return 'all';
     }
 
@@ -651,7 +662,7 @@ export class CustomRoleService {
 
   /**
    * Retorna as permissoes por campo para uma entidade.
-   * Retorna null se nao houver restricoes (PLATFORM_ADMIN, ADMIN, ou fieldPermissions vazio).
+   * Retorna null se nao houver restricoes (allAccess ou fieldPermissions vazio).
    */
   async getFieldPermissions(
     userId: string,
@@ -660,11 +671,8 @@ export class CustomRoleService {
     const m = await this.resolveMembershipRole(userId);
     if (!m || !m.customRole) return null;
 
-    // Acesso de plataforma OU acesso total ao tenant vê todos os campos (sem restrição).
-    if (
-      hasPlatformAccess(m.customRole.modulePermissions) ||
-      hasFullTenantAccess(m.customRole.modulePermissions)
-    ) {
+    // Acesso total ao tenant vê todos os campos (sem restrição).
+    if (hasFullTenantAccess(m.customRole.modulePermissions)) {
       return null;
     }
 
@@ -678,7 +686,7 @@ export class CustomRoleService {
   }
 
   /**
-   * Retorna as entidades acessiveis (canRead): '*' = TODAS (platform access ou
+   * Retorna as entidades acessiveis (canRead): '*' = TODAS (allAccess ou
    * coringa em permissions[]), ou a lista explicita de slugs. Quem chama trata '*'
    * como "sem filtro de slug" (escopo de tenant ja aplicado no caller).
    */
@@ -686,11 +694,8 @@ export class CustomRoleService {
     const m = await this.resolveMembershipRole(userId);
     if (!m || !m.customRole) return [];
 
-    // Acesso de plataforma OU acesso total ao tenant vê todas as entidades.
-    if (
-      hasPlatformAccess(m.customRole.modulePermissions) ||
-      hasFullTenantAccess(m.customRole.modulePermissions)
-    ) {
+    // Acesso total ao tenant vê todas as entidades.
+    if (hasFullTenantAccess(m.customRole.modulePermissions)) {
       return '*';
     }
 
@@ -740,12 +745,9 @@ export class CustomRoleService {
     // Cache miss - buscar do banco
     let modulePermissions: NormalizedModulePermissions;
 
-    // Acesso de plataforma OU acesso total ao tenant tem CRUD em tudo. (Módulos futuros
+    // Acesso total ao tenant tem CRUD em tudo. (Módulos futuros
     // são cobertos dinamicamente pelo bypass no guard/hook; aqui é só o retrato de display.)
-    if (
-      hasPlatformAccess(user.customRole.modulePermissions) ||
-      hasFullTenantAccess(user.customRole.modulePermissions)
-    ) {
+    if (hasFullTenantAccess(user.customRole.modulePermissions)) {
       modulePermissions = {
         dashboard: FULL_CRUD,
         users: FULL_CRUD,
@@ -753,7 +755,6 @@ export class CustomRoleService {
         apis: FULL_CRUD,
         pages: FULL_CRUD,
         entities: FULL_CRUD,
-        tenants: FULL_CRUD,
       };
     } else {
       // Demais roles: usar modulePermissions configuradas (normalizado de boolean → CRUD)
@@ -772,33 +773,14 @@ export class CustomRoleService {
   /**
    * Retorna os filtros de dados da role para uma entidade especifica.
    * Fonte unica: permissions[].dataFilters (inline por entidade).
-   * PLATFORM_ADMIN/ADMIN retornam [] (sem filtros).
+   * Cargos com allAccess retornam [] (sem filtros).
    */
-  /** Conta usuarios ativos com acesso de plataforma (platform.crossTenant), excluindo um cargo. */
-  private async countActivePlatformUsers(excludeRoleId?: string): Promise<number> {
-    // Identidade global (#10): acesso de plataforma vem da membership.
-    const rows = await this.prisma.userTenantAccess.findMany({
-      where: {
-        status: 'ACTIVE',
-        deletedAt: null,
-        ...(excludeRoleId ? { customRoleId: { not: excludeRoleId } } : {}),
-        customRole: {
-          modulePermissions: { path: ['platform', 'crossTenant'], equals: true },
-        },
-        user: { status: 'ACTIVE', deletedAt: null },
-      },
-      select: { userId: true },
-      distinct: ['userId'],
-    });
-    return rows.length;
-  }
-
   getRoleDataFilters(
     customRole: { permissions: unknown; modulePermissions?: unknown },
     entitySlug: string,
   ): DataFilterDto[] {
-    // Acesso de plataforma nao tem filtros por role.
-    if (hasPlatformAccess(customRole.modulePermissions)) {
+    // Acesso total ao tenant nao tem filtros por role.
+    if (hasFullTenantAccess(customRole.modulePermissions)) {
       return [];
     }
 

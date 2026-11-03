@@ -11,7 +11,6 @@ import { Prisma } from '@prisma/client';
 import { CurrentUser } from '../../common/types/auth.types';
 import { QueryAuditLogDto } from './dto/audit-log.dto';
 import { buildCursorResponse } from '../../common/utils/cursor-pagination.util';
-import { hasPlatformAccess } from '../../common/utils/platform-access';
 
 export type AuditAction = 'create' | 'update' | 'delete';
 export type AuditResource =
@@ -80,9 +79,8 @@ export class AuditService {
     const log = await this.prisma.auditLog.findUnique({ where: { id: auditLogId } });
     if (!log) throw new NotFoundException('Audit log nao encontrado');
 
-    // Multi-tenant: so reverte log do proprio tenant (salvo acesso de plataforma).
-    const isPlatform = hasPlatformAccess(user.customRole?.modulePermissions);
-    if (!isPlatform && log.tenantId !== user.tenantId) {
+    // Multi-tenant: so reverte log do proprio tenant.
+    if (log.tenantId !== user.tenantId) {
       throw new NotFoundException('Audit log nao encontrado');
     }
 
@@ -164,11 +162,12 @@ export class AuditService {
   }
 
   /**
-   * Query audit logs with pagination and filters. PLATFORM_ADMIN only.
+   * Query audit logs with pagination and filters. SEMPRE escopado ao tenant informado
+   * (o tenant ativo do caller) — nunca lista logs de outros tenants.
    * Busca em AuditLog (ativos) e ArchivedAuditLog (arquivados) quando necessário.
    */
-  async findAll(query: QueryAuditLogDto) {
-    const { page = 1, limit = 50, cursor, tenantId, action, resource, userId, dateFrom, dateTo, search } = query;
+  async findAll(tenantId: string, query: QueryAuditLogDto) {
+    const { page = 1, limit = 50, cursor, action, resource, userId, dateFrom, dateTo, search } = query;
     const skip = (page - 1) * limit;
     const useCursor = !!cursor;
 
@@ -179,13 +178,9 @@ export class AuditService {
     const needsArchived = dateFrom && new Date(dateFrom) < archiveCutoffDate;
 
     // Construir where clause
-    const where: Prisma.AuditLogWhereInput = {};
-    const whereArchived: Prisma.ArchivedAuditLogWhereInput = {};
+    const where: Prisma.AuditLogWhereInput = { tenantId };
+    const whereArchived: Prisma.ArchivedAuditLogWhereInput = { tenantId };
 
-    if (tenantId) {
-      where.tenantId = tenantId;
-      whereArchived.tenantId = tenantId;
-    }
     if (action) {
       where.action = action;
       whereArchived.action = action;

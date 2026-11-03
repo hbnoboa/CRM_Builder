@@ -1,29 +1,26 @@
 import { ServiceScope } from '../../common/service-scope/service-scope.decorator';
 import {
-  Controller, Get, Post, Patch, Delete, Body, Param, Query, UseGuards, ForbiddenException,
+  Controller, Get, Post, Patch, Delete, Body, Param, Query, UseGuards, ForbiddenException, HttpCode, HttpStatus,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiResponse } from '@nestjs/swagger';
 import { CustomRoleService } from './custom-role.service';
 import { PermissionCacheService } from './permission-cache.service';
-import { CreateCustomRoleDto, UpdateCustomRoleDto, QueryCustomRoleDto } from './dto/custom-role.dto';
+import { CreateCustomRoleDto, UpdateCustomRoleDto, QueryCustomRoleDto, ReorderCustomRolesDto } from './dto/custom-role.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { ModulePermissionGuard } from '../../common/guards/module-permission.guard';
 import { RequireModulePermission } from '../../common/decorators/module-permission.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { CurrentUser as CurrentUserType } from '../../common/types';
-import { hasPlatformAccess, hasFullTenantAccess } from '../../common/utils/platform-access';
+import { hasFullTenantAccess } from '../../common/utils/platform-access';
 
 function assertAdminRole(user: CurrentUserType): void {
-  // Gerir cargos = permissão (platform, acesso total ao tenant, OU roles.canUpdate).
-  if (
-    hasPlatformAccess(user.customRole?.modulePermissions) ||
-    hasFullTenantAccess(user.customRole?.modulePermissions)
-  ) {
+  // Gerir cargos = permissão (acesso total ao tenant OU roles.canUpdate).
+  if (hasFullTenantAccess(user.customRole?.modulePermissions)) {
     return;
   }
   const mp = user.customRole?.modulePermissions as Record<string, Record<string, boolean>> | undefined;
   if (mp?.roles?.canUpdate !== true) {
-    throw new ForbiddenException('Acesso negado. Requer permissão de gerir cargos ou acesso de plataforma.');
+    throw new ForbiddenException('Acesso negado. Requer permissão de gerir cargos.');
   }
 }
 
@@ -43,8 +40,7 @@ export class CustomRoleController {
   @ApiOperation({ summary: 'Criar role customizada' })
   @ApiResponse({ status: 201, description: 'Role criada com sucesso' })
   async create(@Body() dto: CreateCustomRoleDto, @CurrentUser() user: CurrentUserType) {
-    const tenantId = dto.tenantId;
-    return this.customRoleService.create(dto, user, tenantId);
+    return this.customRoleService.create(dto, user);
   }
 
   @Get('my-permissions')
@@ -63,6 +59,14 @@ export class CustomRoleController {
   async findAll(@Query() query: QueryCustomRoleDto, @CurrentUser() user: CurrentUserType) {
     assertAdminRole(user);
     return this.customRoleService.findAll(query, user);
+  }
+
+  @Post('reorder')
+  @RequireModulePermission('roles', 'canUpdate')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Reordenar os cargos abaixo do seu' })
+  async reorder(@Body() dto: ReorderCustomRolesDto, @CurrentUser() user: CurrentUserType) {
+    return this.customRoleService.reorder(dto.orderedIds, user);
   }
 
   @Get(':id')
@@ -85,8 +89,7 @@ export class CustomRoleController {
     @Body() dto: UpdateCustomRoleDto,
     @CurrentUser() user: CurrentUserType,
   ) {
-    const tenantId = dto.tenantId;
-    return this.customRoleService.update(id, dto, user, tenantId);
+    return this.customRoleService.update(id, dto, user);
   }
 
   @Delete(':id')

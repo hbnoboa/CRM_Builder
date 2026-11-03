@@ -17,7 +17,6 @@ import {
 } from '../../common/types';
 import { Prisma } from '@prisma/client';
 import { getEffectiveTenantId } from '../../common/utils/tenant.util';
-import { hasPlatformAccess } from '../../common/utils/platform-access';
 import { buildFilterClause } from '../../common/utils/build-filter-clause';
 import { GlobalFilterDto } from './dto/update-global-filters.dto';
 
@@ -195,10 +194,8 @@ export class EntityService {
     const { search, sortBy = 'name', sortOrder = 'asc', tenantId: queryTenantId, cursor } = query;
 
     // Modelo B: escopo = tenant efetivo (tenant da URL, resolvido em
-    // currentUser.tenantId pelo header X-Tenant-Slug). PLATFORM_ADMIN pode focar
-    // outro tenant passando ?tenantId explicito, mas SEM ele NAO vaza entidades de
-    // todos os tenants (antes ficava sem filtro -> chat/pickers/dashboard mostravam
-    // tabelas de outros tenants). Consistente com findAllGrouped.
+    // currentUser.tenantId pelo header X-Tenant-Slug). Nunca cross-tenant.
+    // Consistente com findAllGrouped.
     const where: Prisma.EntityWhereInput = {
       tenantId: getEffectiveTenantId(currentUser, queryTenantId),
     };
@@ -307,13 +304,11 @@ export class EntityService {
   }
 
   async findAllGrouped(currentUser: CurrentUser, queryTenantId?: string) {
-    // SEMPRE escopa pelo tenant efetivo (resolvido via slug/header ou queryTenantId).
-    // Antes, platform sem queryTenantId ficava SEM filtro -> listava entidades de TODOS
-    // os tenants (bug da sidebar mostrando tabelas do tenant errado).
+    // SEMPRE escopa pelo tenant ativo do usuario (resolvido via slug/header).
     const effectiveTenantId = getEffectiveTenantId(currentUser, queryTenantId);
     const where: Prisma.EntityWhereInput = { tenantId: effectiveTenantId };
 
-    // Permission-driven: '*' (platform/coringa) = todas as tabelas do tenant;
+    // Permission-driven: '*' (allAccess/coringa) = todas as tabelas do tenant;
     // senao restringe aos slugs com canRead em permissions[]. Sem roleType.
     const accessible = await this.customRoleService.getUserAccessibleEntities(currentUser.id);
     if (accessible !== '*') {
@@ -407,7 +402,7 @@ export class EntityService {
     };
 
     // Escopo permission-driven: 'all' => sem restricao; senao (own/sem acesso) só
-    // os registros do proprio usuario. Platform access => getEntityScope retorna 'all'.
+    // os registros do proprio usuario. allAccess => getEntityScope retorna 'all'.
     const scope = await this.customRoleService.getEntityScope(user.id, entity.slug);
     if (scope !== 'all') {
       where.createdById = user.id;
@@ -428,7 +423,7 @@ export class EntityService {
     }
 
     // Filtros de dados por role (permissions[].dataFilters)
-    if (!hasPlatformAccess(user.customRole?.modulePermissions) && user.customRole) {
+    if (user.customRole) {
       const roleFilters = this.customRoleService.getRoleDataFilters(
         user.customRole as { permissions: unknown; modulePermissions?: unknown },
         entity.slug,
@@ -481,19 +476,9 @@ export class EntityService {
     return { parentEntityId: null, parentEntitySlug: null, parentEntityName: null };
   }
 
-  async findBySlug(slug: string, currentUser: CurrentUser, tenantId?: string) {
-    // PLATFORM_ADMIN pode buscar entidade de qualquer tenant se nao especificar tenantId
-    const where: Prisma.EntityWhereInput = { slug };
-
-    if (hasPlatformAccess(currentUser.customRole?.modulePermissions)) {
-      // Se tenantId for especificado, filtra por ele; senao, busca em qualquer tenant
-      if (tenantId) {
-        where.tenantId = tenantId;
-      }
-    } else {
-      // Usuarios normais sempre filtram pelo proprio tenant
-      where.tenantId = currentUser.tenantId;
-    }
+  // `_tenantId` ignorado: sempre filtra pelo tenant ativo do usuario.
+  async findBySlug(slug: string, currentUser: CurrentUser, _tenantId?: string) {
+    const where: Prisma.EntityWhereInput = { slug, tenantId: currentUser.tenantId };
 
     const entity = await this.prisma.entity.findFirst({
       where,
@@ -544,11 +529,7 @@ export class EntityService {
   }
 
   async findOne(id: string, currentUser: CurrentUser) {
-    // PLATFORM_ADMIN pode ver entidade de qualquer tenant
-    const whereClause: Prisma.EntityWhereInput = { id };
-    if (!hasPlatformAccess(currentUser.customRole?.modulePermissions)) {
-      whereClause.tenantId = currentUser.tenantId;
-    }
+    const whereClause: Prisma.EntityWhereInput = { id, tenantId: currentUser.tenantId };
 
     const entity = await this.prisma.entity.findFirst({
       where: whereClause,
@@ -827,10 +808,7 @@ export class EntityService {
 
   /** Restaura uma entidade (tabela) soft-deletada + sub-entidades e registros da mesma operacao. */
   async restore(id: string, currentUser: CurrentUser) {
-    const where: Prisma.EntityWhereInput = { id, deletedAt: { not: null } };
-    if (!hasPlatformAccess(currentUser.customRole?.modulePermissions)) {
-      where.tenantId = currentUser.tenantId;
-    }
+    const where: Prisma.EntityWhereInput = { id, deletedAt: { not: null }, tenantId: currentUser.tenantId };
     const entity = await this.prisma.entity.findFirst({ where });
     if (!entity) throw new NotFoundException('Entidade soft-deletada nao encontrada');
 

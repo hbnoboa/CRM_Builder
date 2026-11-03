@@ -25,17 +25,21 @@ export class AuditController {
   ) {}
 
   @Get()
-  @ApiOperation({ summary: 'Listar audit logs (PLATFORM_ADMIN only)' })
-  async findAll(@Query() query: QueryAuditLogDto) {
-    return this.auditService.findAll(query);
+  @ApiOperation({ summary: 'Listar audit logs do tenant atual' })
+  async findAll(@Query() query: QueryAuditLogDto, @CurrentUser() user: CurrentUserType) {
+    return this.auditService.findAll(user.tenantId, query);
   }
 
   @Get('export')
-  @ApiOperation({ summary: 'Exportar audit logs como JSON' })
-  async exportLogs(@Query() query: ExportAuditLogDto, @Res() res: Response) {
-    const where: Prisma.AuditLogWhereInput = {};
+  @ApiOperation({ summary: 'Exportar audit logs do tenant atual como JSON' })
+  async exportLogs(
+    @Query() query: ExportAuditLogDto,
+    @CurrentUser() user: CurrentUserType,
+    @Res() res: Response,
+  ) {
+    // Sempre escopado ao tenant do caller (query.tenantId nao existe mais).
+    const where: Prisma.AuditLogWhereInput = { tenantId: user.tenantId };
 
-    if (query.tenantId) where.tenantId = query.tenantId;
     if (query.dateFrom || query.dateTo) {
       where.createdAt = {};
       if (query.dateFrom) (where.createdAt as Prisma.DateTimeFilter).gte = new Date(query.dateFrom);
@@ -56,9 +60,9 @@ export class AuditController {
   // ==========================================
 
   @Get('stats')
-  @ApiOperation({ summary: 'Estatísticas de audit logs (ativos vs arquivados)' })
-  async getStats() {
-    return this.archiveService.getStats();
+  @ApiOperation({ summary: 'Estatísticas de audit logs do tenant atual (ativos vs arquivados)' })
+  async getStats(@CurrentUser() user: CurrentUserType) {
+    return this.archiveService.getStats(user.tenantId);
   }
 
   @Post(':id/revert')
@@ -70,17 +74,17 @@ export class AuditController {
 
   @Post('archive/manual')
   @RequireModulePermission('logs', 'canUpdate', 'auditLogs')
-  @ApiOperation({ summary: 'Arquivar logs manualmente (admin)' })
-  async manualArchive(@Query('daysOld') daysOld?: string) {
+  @ApiOperation({ summary: 'Arquivar logs do tenant atual manualmente (admin)' })
+  async manualArchive(@CurrentUser() user: CurrentUserType, @Query('daysOld') daysOld?: string) {
     const days = daysOld ? parseInt(daysOld, 10) : undefined;
-    return this.archiveService.manualArchive(days);
+    return this.archiveService.manualArchive(user.tenantId, days);
   }
 
   @Post('archive/delete')
   @RequireModulePermission('logs', 'canDelete', 'auditLogs')
-  @ApiOperation({ summary: 'Deletar logs arquivados manualmente (admin)' })
-  async manualDelete(@Query('daysOld') daysOld?: string) {
+  @ApiOperation({ summary: 'Deletar logs arquivados do tenant atual manualmente (admin)' })
+  async manualDelete(@CurrentUser() user: CurrentUserType, @Query('daysOld') daysOld?: string) {
     const days = daysOld ? parseInt(daysOld, 10) : undefined;
-    return this.archiveService.manualDelete(days);
+    return this.archiveService.manualDelete(user.tenantId, days);
   }
 }

@@ -4,7 +4,6 @@ import { CustomRoleService } from '../custom-role/custom-role.service';
 import { EntityDataQueryService, type DashboardFilterOptions } from '../../common/services/entity-data-query.service';
 import { CurrentUser } from '../../common/types';
 import { getEffectiveTenantId } from '../../common/utils/tenant.util';
-import { hasPlatformAccess } from '../../common/utils/platform-access';
 import { Prisma, type PrismaClient } from '@prisma/client';
 
 @Injectable()
@@ -18,25 +17,21 @@ export class StatsService {
   ) {}
 
   // Helper: resolve tenantId e roleType a partir do user
+  // Sempre escopado ao tenant ativo do usuario (sem visao global/cross-tenant).
   private resolveContext(user: CurrentUser, queryTenantId?: string) {
-    // roleType removido (Fase 3): sentinel "tenant" so distingue de "platform" no escopo.
+    // roleType removido (Fase 3): mantido so como sentinel para os helpers abaixo.
     const roleType = 'tenant';
-    // Acesso de plataforma = permissao (nao roleType). 'platform' e sentinel interno.
-    const isPlatform = hasPlatformAccess(user.customRole?.modulePermissions);
     const effectiveTenantId = getEffectiveTenantId(user, queryTenantId);
-    const effectiveRole = (isPlatform && queryTenantId) ? 'filtered' : (isPlatform ? 'platform' : roleType);
-    return { effectiveTenantId, roleType, effectiveRole, isPlatform };
+    return { effectiveTenantId, roleType };
   }
 
   // Helper: base where para tenant
-  private getWhere(tenantId: string, effectiveRole: string) {
-    if (effectiveRole === 'platform') return {};
+  private getWhere(tenantId: string) {
     return { tenantId };
   }
 
   /** Identidade global (#10): "usuarios do tenant" = quem tem membership nele. */
-  private getUserWhere(tenantId: string, effectiveRole: string): Prisma.UserWhereInput {
-    if (effectiveRole === 'platform') return {};
+  private getUserWhere(tenantId: string): Prisma.UserWhereInput {
     return { tenantAccess: { some: { tenantId, deletedAt: null } } };
   }
 
@@ -76,7 +71,7 @@ export class StatsService {
   ) {
     const where: Prisma.EntityWhereInput = { tenantId: effectiveTenantId };
 
-    // Permission-driven: '*' (platform/coringa) = todas; senao restringe aos slugs
+    // Permission-driven: '*' (allAccess/coringa) = todas; senao restringe aos slugs
     // com canRead em permissions[]. Sem roleType.
     const accessible = await this.customRoleService.getUserAccessibleEntities(user.id);
     if (accessible !== '*') {
@@ -129,8 +124,8 @@ export class StatsService {
 
 
   async getDashboardStats(user: CurrentUser, queryTenantId?: string) {
-    const { effectiveTenantId, roleType, effectiveRole, isPlatform } = this.resolveContext(user, queryTenantId);
-    const where = this.getWhere(effectiveTenantId, effectiveRole);
+    const { effectiveTenantId, roleType } = this.resolveContext(user, queryTenantId);
+    const where = this.getWhere(effectiveTenantId);
 
     // Buscar entidades acessiveis
     const entities = await this.getAccessibleEntities(user, effectiveTenantId, roleType);
@@ -144,18 +139,12 @@ export class StatsService {
       totalRecords = counts.reduce((sum, c) => sum + c.active + c.archived, 0);
     }
 
-    const [totalUsers, totalTenants] = await Promise.all([
-      this.prisma.user.count({ where: this.getUserWhere(effectiveTenantId, effectiveRole) }),
-      isPlatform
-        ? this.prisma.tenant.count()
-        : Promise.resolve(0),
-    ]);
+    const totalUsers = await this.prisma.user.count({ where: this.getUserWhere(effectiveTenantId) });
 
     return {
       totalEntities: entities.length,
       totalRecords,
       totalUsers,
-      ...(isPlatform ? { totalTenants } : {}),
     };
   }
 
@@ -181,7 +170,7 @@ export class StatsService {
     };
 
     // Escopo own permission-driven (sem roleType): aplica só se alguma entidade
-    // acessível tiver scope 'own'. Platform/canRead-all => 'all' => sem restricao.
+    // acessível tiver scope 'own'. allAccess/canRead-all => 'all' => sem restricao.
     if (await this.hasAnyOwnScope(user, entities)) {
       where.createdById = user.id;
     }
@@ -275,8 +264,8 @@ export class StatsService {
   }
 
   async getUsersActivity(user: CurrentUser, queryTenantId?: string, days: number = 7) {
-    const { effectiveTenantId, effectiveRole } = this.resolveContext(user, queryTenantId);
-    const where = this.getUserWhere(effectiveTenantId, effectiveRole);
+    const { effectiveTenantId } = this.resolveContext(user, queryTenantId);
+    const where = this.getUserWhere(effectiveTenantId);
 
     const users = await this.prisma.user.findMany({
       where,
@@ -1407,8 +1396,8 @@ export class StatsService {
   }
 
   async getRecentActivity(user: CurrentUser, queryTenantId?: string, limit: number = 10) {
-    const { effectiveTenantId, roleType, effectiveRole } = this.resolveContext(user, queryTenantId);
-    const where = this.getWhere(effectiveTenantId, effectiveRole);
+    const { effectiveTenantId, roleType } = this.resolveContext(user, queryTenantId);
+    const where = this.getWhere(effectiveTenantId);
 
     // Para entidades, filtrar pelas acessiveis
     const entities = await this.getAccessibleEntities(user, effectiveTenantId, roleType);

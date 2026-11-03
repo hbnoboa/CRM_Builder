@@ -2,6 +2,22 @@
   "slugAlreadyExists": "Slug is already in use",
   "notFound": "Tenant not found",
   "deletedSuccessfully": "Tenant deleted successfully",
-  "initialRoleName": "Initial Admin",
-  "initialRoleDescription": "Initial role created automatically. Configure the appropriate permissions."
+  "roles": {
+    "admin": {
+      "name": "Administrator",
+      "description": "Full access to the company: tables, users, roles and settings."
+    },
+    "manager": {
+      "name": "Manager",
+      "description": "Sees and edits every record and oversees the team."
+    },
+    "operator": {
+      "name": "Operator",
+      "description": "Creates and edits their own records. Default role for new users."
+    },
+    "viewer": {
+      "name": "Viewer",
+      "description": "Read-only access to records and dashboards."
+    }
+  }
 }

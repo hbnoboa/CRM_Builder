@@ -5,7 +5,6 @@ import { ConfigService } from '@nestjs/config';
 import { Request } from 'express';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { JwtPayload, CurrentUser } from '../../../common/types/auth.types';
-import { hasPlatformAccess } from '../../../common/utils/platform-access';
 
 type RoleSel = {
   id: string;
@@ -148,22 +147,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       );
     }
 
-    // Sem membership no tenant solicitado: acesso de PLATAFORMA (cross-tenant)
-    // vale se QUALQUER membership do usuario tiver platform.* (equipe SegMob).
-    const platformMembership = memberships.find((m) =>
-      hasPlatformAccess(m.customRole.modulePermissions),
-    );
-    if (platformMembership) {
-      this.ensurePermsFresh(payload, platformMembership.customRole as RoleSel);
-      return this.buildCurrentUser(
-        user,
-        requestedTenantId,
-        platformMembership.customRoleId,
-        platformMembership.customRole as RoleSel,
-        payload.impersonatedBy,
-      );
-    }
-
+    // Sem membership no tenant solicitado: nunca entra (cross-tenant so pelo console).
     throw new UnauthorizedException('Sem acesso a este tenant');
   }
 

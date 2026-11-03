@@ -40,7 +40,7 @@ export interface JwtPayload {
   email: string;
   tenantId: string;
   customRoleId: string;
-  roleId?: string; // Same as customRoleId, used for PLATFORM_ADMIN validation
+  roleId?: string; // Same as customRoleId (legacy claim)
   permsV?: number; // versao das permissoes do cargo (refresh silencioso quando defasa)
   impersonatedBy?: { id: string; name: string }; // sessao de impersonacao
   iat?: number;

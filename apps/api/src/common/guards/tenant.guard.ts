@@ -1,11 +1,10 @@
 import { Injectable, CanActivate, ExecutionContext, ForbiddenException } from '@nestjs/common';
-import { hasPlatformAccess } from '../utils/platform-access';
 
 /**
  * Guard que valida isolamento multi-tenant
  *
  * Verifica se o usuario esta tentando acessar recursos do seu proprio tenant.
- * PLATFORM_ADMIN pode acessar qualquer tenant.
+ * Nao ha excecao: acesso cross-tenant so existe no console da plataforma.
  *
  * Uso: @UseGuards(JwtAuthGuard, TenantGuard)
  */
@@ -17,11 +16,6 @@ export class TenantGuard implements CanActivate {
 
     if (!user) {
       throw new ForbiddenException('Usuario nao autenticado');
-    }
-
-    // Acesso de plataforma (permissao) pode acessar qualquer tenant. (Antes: roleType.)
-    if (hasPlatformAccess(user.customRole?.modulePermissions)) {
-      return true;
     }
 
     // Extrair tenantId da requisicao (params, query ou body)

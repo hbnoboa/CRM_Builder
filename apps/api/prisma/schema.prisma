@@ -79,6 +79,10 @@ model Tenant {
   // Armazenamento usado (KB) — somado/subtraido no upload/exclusao; o console
   // recalcula a partir dos arquivos reais (inclui os anteriores ao contador).
   storageUsedKb    Int             @default(0)
+  // Dono da empresa: contato de plano/suporte. Nao pode ser removido nem rebaixado
+  // pelos outros admins do tenant; troca so pelo proprio dono ou pelo console.
+  ownerId          String?
+  owner            User?           @relation("TenantOwner", fields: [ownerId], references: [id], onDelete: SetNull)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -110,6 +114,7 @@ model Tenant {
   @@index([status])
   @@index([lifecycle])
   @@index([planId])
+  @@index([ownerId])
   deletedAt DateTime?
 }
 
@@ -234,6 +239,7 @@ model User {
 
   // Vinculo com tenants (fonte da verdade de tenant + cargo)
   tenantAccess UserTenantAccess[]
+  ownedTenants Tenant[]           @relation("TenantOwner")
 
   @@index([email])
   @@index([cpf])

@@ -1,11 +1,12 @@
 import { ForbiddenException } from '@nestjs/common';
-import { hasPlatformAccess, hasFullTenantAccess } from './platform-access';
+import { hasFullTenantAccess } from './platform-access';
 
 // Governanca anti-escalada de privilegio.
 // SUBSET RULE: ninguem concede (cria/edita/atribui) uma permissao que ele proprio
-// nao tem. Quem tem acesso de plataforma tem tudo -> concede qualquer coisa.
+// nao tem. Quem tem allAccess possui tudo DO TENANT -> concede qualquer coisa dentro dele.
 
-// Modulos que dao poder sobre OUTRAS empresas (fora do proprio tenant).
+// Modulos que dao poder sobre OUTRAS empresas (fora do proprio tenant). Bloqueio
+// INCONDICIONAL: ninguem os concede num cargo de tenant (vivem so no console da plataforma).
 const ABOVE_TENANT_MODULES = ['platform', 'tenants'] as const;
 
 // Retorna o caminho da primeira permissao pedida que o ator NAO tem (ou null).
@@ -31,23 +32,14 @@ function firstMissing(actor: unknown, requested: unknown): string | null {
 export function assertPermissionsSubset(
   actorModulePermissions: unknown,
   requestedModulePermissions: unknown,
-  // Na edicao: valores ja existentes no cargo podem ser mantidos sem o ator possui-los.
-  currentModulePermissions?: unknown,
+  // Antes liberava manter platform.*/tenants ja existentes; hoje ignorado (bloqueio incondicional).
+  _currentModulePermissions?: unknown,
 ): void {
-  // Poder ACIMA do tenant (platform.* = cross-tenant/impersonar; tenants = gerir
-  // TODAS as empresas) nunca vem do allAccess: um admin de tenant (todo cadastro
-  // self-service e um) nao pode se dar acesso aos dados de outras empresas.
-  // So concede quem ja tem exatamente aquilo (subset estrito).
+  // Poder ACIMA do tenant (platform.*, tenants) nunca pode ser concedido num cargo
+  // de tenant, por ninguem. So bloqueia se o pedido liga algo (valor `true`).
   const requested = (requestedModulePermissions || {}) as Record<string, unknown>;
-  const actor = (actorModulePermissions || {}) as Record<string, unknown>;
-  const current = (currentModulePermissions || {}) as Record<string, unknown>;
   for (const key of ABOVE_TENANT_MODULES) {
-    if (requested[key] === undefined || requested[key] === false) continue;
-    // Mantendo (ou reduzindo) o que o cargo ja tinha: nao e concessao nova.
-    if (firstMissing(current[key], requested[key]) === null) continue;
-    // Quem ja e cross-tenant ja alcanca a gestao de tenants.
-    if (key === 'tenants' && hasPlatformAccess(actorModulePermissions)) continue;
-    const missing = firstMissing(actor[key], requested[key]);
+    const missing = firstMissing(undefined, requested[key]);
     if (missing !== null) {
       throw new ForbiddenException(
         `Sem permissao para conceder: ${missing ? `${key}.${missing}` : key} (acesso de plataforma so pelo console da plataforma)`,
@@ -55,9 +47,9 @@ export function assertPermissionsSubset(
     }
   }
 
-  // Plataforma tem tudo; acesso total ao tenant (allAccess) possui todos os
-  // modulos/tabelas do tenant -> pode conceder qualquer permissao dentro dele.
-  if (hasPlatformAccess(actorModulePermissions) || hasFullTenantAccess(actorModulePermissions)) return;
+  // Acesso total ao tenant (allAccess) possui todos os modulos/tabelas do tenant ->
+  // pode conceder qualquer permissao dentro dele.
+  if (hasFullTenantAccess(actorModulePermissions)) return;
   const missing = firstMissing(actorModulePermissions, requestedModulePermissions);
   if (missing) {
     throw new ForbiddenException(
@@ -85,14 +77,9 @@ export function assertNotImpersonating(
 /**
  * RANK RULE: voce so age sobre cargos/pessoas de rank ESTRITAMENTE MAIOR
  * (numero maior = menos poder). Rank igual ou menor = intocavel.
- * Quem tem acesso de plataforma age sobre qualquer rank.
+ * Sem excecoes (nao ha mais bypass de plataforma em cargo de tenant).
  */
-export function assertCanActOnRank(
-  actorModulePermissions: unknown,
-  actorRank: number,
-  targetRank: number,
-): void {
-  if (hasPlatformAccess(actorModulePermissions)) return;
+export function assertCanActOnRank(actorRank: number, targetRank: number): void {
   if (targetRank <= actorRank) {
     throw new ForbiddenException(
       `Acesso negado: voce so age sobre cargos de rank inferior (numero maior) ao seu (${actorRank})`,

@@ -14,7 +14,7 @@
     "prisma:push": "prisma db push",
     "prisma:studio": "prisma studio",
     "prisma:seed": "ts-node prisma/seed.ts",
-    "platform:create-owner": "node prisma/create-platform-owner.js",
+    "platform:create-owner": "ts-node prisma/create-platform-owner.ts",
     "prisma:reset": "prisma migrate reset"
   },
   "dependencies": {

@@ -7,6 +7,6 @@ import { SubscriptionController } from './subscription.controller';
 @Module({
   controllers: [TenantController, SubscriptionController],
   providers: [TenantService, TenantCopyService],
-  exports: [TenantService],
+  exports: [TenantService, TenantCopyService],
 })
 export class TenantModule {}

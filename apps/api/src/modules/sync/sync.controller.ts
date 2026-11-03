@@ -1,10 +1,9 @@
 import { RequireFeature } from '../../common/decorators/require-feature.decorator';
 import { ServiceScope } from '../../common/service-scope/service-scope.decorator';
-import { Controller, Post, Body, UseGuards, Request } from '@nestjs/common';
+import { Controller, Post, UseGuards, Request } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { AuthenticatedRequest } from '../../common/types';
-import { hasPlatformAccess } from '../../common/utils/platform-access';
 
 /**
  * Sync credentials endpoint for PowerSync.
@@ -14,8 +13,7 @@ import { hasPlatformAccess } from '../../common/utils/platform-access';
  * The token includes tenantId and user_id as claims,
  * which PowerSync sync rules use to filter data per user.
  *
- * PLATFORM_ADMIN users can override tenantId to view
- * another tenant's data (mirrors web-admin tenant switching).
+ * Always scoped to the user's active tenant (membership resolved by JwtStrategy).
  */
 @ServiceScope('user')
 @RequireFeature('mobile')
@@ -25,31 +23,18 @@ export class SyncController {
   constructor(private readonly jwtService: JwtService) {}
 
   @Post('credentials')
-  async getCredentials(
-    @Request() req: AuthenticatedRequest,
-    @Body() body: { tenantId?: string },
-  ) {
+  // Body `tenantId` (sent by older mobile builds) is ignored: no cross-tenant sync.
+  async getCredentials(@Request() req: AuthenticatedRequest) {
     const user = req.user;
-
-    const platformAdmin = hasPlatformAccess(user.customRole?.modulePermissions);
-
-    // PLATFORM_ADMIN can override tenantId to sync another tenant's data
-    const effectiveTenantId =
-      platformAdmin && body.tenantId ? body.tenantId : user.tenantId;
 
     // Generate a PowerSync-specific token with sync-relevant claims.
     // PowerSync reads these via request.jwt() ->> 'key' in sync rules.
-    // `platformAdmin` replaces the removed roleType claim: it gates the
-    // cross-tenant bypass bucket (admin_all_entity_data) so a platform admin
-    // syncing another tenant still receives role-filtered records whose
-    // _visibleToRolesJson does not contain their (foreign) customRoleId.
     const token = this.jwtService.sign(
       {
         sub: user.id,
         user_id: user.id,
-        tenantId: effectiveTenantId,
+        tenantId: user.tenantId,
         customRoleId: user.customRoleId,
-        platformAdmin,
       },
       { expiresIn: '1h' },
     );

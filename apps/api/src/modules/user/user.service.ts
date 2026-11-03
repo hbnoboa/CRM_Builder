@@ -1,7 +1,6 @@
 import { Injectable, NotFoundException, ConflictException, ForbiddenException, Logger } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { NotificationService } from '../notification/notification.service';
-import { hasPlatformAccess } from '../../common/utils/platform-access';
 import { AuditService } from '../audit/audit.service';
 import { CreateUserDto, UpdateUserDto, QueryUserDto } from './dto/user.dto';
 import { Prisma } from '@prisma/client';
@@ -16,10 +15,11 @@ import {
 } from '../../common/types';
 import { getEffectiveTenantId } from '../../common/utils/tenant.util';
 import { TenantPlanService } from '../../common/services/tenant-plan.service';
+import { assertAssignableRole, loadManagedMember } from '../../common/utils/member-governance';
 
 // Identidade global (#10): "usuarios de um tenant" = usuarios COM membership nele.
 // O cargo exibido e o da membership naquele tenant.
-const ROLE_PREVIEW = { id: true, name: true, color: true, isSystem: true } as const;
+const ROLE_PREVIEW = { id: true, name: true, color: true, isSystem: true, rank: true } as const;
 
 @Injectable()
 export class UserService {
@@ -48,7 +48,8 @@ export class UserService {
   }
 
   async create(dto: CreateUserDto, currentUser: CurrentUser) {
-    const targetTenantId = getEffectiveTenantId(currentUser, dto.tenantId);
+    const targetTenantId = getEffectiveTenantId(currentUser);
+    await assertAssignableRole(this.prisma, currentUser, dto.customRoleId);
     await this.tenantPlan.assertCanAddUsers(targetTenantId);
 
     // Email agora e identidade GLOBAL.
@@ -59,7 +60,7 @@ export class UserService {
 
     const hashedPassword = await bcrypt.hash(dto.password, 12);
 
-    const { tenantId: _t, customRoleId, ...userData } = dto;
+    const { customRoleId, ...userData } = dto;
     if (userData.cpf) userData.cpf = userData.cpf.replace(/\D/g, '') || undefined;
     if (userData.cnpj) userData.cnpj = userData.cnpj.replace(/\D/g, '') || undefined;
     if (userData.phone) userData.phone = userData.phone.replace(/\D/g, '') || undefined;
@@ -103,10 +104,10 @@ export class UserService {
     const page = Math.max(1, query.page || 1);
     const limit = Math.min(MAX_LIMIT, Math.max(1, query.limit || DEFAULT_LIMIT));
     const skip = (page - 1) * limit;
-    const { search, role, status, tenantId: queryTenantId, cursor, sortBy = 'createdAt', sortOrder = 'desc' } = query;
+    const { search, role, status, cursor, sortBy = 'createdAt', sortOrder = 'desc' } = query;
 
-    // Lista sempre escopada a UM tenant (o atual ou o solicitado por quem tem plataforma).
-    const effectiveTenantId = getEffectiveTenantId(currentUser, queryTenantId);
+    // Lista sempre escopada ao tenant ativo do usuario.
+    const effectiveTenantId = getEffectiveTenantId(currentUser);
 
     const membershipFilter: Prisma.UserTenantAccessWhereInput = {
       tenantId: effectiveTenantId,
@@ -198,13 +199,11 @@ export class UserService {
   }
 
   async findOne(id: string, currentUser: CurrentUser) {
-    const isPlatform = hasPlatformAccess(currentUser.customRole?.modulePermissions);
-
-    // Nao-plataforma: o usuario precisa ter membership no tenant atual.
-    const where: Prisma.UserWhereInput = { id };
-    if (!isPlatform) {
-      where.tenantAccess = { some: { tenantId: currentUser.tenantId, deletedAt: null } };
-    }
+    // O usuario precisa ter membership no tenant atual.
+    const where: Prisma.UserWhereInput = {
+      id,
+      tenantAccess: { some: { tenantId: currentUser.tenantId, deletedAt: null } },
+    };
 
     const user = await this.prisma.user.findFirst({
       where,
@@ -213,7 +212,8 @@ export class UserService {
         cpf: true, cnpj: true, phone: true, status: true,
         lastLoginAt: true, createdAt: true, updatedAt: true,
         tenantAccess: {
-          where: { deletedAt: null },
+          // Empresas de outros vinculos so aparecem para o proprio usuario.
+          where: id === currentUser.id ? { deletedAt: null } : { deletedAt: null, tenantId: currentUser.tenantId },
           select: {
             tenantId: true,
             customRoleId: true,
@@ -248,6 +248,15 @@ export class UserService {
 
   async update(id: string, dto: UpdateUserDto, currentUser: CurrentUser) {
     const oldUser = await this.findOne(id, currentUser);
+    const target = await loadManagedMember(this.prisma, currentUser, id);
+
+    if (target.isSelf && (dto.customRoleId || dto.status)) {
+      throw new ForbiddenException('Voce nao pode mudar o proprio cargo ou a propria situacao');
+    }
+    if (!target.isSelf && target.inOtherTenants && (dto.email || dto.password)) {
+      throw new ForbiddenException('Este usuario tambem acessa outras empresas: so ele pode trocar o proprio e-mail e senha');
+    }
+    if (dto.customRoleId) await assertAssignableRole(this.prisma, currentUser, dto.customRoleId);
 
     if (dto.password) {
       dto.password = await bcrypt.hash(dto.password, 12);
@@ -256,8 +265,14 @@ export class UserService {
     if (dto.cnpj) dto.cnpj = dto.cnpj.replace(/\D/g, '') || undefined;
     if (dto.phone) dto.phone = dto.phone.replace(/\D/g, '') || undefined;
 
-    // customRoleId/tenantId nao moram mais no User -> vao para a membership.
-    const { customRoleId, tenantId: _t, ...userData } = dto as UpdateUserDto & { tenantId?: string };
+    // customRoleId nao mora mais no User -> vai para a membership.
+    const { customRoleId, ...userData } = dto;
+
+    // Quem tambem e membro de outra empresa: a situacao vale so para o vinculo daqui.
+    if (target.inOtherTenants && userData.status) {
+      await this.prisma.userTenantAccess.update({ where: { id: target.membership.id }, data: { status: userData.status } });
+      delete userData.status;
+    }
 
     await this.prisma.user.update({ where: { id }, data: userData });
 
@@ -289,7 +304,8 @@ export class UserService {
     currentUser: CurrentUser,
     dto: { userId: string; tenantId: string; customRoleId: string; expiresAt?: string },
   ) {
-    if (!hasPlatformAccess(currentUser.customRole?.modulePermissions) && currentUser.tenantId !== dto.tenantId) {
+    // So concede acesso ao proprio tenant ativo.
+    if (currentUser.tenantId !== dto.tenantId) {
       throw new ForbiddenException('Sem permissao para conceder acesso a este tenant');
     }
 
@@ -310,6 +326,7 @@ export class UserService {
       select: { id: true, name: true },
     });
     if (!role) throw new NotFoundException('Role nao encontrada neste tenant');
+    await assertAssignableRole(this.prisma, currentUser, dto.customRoleId);
 
     // So conta no limite do plano quando o usuario ainda nao tinha acesso ativo.
     const existingAccess = await this.prisma.userTenantAccess.findUnique({
@@ -354,13 +371,15 @@ export class UserService {
 
     if (!access) throw new NotFoundException('Acesso nao encontrado');
 
-    if (!hasPlatformAccess(currentUser.customRole?.modulePermissions) && currentUser.tenantId !== access.tenantId) {
+    if (currentUser.tenantId !== access.tenantId) {
       throw new ForbiddenException('Sem permissao para revogar este acesso');
     }
 
     if (access.isPrimary) {
       throw new ForbiddenException('Nao e possivel revogar o tenant primario (home) do usuario');
     }
+    const target = await loadManagedMember(this.prisma, currentUser, access.userId);
+    if (target.isSelf) throw new ForbiddenException('Voce nao pode revogar o proprio acesso');
 
     // Soft delete da membership (mantem historico).
     await this.prisma.userTenantAccess.delete({ where: { id: accessId } });
@@ -370,17 +389,15 @@ export class UserService {
   }
 
   async listUserTenantAccess(currentUser: CurrentUser, userId: string) {
-    // Nao-plataforma: so ve acessos de usuarios que compartilham o tenant atual.
-    if (!hasPlatformAccess(currentUser.customRole?.modulePermissions)) {
-      const shares = await this.prisma.userTenantAccess.findFirst({
-        where: { userId, tenantId: currentUser.tenantId, deletedAt: null },
-        select: { id: true },
-      });
-      if (!shares) throw new NotFoundException('Usuario nao encontrado');
-    }
+    // So ve o acesso do usuario ao tenant atual (nunca memberships em outros tenants).
+    const shares = await this.prisma.userTenantAccess.findFirst({
+      where: { userId, tenantId: currentUser.tenantId, deletedAt: null },
+      select: { id: true },
+    });
+    if (!shares) throw new NotFoundException('Usuario nao encontrado');
 
     return this.prisma.userTenantAccess.findMany({
-      where: { userId },
+      where: { userId, tenantId: currentUser.tenantId },
       include: {
         tenant: { select: { id: true, name: true, slug: true } },
         customRole: { select: { id: true, name: true, color: true } },
@@ -395,9 +412,23 @@ export class UserService {
     if (id === currentUser.id) {
       throw new ForbiddenException('Voce nao pode excluir sua propria conta');
     }
+    const target = await loadManagedMember(this.prisma, currentUser, id);
 
-    // User esta no allowlist de soft-delete -> delete vira soft (deletedAt).
-    await this.prisma.user.delete({ where: { id } });
+    if (target.inOtherTenants) {
+      // Membro de outras empresas: sai so desta (a conta continua nas outras).
+      await this.prisma.userTenantAccess.delete({ where: { id: target.membership.id } });
+      if (target.membership.isPrimary) {
+        const next = await this.prisma.userTenantAccess.findFirst({
+          where: { userId: id, deletedAt: null },
+          orderBy: { createdAt: 'asc' },
+          select: { id: true },
+        });
+        if (next) await this.prisma.userTenantAccess.update({ where: { id: next.id }, data: { isPrimary: true } });
+      }
+    } else {
+      // User esta no allowlist de soft-delete -> delete vira soft (deletedAt).
+      await this.prisma.user.delete({ where: { id } });
+    }
 
     this.auditService.log(currentUser, {
       action: 'delete',

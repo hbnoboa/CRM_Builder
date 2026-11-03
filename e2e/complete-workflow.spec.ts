@@ -5,7 +5,7 @@ import { test, expect, Page, APIRequestContext } from '@playwright/test';
  * CRUD COMPLETO DE TODOS OS MÓDULOS
  * 
  * Este teste cobre o CRUD completo de:
- * 1. Tenants (PLATFORM_ADMIN)
+ * 1. Tenant atual (/tenants/me)
  * 2. Organizations
  * 3. Users
  * 4. Roles
@@ -15,7 +15,6 @@ import { test, expect, Page, APIRequestContext } from '@playwright/test';
  * 8. Custom APIs
  * 
  * Access levels tested:
- * - PLATFORM_ADMIN: Super admin da plataforma
  * - ADMIN: Admin do tenant
  */
 
@@ -26,20 +25,15 @@ const API_URL = process.env.API_URL || 'http://localhost:3001/api/v1';
 const WEB_URL = process.env.WEB_URL || 'http://localhost:3000';
 
 // Credenciais de teste
-const PLATFORM_ADMIN = {
-  email: 'superadmin@platform.com',
-  password: 'superadmin123',
-};
-
+// (Nao ha mais superadmin@platform.com: o console da plataforma tem login proprio,
+// criado com `pnpm platform:create-owner`, e fica fora deste fluxo do app de tenant.)
 const TENANT_ADMIN = {
   email: 'admin@demo.com',
   password: 'admin123',
 };
 
 // IDs criados durante os testes
-let platformAdminToken: string;
 let adminToken: string;
-let createdTenantId: string;
 let createdOrganizationId: string;
 let createdUserId: string;
 let createdRoleId: string;
@@ -55,14 +49,6 @@ const timestamp = Date.now();
 let tenantId: string;
 
 const TEST_DATA = {
-  tenant: {
-    name: `Tenant Teste ${timestamp}`,
-    slug: `tenant-teste-${timestamp}`,
-    plan: 'PROFESSIONAL',
-    adminEmail: `admin-${timestamp}@teste.com`,
-    adminName: `Admin Teste ${timestamp}`,
-    adminPassword: 'teste123456',
-  },
   organization: {
     name: `Test Organization ${timestamp}`,
     slug: `org-teste-${timestamp}`,
@@ -192,25 +178,9 @@ test.describe('Health Check', () => {
 // ============================================================================
 
 test.describe('Authentication', () => {
-  test('deve fazer login como PLATFORM_ADMIN', async ({ request }) => {
-    platformAdminToken = await getAuthToken(request, PLATFORM_ADMIN.email, PLATFORM_ADMIN.password);
-    expect(platformAdminToken).toBeTruthy();
-  });
-
   test('deve fazer login como ADMIN', async ({ request }) => {
     adminToken = await getAuthToken(request, TENANT_ADMIN.email, TENANT_ADMIN.password);
     expect(adminToken).toBeTruthy();
-  });
-
-  test('deve obter perfil do PLATFORM_ADMIN', async ({ request }) => {
-    if (!platformAdminToken) platformAdminToken = await getAuthToken(request, PLATFORM_ADMIN.email, PLATFORM_ADMIN.password);
-    
-    const response = await apiRequest(request, 'GET', '/auth/me', platformAdminToken);
-    expect(response.status()).toBe(200);
-    
-    const body = await response.json();
-    expect(body.email).toBe(PLATFORM_ADMIN.email);
-    expect(body.role).toBe('PLATFORM_ADMIN');
   });
 
   test('deve obter perfil do ADMIN', async ({ request }) => {
@@ -238,103 +208,22 @@ test.describe('Authentication', () => {
 });
 
 // ============================================================================
-// CRUD - TENANTS (PLATFORM_ADMIN)
+// TENANT ATUAL (gestao de tenants vive so no console da plataforma)
 // ============================================================================
 
-test.describe.serial('CRUD - Tenants', () => {
+test.describe.serial('Tenant atual', () => {
   test.beforeAll(async ({ request }) => {
-    if (!platformAdminToken) {
-      platformAdminToken = await getAuthToken(request, PLATFORM_ADMIN.email, PLATFORM_ADMIN.password);
-    }
-  });
-
-  test('CREATE - deve criar novo tenant', async ({ request }) => {
-    const response = await apiRequest(request, 'POST', '/tenants', platformAdminToken, TEST_DATA.tenant);
-    
-    // Pode retornar 201 ou 200
-    expect(response.status()).toBeLessThan(300);
-    
-    if (response.ok()) {
-      const body = await response.json();
-      createdTenantId = body.id;
-      expect(body.name).toBe(TEST_DATA.tenant.name);
-    }
-  });
-
-  test('READ - deve listar tenants', async ({ request }) => {
-    const response = await apiRequest(request, 'GET', '/tenants', platformAdminToken);
-    expect(response.status()).toBe(200);
-    
-    const body = await response.json();
-    const data = Array.isArray(body) ? body : body.data || [];
-    expect(Array.isArray(data)).toBe(true);
-  });
-
-  test('READ - deve buscar tenant por ID', async ({ request }) => {
-    if (!createdTenantId) {
-      test.skip();
-      return;
-    }
-    
-    const response = await apiRequest(request, 'GET', `/tenants/${createdTenantId}`, platformAdminToken);
-    expect(response.status()).toBe(200);
-    
-    const body = await response.json();
-    expect(body.id).toBe(createdTenantId);
-  });
-
-  test('READ - should get tenant statistics', async ({ request }) => {
-    const response = await apiRequest(request, 'GET', '/tenants/stats', platformAdminToken);
-    expect(response.status()).toBe(200);
-  });
-
-  test('UPDATE - deve atualizar tenant', async ({ request }) => {
-    if (!createdTenantId) {
-      test.skip();
-      return;
-    }
-    
-    const updateData = { name: `${TEST_DATA.tenant.name} - Atualizado` };
-    const response = await apiRequest(request, 'PUT', `/tenants/${createdTenantId}`, platformAdminToken, updateData);
-    expect(response.status()).toBeLessThan(300);
-  });
-
-  test('PATCH - deve suspender tenant', async ({ request }) => {
-    if (!createdTenantId) {
-      test.skip();
-      return;
-    }
-    
-    const response = await apiRequest(request, 'PATCH', `/tenants/${createdTenantId}/suspend`, platformAdminToken);
-    expect(response.status()).toBeLessThan(300);
-  });
-
-  test('PATCH - deve ativar tenant', async ({ request }) => {
-    if (!createdTenantId) {
-      test.skip();
-      return;
-    }
-    
-    const response = await apiRequest(request, 'PATCH', `/tenants/${createdTenantId}/activate`, platformAdminToken);
-    expect(response.status()).toBeLessThan(300);
-  });
-
-  test('DELETE - deve excluir tenant', async ({ request }) => {
-    if (!createdTenantId) {
-      test.skip();
-      return;
-    }
-    
-    const response = await apiRequest(request, 'DELETE', `/tenants/${createdTenantId}`, platformAdminToken);
-    expect(response.status()).toBeLessThan(300);
-    createdTenantId = ''; // Clear to not try to delete again
-  });
-
-  test('ACCESS - ADMIN cannot access /tenants', async ({ request }) => {
     if (!adminToken) adminToken = await getAuthToken(request, TENANT_ADMIN.email, TENANT_ADMIN.password);
-    
+  });
+
+  test('READ - deve obter o proprio tenant', async ({ request }) => {
+    const response = await apiRequest(request, 'GET', '/tenants/me', adminToken);
+    expect(response.status()).toBe(200);
+  });
+
+  test('ACCESS - CRUD de /tenants nao existe mais no app', async ({ request }) => {
     const response = await apiRequest(request, 'GET', '/tenants', adminToken);
-    expect(response.status()).toBe(403);
+    expect(response.status()).toBe(404);
   });
 });
 
@@ -1087,9 +976,6 @@ test.describe.serial('Cleanup', () => {
     if (!adminToken) {
       adminToken = await getAuthToken(request, TENANT_ADMIN.email, TENANT_ADMIN.password);
     }
-    if (!platformAdminToken) {
-      platformAdminToken = await getAuthToken(request, PLATFORM_ADMIN.email, PLATFORM_ADMIN.password);
-    }
   });
 
   test('deve limpar registros criados', async ({ request }) => {
@@ -1126,11 +1012,6 @@ test.describe.serial('Cleanup', () => {
     // Limpar organization
     if (createdOrganizationId) {
       await apiRequest(request, 'DELETE', `/organizations/${createdOrganizationId}`, adminToken);
-    }
-    
-    // Limpar tenant
-    if (createdTenantId) {
-      await apiRequest(request, 'DELETE', `/tenants/${createdTenantId}`, platformAdminToken);
     }
     
     expect(true).toBe(true);

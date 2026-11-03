@@ -1,7 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { NotificationGateway, Notification } from './notification.gateway';
 import { PrismaService } from '../../prisma/prisma.service';
-import { hasPlatformAccess } from '../../common/utils/platform-access';
 import { PushService } from '../push/push.service';
 import { NotificationType, Prisma } from '@prisma/client';
 import { v4 as uuidv4 } from 'uuid';
@@ -144,12 +143,7 @@ export class NotificationService {
       // Filtrar usuarios com acesso
       const eligibleUserIds: string[] = [];
       for (const user of users) {
-        // Acesso de plataforma recebe tudo; demais derivam de permissions[]/'*'.
-        if (hasPlatformAccess(user.customRole?.modulePermissions)) {
-          eligibleUserIds.push(user.id);
-          continue;
-        }
-
+        // Elegibilidade deriva de permissions[]/'*' (notificationRules).
         // Verificar permissoes da custom role
         if (user.customRole) {
           const permissions = user.customRole.permissions as unknown as Array<{
@@ -354,7 +348,7 @@ export class NotificationService {
     notification: CreateNotificationDto,
   ): Promise<void> {
     try {
-      // Admins do tenant (#10): via membership — ADMIN do tenant OU acesso de plataforma.
+      // Admins do tenant (#10): via membership.
       const adminMemberships = await this.prisma.userTenantAccess.findMany({
         where: {
           tenantId,
@@ -362,10 +356,10 @@ export class NotificationService {
           status: 'ACTIVE',
           user: { status: 'ACTIVE' },
           customRole: {
-            // "admin do tenant" = permissao (gerir cargos) OU acesso de plataforma.
+            // "admin do tenant" = permissao (gerir cargos) OU acesso total ao tenant.
             OR: [
               { modulePermissions: { path: ['roles', 'canUpdate'], equals: true } },
-              { modulePermissions: { path: ['platform', 'crossTenant'], equals: true } },
+              { modulePermissions: { path: ['allAccess'], equals: true } },
             ],
           },
         },

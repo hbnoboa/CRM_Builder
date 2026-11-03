@@ -6,13 +6,12 @@
  *   PLATFORM_OWNER_EMAIL=voce@empresa.com PLATFORM_OWNER_NAME="Seu Nome" \
  *   PLATFORM_OWNER_PASSWORD='SenhaForte123' pnpm platform:create-owner
  *
- * JS puro (sem ts-node) para rodar tambem dentro da imagem da API, que nao tem
- * dev deps:  docker compose -f docker-compose.prod.yml exec -e PLATFORM_OWNER_EMAIL=... \
- *              -e PLATFORM_OWNER_NAME=... -e PLATFORM_OWNER_PASSWORD=... api-dev \
- *              node prisma/create-platform-owner.js
+ * Dentro da imagem da API (sem ts-node), roda a versao compilada pelo build:
+ *   docker exec -e PLATFORM_OWNER_EMAIL=... -e PLATFORM_OWNER_NAME=... \
+ *     -e PLATFORM_OWNER_PASSWORD=... crm-api-dev node dist/prisma/create-platform-owner.js
  */
-const { PrismaClient } = require('@prisma/client');
-const bcrypt = require('bcryptjs');
+import { PrismaClient } from '@prisma/client';
+import * as bcrypt from 'bcryptjs';
 
 async function main() {
   const email = process.env.PLATFORM_OWNER_EMAIL?.trim().toLowerCase();

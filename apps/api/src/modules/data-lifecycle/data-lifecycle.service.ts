@@ -53,7 +53,7 @@ export class DataLifecycleService {
   // Arquivamento automatico de EntityData REMOVIDO: o cron mensal
   // (@Cron '0 3 1 * *' -> archiveService.runArchival) movia EntityData > 3 meses
   // para ArchivedEntityData, o que atrapalhava o uso operacional dos dados.
-  // O arquivamento segue disponivel sob demanda via ArchiveController/runAll.
+  // Sem rota publica: runAll so e chamado internamente (nao ha mais cron nem endpoint).
 
   /**
    * Cold tier de audit: exporta ArchivedAuditLog > 365d para o GCS (backup) e

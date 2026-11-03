@@ -1,22 +1,19 @@
 import { ForbiddenException } from '@nestjs/common';
 import type { CurrentUser } from '../types';
-import { hasPlatformAccess, hasFullTenantAccess } from './platform-access';
+import { hasFullTenantAccess } from './platform-access';
 
 /**
  * Verifica se o usuario tem uma permissao especifica em um modulo.
  * Lanca ForbiddenException se nao tiver.
  *
- * APENAS PLATFORM_ADMIN tem permissoes automaticas.
- * Todos os outros roles (ADMIN, MANAGER, USER, VIEWER, CUSTOM) devem ter
- * permissoes definidas em modulePermissions no banco de dados.
+ * Apenas cargos com allAccess tem permissoes automaticas (dentro do proprio tenant).
+ * Os demais devem ter permissoes definidas em modulePermissions no banco de dados.
  */
 export function checkModulePermission(
   user: CurrentUser,
   module: string,
   action: string,
 ): void {
-  // Acesso de plataforma (permissao) libera tudo. (Antes: roleType PLATFORM_ADMIN.)
-  if (hasPlatformAccess(user.customRole?.modulePermissions)) return;
   if (hasFullTenantAccess(user.customRole?.modulePermissions)) return;
 
   // Todos os outros roles verificam modulePermissions do DB
@@ -44,8 +41,6 @@ export function checkEntityAction(
   entitySlug: string,
   action: string,
 ): void {
-  // Acesso de plataforma (permissao) libera tudo. (Antes: roleType PLATFORM_ADMIN.)
-  if (hasPlatformAccess(user.customRole?.modulePermissions)) return;
   if (hasFullTenantAccess(user.customRole?.modulePermissions)) return;
 
   // 1. Checar module-level (modulePermissions.data[action])

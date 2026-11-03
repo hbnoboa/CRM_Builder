@@ -102,19 +102,12 @@ UPDATE "CustomRole"
 SET "modulePermissions" = jsonb_set(COALESCE("modulePermissions", '{}'::jsonb), '{allAccess}', 'true'::jsonb, true)
 WHERE "roleType" = 'ADMIN' AND COALESCE("modulePermissions"->>'allAccess','false') <> 'true';
 
--- platform.* nos PLATFORM_ADMIN
+-- PLATFORM_ADMIN vira acesso total DENTRO da propria empresa (sem platform.*):
+-- poder entre empresas agora so existe no console da plataforma (PlatformStaff).
+-- A equipe IOS entra nos clientes pelo console ("Entrar como"), nao por cargo.
 UPDATE "CustomRole"
-SET "modulePermissions" = jsonb_set(COALESCE("modulePermissions", '{}'::jsonb), '{platform}',
-      '{"crossTenant": true, "impersonateAny": true, "manageTenants": true}'::jsonb, true)
+SET "modulePermissions" = jsonb_set(COALESCE("modulePermissions", '{}'::jsonb), '{allAccess}', 'true'::jsonb, true)
 WHERE "roleType" = 'PLATFORM_ADMIN';
-
--- superadmins ios-risk -> Super Admin (se existirem no ambiente)
-WITH sa AS (SELECT r.id FROM "CustomRole" r WHERE r."roleType"='PLATFORM_ADMIN' AND r.name='Super Admin' LIMIT 1),
-     t AS (SELECT u.id FROM "User" u WHERE u.email IN ('hbnoboa@iosrisk.com.br','viviane@iosrisk.com.br','noboa@iosrisk.com.br'))
-UPDATE "User" u SET "customRoleId"=(SELECT id FROM sa) FROM t WHERE u.id=t.id AND (SELECT id FROM sa) IS NOT NULL;
-WITH sa AS (SELECT r.id FROM "CustomRole" r WHERE r."roleType"='PLATFORM_ADMIN' AND r.name='Super Admin' LIMIT 1),
-     t AS (SELECT u.id FROM "User" u WHERE u.email IN ('hbnoboa@iosrisk.com.br','viviane@iosrisk.com.br','noboa@iosrisk.com.br'))
-UPDATE "UserTenantAccess" a SET "customRoleId"=(SELECT id FROM sa) FROM t WHERE a."userId"=t.id AND (SELECT id FROM sa) IS NOT NULL;
 
 -- ================= C) DROP colunas antigas + novos unique indexes =================
 -- objeto ad-hoc do dev/prod que depende de User.tenantId (NAO esta no codigo; obsoleto

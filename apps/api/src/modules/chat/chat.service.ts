@@ -8,7 +8,7 @@ import {
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CurrentUser } from '../../common/types';
-import { hasPlatformAccess, hasFullTenantAccess } from '../../common/utils/platform-access';
+import { hasFullTenantAccess } from '../../common/utils/platform-access';
 import { DataService } from '../data/data.service';
 import { AuditService } from '../audit/audit.service';
 import { PdfGeneratorService } from '../pdf/pdf-generator.service';
@@ -46,12 +46,9 @@ export class ChatService {
     private readonly redis: RedisService,
   ) {}
 
-  /** Permissão de uma ação na entidade (permissions[] slug/'*' + platform). */
+  /** Permissão de uma ação na entidade (permissions[] slug/'*' + allAccess). */
   private canEntity(user: CurrentUser, entitySlug: string, action: 'canRead' | 'canCreate' | 'canUpdate'): boolean {
-    if (
-      hasPlatformAccess(user.customRole?.modulePermissions) ||
-      hasFullTenantAccess(user.customRole?.modulePermissions)
-    ) {
+    if (hasFullTenantAccess(user.customRole?.modulePermissions)) {
       return true;
     }
     const perms = user.customRole?.permissions as
@@ -71,10 +68,7 @@ export class ChatService {
 
   /** Permissão dedicada de gerir canais/comandos do chat (criar, renomear). */
   private canManageChat(user: CurrentUser): boolean {
-    if (
-      hasPlatformAccess(user.customRole?.modulePermissions) ||
-      hasFullTenantAccess(user.customRole?.modulePermissions)
-    ) {
+    if (hasFullTenantAccess(user.customRole?.modulePermissions)) {
       return true;
     }
     const mp = user.customRole?.modulePermissions as
@@ -1483,12 +1477,9 @@ export class ChatService {
 
   // ── Fatia 5: builder de comandos (admin gerencia pela UI) ──────────────────
 
-  /** Quem pode gerenciar comandos: platform, ou quem edita estrutura/permissões. */
+  /** Quem pode gerenciar comandos: allAccess, ou quem edita estrutura/permissões. */
   private assertCanManageCommands(user: CurrentUser): void {
-    if (
-      hasPlatformAccess(user.customRole?.modulePermissions) ||
-      hasFullTenantAccess(user.customRole?.modulePermissions)
-    ) {
+    if (hasFullTenantAccess(user.customRole?.modulePermissions)) {
       return;
     }
     const mp = user.customRole?.modulePermissions as

@@ -1,9 +1,11 @@
-import { Injectable, NotFoundException, ConflictException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { I18nService } from 'nestjs-i18n';
 import { PrismaService } from '../../prisma/prisma.service';
-import { CreateTenantDto, UpdateTenantDto, QueryTenantDto } from './dto/tenant.dto';
+import { CreateTenantDto } from './dto/tenant.dto';
 import { Status, Prisma, TenantLifecycle } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
+import { DEFAULT_ROLE_TEMPLATES, type DefaultRoleKey } from '../../common/utils/default-roles';
+import { hasFullTenantAccess } from '../../common/utils/platform-access';
 
 // Slugs que colidem com rotas do web-admin (/{locale}/{slug}/...) ou da API.
 export const RESERVED_TENANT_SLUGS = new Set([
@@ -18,16 +20,34 @@ export interface CreateTenantOptions {
   trialEndsAt?: Date | null;
 }
 
-// Removido: Nao criar roles de sistema automaticamente.
-// Apenas PLATFORM_ADMIN é hardcoded (criado no seed para o Platform tenant).
-// Todos os outros roles devem ser criados manualmente via interface.
-
 @Injectable()
 export class TenantService {
   constructor(
     private prisma: PrismaService,
     private readonly i18n: I18nService,
   ) {}
+
+  /** Cria os cargos padrao (DEFAULT_ROLE_TEMPLATES) no idioma da requisicao. */
+  private async createDefaultRoles(tx: Prisma.TransactionClient, tenantId: string) {
+    const created = {} as Record<DefaultRoleKey, { id: string }>;
+    for (const tpl of DEFAULT_ROLE_TEMPLATES) {
+      created[tpl.key] = await tx.customRole.create({
+        data: {
+          tenantId,
+          name: this.i18n.t(`tenant.roles.${tpl.key}.name`),
+          description: this.i18n.t(`tenant.roles.${tpl.key}.description`),
+          color: tpl.color,
+          rank: tpl.rank,
+          isSystem: false,
+          isDefault: tpl.isDefault,
+          modulePermissions: tpl.modulePermissions,
+          permissions: tpl.permissions,
+        },
+        select: { id: true },
+      });
+    }
+    return created;
+  }
 
   async create(dto: CreateTenantDto, options: CreateTenantOptions = {}) {
     if (RESERVED_TENANT_SLUGS.has(dto.slug)) {
@@ -43,7 +63,6 @@ export class TenantService {
       throw new ConflictException(this.i18n.t('tenant.slugAlreadyExists'));
     }
 
-    // Criar apenas o tenant (sem roles automaticas)
     const tenant = await this.prisma.$transaction(async (tx) => {
       // 1. Criar tenant
       const createdTenant = await tx.tenant.create({
@@ -58,39 +77,12 @@ export class TenantService {
         },
       });
 
-      // 2. Se informou dados de admin, criar usuario (mas sem role ainda)
-      // IMPORTANTE: PLATFORM_ADMIN precisa criar um role customizado primeiro
-      // e depois atribuir ao usuario via PATCH /users/:id
+      // 2. Cargos padrao (mesmos nomes e niveis em toda empresa)
+      const roles = await this.createDefaultRoles(tx, createdTenant.id);
+
+      // 3. Admin inicial = dono da empresa, no cargo Administrador
       if (dto.adminEmail && dto.adminPassword && dto.adminName) {
         const hashedPassword = await bcrypt.hash(dto.adminPassword, 12);
-
-        // Cargo admin inicial do tenant = ACESSO TOTAL ao tenant (dinâmico): o flag
-        // `allAccess` libera todos os módulos e tabelas — inclusive os criados no
-        // futuro, sem re-grant. Coringa `*` cobre entidades; rank 1 = topo do tenant
-        // (gerencia todos os cargos subordinados). Não dá poder de plataforma.
-        const initialRole = await tx.customRole.create({
-          data: {
-            tenantId: createdTenant.id,
-            name: this.i18n.t('tenant.initialRoleName'),
-            description: this.i18n.t('tenant.initialRoleDescription'),
-            color: '#7c3aed',
-            isSystem: false,
-            rank: 1,
-            modulePermissions: { allAccess: true },
-            permissions: [
-              {
-                entitySlug: '*',
-                scope: 'all',
-                canRead: true,
-                canCreate: true,
-                canUpdate: true,
-                canDelete: true,
-                canExport: true,
-                canImport: true,
-              },
-            ],
-          },
-        });
 
         const createdAdmin = await tx.user.create({
           data: {
@@ -106,59 +98,19 @@ export class TenantService {
           data: {
             userId: createdAdmin.id,
             tenantId: createdTenant.id,
-            customRoleId: initialRole.id,
+            customRoleId: roles.admin.id,
             status: Status.ACTIVE,
             isPrimary: true,
           },
         });
+
+        return tx.tenant.update({ where: { id: createdTenant.id }, data: { ownerId: createdAdmin.id } });
       }
 
       return createdTenant;
     });
 
     return tenant;
-  }
-
-  async findAll(query: QueryTenantDto) {
-    const { page = 1, limit = 20, search, status } = query;
-    const skip = (page - 1) * limit;
-
-    const where: Prisma.TenantWhereInput = {};
-
-    if (status) where.status = status;
-    if (search) {
-      where.OR = [
-        { name: { contains: search, mode: 'insensitive' } },
-        { slug: { contains: search, mode: 'insensitive' } },
-      ];
-    }
-
-    const [data, total] = await Promise.all([
-      this.prisma.tenant.findMany({
-        where,
-        skip,
-        take: limit,
-        orderBy: { createdAt: 'desc' },
-        include: {
-          _count: {
-            select: {
-              userTenantAccess: true,
-            },
-          },
-        },
-      }),
-      this.prisma.tenant.count({ where }),
-    ]);
-
-    return {
-      data,
-      meta: {
-        total,
-        page,
-        limit,
-        totalPages: Math.ceil(total / limit),
-      },
-    };
   }
 
   async findOne(id: string) {
@@ -180,52 +132,28 @@ export class TenantService {
     return tenant;
   }
 
-  async update(id: string, dto: UpdateTenantDto) {
-    await this.findOne(id);
-
-    return this.prisma.tenant.update({
-      where: { id },
-      data: dto,
+  /** O dono passa a empresa para outro membro ativo com acesso total. */
+  async transferOwnership(tenantId: string, currentUserId: string, newOwnerId: string) {
+    const tenant = await this.findOne(tenantId);
+    if (tenant.ownerId !== currentUserId) {
+      throw new ForbiddenException('So o dono da empresa pode transferir a propriedade');
+    }
+    if (newOwnerId === currentUserId) return { ownerId: newOwnerId };
+    const membership = await this.prisma.userTenantAccess.findFirst({
+      where: {
+        tenantId, userId: newOwnerId, deletedAt: null, status: Status.ACTIVE,
+        user: { deletedAt: null, status: Status.ACTIVE },
+      },
+      select: { customRole: { select: { modulePermissions: true } } },
     });
+    if (!membership) throw new BadRequestException('O novo dono precisa ser um membro ativo da empresa');
+    if (!hasFullTenantAccess(membership.customRole.modulePermissions)) {
+      throw new BadRequestException('O novo dono precisa estar num cargo com acesso total (ex.: Administrador)');
+    }
+    await this.prisma.tenant.update({ where: { id: tenantId }, data: { ownerId: newOwnerId } });
+    return { ownerId: newOwnerId };
   }
 
-  async suspend(id: string) {
-    await this.findOne(id);
-
-    return this.prisma.tenant.update({
-      where: { id },
-      data: { status: Status.SUSPENDED, lifecycle: TenantLifecycle.SUSPENDED },
-    });
-  }
-
-  async activate(id: string) {
-    await this.findOne(id);
-
-    return this.prisma.tenant.update({
-      where: { id },
-      data: { status: Status.ACTIVE, lifecycle: TenantLifecycle.ACTIVE },
-    });
-  }
-
-  async remove(id: string) {
-    await this.findOne(id);
-
-    await this.prisma.tenant.delete({ where: { id } });
-
-    return { message: this.i18n.t('tenant.deletedSuccessfully') };
-  }
-
-  async getStats() {
-    const [total, active, suspended] = await Promise.all([
-      this.prisma.tenant.count(),
-      this.prisma.tenant.count({ where: { status: Status.ACTIVE } }),
-      this.prisma.tenant.count({ where: { status: Status.SUSPENDED } }),
-    ]);
-
-    return {
-      total,
-      active,
-      suspended,
-    };
-  }
+  // Gestao de tenants (listar/editar/suspender/excluir/estatisticas) vive no console
+  // da plataforma (modules/platform); aqui ficam so create() e findOne().
 }

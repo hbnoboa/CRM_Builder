@@ -10,6 +10,7 @@ import { PlatformAuditService } from './platform-audit.service';
 import { PlatformPlansService } from './platform-plans.service';
 import { PlatformStaffService } from './platform-staff.service';
 import { PlatformTenantsService } from './platform-tenants.service';
+import { PlatformTenantTeamService } from './platform-tenant-team.service';
 
 /**
  * Console da plataforma (/admin no web-admin, /platform na API).
@@ -25,6 +26,7 @@ import { PlatformTenantsService } from './platform-tenants.service';
     PlatformPlansService,
     PlatformStaffService,
     PlatformTenantsService,
+    PlatformTenantTeamService,
   ],
 })
 export class PlatformModule {}

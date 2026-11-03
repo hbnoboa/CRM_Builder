@@ -298,6 +298,22 @@ export class PlatformTenantPlanDto {
   planId: string | null;
 }
 
+export class PlatformTenantOwnerDto {
+  @ApiProperty({ description: 'Membro ativo, num cargo com acesso total' })
+  @IsString()
+  userId: string;
+}
+
+export class PlatformTenantAddMemberDto {
+  @ApiProperty({ description: 'E-mail de um usuario que ja existe' })
+  @IsEmail({}, { message: 'Email invalido' })
+  email: string;
+
+  @ApiProperty()
+  @IsString()
+  customRoleId: string;
+}
+
 export class PlatformTenantFeaturesDto {
   @ApiProperty({
     example: { chat: false, pdf: null },

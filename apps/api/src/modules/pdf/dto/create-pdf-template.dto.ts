@@ -13,11 +13,6 @@ import { PdfPageSize, PdfOrientation } from '@prisma/client';
 import { PdfTemplateContent, PdfMargins } from '../interfaces/pdf-element.interface';
 
 export class CreatePdfTemplateDto {
-  @ApiPropertyOptional({ description: 'Tenant ID (apenas PLATFORM_ADMIN)' })
-  @IsString()
-  @IsOptional()
-  tenantId?: string;
-
   @ApiProperty({ description: 'Nome do template', example: 'Relatorio de Veiculo' })
   @IsString()
   @MinLength(1)

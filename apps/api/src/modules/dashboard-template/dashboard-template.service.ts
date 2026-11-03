@@ -2,7 +2,7 @@ import { Injectable, NotFoundException, ConflictException, Logger } from '@nestj
 import { PrismaService } from '../../prisma/prisma.service';
 import { CurrentUser } from '../../common/types';
 import { getEffectiveTenantId } from '../../common/utils/tenant.util';
-import { hasPlatformAccess, hasFullTenantAccess } from '../../common/utils/platform-access';
+import { hasFullTenantAccess } from '../../common/utils/platform-access';
 import { CreateDashboardTemplateDto, UpdateDashboardTemplateDto } from './dto/dashboard-template.dto';
 
 @Injectable()
@@ -42,11 +42,11 @@ export class DashboardTemplateService {
     const tenantId = getEffectiveTenantId(user, queryTenantId);
     // "Vê todos os templates" = quem gerencia dashboards (permissão), não roleType.
     const mp = user.customRole?.modulePermissions as Record<string, Record<string, boolean>> | undefined;
-    const isAdmin = hasPlatformAccess(user.customRole?.modulePermissions) || hasFullTenantAccess(user.customRole?.modulePermissions) || mp?.dashboard?.canUpdate === true;
+    const isAdmin = hasFullTenantAccess(user.customRole?.modulePermissions) || mp?.dashboard?.canUpdate === true;
 
     if (!isAdmin && !user.customRoleId) return null;
 
-    // PLATFORM_ADMIN ve todos os templates; outros veem os atribuidos ao seu role
+    // Quem gerencia dashboards ve todos os templates; outros veem os atribuidos ao seu role
     // OU os com roleIds vazio (= visivel a todos os roles, inclui auto-gerados).
     const templates = await this.prisma.dashboardTemplate.findMany({
       where: {
@@ -69,14 +69,14 @@ export class DashboardTemplateService {
 
   /**
    * Lista todos os templates atribuidos ao role do usuario para uma entidade.
-   * PLATFORM_ADMIN ve todos os templates do tenant.
+   * Quem gerencia dashboards ve todos os templates do tenant.
    * Retorna lista resumida (sem layout/widgets pesados).
    */
   async findMyTemplates(entitySlug: string, user: CurrentUser, queryTenantId?: string) {
     const tenantId = getEffectiveTenantId(user, queryTenantId);
     // "Vê todos os templates" = quem gerencia dashboards (permissão), não roleType.
     const mp = user.customRole?.modulePermissions as Record<string, Record<string, boolean>> | undefined;
-    const isAdmin = hasPlatformAccess(user.customRole?.modulePermissions) || hasFullTenantAccess(user.customRole?.modulePermissions) || mp?.dashboard?.canUpdate === true;
+    const isAdmin = hasFullTenantAccess(user.customRole?.modulePermissions) || mp?.dashboard?.canUpdate === true;
 
     if (!isAdmin && !user.customRoleId) return [];
 

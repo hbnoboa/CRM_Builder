@@ -17,7 +17,7 @@ export interface ModulePermissionMetadata {
  *
  * Verifica se o usuário tem a permissão no campo modulePermissions do seu customRole.
  * Se subModule for especificado, verifica permissões aninhadas.
- * PLATFORM_ADMIN sempre tem acesso.
+ * Cargos com allAccess sempre tem acesso (dentro do proprio tenant).
  */
 export const RequireModulePermission = (module: string, action: string, subModule?: string) =>
   SetMetadata(MODULE_PERMISSION_KEY, { module, action, subModule } as ModulePermissionMetadata);
