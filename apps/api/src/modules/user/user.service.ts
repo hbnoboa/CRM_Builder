@@ -19,7 +19,7 @@ import { assertAssignableRole, loadManagedMember } from '../../common/utils/memb
 
 // Identidade global (#10): "usuarios de um tenant" = usuarios COM membership nele.
 // O cargo exibido e o da membership naquele tenant.
-const ROLE_PREVIEW = { id: true, name: true, color: true, isSystem: true, rank: true } as const;
+const ROLE_PREVIEW = { id: true, name: true, color: true, isSystem: true, rank: true, modulePermissions: true } as const;
 
 @Injectable()
 export class UserService {

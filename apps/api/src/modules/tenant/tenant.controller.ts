@@ -1,7 +1,9 @@
 import { ServiceScope } from '../../common/service-scope/service-scope.decorator';
-import { Body, Controller, Get, Patch, UseGuards } from '@nestjs/common';
+import { Body, Controller, ForbiddenException, Get, Patch, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { TenantService } from './tenant.service';
+import { TenantOverviewService } from './tenant-overview.service';
+import { hasAdminArea } from '../../common/utils/platform-access';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { CurrentUser as CurrentUserType } from '../../common/types';
@@ -16,13 +18,25 @@ import { TransferOwnershipDto } from './dto/tenant.dto';
 @UseGuards(JwtAuthGuard)
 @ApiBearerAuth()
 export class TenantController {
-  constructor(private readonly tenantService: TenantService) {}
+  constructor(
+    private readonly tenantService: TenantService,
+    private readonly overviewService: TenantOverviewService,
+  ) {}
 
   // Endpoint para usuario autenticado obter seu proprio tenant
   @Get('me')
   @ApiOperation({ summary: 'Obter tenant do usuario atual' })
   async getMyTenant(@CurrentUser() user: CurrentUserType) {
     return this.tenantService.findOne(user.tenantId);
+  }
+
+  @Get('me/overview')
+  @ApiOperation({ summary: 'Painel da administracao da empresa (pendencias e atividade)' })
+  async getOverview(@CurrentUser() user: CurrentUserType) {
+    if (!hasAdminArea(user.customRole?.modulePermissions)) {
+      throw new ForbiddenException('Sem acesso a administracao da empresa');
+    }
+    return this.overviewService.overview(user);
   }
 
   @Patch('me/owner')

@@ -43,7 +43,7 @@ export const DEFAULT_ROLE_TEMPLATES: DefaultRoleTemplate[] = [
     modulePermissions: {
       dashboard: READ, data: { ...WRITE, canDelete: true }, users: READ, roles: READ,
       settings: READ, entities: NONE, apis: NONE,
-      pdfTemplates: { ...READ, canGenerate: true }, publicLinks: READ, chat: { manage: true },
+      templates: { ...READ, canGenerate: true }, publicLinks: READ, chat: { manage: true },
     },
     permissions: [{
       entitySlug: '*', scope: 'all',
@@ -58,7 +58,7 @@ export const DEFAULT_ROLE_TEMPLATES: DefaultRoleTemplate[] = [
     modulePermissions: {
       dashboard: READ, data: WRITE, users: NONE, roles: NONE,
       settings: READ, entities: NONE, apis: NONE,
-      pdfTemplates: { ...READ, canGenerate: true },
+      templates: { ...READ, canGenerate: true },
     },
     permissions: [{
       entitySlug: '*', scope: 'own',
@@ -73,7 +73,7 @@ export const DEFAULT_ROLE_TEMPLATES: DefaultRoleTemplate[] = [
     modulePermissions: {
       dashboard: READ, data: READ, users: NONE, roles: NONE,
       settings: READ, entities: NONE, apis: NONE,
-      pdfTemplates: { ...READ, canGenerate: true },
+      templates: { ...READ, canGenerate: true },
     },
     permissions: [{
       entitySlug: '*', scope: 'all',

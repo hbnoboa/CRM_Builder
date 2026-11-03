@@ -60,9 +60,11 @@ export class ModulePermissionGuard implements CanActivate {
       throw new ForbiddenException(`Sem permissão no módulo principal: ${module}.${action}`);
     }
 
-    // Segundo: sub-módulo deve ter a permissão
+    // Segundo: sub-modulo. O editor de cargos marca o GRUPO (templates, logs,
+    // automations); sem bloco proprio, o sub-modulo herda o grupo. Um bloco
+    // explicito continua restringindo.
     const subModulePerm = modulePerm[subModule] as Record<string, boolean> | undefined;
-    if (subModulePerm && subModulePerm[action] === true) {
+    if (subModulePerm === undefined || subModulePerm[action] === true) {
       return true;
     }
 
