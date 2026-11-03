@@ -57,7 +57,9 @@ export function ImpersonationBanner() {
   useEffect(() => {
     if (!impersonatedBy) return;
     document.documentElement.style.setProperty('--banner-h', '2.5rem');
-    return () => document.documentElement.style.removeProperty('--banner-h');
+    return () => {
+      document.documentElement.style.removeProperty('--banner-h');
+    };
   }, [impersonatedBy]);
 
   if (!impersonatedBy) return null;

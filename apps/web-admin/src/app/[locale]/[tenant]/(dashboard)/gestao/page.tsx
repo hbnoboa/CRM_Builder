@@ -4,7 +4,7 @@ import { useParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import {
   AlertTriangle, BarChart3, CheckCircle2, ChevronRight, Clock, FileText, Link2, ScrollText,
-  Shield, TableProperties, UserX, Users, Zap,
+  Mail, Shield, TableProperties, UserX, Users, Zap,
 } from 'lucide-react';
 import { Link } from '@/i18n/tenant-navigation';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -50,6 +50,7 @@ export default function GestaoHomePage() {
           text: t('pending.neverLoggedIn', { count: pending.neverLoggedIn.count }),
           detail: pending.neverLoggedIn.sample.map((u) => u.name || u.email).join(', '),
         },
+        pending.pendingInvites > 0 && { key: 'invites', icon: Mail, section: 'users', text: t('pending.invites', { count: pending.pendingInvites }) },
         pending.inactive30 > 0 && { key: 'inactive', icon: Clock, section: 'users', text: t('pending.inactive30', { count: pending.inactive30 }) },
         pending.unusedRoles > 0 && { key: 'roles', icon: Shield, section: 'roles', text: t('pending.unusedRoles', { count: pending.unusedRoles }) },
         pending.failedRuns7d > 0 && { key: 'failed', icon: Zap, section: 'execution-logs', text: t('pending.failedRuns', { count: pending.failedRuns7d }) },

@@ -264,7 +264,32 @@
       "updated": "Usuário atualizado com sucesso",
       "deleted": "Usuário excluído com sucesso"
     },
-    "owner": "Dono"
+    "owner": "Dono",
+    "invite": {
+      "button": "Convidar",
+      "title": "Convidar pessoa",
+      "description": "Ela recebe um link para criar a própria senha e entrar na empresa.",
+      "email": "E-mail",
+      "name": "Nome (opcional)",
+      "namePlaceholder": "Como a pessoa se chama",
+      "role": "Cargo",
+      "chooseRole": "Escolha o cargo",
+      "submit": "Enviar convite",
+      "sent": "Convite enviado para {email}. Você também pode copiar o link:",
+      "notSent": "O e-mail não está configurado: copie o link e envie para {email} (WhatsApp, por exemplo).",
+      "copy": "Copiar link",
+      "another": "Convidar outra pessoa",
+      "done": "Concluir",
+      "pendingTitle": "{count, plural, one {# convite pendente} other {# convites pendentes}}",
+      "by": "por {name}",
+      "expiresAt": "vale até {date}",
+      "expiredAt": "venceu em {date}",
+      "expired": "Vencido",
+      "resend": "Reenviar",
+      "revoke": "Cancelar",
+      "revoked": "Convite cancelado",
+      "resentTitle": "Link novo do convite"
+    }
   },
   "entities": {
     "title": "Tabelas",
@@ -1795,7 +1820,8 @@
         "inactive30": "{count, plural, one {# usuário sem acesso há mais de 30 dias} other {# usuários sem acesso há mais de 30 dias}}",
         "unusedRoles": "{count, plural, one {# cargo sem uso} other {# cargos sem uso}}",
         "failedRuns": "{count, plural, one {# automação falhou nos últimos 7 dias} other {# automações falharam nos últimos 7 dias}}",
-        "trial": "{days, plural, =0 {O período de teste acaba hoje} one {Falta # dia de teste} other {Faltam # dias de teste}}"
+        "trial": "{days, plural, =0 {O período de teste acaba hoje} one {Falta # dia de teste} other {Faltam # dias de teste}}",
+        "invites": "{count, plural, one {# convite aguardando resposta} other {# convites aguardando resposta}}"
       },
       "activity": {
         "title": "Atividade recente",
@@ -1821,5 +1847,44 @@
       "empty": "Nenhuma tabela criada ainda.",
       "meta": "{fields} campos · {records} registros"
     }
+  },
+  "invite": {
+    "title": "Entrar na {company}",
+    "subtitle": "Você foi convidado como {role}.",
+    "subtitleBy": "{name} convidou você como {role}.",
+    "email": "E-mail",
+    "name": "Seu nome",
+    "newPassword": "Crie uma senha",
+    "confirmPassword": "Confirme a senha",
+    "passwordHint": "Mínimo 8 caracteres, com maiúscula, minúscula e número.",
+    "currentPassword": "Sua senha",
+    "existingHint": "Você já tem uma conta com este e-mail. Entre com a sua senha para aceitar.",
+    "createAndJoin": "Criar conta e entrar",
+    "join": "Aceitar e entrar",
+    "forgot": "Esqueci minha senha",
+    "goToLogin": "Ir para o login",
+    "errors": {
+      "weakPassword": "A senha precisa de 8+ caracteres, com maiúscula, minúscula e número.",
+      "mismatch": "As senhas não conferem."
+    },
+    "unavailable": {
+      "title": "Convite indisponível",
+      "invalid": "Este link de convite não é válido.",
+      "expired": "Este convite venceu. Peça um novo ao administrador da empresa.",
+      "revoked": "Este convite foi cancelado.",
+      "accepted": "Este convite já foi usado. Entre com seu e-mail e senha."
+    }
+  },
+  "resetPassword": {
+    "title": "Nova senha",
+    "subtitle": "Escolha uma senha nova para a sua conta.",
+    "newPassword": "Nova senha",
+    "confirmPassword": "Confirme a senha",
+    "hint": "Mínimo 8 caracteres, com maiúscula, minúscula e número.",
+    "save": "Salvar senha",
+    "done": "Senha alterada. Já pode entrar com a nova senha.",
+    "goToLogin": "Ir para o login",
+    "weakPassword": "A senha precisa de 8+ caracteres, com maiúscula, minúscula e número.",
+    "mismatch": "As senhas não conferem."
   }
 }

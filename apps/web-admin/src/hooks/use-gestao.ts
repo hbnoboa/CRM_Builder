@@ -8,6 +8,7 @@ export interface GestaoOverview {
     inactive30: number;
     unusedRoles: number;
     failedRuns7d: number;
+    pendingInvites: number;
   };
   /** null = o cargo nao ve os logs da empresa */
   activity: Array<{

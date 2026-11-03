@@ -12,6 +12,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
 import { LanguageSwitcher } from '@/components/language-switcher';
+import api from '@/lib/api';
 
 type ForgotForm = {
   email: string;
@@ -41,17 +42,9 @@ export default function ForgotPasswordPage() {
     setError(null);
     setSuccess(false);
     try {
-      const res = await fetch('/api/v1/auth/forgot-password', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: data.email }),
-      });
-      if (res.ok) {
-        setSuccess(true);
-      } else {
-        setError(t('error'));
-      }
-    } catch (err) {
+      await api.post('/auth/forgot-password', { email: data.email });
+      setSuccess(true);
+    } catch {
       setError(t('error'));
     } finally {
       setIsLoading(false);

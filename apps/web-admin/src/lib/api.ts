@@ -17,7 +17,7 @@ function isPublicContext(): boolean {
 
 // Modelo B: o tenant é o 1º segmento depois do locale na URL (/{locale}/{tenant}/...).
 // Segmentos não-tenant (auth/público) são ignorados.
-const NON_TENANT_SEGMENTS = new Set(['login', 'register', 'forgot-password', 'p', 'api', 'admin']);
+const NON_TENANT_SEGMENTS = new Set(['login', 'register', 'forgot-password', 'reset-password', 'invite', 'p', 'api', 'admin']);
 function tenantSlugFromUrl(): string | null {
   if (typeof window === 'undefined') return null;
   const segs = window.location.pathname.split('/').filter(Boolean); // [locale, tenant?, ...]
@@ -84,7 +84,9 @@ function subscribeToRefresh(): Promise<string> {
 let sessionEndedBySuspension = false;
 
 // Auth endpoints that should NOT trigger token refresh on 401
-const AUTH_ENDPOINTS = ['/auth/login', '/auth/register', '/auth/refresh'];
+const AUTH_ENDPOINTS = ['/auth/login', '/auth/register', '/auth/refresh', '/auth/forgot-password', '/auth/reset-password'];
+// Rotas publicas com token no caminho (convite): 401 e resposta do formulario, nao sessao vencida.
+const PUBLIC_PREFIXES = ['/invitations/public/'];
 
 // Response interceptor - handle token refresh
 api.interceptors.response.use(
@@ -112,7 +114,7 @@ api.interceptors.response.use(
 
     const originalRequest = error.config;
     const url = originalRequest?.url || '';
-    const isAuthEndpoint = AUTH_ENDPOINTS.some((path) => url.endsWith(path));
+    const isAuthEndpoint = AUTH_ENDPOINTS.some((path) => url.endsWith(path)) || PUBLIC_PREFIXES.some((p) => url.includes(p));
 
     // Only attempt refresh for non-auth endpoints with 401 status
     if (error.response?.status === 401 && !originalRequest._retry && !isAuthEndpoint) {

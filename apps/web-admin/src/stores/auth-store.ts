@@ -12,6 +12,7 @@ interface AuthState {
 
   login: (credentials: LoginCredentials) => Promise<void>;
   register: (data: RegisterDate) => Promise<void>;
+  acceptInvitation: (token: string, body: { name?: string; password: string }) => Promise<User>;
   logout: () => Promise<void>;
   getProfile: () => Promise<void>;
   ensureAuth: () => Promise<'ok' | 'redirect'>;
@@ -69,6 +70,17 @@ export const useAuthStore = create<AuthState>()(
           set({ error: message, isLoading: false });
           throw error;
         }
+      },
+
+      /** Aceita um convite e ja entra na empresa que convidou. */
+      acceptInvitation: async (token: string, body: { name?: string; password: string }) => {
+        const response = await api.post<AuthResponse>(`/invitations/public/${token}/accept`, body);
+        const { user, accessToken, refreshToken } = response.data;
+        localStorage.setItem('accessToken', accessToken);
+        localStorage.setItem('refreshToken', refreshToken);
+        if (user?.tenantId) localStorage.setItem('activeTenantId', user.tenantId);
+        set({ user, isAuthenticated: true, isLoading: false, error: null });
+        return user;
       },
 
       logout: async () => {

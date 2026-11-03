@@ -29,7 +29,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { useUsers } from '@/hooks/use-users';
-import { UserFormDialog, DeleteUserDialog } from '@/components/users';
+import { UserFormDialog, DeleteUserDialog, InviteUserDialog, PendingInvitations } from '@/components/users';
 import { useAuthStore } from '@/stores/auth-store';
 import { useTenant } from '@/stores/tenant-context';
 import { formatCpf, formatPhone } from '@/lib/masks';
@@ -53,6 +53,7 @@ function UsersPageContent() {
   const [search, setSearch] = useState('');
   const [formOpen, setFormOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [inviteOpen, setInviteOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
 
   const { data, isLoading, refetch } = useUsers();
@@ -124,12 +125,20 @@ function UsersPageContent() {
           </p>
         </div>
         {hasModulePermission('users', 'canCreate') && (
-        <Button onClick={handleCreateUser} className="w-full sm:w-auto">
-          <Plus className="h-4 w-4 mr-2" />
-          {t('newUser')}
-        </Button>
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <Button variant="outline" onClick={handleCreateUser} className="w-full sm:w-auto">
+            <Plus className="h-4 w-4 mr-2" />
+            {t('newUser')}
+          </Button>
+          <Button onClick={() => setInviteOpen(true)} className="w-full sm:w-auto" data-testid="invite-user">
+            <Mail className="h-4 w-4 mr-2" />
+            {t('invite.button')}
+          </Button>
+        </div>
         )}
       </div>
+
+      <PendingInvitations canManage={hasModulePermission('users', 'canCreate')} />
 
       {/* Stats */}
       <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-4">
@@ -306,6 +315,7 @@ function UsersPageContent() {
         user={selectedUser}
         onSuccess={handleSuccess}
       />
+      <InviteUserDialog open={inviteOpen} onOpenChange={setInviteOpen} />
       <DeleteUserDialog
         open={deleteOpen}
         onOpenChange={setDeleteOpen}

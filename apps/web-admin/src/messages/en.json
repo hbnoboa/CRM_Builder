@@ -264,7 +264,32 @@
       "updated": "User updated successfully",
       "deleted": "User deleted successfully"
     },
-    "owner": "Owner"
+    "owner": "Owner",
+    "invite": {
+      "button": "Invite",
+      "title": "Invite someone",
+      "description": "They get a link to set their own password and join the company.",
+      "email": "Email",
+      "name": "Name (optional)",
+      "namePlaceholder": "The person's name",
+      "role": "Role",
+      "chooseRole": "Choose a role",
+      "submit": "Send invite",
+      "sent": "Invite sent to {email}. You can also copy the link:",
+      "notSent": "Email is not configured: copy the link and send it to {email} (e.g. WhatsApp).",
+      "copy": "Copy link",
+      "another": "Invite someone else",
+      "done": "Done",
+      "pendingTitle": "{count, plural, one {# pending invite} other {# pending invites}}",
+      "by": "by {name}",
+      "expiresAt": "valid until {date}",
+      "expiredAt": "expired on {date}",
+      "expired": "Expired",
+      "resend": "Resend",
+      "revoke": "Cancel",
+      "revoked": "Invite canceled",
+      "resentTitle": "New invite link"
+    }
   },
   "entities": {
     "title": "Tables",
@@ -1791,7 +1816,8 @@
         "inactive30": "{count, plural, one {# user inactive for over 30 days} other {# users inactive for over 30 days}}",
         "unusedRoles": "{count, plural, one {# unused role} other {# unused roles}}",
         "failedRuns": "{count, plural, one {# automation failed in the last 7 days} other {# automations failed in the last 7 days}}",
-        "trial": "{days, plural, =0 {The trial ends today} one {# trial day left} other {# trial days left}}"
+        "trial": "{days, plural, =0 {The trial ends today} one {# trial day left} other {# trial days left}}",
+        "invites": "{count, plural, one {# invite awaiting reply} other {# invites awaiting reply}}"
       },
       "activity": {
         "title": "Recent activity",
@@ -1817,5 +1843,44 @@
       "empty": "No tables yet.",
       "meta": "{fields} fields · {records} records"
     }
+  },
+  "invite": {
+    "title": "Join {company}",
+    "subtitle": "You've been invited as {role}.",
+    "subtitleBy": "{name} invited you as {role}.",
+    "email": "Email",
+    "name": "Your name",
+    "newPassword": "Create a password",
+    "confirmPassword": "Confirm password",
+    "passwordHint": "At least 8 characters, with upper and lower case and a number.",
+    "currentPassword": "Your password",
+    "existingHint": "You already have an account with this email. Sign in with your password to accept.",
+    "createAndJoin": "Create account and join",
+    "join": "Accept and join",
+    "forgot": "Forgot my password",
+    "goToLogin": "Go to login",
+    "errors": {
+      "weakPassword": "The password needs 8+ characters, with upper and lower case and a number.",
+      "mismatch": "Passwords don't match."
+    },
+    "unavailable": {
+      "title": "Invite unavailable",
+      "invalid": "This invite link is not valid.",
+      "expired": "This invite has expired. Ask the company administrator for a new one.",
+      "revoked": "This invite was canceled.",
+      "accepted": "This invite was already used. Sign in with your email and password."
+    }
+  },
+  "resetPassword": {
+    "title": "New password",
+    "subtitle": "Choose a new password for your account.",
+    "newPassword": "New password",
+    "confirmPassword": "Confirm password",
+    "hint": "At least 8 characters, with upper and lower case and a number.",
+    "save": "Save password",
+    "done": "Password changed. You can now sign in with the new password.",
+    "goToLogin": "Go to login",
+    "weakPassword": "The password needs 8+ characters, with upper and lower case and a number.",
+    "mismatch": "Passwords don't match."
   }
 }

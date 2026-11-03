@@ -263,7 +263,32 @@
       "updated": "Usuario actualizado exitosamente",
       "deleted": "Usuario eliminado exitosamente"
     },
-    "owner": "Dueño"
+    "owner": "Dueño",
+    "invite": {
+      "button": "Invitar",
+      "title": "Invitar persona",
+      "description": "Recibe un link para crear su propia contraseña y entrar a la empresa.",
+      "email": "Correo",
+      "name": "Nombre (opcional)",
+      "namePlaceholder": "Cómo se llama la persona",
+      "role": "Cargo",
+      "chooseRole": "Elige el cargo",
+      "submit": "Enviar invitación",
+      "sent": "Invitación enviada a {email}. También puedes copiar el link:",
+      "notSent": "El correo no está configurado: copia el link y envíalo a {email} (por WhatsApp, por ejemplo).",
+      "copy": "Copiar link",
+      "another": "Invitar a otra persona",
+      "done": "Listo",
+      "pendingTitle": "{count, plural, one {# invitación pendiente} other {# invitaciones pendientes}}",
+      "by": "por {name}",
+      "expiresAt": "válida hasta {date}",
+      "expiredAt": "venció el {date}",
+      "expired": "Vencida",
+      "resend": "Reenviar",
+      "revoke": "Cancelar",
+      "revoked": "Invitación cancelada",
+      "resentTitle": "Link nuevo de la invitación"
+    }
   },
   "entities": {
     "title": "Tablas",
@@ -1788,7 +1813,8 @@
         "inactive30": "{count, plural, one {# usuario sin acceso hace más de 30 días} other {# usuarios sin acceso hace más de 30 días}}",
         "unusedRoles": "{count, plural, one {# cargo sin uso} other {# cargos sin uso}}",
         "failedRuns": "{count, plural, one {# automatización falló en los últimos 7 días} other {# automatizaciones fallaron en los últimos 7 días}}",
-        "trial": "{days, plural, =0 {La prueba termina hoy} one {Queda # día de prueba} other {Quedan # días de prueba}}"
+        "trial": "{days, plural, =0 {La prueba termina hoy} one {Queda # día de prueba} other {Quedan # días de prueba}}",
+        "invites": "{count, plural, one {# invitación esperando respuesta} other {# invitaciones esperando respuesta}}"
       },
       "activity": {
         "title": "Actividad reciente",
@@ -1814,5 +1840,44 @@
       "empty": "Aún no hay tablas.",
       "meta": "{fields} campos · {records} registros"
     }
+  },
+  "invite": {
+    "title": "Entrar a {company}",
+    "subtitle": "Te invitaron como {role}.",
+    "subtitleBy": "{name} te invitó como {role}.",
+    "email": "Correo",
+    "name": "Tu nombre",
+    "newPassword": "Crea una contraseña",
+    "confirmPassword": "Confirma la contraseña",
+    "passwordHint": "Mínimo 8 caracteres, con mayúscula, minúscula y número.",
+    "currentPassword": "Tu contraseña",
+    "existingHint": "Ya tienes una cuenta con este correo. Entra con tu contraseña para aceptar.",
+    "createAndJoin": "Crear cuenta y entrar",
+    "join": "Aceptar y entrar",
+    "forgot": "Olvidé mi contraseña",
+    "goToLogin": "Ir al login",
+    "errors": {
+      "weakPassword": "La contraseña necesita 8+ caracteres, con mayúscula, minúscula y número.",
+      "mismatch": "Las contraseñas no coinciden."
+    },
+    "unavailable": {
+      "title": "Invitación no disponible",
+      "invalid": "Este link de invitación no es válido.",
+      "expired": "Esta invitación venció. Pide una nueva al administrador de la empresa.",
+      "revoked": "Esta invitación fue cancelada.",
+      "accepted": "Esta invitación ya fue usada. Entra con tu correo y contraseña."
+    }
+  },
+  "resetPassword": {
+    "title": "Nueva contraseña",
+    "subtitle": "Elige una contraseña nueva para tu cuenta.",
+    "newPassword": "Nueva contraseña",
+    "confirmPassword": "Confirma la contraseña",
+    "hint": "Mínimo 8 caracteres, con mayúscula, minúscula y número.",
+    "save": "Guardar contraseña",
+    "done": "Contraseña cambiada. Ya puedes entrar con la nueva.",
+    "goToLogin": "Ir al login",
+    "weakPassword": "La contraseña necesita 8+ caracteres, con mayúscula, minúscula y número.",
+    "mismatch": "Las contraseñas no coinciden."
   }
 }
