@@ -15,6 +15,7 @@ import {
   MAX_LIMIT,
 } from '../../common/types';
 import { getEffectiveTenantId } from '../../common/utils/tenant.util';
+import { TenantPlanService } from '../../common/services/tenant-plan.service';
 
 // Identidade global (#10): "usuarios de um tenant" = usuarios COM membership nele.
 // O cargo exibido e o da membership naquele tenant.
@@ -28,6 +29,7 @@ export class UserService {
     private prisma: PrismaService,
     private notificationService: NotificationService,
     private auditService: AuditService,
+    private tenantPlan: TenantPlanService,
   ) {}
 
   /** Achata user + membership do tenant num shape compativel com o frontend. */
@@ -47,6 +49,7 @@ export class UserService {
 
   async create(dto: CreateUserDto, currentUser: CurrentUser) {
     const targetTenantId = getEffectiveTenantId(currentUser, dto.tenantId);
+    await this.tenantPlan.assertCanAddUsers(targetTenantId);
 
     // Email agora e identidade GLOBAL.
     const existing = await this.prisma.user.findUnique({ where: { email: dto.email } });
@@ -307,6 +310,15 @@ export class UserService {
       select: { id: true, name: true },
     });
     if (!role) throw new NotFoundException('Role nao encontrada neste tenant');
+
+    // So conta no limite do plano quando o usuario ainda nao tinha acesso ativo.
+    const existingAccess = await this.prisma.userTenantAccess.findUnique({
+      where: { userId_tenantId: { userId: dto.userId, tenantId: dto.tenantId } },
+      select: { status: true, deletedAt: true },
+    });
+    if (!existingAccess || existingAccess.status !== 'ACTIVE' || existingAccess.deletedAt) {
+      await this.tenantPlan.assertCanAddUsers(dto.tenantId);
+    }
 
     const access = await this.prisma.userTenantAccess.upsert({
       where: { userId_tenantId: { userId: dto.userId, tenantId: dto.tenantId } },

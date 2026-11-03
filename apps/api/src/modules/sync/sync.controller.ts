@@ -1,3 +1,4 @@
+import { RequireFeature } from '../../common/decorators/require-feature.decorator';
 import { ServiceScope } from '../../common/service-scope/service-scope.decorator';
 import { Controller, Post, Body, UseGuards, Request } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
@@ -17,6 +18,7 @@ import { hasPlatformAccess } from '../../common/utils/platform-access';
  * another tenant's data (mirrors web-admin tenant switching).
  */
 @ServiceScope('user')
+@RequireFeature('mobile')
 @Controller('sync')
 @UseGuards(JwtAuthGuard)
 export class SyncController {

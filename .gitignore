@@ -15,6 +15,7 @@ out/
 .env.local
 .env.*.local
 .env.production
+.env.prod
 .env.staging
 ecosystem.config.js
 !.env.example

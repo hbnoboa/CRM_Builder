@@ -34,31 +34,17 @@ export class RegisterDto {
 
   @ApiProperty({ example: 'Joao Silva' })
   @IsString()
+  @MinLength(2)
+  @MaxLength(100)
   name: string;
 
-  @ApiProperty({ example: 'cuid_do_tenant' })
+  // Cadastro self-service: cria uma EMPRESA nova (tenant em trial) com este
+  // usuario como administrador. Nao existe mais "entrar num tenant por id".
+  @ApiProperty({ example: 'Minha Empresa Ltda' })
   @IsString()
-  tenantId: string;
-
-  @ApiPropertyOptional({ description: 'CPF (11 digitos)' })
-  @IsString()
-  @IsOptional()
-  cpf?: string;
-
-  @ApiPropertyOptional({ description: 'CNPJ (14 digitos)' })
-  @IsString()
-  @IsOptional()
-  cnpj?: string;
-
-  @ApiPropertyOptional({ description: 'Telefone com DDD' })
-  @IsString()
-  @IsOptional()
-  phone?: string;
-
-  @ApiPropertyOptional({ description: 'ID da custom role (se nao informado, usa role default do tenant)' })
-  @IsString()
-  @IsOptional()
-  customRoleId?: string;
+  @MinLength(2, { message: 'Nome da empresa deve ter no minimo 2 caracteres' })
+  @MaxLength(100)
+  tenantName: string;
 }
 
 export class RefreshTokenDto {

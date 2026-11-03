@@ -25,6 +25,7 @@ import { hasPlatformAccess } from '../../common/utils/platform-access';
 import { EntityDataQueryService } from '../../common/services/entity-data-query.service';
 import { AuditService } from '../audit/audit.service';
 import { formatRecordData } from '../../common/utils/format-record';
+import { TenantPlanService } from '../../common/services/tenant-plan.service';
 
 interface CreateDataDto {
   data: Record<string, unknown>;
@@ -111,6 +112,7 @@ export class DataService {
     private computedFieldsService: ComputedFieldsService,
     private queryService: EntityDataQueryService,
     @InjectQueue('automation-execution') private automationQueue: Queue,
+    private tenantPlan: TenantPlanService,
     @Optional() @Inject(WebhookService) private webhookService?: WebhookService,
     @Optional() @Inject(ActionChainService) private actionChainService?: ActionChainService,
     @Optional() @Inject(EntityAutomationService) private entityAutomationService?: EntityAutomationService,
@@ -270,6 +272,7 @@ export class DataService {
 
     // Validar campos unicos
     await this.validateUniqueFields(fields, dataWithComputedFields, entity.id, targetTenantId);
+    await this.tenantPlan.assertCanAddRecords(targetTenantId);
 
     const record = await this.prisma.entityData.create({
       data: {

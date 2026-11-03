@@ -57,6 +57,8 @@ import { NotificationBell } from '@/components/notifications/notification-bell';
 import { TenantSelector } from '@/components/tenant-selector';
 import { OperationalShell } from '@/components/layout/operational-shell';
 import { cn } from '@/lib/utils';
+import { TrialBanner, useTenantFeatures } from '@/components/subscription/subscription-widgets';
+import type { FeatureKey } from '@/types/platform';
 
 interface NavItemConfig {
   titleKey: string;
@@ -65,23 +67,25 @@ interface NavItemConfig {
   badge?: string;
   /** Chave do módulo para verificar permissão (via usePermissions) */
   moduleKey?: string;
+  /** Função do plano do tenant; desligada = item some do menu */
+  featureKey?: FeatureKey;
 }
 
 const topNavigation: NavItemConfig[] = [
   // Home de AÇÃO (sem gate): cards permission-aware decidem o que cada um vê (#21).
   { titleKey: 'home', href: '/home', icon: <Home className="h-5 w-5" /> },
   { titleKey: 'dashboard', href: '/dashboard', icon: <LayoutDashboard className="h-5 w-5" />, moduleKey: 'dashboard' },
-  { titleKey: 'chat', href: '/chat', icon: <MessageSquare className="h-5 w-5" /> },
+  { titleKey: 'chat', href: '/chat', icon: <MessageSquare className="h-5 w-5" />, featureKey: 'chat' },
 ];
 
 const adminNavigation: NavItemConfig[] = [
   { titleKey: 'tenants', href: '/tenants', icon: <Building2 className="h-5 w-5" />, moduleKey: 'tenants' },
   { titleKey: 'users', href: '/users', icon: <Users className="h-5 w-5" />, moduleKey: 'users' },
   { titleKey: 'roles', href: '/roles', icon: <Shield className="h-5 w-5" />, moduleKey: 'roles' },
-  { titleKey: 'pdfTemplates', href: '/pdf-templates', icon: <FileText className="h-5 w-5" />, moduleKey: 'pdfTemplates' },
+  { titleKey: 'pdfTemplates', href: '/pdf-templates', icon: <FileText className="h-5 w-5" />, moduleKey: 'pdfTemplates', featureKey: 'pdf' },
   { titleKey: 'auditLogs', href: '/audit-logs', icon: <ScrollText className="h-5 w-5" />, moduleKey: 'auditLogs' },
   { titleKey: 'dashboardTemplates', href: '/dashboard-templates', icon: <BarChart3 className="h-5 w-5" />, moduleKey: 'dashboardTemplates' },
-  { titleKey: 'publicLinks', href: '/public-links', icon: <Link2 className="h-5 w-5" />, moduleKey: 'publicLinks' },
+  { titleKey: 'publicLinks', href: '/public-links', icon: <Link2 className="h-5 w-5" />, moduleKey: 'publicLinks', featureKey: 'publicLinks' },
 ];
 
 const bottomNavigation: NavItemConfig[] = [
@@ -119,6 +123,7 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
   const { user, isAuthenticated, logout, ensureAuth, isLoading } = useAuthStore();
   const { hasModuleAccess, hasModulePermission, getDefaultRoute, isOperationalSurface } = usePermissions();
   const { tenant, effectiveTenantId } = useTenant();
+  const features = useTenantFeatures();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
     if (typeof window !== 'undefined') {
@@ -159,29 +164,32 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
 
   const filteredTopNav = useMemo(
     () => topNavigation.filter((item) => {
+      if (item.featureKey && !features[item.featureKey]) return false;
       if (!item.moduleKey) return true;
       return hasModuleAccess(item.moduleKey);
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [user?.customRole?.modulePermissions, user?.customRoleId]
+    [user?.customRole?.modulePermissions, user?.customRoleId, features]
   );
 
   const filteredAdminNav = useMemo(
     () => adminNavigation.filter((item) => {
+      if (item.featureKey && !features[item.featureKey]) return false;
       if (!item.moduleKey) return true;
       return hasModuleAccess(item.moduleKey);
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [user?.customRole?.modulePermissions, user?.customRoleId]
+    [user?.customRole?.modulePermissions, user?.customRoleId, features]
   );
 
   const filteredBottomNav = useMemo(
     () => bottomNavigation.filter((item) => {
+      if (item.featureKey && !features[item.featureKey]) return false;
       if (!item.moduleKey) return true;
       return hasModuleAccess(item.moduleKey);
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [user?.customRole?.modulePermissions, user?.customRoleId]
+    [user?.customRole?.modulePermissions, user?.customRoleId, features]
   );
 
   const isAdminOpen = openCategories['__admin__'] !== false;
@@ -693,6 +701,7 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
           </div>
         </header>
 
+        <TrialBanner />
         <main className="p-4 md:p-6 lg:p-8">
           {children}
         </main>

@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { Link, useRouter } from '@/i18n/navigation';
 import { useForm, type Resolver } from 'react-hook-form';
@@ -22,11 +23,21 @@ type LoginForm = {
 };
 
 export default function LoginPage() {
+  return (
+    <Suspense>
+      <LoginPageContent />
+    </Suspense>
+  );
+}
+
+function LoginPageContent() {
   const router = useRouter();
   const t = useTranslations('auth.login');
   const tValidation = useTranslations('validation');
   const [showPassword, setShowPassword] = useState(false);
   const { login, isLoading, error, clearError } = useAuthStore();
+  const searchParams = useSearchParams();
+  const suspended = searchParams.get('reason') === 'suspended';
 
   const loginSchema = useMemo(() => z.object({
     email: z.string().min(1, tValidation('emailRequired')).email(tValidation('emailInvalid')),
@@ -79,6 +90,11 @@ export default function LoginPage() {
         </CardHeader>
         <form onSubmit={handleSubmit(onSubmit)}>
           <CardContent className="space-y-4">
+            {suspended && !error && (
+              <div className="p-3 text-sm text-amber-900 bg-amber-50 dark:bg-amber-950 dark:text-amber-100 rounded-md" data-testid="tenant-suspended-message">
+                {t('tenantSuspended')}
+              </div>
+            )}
             {error && (
               <div className="p-3 text-sm text-red-500 bg-red-50 dark:bg-red-950 rounded-md">
                 {error}

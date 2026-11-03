@@ -67,6 +67,18 @@ model Tenant {
 
   status Status @default(ACTIVE)
 
+  // SaaS (console da plataforma): ciclo de vida comercial + plano + funcoes.
+  // `status` continua sendo o que bloqueia login/acesso; `lifecycle` e o estado
+  // comercial e o PlatformTenantsService mantem os dois coerentes.
+  lifecycle        TenantLifecycle @default(ACTIVE)
+  trialEndsAt      DateTime?
+  planId           String?
+  plan             Plan?           @relation(fields: [planId], references: [id])
+  // Sobrescreve as funcoes do plano para este tenant: { "chat": false, "pdf": true }
+  featureOverrides Json            @default("{}")
+  // Armazenamento usado (KB) — somado/subtraido no upload/exclusao; o console
+  // recalcula a partir dos arquivos reais (inclui os anteriores ao contador).
+  storageUsedKb    Int             @default(0)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -96,7 +108,88 @@ model Tenant {
 
   @@index([slug])
   @@index([status])
+  @@index([lifecycle])
+  @@index([planId])
   deletedAt DateTime?
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// PLATAFORMA (console /admin da equipe — fora dos tenants)
+// ═══════════════════════════════════════════════════════════════════════════
+
+enum TenantLifecycle {
+  TRIAL
+  ACTIVE
+  PAST_DUE
+  SUSPENDED
+  CANCELED
+}
+
+enum PlatformStaffRole {
+  OWNER
+  SUPPORT
+  FINANCE
+  READONLY
+}
+
+model Plan {
+  id          String  @id @default(cuid())
+  name        String
+  slug        String  @unique
+  description String?
+  // { "maxUsers": 10, "maxRecords": 50000, "maxStorageMb": 2048 } — ausente/null = ilimitado
+  limits      Json    @default("{}")
+  // { "chat": true, "pdf": true, "automations": true, ... } — ver plan-features.ts
+  features    Json    @default("{}")
+  // Plano usado no cadastro self-service (exatamente um deveria ter true)
+  isDefault   Boolean @default(false)
+  isActive    Boolean @default(true)
+  sortOrder   Int     @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenants Tenant[]
+
+  @@index([isDefault])
+}
+
+// Equipe da plataforma (voce + funcionarios). NAO e User de tenant: login,
+// token e permissoes proprios — nenhum cargo de tenant consegue virar staff.
+model PlatformStaff {
+  id          String            @id @default(cuid())
+  email       String            @unique
+  password    String
+  name        String
+  role        PlatformStaffRole @default(READONLY)
+  status      Status            @default(ACTIVE)
+  lastLoginAt DateTime?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  auditLogs PlatformAuditLog[]
+}
+
+// Toda acao da equipe no console (separado do AuditLog dos tenants).
+model PlatformAuditLog {
+  id         String   @id @default(cuid())
+  staffId    String
+  staffName  String
+  action     String
+  targetType String
+  targetId   String?
+  tenantId   String?
+  metadata   Json?
+  ip         String?
+  createdAt  DateTime @default(now())
+
+  staff PlatformStaff @relation(fields: [staffId], references: [id])
+
+  @@index([createdAt(sort: Desc)])
+  @@index([staffId])
+  @@index([tenantId])
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useLocale } from 'next-intl';
 import { useAuthStore } from '@/stores/auth-store';
+import { IMPERSONATION_ORIGIN_KEY, readImpersonationOrigin } from '@/lib/platform-impersonation';
 
 type ImpersonatedBy = { id: string; name: string };
 
@@ -18,7 +19,19 @@ export function ImpersonationBanner() {
   const [impersonatedBy, setImpersonatedBy] = useState<ImpersonatedBy | null>(null);
 
   // Ao encerrar, volta para a home do tenant do admin restaurado (slug pode mudar).
+  // Se a impersonacao veio do console da plataforma, volta para o tenant no console.
   const handleStop = async () => {
+    const origin = readImpersonationOrigin();
+    if (origin) {
+      localStorage.removeItem(IMPERSONATION_ORIGIN_KEY);
+      if (localStorage.getItem('impersonationBackup')) {
+        await stopImpersonation();
+      } else {
+        ['accessToken', 'refreshToken', 'activeTenantId', 'impersonatedBy'].forEach((k) => localStorage.removeItem(k));
+      }
+      window.location.href = `/${locale}/admin/tenants/${origin.tenantId}`;
+      return;
+    }
     await stopImpersonation();
     const u = useAuthStore.getState().user as { tenant?: { slug?: string } } | null;
     const slug = u?.tenant?.slug;

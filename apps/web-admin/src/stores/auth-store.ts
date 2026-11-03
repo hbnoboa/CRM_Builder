@@ -60,6 +60,7 @@ export const useAuthStore = create<AuthState>()(
 
           localStorage.setItem('accessToken', accessToken);
           localStorage.setItem('refreshToken', refreshToken);
+          if (user?.tenantId) localStorage.setItem('activeTenantId', user.tenantId);
 
           set({ user, isAuthenticated: true, isLoading: false });
         } catch (error: unknown) {
@@ -82,6 +83,7 @@ export const useAuthStore = create<AuthState>()(
           localStorage.removeItem('activeTenantId');
           localStorage.removeItem('impersonationBackup');
           localStorage.removeItem('impersonatedBy');
+          localStorage.removeItem('impersonationOrigin');
           set({ user: null, isAuthenticated: false });
         }
       },

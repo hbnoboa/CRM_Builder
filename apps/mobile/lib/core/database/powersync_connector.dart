@@ -7,6 +7,7 @@ import 'package:powersync/powersync.dart';
 import 'package:crm_mobile/core/auth/secure_storage.dart';
 import 'package:crm_mobile/core/config/env.dart';
 import 'package:crm_mobile/core/network/api_client.dart';
+import 'package:crm_mobile/core/network/plan_errors.dart';
 import 'package:logger/logger.dart';
 
 final _logger = Logger(printer: SimplePrinter());
@@ -366,6 +367,13 @@ class CrmPowerSyncConnector extends PowerSyncBackendConnector {
               e.response!.statusCode! >= 400 &&
               e.response!.statusCode! < 500) {
             _logger.w('Skipping failed mutation (client error ${e.response!.statusCode})');
+            // Limite/funcao do plano: o servidor recusou o que foi feito offline.
+            // Avisa em vez de a mudanca sumir em silencio.
+            if (PlanErrors.isPlanRejection(e)) {
+              PlanErrors.showSnack(
+                'Uma alteração não foi sincronizada: ${PlanErrors.message(e, 'limite do plano atingido')}.',
+              );
+            }
             success = true;
             continue;
           }

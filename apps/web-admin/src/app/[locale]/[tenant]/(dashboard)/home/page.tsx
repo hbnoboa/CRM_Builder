@@ -20,6 +20,7 @@ import { useAuthStore } from '@/stores/auth-store';
 import { usePermissions } from '@/hooks/use-permissions';
 import { Card, CardContent } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
+import { OnboardingChecklist, useTenantFeatures } from '@/components/subscription/subscription-widgets';
 
 interface HomeCard {
   key: string;
@@ -35,6 +36,7 @@ export default function HomePage() {
   const t = useTranslations('home');
   const { user } = useAuthStore();
   const { hasModuleAccess, hasModulePermission } = usePermissions();
+  const features = useTenantFeatures();
 
   const firstName = (user?.name || '').split(' ')[0] || user?.name || '';
 
@@ -46,9 +48,9 @@ export default function HomePage() {
     { key: 'newTable', title: t('newTable'), desc: t('newTableDesc'), href: '/entities/new', icon: <TableProperties className="h-6 w-6" />, show: hasModulePermission('entities', 'canCreate'), tone: 'neutral' },
     { key: 'users', title: t('users'), desc: t('usersDesc'), href: '/users', icon: <Users className="h-6 w-6" />, show: hasModuleAccess('users'), tone: 'neutral' },
     { key: 'roles', title: t('roles'), desc: t('rolesDesc'), href: '/roles', icon: <Shield className="h-6 w-6" />, show: hasModuleAccess('roles'), tone: 'neutral' },
-    { key: 'pdf', title: t('pdf'), desc: t('pdfDesc'), href: '/pdf-templates', icon: <FileText className="h-6 w-6" />, show: hasModuleAccess('pdfTemplates'), tone: 'neutral' },
+    { key: 'pdf', title: t('pdf'), desc: t('pdfDesc'), href: '/pdf-templates', icon: <FileText className="h-6 w-6" />, show: hasModuleAccess('pdfTemplates') && features.pdf, tone: 'neutral' },
     { key: 'dashboards', title: t('dashboards'), desc: t('dashboardsDesc'), href: '/dashboard-templates', icon: <BarChart3 className="h-6 w-6" />, show: hasModuleAccess('dashboardTemplates'), tone: 'neutral' },
-    { key: 'publicLinks', title: t('publicLinks'), desc: t('publicLinksDesc'), href: '/public-links', icon: <Link2 className="h-6 w-6" />, show: hasModuleAccess('publicLinks'), tone: 'neutral' },
+    { key: 'publicLinks', title: t('publicLinks'), desc: t('publicLinksDesc'), href: '/public-links', icon: <Link2 className="h-6 w-6" />, show: hasModuleAccess('publicLinks') && features.publicLinks, tone: 'neutral' },
     { key: 'logs', title: t('logs'), desc: t('logsDesc'), href: '/audit-logs', icon: <ScrollText className="h-6 w-6" />, show: hasModuleAccess('auditLogs'), tone: 'neutral' },
     { key: 'tenants', title: t('tenants'), desc: t('tenantsDesc'), href: '/tenants', icon: <Building2 className="h-6 w-6" />, show: hasModuleAccess('tenants'), tone: 'neutral' },
     // Conta (todos)
@@ -63,6 +65,8 @@ export default function HomePage() {
         <h1 className="text-2xl md:text-3xl font-bold">{t('greeting', { name: firstName })}</h1>
         <p className="text-muted-foreground mt-1">{t('subtitle')}</p>
       </div>
+
+      <OnboardingChecklist />
 
       {visible.length === 0 ? (
         <Card>

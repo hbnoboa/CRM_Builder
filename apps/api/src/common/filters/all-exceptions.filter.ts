@@ -23,6 +23,9 @@ export class AllExceptionsFilter implements ExceptionFilter {
     let status = HttpStatus.INTERNAL_SERVER_ERROR;
     let message = 'Erro interno do servidor';
     let errors: string[] | undefined;
+    // Codigo de erro de negocio (ex.: PLAN_LIMIT, FEATURE_DISABLED, TENANT_SUSPENDED)
+    // para o cliente reagir sem depender do texto da mensagem.
+    let details: Record<string, unknown> | undefined;
 
     if (exception instanceof HttpException) {
       status = exception.getStatus();
@@ -33,6 +36,10 @@ export class AllExceptionsFilter implements ExceptionFilter {
       } else if (typeof exceptionResponse === 'object' && exceptionResponse !== null) {
         const resp = exceptionResponse as Record<string, unknown>;
         message = (resp.message as string) || exception.message;
+        if (typeof resp.code === 'string') {
+          const { message: _m, statusCode: _s, error: _e, ...rest } = resp;
+          details = rest;
+        }
 
         // Validation errors from class-validator
         if (Array.isArray(resp.message)) {
@@ -64,6 +71,12 @@ export class AllExceptionsFilter implements ExceptionFilter {
       message = 'Dados invalidos';
     }
 
+    // Throttler responde em ingles ("ThrottlerException: Too Many Requests") e isso
+    // vai direto para a tela de login.
+    if (status === HttpStatus.TOO_MANY_REQUESTS) {
+      message = 'Muitas tentativas. Aguarde um minuto e tente novamente.';
+    }
+
     // Log the full error internally
     this.logger.error(
       `${request.method} ${request.url} - ${status}`,
@@ -79,6 +92,9 @@ export class AllExceptionsFilter implements ExceptionFilter {
 
     if (errors) {
       responseBody.errors = errors;
+    }
+    if (details) {
+      Object.assign(responseBody, details);
     }
 
     // Only include stack trace in development

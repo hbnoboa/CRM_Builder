@@ -89,11 +89,12 @@
       "signIn": "Entrar",
       "signingIn": "Entrando...",
       "noAccount": "Não tem uma conta?",
-      "createAccount": "Criar conta"
+      "createAccount": "Criar conta",
+      "tenantSuspended": "O acesso desta empresa está suspenso. Fale com o administrador ou com o suporte."
     },
     "register": {
       "title": "CRM Builder",
-      "subtitle": "Crie sua conta para acessar o painel",
+      "subtitle": "Crie sua empresa e teste grátis por 14 dias",
       "name": "Nome",
       "namePlaceholder": "Seu nome completo",
       "company": "Empresa",
@@ -1089,6 +1090,9 @@
       "tenantSlug": "Identificador (slug)",
       "brandColor": "Cor da marca",
       "readonly": "Somente leitura — requer permissão de configurações."
+    },
+    "plan": {
+      "tab": "Plano"
     }
   },
   "validation": {
@@ -1474,5 +1478,342 @@
     "settingsDesc": "Conta e organização",
     "tablesTitle": "Suas tabelas",
     "empty": "Nenhuma ação disponível para o seu perfil."
+  },
+  "platform": {
+    "brand": "Console da plataforma",
+    "nav": {
+      "overview": "Visão geral",
+      "tenants": "Clientes",
+      "plans": "Planos",
+      "staff": "Equipe",
+      "audit": "Auditoria"
+    },
+    "roles": {
+      "OWNER": "Dono",
+      "SUPPORT": "Suporte",
+      "FINANCE": "Financeiro",
+      "READONLY": "Somente leitura"
+    },
+    "lifecycle": {
+      "TRIAL": "Em teste",
+      "ACTIVE": "Ativo",
+      "PAST_DUE": "Pagamento pendente",
+      "SUSPENDED": "Suspenso",
+      "CANCELED": "Cancelado"
+    },
+    "features": {
+      "chat": {
+        "name": "Chat",
+        "description": "Canais, comandos e bot"
+      },
+      "pdf": {
+        "name": "Modelos de PDF",
+        "description": "Editor e geração de relatórios em PDF"
+      },
+      "automations": {
+        "name": "Automações",
+        "description": "Automações, cadeias de ações e tarefas agendadas"
+      },
+      "webhooks": {
+        "name": "Webhooks",
+        "description": "Envio de eventos para sistemas externos"
+      },
+      "publicLinks": {
+        "name": "Links públicos",
+        "description": "Formulários externos sem login"
+      },
+      "mobile": {
+        "name": "App mobile",
+        "description": "Sincronização offline do aplicativo"
+      }
+    },
+    "limits": {
+      "maxUsers": "Usuários",
+      "maxRecords": "Registros",
+      "unlimited": "Ilimitado",
+      "maxStorageMb": "Armazenamento (MB)"
+    },
+    "login": {
+      "title": "Console da plataforma",
+      "subtitle": "Acesso restrito à equipe",
+      "email": "Email",
+      "password": "Senha",
+      "submit": "Entrar",
+      "error": "Não foi possível entrar"
+    },
+    "account": {
+      "changePassword": "Trocar senha",
+      "logout": "Sair",
+      "currentPassword": "Senha atual",
+      "newPassword": "Nova senha",
+      "passwordRule": "Mínimo de 10 caracteres, com letra maiúscula, minúscula e número.",
+      "passwordChanged": "Senha alterada",
+      "save": "Salvar"
+    },
+    "overview": {
+      "title": "Visão geral",
+      "subtitle": "Situação dos clientes da plataforma",
+      "totalTenants": "Clientes",
+      "activeUsers": "Usuários ativos",
+      "trialsEnding": "Testes terminando nos próximos 7 dias",
+      "recentSignups": "Novos clientes (30 dias)",
+      "none": "Nada por aqui."
+    },
+    "tenants": {
+      "title": "Clientes",
+      "subtitle": "Empresas que usam a plataforma",
+      "new": "Novo cliente",
+      "search": "Buscar por nome ou slug",
+      "allLifecycles": "Todas as situações",
+      "empty": "Nenhum cliente encontrado.",
+      "noPlan": "Sem plano",
+      "trialUntil": "até {date}",
+      "page": "Página {page} de {total}",
+      "previous": "Anterior",
+      "next": "Próxima",
+      "columns": {
+        "name": "Cliente",
+        "status": "Situação",
+        "plan": "Plano",
+        "users": "Usuários",
+        "records": "Registros",
+        "lastAccess": "Último acesso",
+        "createdAt": "Criado em"
+      },
+      "create": {
+        "title": "Novo cliente",
+        "name": "Nome da empresa",
+        "slug": "Endereço (slug)",
+        "slugHint": "Aparece na URL. Letras minúsculas, números e hífens.",
+        "plan": "Plano",
+        "noPlan": "Sem plano (tudo liberado)",
+        "lifecycle": "Situação inicial",
+        "admin": "Administrador da empresa",
+        "adminName": "Nome",
+        "adminEmail": "Email",
+        "adminPassword": "Senha inicial",
+        "passwordRule": "Mínimo de 8 caracteres, com letra maiúscula, minúscula e número.",
+        "submit": "Criar cliente",
+        "created": "Cliente criado"
+      }
+    },
+    "tenant": {
+      "back": "Clientes",
+      "since": "cliente desde {date}",
+      "usage": {
+        "title": "Uso",
+        "users": "Usuários",
+        "records": "Registros",
+        "entities": "Tabelas",
+        "lastAccess": "Último acesso",
+        "storage": "Armazenamento (MB)",
+        "recompute": "recalcular",
+        "recomputing": "recalculando...",
+        "recomputed": "Armazenamento recalculado: {mb} MB"
+      },
+      "lifecycle": {
+        "title": "Situação",
+        "trialEnd": "Fim do teste",
+        "save": "Salvar situação",
+        "saved": "Situação atualizada",
+        "hint": {
+          "TRIAL": "Acesso liberado até o fim do teste; depois o cliente é suspenso automaticamente.",
+          "ACTIVE": "Cliente pagante com acesso normal.",
+          "PAST_DUE": "Pagamento atrasado: o acesso continua e o cliente vê um aviso.",
+          "SUSPENDED": "Acesso bloqueado. Os dados são mantidos.",
+          "CANCELED": "Contrato encerrado. Acesso bloqueado; os dados são mantidos."
+        }
+      },
+      "plan": {
+        "title": "Plano",
+        "none": "Sem plano",
+        "noneHint": "Sem plano: todas as funções liberadas e sem limites.",
+        "save": "Trocar plano",
+        "saved": "Plano atualizado"
+      },
+      "features": {
+        "title": "Funções",
+        "subtitle": "Vêm do plano; aqui você liga ou desliga só para este cliente.",
+        "fromPlan": "Do plano",
+        "custom": "Só deste cliente",
+        "reset": "voltar ao plano"
+      },
+      "details": {
+        "title": "Dados",
+        "name": "Nome",
+        "domain": "Domínio próprio",
+        "slug": "Endereço (slug)",
+        "slugHint": "O slug não muda depois de criado: está nos links dos usuários.",
+        "save": "Salvar",
+        "saved": "Dados atualizados"
+      },
+      "members": {
+        "title": "Usuários",
+        "name": "Usuário",
+        "role": "Cargo",
+        "lastAccess": "Último acesso",
+        "inactive": "inativo",
+        "enterAs": "Entrar como",
+        "inactiveHint": "Reative o cliente para entrar como usuário."
+      }
+    },
+    "plans": {
+      "title": "Planos",
+      "subtitle": "Limites e funções de cada plano",
+      "new": "Novo plano",
+      "edit": "Editar",
+      "empty": "Nenhum plano ainda. Sem plano, os clientes têm tudo liberado e sem limites.",
+      "default": "Padrão do cadastro",
+      "inactive": "Inativo",
+      "tenantsCount": "{count, plural, =0 {nenhum cliente} one {# cliente} other {# clientes}}",
+      "form": {
+        "newTitle": "Novo plano",
+        "editTitle": "Editar plano",
+        "name": "Nome",
+        "slug": "Identificador",
+        "description": "Descrição",
+        "limits": "Limites",
+        "limitsHint": "Deixe em branco para ilimitado.",
+        "features": "Funções incluídas",
+        "isDefault": "Padrão do cadastro",
+        "isDefaultHint": "Empresas que se cadastram sozinhas entram neste plano.",
+        "isActive": "Ativo (pode ser atribuído)",
+        "save": "Salvar plano",
+        "saved": "Plano salvo"
+      }
+    },
+    "staff": {
+      "title": "Equipe",
+      "subtitle": "Quem acessa este console",
+      "new": "Adicionar pessoa",
+      "you": "você",
+      "saved": "Equipe atualizada",
+      "deactivate": "Desativar",
+      "activate": "Ativar",
+      "resetPassword": "Nova senha",
+      "remove": "Remover",
+      "rolesTitle": "O que cada cargo pode fazer",
+      "roleHelp": {
+        "OWNER": "tudo, inclusive gerenciar a equipe.",
+        "SUPPORT": "ver clientes, criar clientes, mudar funções e entrar como usuário para dar suporte.",
+        "FINANCE": "ver clientes, mudar plano e situação (teste, ativo, suspenso) e gerenciar planos.",
+        "READONLY": "apenas visualizar."
+      },
+      "status": {
+        "ACTIVE": "Ativo",
+        "INACTIVE": "Inativo",
+        "SUSPENDED": "Suspenso"
+      },
+      "columns": {
+        "name": "Pessoa",
+        "role": "Cargo",
+        "status": "Status",
+        "lastLogin": "Último acesso"
+      },
+      "create": {
+        "title": "Adicionar à equipe",
+        "subtitle": "A pessoa entra em /admin com este email e senha.",
+        "name": "Nome",
+        "email": "Email",
+        "role": "Cargo",
+        "password": "Senha inicial",
+        "passwordRule": "Mínimo de 10 caracteres, com letra maiúscula, minúscula e número.",
+        "submit": "Adicionar",
+        "created": "Pessoa adicionada"
+      },
+      "reset": {
+        "title": "Nova senha para {name}",
+        "password": "Nova senha",
+        "passwordRule": "Mínimo de 10 caracteres, com letra maiúscula, minúscula e número.",
+        "submit": "Definir senha",
+        "done": "Senha redefinida"
+      },
+      "removeDialog": {
+        "title": "Remover {name} da equipe?",
+        "description": "A pessoa perde o acesso ao console na hora. O histórico de auditoria é mantido.",
+        "cancel": "Cancelar",
+        "confirm": "Remover",
+        "done": "Removido da equipe"
+      }
+    },
+    "audit": {
+      "title": "Auditoria",
+      "subtitle": "Tudo o que a equipe fez no console",
+      "tenantTitle": "Histórico da equipe neste cliente",
+      "empty": "Nenhuma ação registrada.",
+      "page": "Página {page} de {total}",
+      "previous": "Anterior",
+      "next": "Próxima",
+      "columns": {
+        "when": "Quando",
+        "who": "Quem",
+        "action": "Ação",
+        "target": "Alvo",
+        "ip": "IP"
+      },
+      "actions": {
+        "staff": {
+          "login": "entrou no console",
+          "created": "adicionou membro da equipe",
+          "updated": "alterou membro da equipe",
+          "removed": "removeu membro da equipe",
+          "password_changed": "trocou a própria senha"
+        },
+        "plan": {
+          "created": "criou plano",
+          "updated": "alterou plano"
+        },
+        "tenant": {
+          "created": "criou cliente",
+          "updated": "alterou dados do cliente",
+          "lifecycle_changed": "mudou a situação",
+          "plan_changed": "mudou o plano",
+          "features_changed": "mudou as funções",
+          "impersonated": "entrou como usuário",
+          "storage_recomputed": "recalculou o armazenamento"
+        }
+      }
+    }
+  },
+  "subscription": {
+    "banner": {
+      "trial": "{days, plural, one {Falta # dia} other {Faltam # dias}} do seu período de teste.",
+      "trialLastDay": "Hoje é o último dia do seu período de teste.",
+      "seePlan": "Ver plano",
+      "pastDue": "Há um pagamento pendente. Fale com a gente para evitar a suspensão do acesso."
+    },
+    "panel": {
+      "noPlan": "Plano completo",
+      "trialLeft": "{days, plural, one {# dia restante} other {# dias restantes}} de teste. Para continuar depois, fale com a gente.",
+      "contact": "Para mudar de plano, fale com a gente.",
+      "usage": {
+        "users": "Usuários",
+        "records": "Registros",
+        "storage": "Armazenamento"
+      },
+      "unlimited": "ilimitado",
+      "nearLimit": "Perto do limite do plano.",
+      "features": "Funções do seu plano",
+      "notIncluded": "não incluída no plano"
+    },
+    "onboarding": {
+      "title": "Primeiros passos",
+      "progress": "{done} de {total} concluídos",
+      "dismiss": "Dispensar",
+      "steps": {
+        "table": {
+          "title": "Crie sua primeira tabela",
+          "description": "Defina os campos do que você quer controlar: clientes, pedidos, veículos..."
+        },
+        "record": {
+          "title": "Cadastre o primeiro registro",
+          "description": "Preencha um registro na tabela que você criou."
+        },
+        "team": {
+          "title": "Convide sua equipe",
+          "description": "Adicione as pessoas que vão usar o sistema com você."
+        }
+      }
+    }
   }
 }

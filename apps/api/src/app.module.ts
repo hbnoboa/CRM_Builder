@@ -1,5 +1,5 @@
 import { Module } from '@nestjs/common';
-import { APP_GUARD } from '@nestjs/core';
+import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { ConfigModule } from '@nestjs/config';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { ServiceScopeGuard } from './common/service-scope/service-scope.guard';
@@ -34,6 +34,9 @@ import { EntityFieldRuleModule } from './modules/entity-field-rule/entity-field-
 import { DashboardTemplateModule } from './modules/dashboard-template/dashboard-template.module';
 import { PublicLinkModule } from './modules/public-link/public-link.module';
 import { ChatModule } from './modules/chat/chat.module';
+import { PlatformModule } from './modules/platform/platform.module';
+import { TenantPlanModule } from './common/services/tenant-plan.module';
+import { TenantFeatureInterceptor } from './common/interceptors/tenant-feature.interceptor';
 
 @Module({
   imports: [
@@ -68,6 +71,9 @@ import { ChatModule } from './modules/chat/chat.module';
 
     // Redis (Global)
     RedisModule,
+
+    // Plano/funcoes/limites por tenant (Global)
+    TenantPlanModule,
 
     // Health Check
     HealthModule,
@@ -109,11 +115,16 @@ import { ChatModule } from './modules/chat/chat.module';
     // Public Links (formularios externos)
     PublicLinkModule,
     ChatModule,
+
+    // Console da plataforma (equipe)
+    PlatformModule,
   ],
   providers: [
     // Separacao admin x user (#18): guard global de ambiente. Roda antes dos
     // guards de rota, entao rotas fora do scope respondem 404.
     { provide: APP_GUARD, useClass: ServiceScopeGuard },
+    // Funcoes desligadas no plano do tenant (@RequireFeature) -> 403.
+    { provide: APP_INTERCEPTOR, useClass: TenantFeatureInterceptor },
   ],
 })
 export class AppModule {}
