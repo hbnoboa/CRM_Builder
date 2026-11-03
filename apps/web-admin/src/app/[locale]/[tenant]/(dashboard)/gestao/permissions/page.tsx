@@ -45,7 +45,7 @@ export default function PermissionsPage() {
     <div className="max-w-3xl mx-auto mt-8">
       {/* Breadcrumbs */}
       <nav className="mb-4 flex items-center gap-2 text-sm text-muted-foreground" aria-label="breadcrumb">
-        <Link href="/dashboard" className="hover:underline">{tNav('dashboard')}</Link>
+        <Link href="/gestao" className="hover:underline">{tNav('gestao')}</Link>
         <span>/</span>
         <span className="font-semibold text-foreground">{t('title')}</span>
       </nav>
@@ -54,7 +54,7 @@ export default function PermissionsPage() {
       <TooltipProvider>
         <Tooltip>
           <TooltipTrigger asChild>
-            <Link href="/dashboard">
+            <Link href="/home">
               <Button variant="ghost" size="icon" className="mb-2" aria-label={t('backToDashboard')}>
                 <ArrowLeft className="h-5 w-5" />
               </Button>

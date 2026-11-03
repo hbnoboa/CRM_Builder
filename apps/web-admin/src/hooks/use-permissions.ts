@@ -97,6 +97,24 @@ const MODULE_KEY_MAP: Record<string, keyof ModulePermissions> = {
   executionLogs: 'logs',            // mapeia para logs
 };
 
+/** Modulos da camada "administracao da empresa" (espelha ADMIN_AREA_MODULES da API). */
+const ADMIN_AREA_MODULES = ['entities', 'users', 'roles', 'settings', 'automations', 'templates', 'logs', 'publicLinks'] as const;
+
+/** Secao de /gestao -> permissao que abre a secao. */
+const ADMIN_SECTION_RULES: Record<string, { module: string; action: 'canRead' | 'canUpdate' | 'any' }> = {
+  users: { module: 'users', action: 'canRead' },
+  roles: { module: 'roles', action: 'canRead' },
+  permissions: { module: 'roles', action: 'canRead' },
+  entities: { module: 'entities', action: 'any' },
+  'pdf-templates': { module: 'pdfTemplates', action: 'canRead' },
+  'dashboard-templates': { module: 'dashboardTemplates', action: 'canRead' },
+  'public-links': { module: 'publicLinks', action: 'any' },
+  'audit-logs': { module: 'auditLogs', action: 'canRead' },
+  'execution-logs': { module: 'executionLogs', action: 'canRead' },
+  organization: { module: 'settings', action: 'canUpdate' },
+  plan: { module: 'settings', action: 'canUpdate' },
+};
+
 const MODULE_KEYS: (keyof ModulePermissions)[] = ['dashboard', 'users', 'settings', 'entities', 'data', 'roles', 'automations', 'templates', 'logs', 'notifications', 'publicLinks', 'archive'];
 
 export function usePermissions() {
@@ -263,20 +281,41 @@ export function usePermissions() {
   };
 
   /**
-   * SUPERFICIE OPERACIONAL (espelha o SERVICE_SCOPE=user do backend, #18).
-   * Um usuario e "operacional" quando NAO tem acesso a nenhum modulo de gestao
-   * (builder de entidades, usuarios, cargos, templates, logs, links
-   * publicos, automacoes) e nao tem allAccess. Esse usuario
-   * ganha um shell proprio (nav slim), sem o chrome do console de admin.
-   * Admin NAO alterna: para ver o operacional, ele impersona um usuario.
+   * Administracao da empresa (/gestao): mesma regra do hasAdminArea da API —
+   * acesso total, ou qualquer permissao num modulo de gestao (settings: so canUpdate).
    */
-  const isOperationalSurface = useMemo(() => {
-    if (!user || !hasRole) return false; // sessao ainda carregando -> nao forcar
-    if (fullAccess) return false; // tem console completo
-    const ADMIN_SURFACE_KEYS = ['entities', 'users', 'roles', 'templates', 'logs', 'publicLinks', 'automations'] as const;
-    const perms = adjustedModulePermissions as Record<string, ModulePermission | undefined>;
-    return !ADMIN_SURFACE_KEYS.some((k) => perms[k]?.canRead === true);
-  }, [user, hasRole, fullAccess, adjustedModulePermissions]);
+  const canAccessAdminArea = useMemo(() => {
+    if (!user || !hasRole) return false;
+    if (fullAccess) return true;
+    const raw = (user.customRole?.modulePermissions ?? {}) as Record<string, unknown>;
+    return ADMIN_AREA_MODULES.some((key) => {
+      const perm = raw[key];
+      if (perm === true) return true;
+      if (!perm || typeof perm !== 'object') return false;
+      const p = perm as Record<string, unknown>;
+      // settings: so editar a organizacao; templates: ver/gerar e operacao (gerar PDF).
+      if (key === 'settings') return p.canUpdate === true;
+      if (key === 'templates') return p.canCreate === true || p.canUpdate === true || p.canDelete === true;
+      return Object.values(p).some((v) => v === true);
+    });
+  }, [user, hasRole, fullAccess]);
+
+  /**
+   * SUPERFICIE OPERACIONAL (espelha o SERVICE_SCOPE=user do backend, #18): quem nao
+   * entra na administracao usa o shell operacional (nav slim, sem chrome de gestao).
+   */
+  const isOperationalSurface = !!user && hasRole && !canAccessAdminArea;
+
+  /** Pode abrir esta secao da administracao? (`section` = 1o segmento depois de /gestao) */
+  const canAccessAdminSection = (section: string | undefined): boolean => {
+    if (!canAccessAdminArea) return false;
+    if (fullAccess || !section) return true;
+    const rule = ADMIN_SECTION_RULES[section];
+    if (!rule) return false;
+    return rule.action === 'any'
+      ? (['canRead', 'canCreate', 'canUpdate', 'canDelete'] as const).some((a) => hasModulePermission(rule.module, a))
+      : hasModulePermission(rule.module, rule.action);
+  };
 
   /**
    * "Admin com tudo" = acesso total DENTRO do tenant (modulePermissions.allAccess).
@@ -302,6 +341,8 @@ export function usePermissions() {
     getDefaultRoute,
     isAdmin,
     isOperationalSurface,
+    canAccessAdminArea,
+    canAccessAdminSection,
   };
 }
 

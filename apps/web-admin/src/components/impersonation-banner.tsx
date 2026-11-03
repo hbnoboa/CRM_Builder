@@ -53,12 +53,19 @@ export function ImpersonationBanner() {
     return () => window.removeEventListener('tenant-changed', read);
   }, [user]);
 
+  // Os layouts descem menu e cabecalho por --banner-h para a faixa nao cobri-los.
+  useEffect(() => {
+    if (!impersonatedBy) return;
+    document.documentElement.style.setProperty('--banner-h', '2.5rem');
+    return () => document.documentElement.style.removeProperty('--banner-h');
+  }, [impersonatedBy]);
+
   if (!impersonatedBy) return null;
 
   return (
     <div
       data-testid="impersonation-banner"
-      className="fixed left-0 right-0 top-0 z-[100] flex items-center justify-center gap-3 bg-amber-500 px-4 py-2 text-sm font-medium text-amber-950 shadow"
+      className="fixed left-0 right-0 top-0 z-[100] flex h-10 items-center justify-center gap-3 overflow-hidden bg-amber-500 px-4 text-sm font-medium text-amber-950 shadow"
     >
       <span>
         Você está impersonando <strong>{user?.name ?? 'usuário'}</strong> (por {impersonatedBy.name})

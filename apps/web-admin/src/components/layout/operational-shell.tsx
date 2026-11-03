@@ -81,14 +81,14 @@ export function OperationalShell({ children }: { children: React.ReactNode }) {
   const isRegistrosActive = pathname === '/data';
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background pt-[var(--banner-h,0px)]">
       {sidebarOpen && (
         <div className="fixed inset-0 z-40 bg-black/50 lg:hidden" onClick={() => setSidebarOpen(false)} />
       )}
 
       <aside
         className={cn(
-          'fixed inset-y-0 left-0 z-50 w-64 max-w-[calc(100vw-3rem)] bg-card border-r transform transition-transform duration-200 ease-in-out lg:translate-x-0 overflow-hidden',
+          'fixed bottom-0 top-[var(--banner-h,0px)] left-0 z-50 w-64 max-w-[calc(100vw-3rem)] bg-card border-r transform transition-transform duration-200 ease-in-out lg:translate-x-0 overflow-hidden',
           sidebarOpen ? 'translate-x-0' : '-translate-x-full'
         )}
       >
@@ -207,7 +207,7 @@ export function OperationalShell({ children }: { children: React.ReactNode }) {
       </aside>
 
       <div className="lg:pl-64">
-        <header className="sticky top-0 z-30 h-16 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+        <header className="sticky top-[var(--banner-h,0px)] z-30 h-16 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
           <div className="flex items-center gap-2 sm:gap-4 h-full px-3 sm:px-4">
             <button
               className="lg:hidden p-2 -ml-2 rounded-lg hover:bg-muted transition-colors"

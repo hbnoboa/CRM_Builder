@@ -75,7 +75,7 @@ export default function AuditLogsPage() {
             <p className="text-muted-foreground text-center mb-4 text-sm sm:text-base px-2">
               {tAuth('noPermission')}
             </p>
-            <Link href="/dashboard">
+            <Link href="/home">
               <Button variant="outline">
                 <ArrowLeft className="h-4 w-4 mr-2" />
                 {tAuth('backToDashboard')}
@@ -125,7 +125,7 @@ export default function AuditLogsPage() {
   return (
     <div className="space-y-6">
       <nav className="mb-2 flex items-center gap-2 text-sm text-muted-foreground" aria-label="breadcrumb">
-        <Link href="/dashboard" className="hover:underline">{tNav('dashboard')}</Link>
+        <Link href="/gestao" className="hover:underline">{tNav('gestao')}</Link>
         <span>/</span>
         <span className="font-semibold text-foreground">{t('title')}</span>
       </nav>

@@ -144,7 +144,8 @@
     "admin": "Admin",
     "home": "Home",
     "chat": "Chat",
-    "operational": "Operational"
+    "operational": "Operational",
+    "gestao": "Administration"
   },
   "roles": {
     "ADMIN": "Administrator",
@@ -1746,6 +1747,75 @@
       "choose": "Choose the new owner",
       "transfer": "Transfer",
       "transferred": "Ownership transferred"
+    }
+  },
+  "gestao": {
+    "label": "Administration",
+    "openMenu": "Open menu",
+    "closeMenu": "Close menu",
+    "backToOperation": "Back to operations",
+    "groups": {
+      "team": "Team",
+      "structure": "Structure",
+      "security": "Security",
+      "company": "Company"
+    },
+    "nav": {
+      "dashboard": "Overview",
+      "users": "Users",
+      "roles": "Roles",
+      "permissions": "Permissions guide",
+      "entities": "Tables",
+      "pdfTemplates": "PDF templates",
+      "dashboardTemplates": "Dashboards",
+      "publicLinks": "Public links",
+      "auditLogs": "Audit",
+      "executionLogs": "Executions",
+      "organization": "Organization",
+      "plan": "Plan"
+    },
+    "home": {
+      "title": "Hello, {name}",
+      "subtitle": "{company} administration: team, structure and plan in one place.",
+      "usage": {
+        "users": "Users",
+        "records": "Records",
+        "storage": "Storage",
+        "entities": "Tables",
+        "unlimited": "unlimited"
+      },
+      "pending": {
+        "title": "Needs attention",
+        "none": "All caught up here.",
+        "neverLoggedIn": "{count, plural, one {# user never signed in} other {# users never signed in}}",
+        "inactive30": "{count, plural, one {# user inactive for over 30 days} other {# users inactive for over 30 days}}",
+        "unusedRoles": "{count, plural, one {# unused role} other {# unused roles}}",
+        "failedRuns": "{count, plural, one {# automation failed in the last 7 days} other {# automations failed in the last 7 days}}",
+        "trial": "{days, plural, =0 {The trial ends today} one {# trial day left} other {# trial days left}}"
+      },
+      "activity": {
+        "title": "Recent activity",
+        "empty": "No actions recorded yet.",
+        "noAccess": "Your role can't see the company logs.",
+        "system": "System",
+        "by": "by {name}"
+      },
+      "shortcuts": "Shortcuts"
+    },
+    "plan": {
+      "title": "Plan",
+      "subtitle": "The company's plan usage, limits and features, and who the owner is."
+    },
+    "organization": {
+      "title": "Organization",
+      "subtitle": "The company's details and branding."
+    },
+    "entities": {
+      "title": "Tables",
+      "subtitle": "The company's table structure. Records live in operations.",
+      "new": "New table",
+      "empty": "No tables yet.",
+      "meta": "{fields} fields · {records} records"
     }
   }
 }

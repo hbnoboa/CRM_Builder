@@ -61,7 +61,7 @@ export function TrialBanner() {
       <Clock className="h-4 w-4 shrink-0" />
       <span>{data.trialDaysLeft === 0 ? t('trialLastDay') : t('trial', { days: data.trialDaysLeft })}</span>
       {hasModulePermission('settings', 'canUpdate') && (
-        <Link href="/settings?tab=plan" className="font-medium underline">{t('seePlan')}</Link>
+        <Link href="/gestao/plan" className="font-medium underline">{t('seePlan')}</Link>
       )}
     </div>
   );
@@ -168,9 +168,9 @@ export function OnboardingChecklist() {
   if (!data || dismissed || !hasModulePermission('entities', 'canCreate')) return null;
 
   const steps = [
-    { key: 'table', done: data.usage.entities > 0, href: '/entities/new', show: true },
+    { key: 'table', done: data.usage.entities > 0, href: '/gestao/entities/new', show: true },
     { key: 'record', done: data.usage.records > 0, href: '/data', show: hasModuleAccess('data') },
-    { key: 'team', done: data.usage.users > 1, href: '/users', show: hasModuleAccess('users') },
+    { key: 'team', done: data.usage.users > 1, href: '/gestao/users', show: hasModuleAccess('users') },
   ].filter((s) => s.show);
 
   if (steps.every((s) => s.done)) return null;

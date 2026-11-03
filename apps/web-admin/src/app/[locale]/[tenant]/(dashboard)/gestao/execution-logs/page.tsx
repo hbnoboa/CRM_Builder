@@ -77,7 +77,7 @@ export default function ExecutionLogsPage() {
             <p className="text-muted-foreground text-center mb-4 text-sm sm:text-base px-2">
               Voce nao tem permissao para acessar esta pagina.
             </p>
-            <Link href="/dashboard">
+            <Link href="/home">
               <Button variant="outline">
                 <ArrowLeft className="h-4 w-4 mr-2" />
                 Voltar ao Dashboard

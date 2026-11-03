@@ -70,7 +70,7 @@ function NewEntityPageContent() {
 
       toast.success(t('toast.created'));
       // Redirecionar para o editor GrapeJS
-      router.push(`/entities/${entityId}`);
+      router.push(`/gestao/entities/${entityId}`);
     } catch (error) {
       console.error('Error creating entity:', error);
       toast.error(t('toast.createError'));

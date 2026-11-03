@@ -144,7 +144,8 @@
     "admin": "Admin",
     "home": "Início",
     "chat": "Chat",
-    "operational": "Operacional"
+    "operational": "Operacional",
+    "gestao": "Administração"
   },
   "roles": {
     "ADMIN": "Administrador",
@@ -1750,6 +1751,75 @@
       "choose": "Escolha o novo dono",
       "transfer": "Transferir",
       "transferred": "Propriedade transferida"
+    }
+  },
+  "gestao": {
+    "label": "Administração",
+    "openMenu": "Abrir menu",
+    "closeMenu": "Fechar menu",
+    "backToOperation": "Voltar para a operação",
+    "groups": {
+      "team": "Equipe",
+      "structure": "Estrutura",
+      "security": "Segurança",
+      "company": "Empresa"
+    },
+    "nav": {
+      "dashboard": "Painel",
+      "users": "Usuários",
+      "roles": "Cargos",
+      "permissions": "Guia de permissões",
+      "entities": "Tabelas",
+      "pdfTemplates": "Modelos de PDF",
+      "dashboardTemplates": "Dashboards",
+      "publicLinks": "Links públicos",
+      "auditLogs": "Auditoria",
+      "executionLogs": "Execuções",
+      "organization": "Organização",
+      "plan": "Plano"
+    },
+    "home": {
+      "title": "Olá, {name}",
+      "subtitle": "Administração da {company}: equipe, estrutura e plano num só lugar.",
+      "usage": {
+        "users": "Usuários",
+        "records": "Registros",
+        "storage": "Armazenamento",
+        "entities": "Tabelas",
+        "unlimited": "sem limite"
+      },
+      "pending": {
+        "title": "Precisa de atenção",
+        "none": "Tudo em dia por aqui.",
+        "neverLoggedIn": "{count, plural, one {# usuário nunca entrou} other {# usuários nunca entraram}}",
+        "inactive30": "{count, plural, one {# usuário sem acesso há mais de 30 dias} other {# usuários sem acesso há mais de 30 dias}}",
+        "unusedRoles": "{count, plural, one {# cargo sem uso} other {# cargos sem uso}}",
+        "failedRuns": "{count, plural, one {# automação falhou nos últimos 7 dias} other {# automações falharam nos últimos 7 dias}}",
+        "trial": "{days, plural, =0 {O período de teste acaba hoje} one {Falta # dia de teste} other {Faltam # dias de teste}}"
+      },
+      "activity": {
+        "title": "Atividade recente",
+        "empty": "Nenhuma ação registrada ainda.",
+        "noAccess": "Seu cargo não vê os logs da empresa.",
+        "system": "Sistema",
+        "by": "por {name}"
+      },
+      "shortcuts": "Atalhos"
+    },
+    "plan": {
+      "title": "Plano",
+      "subtitle": "Uso, limites e funções do plano da empresa, e quem é o dono."
+    },
+    "organization": {
+      "title": "Organização",
+      "subtitle": "Dados e identidade visual da empresa."
+    },
+    "entities": {
+      "title": "Tabelas",
+      "subtitle": "Estrutura das tabelas da empresa. Os registros ficam na operação.",
+      "new": "Nova tabela",
+      "empty": "Nenhuma tabela criada ainda.",
+      "meta": "{fields} campos · {records} registros"
     }
   }
 }

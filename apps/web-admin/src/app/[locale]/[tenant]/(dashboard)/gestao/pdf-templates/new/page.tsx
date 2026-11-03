@@ -106,7 +106,7 @@ function NewPdfTemplatePageContent() {
           },
         },
       });
-      router.push(`/pdf-templates/${template.id}`);
+      router.push(`/gestao/pdf-templates/${template.id}`);
     } catch {
       // Error handled by hook
     }
@@ -119,11 +119,11 @@ function NewPdfTemplatePageContent() {
         className="mb-2 flex items-center gap-2 text-sm text-muted-foreground"
         aria-label="breadcrumb"
       >
-        <Link href="/dashboard" className="hover:underline">
-          {tNav('dashboard')}
+        <Link href="/gestao" className="hover:underline">
+          {tNav('gestao')}
         </Link>
         <span>/</span>
-        <Link href="/pdf-templates" className="hover:underline">
+        <Link href="/gestao/pdf-templates" className="hover:underline">
           Templates de PDF
         </Link>
         <span>/</span>
@@ -132,7 +132,7 @@ function NewPdfTemplatePageContent() {
 
       {/* Header */}
       <div className="flex items-center gap-3 sm:gap-4">
-        <Link href="/pdf-templates">
+        <Link href="/gestao/pdf-templates">
           <Button variant="ghost" size="icon" className="flex-shrink-0">
             <ArrowLeft className="h-4 w-4" />
           </Button>
@@ -316,7 +316,7 @@ function NewPdfTemplatePageContent() {
               </div>
 
               <div className="flex justify-end gap-3">
-                <Link href="/pdf-templates">
+                <Link href="/gestao/pdf-templates">
                   <Button type="button" variant="outline">
                     Cancelar
                   </Button>

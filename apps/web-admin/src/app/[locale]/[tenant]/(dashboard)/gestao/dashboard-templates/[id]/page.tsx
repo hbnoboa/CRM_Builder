@@ -2792,7 +2792,7 @@ function TemplateBuilderContent() {
       if (isCreateMode) {
         const result = await createTemplate.mutateAsync(payload);
         if (result?.id) {
-          router.replace(`/dashboard-templates/${result.id}`);
+          router.replace(`/gestao/dashboard-templates/${result.id}`);
         }
       } else {
         await updateTemplate.mutateAsync({ id: templateId, data: payload });
@@ -2822,7 +2822,7 @@ function TemplateBuilderContent() {
         {/* Toolbar */}
         <div className="flex items-center justify-between gap-3 flex-wrap px-1 pb-3 border-b">
           <div className="flex items-center gap-3">
-            <Link href="/dashboard-templates">
+            <Link href="/gestao/dashboard-templates">
               <Button variant="ghost" size="icon" className="h-8 w-8">
                 <ArrowLeft className="h-4 w-4" />
               </Button>

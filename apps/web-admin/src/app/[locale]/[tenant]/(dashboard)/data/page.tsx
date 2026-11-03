@@ -163,7 +163,7 @@ function DataPageContent() {
           <CardContent className="py-6 text-center">
             <Database className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
             <p className="text-sm text-muted-foreground">{t('noEntitiesCreated')}</p>
-            <Link href="/entities/new">
+            <Link href="/gestao/entities/new">
               <Button variant="link" size="sm" data-testid="create-entity-btn">
                 {t('createEntity')}
               </Button>

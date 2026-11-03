@@ -429,8 +429,8 @@ function PdfTemplatesPageContent() {
         className="mb-2 flex items-center gap-2 text-sm text-muted-foreground"
         aria-label="breadcrumb"
       >
-        <Link href="/dashboard" className="hover:underline">
-          {tNav('dashboard')}
+        <Link href="/gestao" className="hover:underline">
+          {tNav('gestao')}
         </Link>
         <span>/</span>
         <span className="font-semibold text-foreground">Templates de PDF</span>
@@ -445,7 +445,7 @@ function PdfTemplatesPageContent() {
           </p>
         </div>
         {hasModulePermission('pdfTemplates', 'canCreate') && (
-          <Link href="/pdf-templates/new" className="w-full sm:w-auto">
+          <Link href="/gestao/pdf-templates/new" className="w-full sm:w-auto">
             <Button className="w-full sm:w-auto">
               <Plus className="h-4 w-4 mr-2" />
               Novo Template
@@ -560,7 +560,7 @@ function PdfTemplatesPageContent() {
                         <DropdownMenuContent align="end">
                           {hasModulePermission('pdfTemplates', 'canUpdate') && (
                             <DropdownMenuItem asChild>
-                              <Link href={`/pdf-templates/${template.id}`}>
+                              <Link href={`/gestao/pdf-templates/${template.id}`}>
                                 <Pencil className="h-4 w-4 mr-2" />
                                 {tCommon('edit')}
                               </Link>
@@ -627,7 +627,7 @@ function PdfTemplatesPageContent() {
 
                 <div className="flex gap-2 mt-3 sm:mt-4 pt-3 sm:pt-4 border-t">
                   {hasModulePermission('pdfTemplates', 'canUpdate') && (
-                    <Link href={`/pdf-templates/${template.id}`} className="flex-1">
+                    <Link href={`/gestao/pdf-templates/${template.id}`} className="flex-1">
                       <Button variant="outline" size="sm" className="w-full text-xs sm:text-sm">
                         <Pencil className="h-3 w-3 mr-1" />
                         Editar
