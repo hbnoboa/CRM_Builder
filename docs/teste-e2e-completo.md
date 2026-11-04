@@ -13,7 +13,7 @@ Ele é organizado pelos **3 tipos de usuário** do produto:
 - Tempo estimado: 1 dia inteiro para tudo; cada parte pode ser feita separada.
 - Convenções:
   - ✅ = resultado esperado.
-  - 🐞 = **bug já conhecido** (achado na leitura do código, ainda não corrigido). Anote se confirmar; não bloqueia o teste.
+  - 🔧 = ponto que era bug e **foi corrigido** (PR das correções E2E). Se falhar, é regressão: reporte com o ID.
   - 📧 = depende de e-mail (SMTP). Em dev **não há SMTP configurado**: pule ou use o link copiável quando existir.
   - IDs (`P-03`, `E-12`, `O-20`, `M-07`) servem para reportar o que falhou.
 - Mensagens de erro da API aparecem **sem acento** ("Credenciais invalidas"): isso é o texto atual, não é erro do teste.
@@ -33,7 +33,7 @@ Ele é organizado pelos **3 tipos de usuário** do produto:
 8. [Segurança da conta e sessões](#8-segurança-da-conta-e-sessões)
 9. [LGPD — exportar e encerrar](#9-lgpd--exportar-e-encerrar)
 10. [Matriz final por perfil](#10-matriz-final-por-perfil)
-11. [Bugs conhecidos (esperados hoje)](#11-bugs-conhecidos-esperados-hoje)
+11. [Correções feitas (testar como regressão)](#11-correções-feitas-testar-como-regressão)
 12. [Diagnóstico e limpeza](#12-diagnóstico-e-limpeza)
 
 ---
@@ -166,7 +166,7 @@ Logue como cada um (janelas separadas) e confira:
 ### E-01 Cadastro
 | # | Ação | Esperado |
 |---|---|---|
-| 1 | `https://dev.iossystem.com.br/pt-BR/register` | ✅ "Crie sua empresa e teste grátis por 14 dias" |
+| 1 | `https://dev.iossystem.com.br/pt-BR/register` | ✅ 🔧 "Crie sua empresa e teste grátis por N dias" (N = `SIGNUP_TRIAL_DAYS` do servidor, padrão 14) |
 | 2 | Enviar vazio | ✅ "Nome deve ter pelo menos 2 caracteres", "Empresa é obrigatória", "Email é obrigatório", "Senha deve ter pelo menos 8 caracteres" |
 | 3 | Senha `abcdefgh` | ✅ (API) "Senha deve conter pelo menos uma letra maiuscula, uma minuscula e um numero" |
 | 4 | E-mail já usado (ex.: o da Paula do console **não** conta; use o do admin da QA Console) | ✅ "Email ja esta em uso" |
@@ -178,7 +178,7 @@ Logue como cada um (janelas separadas) e confira:
 ### E-02 Pós-cadastro
 - [ ] Console (Paula) → detalhe "QA Total" → **Plano** = "QA Básico" → "Trocar plano" ✅ "Plano atualizado".
 - [ ] Dora: *Administração › Plano* (pode levar até 30 s): limites 8 usuários / 60 registros / 50 MB.
-- [ ] Tela de login (`/pt-BR/login`): 🐞 não há link "Criar conta" (texto existe mas não é usado).
+- [ ] 🔧 Tela de login (`/pt-BR/login`): link "Não tem uma conta? Criar conta" leva para o cadastro.
 
 ---
 
@@ -224,7 +224,10 @@ Logue como cada um (janelas separadas) e confira:
 | 7 | Mesmo nome de tabela de novo | ✅ "Entidade com este slug ja existe" |
 | 8 | Lista *Tabelas* | ✅ cartões "N campos · N registros · categoria" |
 | 9 | Abrir o editor no celular (largura pequena) | ✅ "Edite no computador" |
-| 10 | 🐞 Procurar botão **excluir tabela**, **regras de campo**, **filtro global**, **automações da tabela** no editor | 🐞 não existem na tela hoje (API existe) — anotar |
+| 10 | 🔧 Abas do editor: **Campos**, **Regras de campo**, **Filtro global**, **Automações**, **Excluir** | ✅ todas aparecem; trocar de aba não perde campos não salvos |
+| 11 | 🔧 *Filtro global* em Clientes: "VIP Igual a Não" → "Salvar filtro" | ✅ "Filtro global salvo"; **ninguém** (nem a Dora) vê clientes VIP na lista, no dashboard e no app; remover o chip e salvar volta tudo |
+| 12 | 🔧 *Regras de campo*: regra "obrigatório" em Email | ✅ o formulário passa a exigir Email |
+| 13 | 🔧 Criar tabela "Lixo" → editor → aba *Excluir* → digitar o nome → "Excluir tabela" | ✅ botão só habilita com o nome certo; volta para *Tabelas* sem "Lixo" |
 
 ### E-07 Cargos
 | # | Ação | Esperado |
@@ -239,7 +242,7 @@ Logue como cada um (janelas separadas) e confira:
 | 8 | Setas "Subir/Descer" em Visualizador e Operador | ✅ reordena ranks abaixo do seu |
 | 9 | "Acesso total ao tenant" num cargo de teste e desmarcar um módulo | ✅ desliga o modo automático |
 | 10 | Excluir cargo **com usuários** (depois dos convites) | ✅ "Esta role esta atribuida a N usuario(s)…" |
-| 11 | 🐞 Procurar o módulo **APIs** no formulário | 🐞 não existe (chaves de API só com acesso total) |
+| 11 | 🔧 Módulo **Chaves de API** no formulário (Ver / Criar / Excluir) | ✅ aparece; um cargo só com "Criar" em Chaves de API consegue criar chave em *Integrações* |
 
 ### E-08 Convites e usuários
 | # | Ação | Esperado |
@@ -257,8 +260,9 @@ Logue como cada um (janelas separadas) e confira:
 | 11 | Convidar alguém já com conta em **outra** empresa (o admin da QA Console) | ✅ página pede "Sua senha" ("Você já tem uma conta…"); ao aceitar, entra direto na QA Total e ganha o seletor de empresas |
 | 12 | Lista de usuários | ✅ cartões com cargo, "Dono" (coroa) na Dora, busca por nome/e-mail |
 | 13 | "Novo Usuário" (sem convite) **sem senha** | ✅ erro da API (senha obrigatória) |
-| 14 | 🐞 Editar o **próprio** usuário (Dora) e salvar | 🐞 hoje falha: "Voce nao pode mudar o proprio cargo ou a propria situacao" |
-| 15 | 🐞 Editar a Vera e só trocar o nome | 🐞 pode falhar (o formulário manda cargo/situação junto) — anotar |
+| 14 | 🔧 Editar o **próprio** usuário (Dora): trocar o nome e salvar | ✅ salva (trocar a própria situação continua bloqueado) |
+| 15 | 🔧 Editar a Vera e só trocar o nome | ✅ salva |
+| 15b | 🔧 Desativar a Vera; com o plano no limite de usuários, reativar | ✅ "Limite de usuarios do plano atingido" |
 | 16 | Limite do plano: com o admin da QA Console já são **8** pessoas ativas (limite 8) → convidar mais 1 | ✅ "Limite de usuarios do plano atingido (8)" (se não bater, conte os ativos em *Plano*) |
 
 ### E-09 Proteções do dono (como **Alex**, administrador não-dono)
@@ -322,12 +326,12 @@ Logue como cada um (janelas separadas) e confira:
 
 ### E-16 Integrações — automações
 - [ ] Aba *Automações*: lista as automações criadas pelo template "Ordem de Servico".
-- [ ] 🐞 "Editar na tabela" abre o editor, que **não tem** seção de automações.
+- [ ] 🔧 "Editar na tabela" abre o editor direto na aba **Automações** (Automações de evento e agendadas).
 
 ### E-17 Plano
 - [ ] *Plano*: "QA Básico", dias restantes de teste, uso com barras, funções do plano.
 - [ ] Console muda o plano da QA Total para "QA Mínimo" → depois de até 30 s, Chat/PDF/Links públicos aparecem como "não incluída no plano" e **somem** os menus correspondentes (*Modelos de PDF*, *Links públicos*, Chat na lateral da administração).
-- [ ] 🐞 Na **operação** (shell verde) o item "Chat" continua aparecendo mesmo com o chat fora do plano.
+- [ ] 🔧 Na **operação** (shell verde) o item "Chat" também some com o chat fora do plano.
 - [ ] Voltar o plano para "QA Básico".
 
 ### E-18 Transferência de dono (faça no fim do dia ou desfaça)
@@ -340,7 +344,7 @@ Logue como cada um (janelas separadas) e confira:
 
 ### E-19 Auditoria e Execuções
 - [ ] *Auditoria*: aparecem criação de usuários, convites, equipes, cargos, organização. Filtros por ação/recurso/data funcionam.
-- [ ] "Exportar JSON" baixa `audit-logs-AAAA-MM-DD.json`. 🐞 o arquivo ignora os filtros de ação/recurso/busca (só datas).
+- [ ] 🔧 "Exportar JSON" baixa `audit-logs-AAAA-MM-DD.json` **com os mesmos filtros** da tela (ação, recurso, busca, datas).
 - [ ] Logar como alguém com o cargo **Auditor** (troque a Vera temporariamente): vê *Administração* só com Auditoria/Execuções.
 - [ ] *Execuções*: aparecem os envios do webhook (E-15) com Sucesso/Erro.
 
@@ -353,8 +357,8 @@ Logue como cada um (janelas separadas) e confira:
 
 - [ ] Ana digitando `/pt-BR/qa-total/gestao/users` na barra → ✅ volta para `/home`.
 - [ ] Gil digitando `/gestao/organization` → ✅ volta para `/gestao`.
-- [ ] 🐞 Gil em *Cargos*: a lista falha/fica vazia ("Requer permissão de gerir cargos").
-- [ ] 🐞 Gil em *Dashboards*: vê "Novo Template", mas criar/excluir dá 403.
+- [ ] 🔧 Gil em *Cargos*: vê a lista (só leitura; editar dá "Acesso negado").
+- [ ] 🔧 Gil **não** vê *Dashboards* (configurar dashboards exige criar/editar/excluir no módulo Painel); digitar a URL volta para `/gestao`.
 
 ---
 
@@ -373,7 +377,7 @@ Logue como cada um (janelas separadas) e confira:
 - [ ] Dora: + Nova Tabela, Usuários, Cargos, Templates PDF, Dashboards, Links Públicos, Auditoria.
 
 ### O-03 Rotas que não deveriam abrir
-- [ ] 🐞 Ana abre `/pt-BR/qa-total/profile` → volta para `/home` (só o Administrador abre "Perfil").
+- [ ] 🔧 Ana abre `/pt-BR/qa-total/profile` e `/settings` → as páginas abrem (são da própria conta).
 
 ### O-04 Dashboard geral (`/dashboard`)
 - [ ] Ana: KPIs "Registros" e "Atividade" (sem "Tabelas"/"Usuários").
@@ -398,12 +402,12 @@ Logue como cada um (janelas separadas) e confira:
 ### O-07 Sub-registros
 - [ ] No formulário **novo**: "💡 Salve o registro primeiro para adicionar Visitas".
 - [ ] Editando A1: seção Visitas → "Novo" → cria visita; vistas Tabela / Cards / Timeline; ordenação.
-- [ ] Excluir a visita: confirmação; 🐞 sem "Desfazer" (diferente da tabela principal).
+- [ ] 🔧 Excluir a visita: confirmação fala da lixeira e o toast tem **Desfazer** (10 s).
 
 ### O-08 Busca, filtros, colunas, paginação
 - [ ] Busca "A1" filtra.
 - [ ] "Filtrar" → Status Igual a "Novo" → chip; "Limpar filtros".
-- [ ] "Colunas" → esconder Email. 🐞 ao recarregar a coluna volta (não é salvo).
+- [ ] 🔧 "Colunas" → esconder Email → recarregar: continua escondida (salvo neste navegador, por tabela).
 - [ ] Com 30+ registros (use a importação): paginação 25 por página, "1–25 de N".
 
 ### O-09 Importar e exportar (Dora ou Gil)
@@ -416,14 +420,14 @@ Logue como cada um (janelas separadas) e confira:
 | 5 | Exportar → PDF "Ficha do cliente" sem seleção | ✅ desabilitado ("selecione") |
 | 6 | Selecionar 1 → PDF individual | ✅ "PDF gerado com sucesso" |
 | 7 | PDF "Lista de clientes" (lote) | ✅ "PDF em lote gerado com sucesso" |
-| 8 | 🐞 Gil (Gerente) procura "Exportar" | 🐞 pode não aparecer (o web ignora o coringa `*`) |
+| 8 | 🔧 Gil (Gerente) procura "Exportar" | ✅ aparece (o web agora respeita o coringa `*` dos cargos padrão) |
 | 9 | Ana | ✅ sem Importar/Exportar |
 | 10 | Limite do plano: importar até passar de 60 registros | ✅ "Limite de registros do plano atingido (60)" |
 
 ### O-10 Excluir e desfazer
 | # | Ação (Dora) | Esperado |
 |---|---|---|
-| 1 | Excluir "Cliente D1" | ✅ confirmação 🐞 diz "não pode ser desfeita"; depois toast "Registro excluído. Ele fica na lixeira." com **Desfazer** (10 s) |
+| 1 | 🔧 Excluir "Cliente D1" | ✅ confirmação: "Ele vai para a lixeira e pode ser restaurado."; depois toast "Registro excluído. Ele fica na lixeira." com **Desfazer** (10 s) |
 | 2 | Clicar "Desfazer" | ✅ D1 volta |
 | 3 | Excluir de novo e esperar 10 s | ✅ vai para a Lixeira |
 | 4 | Excluir um cliente **com visitas** | ✅ sub-registros vão junto |
@@ -452,7 +456,7 @@ Logue como cada um (janelas separadas) e confira:
 | 6 | Dora renomeia e exclui um thread | ✅ "Excluir chat?" → "Chat excluído." (histórico preservado) |
 | 7 | Buscar mensagens (lupa) | ✅ resultados; clicar pula para a mensagem com destaque |
 | 8 | `@bot quantos clientes?` | ✅ resposta ou "O bot não está configurado neste tenant." |
-| 9 | 🐞 Procurar como iniciar conversa **direta** no web | 🐞 não há botão (só o app/API) |
+| 9 | 🔧 Ana → "Conversa direta" → buscar "gil" → escolher | ✅ abre a conversa; Gil vê em "Diretas" com o nome **Ana**; só os dois veem |
 
 ### O-13 Chat — comandos
 | # | Ação | Esperado |
@@ -472,9 +476,9 @@ Logue como cada um (janelas separadas) e confira:
 | 3 | Gil → *Configurações › Notificações* → "Avisos na tela" off | ✅ "Preferências salvas"; próximo aviso só no sino, sem toast |
 | 4 | Gil → "Registro alterado" off | ✅ edições não avisam |
 | 5 | Gil → "Minhas próprias ações" on → Gil cria algo | ✅ ele recebe |
-| 6 | 🐞 Gil → seção "Tabelas" | 🐞 "Nenhuma tabela disponível." (coringa `*` ignorado) |
+| 6 | 🔧 Gil → seção "Tabelas" | ✅ lista Clientes, Visitas…; desligar uma tabela para de avisar dela |
 | 7 | Ana (só os próprios) quando Dora cria | ✅ **não** recebe (não enxerga o registro) |
-| 8 | Recarregar a página | 🐞 a lista do sino zera (fica só em memória) |
+| 8 | 🔧 Recarregar a página | ✅ o sino mantém as notificações (vêm do servidor); lida/removida/limpa continua assim depois de recarregar |
 | 9 | "Marcar todas" e lixeira do sino | ✅ |
 
 ### O-15 Suporte (cliente)
@@ -533,7 +537,7 @@ Logue como cada um (janelas separadas) e confira:
 | Bruno | Dashboard, Dados, Chat | ✅ cria/edita em Clientes e Visitas; não exclui |
 | Ana | Dashboard, Dados, Chat | ✅ cria/edita; CPF não aparece; não vê VIP |
 | Vera | Dashboard, Dados, Chat | ✅ sem "+" e sem editar |
-| Vera | Dashboard → "Acoes Rapidas" → "Novo Clientes" | 🐞 o atalho aparece sem checar permissão — confirmar se o formulário abre/salva |
+| Vera | 🔧 Dashboard → "Acoes Rapidas" | ✅ **sem** "Novo Clientes" (só "Ver Dados"); abrir `/data/clientes/new` volta para a lista |
 
 ### M-03 Registros
 | # | Ação | Esperado |
@@ -547,7 +551,7 @@ Logue como cada um (janelas separadas) e confira:
 | 7 | Detalhe → "Compartilhar" | ✅ "Registro copiado para area de transferencia" |
 | 8 | Sub-registro (Visitas) dentro de B1 | ✅ "Adicionar Visitas" |
 | 9 | Dora exclui algo no web | ✅ some do app em segundos |
-| 10 | 🐞 Filtros na lista | 🐞 só a busca existe (filtros não estão ligados) |
+| 10 | 🔧 Botão de filtro ao lado da busca → adicionar "Status igual a Novo" | ✅ lista e contador filtram (também offline); o número aparece no botão |
 
 ### M-04 Offline
 | # | Ação | Esperado |
@@ -558,7 +562,7 @@ Logue como cada um (janelas separadas) e confira:
 | 4 | Campo Imagem → Câmera | ✅ selo "Pendente"; contador no ícone de sync |
 | 5 | Mensagem no chat de grupo | ✅ aparece local |
 | 6 | Desligar o modo avião | ✅ sobe tudo; foto vira imagem real; no web aparece OFF1, a edição e a mensagem |
-| 7 | Offline: criar um cliente com **Email repetido** (regra do servidor) → voltar online | 🐞 o registro **some em silêncio** depois do sync (sem aviso) |
+| 7 | 🔧 Offline: criar um cliente com **Email repetido** (regra do servidor) → voltar online | ✅ aviso "Uma alteração não foi sincronizada: …" e o registro some da lista |
 | 8 | Offline: criar registro com a empresa no **limite do plano** → online | ✅ snackbar "Uma alteração não foi sincronizada: Limite de registros…" |
 
 ### M-05 Chat no app
@@ -574,7 +578,7 @@ Logue como cada um (janelas separadas) e confira:
 - [ ] Bruno com "Notificação no celular" **ligado** (web › Configurações › Notificações).
 - [ ] Carla cria registro que o Bruno enxerga (escopo equipe → só colegas de equipe; use Dora/Gil se preferir escopo todos).
 - [ ] App em primeiro plano: snackbar de 4 s. App fechado: push do sistema; tocar abre o registro.
-- [ ] 🐞 Push sem registro ligado → tenta abrir `/notifications` (rota inexistente).
+- [ ] 🔧 Push sem registro ligado → abre o app no Dashboard (ou Dados).
 
 ### M-07 Duas etapas, sessão e bloqueios no app
 | # | Ação | Esperado |
@@ -682,7 +686,7 @@ Conferir em: **lista web**, **contagem na lateral**, **dashboard**, **busca**, *
 | 4 | "Publicar" | ✅ "No ar"; na QA Total aparece a faixa (pode levar até ~10 min; recarregue) |
 | 5 | Ana fecha o aviso | ✅ some para ela; continua para a Dora; contador "N fecharam" |
 | 6 | Comunicado **Crítico** "não pode ser fechado" + "Só para quem administra" | ✅ aparece para Dora/Alex; **não** para Ana/Vera; sem X |
-| 7 | "Tirar do ar" e "Excluir" | ✅ (🐞 excluir não pede confirmação) |
+| 7 | 🔧 "Tirar do ar" e "Excluir" | ✅ excluir pede confirmação ("Excluir o comunicado …?"); Cancelar mantém |
 
 ### P-14 Pessoas
 | # | Ação (Sérgio) | Esperado |
@@ -702,7 +706,7 @@ Conferir em: **lista web**, **contagem na lateral**, **dashboard**, **busca**, *
 | 3 | "Aplicar a 2 empresas" | ✅ "2 empresas atualizadas"; faixa de teste da QA Total soma 7 dias |
 | 4 | "Trocar plano" para o plano em que já estão | ✅ "ficam de fora: já está nesse plano" |
 | 5 | *Planos* → "QA Mínimo" → "Mover clientes" → "QA Básico" | ✅ "Todas as empresas do plano QA Mínimo" → aplicar |
-| 6 | "Mudar situação → Em teste" com "Teste até" = hoje | 🐞 prévia ok, aplicação pode falhar "Fim do trial precisa ser no futuro" — anotar |
+| 6 | 🔧 "Mudar situação → Em teste" | ✅ o calendário não deixa escolher antes de hoje; "hoje" vale até 23:59; data passada pela API: "Fim do trial precisa ser no futuro" já na prévia |
 | 7 | Sérgio | ✅ não vê os botões de massa |
 
 ### P-16 Situação do cliente (bloqueio e reativação) — use a **QA Console**
@@ -726,7 +730,7 @@ Conferir em: **lista web**, **contagem na lateral**, **dashboard**, **busca**, *
 ### P-18 Métricas, Saúde, Auditoria
 - [ ] Métricas (Paula/Fábio/Lia): período 6/12/24 meses; "Ver em tabela"; "Por plano"; "Clientes sem uso há 30 dias".
 - [ ] Saúde: atualiza a cada 30 s; "Atualizar"; cartões Banco, Redis, Filas, API, PowerSync, E-mail (Atenção), Push, Arquivos; "Problemas recentes".
-- [ ] Auditoria: tudo o que foi feito hoje aparece. 🐞 algumas ações aparecem com chave crua (`tenant.trial_extended`, `support.reply`, `announcement.published`…).
+- [ ] 🔧 Auditoria: tudo o que foi feito hoje aparece **traduzido** ("prorrogou o teste", "respondeu chamado", "publicou comunicado"…).
 
 ---
 
@@ -851,30 +855,32 @@ Marque ✅/❌ na sua execução.
 
 ---
 
-## 11. Bugs conhecidos (esperados hoje)
+## 11. Correções feitas (testar como regressão)
 
-Achados na leitura do código durante a montagem deste roteiro. Confirme durante o teste e marque.
+Os 18 problemas achados na montagem deste roteiro foram corrigidos (marcados com 🔧 nos passos). Se algum voltar, reporte com o ID.
 
-| # | Onde | O que acontece | Teste |
+| # | Onde | O que mudou | Passos |
 |---|---|---|---|
-| B-01 | Administração › Usuários | Editar **a si mesmo** sempre falha ("Voce nao pode mudar o proprio cargo…"); editar outros exige também "Atribuir cargo" + "Alterar status" | E-08/14-15 |
-| B-02 | Administração › Cargos | Gerente vê o menu mas a lista falha ("Requer permissão de gerir cargos"); afeta também convite, chaves de API, links públicos e cargos do dashboard para quem não gere cargos | E-20 |
-| B-03 | Administração › Usuários | Lista mostra no máximo **20** pessoas (sem paginação); estatísticas erradas acima disso | crie 21+ |
-| B-04 | Web — coringa `*` | Telas web ignoram a permissão coringa: Gerente sem "Exportar"; Notificações › Tabelas vazio para não-admins | O-09/8, O-14/6 |
-| B-05 | Tabelas | Não há tela para excluir tabela, regras de campo, filtro global, automações da tabela | E-06/10 |
-| B-06 | Cargos | Sem módulo "APIs" no formulário | E-07/11 |
-| B-07 | Dashboards | Tela usa permissão de *templates*, API usa *dashboard* (403 para Gerente) | E-20 |
-| B-08 | Operação | "Chat" aparece no menu operacional mesmo fora do plano | E-17 |
-| B-09 | Operação | `/profile` só abre para Administrador | O-03 |
-| B-10 | Registros | "Colunas" não salva; confirmação de exclusão diz "não pode ser desfeita" mas há Desfazer; descrição do formulário mostra "criado com sucesso" antes de salvar | O-08, O-10 |
-| B-11 | Sino | Notificações somem ao recarregar a página | O-14/8 |
-| B-12 | Chat web | Não há como iniciar conversa direta | O-12/9 |
-| B-13 | App | Filtros da lista não ligados; atalho "Novo …" sem checar permissão; erro de validação offline some em silêncio; push sem registro vai para rota inexistente | M-02, M-03/10, M-04/7, M-06 |
-| B-14 | Console | Auditoria mostra chaves cruas de algumas ações; excluir comunicado sem confirmação | P-13, P-18 |
-| B-15 | Console | "Mudar situação → Em teste" com data de hoje passa na prévia e falha ao aplicar | P-15/6 |
-| B-16 | Cadastro/Login | Texto "14 dias" fixo (não segue `SIGNUP_TRIAL_DAYS`); login sem link "Criar conta" | E-01, E-02 |
-| B-17 | Equipes | Lista de pessoas inclui inativos e só os 100 primeiros; salvar com inativo dá "Alguem da lista nao faz parte da empresa" | E-10 |
-| B-18 | Auditoria (empresa) | "Exportar JSON" ignora filtros de ação/recurso/busca | E-19 |
+| B-01 | Administração › Usuários | Editar a si mesmo (nome) e editar outros sem mudar cargo/situação funcionam; reativar respeita o limite do plano | E-08/14-15b |
+| B-02 | Administração › Cargos | Gerente (e quem escolhe cargo em convite, chave de API, link público ou dashboard) vê a lista de cargos | E-20 |
+| B-03 | Administração › Usuários | Lista mostra todas as pessoas (sem corte de 20) | crie 21+ |
+| B-04 | Web — coringa `*` | Cargos padrão (Gerente, Operador, Visualizador) têm Exportar e a lista de tabelas nos avisos | O-09/8, O-14/6 |
+| B-05 | Tabelas | Abas Regras de campo, Filtro global, Automações e Excluir no editor; regras de campo só mudam com "Tabelas: editar" (antes qualquer usuário alterava pela API) | E-06/10-13 |
+| B-06 | Cargos | Módulo "Chaves de API" no formulário | E-07/11 |
+| B-07 | Dashboards | Tela usa a mesma permissão da API (módulo Painel) | E-20 |
+| B-08 | Operação | "Chat" some do menu operacional fora do plano | E-17 |
+| B-09 | Operação | Perfil e Configurações abrem para qualquer pessoa | O-03 |
+| B-10 | Registros | Colunas salvas; textos de exclusão e do formulário corretos; Desfazer também em sub-registros | O-07, O-08, O-10 |
+| B-11 | Sino | Notificações vêm do servidor (recarregar não apaga); lida/remover/limpar persistem | O-14/8 |
+| B-12 | Chat web | "Conversa direta" com qualquer colega, com o nome da pessoa | O-12/9 |
+| B-13 | App | Filtros na lista; atalho "Novo" e rota de criação respeitam permissão; alteração recusada avisa; push sem registro abre o Dashboard; marcar notificação como lida funciona | M-02, M-03/10, M-04/7, M-06 |
+| B-14 | Console | Auditoria traduzida; excluir comunicado pede confirmação | P-13, P-18 |
+| B-15 | Console | "Mudar situação → Em teste" não aceita data passada (já na prévia) | P-15/6 |
+| B-16 | Cadastro/Login | Dias de teste vêm do servidor; login com link "Criar conta" | E-01, E-02 |
+| B-17 | Equipes | Só pessoas ativas, todas (sem corte de 100) | E-10 |
+| B-18 | Auditoria (empresa) | "Exportar JSON" respeita os filtros da tela | E-19 |
+
+> App (B-13): as mudanças são em Dart e precisam de `flutter analyze` + teste no aparelho (não há Flutter no servidor de build).
 
 ---
 
