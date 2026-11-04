@@ -125,7 +125,14 @@
     "noPermission": "You don't have permission to access this page.",
     "currentRole": "Your current role:",
     "notDefined": "Not defined",
-    "backToDashboard": "Back to Dashboard"
+    "backToDashboard": "Back to Dashboard",
+    "mfa": {
+      "prompt": "Enter the 6-digit code from your authenticator app.",
+      "code": "Verification code",
+      "recoveryHint": "No phone? Use a recovery code.",
+      "verify": "Verify",
+      "back": "Back"
+    }
   },
   "navigation": {
     "dashboard": "Dashboard",
@@ -942,7 +949,8 @@
     "tabs": {
       "profile": "Profile",
       "language": "Language",
-      "theme": "Theme"
+      "theme": "Theme",
+      "security": "Security"
     },
     "profile": {
       "title": "Profile",
@@ -1798,7 +1806,8 @@
       "executionLogs": "Executions",
       "organization": "Organization",
       "plan": "Plan",
-      "integrations": "Integrations"
+      "integrations": "Integrations",
+      "securityPolicy": "Security"
     },
     "home": {
       "title": "Hello, {name}",
@@ -1978,6 +1987,35 @@
           "MANUAL": "manual"
         }
       }
+    },
+    "security": {
+      "title": "Security",
+      "subtitle": "Company access rules and the status of each team member.",
+      "policy": {
+        "title": "Access rules",
+        "description": "Apply to the whole team of this company.",
+        "requireMfa": "Require two-step verification",
+        "requireMfaHint": "Anyone who has not turned it on must do so on their next visit. Turn it on for your own account first.",
+        "minLength": "Minimum password length",
+        "symbol": "Require a symbol in passwords",
+        "symbolHint": "E.g. ! @ # $",
+        "baseRule": "Every password already needs upper and lower case letters and a number. Applies to passwords created or changed from now on.",
+        "save": "Save rules",
+        "saved": "Access rules saved"
+      },
+      "team": {
+        "title": "Team",
+        "description": "Security status of each person.",
+        "summary": "{withMfa} of {total} with two-step verification",
+        "mfaOn": "2-step",
+        "mfaOff": "No 2-step",
+        "inactive": "Inactive",
+        "lastLogin": "last sign-in {date}",
+        "neverLogged": "never signed in",
+        "devices": "{count, plural, =0 {no devices} one {# device} other {# devices}}",
+        "logout": "Sign out",
+        "loggedOut": "{count, plural, =0 {No devices signed in} one {Signed out of # device} other {Signed out of # devices}}"
+      }
     }
   },
   "invite": {
@@ -2018,5 +2056,54 @@
     "goToLogin": "Go to login",
     "weakPassword": "The password needs 8+ characters, with upper and lower case and a number.",
     "mismatch": "Passwords don't match."
+  },
+  "security": {
+    "mfa": {
+      "title": "Two-step verification",
+      "description": "Besides the password, sign-in asks for a code from your phone authenticator app (Google Authenticator, Microsoft Authenticator, Authy...).",
+      "on": "On",
+      "off": "Off",
+      "requiredHint": "Your company requires two-step verification.",
+      "enable": "Turn on two-step verification",
+      "step1": "Open the authenticator app on your phone.",
+      "step2": "Scan the QR code (or type the key manually).",
+      "step3": "Enter the 6-digit code shown.",
+      "manualKey": "Key to type manually:",
+      "codeLabel": "App code",
+      "confirm": "Confirm and turn on",
+      "enabledNow": "Two-step verification is on.",
+      "recoveryIntro": "Keep these recovery codes somewhere safe. Each one signs you in once if you lose your phone.",
+      "copyCodes": "Copy codes",
+      "done": "Done",
+      "codesLeft": "{count, plural, one {# recovery code left} other {# recovery codes left}}",
+      "newCodes": "Generate new codes",
+      "disable": "Turn off",
+      "disabled": "Two-step verification turned off",
+      "disableTitle": "Turn off two-step verification",
+      "disableHint": "Confirm with your password and an app code.",
+      "newCodesTitle": "New recovery codes",
+      "newCodesHint": "The old codes stop working.",
+      "password": "Password",
+      "generate": "Generate"
+    },
+    "sessions": {
+      "title": "Signed-in devices",
+      "description": "Where your account is open right now. End anything you do not recognize.",
+      "revokeOthers": "Sign out everywhere else",
+      "revokedOthers": "{count, plural, =0 {No other device was signed in} one {# device signed out} other {# devices signed out}}",
+      "revoke": "Sign out",
+      "revoked": "Session ended",
+      "current": "This device",
+      "app": "CRM mobile app",
+      "device": "{browser} on {os}",
+      "support": "Support: {name}",
+      "lastActive": "active {date}",
+      "since": "since {date}"
+    },
+    "setup": {
+      "title": "Turn on two-step verification",
+      "subtitle": "Your company requires a phone code, besides the password, to sign in.",
+      "logout": "Sign out"
+    }
   }
 }

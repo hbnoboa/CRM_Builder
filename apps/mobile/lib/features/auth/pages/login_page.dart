@@ -19,6 +19,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
+  final _codeController = TextEditingController();
   bool _obscurePassword = true;
   bool _rememberMe = false;
   bool _biometricAvailable = false;
@@ -82,6 +83,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
   void dispose() {
     _emailController.dispose();
     _passwordController.dispose();
+    _codeController.dispose();
     super.dispose();
   }
 
@@ -99,9 +101,64 @@ class _LoginPageState extends ConsumerState<LoginPage> {
     }
   }
 
+  /// Segundo passo: a conta tem verificacao em duas etapas.
+  Widget _buildMfaStep(BuildContext context, AuthState authState) {
+    final notifier = ref.read(authProvider.notifier);
+    return Scaffold(
+      body: SafeArea(
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Icon(Icons.verified_user_outlined, size: 48, color: Theme.of(context).colorScheme.primary),
+                const SizedBox(height: 16),
+                Text('Verificação em duas etapas', style: AppTypography.h3, textAlign: TextAlign.center),
+                const SizedBox(height: 8),
+                const Text(
+                  'Digite o código de 6 dígitos do seu app autenticador. Sem o celular, use um código de recuperação.',
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 24),
+                if (authState.error != null) ...[
+                  Text(authState.error!, style: TextStyle(color: Theme.of(context).colorScheme.error), textAlign: TextAlign.center),
+                  const SizedBox(height: 12),
+                ],
+                TextField(
+                  controller: _codeController,
+                  keyboardType: TextInputType.visiblePassword,
+                  autofocus: true,
+                  textAlign: TextAlign.center,
+                  decoration: const InputDecoration(labelText: 'Código', hintText: '123456'),
+                  onSubmitted: (value) => notifier.verifyMfa(value),
+                ),
+                const SizedBox(height: 16),
+                ElevatedButton(
+                  onPressed: authState.isLoading ? null : () => notifier.verifyMfa(_codeController.text),
+                  child: authState.isLoading
+                      ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2))
+                      : const Text('Verificar'),
+                ),
+                TextButton(
+                  onPressed: () {
+                    _codeController.clear();
+                    notifier.cancelMfa();
+                  },
+                  child: const Text('Voltar'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final authState = ref.watch(authProvider);
+    if (authState.mfaRequired && !authState.isAuthenticated) return _buildMfaStep(context, authState);
 
     return Scaffold(
       body: SafeArea(

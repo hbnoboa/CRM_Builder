@@ -5,11 +5,12 @@ import 'package:flutter/material.dart';
 import 'package:crm_mobile/core/push/push_notification_service.dart';
 
 /// Por que a sessao foi encerrada pela API (nao pelo usuario).
-enum SessionEndReason { tenantSuspended, mobileDisabled }
+enum SessionEndReason { tenantSuspended, mobileDisabled, mfaSetupRequired, sessionRevoked }
 
 /// Erros de negocio do plano/empresa que a API devolve no campo `code`
 /// (mesmos codigos que o web-admin trata em lib/api.ts):
 /// - TENANT_SUSPENDED: empresa suspensa/cancelada pelo console da plataforma
+/// - MFA_SETUP_REQUIRED: empresa exige duas etapas e a pessoa ainda nao ativou
 /// - FEATURE_DISABLED: funcao fora do plano (feature 'mobile' = app inteiro)
 /// - PLAN_LIMIT: limite de usuarios/registros/armazenamento atingido
 class PlanErrors {
@@ -41,12 +42,20 @@ class PlanErrors {
     switch (data?['code']) {
       case 'TENANT_SUSPENDED':
         _sessionEnded.add(SessionEndReason.tenantSuspended);
+      case 'MFA_SETUP_REQUIRED':
+        _sessionEnded.add(SessionEndReason.mfaSetupRequired);
       case 'FEATURE_DISABLED':
         if (data?['feature'] == 'mobile') {
           _sessionEnded.add(SessionEndReason.mobileDisabled);
         }
     }
   }
+
+  /// Refresh recusado com SESSION_REVOKED: sessao encerrada de proposito. O app nao
+  /// pode entrar de novo sozinho com a senha guardada.
+  static bool isSessionRevoked(Object error) => _data(error)?['message'] == 'SESSION_REVOKED';
+
+  static void sessionRevoked() => _sessionEnded.add(SessionEndReason.sessionRevoked);
 
   /// Erro de plano que faz o servidor recusar uma mudanca feita offline.
   static bool isPlanRejection(Object error) {
@@ -60,6 +69,10 @@ class PlanErrors {
         return 'O acesso desta empresa está suspenso. Fale com o administrador ou com o suporte.';
       case SessionEndReason.mobileDisabled:
         return 'O app mobile não está incluído no plano da sua empresa. Use o sistema pelo navegador.';
+      case SessionEndReason.sessionRevoked:
+        return 'Sua sessão foi encerrada (por você em outro aparelho ou pelo administrador). Entre de novo.';
+      case SessionEndReason.mfaSetupRequired:
+        return 'Sua empresa exige verificação em duas etapas. Ative pelo navegador (Configurações › Segurança) e entre de novo.';
     }
   }
 

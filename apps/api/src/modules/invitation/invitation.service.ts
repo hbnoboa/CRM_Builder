@@ -16,11 +16,12 @@ import { CurrentUser } from '../../common/types';
 import { TenantPlanService } from '../../common/services/tenant-plan.service';
 import { assertAssignableRole } from '../../common/utils/member-governance';
 import { appUrl } from '../../common/utils/app-url';
+import { assertPasswordPolicy } from '../../common/utils/password-policy';
 import { EmailService } from '../email/email.service';
 import { transactionalEmail } from '../email/email-layout';
 import { AuditService } from '../audit/audit.service';
 import { AuthService } from '../auth/auth.service';
-import { AcceptInvitationDto, CreateInvitationDto, NEW_PASSWORD_RULE } from './dto/invitation.dto';
+import { AcceptInvitationDto, CreateInvitationDto } from './dto/invitation.dto';
 
 const INVITE_DAYS = 7;
 const hashToken = (token: string) => createHash('sha256').update(token).digest('hex');
@@ -159,9 +160,7 @@ export class InvitationService {
       }
     } else {
       if (!dto.name?.trim()) throw new BadRequestException('Informe seu nome');
-      if (!NEW_PASSWORD_RULE.test(dto.password)) {
-        throw new BadRequestException('Senha deve ter 8+ caracteres, com maiuscula, minuscula e numero');
-      }
+      await assertPasswordPolicy(this.prisma, [invitation.tenantId], dto.password);
     }
 
     const current = user

@@ -223,6 +223,12 @@ model User {
   // Usuario tecnico de uma chave de API: nao faz login, nao aparece na equipe nem
   // ocupa vaga do plano; existe para as permissoes por cargo valerem para a chave.
   isServiceAccount Boolean @default(false)
+  // Verificacao em duas etapas (TOTP). Segredos cifrados (common/utils/secret-box);
+  // codigos de recuperacao guardados como sha256 e de uso unico.
+  mfaSecret        String?
+  mfaPendingSecret String?
+  mfaEnabledAt     DateTime?
+  mfaRecoveryCodes String[] @default([])
 
   lastLoginAt       DateTime?
   resetToken        String?
@@ -249,6 +255,7 @@ model User {
   invitationsSent Invitation[]     @relation("InvitationsSent")
   apiKeysCreated  ApiKey[]         @relation("ApiKeysCreated")
   apiKeyService   ApiKey?          @relation("ApiKeyServiceUser")
+  sessions        UserSession[]
   @@index([email])
   @@index([cpf])
   @@index([phone])
@@ -259,14 +266,18 @@ model User {
 model RefreshToken {
   id        String   @id @default(cuid())
   userId    String
+  // sha256 do refresh token (tokens antigos, de antes do hash, guardavam o token puro)
   token     String   @unique
+  sessionId String?
   expiresAt DateTime
   createdAt DateTime @default(now())
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user    User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  session UserSession? @relation(fields: [sessionId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([token])
+  @@index([sessionId])
 }
 
 model DeviceToken {
@@ -1417,4 +1428,23 @@ model ApiKey {
   serviceUser User      @relation("ApiKeyServiceUser", fields: [serviceUserId], references: [id], onDelete: Cascade)
 
   @@index([tenantId])
+}
+
+// Sessao de login (um aparelho/navegador). Sobrevive a rotacao do refresh token;
+// encerrar a sessao derruba o access token na hora (o JwtStrategy confere o "sid").
+model UserSession {
+  id         String    @id @default(cuid())
+  userId     String
+  ip         String?
+  userAgent  String?
+  // ex.: "Suporte da plataforma" quando a sessao e uma impersonacao do console
+  label      String?
+  createdAt  DateTime  @default(now())
+  lastUsedAt DateTime  @default(now())
+  revokedAt  DateTime?
+
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  refreshTokens RefreshToken[]
+
+  @@index([userId])
 }

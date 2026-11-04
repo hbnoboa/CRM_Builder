@@ -41,7 +41,7 @@ function PlatformTenantsContent() {
   const searchParams = useSearchParams();
   const formatDate = useFormatDate();
   const can = usePlatformCan();
-  const [search, setSearch] = useState('');
+  const [search, setSearch] = useState(searchParams.get('search') || '');
   const [lifecycle, setLifecycle] = useState<string>(searchParams.get('lifecycle') || ALL);
   const [page, setPage] = useState(1);
   const [createOpen, setCreateOpen] = useState(false);

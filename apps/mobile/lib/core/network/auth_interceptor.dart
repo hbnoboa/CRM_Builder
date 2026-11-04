@@ -67,7 +67,9 @@ class AuthInterceptor extends QueuedInterceptor {
 
       final retryResponse = await _dio.fetch(options);
       return handler.resolve(retryResponse);
-    } catch (_) {
+    } catch (e) {
+      // Sessao encerrada de proposito: logout completo (sem relogin silencioso).
+      if (PlanErrors.isSessionRevoked(e)) PlanErrors.sessionRevoked();
       await _forceLogout();
       return handler.next(err);
     } finally {

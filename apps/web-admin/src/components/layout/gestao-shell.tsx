@@ -21,6 +21,7 @@ import {
   FileText,
   Gauge,
   Link2,
+  Lock,
   LogOut,
   Menu,
   Plug,
@@ -72,6 +73,7 @@ const GROUPS: Array<{ key: string; items: GestaoItem[] }> = [
   {
     key: 'security',
     items: [
+      { key: 'securityPolicy', section: 'security', icon: <Lock className="h-4 w-4" /> },
       { key: 'auditLogs', section: 'audit-logs', icon: <ScrollText className="h-4 w-4" /> },
       { key: 'executionLogs', section: 'execution-logs', icon: <Timer className="h-4 w-4" /> },
     ],

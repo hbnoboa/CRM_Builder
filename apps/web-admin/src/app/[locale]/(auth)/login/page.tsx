@@ -35,7 +35,10 @@ function LoginPageContent() {
   const t = useTranslations('auth.login');
   const tValidation = useTranslations('validation');
   const [showPassword, setShowPassword] = useState(false);
-  const { login, isLoading, error, clearError } = useAuthStore();
+  const { login, loginWithMfa, isLoading, error, clearError } = useAuthStore();
+  const tMfa = useTranslations('auth.mfa');
+  const [mfaToken, setMfaToken] = useState<string | null>(null);
+  const [code, setCode] = useState('');
   const searchParams = useSearchParams();
   const suspended = searchParams.get('reason') === 'suspended';
 
@@ -58,15 +61,34 @@ function LoginPageContent() {
     },
   });
 
+  const goHome = () => {
+    const user = useAuthStore.getState().user;
+    // Tenant na URL: prefixa o slug do tenant "home" do usuário (#15 robusto).
+    const slug = (user as { tenant?: { slug?: string } } | null)?.tenant?.slug;
+    const route = getDefaultRouteForUser(user); // '/home'
+    router.push(slug ? `/${slug}${route}` : route);
+  };
+
   const onSubmit = async (data: LoginForm) => {
     try {
-      await login(data);
-      const user = useAuthStore.getState().user;
-      // Tenant na URL: prefixa o slug do tenant "home" do usuário (#15 robusto).
-      const slug = (user as { tenant?: { slug?: string } } | null)?.tenant?.slug;
-      const route = getDefaultRouteForUser(user); // '/home'
-      router.push(slug ? `/${slug}${route}` : route);
-    } catch (err) {
+      const result = await login(data);
+      if (result.mfaToken) {
+        setMfaToken(result.mfaToken);
+        return;
+      }
+      goHome();
+    } catch {
+      // Error is handled by the store
+    }
+  };
+
+  const submitCode = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!mfaToken) return;
+    try {
+      await loginWithMfa(mfaToken, code);
+      goHome();
+    } catch {
       // Error is handled by the store
     }
   };
@@ -88,6 +110,37 @@ function LoginPageContent() {
             {t('subtitle')}
           </CardDescription>
         </CardHeader>
+        {mfaToken ? (
+          <form onSubmit={submitCode} data-testid="mfa-step">
+            <CardContent className="space-y-4">
+              {error && <div className="p-3 text-sm text-red-500 bg-red-50 dark:bg-red-950 rounded-md">{error}</div>}
+              <p className="text-sm text-muted-foreground">{tMfa('prompt')}</p>
+              <div className="space-y-2">
+                <Label htmlFor="mfa-code">{tMfa('code')}</Label>
+                <Input
+                  id="mfa-code"
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  autoFocus
+                  value={code}
+                  onChange={(e) => setCode(e.target.value)}
+                  placeholder="123456"
+                  className="text-center font-mono text-lg tracking-widest"
+                />
+                <p className="text-xs text-muted-foreground">{tMfa('recoveryHint')}</p>
+              </div>
+            </CardContent>
+            <CardFooter className="flex flex-col gap-2">
+              <Button type="submit" className="w-full" disabled={isLoading || code.trim().length < 6}>
+                {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                {tMfa('verify')}
+              </Button>
+              <Button type="button" variant="ghost" className="w-full" onClick={() => { setMfaToken(null); setCode(''); clearError(); }}>
+                {tMfa('back')}
+              </Button>
+            </CardFooter>
+          </form>
+        ) : (
         <form onSubmit={handleSubmit(onSubmit)}>
           <CardContent className="space-y-4">
             {suspended && !error && (
@@ -179,6 +232,7 @@ function LoginPageContent() {
 
           </CardFooter>
         </form>
+        )}
       </Card>
     </div>
   );

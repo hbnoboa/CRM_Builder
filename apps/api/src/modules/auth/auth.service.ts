@@ -10,6 +10,11 @@ import { TenantService, RESERVED_TENANT_SLUGS } from '../tenant/tenant.service';
 import { EmailService } from '../email/email.service';
 import { transactionalEmail } from '../email/email-layout';
 import { appUrl } from '../../common/utils/app-url';
+import { assertPasswordPolicy } from '../../common/utils/password-policy';
+import { verifyTotp } from '../../common/utils/totp';
+import { open as openSecret } from '../../common/utils/secret-box';
+import { ClientInfo, forgetSessions, hashRefreshToken } from './session-cache';
+import { createHash } from 'crypto';
 
 export interface UserForTokenGeneration {
   id: string;
@@ -91,7 +96,7 @@ export class AuthService {
    * padrao) com o usuario como administrador e ja devolve a sessao (mesmo
    * formato do login). Unico caminho publico de criacao de conta.
    */
-  async register(dto: RegisterDto) {
+  async register(dto: RegisterDto, client: ClientInfo = {}) {
     const existingUser = await this.prisma.user.findUnique({ where: { email: dto.email } });
     if (existingUser) {
       throw new ConflictException('Email ja esta em uso');
@@ -117,7 +122,7 @@ export class AuthService {
     );
 
     this.logger.log(`Cadastro self-service: ${dto.email} -> tenant ${slug} (trial ${trialDays}d)`);
-    return this.login({ email: dto.email, password: dto.password });
+    return this.login({ email: dto.email, password: dto.password }, client);
   }
 
   /** Slug a partir do nome da empresa, sem colidir com tenants nem rotas reservadas. */
@@ -141,16 +146,66 @@ export class AuthService {
     return `${base}-${randomUUID().slice(0, 6)}`;
   }
 
-  async login(dto: LoginDto) {
+  async login(dto: LoginDto, client: ClientInfo = {}) {
     const user = await this.prisma.user.findFirst({
       where: { email: dto.email, status: Status.ACTIVE, isServiceAccount: false },
-      select: { id: true, email: true, name: true, avatar: true, password: true },
+      select: { id: true, email: true, name: true, avatar: true, password: true, mfaEnabledAt: true },
     });
 
     if (!user) {
       throw new UnauthorizedException('Credenciais invalidas');
     }
 
+    const isPasswordValid = await bcrypt.compare(dto.password, user.password);
+    if (!isPasswordValid) {
+      throw new UnauthorizedException('Credenciais invalidas');
+    }
+
+    // Verificacao em duas etapas: a senha so libera o segundo passo (5 minutos).
+    if (user.mfaEnabledAt) {
+      const mfaToken = this.jwtService.sign(
+        { sub: user.id, rememberMe: !!dto.rememberMe },
+        { audience: 'mfa', expiresIn: '5m' },
+      );
+      return { mfaRequired: true, mfaToken };
+    }
+
+    return this.completeLogin(user, !!dto.rememberMe, client);
+  }
+
+  /** Segundo passo do login: codigo do app autenticador ou de recuperacao. */
+  async loginWithMfa(dto: { mfaToken: string; code: string }, client: ClientInfo = {}) {
+    let payload: { sub: string; rememberMe?: boolean };
+    try {
+      payload = this.jwtService.verify(dto.mfaToken, { audience: 'mfa' });
+    } catch {
+      throw new UnauthorizedException('Etapa de verificacao expirada. Entre de novo.');
+    }
+    const user = await this.prisma.user.findFirst({
+      where: { id: payload.sub, status: Status.ACTIVE, isServiceAccount: false },
+      select: { id: true, email: true, name: true, avatar: true, mfaSecret: true, mfaRecoveryCodes: true },
+    });
+    if (!user?.mfaSecret) throw new UnauthorizedException('Etapa de verificacao expirada. Entre de novo.');
+
+    const code = dto.code.trim();
+    if (!verifyTotp(openSecret(user.mfaSecret), code)) {
+      // Codigo de recuperacao: uso unico.
+      const hash = createHash('sha256').update(code.toLowerCase().replace(/\s/g, '')).digest('hex');
+      if (!user.mfaRecoveryCodes.includes(hash)) throw new UnauthorizedException('Codigo invalido');
+      await this.prisma.user.update({
+        where: { id: user.id },
+        data: { mfaRecoveryCodes: user.mfaRecoveryCodes.filter((h) => h !== hash) },
+      });
+      this.logger.log(`Codigo de recuperacao usado: ${user.email}`);
+    }
+    return this.completeLogin(user, !!payload.rememberMe, client);
+  }
+
+  private async completeLogin(
+    user: { id: string; email: string; name: string; avatar: string | null },
+    rememberMe: boolean,
+    client: ClientInfo,
+  ) {
     // Tenant + cargo vem da membership home.
     const membership = await this.loadPrimaryMembership(user.id);
     if (!membership) {
@@ -160,11 +215,6 @@ export class AuthService {
       throw new UnauthorizedException('Tenant suspenso ou inativo');
     }
 
-    const isPasswordValid = await bcrypt.compare(dto.password, user.password);
-    if (!isPasswordValid) {
-      throw new UnauthorizedException('Credenciais invalidas');
-    }
-
     const tokens = await this.generateTokens(
       {
         id: user.id,
@@ -172,7 +222,9 @@ export class AuthService {
         tenantId: membership.tenantId,
         customRoleId: membership.customRoleId,
       },
-      dto.rememberMe,
+      rememberMe,
+      undefined,
+      { client },
     );
 
     await this.prisma.user.update({
@@ -189,7 +241,7 @@ export class AuthService {
       },
     });
 
-    this.logger.log(`Login: ${user.email}${dto.rememberMe ? ' (remember me)' : ''}`);
+    this.logger.log(`Login: ${user.email}${rememberMe ? ' (remember me)' : ''}`);
 
     return {
       user: {
@@ -207,7 +259,7 @@ export class AuthService {
     };
   }
 
-  async refreshToken(dto: RefreshTokenDto) {
+  async refreshToken(dto: RefreshTokenDto, client: ClientInfo = {}) {
     try {
       this.jwtService.verify(dto.refreshToken, {
         secret: this.configService.get<string>('JWT_REFRESH_SECRET'),
@@ -217,16 +269,25 @@ export class AuthService {
       // revogado imediatamente e um novo e emitido. A robustez contra logout vem do
       // frontend (single-flight unico: interceptor + ensureAuth nunca disparam 2 refresh).
       const storedToken = await this.prisma.$transaction(async (tx) => {
-        const token = await tx.refreshToken.findUnique({
-          where: { token: dto.refreshToken },
-          include: { user: { select: { id: true, email: true, status: true } } },
+        // Guardado com hash; tokens de antes do hash guardavam o token puro.
+        const token = await tx.refreshToken.findFirst({
+          where: { token: { in: [hashRefreshToken(dto.refreshToken), dto.refreshToken] } },
+          include: {
+            user: { select: { id: true, email: true, status: true } },
+            session: { select: { id: true, revokedAt: true } },
+          },
         });
 
         if (!token || token.expiresAt < new Date()) {
           throw new UnauthorizedException('Refresh token invalido ou expirado');
         }
+        // Sessao encerrada de proposito (sair, sair de todos, admin desconectou):
+        // codigo proprio para o app nao tentar entrar de novo sozinho.
+        if (token.session?.revokedAt) throw new UnauthorizedException('SESSION_REVOKED');
 
-        await tx.refreshToken.delete({ where: { id: token.id } });
+        // Uso unico: se outro refresh ja consumiu este token, este falha.
+        const { count } = await tx.refreshToken.deleteMany({ where: { id: token.id } });
+        if (count === 0) throw new UnauthorizedException('Refresh token invalido ou expirado');
         return token;
       });
 
@@ -258,6 +319,8 @@ export class AuthService {
         wasRememberMe,
         // Sessao impersonada continua impersonada apos o refresh (auditoria + banner).
         decoded?.impersonatedBy,
+        // Mesma sessao (aparelho): so o refresh token gira.
+        { id: storedToken.sessionId ?? undefined, client },
       );
     } catch (error) {
       if (error instanceof UnauthorizedException) throw error;
@@ -283,9 +346,32 @@ export class AuthService {
     return { tenantId: primary.tenantId, customRoleId: primary.customRoleId };
   }
 
-  async logout(userId: string) {
-    await this.prisma.refreshToken.deleteMany({ where: { userId } });
+  /** Encerra so a sessao deste aparelho (os outros continuam logados). */
+  async logout(userId: string, sessionId?: string) {
+    if (sessionId) {
+      await this.prisma.userSession.updateMany({ where: { id: sessionId, userId }, data: { revokedAt: new Date() } });
+      forgetSessions([sessionId]);
+    } else {
+      await this.prisma.refreshToken.deleteMany({ where: { userId } });
+    }
     return { message: 'Logout realizado com sucesso' };
+  }
+
+  /** Encerra sessoes do usuario (todas, ou todas menos `keepSessionId`). */
+  async revokeSessions(userId: string, keepSessionId?: string) {
+    const sessions = await this.prisma.userSession.findMany({
+      where: { userId, revokedAt: null, ...(keepSessionId && { id: { not: keepSessionId } }) },
+      select: { id: true },
+    });
+    const ids = sessions.map((s) => s.id);
+    // Os refresh tokens das sessoes encerradas ficam ate vencer: o refresh responde
+    // SESSION_REVOKED. Tokens antigos (sem sessao) nao tem como identificar: caem.
+    await this.prisma.$transaction([
+      this.prisma.userSession.updateMany({ where: { id: { in: ids } }, data: { revokedAt: new Date() } }),
+      this.prisma.refreshToken.deleteMany({ where: { userId, sessionId: null } }),
+    ]);
+    forgetSessions(ids);
+    return { revoked: ids.length };
   }
 
   async getMe(userId: string, jwtTenantId?: string) {
@@ -299,12 +385,15 @@ export class AuthService {
         status: true,
         lastLoginAt: true,
         createdAt: true,
+        mfaEnabledAt: true,
       },
     });
 
     if (!user) {
       throw new UnauthorizedException('Usuario nao encontrado');
     }
+    const { mfaEnabledAt, ...userFields } = user;
+    const base = { ...userFields, mfaEnabled: !!mfaEnabledAt };
 
     const primary = await this.loadPrimaryMembership(userId);
     if (!primary) {
@@ -325,7 +414,7 @@ export class AuthService {
     const membership = target === primary.tenantId ? primary : await this.loadMembership(userId, target);
     if (this.isMembershipUsable(membership)) {
       return {
-        ...user,
+        ...base,
         tenantId: membership!.tenantId,
         tenant: membership!.tenant,
         customRoleId: membership!.customRoleId,
@@ -336,7 +425,7 @@ export class AuthService {
 
     // Fallback: home.
     return {
-      ...user,
+      ...base,
       tenantId: primary.tenantId,
       tenant: primary.tenant,
       customRoleId: primary.customRoleId,
@@ -359,7 +448,7 @@ export class AuthService {
     return user;
   }
 
-  async changePassword(userId: string, dto: ChangePasswordDto) {
+  async changePassword(userId: string, dto: ChangePasswordDto, sessionId?: string) {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
       select: { id: true, email: true, password: true },
@@ -373,12 +462,15 @@ export class AuthService {
     if (!isCurrentPasswordValid) {
       throw new BadRequestException('Senha atual incorreta');
     }
+    await assertPasswordPolicy(this.prisma, await this.activeTenantIds(userId), dto.newPassword);
 
     const hashedPassword = await bcrypt.hash(dto.newPassword, 12);
     await this.prisma.user.update({
       where: { id: userId },
       data: { password: hashedPassword },
     });
+    // Senha nova: os outros aparelhos precisam entrar de novo.
+    await this.revokeSessions(userId, sessionId);
 
     this.logger.log(`Senha alterada: ${user.email}`);
     return { message: 'Senha alterada com sucesso' };
@@ -430,6 +522,7 @@ export class AuthService {
     if (!user) {
       throw new BadRequestException('Token invalido ou expirado');
     }
+    await assertPasswordPolicy(this.prisma, await this.activeTenantIds(user.id), dto.newPassword);
 
     const hashedPassword = await bcrypt.hash(dto.newPassword, 12);
     await this.prisma.user.update({
@@ -437,13 +530,13 @@ export class AuthService {
       data: { password: hashedPassword, resetToken: null, resetTokenExpires: null },
     });
 
-    await this.prisma.refreshToken.deleteMany({ where: { userId: user.id } });
+    await this.revokeSessions(user.id);
 
     this.logger.log(`Senha resetada: ${user.email}`);
     return { message: 'Senha redefinida com sucesso' };
   }
 
-  async switchTenant(userId: string, targetTenantId: string) {
+  async switchTenant(userId: string, targetTenantId: string, sessionId?: string, client: ClientInfo = {}) {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
       select: { id: true, email: true, name: true, avatar: true, status: true },
@@ -468,7 +561,7 @@ export class AuthService {
         email: user.email,
         tenantId,
         customRoleId,
-      }).then((tokens) => ({
+      }, false, undefined, { id: sessionId, client }).then((tokens) => ({
         user: {
           id: user.id,
           email: user.email,
@@ -535,15 +628,45 @@ export class AuthService {
     user: UserForTokenGeneration,
     rememberMe = false,
     impersonatedBy?: { id: string; name: string },
+    client: ClientInfo = {},
   ) {
-    return this.generateTokens(user, rememberMe, impersonatedBy);
+    return this.generateTokens(user, rememberMe, impersonatedBy, { client });
+  }
+
+  /** Empresas em que o usuario tem acesso ativo (para a politica de senha mais rigida). */
+  private async activeTenantIds(userId: string): Promise<string[]> {
+    const rows = await this.prisma.userTenantAccess.findMany({
+      where: { userId, status: Status.ACTIVE, deletedAt: null },
+      select: { tenantId: true },
+    });
+    return rows.map((r) => r.tenantId);
   }
 
   private async generateTokens(
     user: UserForTokenGeneration,
     rememberMe = false,
     impersonatedBy?: { id: string; name: string },
+    session: { id?: string; client?: ClientInfo } = {},
   ) {
+    // Sessao = aparelho/navegador. Login cria; refresh e troca de empresa mantem.
+    const client = session.client ?? {};
+    const sessionId = session.id
+      ?? (await this.prisma.userSession.create({
+        data: {
+          userId: user.id,
+          ip: client.ip,
+          userAgent: client.userAgent?.slice(0, 300),
+          label: impersonatedBy ? impersonatedBy.name : null,
+        },
+        select: { id: true },
+      })).id;
+    if (session.id) {
+      await this.prisma.userSession.update({
+        where: { id: sessionId },
+        data: { lastUsedAt: new Date(), ...(client.ip && { ip: client.ip }), ...(client.userAgent && { userAgent: client.userAgent.slice(0, 300) }) },
+      }).catch(() => undefined);
+    }
+
     // permsV: versao das permissoes do cargo no momento do mint. O JwtStrategy
     // rejeita (401) tokens com permsV defasado -> o cliente faz refresh silencioso.
     const roleForV = await this.prisma.customRole.findUnique({
@@ -557,6 +680,7 @@ export class AuthService {
       customRoleId: user.customRoleId,
       roleId: user.customRoleId,
       permsV: roleForV?.permsVersion ?? 0,
+      sid: sessionId,
       ...(impersonatedBy ? { impersonatedBy } : {}),
     };
 
@@ -578,7 +702,8 @@ export class AuthService {
     await this.prisma.refreshToken.create({
       data: {
         userId: user.id,
-        token: refreshToken,
+        token: hashRefreshToken(refreshToken),
+        sessionId,
         expiresAt: refreshExpiration,
       },
     });

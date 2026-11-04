@@ -16,6 +16,7 @@ import {
 import { getEffectiveTenantId } from '../../common/utils/tenant.util';
 import { TenantPlanService } from '../../common/services/tenant-plan.service';
 import { assertAssignableRole, loadManagedMember } from '../../common/utils/member-governance';
+import { assertPasswordPolicy } from '../../common/utils/password-policy';
 
 // Identidade global (#10): "usuarios de um tenant" = usuarios COM membership nele.
 // O cargo exibido e o da membership naquele tenant.
@@ -58,6 +59,7 @@ export class UserService {
       throw new ConflictException('Email ja esta em uso');
     }
 
+    await assertPasswordPolicy(this.prisma, [targetTenantId], dto.password);
     const hashedPassword = await bcrypt.hash(dto.password, 12);
 
     const { customRoleId, ...userData } = dto;
@@ -260,6 +262,8 @@ export class UserService {
     if (dto.customRoleId) await assertAssignableRole(this.prisma, currentUser, dto.customRoleId);
 
     if (dto.password) {
+      const tenants = await this.prisma.userTenantAccess.findMany({ where: { userId: id, deletedAt: null }, select: { tenantId: true } });
+      await assertPasswordPolicy(this.prisma, tenants.map((t) => t.tenantId), dto.password);
       dto.password = await bcrypt.hash(dto.password, 12);
     }
     if (dto.cpf) dto.cpf = dto.cpf.replace(/\D/g, '') || undefined;

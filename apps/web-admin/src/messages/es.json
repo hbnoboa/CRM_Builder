@@ -125,7 +125,14 @@
     "noPermission": "No tienes permiso para acceder a esta página.",
     "currentRole": "Tu rol actual:",
     "notDefined": "No definido",
-    "backToDashboard": "Volver al Dashboard"
+    "backToDashboard": "Volver al Dashboard",
+    "mfa": {
+      "prompt": "Escribe el código de 6 dígitos de tu app autenticadora.",
+      "code": "Código de verificación",
+      "recoveryHint": "¿Sin el celular? Usa un código de recuperación.",
+      "verify": "Verificar",
+      "back": "Volver"
+    }
   },
   "navigation": {
     "dashboard": "Dashboard",
@@ -941,7 +948,8 @@
     "tabs": {
       "profile": "Perfil",
       "language": "Idioma",
-      "theme": "Tema"
+      "theme": "Tema",
+      "security": "Seguridad"
     },
     "profile": {
       "title": "Perfil",
@@ -1795,7 +1803,8 @@
       "executionLogs": "Ejecuciones",
       "organization": "Organización",
       "plan": "Plan",
-      "integrations": "Integraciones"
+      "integrations": "Integraciones",
+      "securityPolicy": "Seguridad"
     },
     "home": {
       "title": "Hola, {name}",
@@ -1975,6 +1984,35 @@
           "MANUAL": "manual"
         }
       }
+    },
+    "security": {
+      "title": "Seguridad",
+      "subtitle": "Reglas de acceso de la empresa y la situación de cada persona del equipo.",
+      "policy": {
+        "title": "Reglas de acceso",
+        "description": "Valen para todo el equipo de esta empresa.",
+        "requireMfa": "Exigir verificación en dos pasos",
+        "requireMfaHint": "Quien no la haya activado debe activarla en su próximo acceso. Actívala en tu cuenta antes de encenderla.",
+        "minLength": "Largo mínimo de la contraseña",
+        "symbol": "Exigir símbolo en la contraseña",
+        "symbolHint": "Ej.: ! @ # $",
+        "baseRule": "Toda contraseña ya necesita mayúsculas, minúsculas y número. Vale para las próximas contraseñas creadas o cambiadas.",
+        "save": "Guardar reglas",
+        "saved": "Reglas de acceso guardadas"
+      },
+      "team": {
+        "title": "Equipo",
+        "description": "Situación de seguridad de cada persona.",
+        "summary": "{withMfa} de {total} con verificación en dos pasos",
+        "mfaOn": "2 pasos",
+        "mfaOff": "Sin 2 pasos",
+        "inactive": "Inactivo",
+        "lastLogin": "último acceso {date}",
+        "neverLogged": "nunca entró",
+        "devices": "{count, plural, =0 {ningún dispositivo} one {# dispositivo} other {# dispositivos}}",
+        "logout": "Desconectar",
+        "loggedOut": "{count, plural, =0 {Ningún dispositivo conectado} one {Desconectado de # dispositivo} other {Desconectado de # dispositivos}}"
+      }
     }
   },
   "invite": {
@@ -2015,5 +2053,54 @@
     "goToLogin": "Ir al login",
     "weakPassword": "La contraseña necesita 8+ caracteres, con mayúscula, minúscula y número.",
     "mismatch": "Las contraseñas no coinciden."
+  },
+  "security": {
+    "mfa": {
+      "title": "Verificación en dos pasos",
+      "description": "Además de la contraseña, el login pide un código de la app autenticadora del celular (Google Authenticator, Microsoft Authenticator, Authy...).",
+      "on": "Activada",
+      "off": "Desactivada",
+      "requiredHint": "Tu empresa exige la verificación en dos pasos.",
+      "enable": "Activar verificación en dos pasos",
+      "step1": "Abre la app autenticadora en el celular.",
+      "step2": "Escanea el código QR (o escribe la clave manualmente).",
+      "step3": "Escribe el código de 6 dígitos que aparezca.",
+      "manualKey": "Clave para escribir manualmente:",
+      "codeLabel": "Código de la app",
+      "confirm": "Confirmar y activar",
+      "enabledNow": "Verificación en dos pasos activada.",
+      "recoveryIntro": "Guarda estos códigos de recuperación en un lugar seguro. Cada uno entra una vez si te quedas sin el celular.",
+      "copyCodes": "Copiar códigos",
+      "done": "Listo",
+      "codesLeft": "{count, plural, one {# código de recuperación disponible} other {# códigos de recuperación disponibles}}",
+      "newCodes": "Generar códigos nuevos",
+      "disable": "Desactivar",
+      "disabled": "Verificación en dos pasos desactivada",
+      "disableTitle": "Desactivar la verificación en dos pasos",
+      "disableHint": "Confirma con tu contraseña y un código de la app.",
+      "newCodesTitle": "Nuevos códigos de recuperación",
+      "newCodesHint": "Los códigos antiguos dejan de valer.",
+      "password": "Contraseña",
+      "generate": "Generar"
+    },
+    "sessions": {
+      "title": "Dispositivos conectados",
+      "description": "Dónde está abierta tu cuenta ahora. Cierra lo que no reconozcas.",
+      "revokeOthers": "Salir de todos los demás",
+      "revokedOthers": "{count, plural, =0 {Ningún otro dispositivo estaba conectado} one {# dispositivo desconectado} other {# dispositivos desconectados}}",
+      "revoke": "Cerrar",
+      "revoked": "Sesión cerrada",
+      "current": "Este dispositivo",
+      "app": "App CRM en el celular",
+      "device": "{browser} en {os}",
+      "support": "Soporte: {name}",
+      "lastActive": "activo {date}",
+      "since": "desde {date}"
+    },
+    "setup": {
+      "title": "Activa la verificación en dos pasos",
+      "subtitle": "Tu empresa exige un código del celular, además de la contraseña, para entrar.",
+      "logout": "Salir"
+    }
   }
 }

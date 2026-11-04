@@ -5,6 +5,8 @@ import { ConfigService } from '@nestjs/config';
 import { Request } from 'express';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { JwtPayload, CurrentUser } from '../../../common/types/auth.types';
+import { securityOf } from '../../../common/utils/password-policy';
+import { cachedSessionValidity, rememberSessionValidity } from '../session-cache';
 
 type RoleSel = {
   id: string;
@@ -81,6 +83,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
         email: true,
         name: true,
         status: true,
+        mfaEnabledAt: true,
         tenantAccess: {
           where: { deletedAt: null, status: 'ACTIVE' },
           select: {
@@ -88,7 +91,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
             customRoleId: true,
             isPrimary: true,
             expiresAt: true,
-            tenant: { select: { status: true } },
+            tenant: { select: { status: true, settings: true } },
             customRole: { select: ROLE_SELECT },
           },
         },
@@ -98,6 +101,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     if (!user || user.status !== 'ACTIVE') {
       throw new UnauthorizedException('Usuario nao encontrado ou inativo');
     }
+    if (payload.sid) await this.ensureSessionActive(payload.sid);
 
     const memberships = user.tenantAccess;
     const primary = memberships.find((m) => m.isPrimary) ?? memberships[0];
@@ -138,13 +142,26 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
         throw new ForbiddenException({ code: 'TENANT_SUSPENDED', message: 'Tenant suspenso ou inativo' });
       }
       this.ensurePermsFresh(payload, membership.customRole as RoleSel);
-      return this.buildCurrentUser(
-        user,
-        requestedTenantId,
-        membership.customRoleId,
-        membership.customRole as RoleSel,
-        payload.impersonatedBy,
-      );
+      // Empresa exige duas etapas e a pessoa nao ativou: so as rotas de /auth (onde
+      // ela ativa) respondem. A equipe da plataforma em "entrar como" nao e barrada.
+      if (
+        securityOf(membership.tenant.settings).requireMfa &&
+        !user.mfaEnabledAt &&
+        !payload.impersonatedBy &&
+        !req.originalUrl.startsWith('/api/v1/auth/')
+      ) {
+        throw new ForbiddenException({ code: 'MFA_SETUP_REQUIRED', message: 'Esta empresa exige verificacao em duas etapas. Ative para continuar.' });
+      }
+      return {
+        ...this.buildCurrentUser(
+          user,
+          requestedTenantId,
+          membership.customRoleId,
+          membership.customRole as RoleSel,
+          payload.impersonatedBy,
+        ),
+        ...(payload.sid && { sessionId: payload.sid }),
+      };
     }
 
     // Sem membership no tenant solicitado: nunca entra (cross-tenant so pelo console).
@@ -158,6 +175,17 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
    * - Impersonacao: nao forca (sessao curta; "parar" e client-side).
    * - Tokens antigos sem permsV: nao sao checados (compat retroativa).
    */
+  /** Sessao encerrada (sair, sair de todos, admin desconectou) derruba o token na hora. */
+  private async ensureSessionActive(sessionId: string): Promise<void> {
+    let valid = cachedSessionValidity(sessionId);
+    if (valid === undefined) {
+      const session = await this.prisma.userSession.findUnique({ where: { id: sessionId }, select: { revokedAt: true } });
+      valid = !!session && !session.revokedAt;
+      rememberSessionValidity(sessionId, valid);
+    }
+    if (!valid) throw new UnauthorizedException('SESSION_REVOKED');
+  }
+
   private ensurePermsFresh(payload: JwtPayload, role: RoleSel): void {
     if (payload.impersonatedBy) return;
     if (payload.permsV == null) return;
