@@ -342,6 +342,11 @@ export class UploadService {
     return total;
   }
 
+  /** Onde os arquivos ficam (para a tela de saude do console). */
+  get storageMode(): { mode: 'gcs' | 'local'; bucket: string | null } {
+    return this.storage ? { mode: 'gcs', bucket: this.bucket } : { mode: 'local', bucket: null };
+  }
+
   /** Arquivos da empresa (prefixo "{tenantId}/"): caminho e tamanho, para a exportacao. */
   async listTenantFiles(tenantId: string): Promise<Array<{ path: string; bytes: number }>> {
     const out: Array<{ path: string; bytes: number }> = [];

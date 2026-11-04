@@ -1391,6 +1391,7 @@
       "staff": "Equipo",
       "support": "Tickets",
       "announcements": "Comunicados",
+      "health": "Salud del sistema",
       "audit": "Auditoría"
     },
     "roles": {
@@ -2466,5 +2467,62 @@
       "saved": "Comunicado guardado",
       "cancel": "Cancelar"
     }
+  },
+  "health": {
+    "title": "Salud del sistema",
+    "checkedAt": "Verificado el {when} · se actualiza cada 30 s",
+    "refresh": "Actualizar",
+    "status": {
+      "ok": "OK",
+      "warning": "Atención",
+      "down": "Caído",
+      "off": "Apagado"
+    },
+    "overall": {
+      "ok": "Todo funcionando",
+      "warning": "Funcionando, con puntos de atención",
+      "down": "Hay componentes caídos",
+      "off": "—"
+    },
+    "c": {
+      "database": "Base de datos",
+      "queues": "Colas",
+      "powersync": "PowerSync (app)",
+      "email": "Correo",
+      "push": "Push (celular)",
+      "storage": "Archivos"
+    },
+    "latency": "Respuesta",
+    "size": "Tamaño",
+    "connections": "Conexiones",
+    "longestQuery": "Consulta más larga",
+    "migrations": "Migrations",
+    "failedMigrations": "{n} con fallo",
+    "lastMigration": "Última",
+    "visibilityBacklog": "Recálculo de visibilidad en cola",
+    "memory": "Memoria",
+    "queue": {
+      "data-import": "Importación",
+      "automation-execution": "Automatizaciones"
+    },
+    "queueCounts": "{waiting} en cola · {active} ejecutando · {failed} con fallo",
+    "version": "Versión",
+    "environment": "Entorno",
+    "uptime": "Activo hace",
+    "eventLoop": "Retraso (p99)",
+    "notConfigured": "No configurado",
+    "configured": "Configurado",
+    "localDisk": "Disco local",
+    "emailHint": "Sin proveedor de correo: invitaciones y recuperación de contraseña no llegan.",
+    "problems": "Problemas recientes",
+    "errors24h": "Errores 500 (24 h)",
+    "automationFailed": "Automatizaciones con fallo (24 h)",
+    "webhookFailed": "Webhooks con fallo (24 h)",
+    "errorsChart": "Errores por hora",
+    "errorsN": "{n, plural, =0 {ningún error} one {# error} other {# errores}}",
+    "recentErrors": "Últimos errores",
+    "noErrors": "Ningún error registrado.",
+    "slowQueries": "Consultas lentas",
+    "noSlow": "Ninguna consulta lenta registrada."
   }
 }

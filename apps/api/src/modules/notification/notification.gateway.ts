@@ -69,9 +69,10 @@ export class NotificationGateway
     try {
       const pubClient = new Redis(redisUrl, {
         maxRetriesPerRequest: 3,
+        // Nunca desistir: com `null` apos 3 tentativas o cliente ficava fechado para
+        // sempre depois de um reinicio do Redis, e o proximo emit derrubava a API.
         retryStrategy(times) {
-          if (times > 3) return null;
-          return Math.min(times * 200, 1000);
+          return Math.min(times * 500, 5000);
         },
         lazyConnect: true,
       });
@@ -198,15 +199,28 @@ export class NotificationGateway
    * Enviar notificação para um usuário específico
    */
   sendToUser(userId: string, notification: Notification) {
-    this.server.to(`user:${userId}`).emit('notification', notification);
+    this.safeEmit(() => this.server.to(`user:${userId}`).emit('notification', notification));
     this.logger.log(`📤 Notificação enviada para usuário: ${userId}`);
+  }
+
+  /**
+   * O adaptador Redis lanca erro SINCRONO ("Connection is closed") quando o Redis
+   * esta fora; sem isto a excecao escapava e derrubava o processo. Tempo real e
+   * melhor esforco: perde o aviso, nao a API.
+   */
+  private safeEmit(fn: () => unknown) {
+    try {
+      fn();
+    } catch (error) {
+      this.logger.warn(`Envio em tempo real falhou: ${(error as Error).message}`);
+    }
   }
 
   /**
    * Enviar notificação para todos os usuários de um tenant
    */
   sendToTenant(tenantId: string, notification: Notification) {
-    this.server.to(`tenant:${tenantId}`).emit('notification', notification);
+    this.safeEmit(() => this.server.to(`tenant:${tenantId}`).emit('notification', notification));
     this.logger.log(`📤 Notificação enviada para tenant: ${tenantId}`);
   }
 
@@ -214,7 +228,7 @@ export class NotificationGateway
    * Enviar evento para um canal específico
    */
   sendToChannel(channel: string, event: string, data: any) {
-    this.server.to(channel).emit(event, data);
+    this.safeEmit(() => this.server.to(channel).emit(event, data));
   }
 
   /**
@@ -236,10 +250,10 @@ export class NotificationGateway
 
     if (excludeUserId) {
       // Broadcast EXCETO o usuário que originou a mudança (evita loop)
-      target.except(`user:${excludeUserId}`).emit('data-changed', payload);
+      this.safeEmit(() => target.except(`user:${excludeUserId}`).emit('data-changed', payload));
       this.logger.log(`📡 data-changed: ${payload.operation} ${payload.entitySlug} → ${tenantRoom}+${entityRoom} (exceto ${excludeUserId})`);
     } else {
-      target.emit('data-changed', payload);
+      this.safeEmit(() => target.emit('data-changed', payload));
       this.logger.log(`📡 data-changed: ${payload.operation} ${payload.entitySlug} → ${tenantRoom}+${entityRoom}`);
     }
   }
@@ -248,7 +262,7 @@ export class NotificationGateway
    * Broadcast para todos os clientes conectados
    */
   broadcast(notification: Notification) {
-    this.server.emit('notification', notification);
+    this.safeEmit(() => this.server.emit('notification', notification));
     this.logger.log(`📢 Broadcast enviado para todos`);
   }
 

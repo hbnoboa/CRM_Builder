@@ -1,5 +1,6 @@
 import { Injectable, OnModuleInit, OnModuleDestroy, Logger } from '@nestjs/common';
 import { Prisma, PrismaClient } from '@prisma/client';
+import { OpsMonitorService } from '../common/services/ops-monitor.service';
 
 @Injectable()
 export class PrismaService extends PrismaClient implements OnModuleInit, OnModuleDestroy {
@@ -7,6 +8,7 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
 
   constructor() {
     super({
+      // Eventos de consulta tambem em producao: alimentam "consultas lentas" do console.
       log: process.env.NODE_ENV === 'development'
         ? [
             { emit: 'event', level: 'query' },
@@ -14,7 +16,7 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
             { emit: 'stdout', level: 'warn' },
             { emit: 'stdout', level: 'error' },
           ]
-        : [{ emit: 'stdout', level: 'error' }],
+        : [{ emit: 'event', level: 'query' }, { emit: 'stdout', level: 'error' }],
       // Datasource configuration for connection pooling
       datasourceUrl: process.env.DATABASE_URL,
     });
@@ -54,15 +56,14 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
       return next(params);
     });
 
-    // Log slow queries in development
-    if (process.env.NODE_ENV === 'development') {
-      // @ts-expect-error - Prisma event typing
-      this.$on('query', (e: Prisma.QueryEvent) => {
-        if (e.duration > 100) {
-          this.logger.warn(`Slow query (${e.duration}ms): ${e.query}`);
-        }
-      });
-    }
+    // Consultas lentas: log no dev (>100ms) e registro para o console (>= SLOW_QUERY_MS).
+    const slowMs = Number(process.env.SLOW_QUERY_MS || 500);
+    const isDev = process.env.NODE_ENV === 'development';
+    // @ts-expect-error - Prisma event typing
+    this.$on('query', (e: Prisma.QueryEvent) => {
+      if (isDev && e.duration > 100) this.logger.warn(`Slow query (${e.duration}ms): ${e.query}`);
+      if (e.duration >= slowMs) OpsMonitorService.current?.recordSlowQuery(e.duration, e.query);
+    });
   }
 
   async onModuleInit() {

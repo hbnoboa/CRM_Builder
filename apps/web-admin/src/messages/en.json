@@ -1394,6 +1394,7 @@
       "staff": "Team",
       "support": "Tickets",
       "announcements": "Announcements",
+      "health": "System health",
       "audit": "Audit"
     },
     "roles": {
@@ -2469,5 +2470,62 @@
       "saved": "Announcement saved",
       "cancel": "Cancel"
     }
+  },
+  "health": {
+    "title": "System health",
+    "checkedAt": "Checked at {when} · refreshes every 30 s",
+    "refresh": "Refresh",
+    "status": {
+      "ok": "OK",
+      "warning": "Warning",
+      "down": "Down",
+      "off": "Off"
+    },
+    "overall": {
+      "ok": "All systems working",
+      "warning": "Working, with warnings",
+      "down": "Some components are down",
+      "off": "—"
+    },
+    "c": {
+      "database": "Database",
+      "queues": "Queues",
+      "powersync": "PowerSync (app)",
+      "email": "Email",
+      "push": "Push (mobile)",
+      "storage": "Files"
+    },
+    "latency": "Response",
+    "size": "Size",
+    "connections": "Connections",
+    "longestQuery": "Longest query",
+    "migrations": "Migrations",
+    "failedMigrations": "{n} failed",
+    "lastMigration": "Latest",
+    "visibilityBacklog": "Visibility recompute queue",
+    "memory": "Memory",
+    "queue": {
+      "data-import": "Import",
+      "automation-execution": "Automations"
+    },
+    "queueCounts": "{waiting} waiting · {active} running · {failed} failed",
+    "version": "Version",
+    "environment": "Environment",
+    "uptime": "Up for",
+    "eventLoop": "Lag (p99)",
+    "notConfigured": "Not configured",
+    "configured": "Configured",
+    "localDisk": "Local disk",
+    "emailHint": "No email provider: invites and password resets won't arrive.",
+    "problems": "Recent problems",
+    "errors24h": "500 errors (24 h)",
+    "automationFailed": "Failed automations (24 h)",
+    "webhookFailed": "Failed webhooks (24 h)",
+    "errorsChart": "Errors per hour",
+    "errorsN": "{n, plural, =0 {no errors} one {# error} other {# errors}}",
+    "recentErrors": "Latest errors",
+    "noErrors": "No errors recorded.",
+    "slowQueries": "Slow queries",
+    "noSlow": "No slow queries recorded."
   }
 }

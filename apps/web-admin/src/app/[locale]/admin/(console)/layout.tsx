@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { useQueryClient } from '@tanstack/react-query';
-import { Building2, ChartColumn, Gauge, LifeBuoy, Megaphone, KeyRound, Layers, Loader2, LogOut, Menu, ScrollText, ShieldCheck, Users, X } from 'lucide-react';
+import { Activity, Building2, ChartColumn, Gauge, LifeBuoy, Megaphone, KeyRound, Layers, Loader2, LogOut, Menu, ScrollText, ShieldCheck, Users, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { Link, usePathname, useRouter } from '@/i18n/navigation';
 import { Button } from '@/components/ui/button';
@@ -24,6 +24,7 @@ const NAV = [
   { key: 'staff', href: '/admin/staff', icon: Users, permission: 'staff.read' },
   { key: 'support', href: '/admin/support', icon: LifeBuoy, permission: 'support.read' },
   { key: 'announcements', href: '/admin/announcements', icon: Megaphone, permission: 'announcements.read' },
+  { key: 'health', href: '/admin/health', icon: Activity, permission: 'health.read' },
   { key: 'audit', href: '/admin/audit', icon: ScrollText, permission: 'audit.read' },
 ] as const;
 
