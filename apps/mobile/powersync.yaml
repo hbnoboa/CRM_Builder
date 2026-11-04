@@ -213,6 +213,22 @@ sync_rules:
               AND "_recordCreatedById" = bucket.user_id
               AND bucket.role_id IN "_visibleToRolesOwnJson"
 
+      # Threads de REGISTRO para cargos scope='team': o canal herda as chaves
+      # "equipeId:cargoId" do registro (migration 20261116000000_chat_record_team_scope)
+      # e casa com TeamAccessKey do usuario, como o bucket 4c de EntityData.
+      chat_channels_record_team:
+        parameters: |
+          SELECT key as team_key, "tenantId" as tenant_id
+          FROM "TeamAccessKey"
+          WHERE "userId" = request.user_id()
+            AND "tenantId" = request.jwt() ->> 'tenantId'
+        data:
+          - SELECT id, "tenantId", type, "entityId", "recordId", name, "dmKey", "createdById", "createdAt", "updatedAt", "deletedAt"
+            FROM "Channel"
+            WHERE "tenantId" = bucket.tenant_id AND "deletedAt" IS NULL
+              AND type = 'record'
+              AND bucket.team_key IN "_visibleTeamKeysJson"
+
       # DMs por membership (parameter query multi-linha).
       chat_dm_channels:
         parameters: |
@@ -273,6 +289,20 @@ sync_rules:
           - SELECT id, "tenantId", "channelId", "senderId", type, content, meta, "createdAt"
             FROM "Message"
             WHERE "channelId" = bucket.channel_id
+
+      # Mensagens de thread de registro para cargos scope='team'. Sem JOIN: a
+      # mensagem carrega a copia das chaves do canal (vazia em canal excluido).
+      chat_messages_record_team:
+        parameters: |
+          SELECT key as team_key, "tenantId" as tenant_id
+          FROM "TeamAccessKey"
+          WHERE "userId" = request.user_id()
+            AND "tenantId" = request.jwt() ->> 'tenantId'
+        data:
+          - SELECT id, "tenantId", "channelId", "senderId", type, content, meta, "createdAt"
+            FROM "Message"
+            WHERE "tenantId" = bucket.tenant_id
+              AND bucket.team_key IN "_visibleTeamKeysJson"
 
       # Mensagens de DM por membership.
       chat_dm_messages:

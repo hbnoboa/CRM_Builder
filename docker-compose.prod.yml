@@ -142,6 +142,8 @@ services:
     image: postgres:16-alpine
     container_name: crm-postgres-dev
     restart: unless-stopped
+    # Replicacao logica p/ o PowerSync de dev (crm-powersync-dev).
+    command: ["postgres", "-c", "wal_level=logical"]
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: CrmBuilderDev2026Pass
@@ -204,7 +206,7 @@ services:
       GCS_KEY_FILE: ${GCS_KEY_FILE:-}
       GCS_CREDENTIALS: ${GCS_CREDENTIALS:-}
       GCS_BASE_URL: ${GCS_BASE_URL:-}
-      POWERSYNC_URL: https://iossystem.com.br/sync
+      POWERSYNC_URL: https://dev.iossystem.com.br/sync
       # E-mail (convites e nova senha). Sem EMAIL_PROVIDER=smtp, nada e enviado.
       EMAIL_PROVIDER: ${EMAIL_PROVIDER:-}
       EMAIL_FROM: ${EMAIL_FROM:-}
