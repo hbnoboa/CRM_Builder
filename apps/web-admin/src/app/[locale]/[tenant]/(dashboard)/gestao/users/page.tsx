@@ -29,6 +29,8 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { useUsers } from '@/hooks/use-users';
+import { useTeams } from '@/hooks/use-teams';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { UserFormDialog, DeleteUserDialog, InviteUserDialog, PendingInvitations } from '@/components/users';
 import { useAuthStore } from '@/stores/auth-store';
 import { useTenant } from '@/stores/tenant-context';
@@ -36,6 +38,8 @@ import { formatCpf, formatPhone } from '@/lib/masks';
 import type { User } from '@/types';
 
 // "Administrador" agora e permission-driven: quem gere cargos ou tem acesso total ao tenant.
+const ALL_TEAMS = '__all__';
+
 function isAdminRole(role?: User['customRole']): boolean {
   const mp = role?.modulePermissions as Record<string, unknown> | undefined;
   return readFullTenantAccess(mp) || role?.modulePermissions?.roles?.canUpdate === true;
@@ -51,12 +55,14 @@ function UsersPageContent() {
   const router = useRouter();
   const { hasModulePermission } = usePermissions();
   const [search, setSearch] = useState('');
+  const [teamFilter, setTeamFilter] = useState(ALL_TEAMS);
   const [formOpen, setFormOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [inviteOpen, setInviteOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
 
   const { data, isLoading, refetch } = useUsers();
+  const { data: teams } = useTeams(hasModulePermission('users', 'canRead'));
 
   // Extrai array de users de forma segura (igual ao padrao de /roles)
   const users: User[] = (() => {
@@ -68,10 +74,12 @@ function UsersPageContent() {
 
   const filteredUsers = users.filter(
     (user) =>
+      (teamFilter === ALL_TEAMS || (user.teams ?? []).some((tm) => tm.id === teamFilter)) && (
       (user.name || '').toLowerCase().includes(search.toLowerCase()) ||
       (user.email || '').toLowerCase().includes(search.toLowerCase()) ||
       (user.cpf || '').includes(search.replace(/\D/g, '')) ||
       (user.phone || '').includes(search.replace(/\D/g, ''))
+      )
   );
 
   const handleCreateUser = () => {
@@ -175,15 +183,28 @@ function UsersPageContent() {
         </Card>
       </div>
 
-      {/* Search */}
-      <div className="relative w-full sm:max-w-md">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-        <Input
-          placeholder={t('searchPlaceholder')}
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="pl-9"
-        />
+      {/* Search + equipe */}
+      <div className="flex flex-col gap-3 sm:flex-row">
+        <div className="relative w-full sm:max-w-md">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder={t('searchPlaceholder')}
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="pl-9"
+          />
+        </div>
+        {(teams?.length ?? 0) > 0 && (
+          <Select value={teamFilter} onValueChange={setTeamFilter}>
+            <SelectTrigger className="sm:w-56" data-testid="users-team-filter">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ALL_TEAMS}>{t('allTeams')}</SelectItem>
+              {teams!.map((tm) => <SelectItem key={tm.id} value={tm.id}>{tm.name}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        )}
       </div>
 
       {/* Users List */}
@@ -233,6 +254,17 @@ function UsersPageContent() {
                         <span className="px-2 py-0.5 text-xs font-medium rounded whitespace-nowrap bg-indigo-100 text-indigo-800">
                           {user.customRole?.name || 'Sem role'}
                         </span>
+                        {(user.teams ?? []).map((tm) => (
+                          <span
+                            key={tm.id}
+                            className="flex items-center gap-1 rounded border px-2 py-0.5 text-xs whitespace-nowrap"
+                            data-testid={`user-team-${tm.name}`}
+                          >
+                            <span className="h-2 w-2 rounded-full" style={{ backgroundColor: tm.color ?? '#6366f1' }} />
+                            {tm.name}
+                            {tm.isLeader && <Crown className="h-3 w-3 text-amber-600" />}
+                          </span>
+                        ))}
                         {user.id === ownerId && (
                           <span className="flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded whitespace-nowrap bg-amber-100 text-amber-800" data-testid="owner-badge">
                             <Crown className="h-3 w-3" />

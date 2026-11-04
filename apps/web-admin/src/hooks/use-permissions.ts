@@ -114,6 +114,7 @@ const ADMIN_SECTION_RULES: Record<string, SectionRule | SectionRule[]> = {
   'execution-logs': { module: 'executionLogs', action: 'canRead' },
   organization: { module: 'settings', action: 'canUpdate' },
   plan: { module: 'settings', action: 'canUpdate' },
+  teams: { module: 'users', action: 'canRead' },
   privacy: { module: 'settings', action: 'canUpdate' },
   // qualquer uma das regras abre a secao
   security: [{ module: 'users', action: 'canRead' }, { module: 'settings', action: 'canUpdate' }],
@@ -249,7 +250,7 @@ export function usePermissions() {
   /**
    * Retorna o scope para uma entidade (all | own)
    */
-  const getEntityScope = (entitySlug: string): 'all' | 'own' => {
+  const getEntityScope = (entitySlug: string): 'all' | 'own' | 'team' => {
     if (!user || !hasRole) return 'own';
 
     // Acesso total ao tenant tem scope automatico

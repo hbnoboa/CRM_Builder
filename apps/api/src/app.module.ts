@@ -39,6 +39,7 @@ import { PublicLinkModule } from './modules/public-link/public-link.module';
 import { ChatModule } from './modules/chat/chat.module';
 import { PlatformModule } from './modules/platform/platform.module';
 import { PrivacyModule } from './modules/privacy/privacy.module';
+import { TeamModule } from './modules/team/team.module';
 import { TenantPlanModule } from './common/services/tenant-plan.module';
 import { TenantFeatureInterceptor } from './common/interceptors/tenant-feature.interceptor';
 
@@ -126,6 +127,7 @@ import { TenantFeatureInterceptor } from './common/interceptors/tenant-feature.i
     // Console da plataforma (equipe)
     PlatformModule,
     PrivacyModule,
+    TeamModule,
   ],
   providers: [
     // Separacao admin x user (#18): guard global de ambiente. Roda antes dos

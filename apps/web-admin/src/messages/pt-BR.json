@@ -297,7 +297,8 @@
       "revoke": "Cancelar",
       "revoked": "Convite cancelado",
       "resentTitle": "Link novo do convite"
-    }
+    },
+    "allTeams": "Todas as equipes"
   },
   "entities": {
     "title": "Tabelas",
@@ -716,7 +717,8 @@
       "fieldPermissions": "Permissões por Campo",
       "field": "Campo",
       "view": "Ver",
-      "editField": "Editar"
+      "editField": "Editar",
+      "scopeTeam": "Minha equipe"
     },
     "modules": {
       "dashboard": "Painel",
@@ -1343,7 +1345,8 @@
       "user": "Usuario",
       "entity": "Tabela",
       "custom_role": "Cargo",
-      "page": "Pagina"
+      "page": "Pagina",
+      "team": "Equipe"
     },
     "changes": "Alteracoes",
     "oldData": "Dados Anteriores",
@@ -1863,6 +1866,7 @@
     "nav": {
       "dashboard": "Painel",
       "users": "Usuários",
+      "teams": "Equipes",
       "roles": "Cargos",
       "permissions": "Guia de permissões",
       "entities": "Tabelas",
@@ -2121,6 +2125,35 @@
         "confirm": "Encerrar definitivamente",
         "done": "Conta encerrada. Os dados serão apagados em {date}."
       }
+    },
+    "teams": {
+      "title": "Equipes",
+      "subtitle": "Departamentos e times da empresa.",
+      "new": "Nova equipe",
+      "scopeHint": "Em Cargos, o escopo \"Minha equipe\" faz a pessoa ver os registros criados por qualquer colega das equipes dela (além dos próprios). Vale no web e no app.",
+      "empty": "Nenhuma equipe ainda",
+      "emptyHint": "Crie equipes para organizar a empresa e liberar a visibilidade por equipe.",
+      "membersCount": "{n, plural, =0 {Sem membros} one {# membro} other {# membros}}",
+      "edit": "Editar",
+      "delete": "Excluir",
+      "manageMembers": "Membros",
+      "deleteTitle": "Excluir a equipe {name}?",
+      "deleteHint": "Os registros continuam. Quem via registros dos colegas por esta equipe deixa de ver.",
+      "deleted": "Equipe excluída",
+      "newTitle": "Nova equipe",
+      "editTitle": "Editar equipe",
+      "name": "Nome",
+      "namePlaceholder": "Ex.: Vendas Sul",
+      "description": "Descrição (opcional)",
+      "color": "Cor",
+      "save": "Salvar",
+      "saved": "Equipe salva",
+      "cancel": "Cancelar",
+      "membersTitle": "Membros de {name}",
+      "membersHint": "Marque quem faz parte. O líder aparece em destaque.",
+      "searchPeople": "Buscar pessoa",
+      "leader": "Líder",
+      "membersSaved": "Membros salvos"
     }
   },
   "invite": {

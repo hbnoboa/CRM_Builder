@@ -297,7 +297,8 @@
       "revoke": "Cancel",
       "revoked": "Invite canceled",
       "resentTitle": "New invite link"
-    }
+    },
+    "allTeams": "All teams"
   },
   "entities": {
     "title": "Tables",
@@ -713,7 +714,8 @@
       "fieldPermissions": "Field Permissions",
       "field": "Field",
       "view": "View",
-      "editField": "Edit"
+      "editField": "Edit",
+      "scopeTeam": "My team"
     },
     "modules": {
       "dashboard": "Dashboard",
@@ -1339,7 +1341,8 @@
       "user": "User",
       "entity": "Entity",
       "custom_role": "Role",
-      "page": "Page"
+      "page": "Page",
+      "team": "Team"
     },
     "changes": "Changes",
     "oldData": "Previous Data",
@@ -1859,6 +1862,7 @@
     "nav": {
       "dashboard": "Overview",
       "users": "Users",
+      "teams": "Teams",
       "roles": "Roles",
       "permissions": "Permissions guide",
       "entities": "Tables",
@@ -2117,6 +2121,35 @@
         "confirm": "Close permanently",
         "done": "Account closed. Data will be deleted on {date}."
       }
+    },
+    "teams": {
+      "title": "Teams",
+      "subtitle": "Company departments and teams.",
+      "new": "New team",
+      "scopeHint": "In Roles, the \"My team\" scope lets a person see records created by any teammate (besides their own). Works on web and in the app.",
+      "empty": "No teams yet",
+      "emptyHint": "Create teams to organize the company and enable team visibility.",
+      "membersCount": "{n, plural, =0 {No members} one {# member} other {# members}}",
+      "edit": "Edit",
+      "delete": "Delete",
+      "manageMembers": "Members",
+      "deleteTitle": "Delete the {name} team?",
+      "deleteHint": "Records stay. People who saw teammates' records through this team will stop seeing them.",
+      "deleted": "Team deleted",
+      "newTitle": "New team",
+      "editTitle": "Edit team",
+      "name": "Name",
+      "namePlaceholder": "e.g. South Sales",
+      "description": "Description (optional)",
+      "color": "Color",
+      "save": "Save",
+      "saved": "Team saved",
+      "cancel": "Cancel",
+      "membersTitle": "{name} members",
+      "membersHint": "Check who belongs. The leader is highlighted.",
+      "searchPeople": "Search people",
+      "leader": "Leader",
+      "membersSaved": "Members saved"
     }
   },
   "invite": {

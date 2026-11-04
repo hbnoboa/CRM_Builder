@@ -19,6 +19,7 @@ import { Prisma } from '@prisma/client';
 import { getEffectiveTenantId } from '../../common/utils/tenant.util';
 import { buildFilterClause } from '../../common/utils/build-filter-clause';
 import { GlobalFilterDto } from './dto/update-global-filters.dto';
+import { creatorFilter } from '../../common/utils/team-scope';
 
 export type QueryEntityDto = PaginationQuery;
 
@@ -401,12 +402,10 @@ export class EntityService {
       deletedAt: null,
     };
 
-    // Escopo permission-driven: 'all' => sem restricao; senao (own/sem acesso) só
-    // os registros do proprio usuario. allAccess => getEntityScope retorna 'all'.
-    const scope = await this.customRoleService.getEntityScope(user.id, entity.slug);
-    if (scope !== 'all') {
-      where.createdById = user.id;
-    }
+    // Escopo permission-driven: 'all' => sem restricao; 'team' => criados pela
+    // equipe; senao (own/sem acesso) só os do proprio usuario.
+    const creators = creatorFilter(await this.customRoleService.getVisibleCreatorIds(user, entity.slug));
+    if (creators) where.createdById = creators;
 
     // Filtros globais da entidade
     const entitySettings = entity.settings as Record<string, unknown> | null;

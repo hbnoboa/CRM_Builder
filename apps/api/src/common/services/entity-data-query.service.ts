@@ -7,6 +7,7 @@ import { CurrentUser } from '../types';
 import { hasFullTenantAccess } from '../utils/platform-access';
 import { getEffectiveTenantId } from '../utils/tenant.util';
 import { buildFilterClause } from '../utils/build-filter-clause';
+import { creatorFilter } from '../utils/team-scope';
 
 // ─── Interfaces ─────────────────────────────────────────────────────────────
 
@@ -185,7 +186,7 @@ export class EntityDataQueryService {
     if (where.id) aw.id = where.id as string | { in: string[] };
     if (where.entityId) aw.entityId = where.entityId as string;
     if (where.tenantId) aw.tenantId = where.tenantId as string;
-    if (where.createdById) aw.createdById = where.createdById as string;
+    if (where.createdById) aw.createdById = where.createdById as string | { in: string[] };
     if (where.parentRecordId !== undefined) aw.parentRecordId = where.parentRecordId as string | null;
 
     // Copy search OR clauses (data JSON path queries)
@@ -727,19 +728,17 @@ export class EntityDataQueryService {
 
   /**
    * Aplica escopo de acesso baseado na CustomRole.
-   * scope='own' → filtra apenas registros criados pelo usuario.
+   * scope='own' → so registros criados pelo usuario; 'team' → criados por ele ou
+   * por alguem das equipes dele.
    */
   private async applyScopeFromCustomRole(
     where: Prisma.EntityDataWhereInput,
     user: CurrentUser,
     entitySlug: string,
   ): Promise<void> {
-    const scope = await this.customRoleService.getEntityScope(user.id, entitySlug);
-
-    if (scope === 'own') {
-      where.createdById = user.id;
-      this.logger.debug(`Applying scope 'own' for user ${user.id} on entity ${entitySlug}`);
-    }
+    const ids = await this.customRoleService.getVisibleCreatorIds(user, entitySlug);
+    const filter = creatorFilter(ids);
+    if (filter) where.createdById = filter;
   }
 
   /**

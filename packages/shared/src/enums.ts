@@ -13,7 +13,8 @@ export type TenantStatus = 'ACTIVE' | 'INACTIVE' | 'SUSPENDED' | 'TRIAL';
 // PERMISSION SCOPE
 // ============================================================================
 
-export type PermissionScope = 'all' | 'own';
+/** all = todos; own = so os que criei; team = os criados por alguem das minhas equipes. */
+export type PermissionScope = 'all' | 'own' | 'team';
 
 // ============================================================================
 // FIELD TYPES (Entity Builder)

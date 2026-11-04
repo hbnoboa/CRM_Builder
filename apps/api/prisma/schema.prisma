@@ -113,6 +113,7 @@ model Tenant {
   invitations      Invitation[]
   apiKeys          ApiKey[]
   lifecycleEvents  TenantLifecycleEvent[]
+  teams            Team[]
   @@index([slug])
   @@index([status])
   @@index([lifecycle])
@@ -247,6 +248,7 @@ model User {
   mfaPendingSecret String?
   mfaEnabledAt     DateTime?
   mfaRecoveryCodes String[] @default([])
+  teamMemberships  TeamMember[]
 
   lastLoginAt       DateTime?
   resetToken        String?
@@ -403,6 +405,10 @@ model EntityData {
   // createdById = request.user_id(). Disjoint from _visibleToRolesJson (a role
   // lands in one or the other per record, by its scope for the entity).
   visibleToRolesOwnJson Json @default("[]") @map("_visibleToRolesOwnJson")
+
+  // Trigger-maintained: chaves "equipeId:cargoId" para cargos com escopo 'team'
+  // (uma por equipe do CRIADOR). PowerSync casa com TeamAccessKey do usuario.
+  visibleTeamKeysJson Json @default("[]") @map("_visibleTeamKeysJson")
 
   entity       Entity       @relation(fields: [entityId], references: [id], onDelete: Cascade)
   tenant       Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
@@ -1467,4 +1473,46 @@ model UserSession {
   refreshTokens RefreshToken[]
 
   @@index([userId])
+}
+
+/// Equipe/departamento da empresa. Cargo com escopo 'team' ve os registros criados
+/// por qualquer pessoa das suas equipes.
+model Team {
+  id          String       @id @default(cuid())
+  tenantId    String
+  tenant      Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  name        String
+  description String?
+  color       String?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  members     TeamMember[]
+
+  @@unique([tenantId, name])
+  @@index([tenantId])
+}
+
+model TeamMember {
+  id        String   @id @default(cuid())
+  teamId    String
+  team      Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  isLeader  Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@unique([teamId, userId])
+  @@index([userId])
+}
+
+/// Mantida por trigger: "equipeId:cargoId" de cada equipe do usuario, com o cargo
+/// dele na empresa. Parametro do bucket team_entity_data do PowerSync (sem JOIN la).
+model TeamAccessKey {
+  id       String @id @default(dbgenerated("(gen_random_uuid())::text"))
+  userId   String
+  tenantId String
+  key      String
+
+  @@unique([userId, key])
+  @@index([userId, tenantId])
 }

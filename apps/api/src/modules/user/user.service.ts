@@ -37,10 +37,13 @@ export class UserService {
   private flatten(
     user: Record<string, unknown> & { tenantAccess?: Array<{ tenantId: string; customRoleId: string; customRole: unknown; tenant?: unknown }> },
   ): Record<string, unknown> {
-    const { tenantAccess, ...rest } = user;
+    const { tenantAccess, teamMemberships, ...rest } = user as typeof user & {
+      teamMemberships?: Array<{ isLeader: boolean; team: { id: string; name: string; color: string | null } }>;
+    };
     const m = tenantAccess?.[0];
     return {
       ...rest,
+      ...(teamMemberships ? { teams: teamMemberships.map((t) => ({ ...t.team, isLeader: t.isLeader })) } : {}),
       tenantId: m?.tenantId ?? null,
       customRoleId: m?.customRoleId ?? null,
       customRole: m?.customRole ?? null,
@@ -106,7 +109,7 @@ export class UserService {
     const page = Math.max(1, query.page || 1);
     const limit = Math.min(MAX_LIMIT, Math.max(1, query.limit || DEFAULT_LIMIT));
     const skip = (page - 1) * limit;
-    const { search, role, status, cursor, sortBy = 'createdAt', sortOrder = 'desc' } = query;
+    const { search, role, status, cursor, teamId, sortBy = 'createdAt', sortOrder = 'desc' } = query;
 
     // Lista sempre escopada ao tenant ativo do usuario.
     const effectiveTenantId = getEffectiveTenantId(currentUser);
@@ -122,6 +125,7 @@ export class UserService {
     // Usuario tecnico de chave de API nao faz parte da equipe.
     const where: Prisma.UserWhereInput = { tenantAccess: { some: membershipFilter }, isServiceAccount: false };
     if (status) where.status = status;
+    if (teamId) where.teamMemberships = { some: { teamId, team: { tenantId: effectiveTenantId } } };
     if (search) {
       where.OR = [
         { name: { contains: search, mode: 'insensitive' } },
@@ -156,6 +160,10 @@ export class UserService {
             customRole: { select: ROLE_PREVIEW },
             tenant: { select: { id: true, name: true, slug: true } },
           },
+        },
+        teamMemberships: {
+          where: { team: { tenantId: effectiveTenantId } },
+          select: { isLeader: true, team: { select: { id: true, name: true, color: true } } },
         },
       },
     };

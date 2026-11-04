@@ -296,7 +296,8 @@
       "revoke": "Cancelar",
       "revoked": "Invitación cancelada",
       "resentTitle": "Link nuevo de la invitación"
-    }
+    },
+    "allTeams": "Todos los equipos"
   },
   "entities": {
     "title": "Tablas",
@@ -712,7 +713,8 @@
       "fieldPermissions": "Permisos por Campo",
       "field": "Campo",
       "view": "Ver",
-      "editField": "Editar"
+      "editField": "Editar",
+      "scopeTeam": "Mi equipo"
     },
     "modules": {
       "dashboard": "Panel",
@@ -1336,7 +1338,8 @@
       "user": "Usuario",
       "entity": "Entidad",
       "custom_role": "Cargo",
-      "page": "Pagina"
+      "page": "Pagina",
+      "team": "Equipo"
     },
     "changes": "Cambios",
     "oldData": "Datos Anteriores",
@@ -1856,6 +1859,7 @@
     "nav": {
       "dashboard": "Panel",
       "users": "Usuarios",
+      "teams": "Equipos",
       "roles": "Cargos",
       "permissions": "Guía de permisos",
       "entities": "Tablas",
@@ -2114,6 +2118,35 @@
         "confirm": "Cerrar definitivamente",
         "done": "Cuenta cerrada. Los datos se borrarán el {date}."
       }
+    },
+    "teams": {
+      "title": "Equipos",
+      "subtitle": "Departamentos y equipos de la empresa.",
+      "new": "Nuevo equipo",
+      "scopeHint": "En Roles, el alcance \"Mi equipo\" hace que la persona vea los registros creados por cualquier compañero de sus equipos (además de los propios). Vale en la web y en la app.",
+      "empty": "Aún no hay equipos",
+      "emptyHint": "Crea equipos para organizar la empresa y habilitar la visibilidad por equipo.",
+      "membersCount": "{n, plural, =0 {Sin miembros} one {# miembro} other {# miembros}}",
+      "edit": "Editar",
+      "delete": "Eliminar",
+      "manageMembers": "Miembros",
+      "deleteTitle": "¿Eliminar el equipo {name}?",
+      "deleteHint": "Los registros se mantienen. Quien veía registros de los compañeros por este equipo deja de verlos.",
+      "deleted": "Equipo eliminado",
+      "newTitle": "Nuevo equipo",
+      "editTitle": "Editar equipo",
+      "name": "Nombre",
+      "namePlaceholder": "Ej.: Ventas Sur",
+      "description": "Descripción (opcional)",
+      "color": "Color",
+      "save": "Guardar",
+      "saved": "Equipo guardado",
+      "cancel": "Cancelar",
+      "membersTitle": "Miembros de {name}",
+      "membersHint": "Marca quién forma parte. El líder aparece destacado.",
+      "searchPeople": "Buscar persona",
+      "leader": "Líder",
+      "membersSaved": "Miembros guardados"
     }
   },
   "invite": {

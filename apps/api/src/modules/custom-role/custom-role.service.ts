@@ -16,6 +16,7 @@ import {
   DEFAULT_LIMIT,
   MAX_LIMIT,
 } from '../../common/types';
+import { teammateIds } from '../../common/utils/team-scope';
 
 export interface ModulePermissionCrud {
   canRead?: boolean;
@@ -639,12 +640,12 @@ export class CustomRoleService {
 
   /**
    * Retorna o escopo de visibilidade do usuario para uma entidade
-   * @returns 'all' | 'own' | null (null = sem acesso)
+   * @returns 'all' | 'own' | 'team' | null (null = sem acesso)
    */
   async getEntityScope(
     userId: string,
     entitySlug: string,
-  ): Promise<'all' | 'own' | null> {
+  ): Promise<'all' | 'own' | 'team' | null> {
     const m = await this.resolveMembershipRole(userId);
     if (!m || !m.customRole) return null;
 
@@ -654,10 +655,21 @@ export class CustomRoleService {
     }
 
     const entry = this.findEntityPerm<{
-      entitySlug: string; canRead?: boolean; scope?: 'all' | 'own';
+      entitySlug: string; canRead?: boolean; scope?: 'all' | 'own' | 'team';
     }>(m.customRole.permissions, entitySlug);
     if (!entry || entry.canRead !== true) return null;
-    return entry.scope === 'own' ? 'own' : 'all';
+    return entry.scope === 'own' || entry.scope === 'team' ? entry.scope : 'all';
+  }
+
+  /**
+   * De quais criadores a pessoa ve registros nesta tabela: null = de todos;
+   * senao a lista (so ela para 'own'/sem acesso; ela + colegas de equipe para 'team').
+   */
+  async getVisibleCreatorIds(user: { id: string; tenantId: string }, entitySlug: string): Promise<string[] | null> {
+    const scope = await this.getEntityScope(user.id, entitySlug);
+    if (scope === 'all') return null;
+    if (scope === 'team') return teammateIds(this.prisma, user.id, user.tenantId);
+    return [user.id];
   }
 
   /**

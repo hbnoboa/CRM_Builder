@@ -1251,10 +1251,7 @@ export class DataService {
     }
 
     // Verificar scope: se usuario tem scope 'own', so pode ver proprios registros
-    const scope = await this.customRoleService.getEntityScope(currentUser.id, entitySlug);
-    if (scope === 'own' && recordResult.createdById !== currentUser.id) {
-      throw new ForbiddenException('Acesso negado a este registro');
-    }
+    await this.assertCreatorVisible(currentUser, entitySlug, recordResult.createdById);
 
     // Verificar filtros de dados por role (apenas para registros ativos — archived nao tem role filters)
     if (!recordResult._isArchived) {
@@ -1355,10 +1352,7 @@ export class DataService {
     // Verificar permissao de escopo
     // Para archived: verificar scope manualmente (checkScope espera EntityData)
     if (isArchivedRecord) {
-      const scope = await this.customRoleService.getEntityScope(currentUser.id, entitySlug);
-      if (scope === 'own' && archivedRecord.createdById !== currentUser.id) {
-        throw new ForbiddenException('Acesso negado a este registro');
-      }
+      await this.assertCreatorVisible(currentUser, entitySlug, archivedRecord.createdById);
     } else {
       await this.checkScope(record!, currentUser, entitySlug);
     }
@@ -1545,11 +1539,8 @@ export class DataService {
       }
     }
 
-    // Escopo (own)
-    const scope = await this.customRoleService.getEntityScope(currentUser.id, entitySlug);
-    if (scope === 'own' && record.createdById !== currentUser.id) {
-      throw new ForbiddenException('Acesso negado a este registro');
-    }
+    // Escopo (own/team)
+    await this.assertCreatorVisible(currentUser, entitySlug, record.createdById);
 
     // RESTORE-CASCATA: reativa o pai + descendentes que cairam na MESMA operacao
     // (mesmo deletedAt timestamp). Nao toca em filhos deletados separadamente.
@@ -1670,10 +1661,7 @@ export class DataService {
 
     // Verificar permissao de escopo
     if (isArchivedDeletion) {
-      const scope = await this.customRoleService.getEntityScope(currentUser.id, entitySlug);
-      if (scope === 'own' && targetRecord.createdById !== currentUser.id) {
-        throw new ForbiddenException('Acesso negado a este registro');
-      }
+      await this.assertCreatorVisible(currentUser, entitySlug, targetRecord.createdById);
     } else {
       await this.checkScope(record!, currentUser, entitySlug);
     }
@@ -1862,11 +1850,21 @@ export class DataService {
   // Verificar se usuario pode modificar o registro
   private async checkScope(record: EntityData, user: CurrentUser, entitySlug: string) {
     // Permission-driven: escopo vem de permissions[]/'*'. 'all' => livre;
-    // 'own'/sem-acesso => só registros do proprio usuario.
-    const scope = await this.customRoleService.getEntityScope(user.id, entitySlug);
-    if (scope === 'all') return;
-    if (record.createdById !== user.id) {
-      throw new ForbiddenException('Voce so pode modificar registros criados por voce');
+    // 'team' => registros da equipe; 'own'/sem-acesso => só os do proprio usuario.
+    const ids = await this.customRoleService.getVisibleCreatorIds(user, entitySlug);
+    if (!ids) return;
+    if (!record.createdById || !ids.includes(record.createdById)) {
+      throw new ForbiddenException(
+        ids.length > 1 ? 'Voce so pode modificar registros da sua equipe' : 'Voce so pode modificar registros criados por voce',
+      );
+    }
+  }
+
+  /** Leitura/restauracao: o criador precisa estar no escopo (own/team) da pessoa. */
+  private async assertCreatorVisible(user: CurrentUser, entitySlug: string, createdById: string | null) {
+    const ids = await this.customRoleService.getVisibleCreatorIds(user, entitySlug);
+    if (ids && (!createdById || !ids.includes(createdById))) {
+      throw new ForbiddenException('Acesso negado a este registro');
     }
   }
 }

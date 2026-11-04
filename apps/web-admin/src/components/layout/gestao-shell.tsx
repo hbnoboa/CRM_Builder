@@ -32,6 +32,7 @@ import {
   TableProperties,
   Timer,
   Users,
+  UsersRound,
   X,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -57,6 +58,7 @@ const GROUPS: Array<{ key: string; items: GestaoItem[] }> = [
     key: 'team',
     items: [
       { key: 'users', section: 'users', icon: <Users className="h-4 w-4" /> },
+      { key: 'teams', section: 'teams', icon: <UsersRound className="h-4 w-4" /> },
       { key: 'roles', section: 'roles', icon: <Shield className="h-4 w-4" /> },
       { key: 'permissions', section: 'permissions', icon: <BookOpen className="h-4 w-4" /> },
     ],

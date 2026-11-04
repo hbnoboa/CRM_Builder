@@ -16,6 +16,8 @@ export interface User {
   tenantId: string;
   tenant?: Tenant;
   permissions?: string[];
+  /** Equipes na empresa atual (lista de usuarios). */
+  teams?: Array<{ id: string; name: string; color: string | null; isLeader: boolean }>;
   lastLoginAt?: string;
   createdAt?: string;
   updatedAt?: string;
