@@ -27,30 +27,44 @@ export default defineConfig({
   },
 
   projects: [
+    // Cenario do roteiro manual: pnpm test:seed (com e2e/.env.dev.local carregado).
+    {
+      name: 'seed',
+      testDir: './e2e/seed',
+      testMatch: '*.seed.ts',
+    },
+    // Parte de tela do roteiro, sobre o cenario do seed: pnpm test:ui-roteiro.
+    {
+      name: 'ui',
+      testDir: './e2e/ui',
+      timeout: 120_000,
+      use: { ...devices['Desktop Chrome'], channel: 'chrome', screenshot: 'only-on-failure' },
+    },
     // Testes HTTP, sem navegador: montam o proprio cenario. Ver docs/teste-e2e-completo.md (secao 13).
     {
       name: 'api',
       testMatch: 'api/**/*.spec.ts',
+      timeout: 120_000,
       fullyParallel: false,
     },
     {
       name: 'chromium',
-      testIgnore: 'api/**',
+      testIgnore: ['api/**', 'ui/**'],
       use: { ...devices['Desktop Chrome'] },
     },
     {
       name: 'firefox',
-      testIgnore: 'api/**',
+      testIgnore: ['api/**', 'ui/**'],
       use: { ...devices['Desktop Firefox'] },
     },
     {
       name: 'webkit',
-      testIgnore: 'api/**',
+      testIgnore: ['api/**', 'ui/**'],
       use: { ...devices['Desktop Safari'] },
     },
     {
       name: 'mobile-chrome',
-      testIgnore: 'api/**',
+      testIgnore: ['api/**', 'ui/**'],
       use: { ...devices['Pixel 5'] },
     },
   ],

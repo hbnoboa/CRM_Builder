@@ -271,9 +271,9 @@ Logue como cada um (janelas separadas) e confira. A mesma matriz é testada dire
 | 13 | "Novo Usuário" (sem convite) **sem senha** | ✅ erro da API (senha obrigatória) |
 | 14 | 🔧 Editar o **próprio** usuário (Dora): trocar o nome e salvar | ✅ salva (trocar a própria situação continua bloqueado) |
 | 15 | 🔧 Editar a Vera e só trocar o nome | ✅ salva |
-| 16 | Limite do plano: com o admin da QA Console já são **8** pessoas ativas (limite 8) → convidar mais 1 e tentar aceitar | ✅ "Limite de usuarios do plano atingido (8)" (se não bater, conte os ativos em *Plano*) |
-| 17 | 🔧 Desativar a Vera (7 ativos) → aceitar o convite do passo 16 (8 ativos) → reativar a Vera | ✅ desativar libera a vaga; reativar dá "Limite de usuarios do plano atingido" |
-| 18 | Excluir a pessoa do passo 16 e reativar a Vera | ✅ excluir libera a vaga; Vera volta (ela é usada nas próximas seções) |
+| 16 | Limite do plano: com o admin da QA Console já são **8** pessoas ativas (limite 8) → convidar mais 1 | ✅ "Limite de usuarios do plano atingido (8)" já no convite (se não bater, conte os ativos em *Plano*) |
+| 17 | 🔧 Desativar a Vera (7 ativos) → convidar `voce+temp@…` e aceitar (8 ativos) → reativar a Vera | ✅ desativar libera a vaga; reativar dá "Limite de usuarios do plano atingido" |
+| 18 | Excluir a pessoa do passo 17 e reativar a Vera | ✅ excluir libera a vaga; Vera volta (ela é usada nas próximas seções) |
 | 19 | *Cargos* → excluir cargo **com usuários** | ✅ "Esta role esta atribuida a N usuario(s)…" |
 
 ### E-09 Proteções do dono (como **Alex**, administrador não-dono)
@@ -298,6 +298,7 @@ Logue como cada um (janelas separadas) e confira. A mesma matriz é testada dire
 |---|---|---|
 | 1 | *Modelos de PDF* → novo: "Ficha do cliente", slug `ficha-cliente`, **Individual**, fonte Clientes, A4 | ✅ "Criar e Continuar" abre o editor |
 | 2 | Slug com maiúscula | ✅ "Slug deve conter apenas letras minusculas…" |
+| 2b | 🔧 "Criar e Continuar" | ✅ abre o editor em `/{idioma}/{empresa}/gestao/pdf-templates/:id` |
 | 3 | No editor: Texto (título), Campo (Nome), Grupo de Campos, Divisor → "Preview" → "Salvar" → **Publicar** | ✅ selo muda de "Rascunho" para publicado |
 | 4 | Criar "Lista de clientes" **Lote** e publicar | ✅ |
 | 5 | Lista → "Duplicar" e "Excluir" a cópia | ✅ "Template duplicado…" / "Template excluido…" |
@@ -357,6 +358,7 @@ Logue como cada um (janelas separadas) e confira. A mesma matriz é testada dire
 
 ### E-19 Auditoria e Execuções
 - [ ] *Auditoria*: aparecem criação de usuários, convites, equipes, cargos, organização. Filtros por ação/recurso/data funcionam.
+- [ ] 🔧 Filtro com data final de hoje traz os registros de hoje.
 - [ ] 🔧 "Exportar JSON" baixa `audit-logs-AAAA-MM-DD.json` **com os mesmos filtros** da tela (ação, recurso, busca, datas).
 - [ ] Logar como alguém com o cargo **Auditor** (troque a Vera temporariamente): vê *Administração* só com Auditoria/Execuções.
 - [ ] *Execuções*: aparecem os envios do webhook (E-15) com Sucesso/Erro.
@@ -400,17 +402,17 @@ Logue como cada um (janelas separadas) e confira. A mesma matriz é testada dire
 
 ### O-05 Registros — dashboard da tabela por cargo
 - [ ] Ana em *Registros › Clientes*: com 2 templates atribuídos, aparecem botões para alternar (lembra a escolha ao recarregar).
-- [ ] Clicar numa fatia da pizza → cria filtro (barra "Filtros (1)"); clicar no chip remove; "Limpar".
+- [ ] Clicar numa fatia da pizza → cria filtro (barra "Filtros"; a contagem aparece com 2 ou mais); clicar no chip remove; "Limpar".
 
 ### O-06 Criar, editar, validar
 | # | Ação (Ana) | Esperado |
 |---|---|---|
 | 1 | "Criar" em Clientes sem preencher Nome | ✅ "Nome é obrigatório" |
-| 2 | Email `abc` | ✅ "Email inválido" |
+| 2 | Email `abc` | ✅ o navegador barra no campo. Com `abc@x`: "Email inválido" |
 | 3 | 🔧 CPF — só esse campo **não aparece** (permissão por campo, E-07/7); os outros aparecem e salvam | ✅ |
 | 4 | Criar "Cliente A1" (VIP = Não) e "Cliente A2" (VIP = **Sim**) | ✅ salvos; webhook dispara (E-15) |
 | 5 | Lista | ✅ Ana vê **A1**; **A2 some** (filtro de dados VIP = Não) |
-| 6 | Editar A1 → mudar Status | ✅ "Registro atualizado…" |
+| 6 | 🔧 Editar A1 → mudar Status | ✅ "Registro atualizado…"; a lista mostra o rótulo ("Em contato") |
 | 7 | Email repetido com outro cliente (campo Único) | ✅ erro de valor único |
 | 8 | Dora cria "Cliente D1" | ✅ Ana **não** vê D1 (Operador = só os próprios) |
 
@@ -510,7 +512,7 @@ Logue como cada um (janelas separadas) e confira. A mesma matriz é testada dire
 
 ### O-16 Configurações pessoais
 - [ ] *Perfil*: alterar nome → "Salvar". Trocar senha com confirmação diferente → "As senhas não coincidem".
-- [ ] *Idioma*: English → interface em inglês, URL `/en/...`; voltar para Português.
+- [ ] 🔧 *Idioma*: English → interface em inglês, URL `/en/{empresa}/settings`; voltar para Português.
 - [ ] *Tema*: Claro / Escuro / Sistema.
 - [ ] *Segurança* e *Privacidade*: ver seções 8 e 9.
 
@@ -762,7 +764,7 @@ Para a **exportação**, crie um cargo "Equipe campo + Exportar" e dê ao Bruno 
 - [ ] Preparo: na QA Console, crie uma tabela e 5 registros, e aceite 1 convite (2 pessoas ativas).
 - [ ] Mover só a QA Console para "QA Mínimo" (2 usuários, 5 registros).
 - [ ] Criar o 6º registro → "Limite de registros do plano atingido (5)" (web) / snackbar no app.
-- [ ] Convidar 3ª pessoa e aceitar → "Limite de usuarios do plano atingido (2)" (convite pendente não ocupa vaga; o limite aparece no aceite).
+- [ ] Convidar 3ª pessoa → "Limite de usuarios do plano atingido (2)" já no convite. Convite criado antes de lotar também recebe esse erro no aceite.
 - [ ] Chat, PDF e Links públicos somem dos menus da administração.
 
 ### P-18 Métricas, Saúde, Auditoria
@@ -925,6 +927,7 @@ Os problemas achados na montagem e na auditoria deste roteiro foram corrigidos (
 | B-24 | Vazamentos | PDF, sugestões do chat e arquivados seguem escopo e campos; socket envia só o id e recusa sala alheia | X-01, X-05 |
 | B-25 | Console | "Adicionar membro" não muda cargo de quem já é membro; "Entrar como" dura 1 dia e cai com o staff desativado | P-10, P-11/5 |
 | B-26 | App | Excluir chega ao servidor; POST idempotente; 401 mantém a fila; "Sair" e sessão encerrada não voltam sozinhos | M-03/11, M-04/9-11, M-07/2b, /8, /9 |
+| B-28 | Web | Coluna e formulário escondem o campo negado; idioma mantém a empresa; "Criar e Continuar" abre o editor; lista mostra o rótulo da seleção; data final da auditoria inclui o dia | O-06/3, /6, O-16, E-11/2b, E-19 |
 | B-27 | Plano e menus | Desativar ou excluir libera vaga; Gerente exporta; cartões e menu seguem a permissão real | E-08/17-18, O-09/8, O-02, E-20 |
 
 > App (B-13): as mudanças são em Dart e precisam de `flutter analyze` + teste no aparelho (não há Flutter no servidor de build).
@@ -985,6 +988,10 @@ Os blocos abaixo rodam sem navegador. Eles montam o próprio cenário, com sufix
 | `e2e/api/platform-permissions.spec.ts` | P-06 direto nas rotas do console |
 | `e2e/api/tenant-isolation.spec.ts` | IDs e slug de outra empresa |
 | `e2e/api/public-link.spec.ts` | E-13/3, O-18/8-10 |
+| `e2e/api/roteiro-flows.spec.ts` | Fluxos com mensagens literais das seções 1, 3, 4, 7, 8 e 9 |
+| `e2e/ui/roteiro.spec.ts` e `e2e/ui/roteiro-flows.spec.ts` | Telas, sobre o cenário do seed (`pnpm test:seed`, `pnpm test:ui-roteiro`) |
+
+Resultado da última rodada: `docs/teste-e2e-execucao.md`.
 
 ```bash
 BASE_URL=https://dev.iossystem.com.br \

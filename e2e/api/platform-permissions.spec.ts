@@ -39,7 +39,6 @@ const rules: Rule[] = [
   { name: 'situacao', method: 'patch', path: () => `/platform/tenants/${tenant.id}/lifecycle`, allowed: ['OWNER', 'FINANCE'] },
   { name: 'plano do cliente', method: 'patch', path: () => `/platform/tenants/${tenant.id}/plan`, allowed: ['OWNER', 'FINANCE'] },
   { name: 'funcoes', method: 'patch', path: () => `/platform/tenants/${tenant.id}/features`, allowed: ['OWNER', 'SUPPORT'] },
-  { name: 'massa', method: 'post', path: () => '/platform/tenants/bulk', allowed: ['OWNER', 'FINANCE'] },
   { name: 'novo plano', method: 'post', path: () => '/platform/plans', allowed: ['OWNER', 'FINANCE'] },
   { name: 'novo comunicado', method: 'post', path: () => '/platform/announcements', allowed: ['OWNER', 'SUPPORT'] },
   { name: 'adicionar membro', method: 'post', path: () => `/platform/tenants/${tenant.id}/members`, allowed: ['OWNER', 'SUPPORT'] },
@@ -60,9 +59,11 @@ for (const rule of rules) {
   });
 }
 
-test('[P-06] lote de suporte recusado mesmo com corpo valido', async ({ request }) => {
-  await call(request, 'post', '/platform/tenants/bulk', staff.SUPPORT!, {
-    expected: 403,
-    data: { action: 'lifecycle', tenantIds: [tenant.id], lifecycle: 'SUSPENDED' },
-  });
+// A rota de massa valida o corpo antes de conferir a acao: aqui vai corpo valido, so em previa.
+test('[P-06] massa', async ({ request }) => {
+  const data = () => ({ action: 'lifecycle', tenantIds: [tenant.id], lifecycle: 'ACTIVE', dryRun: true });
+  await call(request, 'post', '/platform/tenants/bulk', staff.OWNER!, { expected: [200, 201], data: data() });
+  await call(request, 'post', '/platform/tenants/bulk', staff.FINANCE!, { expected: [200, 201], data: data() });
+  await call(request, 'post', '/platform/tenants/bulk', staff.SUPPORT!, { expected: 403, data: data() });
+  await call(request, 'post', '/platform/tenants/bulk', staff.READONLY!, { expected: 403, data: data() });
 });
