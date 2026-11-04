@@ -26,6 +26,8 @@ import {
   MessageSquare,
   CircleDot,
   LayoutDashboard,
+  LifeBuoy,
+  Trash2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuthStore } from '@/stores/auth-store';
@@ -43,7 +45,7 @@ export function OperationalShell({ children }: { children: React.ReactNode }) {
   const searchParams = useSearchParams();
   const router = useRouter();
   const { user, logout } = useAuthStore();
-  const { hasModuleAccess } = usePermissions();
+  const { hasModuleAccess, canUseTrash } = usePermissions();
   const { tenant } = useTenant();
   const routeParams = useParams();
   const currentTenantSlug = typeof routeParams?.tenant === 'string' ? routeParams.tenant : undefined;
@@ -176,6 +178,8 @@ export function OperationalShell({ children }: { children: React.ReactNode }) {
 
             <div className="my-3 border-t" />
 
+            {canUseTrash && navLink('/trash', <Trash2 className="h-5 w-5" />, tNav('trash'))}
+            {navLink('/support', <LifeBuoy className="h-5 w-5" />, tNav('support'))}
             {navLink('/settings', <Settings className="h-5 w-5" />, tNav('settings'))}
           </nav>
 

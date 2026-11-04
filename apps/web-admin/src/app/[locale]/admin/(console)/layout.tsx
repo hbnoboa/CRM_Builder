@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { useQueryClient } from '@tanstack/react-query';
-import { Building2, ChartColumn, Gauge, KeyRound, Layers, Loader2, LogOut, Menu, ScrollText, ShieldCheck, Users, X } from 'lucide-react';
+import { Building2, ChartColumn, Gauge, LifeBuoy, KeyRound, Layers, Loader2, LogOut, Menu, ScrollText, ShieldCheck, Users, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { Link, usePathname, useRouter } from '@/i18n/navigation';
 import { Button } from '@/components/ui/button';
@@ -14,6 +14,7 @@ import { getPlatformToken, setPlatformToken } from '@/lib/platform-api';
 import { getErrorMessage } from '@/lib/get-error-message';
 import { platformKeys, usePlatformChangePassword, usePlatformMe } from '@/hooks/use-platform';
 import { cn } from '@/lib/utils';
+import { useConsoleTicketCounts } from '@/components/support/console-support-api';
 
 const NAV = [
   { key: 'overview', href: '/admin', icon: Gauge, permission: 'overview.read' },
@@ -21,6 +22,7 @@ const NAV = [
   { key: 'tenants', href: '/admin/tenants', icon: Building2, permission: 'tenants.read' },
   { key: 'plans', href: '/admin/plans', icon: Layers, permission: 'plans.read' },
   { key: 'staff', href: '/admin/staff', icon: Users, permission: 'staff.read' },
+  { key: 'support', href: '/admin/support', icon: LifeBuoy, permission: 'support.read' },
   { key: 'audit', href: '/admin/audit', icon: ScrollText, permission: 'audit.read' },
 ] as const;
 
@@ -33,6 +35,7 @@ export default function PlatformConsoleLayout({ children }: { children: React.Re
   const [menuOpen, setMenuOpen] = useState(false);
   const [passwordOpen, setPasswordOpen] = useState(false);
   const { data: staff, isError } = usePlatformMe();
+  const { data: supportCounts } = useConsoleTicketCounts(!!staff?.permissions.includes('support.read'));
 
   useEffect(() => setMounted(true), []);
   useEffect(() => {
@@ -70,6 +73,11 @@ export default function PlatformConsoleLayout({ children }: { children: React.Re
         >
           <item.icon className="h-4 w-4" />
           {t(`nav.${item.key}`)}
+          {item.key === 'support' && (supportCounts?.open ?? 0) > 0 && (
+            <span className="ml-auto rounded-full bg-amber-500 px-1.5 text-xs font-semibold text-white" data-testid="nav-support-count">
+              {supportCounts!.open}
+            </span>
+          )}
         </Link>
       ))}
     </nav>

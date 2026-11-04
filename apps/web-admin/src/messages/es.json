@@ -153,7 +153,8 @@
     "chat": "Chat",
     "operational": "Operativo",
     "gestao": "Administración",
-    "trash": "Papelera"
+    "trash": "Papelera",
+    "support": "Soporte"
   },
   "roles": {
     "ADMIN": "Administrador",
@@ -1388,6 +1389,7 @@
       "tenants": "Clientes",
       "plans": "Planes",
       "staff": "Equipo",
+      "support": "Tickets",
       "audit": "Auditoría"
     },
     "roles": {
@@ -2311,5 +2313,100 @@
     "tablesTitle": "Tablas",
     "tablesHint": "Desactiva las tablas que no quieres seguir.",
     "noTables": "No hay tablas disponibles."
+  },
+  "support": {
+    "title": "Soporte",
+    "subtitle": "Habla con el equipo de la plataforma. Sigue aquí las respuestas.",
+    "subtitleAll": "Tickets de la empresa con el equipo de la plataforma.",
+    "new": "Nuevo ticket",
+    "newHint": "Cuéntanos qué necesitas. El equipo responde aquí y por correo.",
+    "tabs": {
+      "open": "En curso",
+      "closed": "Cerrados"
+    },
+    "emptyOpen": "No hay tickets en curso.",
+    "emptyClosed": "No hay tickets cerrados.",
+    "created": "Ticket #{number} abierto",
+    "updated": "actualizado {when}",
+    "newReply": "nueva respuesta",
+    "subject": "Asunto",
+    "categoryLabel": "Tipo",
+    "priorityLabel": "Prioridad",
+    "message": "Mensaje",
+    "messagePlaceholder": "Describe qué pasó, qué esperabas y, si puedes, los pasos para repetirlo.",
+    "send": "Enviar",
+    "cancel": "Cancelar",
+    "back": "Tickets",
+    "closedHint": "Ticket cerrado. Si lo necesitas, abre uno nuevo.",
+    "reopenHint": "Este ticket está resuelto. Si escribes de nuevo, vuelve a soporte.",
+    "replyPlaceholder": "Escribe tu respuesta",
+    "markResolved": "Marcar como resuelto",
+    "resolved": "Ticket marcado como resuelto",
+    "supportTeam": "{name} (soporte)",
+    "internalNote": "nota interna",
+    "category": {
+      "question": "Duda",
+      "problem": "Problema",
+      "billing": "Facturación",
+      "suggestion": "Sugerencia"
+    },
+    "priority": {
+      "LOW": "Baja",
+      "NORMAL": "Normal",
+      "HIGH": "Alta",
+      "URGENT": "Urgente"
+    },
+    "status": {
+      "OPEN": "Esperando soporte",
+      "WAITING_CUSTOMER": "Esperándote",
+      "RESOLVED": "Resuelto",
+      "CLOSED": "Cerrado"
+    },
+    "system": {
+      "status": "{name} cambió la situación a {status}",
+      "resolvedByCustomer": "{name} lo marcó como resuelto",
+      "assigned": "{name} tomó el ticket",
+      "unassigned": "{name} liberó el ticket"
+    },
+    "console": {
+      "title": "Tickets",
+      "subtitle": "{open} esperando soporte · {unassigned} sin responsable",
+      "search": "Buscar por asunto, número, correo o empresa",
+      "active": "En curso",
+      "allStatuses": "Todas las situaciones",
+      "allPriorities": "Todas las prioridades",
+      "anyone": "Cualquier responsable",
+      "mine": "Míos",
+      "unassigned": "Sin responsable",
+      "ticket": "Ticket",
+      "customer": "Cliente",
+      "status": "Situación",
+      "assignee": "Responsable",
+      "lastActivity": "Última actividad",
+      "byCustomer": "por el cliente",
+      "byStaff": "por soporte",
+      "empty": "No hay tickets.",
+      "prev": "Anterior",
+      "next": "Siguiente",
+      "back": "Tickets",
+      "replyPlaceholder": "Respuesta al cliente (también va por correo)",
+      "notePlaceholder": "Nota interna (el cliente no la ve)",
+      "internal": "Nota interna",
+      "saveNote": "Guardar nota",
+      "sendReply": "Responder",
+      "noteSaved": "Nota guardada",
+      "replySent": "Respuesta enviada",
+      "noPlan": "Sin plan",
+      "handling": "Atención",
+      "priority": "Prioridad",
+      "takeIt": "Tomar",
+      "release": "Liberar",
+      "statuses": {
+        "OPEN": "Esperando soporte",
+        "WAITING_CUSTOMER": "Esperando al cliente",
+        "RESOLVED": "Resuelto",
+        "CLOSED": "Cerrado"
+      }
+    }
   }
 }

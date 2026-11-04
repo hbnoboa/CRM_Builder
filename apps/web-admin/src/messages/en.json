@@ -153,7 +153,8 @@
     "chat": "Chat",
     "operational": "Operational",
     "gestao": "Administration",
-    "trash": "Trash"
+    "trash": "Trash",
+    "support": "Support"
   },
   "roles": {
     "ADMIN": "Administrator",
@@ -1391,6 +1392,7 @@
       "tenants": "Customers",
       "plans": "Plans",
       "staff": "Team",
+      "support": "Tickets",
       "audit": "Audit"
     },
     "roles": {
@@ -2314,5 +2316,100 @@
     "tablesTitle": "Tables",
     "tablesHint": "Turn off the tables you don't want to follow.",
     "noTables": "No tables available."
+  },
+  "support": {
+    "title": "Support",
+    "subtitle": "Talk to the platform team. Follow the replies here.",
+    "subtitleAll": "Your company's tickets with the platform team.",
+    "new": "New ticket",
+    "newHint": "Tell us what you need. The team replies here and by email.",
+    "tabs": {
+      "open": "In progress",
+      "closed": "Closed"
+    },
+    "emptyOpen": "No tickets in progress.",
+    "emptyClosed": "No closed tickets.",
+    "created": "Ticket #{number} opened",
+    "updated": "updated {when}",
+    "newReply": "new reply",
+    "subject": "Subject",
+    "categoryLabel": "Type",
+    "priorityLabel": "Priority",
+    "message": "Message",
+    "messagePlaceholder": "Describe what happened, what you expected and, if possible, the steps to reproduce.",
+    "send": "Send",
+    "cancel": "Cancel",
+    "back": "Tickets",
+    "closedHint": "Ticket closed. Open a new one if needed.",
+    "reopenHint": "This ticket is resolved. Writing again sends it back to support.",
+    "replyPlaceholder": "Write your reply",
+    "markResolved": "Mark as resolved",
+    "resolved": "Ticket marked as resolved",
+    "supportTeam": "{name} (support)",
+    "internalNote": "internal note",
+    "category": {
+      "question": "Question",
+      "problem": "Problem",
+      "billing": "Billing",
+      "suggestion": "Suggestion"
+    },
+    "priority": {
+      "LOW": "Low",
+      "NORMAL": "Normal",
+      "HIGH": "High",
+      "URGENT": "Urgent"
+    },
+    "status": {
+      "OPEN": "Waiting for support",
+      "WAITING_CUSTOMER": "Waiting for you",
+      "RESOLVED": "Resolved",
+      "CLOSED": "Closed"
+    },
+    "system": {
+      "status": "{name} changed the status to {status}",
+      "resolvedByCustomer": "{name} marked it as resolved",
+      "assigned": "{name} took the ticket",
+      "unassigned": "{name} released the ticket"
+    },
+    "console": {
+      "title": "Tickets",
+      "subtitle": "{open} waiting for support · {unassigned} unassigned",
+      "search": "Search by subject, number, email or company",
+      "active": "In progress",
+      "allStatuses": "All statuses",
+      "allPriorities": "All priorities",
+      "anyone": "Any assignee",
+      "mine": "Mine",
+      "unassigned": "Unassigned",
+      "ticket": "Ticket",
+      "customer": "Customer",
+      "status": "Status",
+      "assignee": "Assignee",
+      "lastActivity": "Last activity",
+      "byCustomer": "by customer",
+      "byStaff": "by support",
+      "empty": "No tickets.",
+      "prev": "Previous",
+      "next": "Next",
+      "back": "Tickets",
+      "replyPlaceholder": "Reply to the customer (also sent by email)",
+      "notePlaceholder": "Internal note (the customer doesn't see it)",
+      "internal": "Internal note",
+      "saveNote": "Save note",
+      "sendReply": "Reply",
+      "noteSaved": "Note saved",
+      "replySent": "Reply sent",
+      "noPlan": "No plan",
+      "handling": "Handling",
+      "priority": "Priority",
+      "takeIt": "Take it",
+      "release": "Release",
+      "statuses": {
+        "OPEN": "Waiting for support",
+        "WAITING_CUSTOMER": "Waiting for customer",
+        "RESOLVED": "Resolved",
+        "CLOSED": "Closed"
+      }
+    }
   }
 }

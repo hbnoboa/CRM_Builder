@@ -153,7 +153,8 @@
     "chat": "Chat",
     "operational": "Operacional",
     "gestao": "Administração",
-    "trash": "Lixeira"
+    "trash": "Lixeira",
+    "support": "Suporte"
   },
   "roles": {
     "ADMIN": "Administrador",
@@ -1395,6 +1396,7 @@
       "tenants": "Clientes",
       "plans": "Planos",
       "staff": "Equipe",
+      "support": "Chamados",
       "audit": "Auditoria"
     },
     "roles": {
@@ -2318,5 +2320,100 @@
     "tablesTitle": "Tabelas",
     "tablesHint": "Desligue as tabelas que não quer acompanhar.",
     "noTables": "Nenhuma tabela disponível."
+  },
+  "support": {
+    "title": "Suporte",
+    "subtitle": "Fale com a equipe da plataforma. Acompanhe aqui as respostas.",
+    "subtitleAll": "Chamados da empresa com a equipe da plataforma.",
+    "new": "Novo chamado",
+    "newHint": "Conte o que precisa. A equipe responde por aqui e por e-mail.",
+    "tabs": {
+      "open": "Em andamento",
+      "closed": "Encerrados"
+    },
+    "emptyOpen": "Nenhum chamado em andamento.",
+    "emptyClosed": "Nenhum chamado encerrado.",
+    "created": "Chamado #{number} aberto",
+    "updated": "atualizado {when}",
+    "newReply": "nova resposta",
+    "subject": "Assunto",
+    "categoryLabel": "Tipo",
+    "priorityLabel": "Prioridade",
+    "message": "Mensagem",
+    "messagePlaceholder": "Descreva o que aconteceu, o que esperava e, se puder, os passos para repetir.",
+    "send": "Enviar",
+    "cancel": "Cancelar",
+    "back": "Chamados",
+    "closedHint": "Chamado encerrado. Se precisar, abra um novo.",
+    "reopenHint": "Este chamado está resolvido. Se escrever de novo, ele volta para o suporte.",
+    "replyPlaceholder": "Escreva sua resposta",
+    "markResolved": "Marcar como resolvido",
+    "resolved": "Chamado marcado como resolvido",
+    "supportTeam": "{name} (suporte)",
+    "internalNote": "nota interna",
+    "category": {
+      "question": "Dúvida",
+      "problem": "Problema",
+      "billing": "Financeiro",
+      "suggestion": "Sugestão"
+    },
+    "priority": {
+      "LOW": "Baixa",
+      "NORMAL": "Normal",
+      "HIGH": "Alta",
+      "URGENT": "Urgente"
+    },
+    "status": {
+      "OPEN": "Aguardando suporte",
+      "WAITING_CUSTOMER": "Aguardando você",
+      "RESOLVED": "Resolvido",
+      "CLOSED": "Encerrado"
+    },
+    "system": {
+      "status": "{name} mudou a situação para {status}",
+      "resolvedByCustomer": "{name} marcou como resolvido",
+      "assigned": "{name} assumiu o chamado",
+      "unassigned": "{name} liberou o chamado"
+    },
+    "console": {
+      "title": "Chamados",
+      "subtitle": "{open} aguardando o suporte · {unassigned} sem responsável",
+      "search": "Buscar por assunto, número, e-mail ou empresa",
+      "active": "Em andamento",
+      "allStatuses": "Todas as situações",
+      "allPriorities": "Todas as prioridades",
+      "anyone": "Qualquer responsável",
+      "mine": "Meus",
+      "unassigned": "Sem responsável",
+      "ticket": "Chamado",
+      "customer": "Cliente",
+      "status": "Situação",
+      "assignee": "Responsável",
+      "lastActivity": "Última atividade",
+      "byCustomer": "pelo cliente",
+      "byStaff": "pelo suporte",
+      "empty": "Nenhum chamado.",
+      "prev": "Anterior",
+      "next": "Próxima",
+      "back": "Chamados",
+      "replyPlaceholder": "Resposta para o cliente (vai também por e-mail)",
+      "notePlaceholder": "Nota interna (o cliente não vê)",
+      "internal": "Nota interna",
+      "saveNote": "Salvar nota",
+      "sendReply": "Responder",
+      "noteSaved": "Nota salva",
+      "replySent": "Resposta enviada",
+      "noPlan": "Sem plano",
+      "handling": "Atendimento",
+      "priority": "Prioridade",
+      "takeIt": "Assumir",
+      "release": "Liberar",
+      "statuses": {
+        "OPEN": "Aguardando o suporte",
+        "WAITING_CUSTOMER": "Aguardando o cliente",
+        "RESOLVED": "Resolvido",
+        "CLOSED": "Encerrado"
+      }
+    }
   }
 }

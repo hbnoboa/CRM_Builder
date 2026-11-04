@@ -34,6 +34,7 @@ import {
   MessageSquare,
   ShieldCheck,
   Trash2,
+  LifeBuoy,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -79,6 +80,7 @@ const topNavigation: NavItemConfig[] = [
 
 const bottomNavigation: NavItemConfig[] = [
   { titleKey: 'trash', href: '/trash', icon: <Trash2 className="h-5 w-5" />, trash: true },
+  { titleKey: 'support', href: '/support', icon: <LifeBuoy className="h-5 w-5" /> },
   // Configurações da CONTA é de todos (#21); o tab "Organização" dentro é que é gated.
   { titleKey: 'settings', href: '/settings', icon: <Settings className="h-5 w-5" /> },
 ];
@@ -202,7 +204,8 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
     }
     // Rotas disponíveis a qualquer usuário autenticado (sem módulo próprio).
     // A visibilidade interna (ex.: canais do chat por tabela) é checada lá dentro.
-    const ALWAYS_ALLOWED = ['home', 'chat'];
+    // Suporte: qualquer pessoa abre chamado. Lixeira: a API só lista o que a pessoa pode excluir.
+    const ALWAYS_ALLOWED = ['home', 'chat', 'support', 'trash'];
     if (segment && !ALWAYS_ALLOWED.includes(segment) && !hasModuleAccess(segment)) {
       const defaultRoute = getDefaultRoute();
       if (defaultRoute !== `/${segment}`) {

@@ -40,6 +40,7 @@ import { ChatModule } from './modules/chat/chat.module';
 import { PlatformModule } from './modules/platform/platform.module';
 import { PrivacyModule } from './modules/privacy/privacy.module';
 import { TeamModule } from './modules/team/team.module';
+import { SupportModule } from './modules/support/support.module';
 import { TenantPlanModule } from './common/services/tenant-plan.module';
 import { TenantFeatureInterceptor } from './common/interceptors/tenant-feature.interceptor';
 
@@ -128,6 +129,7 @@ import { TenantFeatureInterceptor } from './common/interceptors/tenant-feature.i
     PlatformModule,
     PrivacyModule,
     TeamModule,
+    SupportModule,
   ],
   providers: [
     // Separacao admin x user (#18): guard global de ambiente. Roda antes dos

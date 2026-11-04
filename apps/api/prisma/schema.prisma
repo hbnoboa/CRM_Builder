@@ -114,6 +114,7 @@ model Tenant {
   apiKeys          ApiKey[]
   lifecycleEvents  TenantLifecycleEvent[]
   teams            Team[]
+  supportTickets   SupportTicket[]
   @@index([slug])
   @@index([status])
   @@index([lifecycle])
@@ -1529,4 +1530,60 @@ model NotificationPreference {
 
   @@unique([userId, tenantId])
   @@index([tenantId])
+}
+
+enum SupportTicketStatus {
+  OPEN          // aguardando o suporte
+  WAITING_CUSTOMER // suporte respondeu, aguardando o cliente
+  RESOLVED
+  CLOSED
+}
+
+enum SupportTicketPriority {
+  LOW
+  NORMAL
+  HIGH
+  URGENT
+}
+
+/// Chamado de suporte aberto por alguem da empresa; atendido no console.
+model SupportTicket {
+  id              String                @id @default(cuid())
+  number          Int                   @unique @default(autoincrement())
+  tenantId        String
+  tenant          Tenant                @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  createdById     String?
+  createdByName   String
+  createdByEmail  String
+  subject         String
+  category        String                @default("question")
+  priority        SupportTicketPriority @default(NORMAL)
+  status          SupportTicketStatus   @default(OPEN)
+  assignedStaffId String?
+  lastMessageAt   DateTime              @default(now())
+  lastMessageBy   String                @default("customer") // customer | staff
+  closedAt        DateTime?
+  createdAt       DateTime              @default(now())
+  updatedAt       DateTime              @updatedAt
+  messages        SupportMessage[]
+
+  @@index([tenantId, status])
+  @@index([status, lastMessageAt])
+  @@index([assignedStaffId])
+}
+
+model SupportMessage {
+  id            String        @id @default(cuid())
+  ticketId      String
+  ticket        SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  authorType    String        // customer | staff | system
+  authorUserId  String?
+  authorStaffId String?
+  authorName    String
+  body          String
+  /// Nota interna da equipe do console (o cliente nunca ve).
+  internal      Boolean       @default(false)
+  createdAt     DateTime      @default(now())
+
+  @@index([ticketId, createdAt])
 }
