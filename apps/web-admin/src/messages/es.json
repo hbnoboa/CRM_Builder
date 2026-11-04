@@ -952,6 +952,7 @@
     "subtitle": "Gestiona tus preferencias y configuración de cuenta",
     "tabs": {
       "profile": "Perfil",
+      "notifications": "Notificaciones",
       "language": "Idioma",
       "theme": "Tema",
       "security": "Seguridad",
@@ -2289,5 +2290,26 @@
       "cancel": "Cancelar",
       "deleted": "Tu cuenta fue eliminada"
     }
+  },
+  "notificationPrefs": {
+    "saved": "Preferencias guardadas",
+    "eventsTitle": "Qué avisar",
+    "eventsHint": "Avisos sobre registros de las tablas que puedes ver. El administrador puede limitarlo aún más por tu rol.",
+    "events": {
+      "created": "Registro creado",
+      "updated": "Registro modificado",
+      "deleted": "Registro eliminado"
+    },
+    "ownActions": "Mis propias acciones",
+    "ownActionsHint": "Avisarme también de lo que hice yo.",
+    "channelsTitle": "Cómo avisar",
+    "channelsHint": "Los avisos siempre quedan en la campana.",
+    "popups": "Avisos en pantalla",
+    "popupsHint": "Mostrar un aviso en la esquina de la pantalla cuando llegue algo nuevo.",
+    "push": "Notificación en el celular",
+    "pushHint": "Enviar a la app del celular (debe estar instalada y con sesión iniciada).",
+    "tablesTitle": "Tablas",
+    "tablesHint": "Desactiva las tablas que no quieres seguir.",
+    "noTables": "No hay tablas disponibles."
   }
 }

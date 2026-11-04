@@ -249,6 +249,7 @@ model User {
   mfaEnabledAt     DateTime?
   mfaRecoveryCodes String[] @default([])
   teamMemberships  TeamMember[]
+  notificationPreferences NotificationPreference[]
 
   lastLoginAt       DateTime?
   resetToken        String?
@@ -1515,4 +1516,17 @@ model TeamAccessKey {
 
   @@unique([userId, key])
   @@index([userId, tenantId])
+}
+
+/// Preferencias de notificacao da pessoa NA empresa (o cargo continua como teto).
+model NotificationPreference {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tenantId  String
+  prefs     Json     @default("{}")
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, tenantId])
+  @@index([tenantId])
 }

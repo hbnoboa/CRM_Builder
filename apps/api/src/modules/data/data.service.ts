@@ -300,6 +300,7 @@ export class DataService {
       currentUser.name,
       entitySlug,
       dataWithComputedFields as Record<string, unknown>,
+      { actorId: currentUser.id, creatorId: currentUser.id },
     ).catch((err) => this.logger.error('Failed to send notification', err));
 
     this.auditService.log(currentUser, {
@@ -1460,6 +1461,7 @@ export class DataService {
       currentUser.name,
       entitySlug,
       mergedData as Record<string, unknown>,
+      { actorId: currentUser.id, creatorId: activeRecord.createdById },
     ).catch((err) => this.logger.error('Failed to send notification', err));
 
     this.auditService.log(currentUser, {
@@ -1694,6 +1696,7 @@ export class DataService {
       currentUser.name,
       entitySlug,
       recordData,
+      { actorId: currentUser.id, creatorId: targetRecord.createdById ?? null },
     ).catch((err) => this.logger.error('Failed to send notification', err));
 
     this.auditService.log(currentUser, {

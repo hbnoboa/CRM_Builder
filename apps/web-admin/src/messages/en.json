@@ -953,6 +953,7 @@
     "subtitle": "Manage your preferences and account settings",
     "tabs": {
       "profile": "Profile",
+      "notifications": "Notifications",
       "language": "Language",
       "theme": "Theme",
       "security": "Security",
@@ -2292,5 +2293,26 @@
       "cancel": "Cancel",
       "deleted": "Your account was deleted"
     }
+  },
+  "notificationPrefs": {
+    "saved": "Preferences saved",
+    "eventsTitle": "What to notify",
+    "eventsHint": "Notices about records in tables you can see. Your administrator may limit this further through your role.",
+    "events": {
+      "created": "Record created",
+      "updated": "Record changed",
+      "deleted": "Record deleted"
+    },
+    "ownActions": "My own actions",
+    "ownActionsHint": "Also notify me about what I did myself.",
+    "channelsTitle": "How to notify",
+    "channelsHint": "Notices always stay in the bell.",
+    "popups": "On-screen notices",
+    "popupsHint": "Show a notice in the corner of the screen when something new arrives.",
+    "push": "Phone notification",
+    "pushHint": "Send to the mobile app (it must be installed and signed in).",
+    "tablesTitle": "Tables",
+    "tablesHint": "Turn off the tables you don't want to follow.",
+    "noTables": "No tables available."
   }
 }

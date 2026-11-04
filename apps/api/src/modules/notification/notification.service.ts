@@ -1,6 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { NotificationGateway, Notification } from './notification.gateway';
 import { PrismaService } from '../../prisma/prisma.service';
+import { DEFAULT_NOTIFICATION_PREFS, normalizePrefs, NotificationPrefs, RecordEventContext } from './notification-prefs';
+import { hasFullTenantAccess } from '../../common/utils/platform-access';
 import { PushService } from '../push/push.service';
 import { NotificationType, Prisma } from '@prisma/client';
 import { v4 as uuidv4 } from 'uuid';
@@ -100,6 +102,7 @@ export class NotificationService {
     entitySlug?: string,
     operation?: 'created' | 'updated' | 'deleted',
     recordData?: Record<string, unknown>,
+    context?: RecordEventContext,
   ): Promise<Notification> {
     const fullNotification: Notification = {
       id: uuidv4(),
@@ -110,7 +113,7 @@ export class NotificationService {
 
     // Se tem entitySlug, só notificar usuários com permissão nessa entidade
     if (entitySlug) {
-      await this.notifyUsersWithEntityAccess(tenantId, entitySlug, fullNotification, operation, recordData);
+      await this.notifyUsersWithEntityAccess(tenantId, entitySlug, fullNotification, operation, recordData, context);
     } else {
       this.gateway.sendToTenant(tenantId, fullNotification);
     }
@@ -127,6 +130,7 @@ export class NotificationService {
     notification: Notification,
     operation?: 'created' | 'updated' | 'deleted',
     recordData?: Record<string, unknown>,
+    context?: RecordEventContext,
   ): Promise<void> {
     try {
       // Identidade global (#10): usuarios do tenant + cargo vem das memberships.
@@ -140,6 +144,15 @@ export class NotificationService {
       });
       const users = memberships.map((m) => ({ id: m.userId, customRoleId: m.customRoleId, customRole: m.customRole }));
 
+      // Preferencias de cada um nesta empresa (sem linha = padrao).
+      const prefRows = await this.prisma.notificationPreference.findMany({
+        where: { tenantId, userId: { in: users.map((u) => u.id) } },
+        select: { userId: true, prefs: true },
+      });
+      const prefsOf = new Map(prefRows.map((r) => [r.userId, normalizePrefs(r.prefs)]));
+      const teamsOf = await this.teamsByUser(tenantId);
+      const pushUserIds: string[] = [];
+
       // Filtrar usuarios com acesso
       const eligibleUserIds: string[] = [];
       for (const user of users) {
@@ -149,6 +162,7 @@ export class NotificationService {
           const permissions = user.customRole.permissions as unknown as Array<{
             entitySlug: string;
             canRead: boolean;
+            scope?: 'all' | 'own' | 'team';
             notificationRules?: {
               enabled: boolean;
               onCreate: boolean;
@@ -157,11 +171,30 @@ export class NotificationService {
               conditions?: Array<{ fieldSlug: string; fieldType: string; operator: string; value?: unknown; value2?: unknown }>;
             };
           }>;
-          const entityPerm = permissions.find(
-            (p) => (p.entitySlug === entitySlug || p.entitySlug === '*') && p.canRead,
-          );
+          const fullAccess = hasFullTenantAccess(user.customRole.modulePermissions);
+          const found = permissions.find((p) => p.entitySlug === entitySlug) ?? permissions.find((p) => p.entitySlug === '*');
+          // Acesso total le tudo (mas as regras de notificacao do cargo, se houver, valem).
+          const entityPerm = fullAccess ? { ...(found ?? { entitySlug: '*' }), canRead: true, scope: 'all' as const } : found;
 
-          if (!entityPerm) continue;
+          if (!entityPerm || !entityPerm.canRead) continue;
+
+          // Preferencias da pessoa (o cargo e o teto).
+          const prefs = prefsOf.get(user.id) ?? DEFAULT_NOTIFICATION_PREFS;
+          if (prefs.mutedEntities.includes(entitySlug)) continue;
+          if (operation && !prefs.events[operation]) continue;
+          if (context?.actorId && context.actorId === user.id && !prefs.ownActions) continue;
+
+          // Escopo do cargo: so avisa de registro que a pessoa pode ver.
+          if (context && context.creatorId !== undefined && !fullAccess) {
+            const scope = entityPerm.scope ?? 'all';
+            if (scope === 'own' && context.creatorId !== user.id) continue;
+            if (scope === 'team' && context.creatorId !== user.id) {
+              const mine = teamsOf.get(user.id);
+              const theirs = context.creatorId ? teamsOf.get(context.creatorId) : undefined;
+              if (!mine || !theirs || ![...mine].some((t) => theirs.has(t))) continue;
+            }
+          }
+          if (prefs.push) pushUserIds.push(user.id);
 
           // Checar notificationRules
           const rules = entityPerm.notificationRules;
@@ -197,6 +230,15 @@ export class NotificationService {
         this.gateway.sendToUser(userId, notification);
       }
 
+      // Push no celular para quem pediu.
+      for (const userId of pushUserIds.filter((id) => eligibleUserIds.includes(id))) {
+        this.pushService.sendToUser(userId, {
+          title: notification.title,
+          body: notification.message,
+          data: { type: notification.type, notificationId: notification.id, entitySlug },
+        }).catch((err) => this.logger.warn(`Push notification failed for user ${userId}: ${err}`));
+      }
+
       // Persistir em batch (1 query ao inves de N)
       if (eligibleUserIds.length > 0) {
         await this.prisma.notification.createMany({
@@ -216,6 +258,35 @@ export class NotificationService {
       this.logger.error(`Failed to notify users with entity access: ${error}`);
       this.gateway.sendToTenant(tenantId, notification);
     }
+  }
+
+  /** Equipes de cada pessoa na empresa (para o escopo 'team'). */
+  private async teamsByUser(tenantId: string): Promise<Map<string, Set<string>>> {
+    const rows = await this.prisma.teamMember.findMany({
+      where: { team: { tenantId } },
+      select: { userId: true, teamId: true },
+    });
+    const map = new Map<string, Set<string>>();
+    for (const r of rows) {
+      if (!map.has(r.userId)) map.set(r.userId, new Set());
+      map.get(r.userId)!.add(r.teamId);
+    }
+    return map;
+  }
+
+  async getPreferences(userId: string, tenantId: string): Promise<NotificationPrefs> {
+    const row = await this.prisma.notificationPreference.findUnique({ where: { userId_tenantId: { userId, tenantId } } });
+    return normalizePrefs(row?.prefs);
+  }
+
+  async savePreferences(userId: string, tenantId: string, input: unknown): Promise<NotificationPrefs> {
+    const prefs = normalizePrefs(input);
+    await this.prisma.notificationPreference.upsert({
+      where: { userId_tenantId: { userId, tenantId } },
+      create: { userId, tenantId, prefs: prefs as unknown as Prisma.InputJsonValue },
+      update: { prefs: prefs as unknown as Prisma.InputJsonValue },
+    });
+    return prefs;
   }
 
   private async persistNotification(
@@ -254,13 +325,14 @@ export class NotificationService {
     createdBy: string,
     entitySlug?: string,
     recordData?: Record<string, unknown>,
+    context?: RecordEventContext,
   ) {
     return this.notifyTenant(tenantId, {
       type: 'success',
       title: 'Novo Registro',
       message: `${createdBy} criou um novo registro em ${entityName}: ${recordName}`,
       data: { entityName, recordName, createdBy, entitySlug },
-    }, entitySlug, 'created', recordData);
+    }, entitySlug, 'created', recordData, context);
   }
 
   /**
@@ -273,13 +345,14 @@ export class NotificationService {
     updatedBy: string,
     entitySlug?: string,
     recordData?: Record<string, unknown>,
+    context?: RecordEventContext,
   ) {
     return this.notifyTenant(tenantId, {
       type: 'info',
       title: 'Registro Atualizado',
       message: `${updatedBy} atualizou um registro em ${entityName}: ${recordName}`,
       data: { entityName, recordName, updatedBy, entitySlug },
-    }, entitySlug, 'updated', recordData);
+    }, entitySlug, 'updated', recordData, context);
   }
 
   /**
@@ -292,13 +365,14 @@ export class NotificationService {
     deletedBy: string,
     entitySlug?: string,
     recordData?: Record<string, unknown>,
+    context?: RecordEventContext,
   ) {
     return this.notifyTenant(tenantId, {
       type: 'warning',
       title: 'Registro Excluído',
       message: `${deletedBy} excluiu um registro em ${entityName}: ${recordName}`,
       data: { entityName, recordName, deletedBy, entitySlug },
-    }, entitySlug, 'deleted', recordData);
+    }, entitySlug, 'deleted', recordData, context);
   }
 
   /**
