@@ -1299,6 +1299,8 @@ model Channel {
   hasRoleFilter         Boolean @default(false) @map("_hasRoleFilter")
   // record: dono do REGISTRO (nao do canal), p/ o bucket own de thread.
   recordCreatedById     String? @map("_recordCreatedById")
+  // record: chaves "equipeId:cargoId" herdadas do registro (escopo 'minha equipe').
+  visibleTeamKeysJson   Json    @default("[]") @map("_visibleTeamKeysJson")
 
   members  ChannelMember[]
   messages Message[]
@@ -1335,6 +1337,8 @@ model Message {
   content   String?
   meta      Json?    // { templateSlug, values, recordId, requestedById, before, after }
   createdAt DateTime @default(now())
+  // Copia das chaves de equipe do canal (thread de registro) p/ o bucket do PowerSync.
+  visibleTeamKeysJson Json @default("[]") @map("_visibleTeamKeysJson")
 
   channel Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
 
