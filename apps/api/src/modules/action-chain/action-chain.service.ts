@@ -3,6 +3,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { ActionChainTrigger, Prisma, ActionChain } from '@prisma/client';
 import { WebhookService } from '../webhook/webhook.service';
 import { EmailTemplateService } from '../email-template/email-template.service';
+import { safeFetch } from '../../common/utils/safe-fetch';
 
 interface ActionConfig {
   order: number;
@@ -330,7 +331,7 @@ export class ActionChainService {
 
       case 'webhook':
         // Dispara webhook inline (nao usa o sistema de webhooks)
-        const webhookResponse = await fetch(config.url as string, {
+        const webhookResponse = await safeFetch(config.url as string, {
           method: (config.method as string) || 'POST',
           headers: {
             'Content-Type': 'application/json',

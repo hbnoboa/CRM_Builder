@@ -12,7 +12,7 @@ import { CurrentUser } from '../../common/types/auth.types';
 import { QueryAuditLogDto } from './dto/audit-log.dto';
 import { buildCursorResponse } from '../../common/utils/cursor-pagination.util';
 
-export type AuditAction = 'create' | 'update' | 'delete';
+export type AuditAction = 'create' | 'update' | 'delete' | 'restore' | 'purge' | 'export';
 export type AuditResource =
   | 'entity_data'
   | 'user'
@@ -20,7 +20,10 @@ export type AuditResource =
   | 'custom_role'
   | 'custom_api'
   | 'page'
-  | 'invitation';
+  | 'tenant'
+  | 'invitation'
+  | 'api_key'
+  | 'team';
 
 export interface AuditLogInput {
   action: AuditAction;
@@ -103,14 +106,14 @@ export class AuditService {
         if (record.deletedAt) throw new BadRequestException('Registro ja esta excluido');
         await this.prisma.entityData.update({
           where: { id: record.id },
-          data: { deletedAt: new Date() },
+          data: { deletedAt: new Date(), deletedById: user.id },
         });
         revertAction = 'delete';
       } else if (log.action === 'delete') {
         if (!record.deletedAt) throw new BadRequestException('Registro nao esta excluido');
         await this.prisma.entityData.update({
           where: { id: record.id },
-          data: { deletedAt: null },
+          data: { deletedAt: null, deletedById: null },
         });
         revertAction = 'create';
       } else if (log.action === 'update') {

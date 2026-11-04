@@ -11,7 +11,8 @@ interface Tenant {
   id: string;
   name: string;
   slug: string;
-  logo?: string;
+  logo?: string | null;
+  domain?: string | null;
   ownerId?: string | null;
   settings?: {
     theme?: {

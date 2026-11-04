@@ -22,6 +22,7 @@ import { PushModule } from './modules/push/push.module';
 import { PdfModule } from './modules/pdf/pdf.module';
 import { AuditModule } from './modules/audit/audit.module';
 import { InvitationModule } from './modules/invitation/invitation.module';
+import { ApiKeyModule } from './modules/api-key/api-key.module';
 import { EmailModule } from './modules/email/email.module';
 import { ArchiveModule } from './modules/archive/archive.module';
 import { DataLifecycleModule } from './modules/data-lifecycle/data-lifecycle.module';
@@ -37,6 +38,12 @@ import { DashboardTemplateModule } from './modules/dashboard-template/dashboard-
 import { PublicLinkModule } from './modules/public-link/public-link.module';
 import { ChatModule } from './modules/chat/chat.module';
 import { PlatformModule } from './modules/platform/platform.module';
+import { PrivacyModule } from './modules/privacy/privacy.module';
+import { TeamModule } from './modules/team/team.module';
+import { SupportModule } from './modules/support/support.module';
+import { AnnouncementModule } from './modules/announcement/announcement.module';
+import { OpsModule } from './modules/ops/ops.module';
+import { OpsMonitorModule } from './common/services/ops-monitor.service';
 import { TenantPlanModule } from './common/services/tenant-plan.module';
 import { TenantFeatureInterceptor } from './common/interceptors/tenant-feature.interceptor';
 
@@ -96,6 +103,7 @@ import { TenantFeatureInterceptor } from './common/interceptors/tenant-feature.i
     AuditModule,
     EmailModule,
     InvitationModule,
+    ApiKeyModule,
     ArchiveModule,
     DataLifecycleModule,
 
@@ -122,6 +130,12 @@ import { TenantFeatureInterceptor } from './common/interceptors/tenant-feature.i
 
     // Console da plataforma (equipe)
     PlatformModule,
+    PrivacyModule,
+    TeamModule,
+    SupportModule,
+    AnnouncementModule,
+    OpsMonitorModule,
+    OpsModule,
   ],
   providers: [
     // Separacao admin x user (#18): guard global de ambiente. Roda antes dos

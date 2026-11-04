@@ -98,10 +98,11 @@ const MODULE_KEY_MAP: Record<string, keyof ModulePermissions> = {
 };
 
 /** Modulos da camada "administracao da empresa" (espelha ADMIN_AREA_MODULES da API). */
-const ADMIN_AREA_MODULES = ['entities', 'users', 'roles', 'settings', 'automations', 'templates', 'logs', 'publicLinks'] as const;
+const ADMIN_AREA_MODULES = ['entities', 'users', 'roles', 'settings', 'automations', 'templates', 'logs', 'publicLinks', 'apis'] as const;
 
 /** Secao de /gestao -> permissao que abre a secao. */
-const ADMIN_SECTION_RULES: Record<string, { module: string; action: 'canRead' | 'canUpdate' | 'any' }> = {
+type SectionRule = { module: string; action: 'canRead' | 'canUpdate' | 'any' };
+const ADMIN_SECTION_RULES: Record<string, SectionRule | SectionRule[]> = {
   users: { module: 'users', action: 'canRead' },
   roles: { module: 'roles', action: 'canRead' },
   permissions: { module: 'roles', action: 'canRead' },
@@ -113,6 +114,11 @@ const ADMIN_SECTION_RULES: Record<string, { module: string; action: 'canRead' | 
   'execution-logs': { module: 'executionLogs', action: 'canRead' },
   organization: { module: 'settings', action: 'canUpdate' },
   plan: { module: 'settings', action: 'canUpdate' },
+  teams: { module: 'users', action: 'canRead' },
+  privacy: { module: 'settings', action: 'canUpdate' },
+  // qualquer uma das regras abre a secao
+  security: [{ module: 'users', action: 'canRead' }, { module: 'settings', action: 'canUpdate' }],
+  integrations: [{ module: 'apis', action: 'any' }, { module: 'automations', action: 'canRead' }],
 };
 
 const MODULE_KEYS: (keyof ModulePermissions)[] = ['dashboard', 'users', 'settings', 'entities', 'data', 'roles', 'automations', 'templates', 'logs', 'notifications', 'publicLinks', 'archive'];
@@ -179,6 +185,12 @@ export function usePermissions() {
     };
   }, [modulePermissions, entityPermissions]);
 
+  /** Lixeira: quem pode excluir em alguma tabela ve (e restaura) o que excluiu. */
+  const canUseTrash = useMemo(
+    () => !!user && hasRole && (fullAccess || entityPermissions.some((p) => p.canDelete)),
+    [user, hasRole, fullAccess, entityPermissions],
+  );
+
   /**
    * Verifica se o usuario tem acesso a um modulo (canRead)
    */
@@ -238,7 +250,7 @@ export function usePermissions() {
   /**
    * Retorna o scope para uma entidade (all | own)
    */
-  const getEntityScope = (entitySlug: string): 'all' | 'own' => {
+  const getEntityScope = (entitySlug: string): 'all' | 'own' | 'team' => {
     if (!user || !hasRole) return 'own';
 
     // Acesso total ao tenant tem scope automatico
@@ -310,11 +322,13 @@ export function usePermissions() {
   const canAccessAdminSection = (section: string | undefined): boolean => {
     if (!canAccessAdminArea) return false;
     if (fullAccess || !section) return true;
-    const rule = ADMIN_SECTION_RULES[section];
-    if (!rule) return false;
-    return rule.action === 'any'
-      ? (['canRead', 'canCreate', 'canUpdate', 'canDelete'] as const).some((a) => hasModulePermission(rule.module, a))
-      : hasModulePermission(rule.module, rule.action);
+    const rules = ADMIN_SECTION_RULES[section];
+    if (!rules) return false;
+    return ([] as SectionRule[]).concat(rules).some((rule) =>
+      rule.action === 'any'
+        ? (['canRead', 'canCreate', 'canUpdate', 'canDelete'] as const).some((a) => hasModulePermission(rule.module, a))
+        : hasModulePermission(rule.module, rule.action),
+    );
   };
 
   /**
@@ -343,6 +357,7 @@ export function usePermissions() {
     isOperationalSurface,
     canAccessAdminArea,
     canAccessAdminSection,
+    canUseTrash,
   };
 }
 

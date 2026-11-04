@@ -300,6 +300,7 @@ export class DataService {
       currentUser.name,
       entitySlug,
       dataWithComputedFields as Record<string, unknown>,
+      { actorId: currentUser.id, creatorId: currentUser.id },
     ).catch((err) => this.logger.error('Failed to send notification', err));
 
     this.auditService.log(currentUser, {
@@ -1251,10 +1252,7 @@ export class DataService {
     }
 
     // Verificar scope: se usuario tem scope 'own', so pode ver proprios registros
-    const scope = await this.customRoleService.getEntityScope(currentUser.id, entitySlug);
-    if (scope === 'own' && recordResult.createdById !== currentUser.id) {
-      throw new ForbiddenException('Acesso negado a este registro');
-    }
+    await this.assertCreatorVisible(currentUser, entitySlug, recordResult.createdById);
 
     // Verificar filtros de dados por role (apenas para registros ativos — archived nao tem role filters)
     if (!recordResult._isArchived) {
@@ -1355,10 +1353,7 @@ export class DataService {
     // Verificar permissao de escopo
     // Para archived: verificar scope manualmente (checkScope espera EntityData)
     if (isArchivedRecord) {
-      const scope = await this.customRoleService.getEntityScope(currentUser.id, entitySlug);
-      if (scope === 'own' && archivedRecord.createdById !== currentUser.id) {
-        throw new ForbiddenException('Acesso negado a este registro');
-      }
+      await this.assertCreatorVisible(currentUser, entitySlug, archivedRecord.createdById);
     } else {
       await this.checkScope(record!, currentUser, entitySlug);
     }
@@ -1466,6 +1461,7 @@ export class DataService {
       currentUser.name,
       entitySlug,
       mergedData as Record<string, unknown>,
+      { actorId: currentUser.id, creatorId: activeRecord.createdById },
     ).catch((err) => this.logger.error('Failed to send notification', err));
 
     this.auditService.log(currentUser, {
@@ -1517,7 +1513,8 @@ export class DataService {
    * registro VIVO com o mesmo valor de campo único (politica A + guard de restore).
    */
   async restore(entitySlug: string, id: string, currentUser: CurrentUser, tenantId?: string) {
-    await this.checkEntityPermission(currentUser.id, entitySlug, 'canUpdate');
+    // Desfazer uma exclusao: quem pode excluir pode desfazer.
+    await this.checkEntityPermission(currentUser.id, entitySlug, 'canDelete');
 
     const effectiveTenantId = getEffectiveTenantId(currentUser, tenantId);
     const entity = await this.queryService.getEntityCached(entitySlug, currentUser, effectiveTenantId);
@@ -1533,12 +1530,19 @@ export class DataService {
     if (!record) {
       throw new NotFoundException('Registro soft-deletado nao encontrado');
     }
-
-    // Escopo (own)
-    const scope = await this.customRoleService.getEntityScope(currentUser.id, entitySlug);
-    if (scope === 'own' && record.createdById !== currentUser.id) {
-      throw new ForbiddenException('Acesso negado a este registro');
+    // Sub-registro de um pai que tambem esta na lixeira: restaura-se pelo pai.
+    if (record.parentRecordId) {
+      const parent = await this.prisma.entityData.findFirst({
+        where: { id: record.parentRecordId, tenantId: record.tenantId },
+        select: { deletedAt: true },
+      });
+      if (parent?.deletedAt) {
+        throw new BadRequestException({ code: 'PARENT_DELETED', message: 'O registro principal tambem esta na lixeira: restaure ele primeiro' });
+      }
     }
+
+    // Escopo (own/team)
+    await this.assertCreatorVisible(currentUser, entitySlug, record.createdById);
 
     // RESTORE-CASCATA: reativa o pai + descendentes que cairam na MESMA operacao
     // (mesmo deletedAt timestamp). Nao toca em filhos deletados separadamente.
@@ -1569,11 +1573,53 @@ export class DataService {
       );
     }
 
+    await this.tenantPlan.assertCanAddRecords(record.tenantId, allIds.length);
+
     await this.prisma.entityData.updateMany({
       where: { id: { in: allIds } },
-      data: { deletedAt: null },
+      data: { deletedAt: null, deletedById: null },
+    });
+
+    const recordData = record.data as Record<string, unknown>;
+    this.auditService.log(currentUser, {
+      action: 'restore', resource: 'entity_data', resourceId: id,
+      newData: recordData,
+      metadata: { entitySlug, entityId: entity.id, restored: allIds.length },
+    }).catch(() => {});
+    this.notificationService.emitDataChanged(effectiveTenantId, {
+      operation: 'created',
+      entitySlug,
+      recordId: id,
+      userId: currentUser.id,
     });
     return { restored: allIds.length };
+  }
+
+  /**
+   * Apaga de vez um registro que esta na lixeira (sub-registros caem junto pela FK).
+   * Recusa se algum sub-registro ainda estiver em uso.
+   */
+  async purge(entitySlug: string, id: string, currentUser: CurrentUser) {
+    await this.checkEntityPermission(currentUser.id, entitySlug, 'canDelete');
+    const entity = await this.queryService.getEntityCached(entitySlug, currentUser, currentUser.tenantId);
+    const record = await this.prisma.entityData.findFirst({
+      where: { id, entityId: entity.id, tenantId: currentUser.tenantId, deletedAt: { not: null } },
+    });
+    if (!record) throw new NotFoundException('Registro nao esta na lixeira');
+    await this.checkScope(record, currentUser, entitySlug);
+
+    const alive = await this.prisma.entityData.count({ where: { parentRecordId: id, deletedAt: null } });
+    if (alive > 0) {
+      throw new BadRequestException({ code: 'HAS_ACTIVE_CHILDREN', message: 'Este registro tem sub-registros em uso; restaure ou exclua-os antes' });
+    }
+
+    await this.prisma.entityData.delete({ where: { id } });
+    this.auditService.log(currentUser, {
+      action: 'purge', resource: 'entity_data', resourceId: id,
+      oldData: record.data as Record<string, unknown>,
+      metadata: { entitySlug, entityId: entity.id },
+    }).catch(() => {});
+    return { success: true };
   }
 
   async remove(entitySlug: string, id: string, currentUser: CurrentUser, tenantId?: string) {
@@ -1617,10 +1663,7 @@ export class DataService {
 
     // Verificar permissao de escopo
     if (isArchivedDeletion) {
-      const scope = await this.customRoleService.getEntityScope(currentUser.id, entitySlug);
-      if (scope === 'own' && targetRecord.createdById !== currentUser.id) {
-        throw new ForbiddenException('Acesso negado a este registro');
-      }
+      await this.assertCreatorVisible(currentUser, entitySlug, targetRecord.createdById);
     } else {
       await this.checkScope(record!, currentUser, entitySlug);
     }
@@ -1641,7 +1684,7 @@ export class DataService {
       const ids = [id, ...(await this.collectDescendantIds([id], record!.tenantId))];
       await this.prisma.entityData.updateMany({
         where: { id: { in: ids }, deletedAt: null },
-        data: { deletedAt: now },
+        data: { deletedAt: now, deletedById: currentUser.id },
       });
     }
 
@@ -1653,6 +1696,7 @@ export class DataService {
       currentUser.name,
       entitySlug,
       recordData,
+      { actorId: currentUser.id, creatorId: targetRecord.createdById ?? null },
     ).catch((err) => this.logger.error('Failed to send notification', err));
 
     this.auditService.log(currentUser, {
@@ -1809,11 +1853,21 @@ export class DataService {
   // Verificar se usuario pode modificar o registro
   private async checkScope(record: EntityData, user: CurrentUser, entitySlug: string) {
     // Permission-driven: escopo vem de permissions[]/'*'. 'all' => livre;
-    // 'own'/sem-acesso => só registros do proprio usuario.
-    const scope = await this.customRoleService.getEntityScope(user.id, entitySlug);
-    if (scope === 'all') return;
-    if (record.createdById !== user.id) {
-      throw new ForbiddenException('Voce so pode modificar registros criados por voce');
+    // 'team' => registros da equipe; 'own'/sem-acesso => só os do proprio usuario.
+    const ids = await this.customRoleService.getVisibleCreatorIds(user, entitySlug);
+    if (!ids) return;
+    if (!record.createdById || !ids.includes(record.createdById)) {
+      throw new ForbiddenException(
+        ids.length > 1 ? 'Voce so pode modificar registros da sua equipe' : 'Voce so pode modificar registros criados por voce',
+      );
+    }
+  }
+
+  /** Leitura/restauracao: o criador precisa estar no escopo (own/team) da pessoa. */
+  private async assertCreatorVisible(user: CurrentUser, entitySlug: string, createdById: string | null) {
+    const ids = await this.customRoleService.getVisibleCreatorIds(user, entitySlug);
+    if (ids && (!createdById || !ids.includes(createdById))) {
+      throw new ForbiddenException('Acesso negado a este registro');
     }
   }
 }

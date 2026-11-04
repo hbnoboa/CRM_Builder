@@ -14,6 +14,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { PageHeader } from '@/components/platform/platform-ui';
 import { usePlatformCan, usePlatformPlans, useSavePlan } from '@/hooks/use-platform';
+import { BulkDialog } from '@/components/platform/bulk-dialog';
 import { getErrorMessage } from '@/lib/get-error-message';
 import { FEATURE_KEYS, LIMIT_KEYS, type FeatureKey, type LimitKey, type Plan } from '@/types/platform';
 
@@ -22,6 +23,8 @@ export default function PlatformPlansPage() {
   const tFeature = useTranslations('platform.features');
   const tLimits = useTranslations('platform.limits');
   const can = usePlatformCan();
+  const tb = useTranslations('platform.bulk');
+  const [moving, setMoving] = useState<{ id: string; name: string } | null>(null);
   const { data: plans, isLoading } = usePlatformPlans();
   const [editing, setEditing] = useState<Plan | 'new' | null>(null);
 
@@ -68,6 +71,11 @@ export default function PlatformPlansPage() {
                 {plan.isDefault && <Badge>{t('default')}</Badge>}
                 {!plan.isActive && <Badge variant="outline">{t('inactive')}</Badge>}
                 <Badge variant="secondary">{t('tenantsCount', { count: plan._count?.tenants ?? 0 })}</Badge>
+                {can('tenants.plan') && (plan._count?.tenants ?? 0) > 0 && (
+                  <Button size="sm" variant="outline" className="h-6 px-2 text-xs" onClick={() => setMoving(plan)} data-testid={`move-tenants-${plan.slug}`}>
+                    {tb('moveTenants')}
+                  </Button>
+                )}
               </div>
             </CardHeader>
             <CardContent className="space-y-3 text-sm">
@@ -92,6 +100,7 @@ export default function PlatformPlansPage() {
       </div>
 
       <PlanDialog plan={editing} onClose={() => setEditing(null)} />
+      {moving && <BulkDialog action="plan" target={{ fromPlanId: moving.id, planName: moving.name }} onClose={() => setMoving(null)} />}
     </div>
   );
 }

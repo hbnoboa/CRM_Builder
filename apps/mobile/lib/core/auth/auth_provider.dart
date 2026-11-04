@@ -131,6 +131,7 @@ class AuthState {
     this.isAuthenticated = false,
     this.isLoading = false,
     this.error,
+    this.mfaRequired = false,
   });
 
   final User? user;
@@ -138,11 +139,15 @@ class AuthState {
   final bool isLoading;
   final String? error;
 
+  /// A senha confere, falta o codigo do app autenticador (verifyMfa).
+  final bool mfaRequired;
+
   AuthState copyWith({
     User? user,
     bool? isAuthenticated,
     bool? isLoading,
     String? error,
+    bool? mfaRequired,
     bool clearError = false,
     bool clearUser = false,
   }) =>
@@ -151,7 +156,17 @@ class AuthState {
         isAuthenticated: isAuthenticated ?? this.isAuthenticated,
         isLoading: isLoading ?? this.isLoading,
         error: clearError ? null : (error ?? this.error),
+        mfaRequired: mfaRequired ?? this.mfaRequired,
       );
+}
+
+/// Login que parou no segundo passo (duas etapas): guardado ate o codigo chegar.
+class _PendingMfa {
+  const _PendingMfa(this.mfaToken, this.email, this.password, this.rememberMe);
+  final String mfaToken;
+  final String email;
+  final String password;
+  final bool rememberMe;
 }
 
 // ═══════════════════════════════════════════════════════
@@ -272,6 +287,8 @@ class Auth extends _$Auth {
               'password': cachedPassword,
             },);
             final data = response.data as Map<String, dynamic>;
+            // Conta com 2FA: precisa do codigo, nao da para entrar sozinho.
+            if (data['mfaRequired'] == true) throw StateError('MFA required');
             final freshUser = User.fromJson(data['user'] as Map<String, dynamic>);
             final accessToken = data['accessToken'] as String;
             final newRefreshToken = data['refreshToken'] as String;
@@ -384,6 +401,8 @@ class Auth extends _$Auth {
       return true;
     } catch (e) {
       _debugLog('[Auth] Token refresh failed: $e');
+      // Sessao encerrada de proposito: apaga a senha guardada (sem relogin silencioso).
+      if (PlanErrors.isSessionRevoked(e)) await SecureStorage.clearAll();
       return false;
     }
   }
@@ -460,6 +479,132 @@ class Auth extends _$Auth {
   }
 
   /// Login with email/password. Supports offline login with cached credentials.
+  _PendingMfa? _pendingMfa;
+
+  /// Segundo passo do login: codigo do app autenticador (ou de recuperacao).
+  Future<void> verifyMfa(String code) async {
+    final pending = _pendingMfa;
+    if (pending == null) return;
+    _manualAuthInProgress = true;
+    state = state.copyWith(isLoading: true, clearError: true);
+    try {
+      final dio = ref.read(apiClientProvider);
+      final response = await dio.post('/auth/login/mfa', data: {
+        'mfaToken': pending.mfaToken,
+        'code': code.trim(),
+      },);
+      _pendingMfa = null;
+      await _finishOnlineLogin(
+        response.data as Map<String, dynamic>,
+        email: pending.email,
+        password: pending.password,
+        rememberMe: pending.rememberMe,
+      );
+    } catch (e) {
+      _manualAuthInProgress = false;
+      state = state.copyWith(isLoading: false, error: _extractErrorMessage(e, 'Codigo invalido'));
+    }
+  }
+
+  /// Volta da etapa do codigo para o e-mail e senha.
+  void cancelMfa() {
+    _pendingMfa = null;
+    state = state.copyWith(mfaRequired: false, clearError: true);
+  }
+
+  Future<void> _finishOnlineLogin(
+    Map<String, dynamic> data, {
+    required String email,
+    required String password,
+    required bool rememberMe,
+  }) async {
+    final user = User.fromJson(data['user'] as Map<String, dynamic>);
+    final accessToken = data['accessToken'] as String;
+    final refreshToken = data['refreshToken'] as String;
+
+    await SecureStorage.setTokens(
+      accessToken: accessToken,
+      refreshToken: refreshToken,
+    );
+
+    // Check if user changed - if so, clear local data before setting new user
+    final previousUserId = await SecureStorage.getUserId();
+    final previousTenantId = await SecureStorage.getTenantId();
+    if (previousUserId != null && previousUserId != user.id) {
+      _debugLog('[Auth] User changed from $previousUserId to ${user.id}, clearing local data');
+      await AppDatabase.instance.clearData();
+      _debugLog('[Auth] Local data cleared, ready for new sync');
+    } else if (previousTenantId != null && previousTenantId != user.tenantId) {
+      _debugLog('[Auth] Tenant changed from $previousTenantId to ${user.tenantId}, clearing local data');
+      await AppDatabase.instance.clearData();
+      _debugLog('[Auth] Local data cleared, ready for new sync');
+    }
+
+    await SecureStorage.setUserId(user.id);
+    await SecureStorage.setTenantId(user.tenantId);
+
+    // Cache credentials for offline login and silent re-auth
+    final passwordHash = _hashPassword(password, user.tenantId);
+    await SecureStorage.cacheCredentials(
+      email: email,
+      password: password,
+      passwordHash: passwordHash,
+      userJson: jsonEncode(data['user']),
+    );
+
+    // Save remember me preference for biometric login
+    if (rememberMe) {
+      await SecureStorage.setBiometricEnabled(true);
+    }
+
+    // Extract and apply tenant brand color for theming
+    final tenantData = data['user']?['tenant'] as Map<String, dynamic>?;
+    _debugLog('[Auth] Login tenant data: $tenantData');
+    final tenantSettings = tenantData?['settings'];
+    _debugLog('[Auth] Login tenant settings (${tenantSettings.runtimeType}): $tenantSettings');
+    String? brandColor;
+    if (tenantSettings is Map<String, dynamic>) {
+      final themeData = tenantSettings['theme'];
+      _debugLog('[Auth] Login theme data (${themeData.runtimeType}): $themeData');
+      if (themeData is Map<String, dynamic>) {
+        brandColor = themeData['brandColor'] as String?;
+      }
+    }
+    _debugLog('[Auth] Login extracted brandColor: "$brandColor"');
+    if (brandColor != null && brandColor.isNotEmpty) {
+      await SecureStorage.setString('brandColor', brandColor);
+    } else {
+      await SecureStorage.setString('brandColor', '');
+    }
+    ref.read(tenantThemeProvider.notifier).applyBrandColor(brandColor);
+
+    _debugLog('[Auth] Login success, setting state isAuthenticated=true');
+    state = AuthState(
+      user: user,
+      isAuthenticated: true,
+      isLoading: false,
+    );
+    _debugLog('[Auth] State updated: isAuthenticated=${state.isAuthenticated}');
+
+    _manualAuthInProgress = false;
+
+    // Connect PowerSync to start syncing data
+    _debugLog('[Auth] Connecting PowerSync...');
+    try {
+      await AppDatabase.instance.connect();
+      _debugLog('[Auth] PowerSync connected, waiting for initial sync...');
+      // Wait a bit for initial sync to complete
+      await Future.delayed(const Duration(milliseconds: 1500));
+      _debugLog('[Auth] Initial sync delay complete');
+    } catch (e) {
+      // PowerSync connection failure should not block login
+      _debugLog('[Auth] PowerSync connect failed: $e');
+    }
+
+    // Register device for push notifications (non-blocking)
+    PushNotificationService.instance.registerDeviceToken();
+  }
+
   Future<void> login({
     required String email,
     required String password,
@@ -489,91 +634,14 @@ class Auth extends _$Auth {
       },);
 
       final data = response.data as Map<String, dynamic>;
-      final user = User.fromJson(data['user'] as Map<String, dynamic>);
-      final accessToken = data['accessToken'] as String;
-      final refreshToken = data['refreshToken'] as String;
-
-      await SecureStorage.setTokens(
-        accessToken: accessToken,
-        refreshToken: refreshToken,
-      );
-
-      // Check if user changed - if so, clear local data before setting new user
-      final previousUserId = await SecureStorage.getUserId();
-      final previousTenantId = await SecureStorage.getTenantId();
-      if (previousUserId != null && previousUserId != user.id) {
-        _debugLog('[Auth] User changed from $previousUserId to ${user.id}, clearing local data');
-        await AppDatabase.instance.clearData();
-        _debugLog('[Auth] Local data cleared, ready for new sync');
-      } else if (previousTenantId != null && previousTenantId != user.tenantId) {
-        _debugLog('[Auth] Tenant changed from $previousTenantId to ${user.tenantId}, clearing local data');
-        await AppDatabase.instance.clearData();
-        _debugLog('[Auth] Local data cleared, ready for new sync');
+      if (data['mfaRequired'] == true) {
+        // Conta com duas etapas: a tela de login pede o codigo (verifyMfa).
+        _pendingMfa = _PendingMfa(data['mfaToken'] as String, email, password, rememberMe);
+        _manualAuthInProgress = false;
+        state = state.copyWith(isLoading: false, mfaRequired: true, clearError: true);
+        return;
       }
-
-      await SecureStorage.setUserId(user.id);
-      await SecureStorage.setTenantId(user.tenantId);
-
-      // Cache credentials for offline login and silent re-auth
-      final passwordHash = _hashPassword(password, user.tenantId);
-      await SecureStorage.cacheCredentials(
-        email: email,
-        password: password,
-        passwordHash: passwordHash,
-        userJson: jsonEncode(data['user']),
-      );
-
-      // Save remember me preference for biometric login
-      if (rememberMe) {
-        await SecureStorage.setBiometricEnabled(true);
-      }
-
-      // Extract and apply tenant brand color for theming
-      final tenantData = data['user']?['tenant'] as Map<String, dynamic>?;
-      _debugLog('[Auth] Login tenant data: $tenantData');
-      final tenantSettings = tenantData?['settings'];
-      _debugLog('[Auth] Login tenant settings (${tenantSettings.runtimeType}): $tenantSettings');
-      String? brandColor;
-      if (tenantSettings is Map<String, dynamic>) {
-        final themeData = tenantSettings['theme'];
-        _debugLog('[Auth] Login theme data (${themeData.runtimeType}): $themeData');
-        if (themeData is Map<String, dynamic>) {
-          brandColor = themeData['brandColor'] as String?;
-        }
-      }
-      _debugLog('[Auth] Login extracted brandColor: "$brandColor"');
-      if (brandColor != null && brandColor.isNotEmpty) {
-        await SecureStorage.setString('brandColor', brandColor);
-      } else {
-        await SecureStorage.setString('brandColor', '');
-      }
-      ref.read(tenantThemeProvider.notifier).applyBrandColor(brandColor);
-
-      _debugLog('[Auth] Login success, setting state isAuthenticated=true');
-      state = AuthState(
-        user: user,
-        isAuthenticated: true,
-        isLoading: false,
-      );
-      _debugLog('[Auth] State updated: isAuthenticated=${state.isAuthenticated}');
-
-      _manualAuthInProgress = false;
-
-      // Connect PowerSync to start syncing data
-      _debugLog('[Auth] Connecting PowerSync...');
-      try {
-        await AppDatabase.instance.connect();
-        _debugLog('[Auth] PowerSync connected, waiting for initial sync...');
-        // Wait a bit for initial sync to complete
-        await Future.delayed(const Duration(milliseconds: 1500));
-        _debugLog('[Auth] Initial sync delay complete');
-      } catch (e) {
-        // PowerSync connection failure should not block login
-        _debugLog('[Auth] PowerSync connect failed: $e');
-      }
-
-      // Register device for push notifications (non-blocking)
-      PushNotificationService.instance.registerDeviceToken();
+      await _finishOnlineLogin(data, email: email, password: password, rememberMe: rememberMe);
     } on DioException catch (e) {
       // Network error - try offline login as fallback
       if (_isNetworkError(e)) {

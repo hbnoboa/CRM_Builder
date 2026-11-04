@@ -125,7 +125,14 @@
     "noPermission": "Você não tem permissão para acessar esta página.",
     "currentRole": "Sua role atual:",
     "notDefined": "Não definida",
-    "backToDashboard": "Voltar ao Dashboard"
+    "backToDashboard": "Voltar ao Dashboard",
+    "mfa": {
+      "prompt": "Digite o código de 6 dígitos do seu app autenticador.",
+      "code": "Código de verificação",
+      "recoveryHint": "Sem o celular? Use um código de recuperação.",
+      "verify": "Verificar",
+      "back": "Voltar"
+    }
   },
   "navigation": {
     "dashboard": "Dashboard",
@@ -145,7 +152,9 @@
     "home": "Início",
     "chat": "Chat",
     "operational": "Operacional",
-    "gestao": "Administração"
+    "gestao": "Administração",
+    "trash": "Lixeira",
+    "support": "Suporte"
   },
   "roles": {
     "ADMIN": "Administrador",
@@ -289,7 +298,8 @@
       "revoke": "Cancelar",
       "revoked": "Convite cancelado",
       "resentTitle": "Link novo do convite"
-    }
+    },
+    "allTeams": "Todas as equipes"
   },
   "entities": {
     "title": "Tabelas",
@@ -537,7 +547,9 @@
     "toast": {
       "created": "Registro criado com sucesso",
       "updated": "Registro atualizado com sucesso",
-      "deleted": "Registro excluído com sucesso"
+      "deleted": "Registro excluído com sucesso",
+      "undo": "Desfazer",
+      "deletedToUndo": "Registro excluído. Ele fica na lixeira."
     },
     "filter": {
       "title": "Filtrar",
@@ -706,7 +718,8 @@
       "fieldPermissions": "Permissões por Campo",
       "field": "Campo",
       "view": "Ver",
-      "editField": "Editar"
+      "editField": "Editar",
+      "scopeTeam": "Minha equipe"
     },
     "modules": {
       "dashboard": "Painel",
@@ -944,8 +957,11 @@
     "subtitle": "Gerencie suas preferências e configurações de conta",
     "tabs": {
       "profile": "Perfil",
+      "notifications": "Notificações",
       "language": "Idioma",
-      "theme": "Tema"
+      "theme": "Tema",
+      "security": "Segurança",
+      "privacy": "Privacidade"
     },
     "profile": {
       "title": "Perfil",
@@ -1321,14 +1337,18 @@
     "actions": {
       "create": "Criar",
       "update": "Editar",
-      "delete": "Deletar"
+      "delete": "Deletar",
+      "restore": "Restaurar",
+      "purge": "Apagar de vez",
+      "export": "Exportar"
     },
     "resources": {
       "entity_data": "Registros",
       "user": "Usuario",
       "entity": "Tabela",
       "custom_role": "Cargo",
-      "page": "Pagina"
+      "page": "Pagina",
+      "team": "Equipe"
     },
     "changes": "Alteracoes",
     "oldData": "Dados Anteriores",
@@ -1372,9 +1392,14 @@
     "brand": "Console da plataforma",
     "nav": {
       "overview": "Visão geral",
+      "metrics": "Métricas",
+      "people": "Pessoas",
       "tenants": "Clientes",
       "plans": "Planos",
       "staff": "Equipe",
+      "support": "Chamados",
+      "announcements": "Comunicados",
+      "health": "Saúde do sistema",
       "audit": "Auditoria"
     },
     "roles": {
@@ -1454,6 +1479,7 @@
       "new": "Novo cliente",
       "search": "Buscar por nome ou slug",
       "allLifecycles": "Todas as situações",
+      "allPlans": "Todos os planos",
       "empty": "Nenhum cliente encontrado.",
       "noPlan": "Sem plano",
       "trialUntil": "até {date}",
@@ -1484,6 +1510,14 @@
         "passwordRule": "Mínimo de 8 caracteres, com letra maiúscula, minúscula e número.",
         "submit": "Criar cliente",
         "created": "Cliente criado"
+      },
+      "selectedN": "{n, plural, one {# empresa selecionada} other {# empresas selecionadas}}",
+      "bulk": {
+        "plan": "Trocar plano",
+        "trial": "Prorrogar teste",
+        "lifecycle": "Mudar situação",
+        "clear": "Limpar seleção",
+        "selectAll": "Selecionar todas desta página"
       }
     },
     "tenant": {
@@ -1726,6 +1760,91 @@
         "skipped": "Itens pulados",
         "warnings": "Avisos"
       }
+    },
+    "metrics": {
+      "title": "Métricas do negócio",
+      "subtitle": "Entradas, conversões e saídas de clientes",
+      "period": "Período",
+      "months": "{n} meses",
+      "paying": "Clientes pagantes",
+      "payingHint": "ativos + em atraso",
+      "trials": "Em teste",
+      "signups30": "Novos cadastros (30 dias)",
+      "conversions30": "Conversões (30 dias)",
+      "cancellations30": "Cancelamentos (30 dias)",
+      "trialRate": "Conversão do teste",
+      "trialRateHint": "{converted} de {total} testes encerrados em {days} dias",
+      "noData": "sem dados ainda",
+      "vsPrev": "{prev} nos 30 dias anteriores",
+      "selfService": "{n} pelo site",
+      "monthlyTitle": "Mês a mês",
+      "monthlyHint": "Contado pelo histórico de cada empresa (fuso de Brasília).",
+      "series": {
+        "signups": "Cadastros",
+        "conversions": "Conversões (teste → ativo)",
+        "cancellations": "Cancelamentos",
+        "suspensions": "Suspensões"
+      },
+      "showTable": "Ver em tabela",
+      "hideTable": "Ver gráficos",
+      "month": "Mês",
+      "plansTitle": "Por plano",
+      "plan": "Plano",
+      "noPlan": "Sem plano",
+      "inactivePlan": "inativo",
+      "total": "Total",
+      "payingCol": "Pagantes",
+      "trialCol": "Em teste",
+      "otherCol": "Suspensos/cancelados",
+      "members": "Pessoas",
+      "usageTitle": "Uso",
+      "people": "Pessoas com acesso",
+      "active30": "Entraram nos últimos 30 dias",
+      "records": "Registros",
+      "riskTitle": "Clientes sem uso há 30 dias",
+      "riskHint": "Ativos ou em atraso sem ninguém entrando: risco de cancelar.",
+      "never": "nunca entrou",
+      "lastLogin": "último acesso {date}",
+      "membersCount": "{n, plural, one {# pessoa} other {# pessoas}}",
+      "none": "Nenhum. Ótimo sinal.",
+      "loadError": "Não foi possível carregar as métricas. Seu papel na equipe pode não ter acesso a elas."
+    },
+    "closure": {
+      "closureTitle": "Encerramento pedido pelo dono",
+      "closureBody": "Pedido por {email} em {requested}. Exclusão definitiva em {date}.",
+      "closureReason": "Motivo: {reason}",
+      "closureHint": "Para desistir, mude a situação para Ativo antes dessa data."
+    },
+    "bulk": {
+      "title": {
+        "plan": "Trocar plano",
+        "trial": "Prorrogar teste",
+        "lifecycle": "Mudar situação"
+      },
+      "scopeSelected": "{n, plural, one {# empresa escolhida} other {# empresas escolhidas}}",
+      "scopePlan": "Todas as empresas do plano {plan}",
+      "toPlan": "Novo plano",
+      "noPlan": "Sem plano (tudo liberado)",
+      "choose": "Escolha",
+      "days": "Dias a mais",
+      "daysHint": "Conta a partir do fim atual do teste (ou de hoje, se já venceu). Só vale para empresas em teste.",
+      "toLifecycle": "Nova situação",
+      "trialEnd": "Teste até",
+      "blocksAccess": "Bloqueia o acesso de todas as pessoas dessas empresas.",
+      "preview": "Ver prévia",
+      "apply": "{n, plural, one {Aplicar a # empresa} other {Aplicar a # empresas}}",
+      "willChange": "{n, plural, =0 {Nada vai mudar} one {# empresa vai mudar} other {# empresas vão mudar}}",
+      "skippedN": "{n, plural, one {# fica de fora} other {# ficam de fora}}",
+      "reason": {
+        "same_plan": "já está nesse plano",
+        "not_trial": "não está em teste",
+        "same_lifecycle": "já está nessa situação"
+      },
+      "applied": "{n, plural, =0 {Nada mudou} one {# empresa atualizada} other {# empresas atualizadas}}",
+      "failedN": "{n, plural, one {# falhou} other {# falharam}}",
+      "close": "Fechar",
+      "cancel": "Cancelar",
+      "moveTenants": "Mover clientes"
     }
   },
   "subscription": {
@@ -1792,6 +1911,7 @@
     "nav": {
       "dashboard": "Painel",
       "users": "Usuários",
+      "teams": "Equipes",
       "roles": "Cargos",
       "permissions": "Guia de permissões",
       "entities": "Tabelas",
@@ -1801,7 +1921,10 @@
       "auditLogs": "Auditoria",
       "executionLogs": "Execuções",
       "organization": "Organização",
-      "plan": "Plano"
+      "plan": "Plano",
+      "integrations": "Integrações",
+      "securityPolicy": "Segurança",
+      "privacy": "Dados e privacidade"
     },
     "home": {
       "title": "Olá, {name}",
@@ -1838,7 +1961,43 @@
     },
     "organization": {
       "title": "Organização",
-      "subtitle": "Dados e identidade visual da empresa."
+      "subtitle": "Nome, logo e cores da empresa: aparecem para toda a equipe.",
+      "save": "Salvar",
+      "saved": "Organização atualizada",
+      "invalidColor": "Use uma cor no formato #RRGGBB.",
+      "identity": {
+        "title": "Identidade",
+        "description": "Como a empresa aparece no menu e na tela de login.",
+        "name": "Nome da empresa",
+        "logo": "Logo",
+        "uploadLogo": "Enviar logo",
+        "changeLogo": "Trocar logo",
+        "removeLogo": "Remover",
+        "logoHint": "PNG, JPG ou WEBP. Quadrado e com fundo transparente fica melhor."
+      },
+      "appearance": {
+        "title": "Aparência",
+        "description": "Cor da marca e tema que a equipe vê ao entrar.",
+        "color": "Cor da marca",
+        "resetColor": "Usar a cor padrão",
+        "preview": "Prévia:",
+        "sampleButton": "Botão",
+        "sampleLink": "Link",
+        "theme": "Tema padrão",
+        "themeHint": "Cada pessoa ainda pode trocar o tema nas próprias configurações.",
+        "themes": {
+          "light": "Claro",
+          "dark": "Escuro",
+          "system": "Seguir o sistema"
+        }
+      },
+      "address": {
+        "title": "Endereço",
+        "description": "Endereço e domínio são configurados pelo suporte da plataforma.",
+        "slug": "Endereço no sistema",
+        "domain": "Domínio próprio",
+        "noDomain": "Nenhum"
+      }
     },
     "entities": {
       "title": "Tabelas",
@@ -1846,6 +2005,200 @@
       "new": "Nova tabela",
       "empty": "Nenhuma tabela criada ainda.",
       "meta": "{fields} campos · {records} registros"
+    },
+    "integrations": {
+      "title": "Integrações",
+      "subtitle": "Conecte a empresa a outros sistemas: chaves de API, webhooks e automações.",
+      "tabs": {
+        "keys": "Chaves de API",
+        "webhooks": "Webhooks",
+        "automations": "Automações"
+      },
+      "keys": {
+        "title": "Chaves de API",
+        "description": "Para outro sistema ler e gravar registros. A chave age em nome de quem a criou, com o cargo escolhido.",
+        "new": "Nova chave",
+        "empty": "Nenhuma chave criada.",
+        "meta": "cargo {role} · criada por {by}",
+        "lastUsed": "usada em {date}",
+        "neverUsed": "nunca usada",
+        "expires": "vence em {date}",
+        "revoke": "Revogar",
+        "confirmRevoke": "Confirmar",
+        "cancel": "Cancelar",
+        "revoked": "Chave revogada",
+        "howTo": "Como usar (só registros, tabelas e upload):",
+        "newTitle": "Nova chave de API",
+        "newHint": "Escolha um cargo com só o necessário: a integração terá exatamente as permissões dele.",
+        "name": "Nome",
+        "namePlaceholder": "Ex.: Integração ERP",
+        "role": "Cargo da chave",
+        "chooseRole": "Escolha o cargo",
+        "roleHint": "Só aparecem cargos abaixo do seu.",
+        "validity": "Validade",
+        "validities": {
+          "30": "30 dias",
+          "90": "90 dias",
+          "365": "1 ano",
+          "never": "Sem vencimento"
+        },
+        "create": "Criar chave",
+        "createdTitle": "Chave criada",
+        "createdHint": "Copie agora: por segurança ela não aparece de novo.",
+        "copy": "Copiar chave",
+        "done": "Concluir"
+      },
+      "webhooks": {
+        "title": "Webhooks",
+        "description": "Avisam outro sistema (por HTTP) quando um registro é criado, editado ou excluído.",
+        "new": "Novo webhook",
+        "empty": "Nenhum webhook criado.",
+        "allTables": "Todas as tabelas",
+        "test": "Testar",
+        "runs": "Envios",
+        "edit": "Editar",
+        "delete": "Excluir",
+        "confirmDelete": "Confirmar exclusão",
+        "deleted": "Webhook excluído",
+        "saved": "Webhook salvo",
+        "testOk": "Teste enviado: o destino respondeu {code}.",
+        "testFail": "O teste falhou: {error}",
+        "status": {
+          "ACTIVE": "Ativo",
+          "INACTIVE": "Pausado",
+          "PAUSED": "Pausado"
+        },
+        "events": {
+          "created": "Criado",
+          "updated": "Editado",
+          "deleted": "Excluído",
+          "test": "Teste"
+        },
+        "newTitle": "Novo webhook",
+        "editTitle": "Editar webhook",
+        "dialogHint": "O sistema envia um POST com o registro para a URL. Endereços internos são bloqueados.",
+        "name": "Nome",
+        "url": "URL de destino",
+        "table": "Tabela",
+        "when": "Quando enviar",
+        "secret": "Segredo da assinatura",
+        "secretHint": "Cada envio leva o cabeçalho X-Webhook-Signature (HMAC SHA-256) com este segredo, para o destino conferir a origem.",
+        "active": "Ativo",
+        "save": "Salvar",
+        "runsTitle": "Envios de {name}",
+        "noRuns": "Nenhum envio ainda."
+      },
+      "automations": {
+        "title": "Automações",
+        "description": "Todas as automações das tabelas da empresa. A edição fica no editor de cada tabela.",
+        "empty": "Nenhuma automação criada.",
+        "paused": "Pausada",
+        "editInTable": "Editar na tabela",
+        "triggers": {
+          "ON_CREATE": "ao criar",
+          "ON_UPDATE": "ao editar",
+          "ON_DELETE": "ao excluir",
+          "ON_FIELD_CHANGE": "quando um campo muda",
+          "ON_STATUS_CHANGE": "quando o status muda",
+          "SCHEDULE": "agendada",
+          "MANUAL": "manual"
+        }
+      }
+    },
+    "security": {
+      "title": "Segurança",
+      "subtitle": "Regras de acesso da empresa e a situação de cada pessoa da equipe.",
+      "policy": {
+        "title": "Regras de acesso",
+        "description": "Valem para toda a equipe desta empresa.",
+        "requireMfa": "Exigir verificação em duas etapas",
+        "requireMfaHint": "Quem não tiver ativado precisa ativar no próximo acesso. Ative na sua conta antes de ligar.",
+        "minLength": "Tamanho mínimo da senha",
+        "symbol": "Exigir símbolo na senha",
+        "symbolHint": "Ex.: ! @ # $",
+        "baseRule": "Toda senha já precisa de letras maiúsculas, minúsculas e número. Vale nas próximas senhas criadas ou trocadas.",
+        "save": "Salvar regras",
+        "saved": "Regras de acesso salvas"
+      },
+      "team": {
+        "title": "Equipe",
+        "description": "Situação de segurança de cada pessoa.",
+        "summary": "{withMfa} de {total} com verificação em duas etapas",
+        "mfaOn": "2 etapas",
+        "mfaOff": "Sem 2 etapas",
+        "inactive": "Inativo",
+        "lastLogin": "último acesso {date}",
+        "neverLogged": "nunca entrou",
+        "devices": "{count, plural, =0 {nenhum aparelho} one {# aparelho} other {# aparelhos}}",
+        "logout": "Desconectar",
+        "loggedOut": "{count, plural, =0 {Nenhum aparelho conectado} one {Desconectado de # aparelho} other {Desconectado de # aparelhos}}"
+      }
+    },
+    "privacy": {
+      "title": "Dados e privacidade",
+      "subtitle": "Leve os dados da empresa com você ou encerre a conta (LGPD).",
+      "export": {
+        "title": "Exportar todos os dados",
+        "hint": "Um arquivo ZIP com tudo o que a empresa tem na plataforma, em JSON e CSV (abre no Excel).",
+        "button": "Baixar tudo (ZIP)",
+        "preparing": "Preparando o arquivo…",
+        "done": "Arquivo pronto",
+        "onlyAdmins": "Somente o dono ou quem tem acesso total pode exportar todos os dados.",
+        "items": {
+          "records": "Registros de todas as tabelas (ativos, arquivados e na lixeira)",
+          "people": "Equipe e cargos (sem senhas)",
+          "structure": "Estrutura das tabelas e campos",
+          "settings": "Modelos de PDF, dashboards, automações e integrações (sem segredos)",
+          "files": "Lista de arquivos enviados",
+          "audit": "Histórico de ações (auditoria)"
+        }
+      },
+      "close": {
+        "title": "Encerrar a conta da empresa",
+        "hint": "A empresa fica inativa na hora para toda a equipe. Depois de {days} dias todos os dados e arquivos são apagados definitivamente.",
+        "beforeTitle": "Antes de encerrar",
+        "before": "Baixe todos os dados acima. Até o fim do prazo, o suporte consegue reativar a conta se você mudar de ideia.",
+        "button": "Encerrar a conta",
+        "onlyOwner": "Somente o dono da empresa pode encerrar a conta.",
+        "dialogTitle": "Encerrar a conta de {name}?",
+        "dialogHint": "Ninguém mais consegue entrar. Em {days} dias tudo é apagado definitivamente.",
+        "typeName": "Digite o nome da empresa ({name})",
+        "reason": "Motivo (opcional)",
+        "password": "Sua senha",
+        "code": "Código de verificação em duas etapas",
+        "cancel": "Cancelar",
+        "confirm": "Encerrar definitivamente",
+        "done": "Conta encerrada. Os dados serão apagados em {date}."
+      }
+    },
+    "teams": {
+      "title": "Equipes",
+      "subtitle": "Departamentos e times da empresa.",
+      "new": "Nova equipe",
+      "scopeHint": "Em Cargos, o escopo \"Minha equipe\" faz a pessoa ver os registros criados por qualquer colega das equipes dela (além dos próprios). Vale no web e no app.",
+      "empty": "Nenhuma equipe ainda",
+      "emptyHint": "Crie equipes para organizar a empresa e liberar a visibilidade por equipe.",
+      "membersCount": "{n, plural, =0 {Sem membros} one {# membro} other {# membros}}",
+      "edit": "Editar",
+      "delete": "Excluir",
+      "manageMembers": "Membros",
+      "deleteTitle": "Excluir a equipe {name}?",
+      "deleteHint": "Os registros continuam. Quem via registros dos colegas por esta equipe deixa de ver.",
+      "deleted": "Equipe excluída",
+      "newTitle": "Nova equipe",
+      "editTitle": "Editar equipe",
+      "name": "Nome",
+      "namePlaceholder": "Ex.: Vendas Sul",
+      "description": "Descrição (opcional)",
+      "color": "Cor",
+      "save": "Salvar",
+      "saved": "Equipe salva",
+      "cancel": "Cancelar",
+      "membersTitle": "Membros de {name}",
+      "membersHint": "Marque quem faz parte. O líder aparece em destaque.",
+      "searchPeople": "Buscar pessoa",
+      "leader": "Líder",
+      "membersSaved": "Membros salvos"
     }
   },
   "invite": {
@@ -1886,5 +2239,400 @@
     "goToLogin": "Ir para o login",
     "weakPassword": "A senha precisa de 8+ caracteres, com maiúscula, minúscula e número.",
     "mismatch": "As senhas não conferem."
+  },
+  "security": {
+    "mfa": {
+      "title": "Verificação em duas etapas",
+      "description": "Além da senha, o login pede um código do app autenticador do celular (Google Authenticator, Microsoft Authenticator, Authy...).",
+      "on": "Ativada",
+      "off": "Desativada",
+      "requiredHint": "A sua empresa exige a verificação em duas etapas.",
+      "enable": "Ativar verificação em duas etapas",
+      "step1": "Abra o app autenticador no celular.",
+      "step2": "Leia o QR code (ou digite a chave manualmente).",
+      "step3": "Digite o código de 6 dígitos que aparecer.",
+      "manualKey": "Chave para digitar manualmente:",
+      "codeLabel": "Código do app",
+      "confirm": "Confirmar e ativar",
+      "enabledNow": "Verificação em duas etapas ativada.",
+      "recoveryIntro": "Guarde estes códigos de recuperação num lugar seguro. Cada um entra uma vez, se você ficar sem o celular.",
+      "copyCodes": "Copiar códigos",
+      "done": "Concluir",
+      "codesLeft": "{count, plural, one {# código de recuperação disponível} other {# códigos de recuperação disponíveis}}",
+      "newCodes": "Gerar novos códigos",
+      "disable": "Desativar",
+      "disabled": "Verificação em duas etapas desativada",
+      "disableTitle": "Desativar a verificação em duas etapas",
+      "disableHint": "Confirme com a sua senha e um código do app.",
+      "newCodesTitle": "Novos códigos de recuperação",
+      "newCodesHint": "Os códigos antigos deixam de valer.",
+      "password": "Senha",
+      "generate": "Gerar"
+    },
+    "sessions": {
+      "title": "Aparelhos conectados",
+      "description": "Onde a sua conta está aberta agora. Encerre o que você não reconhecer.",
+      "revokeOthers": "Sair de todos os outros",
+      "revokedOthers": "{count, plural, =0 {Nenhum outro aparelho estava conectado} one {# aparelho desconectado} other {# aparelhos desconectados}}",
+      "revoke": "Encerrar",
+      "revoked": "Sessão encerrada",
+      "current": "Este aparelho",
+      "app": "App CRM no celular",
+      "device": "{browser} no {os}",
+      "support": "Suporte: {name}",
+      "lastActive": "ativo {date}",
+      "since": "desde {date}"
+    },
+    "setup": {
+      "title": "Ative a verificação em duas etapas",
+      "subtitle": "A sua empresa exige um código do celular, além da senha, para entrar no sistema.",
+      "logout": "Sair"
+    }
+  },
+  "trash": {
+    "title": "Lixeira",
+    "subtitle": "Registros excluídos. Restaure o que foi apagado por engano.",
+    "subtitleRetention": "Registros excluídos. Itens com mais de {days} dias são apagados de vez automaticamente.",
+    "search": "Buscar nos excluídos",
+    "allTables": "Todas as tabelas",
+    "subRecord": "sub-registro",
+    "deletedBy": "Excluído por {name} em {when}",
+    "deletedAt": "Excluído em {when}",
+    "withSubRecords": "{n, plural, one {+ # sub-registro} other {+ # sub-registros}}",
+    "purgeAt": "apagado de vez em {date}",
+    "restore": "Restaurar",
+    "restored": "Registro restaurado",
+    "restoredMany": "{n} registros restaurados (com sub-registros)",
+    "restoreError": "Não foi possível restaurar",
+    "purge": "Apagar de vez",
+    "purgeTitle": "Apagar de vez?",
+    "purgeHint": "\"{title}\" será apagado definitivamente e não poderá ser recuperado.",
+    "purgeHintSub": "{n, plural, one {# sub-registro vai junto.} other {# sub-registros vão juntos.}}",
+    "purged": "Apagado de vez",
+    "empty": "Esvaziar lixeira",
+    "emptyTitle": "Esvaziar toda a lixeira?",
+    "emptyTableTitle": "Esvaziar a lixeira de {name}?",
+    "emptyHint": "Todos os itens serão apagados definitivamente. Não dá para desfazer.",
+    "emptied": "{n, plural, =0 {Nada para apagar} one {# registro apagado} other {# registros apagados}}",
+    "emptyState": "A lixeira está vazia",
+    "noResults": "Nada encontrado",
+    "emptyStateHint": "O que for excluído nas tabelas aparece aqui.",
+    "retentionLabel": "Apagar automaticamente",
+    "retentionNever": "Nunca apagar sozinho",
+    "retentionDays": "Apagar após {days} dias",
+    "retentionSaved": "Prazo da lixeira salvo",
+    "pageOf": "Página {page} de {pages} · {total} itens",
+    "prev": "Anterior",
+    "next": "Próxima",
+    "cancel": "Cancelar"
+  },
+  "privacy": {
+    "personal": {
+      "exportTitle": "Baixar meus dados",
+      "exportHint": "Um arquivo com seus dados pessoais: conta, empresas em que participa, acessos e ações registradas.",
+      "exportButton": "Baixar meus dados",
+      "deleteTitle": "Excluir minha conta",
+      "deleteHint": "Apaga seus dados pessoais e tira você de todas as empresas. Os registros que você criou continuam nas empresas, sem o seu nome.",
+      "deleteButton": "Excluir minha conta",
+      "deleteWarning": "Não dá para desfazer. Se você for dono de alguma empresa, passe a propriedade ou encerre a conta da empresa antes.",
+      "password": "Sua senha",
+      "code": "Código de verificação em duas etapas",
+      "typeToConfirm": "Digite EXCLUIR para confirmar",
+      "cancel": "Cancelar",
+      "deleted": "Sua conta foi excluída"
+    }
+  },
+  "notificationPrefs": {
+    "saved": "Preferências salvas",
+    "eventsTitle": "O que avisar",
+    "eventsHint": "Avisos sobre registros das tabelas que você pode ver. O administrador pode limitar ainda mais pelo seu cargo.",
+    "events": {
+      "created": "Registro criado",
+      "updated": "Registro alterado",
+      "deleted": "Registro excluído"
+    },
+    "ownActions": "Minhas próprias ações",
+    "ownActionsHint": "Avisar também sobre o que eu mesmo fiz.",
+    "channelsTitle": "Como avisar",
+    "channelsHint": "Os avisos sempre ficam no sino.",
+    "popups": "Avisos na tela",
+    "popupsHint": "Mostrar um aviso no canto da tela quando chegar algo novo.",
+    "push": "Notificação no celular",
+    "pushHint": "Enviar para o app do celular (precisa estar com o app instalado e logado).",
+    "tablesTitle": "Tabelas",
+    "tablesHint": "Desligue as tabelas que não quer acompanhar.",
+    "noTables": "Nenhuma tabela disponível."
+  },
+  "support": {
+    "title": "Suporte",
+    "subtitle": "Fale com a equipe da plataforma. Acompanhe aqui as respostas.",
+    "subtitleAll": "Chamados da empresa com a equipe da plataforma.",
+    "new": "Novo chamado",
+    "newHint": "Conte o que precisa. A equipe responde por aqui e por e-mail.",
+    "tabs": {
+      "open": "Em andamento",
+      "closed": "Encerrados"
+    },
+    "emptyOpen": "Nenhum chamado em andamento.",
+    "emptyClosed": "Nenhum chamado encerrado.",
+    "created": "Chamado #{number} aberto",
+    "updated": "atualizado {when}",
+    "newReply": "nova resposta",
+    "subject": "Assunto",
+    "categoryLabel": "Tipo",
+    "priorityLabel": "Prioridade",
+    "message": "Mensagem",
+    "messagePlaceholder": "Descreva o que aconteceu, o que esperava e, se puder, os passos para repetir.",
+    "send": "Enviar",
+    "cancel": "Cancelar",
+    "back": "Chamados",
+    "closedHint": "Chamado encerrado. Se precisar, abra um novo.",
+    "reopenHint": "Este chamado está resolvido. Se escrever de novo, ele volta para o suporte.",
+    "replyPlaceholder": "Escreva sua resposta",
+    "markResolved": "Marcar como resolvido",
+    "resolved": "Chamado marcado como resolvido",
+    "supportTeam": "{name} (suporte)",
+    "internalNote": "nota interna",
+    "category": {
+      "question": "Dúvida",
+      "problem": "Problema",
+      "billing": "Financeiro",
+      "suggestion": "Sugestão"
+    },
+    "priority": {
+      "LOW": "Baixa",
+      "NORMAL": "Normal",
+      "HIGH": "Alta",
+      "URGENT": "Urgente"
+    },
+    "status": {
+      "OPEN": "Aguardando suporte",
+      "WAITING_CUSTOMER": "Aguardando você",
+      "RESOLVED": "Resolvido",
+      "CLOSED": "Encerrado"
+    },
+    "system": {
+      "status": "{name} mudou a situação para {status}",
+      "resolvedByCustomer": "{name} marcou como resolvido",
+      "assigned": "{name} assumiu o chamado",
+      "unassigned": "{name} liberou o chamado"
+    },
+    "console": {
+      "title": "Chamados",
+      "subtitle": "{open} aguardando o suporte · {unassigned} sem responsável",
+      "search": "Buscar por assunto, número, e-mail ou empresa",
+      "active": "Em andamento",
+      "allStatuses": "Todas as situações",
+      "allPriorities": "Todas as prioridades",
+      "anyone": "Qualquer responsável",
+      "mine": "Meus",
+      "unassigned": "Sem responsável",
+      "ticket": "Chamado",
+      "customer": "Cliente",
+      "status": "Situação",
+      "assignee": "Responsável",
+      "lastActivity": "Última atividade",
+      "byCustomer": "pelo cliente",
+      "byStaff": "pelo suporte",
+      "empty": "Nenhum chamado.",
+      "prev": "Anterior",
+      "next": "Próxima",
+      "back": "Chamados",
+      "replyPlaceholder": "Resposta para o cliente (vai também por e-mail)",
+      "notePlaceholder": "Nota interna (o cliente não vê)",
+      "internal": "Nota interna",
+      "saveNote": "Salvar nota",
+      "sendReply": "Responder",
+      "noteSaved": "Nota salva",
+      "replySent": "Resposta enviada",
+      "noPlan": "Sem plano",
+      "handling": "Atendimento",
+      "priority": "Prioridade",
+      "takeIt": "Assumir",
+      "release": "Liberar",
+      "statuses": {
+        "OPEN": "Aguardando o suporte",
+        "WAITING_CUSTOMER": "Aguardando o cliente",
+        "RESOLVED": "Resolvido",
+        "CLOSED": "Encerrado"
+      }
+    }
+  },
+  "announcements": {
+    "more": "Saiba mais",
+    "dismiss": "Fechar aviso",
+    "console": {
+      "title": "Comunicados",
+      "subtitle": "Avisos para os clientes, mostrados no topo do sistema.",
+      "new": "Novo comunicado",
+      "editTitle": "Editar comunicado",
+      "empty": "Nenhum comunicado ainda.",
+      "state": {
+        "draft": "Rascunho",
+        "scheduled": "Agendado",
+        "active": "No ar",
+        "ended": "Encerrado"
+      },
+      "severity": {
+        "INFO": "Informativo",
+        "WARNING": "Atenção",
+        "CRITICAL": "Crítico"
+      },
+      "audience": {
+        "all": "Todos os clientes",
+        "plans": "Planos",
+        "lifecycles": "Situação",
+        "tenants": "Empresas específicas"
+      },
+      "adminsOnlyShort": "só administradores",
+      "period": "{start} até {end}",
+      "noEnd": "sem fim",
+      "stats": "alcança {reach} empresas · {dismissed} fecharam",
+      "publish": "Publicar",
+      "unpublish": "Tirar do ar",
+      "published": "Comunicado publicado",
+      "unpublished": "Comunicado tirado do ar",
+      "edit": "Editar",
+      "delete": "Excluir",
+      "deleted": "Comunicado excluído",
+      "fields": {
+        "title": "Título",
+        "body": "Texto",
+        "severity": "Nível",
+        "audience": "Para quem",
+        "startsAt": "Início",
+        "endsAt": "Fim (opcional)",
+        "linkUrl": "Link (opcional)",
+        "linkLabel": "Texto do link",
+        "adminsOnly": "Só para quem administra a empresa",
+        "dismissible": "Pode ser fechado"
+      },
+      "searchTenant": "Buscar empresa",
+      "reach": "Vai aparecer para {n, plural, =0 {nenhuma empresa} one {# empresa} other {# empresas}}",
+      "reachPick": "Escolha o público",
+      "save": "Salvar",
+      "saved": "Comunicado salvo",
+      "cancel": "Cancelar"
+    }
+  },
+  "health": {
+    "title": "Saúde do sistema",
+    "checkedAt": "Verificado em {when} · atualiza a cada 30 s",
+    "refresh": "Atualizar",
+    "status": {
+      "ok": "OK",
+      "warning": "Atenção",
+      "down": "Fora",
+      "off": "Desligado"
+    },
+    "overall": {
+      "ok": "Tudo funcionando",
+      "warning": "Funcionando, com pontos de atenção",
+      "down": "Há componentes fora do ar",
+      "off": "—"
+    },
+    "c": {
+      "database": "Banco de dados",
+      "queues": "Filas",
+      "powersync": "PowerSync (app)",
+      "email": "E-mail",
+      "push": "Push (celular)",
+      "storage": "Arquivos"
+    },
+    "latency": "Resposta",
+    "size": "Tamanho",
+    "connections": "Conexões",
+    "longestQuery": "Consulta mais longa",
+    "migrations": "Migrations",
+    "failedMigrations": "{n} com falha",
+    "lastMigration": "Última",
+    "visibilityBacklog": "Recálculo de visibilidade na fila",
+    "memory": "Memória",
+    "queue": {
+      "data-import": "Importação",
+      "automation-execution": "Automações"
+    },
+    "queueCounts": "{waiting} na fila · {active} rodando · {failed} com falha",
+    "version": "Versão",
+    "environment": "Ambiente",
+    "uptime": "No ar há",
+    "eventLoop": "Atraso (p99)",
+    "notConfigured": "Não configurado",
+    "configured": "Configurado",
+    "localDisk": "Disco local",
+    "emailHint": "Sem provedor de e-mail: convites e “esqueci a senha” não chegam.",
+    "problems": "Problemas recentes",
+    "errors24h": "Erros 500 (24 h)",
+    "automationFailed": "Automações com falha (24 h)",
+    "webhookFailed": "Webhooks com falha (24 h)",
+    "errorsChart": "Erros por hora",
+    "errorsN": "{n, plural, =0 {nenhum erro} one {# erro} other {# erros}}",
+    "recentErrors": "Últimos erros",
+    "noErrors": "Nenhum erro registrado.",
+    "slowQueries": "Consultas lentas",
+    "noSlow": "Nenhuma consulta lenta registrada."
+  },
+  "people": {
+    "title": "Pessoas",
+    "subtitle": "Encontre qualquer pessoa em todas as empresas.",
+    "search": "Nome, e-mail, telefone ou CPF",
+    "hint": "Digite ao menos 2 caracteres.",
+    "none": "Ninguém encontrado.",
+    "never": "nunca",
+    "lastLogin": "último acesso {when}",
+    "devices": "{n, plural, =0 {nenhum aparelho conectado} one {# aparelho} other {# aparelhos}}",
+    "mfa": "Duas etapas ativa",
+    "noCompany": "Sem empresa",
+    "status": {
+      "ACTIVE": "Ativa",
+      "INACTIVE": "Inativa",
+      "SUSPENDED": "Suspensa"
+    },
+    "membership": {
+      "ACTIVE": "Ativo",
+      "INACTIVE": "Inativo",
+      "SUSPENDED": "Suspenso",
+      "REMOVED": "Removido"
+    },
+    "back": "Pessoas",
+    "since": "conta desde {when}",
+    "mfaOn": "duas etapas ativa",
+    "mfaOff": "sem duas etapas",
+    "actions": {
+      "password-reset": "Enviar link de nova senha",
+      "logout": "Desconectar de tudo",
+      "mfa-reset": "Desligar duas etapas"
+    },
+    "done": {
+      "password-reset": "Link de nova senha enviado",
+      "logout": "Pessoa desconectada de todos os aparelhos",
+      "mfa-reset": "Duas etapas desligadas"
+    },
+    "confirm": {
+      "password-reset": {
+        "title": "Enviar link de nova senha para {name}?",
+        "body": "Um e-mail vai para {email} com um link válido por 1 hora. A senha atual continua valendo até ser trocada."
+      },
+      "logout": {
+        "title": "Desconectar {name} de todos os aparelhos?",
+        "body": "Web e celular pedem login de novo na próxima ação."
+      },
+      "mfa-reset": {
+        "title": "Desligar as duas etapas de {name}?",
+        "body": "Use quando a pessoa perdeu o celular. Confirme a identidade antes. Ela é desconectada e, se a empresa exigir, configura de novo no próximo acesso."
+      }
+    },
+    "confirmButton": "Confirmar",
+    "cancel": "Cancelar",
+    "companies": "Empresas",
+    "company": "Empresa",
+    "role": "Cargo",
+    "situation": "Situação",
+    "enterAs": "Entrar como",
+    "devicesTitle": "Aparelhos conectados ({n})",
+    "noDevices": "Nenhum aparelho conectado.",
+    "lastUsed": "usado {when}",
+    "recentActions": "Últimas ações",
+    "noActions": "Nenhuma ação registrada."
   }
 }

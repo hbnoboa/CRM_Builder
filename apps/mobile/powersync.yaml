@@ -149,6 +149,27 @@ sync_rules:
               AND "createdById" = bucket.user_id
               AND bucket.role_id IN "_visibleToRolesOwnJson"
 
+      # Bucket 4c: team-scope data. Cargo com scope='team' recebe os registros
+      # criados por qualquer pessoa das suas equipes. Sem JOIN no PowerSync: o
+      # registro guarda "equipeId:cargoId" (equipes do CRIADOR x cargos team) em
+      # _visibleTeamKeysJson e o usuario tem as dele em TeamAccessKey (equipes dele
+      # x cargo dele), ambos mantidos por triggers (migration 20261112000000_teams).
+      # Os registros do proprio usuario chegam pelo bucket 4b (team entra no own).
+      team_entity_data:
+        parameters: |
+          SELECT key as team_key, "tenantId" as tenant_id
+          FROM "TeamAccessKey"
+          WHERE "userId" = request.user_id()
+            AND "tenantId" = request.jwt() ->> 'tenantId'
+        data:
+          - SELECT id, "tenantId", "entityId", data, "parentRecordId", "createdById", "updatedById", "createdAt", "updatedAt", "deletedAt"
+            FROM "EntityData"
+            WHERE "tenantId" = bucket.tenant_id
+              AND "deletedAt" IS NULL
+              AND "_matchesGlobalFilter" = true
+              AND "_parentMatchesFilter" = true
+              AND bucket.team_key IN "_visibleTeamKeysJson"
+
       # ══════════════════════ CHAT (mobile) ══════════════════════
       # PowerSync: cada data query cobre TODOS os params do bucket; sem OR entre
       # params diferentes -> buckets SEPARADOS unrestricted vs role (como EntityData).

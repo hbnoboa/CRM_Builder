@@ -23,7 +23,7 @@ import {
 } from '@/components/ui/select';
 import {
   Eye, Plus, Pencil, Trash2, Shield, Database, Users,
-  Settings, Code, LayoutDashboard, Globe, User,
+  Settings, Code, LayoutDashboard, Globe, User, UsersRound,
   ChevronRight, ListFilter, X, FileText, Bell, ScrollText, BarChart3,
   Webhook, Zap, Mail,
 } from 'lucide-react';
@@ -347,10 +347,17 @@ export function RoleFormDialog({ open, onOpenChange, role, onSuccess }: RoleForm
 
     setPermissions((prev) => {
       const existingBySlug = new Map(prev.map((p) => [p.entitySlug, p]));
-      return entities.map((e) => {
+      // Regra coringa '*' (todas as tabelas, inclusive futuras): as tabelas sem regra
+      // propria herdam dela, e ela e mantida (oculta) para continuar valendo ao salvar.
+      // Sem isso, abrir e salvar um cargo '*' o rebaixava para "Todos, so leitura".
+      const wildcard = existingBySlug.get('*');
+      const rows = entities.map((e) => {
         const existing = existingBySlug.get(e.slug);
         if (existing) {
           return { ...existing, entityName: e.name, scope: existing.scope || 'all' };
+        }
+        if (wildcard) {
+          return { ...wildcard, entitySlug: e.slug, entityName: e.name, scope: wildcard.scope || 'all' };
         }
         return {
           entitySlug: e.slug,
@@ -362,8 +369,12 @@ export function RoleFormDialog({ open, onOpenChange, role, onSuccess }: RoleForm
           scope: 'all' as PermissionScope,
         };
       });
+      return wildcard ? [wildcard, ...rows] : rows;
     });
   }, [entities, open]);
+
+  // Linhas por tabela (a regra coringa '*' fica fora da lista, so no estado).
+  const entityPermissionRows = permissions.filter((p) => p.entitySlug !== '*');
 
   const toggleEntityPermission = (entitySlug: string, field: keyof EntityPermission) => {
     setPermissions((prev) =>
@@ -885,13 +896,13 @@ export function RoleFormDialog({ open, onOpenChange, role, onSuccess }: RoleForm
               {/* Entity Permissions Tab */}
               <TabsContent value="entities">
                 <p className="text-sm text-muted-foreground mb-3">{t('form.entityPermissionsDesc')}</p>
-                {permissions.length === 0 ? (
+                {entityPermissionRows.length === 0 ? (
                   <div className="text-center py-6 text-muted-foreground text-sm border rounded-lg">
                     {t('form.noEntities')}
                   </div>
                 ) : (
                     <div className="space-y-1">
-                      {permissions.map((perm) => {
+                      {entityPermissionRows.map((perm) => {
                         const entity = entities.find((e) => e.slug === perm.entitySlug);
                         const allChecked = perm.canCreate && perm.canRead && perm.canUpdate && perm.canDelete;
                         const crudCount = (perm.canRead ? 1 : 0) + (perm.canCreate ? 1 : 0) + (perm.canUpdate ? 1 : 0) + (perm.canDelete ? 1 : 0);
@@ -916,7 +927,7 @@ export function RoleFormDialog({ open, onOpenChange, role, onSuccess }: RoleForm
                                     {entity?.name || perm.entityName || perm.entitySlug}
                                   </div>
                                   <div className="text-xs text-muted-foreground">
-                                    {perm.scope === 'own' ? t('form.scopeOwn') : t('form.scopeAll')}
+                                    {perm.scope === 'own' ? t('form.scopeOwn') : perm.scope === 'team' ? t('form.scopeTeam') : t('form.scopeAll')}
                                   </div>
                                 </div>
                                 <Badge
@@ -964,7 +975,7 @@ export function RoleFormDialog({ open, onOpenChange, role, onSuccess }: RoleForm
                                     value={perm.scope || 'all'}
                                     onValueChange={(value: PermissionScope) => setEntityScope(perm.entitySlug, value)}
                                   >
-                                    <SelectTrigger className="h-7 w-[130px] text-xs">
+                                    <SelectTrigger className="h-7 w-[150px] text-xs" data-testid={`scope-${perm.entitySlug}`}>
                                       <SelectValue />
                                     </SelectTrigger>
                                     <SelectContent>
@@ -972,6 +983,12 @@ export function RoleFormDialog({ open, onOpenChange, role, onSuccess }: RoleForm
                                         <div className="flex items-center gap-1.5">
                                           <Globe className="h-3.5 w-3.5" />
                                           {t('form.scopeAll')}
+                                        </div>
+                                      </SelectItem>
+                                      <SelectItem value="team">
+                                        <div className="flex items-center gap-1.5">
+                                          <UsersRound className="h-3.5 w-3.5" />
+                                          {t('form.scopeTeam')}
                                         </div>
                                       </SelectItem>
                                       <SelectItem value="own">

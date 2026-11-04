@@ -30,6 +30,10 @@ export interface CurrentUser {
   customRole: CurrentUserCustomRole;
   // Presente quando a sessao e uma impersonacao (ator real que assumiu este usuario).
   impersonatedBy?: { id: string; name: string };
+  // Presente quando a requisicao veio de uma chave de API (age em nome de quem a criou).
+  apiKey?: { id: string; name: string };
+  // Sessao (aparelho) do token; ausente em tokens antigos e em chaves de API.
+  sessionId?: string;
 }
 
 /**
@@ -43,6 +47,7 @@ export interface JwtPayload {
   roleId?: string; // Same as customRoleId (legacy claim)
   permsV?: number; // versao das permissoes do cargo (refresh silencioso quando defasa)
   impersonatedBy?: { id: string; name: string }; // sessao de impersonacao
+  sid?: string; // sessao (aparelho); encerrar a sessao invalida o token na hora
   iat?: number;
   exp?: number;
 }

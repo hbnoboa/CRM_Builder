@@ -29,6 +29,8 @@ const ALL: PlatformStaffRole[] = ['OWNER', 'SUPPORT', 'FINANCE', 'READONLY'];
 // proprio staff em /platform/auth/me e so esconde botoes; a API decide.
 export const PLATFORM_PERMISSIONS = {
   'overview.read': ALL,
+  // Numeros comerciais (entradas, cancelamentos, planos): fora do suporte.
+  'metrics.read': ['OWNER', 'FINANCE', 'READONLY'],
   'tenants.read': ALL,
   'tenants.create': ['OWNER', 'SUPPORT'],
   'tenants.update': ['OWNER', 'SUPPORT'],
@@ -41,6 +43,14 @@ export const PLATFORM_PERMISSIONS = {
   'staff.read': ['OWNER'],
   'staff.manage': ['OWNER'],
   'audit.read': ALL,
+  'support.read': ALL,
+  'support.reply': ['OWNER', 'SUPPORT', 'FINANCE'],
+  'announcements.read': ALL,
+  'announcements.manage': ['OWNER', 'SUPPORT'],
+  'health.read': ALL,
+  'users.read': ALL,
+  // Acoes de suporte na conta da pessoa (link de senha, desconectar, desligar 2 etapas).
+  'users.support': ['OWNER', 'SUPPORT'],
 } satisfies Record<string, PlatformStaffRole[]>;
 
 export type PlatformPermission = keyof typeof PLATFORM_PERMISSIONS;

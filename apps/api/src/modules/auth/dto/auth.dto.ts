@@ -131,3 +131,15 @@ export class ResetPasswordDto {
   })
   newPassword: string;
 }
+
+export class LoginMfaDto {
+  @ApiProperty({ description: 'Token devolvido pelo /auth/login quando mfaRequired' })
+  @IsString()
+  mfaToken: string;
+
+  @ApiProperty({ example: '123456', description: 'Codigo do app autenticador ou de recuperacao' })
+  @IsString()
+  @MinLength(6)
+  @MaxLength(20)
+  code: string;
+}

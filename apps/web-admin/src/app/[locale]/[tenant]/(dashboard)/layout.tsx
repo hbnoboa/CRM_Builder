@@ -33,6 +33,8 @@ import {
   Settings2,
   MessageSquare,
   ShieldCheck,
+  Trash2,
+  LifeBuoy,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -54,6 +56,7 @@ import { OperationalShell } from '@/components/layout/operational-shell';
 import { GestaoShell } from '@/components/layout/gestao-shell';
 import { cn } from '@/lib/utils';
 import { TrialBanner, useTenantFeatures } from '@/components/subscription/subscription-widgets';
+import { AnnouncementsBanner } from '@/components/announcements/announcements-banner';
 import type { FeatureKey } from '@/types/platform';
 
 interface NavItemConfig {
@@ -65,6 +68,8 @@ interface NavItemConfig {
   moduleKey?: string;
   /** Função do plano do tenant; desligada = item some do menu */
   featureKey?: FeatureKey;
+  /** Só para quem pode excluir em alguma tabela */
+  trash?: boolean;
 }
 
 const topNavigation: NavItemConfig[] = [
@@ -75,6 +80,8 @@ const topNavigation: NavItemConfig[] = [
 ];
 
 const bottomNavigation: NavItemConfig[] = [
+  { titleKey: 'trash', href: '/trash', icon: <Trash2 className="h-5 w-5" />, trash: true },
+  { titleKey: 'support', href: '/support', icon: <LifeBuoy className="h-5 w-5" /> },
   // Configurações da CONTA é de todos (#21); o tab "Organização" dentro é que é gated.
   { titleKey: 'settings', href: '/settings', icon: <Settings className="h-5 w-5" /> },
 ];
@@ -107,7 +114,7 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
   const t = useTranslations();
   const tNav = useTranslations('navigation');
   const { user, isAuthenticated, logout, ensureAuth, isLoading } = useAuthStore();
-  const { hasModuleAccess, hasModulePermission, getDefaultRoute, isOperationalSurface, canAccessAdminArea, canAccessAdminSection } = usePermissions();
+  const { hasModuleAccess, hasModulePermission, getDefaultRoute, isOperationalSurface, canAccessAdminArea, canAccessAdminSection, canUseTrash } = usePermissions();
   const { tenant, effectiveTenantId } = useTenant();
   const features = useTenantFeatures();
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -160,12 +167,13 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
 
   const filteredBottomNav = useMemo(
     () => bottomNavigation.filter((item) => {
+      if (item.trash && !canUseTrash) return false;
       if (item.featureKey && !features[item.featureKey]) return false;
       if (!item.moduleKey) return true;
       return hasModuleAccess(item.moduleKey);
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [user?.customRole?.modulePermissions, user?.customRoleId, features]
+    [user?.customRole?.modulePermissions, user?.customRoleId, features, canUseTrash]
   );
 
   const isRegistrosOpen = openCategories['__registros__'] !== false;
@@ -197,7 +205,8 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
     }
     // Rotas disponíveis a qualquer usuário autenticado (sem módulo próprio).
     // A visibilidade interna (ex.: canais do chat por tabela) é checada lá dentro.
-    const ALWAYS_ALLOWED = ['home', 'chat'];
+    // Suporte: qualquer pessoa abre chamado. Lixeira: a API só lista o que a pessoa pode excluir.
+    const ALWAYS_ALLOWED = ['home', 'chat', 'support', 'trash'];
     if (segment && !ALWAYS_ALLOWED.includes(segment) && !hasModuleAccess(segment)) {
       const defaultRoute = getDefaultRoute();
       if (defaultRoute !== `/${segment}`) {
@@ -661,6 +670,7 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
           </div>
         </header>
 
+        <AnnouncementsBanner />
         <TrialBanner />
         <main className="p-4 md:p-6 lg:p-8">
           {children}

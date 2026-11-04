@@ -6,12 +6,14 @@ import {
   useEffect,
   useState,
   useCallback,
+  useRef,
   ReactNode,
 } from 'react';
 import { io, Socket } from 'socket.io-client';
 import { useAuthStore } from '@/stores/auth-store';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
+import { useNotificationPrefs } from '@/components/notifications/notification-prefs-api';
 
 export interface Notification {
   id: string;
@@ -58,6 +60,10 @@ export function NotificationProvider({ children }: NotificationProviderProps) {
   const [isConnected, setIsConnected] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [reconnectTrigger, setReconnectTrigger] = useState(0);
+  // Preferencia "mostrar avisos na tela" (o aviso continua no sino).
+  const { data: prefs } = useNotificationPrefs(isAuthenticated);
+  const popupsRef = useRef(true);
+  popupsRef.current = prefs?.popups ?? true;
 
   // Conectar ao WebSocket quando autenticado
   useEffect(() => {
@@ -125,8 +131,8 @@ export function NotificationProvider({ children }: NotificationProviderProps) {
         // Add to list
         setNotifications((prev) => [notification, ...prev].slice(0, 50));
 
-        // Mostrar toast
-        const toastFn = {
+        // Mostrar toast (se a pessoa nao desligou os avisos na tela)
+        const toastFn = !popupsRef.current ? () => undefined : {
           info: toast.info,
           success: toast.success,
           warning: toast.warning,

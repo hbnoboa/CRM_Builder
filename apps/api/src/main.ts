@@ -59,6 +59,8 @@ async function bootstrap() {
   app.enableCors({
     origin: corsOrigin === '*' ? true : corsOrigin.split(','),
     credentials: true,
+    // Downloads (exportacoes): o front le o nome do arquivo.
+    exposedHeaders: ['Content-Disposition'],
   });
   
   // Exception filter global (previne exposicao de stack traces)

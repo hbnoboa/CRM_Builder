@@ -18,17 +18,21 @@ import {
   BookOpen,
   Building2,
   CreditCard,
+  DatabaseBackup,
   FileText,
   Gauge,
   Link2,
+  Lock,
   LogOut,
   Menu,
+  Plug,
   ScrollText,
   Shield,
   ShieldCheck,
   TableProperties,
   Timer,
   Users,
+  UsersRound,
   X,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -37,6 +41,7 @@ import { usePermissions } from '@/hooks/use-permissions';
 import { useTenant } from '@/stores/tenant-context';
 import { NotificationBell } from '@/components/notifications/notification-bell';
 import { TrialBanner, useTenantFeatures } from '@/components/subscription/subscription-widgets';
+import { AnnouncementsBanner } from '@/components/announcements/announcements-banner';
 import { cn } from '@/lib/utils';
 import type { FeatureKey } from '@/types/platform';
 
@@ -54,6 +59,7 @@ const GROUPS: Array<{ key: string; items: GestaoItem[] }> = [
     key: 'team',
     items: [
       { key: 'users', section: 'users', icon: <Users className="h-4 w-4" /> },
+      { key: 'teams', section: 'teams', icon: <UsersRound className="h-4 w-4" /> },
       { key: 'roles', section: 'roles', icon: <Shield className="h-4 w-4" /> },
       { key: 'permissions', section: 'permissions', icon: <BookOpen className="h-4 w-4" /> },
     ],
@@ -65,11 +71,13 @@ const GROUPS: Array<{ key: string; items: GestaoItem[] }> = [
       { key: 'pdfTemplates', section: 'pdf-templates', icon: <FileText className="h-4 w-4" />, featureKey: 'pdf' },
       { key: 'dashboardTemplates', section: 'dashboard-templates', icon: <BarChart3 className="h-4 w-4" /> },
       { key: 'publicLinks', section: 'public-links', icon: <Link2 className="h-4 w-4" />, featureKey: 'publicLinks' },
+      { key: 'integrations', section: 'integrations', icon: <Plug className="h-4 w-4" /> },
     ],
   },
   {
     key: 'security',
     items: [
+      { key: 'securityPolicy', section: 'security', icon: <Lock className="h-4 w-4" /> },
       { key: 'auditLogs', section: 'audit-logs', icon: <ScrollText className="h-4 w-4" /> },
       { key: 'executionLogs', section: 'execution-logs', icon: <Timer className="h-4 w-4" /> },
     ],
@@ -79,6 +87,7 @@ const GROUPS: Array<{ key: string; items: GestaoItem[] }> = [
     items: [
       { key: 'organization', section: 'organization', icon: <Building2 className="h-4 w-4" /> },
       { key: 'plan', section: 'plan', icon: <CreditCard className="h-4 w-4" /> },
+      { key: 'privacy', section: 'privacy', icon: <DatabaseBackup className="h-4 w-4" /> },
     ],
   },
 ];
@@ -200,6 +209,7 @@ export function GestaoShell({ children }: { children: React.ReactNode }) {
             {t('backToOperation')}
           </Link>
         </header>
+        <AnnouncementsBanner />
         <TrialBanner />
         <main className="p-4 md:p-6 lg:p-8">{children}</main>
       </div>

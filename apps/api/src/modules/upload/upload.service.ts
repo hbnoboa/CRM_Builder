@@ -342,6 +342,42 @@ export class UploadService {
     return total;
   }
 
+  /** Onde os arquivos ficam (para a tela de saude do console). */
+  get storageMode(): { mode: 'gcs' | 'local'; bucket: string | null } {
+    return this.storage ? { mode: 'gcs', bucket: this.bucket } : { mode: 'local', bucket: null };
+  }
+
+  /** Arquivos da empresa (prefixo "{tenantId}/"): caminho e tamanho, para a exportacao. */
+  async listTenantFiles(tenantId: string): Promise<Array<{ path: string; bytes: number }>> {
+    const out: Array<{ path: string; bytes: number }> = [];
+    if (!this.storage) {
+      const base = path.join(process.cwd(), 'uploads');
+      const walk = (dir: string) => {
+        if (!fs.existsSync(dir)) return;
+        for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+          const full = path.join(dir, entry.name);
+          if (entry.isDirectory()) walk(full);
+          else out.push({ path: path.relative(base, full).split(path.sep).join('/'), bytes: fs.statSync(full).size });
+        }
+      };
+      walk(path.join(base, tenantId));
+    } else {
+      const [files] = await this.storage.bucket(this.bucket).getFiles({ prefix: `${tenantId}/` });
+      for (const f of files) out.push({ path: f.name, bytes: Number(f.metadata.size ?? 0) });
+    }
+    return out;
+  }
+
+  /** Apaga TODOS os arquivos da empresa (exclusao definitiva da conta). */
+  async deleteTenantFiles(tenantId: string): Promise<void> {
+    if (!/^[a-z0-9]+$/i.test(tenantId)) throw new Error('tenantId invalido');
+    if (!this.storage) {
+      fs.rmSync(path.join(process.cwd(), 'uploads', tenantId), { recursive: true, force: true });
+      return;
+    }
+    await this.storage.bucket(this.bucket).deleteFiles({ prefix: `${tenantId}/`, force: true });
+  }
+
   // Upload de imagem com redimensionamento (requer sharp)
   async uploadImage(
     file: Express.Multer.File,

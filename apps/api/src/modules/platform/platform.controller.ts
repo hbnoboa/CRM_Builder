@@ -46,6 +46,10 @@ import { PlatformAuditService } from './platform-audit.service';
 import { PlatformPlansService } from './platform-plans.service';
 import { PlatformStaffService } from './platform-staff.service';
 import { PlatformTenantsService } from './platform-tenants.service';
+import { PlatformMetricsService } from './platform-metrics.service';
+import { PlatformUsersService } from './platform-users.service';
+import { PlatformBulkService } from './platform-bulk.service';
+import { PlatformBulkDto } from './dto/platform-bulk.dto';
 import { PlatformTenantTeamService } from './platform-tenant-team.service';
 import { CopyTenantDataDto } from '../tenant/dto/copy-tenant-data.dto';
 
@@ -92,6 +96,9 @@ export class PlatformController {
     private readonly staff: PlatformStaffService,
     private readonly audit: PlatformAuditService,
     private readonly team: PlatformTenantTeamService,
+    private readonly metricsService: PlatformMetricsService,
+    private readonly usersService: PlatformUsersService,
+    private readonly bulkService: PlatformBulkService,
   ) {}
 
   // ── Visao geral ─────────────────────────────────────────────────────────
@@ -102,12 +109,62 @@ export class PlatformController {
     return this.tenants.overview();
   }
 
+  @Get('metrics')
+  @RequirePlatformPermission('metrics.read')
+  metrics(@Query('months') months?: string) {
+    const n = Math.min(24, Math.max(3, parseInt(months ?? '12', 10) || 12));
+    return this.metricsService.metrics(n);
+  }
+
+  // ── Pessoas (busca global) ──────────────────────────────────────────────
+
+  @Get('users')
+  @RequirePlatformPermission('users.read')
+  searchUsers(@Query('q') q?: string) {
+    return this.usersService.search(q ?? '');
+  }
+
+  @Get('users/:id')
+  @RequirePlatformPermission('users.read')
+  userDetail(@Param('id') id: string) {
+    return this.usersService.detail(id);
+  }
+
+  @Post('users/:id/password-reset')
+  @HttpCode(HttpStatus.OK)
+  @RequirePlatformPermission('users.support')
+  userPasswordReset(@CurrentStaff() actor: PlatformStaffPrincipal, @Param('id') id: string) {
+    return this.usersService.sendPasswordReset(actor, id);
+  }
+
+  @Post('users/:id/logout')
+  @HttpCode(HttpStatus.OK)
+  @RequirePlatformPermission('users.support')
+  userLogout(@CurrentStaff() actor: PlatformStaffPrincipal, @Param('id') id: string) {
+    return this.usersService.logoutEverywhere(actor, id);
+  }
+
+  @Post('users/:id/mfa-reset')
+  @HttpCode(HttpStatus.OK)
+  @RequirePlatformPermission('users.support')
+  userMfaReset(@CurrentStaff() actor: PlatformStaffPrincipal, @Param('id') id: string) {
+    return this.usersService.resetMfa(actor, id);
+  }
+
   // ── Tenants ─────────────────────────────────────────────────────────────
 
   @Get('tenants')
   @RequirePlatformPermission('tenants.read')
   findTenants(@Query() query: PlatformQueryTenantsDto) {
     return this.tenants.findAll(query);
+  }
+
+  @Post('tenants/bulk')
+  @HttpCode(HttpStatus.OK)
+  @RequirePlatformPermission('tenants.read')
+  bulkTenants(@CurrentStaff() actor: PlatformStaffPrincipal, @Body() dto: PlatformBulkDto) {
+    // A permissao da acao (plano / situacao) e conferida no servico.
+    return this.bulkService.run(actor, dto);
   }
 
   @Post('tenants')

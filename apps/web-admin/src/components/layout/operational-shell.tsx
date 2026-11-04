@@ -26,6 +26,8 @@ import {
   MessageSquare,
   CircleDot,
   LayoutDashboard,
+  LifeBuoy,
+  Trash2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuthStore } from '@/stores/auth-store';
@@ -35,6 +37,8 @@ import { useTenant } from '@/stores/tenant-context';
 import { NotificationBell } from '@/components/notifications/notification-bell';
 import { TenantSelector } from '@/components/tenant-selector';
 import { cn } from '@/lib/utils';
+import { TrialBanner } from '@/components/subscription/subscription-widgets';
+import { AnnouncementsBanner } from '@/components/announcements/announcements-banner';
 
 export function OperationalShell({ children }: { children: React.ReactNode }) {
   const t = useTranslations();
@@ -43,7 +47,7 @@ export function OperationalShell({ children }: { children: React.ReactNode }) {
   const searchParams = useSearchParams();
   const router = useRouter();
   const { user, logout } = useAuthStore();
-  const { hasModuleAccess } = usePermissions();
+  const { hasModuleAccess, canUseTrash } = usePermissions();
   const { tenant } = useTenant();
   const routeParams = useParams();
   const currentTenantSlug = typeof routeParams?.tenant === 'string' ? routeParams.tenant : undefined;
@@ -176,6 +180,8 @@ export function OperationalShell({ children }: { children: React.ReactNode }) {
 
             <div className="my-3 border-t" />
 
+            {canUseTrash && navLink('/trash', <Trash2 className="h-5 w-5" />, tNav('trash'))}
+            {navLink('/support', <LifeBuoy className="h-5 w-5" />, tNav('support'))}
             {navLink('/settings', <Settings className="h-5 w-5" />, tNav('settings'))}
           </nav>
 
@@ -226,6 +232,8 @@ export function OperationalShell({ children }: { children: React.ReactNode }) {
           </div>
         </header>
 
+        <AnnouncementsBanner />
+        <TrialBanner />
         <main className="p-4 md:p-6 lg:p-8">{children}</main>
       </div>
     </div>

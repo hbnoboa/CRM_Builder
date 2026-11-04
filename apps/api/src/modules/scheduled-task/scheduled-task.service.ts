@@ -3,6 +3,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { Prisma, ScheduledTask } from '@prisma/client';
 import { ActionChainService } from '../action-chain/action-chain.service';
 import { WebhookService } from '../webhook/webhook.service';
+import { safeFetch } from '../../common/utils/safe-fetch';
 
 interface CreateScheduledTaskDto {
   entityId?: string;
@@ -140,7 +141,7 @@ export class ScheduledTaskService implements OnModuleInit {
         if (!config?.url) {
           throw new Error('url necessaria para webhook');
         }
-        const response = await fetch(config.url as string, {
+        const response = await safeFetch(config.url as string, {
           method: (config.method as string) || 'POST',
           headers: {
             'Content-Type': 'application/json',

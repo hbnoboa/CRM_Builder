@@ -3,6 +3,8 @@ import {
   Get,
   Post,
   Delete,
+  Put,
+  Body,
   Param,
   Query,
   UseGuards,
@@ -31,6 +33,18 @@ export class NotificationController {
       user.tenantId,
       query,
     );
+  }
+
+  @Get('preferences')
+  @ApiOperation({ summary: 'Minhas preferencias de notificacao (nesta empresa)' })
+  preferences(@CurrentUser() user: CurrentUserType) {
+    return this.notificationService.getPreferences(user.id, user.tenantId);
+  }
+
+  @Put('preferences')
+  @ApiOperation({ summary: 'Salvar minhas preferencias de notificacao' })
+  savePreferences(@CurrentUser() user: CurrentUserType, @Body() body: Record<string, unknown>) {
+    return this.notificationService.savePreferences(user.id, user.tenantId, body);
   }
 
   @Get('unread-count')

@@ -10,7 +10,9 @@ interface AuthState {
   isLoading: boolean;
   error: string | null;
 
-  login: (credentials: LoginCredentials) => Promise<void>;
+  /** mfaToken presente = falta o segundo passo (loginWithMfa). */
+  login: (credentials: LoginCredentials) => Promise<{ mfaToken?: string }>;
+  loginWithMfa: (mfaToken: string, code: string) => Promise<void>;
   register: (data: RegisterDate) => Promise<void>;
   acceptInvitation: (token: string, body: { name?: string; password: string }) => Promise<User>;
   logout: () => Promise<void>;
@@ -33,7 +35,12 @@ export const useAuthStore = create<AuthState>()(
       login: async (credentials: LoginCredentials) => {
         set({ isLoading: true, error: null });
         try {
-          const response = await api.post<AuthResponse>('/auth/login', credentials);
+          const response = await api.post<AuthResponse | { mfaRequired: true; mfaToken: string }>('/auth/login', credentials);
+          // Conta com verificacao em duas etapas: a senha so libera o segundo passo.
+          if ('mfaRequired' in response.data) {
+            set({ isLoading: false });
+            return { mfaToken: response.data.mfaToken };
+          }
           const { user, accessToken, refreshToken } = response.data;
           
           // Store tokens in localStorage
@@ -43,10 +50,28 @@ export const useAuthStore = create<AuthState>()(
           if (user?.tenantId) localStorage.setItem('activeTenantId', user.tenantId);
 
           set({ user, isAuthenticated: true, isLoading: false });
+          return {};
         } catch (error: unknown) {
           const message = isAxiosError<{ message?: string }>(error)
             ? error.response?.data?.message || 'Login failed'
             : 'Login failed';
+          set({ error: message, isLoading: false });
+          throw error;
+        }
+      },
+
+      loginWithMfa: async (mfaToken: string, code: string) => {
+        set({ isLoading: true, error: null });
+        try {
+          const { data } = await api.post<AuthResponse>('/auth/login/mfa', { mfaToken, code });
+          localStorage.setItem('accessToken', data.accessToken);
+          localStorage.setItem('refreshToken', data.refreshToken);
+          if (data.user?.tenantId) localStorage.setItem('activeTenantId', data.user.tenantId);
+          set({ user: data.user, isAuthenticated: true, isLoading: false });
+        } catch (error: unknown) {
+          const message = isAxiosError<{ message?: string }>(error)
+            ? error.response?.data?.message || 'Codigo invalido'
+            : 'Codigo invalido';
           set({ error: message, isLoading: false });
           throw error;
         }

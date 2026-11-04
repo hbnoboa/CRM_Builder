@@ -85,6 +85,11 @@ export class QueryUserDto {
   @IsOptional()
   role?: string;
 
+  @ApiPropertyOptional({ description: 'Filtrar por equipe' })
+  @IsString()
+  @IsOptional()
+  teamId?: string;
+
   @ApiPropertyOptional({ enum: Status })
   @IsEnum(Status)
   @IsOptional()

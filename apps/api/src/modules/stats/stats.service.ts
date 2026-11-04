@@ -5,6 +5,7 @@ import { EntityDataQueryService, type DashboardFilterOptions } from '../../commo
 import { CurrentUser } from '../../common/types';
 import { getEffectiveTenantId } from '../../common/utils/tenant.util';
 import { Prisma, type PrismaClient } from '@prisma/client';
+import { creatorFilter, teammateIds } from '../../common/utils/team-scope';
 
 @Injectable()
 export class StatsService {
@@ -171,15 +172,14 @@ export class StatsService {
 
     // Escopo own permission-driven (sem roleType): aplica só se alguma entidade
     // acessível tiver scope 'own'. allAccess/canRead-all => 'all' => sem restricao.
-    if (await this.hasAnyOwnScope(user, entities)) {
-      where.createdById = user.id;
-    }
+    const creators = creatorFilter(await this.restrictedCreators(user, entities));
+    if (creators) where.createdById = creators;
 
     const archivedWhere = {
       entityId: where.entityId as unknown,
       tenantId: where.tenantId as string,
       createdAt: where.createdAt as unknown,
-      ...(where.createdById ? { createdById: where.createdById as string } : {}),
+      ...(where.createdById ? { createdById: where.createdById as string | { in: string[] } } : {}),
     } as Prisma.ArchivedEntityDataWhereInput;
 
     const [records, archivedRecords] = await Promise.all([
@@ -223,21 +223,22 @@ export class StatsService {
     return result;
   }
 
-  /** Verifica se o usuario tem scope 'own' em alguma entidade */
-  private async hasAnyOwnScope(
+  /**
+   * Restricao por criador para estatisticas: 'own' em alguma tabela => so os
+   * proprios; senao 'team' em alguma => os da equipe; senao null (sem restricao).
+   */
+  private async restrictedCreators(
     user: CurrentUser,
     entities: { slug: string }[],
-  ): Promise<boolean> {
+  ): Promise<string[] | null> {
     const permissions = (user.customRole?.permissions || []) as Array<{
       entitySlug: string;
-      scope?: 'all' | 'own';
+      scope?: 'all' | 'own' | 'team';
     }>;
-
-    for (const entity of entities) {
-      const perm = permissions.find((p) => p.entitySlug === entity.slug);
-      if (perm?.scope === 'own') return true;
-    }
-    return false;
+    const scopes = entities.map((e) => permissions.find((p) => p.entitySlug === e.slug)?.scope);
+    if (scopes.includes('own')) return [user.id];
+    if (scopes.includes('team')) return teammateIds(this.prisma, user.id, user.tenantId);
+    return null;
   }
 
   async getEntitiesDistribution(user: CurrentUser, queryTenantId?: string) {
@@ -1410,14 +1411,13 @@ export class StatsService {
     };
 
     // Escopo own permission-driven (sem roleType).
-    if (await this.hasAnyOwnScope(user, entities)) {
-      recordsWhere.createdById = user.id;
-    }
+    const recordCreators = creatorFilter(await this.restrictedCreators(user, entities));
+    if (recordCreators) recordsWhere.createdById = recordCreators;
 
     const archivedWhere = {
       ...(recordsWhere.tenantId ? { tenantId: recordsWhere.tenantId as string } : {}),
       ...(recordsWhere.entityId ? { entityId: recordsWhere.entityId as unknown } : {}),
-      ...(recordsWhere.createdById ? { createdById: recordsWhere.createdById as string } : {}),
+      ...(recordsWhere.createdById ? { createdById: recordsWhere.createdById as string | { in: string[] } } : {}),
     } as Prisma.ArchivedEntityDataWhereInput;
 
     const [records, archivedRecords, entitiesList] = await Promise.all([

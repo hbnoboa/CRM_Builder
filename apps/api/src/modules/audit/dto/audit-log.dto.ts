@@ -23,7 +23,7 @@ export class QueryAuditLogDto {
   @IsString()
   cursor?: string;
 
-  @ApiPropertyOptional({ enum: ['create', 'update', 'delete'] })
+  @ApiPropertyOptional({ enum: ['create', 'update', 'delete', 'restore', 'purge'] })
   @IsOptional()
   @IsString()
   action?: string;

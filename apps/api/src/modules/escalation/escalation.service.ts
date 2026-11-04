@@ -3,6 +3,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { NotificationService } from '../notification/notification.service';
 import { ActionChainService } from '../action-chain/action-chain.service';
 import { Prisma } from '@prisma/client';
+import { safeFetch } from '../../common/utils/safe-fetch';
 
 /**
  * Configuracao de regras de escalacao
@@ -367,7 +368,7 @@ export class EscalationService implements OnModuleInit {
         // Chamar webhook externo
         const webhookUrl = action.config.url as string;
         if (webhookUrl) {
-          await fetch(webhookUrl, {
+          await safeFetch(webhookUrl, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({

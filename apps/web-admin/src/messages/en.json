@@ -125,7 +125,14 @@
     "noPermission": "You don't have permission to access this page.",
     "currentRole": "Your current role:",
     "notDefined": "Not defined",
-    "backToDashboard": "Back to Dashboard"
+    "backToDashboard": "Back to Dashboard",
+    "mfa": {
+      "prompt": "Enter the 6-digit code from your authenticator app.",
+      "code": "Verification code",
+      "recoveryHint": "No phone? Use a recovery code.",
+      "verify": "Verify",
+      "back": "Back"
+    }
   },
   "navigation": {
     "dashboard": "Dashboard",
@@ -145,7 +152,9 @@
     "home": "Home",
     "chat": "Chat",
     "operational": "Operational",
-    "gestao": "Administration"
+    "gestao": "Administration",
+    "trash": "Trash",
+    "support": "Support"
   },
   "roles": {
     "ADMIN": "Administrator",
@@ -289,7 +298,8 @@
       "revoke": "Cancel",
       "revoked": "Invite canceled",
       "resentTitle": "New invite link"
-    }
+    },
+    "allTeams": "All teams"
   },
   "entities": {
     "title": "Tables",
@@ -534,7 +544,9 @@
     "toast": {
       "created": "Record created successfully",
       "updated": "Record updated successfully",
-      "deleted": "Record deleted successfully"
+      "deleted": "Record deleted successfully",
+      "undo": "Undo",
+      "deletedToUndo": "Record deleted. It stays in the trash."
     },
     "filter": {
       "title": "Filter",
@@ -703,7 +715,8 @@
       "fieldPermissions": "Field Permissions",
       "field": "Field",
       "view": "View",
-      "editField": "Edit"
+      "editField": "Edit",
+      "scopeTeam": "My team"
     },
     "modules": {
       "dashboard": "Dashboard",
@@ -941,8 +954,11 @@
     "subtitle": "Manage your preferences and account settings",
     "tabs": {
       "profile": "Profile",
+      "notifications": "Notifications",
       "language": "Language",
-      "theme": "Theme"
+      "theme": "Theme",
+      "security": "Security",
+      "privacy": "Privacy"
     },
     "profile": {
       "title": "Profile",
@@ -1317,14 +1333,18 @@
     "actions": {
       "create": "Create",
       "update": "Update",
-      "delete": "Delete"
+      "delete": "Delete",
+      "restore": "Restore",
+      "purge": "Delete forever",
+      "export": "Export"
     },
     "resources": {
       "entity_data": "Records",
       "user": "User",
       "entity": "Entity",
       "custom_role": "Role",
-      "page": "Page"
+      "page": "Page",
+      "team": "Team"
     },
     "changes": "Changes",
     "oldData": "Previous Data",
@@ -1368,9 +1388,14 @@
     "brand": "Platform console",
     "nav": {
       "overview": "Overview",
+      "metrics": "Metrics",
+      "people": "People",
       "tenants": "Customers",
       "plans": "Plans",
       "staff": "Team",
+      "support": "Tickets",
+      "announcements": "Announcements",
+      "health": "System health",
       "audit": "Audit"
     },
     "roles": {
@@ -1450,6 +1475,7 @@
       "new": "New customer",
       "search": "Search by name or slug",
       "allLifecycles": "All statuses",
+      "allPlans": "All plans",
       "empty": "No customers found.",
       "noPlan": "No plan",
       "trialUntil": "until {date}",
@@ -1480,6 +1506,14 @@
         "passwordRule": "At least 8 characters, with uppercase, lowercase and a number.",
         "submit": "Create customer",
         "created": "Customer created"
+      },
+      "selectedN": "{n, plural, one {# company selected} other {# companies selected}}",
+      "bulk": {
+        "plan": "Change plan",
+        "trial": "Extend trial",
+        "lifecycle": "Change status",
+        "clear": "Clear selection",
+        "selectAll": "Select all on this page"
       }
     },
     "tenant": {
@@ -1722,6 +1756,91 @@
         "skipped": "Skipped items",
         "warnings": "Warnings"
       }
+    },
+    "metrics": {
+      "title": "Business metrics",
+      "subtitle": "Customer sign-ups, conversions and churn",
+      "period": "Period",
+      "months": "{n} months",
+      "paying": "Paying customers",
+      "payingHint": "active + past due",
+      "trials": "On trial",
+      "signups30": "New sign-ups (30 days)",
+      "conversions30": "Conversions (30 days)",
+      "cancellations30": "Cancellations (30 days)",
+      "trialRate": "Trial conversion",
+      "trialRateHint": "{converted} of {total} trials ended in {days} days",
+      "noData": "no data yet",
+      "vsPrev": "{prev} in the previous 30 days",
+      "selfService": "{n} self-service",
+      "monthlyTitle": "Month by month",
+      "monthlyHint": "Counted from each company's history (Brasília time).",
+      "series": {
+        "signups": "Sign-ups",
+        "conversions": "Conversions (trial → active)",
+        "cancellations": "Cancellations",
+        "suspensions": "Suspensions"
+      },
+      "showTable": "Show table",
+      "hideTable": "Show charts",
+      "month": "Month",
+      "plansTitle": "By plan",
+      "plan": "Plan",
+      "noPlan": "No plan",
+      "inactivePlan": "inactive",
+      "total": "Total",
+      "payingCol": "Paying",
+      "trialCol": "On trial",
+      "otherCol": "Suspended/canceled",
+      "members": "People",
+      "usageTitle": "Usage",
+      "people": "People with access",
+      "active30": "Signed in in the last 30 days",
+      "records": "Records",
+      "riskTitle": "Customers idle for 30 days",
+      "riskHint": "Active or past due with nobody signing in: churn risk.",
+      "never": "never signed in",
+      "lastLogin": "last sign-in {date}",
+      "membersCount": "{n, plural, one {# person} other {# people}}",
+      "none": "None. Good sign.",
+      "loadError": "Could not load metrics. Your team role may not have access to them."
+    },
+    "closure": {
+      "closureTitle": "Closure requested by the owner",
+      "closureBody": "Requested by {email} on {requested}. Permanent deletion on {date}.",
+      "closureReason": "Reason: {reason}",
+      "closureHint": "To cancel, change the status to Active before that date."
+    },
+    "bulk": {
+      "title": {
+        "plan": "Change plan",
+        "trial": "Extend trial",
+        "lifecycle": "Change status"
+      },
+      "scopeSelected": "{n, plural, one {# company chosen} other {# companies chosen}}",
+      "scopePlan": "All companies on the {plan} plan",
+      "toPlan": "New plan",
+      "noPlan": "No plan (everything unlocked)",
+      "choose": "Choose",
+      "days": "Extra days",
+      "daysHint": "Counted from the current trial end (or today, if it already ended). Only applies to companies on trial.",
+      "toLifecycle": "New status",
+      "trialEnd": "Trial until",
+      "blocksAccess": "Blocks access for everyone in these companies.",
+      "preview": "Preview",
+      "apply": "{n, plural, one {Apply to # company} other {Apply to # companies}}",
+      "willChange": "{n, plural, =0 {Nothing will change} one {# company will change} other {# companies will change}}",
+      "skippedN": "{n, plural, one {# left out} other {# left out}}",
+      "reason": {
+        "same_plan": "already on this plan",
+        "not_trial": "not on trial",
+        "same_lifecycle": "already in this status"
+      },
+      "applied": "{n, plural, =0 {Nothing changed} one {# company updated} other {# companies updated}}",
+      "failedN": "{n, plural, one {# failed} other {# failed}}",
+      "close": "Close",
+      "cancel": "Cancel",
+      "moveTenants": "Move customers"
     }
   },
   "subscription": {
@@ -1788,6 +1907,7 @@
     "nav": {
       "dashboard": "Overview",
       "users": "Users",
+      "teams": "Teams",
       "roles": "Roles",
       "permissions": "Permissions guide",
       "entities": "Tables",
@@ -1797,7 +1917,10 @@
       "auditLogs": "Audit",
       "executionLogs": "Executions",
       "organization": "Organization",
-      "plan": "Plan"
+      "plan": "Plan",
+      "integrations": "Integrations",
+      "securityPolicy": "Security",
+      "privacy": "Data & privacy"
     },
     "home": {
       "title": "Hello, {name}",
@@ -1834,7 +1957,43 @@
     },
     "organization": {
       "title": "Organization",
-      "subtitle": "The company's details and branding."
+      "subtitle": "The company's name, logo and colors, shown to the whole team.",
+      "save": "Save",
+      "saved": "Organization updated",
+      "invalidColor": "Use a color in #RRGGBB format.",
+      "identity": {
+        "title": "Identity",
+        "description": "How the company appears in the menu and on the login screen.",
+        "name": "Company name",
+        "logo": "Logo",
+        "uploadLogo": "Upload logo",
+        "changeLogo": "Change logo",
+        "removeLogo": "Remove",
+        "logoHint": "PNG, JPG or WEBP. Square with a transparent background works best."
+      },
+      "appearance": {
+        "title": "Appearance",
+        "description": "Brand color and theme the team sees when signing in.",
+        "color": "Brand color",
+        "resetColor": "Use the default color",
+        "preview": "Preview:",
+        "sampleButton": "Button",
+        "sampleLink": "Link",
+        "theme": "Default theme",
+        "themeHint": "Each person can still change the theme in their own settings.",
+        "themes": {
+          "light": "Light",
+          "dark": "Dark",
+          "system": "Follow the system"
+        }
+      },
+      "address": {
+        "title": "Address",
+        "description": "Address and domain are set up by platform support.",
+        "slug": "Address in the system",
+        "domain": "Custom domain",
+        "noDomain": "None"
+      }
     },
     "entities": {
       "title": "Tables",
@@ -1842,6 +2001,200 @@
       "new": "New table",
       "empty": "No tables yet.",
       "meta": "{fields} fields · {records} records"
+    },
+    "integrations": {
+      "title": "Integrations",
+      "subtitle": "Connect the company to other systems: API keys, webhooks and automations.",
+      "tabs": {
+        "keys": "API keys",
+        "webhooks": "Webhooks",
+        "automations": "Automations"
+      },
+      "keys": {
+        "title": "API keys",
+        "description": "For another system to read and write records. The key acts on behalf of its creator, with the chosen role.",
+        "new": "New key",
+        "empty": "No keys yet.",
+        "meta": "role {role} · created by {by}",
+        "lastUsed": "used {date}",
+        "neverUsed": "never used",
+        "expires": "expires {date}",
+        "revoke": "Revoke",
+        "confirmRevoke": "Confirm",
+        "cancel": "Cancel",
+        "revoked": "Key revoked",
+        "howTo": "How to use (records, tables and upload only):",
+        "newTitle": "New API key",
+        "newHint": "Pick a role with only what is needed: the integration gets exactly its permissions.",
+        "name": "Name",
+        "namePlaceholder": "E.g. ERP integration",
+        "role": "Key role",
+        "chooseRole": "Choose a role",
+        "roleHint": "Only roles below yours are listed.",
+        "validity": "Validity",
+        "validities": {
+          "30": "30 days",
+          "90": "90 days",
+          "365": "1 year",
+          "never": "No expiration"
+        },
+        "create": "Create key",
+        "createdTitle": "Key created",
+        "createdHint": "Copy it now: for security it won't be shown again.",
+        "copy": "Copy key",
+        "done": "Done"
+      },
+      "webhooks": {
+        "title": "Webhooks",
+        "description": "Notify another system (over HTTP) when a record is created, edited or deleted.",
+        "new": "New webhook",
+        "empty": "No webhooks yet.",
+        "allTables": "All tables",
+        "test": "Test",
+        "runs": "Deliveries",
+        "edit": "Edit",
+        "delete": "Delete",
+        "confirmDelete": "Confirm delete",
+        "deleted": "Webhook deleted",
+        "saved": "Webhook saved",
+        "testOk": "Test sent: the destination replied {code}.",
+        "testFail": "The test failed: {error}",
+        "status": {
+          "ACTIVE": "Active",
+          "INACTIVE": "Paused",
+          "PAUSED": "Paused"
+        },
+        "events": {
+          "created": "Created",
+          "updated": "Edited",
+          "deleted": "Deleted",
+          "test": "Test"
+        },
+        "newTitle": "New webhook",
+        "editTitle": "Edit webhook",
+        "dialogHint": "The system POSTs the record to the URL. Internal addresses are blocked.",
+        "name": "Name",
+        "url": "Destination URL",
+        "table": "Table",
+        "when": "When to send",
+        "secret": "Signing secret",
+        "secretHint": "Each delivery carries an X-Webhook-Signature header (HMAC SHA-256) with this secret, so the destination can verify the origin.",
+        "active": "Active",
+        "save": "Save",
+        "runsTitle": "Deliveries of {name}",
+        "noRuns": "No deliveries yet."
+      },
+      "automations": {
+        "title": "Automations",
+        "description": "All automations of the company's tables. Editing stays in each table's editor.",
+        "empty": "No automations yet.",
+        "paused": "Paused",
+        "editInTable": "Edit in table",
+        "triggers": {
+          "ON_CREATE": "on create",
+          "ON_UPDATE": "on edit",
+          "ON_DELETE": "on delete",
+          "ON_FIELD_CHANGE": "when a field changes",
+          "ON_STATUS_CHANGE": "when the status changes",
+          "SCHEDULE": "scheduled",
+          "MANUAL": "manual"
+        }
+      }
+    },
+    "security": {
+      "title": "Security",
+      "subtitle": "Company access rules and the status of each team member.",
+      "policy": {
+        "title": "Access rules",
+        "description": "Apply to the whole team of this company.",
+        "requireMfa": "Require two-step verification",
+        "requireMfaHint": "Anyone who has not turned it on must do so on their next visit. Turn it on for your own account first.",
+        "minLength": "Minimum password length",
+        "symbol": "Require a symbol in passwords",
+        "symbolHint": "E.g. ! @ # $",
+        "baseRule": "Every password already needs upper and lower case letters and a number. Applies to passwords created or changed from now on.",
+        "save": "Save rules",
+        "saved": "Access rules saved"
+      },
+      "team": {
+        "title": "Team",
+        "description": "Security status of each person.",
+        "summary": "{withMfa} of {total} with two-step verification",
+        "mfaOn": "2-step",
+        "mfaOff": "No 2-step",
+        "inactive": "Inactive",
+        "lastLogin": "last sign-in {date}",
+        "neverLogged": "never signed in",
+        "devices": "{count, plural, =0 {no devices} one {# device} other {# devices}}",
+        "logout": "Sign out",
+        "loggedOut": "{count, plural, =0 {No devices signed in} one {Signed out of # device} other {Signed out of # devices}}"
+      }
+    },
+    "privacy": {
+      "title": "Data & privacy",
+      "subtitle": "Take your company's data with you or close the account (LGPD).",
+      "export": {
+        "title": "Export all data",
+        "hint": "A ZIP file with everything the company has on the platform, in JSON and CSV (opens in Excel).",
+        "button": "Download everything (ZIP)",
+        "preparing": "Preparing the file…",
+        "done": "File ready",
+        "onlyAdmins": "Only the owner or someone with full access can export all data.",
+        "items": {
+          "records": "Records from every table (active, archived and in the trash)",
+          "people": "Team and roles (no passwords)",
+          "structure": "Table and field structure",
+          "settings": "PDF templates, dashboards, automations and integrations (no secrets)",
+          "files": "List of uploaded files",
+          "audit": "Action history (audit)"
+        }
+      },
+      "close": {
+        "title": "Close the company account",
+        "hint": "The company becomes inactive for the whole team right away. After {days} days all data and files are permanently deleted.",
+        "beforeTitle": "Before closing",
+        "before": "Download all data above. Until the deadline, support can reactivate the account if you change your mind.",
+        "button": "Close the account",
+        "onlyOwner": "Only the company owner can close the account.",
+        "dialogTitle": "Close the {name} account?",
+        "dialogHint": "Nobody will be able to sign in. In {days} days everything is permanently deleted.",
+        "typeName": "Type the company name ({name})",
+        "reason": "Reason (optional)",
+        "password": "Your password",
+        "code": "Two-step verification code",
+        "cancel": "Cancel",
+        "confirm": "Close permanently",
+        "done": "Account closed. Data will be deleted on {date}."
+      }
+    },
+    "teams": {
+      "title": "Teams",
+      "subtitle": "Company departments and teams.",
+      "new": "New team",
+      "scopeHint": "In Roles, the \"My team\" scope lets a person see records created by any teammate (besides their own). Works on web and in the app.",
+      "empty": "No teams yet",
+      "emptyHint": "Create teams to organize the company and enable team visibility.",
+      "membersCount": "{n, plural, =0 {No members} one {# member} other {# members}}",
+      "edit": "Edit",
+      "delete": "Delete",
+      "manageMembers": "Members",
+      "deleteTitle": "Delete the {name} team?",
+      "deleteHint": "Records stay. People who saw teammates' records through this team will stop seeing them.",
+      "deleted": "Team deleted",
+      "newTitle": "New team",
+      "editTitle": "Edit team",
+      "name": "Name",
+      "namePlaceholder": "e.g. South Sales",
+      "description": "Description (optional)",
+      "color": "Color",
+      "save": "Save",
+      "saved": "Team saved",
+      "cancel": "Cancel",
+      "membersTitle": "{name} members",
+      "membersHint": "Check who belongs. The leader is highlighted.",
+      "searchPeople": "Search people",
+      "leader": "Leader",
+      "membersSaved": "Members saved"
     }
   },
   "invite": {
@@ -1882,5 +2235,400 @@
     "goToLogin": "Go to login",
     "weakPassword": "The password needs 8+ characters, with upper and lower case and a number.",
     "mismatch": "Passwords don't match."
+  },
+  "security": {
+    "mfa": {
+      "title": "Two-step verification",
+      "description": "Besides the password, sign-in asks for a code from your phone authenticator app (Google Authenticator, Microsoft Authenticator, Authy...).",
+      "on": "On",
+      "off": "Off",
+      "requiredHint": "Your company requires two-step verification.",
+      "enable": "Turn on two-step verification",
+      "step1": "Open the authenticator app on your phone.",
+      "step2": "Scan the QR code (or type the key manually).",
+      "step3": "Enter the 6-digit code shown.",
+      "manualKey": "Key to type manually:",
+      "codeLabel": "App code",
+      "confirm": "Confirm and turn on",
+      "enabledNow": "Two-step verification is on.",
+      "recoveryIntro": "Keep these recovery codes somewhere safe. Each one signs you in once if you lose your phone.",
+      "copyCodes": "Copy codes",
+      "done": "Done",
+      "codesLeft": "{count, plural, one {# recovery code left} other {# recovery codes left}}",
+      "newCodes": "Generate new codes",
+      "disable": "Turn off",
+      "disabled": "Two-step verification turned off",
+      "disableTitle": "Turn off two-step verification",
+      "disableHint": "Confirm with your password and an app code.",
+      "newCodesTitle": "New recovery codes",
+      "newCodesHint": "The old codes stop working.",
+      "password": "Password",
+      "generate": "Generate"
+    },
+    "sessions": {
+      "title": "Signed-in devices",
+      "description": "Where your account is open right now. End anything you do not recognize.",
+      "revokeOthers": "Sign out everywhere else",
+      "revokedOthers": "{count, plural, =0 {No other device was signed in} one {# device signed out} other {# devices signed out}}",
+      "revoke": "Sign out",
+      "revoked": "Session ended",
+      "current": "This device",
+      "app": "CRM mobile app",
+      "device": "{browser} on {os}",
+      "support": "Support: {name}",
+      "lastActive": "active {date}",
+      "since": "since {date}"
+    },
+    "setup": {
+      "title": "Turn on two-step verification",
+      "subtitle": "Your company requires a phone code, besides the password, to sign in.",
+      "logout": "Sign out"
+    }
+  },
+  "trash": {
+    "title": "Trash",
+    "subtitle": "Deleted records. Restore anything removed by mistake.",
+    "subtitleRetention": "Deleted records. Items older than {days} days are permanently deleted automatically.",
+    "search": "Search deleted records",
+    "allTables": "All tables",
+    "subRecord": "sub-record",
+    "deletedBy": "Deleted by {name} on {when}",
+    "deletedAt": "Deleted on {when}",
+    "withSubRecords": "{n, plural, one {+ # sub-record} other {+ # sub-records}}",
+    "purgeAt": "permanently deleted on {date}",
+    "restore": "Restore",
+    "restored": "Record restored",
+    "restoredMany": "{n} records restored (with sub-records)",
+    "restoreError": "Could not restore",
+    "purge": "Delete forever",
+    "purgeTitle": "Delete forever?",
+    "purgeHint": "\"{title}\" will be permanently deleted and cannot be recovered.",
+    "purgeHintSub": "{n, plural, one {# sub-record goes with it.} other {# sub-records go with it.}}",
+    "purged": "Permanently deleted",
+    "empty": "Empty trash",
+    "emptyTitle": "Empty the whole trash?",
+    "emptyTableTitle": "Empty the trash for {name}?",
+    "emptyHint": "All items will be permanently deleted. This cannot be undone.",
+    "emptied": "{n, plural, =0 {Nothing to delete} one {# record deleted} other {# records deleted}}",
+    "emptyState": "Trash is empty",
+    "noResults": "Nothing found",
+    "emptyStateHint": "Records deleted from tables show up here.",
+    "retentionLabel": "Delete automatically",
+    "retentionNever": "Never delete automatically",
+    "retentionDays": "Delete after {days} days",
+    "retentionSaved": "Trash retention saved",
+    "pageOf": "Page {page} of {pages} · {total} items",
+    "prev": "Previous",
+    "next": "Next",
+    "cancel": "Cancel"
+  },
+  "privacy": {
+    "personal": {
+      "exportTitle": "Download my data",
+      "exportHint": "A file with your personal data: account, companies you belong to, sign-ins and recorded actions.",
+      "exportButton": "Download my data",
+      "deleteTitle": "Delete my account",
+      "deleteHint": "Erases your personal data and removes you from every company. Records you created stay in the companies, without your name.",
+      "deleteButton": "Delete my account",
+      "deleteWarning": "This cannot be undone. If you own a company, transfer ownership or close the company account first.",
+      "password": "Your password",
+      "code": "Two-step verification code",
+      "typeToConfirm": "Type EXCLUIR to confirm",
+      "cancel": "Cancel",
+      "deleted": "Your account was deleted"
+    }
+  },
+  "notificationPrefs": {
+    "saved": "Preferences saved",
+    "eventsTitle": "What to notify",
+    "eventsHint": "Notices about records in tables you can see. Your administrator may limit this further through your role.",
+    "events": {
+      "created": "Record created",
+      "updated": "Record changed",
+      "deleted": "Record deleted"
+    },
+    "ownActions": "My own actions",
+    "ownActionsHint": "Also notify me about what I did myself.",
+    "channelsTitle": "How to notify",
+    "channelsHint": "Notices always stay in the bell.",
+    "popups": "On-screen notices",
+    "popupsHint": "Show a notice in the corner of the screen when something new arrives.",
+    "push": "Phone notification",
+    "pushHint": "Send to the mobile app (it must be installed and signed in).",
+    "tablesTitle": "Tables",
+    "tablesHint": "Turn off the tables you don't want to follow.",
+    "noTables": "No tables available."
+  },
+  "support": {
+    "title": "Support",
+    "subtitle": "Talk to the platform team. Follow the replies here.",
+    "subtitleAll": "Your company's tickets with the platform team.",
+    "new": "New ticket",
+    "newHint": "Tell us what you need. The team replies here and by email.",
+    "tabs": {
+      "open": "In progress",
+      "closed": "Closed"
+    },
+    "emptyOpen": "No tickets in progress.",
+    "emptyClosed": "No closed tickets.",
+    "created": "Ticket #{number} opened",
+    "updated": "updated {when}",
+    "newReply": "new reply",
+    "subject": "Subject",
+    "categoryLabel": "Type",
+    "priorityLabel": "Priority",
+    "message": "Message",
+    "messagePlaceholder": "Describe what happened, what you expected and, if possible, the steps to reproduce.",
+    "send": "Send",
+    "cancel": "Cancel",
+    "back": "Tickets",
+    "closedHint": "Ticket closed. Open a new one if needed.",
+    "reopenHint": "This ticket is resolved. Writing again sends it back to support.",
+    "replyPlaceholder": "Write your reply",
+    "markResolved": "Mark as resolved",
+    "resolved": "Ticket marked as resolved",
+    "supportTeam": "{name} (support)",
+    "internalNote": "internal note",
+    "category": {
+      "question": "Question",
+      "problem": "Problem",
+      "billing": "Billing",
+      "suggestion": "Suggestion"
+    },
+    "priority": {
+      "LOW": "Low",
+      "NORMAL": "Normal",
+      "HIGH": "High",
+      "URGENT": "Urgent"
+    },
+    "status": {
+      "OPEN": "Waiting for support",
+      "WAITING_CUSTOMER": "Waiting for you",
+      "RESOLVED": "Resolved",
+      "CLOSED": "Closed"
+    },
+    "system": {
+      "status": "{name} changed the status to {status}",
+      "resolvedByCustomer": "{name} marked it as resolved",
+      "assigned": "{name} took the ticket",
+      "unassigned": "{name} released the ticket"
+    },
+    "console": {
+      "title": "Tickets",
+      "subtitle": "{open} waiting for support · {unassigned} unassigned",
+      "search": "Search by subject, number, email or company",
+      "active": "In progress",
+      "allStatuses": "All statuses",
+      "allPriorities": "All priorities",
+      "anyone": "Any assignee",
+      "mine": "Mine",
+      "unassigned": "Unassigned",
+      "ticket": "Ticket",
+      "customer": "Customer",
+      "status": "Status",
+      "assignee": "Assignee",
+      "lastActivity": "Last activity",
+      "byCustomer": "by customer",
+      "byStaff": "by support",
+      "empty": "No tickets.",
+      "prev": "Previous",
+      "next": "Next",
+      "back": "Tickets",
+      "replyPlaceholder": "Reply to the customer (also sent by email)",
+      "notePlaceholder": "Internal note (the customer doesn't see it)",
+      "internal": "Internal note",
+      "saveNote": "Save note",
+      "sendReply": "Reply",
+      "noteSaved": "Note saved",
+      "replySent": "Reply sent",
+      "noPlan": "No plan",
+      "handling": "Handling",
+      "priority": "Priority",
+      "takeIt": "Take it",
+      "release": "Release",
+      "statuses": {
+        "OPEN": "Waiting for support",
+        "WAITING_CUSTOMER": "Waiting for customer",
+        "RESOLVED": "Resolved",
+        "CLOSED": "Closed"
+      }
+    }
+  },
+  "announcements": {
+    "more": "Learn more",
+    "dismiss": "Dismiss notice",
+    "console": {
+      "title": "Announcements",
+      "subtitle": "Notices for customers, shown at the top of the app.",
+      "new": "New announcement",
+      "editTitle": "Edit announcement",
+      "empty": "No announcements yet.",
+      "state": {
+        "draft": "Draft",
+        "scheduled": "Scheduled",
+        "active": "Live",
+        "ended": "Ended"
+      },
+      "severity": {
+        "INFO": "Info",
+        "WARNING": "Warning",
+        "CRITICAL": "Critical"
+      },
+      "audience": {
+        "all": "All customers",
+        "plans": "Plans",
+        "lifecycles": "Status",
+        "tenants": "Specific companies"
+      },
+      "adminsOnlyShort": "admins only",
+      "period": "{start} to {end}",
+      "noEnd": "no end",
+      "stats": "reaches {reach} companies · {dismissed} dismissed",
+      "publish": "Publish",
+      "unpublish": "Take down",
+      "published": "Announcement published",
+      "unpublished": "Announcement taken down",
+      "edit": "Edit",
+      "delete": "Delete",
+      "deleted": "Announcement deleted",
+      "fields": {
+        "title": "Title",
+        "body": "Text",
+        "severity": "Level",
+        "audience": "Audience",
+        "startsAt": "Start",
+        "endsAt": "End (optional)",
+        "linkUrl": "Link (optional)",
+        "linkLabel": "Link text",
+        "adminsOnly": "Only company administrators",
+        "dismissible": "Can be dismissed"
+      },
+      "searchTenant": "Search company",
+      "reach": "Will show to {n, plural, =0 {no company} one {# company} other {# companies}}",
+      "reachPick": "Choose the audience",
+      "save": "Save",
+      "saved": "Announcement saved",
+      "cancel": "Cancel"
+    }
+  },
+  "health": {
+    "title": "System health",
+    "checkedAt": "Checked at {when} · refreshes every 30 s",
+    "refresh": "Refresh",
+    "status": {
+      "ok": "OK",
+      "warning": "Warning",
+      "down": "Down",
+      "off": "Off"
+    },
+    "overall": {
+      "ok": "All systems working",
+      "warning": "Working, with warnings",
+      "down": "Some components are down",
+      "off": "—"
+    },
+    "c": {
+      "database": "Database",
+      "queues": "Queues",
+      "powersync": "PowerSync (app)",
+      "email": "Email",
+      "push": "Push (mobile)",
+      "storage": "Files"
+    },
+    "latency": "Response",
+    "size": "Size",
+    "connections": "Connections",
+    "longestQuery": "Longest query",
+    "migrations": "Migrations",
+    "failedMigrations": "{n} failed",
+    "lastMigration": "Latest",
+    "visibilityBacklog": "Visibility recompute queue",
+    "memory": "Memory",
+    "queue": {
+      "data-import": "Import",
+      "automation-execution": "Automations"
+    },
+    "queueCounts": "{waiting} waiting · {active} running · {failed} failed",
+    "version": "Version",
+    "environment": "Environment",
+    "uptime": "Up for",
+    "eventLoop": "Lag (p99)",
+    "notConfigured": "Not configured",
+    "configured": "Configured",
+    "localDisk": "Local disk",
+    "emailHint": "No email provider: invites and password resets won't arrive.",
+    "problems": "Recent problems",
+    "errors24h": "500 errors (24 h)",
+    "automationFailed": "Failed automations (24 h)",
+    "webhookFailed": "Failed webhooks (24 h)",
+    "errorsChart": "Errors per hour",
+    "errorsN": "{n, plural, =0 {no errors} one {# error} other {# errors}}",
+    "recentErrors": "Latest errors",
+    "noErrors": "No errors recorded.",
+    "slowQueries": "Slow queries",
+    "noSlow": "No slow queries recorded."
+  },
+  "people": {
+    "title": "People",
+    "subtitle": "Find anyone across all companies.",
+    "search": "Name, email, phone or CPF",
+    "hint": "Type at least 2 characters.",
+    "none": "Nobody found.",
+    "never": "never",
+    "lastLogin": "last sign-in {when}",
+    "devices": "{n, plural, =0 {no devices signed in} one {# device} other {# devices}}",
+    "mfa": "Two-step on",
+    "noCompany": "No company",
+    "status": {
+      "ACTIVE": "Active",
+      "INACTIVE": "Inactive",
+      "SUSPENDED": "Suspended"
+    },
+    "membership": {
+      "ACTIVE": "Active",
+      "INACTIVE": "Inactive",
+      "SUSPENDED": "Suspended",
+      "REMOVED": "Removed"
+    },
+    "back": "People",
+    "since": "account since {when}",
+    "mfaOn": "two-step on",
+    "mfaOff": "no two-step",
+    "actions": {
+      "password-reset": "Send password reset link",
+      "logout": "Sign out everywhere",
+      "mfa-reset": "Turn off two-step"
+    },
+    "done": {
+      "password-reset": "Password reset link sent",
+      "logout": "Signed out of all devices",
+      "mfa-reset": "Two-step turned off"
+    },
+    "confirm": {
+      "password-reset": {
+        "title": "Send a password reset link to {name}?",
+        "body": "An email goes to {email} with a link valid for 1 hour. The current password keeps working until changed."
+      },
+      "logout": {
+        "title": "Sign {name} out of all devices?",
+        "body": "Web and mobile will ask to sign in again on the next action."
+      },
+      "mfa-reset": {
+        "title": "Turn off two-step for {name}?",
+        "body": "Use it when the person lost their phone. Confirm their identity first. They are signed out and, if the company requires it, set it up again on next sign-in."
+      }
+    },
+    "confirmButton": "Confirm",
+    "cancel": "Cancel",
+    "companies": "Companies",
+    "company": "Company",
+    "role": "Role",
+    "situation": "Status",
+    "enterAs": "Sign in as",
+    "devicesTitle": "Signed-in devices ({n})",
+    "noDevices": "No devices signed in.",
+    "lastUsed": "used {when}",
+    "recentActions": "Recent actions",
+    "noActions": "No actions recorded."
   }
 }
