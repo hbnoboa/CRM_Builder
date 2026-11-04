@@ -19,7 +19,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Textarea } from '@/components/ui/textarea';
 import { usePermissions } from '@/hooks/use-permissions';
 import { useDeleteTeam, useSaveTeam, useSetTeamMembers, useTeams } from '@/hooks/use-teams';
-import { useUsers } from '@/hooks/use-users';
+import { useAllUsers } from '@/hooks/use-users';
 import { getErrorMessage } from '@/lib/get-error-message';
 import type { Team } from '@/services/teams.service';
 import type { User } from '@/types';
@@ -181,8 +181,12 @@ function TeamFormDialog({ team, onClose }: { team: Team | null; onClose: () => v
 
 function MembersDialog({ team, onClose }: { team: Team; onClose: () => void }) {
   const t = useTranslations('gestao.teams');
-  const { data } = useUsers({ limit: 100 });
-  const people: User[] = Array.isArray(data?.data) ? data.data : [];
+  const { data } = useAllUsers();
+  // So pessoas ativas podem ser membros (a API recusa as demais).
+  const people: User[] = useMemo(
+    () => (Array.isArray(data?.data) ? data.data : []).filter((p: User) => p.status === 'ACTIVE'),
+    [data],
+  );
   const setMembers = useSetTeamMembers();
   const [selected, setSelected] = useState<Map<string, boolean>>(() => new Map(team.members.map((m) => [m.id, m.isLeader])));
   const [search, setSearch] = useState('');
@@ -234,10 +238,17 @@ function MembersDialog({ team, onClose }: { team: Team; onClose: () => void }) {
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>{t('cancel')}</Button>
           <Button
-            disabled={setMembers.isPending}
+            // Sem a lista carregada o filtro abaixo esvaziaria a equipe.
+            disabled={setMembers.isPending || !data}
             data-testid="team-members-save"
             onClick={() => setMembers.mutate(
-              { id: team.id, members: Array.from(selected.entries()).map(([userId, isLeader]) => ({ userId, isLeader })) },
+              {
+                id: team.id,
+                // Quem foi desativado depois de entrar na equipe sai dela ao salvar.
+                members: Array.from(selected.entries())
+                  .filter(([userId]) => people.some((p) => p.id === userId))
+                  .map(([userId, isLeader]) => ({ userId, isLeader })),
+              },
               { onSuccess: () => { toast.success(t('membersSaved')); onClose(); }, onError: (e) => toast.error(getErrorMessage(e)) },
             )}
           >

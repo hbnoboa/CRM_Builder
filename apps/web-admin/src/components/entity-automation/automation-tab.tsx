@@ -43,10 +43,6 @@ export function AutomationTab({ entityId, fields }: AutomationTabProps) {
 
   return (
     <div className="space-y-4">
-      <p className="text-xs text-muted-foreground">
-        Regras de campo (obrigatoriedade, visibilidade, etc.) agora estao nas propriedades de cada campo, na secao &quot;Avancado&quot;.
-      </p>
-
       {/* ── Section 1: Event Automations ───────────────────────────── */}
       <Collapsible
         open={openSections.eventAutomations}

@@ -188,7 +188,7 @@ export default function ReactFormBuilderGrid({ entity, onSave, onCancel }: Props
   };
 
   return (
-    <div className="flex flex-col h-screen">
+    <div className="flex flex-col h-full">
       {/* Estilo das alças de resize horizontal (bordas esq/dir) — o RGL só estiliza
           a alça do canto por padrão; aqui viram barras verticais agarráveis. */}
       <style>{`

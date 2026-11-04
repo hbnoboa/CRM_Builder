@@ -74,6 +74,13 @@ export class NotificationController {
     return { success: true };
   }
 
+  @Delete()
+  @ApiOperation({ summary: 'Apagar todas as minhas notificacoes (nesta empresa)' })
+  async deleteAll(@CurrentUser() user: CurrentUserType) {
+    const { count } = await this.notificationService.deleteAllForUser(user.id, user.tenantId);
+    return { success: true, count };
+  }
+
   @Delete(':id')
   @ApiOperation({ summary: 'Delete a notification' })
   async deleteNotification(

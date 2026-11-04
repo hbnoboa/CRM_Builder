@@ -257,6 +257,29 @@ export class UserService {
     };
   }
 
+  /**
+   * O formulario manda cargo e situacao mesmo sem mudanca: tira o que ja esta igual,
+   * para editar o proprio nome (ou o de alguem sem "atribuir cargo"/"mudar situacao")
+   * nao virar tentativa de trocar cargo/situacao.
+   */
+  async dropUnchangedMembershipFields(id: string, dto: UpdateUserDto, currentUser: CurrentUser): Promise<void> {
+    if (!dto.customRoleId && !dto.status) return;
+    const membership = await this.prisma.userTenantAccess.findFirst({
+      where: { userId: id, tenantId: currentUser.tenantId, deletedAt: null },
+      select: { customRoleId: true, status: true, user: { select: { status: true } } },
+    });
+    if (!membership) return;
+    if (dto.customRoleId && dto.customRoleId === membership.customRoleId) delete dto.customRoleId;
+    if (dto.status) {
+      const otherTenants = await this.prisma.userTenantAccess.count({
+        where: { userId: id, tenantId: { not: currentUser.tenantId }, deletedAt: null },
+      });
+      // Membro de varias empresas: a situacao mora na membership; senao, no User.
+      const current = otherTenants > 0 ? membership.status : membership.user.status;
+      if (String(dto.status) === String(current)) delete dto.status;
+    }
+  }
+
   async update(id: string, dto: UpdateUserDto, currentUser: CurrentUser) {
     const oldUser = await this.findOne(id, currentUser);
     const target = await loadManagedMember(this.prisma, currentUser, id);
@@ -268,6 +291,11 @@ export class UserService {
       throw new ForbiddenException('Este usuario tambem acessa outras empresas: so ele pode trocar o proprio e-mail e senha');
     }
     if (dto.customRoleId) await assertAssignableRole(this.prisma, currentUser, dto.customRoleId);
+    // Reativar conta conta vaga do plano (criar/convidar ja checam).
+    if (dto.status === 'ACTIVE') {
+      const currentStatus = target.inOtherTenants ? target.membership.status : oldUser.status;
+      if (currentStatus !== 'ACTIVE') await this.tenantPlan.assertCanAddUsers(currentUser.tenantId);
+    }
 
     if (dto.password) {
       const tenants = await this.prisma.userTenantAccess.findMany({ where: { userId: id, deletedAt: null }, select: { tenantId: true } });

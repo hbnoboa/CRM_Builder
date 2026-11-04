@@ -519,7 +519,7 @@ export default function ReactFormBuilder({ entity, onSave, onCancel }: ReactForm
   };
 
   return (
-    <div className="flex flex-col h-screen">
+    <div className="flex flex-col h-full">
       {/* Toolbar */}
       <div className="h-14 border-b bg-card flex items-center px-2 sm:px-4 gap-2 flex-shrink-0">
         <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onCancel}>

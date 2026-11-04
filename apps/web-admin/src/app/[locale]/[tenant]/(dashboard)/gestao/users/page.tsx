@@ -28,7 +28,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { useUsers } from '@/hooks/use-users';
+import { useAllUsers } from '@/hooks/use-users';
 import { useTeams } from '@/hooks/use-teams';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { UserFormDialog, DeleteUserDialog, InviteUserDialog, PendingInvitations } from '@/components/users';
@@ -61,7 +61,7 @@ function UsersPageContent() {
   const [inviteOpen, setInviteOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
 
-  const { data, isLoading, refetch } = useUsers();
+  const { data, isLoading, refetch } = useAllUsers();
   const { data: teams } = useTeams(hasModulePermission('users', 'canRead'));
 
   // Extrai array de users de forma segura (igual ao padrao de /roles)

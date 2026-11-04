@@ -21,6 +21,14 @@ export function useUsers(params?: QueryUsersParams) {
   });
 }
 
+/** Todas as pessoas (sem o corte de 20 da primeira pagina): telas de gestao. */
+export function useAllUsers(params?: Omit<QueryUsersParams, 'page' | 'limit'>) {
+  return useQuery({
+    queryKey: [...userKeys.lists(), 'all', params] as const,
+    queryFn: () => usersService.getAllPages(params),
+  });
+}
+
 /**
  * Hook com Infinite Query para listas grandes (infinite scroll)
  * Usa cursor-based pagination para melhor performance

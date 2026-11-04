@@ -24,6 +24,27 @@ function assertAdminRole(user: CurrentUserType): void {
   }
 }
 
+/**
+ * Ver a LISTA de cargos: quem le cargos, ou quem precisa escolher um cargo em outra
+ * tela (convidar/criar pessoa, chave de API, link publico, dashboard por cargo).
+ * Editar continua exigindo roles.canUpdate (assertAdminRole).
+ */
+function assertCanListRoles(user: CurrentUserType): void {
+  if (hasFullTenantAccess(user.customRole?.modulePermissions)) return;
+  const mp = (user.customRole?.modulePermissions ?? {}) as Record<string, Record<string, boolean> | undefined>;
+  const allowed =
+    mp.roles?.canRead === true ||
+    mp.users?.canCreate === true ||
+    mp.users?.canAssignRole === true ||
+    mp.apis?.canCreate === true ||
+    mp.publicLinks?.canManage === true ||
+    mp.dashboard?.canCreate === true ||
+    mp.dashboard?.canUpdate === true;
+  if (!allowed) {
+    throw new ForbiddenException('Acesso negado. Requer permissão de ver cargos.');
+  }
+}
+
 @ApiTags('Custom Roles')
 @ServiceScope('admin')
 @Controller('custom-roles')
@@ -54,10 +75,9 @@ export class CustomRoleController {
   }
 
   @Get()
-  @RequireModulePermission('roles', 'canRead')
   @ApiOperation({ summary: 'Listar roles customizadas' })
   async findAll(@Query() query: QueryCustomRoleDto, @CurrentUser() user: CurrentUserType) {
-    assertAdminRole(user);
+    assertCanListRoles(user);
     return this.customRoleService.findAll(query, user);
   }
 
@@ -77,7 +97,6 @@ export class CustomRoleController {
     @Query('tenantId') tenantId: string | undefined,
     @CurrentUser() user: CurrentUserType,
   ) {
-    assertAdminRole(user);
     return this.customRoleService.findOne(id, user, tenantId);
   }
 

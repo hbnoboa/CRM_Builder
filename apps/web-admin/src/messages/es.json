@@ -94,7 +94,7 @@
     },
     "register": {
       "title": "CRM Builder",
-      "subtitle": "Crea tu empresa y pruébala gratis por 14 días",
+      "subtitle": "Crea tu empresa y pruébala gratis por {days} días",
       "name": "Nombre",
       "namePlaceholder": "Tu nombre completo",
       "company": "Empresa",
@@ -537,7 +537,7 @@
     },
     "deleteConfirm": {
       "title": "¿Eliminar registro?",
-      "message": "¿Estás seguro de que deseas eliminar este registro? Esta acción no se puede deshacer."
+      "message": "¿Seguro que deseas eliminar este registro? Va a la papelera y se puede restaurar."
     },
     "recordLocked": "Este registro esta finalizado y no puede ser editado",
     "toast": {
@@ -652,7 +652,8 @@
         "relation": "Relación",
         "api-select": "API Select"
       }
-    }
+    },
+    "formDescription": "Completa los campos y guarda."
   },
   "rolesPage": {
     "title": "Roles",
@@ -759,7 +760,9 @@
       "executionLogs": "Registros de Ejecución",
       "executionLogsDesc": "Registros de ejecución de automatizaciones",
       "entityAutomation": "Automatizaciones de Entidad",
-      "entityAutomationDesc": "Automatizaciones vinculadas a entidades"
+      "entityAutomationDesc": "Automatizaciones vinculadas a entidades",
+      "apis": "Claves de API",
+      "apisDesc": "Integrar otros sistemas con claves de API"
     },
     "subModules": {
       "title": "Submódulos",
@@ -934,7 +937,10 @@
       "logs_canDelete": "Eliminar registros de auditoría.",
       "publicLinks_canManage": "Crear y gestionar enlaces públicos de compartición.",
       "archive_canRead": "Ver registros archivados.",
-      "archive_canPermanentDelete": "Eliminar permanentemente registros archivados (irreversible)."
+      "archive_canPermanentDelete": "Eliminar permanentemente registros archivados (irreversible).",
+      "apis_canRead": "Ver las claves de API de la empresa.",
+      "apis_canCreate": "Crear claves de API (con un cargo inferior al tuyo).",
+      "apis_canDelete": "Revocar claves de API."
     },
     "orderHint": "El orden define quién gestiona a quién: cada cargo administra los que están debajo.",
     "moveUp": "Subir",
@@ -1180,7 +1186,7 @@
     "search": "Buscar...",
     "deleteConfirm": {
       "title": "¿Eliminar registro?",
-      "message": "¿Estás seguro de que deseas eliminar este registro de {name}? Esta acción no se puede deshacer."
+      "message": "¿Seguro que deseas eliminar este registro de {name}? Va a la papelera y se puede restaurar."
     }
   },
   "arrayField": {
@@ -1716,7 +1722,25 @@
           "role_deleted": "eliminó un cargo sin uso",
           "owner_changed": "cambió el dueño de la empresa",
           "member_added": "agregó un miembro",
-          "data_copied": "copió datos de otra empresa"
+          "data_copied": "copió datos de otra empresa",
+          "trial_extended": "extendió la prueba"
+        },
+        "user": {
+          "password_reset_sent": "envió enlace de nueva contraseña",
+          "sessions_revoked": "desconectó de todos los dispositivos",
+          "mfa_reset": "desactivó la verificación en dos pasos"
+        },
+        "support": {
+          "reply": "respondió un ticket",
+          "note": "anotó en el ticket (interno)",
+          "update": "modificó el ticket"
+        },
+        "announcement": {
+          "created": "creó un anuncio",
+          "updated": "editó un anuncio",
+          "published": "publicó un anuncio",
+          "unpublished": "retiró un anuncio",
+          "deleted": "eliminó un anuncio"
         }
       }
     },
@@ -2505,7 +2529,9 @@
       "reachPick": "Elige el público",
       "save": "Guardar",
       "saved": "Comunicado guardado",
-      "cancel": "Cancelar"
+      "cancel": "Cancelar",
+      "deleteConfirmTitle": "¿Eliminar el anuncio \"{title}\"?",
+      "deleteConfirmText": "Deja de mostrarse a todos los clientes de inmediato. No se puede deshacer."
     }
   },
   "health": {

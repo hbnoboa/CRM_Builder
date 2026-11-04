@@ -47,7 +47,7 @@ export function BulkDialog({ action, target, onClose, onDone }: {
     action, dryRun, ...target,
     ...(action === 'plan' ? { planId: planId === NO_PLAN ? null : planId } : {}),
     ...(action === 'trial' ? { days } : {}),
-    ...(action === 'lifecycle' ? { lifecycle, ...(lifecycle === 'TRIAL' && trialEndsAt ? { trialEndsAt: new Date(trialEndsAt).toISOString() } : {}) } : {}),
+    ...(action === 'lifecycle' ? { lifecycle, ...(lifecycle === 'TRIAL' && trialEndsAt ? { trialEndsAt: new Date(`${trialEndsAt}T23:59:59`).toISOString() } : {}) } : {}),
   });
   const call = useMutation({
     mutationFn: async (dryRun: boolean) => (await platformApi.post<BulkResult>('/tenants/bulk', body(dryRun))).data,
@@ -125,7 +125,7 @@ export function BulkDialog({ action, target, onClose, onDone }: {
                 {lifecycle === 'TRIAL' && (
                   <div className="space-y-1">
                     <Label htmlFor="bulk-trial-end">{t('trialEnd')}</Label>
-                    <Input id="bulk-trial-end" type="date" value={trialEndsAt} onChange={(e) => { setTrialEndsAt(e.target.value); reset(); }} />
+                    <Input id="bulk-trial-end" type="date" min={new Date().toLocaleDateString('en-CA')} value={trialEndsAt} onChange={(e) => { setTrialEndsAt(e.target.value); reset(); }} />
                   </div>
                 )}
                 {(lifecycle === 'SUSPENDED' || lifecycle === 'CANCELED') && <p className="text-xs text-destructive">{t('blocksAccess')}</p>}

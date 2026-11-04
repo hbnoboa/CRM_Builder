@@ -37,7 +37,7 @@ export async function loadManagedMember(prisma: PrismaService, currentUser: Curr
   const [membership, ownerId, otherTenants] = await Promise.all([
     prisma.userTenantAccess.findFirst({
       where: { userId, tenantId: currentUser.tenantId, deletedAt: null },
-      select: { id: true, isPrimary: true, customRole: { select: { rank: true } } },
+      select: { id: true, isPrimary: true, status: true, customRole: { select: { rank: true } } },
     }),
     tenantOwnerId(prisma, currentUser.tenantId),
     prisma.userTenantAccess.count({

@@ -22,11 +22,17 @@ import {
   useDeleteDashboardTemplate,
 } from '@/hooks/use-dashboard-templates';
 import type { DashboardTemplate } from '@crm-builder/shared';
+import { usePermissions } from '@/hooks/use-permissions';
 
 function DashboardTemplatesContent() {
   const { data: templates, isLoading } = useDashboardTemplates();
   const deleteTemplate = useDeleteDashboardTemplate();
   const [deleteTarget, setDeleteTarget] = useState<DashboardTemplate | null>(null);
+  // Mesma permissao da API (modulo dashboard).
+  const { hasModulePermission } = usePermissions();
+  const canCreate = hasModulePermission('dashboard', 'canCreate');
+  const canUpdate = hasModulePermission('dashboard', 'canUpdate');
+  const canDelete = hasModulePermission('dashboard', 'canDelete');
 
   const handleDelete = async () => {
     if (!deleteTarget) return;
@@ -51,12 +57,14 @@ function DashboardTemplatesContent() {
             Crie dashboards customizados e atribua a cargos
           </p>
         </div>
-        <Link href="/gestao/dashboard-templates/new">
-          <Button>
-            <Plus className="h-4 w-4 mr-2" />
-            Novo Template
-          </Button>
-        </Link>
+        {canCreate && (
+          <Link href="/gestao/dashboard-templates/new">
+            <Button>
+              <Plus className="h-4 w-4 mr-2" />
+              Novo Template
+            </Button>
+          </Link>
+        )}
       </div>
 
       {(!templates || templates.length === 0) ? (
@@ -67,12 +75,14 @@ function DashboardTemplatesContent() {
             <p className="text-sm text-muted-foreground mb-4">
               Crie templates de dashboard com graficos, KPIs e tabelas para seus usuarios
             </p>
-            <Link href="/gestao/dashboard-templates/new">
-              <Button>
-                <Plus className="h-4 w-4 mr-2" />
-                Criar primeiro template
-              </Button>
-            </Link>
+            {canCreate && (
+              <Link href="/gestao/dashboard-templates/new">
+                <Button>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Criar primeiro template
+                </Button>
+              </Link>
+            )}
           </CardContent>
         </Card>
       ) : (
@@ -90,19 +100,23 @@ function DashboardTemplatesContent() {
                     )}
                   </div>
                   <div className="flex items-center gap-1 ml-2">
-                    <Link href={`/gestao/dashboard-templates/${template.id}`}>
-                      <Button variant="ghost" size="icon" className="h-7 w-7">
-                        <Pencil className="h-3.5 w-3.5" />
+                    {canUpdate && (
+                      <Link href={`/gestao/dashboard-templates/${template.id}`}>
+                        <Button variant="ghost" size="icon" className="h-7 w-7">
+                          <Pencil className="h-3.5 w-3.5" />
+                        </Button>
+                      </Link>
+                    )}
+                    {canDelete && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 text-destructive"
+                        onClick={() => setDeleteTarget(template)}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
                       </Button>
-                    </Link>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-7 w-7 text-destructive"
-                      onClick={() => setDeleteTarget(template)}
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </Button>
+                    )}
                   </div>
                 </div>
               </CardHeader>

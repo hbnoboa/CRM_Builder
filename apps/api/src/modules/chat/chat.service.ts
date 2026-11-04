@@ -178,7 +178,18 @@ export class ChatService {
       });
     const threads = await this.filterVisibleRecordThreads(user, candidateThreads);
 
-    const dms = dmMemberships.map((m) => m.channel);
+    // Conversa direta aparece com o nome da outra pessoa.
+    const peerIds = dmMemberships
+      .map((m) => m.channel.members.find((mm) => mm.userId !== user.id)?.userId)
+      .filter((id): id is string => !!id);
+    const peers = peerIds.length
+      ? await this.prisma.user.findMany({ where: { id: { in: peerIds } }, select: { id: true, name: true } })
+      : [];
+    const peerName = new Map(peers.map((p) => [p.id, p.name]));
+    const dms = dmMemberships.map((m) => {
+      const peerId = m.channel.members.find((mm) => mm.userId !== user.id)?.userId;
+      return { ...m.channel, name: m.channel.name || (peerId ? peerName.get(peerId) ?? null : null) };
+    });
 
     return { groups, threads, dms };
   }
@@ -377,6 +388,34 @@ export class ChatService {
   }
 
   /** Abre (ou encontra) uma DM entre o usuário atual e outro usuário do tenant. */
+  /** Colegas da empresa para iniciar conversa direta (sem contas de servico e de link publico). */
+  async listPeople(user: CurrentUser, q?: string) {
+    const term = (q ?? '').trim();
+    const memberships = await this.prisma.userTenantAccess.findMany({
+      where: {
+        tenantId: user.tenantId,
+        status: 'ACTIVE',
+        deletedAt: null,
+        userId: { not: user.id },
+        customRole: { publicLinks: { none: {} } },
+        user: {
+          isServiceAccount: false,
+          status: 'ACTIVE',
+          ...(term && {
+            OR: [
+              { name: { contains: term, mode: 'insensitive' as const } },
+              { email: { contains: term, mode: 'insensitive' as const } },
+            ],
+          }),
+        },
+      },
+      select: { user: { select: { id: true, name: true, email: true, avatar: true } } },
+      orderBy: { user: { name: 'asc' } },
+      take: 50,
+    });
+    return memberships.map((m) => m.user);
+  }
+
   async openDm(user: CurrentUser, otherUserId: string) {
     const tenantId = user.tenantId;
     if (otherUserId === user.id) {
@@ -395,7 +434,8 @@ export class ChatService {
       where: { tenantId, type: 'dm', dmKey, deletedAt: null },
     });
     if (existing) return existing;
-    this.assertCanManageChat(user);
+    // Conversa direta e privada entre as duas pessoas: qualquer membro com chat abre
+    // (gerir chat continua sendo para canais de tabela e threads).
 
     try {
       return await this.prisma.channel.create({

@@ -8,6 +8,7 @@ import { hasFullTenantAccess } from '../utils/platform-access';
 import { getEffectiveTenantId } from '../utils/tenant.util';
 import { buildFilterClause } from '../utils/build-filter-clause';
 import { creatorFilter } from '../utils/team-scope';
+import { ENTITY_QUERY_CACHE_TTL, entityQueryCache } from './entity-query-cache';
 
 // ─── Interfaces ─────────────────────────────────────────────────────────────
 
@@ -49,8 +50,8 @@ export interface BuildWhereResult {
 
 // ─── Entity Cache ───────────────────────────────────────────────────────────
 
-const entityCache = new Map<string, { entity: Entity; timestamp: number }>();
-const CACHE_TTL = 5000; // 5 seconds
+const entityCache = entityQueryCache;
+const CACHE_TTL = ENTITY_QUERY_CACHE_TTL;
 
 // ─── Service ────────────────────────────────────────────────────────────────
 

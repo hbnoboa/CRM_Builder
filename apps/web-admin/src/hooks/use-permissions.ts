@@ -101,14 +101,19 @@ const MODULE_KEY_MAP: Record<string, keyof ModulePermissions> = {
 const ADMIN_AREA_MODULES = ['entities', 'users', 'roles', 'settings', 'automations', 'templates', 'logs', 'publicLinks', 'apis'] as const;
 
 /** Secao de /gestao -> permissao que abre a secao. */
-type SectionRule = { module: string; action: 'canRead' | 'canUpdate' | 'any' };
+type SectionRule = { module: string; action: 'canRead' | 'canCreate' | 'canUpdate' | 'canDelete' | 'any' };
 const ADMIN_SECTION_RULES: Record<string, SectionRule | SectionRule[]> = {
   users: { module: 'users', action: 'canRead' },
   roles: { module: 'roles', action: 'canRead' },
   permissions: { module: 'roles', action: 'canRead' },
   entities: { module: 'entities', action: 'any' },
   'pdf-templates': { module: 'pdfTemplates', action: 'canRead' },
-  'dashboard-templates': { module: 'dashboardTemplates', action: 'canRead' },
+  // Mesma permissao da API (modulo dashboard): so quem cria/edita/exclui configura.
+  'dashboard-templates': [
+    { module: 'dashboard', action: 'canCreate' },
+    { module: 'dashboard', action: 'canUpdate' },
+    { module: 'dashboard', action: 'canDelete' },
+  ],
   'public-links': { module: 'publicLinks', action: 'any' },
   'audit-logs': { module: 'auditLogs', action: 'canRead' },
   'execution-logs': { module: 'executionLogs', action: 'canRead' },
@@ -185,6 +190,14 @@ export function usePermissions() {
     };
   }, [modulePermissions, entityPermissions]);
 
+  /**
+   * Regra da tabela: a especifica ou, sem ela, o coringa '*' (mesma resolucao da API
+   * e do app). Os cargos padrao (Gerente, Operador, Visualizador) usam so o coringa.
+   */
+  const findEntityPermission = (entitySlug: string): EntityPermission | undefined =>
+    entityPermissions.find((p) => p.entitySlug === entitySlug)
+    ?? entityPermissions.find((p) => p.entitySlug === '*');
+
   /** Lixeira: quem pode excluir em alguma tabela ve (e restaura) o que excluiu. */
   const canUseTrash = useMemo(
     () => !!user && hasRole && (fullAccess || entityPermissions.some((p) => p.canDelete)),
@@ -240,8 +253,8 @@ export function usePermissions() {
     // Acesso total ao tenant tem acesso automatico
     if (fullAccess) return true;
 
-    // Todos os outros roles: verificar permissions[entitySlug]
-    const perm = entityPermissions.find((p) => p.entitySlug === entitySlug);
+    // Todos os outros roles: verificar permissions[entitySlug] (ou o coringa)
+    const perm = findEntityPermission(entitySlug);
     if (!perm) return false;
 
     return perm[action] ?? false;
@@ -257,7 +270,7 @@ export function usePermissions() {
     if (fullAccess) return 'all';
 
     // Todos os outros: usar scope definido nas permissoes
-    const perm = entityPermissions.find((p) => p.entitySlug === entitySlug);
+    const perm = findEntityPermission(entitySlug);
     return perm?.scope || 'own';
   };
 
@@ -286,7 +299,7 @@ export function usePermissions() {
     // Acesso total ao tenant tem acesso automatico
     if (fullAccess) return true;
 
-    const perm = entityPermissions.find((p) => p.entitySlug === entitySlug) as Record<string, unknown> | undefined;
+    const perm = findEntityPermission(entitySlug) as Record<string, unknown> | undefined;
     if (!perm) return false;
 
     return perm[action] === true;

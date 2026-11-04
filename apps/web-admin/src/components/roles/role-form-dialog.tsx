@@ -56,7 +56,7 @@ type ModuleActionDef = { key: string; label: string; desc: string; writes?: stri
 // notifications removido: era um modulo "fantasma" (nenhum endpoint/guard o verifica).
 const MODULE_KEYS = [
   'dashboard', 'data', 'entities', 'users', 'roles', 'settings',
-  'automations', 'templates', 'logs', 'publicLinks', 'archive', 'chat'
+  'automations', 'templates', 'logs', 'publicLinks', 'apis', 'archive', 'chat'
 ] as const;
 
 function getDefaultModulePerms(): Record<string, ModulePermission> {
@@ -93,7 +93,7 @@ function getOperatorCategory(fieldType: string): string {
   return 'text';
 }
 
-function DataFilterAdder({ fields, onAdd }: {
+export function DataFilterAdder({ fields, onAdd }: {
   fields: EntityField[];
   onAdd: (filter: DataFilter) => void;
 }) {
@@ -678,6 +678,8 @@ export function RoleFormDialog({ open, onOpenChange, role, onSuccess }: RoleForm
         writes: ['canManage', 'canRead', 'canCreate', 'canUpdate', 'canDelete'],
       }),
     ],
+    // apis: chaves de API (Integracoes). A chave age com um cargo abaixo de quem cria.
+    apis: [R('apis'), C('apis'), D('apis')],
     archive: [
       R('archive'),
       A('canPermanentDelete', t('permissions.canPermanentDelete'), 'archive_canPermanentDelete', { danger: true }),

@@ -40,6 +40,12 @@ export class ChatController {
     return this.chatService.openGroupChannel(user, entitySlug);
   }
 
+  @Get('people')
+  @ApiOperation({ summary: 'Colegas da empresa para iniciar conversa direta' })
+  async people(@Query('q') q: string | undefined, @CurrentUser() user: CurrentUserType) {
+    return this.chatService.listPeople(user, q);
+  }
+
   @Post('channels/dm')
   @ApiOperation({ summary: 'Abre/encontra uma DM com outro usuário do tenant' })
   async openDm(

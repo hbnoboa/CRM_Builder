@@ -35,6 +35,19 @@ export const usersService = {
     return response.data;
   },
 
+  /** Todas as pessoas da empresa (a API pagina de 100 em 100). */
+  async getAllPages(params?: Omit<QueryUsersParams, 'page' | 'limit'>): Promise<PaginatedResponse<User>> {
+    const limit = 100;
+    const first = await this.getAll({ ...params, page: 1, limit });
+    const all = [...(first.data ?? [])];
+    const totalPages = first.meta?.totalPages ?? 1;
+    for (let page = 2; page <= totalPages; page++) {
+      const next = await this.getAll({ ...params, page, limit });
+      all.push(...(next.data ?? []));
+    }
+    return { ...first, data: all };
+  },
+
   async getById(id: string): Promise<User> {
     const response = await api.get<User>(`/users/${id}`);
     return response.data;

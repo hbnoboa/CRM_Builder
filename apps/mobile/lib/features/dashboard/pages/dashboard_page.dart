@@ -64,7 +64,7 @@ class DashboardPage extends ConsumerWidget {
 
           // Quick actions
           if (permissions.hasModuleAccess('data'))
-            _buildQuickActionsSection(context, db),
+            _buildQuickActionsSection(context, db, permissions),
           const SizedBox(height: AppColors.spaceLg),
 
           // Recent activity
@@ -723,7 +723,7 @@ class DashboardPage extends ConsumerWidget {
     );
   }
 
-  Widget _buildQuickActionsSection(BuildContext context, dynamic db) {
+  Widget _buildQuickActionsSection(BuildContext context, dynamic db, PermissionsState permissions) {
     final primaryColor = Theme.of(context).colorScheme.primary;
     final secondaryColor = Theme.of(context).colorScheme.secondary;
     final colors = context.colors;
@@ -763,7 +763,10 @@ class DashboardPage extends ConsumerWidget {
                   color: primaryColor,
                   onTap: () => context.go('/data'),
                 ),
-                ...entities.map((e) {
+                // So oferece "Novo X" onde a pessoa pode criar (Visualizador nao ve).
+                ...entities
+                    .where((e) => permissions.hasEntityPermission(e['slug'] as String, 'canCreate'))
+                    .map((e) {
                   final slug = e['slug'] as String;
                   final name = e['namePlural'] as String;
                   final colorStr = e['color'] as String?;

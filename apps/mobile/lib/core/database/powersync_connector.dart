@@ -316,7 +316,8 @@ class CrmPowerSyncConnector extends PowerSyncBackendConnector {
           } else if (table == 'Notification') {
             // Mark notification as read
             if (op.op == UpdateType.patch) {
-              await dio.patch('/notifications/${op.id}/read');
+              // A API marca como lida via POST (PATCH dava 404 e era ignorado).
+              await dio.post('/notifications/${op.id}/read');
             }
             success = true;
           } else if (table == 'Message') {
@@ -363,11 +364,12 @@ class CrmPowerSyncConnector extends PowerSyncBackendConnector {
               e.response!.statusCode! >= 400 &&
               e.response!.statusCode! < 500) {
             _logger.w('Skipping failed mutation (client error ${e.response!.statusCode})');
-            // Limite/funcao do plano: o servidor recusou o que foi feito offline.
-            // Avisa em vez de a mudanca sumir em silencio.
-            if (PlanErrors.isPlanRejection(e)) {
+            // O servidor recusou o que foi feito (offline): limite do plano, campo
+            // obrigatorio/unico, sem permissao... Avisa em vez de a mudanca sumir em
+            // silencio. 401 fica com o interceptor (sessao).
+            if (e.response!.statusCode != 401) {
               PlanErrors.showSnack(
-                'Uma alteração não foi sincronizada: ${PlanErrors.message(e, 'limite do plano atingido')}.',
+                'Uma alteração não foi sincronizada: ${PlanErrors.message(e, 'o servidor recusou a alteração')}.',
               );
             }
             success = true;

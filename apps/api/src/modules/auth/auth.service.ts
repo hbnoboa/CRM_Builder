@@ -96,6 +96,16 @@ export class AuthService {
    * padrao) com o usuario como administrador e ja devolve a sessao (mesmo
    * formato do login). Unico caminho publico de criacao de conta.
    */
+  /** Dias de teste do cadastro self-service (SIGNUP_TRIAL_DAYS, padrao 14). */
+  private signupTrialDays(): number {
+    const days = parseInt(this.configService.get<string>('SIGNUP_TRIAL_DAYS') || '14', 10);
+    return Number.isFinite(days) && days > 0 ? days : 14;
+  }
+
+  signupInfo() {
+    return { trialDays: this.signupTrialDays() };
+  }
+
   async register(dto: RegisterDto, client: ClientInfo = {}) {
     const existingUser = await this.prisma.user.findUnique({ where: { email: dto.email } });
     if (existingUser) {
@@ -107,7 +117,7 @@ export class AuthService {
       where: { isDefault: true, isActive: true },
       select: { id: true },
     });
-    const trialDays = parseInt(this.configService.get<string>('SIGNUP_TRIAL_DAYS') || '14', 10);
+    const trialDays = this.signupTrialDays();
     const trialEndsAt = new Date(Date.now() + trialDays * 24 * 60 * 60 * 1000);
 
     await this.tenantService.create(
