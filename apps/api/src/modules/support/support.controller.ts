@@ -1,6 +1,7 @@
 import { Body, Controller, Get, HttpCode, HttpStatus, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
+import { AuthThrottlerGuard } from '../../common/guards/auth-throttler.guard';
 import { Type } from 'class-transformer';
 import { IsBoolean, IsEnum, IsIn, IsInt, IsOptional, IsString, MaxLength, Min, MinLength, ValidateIf } from 'class-validator';
 import { SupportTicketPriority, SupportTicketStatus } from '@prisma/client';
@@ -57,6 +58,7 @@ export class SupportController {
   }
 
   @Post()
+  @UseGuards(AuthThrottlerGuard)
   @Throttle({ default: { limit: 10, ttl: 60000 } })
   @ApiOperation({ summary: 'Abrir chamado' })
   create(@CurrentUser() user: CurrentUserType, @Body() dto: CreateTicketDto) {
@@ -69,6 +71,7 @@ export class SupportController {
   }
 
   @Post(':id/messages')
+  @UseGuards(AuthThrottlerGuard)
   @Throttle({ default: { limit: 30, ttl: 60000 } })
   reply(@CurrentUser() user: CurrentUserType, @Param('id') id: string, @Body() dto: ReplyDto) {
     return this.support.customerReply(user, id, dto.body);

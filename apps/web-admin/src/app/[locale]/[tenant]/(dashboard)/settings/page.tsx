@@ -98,7 +98,8 @@ function SettingsPageContent() {
   };
 
   const handleLanguageChange = (langCode: string) => {
-    window.location.href = `/${langCode}${pathname}`;
+    // pathname vem sem idioma e sem empresa: troca so o idioma na URL real.
+    window.location.href = `/${langCode}${window.location.pathname.replace(/^\/[^/]+/, '')}`;
   };
 
   const handleTabClick = (tabId: string) => {

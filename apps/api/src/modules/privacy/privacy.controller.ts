@@ -1,6 +1,7 @@
 import { Body, Controller, Get, HttpCode, HttpStatus, Post, Res, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
+import { AuthThrottlerGuard } from '../../common/guards/auth-throttler.guard';
 import { IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
 import type { Response } from 'express';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
@@ -48,6 +49,7 @@ export class PrivacyController {
 
   @Post('company/close')
   @HttpCode(HttpStatus.OK)
+  @UseGuards(AuthThrottlerGuard)
   @Throttle({ default: { limit: 5, ttl: 60000 } })
   @ApiOperation({ summary: 'Encerrar a conta da empresa (so o dono; exclusao definitiva apos o prazo)' })
   close(@CurrentUser() user: CurrentUserType, @Body() dto: CloseCompanyDto) {
@@ -65,6 +67,7 @@ export class PrivacyController {
 
   @Post('me/delete')
   @HttpCode(HttpStatus.OK)
+  @UseGuards(AuthThrottlerGuard)
   @Throttle({ default: { limit: 5, ttl: 60000 } })
   @ApiOperation({ summary: 'Excluir a minha conta (dados pessoais apagados)' })
   deleteMe(@CurrentUser() user: CurrentUserType, @Body() dto: DeleteMeDto) {

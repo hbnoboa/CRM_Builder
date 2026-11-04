@@ -325,7 +325,10 @@ function DataTableWidgetInner({ entitySlug, config, title, ctx }: DataTableWidge
   const t = useTranslations('data');
   const tCommon = useTranslations('common');
   const router = useRouter();
-  const { hasEntityPermission, hasModulePermission, hasModuleAction, hasEntityAction } = usePermissions();
+  const { hasEntityPermission, hasModulePermission, hasModuleAction, hasEntityAction, getHiddenFields } = usePermissions();
+  // Campo oculto para o cargo nao vira coluna nem filtro.
+  const hiddenByRole = getHiddenFields(entitySlug);
+  const hiddenByRoleKey = Array.from(hiddenByRole).join(',');
   const deleteRecord = useDeleteEntityData();
 
   const {
@@ -448,6 +451,7 @@ function DataTableWidgetInner({ entitySlug, config, title, ctx }: DataTableWidge
     // Own fields
     if (entity?.fields) {
       const ownFields = entity.fields.filter(f =>
+        !hiddenByRole.has(f.slug) &&
         f.type !== 'hidden' && f.type !== 'section-title' && f.type !== 'action-button' &&
         f.type !== 'file' && f.type !== 'image' && f.type !== 'json' && f.type !== 'richtext' &&
         f.type !== 'sub-entity'
@@ -496,7 +500,8 @@ function DataTableWidgetInner({ entitySlug, config, title, ctx }: DataTableWidge
     }
 
     return result;
-  }, [entity?.fields, entity?.name, parentEntityData, parentEntitySlug, childEntitiesFields]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [entity?.fields, entity?.name, parentEntityData, parentEntitySlug, childEntitiesFields, hiddenByRoleKey]);
 
   // Handler to add a slicer filter
   const handleAddSlicerFilter = useCallback(() => {
@@ -541,6 +546,7 @@ function DataTableWidgetInner({ entitySlug, config, title, ctx }: DataTableWidge
   const visibleFields = useMemo(() => {
     if (!entity?.fields) return [];
     let fields = entity.fields.filter(f =>
+      !hiddenByRole.has(f.slug) &&
       f.type !== 'hidden' &&
       f.type !== 'section-title' &&
       f.type !== 'action-button',
@@ -556,12 +562,14 @@ function DataTableWidgetInner({ entitySlug, config, title, ctx }: DataTableWidge
     // Append meta columns
     fields = [...fields, ...metaColumns];
     return fields.filter(f => !hiddenColumns.has(f.slug));
-  }, [entity?.fields, config.displayFields, hiddenColumns, metaColumns]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [entity?.fields, config.displayFields, hiddenColumns, metaColumns, hiddenByRoleKey]);
 
   // All toggleable fields
   const allToggleableFields = useMemo(() => {
     if (!entity?.fields) return [];
     let fields = entity.fields.filter(f =>
+      !hiddenByRole.has(f.slug) &&
       f.type !== 'hidden' &&
       f.type !== 'section-title' &&
       f.type !== 'action-button',
@@ -574,7 +582,8 @@ function DataTableWidgetInner({ entitySlug, config, title, ctx }: DataTableWidge
         .filter((f): f is EntityField => !!f);
     }
     return [...fields, ...metaColumns];
-  }, [entity?.fields, config.displayFields, metaColumns]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [entity?.fields, config.displayFields, metaColumns, hiddenByRoleKey]);
 
   // Pagination
   const totalRecords = sortedRecords.length;
@@ -874,8 +883,9 @@ function DataTableWidgetInner({ entitySlug, config, title, ctx }: DataTableWidge
       );
     }
 
-    // Use shared formatter
-    const formatted = formatFieldValue(value, { type: field.type } as FormatFieldOptions);
+    // Use shared formatter. O registro guarda o value da opcao: a lista mostra o rotulo.
+    const option = (field.options as Array<{ value: unknown; label: string }> | undefined)?.find((o) => o.value === value);
+    const formatted = option?.label ?? formatFieldValue(value, { type: field.type } as FormatFieldOptions);
     return <span className="truncate max-w-[200px] block">{formatted}</span>;
   };
 
