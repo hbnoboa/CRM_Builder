@@ -312,7 +312,9 @@ export class PrivacyService {
         const delegate = tx[model] as unknown as { deleteMany(args: { where: { tenantId: string } }): Promise<unknown> };
         await delegate.deleteMany({ where: { tenantId } });
       }
-      await tx.tenant.delete({ where: { id: tenantId } });
+      // SQL direto: Tenant esta na lista de exclusao LOGICA do PrismaService
+      // (delete viraria deletedAt e nada seria apagado). Aqui a exclusao e de verdade.
+      await tx.$executeRaw`DELETE FROM "Tenant" WHERE id = ${tenantId}`;
     }, { timeout: 10 * 60 * 1000 });
     await this.upload.deleteTenantFiles(tenantId).catch((e) =>
       this.logger.error(`[encerramento] dados de ${tenantId} apagados, mas os arquivos nao: ${e instanceof Error ? e.message : e}`),
@@ -321,7 +323,8 @@ export class PrivacyService {
     // Quem so tinha essa empresa: a conta deixa de existir (anonimizada se algo ainda a referencia).
     for (const userId of exclusive) {
       try {
-        await this.prisma.user.delete({ where: { id: userId } });
+        // Idem: User tambem e exclusao logica no PrismaService.
+        await this.prisma.$executeRaw`DELETE FROM "User" WHERE id = ${userId}`;
       } catch {
         await this.anonymize(userId);
       }
