@@ -49,7 +49,6 @@ export class EntityAutomationService {
     'lookup_record',
     'update_related_record',
     'aggregate_records',
-    'run_script',
   ];
 
   constructor(

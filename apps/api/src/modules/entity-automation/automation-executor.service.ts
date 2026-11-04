@@ -6,7 +6,6 @@ import { Prisma, EntityAutomation } from '@prisma/client';
 import { ConditionEvaluator } from './condition-evaluator';
 import { ExecutionContextService, ExecutionContext, LoopDetectedException, MaxDepthExceededException } from './execution-context.service';
 import { CircuitBreakerService, CircuitOpenException } from './circuit-breaker.service';
-import * as vm from 'vm';
 import { TenantPlanService } from '../../common/services/tenant-plan.service';
 import { safeFetch } from '../../common/utils/safe-fetch';
 
@@ -407,8 +406,10 @@ export class AutomationExecutorService {
       case 'aggregate_records':
         return this.executeAggregateRecords(config, context);
 
+      // Desativada: o sandbox vm nao isola codigo de quem cria automacao. Automacoes
+      // antigas com esta acao falham aqui, com o motivo no log da execucao.
       case 'run_script':
-        return this.executeRunScript(config, context);
+        throw new Error('A acao run_script foi desativada por seguranca');
 
       default:
         throw new Error(`Tipo de acao desconhecido: ${type}`);
@@ -1130,130 +1131,6 @@ export class AutomationExecutorService {
     } catch (err) {
       const error = err as Error;
       throw new Error(`aggregate_records falhou: ${error.message}`);
-    }
-  }
-
-  /**
-   * Padroes bloqueados para seguranca do VM sandbox.
-   */
-  private static readonly BLOCKED_PATTERNS = [
-    /\bconstructor\b/i,
-    /\b__proto__\b/i,
-    /\bprototype\b/i,
-    /\bprocess\b/i,
-    /\brequire\b/i,
-    /\bimport\b/i,
-    /\bglobal\b/i,
-    /\bglobalThis\b/i,
-    /\bFunction\b/,
-    /\beval\b/,
-    /\bchild_process\b/i,
-    /\bexecSync\b/i,
-    /\bspawn\b/i,
-    /\bsetTimeout\b/,
-    /\bsetInterval\b/,
-    /\bsetImmediate\b/,
-  ];
-
-  private static readonly MAX_CODE_LENGTH = 10000;
-
-  /**
-   * Acao: Executar script customizado em sandbox VM.
-   */
-  private async executeRunScript(
-    config: Record<string, unknown>,
-    context: AutomationContext,
-  ): Promise<unknown> {
-    try {
-      const resolvedConfig = this.replacePlaceholders(config, context) as Record<string, unknown>;
-
-      const code = resolvedConfig.code as string;
-      if (!code) {
-        throw new Error('code e obrigatorio para run_script');
-      }
-
-      const saveAs = resolvedConfig.saveAs as string | undefined;
-
-      // Validar codigo
-      if (code.length > AutomationExecutorService.MAX_CODE_LENGTH) {
-        throw new Error(
-          `Codigo excede o limite de ${AutomationExecutorService.MAX_CODE_LENGTH} caracteres`,
-        );
-      }
-
-      for (const pattern of AutomationExecutorService.BLOCKED_PATTERNS) {
-        if (pattern.test(code)) {
-          throw new Error(`Codigo contem padrao bloqueado: ${pattern.source}`);
-        }
-      }
-
-      // Criar sandbox
-      const sandbox = {
-        record: context.record || null,
-        previousRecord: context.previousRecord || null,
-        user: context.user || null,
-        entity: context.entity || null,
-        lookups: context.lookupResults || {},
-        // Globais seguros
-        JSON,
-        Date,
-        Math,
-        Array,
-        Object: {
-          keys: Object.keys,
-          values: Object.values,
-          entries: Object.entries,
-          assign: Object.assign,
-          fromEntries: Object.fromEntries,
-        },
-        String,
-        Number,
-        Boolean,
-        parseInt,
-        parseFloat,
-        isNaN,
-        isFinite,
-        console: {
-          log: (...args: unknown[]) =>
-            this.logger.debug(`[run_script] ${args.map(String).join(' ')}`),
-        },
-        result: undefined as unknown,
-      };
-
-      // Executar no VM
-      const script = new vm.Script(`
-        (function() {
-          ${code}
-        })();
-      `);
-
-      const vmContext = vm.createContext(sandbox);
-      const scriptResult = script.runInContext(vmContext, { timeout: 5000 });
-
-      // Usar o retorno do script ou sandbox.result
-      const finalResult = scriptResult !== undefined ? scriptResult : sandbox.result;
-
-      // Salvar resultado no contexto se saveAs definido
-      if (saveAs) {
-        context.lookupResults![saveAs] = finalResult;
-      }
-
-      // Resumo para o log
-      const resultSummary =
-        finalResult === undefined
-          ? 'undefined'
-          : typeof finalResult === 'object'
-            ? JSON.stringify(finalResult).substring(0, 200)
-            : String(finalResult).substring(0, 200);
-
-      return {
-        executed: true,
-        saveAs: saveAs || null,
-        resultSummary,
-      };
-    } catch (err) {
-      const error = err as Error;
-      throw new Error(`run_script falhou: ${error.message}`);
     }
   }
 

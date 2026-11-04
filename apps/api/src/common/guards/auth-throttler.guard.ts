@@ -18,13 +18,20 @@ export class AuthThrottlerGuard extends ThrottlerGuard {
     const body = (req.body ?? {}) as Record<string, unknown>;
 
     // Cadastro cria empresa nova: limite por IP, nao por email.
-    if (String(req.url ?? '').split('?')[0].endsWith('/register')) return ip;
+    const path = String(req.url ?? '').split('?')[0];
+    if (path.endsWith('/register')) return ip;
 
-    if (typeof body.refreshToken === 'string' && body.refreshToken) {
+    // So na rota de refresh: em outra rota, um refreshToken aleatorio no corpo
+    // trocaria a chave a cada tentativa e anularia o limite.
+    if (path.endsWith('/refresh') && typeof body.refreshToken === 'string' && body.refreshToken) {
       return `refresh:${createHash('sha256').update(body.refreshToken).digest('hex').slice(0, 32)}`;
     }
     if (typeof body.email === 'string' && body.email) {
       return `${ip}:${body.email.trim().toLowerCase()}`;
+    }
+    // Login por link publico: identifica por e-mail, CPF ou telefone.
+    if (typeof body.identifier === 'string' && body.identifier) {
+      return `${ip}:${body.identifier.trim().toLowerCase()}`;
     }
     return ip;
   }

@@ -1,7 +1,8 @@
 import { ServiceScope } from '../../common/service-scope/service-scope.decorator';
-import { Controller, Get, Post, Body, Param } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
+import { AuthThrottlerGuard } from '../../common/guards/auth-throttler.guard';
 import { PublicLinkService } from './public-link.service';
 import { PublicRegisterDto, PublicLoginDto } from './dto/public-link.dto';
 
@@ -18,6 +19,7 @@ export class PublicLinkPublicController {
   }
 
   @Post(':slug/register')
+  @UseGuards(AuthThrottlerGuard)
   @ApiOperation({ summary: 'Registro publico via link' })
   @Throttle({ default: { limit: 3, ttl: 60000 } })
   register(@Param('slug') slug: string, @Body() dto: PublicRegisterDto) {
@@ -25,6 +27,7 @@ export class PublicLinkPublicController {
   }
 
   @Post(':slug/login')
+  @UseGuards(AuthThrottlerGuard)
   @ApiOperation({ summary: 'Login publico via link' })
   @Throttle({ default: { limit: 5, ttl: 60000 } })
   login(@Param('slug') slug: string, @Body() dto: PublicLoginDto) {

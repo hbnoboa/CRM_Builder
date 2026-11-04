@@ -5,6 +5,9 @@ import { TenantPlanService } from '../../common/services/tenant-plan.service';
 import { CreatePublicLinkDto, UpdatePublicLinkDto, PublicRegisterDto, PublicLoginDto, QueryPublicLinkDto } from './dto/public-link.dto';
 import { CurrentUser } from '../../common/types/auth.types';
 import { getEffectiveTenantId } from '../../common/utils/tenant.util';
+import { assertAssignableRole } from '../../common/utils/member-governance';
+import { hasAdminArea } from '../../common/utils/platform-access';
+import { assertPasswordPolicy } from '../../common/utils/password-policy';
 import { Status } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
 import * as crypto from 'crypto';
@@ -40,11 +43,7 @@ export class PublicLinkService {
       const role = await this.autoCreateRole(tenantId, entity.slug, entity.name);
       customRoleId = role.id;
     } else {
-      // Validar que role pertence ao tenant
-      const exists = await this.prisma.customRole.findFirst({
-        where: { id: customRoleId, tenantId },
-      });
-      if (!exists) throw new BadRequestException('Role nao encontrada neste tenant');
+      await this.assertLinkRole(customRoleId, currentUser);
     }
 
     // Gerar slug unico
@@ -144,10 +143,7 @@ export class PublicLinkService {
     }
 
     if (dto.customRoleId) {
-      const roleExists = await this.prisma.customRole.findFirst({
-        where: { id: dto.customRoleId, tenantId },
-      });
-      if (!roleExists) throw new BadRequestException('Role nao encontrada neste tenant');
+      await this.assertLinkRole(dto.customRoleId, currentUser);
       data.customRoleId = dto.customRoleId;
     }
 
@@ -206,7 +202,7 @@ export class PublicLinkService {
     const link = await this.prisma.publicLink.findUnique({
       where: { slug },
       include: {
-        customRole: { select: { id: true, permissions: true } },
+        customRole: { select: { id: true, permissions: true, modulePermissions: true } },
         entity: { select: { name: true, slug: true } },
         tenant: { select: { id: true, name: true, status: true } },
       },
@@ -218,6 +214,11 @@ export class PublicLinkService {
 
     if (link.tenant.status !== Status.ACTIVE) {
       throw new BadRequestException('Tenant inativo');
+    }
+
+    // Link antigo apontando para cargo de gestao: visitante nao entra com esse cargo.
+    if (hasAdminArea(link.customRole.modulePermissions)) {
+      throw new ForbiddenException({ code: 'FEATURE_DISABLED', message: 'Este formulario nao esta disponivel no momento' });
     }
 
     // Fix #2: Verificar maxUsers ANTES de criar usuario
@@ -251,6 +252,8 @@ export class PublicLinkService {
       const existingPhone = await this.prisma.user.findFirst({ where: { phone } });
       if (existingPhone) throw new ConflictException('Telefone ja esta em uso');
     }
+
+    await assertPasswordPolicy(this.prisma, [link.tenantId], dto.password);
 
     // Hash da senha
     const hashedPassword = await bcrypt.hash(dto.password, 12);
@@ -338,16 +341,16 @@ export class PublicLinkService {
     const cleaned = identifier.replace(/\D/g, '');
     // Identidade GLOBAL (#10): acha a identidade; o vinculo com o tenant do link
     // vem da membership.
-    let identity: { id: string; email: string; name: string; password: string } | null = null;
+    let identity: { id: string; email: string; name: string; password: string; mfaEnabledAt: Date | null } | null = null;
     if (identifier.includes('@')) {
       identity = await this.prisma.user.findFirst({
-        where: { email: identifier.toLowerCase(), status: Status.ACTIVE },
-        select: { id: true, email: true, name: true, password: true },
+        where: { email: identifier.toLowerCase(), status: Status.ACTIVE, isServiceAccount: false },
+        select: { id: true, email: true, name: true, password: true, mfaEnabledAt: true },
       });
     } else {
       identity = await this.prisma.user.findFirst({
-        where: { status: Status.ACTIVE, OR: [{ cpf: cleaned }, { phone: cleaned }] },
-        select: { id: true, email: true, name: true, password: true },
+        where: { status: Status.ACTIVE, isServiceAccount: false, OR: [{ cpf: cleaned }, { phone: cleaned }] },
+        select: { id: true, email: true, name: true, password: true, mfaEnabledAt: true },
       });
     }
 
@@ -360,8 +363,13 @@ export class PublicLinkService {
       throw new BadRequestException('Credenciais invalidas');
     }
 
+    // O formulario publico nao tem a etapa do codigo: quem usa duas etapas nao entra por aqui.
+    if (identity.mfaEnabledAt) {
+      throw new ForbiddenException('Esta conta usa verificacao em duas etapas. Entre pelo login normal.');
+    }
+
     // O usuario precisa ter membership ativa no tenant do link.
-    const roleSel = { id: true, name: true, permissions: true, modulePermissions: true, tenantId: true } as const;
+    const roleSel = { id: true, name: true, permissions: true, modulePermissions: true, tenantId: true, isSystem: true } as const;
     const membership = await this.prisma.userTenantAccess.findUnique({
       where: { userId_tenantId: { userId: identity.id, tenantId: link.tenantId } },
       include: { customRole: { select: roleSel } },
@@ -373,7 +381,7 @@ export class PublicLinkService {
       throw new UnauthorizedException('Acesso ao tenant expirado');
     }
 
-    // Acumular permissoes na role da membership (pode clonar a role e trocar o vinculo).
+    // Acumular permissoes so em conta de formulario publico (ver accumulatePermissions).
     await this.accumulatePermissions(
       {
         id: identity.id,
@@ -421,6 +429,18 @@ export class PublicLinkService {
   // HELPERS
   // ═══════════════════════════════════════════════════════════════
 
+  /** Cargo que um link pode usar: desta empresa, abaixo de quem cria e sem gestao. */
+  private async assertLinkRole(customRoleId: string, currentUser: CurrentUser) {
+    await assertAssignableRole(this.prisma, currentUser, customRoleId);
+    const role = await this.prisma.customRole.findFirst({
+      where: { id: customRoleId, tenantId: currentUser.tenantId, deletedAt: null },
+      select: { modulePermissions: true },
+    });
+    if (hasAdminArea(role?.modulePermissions)) {
+      throw new BadRequestException('Link publico nao pode usar cargo com acesso a administracao');
+    }
+  }
+
   private async autoCreateRole(tenantId: string, entitySlug: string, entityName: string) {
     const roleName = `Publico - ${entityName}`;
 
@@ -453,11 +473,16 @@ export class PublicLinkService {
   }
 
   private async accumulatePermissions(user: any, entitySlug: string) {
+    // Cargos da empresa nao mudam por causa de um login: so conta criada por formulario
+    // publico (cargo proprio, sem nenhum modulo) ganha acesso ao formulario seguinte.
+    const modulePerms = (user.customRole.modulePermissions || {}) as Record<string, unknown>;
+    if (user.customRole.isSystem || Object.keys(modulePerms).length > 0) return;
+
     const currentPermissions = (user.customRole.permissions || []) as any[];
 
     // Verificar se ja tem permissao para esta entidade
     const hasPermission = currentPermissions.some(
-      (p: any) => p.entitySlug === entitySlug,
+      (p: any) => p.entitySlug === entitySlug || p.entitySlug === '*',
     );
 
     if (hasPermission) return; // Ja tem acesso
