@@ -1752,7 +1752,7 @@ export function RecordFormDialog({
       <DialogContent className="sm:max-w-5xl max-h-[90vh] overflow-y-auto" onInteractOutside={(e) => e.preventDefault()} onPointerDownOutside={(e) => e.preventDefault()}>
         <DialogHeader>
           <DialogTitle>{isEditing ? t('editRecord') : t('newRecord')} - {entity.name}</DialogTitle>
-          <DialogDescription>{isEditing ? t('toast.updated').replace('!', '') : t('toast.created').replace('!', '')}</DialogDescription>
+          <DialogDescription>{t('formDescription')}</DialogDescription>
         </DialogHeader>
         <RecordFormFields
           entity={entity}

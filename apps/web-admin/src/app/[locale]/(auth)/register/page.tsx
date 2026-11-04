@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { Link, useRouter } from '@/i18n/navigation';
 import { useForm } from 'react-hook-form';
@@ -14,6 +14,7 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter }
 import { useAuthStore } from '@/stores/auth-store';
 import { getDefaultRouteForUser } from '@/hooks/use-permissions';
 import { LanguageSwitcher } from '@/components/language-switcher';
+import api from '@/lib/api';
 
 type RegisterForm = {
   name: string;
@@ -25,6 +26,13 @@ type RegisterForm = {
 export default function RegisterPage() {
   const router = useRouter();
   const t = useTranslations('auth.register');
+  // Dias de teste vêm da API (SIGNUP_TRIAL_DAYS); 14 enquanto carrega.
+  const [trialDays, setTrialDays] = useState(14);
+  useEffect(() => {
+    api.get<{ trialDays: number }>('/auth/signup-info')
+      .then((res) => { if (res.data?.trialDays) setTrialDays(res.data.trialDays); })
+      .catch(() => undefined);
+  }, []);
   const tValidation = useTranslations('validation');
   const { register: registerUser, isLoading, error, clearError } = useAuthStore();
 
@@ -69,7 +77,7 @@ export default function RegisterPage() {
             </div>
           </div>
           <CardTitle className="text-2xl font-bold">{t('title')}</CardTitle>
-          <CardDescription>{t('subtitle')}</CardDescription>
+          <CardDescription>{t('subtitle', { days: trialDays })}</CardDescription>
         </CardHeader>
         <form onSubmit={handleSubmit(onSubmit)}>
           <CardContent className="space-y-4">

@@ -136,6 +136,15 @@ GoRouter router(Ref ref) {
           return '/dashboard';
         }
 
+        // Criar registro (/data/:slug/new) sem permissao de criar na tabela:
+        // volta para a lista (antes o formulario abria e o servidor recusava).
+        final newMatch = RegExp(r'^/data/([^/]+)/new$').firstMatch(state.matchedLocation);
+        if (newMatch != null &&
+            !permissions.hasEntityPermission(newMatch.group(1)!, 'canCreate')) {
+          debugPrint('[Router] No create permission, redirecting to list');
+          return '/data/${newMatch.group(1)}';
+        }
+
         // Check permission for chat access
         if (state.matchedLocation.startsWith('/chat') &&
             !permissions.hasModuleAccess('chat')) {

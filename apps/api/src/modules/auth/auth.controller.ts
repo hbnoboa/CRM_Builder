@@ -34,6 +34,12 @@ const clientInfo = (req: Request): ClientInfo => ({
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
+  @Get('signup-info')
+  @ApiOperation({ summary: 'Dados publicos do cadastro (dias de teste)' })
+  signupInfo() {
+    return this.authService.signupInfo();
+  }
+
   @Post('register')
   // Throttle so nas rotas publicas de auth (o guard nao e global): ver AuthThrottlerGuard.
   @UseGuards(AuthThrottlerGuard)

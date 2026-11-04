@@ -216,7 +216,7 @@ function NewEntityPageContent() {
 
 export default function NewEntityPage() {
   return (
-    <RequireRole module="entities">
+    <RequireRole module="entities" action="canCreate">
       <DesktopOnlyEditor action="criar tabelas">
         <NewEntityPageContent />
       </DesktopOnlyEditor>

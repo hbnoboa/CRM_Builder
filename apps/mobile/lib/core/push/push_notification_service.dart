@@ -190,8 +190,9 @@ class PushNotificationService {
     if (entitySlug != null && recordId != null && navigatorKey?.currentContext != null) {
       GoRouter.of(navigatorKey!.currentContext!).push('/data/$entitySlug/$recordId');
     } else if (navigatorKey?.currentContext != null) {
-      // No deep link data: go to notifications page
-      GoRouter.of(navigatorKey!.currentContext!).go('/notifications');
+      // Sem registro ligado: abre o app na tela inicial (nao existe tela de
+      // notificacoes; o guard manda para /data se a pessoa nao ve o dashboard).
+      GoRouter.of(navigatorKey!.currentContext!).go('/dashboard');
     }
   }
 }

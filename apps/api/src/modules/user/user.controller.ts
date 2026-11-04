@@ -74,6 +74,7 @@ export class UserController {
     @Body() dto: UpdateUserDto,
     @CurrentUser() user: CurrentUserType,
   ) {
+    await this.userService.dropUnchangedMembershipFields(id, dto, user);
     if (dto.customRoleId) {
       checkModulePermission(user, 'users', 'canAssignRole');
     }

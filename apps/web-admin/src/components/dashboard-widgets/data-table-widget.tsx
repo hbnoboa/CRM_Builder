@@ -357,7 +357,17 @@ function DataTableWidgetInner({ entitySlug, config, title, ctx }: DataTableWidge
   // State
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [hiddenColumns, setHiddenColumns] = useState<Set<string>>(new Set());
+  // Colunas escondidas ficam salvas neste navegador, por tabela (e titulo do widget).
+  const columnsStorageKey = `crm:hiddenColumns:${entitySlug}:${title ?? 'default'}`;
+  const [hiddenColumns, setHiddenColumns] = useState<Set<string>>(() => {
+    try {
+      const raw = typeof window !== 'undefined' ? window.localStorage.getItem(columnsStorageKey) : null;
+      const parsed: unknown = raw ? JSON.parse(raw) : [];
+      return new Set(Array.isArray(parsed) ? parsed.filter((v): v is string => typeof v === 'string') : []);
+    } catch {
+      return new Set();
+    }
+  });
   const [localSearch, setLocalSearch] = useState('');
   const [formOpen, setFormOpen] = useState(false);
   const [editRecord, setEditRecord] = useState<DataRecord | null>(null);
@@ -810,9 +820,14 @@ function DataTableWidgetInner({ entitySlug, config, title, ctx }: DataTableWidge
       const next = new Set(prev);
       if (next.has(slug)) next.delete(slug);
       else next.add(slug);
+      try {
+        window.localStorage.setItem(columnsStorageKey, JSON.stringify(Array.from(next)));
+      } catch {
+        // armazenamento indisponivel (aba anonima/bloqueada): fica so nesta tela
+      }
       return next;
     });
-  }, []);
+  }, [columnsStorageKey]);
 
   // Get sort icon
   const getSortIcon = (fieldSlug: string) => {

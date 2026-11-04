@@ -206,7 +206,8 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
     // Rotas disponíveis a qualquer usuário autenticado (sem módulo próprio).
     // A visibilidade interna (ex.: canais do chat por tabela) é checada lá dentro.
     // Suporte: qualquer pessoa abre chamado. Lixeira: a API só lista o que a pessoa pode excluir.
-    const ALWAYS_ALLOWED = ['home', 'chat', 'support', 'trash'];
+    // Perfil e configurações são da PRÓPRIA conta (senha, 2 etapas, avisos, privacidade).
+    const ALWAYS_ALLOWED = ['home', 'chat', 'support', 'trash', 'profile', 'settings'];
     if (segment && !ALWAYS_ALLOWED.includes(segment) && !hasModuleAccess(segment)) {
       const defaultRoute = getDefaultRoute();
       if (defaultRoute !== `/${segment}`) {

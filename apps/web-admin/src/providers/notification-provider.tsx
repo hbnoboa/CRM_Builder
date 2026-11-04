@@ -14,6 +14,38 @@ import { useAuthStore } from '@/stores/auth-store';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { useNotificationPrefs } from '@/components/notifications/notification-prefs-api';
+import { api } from '@/lib/api';
+
+interface StoredNotification {
+  id: string;
+  type: string;
+  title: string;
+  message: string;
+  createdAt: string;
+  read: boolean;
+  data?: unknown;
+}
+
+const STORED_TYPES: Record<string, Notification['type']> = {
+  INFO: 'info', SUCCESS: 'success', WARNING: 'warning', ERROR: 'error',
+};
+
+function fromStored(n: StoredNotification): Notification {
+  return {
+    id: n.id,
+    type: STORED_TYPES[n.type] ?? 'info',
+    title: n.title,
+    message: n.message,
+    timestamp: new Date(n.createdAt),
+    read: n.read,
+    data: n.data,
+  };
+}
+
+/** Falha ao gravar leitura/remocao no servidor nao deve quebrar o sino. */
+function ignoreError(): void {
+  /* o estado local ja mudou; a proxima carga corrige */
+}
 
 export interface Notification {
   id: string;
@@ -64,6 +96,29 @@ export function NotificationProvider({ children }: NotificationProviderProps) {
   const { data: prefs } = useNotificationPrefs(isAuthenticated);
   const popupsRef = useRef(true);
   popupsRef.current = prefs?.popups ?? true;
+
+  // Historico do sino: as notificacoes ficam no servidor (sobrevivem ao recarregar).
+  useEffect(() => {
+    if (!isAuthenticated) {
+      setNotifications([]);
+      return;
+    }
+    let cancelled = false;
+    api.get<{ data: StoredNotification[] }>('/notifications', { params: { limit: 50 } })
+      .then((res) => {
+        if (cancelled) return;
+        const stored = (res.data?.data ?? []).map(fromStored);
+        setNotifications((prev) => {
+          // O que chegou pelo socket enquanto carregava continua no topo.
+          const ids = new Set(stored.map((n) => n.id));
+          return [...prev.filter((n) => !ids.has(n.id)), ...stored].slice(0, 50);
+        });
+      })
+      .catch(ignoreError);
+    return () => {
+      cancelled = true;
+    };
+  }, [isAuthenticated, reconnectTrigger]);
 
   // Conectar ao WebSocket quando autenticado
   useEffect(() => {
@@ -129,7 +184,10 @@ export function NotificationProvider({ children }: NotificationProviderProps) {
         console.log('📩 New notification:', notification);
 
         // Add to list
-        setNotifications((prev) => [notification, ...prev].slice(0, 50));
+        setNotifications((prev) => [
+          { ...notification, timestamp: new Date(notification.timestamp ?? Date.now()) },
+          ...prev.filter((n) => n.id !== notification.id),
+        ].slice(0, 50));
 
         // Mostrar toast (se a pessoa nao desligou os avisos na tela)
         const toastFn = !popupsRef.current ? () => undefined : {
@@ -219,18 +277,22 @@ export function NotificationProvider({ children }: NotificationProviderProps) {
     setNotifications((prev) =>
       prev.map((n) => (n.id === id ? { ...n, read: true } : n))
     );
+    api.post(`/notifications/${id}/read`).catch(ignoreError);
   }, []);
 
   const markAllAsRead = useCallback(() => {
     setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+    api.post('/notifications/read-all').catch(ignoreError);
   }, []);
 
   const clearNotifications = useCallback(() => {
     setNotifications([]);
+    api.delete('/notifications').catch(ignoreError);
   }, []);
 
   const removeNotification = useCallback((id: string) => {
     setNotifications((prev) => prev.filter((n) => n.id !== id));
+    api.delete(`/notifications/${id}`).catch(ignoreError);
   }, []);
 
   return (

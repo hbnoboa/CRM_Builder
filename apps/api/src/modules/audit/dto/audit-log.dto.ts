@@ -64,4 +64,19 @@ export class ExportAuditLogDto {
   @IsOptional()
   @IsDateString()
   dateTo?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  action?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  resource?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  search?: string;
 }

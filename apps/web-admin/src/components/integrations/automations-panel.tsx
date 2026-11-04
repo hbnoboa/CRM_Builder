@@ -30,7 +30,7 @@ export function AutomationsPanel() {
         {rows.map((a) => (
           <Link
             key={a.id}
-            href={`/gestao/entities/${a.entity.id}`}
+            href={`/gestao/entities/${a.entity.id}?tab=automations`}
             className="flex items-center gap-3 rounded-lg border p-3 transition-colors hover:bg-muted"
             data-testid={`automation-${a.name}`}
           >

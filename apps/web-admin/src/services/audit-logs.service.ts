@@ -42,7 +42,7 @@ export const auditLogsService = {
     return response.data;
   },
 
-  async exportJson(params?: { dateFrom?: string; dateTo?: string }): Promise<Blob> {
+  async exportJson(params?: { dateFrom?: string; dateTo?: string; action?: string; resource?: string; search?: string }): Promise<Blob> {
     const response = await api.get('/audit-logs/export', {
       params,
       responseType: 'blob',

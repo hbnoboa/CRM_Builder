@@ -109,7 +109,7 @@ function SettingsPageContent() {
     <div className="space-y-4 sm:space-y-6">
       {/* Breadcrumbs */}
       <nav className="mb-2 flex items-center gap-2 text-sm text-muted-foreground" aria-label="breadcrumb">
-        <Link href="/dashboard" className="hover:underline">{tNav('dashboard')}</Link>
+        <Link href="/home" className="hover:underline">{tNav('home')}</Link>
         <span>/</span>
         <span className="font-semibold text-foreground">{tNav('settings')}</span>
       </nav>

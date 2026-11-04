@@ -37,7 +37,7 @@ import { useTenant } from '@/stores/tenant-context';
 import { NotificationBell } from '@/components/notifications/notification-bell';
 import { TenantSelector } from '@/components/tenant-selector';
 import { cn } from '@/lib/utils';
-import { TrialBanner } from '@/components/subscription/subscription-widgets';
+import { TrialBanner, useTenantFeatures } from '@/components/subscription/subscription-widgets';
 import { AnnouncementsBanner } from '@/components/announcements/announcements-banner';
 
 export function OperationalShell({ children }: { children: React.ReactNode }) {
@@ -48,6 +48,7 @@ export function OperationalShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const { user, logout } = useAuthStore();
   const { hasModuleAccess, canUseTrash } = usePermissions();
+  const features = useTenantFeatures();
   const { tenant } = useTenant();
   const routeParams = useParams();
   const currentTenantSlug = typeof routeParams?.tenant === 'string' ? routeParams.tenant : undefined;
@@ -125,7 +126,7 @@ export function OperationalShell({ children }: { children: React.ReactNode }) {
           <nav className="flex-1 overflow-y-auto p-3 space-y-1">
             {navLink('/home', <Home className="h-5 w-5" />, tNav('home'))}
             {hasModuleAccess('dashboard') && navLink('/dashboard', <LayoutDashboard className="h-5 w-5" />, tNav('dashboard'))}
-            {navLink('/chat', <MessageSquare className="h-5 w-5" />, tNav('chat'))}
+            {features.chat && navLink('/chat', <MessageSquare className="h-5 w-5" />, tNav('chat'))}
 
             <div className="my-3 border-t" />
 

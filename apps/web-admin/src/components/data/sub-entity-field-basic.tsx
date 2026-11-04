@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { useTranslations } from 'next-intl';
+import { getErrorMessage } from '@/lib/get-error-message';
 import {
   Plus,
   Trash2,
@@ -77,6 +78,7 @@ export default function SubEntityField({
 }: SubEntityFieldProps) {
   const t = useTranslations('subEntity');
   const tCommon = useTranslations('common');
+  const tData = useTranslations('data');
   const tBool = useTranslations('booleanValues');
   const [subEntity, setSubEntity] = useState<SubEntity | null>(null);
   const [records, setRecords] = useState<SubRecord[]>([]);
@@ -159,9 +161,21 @@ export default function SubEntityField({
     if (!recordToDelete || !subEntitySlug) return;
     setDeleting(true);
     try {
-      await api.delete(`/data/${subEntitySlug}/${recordToDelete.id}`);
-      setRecords(prev => prev.filter(r => r.id !== recordToDelete.id));
-      toast.success(t('recordRemoved'));
+      const deletedId = recordToDelete.id;
+      await api.delete(`/data/${subEntitySlug}/${deletedId}`);
+      setRecords(prev => prev.filter(r => r.id !== deletedId));
+      // Fica na lixeira: oferece desfazer na hora (igual a tabela principal).
+      toast.success(tData('toast.deletedToUndo'), {
+        duration: 10_000,
+        action: {
+          label: tData('toast.undo'),
+          onClick: () => {
+            api.post(`/trash/${subEntitySlug}/${deletedId}/restore`)
+              .then(() => loadRecords())
+              .catch((e) => toast.error(getErrorMessage(e)));
+          },
+        },
+      });
     } catch (error) {
       console.error('Error deleting sub-record:', error);
       toast.error(t('removeError'));

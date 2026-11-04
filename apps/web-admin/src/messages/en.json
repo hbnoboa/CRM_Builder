@@ -94,7 +94,7 @@
     },
     "register": {
       "title": "CRM Builder",
-      "subtitle": "Create your company and try it free for 14 days",
+      "subtitle": "Create your company and try it free for {days} days",
       "name": "Name",
       "namePlaceholder": "Your full name",
       "company": "Company",
@@ -538,7 +538,7 @@
     },
     "deleteConfirm": {
       "title": "Delete record?",
-      "message": "Are you sure you want to delete this record? This action cannot be undone."
+      "message": "Are you sure you want to delete this record? It goes to the trash and can be restored."
     },
     "recordLocked": "This record is finalized and cannot be edited",
     "toast": {
@@ -653,7 +653,8 @@
         "relation": "Relation",
         "api-select": "API Select"
       }
-    }
+    },
+    "formDescription": "Fill in the fields and save."
   },
   "rolesPage": {
     "title": "Roles",
@@ -760,7 +761,9 @@
       "executionLogs": "Execution Logs",
       "executionLogsDesc": "Automation execution logs",
       "entityAutomation": "Entity Automations",
-      "entityAutomationDesc": "Entity-linked automations"
+      "entityAutomationDesc": "Entity-linked automations",
+      "apis": "API keys",
+      "apisDesc": "Integrate other systems with API keys"
     },
     "subModules": {
       "title": "Sub-modules",
@@ -935,7 +938,10 @@
       "logs_canDelete": "Delete audit logs.",
       "publicLinks_canManage": "Create and manage public sharing links.",
       "archive_canRead": "View archived records.",
-      "archive_canPermanentDelete": "Permanently delete archived records (irreversible)."
+      "archive_canPermanentDelete": "Permanently delete archived records (irreversible).",
+      "apis_canRead": "See the company API keys.",
+      "apis_canCreate": "Create API keys (with a role below yours).",
+      "apis_canDelete": "Revoke API keys."
     },
     "orderHint": "The order defines who manages whom: each role manages the roles below it.",
     "moveUp": "Move up",
@@ -1183,7 +1189,7 @@
     "removeError": "Error removing record",
     "deleteConfirm": {
       "title": "Delete record?",
-      "message": "Are you sure you want to delete this {name} record? This action cannot be undone."
+      "message": "Are you sure you want to delete this {name} record? It goes to the trash and can be restored."
     }
   },
   "arrayField": {
@@ -1719,7 +1725,25 @@
           "role_deleted": "removed an unused role",
           "owner_changed": "changed the company owner",
           "member_added": "added a member",
-          "data_copied": "copied data from another company"
+          "data_copied": "copied data from another company",
+          "trial_extended": "extended the trial"
+        },
+        "user": {
+          "password_reset_sent": "sent a password reset link",
+          "sessions_revoked": "signed out of all devices",
+          "mfa_reset": "turned off two-step verification"
+        },
+        "support": {
+          "reply": "replied to a ticket",
+          "note": "added an internal note",
+          "update": "updated a ticket"
+        },
+        "announcement": {
+          "created": "created an announcement",
+          "updated": "edited an announcement",
+          "published": "published an announcement",
+          "unpublished": "unpublished an announcement",
+          "deleted": "deleted an announcement"
         }
       }
     },
@@ -2508,7 +2532,9 @@
       "reachPick": "Choose the audience",
       "save": "Save",
       "saved": "Announcement saved",
-      "cancel": "Cancel"
+      "cancel": "Cancel",
+      "deleteConfirmTitle": "Delete the announcement \"{title}\"?",
+      "deleteConfirmText": "It goes offline for every customer right away. This cannot be undone."
     }
   },
   "health": {

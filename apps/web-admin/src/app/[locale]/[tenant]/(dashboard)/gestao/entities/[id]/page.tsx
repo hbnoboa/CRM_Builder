@@ -6,13 +6,18 @@ import dynamic from 'next/dynamic';
 import { useRouter } from '@/i18n/tenant-navigation';
 import { useQueryClient } from '@tanstack/react-query';
 import { Loader2 } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { AutomationTab, FieldRulesSection } from '@/components/entity-automation';
+import { DeleteEntityPanel, GlobalFiltersPanel } from '@/components/entity-editor/entity-settings-panels';
 import { RequireRole } from '@/components/auth/require-role';
 import { DesktopOnlyEditor } from '@/components/layout/desktop-only-editor';
 import { usePermissions } from '@/hooks/use-permissions';
 import { useDeleteEntity, entityKeys } from '@/hooks/use-entities';
 import { toast } from 'sonner';
 import api from '@/lib/api';
-import type { Entity } from '@/types';
+import type { Entity, EntityField } from '@/types';
+
+type EditorTab = 'fields' | 'rules' | 'filters' | 'automations' | 'danger';
 
 // Editor de campos React (WYSIWYG, componentes reais, react-grid-layout). GrapeJS removido.
 //  default      → variante react-grid-layout (fluida, igual ao dashboard)
@@ -41,6 +46,13 @@ function EntityEditorWrapper() {
   });
 
   const canDelete = hasModulePermission('entities', 'canDelete');
+  const canUpdate = hasModulePermission('entities', 'canUpdate');
+  const canAutomations = hasModulePermission('automations', 'canRead');
+  // ?tab=automations (link de Integrações) abre direto na aba.
+  const initialTab = searchParams.get('tab');
+  const [tab, setTab] = useState<EditorTab>(
+    initialTab && ['fields', 'rules', 'filters', 'automations', 'danger'].includes(initialTab) ? (initialTab as EditorTab) : 'fields',
+  );
 
   useEffect(() => {
     if (params.id) {
@@ -58,32 +70,86 @@ function EntityEditorWrapper() {
   // Editor React é o único agora (GrapeJS removido).
   const EditorComponent = editorParam === 'dnd' ? ReactFormBuilderDnd : ReactFormBuilderGrid;
 
+  const tabs: { key: EditorTab; label: string; show: boolean }[] = [
+    { key: 'fields', label: 'Campos', show: true },
+    { key: 'rules', label: 'Regras de campo', show: canUpdate },
+    { key: 'filters', label: 'Filtro global', show: canUpdate },
+    { key: 'automations', label: 'Automações', show: canAutomations },
+    { key: 'danger', label: 'Excluir', show: canDelete },
+  ];
+  const fields = (entity.fields ?? []) as EntityField[];
+
   return (
-    <EditorComponent
-      entity={entity}
-      onSave={async ({ name, description, fields, settings }) => {
-        const res = await api.patch(`/entities/${params.id}`, {
-          name,
-          description,
-          fields,
-          settings,
-        });
-        setEntity(res.data);
-        // Invalidate all entity caches so data pages pick up changes immediately
-        queryClient.invalidateQueries({ queryKey: entityKeys.all });
-      }}
-      onCancel={() => router.back()}
-      onDelete={canDelete ? async () => {
-        await deleteEntity.mutateAsync(entity.id);
-        router.push('/data');
-      } : undefined}
-    />
+    <div className="flex h-screen flex-col">
+      <nav className="flex h-10 shrink-0 items-center gap-1 border-b bg-muted/40 px-2" data-testid="entity-editor-tabs">
+        {tabs.filter((tb) => tb.show).map((tb) => (
+          <button
+            key={tb.key}
+            type="button"
+            onClick={() => setTab(tb.key)}
+            data-testid={`entity-tab-${tb.key}`}
+            className={cn(
+              'rounded-md px-3 py-1.5 text-sm transition-colors hover:bg-accent',
+              tab === tb.key ? 'bg-background font-medium shadow-sm' : 'text-muted-foreground',
+            )}
+          >
+            {tb.label}
+          </button>
+        ))}
+      </nav>
+      <div className="min-h-0 flex-1">
+        {/* O editor fica montado (só escondido) para não perder campos ainda não salvos. */}
+        <div className={cn('h-full', tab !== 'fields' && 'hidden')}>
+          <EditorComponent
+            entity={entity}
+            onSave={async ({ name, description, fields: nextFields, settings }) => {
+              const res = await api.patch(`/entities/${params.id}`, {
+                name,
+                description,
+                fields: nextFields,
+                settings,
+              });
+              setEntity(res.data);
+              // Invalidate all entity caches so data pages pick up changes immediately
+              queryClient.invalidateQueries({ queryKey: entityKeys.all });
+            }}
+            onCancel={() => router.back()}
+          />
+        </div>
+        {tab !== 'fields' && (
+          <div className="h-full overflow-y-auto bg-muted/30 p-6">
+            <div className="mx-auto max-w-4xl space-y-4">
+              {tab === 'rules' && <FieldRulesSection entityId={entity.id} fields={fields} />}
+              {tab === 'filters' && (
+                <GlobalFiltersPanel
+                  entity={entity}
+                  onSaved={(updated) => {
+                    setEntity(updated);
+                    queryClient.invalidateQueries({ queryKey: entityKeys.all });
+                  }}
+                />
+              )}
+              {tab === 'automations' && <AutomationTab entityId={entity.id} fields={fields} />}
+              {tab === 'danger' && (
+                <DeleteEntityPanel
+                  entity={entity}
+                  onDelete={async () => {
+                    await deleteEntity.mutateAsync(entity.id);
+                    router.push('/gestao/entities');
+                  }}
+                />
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
   );
 }
 
 export default function EntityDetailPage() {
   return (
-    <RequireRole module="entities">
+    <RequireRole module="entities" action="canUpdate">
       <DesktopOnlyEditor action="editar tabelas">
         <EntityEditorWrapper />
       </DesktopOnlyEditor>

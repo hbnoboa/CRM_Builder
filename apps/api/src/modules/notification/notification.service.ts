@@ -225,9 +225,13 @@ export class NotificationService {
         }
       }
 
+      // Um id por pessoa: o mesmo vai pelo socket e para o banco, para o sino do web
+      // recarregar o historico e marcar como lida (POST /notifications/:id/read).
+      const perUser = eligibleUserIds.map((userId) => ({ userId, id: uuidv4() }));
+
       // Enviar notificacoes via WebSocket
-      for (const userId of eligibleUserIds) {
-        this.gateway.sendToUser(userId, notification);
+      for (const { userId, id } of perUser) {
+        this.gateway.sendToUser(userId, { ...notification, id });
       }
 
       // Push no celular para quem pediu.
@@ -242,7 +246,8 @@ export class NotificationService {
       // Persistir em batch (1 query ao inves de N)
       if (eligibleUserIds.length > 0) {
         await this.prisma.notification.createMany({
-          data: eligibleUserIds.map((userId) => ({
+          data: perUser.map(({ userId, id }) => ({
+            id,
             tenantId,
             userId,
             type: typeMap[notification.type] || NotificationType.INFO,
@@ -569,6 +574,11 @@ export class NotificationService {
   /**
    * Mark a notification as read
    */
+  /** Limpa o sino: todas as notificacoes da pessoa nesta empresa. */
+  async deleteAllForUser(userId: string, tenantId: string) {
+    return this.prisma.notification.deleteMany({ where: { userId, tenantId } });
+  }
+
   async markAsRead(notificationId: string, userId: string) {
     return this.prisma.notification.updateMany({
       where: {

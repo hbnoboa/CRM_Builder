@@ -45,6 +45,16 @@ export class AuditController {
       if (query.dateFrom) (where.createdAt as Prisma.DateTimeFilter).gte = new Date(query.dateFrom);
       if (query.dateTo) (where.createdAt as Prisma.DateTimeFilter).lte = new Date(query.dateTo);
     }
+    // Mesmos filtros da lista na tela (acao, recurso, busca).
+    if (query.action) where.action = query.action;
+    if (query.resource) where.resource = query.resource;
+    if (query.search) {
+      where.OR = [
+        { resourceId: { contains: query.search, mode: 'insensitive' } },
+        { action: { contains: query.search, mode: 'insensitive' } },
+        { resource: { contains: query.search, mode: 'insensitive' } },
+      ];
+    }
 
     const { buffer, count } = await this.auditService.exportRange(where);
 

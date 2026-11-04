@@ -102,6 +102,9 @@ export default function AuditLogsPage() {
       const blob = await auditLogsService.exportJson({
         dateFrom: dateFrom || undefined,
         dateTo: dateTo || undefined,
+        action: action || undefined,
+        resource: resource || undefined,
+        search: search || undefined,
       });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');

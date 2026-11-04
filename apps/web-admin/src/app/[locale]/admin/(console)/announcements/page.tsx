@@ -9,6 +9,10 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
+  AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -43,6 +47,7 @@ export default function ConsoleAnnouncementsPage() {
   const publish = usePublishAnnouncement();
   const remove = useDeleteAnnouncement();
   const [editing, setEditing] = useState<ConsoleAnnouncement | 'new' | null>(null);
+  const [toDelete, setToDelete] = useState<ConsoleAnnouncement | null>(null);
   const when = (iso: string) => new Date(iso).toLocaleString(locale, { dateStyle: 'short', timeStyle: 'short' });
   const onErr = (e: unknown) => toast.error(getErrorMessage(e));
 
@@ -89,7 +94,7 @@ export default function ConsoleAnnouncementsPage() {
                     )}
                     <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => setEditing(a)} aria-label={t('edit')} data-testid="announcement-edit"><Pencil className="h-4 w-4" /></Button>
                     <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive" aria-label={t('delete')} data-testid="announcement-delete"
-                      onClick={() => remove.mutate(a.id, { onSuccess: () => toast.success(t('deleted')), onError: onErr })}>
+                      onClick={() => setToDelete(a)}>
                       <Trash2 className="h-4 w-4" />
                     </Button>
                   </div>
@@ -100,6 +105,28 @@ export default function ConsoleAnnouncementsPage() {
         </div>
       )}
       {editing && <AnnouncementDialog item={editing === 'new' ? null : editing} onClose={() => setEditing(null)} />}
+      <AlertDialog open={!!toDelete} onOpenChange={(o) => !o && setToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t('deleteConfirmTitle', { title: toDelete?.title ?? '' })}</AlertDialogTitle>
+            <AlertDialogDescription>{t('deleteConfirmText')}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t('cancel')}</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              data-testid="announcement-delete-confirm"
+              onClick={() => {
+                if (!toDelete) return;
+                remove.mutate(toDelete.id, { onSuccess: () => toast.success(t('deleted')), onError: onErr });
+                setToDelete(null);
+              }}
+            >
+              {t('delete')}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

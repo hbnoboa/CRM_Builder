@@ -229,7 +229,12 @@ function LoginPageContent() {
                 t('signIn')
               )}
             </Button>
-
+            <p className="text-sm text-muted-foreground" data-testid="login-register-link">
+              {t('noAccount')}{' '}
+              <Link href="/register" className="text-primary hover:underline">
+                {t('createAccount')}
+              </Link>
+            </p>
           </CardFooter>
         </form>
         )}

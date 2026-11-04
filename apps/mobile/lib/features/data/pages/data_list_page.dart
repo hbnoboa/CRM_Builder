@@ -10,6 +10,8 @@ import 'package:crm_mobile/core/theme/app_colors_extension.dart';
 import 'package:crm_mobile/core/theme/app_typography.dart';
 import 'package:crm_mobile/core/permissions/permission_provider.dart';
 import 'package:crm_mobile/features/data/data/data_repository.dart';
+import 'package:crm_mobile/features/data/providers/filter_provider.dart';
+import 'package:crm_mobile/features/data/widgets/filter_bottom_sheet.dart';
 import 'package:crm_mobile/features/data/widgets/data_card.dart';
 import 'package:crm_mobile/shared/widgets/app_drawer.dart';
 import 'package:crm_mobile/shared/widgets/permission_gate.dart';
@@ -169,12 +171,19 @@ class _DataListPageState extends ConsumerState<DataListPage> {
             entitySlug: widget.entitySlug,
           );
 
+          // Filtros da sessao (botao ao lado da busca), aplicados no SQLite local.
+          final localFilters =
+              ref.watch(entityLocalFiltersProvider)[widget.entitySlug] ?? const [];
+
           return Column(
             children: [
-              // Search bar
+              // Search bar + filtros
               Padding(
                 padding: const EdgeInsets.all(16),
-                child: TextField(
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
                   controller: _searchController,
                   decoration: InputDecoration(
                     hintText: 'Buscar...',
@@ -201,6 +210,31 @@ class _DataListPageState extends ConsumerState<DataListPage> {
                       });
                     });
                   },
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Badge(
+                      isLabelVisible: localFilters.isNotEmpty,
+                      label: Text('${localFilters.length}'),
+                      child: IconButton(
+                        tooltip: 'Filtros',
+                        icon: const Icon(Icons.filter_list),
+                        onPressed: () => showModalBottomSheet<void>(
+                          context: context,
+                          isScrollControlled: true,
+                          backgroundColor: Colors.transparent,
+                          builder: (_) => FilterBottomSheet(
+                            entitySlug: widget.entitySlug,
+                            entityId: entityId,
+                            // O filtro global ja vem aplicado pelo sync; aqui so os da sessao.
+                            globalFilters: const [],
+                            fields: fields,
+                            canManageGlobal: false,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
 
@@ -215,6 +249,7 @@ class _DataListPageState extends ConsumerState<DataListPage> {
                     orderBy: 'createdAt DESC',
                     limit: _limit,
                     roleFilters: roleFilters,
+                    localFilters: localFilters,
                     createdById: scopeUserId,
                   ),
                   builder: (context, snapshot) {
@@ -315,6 +350,7 @@ class _DataListPageState extends ConsumerState<DataListPage> {
                             entityId: entityId,
                             search: _search.isNotEmpty ? _search : null,
                             roleFilters: roleFilters,
+                            localFilters: localFilters,
                             createdById: scopeUserId,
                           ),
                           builder: (context, countSnapshot) {

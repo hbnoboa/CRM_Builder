@@ -94,7 +94,7 @@
     },
     "register": {
       "title": "CRM Builder",
-      "subtitle": "Crie sua empresa e teste grátis por 14 dias",
+      "subtitle": "Crie sua empresa e teste grátis por {days} dias",
       "name": "Nome",
       "namePlaceholder": "Seu nome completo",
       "company": "Empresa",
@@ -541,7 +541,7 @@
     },
     "deleteConfirm": {
       "title": "Excluir registro?",
-      "message": "Tem certeza que deseja excluir este registro? Esta ação não pode ser desfeita."
+      "message": "Tem certeza que deseja excluir este registro? Ele vai para a lixeira e pode ser restaurado."
     },
     "recordLocked": "Este registro esta finalizado e nao pode ser editado",
     "toast": {
@@ -656,7 +656,8 @@
         "relation": "Relação",
         "api-select": "API Select"
       }
-    }
+    },
+    "formDescription": "Preencha os campos e salve."
   },
   "rolesPage": {
     "title": "Cargos",
@@ -763,7 +764,9 @@
       "executionLogs": "Logs de Execução",
       "executionLogsDesc": "Logs de execução de automações",
       "entityAutomation": "Automações de Entidade",
-      "entityAutomationDesc": "Automações vinculadas a entidades"
+      "entityAutomationDesc": "Automações vinculadas a entidades",
+      "apis": "Chaves de API",
+      "apisDesc": "Integrar outros sistemas por chave de API"
     },
     "subModules": {
       "title": "Sub-módulos",
@@ -938,7 +941,10 @@
       "logs_canDelete": "Excluir logs de auditoria.",
       "publicLinks_canManage": "Criar e gerenciar links públicos de compartilhamento.",
       "archive_canRead": "Ver registros arquivados.",
-      "archive_canPermanentDelete": "Excluir permanentemente registros arquivados (irreversível)."
+      "archive_canPermanentDelete": "Excluir permanentemente registros arquivados (irreversível).",
+      "apis_canRead": "Ver as chaves de API da empresa.",
+      "apis_canCreate": "Criar chaves de API (com cargo abaixo do seu).",
+      "apis_canDelete": "Revogar chaves de API."
     },
     "orderHint": "A ordem define quem gerencia quem: cada cargo administra os que estão abaixo dele.",
     "moveUp": "Subir",
@@ -1187,7 +1193,7 @@
     "search": "Buscar...",
     "deleteConfirm": {
       "title": "Excluir registro?",
-      "message": "Tem certeza que deseja excluir este registro de {name}? Esta ação não pode ser desfeita."
+      "message": "Tem certeza que deseja excluir este registro de {name}? Ele vai para a lixeira e pode ser restaurado."
     }
   },
   "arrayField": {
@@ -1723,7 +1729,25 @@
           "role_deleted": "removeu um cargo sem uso",
           "owner_changed": "trocou o dono da empresa",
           "member_added": "adicionou um membro",
-          "data_copied": "copiou dados de outra empresa"
+          "data_copied": "copiou dados de outra empresa",
+          "trial_extended": "prorrogou o teste"
+        },
+        "user": {
+          "password_reset_sent": "enviou link de nova senha",
+          "sessions_revoked": "desconectou de todos os aparelhos",
+          "mfa_reset": "desligou as duas etapas"
+        },
+        "support": {
+          "reply": "respondeu chamado",
+          "note": "anotou no chamado (interno)",
+          "update": "alterou o chamado"
+        },
+        "announcement": {
+          "created": "criou comunicado",
+          "updated": "alterou comunicado",
+          "published": "publicou comunicado",
+          "unpublished": "tirou comunicado do ar",
+          "deleted": "excluiu comunicado"
         }
       }
     },
@@ -2512,7 +2536,9 @@
       "reachPick": "Escolha o público",
       "save": "Salvar",
       "saved": "Comunicado salvo",
-      "cancel": "Cancelar"
+      "cancel": "Cancelar",
+      "deleteConfirmTitle": "Excluir o comunicado \"{title}\"?",
+      "deleteConfirmText": "Ele sai do ar na hora para todos os clientes. Não dá para desfazer."
     }
   },
   "health": {

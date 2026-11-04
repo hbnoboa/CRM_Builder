@@ -17,6 +17,7 @@ import { RecordEditForm } from '@/components/chat/record-edit-form';
 import { CommandManager } from '@/components/chat/command-manager';
 import { CommandPickerDialog } from '@/components/chat/command-picker-dialog';
 import { NewChatDialog } from '@/components/chat/new-chat-dialog';
+import { NewDmDialog } from '@/components/chat/new-dm-dialog';
 import type { Entity } from '@/types';
 
 interface EntityLite { id: string; slug: string; name: string; fields?: unknown[] }
@@ -103,6 +104,7 @@ export default function ChatPage() {
   const [managePicker, setManagePicker] = useState<{ channelId: string; initial: string[] } | null>(null);
   const [roles, setRoles] = useState<Array<{ id: string; name: string }>>([]);
   const [newChatOpen, setNewChatOpen] = useState(false);
+  const [newDmOpen, setNewDmOpen] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -301,6 +303,19 @@ export default function ChatPage() {
     } catch { /* ignore */ }
   }, [active]);
 
+  async function openDm(person: { id: string; name: string }) {
+    setNewDmOpen(false);
+    setOpening(true);
+    try {
+      const res = await api.post('/chat/channels/dm', { userId: person.id });
+      await reloadChannels();
+      setActive({ id: res.data.id, label: person.name, kind: 'dm' });
+    } catch (e) {
+      const msg = (e as { response?: { data?: { message?: string } } })?.response?.data?.message;
+      toast.error(msg || 'Não foi possível abrir a conversa.');
+    } finally { setOpening(false); }
+  }
+
   async function openTable(e: EntityLite) {
     setOpening(true);
     try {
@@ -452,6 +467,9 @@ export default function ChatPage() {
           <Button size="sm" className="w-full mb-2 justify-start gap-2" onClick={() => setNewChatOpen(true)}>
             <Plus className="h-4 w-4" /> Novo chat
           </Button>
+          <Button variant="outline" size="sm" className="w-full mb-2 justify-start gap-2" onClick={() => setNewDmOpen(true)} data-testid="new-dm">
+            <UserIcon className="h-4 w-4" /> Conversa direta
+          </Button>
           {canManageCommands && (
             <Button variant="outline" size="sm" className="w-full mb-3 justify-start gap-2" onClick={() => setShowCmdManager(true)}>
               <Settings2 className="h-4 w-4" /> Comandos do bot
@@ -494,11 +512,11 @@ export default function ChatPage() {
               <div className="text-[11px] uppercase tracking-wider text-muted-foreground font-medium mt-4 mb-1.5">Diretas</div>
               <div className="space-y-0.5">
                 {dms.map((c) => (
-                  <button key={c.id} onClick={() => setActive({ id: c.id, label: 'Conversa direta', kind: 'dm' })}
+                  <button key={c.id} onClick={() => setActive({ id: c.id, label: c.name || 'Conversa direta', kind: 'dm' })}
                     className={cn('w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-sm text-left hover:bg-accent transition-colors',
                       active?.id === c.id && 'bg-accent font-medium')}>
                     <UserIcon className="h-4 w-4 text-muted-foreground shrink-0" />
-                    <span className="truncate">Conversa direta</span>
+                    <span className="truncate">{c.name || 'Conversa direta'}</span>
                   </button>
                 ))}
               </div>
@@ -838,6 +856,8 @@ export default function ChatPage() {
           }}
         />
       )}
+
+      {newDmOpen && <NewDmDialog onPick={openDm} onClose={() => setNewDmOpen(false)} />}
 
       {/* Novo chat de registro: escolhe tabela + registro e abre o chat dele */}
       {newChatOpen && (

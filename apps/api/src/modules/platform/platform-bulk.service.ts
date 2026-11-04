@@ -70,6 +70,11 @@ export class PlatformBulkService {
       throw new BadRequestException('Informe de 1 a 365 dias');
     }
     if (input.action === 'lifecycle' && !input.lifecycle) throw new BadRequestException('Escolha a situacao');
+    // Mesma regra da mudanca individual, ja na previa (antes falhava empresa por empresa).
+    if (input.action === 'lifecycle' && input.lifecycle === 'TRIAL') {
+      if (!input.trialEndsAt) throw new BadRequestException('Informe a data de fim do trial');
+      if (new Date(input.trialEndsAt) <= new Date()) throw new BadRequestException('Fim do trial precisa ser no futuro');
+    }
 
     const change: BulkItem[] = [];
     const skipped: Array<BulkItem & { reason: string }> = [];
