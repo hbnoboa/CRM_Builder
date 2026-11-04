@@ -228,7 +228,11 @@ class _DataListPageState extends ConsumerState<DataListPage> {
                             entityId: entityId,
                             // O filtro global ja vem aplicado pelo sync; aqui so os da sessao.
                             globalFilters: const [],
-                            fields: fields,
+                            // Campo oculto para o cargo nao vira filtro.
+                            fields: fields.where((f) {
+                              final slug = (f as Map<String, dynamic>)['slug'] as String? ?? '';
+                              return ref.read(permissionsProvider).getVisibleFields(widget.entitySlug)?.contains(slug) ?? true;
+                            }).toList(),
                             canManageGlobal: false,
                           ),
                         ),

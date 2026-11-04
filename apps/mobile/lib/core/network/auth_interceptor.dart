@@ -69,7 +69,11 @@ class AuthInterceptor extends QueuedInterceptor {
       return handler.resolve(retryResponse);
     } catch (e) {
       // Sessao encerrada de proposito: logout completo (sem relogin silencioso).
-      if (PlanErrors.isSessionRevoked(e)) PlanErrors.sessionRevoked();
+      // Limpa antes de avisar: com o app abrindo, ninguem ouve o aviso ainda.
+      if (PlanErrors.isSessionRevoked(e)) {
+        await SecureStorage.clearAll();
+        PlanErrors.sessionRevoked();
+      }
       await _forceLogout();
       return handler.next(err);
     } finally {
