@@ -1,4 +1,4 @@
-import { IsString, IsOptional, IsEnum, IsEmail, MinLength } from 'class-validator';
+import { IsString, IsOptional, IsEnum, IsEmail, MinLength, MaxLength, Matches, ValidateIf, IsIn } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional, PartialType } from '@nestjs/swagger';
 import { Status } from '@prisma/client';
 import { Type } from 'class-transformer';
@@ -77,4 +77,33 @@ export class TransferOwnershipDto {
   @ApiProperty({ description: 'Membro ativo, num cargo com acesso total' })
   @IsString()
   userId: string;
+}
+
+/** Organizacao editada pelo admin da empresa (slug e dominio ficam com o suporte). */
+export class UpdateMyTenantDto {
+  @ApiPropertyOptional({ example: 'Minha Empresa Ltda' })
+  @IsOptional()
+  @IsString()
+  @MinLength(2, { message: 'Nome da empresa deve ter no minimo 2 caracteres' })
+  @MaxLength(100)
+  name?: string;
+
+  @ApiPropertyOptional({ nullable: true, description: 'URL do logo (upload em /upload/image); null remove' })
+  @IsOptional()
+  @ValidateIf((_o, v) => v !== null)
+  @IsString()
+  @MaxLength(500)
+  @Matches(/^(https?:\/\/|\/uploads\/)/, { message: 'Logo deve ser uma URL de imagem enviada pelo sistema' })
+  logo?: string | null;
+
+  @ApiPropertyOptional({ nullable: true, example: '#7c3aed', description: 'Cor da marca; null volta ao padrao' })
+  @IsOptional()
+  @ValidateIf((_o, v) => v !== null)
+  @Matches(/^#[0-9a-fA-F]{6}$/, { message: 'Cor deve estar no formato #RRGGBB' })
+  brandColor?: string | null;
+
+  @ApiPropertyOptional({ enum: ['light', 'dark', 'system'] })
+  @IsOptional()
+  @IsIn(['light', 'dark', 'system'])
+  darkMode?: 'light' | 'dark' | 'system';
 }

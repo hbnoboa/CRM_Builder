@@ -1834,7 +1834,43 @@
     },
     "organization": {
       "title": "Organization",
-      "subtitle": "The company's details and branding."
+      "subtitle": "The company's name, logo and colors, shown to the whole team.",
+      "save": "Save",
+      "saved": "Organization updated",
+      "invalidColor": "Use a color in #RRGGBB format.",
+      "identity": {
+        "title": "Identity",
+        "description": "How the company appears in the menu and on the login screen.",
+        "name": "Company name",
+        "logo": "Logo",
+        "uploadLogo": "Upload logo",
+        "changeLogo": "Change logo",
+        "removeLogo": "Remove",
+        "logoHint": "PNG, JPG or WEBP. Square with a transparent background works best."
+      },
+      "appearance": {
+        "title": "Appearance",
+        "description": "Brand color and theme the team sees when signing in.",
+        "color": "Brand color",
+        "resetColor": "Use the default color",
+        "preview": "Preview:",
+        "sampleButton": "Button",
+        "sampleLink": "Link",
+        "theme": "Default theme",
+        "themeHint": "Each person can still change the theme in their own settings.",
+        "themes": {
+          "light": "Light",
+          "dark": "Dark",
+          "system": "Follow the system"
+        }
+      },
+      "address": {
+        "title": "Address",
+        "description": "Address and domain are set up by platform support.",
+        "slug": "Address in the system",
+        "domain": "Custom domain",
+        "noDomain": "None"
+      }
     },
     "entities": {
       "title": "Tables",

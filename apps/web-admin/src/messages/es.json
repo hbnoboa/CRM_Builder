@@ -1831,7 +1831,43 @@
     },
     "organization": {
       "title": "Organización",
-      "subtitle": "Datos e identidad visual de la empresa."
+      "subtitle": "Nombre, logo y colores de la empresa: los ve todo el equipo.",
+      "save": "Guardar",
+      "saved": "Organización actualizada",
+      "invalidColor": "Usa un color en formato #RRGGBB.",
+      "identity": {
+        "title": "Identidad",
+        "description": "Cómo aparece la empresa en el menú y en la pantalla de login.",
+        "name": "Nombre de la empresa",
+        "logo": "Logo",
+        "uploadLogo": "Subir logo",
+        "changeLogo": "Cambiar logo",
+        "removeLogo": "Quitar",
+        "logoHint": "PNG, JPG o WEBP. Cuadrado y con fondo transparente queda mejor."
+      },
+      "appearance": {
+        "title": "Apariencia",
+        "description": "Color de marca y tema que ve el equipo al entrar.",
+        "color": "Color de marca",
+        "resetColor": "Usar el color predeterminado",
+        "preview": "Vista previa:",
+        "sampleButton": "Botón",
+        "sampleLink": "Link",
+        "theme": "Tema predeterminado",
+        "themeHint": "Cada persona aún puede cambiar el tema en su propia configuración.",
+        "themes": {
+          "light": "Claro",
+          "dark": "Oscuro",
+          "system": "Seguir el sistema"
+        }
+      },
+      "address": {
+        "title": "Dirección",
+        "description": "La dirección y el dominio los configura el soporte de la plataforma.",
+        "slug": "Dirección en el sistema",
+        "domain": "Dominio propio",
+        "noDomain": "Ninguno"
+      }
     },
     "entities": {
       "title": "Tablas",

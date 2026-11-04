@@ -20,6 +20,7 @@ export type AuditResource =
   | 'custom_role'
   | 'custom_api'
   | 'page'
+  | 'tenant'
   | 'invitation';
 
 export interface AuditLogInput {

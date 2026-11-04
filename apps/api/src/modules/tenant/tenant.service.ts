@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException, ConflictException, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { I18nService } from 'nestjs-i18n';
 import { PrismaService } from '../../prisma/prisma.service';
-import { CreateTenantDto } from './dto/tenant.dto';
+import { CreateTenantDto, UpdateMyTenantDto } from './dto/tenant.dto';
 import { Status, Prisma, TenantLifecycle } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
 import { DEFAULT_ROLE_TEMPLATES, type DefaultRoleKey } from '../../common/utils/default-roles';
@@ -130,6 +130,32 @@ export class TenantService {
     }
 
     return tenant;
+  }
+
+  /** Nome, logo e tema da empresa, editados pela administracao da propria empresa. */
+  async updateMine(tenantId: string, dto: UpdateMyTenantDto) {
+    const tenant = await this.findOne(tenantId);
+    const settings = (tenant.settings ?? {}) as Record<string, unknown>;
+    const theme = { ...((settings.theme ?? {}) as Record<string, unknown>) };
+    if (dto.brandColor !== undefined) {
+      if (dto.brandColor === null) delete theme.brandColor;
+      else theme.brandColor = dto.brandColor.toLowerCase();
+    }
+    if (dto.darkMode !== undefined) theme.darkMode = dto.darkMode;
+
+    const updated = await this.prisma.tenant.update({
+      where: { id: tenantId },
+      data: {
+        ...(dto.name !== undefined && { name: dto.name.trim() }),
+        ...(dto.logo !== undefined && { logo: dto.logo }),
+        settings: { ...settings, theme } as Prisma.InputJsonValue,
+      },
+    });
+    return {
+      before: { name: tenant.name, logo: tenant.logo, theme: settings.theme ?? null },
+      after: { name: updated.name, logo: updated.logo, theme },
+      tenant: updated,
+    };
   }
 
   /** O dono passa a empresa para outro membro ativo com acesso total. */

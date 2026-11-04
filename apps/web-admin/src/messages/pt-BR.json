@@ -1838,7 +1838,43 @@
     },
     "organization": {
       "title": "Organização",
-      "subtitle": "Dados e identidade visual da empresa."
+      "subtitle": "Nome, logo e cores da empresa: aparecem para toda a equipe.",
+      "save": "Salvar",
+      "saved": "Organização atualizada",
+      "invalidColor": "Use uma cor no formato #RRGGBB.",
+      "identity": {
+        "title": "Identidade",
+        "description": "Como a empresa aparece no menu e na tela de login.",
+        "name": "Nome da empresa",
+        "logo": "Logo",
+        "uploadLogo": "Enviar logo",
+        "changeLogo": "Trocar logo",
+        "removeLogo": "Remover",
+        "logoHint": "PNG, JPG ou WEBP. Quadrado e com fundo transparente fica melhor."
+      },
+      "appearance": {
+        "title": "Aparência",
+        "description": "Cor da marca e tema que a equipe vê ao entrar.",
+        "color": "Cor da marca",
+        "resetColor": "Usar a cor padrão",
+        "preview": "Prévia:",
+        "sampleButton": "Botão",
+        "sampleLink": "Link",
+        "theme": "Tema padrão",
+        "themeHint": "Cada pessoa ainda pode trocar o tema nas próprias configurações.",
+        "themes": {
+          "light": "Claro",
+          "dark": "Escuro",
+          "system": "Seguir o sistema"
+        }
+      },
+      "address": {
+        "title": "Endereço",
+        "description": "Endereço e domínio são configurados pelo suporte da plataforma.",
+        "slug": "Endereço no sistema",
+        "domain": "Domínio próprio",
+        "noDomain": "Nenhum"
+      }
     },
     "entities": {
       "title": "Tabelas",
