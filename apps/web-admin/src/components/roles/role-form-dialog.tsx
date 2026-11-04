@@ -414,7 +414,8 @@ export function RoleFormDialog({ open, onOpenChange, role, onSuccess }: RoleForm
             fps[idx].canEdit = false;
           }
         } else {
-          fps.push({ fieldSlug, canView: true, canEdit: action === 'canEdit' });
+          // Campo sem entrada esta liberado: o primeiro clique ja tira a permissao clicada.
+          fps.push({ fieldSlug, canView: action !== 'canView', canEdit: false });
         }
         return { ...p, fieldPermissions: fps };
       })

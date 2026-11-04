@@ -70,7 +70,8 @@ export class CustomRoleService {
         where: { userId_tenantId: { userId, tenantId } },
         select: { tenantId: true, customRoleId: true, status: true, deletedAt: true, customRole: { select: sel } },
       });
-      if (m && m.status === 'ACTIVE' && m.deletedAt === null) return m;
+      // Com empresa informada, vale so o vinculo com ela: nunca o cargo de outra empresa.
+      return m && m.status === 'ACTIVE' && m.deletedAt === null ? m : null;
     }
     const list = await this.prisma.userTenantAccess.findMany({
       where: { userId, status: 'ACTIVE', deletedAt: null },
@@ -622,8 +623,9 @@ export class CustomRoleService {
     userId: string,
     entitySlug: string,
     action: 'canCreate' | 'canRead' | 'canUpdate' | 'canDelete',
+    tenantId: string,
   ): Promise<boolean> {
-    const m = await this.resolveMembershipRole(userId);
+    const m = await this.resolveMembershipRole(userId, tenantId);
     if (!m || !m.customRole) return false;
 
     // Acesso total ao tenant libera tudo.
@@ -645,8 +647,9 @@ export class CustomRoleService {
   async getEntityScope(
     userId: string,
     entitySlug: string,
+    tenantId: string,
   ): Promise<'all' | 'own' | 'team' | null> {
-    const m = await this.resolveMembershipRole(userId);
+    const m = await this.resolveMembershipRole(userId, tenantId);
     if (!m || !m.customRole) return null;
 
     // Acesso total ao tenant vê tudo.
@@ -666,7 +669,7 @@ export class CustomRoleService {
    * senao a lista (so ela para 'own'/sem acesso; ela + colegas de equipe para 'team').
    */
   async getVisibleCreatorIds(user: { id: string; tenantId: string }, entitySlug: string): Promise<string[] | null> {
-    const scope = await this.getEntityScope(user.id, entitySlug);
+    const scope = await this.getEntityScope(user.id, entitySlug, user.tenantId);
     if (scope === 'all') return null;
     if (scope === 'team') return teammateIds(this.prisma, user.id, user.tenantId);
     return [user.id];
@@ -679,8 +682,9 @@ export class CustomRoleService {
   async getFieldPermissions(
     userId: string,
     entitySlug: string,
+    tenantId: string,
   ): Promise<Array<{ fieldSlug: string; canView: boolean; canEdit: boolean }> | null> {
-    const m = await this.resolveMembershipRole(userId);
+    const m = await this.resolveMembershipRole(userId, tenantId);
     if (!m || !m.customRole) return null;
 
     // Acesso total ao tenant vê todos os campos (sem restrição).
@@ -702,8 +706,8 @@ export class CustomRoleService {
    * coringa em permissions[]), ou a lista explicita de slugs. Quem chama trata '*'
    * como "sem filtro de slug" (escopo de tenant ja aplicado no caller).
    */
-  async getUserAccessibleEntities(userId: string): Promise<'*' | string[]> {
-    const m = await this.resolveMembershipRole(userId);
+  async getUserAccessibleEntities(userId: string, tenantId: string): Promise<'*' | string[]> {
+    const m = await this.resolveMembershipRole(userId, tenantId);
     if (!m || !m.customRole) return [];
 
     // Acesso total ao tenant vê todas as entidades.
@@ -726,13 +730,11 @@ export class CustomRoleService {
    * slugs concreta (resolve '*' para todas as entidades do tenant do usuario).
    * Para endpoints que expoem a lista ao frontend.
    */
-  async getAccessibleEntitySlugs(userId: string): Promise<string[]> {
-    const accessible = await this.getUserAccessibleEntities(userId);
+  async getAccessibleEntitySlugs(userId: string, tenantId: string): Promise<string[]> {
+    const accessible = await this.getUserAccessibleEntities(userId, tenantId);
     if (accessible !== '*') return accessible;
-    const m = await this.resolveMembershipRole(userId);
-    if (!m) return [];
     const entities = await this.prisma.entity.findMany({
-      where: { tenantId: m.tenantId },
+      where: { tenantId },
       select: { slug: true },
     });
     return entities.map((e) => e.slug);

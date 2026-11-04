@@ -50,7 +50,9 @@ export function checkEntityAction(
   // 2. Checar entity-level (permissions[entitySlug][action])
   const permissions = user.customRole?.permissions as Array<Record<string, unknown>> | undefined;
   if (permissions) {
-    const entityPerm = permissions.find((p) => p.entitySlug === entitySlug);
+    // Mesma resolucao do resto da API: regra da tabela ou, sem ela, o coringa '*'.
+    const entityPerm = permissions.find((p) => p.entitySlug === entitySlug)
+      ?? permissions.find((p) => p.entitySlug === '*');
     if (entityPerm?.[action] === true) return;
   }
 

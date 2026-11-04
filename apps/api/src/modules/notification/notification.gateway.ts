@@ -168,14 +168,16 @@ export class NotificationGateway
     @ConnectedSocket() client: AuthenticatedSocket,
     @MessageBody() data: { channel: string },
   ) {
-    // Validar que usuario so pode se inscrever em canais do proprio tenant.
-    // Canais: `tenant:<tenantId>` ou (escopo por entidade) `tenant:<tenantId>:entity:<slug>`.
-    if (data.channel.startsWith('tenant:')) {
-      const channelTenantId = data.channel.split(':')[1];
-      if (channelTenantId !== client.tenantId) {
-        this.logger.warn(`Usuario ${client.userId} tentou subscribe cross-tenant: ${data.channel}`);
-        return { event: 'error', data: { message: 'Acesso negado' } };
-      }
+    // Validar que usuario so pode se inscrever em canais do proprio tenant ou no seu.
+    // Canais: `tenant:<tenantId>`, (escopo por entidade) `tenant:<tenantId>:entity:<slug>`
+    // ou `user:<userId>`. Qualquer outro nome de sala e recusado.
+    const channel = String(data.channel ?? '');
+    const allowed = channel.startsWith('tenant:')
+      ? channel.split(':')[1] === client.tenantId
+      : channel === `user:${client.userId}`;
+    if (!allowed) {
+      this.logger.warn(`Usuario ${client.userId} tentou subscribe negado: ${channel}`);
+      return { event: 'error', data: { message: 'Acesso negado' } };
     }
 
     client.join(data.channel);

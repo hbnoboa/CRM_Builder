@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, ForbiddenException, BadRequestException, Logger, Inject, Optional } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException, BadRequestException, ConflictException, Logger, Inject, Optional } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bull';
 import { Queue } from 'bull';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -26,8 +26,11 @@ import { EntityDataQueryService } from '../../common/services/entity-data-query.
 import { AuditService } from '../audit/audit.service';
 import { formatRecordData } from '../../common/utils/format-record';
 import { TenantPlanService } from '../../common/services/tenant-plan.service';
+import { hiddenFieldSlugs, omitFields, readOnlyFieldSlugs } from '../../common/utils/field-permissions';
 
 interface CreateDataDto {
+  // Gerado pelo app offline: reenviar o mesmo POST nao duplica o registro.
+  id?: string;
   data: Record<string, unknown>;
   parentRecordId?: string;
 }
@@ -222,11 +225,11 @@ export class DataService {
    * Lanca ForbiddenException se nao tiver
    */
   private async checkEntityPermission(
-    userId: string,
+    user: { id: string; tenantId: string },
     entitySlug: string,
     action: 'canCreate' | 'canRead' | 'canUpdate' | 'canDelete',
   ): Promise<void> {
-    const hasPermission = await this.customRoleService.hasEntityPermission(userId, entitySlug, action);
+    const hasPermission = await this.customRoleService.hasEntityPermission(user.id, entitySlug, action, user.tenantId);
     if (!hasPermission) {
       const actionLabels = {
         canCreate: 'criar registros em',
@@ -242,12 +245,34 @@ export class DataService {
 
   async create(entitySlug: string, dto: CreateDataDto, currentUser: CurrentUser) {
     // Verificar permissao de criacao na entidade
-    await this.checkEntityPermission(currentUser.id, entitySlug, 'canCreate');
+    await this.checkEntityPermission(currentUser, entitySlug, 'canCreate');
 
     const targetTenantId = getEffectiveTenantId(currentUser);
 
     // Buscar entidade (cached)
     const entity = await this.queryService.getEntityCached(entitySlug, currentUser, targetTenantId);
+
+    if (dto.id !== undefined && !/^[A-Za-z0-9_-]{8,64}$/.test(String(dto.id))) {
+      throw new BadRequestException('Identificador de registro invalido');
+    }
+    if (dto.id) {
+      const existing = await this.prisma.entityData.findUnique({ where: { id: dto.id } });
+      if (existing) {
+        if (existing.tenantId !== targetTenantId || existing.entityId !== entity.id || existing.createdById !== currentUser.id) {
+          throw new ConflictException('Identificador de registro ja utilizado');
+        }
+        return existing;
+      }
+    }
+
+    // Field-level permissions: campo somente leitura nao recebe valor na criacao.
+    const fieldPerms = await this.customRoleService.getFieldPermissions(currentUser.id, entitySlug, currentUser.tenantId);
+    const readOnly = readOnlyFieldSlugs(fieldPerms);
+    for (const key of Object.keys((dto.data as Record<string, unknown>) || {})) {
+      if (readOnly.has(key)) {
+        throw new ForbiddenException(`Sem permissao para editar o campo: ${key}`);
+      }
+    }
 
     // Processar campos calculados (formula, rollup, timer, sla-status)
     const fields = (entity.fields as unknown) as EntityField[];
@@ -275,6 +300,7 @@ export class DataService {
 
     const record = await this.prisma.entityData.create({
       data: {
+        ...(dto.id ? { id: dto.id } : {}),
         tenantId: targetTenantId,
         entityId: entity.id,
         data: dataWithComputedFields as Prisma.InputJsonValue,
@@ -309,17 +335,12 @@ export class DataService {
       metadata: { entitySlug, entityId: entity.id },
     }).catch(() => {});
 
-    // Real-time: granular update for all tenant clients
+    // Real-time: a sala e da empresa inteira, entao vai so o id. Cada cliente busca de
+    // novo e recebe o que o proprio cargo pode ver.
     this.notificationService.emitDataChanged(targetTenantId, {
       operation: 'created',
       entitySlug,
-      record: {
-        id: record.id,
-        data: record.data as Record<string, unknown>,
-        parentRecordId: record.parentRecordId || null,
-        createdAt: record.createdAt.toISOString(),
-        updatedAt: record.updatedAt.toISOString(),
-      },
+      recordId: record.id,
       userId: currentUser.id,
     });
 
@@ -332,7 +353,7 @@ export class DataService {
       currentUser,
     );
 
-    return record;
+    return { ...record, data: omitFields(record.data, hiddenFieldSlugs(fieldPerms)) };
   }
 
   async findAll(
@@ -341,7 +362,7 @@ export class DataService {
     currentUser: CurrentUser,
   ) {
     // Verificar permissao de leitura na entidade
-    await this.checkEntityPermission(currentUser.id, entitySlug, 'canRead');
+    await this.checkEntityPermission(currentUser, entitySlug, 'canRead');
 
     // Parse parameters
     const isDashboardAll = query.all === 'true';
@@ -1003,23 +1024,21 @@ export class DataService {
     // =========================================================================
     // FIELD-LEVEL PERMISSIONS: filtrar campos que o usuario nao pode ver
     // =========================================================================
-    const fieldPerms = await this.customRoleService.getFieldPermissions(currentUser.id, entitySlug);
+    const fieldPerms = await this.customRoleService.getFieldPermissions(currentUser.id, entitySlug, currentUser.tenantId);
     let visibleFields: string[] | undefined;
     let editableFields: string[] | undefined;
 
     if (fieldPerms && fieldPerms.length > 0) {
-      const viewableSet = new Set(fieldPerms.filter(f => f.canView).map(f => f.fieldSlug));
-      visibleFields = Array.from(viewableSet);
-      editableFields = fieldPerms.filter(f => f.canEdit).map(f => f.fieldSlug);
+      const hidden = hiddenFieldSlugs(fieldPerms);
+      const readOnly = readOnlyFieldSlugs(fieldPerms);
+      const allSlugs = ((entity.fields as unknown) as Array<{ slug: string }>).map(f => f.slug);
+      visibleFields = allSlugs.filter(slug => !hidden.has(slug));
+      editableFields = allSlugs.filter(slug => !readOnly.has(slug));
 
       enrichedData = enrichedData.map(record => {
         const recordData = (record as Record<string, unknown>).data as Record<string, unknown>;
         if (!recordData) return record;
-        const filteredData: Record<string, unknown> = {};
-        for (const [key, value] of Object.entries(recordData)) {
-          if (viewableSet.has(key)) filteredData[key] = value;
-        }
-        return { ...record, data: filteredData };
+        return { ...record, data: omitFields(recordData, hidden) };
       });
     }
 
@@ -1067,7 +1086,7 @@ export class DataService {
     query: QueryDataDto,
     currentUser: CurrentUser,
   ) {
-    await this.checkEntityPermission(currentUser.id, entitySlug, 'canRead');
+    await this.checkEntityPermission(currentUser, entitySlug, 'canRead');
 
     const page = parseInt(String(query.page || '1'), 10) || 1;
     const rawArchivedLimit = Math.max(1, parseInt(String(query.limit || DEFAULT_LIMIT), 10) || DEFAULT_LIMIT);
@@ -1075,12 +1094,10 @@ export class DataService {
     const { search, sortBy = 'createdAt', sortOrder = 'desc' } = query;
 
     const effectiveTenantId = getEffectiveTenantId(currentUser);
-    const entity = await this.queryService.getEntityCached(entitySlug, currentUser, effectiveTenantId);
+    const { where: activeWhere, entity } = await this.queryService.buildWhere({ entitySlug, user: currentUser });
 
-    const where: Prisma.ArchivedEntityDataWhereInput = {
-      entityId: entity.id,
-    };
-
+    // Mesmo pipeline da lista ativa: escopo, filtro global e filtro de dados do cargo.
+    const where = this.queryService.buildArchivedWhere(activeWhere);
     where.tenantId = effectiveTenantId;
 
     // Busca textual simples no JSON
@@ -1153,6 +1170,11 @@ export class DataService {
       total = totalCount;
     }
 
+    const archivedHidden = hiddenFieldSlugs(
+      await this.customRoleService.getFieldPermissions(currentUser.id, entitySlug, currentUser.tenantId),
+    );
+    data = data.map(r => ({ ...r, data: omitFields(r.data, archivedHidden) }));
+
     // Adicionar _formatted
     const archivedFields = (entity.fields as unknown) as Array<{ slug: string; type: string }>;
     const formattedData = data.map(record => ({
@@ -1179,7 +1201,7 @@ export class DataService {
 
   async findOne(entitySlug: string, id: string, currentUser: CurrentUser, tenantId?: string) {
     // Verificar permissao de leitura na entidade
-    await this.checkEntityPermission(currentUser.id, entitySlug, 'canRead');
+    await this.checkEntityPermission(currentUser, entitySlug, 'canRead');
 
     const effectiveTenantId = getEffectiveTenantId(currentUser, tenantId);
     const entity = await this.queryService.getEntityCached(entitySlug, currentUser, effectiveTenantId);
@@ -1269,22 +1291,19 @@ export class DataService {
     }
 
     // Field-level permissions: filtrar campos que o usuario nao pode ver
-    const fieldPerms = await this.customRoleService.getFieldPermissions(currentUser.id, entitySlug);
+    const fieldPerms = await this.customRoleService.getFieldPermissions(currentUser.id, entitySlug, currentUser.tenantId);
     let filteredRecord = recordResult;
     let visibleFields: string[] | undefined;
     let editableFields: string[] | undefined;
 
     if (fieldPerms && fieldPerms.length > 0) {
-      const viewableSet = new Set(fieldPerms.filter(f => f.canView).map(f => f.fieldSlug));
-      visibleFields = Array.from(viewableSet);
-      editableFields = fieldPerms.filter(f => f.canEdit).map(f => f.fieldSlug);
+      const hidden = hiddenFieldSlugs(fieldPerms);
+      const readOnly = readOnlyFieldSlugs(fieldPerms);
+      const allSlugs = ((entity.fields as unknown) as Array<{ slug: string }>).map(f => f.slug);
+      visibleFields = allSlugs.filter(slug => !hidden.has(slug));
+      editableFields = allSlugs.filter(slug => !readOnly.has(slug));
 
-      const recordData = recordResult.data as Record<string, unknown>;
-      const filteredData: Record<string, unknown> = {};
-      for (const [key, value] of Object.entries(recordData)) {
-        if (viewableSet.has(key)) filteredData[key] = value;
-      }
-      filteredRecord = { ...recordResult, data: filteredData };
+      filteredRecord = { ...recordResult, data: omitFields(recordResult.data as Record<string, unknown>, hidden) };
     }
 
     // Adicionar _formatted
@@ -1310,7 +1329,7 @@ export class DataService {
 
   async update(entitySlug: string, id: string, dto: CreateDataDto, currentUser: CurrentUser) {
     // Verificar permissao de edicao na entidade
-    await this.checkEntityPermission(currentUser.id, entitySlug, 'canUpdate');
+    await this.checkEntityPermission(currentUser, entitySlug, 'canUpdate');
 
     const effectiveTenantId = getEffectiveTenantId(currentUser);
     const entity = await this.queryService.getEntityCached(entitySlug, currentUser, effectiveTenantId);
@@ -1375,12 +1394,14 @@ export class DataService {
     }
 
     // Field-level permissions: validar que o usuario so edita campos permitidos
-    const fieldPerms = await this.customRoleService.getFieldPermissions(currentUser.id, entitySlug);
+    const fieldPerms = await this.customRoleService.getFieldPermissions(currentUser.id, entitySlug, currentUser.tenantId);
     if (fieldPerms && fieldPerms.length > 0) {
-      const editableSet = new Set(fieldPerms.filter(f => f.canEdit).map(f => f.fieldSlug));
+      const readOnly = readOnlyFieldSlugs(fieldPerms);
       const dtoData = dto.data as Record<string, unknown> || {};
+      const currentData = activeRecord.data as Record<string, unknown>;
       for (const key of Object.keys(dtoData)) {
-        if (!editableSet.has(key)) {
+        // O app envia o registro inteiro: recusa so o que realmente mudaria.
+        if (readOnly.has(key) && JSON.stringify(dtoData[key]) !== JSON.stringify(currentData[key])) {
           throw new ForbiddenException(`Sem permissao para editar o campo: ${key}`);
         }
       }
@@ -1471,15 +1492,11 @@ export class DataService {
       metadata: { entitySlug, entityId: entity.id },
     }).catch(() => {});
 
-    // Real-time: granular update for all tenant clients
+    // Real-time: so o id (ver create).
     this.notificationService.emitDataChanged(effectiveTenantId, {
       operation: 'updated',
       entitySlug,
-      record: {
-        id: updatedRecord.id,
-        data: mergedData as Record<string, unknown>,
-        updatedAt: updatedRecord.updatedAt.toISOString(),
-      },
+      recordId: updatedRecord.id,
       userId: currentUser.id,
     });
 
@@ -1505,7 +1522,7 @@ export class DataService {
       previousData,
     );
 
-    return updatedRecord;
+    return { ...updatedRecord, data: omitFields(updatedRecord.data, hiddenFieldSlugs(fieldPerms)) };
   }
 
   /**
@@ -1514,7 +1531,7 @@ export class DataService {
    */
   async restore(entitySlug: string, id: string, currentUser: CurrentUser, tenantId?: string) {
     // Desfazer uma exclusao: quem pode excluir pode desfazer.
-    await this.checkEntityPermission(currentUser.id, entitySlug, 'canDelete');
+    await this.checkEntityPermission(currentUser, entitySlug, 'canDelete');
 
     const effectiveTenantId = getEffectiveTenantId(currentUser, tenantId);
     const entity = await this.queryService.getEntityCached(entitySlug, currentUser, effectiveTenantId);
@@ -1600,7 +1617,7 @@ export class DataService {
    * Recusa se algum sub-registro ainda estiver em uso.
    */
   async purge(entitySlug: string, id: string, currentUser: CurrentUser) {
-    await this.checkEntityPermission(currentUser.id, entitySlug, 'canDelete');
+    await this.checkEntityPermission(currentUser, entitySlug, 'canDelete');
     const entity = await this.queryService.getEntityCached(entitySlug, currentUser, currentUser.tenantId);
     const record = await this.prisma.entityData.findFirst({
       where: { id, entityId: entity.id, tenantId: currentUser.tenantId, deletedAt: { not: null } },
@@ -1624,7 +1641,7 @@ export class DataService {
 
   async remove(entitySlug: string, id: string, currentUser: CurrentUser, tenantId?: string) {
     // Verificar permissao de exclusao na entidade
-    await this.checkEntityPermission(currentUser.id, entitySlug, 'canDelete');
+    await this.checkEntityPermission(currentUser, entitySlug, 'canDelete');
 
     const effectiveTenantId = getEffectiveTenantId(currentUser, tenantId);
     const entity = await this.queryService.getEntityCached(entitySlug, currentUser, effectiveTenantId);

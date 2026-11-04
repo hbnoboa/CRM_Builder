@@ -109,11 +109,13 @@ export class PlatformTenantTeamService {
     if (!role) throw new BadRequestException('Cargo nao pertence a esta empresa');
 
     const current = user.tenantAccess.find((a) => a.tenantId === tenantId);
-    if (current?.status !== Status.ACTIVE) await this.tenantPlan.assertCanAddUsers(tenantId);
+    // Quem ja e membro nao muda de cargo por aqui: o upsert rebaixaria ate o dono.
+    if (current?.status === Status.ACTIVE) throw new ConflictException('Esta pessoa ja e membro desta empresa');
+    await this.tenantPlan.assertCanAddUsers(tenantId);
 
     await this.prisma.userTenantAccess.upsert({
       where: { userId_tenantId: { userId: user.id, tenantId } },
-      update: { customRoleId: role.id, status: Status.ACTIVE, deletedAt: null },
+      update: { customRoleId: role.id, status: Status.ACTIVE, deletedAt: null, expiresAt: null },
       create: {
         userId: user.id,
         tenantId,

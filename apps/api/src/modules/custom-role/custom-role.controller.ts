@@ -68,8 +68,8 @@ export class CustomRoleController {
   @ApiOperation({ summary: 'Obter permissões do usuário logado' })
   async getMyPermissions(@CurrentUser() user: CurrentUserType) {
     const [entities, modules] = await Promise.all([
-      this.customRoleService.getAccessibleEntitySlugs(user.id),
-      this.customRoleService.getUserModulePermissions(user.id),
+      this.customRoleService.getAccessibleEntitySlugs(user.id, user.tenantId),
+      this.customRoleService.getUserModulePermissions(user.id, user.tenantId),
     ]);
     return { entities, modules };
   }
