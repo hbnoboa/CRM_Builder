@@ -152,7 +152,8 @@
     "home": "Inicio",
     "chat": "Chat",
     "operational": "Operativo",
-    "gestao": "Administración"
+    "gestao": "Administración",
+    "trash": "Papelera"
   },
   "roles": {
     "ADMIN": "Administrador",
@@ -540,7 +541,9 @@
     "toast": {
       "created": "Registro creado exitosamente",
       "updated": "Registro actualizado exitosamente",
-      "deleted": "Registro eliminado exitosamente"
+      "deleted": "Registro eliminado exitosamente",
+      "undo": "Deshacer",
+      "deletedToUndo": "Registro eliminado. Queda en la papelera."
     },
     "filter": {
       "title": "Filtrar",
@@ -1322,7 +1325,9 @@
     "actions": {
       "create": "Crear",
       "update": "Editar",
-      "delete": "Eliminar"
+      "delete": "Eliminar",
+      "restore": "Restaurar",
+      "purge": "Borrar definitivamente"
     },
     "resources": {
       "entity_data": "Registros",
@@ -2152,5 +2157,42 @@
       "subtitle": "Tu empresa exige un código del celular, además de la contraseña, para entrar.",
       "logout": "Salir"
     }
+  },
+  "trash": {
+    "title": "Papelera",
+    "subtitle": "Registros eliminados. Restaura lo que se borró por error.",
+    "subtitleRetention": "Registros eliminados. Los elementos con más de {days} días se borran definitivamente de forma automática.",
+    "search": "Buscar en eliminados",
+    "allTables": "Todas las tablas",
+    "subRecord": "subregistro",
+    "deletedBy": "Eliminado por {name} el {when}",
+    "deletedAt": "Eliminado el {when}",
+    "withSubRecords": "{n, plural, one {+ # subregistro} other {+ # subregistros}}",
+    "purgeAt": "se borra definitivamente el {date}",
+    "restore": "Restaurar",
+    "restored": "Registro restaurado",
+    "restoredMany": "{n} registros restaurados (con subregistros)",
+    "restoreError": "No se pudo restaurar",
+    "purge": "Borrar definitivamente",
+    "purgeTitle": "¿Borrar definitivamente?",
+    "purgeHint": "\"{title}\" se borrará definitivamente y no se podrá recuperar.",
+    "purgeHintSub": "{n, plural, one {# subregistro se borra también.} other {# subregistros se borran también.}}",
+    "purged": "Borrado definitivamente",
+    "empty": "Vaciar papelera",
+    "emptyTitle": "¿Vaciar toda la papelera?",
+    "emptyTableTitle": "¿Vaciar la papelera de {name}?",
+    "emptyHint": "Todos los elementos se borrarán definitivamente. No se puede deshacer.",
+    "emptied": "{n, plural, =0 {Nada que borrar} one {# registro borrado} other {# registros borrados}}",
+    "emptyState": "La papelera está vacía",
+    "noResults": "No se encontró nada",
+    "emptyStateHint": "Lo que se elimine en las tablas aparece aquí.",
+    "retentionLabel": "Borrar automáticamente",
+    "retentionNever": "Nunca borrar solo",
+    "retentionDays": "Borrar después de {days} días",
+    "retentionSaved": "Plazo de la papelera guardado",
+    "pageOf": "Página {page} de {pages} · {total} elementos",
+    "prev": "Anterior",
+    "next": "Siguiente",
+    "cancel": "Cancelar"
   }
 }

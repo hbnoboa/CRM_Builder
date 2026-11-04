@@ -152,7 +152,8 @@
     "home": "Início",
     "chat": "Chat",
     "operational": "Operacional",
-    "gestao": "Administração"
+    "gestao": "Administração",
+    "trash": "Lixeira"
   },
   "roles": {
     "ADMIN": "Administrador",
@@ -544,7 +545,9 @@
     "toast": {
       "created": "Registro criado com sucesso",
       "updated": "Registro atualizado com sucesso",
-      "deleted": "Registro excluído com sucesso"
+      "deleted": "Registro excluído com sucesso",
+      "undo": "Desfazer",
+      "deletedToUndo": "Registro excluído. Ele fica na lixeira."
     },
     "filter": {
       "title": "Filtrar",
@@ -1329,7 +1332,9 @@
     "actions": {
       "create": "Criar",
       "update": "Editar",
-      "delete": "Deletar"
+      "delete": "Deletar",
+      "restore": "Restaurar",
+      "purge": "Apagar de vez"
     },
     "resources": {
       "entity_data": "Registros",
@@ -2159,5 +2164,42 @@
       "subtitle": "A sua empresa exige um código do celular, além da senha, para entrar no sistema.",
       "logout": "Sair"
     }
+  },
+  "trash": {
+    "title": "Lixeira",
+    "subtitle": "Registros excluídos. Restaure o que foi apagado por engano.",
+    "subtitleRetention": "Registros excluídos. Itens com mais de {days} dias são apagados de vez automaticamente.",
+    "search": "Buscar nos excluídos",
+    "allTables": "Todas as tabelas",
+    "subRecord": "sub-registro",
+    "deletedBy": "Excluído por {name} em {when}",
+    "deletedAt": "Excluído em {when}",
+    "withSubRecords": "{n, plural, one {+ # sub-registro} other {+ # sub-registros}}",
+    "purgeAt": "apagado de vez em {date}",
+    "restore": "Restaurar",
+    "restored": "Registro restaurado",
+    "restoredMany": "{n} registros restaurados (com sub-registros)",
+    "restoreError": "Não foi possível restaurar",
+    "purge": "Apagar de vez",
+    "purgeTitle": "Apagar de vez?",
+    "purgeHint": "\"{title}\" será apagado definitivamente e não poderá ser recuperado.",
+    "purgeHintSub": "{n, plural, one {# sub-registro vai junto.} other {# sub-registros vão juntos.}}",
+    "purged": "Apagado de vez",
+    "empty": "Esvaziar lixeira",
+    "emptyTitle": "Esvaziar toda a lixeira?",
+    "emptyTableTitle": "Esvaziar a lixeira de {name}?",
+    "emptyHint": "Todos os itens serão apagados definitivamente. Não dá para desfazer.",
+    "emptied": "{n, plural, =0 {Nada para apagar} one {# registro apagado} other {# registros apagados}}",
+    "emptyState": "A lixeira está vazia",
+    "noResults": "Nada encontrado",
+    "emptyStateHint": "O que for excluído nas tabelas aparece aqui.",
+    "retentionLabel": "Apagar automaticamente",
+    "retentionNever": "Nunca apagar sozinho",
+    "retentionDays": "Apagar após {days} dias",
+    "retentionSaved": "Prazo da lixeira salvo",
+    "pageOf": "Página {page} de {pages} · {total} itens",
+    "prev": "Anterior",
+    "next": "Próxima",
+    "cancel": "Cancelar"
   }
 }

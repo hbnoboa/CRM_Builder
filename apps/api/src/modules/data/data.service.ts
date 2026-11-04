@@ -1517,7 +1517,8 @@ export class DataService {
    * registro VIVO com o mesmo valor de campo único (politica A + guard de restore).
    */
   async restore(entitySlug: string, id: string, currentUser: CurrentUser, tenantId?: string) {
-    await this.checkEntityPermission(currentUser.id, entitySlug, 'canUpdate');
+    // Desfazer uma exclusao: quem pode excluir pode desfazer.
+    await this.checkEntityPermission(currentUser.id, entitySlug, 'canDelete');
 
     const effectiveTenantId = getEffectiveTenantId(currentUser, tenantId);
     const entity = await this.queryService.getEntityCached(entitySlug, currentUser, effectiveTenantId);
@@ -1532,6 +1533,16 @@ export class DataService {
     const record = await this.prisma.entityData.findFirst({ where: whereClause });
     if (!record) {
       throw new NotFoundException('Registro soft-deletado nao encontrado');
+    }
+    // Sub-registro de um pai que tambem esta na lixeira: restaura-se pelo pai.
+    if (record.parentRecordId) {
+      const parent = await this.prisma.entityData.findFirst({
+        where: { id: record.parentRecordId, tenantId: record.tenantId },
+        select: { deletedAt: true },
+      });
+      if (parent?.deletedAt) {
+        throw new BadRequestException({ code: 'PARENT_DELETED', message: 'O registro principal tambem esta na lixeira: restaure ele primeiro' });
+      }
     }
 
     // Escopo (own)
@@ -1569,11 +1580,53 @@ export class DataService {
       );
     }
 
+    await this.tenantPlan.assertCanAddRecords(record.tenantId, allIds.length);
+
     await this.prisma.entityData.updateMany({
       where: { id: { in: allIds } },
-      data: { deletedAt: null },
+      data: { deletedAt: null, deletedById: null },
+    });
+
+    const recordData = record.data as Record<string, unknown>;
+    this.auditService.log(currentUser, {
+      action: 'restore', resource: 'entity_data', resourceId: id,
+      newData: recordData,
+      metadata: { entitySlug, entityId: entity.id, restored: allIds.length },
+    }).catch(() => {});
+    this.notificationService.emitDataChanged(effectiveTenantId, {
+      operation: 'created',
+      entitySlug,
+      recordId: id,
+      userId: currentUser.id,
     });
     return { restored: allIds.length };
+  }
+
+  /**
+   * Apaga de vez um registro que esta na lixeira (sub-registros caem junto pela FK).
+   * Recusa se algum sub-registro ainda estiver em uso.
+   */
+  async purge(entitySlug: string, id: string, currentUser: CurrentUser) {
+    await this.checkEntityPermission(currentUser.id, entitySlug, 'canDelete');
+    const entity = await this.queryService.getEntityCached(entitySlug, currentUser, currentUser.tenantId);
+    const record = await this.prisma.entityData.findFirst({
+      where: { id, entityId: entity.id, tenantId: currentUser.tenantId, deletedAt: { not: null } },
+    });
+    if (!record) throw new NotFoundException('Registro nao esta na lixeira');
+    await this.checkScope(record, currentUser, entitySlug);
+
+    const alive = await this.prisma.entityData.count({ where: { parentRecordId: id, deletedAt: null } });
+    if (alive > 0) {
+      throw new BadRequestException({ code: 'HAS_ACTIVE_CHILDREN', message: 'Este registro tem sub-registros em uso; restaure ou exclua-os antes' });
+    }
+
+    await this.prisma.entityData.delete({ where: { id } });
+    this.auditService.log(currentUser, {
+      action: 'purge', resource: 'entity_data', resourceId: id,
+      oldData: record.data as Record<string, unknown>,
+      metadata: { entitySlug, entityId: entity.id },
+    }).catch(() => {});
+    return { success: true };
   }
 
   async remove(entitySlug: string, id: string, currentUser: CurrentUser, tenantId?: string) {
@@ -1641,7 +1694,7 @@ export class DataService {
       const ids = [id, ...(await this.collectDescendantIds([id], record!.tenantId))];
       await this.prisma.entityData.updateMany({
         where: { id: { in: ids }, deletedAt: null },
-        data: { deletedAt: now },
+        data: { deletedAt: now, deletedById: currentUser.id },
       });
     }
 

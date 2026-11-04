@@ -37,6 +37,7 @@ export interface BuildWhereOptions {
   recordIds?: string[];
   hasChildrenIn?: string;
   skipScope?: boolean;            // para operacoes de sistema
+  onlyDeleted?: boolean;          // lixeira: so registros excluidos (mesmas regras de visibilidade)
 }
 
 export interface BuildWhereResult {
@@ -84,6 +85,7 @@ export class EntityDataQueryService {
       recordIds,
       hasChildrenIn,
       skipScope,
+      onlyDeleted,
     } = options;
 
     const effectiveTenantId = getEffectiveTenantId(user, queryTenantId);
@@ -96,7 +98,8 @@ export class EntityDataQueryService {
       entityId: entity.id,
       // F2: soft delete — nunca retornar registros marcados como excluidos.
       // Ponto unico: toda leitura de EntityData passa por aqui.
-      deletedAt: null,
+      // A lixeira pede o inverso, com todas as outras regras iguais.
+      deletedAt: onlyDeleted ? { not: null } : null,
     };
 
     // 3. Tenant isolation — sempre o tenant ativo do usuario (sem bypass cross-tenant).

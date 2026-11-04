@@ -183,6 +183,12 @@ export function usePermissions() {
     };
   }, [modulePermissions, entityPermissions]);
 
+  /** Lixeira: quem pode excluir em alguma tabela ve (e restaura) o que excluiu. */
+  const canUseTrash = useMemo(
+    () => !!user && hasRole && (fullAccess || entityPermissions.some((p) => p.canDelete)),
+    [user, hasRole, fullAccess, entityPermissions],
+  );
+
   /**
    * Verifica se o usuario tem acesso a um modulo (canRead)
    */
@@ -349,6 +355,7 @@ export function usePermissions() {
     isOperationalSurface,
     canAccessAdminArea,
     canAccessAdminSection,
+    canUseTrash,
   };
 }
 

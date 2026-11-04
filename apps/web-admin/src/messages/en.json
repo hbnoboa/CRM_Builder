@@ -152,7 +152,8 @@
     "home": "Home",
     "chat": "Chat",
     "operational": "Operational",
-    "gestao": "Administration"
+    "gestao": "Administration",
+    "trash": "Trash"
   },
   "roles": {
     "ADMIN": "Administrator",
@@ -541,7 +542,9 @@
     "toast": {
       "created": "Record created successfully",
       "updated": "Record updated successfully",
-      "deleted": "Record deleted successfully"
+      "deleted": "Record deleted successfully",
+      "undo": "Undo",
+      "deletedToUndo": "Record deleted. It stays in the trash."
     },
     "filter": {
       "title": "Filter",
@@ -1325,7 +1328,9 @@
     "actions": {
       "create": "Create",
       "update": "Update",
-      "delete": "Delete"
+      "delete": "Delete",
+      "restore": "Restore",
+      "purge": "Delete forever"
     },
     "resources": {
       "entity_data": "Records",
@@ -2155,5 +2160,42 @@
       "subtitle": "Your company requires a phone code, besides the password, to sign in.",
       "logout": "Sign out"
     }
+  },
+  "trash": {
+    "title": "Trash",
+    "subtitle": "Deleted records. Restore anything removed by mistake.",
+    "subtitleRetention": "Deleted records. Items older than {days} days are permanently deleted automatically.",
+    "search": "Search deleted records",
+    "allTables": "All tables",
+    "subRecord": "sub-record",
+    "deletedBy": "Deleted by {name} on {when}",
+    "deletedAt": "Deleted on {when}",
+    "withSubRecords": "{n, plural, one {+ # sub-record} other {+ # sub-records}}",
+    "purgeAt": "permanently deleted on {date}",
+    "restore": "Restore",
+    "restored": "Record restored",
+    "restoredMany": "{n} records restored (with sub-records)",
+    "restoreError": "Could not restore",
+    "purge": "Delete forever",
+    "purgeTitle": "Delete forever?",
+    "purgeHint": "\"{title}\" will be permanently deleted and cannot be recovered.",
+    "purgeHintSub": "{n, plural, one {# sub-record goes with it.} other {# sub-records go with it.}}",
+    "purged": "Permanently deleted",
+    "empty": "Empty trash",
+    "emptyTitle": "Empty the whole trash?",
+    "emptyTableTitle": "Empty the trash for {name}?",
+    "emptyHint": "All items will be permanently deleted. This cannot be undone.",
+    "emptied": "{n, plural, =0 {Nothing to delete} one {# record deleted} other {# records deleted}}",
+    "emptyState": "Trash is empty",
+    "noResults": "Nothing found",
+    "emptyStateHint": "Records deleted from tables show up here.",
+    "retentionLabel": "Delete automatically",
+    "retentionNever": "Never delete automatically",
+    "retentionDays": "Delete after {days} days",
+    "retentionSaved": "Trash retention saved",
+    "pageOf": "Page {page} of {pages} · {total} items",
+    "prev": "Previous",
+    "next": "Next",
+    "cancel": "Cancel"
   }
 }

@@ -373,7 +373,9 @@ model EntityData {
   updatedById String?
 
   // Soft delete for PowerSync sync (tracks deletions for mobile)
-  deletedAt DateTime?
+  deletedAt   DateTime?
+  // Quem excluiu (lixeira). Sem FK: a lixeira mostra o nome mesmo se a pessoa sair.
+  deletedById String?
 
   // Trigger-maintained: true if record passes entity's globalFilters
   // Used by PowerSync sync rules to filter at sync time

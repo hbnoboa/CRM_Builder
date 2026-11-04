@@ -19,7 +19,7 @@ import { usePermissions } from '@/hooks/use-permissions';
 import { auditLogsService, type AuditLog } from '@/services/audit-logs.service';
 import { cn } from '@/lib/utils';
 
-const ACTIONS = ['create', 'update', 'delete'] as const;
+const ACTIONS = ['create', 'update', 'delete', 'restore', 'purge'] as const;
 const RESOURCES = ['entity_data', 'user', 'entity', 'custom_role', 'custom_api', 'page'] as const;
 
 const ACTION_COLORS: Record<string, { bg: string; text: string }> = {

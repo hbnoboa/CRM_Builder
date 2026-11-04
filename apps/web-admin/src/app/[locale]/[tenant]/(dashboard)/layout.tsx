@@ -33,6 +33,7 @@ import {
   Settings2,
   MessageSquare,
   ShieldCheck,
+  Trash2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -65,6 +66,8 @@ interface NavItemConfig {
   moduleKey?: string;
   /** Função do plano do tenant; desligada = item some do menu */
   featureKey?: FeatureKey;
+  /** Só para quem pode excluir em alguma tabela */
+  trash?: boolean;
 }
 
 const topNavigation: NavItemConfig[] = [
@@ -75,6 +78,7 @@ const topNavigation: NavItemConfig[] = [
 ];
 
 const bottomNavigation: NavItemConfig[] = [
+  { titleKey: 'trash', href: '/trash', icon: <Trash2 className="h-5 w-5" />, trash: true },
   // Configurações da CONTA é de todos (#21); o tab "Organização" dentro é que é gated.
   { titleKey: 'settings', href: '/settings', icon: <Settings className="h-5 w-5" /> },
 ];
@@ -107,7 +111,7 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
   const t = useTranslations();
   const tNav = useTranslations('navigation');
   const { user, isAuthenticated, logout, ensureAuth, isLoading } = useAuthStore();
-  const { hasModuleAccess, hasModulePermission, getDefaultRoute, isOperationalSurface, canAccessAdminArea, canAccessAdminSection } = usePermissions();
+  const { hasModuleAccess, hasModulePermission, getDefaultRoute, isOperationalSurface, canAccessAdminArea, canAccessAdminSection, canUseTrash } = usePermissions();
   const { tenant, effectiveTenantId } = useTenant();
   const features = useTenantFeatures();
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -160,12 +164,13 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
 
   const filteredBottomNav = useMemo(
     () => bottomNavigation.filter((item) => {
+      if (item.trash && !canUseTrash) return false;
       if (item.featureKey && !features[item.featureKey]) return false;
       if (!item.moduleKey) return true;
       return hasModuleAccess(item.moduleKey);
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [user?.customRole?.modulePermissions, user?.customRoleId, features]
+    [user?.customRole?.modulePermissions, user?.customRoleId, features, canUseTrash]
   );
 
   const isRegistrosOpen = openCategories['__registros__'] !== false;

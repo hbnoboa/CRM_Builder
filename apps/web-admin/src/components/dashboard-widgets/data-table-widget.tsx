@@ -85,6 +85,7 @@ import { dataService } from '@/services/data.service';
 import { formatFieldValue, type FormatFieldOptions } from '@crm-builder/shared';
 import { useEntityBySlug } from '@/hooks/use-entities';
 import { api } from '@/lib/api';
+import { getErrorMessage } from '@/lib/get-error-message';
 import { useDashboardFilters } from './dashboard-filter-context';
 import { WidgetWrapper } from './widget-wrapper';
 import type { WidgetConfig } from '@crm-builder/shared';
@@ -640,11 +641,24 @@ function DataTableWidgetInner({ entitySlug, config, title, ctx }: DataTableWidge
   const handleConfirmDelete = useCallback(async () => {
     if (!recordToDelete) return;
     try {
+      const deletedId = recordToDelete.id;
       await deleteRecord.mutateAsync({
         entitySlug,
-        id: recordToDelete.id,
+        id: deletedId,
       });
-      removeRecord(recordToDelete.id);
+      removeRecord(deletedId);
+      // Fica na lixeira: oferece desfazer na hora.
+      toast.success(t('toast.deletedToUndo'), {
+        duration: 10_000,
+        action: {
+          label: t('toast.undo'),
+          onClick: () => {
+            api.post(`/trash/${entitySlug}/${deletedId}/restore`)
+              .then(() => refresh())
+              .catch((e) => toast.error(getErrorMessage(e)));
+          },
+        },
+      });
       setSelectedIds(prev => {
         const next = new Set(prev);
         next.delete(recordToDelete.id);
