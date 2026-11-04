@@ -1503,6 +1503,14 @@
         "passwordRule": "Mínimo 8 caracteres, con mayúscula, minúscula y número.",
         "submit": "Crear cliente",
         "created": "Cliente creado"
+      },
+      "selectedN": "{n, plural, one {# empresa seleccionada} other {# empresas seleccionadas}}",
+      "bulk": {
+        "plan": "Cambiar plan",
+        "trial": "Extender prueba",
+        "lifecycle": "Cambiar situación",
+        "clear": "Limpiar selección",
+        "selectAll": "Seleccionar todas de esta página"
       }
     },
     "tenant": {
@@ -1799,6 +1807,37 @@
       "closureBody": "Pedido por {email} el {requested}. Borrado definitivo el {date}.",
       "closureReason": "Motivo: {reason}",
       "closureHint": "Para desistir, cambia la situación a Activo antes de esa fecha."
+    },
+    "bulk": {
+      "title": {
+        "plan": "Cambiar plan",
+        "trial": "Extender prueba",
+        "lifecycle": "Cambiar situación"
+      },
+      "scopeSelected": "{n, plural, one {# empresa elegida} other {# empresas elegidas}}",
+      "scopePlan": "Todas las empresas del plan {plan}",
+      "toPlan": "Nuevo plan",
+      "noPlan": "Sin plan (todo liberado)",
+      "choose": "Elige",
+      "days": "Días extra",
+      "daysHint": "Cuenta desde el fin actual de la prueba (o desde hoy, si ya venció). Solo vale para empresas en prueba.",
+      "toLifecycle": "Nueva situación",
+      "trialEnd": "Prueba hasta",
+      "blocksAccess": "Bloquea el acceso de todas las personas de esas empresas.",
+      "preview": "Ver vista previa",
+      "apply": "{n, plural, one {Aplicar a # empresa} other {Aplicar a # empresas}}",
+      "willChange": "{n, plural, =0 {Nada va a cambiar} one {# empresa va a cambiar} other {# empresas van a cambiar}}",
+      "skippedN": "{n, plural, one {# queda fuera} other {# quedan fuera}}",
+      "reason": {
+        "same_plan": "ya está en ese plan",
+        "not_trial": "no está en prueba",
+        "same_lifecycle": "ya está en esa situación"
+      },
+      "applied": "{n, plural, =0 {Nada cambió} one {# empresa actualizada} other {# empresas actualizadas}}",
+      "failedN": "{n, plural, one {# falló} other {# fallaron}}",
+      "close": "Cerrar",
+      "cancel": "Cancelar",
+      "moveTenants": "Mover clientes"
     }
   },
   "subscription": {

@@ -48,6 +48,8 @@ import { PlatformStaffService } from './platform-staff.service';
 import { PlatformTenantsService } from './platform-tenants.service';
 import { PlatformMetricsService } from './platform-metrics.service';
 import { PlatformUsersService } from './platform-users.service';
+import { PlatformBulkService } from './platform-bulk.service';
+import { PlatformBulkDto } from './dto/platform-bulk.dto';
 import { PlatformTenantTeamService } from './platform-tenant-team.service';
 import { CopyTenantDataDto } from '../tenant/dto/copy-tenant-data.dto';
 
@@ -96,6 +98,7 @@ export class PlatformController {
     private readonly team: PlatformTenantTeamService,
     private readonly metricsService: PlatformMetricsService,
     private readonly usersService: PlatformUsersService,
+    private readonly bulkService: PlatformBulkService,
   ) {}
 
   // ── Visao geral ─────────────────────────────────────────────────────────
@@ -154,6 +157,14 @@ export class PlatformController {
   @RequirePlatformPermission('tenants.read')
   findTenants(@Query() query: PlatformQueryTenantsDto) {
     return this.tenants.findAll(query);
+  }
+
+  @Post('tenants/bulk')
+  @HttpCode(HttpStatus.OK)
+  @RequirePlatformPermission('tenants.read')
+  bulkTenants(@CurrentStaff() actor: PlatformStaffPrincipal, @Body() dto: PlatformBulkDto) {
+    // A permissao da acao (plano / situacao) e conferida no servico.
+    return this.bulkService.run(actor, dto);
   }
 
   @Post('tenants')

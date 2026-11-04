@@ -12,6 +12,8 @@ import { Label } from '@/components/ui/label';
 import { Card } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Checkbox } from '@/components/ui/checkbox';
+import { BulkDialog, type BulkAction } from '@/components/platform/bulk-dialog';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { LifecycleBadge, PageHeader, UsageLine, useFormatDate } from '@/components/platform/platform-ui';
 import { useDebounce } from '@/hooks/use-debounce';
@@ -48,8 +50,15 @@ function PlatformTenantsContent() {
   const [page, setPage] = useState(1);
   const [createOpen, setCreateOpen] = useState(false);
   const debouncedSearch = useDebounce(search, 300);
+  // Selecao para acoes em massa (vale para a pagina atual).
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [bulk, setBulk] = useState<BulkAction | null>(null);
+  const canBulkPlan = can('tenants.plan');
+  const canBulkLifecycle = can('tenants.lifecycle');
+  const canBulk = canBulkPlan || canBulkLifecycle;
 
   useEffect(() => setPage(1), [debouncedSearch, lifecycle, planId]);
+  useEffect(() => setSelected(new Set()), [debouncedSearch, lifecycle, planId, page]);
 
   const { data, isLoading } = usePlatformTenants({
     search: debouncedSearch || undefined,
@@ -103,11 +112,31 @@ function PlatformTenantsContent() {
         </Select>
       </div>
 
+      {canBulk && selected.size > 0 && (
+        <div className="flex flex-wrap items-center gap-2 rounded-lg border bg-muted/40 p-2 text-sm" data-testid="bulk-bar">
+          <span className="px-2 font-medium">{t('selectedN', { n: selected.size })}</span>
+          {canBulkPlan && <Button size="sm" variant="outline" onClick={() => setBulk('plan')} data-testid="bulk-plan-open">{t('bulk.plan')}</Button>}
+          {canBulkLifecycle && <Button size="sm" variant="outline" onClick={() => setBulk('trial')} data-testid="bulk-trial-open">{t('bulk.trial')}</Button>}
+          {canBulkLifecycle && <Button size="sm" variant="outline" onClick={() => setBulk('lifecycle')} data-testid="bulk-lifecycle-open">{t('bulk.lifecycle')}</Button>}
+          <Button size="sm" variant="ghost" onClick={() => setSelected(new Set())}>{t('bulk.clear')}</Button>
+        </div>
+      )}
+
       <Card>
         <div className="overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow>
+                {canBulk && (
+                  <TableHead className="w-10">
+                    <Checkbox
+                      aria-label={t('bulk.selectAll')}
+                      checked={!!data?.data.length && data.data.every((x) => selected.has(x.id))}
+                      onCheckedChange={(v) => setSelected(v ? new Set(data?.data.map((x) => x.id)) : new Set())}
+                      data-testid="bulk-select-all"
+                    />
+                  </TableHead>
+                )}
                 <TableHead>{t('columns.name')}</TableHead>
                 <TableHead>{t('columns.status')}</TableHead>
                 <TableHead>{t('columns.plan')}</TableHead>
@@ -120,18 +149,28 @@ function PlatformTenantsContent() {
             <TableBody>
               {isLoading && (
                 <TableRow>
-                  <TableCell colSpan={7} className="py-10 text-center">
+                  <TableCell colSpan={canBulk ? 8 : 7} className="py-10 text-center">
                     <Loader2 className="mx-auto h-5 w-5 animate-spin text-muted-foreground" />
                   </TableCell>
                 </TableRow>
               )}
               {!isLoading && data?.data.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={7} className="py-10 text-center text-muted-foreground">{t('empty')}</TableCell>
+                  <TableCell colSpan={canBulk ? 8 : 7} className="py-10 text-center text-muted-foreground">{t('empty')}</TableCell>
                 </TableRow>
               )}
               {data?.data.map((tenant) => (
                 <TableRow key={tenant.id} data-testid={`platform-tenant-${tenant.slug}`}>
+                  {canBulk && (
+                    <TableCell>
+                      <Checkbox
+                        aria-label={tenant.name}
+                        checked={selected.has(tenant.id)}
+                        onCheckedChange={(v) => setSelected((prev) => { const n = new Set(prev); if (v) n.add(tenant.id); else n.delete(tenant.id); return n; })}
+                        data-testid={`bulk-select-${tenant.slug}`}
+                      />
+                    </TableCell>
+                  )}
                   <TableCell>
                     <Link href={`/admin/tenants/${tenant.id}`} className="font-medium hover:underline">{tenant.name}</Link>
                     <div className="text-xs text-muted-foreground">{tenant.slug}</div>
@@ -163,6 +202,9 @@ function PlatformTenantsContent() {
       )}
 
       <CreateTenantDialog open={createOpen} onOpenChange={setCreateOpen} />
+      {bulk && (
+        <BulkDialog action={bulk} target={{ tenantIds: Array.from(selected) }} onClose={() => setBulk(null)} onDone={() => setSelected(new Set())} />
+      )}
     </div>
   );
 }

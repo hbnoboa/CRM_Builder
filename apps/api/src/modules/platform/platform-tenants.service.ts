@@ -471,6 +471,21 @@ export class PlatformTenantsService {
     return result;
   }
 
+  /** Prorroga o teste em N dias (a partir do fim atual, ou de hoje se ja venceu). */
+  async extendTrial(actor: PlatformStaffPrincipal, id: string, days: number) {
+    const current = await this.assertExists(id);
+    if (current.lifecycle !== 'TRIAL') throw new BadRequestException('Empresa nao esta em teste');
+    const base = current.trialEndsAt && current.trialEndsAt > new Date() ? current.trialEndsAt : new Date();
+    const trialEndsAt = new Date(base.getTime() + days * 86_400_000);
+    const tenant = await this.prisma.tenant.update({ where: { id }, data: { trialEndsAt } });
+    this.tenantPlan.invalidate(id);
+    await this.audit.log(actor, {
+      action: 'tenant.trial_extended', targetType: 'tenant', targetId: id, tenantId: id,
+      metadata: { from: current.trialEndsAt, to: trialEndsAt, days },
+    });
+    return tenant;
+  }
+
   private resolveTrialEnd(lifecycle: TenantLifecycle, input?: string, current?: Date | null): Date | null {
     if (lifecycle !== 'TRIAL') return null;
     if (input) {

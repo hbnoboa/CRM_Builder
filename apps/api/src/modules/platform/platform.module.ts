@@ -12,6 +12,7 @@ import { PlatformStaffService } from './platform-staff.service';
 import { PlatformTenantsService } from './platform-tenants.service';
 import { PlatformMetricsService } from './platform-metrics.service';
 import { PlatformUsersService } from './platform-users.service';
+import { PlatformBulkService } from './platform-bulk.service';
 import { PlatformTenantTeamService } from './platform-tenant-team.service';
 
 /**
@@ -31,6 +32,7 @@ import { PlatformTenantTeamService } from './platform-tenant-team.service';
     PlatformTenantTeamService,
     PlatformMetricsService,
     PlatformUsersService,
+    PlatformBulkService,
   ],
 })
 export class PlatformModule {}

@@ -1506,6 +1506,14 @@
         "passwordRule": "At least 8 characters, with uppercase, lowercase and a number.",
         "submit": "Create customer",
         "created": "Customer created"
+      },
+      "selectedN": "{n, plural, one {# company selected} other {# companies selected}}",
+      "bulk": {
+        "plan": "Change plan",
+        "trial": "Extend trial",
+        "lifecycle": "Change status",
+        "clear": "Clear selection",
+        "selectAll": "Select all on this page"
       }
     },
     "tenant": {
@@ -1802,6 +1810,37 @@
       "closureBody": "Requested by {email} on {requested}. Permanent deletion on {date}.",
       "closureReason": "Reason: {reason}",
       "closureHint": "To cancel, change the status to Active before that date."
+    },
+    "bulk": {
+      "title": {
+        "plan": "Change plan",
+        "trial": "Extend trial",
+        "lifecycle": "Change status"
+      },
+      "scopeSelected": "{n, plural, one {# company chosen} other {# companies chosen}}",
+      "scopePlan": "All companies on the {plan} plan",
+      "toPlan": "New plan",
+      "noPlan": "No plan (everything unlocked)",
+      "choose": "Choose",
+      "days": "Extra days",
+      "daysHint": "Counted from the current trial end (or today, if it already ended). Only applies to companies on trial.",
+      "toLifecycle": "New status",
+      "trialEnd": "Trial until",
+      "blocksAccess": "Blocks access for everyone in these companies.",
+      "preview": "Preview",
+      "apply": "{n, plural, one {Apply to # company} other {Apply to # companies}}",
+      "willChange": "{n, plural, =0 {Nothing will change} one {# company will change} other {# companies will change}}",
+      "skippedN": "{n, plural, one {# left out} other {# left out}}",
+      "reason": {
+        "same_plan": "already on this plan",
+        "not_trial": "not on trial",
+        "same_lifecycle": "already in this status"
+      },
+      "applied": "{n, plural, =0 {Nothing changed} one {# company updated} other {# companies updated}}",
+      "failedN": "{n, plural, one {# failed} other {# failed}}",
+      "close": "Close",
+      "cancel": "Cancel",
+      "moveTenants": "Move customers"
     }
   },
   "subscription": {
