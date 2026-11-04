@@ -41,6 +41,7 @@ import { usePermissions } from '@/hooks/use-permissions';
 import { useTenant } from '@/stores/tenant-context';
 import { NotificationBell } from '@/components/notifications/notification-bell';
 import { TrialBanner, useTenantFeatures } from '@/components/subscription/subscription-widgets';
+import { AnnouncementsBanner } from '@/components/announcements/announcements-banner';
 import { cn } from '@/lib/utils';
 import type { FeatureKey } from '@/types/platform';
 
@@ -208,6 +209,7 @@ export function GestaoShell({ children }: { children: React.ReactNode }) {
             {t('backToOperation')}
           </Link>
         </header>
+        <AnnouncementsBanner />
         <TrialBanner />
         <main className="p-4 md:p-6 lg:p-8">{children}</main>
       </div>

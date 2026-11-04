@@ -251,6 +251,7 @@ model User {
   mfaRecoveryCodes String[] @default([])
   teamMemberships  TeamMember[]
   notificationPreferences NotificationPreference[]
+  announcementDismissals  AnnouncementDismissal[]
 
   lastLoginAt       DateTime?
   resetToken        String?
@@ -1586,4 +1587,48 @@ model SupportMessage {
   createdAt     DateTime      @default(now())
 
   @@index([ticketId, createdAt])
+}
+
+enum AnnouncementSeverity {
+  INFO
+  WARNING
+  CRITICAL
+}
+
+/// Comunicado da plataforma para os clientes (faixa no topo do sistema).
+model Announcement {
+  id             String               @id @default(cuid())
+  title          String
+  body           String
+  severity       AnnouncementSeverity @default(INFO)
+  /// Publico: { "type": "all" | "plans" | "lifecycles" | "tenants", "ids": [] }
+  audience       Json                 @default("{\"type\":\"all\",\"ids\":[]}")
+  /// So quem administra a empresa (acesso total ou settings.update) ve.
+  adminsOnly     Boolean              @default(false)
+  dismissible    Boolean              @default(true)
+  linkUrl        String?
+  linkLabel      String?
+  startsAt       DateTime             @default(now())
+  endsAt         DateTime?
+  publishedAt    DateTime?
+  createdById    String
+  createdByName  String
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
+  dismissals     AnnouncementDismissal[]
+
+  @@index([publishedAt, startsAt])
+}
+
+model AnnouncementDismissal {
+  id             String       @id @default(cuid())
+  announcementId String
+  announcement   Announcement @relation(fields: [announcementId], references: [id], onDelete: Cascade)
+  userId         String
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tenantId       String
+  dismissedAt    DateTime     @default(now())
+
+  @@unique([announcementId, userId])
+  @@index([userId])
 }

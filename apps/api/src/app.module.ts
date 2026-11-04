@@ -41,6 +41,7 @@ import { PlatformModule } from './modules/platform/platform.module';
 import { PrivacyModule } from './modules/privacy/privacy.module';
 import { TeamModule } from './modules/team/team.module';
 import { SupportModule } from './modules/support/support.module';
+import { AnnouncementModule } from './modules/announcement/announcement.module';
 import { TenantPlanModule } from './common/services/tenant-plan.module';
 import { TenantFeatureInterceptor } from './common/interceptors/tenant-feature.interceptor';
 
@@ -130,6 +131,7 @@ import { TenantFeatureInterceptor } from './common/interceptors/tenant-feature.i
     PrivacyModule,
     TeamModule,
     SupportModule,
+    AnnouncementModule,
   ],
   providers: [
     // Separacao admin x user (#18): guard global de ambiente. Roda antes dos

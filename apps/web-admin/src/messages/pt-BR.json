@@ -1397,6 +1397,7 @@
       "plans": "Planos",
       "staff": "Equipe",
       "support": "Chamados",
+      "announcements": "Comunicados",
       "audit": "Auditoria"
     },
     "roles": {
@@ -2414,6 +2415,63 @@
         "RESOLVED": "Resolvido",
         "CLOSED": "Encerrado"
       }
+    }
+  },
+  "announcements": {
+    "more": "Saiba mais",
+    "dismiss": "Fechar aviso",
+    "console": {
+      "title": "Comunicados",
+      "subtitle": "Avisos para os clientes, mostrados no topo do sistema.",
+      "new": "Novo comunicado",
+      "editTitle": "Editar comunicado",
+      "empty": "Nenhum comunicado ainda.",
+      "state": {
+        "draft": "Rascunho",
+        "scheduled": "Agendado",
+        "active": "No ar",
+        "ended": "Encerrado"
+      },
+      "severity": {
+        "INFO": "Informativo",
+        "WARNING": "Atenção",
+        "CRITICAL": "Crítico"
+      },
+      "audience": {
+        "all": "Todos os clientes",
+        "plans": "Planos",
+        "lifecycles": "Situação",
+        "tenants": "Empresas específicas"
+      },
+      "adminsOnlyShort": "só administradores",
+      "period": "{start} até {end}",
+      "noEnd": "sem fim",
+      "stats": "alcança {reach} empresas · {dismissed} fecharam",
+      "publish": "Publicar",
+      "unpublish": "Tirar do ar",
+      "published": "Comunicado publicado",
+      "unpublished": "Comunicado tirado do ar",
+      "edit": "Editar",
+      "delete": "Excluir",
+      "deleted": "Comunicado excluído",
+      "fields": {
+        "title": "Título",
+        "body": "Texto",
+        "severity": "Nível",
+        "audience": "Para quem",
+        "startsAt": "Início",
+        "endsAt": "Fim (opcional)",
+        "linkUrl": "Link (opcional)",
+        "linkLabel": "Texto do link",
+        "adminsOnly": "Só para quem administra a empresa",
+        "dismissible": "Pode ser fechado"
+      },
+      "searchTenant": "Buscar empresa",
+      "reach": "Vai aparecer para {n, plural, =0 {nenhuma empresa} one {# empresa} other {# empresas}}",
+      "reachPick": "Escolha o público",
+      "save": "Salvar",
+      "saved": "Comunicado salvo",
+      "cancel": "Cancelar"
     }
   }
 }

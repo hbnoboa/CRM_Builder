@@ -1390,6 +1390,7 @@
       "plans": "Planes",
       "staff": "Equipo",
       "support": "Tickets",
+      "announcements": "Comunicados",
       "audit": "Auditoría"
     },
     "roles": {
@@ -2407,6 +2408,63 @@
         "RESOLVED": "Resuelto",
         "CLOSED": "Cerrado"
       }
+    }
+  },
+  "announcements": {
+    "more": "Saber más",
+    "dismiss": "Cerrar aviso",
+    "console": {
+      "title": "Comunicados",
+      "subtitle": "Avisos para los clientes, mostrados arriba del sistema.",
+      "new": "Nuevo comunicado",
+      "editTitle": "Editar comunicado",
+      "empty": "Aún no hay comunicados.",
+      "state": {
+        "draft": "Borrador",
+        "scheduled": "Programado",
+        "active": "Publicado",
+        "ended": "Finalizado"
+      },
+      "severity": {
+        "INFO": "Informativo",
+        "WARNING": "Atención",
+        "CRITICAL": "Crítico"
+      },
+      "audience": {
+        "all": "Todos los clientes",
+        "plans": "Planes",
+        "lifecycles": "Situación",
+        "tenants": "Empresas específicas"
+      },
+      "adminsOnlyShort": "solo administradores",
+      "period": "{start} hasta {end}",
+      "noEnd": "sin fin",
+      "stats": "alcanza {reach} empresas · {dismissed} cerraron",
+      "publish": "Publicar",
+      "unpublish": "Retirar",
+      "published": "Comunicado publicado",
+      "unpublished": "Comunicado retirado",
+      "edit": "Editar",
+      "delete": "Eliminar",
+      "deleted": "Comunicado eliminado",
+      "fields": {
+        "title": "Título",
+        "body": "Texto",
+        "severity": "Nivel",
+        "audience": "Para quién",
+        "startsAt": "Inicio",
+        "endsAt": "Fin (opcional)",
+        "linkUrl": "Enlace (opcional)",
+        "linkLabel": "Texto del enlace",
+        "adminsOnly": "Solo para quien administra la empresa",
+        "dismissible": "Se puede cerrar"
+      },
+      "searchTenant": "Buscar empresa",
+      "reach": "Se mostrará a {n, plural, =0 {ninguna empresa} one {# empresa} other {# empresas}}",
+      "reachPick": "Elige el público",
+      "save": "Guardar",
+      "saved": "Comunicado guardado",
+      "cancel": "Cancelar"
     }
   }
 }

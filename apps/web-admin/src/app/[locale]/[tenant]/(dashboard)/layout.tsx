@@ -56,6 +56,7 @@ import { OperationalShell } from '@/components/layout/operational-shell';
 import { GestaoShell } from '@/components/layout/gestao-shell';
 import { cn } from '@/lib/utils';
 import { TrialBanner, useTenantFeatures } from '@/components/subscription/subscription-widgets';
+import { AnnouncementsBanner } from '@/components/announcements/announcements-banner';
 import type { FeatureKey } from '@/types/platform';
 
 interface NavItemConfig {
@@ -669,6 +670,7 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
           </div>
         </header>
 
+        <AnnouncementsBanner />
         <TrialBanner />
         <main className="p-4 md:p-6 lg:p-8">
           {children}

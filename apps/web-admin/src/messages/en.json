@@ -1393,6 +1393,7 @@
       "plans": "Plans",
       "staff": "Team",
       "support": "Tickets",
+      "announcements": "Announcements",
       "audit": "Audit"
     },
     "roles": {
@@ -2410,6 +2411,63 @@
         "RESOLVED": "Resolved",
         "CLOSED": "Closed"
       }
+    }
+  },
+  "announcements": {
+    "more": "Learn more",
+    "dismiss": "Dismiss notice",
+    "console": {
+      "title": "Announcements",
+      "subtitle": "Notices for customers, shown at the top of the app.",
+      "new": "New announcement",
+      "editTitle": "Edit announcement",
+      "empty": "No announcements yet.",
+      "state": {
+        "draft": "Draft",
+        "scheduled": "Scheduled",
+        "active": "Live",
+        "ended": "Ended"
+      },
+      "severity": {
+        "INFO": "Info",
+        "WARNING": "Warning",
+        "CRITICAL": "Critical"
+      },
+      "audience": {
+        "all": "All customers",
+        "plans": "Plans",
+        "lifecycles": "Status",
+        "tenants": "Specific companies"
+      },
+      "adminsOnlyShort": "admins only",
+      "period": "{start} to {end}",
+      "noEnd": "no end",
+      "stats": "reaches {reach} companies · {dismissed} dismissed",
+      "publish": "Publish",
+      "unpublish": "Take down",
+      "published": "Announcement published",
+      "unpublished": "Announcement taken down",
+      "edit": "Edit",
+      "delete": "Delete",
+      "deleted": "Announcement deleted",
+      "fields": {
+        "title": "Title",
+        "body": "Text",
+        "severity": "Level",
+        "audience": "Audience",
+        "startsAt": "Start",
+        "endsAt": "End (optional)",
+        "linkUrl": "Link (optional)",
+        "linkLabel": "Link text",
+        "adminsOnly": "Only company administrators",
+        "dismissible": "Can be dismissed"
+      },
+      "searchTenant": "Search company",
+      "reach": "Will show to {n, plural, =0 {no company} one {# company} other {# companies}}",
+      "reachPick": "Choose the audience",
+      "save": "Save",
+      "saved": "Announcement saved",
+      "cancel": "Cancel"
     }
   }
 }

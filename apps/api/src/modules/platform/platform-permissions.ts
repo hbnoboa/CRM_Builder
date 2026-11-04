@@ -45,6 +45,8 @@ export const PLATFORM_PERMISSIONS = {
   'audit.read': ALL,
   'support.read': ALL,
   'support.reply': ['OWNER', 'SUPPORT', 'FINANCE'],
+  'announcements.read': ALL,
+  'announcements.manage': ['OWNER', 'SUPPORT'],
 } satisfies Record<string, PlatformStaffRole[]>;
 
 export type PlatformPermission = keyof typeof PLATFORM_PERMISSIONS;

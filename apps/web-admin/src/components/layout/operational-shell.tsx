@@ -37,6 +37,8 @@ import { useTenant } from '@/stores/tenant-context';
 import { NotificationBell } from '@/components/notifications/notification-bell';
 import { TenantSelector } from '@/components/tenant-selector';
 import { cn } from '@/lib/utils';
+import { TrialBanner } from '@/components/subscription/subscription-widgets';
+import { AnnouncementsBanner } from '@/components/announcements/announcements-banner';
 
 export function OperationalShell({ children }: { children: React.ReactNode }) {
   const t = useTranslations();
@@ -230,6 +232,8 @@ export function OperationalShell({ children }: { children: React.ReactNode }) {
           </div>
         </header>
 
+        <AnnouncementsBanner />
+        <TrialBanner />
         <main className="p-4 md:p-6 lg:p-8">{children}</main>
       </div>
     </div>
