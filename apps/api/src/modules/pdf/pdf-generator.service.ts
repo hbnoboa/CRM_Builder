@@ -17,6 +17,8 @@ import {
 } from '../../common/types';
 import { getEffectiveTenantId } from '../../common/utils/tenant.util';
 import { EntityDataQueryService } from '../../common/services/entity-data-query.service';
+import { CustomRoleService } from '../custom-role/custom-role.service';
+import { hiddenFieldSlugs, omitFields } from '../../common/utils/field-permissions';
 import { formatFieldValue as sharedFormatFieldValue } from '@crm-builder/shared';
 import { QueryPdfGenerationDto, PreviewPdfDto, SimulationConfigDto } from './dto';
 import {
@@ -58,7 +60,45 @@ export class PdfGeneratorService {
     private prisma: PrismaService,
     private uploadService: UploadService,
     private queryService: EntityDataQueryService,
+    private customRoleService: CustomRoleService,
   ) {}
+
+  /**
+   * Registros pedidos por ID, so se o cargo puder ver (mesmo pipeline da lista), e sem
+   * os campos ocultos. Modelo sem tabela de origem usa a tabela do proprio registro.
+   */
+  private async loadReadableRecords(
+    recordIds: string[],
+    sourceEntityId: string | null,
+    currentUser: CurrentUser,
+    tenantId: string,
+  ) {
+    let entityId = sourceEntityId;
+    if (!entityId && recordIds.length > 0) {
+      const found =
+        (await this.prisma.entityData.findFirst({ where: { id: recordIds[0], tenantId }, select: { entityId: true } })) ??
+        (await this.prisma.archivedEntityData.findFirst({ where: { id: recordIds[0], tenantId }, select: { entityId: true } }));
+      entityId = found?.entityId ?? null;
+    }
+    const entity = entityId
+      ? await this.prisma.entity.findFirst({ where: { id: entityId, tenantId }, select: { slug: true } })
+      : null;
+    if (!entity) return [];
+
+    const { where } = await this.queryService.buildWhere({ entitySlug: entity.slug, user: currentUser, tenantId });
+    const scoped = { ...where, id: { in: recordIds } };
+    const [active, archived] = await Promise.all([
+      this.prisma.entityData.findMany({ where: scoped, orderBy: { createdAt: 'asc' } }),
+      this.prisma.archivedEntityData.findMany({ where: this.queryService.buildArchivedWhere(scoped), orderBy: { createdAt: 'asc' } }),
+    ]);
+    const hidden = hiddenFieldSlugs(
+      await this.customRoleService.getFieldPermissions(currentUser.id, entity.slug, tenantId),
+    );
+    return [
+      ...active,
+      ...archived.map((r) => ({ ...r, parentRecordId: r.parentRecordId ?? null, deletedAt: null })),
+    ].map((r) => ({ ...r, data: omitFields(r.data, hidden) }));
+  }
 
   /**
    * Gera PDF para um unico registro
@@ -87,28 +127,8 @@ export class PdfGeneratorService {
       throw new NotFoundException('Template nao encontrado');
     }
 
-    // Buscar dados do registro (EntityData + ArchivedEntityData)
-    let record = await this.prisma.entityData.findFirst({
-      where: {
-        id: recordId,
-        tenantId: targetTenantId,
-        entityId: template.sourceEntityId || undefined,
-      },
-    });
-
-    if (!record) {
-      // Fallback: buscar em ArchivedEntityData
-      const archivedRecord = await this.prisma.archivedEntityData.findFirst({
-        where: {
-          id: recordId,
-          tenantId: targetTenantId,
-          entityId: template.sourceEntityId || undefined,
-        },
-      });
-      if (archivedRecord) {
-        record = { ...archivedRecord, deletedAt: null } as unknown as typeof record;
-      }
-    }
+    // Buscar dados do registro (EntityData + ArchivedEntityData), como o cargo pode ver
+    const [record] = await this.loadReadableRecords([recordId], template.sourceEntityId, currentUser, targetTenantId);
 
     if (!record) {
       throw new NotFoundException('Registro nao encontrado');
@@ -251,28 +271,7 @@ export class PdfGeneratorService {
         ...archivedRecords.map((r) => ({ ...r, parentRecordId: r.parentRecordId ?? null })),
       ];
     } else {
-      const [activeRecords, archivedRecords] = await Promise.all([
-        this.prisma.entityData.findMany({
-          where: {
-            id: { in: recordIds },
-            tenantId: targetTenantId,
-            entityId: template.sourceEntityId || undefined,
-          },
-          orderBy: { createdAt: 'asc' },
-        }),
-        this.prisma.archivedEntityData.findMany({
-          where: {
-            id: { in: recordIds },
-            tenantId: targetTenantId,
-            entityId: template.sourceEntityId || undefined,
-          },
-          orderBy: { createdAt: 'asc' },
-        }),
-      ]);
-      records = [
-        ...activeRecords,
-        ...archivedRecords.map((r) => ({ ...r, parentRecordId: r.parentRecordId ?? null })),
-      ];
+      records = await this.loadReadableRecords(recordIds, template.sourceEntityId, currentUser, targetTenantId);
     }
 
     if (records.length === 0) {
@@ -604,18 +603,7 @@ export class PdfGeneratorService {
 
     // Se forneceu recordId, buscar dados reais
     if (dto.recordId) {
-      let record = await this.prisma.entityData.findFirst({
-        where: {
-          id: dto.recordId,
-          tenantId: targetTenantId,
-        },
-      });
-      if (!record) {
-        const archived = await this.prisma.archivedEntityData.findFirst({
-          where: { id: dto.recordId, tenantId: targetTenantId },
-        });
-        if (archived) record = { ...archived, deletedAt: null } as unknown as typeof record;
-      }
+      const [record] = await this.loadReadableRecords([dto.recordId], template.sourceEntityId, currentUser, targetTenantId);
 
       if (record) {
         const baseData = {

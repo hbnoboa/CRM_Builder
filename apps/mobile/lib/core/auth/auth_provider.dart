@@ -238,6 +238,14 @@ class Auth extends _$Auth {
   /// If online, tries to refresh token first for PowerSync to work.
   Future<void> _restoreFromCache() async {
     try {
+      if (await SecureStorage.isLoggedOut()) {
+        _debugLog('[Auth] Logged out by user - no auto login');
+        if (!_manualAuthInProgress && !state.isAuthenticated) {
+          state = const AuthState(isLoading: false);
+        }
+        return;
+      }
+
       final hasCache = await SecureStorage.hasOfflineCredentials();
       if (!hasCache) {
         _debugLog('[Auth] No cached credentials for offline auto login');
@@ -743,6 +751,8 @@ class Auth extends _$Auth {
       final brandColor = await SecureStorage.getString('brandColor');
       ref.read(tenantThemeProvider.notifier).applyBrandColor(brandColor);
 
+      await SecureStorage.setLoggedOut(false);
+
       _debugLog('[Auth] Offline login success for ${user.email}');
       state = AuthState(
         user: user,
@@ -862,6 +872,7 @@ class Auth extends _$Auth {
         // Normal logout - keep offline credentials for future offline login
         // Keep local database so user can view data offline after re-login
         await SecureStorage.clearSession();
+        await SecureStorage.setLoggedOut(true);
         _debugLog('[Auth] Session cleared');
       }
     } catch (e) {

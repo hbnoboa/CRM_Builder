@@ -10,12 +10,15 @@ Ele é organizado pelos **3 tipos de usuário** do produto:
 | **Operação** | todo mundo da empresa, conforme o cargo | Web operacional (`/{locale}/{empresa}/...`) **e** app celular |
 
 - Ambiente: **dev** — `https://dev.iossystem.com.br`. Nada aqui toca prod.
-- Tempo estimado: 1 dia inteiro para tudo; cada parte pode ser feita separada.
+- Tempo estimado: 1 dia inteiro para tudo. As partes dependem umas das outras: siga a ordem ou monte o cenário antes (seção 13).
+- Teste rápido: use a trilha de smoke da seção 13.
 - Convenções:
   - ✅ = resultado esperado.
   - 🔧 = ponto que era bug e **foi corrigido** (PR das correções E2E). Se falhar, é regressão: reporte com o ID.
   - 📧 = depende de e-mail (SMTP). Em dev **não há SMTP configurado**: pule ou use o link copiável quando existir.
-  - IDs (`P-03`, `E-12`, `O-20`, `M-07`) servem para reportar o que falhou.
+  - IDs (`P-03`, `E-12`, `O-18`, `M-07`) servem para reportar o que falhou; passo dentro do bloco: `E-08/14`.
+  - **Resultado:** registre cada ID numa planilha com ID, resultado, commit, data, evidência e bug. As tabelas não têm coluna própria.
+  - **Repetição:** slugs, e-mails e domínio não são liberados. Em cada rodada use um sufixo (`qa-total-02`, `voce+dora02@…`).
 - Mensagens de erro da API aparecem **sem acento** ("Credenciais invalidas"): isso é o texto atual, não é erro do teste.
 
 ---
@@ -35,6 +38,7 @@ Ele é organizado pelos **3 tipos de usuário** do produto:
 10. [Matriz final por perfil](#10-matriz-final-por-perfil)
 11. [Correções feitas (testar como regressão)](#11-correções-feitas-testar-como-regressão)
 12. [Diagnóstico e limpeza](#12-diagnóstico-e-limpeza)
+13. [Smoke e testes automatizados](#13-smoke-e-testes-automatizados)
 
 ---
 
@@ -45,18 +49,21 @@ Ele é organizado pelos **3 tipos de usuário** do produto:
 - **2 celulares ou emuladores** com o app apontando para dev:
   ```bash
   cd apps/mobile
-  flutter run --dart-define=API_URL=https://dev.iossystem.com.br/api/v1
+  flutter run \
+    --dart-define=API_URL=https://dev.iossystem.com.br/api/v1 \
+    --dart-define=POWERSYNC_URL=https://dev.iossystem.com.br/sync
   ```
+  Sem o `POWERSYNC_URL`, o app usa o padrão de **produção** como reserva.
 - App autenticador (Google Authenticator, Authy…) para as duas etapas.
-- Planilha `.xlsx` simples com colunas `Nome`, `Email`, `Telefone` (5 linhas, 1 com e-mail inválido) para importação.
+- Planilha `.xlsx` com colunas `Nome`, `Email`, `Telefone`: uma com 5 linhas, sendo 1 com e-mail inválido, e outra com 70 linhas e e-mails únicos (`O-08` e `O-09/10`).
 - Uma imagem `.jpg`/`.png` pequena (logo e fotos).
 
 ### 0.2 Pessoas de teste
-Use aliases do seu e-mail (`voce+dora@dominio`, etc.). Anote as senhas. Senha padrão sugerida: `Teste@2026qa` (passa em qualquer política).
+Use aliases do seu e-mail (`voce+dora@dominio`, etc.). Anote as senhas. Senha padrão sugerida: `Teste@2026qa` (12 caracteres, passa na política da E-05).
 
 | Apelido | Camada | Papel | Como nasce |
 |---|---|---|---|
-| **Paula** | Plataforma | Dono do console | já existe em dev (dono ativo) |
+| **Paula** | Plataforma | Dono do console | já existe em dev; sem acesso, crie com `apps/api/prisma/create-platform-owner.ts` |
 | **Sérgio** | Plataforma | Suporte | Paula cria (P-05) |
 | **Fábio** | Plataforma | Financeiro | Paula cria (P-05) |
 | **Lia** | Plataforma | Somente leitura | Paula cria (P-05) |
@@ -84,20 +91,21 @@ Use aliases do seu e-mail (`voce+dora@dominio`, etc.). Anote as senhas. Senha pa
 | 1 | Abrir `/pt-BR/admin/login` | ✅ "Console da plataforma" / "Acesso restrito à equipe" |
 | 2 | Senha errada | ✅ "Credenciais invalidas" |
 | 3 | E-mail que não existe | ✅ **mesma** mensagem e tempo parecido (não revela quem é da equipe) |
-| 4 | 6 tentativas erradas seguidas em 1 min | ✅ "Muitas tentativas. Aguarde um minuto e tente novamente." |
+| 4 | Espere 1 min. 6 tentativas erradas seguidas com o **mesmo e-mail** | ✅ "Muitas tentativas. Aguarde um minuto e tente novamente." (o limite é por IP + e-mail) |
+| 4b | 🔧 Via API: repetir o login com um `refreshToken` aleatório no corpo | ✅ o limite continua valendo (429 na 6ª) |
 | 5 | Após 1 min, login correto | ✅ entra em "Visão geral"; cabeçalho com nome + papel "Dono" |
 | 6 | Menu lateral | ✅ Visão geral, Métricas, Pessoas, Clientes, Planos, Equipe, Chamados, Comunicados, Saúde do sistema, Auditoria |
 
 ### P-02 Isolamento de sessão console × empresa
-- [ ] No **mesmo navegador**, abra outra aba e faça login numa empresa qualquer (`/pt-BR/login`).
+- [ ] Depois da E-01: no **mesmo navegador**, abra outra aba e faça login numa empresa (`/pt-BR/login`).
 - ✅ As duas sessões convivem (o console usa token próprio). Sair de uma não derruba a outra.
 
 ### P-03 Trocar a própria senha (console)
 | # | Ação | Esperado |
 |---|---|---|
 | 1 | Ícone de chave → "Trocar senha", senha atual errada | ✅ "Senha atual incorreta" |
-| 2 | Nova senha com 9 caracteres | ✅ "Senha da equipe deve ter no minimo 10 caracteres" |
-| 3 | Nova senha só minúsculas e 12 caracteres | ✅ erro de maiúscula/minúscula/número |
+| 2 | Nova senha com 9 caracteres | ✅ o navegador barra no campo (mínimo de 10) |
+| 3 | Nova senha só minúsculas e 12 caracteres | ✅ toast "Erro de validacao" |
 | 4 | Senha válida | ✅ toast "Senha alterada"; Auditoria registra "trocou a própria senha" |
 
 ### P-04 Visão geral
@@ -115,11 +123,13 @@ Use aliases do seu e-mail (`voce+dora@dominio`, etc.). Anote as senhas. Senha pa
 | 5 | Mudar o cargo da Lia para Suporte e voltar para Somente leitura | ✅ muda na hora, toast "Equipe atualizada" |
 | 6 | "Nova senha" para o Fábio | ✅ "Senha redefinida" |
 | 7 | "Desativar" Lia → logar como Lia em outra janela | ✅ "Credenciais invalidas"; "Ativar" de novo → login ok |
-| 8 | Com Lia logada, Paula **desativa** Lia | ✅ na próxima ação da Lia: cai no login ("Acesso da equipe revogado") |
+| 8 | Com Lia logada, Paula **desativa** Lia | ✅ na próxima ação da Lia: volta ao login, sem mensagem |
 | 9 | Reativar a Lia | ✅ volta a entrar |
 
 ### P-06 Permissões de cada papel do console
-Logue como cada um (janelas separadas) e confira:
+> Faça depois da P-08 e, para "Responder chamado", depois da O-15.
+
+Logue como cada um (janelas separadas) e confira. A mesma matriz é testada direto na API na seção 13:
 
 | Item | Paula (Dono) | Sérgio (Suporte) | Fábio (Financeiro) | Lia (Leitura) |
 |---|---|---|---|---|
@@ -149,8 +159,8 @@ Logue como cada um (janelas separadas) e confira:
 | # | Ação | Esperado |
 |---|---|---|
 | 1 | *Clientes* → "Novo cliente": "QA Console", slug automático, plano "QA Mínimo", situação **Em teste**, admin com e-mail `voce+consoleadmin@…` | ✅ "Cliente criado", abre o detalhe |
-| 2 | Tentar slug `admin` | ✅ "Slug reservado: admin" |
-| 3 | Repetir o slug "qa-console" | ✅ "Slug já está em uso" |
+| 2 | Tentar slug `admin`, com e-mail de admin novo | ✅ "Slug reservado: admin" |
+| 3 | Repetir o slug "qa-console", com e-mail de admin novo | ✅ "Slug já está em uso" |
 | 4 | E-mail do admin já usado | ✅ "Email do administrador ja esta em uso" |
 | 5 | Detalhe: cartão "Cargos" | ✅ Administrador, Gerente, Operador ("Padrão"), Visualizador |
 | 6 | Cartão "Usuários" | ✅ o admin com selo "Dono" |
@@ -226,7 +236,7 @@ Logue como cada um (janelas separadas) e confira:
 | 9 | Abrir o editor no celular (largura pequena) | ✅ "Edite no computador" |
 | 10 | 🔧 Abas do editor: **Campos**, **Regras de campo**, **Filtro global**, **Automações**, **Excluir** | ✅ todas aparecem; trocar de aba não perde campos não salvos |
 | 11 | 🔧 *Filtro global* em Clientes: "VIP Igual a Não" → "Salvar filtro" | ✅ "Filtro global salvo"; **ninguém** (nem a Dora) vê clientes VIP na lista, no dashboard e no app; remover o chip e salvar volta tudo |
-| 12 | 🔧 *Regras de campo*: regra "obrigatório" em Email | ✅ o formulário passa a exigir Email |
+| 12 | 🔧 *Regras de campo*: regra "obrigatório" em Email | ✅ o formulário do **app** passa a exigir Email; no web a regra ainda não é aplicada |
 | 13 | 🔧 Criar tabela "Lixo" → editor → aba *Excluir* → digitar o nome → "Excluir tabela" | ✅ botão só habilita com o nome certo; volta para *Tabelas* sem "Lixo" |
 
 ### E-07 Cargos
@@ -237,12 +247,11 @@ Logue como cada um (janelas separadas) e confira:
 | 3 | Nome repetido "Gerente" | ✅ "Já existe uma role com este nome" |
 | 4 | "Novo Cargo" **"Auditor"**: só *Auditoria* (logs Ler) e Clientes Ler | ✅ criado (usado na E-19) |
 | 5 | Abrir **Operador** e salvar **sem mudar nada** | ✅ continua Ler/Criar/Editar com escopo **Apenas meus** (regressão do coringa `*`) |
-| 6 | No Operador, aba *Permissões por Tabela* → Clientes → **Filtros de Dados**: campo "VIP" Igual a "Não" → Adicionar → Salvar | ✅ Operador **não verá** clientes VIP (testado em O-10) |
-| 7 | Em Clientes no Operador: **Permissões por Campo** → "CPF" Ver ❌ | ✅ Editar desliga junto; CPF some para o Operador |
+| 6 | No Operador, aba *Permissões por Tabela* → Clientes → **Filtros de Dados**: campo "VIP" Igual a "Não" → Adicionar → Salvar | ✅ Operador **não verá** clientes VIP (testado em O-06/5) |
+| 7 | 🔧 Em Clientes no Operador: **Permissões por Campo** → um clique em "Ver" do CPF | ✅ desmarca na hora e Editar desliga junto; só o CPF some para o Operador, os demais campos seguem visíveis e editáveis |
 | 8 | Setas "Subir/Descer" em Visualizador e Operador | ✅ reordena ranks abaixo do seu |
 | 9 | "Acesso total ao tenant" num cargo de teste e desmarcar um módulo | ✅ desliga o modo automático |
-| 10 | Excluir cargo **com usuários** (depois dos convites) | ✅ "Esta role esta atribuida a N usuario(s)…" |
-| 11 | 🔧 Módulo **Chaves de API** no formulário (Ver / Criar / Excluir) | ✅ aparece; um cargo só com "Criar" em Chaves de API consegue criar chave em *Integrações* |
+| 11 | 🔧 Módulo **Chaves de API** no formulário (Ver / Criar / Excluir) | ✅ aparece; um cargo com "Ver" e "Criar" em Chaves de API consegue criar chave em *Integrações* |
 
 ### E-08 Convites e usuários
 | # | Ação | Esperado |
@@ -257,17 +266,19 @@ Logue como cada um (janelas separadas) e confira:
 | 8 | Convidar o Alex de novo | ✅ "Esta pessoa ja faz parte da empresa" |
 | 9 | Convidar `voce+x@…` → em "convites pendentes" → "Reenviar" | ✅ "Link novo do convite"; o link antigo vira "inválido" |
 | 10 | "Cancelar" esse convite → abrir o link | ✅ "Este convite foi cancelado." |
-| 11 | Convidar alguém já com conta em **outra** empresa (o admin da QA Console) | ✅ página pede "Sua senha" ("Você já tem uma conta…"); ao aceitar, entra direto na QA Total e ganha o seletor de empresas |
+| 11 | Convidar, como **Operador**, alguém já com conta em **outra** empresa (o admin da QA Console) | ✅ página pede "Sua senha" ("Você já tem uma conta…"); ao aceitar, entra direto na QA Total e ganha o seletor de empresas |
 | 12 | Lista de usuários | ✅ cartões com cargo, "Dono" (coroa) na Dora, busca por nome/e-mail |
 | 13 | "Novo Usuário" (sem convite) **sem senha** | ✅ erro da API (senha obrigatória) |
 | 14 | 🔧 Editar o **próprio** usuário (Dora): trocar o nome e salvar | ✅ salva (trocar a própria situação continua bloqueado) |
 | 15 | 🔧 Editar a Vera e só trocar o nome | ✅ salva |
-| 15b | 🔧 Desativar a Vera; com o plano no limite de usuários, reativar | ✅ "Limite de usuarios do plano atingido" |
-| 16 | Limite do plano: com o admin da QA Console já são **8** pessoas ativas (limite 8) → convidar mais 1 | ✅ "Limite de usuarios do plano atingido (8)" (se não bater, conte os ativos em *Plano*) |
+| 16 | Limite do plano: com o admin da QA Console já são **8** pessoas ativas (limite 8) → convidar mais 1 e tentar aceitar | ✅ "Limite de usuarios do plano atingido (8)" (se não bater, conte os ativos em *Plano*) |
+| 17 | 🔧 Desativar a Vera (7 ativos) → aceitar o convite do passo 16 (8 ativos) → reativar a Vera | ✅ desativar libera a vaga; reativar dá "Limite de usuarios do plano atingido" |
+| 18 | Excluir a pessoa do passo 16 e reativar a Vera | ✅ excluir libera a vaga; Vera volta (ela é usada nas próximas seções) |
+| 19 | *Cargos* → excluir cargo **com usuários** | ✅ "Esta role esta atribuida a N usuario(s)…" |
 
 ### E-09 Proteções do dono (como **Alex**, administrador não-dono)
 - [ ] Na lista, a Dora **não tem** "Editar"/"Excluir".
-- [ ] Alex também **não consegue** gerir outro Administrador (mesmo rank) — sem botões.
+- [ ] Alex também **não consegue** gerir outro Administrador (mesmo rank) — sem botões. Crie um segundo Administrador temporário para ver isso e exclua depois.
 - [ ] *Cargos* → editar o cargo **Administrador** → salvar. ✅ "Acesso negado: voce so age sobre cargos de rank inferior…" (o botão aparece; a API recusa).
 - [ ] *Plano* → card "Dono da empresa": Alex vê quem é o dono, **sem** o botão de transferir.
 - [ ] *Dados e privacidade*: Alex **pode** exportar (acesso total), mas **não** encerrar ("Somente o dono da empresa pode encerrar a conta.").
@@ -304,13 +315,14 @@ Logue como cada um (janelas separadas) e confira:
 | # | Ação | Esperado |
 |---|---|---|
 | 1 | *Links públicos* → "Novo Link": "Cadastro de visitantes", entidade Clientes, "Criar role automaticamente" ✔, Max usuários **2** | ✅ cartão com `/p/{slug}` |
-| 2 | "Copiar URL" | ✅ "Link copiado!" (usado em O-30) |
+| 2 | "Copiar URL" | ✅ "Link copiado!" (usado em O-18) |
+| 3 | 🔧 Novo link, sem criar role, com o cargo **Administrador** ou **Gerente** | ✅ "Link publico nao pode usar cargo com acesso a administracao" |
 
 ### E-14 Integrações — chaves de API
 | # | Ação | Esperado |
 |---|---|---|
 | 1 | *Integrações › Chaves de API* → "Nova chave": "ERP QA", cargo **Gerente**, validade 30 dias | ✅ "Chave criada — Copie agora…"; copie a chave |
-| 2 | No terminal: `curl -H "X-API-Key: <chave>" https://dev.iossystem.com.br/api/v1/data/clientes` | ✅ lista registros |
+| 2 | Com pelo menos 1 cliente criado, no terminal: `curl -H "X-API-Key: <chave>" https://dev.iossystem.com.br/api/v1/data/clientes` | ✅ lista registros |
 | 3 | `curl -H "X-API-Key: <chave>" https://dev.iossystem.com.br/api/v1/users` | ✅ 403 "Chave de API so acessa registros, tabelas e upload" |
 | 4 | "Revogar" → repetir o passo 2 | ✅ 401 "Chave de API invalida ou revogada" |
 
@@ -327,14 +339,15 @@ Logue como cada um (janelas separadas) e confira:
 ### E-16 Integrações — automações
 - [ ] Aba *Automações*: lista as automações criadas pelo template "Ordem de Servico".
 - [ ] 🔧 "Editar na tabela" abre o editor direto na aba **Automações** (Automações de evento e agendadas).
+- [ ] 🔧 Ação "Executar Script" não aparece mais. Via API, criar automação com `run_script` → ✅ "Tipo de acao invalido". Automação antiga com essa ação → ✅ falha na execução com "A acao run_script foi desativada por seguranca".
 
 ### E-17 Plano
 - [ ] *Plano*: "QA Básico", dias restantes de teste, uso com barras, funções do plano.
-- [ ] Console muda o plano da QA Total para "QA Mínimo" → depois de até 30 s, Chat/PDF/Links públicos aparecem como "não incluída no plano" e **somem** os menus correspondentes (*Modelos de PDF*, *Links públicos*, Chat na lateral da administração).
+- [ ] Console muda o plano da QA Total para "QA Mínimo" → depois de até 30 s, Chat/PDF/Links públicos aparecem como "não incluída no plano" e **somem** os menus correspondentes (*Modelos de PDF*, *Links públicos*).
 - [ ] 🔧 Na **operação** (shell verde) o item "Chat" também some com o chat fora do plano.
 - [ ] Voltar o plano para "QA Básico".
 
-### E-18 Transferência de dono (faça no fim do dia ou desfaça)
+### E-18 Transferência de dono (faça por último nesta seção e desfaça)
 | # | Ação | Esperado |
 |---|---|---|
 | 1 | Dora → *Plano* → "Escolha o novo dono" = **Gil** (Gerente) → Transferir | ✅ "O novo dono precisa estar num cargo com acesso total" |
@@ -352,12 +365,13 @@ Logue como cada um (janelas separadas) e confira:
 | Cargo | Entra em "Administração"? | Seções visíveis |
 |---|---|---|
 | Dora (dono) / Alex | ✅ | todas |
-| Gil (Gerente) | ✅ | Painel, Usuários, Equipes, Cargos, Guia, Modelos de PDF, Dashboards, Links públicos, Segurança (só leitura) |
+| Gil (Gerente) | ✅ | Painel, Usuários, Equipes, Cargos, Guia, Modelos de PDF, Segurança (só leitura) |
 | Ana / Bruno / Carla / Vera | ❌ (shell "Operacional", sem o botão) | — |
 
 - [ ] Ana digitando `/pt-BR/qa-total/gestao/users` na barra → ✅ volta para `/home`.
 - [ ] Gil digitando `/gestao/organization` → ✅ volta para `/gestao`.
-- [ ] 🔧 Gil em *Cargos*: vê a lista (só leitura; editar dá "Acesso negado").
+- [ ] 🔧 Gil em *Cargos*: vê a lista, sem botões de edição.
+- [ ] 🔧 Gil **não** vê *Links públicos* (a API exige "Gerenciar"); digitar a URL volta para `/gestao`.
 - [ ] 🔧 Gil **não** vê *Dashboards* (configurar dashboards exige criar/editar/excluir no módulo Painel); digitar a URL volta para `/gestao`.
 
 ---
@@ -368,16 +382,17 @@ Logue como cada um (janelas separadas) e confira:
 | Persona | Esperado |
 |---|---|
 | Ana / Vera / Bruno / Carla | ✅ faixa verde no topo, selo "Operacional", menu: Início, Dashboard, Chat, Registros (lista de tabelas com contagem), Suporte, Configurações. **Sem** "Administração". |
-| Ana / Vera | ✅ **sem** "Lixeira" (não excluem) |
+| Ana / Vera / Bruno / Carla | ✅ **sem** "Lixeira" (não excluem) |
 | Gil / Dora | ✅ casca administrativa com botão "Administração" |
 | Todos | ✅ sino de notificações, "Olá, {nome}", faixa de teste (sem "Ver plano" para quem não é admin) |
 
 ### O-02 Início (`/home`)
-- [ ] Ana: cartões **Registros**, **Relatórios**, **Configurações** apenas.
+- [ ] 🔧 Ana: cartões **Registros**, **Relatórios**, **Configurações** apenas.
 - [ ] Dora: + Nova Tabela, Usuários, Cargos, Templates PDF, Dashboards, Links Públicos, Auditoria.
 
-### O-03 Rotas que não deveriam abrir
+### O-03 Rotas da própria conta abrem para todos
 - [ ] 🔧 Ana abre `/pt-BR/qa-total/profile` e `/settings` → as páginas abrem (são da própria conta).
+- [ ] Ana abre `/pt-BR/qa-total/gestao/entities` → volta para `/home`.
 
 ### O-04 Dashboard geral (`/dashboard`)
 - [ ] Ana: KPIs "Registros" e "Atividade" (sem "Tabelas"/"Usuários").
@@ -392,7 +407,7 @@ Logue como cada um (janelas separadas) e confira:
 |---|---|---|
 | 1 | "Criar" em Clientes sem preencher Nome | ✅ "Nome é obrigatório" |
 | 2 | Email `abc` | ✅ "Email inválido" |
-| 3 | CPF — campo **não aparece** (permissão por campo, E-07/7) | ✅ |
+| 3 | 🔧 CPF — só esse campo **não aparece** (permissão por campo, E-07/7); os outros aparecem e salvam | ✅ |
 | 4 | Criar "Cliente A1" (VIP = Não) e "Cliente A2" (VIP = **Sim**) | ✅ salvos; webhook dispara (E-15) |
 | 5 | Lista | ✅ Ana vê **A1**; **A2 some** (filtro de dados VIP = Não) |
 | 6 | Editar A1 → mudar Status | ✅ "Registro atualizado…" |
@@ -408,9 +423,9 @@ Logue como cada um (janelas separadas) e confira:
 - [ ] Busca "A1" filtra.
 - [ ] "Filtrar" → Status Igual a "Novo" → chip; "Limpar filtros".
 - [ ] 🔧 "Colunas" → esconder Email → recarregar: continua escondida (salvo neste navegador, por tabela).
-- [ ] Com 30+ registros (use a importação): paginação 25 por página, "1–25 de N".
+- [ ] Depois da O-09 (planilha de 70 linhas): paginação 25 por página, "1–25 de N".
 
-### O-09 Importar e exportar (Dora ou Gil)
+### O-09 Importar e exportar (Dora, exceto onde indicado)
 | # | Ação | Esperado |
 |---|---|---|
 | 1 | "Importar" → arquivo `.csv` | ✅ "Formato não suportado. Use .xlsx ou .json" |
@@ -420,9 +435,9 @@ Logue como cada um (janelas separadas) e confira:
 | 5 | Exportar → PDF "Ficha do cliente" sem seleção | ✅ desabilitado ("selecione") |
 | 6 | Selecionar 1 → PDF individual | ✅ "PDF gerado com sucesso" |
 | 7 | PDF "Lista de clientes" (lote) | ✅ "PDF em lote gerado com sucesso" |
-| 8 | 🔧 Gil (Gerente) procura "Exportar" | ✅ aparece (o web agora respeita o coringa `*` dos cargos padrão) |
+| 8 | 🔧 Gil (Gerente) clica em "Exportar" → Excel | ✅ o arquivo baixa (web e API respeitam o coringa `*`; Gil não importa) |
 | 9 | Ana | ✅ sem Importar/Exportar |
-| 10 | Limite do plano: importar até passar de 60 registros | ✅ "Limite de registros do plano atingido (60)" |
+| 10 | Limite do plano: importar a planilha de 70 linhas | ✅ "Limite de registros do plano atingido (60)". Depois exclua e esvazie a lixeira até sobrar espaço: as próximas seções criam registros |
 
 ### O-10 Excluir e desfazer
 | # | Ação (Dora) | Esperado |
@@ -438,7 +453,7 @@ Logue como cada um (janelas separadas) e confira:
 | 1 | Dora → *Lixeira* | ✅ itens com "Excluído por Dora em …", "+ N sub-registros" |
 | 2 | Busca e filtro por tabela | ✅ |
 | 3 | "Restaurar" o cliente com visitas | ✅ "N registros restaurados (com sub-registros)" |
-| 4 | Excluir um cliente, depois **só a visita** dele; restaurar a visita antes do pai | ✅ "O registro principal tambem esta na lixeira: restaure ele primeiro" |
+| 4 | Excluir só a visita de um cliente, depois o cliente; restaurar o cliente | ✅ o cliente volta e a visita aparece como item separado na lixeira. Via API, restaurar a visita antes do pai → "O registro principal tambem esta na lixeira: restaure ele primeiro" |
 | 5 | "Apagar de vez" um item | ✅ "Apagado de vez"; some definitivamente |
 | 6 | Prazo "Apagar após 30 dias" | ✅ "Prazo da lixeira salvo"; subtítulo cita os 30 dias |
 | 7 | "Esvaziar lixeira" | ✅ "Esvaziar toda a lixeira?" → "N registro(s) apagado(s)" |
@@ -455,7 +470,7 @@ Logue como cada um (janelas separadas) e confira:
 | 5 | "Novo chat" → escolher tabela e registro | ✅ abre o thread |
 | 6 | Dora renomeia e exclui um thread | ✅ "Excluir chat?" → "Chat excluído." (histórico preservado) |
 | 7 | Buscar mensagens (lupa) | ✅ resultados; clicar pula para a mensagem com destaque |
-| 8 | `@bot quantos clientes?` | ✅ resposta ou "O bot não está configurado neste tenant." |
+| 8 | No canal Clientes: `@bot quantos clientes?` | ✅ "Você pode ver N registro(s)" |
 | 9 | 🔧 Ana → "Conversa direta" → buscar "gil" → escolher | ✅ abre a conversa; Gil vê em "Diretas" com o nome **Ana**; só os dois veem |
 
 ### O-13 Chat — comandos
@@ -464,9 +479,9 @@ Logue como cada um (janelas separadas) e confira:
 | 1 | Dora → "Comandos do bot" → criar comando de **captura rápida** `/novocliente` (Clientes, campos Nome/Email) | ✅ |
 | 2 | Comando de **consulta** `/clientes` (formatos Excel e PDF) | ✅ |
 | 3 | Ana digita `/` no canal | ✅ lista de comandos; ↑↓, Tab/Enter |
-| 4 | `/novocliente` → "Salvar e adicionar outra" 2x → "Registrar" | ✅ "✓ 2 registro(s) adicionado(s)…"; aparecem na tabela |
+| 4 | Como Dora: `/novocliente` → "Salvar e adicionar outra" 2x | ✅ "✓ 2 registro(s) adicionado(s)…" a cada salvamento; aparecem na tabela |
 | 5 | `/clientes` → Excel | ✅ "Relatório gerado — clique na mensagem para baixar" |
-| 6 | Comando restrito a um cargo: Vera não vê | ✅ |
+| 6 | Comando de **consulta** restrito ao cargo Gerente: Vera não vê | ✅ |
 
 ### O-14 Notificações e preferências
 | # | Ação | Esperado |
@@ -484,14 +499,14 @@ Logue como cada um (janelas separadas) e confira:
 ### O-15 Suporte (cliente)
 | # | Ação | Esperado |
 |---|---|---|
-| 1 | Ana → *Suporte* → "Novo chamado": assunto "Não consigo exportar", tipo Problema, prioridade Alta | ✅ "Chamado #N aberto" |
+| 1 | Ana → *Suporte* → "Novo chamado": assunto "Não consigo exportar", mensagem "Erro ao exportar", tipo Problema, prioridade Alta | ✅ "Chamado #N aberto" |
 | 2 | Assunto com 2 letras | ✅ "Enviar" desabilitado |
 | 3 | Dora → *Suporte* | ✅ vê **todos** os chamados da empresa (com o nome de quem abriu) |
 | 4 | Vera tenta abrir o chamado da Ana pela URL | ✅ "Chamado nao encontrado" |
 | 5 | (depois da resposta do suporte, P-12) Ana vê "· nova resposta" e "Aguardando você" | ✅ |
 | 6 | Ana "Marcar como resolvido" | ✅ "Chamado marcado como resolvido" |
 | 7 | Ana responde num chamado **Resolvido** | ✅ volta para "Aguardando suporte" |
-| 8 | Chamado **Encerrado** | ✅ sem caixa de resposta: "Chamado encerrado. Se precisar, abra um novo." |
+| 8 | Sérgio marca outro chamado como **Encerrado** (depois da P-12) | ✅ sem caixa de resposta para a Ana: "Chamado encerrado. Se precisar, abra um novo." |
 
 ### O-16 Configurações pessoais
 - [ ] *Perfil*: alterar nome → "Salvar". Trocar senha com confirmação diferente → "As senhas não coincidem".
@@ -502,7 +517,8 @@ Logue como cada um (janelas separadas) e confira:
 ### O-17 Várias empresas
 - [ ] O admin da QA Console (aceitou convite em E-08/11): seletor com prédio no cabeçalho, as duas empresas, ✓ na atual.
 - [ ] Trocar → vai para `/qa-console/home`; a lista de tabelas muda.
-- [ ] Digitar na URL o slug de uma empresa onde **não** tem acesso → erro "Sem acesso a este tenant" (anotar como a tela se comporta).
+- [ ] 🔧 Na QA Total esse admin é Operador: vê só os próprios registros e sem CPF, mesmo sendo Administrador na QA Console.
+- [ ] Digitar na URL o slug de uma empresa onde **não** tem acesso → a API responde 401 "Sem acesso a este tenant".
 
 ### O-18 Link público
 | # | Ação | Esperado |
@@ -514,6 +530,9 @@ Logue como cada um (janelas separadas) e confira:
 | 5 | Segundo cadastro | ✅ ok; **terceiro**: "Limite de registros atingido para este link" |
 | 6 | Dora desativa o link → recarregar | ✅ "Este link esta desativado" |
 | 7 | Cadastros do link **não** contam no limite de usuários do plano | ✅ (Plano continua com o mesmo número) |
+| 8 | 🔧 Conta com duas etapas entra pelo link | ✅ "Esta conta usa verificacao em duas etapas. Entre pelo login normal." |
+| 9 | 🔧 6 logins errados em 1 min no link | ✅ 429 "Muitas tentativas…" |
+| 10 | 🔧 Vera entra pelo link | ✅ o cargo Visualizador continua igual em *Cargos* |
 
 ---
 
@@ -524,9 +543,9 @@ Logue como cada um (janelas separadas) e confira:
 ### M-01 Primeira abertura e login
 | # | Ação | Esperado |
 |---|---|---|
-| 1 | Abrir o app | ✅ tela "Permissoes necessarias" (Localização, Câmera, Notificações) → "Conceder Permissoes" |
+| 1 | Abrir o app | ✅ tela de login |
 | 2 | Login com senha errada | ✅ mensagem de erro |
-| 3 | Login correto | ✅ entra no Dashboard; tema na cor da empresa |
+| 3 | Login correto | ✅ tela "Permissoes necessarias" (Localização, Câmera, Notificações) → "Conceder Permissoes" → Dashboard na cor da empresa |
 | 4 | Ícone de nuvem no topo | ✅ "Sincronizando..." → "Sincronizado" |
 | 5 | Tocar no ícone | ✅ diálogo "PowerSync" (Conectado: Sim, Último sync) |
 | 6 | Menu lateral → "Sincronizacao" | ✅ contagens locais de Entity, EntityData, CustomRole, User |
@@ -551,7 +570,8 @@ Logue como cada um (janelas separadas) e confira:
 | 7 | Detalhe → "Compartilhar" | ✅ "Registro copiado para area de transferencia" |
 | 8 | Sub-registro (Visitas) dentro de B1 | ✅ "Adicionar Visitas" |
 | 9 | Dora exclui algo no web | ✅ some do app em segundos |
-| 10 | 🔧 Botão de filtro ao lado da busca → adicionar "Status igual a Novo" | ✅ lista e contador filtram (também offline); o número aparece no botão |
+| 10 | 🔧 Botão de filtro ao lado da busca → adicionar "Status igual a Novo" | ✅ lista e contador filtram (também offline); o número aparece no botão; campo oculto (CPF para a Ana) não aparece na lista de filtros |
+| 11 | 🔧 Dora: arrastar para excluir um registro no app | ✅ some no app e **no web**, vai para a Lixeira e não volta depois do sync |
 
 ### M-04 Offline
 | # | Ação | Esperado |
@@ -564,6 +584,9 @@ Logue como cada um (janelas separadas) e confira:
 | 6 | Desligar o modo avião | ✅ sobe tudo; foto vira imagem real; no web aparece OFF1, a edição e a mensagem |
 | 7 | 🔧 Offline: criar um cliente com **Email repetido** (regra do servidor) → voltar online | ✅ aviso "Uma alteração não foi sincronizada: …" e o registro some da lista |
 | 8 | Offline: criar registro com a empresa no **limite do plano** → online | ✅ snackbar "Uma alteração não foi sincronizada: Limite de registros…" |
+| 9 | 🔧 Offline: criar um registro e editá-lo → online | ✅ no web, um único registro, já com a edição |
+| 10 | 🔧 Offline: criar um registro, fotografar e adicionar sub-registro → online | ✅ foto real e sub-registro ligado ao pai no web, sem duplicar |
+| 11 | 🔧 Matar o app durante o envio e reabrir | ✅ nada duplica nem se perde |
 
 ### M-05 Chat no app
 - [ ] Aba *Chat*: canais com subtítulos "Tabela" / "Chat do registro" / "Direta".
@@ -575,21 +598,27 @@ Logue como cada um (janelas separadas) e confira:
 - [ ] Renomear/excluir canal: só para quem criou o canal.
 
 ### M-06 Push
+> **Quem cria é a Ana**: Bruno só enxerga colegas da Norte (X-01).
 - [ ] Bruno com "Notificação no celular" **ligado** (web › Configurações › Notificações).
-- [ ] Carla cria registro que o Bruno enxerga (escopo equipe → só colegas de equipe; use Dora/Gil se preferir escopo todos).
+- [ ] Ana cria um registro.
 - [ ] App em primeiro plano: snackbar de 4 s. App fechado: push do sistema; tocar abre o registro.
 - [ ] 🔧 Push sem registro ligado → abre o app no Dashboard (ou Dados).
 
 ### M-07 Duas etapas, sessão e bloqueios no app
+> Faça depois das seções 7 e 8. Passos 3 e 4 na QA Console com o admin dela, para não derrubar a QA Total. Os passos 2 a 4 apagam o cache do aparelho: faça o 6 antes, ou entre online de novo.
 | # | Ação | Esperado |
 |---|---|---|
 | 1 | Conta com 2 etapas (seção 8) faz login | ✅ pede "Código" de 6 dígitos |
-| 2 | Web → *Configurações › Segurança* → "Encerrar" a sessão "App CRM no celular" | ✅ no app: "Sua sessão foi encerrada (por você em outro aparelho ou pelo administrador). Entre de novo." |
+| 2 | Web → *Configurações › Segurança* → "Encerrar" a sessão "App CRM no celular", depois criar um registro ou puxar para atualizar no Dashboard | ✅ no app: "Sua sessão foi encerrada (por você em outro aparelho ou pelo administrador). Entre de novo." |
+| 2b | 🔧 Repetir com o app **fechado** e reabrir | ✅ pede login; não entra sozinho |
 | 3 | Empresa suspensa (P-16) | ✅ "O acesso desta empresa está suspenso…" e volta ao login |
 | 4 | Plano sem "App mobile" | ✅ "O app mobile não está incluído no plano da sua empresa…" |
-| 5 | 30 min sem tocar no app | ✅ sai sozinho (sem aviso antes) |
-| 6 | Login offline com senha já salva (modo avião) | ✅ entra; senha errada: "Senha incorreta." |
+| 5 | 🔧 30 min sem tocar no app, depois fechar e reabrir | ✅ sai sozinho (sem aviso antes) e pede login ao reabrir |
+| 6 | Modo avião: "Sair" e entrar com a senha salva | ✅ entra; senha errada: "Senha incorreta." |
+| 6b | Modo avião: fechar o app sem sair e reabrir | ✅ entra sem pedir senha (sessão ainda ativa) |
 | 7 | Sair (menu) | ✅ "Deseja realmente sair da sua conta?" |
+| 8 | 🔧 Sair, fechar e reabrir, online e em modo avião | ✅ pede login nos dois casos |
+| 9 | 🔧 Resposta 401 durante o envio (expirar a sessão com a fila pendente) | ✅ a alteração continua na fila e sobe depois do novo login |
 
 ---
 
@@ -609,7 +638,11 @@ Crie um registro por pessoa em Clientes: **D** (Dora), **A** (Ana), **B** (Bruno
 | **Bruno** (equipe, Norte) | ❌ | ✅ | ✅ | ❌ | colegas da Norte (Ana) + os dele |
 | **Carla** (equipe, Sul) | ❌ | ❌ | ❌ | ✅ | ninguém mais na Sul |
 
-Conferir em: **lista web**, **contagem na lateral**, **dashboard**, **busca**, **app**, **exportação**.
+Conferir em: **lista web**, **contagem na lateral**, **dashboard**, **busca**, **app**, **PDF por ID**, **`/data/clientes/:id` direto**, **`/data/clientes/archived`**, **sugestões de campo no chat**.
+
+Para a **exportação**, crie um cargo "Equipe campo + Exportar" e dê ao Bruno temporariamente: os cargos deste roteiro com escopo restrito não exportam. Ver também a seção 13, que cobre esta matriz na API.
+
+🔧 Com o socket aberto, Ana não recebe `data` de registros que não vê: o evento `data-changed` leva só o id. Assinar `user:<id de outra pessoa>` → "Acesso negado".
 
 ### X-02 Mudanças ao vivo
 | Ação (Dora) | Esperado para Bruno (web e app) |
@@ -617,8 +650,9 @@ Conferir em: **lista web**, **contagem na lateral**, **dashboard**, **busca**, *
 | Mover a **Ana** da Norte para a Sul | ✅ registro A **some** para o Bruno; **aparece** para a Carla |
 | Colocar **Carla** na Norte (além da Sul) | ✅ Bruno passa a ver C; Carla vê B e A |
 | Excluir a equipe Norte | ✅ "Os registros continuam…"; Bruno volta a ver só os dele |
-| Recriar a Norte com Ana + Bruno | ✅ volta ao X-01 |
+| Recriar a Norte com Ana + Bruno e **tirar a Ana da Sul** e a **Carla da Norte** | ✅ volta ao X-01 |
 | Trocar o cargo do Bruno para Operador | ✅ após logout/login no app, Bruno vê só os dele |
+| **Voltar o Bruno para Equipe campo** (necessário para a X-03) | ✅ após logout/login, volta ao X-01 |
 
 > No app, mudança de **cargo** exige sair e entrar (o token do sync guarda o cargo por até 1 h). Mudança de **equipe** chega sozinha.
 
@@ -639,6 +673,7 @@ Conferir em: **lista web**, **contagem na lateral**, **dashboard**, **busca**, *
 
 ### X-05 Filtro de dados + escopo
 - [ ] Ana cria "Cliente A3" com VIP = Sim → ✅ Ana não vê (filtro do cargo), Dora vê.
+- [ ] Pedir o PDF ou `/data/clientes/archived` como Ana → ✅ A3 também não vem.
 
 ---
 
@@ -650,18 +685,20 @@ Conferir em: **lista web**, **contagem na lateral**, **dashboard**, **busca**, *
 - [ ] "Histórico da equipe neste cliente": as ações do console aparecem.
 - [ ] Funções: desligar **Chat** só para a QA Total → selo "Só deste cliente"; na empresa o Chat some da administração; "voltar ao plano" → volta.
 - [ ] "Dados": domínio próprio `crm.qa.com.br` → "Dados atualizados"; slug desabilitado.
-- [ ] Cargos: remover um cargo sem uso (crie um vazio antes) → "Confirmar remoção" → "Cargo removido". Tentar remover o padrão: bloqueado.
-- [ ] "Tornar dono" num membro que não é de acesso total → erro de acesso total.
-- [ ] "Adicionar membro": e-mail do admin da QA Console na QA Total → "Membro adicionado" (ou já é membro).
+- [ ] Cargos: remover um cargo sem uso (crie um vazio antes) → "Confirmar remoção" → "Cargo removido".
+- [ ] "Tornar dono": só aparece em membro com acesso total. Via API em outro membro → erro de acesso total.
+- [ ] Tentar remover o cargo padrão: o botão não aparece. Via API → recusado.
+- [ ] "Adicionar membro" na QA Console com uma pessoa nova da QA Total → "Membro adicionado".
+- [ ] 🔧 "Adicionar membro" com o e-mail da Dora na QA Total → ✅ "Esta pessoa ja e membro desta empresa"; o cargo dela não muda.
 
 ### P-11 Entrar como (impersonação)
 | # | Ação (Sérgio) | Esperado |
 |---|---|---|
 | 1 | Detalhe QA Total → Bruno → "Entrar como" | ✅ abre `/qa-total/home` como Bruno com faixa laranja "Você está impersonando Bruno (por Sérgio (equipe))" |
 | 2 | Ver registros | ✅ exatamente o que o Bruno vê (X-01) |
-| 3 | Configurações › Segurança → trocar senha | ✅ "Acao sensivel bloqueada em sessao de impersonacao" |
+| 3 | Configurações › Segurança → trocar senha | ✅ "Acao sensivel bloqueada em sessao de impersonacao: trocar a senha" |
 | 4 | Bruno (na conta dele) → Aparelhos conectados | ✅ sessão com selo "Suporte: Sérgio (equipe)" |
-| 5 | "Sair da impersonação" | ✅ volta para `/admin/tenants/{id}` |
+| 5 | 🔧 "Sair da impersonação" | ✅ volta para `/admin/tenants/{id}`; a sessão some dos aparelhos do Bruno. Com a sessão aberta, desativar o Sérgio → ✅ o próximo refresh falha ("Sessao de suporte encerrada") |
 | 6 | Auditoria do console | ✅ "entrou como usuário" com IP |
 | 7 | Como Dora impersonada: Exportar / Encerrar conta / gerir cargos | ✅ bloqueados ("Nao disponivel ao entrar como outra pessoa" / ação sensível) |
 
@@ -680,12 +717,12 @@ Conferir em: **lista web**, **contagem na lateral**, **dashboard**, **busca**, *
 ### P-13 Comunicados
 | # | Ação (Sérgio) | Esperado |
 |---|---|---|
-| 1 | "Novo comunicado": título "Manutenção sábado", nível Atenção, público **Empresas específicas** = QA Total, link `https://exemplo.com`, "Pode ser fechado" ✔ | ✅ "Vai aparecer para 1 empresas"; "Comunicado salvo" (Rascunho) |
+| 1 | "Novo comunicado": título "Manutenção sábado", um texto, nível Atenção, público **Empresas específicas** = QA Total, link `https://exemplo.com`, "Pode ser fechado" ✔ | ✅ "Vai aparecer para 1 empresa"; "Comunicado salvo" (Rascunho) |
 | 2 | Link `exemplo.com` (sem http) | ✅ "O link precisa comecar com http:// ou https://" |
 | 3 | Fim antes do início | ✅ "O fim precisa ser depois do inicio" |
 | 4 | "Publicar" | ✅ "No ar"; na QA Total aparece a faixa (pode levar até ~10 min; recarregue) |
 | 5 | Ana fecha o aviso | ✅ some para ela; continua para a Dora; contador "N fecharam" |
-| 6 | Comunicado **Crítico** "não pode ser fechado" + "Só para quem administra" | ✅ aparece para Dora/Alex; **não** para Ana/Vera; sem X |
+| 6 | Comunicado **Crítico** "não pode ser fechado" + "Só para quem administra", público **QA Total** → "Publicar" | ✅ aparece para Dora/Alex; **não** para Ana/Vera; sem X |
 | 7 | 🔧 "Tirar do ar" e "Excluir" | ✅ excluir pede confirmação ("Excluir o comunicado …?"); Cancelar mantém |
 
 ### P-14 Pessoas
@@ -704,9 +741,9 @@ Conferir em: **lista web**, **contagem na lateral**, **dashboard**, **busca**, *
 | 1 | Clientes → marcar QA Total e QA Console → "Prorrogar teste" 7 dias → "Ver prévia" | ✅ "2 empresas vão mudar" com "de → para" |
 | 2 | Mudar os dias | ✅ a prévia é descartada |
 | 3 | "Aplicar a 2 empresas" | ✅ "2 empresas atualizadas"; faixa de teste da QA Total soma 7 dias |
-| 4 | "Trocar plano" para o plano em que já estão | ✅ "ficam de fora: já está nesse plano" |
+| 4 | "Trocar plano" para "QA Básico" | ✅ QA Total "fica de fora: já está nesse plano"; QA Console muda |
 | 5 | *Planos* → "QA Mínimo" → "Mover clientes" → "QA Básico" | ✅ "Todas as empresas do plano QA Mínimo" → aplicar |
-| 6 | 🔧 "Mudar situação → Em teste" | ✅ o calendário não deixa escolher antes de hoje; "hoje" vale até 23:59; data passada pela API: "Fim do trial precisa ser no futuro" já na prévia |
+| 6 | 🔧 Com uma empresa **Ativa**: "Mudar situação → Em teste" | ✅ o calendário não deixa escolher antes de hoje; data passada pela API: "Fim do trial precisa ser no futuro" já na prévia |
 | 7 | Sérgio | ✅ não vê os botões de massa |
 
 ### P-16 Situação do cliente (bloqueio e reativação) — use a **QA Console**
@@ -716,21 +753,22 @@ Conferir em: **lista web**, **contagem na lateral**, **dashboard**, **busca**, *
 | 2 | Detalhe → Situação **Pagamento pendente** → Salvar | ✅ "Situação atualizada"; na empresa: faixa "Há um pagamento pendente…"; acesso continua |
 | 3 | Situação **Suspenso** | ✅ web: vai para `/login?reason=suspended` com aviso amarelo; app: "O acesso desta empresa está suspenso…" |
 | 4 | Login de novo (empresa principal suspensa) | ✅ "Tenant suspenso ou inativo" |
-| 5 | Sérgio tenta "Entrar como" | ✅ "Reative o cliente para entrar como usuário." |
+| 5 | Sérgio tenta "Entrar como" | ✅ no detalhe do cliente, sem botão e com "Reative o cliente para entrar como usuário."; em *Pessoas*, "Tenant suspenso ou cancelado: reative antes de entrar como usuario" |
 | 6 | Situação **Em teste** com data passada | ✅ "Fim do trial precisa ser no futuro" |
 | 7 | Situação **Ativo** | ✅ volta a entrar; dados intactos |
 | 8 | Métricas: "Conversões" sobe ao ir de Em teste → Ativo pela 1ª vez | ✅ |
 
 ### P-17 Limites do plano no "QA Mínimo"
+- [ ] Preparo: na QA Console, crie uma tabela e 5 registros, e aceite 1 convite (2 pessoas ativas).
 - [ ] Mover só a QA Console para "QA Mínimo" (2 usuários, 5 registros).
 - [ ] Criar o 6º registro → "Limite de registros do plano atingido (5)" (web) / snackbar no app.
-- [ ] Convidar 3ª pessoa → "Limite de usuarios do plano atingido (2)".
+- [ ] Convidar 3ª pessoa e aceitar → "Limite de usuarios do plano atingido (2)" (convite pendente não ocupa vaga; o limite aparece no aceite).
 - [ ] Chat, PDF e Links públicos somem dos menus da administração.
 
 ### P-18 Métricas, Saúde, Auditoria
 - [ ] Métricas (Paula/Fábio/Lia): período 6/12/24 meses; "Ver em tabela"; "Por plano"; "Clientes sem uso há 30 dias".
 - [ ] Saúde: atualiza a cada 30 s; "Atualizar"; cartões Banco, Redis, Filas, API, PowerSync, E-mail (Atenção), Push, Arquivos; "Problemas recentes".
-- [ ] 🔧 Auditoria: tudo o que foi feito hoje aparece **traduzido** ("prorrogou o teste", "respondeu chamado", "publicou comunicado"…).
+- [ ] 🔧 Auditoria: as ações de hoje aparecem **traduzidas** ("prorrogou o teste", "respondeu chamado", "publicou comunicado"…); a coluna Alvo mostra o tipo técnico.
 
 ---
 
@@ -751,9 +789,9 @@ Conferir em: **lista web**, **contagem na lateral**, **dashboard**, **busca**, *
 | # | Ação | Esperado |
 |---|---|---|
 | 1 | Dora (já com 2 etapas) → *Administração › Segurança* → "Exigir…" → Salvar | ✅ |
-| 2 | Vera faz qualquer ação | ✅ vai para "Ative a verificação em duas etapas" (`/security-setup`) |
-| 3 | Vera ativa | ✅ segue para `/home` |
-| 4 | Vera no app | ✅ "Sua empresa exige verificação em duas etapas. Ative pelo navegador…" |
+| 2 | Vera no app, antes de ativar | ✅ "Sua empresa exige verificação em duas etapas. Ative pelo navegador…" |
+| 3 | Vera no web faz qualquer ação | ✅ vai para "Ative a verificação em duas etapas" (`/security-setup`) |
+| 4 | Vera ativa | ✅ segue para `/home` |
 | 5 | Desligar a exigência no fim | — |
 
 ### S-03 Aparelhos conectados
@@ -763,7 +801,7 @@ Conferir em: **lista web**, **contagem na lateral**, **dashboard**, **busca**, *
 | 2 | "Encerrar" o outro navegador | ✅ "Sessão encerrada"; o outro cai no login (até ~10 s) |
 | 3 | "Sair de todos os outros" | ✅ "N aparelhos desconectados"; o app pede login com a mensagem de sessão encerrada |
 | 4 | Dora → *Administração › Segurança* → "Desconectar" o Gil | ✅ "Desconectado de N aparelho(s)" |
-| 5 | Trocar a senha | ✅ derruba os **outros** aparelhos; o atual continua |
+| 5 | Depois de o Gil entrar de novo: trocar a senha | ✅ derruba os **outros** aparelhos; o atual continua |
 
 ### S-04 Política de senha aplicada
 - [ ] Com mín. 10 + símbolo (E-05): trocar senha para `Abcdefgh12` → erro da política; `Abcdefgh1!` → ok.
@@ -788,9 +826,9 @@ Conferir em: **lista web**, **contagem na lateral**, **dashboard**, **busca**, *
 | # | Ação | Esperado |
 |---|---|---|
 | 1 | Dora tenta excluir a própria conta | ✅ "Voce e dono de QA Total. Passe a propriedade…" |
-| 2 | Vera: senha errada | ✅ "Senha incorreta" |
-| 3 | Vera com 2 etapas sem o código | ✅ "Informe o codigo de verificacao em duas etapas" |
-| 4 | Vera: senha + "EXCLUIR" | ✅ "Sua conta foi excluída"; sai; os registros dela ficam com conta anonimizada |
+| 2 | Pessoa descartável: senha errada | ✅ "Senha incorreta" |
+| 3 | Pessoa descartável com 2 etapas, sem o código | ✅ "Informe o codigo de verificacao em duas etapas" |
+| 4 | Use uma pessoa descartável com registros: senha + "EXCLUIR" | ✅ "Sua conta foi excluída"; sai; os registros dela ficam com conta anonimizada |
 
 ### L-03 Exportar a empresa
 | # | Ação | Esperado |
@@ -809,7 +847,7 @@ Conferir em: **lista web**, **contagem na lateral**, **dashboard**, **busca**, *
 | 5 | Qualquer membro tenta entrar | ✅ "Tenant suspenso ou inativo" |
 | 6 | Console → detalhe | ✅ alerta "Encerramento pedido pelo dono", data da exclusão, motivo |
 | 7 | Console → Situação **Ativo** | ✅ alerta some; empresa volta a funcionar (desistência) |
-| 8 | Encerrar de novo e **deixar** | ✅ apagada definitivamente em 30 dias (job diário às 05:00) |
+| 8 | Encerrar de novo e **deixar** | ✅ apagada definitivamente em 30 dias (job diário às 05:00). Para conferir no dia, use `ACCOUNT_CLOSURE_GRACE_DAYS=1` em dev |
 
 ---
 
@@ -857,7 +895,7 @@ Marque ✅/❌ na sua execução.
 
 ## 11. Correções feitas (testar como regressão)
 
-Os 18 problemas achados na montagem deste roteiro foram corrigidos (marcados com 🔧 nos passos). Se algum voltar, reporte com o ID.
+Os problemas achados na montagem e na auditoria deste roteiro foram corrigidos (marcados com 🔧 nos passos). Se algum voltar, reporte com o ID.
 
 | # | Onde | O que mudou | Passos |
 |---|---|---|---|
@@ -879,6 +917,15 @@ Os 18 problemas achados na montagem deste roteiro foram corrigidos (marcados com
 | B-16 | Cadastro/Login | Dias de teste vêm do servidor; login com link "Criar conta" | E-01, E-02 |
 | B-17 | Equipes | Só pessoas ativas, todas (sem corte de 100) | E-10 |
 | B-18 | Auditoria (empresa) | "Exportar JSON" respeita os filtros da tela | E-19 |
+| B-19 | Automações | Ação `run_script` desligada | E-16 |
+| B-20 | Links públicos | Sem cargo de gestão, sem login sem duas etapas, com limite de tentativas; login não altera cargo da empresa | E-13/3, O-18/8-10 |
+| B-21 | Limite de tentativas | `refreshToken` no corpo não troca mais a chave | P-01/4b |
+| B-22 | Permissão por campo | Negar um campo esconde só aquele campo (API, web e app) | E-07/7, O-06/3 |
+| B-23 | Várias empresas | Permissões vêm do cargo na empresa ativa | O-17 |
+| B-24 | Vazamentos | PDF, sugestões do chat e arquivados seguem escopo e campos; socket envia só o id e recusa sala alheia | X-01, X-05 |
+| B-25 | Console | "Adicionar membro" não muda cargo de quem já é membro; "Entrar como" dura 1 dia e cai com o staff desativado | P-10, P-11/5 |
+| B-26 | App | Excluir chega ao servidor; POST idempotente; 401 mantém a fila; "Sair" e sessão encerrada não voltam sozinhos | M-03/11, M-04/9-11, M-07/2b, /8, /9 |
+| B-27 | Plano e menus | Desativar ou excluir libera vaga; Gerente exporta; cartões e menu seguem a permissão real | E-08/17-18, O-09/8, O-02, E-20 |
 
 > App (B-13): as mudanças são em Dart e precisam de `flutter analyze` + teste no aparelho (não há Flutter no servidor de build).
 
@@ -906,12 +953,41 @@ docker logs --tail 80 crm-powersync-dev
 | Web mostra e app não | filtro de dados/global, primeiro sync em andamento, ou mudança de cargo sem relogar |
 | Plano/funções não mudaram | cache de até 30 s; recarregue |
 | Comunicado não aparece | cache de até 10 min; recarregue |
-| Convite/senha não chega | sem SMTP em dev — use o link copiável |
+| Convite não chega | sem SMTP em dev — use o link copiável |
+| Reset de senha não chega | sem SMTP em dev não há link copiável: pule |
+| Alteração do app não sobe | ver a fila local em `ps_crud` e `file_upload_queue`; foto quebrada no web guarda `local://` no campo |
 
 ### Limpeza
 - [ ] Desligar "Exigir 2 etapas" na QA Total; desligar 2 etapas das contas de teste.
 - [ ] Revogar chaves de API e excluir o webhook de teste.
 - [ ] Console: comunicados de teste → "Tirar do ar" e "Excluir".
 - [ ] Console: equipe Sérgio/Fábio/Lia → "Remover".
-- [ ] Encerrar as empresas "QA Total", "QA Console" e "QA Encerrar" (dono → *Dados e privacidade*) — somem em 30 dias.
+- [ ] Encerrar as empresas "QA Total" (dono atual, ver E-18) e "QA Console" (admin da P-08) em *Dados e privacidade* — somem em 30 dias. "QA Encerrar" já foi encerrada na L-04/8.
+- [ ] Os e-mails ficam ocupados até a purga: a próxima rodada usa aliases novos.
+- [ ] Desinstalar o app dos aparelhos de teste: dados locais e senha salva ficam lá.
 - [ ] Planos "QA Básico"/"QA Mínimo": desmarcar "Ativo" (não há exclusão de plano).
+
+---
+
+## 13. Smoke e testes automatizados
+
+### Trilha de smoke
+Depois de cada deploy, antes do roteiro completo:
+
+`/health` → `P-01/5` → `E-01/5` → `E-08/1-5` → `E-06/1` → `E-07/2` → `E-10/4` → `O-06/4` → `X-01` (Dora, Ana e Bruno) → `M-03/4` → `P-11/1` → `P-16/3`
+
+### Testes de API
+Os blocos abaixo rodam sem navegador. Eles montam o próprio cenário, com sufixo novo a cada execução, e recusam o host de produção:
+
+| Bloco | Cobre |
+|---|---|
+| `e2e/api/visibility.spec.ts` | X-01, X-05 e permissão por campo em lista, leitura por ID, arquivados, PDF e sugestões do chat |
+| `e2e/api/platform-permissions.spec.ts` | P-06 direto nas rotas do console |
+| `e2e/api/tenant-isolation.spec.ts` | IDs e slug de outra empresa |
+| `e2e/api/public-link.spec.ts` | E-13/3, O-18/8-10 |
+
+```bash
+BASE_URL=https://dev.iossystem.com.br \
+PLATFORM_EMAIL=... PLATFORM_PASSWORD=... \
+pnpm test:api
+```

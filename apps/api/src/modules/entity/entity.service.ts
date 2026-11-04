@@ -312,7 +312,7 @@ export class EntityService {
 
     // Permission-driven: '*' (allAccess/coringa) = todas as tabelas do tenant;
     // senao restringe aos slugs com canRead em permissions[]. Sem roleType.
-    const accessible = await this.customRoleService.getUserAccessibleEntities(currentUser.id);
+    const accessible = await this.customRoleService.getUserAccessibleEntities(currentUser.id, effectiveTenantId);
     if (accessible !== '*') {
       if (accessible.length === 0) return [];
       where.slug = { in: accessible };

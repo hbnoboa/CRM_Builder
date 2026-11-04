@@ -94,6 +94,7 @@ class SecureStorage {
     required String userJson,
   }) async {
     await Future.wait([
+      _storage.delete(key: AppConstants.keyLoggedOut),
       _storage.write(key: AppConstants.keyCachedEmail, value: email.toLowerCase()),
       _storage.write(key: AppConstants.keyCachedPassword, value: password),
       _storage.write(key: AppConstants.keyCachedPasswordHash, value: passwordHash),
@@ -132,6 +133,19 @@ class SecureStorage {
   // ═══════════════════════════════════════════════════════
   // CLEAR ALL (on logout)
   // ═══════════════════════════════════════════════════════
+
+  /// "Sair" foi escolhido: o proximo cold start nao entra sozinho pelo cache.
+  static Future<void> setLoggedOut(bool value) async {
+    if (value) {
+      await _storage.write(key: AppConstants.keyLoggedOut, value: 'true');
+    } else {
+      await _storage.delete(key: AppConstants.keyLoggedOut);
+    }
+  }
+
+  static Future<bool> isLoggedOut() async {
+    return await _storage.read(key: AppConstants.keyLoggedOut) == 'true';
+  }
 
   /// Clear session data (tokens) but KEEP offline credentials cache.
   /// Used for normal logout so user can login again offline.

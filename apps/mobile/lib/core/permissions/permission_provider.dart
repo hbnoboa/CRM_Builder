@@ -51,6 +51,16 @@ class ModulePermission {
   static const readOnly = ModulePermission(canRead: true);
 }
 
+/// Campos liberados de uma tabela. fieldPermissions guarda so as excecoes: campo sem
+/// entrada esta liberado (mesma regra da API e da tela de cargos).
+class AllowedFields {
+  const AllowedFields(this._denied);
+
+  final Set<String> _denied;
+
+  bool contains(String slug) => !_denied.contains(slug);
+}
+
 class FieldPermission {
 
   factory FieldPermission.fromJson(Map<String, dynamic> json) =>
@@ -309,18 +319,18 @@ class PermissionsState {
 
   /// Get visible field slugs for an entity.
   /// Returns null if no restrictions (all fields visible).
-  Set<String>? getVisibleFields(String entitySlug) {
+  AllowedFields? getVisibleFields(String entitySlug) {
     final fp = getFieldPermissions(entitySlug);
     if (fp == null) return null;
-    return fp.where((f) => f.canView).map((f) => f.fieldSlug).toSet();
+    return AllowedFields(fp.where((f) => !f.canView).map((f) => f.fieldSlug).toSet());
   }
 
   /// Get editable field slugs for an entity.
   /// Returns null if no restrictions (all fields editable).
-  Set<String>? getEditableFields(String entitySlug) {
+  AllowedFields? getEditableFields(String entitySlug) {
     final fp = getFieldPermissions(entitySlug);
     if (fp == null) return null;
-    return fp.where((f) => f.canEdit).map((f) => f.fieldSlug).toSet();
+    return AllowedFields(fp.where((f) => !f.canEdit).map((f) => f.fieldSlug).toSet());
   }
 
   /// Get scope for an entity (all | own).

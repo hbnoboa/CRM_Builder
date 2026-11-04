@@ -34,7 +34,7 @@ interface HomeCard {
 export default function HomePage() {
   const t = useTranslations('home');
   const { user } = useAuthStore();
-  const { hasModuleAccess, hasModulePermission } = usePermissions();
+  const { hasModuleAccess, hasModulePermission, canAccessAdminSection } = usePermissions();
   const features = useTenantFeatures();
 
   const firstName = (user?.name || '').split(' ')[0] || user?.name || '';
@@ -45,12 +45,12 @@ export default function HomePage() {
     { key: 'reports', title: t('reports'), desc: t('reportsDesc'), href: '/dashboard', icon: <LineChart className="h-6 w-6" />, show: hasModuleAccess('dashboard'), tone: 'neutral' },
     // Criação/gestão (admin)
     { key: 'newTable', title: t('newTable'), desc: t('newTableDesc'), href: '/gestao/entities/new', icon: <TableProperties className="h-6 w-6" />, show: hasModulePermission('entities', 'canCreate'), tone: 'neutral' },
-    { key: 'users', title: t('users'), desc: t('usersDesc'), href: '/gestao/users', icon: <Users className="h-6 w-6" />, show: hasModuleAccess('users'), tone: 'neutral' },
-    { key: 'roles', title: t('roles'), desc: t('rolesDesc'), href: '/gestao/roles', icon: <Shield className="h-6 w-6" />, show: hasModuleAccess('roles'), tone: 'neutral' },
-    { key: 'pdf', title: t('pdf'), desc: t('pdfDesc'), href: '/gestao/pdf-templates', icon: <FileText className="h-6 w-6" />, show: hasModuleAccess('pdfTemplates') && features.pdf, tone: 'neutral' },
-    { key: 'dashboards', title: t('dashboards'), desc: t('dashboardsDesc'), href: '/gestao/dashboard-templates', icon: <BarChart3 className="h-6 w-6" />, show: hasModuleAccess('dashboardTemplates'), tone: 'neutral' },
-    { key: 'publicLinks', title: t('publicLinks'), desc: t('publicLinksDesc'), href: '/gestao/public-links', icon: <Link2 className="h-6 w-6" />, show: hasModuleAccess('publicLinks') && features.publicLinks, tone: 'neutral' },
-    { key: 'logs', title: t('logs'), desc: t('logsDesc'), href: '/gestao/audit-logs', icon: <ScrollText className="h-6 w-6" />, show: hasModuleAccess('auditLogs'), tone: 'neutral' },
+    { key: 'users', title: t('users'), desc: t('usersDesc'), href: '/gestao/users', icon: <Users className="h-6 w-6" />, show: canAccessAdminSection('users'), tone: 'neutral' },
+    { key: 'roles', title: t('roles'), desc: t('rolesDesc'), href: '/gestao/roles', icon: <Shield className="h-6 w-6" />, show: canAccessAdminSection('roles'), tone: 'neutral' },
+    { key: 'pdf', title: t('pdf'), desc: t('pdfDesc'), href: '/gestao/pdf-templates', icon: <FileText className="h-6 w-6" />, show: canAccessAdminSection('pdf-templates') && features.pdf, tone: 'neutral' },
+    { key: 'dashboards', title: t('dashboards'), desc: t('dashboardsDesc'), href: '/gestao/dashboard-templates', icon: <BarChart3 className="h-6 w-6" />, show: canAccessAdminSection('dashboard-templates'), tone: 'neutral' },
+    { key: 'publicLinks', title: t('publicLinks'), desc: t('publicLinksDesc'), href: '/gestao/public-links', icon: <Link2 className="h-6 w-6" />, show: canAccessAdminSection('public-links') && features.publicLinks, tone: 'neutral' },
+    { key: 'logs', title: t('logs'), desc: t('logsDesc'), href: '/gestao/audit-logs', icon: <ScrollText className="h-6 w-6" />, show: canAccessAdminSection('audit-logs'), tone: 'neutral' },
     // Conta (todos)
     { key: 'settings', title: t('settings'), desc: t('settingsDesc'), href: '/settings', icon: <SettingsIcon className="h-6 w-6" />, show: true, tone: 'neutral' },
   ];

@@ -19,8 +19,7 @@ export type AutomationActionType =
   | 'wait'
   | 'lookup_record'
   | 'update_related_record'
-  | 'aggregate_records'
-  | 'run_script';
+  | 'aggregate_records';
 
 // Condition operators
 export type ConditionOperator =

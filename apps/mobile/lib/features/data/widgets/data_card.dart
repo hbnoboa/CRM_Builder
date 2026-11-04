@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:crm_mobile/core/permissions/permission_provider.dart';
 import 'package:crm_mobile/core/theme/app_colors.dart';
 import 'package:crm_mobile/core/theme/app_colors_extension.dart';
 import 'package:crm_mobile/core/theme/app_typography.dart';
@@ -20,7 +21,7 @@ class DataCard extends StatelessWidget {
   final Map<String, dynamic> record;
   final List<dynamic> fields;
   final VoidCallback? onTap;
-  final Set<String>? visibleFieldSlugs;
+  final AllowedFields? visibleFieldSlugs;
   final List<String>? columnOrder;
 
   /// Returns fields ordered by columnConfig (if set), filtering hidden/sub-entity.

@@ -152,6 +152,9 @@ export function useEntityDataSource(
                   : r,
               ),
             );
+          } else {
+            // Do servidor vem so o id: busca de novo com a permissao de quem esta vendo.
+            fetchAll();
           }
           break;
         }

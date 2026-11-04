@@ -14,6 +14,9 @@ import { AuditService } from '../audit/audit.service';
 import { PdfGeneratorService } from '../pdf/pdf-generator.service';
 import { UploadService } from '../upload/upload.service';
 import { RedisService } from '../../common/services/redis.service';
+import { EntityDataQueryService } from '../../common/services/entity-data-query.service';
+import { CustomRoleService } from '../custom-role/custom-role.service';
+import { hiddenFieldSlugs } from '../../common/utils/field-permissions';
 import { createBotProvider, BOT_TOOLS, BotLlmProvider } from './bot-provider';
 import * as ExcelJS from 'exceljs';
 
@@ -44,6 +47,8 @@ export class ChatService {
     private readonly pdfGenerator: PdfGeneratorService,
     private readonly uploadService: UploadService,
     private readonly redis: RedisService,
+    private readonly queryService: EntityDataQueryService,
+    private readonly customRoleService: CustomRoleService,
   ) {}
 
   /** Permissão de uma ação na entidade (permissions[] slug/'*' + allAccess). */
@@ -791,28 +796,38 @@ export class ChatService {
     if (!this.canReadEntity(user, entitySlug)) {
       throw new ForbiddenException('Sem acesso a esta tabela');
     }
+    // Mesmo pipeline da lista: escopo, filtro global e filtro de dados do cargo.
+    const { where, entity } = await this.queryService.buildWhere({ entitySlug, user });
+    const known = ((entity.fields as unknown) as Array<{ slug: string }>).some((f) => f.slug === field);
+    const fieldPerms = await this.customRoleService.getFieldPermissions(user.id, entitySlug, user.tenantId);
+    if (!known || hiddenFieldSlugs(fieldPerms).has(field)) return [];
+
     // Escopo por chat: no thread de um registro (ex.: operação), só valores dos FILHOS
     // daquele registro (ex.: chassi só dos veículos DAQUELA operação).
-    const cacheKey = `fieldsug:${user.tenantId}:${entitySlug}:${scopeParentId || '-'}:${field}:${term.toLowerCase().slice(0, 40)}`;
+    // A chave leva o usuario: cada um tem o proprio resultado.
+    const cacheKey = `fieldsug:${user.tenantId}:${user.id}:${entitySlug}:${scopeParentId || '-'}:${field}:${term.toLowerCase().slice(0, 40)}`;
     const cached = await this.redis.get<string[]>(cacheKey).catch(() => null);
     if (cached) return cached;
 
-    const entity = await this.prisma.entity.findFirst({
-      where: { tenantId: user.tenantId, slug: entitySlug, deletedAt: null },
-      select: { id: true },
+    const variants = Array.from(new Set([term, term.toUpperCase(), term.toLowerCase()]));
+    const rows = await this.prisma.entityData.findMany({
+      where: {
+        AND: [
+          where,
+          ...(scopeParentId ? [{ parentRecordId: scopeParentId }] : []),
+          { OR: variants.map((v) => ({ data: { path: [field], string_contains: v } })) },
+        ],
+      },
+      select: { data: true },
+      take: limit * 10,
     });
-    if (!entity) return [];
-    const parentClause = scopeParentId
-      ? Prisma.sql`AND "parentRecordId" = ${scopeParentId}`
-      : Prisma.empty;
-    const rows = (await this.prisma.$queryRaw`
-      SELECT DISTINCT data->>${field} AS v
-      FROM "EntityData"
-      WHERE "tenantId" = ${user.tenantId} AND "entityId" = ${entity.id} AND "deletedAt" IS NULL
-        ${parentClause}
-        AND data->>${field} ILIKE ${'%' + term + '%'}
-      LIMIT ${limit}`) as Array<{ v: string | null }>;
-    const values = rows.map((r) => r.v).filter((v): v is string => !!v);
+    const values = Array.from(
+      new Set(
+        rows
+          .map((r) => (r.data as Record<string, unknown>)?.[field])
+          .filter((v): v is string => typeof v === 'string' && v.length > 0),
+      ),
+    ).slice(0, limit);
     await this.redis.set(cacheKey, values, 60).catch(() => undefined);
     return values;
   }

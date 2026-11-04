@@ -42,7 +42,7 @@ export class TrashService {
       orderBy: { name: 'asc' },
     });
     const allowed = await Promise.all(
-      entities.map((e) => this.customRoleService.hasEntityPermission(user.id, e.slug, 'canDelete')),
+      entities.map((e) => this.customRoleService.hasEntityPermission(user.id, e.slug, 'canDelete', user.tenantId)),
     );
     return entities.filter((_, i) => allowed[i]);
   }

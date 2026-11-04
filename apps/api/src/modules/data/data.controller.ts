@@ -91,7 +91,7 @@ export class DataController {
   @ApiOperation({ summary: 'Criar registro' })
   async create(
     @Param('entitySlug') entitySlug: string,
-    @Body() dto: { data: Record<string, any>; parentRecordId?: string; tenantId?: string },
+    @Body() dto: { id?: string; data: Record<string, any>; parentRecordId?: string; tenantId?: string },
     @CurrentUser() user: CurrentUserType,
   ) {
     // A verificacao de permissao e feita no service via checkEntityPermission

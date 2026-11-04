@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import {
   Plus, Trash2, Loader2, ArrowUp, ArrowDown,
   Zap, Mail, Globe, Bell, Clock, GitBranch, FileEdit, FilePlus, Pause,
-  Search, RefreshCw, Calculator, Code,
+  Search, RefreshCw, Calculator,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -69,8 +69,7 @@ type ActionType =
   | 'wait'
   | 'lookup_record'
   | 'update_related_record'
-  | 'aggregate_records'
-  | 'run_script';
+  | 'aggregate_records';
 
 interface ActionItem {
   type: ActionType;
@@ -88,7 +87,6 @@ const actionTypeLabels: Record<ActionType, string> = {
   lookup_record: 'Buscar Registro',
   update_related_record: 'Atualizar Relacionado',
   aggregate_records: 'Contar/Somar Registros',
-  run_script: 'Executar Script',
 };
 
 const actionTypeIcons: Record<ActionType, typeof Zap> = {
@@ -102,7 +100,6 @@ const actionTypeIcons: Record<ActionType, typeof Zap> = {
   lookup_record: Search,
   update_related_record: RefreshCw,
   aggregate_records: Calculator,
-  run_script: Code,
 };
 
 const triggerOptions: { value: AutomationTrigger; label: string; description: string }[] = [
@@ -1531,45 +1528,6 @@ export function AutomationWizard({
           </div>
         );
       }
-
-      case 'run_script':
-        return (
-          <div className="space-y-2">
-            <div className="space-y-1">
-              <Label className="text-xs">Codigo JavaScript</Label>
-              <Textarea
-                placeholder={`const total = record.quantidade * record.preco;\nreturn { total, imposto: total * 0.1 };`}
-                value={getConfigValue(action.config, 'code')}
-                onChange={(e) => updateActionConfig(index, 'code', e.target.value)}
-                rows={5}
-                className="text-sm font-mono"
-              />
-              <p className="text-xs text-muted-foreground">
-                Max 10.000 caracteres. Timeout: 5s.
-              </p>
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs">Salvar como (opcional)</Label>
-              <Input
-                placeholder="ex: calculo"
-                value={getConfigValue(action.config, 'saveAs')}
-                onChange={(e) => updateActionConfig(index, 'saveAs', e.target.value)}
-                className="h-8 text-sm"
-              />
-            </div>
-            <div className="p-2 bg-muted/50 rounded text-xs text-muted-foreground space-y-1">
-              <p className="font-medium">Variaveis disponiveis:</p>
-              <ul className="list-disc list-inside space-y-0.5">
-                <li><code className="text-foreground">record</code> - Dados do registro atual</li>
-                <li><code className="text-foreground">previousRecord</code> - Dados anteriores (em updates)</li>
-                <li><code className="text-foreground">user</code> - Usuario que disparou</li>
-                <li><code className="text-foreground">entity</code> - Entidade (id, slug, name)</li>
-                <li><code className="text-foreground">lookups</code> - Resultados de lookup/aggregate anteriores</li>
-                <li><code className="text-foreground">JSON, Date, Math, Array, Object</code> - Globais seguros</li>
-              </ul>
-            </div>
-          </div>
-        );
 
       default:
         return null;

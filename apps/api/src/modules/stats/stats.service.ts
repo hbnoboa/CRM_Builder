@@ -74,7 +74,7 @@ export class StatsService {
 
     // Permission-driven: '*' (allAccess/coringa) = todas; senao restringe aos slugs
     // com canRead em permissions[]. Sem roleType.
-    const accessible = await this.customRoleService.getUserAccessibleEntities(user.id);
+    const accessible = await this.customRoleService.getUserAccessibleEntities(user.id, effectiveTenantId);
     if (accessible !== '*') {
       if (accessible.length === 0) return [];
       where.slug = { in: accessible };
@@ -235,7 +235,8 @@ export class StatsService {
       entitySlug: string;
       scope?: 'all' | 'own' | 'team';
     }>;
-    const scopes = entities.map((e) => permissions.find((p) => p.entitySlug === e.slug)?.scope);
+    const wildcard = permissions.find((p) => p.entitySlug === '*');
+    const scopes = entities.map((e) => (permissions.find((p) => p.entitySlug === e.slug) ?? wildcard)?.scope);
     if (scopes.includes('own')) return [user.id];
     if (scopes.includes('team')) return teammateIds(this.prisma, user.id, user.tenantId);
     return null;

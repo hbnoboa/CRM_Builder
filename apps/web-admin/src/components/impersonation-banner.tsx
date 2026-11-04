@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useLocale } from 'next-intl';
+import { api } from '@/lib/api';
 import { useAuthStore } from '@/stores/auth-store';
 import { IMPERSONATION_ORIGIN_KEY, readImpersonationOrigin } from '@/lib/platform-impersonation';
 
@@ -21,6 +22,8 @@ export function ImpersonationBanner() {
   // Ao encerrar, volta para a home do tenant do admin restaurado (slug pode mudar).
   // Se a impersonacao veio do console da plataforma, volta para o tenant no console.
   const handleStop = async () => {
+    // Encerra a sessao no servidor antes de trocar os tokens locais.
+    await api.post('/auth/logout').catch(() => undefined);
     const origin = readImpersonationOrigin();
     if (origin) {
       localStorage.removeItem(IMPERSONATION_ORIGIN_KEY);

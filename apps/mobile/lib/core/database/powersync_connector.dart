@@ -295,6 +295,12 @@ class CrmPowerSyncConnector extends PowerSyncBackendConnector {
                 _logger.i('Created record ${op.id} in $entitySlug');
                 break;
               case UpdateType.patch:
+                // Excluir no app e um UPDATE de deletedAt: vira DELETE no servidor.
+                if (opData['deletedAt'] != null) {
+                  await dio.delete('/data/$entitySlug/${op.id}');
+                  _logger.i('Deleted record ${op.id} from $entitySlug');
+                  break;
+                }
                 // Update existing record
                 if (parsedData == null) {
                   _logger.w('No data found for PATCH on record ${op.id}, skipping');
@@ -359,19 +365,19 @@ class CrmPowerSyncConnector extends PowerSyncBackendConnector {
           _logger.e('Failed to upload mutation: ${op.table} ${op.op}', error: e);
 
           // Check if it's a client error (4xx) - skip and continue (no retry)
+          // 401 (sessao), 408 e 429 sao temporarios: a alteracao fica na fila.
           if (e is DioException &&
               e.response?.statusCode != null &&
               e.response!.statusCode! >= 400 &&
-              e.response!.statusCode! < 500) {
+              e.response!.statusCode! < 500 &&
+              !const {401, 408, 429}.contains(e.response!.statusCode)) {
             _logger.w('Skipping failed mutation (client error ${e.response!.statusCode})');
             // O servidor recusou o que foi feito (offline): limite do plano, campo
             // obrigatorio/unico, sem permissao... Avisa em vez de a mudanca sumir em
-            // silencio. 401 fica com o interceptor (sessao).
-            if (e.response!.statusCode != 401) {
-              PlanErrors.showSnack(
-                'Uma alteração não foi sincronizada: ${PlanErrors.message(e, 'o servidor recusou a alteração')}.',
-              );
-            }
+            // silencio.
+            PlanErrors.showSnack(
+              'Uma alteração não foi sincronizada: ${PlanErrors.message(e, 'o servidor recusou a alteração')}.',
+            );
             success = true;
             continue;
           }

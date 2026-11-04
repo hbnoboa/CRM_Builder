@@ -101,7 +101,7 @@ const MODULE_KEY_MAP: Record<string, keyof ModulePermissions> = {
 const ADMIN_AREA_MODULES = ['entities', 'users', 'roles', 'settings', 'automations', 'templates', 'logs', 'publicLinks', 'apis'] as const;
 
 /** Secao de /gestao -> permissao que abre a secao. */
-type SectionRule = { module: string; action: 'canRead' | 'canCreate' | 'canUpdate' | 'canDelete' | 'any' };
+type SectionRule = { module: string; action: 'canRead' | 'canCreate' | 'canUpdate' | 'canDelete' | 'canManage' | 'any' };
 const ADMIN_SECTION_RULES: Record<string, SectionRule | SectionRule[]> = {
   users: { module: 'users', action: 'canRead' },
   roles: { module: 'roles', action: 'canRead' },
@@ -114,7 +114,8 @@ const ADMIN_SECTION_RULES: Record<string, SectionRule | SectionRule[]> = {
     { module: 'dashboard', action: 'canUpdate' },
     { module: 'dashboard', action: 'canDelete' },
   ],
-  'public-links': { module: 'publicLinks', action: 'any' },
+  // Mesma permissao da API: todas as rotas de links exigem canManage.
+  'public-links': { module: 'publicLinks', action: 'canManage' },
   'audit-logs': { module: 'auditLogs', action: 'canRead' },
   'execution-logs': { module: 'executionLogs', action: 'canRead' },
   organization: { module: 'settings', action: 'canUpdate' },
@@ -340,7 +341,9 @@ export function usePermissions() {
     return ([] as SectionRule[]).concat(rules).some((rule) =>
       rule.action === 'any'
         ? (['canRead', 'canCreate', 'canUpdate', 'canDelete'] as const).some((a) => hasModulePermission(rule.module, a))
-        : hasModulePermission(rule.module, rule.action),
+        : rule.action === 'canManage'
+          ? hasModuleAction(rule.module, rule.action)
+          : hasModulePermission(rule.module, rule.action),
     );
   };
 

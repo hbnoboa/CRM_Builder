@@ -314,6 +314,15 @@ export class AuthService {
       const requestedTenantId = decoded?.tenantId;
       const wasRememberMe = decoded?.rememberMe ?? false;
 
+      // "Entrar como": termina se quem entrou saiu da equipe do console.
+      if (decoded?.impersonatedBy) {
+        const staff = await this.prisma.platformStaff.findFirst({
+          where: { id: decoded.impersonatedBy.id, status: Status.ACTIVE, deletedAt: null },
+          select: { id: true },
+        });
+        if (!staff) throw new UnauthorizedException('Sessao de suporte encerrada');
+      }
+
       const ctx = await this.resolveTokenContext(storedToken.user.id, requestedTenantId);
       if (!ctx) {
         throw new UnauthorizedException('Usuario sem acesso a nenhum tenant');
@@ -697,7 +706,8 @@ export class AuthService {
     const accessToken = this.jwtService.sign(payload);
 
     // Modelo CLIENTE do segmob: refresh sempre 30 dias (independe de rememberMe).
-    const refreshDays = 30;
+    // "Entrar como" e sessao curta: 1 dia, sem renovar para alem disso pelo uso.
+    const refreshDays = impersonatedBy ? 1 : 30;
     const refreshExpiration = new Date();
     refreshExpiration.setDate(refreshExpiration.getDate() + refreshDays);
 
@@ -706,7 +716,7 @@ export class AuthService {
     const refreshPayload = { ...payload, rememberMe, jti: randomUUID() };
     const refreshToken = this.jwtService.sign(refreshPayload, {
       secret: this.configService.get<string>('JWT_REFRESH_SECRET'),
-      expiresIn: this.configService.get<string>('JWT_REFRESH_EXPIRATION') || '30d',
+      expiresIn: impersonatedBy ? '1d' : this.configService.get<string>('JWT_REFRESH_EXPIRATION') || '30d',
     });
 
     await this.prisma.refreshToken.create({
