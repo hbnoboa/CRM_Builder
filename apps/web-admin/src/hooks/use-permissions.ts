@@ -98,10 +98,11 @@ const MODULE_KEY_MAP: Record<string, keyof ModulePermissions> = {
 };
 
 /** Modulos da camada "administracao da empresa" (espelha ADMIN_AREA_MODULES da API). */
-const ADMIN_AREA_MODULES = ['entities', 'users', 'roles', 'settings', 'automations', 'templates', 'logs', 'publicLinks'] as const;
+const ADMIN_AREA_MODULES = ['entities', 'users', 'roles', 'settings', 'automations', 'templates', 'logs', 'publicLinks', 'apis'] as const;
 
 /** Secao de /gestao -> permissao que abre a secao. */
-const ADMIN_SECTION_RULES: Record<string, { module: string; action: 'canRead' | 'canUpdate' | 'any' }> = {
+type SectionRule = { module: string; action: 'canRead' | 'canUpdate' | 'any' };
+const ADMIN_SECTION_RULES: Record<string, SectionRule | SectionRule[]> = {
   users: { module: 'users', action: 'canRead' },
   roles: { module: 'roles', action: 'canRead' },
   permissions: { module: 'roles', action: 'canRead' },
@@ -113,6 +114,8 @@ const ADMIN_SECTION_RULES: Record<string, { module: string; action: 'canRead' | 
   'execution-logs': { module: 'executionLogs', action: 'canRead' },
   organization: { module: 'settings', action: 'canUpdate' },
   plan: { module: 'settings', action: 'canUpdate' },
+  // qualquer uma das regras abre a secao
+  integrations: [{ module: 'apis', action: 'any' }, { module: 'automations', action: 'canRead' }],
 };
 
 const MODULE_KEYS: (keyof ModulePermissions)[] = ['dashboard', 'users', 'settings', 'entities', 'data', 'roles', 'automations', 'templates', 'logs', 'notifications', 'publicLinks', 'archive'];
@@ -310,11 +313,13 @@ export function usePermissions() {
   const canAccessAdminSection = (section: string | undefined): boolean => {
     if (!canAccessAdminArea) return false;
     if (fullAccess || !section) return true;
-    const rule = ADMIN_SECTION_RULES[section];
-    if (!rule) return false;
-    return rule.action === 'any'
-      ? (['canRead', 'canCreate', 'canUpdate', 'canDelete'] as const).some((a) => hasModulePermission(rule.module, a))
-      : hasModulePermission(rule.module, rule.action);
+    const rules = ADMIN_SECTION_RULES[section];
+    if (!rules) return false;
+    return ([] as SectionRule[]).concat(rules).some((rule) =>
+      rule.action === 'any'
+        ? (['canRead', 'canCreate', 'canUpdate', 'canDelete'] as const).some((a) => hasModulePermission(rule.module, a))
+        : hasModulePermission(rule.module, rule.action),
+    );
   };
 
   /**

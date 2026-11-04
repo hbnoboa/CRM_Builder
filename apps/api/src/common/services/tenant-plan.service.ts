@@ -152,7 +152,7 @@ export class TenantPlanService {
   // sao pessoas de fora preenchendo formulario, nao a equipe da empresa.
   private countUsers(tenantId: string): Promise<number> {
     return this.prisma.userTenantAccess.count({
-      where: { tenantId, status: 'ACTIVE', deletedAt: null, customRole: { publicLinks: { none: {} } } },
+      where: { tenantId, status: 'ACTIVE', deletedAt: null, customRole: { publicLinks: { none: {} } }, user: { isServiceAccount: false } },
     });
   }
 

@@ -1797,7 +1797,8 @@
       "auditLogs": "Audit",
       "executionLogs": "Executions",
       "organization": "Organization",
-      "plan": "Plan"
+      "plan": "Plan",
+      "integrations": "Integrations"
     },
     "home": {
       "title": "Hello, {name}",
@@ -1878,6 +1879,105 @@
       "new": "New table",
       "empty": "No tables yet.",
       "meta": "{fields} fields · {records} records"
+    },
+    "integrations": {
+      "title": "Integrations",
+      "subtitle": "Connect the company to other systems: API keys, webhooks and automations.",
+      "tabs": {
+        "keys": "API keys",
+        "webhooks": "Webhooks",
+        "automations": "Automations"
+      },
+      "keys": {
+        "title": "API keys",
+        "description": "For another system to read and write records. The key acts on behalf of its creator, with the chosen role.",
+        "new": "New key",
+        "empty": "No keys yet.",
+        "meta": "role {role} · created by {by}",
+        "lastUsed": "used {date}",
+        "neverUsed": "never used",
+        "expires": "expires {date}",
+        "revoke": "Revoke",
+        "confirmRevoke": "Confirm",
+        "cancel": "Cancel",
+        "revoked": "Key revoked",
+        "howTo": "How to use (records, tables and upload only):",
+        "newTitle": "New API key",
+        "newHint": "Pick a role with only what is needed: the integration gets exactly its permissions.",
+        "name": "Name",
+        "namePlaceholder": "E.g. ERP integration",
+        "role": "Key role",
+        "chooseRole": "Choose a role",
+        "roleHint": "Only roles below yours are listed.",
+        "validity": "Validity",
+        "validities": {
+          "30": "30 days",
+          "90": "90 days",
+          "365": "1 year",
+          "never": "No expiration"
+        },
+        "create": "Create key",
+        "createdTitle": "Key created",
+        "createdHint": "Copy it now: for security it won't be shown again.",
+        "copy": "Copy key",
+        "done": "Done"
+      },
+      "webhooks": {
+        "title": "Webhooks",
+        "description": "Notify another system (over HTTP) when a record is created, edited or deleted.",
+        "new": "New webhook",
+        "empty": "No webhooks yet.",
+        "allTables": "All tables",
+        "test": "Test",
+        "runs": "Deliveries",
+        "edit": "Edit",
+        "delete": "Delete",
+        "confirmDelete": "Confirm delete",
+        "deleted": "Webhook deleted",
+        "saved": "Webhook saved",
+        "testOk": "Test sent: the destination replied {code}.",
+        "testFail": "The test failed: {error}",
+        "status": {
+          "ACTIVE": "Active",
+          "INACTIVE": "Paused",
+          "PAUSED": "Paused"
+        },
+        "events": {
+          "created": "Created",
+          "updated": "Edited",
+          "deleted": "Deleted",
+          "test": "Test"
+        },
+        "newTitle": "New webhook",
+        "editTitle": "Edit webhook",
+        "dialogHint": "The system POSTs the record to the URL. Internal addresses are blocked.",
+        "name": "Name",
+        "url": "Destination URL",
+        "table": "Table",
+        "when": "When to send",
+        "secret": "Signing secret",
+        "secretHint": "Each delivery carries an X-Webhook-Signature header (HMAC SHA-256) with this secret, so the destination can verify the origin.",
+        "active": "Active",
+        "save": "Save",
+        "runsTitle": "Deliveries of {name}",
+        "noRuns": "No deliveries yet."
+      },
+      "automations": {
+        "title": "Automations",
+        "description": "All automations of the company's tables. Editing stays in each table's editor.",
+        "empty": "No automations yet.",
+        "paused": "Paused",
+        "editInTable": "Edit in table",
+        "triggers": {
+          "ON_CREATE": "on create",
+          "ON_UPDATE": "on edit",
+          "ON_DELETE": "on delete",
+          "ON_FIELD_CHANGE": "when a field changes",
+          "ON_STATUS_CHANGE": "when the status changes",
+          "SCHEDULE": "scheduled",
+          "MANUAL": "manual"
+        }
+      }
     }
   },
   "invite": {

@@ -1794,7 +1794,8 @@
       "auditLogs": "Auditoría",
       "executionLogs": "Ejecuciones",
       "organization": "Organización",
-      "plan": "Plan"
+      "plan": "Plan",
+      "integrations": "Integraciones"
     },
     "home": {
       "title": "Hola, {name}",
@@ -1875,6 +1876,105 @@
       "new": "Nueva tabla",
       "empty": "Aún no hay tablas.",
       "meta": "{fields} campos · {records} registros"
+    },
+    "integrations": {
+      "title": "Integraciones",
+      "subtitle": "Conecta la empresa con otros sistemas: claves de API, webhooks y automatizaciones.",
+      "tabs": {
+        "keys": "Claves de API",
+        "webhooks": "Webhooks",
+        "automations": "Automatizaciones"
+      },
+      "keys": {
+        "title": "Claves de API",
+        "description": "Para que otro sistema lea y grabe registros. La clave actúa en nombre de quien la creó, con el cargo elegido.",
+        "new": "Nueva clave",
+        "empty": "Aún no hay claves.",
+        "meta": "cargo {role} · creada por {by}",
+        "lastUsed": "usada el {date}",
+        "neverUsed": "nunca usada",
+        "expires": "vence el {date}",
+        "revoke": "Revocar",
+        "confirmRevoke": "Confirmar",
+        "cancel": "Cancelar",
+        "revoked": "Clave revocada",
+        "howTo": "Cómo usar (solo registros, tablas y upload):",
+        "newTitle": "Nueva clave de API",
+        "newHint": "Elige un cargo con solo lo necesario: la integración tendrá exactamente sus permisos.",
+        "name": "Nombre",
+        "namePlaceholder": "Ej.: Integración ERP",
+        "role": "Cargo de la clave",
+        "chooseRole": "Elige el cargo",
+        "roleHint": "Solo aparecen cargos debajo del tuyo.",
+        "validity": "Validez",
+        "validities": {
+          "30": "30 días",
+          "90": "90 días",
+          "365": "1 año",
+          "never": "Sin vencimiento"
+        },
+        "create": "Crear clave",
+        "createdTitle": "Clave creada",
+        "createdHint": "Cópiala ahora: por seguridad no vuelve a aparecer.",
+        "copy": "Copiar clave",
+        "done": "Listo"
+      },
+      "webhooks": {
+        "title": "Webhooks",
+        "description": "Avisan a otro sistema (por HTTP) cuando un registro se crea, edita o elimina.",
+        "new": "Nuevo webhook",
+        "empty": "Aún no hay webhooks.",
+        "allTables": "Todas las tablas",
+        "test": "Probar",
+        "runs": "Envíos",
+        "edit": "Editar",
+        "delete": "Eliminar",
+        "confirmDelete": "Confirmar",
+        "deleted": "Webhook eliminado",
+        "saved": "Webhook guardado",
+        "testOk": "Prueba enviada: el destino respondió {code}.",
+        "testFail": "La prueba falló: {error}",
+        "status": {
+          "ACTIVE": "Activo",
+          "INACTIVE": "Pausado",
+          "PAUSED": "Pausado"
+        },
+        "events": {
+          "created": "Creado",
+          "updated": "Editado",
+          "deleted": "Eliminado",
+          "test": "Prueba"
+        },
+        "newTitle": "Nuevo webhook",
+        "editTitle": "Editar webhook",
+        "dialogHint": "El sistema envía un POST con el registro a la URL. Las direcciones internas se bloquean.",
+        "name": "Nombre",
+        "url": "URL de destino",
+        "table": "Tabla",
+        "when": "Cuándo enviar",
+        "secret": "Secreto de firma",
+        "secretHint": "Cada envío lleva el encabezado X-Webhook-Signature (HMAC SHA-256) con este secreto, para que el destino verifique el origen.",
+        "active": "Activo",
+        "save": "Guardar",
+        "runsTitle": "Envíos de {name}",
+        "noRuns": "Aún no hay envíos."
+      },
+      "automations": {
+        "title": "Automatizaciones",
+        "description": "Todas las automatizaciones de las tablas de la empresa. La edición sigue en el editor de cada tabla.",
+        "empty": "Aún no hay automatizaciones.",
+        "paused": "Pausada",
+        "editInTable": "Editar en la tabla",
+        "triggers": {
+          "ON_CREATE": "al crear",
+          "ON_UPDATE": "al editar",
+          "ON_DELETE": "al eliminar",
+          "ON_FIELD_CHANGE": "cuando cambia un campo",
+          "ON_STATUS_CHANGE": "cuando cambia el estado",
+          "SCHEDULE": "programada",
+          "MANUAL": "manual"
+        }
+      }
     }
   },
   "invite": {

@@ -8,6 +8,7 @@ import { ExecutionContextService, ExecutionContext, LoopDetectedException, MaxDe
 import { CircuitBreakerService, CircuitOpenException } from './circuit-breaker.service';
 import * as vm from 'vm';
 import { TenantPlanService } from '../../common/services/tenant-plan.service';
+import { safeFetch } from '../../common/utils/safe-fetch';
 
 interface ActionConfig {
   order: number;
@@ -496,7 +497,7 @@ export class AutomationExecutorService {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), timeout);
 
-        const response = await fetch(url, {
+        const response = await safeFetch(url, {
           method,
           headers,
           body: method !== 'GET' ? JSON.stringify(body) : undefined,
@@ -506,10 +507,12 @@ export class AutomationExecutorService {
         clearTimeout(timeoutId);
 
         let responseBody: unknown;
+        // Le o corpo uma vez so (ler de novo depois de falhar o JSON quebra a resposta).
+        const raw = await response.text();
         try {
-          responseBody = await response.json();
+          responseBody = raw ? JSON.parse(raw) : null;
         } catch {
-          responseBody = await response.text();
+          responseBody = raw;
         }
 
         if (!response.ok) {

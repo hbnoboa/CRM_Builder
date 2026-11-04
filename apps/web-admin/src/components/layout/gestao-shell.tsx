@@ -23,6 +23,7 @@ import {
   Link2,
   LogOut,
   Menu,
+  Plug,
   ScrollText,
   Shield,
   ShieldCheck,
@@ -65,6 +66,7 @@ const GROUPS: Array<{ key: string; items: GestaoItem[] }> = [
       { key: 'pdfTemplates', section: 'pdf-templates', icon: <FileText className="h-4 w-4" />, featureKey: 'pdf' },
       { key: 'dashboardTemplates', section: 'dashboard-templates', icon: <BarChart3 className="h-4 w-4" /> },
       { key: 'publicLinks', section: 'public-links', icon: <Link2 className="h-4 w-4" />, featureKey: 'publicLinks' },
+      { key: 'integrations', section: 'integrations', icon: <Plug className="h-4 w-4" /> },
     ],
   },
   {

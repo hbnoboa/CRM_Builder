@@ -1801,7 +1801,8 @@
       "auditLogs": "Auditoria",
       "executionLogs": "Execuções",
       "organization": "Organização",
-      "plan": "Plano"
+      "plan": "Plano",
+      "integrations": "Integrações"
     },
     "home": {
       "title": "Olá, {name}",
@@ -1882,6 +1883,105 @@
       "new": "Nova tabela",
       "empty": "Nenhuma tabela criada ainda.",
       "meta": "{fields} campos · {records} registros"
+    },
+    "integrations": {
+      "title": "Integrações",
+      "subtitle": "Conecte a empresa a outros sistemas: chaves de API, webhooks e automações.",
+      "tabs": {
+        "keys": "Chaves de API",
+        "webhooks": "Webhooks",
+        "automations": "Automações"
+      },
+      "keys": {
+        "title": "Chaves de API",
+        "description": "Para outro sistema ler e gravar registros. A chave age em nome de quem a criou, com o cargo escolhido.",
+        "new": "Nova chave",
+        "empty": "Nenhuma chave criada.",
+        "meta": "cargo {role} · criada por {by}",
+        "lastUsed": "usada em {date}",
+        "neverUsed": "nunca usada",
+        "expires": "vence em {date}",
+        "revoke": "Revogar",
+        "confirmRevoke": "Confirmar",
+        "cancel": "Cancelar",
+        "revoked": "Chave revogada",
+        "howTo": "Como usar (só registros, tabelas e upload):",
+        "newTitle": "Nova chave de API",
+        "newHint": "Escolha um cargo com só o necessário: a integração terá exatamente as permissões dele.",
+        "name": "Nome",
+        "namePlaceholder": "Ex.: Integração ERP",
+        "role": "Cargo da chave",
+        "chooseRole": "Escolha o cargo",
+        "roleHint": "Só aparecem cargos abaixo do seu.",
+        "validity": "Validade",
+        "validities": {
+          "30": "30 dias",
+          "90": "90 dias",
+          "365": "1 ano",
+          "never": "Sem vencimento"
+        },
+        "create": "Criar chave",
+        "createdTitle": "Chave criada",
+        "createdHint": "Copie agora: por segurança ela não aparece de novo.",
+        "copy": "Copiar chave",
+        "done": "Concluir"
+      },
+      "webhooks": {
+        "title": "Webhooks",
+        "description": "Avisam outro sistema (por HTTP) quando um registro é criado, editado ou excluído.",
+        "new": "Novo webhook",
+        "empty": "Nenhum webhook criado.",
+        "allTables": "Todas as tabelas",
+        "test": "Testar",
+        "runs": "Envios",
+        "edit": "Editar",
+        "delete": "Excluir",
+        "confirmDelete": "Confirmar exclusão",
+        "deleted": "Webhook excluído",
+        "saved": "Webhook salvo",
+        "testOk": "Teste enviado: o destino respondeu {code}.",
+        "testFail": "O teste falhou: {error}",
+        "status": {
+          "ACTIVE": "Ativo",
+          "INACTIVE": "Pausado",
+          "PAUSED": "Pausado"
+        },
+        "events": {
+          "created": "Criado",
+          "updated": "Editado",
+          "deleted": "Excluído",
+          "test": "Teste"
+        },
+        "newTitle": "Novo webhook",
+        "editTitle": "Editar webhook",
+        "dialogHint": "O sistema envia um POST com o registro para a URL. Endereços internos são bloqueados.",
+        "name": "Nome",
+        "url": "URL de destino",
+        "table": "Tabela",
+        "when": "Quando enviar",
+        "secret": "Segredo da assinatura",
+        "secretHint": "Cada envio leva o cabeçalho X-Webhook-Signature (HMAC SHA-256) com este segredo, para o destino conferir a origem.",
+        "active": "Ativo",
+        "save": "Salvar",
+        "runsTitle": "Envios de {name}",
+        "noRuns": "Nenhum envio ainda."
+      },
+      "automations": {
+        "title": "Automações",
+        "description": "Todas as automações das tabelas da empresa. A edição fica no editor de cada tabela.",
+        "empty": "Nenhuma automação criada.",
+        "paused": "Pausada",
+        "editInTable": "Editar na tabela",
+        "triggers": {
+          "ON_CREATE": "ao criar",
+          "ON_UPDATE": "ao editar",
+          "ON_DELETE": "ao excluir",
+          "ON_FIELD_CHANGE": "quando um campo muda",
+          "ON_STATUS_CHANGE": "quando o status muda",
+          "SCHEDULE": "agendada",
+          "MANUAL": "manual"
+        }
+      }
     }
   },
   "invite": {

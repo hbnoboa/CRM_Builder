@@ -143,7 +143,7 @@ export class AuthService {
 
   async login(dto: LoginDto) {
     const user = await this.prisma.user.findFirst({
-      where: { email: dto.email, status: Status.ACTIVE },
+      where: { email: dto.email, status: Status.ACTIVE, isServiceAccount: false },
       select: { id: true, email: true, name: true, avatar: true, password: true },
     });
 
@@ -387,7 +387,7 @@ export class AuthService {
   async forgotPassword(dto: ForgotPasswordDto) {
     // Email e global -> nao filtra por tenant.
     const user = await this.prisma.user.findFirst({
-      where: { email: dto.email, status: Status.ACTIVE },
+      where: { email: dto.email, status: Status.ACTIVE, isServiceAccount: false },
       select: { id: true, email: true, name: true },
     });
 

@@ -21,7 +21,8 @@ export type AuditResource =
   | 'custom_api'
   | 'page'
   | 'tenant'
-  | 'invitation';
+  | 'invitation'
+  | 'api_key';
 
 export interface AuditLogInput {
   action: AuditAction;

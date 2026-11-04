@@ -14,7 +14,7 @@ export function hasFullTenantAccess(modulePermissions: unknown): boolean {
 
 /** Modulos da camada "administracao da empresa" (o resto e operacao). */
 export const ADMIN_AREA_MODULES = [
-  'entities', 'users', 'roles', 'settings', 'automations', 'templates', 'logs', 'publicLinks',
+  'entities', 'users', 'roles', 'settings', 'automations', 'templates', 'logs', 'publicLinks', 'apis',
 ] as const;
 
 /** Quem entra na administracao da empresa: acesso total ou alguma permissao de gestao. */

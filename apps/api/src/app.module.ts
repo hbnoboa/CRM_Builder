@@ -22,6 +22,7 @@ import { PushModule } from './modules/push/push.module';
 import { PdfModule } from './modules/pdf/pdf.module';
 import { AuditModule } from './modules/audit/audit.module';
 import { InvitationModule } from './modules/invitation/invitation.module';
+import { ApiKeyModule } from './modules/api-key/api-key.module';
 import { EmailModule } from './modules/email/email.module';
 import { ArchiveModule } from './modules/archive/archive.module';
 import { DataLifecycleModule } from './modules/data-lifecycle/data-lifecycle.module';
@@ -96,6 +97,7 @@ import { TenantFeatureInterceptor } from './common/interceptors/tenant-feature.i
     AuditModule,
     EmailModule,
     InvitationModule,
+    ApiKeyModule,
     ArchiveModule,
     DataLifecycleModule,
 

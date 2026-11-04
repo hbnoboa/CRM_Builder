@@ -111,6 +111,7 @@ model Tenant {
   publicLinks          PublicLink[]
 
   invitations      Invitation[]
+  apiKeys          ApiKey[]
   @@index([slug])
   @@index([status])
   @@index([lifecycle])
@@ -219,6 +220,9 @@ model User {
   phone String? @unique // Digitos: 00000000000
 
   status Status @default(ACTIVE)
+  // Usuario tecnico de uma chave de API: nao faz login, nao aparece na equipe nem
+  // ocupa vaga do plano; existe para as permissoes por cargo valerem para a chave.
+  isServiceAccount Boolean @default(false)
 
   lastLoginAt       DateTime?
   resetToken        String?
@@ -243,6 +247,8 @@ model User {
   ownedTenants Tenant[]           @relation("TenantOwner")
 
   invitationsSent Invitation[]     @relation("InvitationsSent")
+  apiKeysCreated  ApiKey[]         @relation("ApiKeysCreated")
+  apiKeyService   ApiKey?          @relation("ApiKeyServiceUser")
   @@index([email])
   @@index([cpf])
   @@index([phone])
@@ -554,6 +560,7 @@ model CustomRole {
   // unique parcial): CREATE UNIQUE INDEX "CustomRole_tenantId_name_active_key"
   //   ON "CustomRole"("tenantId","name") WHERE "deletedAt" IS NULL;
   invitations       Invitation[]
+  apiKeys           ApiKey[]
   @@index([tenantId])
   @@index([isSystem])
   @@index([tenantId, isDefault])
@@ -1384,4 +1391,30 @@ model Invitation {
 
   @@index([tenantId])
   @@index([tenantId, email])
+}
+
+// Chave de API da empresa (integracoes externas). Age em nome de quem criou, com o
+// cargo escolhido; so o hash fica no banco (a chave pura aparece uma vez na criacao).
+model ApiKey {
+  id           String    @id @default(cuid())
+  tenantId     String
+  name         String
+  // inicio da chave para reconhecer na lista (ex.: "crm_Ab12Cd34")
+  prefix       String
+  keyHash      String    @unique
+  customRoleId String
+  createdById  String
+  // usuario tecnico da chave (membro da empresa no cargo da chave)
+  serviceUserId String   @unique
+  lastUsedAt   DateTime?
+  expiresAt    DateTime?
+  revokedAt    DateTime?
+  createdAt    DateTime  @default(now())
+
+  tenant     Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  customRole CustomRole @relation(fields: [customRoleId], references: [id], onDelete: Cascade)
+  createdBy  User       @relation("ApiKeysCreated", fields: [createdById], references: [id], onDelete: Cascade)
+  serviceUser User      @relation("ApiKeyServiceUser", fields: [serviceUserId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
 }

@@ -1,7 +1,8 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { Prisma, HttpMethod, WebhookStatus, Webhook } from '@prisma/client';
 import * as crypto from 'crypto';
+import { assertPublicUrl, safeFetch } from '../../common/utils/safe-fetch';
 
 interface CreateWebhookDto {
   entityId?: string;
@@ -60,7 +61,17 @@ export class WebhookService {
     return webhook;
   }
 
+  /** URL publica (sem rede interna) e tabela da propria empresa. */
+  private async validate(tenantId: string, dto: Partial<CreateWebhookDto>) {
+    if (dto.url !== undefined) await assertPublicUrl(dto.url);
+    if (dto.entityId) {
+      const entity = await this.prisma.entity.findFirst({ where: { id: dto.entityId, tenantId }, select: { id: true } });
+      if (!entity) throw new BadRequestException('Tabela nao encontrada nesta empresa');
+    }
+  }
+
   async create(tenantId: string, dto: CreateWebhookDto) {
+    await this.validate(tenantId, dto);
     return this.prisma.webhook.create({
       data: {
         tenantId,
@@ -83,6 +94,7 @@ export class WebhookService {
 
   async update(id: string, tenantId: string, dto: UpdateWebhookDto) {
     await this.findOne(id, tenantId);
+    await this.validate(tenantId, dto);
 
     const updateData: Prisma.WebhookUpdateInput = {
       ...dto,
@@ -105,6 +117,22 @@ export class WebhookService {
     });
   }
 
+  /** Envia um evento de exemplo agora (sem novas tentativas) e devolve o resultado. */
+  async test(id: string, tenantId: string) {
+    const webhook = await this.findOne(id, tenantId);
+    await this.executeWebhook({ ...webhook, retryCount: 0 }, {
+      event: 'test',
+      recordId: 'exemplo',
+      record: { id: 'exemplo', data: { mensagem: 'Teste do webhook' } },
+      entity: { id: webhook.entityId ?? 'todas', slug: 'exemplo', name: 'Exemplo' },
+    });
+    return this.prisma.webhookExecution.findFirst({
+      where: { webhookId: id },
+      orderBy: { createdAt: 'desc' },
+      select: { status: true, responseStatus: true, errorMessage: true, responseTime: true, createdAt: true },
+    });
+  }
+
   async delete(id: string, tenantId: string) {
     await this.findOne(id, tenantId);
 
@@ -122,7 +150,8 @@ export class WebhookService {
         tenantId,
         status: WebhookStatus.ACTIVE,
         events: { has: context.event },
-        ...(context.entity && { entityId: context.entity.id }),
+        // Sem tabela = vale para todas as tabelas da empresa.
+        ...(context.entity && { OR: [{ entityId: null }, { entityId: context.entity.id }] }),
       },
     });
 
@@ -184,7 +213,7 @@ export class WebhookService {
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), webhook.timeout);
 
-      const response = await fetch(webhook.url, {
+      const response = await safeFetch(webhook.url, {
         method: webhook.method,
         headers,
         body: webhook.method !== 'GET' ? JSON.stringify(body) : undefined,
@@ -194,11 +223,12 @@ export class WebhookService {
       clearTimeout(timeout);
 
       responseStatus = response.status;
-
+      // Le o corpo uma vez so (ler de novo depois de falhar o JSON quebra a resposta).
+      const raw = await response.text();
       try {
-        responseBody = await response.json();
+        responseBody = raw ? JSON.parse(raw) : null;
       } catch {
-        responseBody = await response.text();
+        responseBody = raw;
       }
 
       if (!response.ok) {

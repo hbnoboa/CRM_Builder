@@ -117,7 +117,8 @@ export class UserService {
     // Filtro por cargo agora e por id do cargo (roleType removido).
     if (role) membershipFilter.customRoleId = role;
 
-    const where: Prisma.UserWhereInput = { tenantAccess: { some: membershipFilter } };
+    // Usuario tecnico de chave de API nao faz parte da equipe.
+    const where: Prisma.UserWhereInput = { tenantAccess: { some: membershipFilter }, isServiceAccount: false };
     if (status) where.status = status;
     if (search) {
       where.OR = [

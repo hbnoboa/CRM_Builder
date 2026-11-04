@@ -52,7 +52,7 @@ export class PlatformTenantsService {
         where: { deletedAt: null },
         _count: { _all: true },
       }),
-      this.prisma.userTenantAccess.count({ where: { status: 'ACTIVE', deletedAt: null } }),
+      this.prisma.userTenantAccess.count({ where: { status: 'ACTIVE', deletedAt: null, user: { isServiceAccount: false } } }),
       this.prisma.tenant.findMany({
         where: { deletedAt: null, lifecycle: 'TRIAL', trialEndsAt: { lte: soon } },
         select: { id: true, name: true, slug: true, trialEndsAt: true },
@@ -177,7 +177,7 @@ export class PlatformTenantsService {
     await this.assertExists(tenantId);
     const tenant = await this.prisma.tenant.findUnique({ where: { id: tenantId }, select: { ownerId: true } });
     const members = await this.prisma.userTenantAccess.findMany({
-      where: { tenantId, deletedAt: null },
+      where: { tenantId, deletedAt: null, user: { isServiceAccount: false } },
       select: {
         status: true,
         isPrimary: true,
@@ -436,6 +436,7 @@ export class PlatformTenantsService {
         WHERE uta."tenantId" = ANY(${tenantIds})
           AND uta."deletedAt" IS NULL
           AND uta.status = 'ACTIVE'
+          AND u."isServiceAccount" = false
           -- usuarios de formulario publico nao ocupam vaga (mesma regra do TenantPlanService)
           AND NOT EXISTS (SELECT 1 FROM "PublicLink" pl WHERE pl."customRoleId" = uta."customRoleId")
         GROUP BY uta."tenantId"`,

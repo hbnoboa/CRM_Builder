@@ -30,6 +30,8 @@ export interface CurrentUser {
   customRole: CurrentUserCustomRole;
   // Presente quando a sessao e uma impersonacao (ator real que assumiu este usuario).
   impersonatedBy?: { id: string; name: string };
+  // Presente quando a requisicao veio de uma chave de API (age em nome de quem a criou).
+  apiKey?: { id: string; name: string };
 }
 
 /**

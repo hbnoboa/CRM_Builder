@@ -17,7 +17,7 @@ export class TenantOverviewService {
     const tenantId = currentUser.tenantId;
     const since30 = new Date(Date.now() - 30 * DAY_MS);
     const since7 = new Date(Date.now() - 7 * DAY_MS);
-    const activeMember = { tenantAccess: { some: { tenantId, deletedAt: null, status: 'ACTIVE' as const } }, deletedAt: null, status: 'ACTIVE' as const };
+    const activeMember = { tenantAccess: { some: { tenantId, deletedAt: null, status: 'ACTIVE' as const } }, isServiceAccount: false, deletedAt: null, status: 'ACTIVE' as const };
 
     const [neverLoggedIn, inactive30, roles, failed, invites] = await Promise.all([
       this.prisma.user.findMany({
