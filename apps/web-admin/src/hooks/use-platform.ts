@@ -9,6 +9,7 @@ import type {
   Plan,
   PlanLimits,
   PlatformAuditRow,
+  PlatformMetrics,
   PlatformOverview,
   PlatformStaff,
   PlatformStaffRole,
@@ -26,6 +27,7 @@ export const platformKeys = {
   all: ['platform'] as const,
   me: () => [...platformKeys.all, 'me'] as const,
   overview: () => [...platformKeys.all, 'overview'] as const,
+  metrics: (months: number) => [...platformKeys.all, 'metrics', months] as const,
   tenants: (params?: object) => [...platformKeys.all, 'tenants', params ?? {}] as const,
   tenant: (id: string) => [...platformKeys.all, 'tenant', id] as const,
   members: (id: string) => [...platformKeys.all, 'tenant', id, 'members'] as const,
@@ -66,6 +68,15 @@ export function usePlatformOverview() {
   return useQuery({
     queryKey: platformKeys.overview(),
     queryFn: async () => (await platformApi.get<PlatformOverview>('/overview')).data,
+  });
+}
+
+export function usePlatformMetrics(months = 12) {
+  return useQuery({
+    queryKey: platformKeys.metrics(months),
+    queryFn: async () => (await platformApi.get<PlatformMetrics>('/metrics', { params: { months } })).data,
+    // Sem permissao nao adianta tentar de novo.
+    retry: (count, error) => (error as { response?: { status?: number } }).response?.status !== 403 && count < 2,
   });
 }
 

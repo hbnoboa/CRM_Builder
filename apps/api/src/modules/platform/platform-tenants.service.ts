@@ -17,6 +17,7 @@ import {
 } from './dto/platform.dto';
 import { PlatformAuditService } from './platform-audit.service';
 import type { PlatformStaffPrincipal } from './platform-permissions';
+import { recordLifecycleEvent } from '../../common/utils/tenant-lifecycle-events';
 
 // Ciclo de vida comercial -> status que de fato libera/bloqueia o acesso.
 // PAST_DUE (inadimplente) ainda acessa: e o periodo de tolerancia.
@@ -213,7 +214,7 @@ export class PlatformTenantsService {
         adminEmail: dto.adminEmail,
         adminPassword: dto.adminPassword,
       },
-      { planId: dto.planId ?? null, lifecycle, trialEndsAt },
+      { planId: dto.planId ?? null, lifecycle, trialEndsAt, source: 'console', staffId: actor.id },
     );
     if (STATUS_FOR_LIFECYCLE[lifecycle] !== Status.ACTIVE) {
       await this.prisma.tenant.update({
@@ -255,13 +256,17 @@ export class PlatformTenantsService {
     const current = await this.assertExists(id);
     const trialEndsAt = this.resolveTrialEnd(dto.lifecycle, dto.trialEndsAt, current.trialEndsAt);
 
-    const tenant = await this.prisma.tenant.update({
-      where: { id },
-      data: {
-        lifecycle: dto.lifecycle,
-        status: STATUS_FOR_LIFECYCLE[dto.lifecycle],
-        trialEndsAt: dto.lifecycle === 'TRIAL' ? trialEndsAt : current.trialEndsAt,
-      },
+    const tenant = await this.prisma.$transaction(async (tx) => {
+      const updated = await tx.tenant.update({
+        where: { id },
+        data: {
+          lifecycle: dto.lifecycle,
+          status: STATUS_FOR_LIFECYCLE[dto.lifecycle],
+          trialEndsAt: dto.lifecycle === 'TRIAL' ? trialEndsAt : current.trialEndsAt,
+        },
+      });
+      await recordLifecycleEvent(tx, { tenantId: id, from: current.lifecycle, to: dto.lifecycle, source: 'console', staffId: actor.id });
+      return updated;
     });
     this.tenantPlan.invalidate(id);
     await this.audit.log(actor, {
@@ -409,10 +414,15 @@ export class PlatformTenantsService {
     });
     if (expired.length === 0) return;
 
-    await this.prisma.tenant.updateMany({
-      where: { id: { in: expired.map((t) => t.id) } },
-      data: { lifecycle: 'SUSPENDED', status: Status.SUSPENDED },
-    });
+    await this.prisma.$transaction([
+      this.prisma.tenant.updateMany({
+        where: { id: { in: expired.map((t) => t.id) } },
+        data: { lifecycle: 'SUSPENDED', status: Status.SUSPENDED },
+      }),
+      this.prisma.tenantLifecycleEvent.createMany({
+        data: expired.map((t) => ({ tenantId: t.id, from: 'TRIAL' as const, to: 'SUSPENDED' as const, source: 'trial_expired' })),
+      }),
+    ]);
     for (const t of expired) this.tenantPlan.invalidate(t.id);
     this.logger.log(`Trials vencidos suspensos: ${expired.map((t) => t.slug).join(', ')}`);
   }

@@ -6,6 +6,7 @@ import { Status, Prisma, TenantLifecycle } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
 import { DEFAULT_ROLE_TEMPLATES, type DefaultRoleKey } from '../../common/utils/default-roles';
 import { hasFullTenantAccess } from '../../common/utils/platform-access';
+import { recordLifecycleEvent } from '../../common/utils/tenant-lifecycle-events';
 
 // Slugs que colidem com rotas do web-admin (/{locale}/{slug}/...) ou da API.
 export const RESERVED_TENANT_SLUGS = new Set([
@@ -18,6 +19,9 @@ export interface CreateTenantOptions {
   planId?: string | null;
   lifecycle?: TenantLifecycle;
   trialEndsAt?: Date | null;
+  /** Quem criou (historico comercial): cadastro self-service ou console. */
+  source?: 'signup' | 'console';
+  staffId?: string;
 }
 
 @Injectable()
@@ -75,6 +79,14 @@ export class TenantService {
           lifecycle: options.lifecycle,
           trialEndsAt: options.trialEndsAt ?? undefined,
         },
+      });
+
+      await recordLifecycleEvent(tx, {
+        tenantId: createdTenant.id,
+        from: null,
+        to: createdTenant.lifecycle,
+        source: options.source ?? 'console',
+        staffId: options.staffId,
       });
 
       // 2. Cargos padrao (mesmos nomes e niveis em toda empresa)

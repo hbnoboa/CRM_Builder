@@ -43,15 +43,18 @@ function PlatformTenantsContent() {
   const can = usePlatformCan();
   const [search, setSearch] = useState(searchParams.get('search') || '');
   const [lifecycle, setLifecycle] = useState<string>(searchParams.get('lifecycle') || ALL);
+  const [planId, setPlanId] = useState<string>(searchParams.get('planId') || ALL);
+  const { data: planOptions } = usePlatformPlans();
   const [page, setPage] = useState(1);
   const [createOpen, setCreateOpen] = useState(false);
   const debouncedSearch = useDebounce(search, 300);
 
-  useEffect(() => setPage(1), [debouncedSearch, lifecycle]);
+  useEffect(() => setPage(1), [debouncedSearch, lifecycle, planId]);
 
   const { data, isLoading } = usePlatformTenants({
     search: debouncedSearch || undefined,
     lifecycle: lifecycle === ALL ? undefined : (lifecycle as TenantLifecycle),
+    planId: planId === ALL ? undefined : planId,
     page,
     limit: 20,
   });
@@ -84,6 +87,17 @@ function PlatformTenantsContent() {
             <SelectItem value={ALL}>{t('allLifecycles')}</SelectItem>
             {TENANT_LIFECYCLES.map((l) => (
               <SelectItem key={l} value={l}>{tLife(l)}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Select value={planId} onValueChange={setPlanId}>
+          <SelectTrigger className="sm:w-48" data-testid="tenants-plan-filter">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={ALL}>{t('allPlans')}</SelectItem>
+            {(planOptions ?? []).map((p) => (
+              <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
             ))}
           </SelectContent>
         </Select>

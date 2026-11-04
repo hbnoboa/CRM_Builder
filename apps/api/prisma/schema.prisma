@@ -112,6 +112,7 @@ model Tenant {
 
   invitations      Invitation[]
   apiKeys          ApiKey[]
+  lifecycleEvents  TenantLifecycleEvent[]
   @@index([slug])
   @@index([status])
   @@index([lifecycle])
@@ -180,6 +181,23 @@ model PlatformStaff {
 }
 
 // Toda acao da equipe no console (separado do AuditLog dos tenants).
+/// Historico comercial da empresa (cadastro, conversao, suspensao, cancelamento):
+/// base das metricas do console. `from` nulo = criacao.
+model TenantLifecycleEvent {
+  id        String           @id @default(cuid())
+  tenantId  String
+  tenant    Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  from      TenantLifecycle?
+  to        TenantLifecycle
+  /// signup | console | trial_expired
+  source    String
+  staffId   String?
+  createdAt DateTime         @default(now())
+
+  @@index([createdAt])
+  @@index([tenantId])
+}
+
 model PlatformAuditLog {
   id         String   @id @default(cuid())
   staffId    String

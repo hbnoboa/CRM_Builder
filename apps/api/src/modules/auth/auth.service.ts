@@ -118,7 +118,7 @@ export class AuthService {
         adminEmail: dto.email,
         adminPassword: dto.password,
       },
-      { planId: plan?.id ?? null, lifecycle: TenantLifecycle.TRIAL, trialEndsAt },
+      { planId: plan?.id ?? null, lifecycle: TenantLifecycle.TRIAL, trialEndsAt, source: 'signup' },
     );
 
     this.logger.log(`Cadastro self-service: ${dto.email} -> tenant ${slug} (trial ${trialDays}d)`);

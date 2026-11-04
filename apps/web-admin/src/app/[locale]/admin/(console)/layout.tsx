@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { useQueryClient } from '@tanstack/react-query';
-import { Building2, Gauge, KeyRound, Layers, Loader2, LogOut, Menu, ScrollText, ShieldCheck, Users, X } from 'lucide-react';
+import { Building2, ChartColumn, Gauge, KeyRound, Layers, Loader2, LogOut, Menu, ScrollText, ShieldCheck, Users, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { Link, usePathname, useRouter } from '@/i18n/navigation';
 import { Button } from '@/components/ui/button';
@@ -17,6 +17,7 @@ import { cn } from '@/lib/utils';
 
 const NAV = [
   { key: 'overview', href: '/admin', icon: Gauge, permission: 'overview.read' },
+  { key: 'metrics', href: '/admin/metrics', icon: ChartColumn, permission: 'metrics.read' },
   { key: 'tenants', href: '/admin/tenants', icon: Building2, permission: 'tenants.read' },
   { key: 'plans', href: '/admin/plans', icon: Layers, permission: 'plans.read' },
   { key: 'staff', href: '/admin/staff', icon: Users, permission: 'staff.read' },

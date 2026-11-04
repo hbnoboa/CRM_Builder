@@ -112,6 +112,41 @@ export interface PlatformOverview {
   recentSignups: Array<{ id: string; name: string; slug: string; lifecycle: TenantLifecycle; createdAt: string }>;
 }
 
+export interface PlatformMetricsWindow {
+  signups: number;
+  selfService: number;
+  conversions: number;
+  cancellations: number;
+  suspensions: number;
+}
+
+export interface PlatformMetricsMonth {
+  month: string;
+  signups: number;
+  conversions: number;
+  cancellations: number;
+  suspensions: number;
+}
+
+export interface PlatformMetrics {
+  generatedAt: string;
+  tenants: { total: number; paying: number; byLifecycle: Record<TenantLifecycle, number> };
+  last30: { current: PlatformMetricsWindow; previous: PlatformMetricsWindow };
+  trialConversion: { days: number; converted: number; lost: number; rate: number | null };
+  monthly: PlatformMetricsMonth[];
+  byPlan: Array<{
+    planId: string | null;
+    name: string | null;
+    isActive: boolean;
+    total: number;
+    paying: number;
+    byLifecycle: Record<TenantLifecycle, number>;
+    members: number;
+  }>;
+  engagement: { members: number; activeMembers30d: number; activeRate: number | null; records: number };
+  atRisk: Array<{ id: string; name: string; slug: string; lifecycle: TenantLifecycle; lastLoginAt: string | null; members: number }>;
+}
+
 export interface PlatformAuditRow {
   id: string;
   staffId: string;

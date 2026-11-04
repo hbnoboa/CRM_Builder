@@ -46,6 +46,7 @@ import { PlatformAuditService } from './platform-audit.service';
 import { PlatformPlansService } from './platform-plans.service';
 import { PlatformStaffService } from './platform-staff.service';
 import { PlatformTenantsService } from './platform-tenants.service';
+import { PlatformMetricsService } from './platform-metrics.service';
 import { PlatformTenantTeamService } from './platform-tenant-team.service';
 import { CopyTenantDataDto } from '../tenant/dto/copy-tenant-data.dto';
 
@@ -92,6 +93,7 @@ export class PlatformController {
     private readonly staff: PlatformStaffService,
     private readonly audit: PlatformAuditService,
     private readonly team: PlatformTenantTeamService,
+    private readonly metricsService: PlatformMetricsService,
   ) {}
 
   // ── Visao geral ─────────────────────────────────────────────────────────
@@ -100,6 +102,13 @@ export class PlatformController {
   @RequirePlatformPermission('overview.read')
   overview() {
     return this.tenants.overview();
+  }
+
+  @Get('metrics')
+  @RequirePlatformPermission('metrics.read')
+  metrics(@Query('months') months?: string) {
+    const n = Math.min(24, Math.max(3, parseInt(months ?? '12', 10) || 12));
+    return this.metricsService.metrics(n);
   }
 
   // ── Tenants ─────────────────────────────────────────────────────────────
