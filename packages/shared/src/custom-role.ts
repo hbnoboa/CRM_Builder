@@ -88,7 +88,6 @@ export interface ModulePermissions {
   templates?: ModulePermission;
   logs?: ModulePermission;
   publicLinks?: ModulePermission;
-  apis?: ModulePermission;
   archive?: ModulePermission;
 }
 
