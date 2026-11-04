@@ -1393,6 +1393,7 @@
     "nav": {
       "overview": "Visão geral",
       "metrics": "Métricas",
+      "people": "Pessoas",
       "tenants": "Clientes",
       "plans": "Planos",
       "staff": "Equipe",
@@ -2531,5 +2532,68 @@
     "noErrors": "Nenhum erro registrado.",
     "slowQueries": "Consultas lentas",
     "noSlow": "Nenhuma consulta lenta registrada."
+  },
+  "people": {
+    "title": "Pessoas",
+    "subtitle": "Encontre qualquer pessoa em todas as empresas.",
+    "search": "Nome, e-mail, telefone ou CPF",
+    "hint": "Digite ao menos 2 caracteres.",
+    "none": "Ninguém encontrado.",
+    "never": "nunca",
+    "lastLogin": "último acesso {when}",
+    "devices": "{n, plural, =0 {nenhum aparelho conectado} one {# aparelho} other {# aparelhos}}",
+    "mfa": "Duas etapas ativa",
+    "noCompany": "Sem empresa",
+    "status": {
+      "ACTIVE": "Ativa",
+      "INACTIVE": "Inativa",
+      "SUSPENDED": "Suspensa"
+    },
+    "membership": {
+      "ACTIVE": "Ativo",
+      "INACTIVE": "Inativo",
+      "SUSPENDED": "Suspenso",
+      "REMOVED": "Removido"
+    },
+    "back": "Pessoas",
+    "since": "conta desde {when}",
+    "mfaOn": "duas etapas ativa",
+    "mfaOff": "sem duas etapas",
+    "actions": {
+      "password-reset": "Enviar link de nova senha",
+      "logout": "Desconectar de tudo",
+      "mfa-reset": "Desligar duas etapas"
+    },
+    "done": {
+      "password-reset": "Link de nova senha enviado",
+      "logout": "Pessoa desconectada de todos os aparelhos",
+      "mfa-reset": "Duas etapas desligadas"
+    },
+    "confirm": {
+      "password-reset": {
+        "title": "Enviar link de nova senha para {name}?",
+        "body": "Um e-mail vai para {email} com um link válido por 1 hora. A senha atual continua valendo até ser trocada."
+      },
+      "logout": {
+        "title": "Desconectar {name} de todos os aparelhos?",
+        "body": "Web e celular pedem login de novo na próxima ação."
+      },
+      "mfa-reset": {
+        "title": "Desligar as duas etapas de {name}?",
+        "body": "Use quando a pessoa perdeu o celular. Confirme a identidade antes. Ela é desconectada e, se a empresa exigir, configura de novo no próximo acesso."
+      }
+    },
+    "confirmButton": "Confirmar",
+    "cancel": "Cancelar",
+    "companies": "Empresas",
+    "company": "Empresa",
+    "role": "Cargo",
+    "situation": "Situação",
+    "enterAs": "Entrar como",
+    "devicesTitle": "Aparelhos conectados ({n})",
+    "noDevices": "Nenhum aparelho conectado.",
+    "lastUsed": "usado {when}",
+    "recentActions": "Últimas ações",
+    "noActions": "Nenhuma ação registrada."
   }
 }

@@ -1386,6 +1386,7 @@
     "nav": {
       "overview": "Resumen",
       "metrics": "Métricas",
+      "people": "Personas",
       "tenants": "Clientes",
       "plans": "Planes",
       "staff": "Equipo",
@@ -2524,5 +2525,68 @@
     "noErrors": "Ningún error registrado.",
     "slowQueries": "Consultas lentas",
     "noSlow": "Ninguna consulta lenta registrada."
+  },
+  "people": {
+    "title": "Personas",
+    "subtitle": "Encuentra a cualquier persona en todas las empresas.",
+    "search": "Nombre, correo, teléfono o CPF",
+    "hint": "Escribe al menos 2 caracteres.",
+    "none": "No se encontró a nadie.",
+    "never": "nunca",
+    "lastLogin": "último acceso {when}",
+    "devices": "{n, plural, =0 {ningún dispositivo conectado} one {# dispositivo} other {# dispositivos}}",
+    "mfa": "Dos pasos activo",
+    "noCompany": "Sin empresa",
+    "status": {
+      "ACTIVE": "Activa",
+      "INACTIVE": "Inactiva",
+      "SUSPENDED": "Suspendida"
+    },
+    "membership": {
+      "ACTIVE": "Activo",
+      "INACTIVE": "Inactivo",
+      "SUSPENDED": "Suspendido",
+      "REMOVED": "Eliminado"
+    },
+    "back": "Personas",
+    "since": "cuenta desde {when}",
+    "mfaOn": "dos pasos activo",
+    "mfaOff": "sin dos pasos",
+    "actions": {
+      "password-reset": "Enviar enlace de nueva contraseña",
+      "logout": "Desconectar de todo",
+      "mfa-reset": "Desactivar dos pasos"
+    },
+    "done": {
+      "password-reset": "Enlace de nueva contraseña enviado",
+      "logout": "Persona desconectada de todos los dispositivos",
+      "mfa-reset": "Dos pasos desactivados"
+    },
+    "confirm": {
+      "password-reset": {
+        "title": "¿Enviar enlace de nueva contraseña a {name}?",
+        "body": "Llega un correo a {email} con un enlace válido por 1 hora. La contraseña actual sigue valiendo hasta que se cambie."
+      },
+      "logout": {
+        "title": "¿Desconectar a {name} de todos los dispositivos?",
+        "body": "Web y celular pedirán iniciar sesión de nuevo en la próxima acción."
+      },
+      "mfa-reset": {
+        "title": "¿Desactivar los dos pasos de {name}?",
+        "body": "Úsalo cuando la persona perdió el celular. Confirma su identidad antes. Se desconecta y, si la empresa lo exige, lo configura de nuevo en el próximo acceso."
+      }
+    },
+    "confirmButton": "Confirmar",
+    "cancel": "Cancelar",
+    "companies": "Empresas",
+    "company": "Empresa",
+    "role": "Rol",
+    "situation": "Situación",
+    "enterAs": "Entrar como",
+    "devicesTitle": "Dispositivos conectados ({n})",
+    "noDevices": "Ningún dispositivo conectado.",
+    "lastUsed": "usado {when}",
+    "recentActions": "Últimas acciones",
+    "noActions": "Ninguna acción registrada."
   }
 }

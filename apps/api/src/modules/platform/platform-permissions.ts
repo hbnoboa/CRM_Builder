@@ -48,6 +48,9 @@ export const PLATFORM_PERMISSIONS = {
   'announcements.read': ALL,
   'announcements.manage': ['OWNER', 'SUPPORT'],
   'health.read': ALL,
+  'users.read': ALL,
+  // Acoes de suporte na conta da pessoa (link de senha, desconectar, desligar 2 etapas).
+  'users.support': ['OWNER', 'SUPPORT'],
 } satisfies Record<string, PlatformStaffRole[]>;
 
 export type PlatformPermission = keyof typeof PLATFORM_PERMISSIONS;

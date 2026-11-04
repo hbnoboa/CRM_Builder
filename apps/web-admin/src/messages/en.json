@@ -1389,6 +1389,7 @@
     "nav": {
       "overview": "Overview",
       "metrics": "Metrics",
+      "people": "People",
       "tenants": "Customers",
       "plans": "Plans",
       "staff": "Team",
@@ -2527,5 +2528,68 @@
     "noErrors": "No errors recorded.",
     "slowQueries": "Slow queries",
     "noSlow": "No slow queries recorded."
+  },
+  "people": {
+    "title": "People",
+    "subtitle": "Find anyone across all companies.",
+    "search": "Name, email, phone or CPF",
+    "hint": "Type at least 2 characters.",
+    "none": "Nobody found.",
+    "never": "never",
+    "lastLogin": "last sign-in {when}",
+    "devices": "{n, plural, =0 {no devices signed in} one {# device} other {# devices}}",
+    "mfa": "Two-step on",
+    "noCompany": "No company",
+    "status": {
+      "ACTIVE": "Active",
+      "INACTIVE": "Inactive",
+      "SUSPENDED": "Suspended"
+    },
+    "membership": {
+      "ACTIVE": "Active",
+      "INACTIVE": "Inactive",
+      "SUSPENDED": "Suspended",
+      "REMOVED": "Removed"
+    },
+    "back": "People",
+    "since": "account since {when}",
+    "mfaOn": "two-step on",
+    "mfaOff": "no two-step",
+    "actions": {
+      "password-reset": "Send password reset link",
+      "logout": "Sign out everywhere",
+      "mfa-reset": "Turn off two-step"
+    },
+    "done": {
+      "password-reset": "Password reset link sent",
+      "logout": "Signed out of all devices",
+      "mfa-reset": "Two-step turned off"
+    },
+    "confirm": {
+      "password-reset": {
+        "title": "Send a password reset link to {name}?",
+        "body": "An email goes to {email} with a link valid for 1 hour. The current password keeps working until changed."
+      },
+      "logout": {
+        "title": "Sign {name} out of all devices?",
+        "body": "Web and mobile will ask to sign in again on the next action."
+      },
+      "mfa-reset": {
+        "title": "Turn off two-step for {name}?",
+        "body": "Use it when the person lost their phone. Confirm their identity first. They are signed out and, if the company requires it, set it up again on next sign-in."
+      }
+    },
+    "confirmButton": "Confirm",
+    "cancel": "Cancel",
+    "companies": "Companies",
+    "company": "Company",
+    "role": "Role",
+    "situation": "Status",
+    "enterAs": "Sign in as",
+    "devicesTitle": "Signed-in devices ({n})",
+    "noDevices": "No devices signed in.",
+    "lastUsed": "used {when}",
+    "recentActions": "Recent actions",
+    "noActions": "No actions recorded."
   }
 }
