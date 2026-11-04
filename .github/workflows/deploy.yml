@@ -2,9 +2,9 @@ name: CI/CD
 
 # CI (lint/typecheck) + deploy num ÚNICO workflow.
 #   - pull_request (main/develop) : só CI, sem deploy
-#   - push em develop             : CI -> deploy DEV automático
+#   - workflow_dispatch env=dev   : CI -> deploy DEV manual (Actions > CI/CD > Run workflow)
 #   - workflow_dispatch env=prod  : CI -> deploy PROD manual, SÓ da branch main
-#   - workflow_dispatch env=dev   : CI -> deploy DEV manual avulso
+#   Merge/push em develop NAO faz deploy: dev e prod sobem so quando alguem dispara.
 #
 # O CI BLOQUEIA o deploy: se o typecheck da API falhar, não sobe.
 # lint e tsc do web rodam INFORMATIVOS (continue-on-error): o repo tem dívida
@@ -22,8 +22,6 @@ run-name: >-
            github.ref_name, github.actor) }}
 
 on:
-  push:
-    branches: [develop]
   pull_request:
     branches: [main, develop]
   workflow_dispatch:
