@@ -500,7 +500,11 @@ export class NotificationService {
     tenantId: string,
     query: QueryNotificationDto = {},
   ) {
-    const { page = 1, limit = 20, cursor, unreadOnly = false } = query;
+    // Query string chega como texto: converte e limita (ate 100 por pagina).
+    const page = Math.max(1, Number(query.page) || 1);
+    const limit = Math.min(100, Math.max(1, Number(query.limit) || 20));
+    const cursor = query.cursor;
+    const unreadOnly = query.unreadOnly === true || String(query.unreadOnly) === 'true';
     const useCursor = !!cursor;
 
     const where: Prisma.NotificationWhereInput = {

@@ -20,6 +20,7 @@ import { getEffectiveTenantId } from '../../common/utils/tenant.util';
 import { buildFilterClause } from '../../common/utils/build-filter-clause';
 import { GlobalFilterDto } from './dto/update-global-filters.dto';
 import { creatorFilter } from '../../common/utils/team-scope';
+import { invalidateEntityQueryCache } from '../../common/services/entity-query-cache';
 
 export type QueryEntityDto = PaginationQuery;
 
@@ -610,6 +611,7 @@ export class EntityService {
       where: { id },
       data: updateData,
     });
+    invalidateEntityQueryCache(oldEntity.slug);
 
     // Re-sincroniza indices unicos parciais se os campos mudaram
     if (dto.fields !== undefined) {
@@ -667,10 +669,12 @@ export class EntityService {
     const currentSettings = (entity.settings as Record<string, unknown>) || {};
     const settings = { ...currentSettings, globalFilters };
 
-    return this.prisma.entity.update({
+    const updated = await this.prisma.entity.update({
       where: { id },
       data: { settings: settings as unknown as Prisma.InputJsonValue },
     });
+    invalidateEntityQueryCache(entity.slug);
+    return updated;
   }
 
   /** Coleta ids da entidade + todas as sub-entidades (recursivo via campos type=sub-entity). */
