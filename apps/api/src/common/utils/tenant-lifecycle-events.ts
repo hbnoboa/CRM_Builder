@@ -1,6 +1,6 @@
 import { Prisma, TenantLifecycle } from '@prisma/client';
 
-export type LifecycleEventSource = 'signup' | 'console' | 'trial_expired';
+export type LifecycleEventSource = 'signup' | 'console' | 'trial_expired' | 'owner_closure';
 
 type Db = Pick<Prisma.TransactionClient, 'tenantLifecycleEvent'>;
 

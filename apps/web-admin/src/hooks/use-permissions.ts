@@ -114,6 +114,7 @@ const ADMIN_SECTION_RULES: Record<string, SectionRule | SectionRule[]> = {
   'execution-logs': { module: 'executionLogs', action: 'canRead' },
   organization: { module: 'settings', action: 'canUpdate' },
   plan: { module: 'settings', action: 'canUpdate' },
+  privacy: { module: 'settings', action: 'canUpdate' },
   // qualquer uma das regras abre a secao
   security: [{ module: 'users', action: 'canRead' }, { module: 'settings', action: 'canUpdate' }],
   integrations: [{ module: 'apis', action: 'any' }, { module: 'automations', action: 'canRead' }],

@@ -953,7 +953,8 @@
       "profile": "Profile",
       "language": "Language",
       "theme": "Theme",
-      "security": "Security"
+      "security": "Security",
+      "privacy": "Privacy"
     },
     "profile": {
       "title": "Profile",
@@ -1330,7 +1331,8 @@
       "update": "Update",
       "delete": "Delete",
       "restore": "Restore",
-      "purge": "Delete forever"
+      "purge": "Delete forever",
+      "export": "Export"
     },
     "resources": {
       "entity_data": "Records",
@@ -1785,6 +1787,12 @@
       "membersCount": "{n, plural, one {# person} other {# people}}",
       "none": "None. Good sign.",
       "loadError": "Could not load metrics. Your team role may not have access to them."
+    },
+    "closure": {
+      "closureTitle": "Closure requested by the owner",
+      "closureBody": "Requested by {email} on {requested}. Permanent deletion on {date}.",
+      "closureReason": "Reason: {reason}",
+      "closureHint": "To cancel, change the status to Active before that date."
     }
   },
   "subscription": {
@@ -1862,7 +1870,8 @@
       "organization": "Organization",
       "plan": "Plan",
       "integrations": "Integrations",
-      "securityPolicy": "Security"
+      "securityPolicy": "Security",
+      "privacy": "Data & privacy"
     },
     "home": {
       "title": "Hello, {name}",
@@ -2071,6 +2080,43 @@
         "logout": "Sign out",
         "loggedOut": "{count, plural, =0 {No devices signed in} one {Signed out of # device} other {Signed out of # devices}}"
       }
+    },
+    "privacy": {
+      "title": "Data & privacy",
+      "subtitle": "Take your company's data with you or close the account (LGPD).",
+      "export": {
+        "title": "Export all data",
+        "hint": "A ZIP file with everything the company has on the platform, in JSON and CSV (opens in Excel).",
+        "button": "Download everything (ZIP)",
+        "preparing": "Preparing the file…",
+        "done": "File ready",
+        "onlyAdmins": "Only the owner or someone with full access can export all data.",
+        "items": {
+          "records": "Records from every table (active, archived and in the trash)",
+          "people": "Team and roles (no passwords)",
+          "structure": "Table and field structure",
+          "settings": "PDF templates, dashboards, automations and integrations (no secrets)",
+          "files": "List of uploaded files",
+          "audit": "Action history (audit)"
+        }
+      },
+      "close": {
+        "title": "Close the company account",
+        "hint": "The company becomes inactive for the whole team right away. After {days} days all data and files are permanently deleted.",
+        "beforeTitle": "Before closing",
+        "before": "Download all data above. Until the deadline, support can reactivate the account if you change your mind.",
+        "button": "Close the account",
+        "onlyOwner": "Only the company owner can close the account.",
+        "dialogTitle": "Close the {name} account?",
+        "dialogHint": "Nobody will be able to sign in. In {days} days everything is permanently deleted.",
+        "typeName": "Type the company name ({name})",
+        "reason": "Reason (optional)",
+        "password": "Your password",
+        "code": "Two-step verification code",
+        "cancel": "Cancel",
+        "confirm": "Close permanently",
+        "done": "Account closed. Data will be deleted on {date}."
+      }
     }
   },
   "invite": {
@@ -2197,5 +2243,21 @@
     "prev": "Previous",
     "next": "Next",
     "cancel": "Cancel"
+  },
+  "privacy": {
+    "personal": {
+      "exportTitle": "Download my data",
+      "exportHint": "A file with your personal data: account, companies you belong to, sign-ins and recorded actions.",
+      "exportButton": "Download my data",
+      "deleteTitle": "Delete my account",
+      "deleteHint": "Erases your personal data and removes you from every company. Records you created stay in the companies, without your name.",
+      "deleteButton": "Delete my account",
+      "deleteWarning": "This cannot be undone. If you own a company, transfer ownership or close the company account first.",
+      "password": "Your password",
+      "code": "Two-step verification code",
+      "typeToConfirm": "Type EXCLUIR to confirm",
+      "cancel": "Cancel",
+      "deleted": "Your account was deleted"
+    }
   }
 }

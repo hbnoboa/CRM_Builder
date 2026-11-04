@@ -18,6 +18,7 @@ import {
   BookOpen,
   Building2,
   CreditCard,
+  DatabaseBackup,
   FileText,
   Gauge,
   Link2,
@@ -83,6 +84,7 @@ const GROUPS: Array<{ key: string; items: GestaoItem[] }> = [
     items: [
       { key: 'organization', section: 'organization', icon: <Building2 className="h-4 w-4" /> },
       { key: 'plan', section: 'plan', icon: <CreditCard className="h-4 w-4" /> },
+      { key: 'privacy', section: 'privacy', icon: <DatabaseBackup className="h-4 w-4" /> },
     ],
   },
 ];

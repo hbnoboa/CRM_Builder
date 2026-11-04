@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { useLocale, useTranslations } from 'next-intl';
-import { ArrowLeft, Copy, Crown, Loader2, LogIn, Trash2, UserPlus } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, Copy, Crown, Loader2, LogIn, Trash2, UserPlus } from 'lucide-react';
 import { toast } from 'sonner';
 import { Link } from '@/i18n/navigation';
 import { Button } from '@/components/ui/button';
@@ -35,6 +35,7 @@ import {
   useSetTenantPlan,
   useUpdatePlatformTenant,
 } from '@/hooks/use-platform';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { getErrorMessage } from '@/lib/get-error-message';
 import { startPlatformImpersonation } from '@/lib/platform-impersonation';
 import { FEATURE_KEYS, TENANT_LIFECYCLES, type FeatureKey, type PlatformTenantDetail, type TenantLifecycle } from '@/types/platform';
@@ -44,6 +45,7 @@ const NO_PLAN = 'none';
 export default function PlatformTenantDetailPage() {
   const { id } = useParams<{ id: string }>();
   const t = useTranslations('platform.tenant');
+  const tClosure = useTranslations('platform.closure');
   const formatDate = useFormatDate();
   const can = usePlatformCan();
   const { data: tenant, isLoading } = usePlatformTenant(id);
@@ -83,6 +85,18 @@ export default function PlatformTenantDetailPage() {
           </Button>
         )}
       </div>
+
+      {tenant.closure && (
+        <Alert variant="destructive" data-testid="tenant-closure">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertTitle>{tClosure('closureTitle')}</AlertTitle>
+          <AlertDescription className="space-y-1">
+            <p>{tClosure('closureBody', { email: tenant.closure.requestedByEmail, requested: formatDate(tenant.closure.requestedAt), date: formatDate(tenant.closure.deleteAfter) })}</p>
+            {tenant.closure.reason && <p>{tClosure('closureReason', { reason: tenant.closure.reason })}</p>}
+            <p>{tClosure('closureHint')}</p>
+          </AlertDescription>
+        </Alert>
+      )}
 
       <div className="grid gap-4 lg:grid-cols-3">
         <UsageCard tenant={tenant} />

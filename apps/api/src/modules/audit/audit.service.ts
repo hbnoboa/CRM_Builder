@@ -12,7 +12,7 @@ import { CurrentUser } from '../../common/types/auth.types';
 import { QueryAuditLogDto } from './dto/audit-log.dto';
 import { buildCursorResponse } from '../../common/utils/cursor-pagination.util';
 
-export type AuditAction = 'create' | 'update' | 'delete' | 'restore' | 'purge';
+export type AuditAction = 'create' | 'update' | 'delete' | 'restore' | 'purge' | 'export';
 export type AuditResource =
   | 'entity_data'
   | 'user'

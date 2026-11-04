@@ -18,6 +18,7 @@ import {
 import { PlatformAuditService } from './platform-audit.service';
 import type { PlatformStaffPrincipal } from './platform-permissions';
 import { recordLifecycleEvent } from '../../common/utils/tenant-lifecycle-events';
+import { closureOf } from '../../common/utils/tenant-closure';
 
 // Ciclo de vida comercial -> status que de fato libera/bloqueia o acesso.
 // PAST_DUE (inadimplente) ainda acessa: e o periodo de tolerancia.
@@ -147,13 +148,14 @@ export class PlatformTenantsService {
         trialEndsAt: true,
         featureOverrides: true,
         storageUsedKb: true,
+        settings: true,
         createdAt: true,
         owner: { select: { id: true, name: true, email: true } },
         plan: { select: { id: true, name: true, slug: true, features: true, limits: true } },
       },
     });
     if (!tenant) throw new NotFoundException('Tenant nao encontrado');
-    const { storageUsedKb, ...tenantData } = tenant;
+    const { storageUsedKb, settings, ...tenantData } = tenant;
 
     this.tenantPlan.invalidate(id);
     const [info, usage, entities] = await Promise.all([
@@ -164,6 +166,8 @@ export class PlatformTenantsService {
 
     return {
       ...tenantData,
+      // Encerramento pedido pelo dono: data da exclusao definitiva (reativar cancela).
+      closure: closureOf(settings),
       features: info?.features,
       limits: info?.limits,
       usage: {
@@ -257,12 +261,17 @@ export class PlatformTenantsService {
     const trialEndsAt = this.resolveTrialEnd(dto.lifecycle, dto.trialEndsAt, current.trialEndsAt);
 
     const tenant = await this.prisma.$transaction(async (tx) => {
+      // Reativar uma empresa encerrada pelo dono cancela a exclusao agendada.
+      const settings = (current.settings ?? {}) as Record<string, unknown>;
+      const clearClosure = dto.lifecycle !== 'CANCELED' && 'closure' in settings;
+      const { closure: _closure, ...rest } = settings;
       const updated = await tx.tenant.update({
         where: { id },
         data: {
           lifecycle: dto.lifecycle,
           status: STATUS_FOR_LIFECYCLE[dto.lifecycle],
           trialEndsAt: dto.lifecycle === 'TRIAL' ? trialEndsAt : current.trialEndsAt,
+          ...(clearClosure ? { settings: rest as Prisma.InputJsonValue } : {}),
         },
       });
       await recordLifecycleEvent(tx, { tenantId: id, from: current.lifecycle, to: dto.lifecycle, source: 'console', staffId: actor.id });

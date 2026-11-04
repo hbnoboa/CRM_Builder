@@ -8,6 +8,7 @@ import {
 } from '@nestjs/common';
 import { Response } from 'express';
 import { Prisma } from '@prisma/client';
+import { ThrottlerException } from '@nestjs/throttler';
 
 @Catch()
 export class AllExceptionsFilter implements ExceptionFilter {
@@ -73,7 +74,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
 
     // Throttler responde em ingles ("ThrottlerException: Too Many Requests") e isso
     // vai direto para a tela de login.
-    if (status === HttpStatus.TOO_MANY_REQUESTS) {
+    if (exception instanceof ThrottlerException) {
       message = 'Muitas tentativas. Aguarde um minuto e tente novamente.';
     }
 

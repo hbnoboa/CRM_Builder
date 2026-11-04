@@ -952,7 +952,8 @@
       "profile": "Perfil",
       "language": "Idioma",
       "theme": "Tema",
-      "security": "Seguridad"
+      "security": "Seguridad",
+      "privacy": "Privacidad"
     },
     "profile": {
       "title": "Perfil",
@@ -1327,7 +1328,8 @@
       "update": "Editar",
       "delete": "Eliminar",
       "restore": "Restaurar",
-      "purge": "Borrar definitivamente"
+      "purge": "Borrar definitivamente",
+      "export": "Exportar"
     },
     "resources": {
       "entity_data": "Registros",
@@ -1782,6 +1784,12 @@
       "membersCount": "{n, plural, one {# persona} other {# personas}}",
       "none": "Ninguno. Buena señal.",
       "loadError": "No se pudieron cargar las métricas. Es posible que tu rol en el equipo no tenga acceso."
+    },
+    "closure": {
+      "closureTitle": "Cierre pedido por el dueño",
+      "closureBody": "Pedido por {email} el {requested}. Borrado definitivo el {date}.",
+      "closureReason": "Motivo: {reason}",
+      "closureHint": "Para desistir, cambia la situación a Activo antes de esa fecha."
     }
   },
   "subscription": {
@@ -1859,7 +1867,8 @@
       "organization": "Organización",
       "plan": "Plan",
       "integrations": "Integraciones",
-      "securityPolicy": "Seguridad"
+      "securityPolicy": "Seguridad",
+      "privacy": "Datos y privacidad"
     },
     "home": {
       "title": "Hola, {name}",
@@ -2068,6 +2077,43 @@
         "logout": "Desconectar",
         "loggedOut": "{count, plural, =0 {Ningún dispositivo conectado} one {Desconectado de # dispositivo} other {Desconectado de # dispositivos}}"
       }
+    },
+    "privacy": {
+      "title": "Datos y privacidad",
+      "subtitle": "Llévate los datos de la empresa o cierra la cuenta (LGPD).",
+      "export": {
+        "title": "Exportar todos los datos",
+        "hint": "Un archivo ZIP con todo lo que la empresa tiene en la plataforma, en JSON y CSV (se abre en Excel).",
+        "button": "Descargar todo (ZIP)",
+        "preparing": "Preparando el archivo…",
+        "done": "Archivo listo",
+        "onlyAdmins": "Solo el dueño o quien tiene acceso total puede exportar todos los datos.",
+        "items": {
+          "records": "Registros de todas las tablas (activos, archivados y en la papelera)",
+          "people": "Equipo y roles (sin contraseñas)",
+          "structure": "Estructura de tablas y campos",
+          "settings": "Plantillas PDF, dashboards, automatizaciones e integraciones (sin secretos)",
+          "files": "Lista de archivos subidos",
+          "audit": "Historial de acciones (auditoría)"
+        }
+      },
+      "close": {
+        "title": "Cerrar la cuenta de la empresa",
+        "hint": "La empresa queda inactiva para todo el equipo al instante. Después de {days} días todos los datos y archivos se borran definitivamente.",
+        "beforeTitle": "Antes de cerrar",
+        "before": "Descarga todos los datos arriba. Hasta el final del plazo, soporte puede reactivar la cuenta si cambias de idea.",
+        "button": "Cerrar la cuenta",
+        "onlyOwner": "Solo el dueño de la empresa puede cerrar la cuenta.",
+        "dialogTitle": "¿Cerrar la cuenta de {name}?",
+        "dialogHint": "Nadie podrá entrar. En {days} días todo se borra definitivamente.",
+        "typeName": "Escribe el nombre de la empresa ({name})",
+        "reason": "Motivo (opcional)",
+        "password": "Tu contraseña",
+        "code": "Código de verificación en dos pasos",
+        "cancel": "Cancelar",
+        "confirm": "Cerrar definitivamente",
+        "done": "Cuenta cerrada. Los datos se borrarán el {date}."
+      }
     }
   },
   "invite": {
@@ -2194,5 +2240,21 @@
     "prev": "Anterior",
     "next": "Siguiente",
     "cancel": "Cancelar"
+  },
+  "privacy": {
+    "personal": {
+      "exportTitle": "Descargar mis datos",
+      "exportHint": "Un archivo con tus datos personales: cuenta, empresas en las que participas, accesos y acciones registradas.",
+      "exportButton": "Descargar mis datos",
+      "deleteTitle": "Eliminar mi cuenta",
+      "deleteHint": "Borra tus datos personales y te quita de todas las empresas. Los registros que creaste siguen en las empresas, sin tu nombre.",
+      "deleteButton": "Eliminar mi cuenta",
+      "deleteWarning": "No se puede deshacer. Si eres dueño de alguna empresa, transfiere la propiedad o cierra la cuenta de la empresa antes.",
+      "password": "Tu contraseña",
+      "code": "Código de verificación en dos pasos",
+      "typeToConfirm": "Escribe EXCLUIR para confirmar",
+      "cancel": "Cancelar",
+      "deleted": "Tu cuenta fue eliminada"
+    }
   }
 }

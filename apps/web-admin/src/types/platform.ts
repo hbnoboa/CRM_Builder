@@ -81,6 +81,8 @@ export interface PlatformTenantDetail {
   limits: PlanLimits;
   usage: TenantUsage;
   owner: { id: string; name: string; email: string } | null;
+  /** Encerramento pedido pelo dono: exclusao definitiva em deleteAfter (reativar cancela). */
+  closure: { requestedAt: string; requestedByEmail: string; reason: string | null; deleteAfter: string } | null;
 }
 
 export interface PlatformTenantMember {

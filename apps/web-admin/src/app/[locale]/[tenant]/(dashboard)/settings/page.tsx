@@ -1,8 +1,9 @@
 'use client';
 
 import { useState, useEffect, Suspense } from 'react';
-import { User, Languages, Palette, Sun, Moon, Monitor, Shield } from 'lucide-react';
+import { User, Languages, Palette, Sun, Moon, Monitor, FileLock2, Shield } from 'lucide-react';
 import { MfaCard, SessionsCard } from '@/components/security/account-security';
+import { PersonalPrivacy } from '@/components/privacy/personal-privacy';
 import { useSearchParams } from 'next/navigation';
 import { useTranslations, useLocale } from 'next-intl';
 import { useTheme } from 'next-themes';
@@ -17,11 +18,12 @@ import { cn } from '@/lib/utils';
 
 // So a conta pessoal. Organizacao e plano moraram aqui e agora ficam na
 // administracao da empresa (/gestao/organization e /gestao/plan).
-const ACCOUNT_TABS = ['profile', 'security', 'language', 'theme'] as const;
+const ACCOUNT_TABS = ['profile', 'security', 'privacy', 'language', 'theme'] as const;
 const MOVED_TABS: Record<string, string> = { org: '/gestao/organization', plan: '/gestao/plan' };
 const TAB_ICONS: Record<string, typeof User> = {
   profile: User,
   security: Shield,
+  privacy: FileLock2,
   language: Languages,
   theme: Palette,
 };
@@ -241,6 +243,8 @@ function SettingsPageContent() {
               <SessionsCard />
             </div>
           )}
+
+          {activeTab === 'privacy' && <PersonalPrivacy />}
 
           {activeTab === 'language' && (
             <Card>
