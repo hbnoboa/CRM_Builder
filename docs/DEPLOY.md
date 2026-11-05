@@ -211,3 +211,20 @@ Verifique se o CORS está configurado para aceitar conexões WebSocket.
 - Documentação: `/docs` na API
 - Issues: GitHub Issues
 - Email: suporte@seudominio.com
+
+
+## Baseline das migrations (05/11/2026)
+
+As 50 migrations antigas foram trocadas por `apps/api/prisma/migrations/00000000000000_baseline`
+(schema completo do dev). As antigas ficam em `apps/api/prisma/migrations-archive/`.
+
+- **Banco novo (CI, máquina nova, recuperação):** `npx prisma migrate deploy` cria tudo.
+- **Dev:** já marcado como aplicado. Nada a fazer.
+- **Prod (fazer no release, com backup antes):**
+  1. Backup do banco de prod.
+  2. Comparar o schema real de prod com o baseline:
+     `npx prisma migrate diff --from-url "$PROD_URL" --to-migrations prisma/migrations --shadow-database-url "$SHADOW_URL" --script`
+  3. Aplicar em prod só o que falta (revisar cada comando antes), até o diff ficar vazio.
+  4. Marcar o baseline: `DATABASE_URL="$PROD_URL" npx prisma migrate resolve --applied 00000000000000_baseline`.
+  5. Só então rodar o deploy de prod. Sem o passo 4, o `migrate deploy` do deploy tenta criar o
+     schema de novo, falha e o deploy para antes de trocar o código (nada quebra, mas não sobe).
