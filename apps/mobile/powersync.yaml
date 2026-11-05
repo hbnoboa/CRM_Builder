@@ -95,6 +95,7 @@ sync_rules:
         parameters: |
           SELECT
             request.jwt() ->> 'tenantId' as tenant_id
+          WHERE request.jwt() ->> 'dataView' = 'full'
         data:
           - SELECT id, "tenantId", "entityId", data, "parentRecordId", "createdById", "updatedById", "createdAt", "updatedAt", "deletedAt"
             FROM "EntityData"
@@ -119,6 +120,7 @@ sync_rules:
           SELECT
             request.jwt() ->> 'tenantId' as tenant_id,
             request.jwt() ->> 'customRoleId' as role_id
+          WHERE request.jwt() ->> 'dataView' = 'full'
         data:
           - SELECT id, "tenantId", "entityId", data, "parentRecordId", "createdById", "updatedById", "createdAt", "updatedAt", "deletedAt"
             FROM "EntityData"
@@ -139,6 +141,7 @@ sync_rules:
             request.jwt() ->> 'tenantId' as tenant_id,
             request.jwt() ->> 'customRoleId' as role_id,
             request.user_id() as user_id
+          WHERE request.jwt() ->> 'dataView' = 'full'
         data:
           - SELECT id, "tenantId", "entityId", data, "parentRecordId", "createdById", "updatedById", "createdAt", "updatedAt", "deletedAt"
             FROM "EntityData"
@@ -161,6 +164,7 @@ sync_rules:
           FROM "TeamAccessKey"
           WHERE "userId" = request.user_id()
             AND "tenantId" = request.jwt() ->> 'tenantId'
+            AND request.jwt() ->> 'dataView' = 'full'
         data:
           - SELECT id, "tenantId", "entityId", data, "parentRecordId", "createdById", "updatedById", "createdAt", "updatedAt", "deletedAt"
             FROM "EntityData"
@@ -168,6 +172,50 @@ sync_rules:
               AND "deletedAt" IS NULL
               AND "_matchesGlobalFilter" = true
               AND "_parentMatchesFilter" = true
+              AND bucket.team_key IN "_visibleTeamKeysJson"
+
+      # ══════════════ CARGOS COM CAMPO OCULTO (dataView = masked) ══════════════
+      # O token marca dataView = 'masked' quando o cargo tem algum campo com "Ver"
+      # desligado. Esses cargos nao recebem os buckets acima (gate dataView='full'):
+      # recebem a copia sem os campos ocultos (EntityDataMasked), gravada como
+      # EntityData no app. Mesmos escopos: todos, proprios e equipe.
+      # Arquivados nao vao para esses cargos (nao ha copia mascarada deles).
+      masked_entity_data:
+        parameters: |
+          SELECT
+            request.jwt() ->> 'tenantId' as tenant_id,
+            request.jwt() ->> 'customRoleId' as role_id
+          WHERE request.jwt() ->> 'dataView' = 'masked'
+        data:
+          - SELECT "recordId" as id, "tenantId", "entityId", data, "parentRecordId", "createdById", "updatedById", "createdAt", "updatedAt"
+            FROM "EntityDataMasked" AS "EntityData"
+            WHERE "tenantId" = bucket.tenant_id AND "roleId" = bucket.role_id
+              AND "_visibleAll" = true
+
+      masked_own_entity_data:
+        parameters: |
+          SELECT
+            request.jwt() ->> 'tenantId' as tenant_id,
+            request.jwt() ->> 'customRoleId' as role_id,
+            request.user_id() as user_id
+          WHERE request.jwt() ->> 'dataView' = 'masked'
+        data:
+          - SELECT "recordId" as id, "tenantId", "entityId", data, "parentRecordId", "createdById", "updatedById", "createdAt", "updatedAt"
+            FROM "EntityDataMasked" AS "EntityData"
+            WHERE "tenantId" = bucket.tenant_id AND "roleId" = bucket.role_id
+              AND "_visibleOwn" = true AND "createdById" = bucket.user_id
+
+      masked_team_entity_data:
+        parameters: |
+          SELECT key as team_key, "tenantId" as tenant_id, request.jwt() ->> 'customRoleId' as role_id
+          FROM "TeamAccessKey"
+          WHERE "userId" = request.user_id()
+            AND "tenantId" = request.jwt() ->> 'tenantId'
+            AND request.jwt() ->> 'dataView' = 'masked'
+        data:
+          - SELECT "recordId" as id, "tenantId", "entityId", data, "parentRecordId", "createdById", "updatedById", "createdAt", "updatedAt"
+            FROM "EntityDataMasked" AS "EntityData"
+            WHERE "tenantId" = bucket.tenant_id AND "roleId" = bucket.role_id
               AND bucket.team_key IN "_visibleTeamKeysJson"
 
       # ══════════════════════ CHAT (mobile) ══════════════════════
@@ -261,7 +309,7 @@ sync_rules:
         data:
           - SELECT id, "tenantId", "channelId", "senderId", type, content, meta, "createdAt"
             FROM "Message"
-            WHERE "channelId" = bucket.channel_id
+            WHERE "channelId" = bucket.channel_id AND "recipientId" IS NULL
 
       # Mensagens de grupo/record COM filtro de role.
       chat_messages_role:
@@ -274,7 +322,7 @@ sync_rules:
         data:
           - SELECT id, "tenantId", "channelId", "senderId", type, content, meta, "createdAt"
             FROM "Message"
-            WHERE "channelId" = bucket.channel_id
+            WHERE "channelId" = bucket.channel_id AND "recipientId" IS NULL
 
       # Mensagens de thread de registro para cargos scope='own' (so o dono).
       chat_messages_record_own:
@@ -288,7 +336,7 @@ sync_rules:
         data:
           - SELECT id, "tenantId", "channelId", "senderId", type, content, meta, "createdAt"
             FROM "Message"
-            WHERE "channelId" = bucket.channel_id
+            WHERE "channelId" = bucket.channel_id AND "recipientId" IS NULL
 
       # Mensagens de thread de registro para cargos scope='team'. Sem JOIN: a
       # mensagem carrega a copia das chaves do canal (vazia em canal excluido).
@@ -301,7 +349,7 @@ sync_rules:
         data:
           - SELECT id, "tenantId", "channelId", "senderId", type, content, meta, "createdAt"
             FROM "Message"
-            WHERE "tenantId" = bucket.tenant_id
+            WHERE "tenantId" = bucket.tenant_id AND "recipientId" IS NULL
               AND bucket.team_key IN "_visibleTeamKeysJson"
 
       # Mensagens de DM por membership.
@@ -313,7 +361,20 @@ sync_rules:
         data:
           - SELECT id, "tenantId", "channelId", "senderId", type, content, meta, "createdAt"
             FROM "Message"
-            WHERE "channelId" = bucket.channel_id
+            WHERE "channelId" = bucket.channel_id AND "recipientId" IS NULL
+
+      # Mensagens PRIVADAS dentro de um canal (resultado de /consulta, relatorio,
+      # conversa com o @bot): so quem pediu recebe. Os buckets acima levam so
+      # "recipientId" IS NULL (migration 20261117000000_message_recipient).
+      chat_private_messages:
+        parameters: |
+          SELECT
+            request.user_id() as user_id,
+            request.jwt() ->> 'tenantId' as tenant_id
+        data:
+          - SELECT id, "tenantId", "channelId", "senderId", type, content, meta, "createdAt"
+            FROM "Message"
+            WHERE "recipientId" = bucket.user_id AND "tenantId" = bucket.tenant_id
 
       # Comandos SEM allowlist (visíveis a todos os cargos).
       chat_commands_unrestricted:

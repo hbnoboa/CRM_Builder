@@ -16,7 +16,7 @@ import { UploadService } from '../upload/upload.service';
 import { RedisService } from '../../common/services/redis.service';
 import { EntityDataQueryService } from '../../common/services/entity-data-query.service';
 import { CustomRoleService } from '../custom-role/custom-role.service';
-import { hiddenFieldSlugs } from '../../common/utils/field-permissions';
+import { hiddenFieldSlugs, omitFields } from '../../common/utils/field-permissions';
 import { createBotProvider, BOT_TOOLS, BotLlmProvider } from './bot-provider';
 import * as ExcelJS from 'exceljs';
 
@@ -102,6 +102,30 @@ export class ChatService {
     if (v === '@now') return new Date().toISOString();
     if (v === '@today') return new Date().toISOString().slice(0, 10);
     return v;
+  }
+
+  /**
+   * Campos que algum cargo da empresa NAO pode ver nesta tabela. O cartao do chat
+   * ("Registrou/Editou") e o mesmo para todo o canal (web e app): esses campos
+   * ficam fora dele. Quem pode ver abre o registro.
+   */
+  private async cardHiddenFields(tenantId: string, entitySlug: string | null | undefined): Promise<Set<string>> {
+    const hidden = new Set<string>();
+    if (!entitySlug) return hidden;
+    const roles = await this.prisma.customRole.findMany({
+      where: { tenantId, deletedAt: null },
+      select: { permissions: true, modulePermissions: true },
+    });
+    for (const role of roles) {
+      if (hasFullTenantAccess(role.modulePermissions)) continue;
+      const perms = (Array.isArray(role.permissions) ? role.permissions : []) as Array<{
+        entitySlug?: string;
+        fieldPermissions?: Array<{ fieldSlug: string; canView: boolean; canEdit: boolean }>;
+      }>;
+      const rule = perms.find((p) => p.entitySlug === entitySlug) ?? perms.find((p) => p.entitySlug === '*');
+      for (const slug of hiddenFieldSlugs(rule?.fieldPermissions)) hidden.add(slug);
+    }
+    return hidden;
   }
 
   private fixedValuesToObj(arr: unknown): Record<string, unknown> {
@@ -564,13 +588,18 @@ export class ChatService {
     return messages.map((m) => ({ ...m, senderName: m.senderId ? (nameById.get(m.senderId) ?? null) : null }));
   }
 
+  /** Mensagens do canal + as privadas desta pessoa (resultado de /consulta, @bot). */
+  private visibleTo(user: CurrentUser): Prisma.MessageWhereInput {
+    return { OR: [{ recipientId: null }, { recipientId: user.id }] };
+  }
+
   async getMessages(user: CurrentUser, channelId: string, limit = 50, before?: string, after?: string) {
     await this.assertAccess(user, channelId);
     const take = Math.min(limit, 200);
     const afterDate = after ? new Date(after) : null;
     if (afterDate && !isNaN(afterDate.getTime())) {
       const asc = await this.prisma.message.findMany({
-        where: { channelId, createdAt: { gt: afterDate } },
+        where: { channelId, createdAt: { gt: afterDate }, ...this.visibleTo(user) },
         orderBy: { createdAt: 'asc' },
         take,
       });
@@ -580,6 +609,7 @@ export class ChatService {
     const messages = await this.prisma.message.findMany({
       where: {
         channelId,
+        ...this.visibleTo(user),
         ...(beforeDate && !isNaN(beforeDate.getTime()) ? { createdAt: { lt: beforeDate } } : {}),
       },
       orderBy: { createdAt: 'desc' },
@@ -605,6 +635,7 @@ export class ChatService {
       SELECT "id", "senderId", "type", "content", "meta", "createdAt"
       FROM "Message"
       WHERE "channelId" = ${channelId}
+        AND ("recipientId" IS NULL OR "recipientId" = ${user.id})
         AND f_unaccent(content) ILIKE f_unaccent(${like})
       ORDER BY "createdAt" DESC
       LIMIT ${take}
@@ -924,7 +955,13 @@ export class ChatService {
       }
     }
 
-    const summary = Object.entries(values)
+    // Campos ocultos para algum cargo nao entram no cartao (nem no texto).
+    const hiddenSelf = await this.cardHiddenFields(user.tenantId, tpl.targetEntitySlug);
+    const hiddenParent = await this.cardHiddenFields(user.tenantId, cfg.parentEntitySlug);
+    if (labelSlug && (labelSource === 'parent' ? hiddenParent : hiddenSelf).has(labelSlug)) label = '';
+    const shownValues = omitFields(values as Record<string, unknown>, hiddenSelf);
+
+    const summary = Object.entries(shownValues)
       .map(([k, v]) => `${k}: ${v}`)
       .join(' · ');
 
@@ -946,8 +983,9 @@ export class ChatService {
       if (p?.data) parentData = p.data;
     }
     for (const ff of formFieldsCfg) {
-      if (ff.source === 'parent') parentVals[ff.slug] = parentData[ff.slug];
-      else selfSlugs.push(ff.slug);
+      if (ff.source === 'parent') {
+        if (!hiddenParent.has(ff.slug)) parentVals[ff.slug] = parentData[ff.slug];
+      } else if (!hiddenSelf.has(ff.slug)) selfSlugs.push(ff.slug);
     }
     const [parentEntityName, targetEntityName] = await Promise.all([
       cfg.parentEntitySlug
@@ -968,7 +1006,7 @@ export class ChatService {
     const multi = items.length > 1;
     items.forEach((item, i) => {
       const selfVals: Record<string, unknown> = {};
-      const slugs = selfSlugs.length ? selfSlugs : Object.keys(item);
+      const slugs = selfSlugs.length ? selfSlugs : Object.keys(item).filter((k) => !hiddenSelf.has(k));
       for (const s of slugs) selfVals[s] = (item as Record<string, unknown>)[s];
       groups.push({
         level: multi ? 'child' : 'self',
@@ -987,7 +1025,7 @@ export class ChatService {
         meta: {
           templateSlug: tpl.slug,
           entitySlug: tpl.targetEntitySlug,
-          values: values as object,
+          values: shownValues as object,
           // pai -> tabela -> (filho) — o card renderiza nesta ordem
           groups: groups as unknown as Prisma.InputJsonValue,
           recordId: record?.id,
@@ -1025,9 +1063,12 @@ export class ChatService {
     // Identificador na mensagem: labelField do wizard, ou o campo de busca por padrão.
     const ucfg = (tpl.actionConfig || {}) as { labelField?: { slug?: string }; searchField?: string };
     const labelSlug = ucfg.labelField?.slug || ucfg.searchField;
-    const label = labelSlug ? this.cellLabel((before as { data?: Record<string, unknown> }).data?.[labelSlug]) : '';
+    const hidden = await this.cardHiddenFields(user.tenantId, entitySlug);
+    const label = labelSlug && !hidden.has(labelSlug)
+      ? this.cellLabel((before as { data?: Record<string, unknown> }).data?.[labelSlug])
+      : '';
 
-    const summary = Object.entries(data)
+    const summary = Object.entries(omitFields(data as Record<string, unknown>, hidden))
       .map(([k, v]) => `${k}: ${v}`)
       .join(' · ');
     const message = await this.prisma.message.create({
@@ -1040,7 +1081,7 @@ export class ChatService {
         meta: {
           templateSlug: tpl.slug,
           entitySlug,
-          values: (input.values || {}) as object,
+          values: omitFields((input.values || {}) as Record<string, unknown>, hidden) as object,
           recordId: input.recordId,
           edited: true,
           ...(label ? { label } : {}),
@@ -1184,6 +1225,7 @@ export class ChatService {
       const message = await this.prisma.message.create({
         data: {
           tenantId: user.tenantId, channelId, senderId: user.id, type: 'query_result',
+          recipientId: user.id, // resultado com dados do cargo de quem pediu: so ele ve
           content: `/${tpl.slug} — ${total} resultado(s)`,
           meta: {
             templateSlug: tpl.slug, entitySlug, total,
@@ -1275,6 +1317,7 @@ export class ChatService {
     const message = await this.prisma.message.create({
       data: {
         tenantId: user.tenantId, channelId, senderId: user.id, type: 'report',
+        recipientId: user.id,
         content: `Relatório /${tpl.slug} — ${format.toUpperCase()} (${total} registro(s))`,
         meta: { templateSlug: tpl.slug, entitySlug, total, format, filename, contentType, ...(fileUrl ? { url: fileUrl } : {}) } as Prisma.InputJsonValue,
       },
@@ -1326,7 +1369,8 @@ export class ChatService {
 
     // Posta a pergunta do usuário (transparência no feed).
     await this.prisma.message.create({
-      data: { tenantId: user.tenantId, channelId, senderId: user.id, type: 'command', content: rawMessage },
+      // Conversa com o bot e privada: responde com as permissoes de quem perguntou.
+      data: { tenantId: user.tenantId, channelId, senderId: user.id, type: 'command', content: rawMessage, recipientId: user.id },
     });
 
     const channelEntity = channel.entityId
@@ -1369,6 +1413,7 @@ export class ChatService {
         tenantId: user.tenantId,
         channelId,
         senderId: null, // bot
+        recipientId: user.id,
         type: 'bot',
         content: reply,
         meta: {
@@ -1436,7 +1481,7 @@ export class ChatService {
   /** Acha a ação pendente mais recente no canal e executa (só quem pediu confirma). */
   private async confirmPending(user: CurrentUser, channelId: string): Promise<string> {
     const recent = await this.prisma.message.findMany({
-      where: { channelId, type: 'bot' }, orderBy: { createdAt: 'desc' }, take: 10,
+      where: { channelId, type: 'bot', recipientId: user.id }, orderBy: { createdAt: 'desc' }, take: 10,
     });
     const msg = recent.find((m) => {
       const p = (m.meta as { pendingAction?: { done?: boolean } } | null)?.pendingAction;

@@ -6,6 +6,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:crm_mobile/core/auth/secure_storage.dart';
+import 'package:crm_mobile/core/auth/token_refresher.dart';
 import 'package:crm_mobile/core/config/env.dart';
 import 'package:crm_mobile/core/database/app_database.dart';
 import 'package:crm_mobile/core/network/api_client.dart';
@@ -23,11 +24,24 @@ void _debugLog(String message) {
   }
 }
 
-/// Hash password for offline storage (SHA-256).
-/// Note: This is for offline verification only, not for production auth.
+/// Iteracoes do PBKDF2 do login offline (custo de tentar senhas num aparelho roubado).
+const int _pbkdf2Iterations = 20000;
+
+/// Hash da senha so para conferir o login OFFLINE: PBKDF2-HMAC-SHA256.
+/// A senha em si nao fica guardada no aparelho. Hash antigo (SHA-256 simples)
+/// nao confere: a pessoa entra uma vez online e o hash novo e gravado.
 String _hashPassword(String password, String salt) {
-  final bytes = utf8.encode('$password:$salt');
-  return sha256.convert(bytes).toString();
+  final hmac = Hmac(sha256, utf8.encode(password));
+  final saltBytes = utf8.encode('crm-offline:$salt');
+  var block = hmac.convert([...saltBytes, 0, 0, 0, 1]).bytes;
+  final out = List<int>.from(block);
+  for (var i = 1; i < _pbkdf2Iterations; i++) {
+    block = hmac.convert(block).bytes;
+    for (var j = 0; j < out.length; j++) {
+      out[j] ^= block[j];
+    }
+  }
+  return 'pbkdf2-sha256\$$_pbkdf2Iterations\$${base64Url.encode(out)}';
 }
 
 // ═══════════════════════════════════════════════════════
@@ -190,6 +204,8 @@ class Auth extends _$Auth {
     });
     ref.onDispose(sessionEndSub.cancel);
 
+    // Versoes antigas guardavam a senha em texto: apaga ao abrir o app.
+    SecureStorage.purgeLegacyPassword();
     // Schedule session check after state is initialized
     Future.microtask(() => _checkExistingSession());
     return const AuthState(isLoading: true);
@@ -283,79 +299,8 @@ class Auth extends _$Auth {
             return;
           }
         }
-        // Refresh failed or no token - try silent re-login with cached password
-        final cachedEmail = await SecureStorage.getCachedEmail();
-        final cachedPassword = await SecureStorage.getCachedPassword();
-        if (cachedEmail != null && cachedPassword != null) {
-          _debugLog('[Auth] Attempting silent re-login with cached credentials');
-          try {
-            final dio = ref.read(apiClientProvider);
-            final response = await dio.post('/auth/login', data: {
-              'email': cachedEmail,
-              'password': cachedPassword,
-            },);
-            final data = response.data as Map<String, dynamic>;
-            // Conta com 2FA: precisa do codigo, nao da para entrar sozinho.
-            if (data['mfaRequired'] == true) throw StateError('MFA required');
-            final freshUser = User.fromJson(data['user'] as Map<String, dynamic>);
-            final accessToken = data['accessToken'] as String;
-            final newRefreshToken = data['refreshToken'] as String;
-
-            await SecureStorage.setTokens(
-              accessToken: accessToken,
-              refreshToken: newRefreshToken,
-            );
-            await SecureStorage.setUserId(freshUser.id);
-            await SecureStorage.setTenantId(freshUser.tenantId);
-
-            // Update cached user data
-            final passwordHash = _hashPassword(cachedPassword, freshUser.tenantId);
-            await SecureStorage.cacheCredentials(
-              email: cachedEmail,
-              password: cachedPassword,
-              passwordHash: passwordHash,
-              userJson: jsonEncode(data['user']),
-            );
-
-            // Apply brand color
-            final tenantData = data['user']?['tenant'] as Map<String, dynamic>?;
-            _debugLog('[Auth] Silent re-login tenant data: $tenantData');
-            final tenantSettings = tenantData?['settings'];
-            _debugLog('[Auth] Silent re-login settings (${tenantSettings.runtimeType}): $tenantSettings');
-            String? brandColor;
-            if (tenantSettings is Map<String, dynamic>) {
-              final themeData = tenantSettings['theme'];
-              _debugLog('[Auth] Silent re-login theme (${themeData.runtimeType}): $themeData');
-              if (themeData is Map<String, dynamic>) {
-                brandColor = themeData['brandColor'] as String?;
-              }
-            }
-            _debugLog('[Auth] Silent re-login brandColor: "$brandColor"');
-            if (brandColor != null && brandColor.isNotEmpty) {
-              await SecureStorage.setString('brandColor', brandColor);
-            }
-            ref.read(tenantThemeProvider.notifier).applyBrandColor(brandColor);
-
-            _debugLog('[Auth] Silent re-login success for ${freshUser.email}');
-            state = AuthState(
-              user: freshUser,
-              isAuthenticated: true,
-              isLoading: false,
-            );
-
-            // Connect PowerSync with fresh token
-            try {
-              await AppDatabase.instance.connect();
-            } catch (e) {
-              _debugLog('[Auth] PowerSync connect failed after silent login: $e');
-            }
-
-            PushNotificationService.instance.registerDeviceToken();
-            return;
-          } catch (e) {
-            _debugLog('[Auth] Silent re-login failed: $e');
-          }
-        }
+        // Refresh recusado (sessao encerrada/expirada): pede login. Nao ha mais
+        // re-login silencioso com senha guardada (ela nao fica no aparelho).
         // All online attempts failed - send to login screen
         _debugLog('[Auth] Online but all auth attempts failed - redirecting to login');
         await AppDatabase.instance.disconnect();
@@ -391,20 +336,8 @@ class Auth extends _$Auth {
   /// Returns true if successful.
   Future<bool> _tryRefreshToken(String refreshToken) async {
     try {
-      final refreshDio = Dio(BaseOptions(baseUrl: Env.apiUrl));
-      final response = await refreshDio.post(
-        '/auth/refresh',
-        data: {'refreshToken': refreshToken},
-      );
-
-      final newAccessToken = response.data['accessToken'] as String;
-      final newRefreshToken = response.data['refreshToken'] as String;
-
-      await SecureStorage.setTokens(
-        accessToken: newAccessToken,
-        refreshToken: newRefreshToken,
-      );
-
+      // Renovacao unica do app (o PowerSync pode estar renovando ao mesmo tempo).
+      await TokenRefresher.refresh();
       _debugLog('[Auth] Token refresh successful');
       return true;
     } catch (e) {
@@ -412,6 +345,21 @@ class Auth extends _$Auth {
       // Sessao encerrada de proposito: apaga a senha guardada (sem relogin silencioso).
       if (PlanErrors.isSessionRevoked(e)) await SecureStorage.clearAll();
       return false;
+    }
+  }
+
+  /// Abriu offline (sessao do cache) e a rede voltou: renova o token, confere a
+  /// sessao no servidor e conecta o PowerSync, sem pedir login de novo.
+  Future<void> resumeOnline() async {
+    if (!state.isAuthenticated || _manualAuthInProgress) return;
+    try {
+      await TokenRefresher.refresh();
+      await _restoreSession();
+      _debugLog('[Auth] Back online: session resumed');
+    } catch (e) {
+      _debugLog('[Auth] Back online: resume failed: $e');
+      // Sessao encerrada enquanto estava offline: o listener do build faz o logout.
+      if (PlanErrors.isSessionRevoked(e)) PlanErrors.sessionRevoked();
     }
   }
 
@@ -551,11 +499,10 @@ class Auth extends _$Auth {
     await SecureStorage.setUserId(user.id);
     await SecureStorage.setTenantId(user.tenantId);
 
-    // Cache credentials for offline login and silent re-auth
+    // Guarda e-mail + hash para o login offline (a senha nao fica no aparelho)
     final passwordHash = _hashPassword(password, user.tenantId);
     await SecureStorage.cacheCredentials(
       email: email,
-      password: password,
       passwordHash: passwordHash,
       userJson: jsonEncode(data['user']),
     );

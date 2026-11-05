@@ -252,6 +252,11 @@ Logue como cada um (janelas separadas) e confira. A mesma matriz é testada dire
 | 8 | Setas "Subir/Descer" em Visualizador e Operador | ✅ reordena ranks abaixo do seu |
 | 9 | "Acesso total ao tenant" num cargo de teste e desmarcar um módulo | ✅ desliga o modo automático |
 | 11 | 🔧 Módulo **Chaves de API** no formulário (Ver / Criar / Excluir) | ✅ aparece; um cargo com "Ver" e "Criar" em Chaves de API consegue criar chave em *Integrações* |
+| 12 | 🔧 Crie o cargo **"RH"**: módulo *Perfis de Acesso* com Ver/Criar/Editar/Gerenciar Permissões; Clientes com Ler e Criar, escopo **Apenas meus**, CPF com "Ver" desligado. Dê o cargo a alguém e entre como essa pessoa | — |
+| 13 | 🔧 Como RH: novo cargo com Clientes escopo **Todos** | ✅ "Sem permissao para conceder: escopo "all" em clientes…" |
+| 14 | 🔧 Como RH: novo cargo com Clientes **Excluir** ou **Exportar** | ✅ "Sem permissao para conceder: canDelete/canExport…" |
+| 15 | 🔧 Como RH: novo cargo com Clientes Ler, escopo Apenas meus, **sem esconder o CPF** | ✅ "Sem permissao para conceder: ver o campo cpf em clientes…" |
+| 16 | 🔧 Como RH: mesmo cargo com o CPF escondido | ✅ criado (só concede o que tem) |
 
 ### E-08 Convites e usuários
 | # | Ação | Esperado |
@@ -474,6 +479,7 @@ Logue como cada um (janelas separadas) e confira. A mesma matriz é testada dire
 | 7 | Buscar mensagens (lupa) | ✅ resultados; clicar pula para a mensagem com destaque |
 | 8 | No canal Clientes: `@bot quantos clientes?` | ✅ "Você pode ver N registro(s)" |
 | 9 | 🔧 Ana → "Conversa direta" → buscar "gil" → escolher | ✅ abre a conversa; Gil vê em "Diretas" com o nome **Ana**; só os dois veem |
+| 10 | 🔧 Dora pergunta `@bot quantos clientes?` no canal Clientes; Ana e Gil olham o mesmo canal (web e app) | ✅ só a Dora vê a pergunta e a resposta; Ana e Gil não veem, nem pela lupa |
 
 ### O-13 Chat — comandos
 | # | Ação | Esperado |
@@ -484,6 +490,8 @@ Logue como cada um (janelas separadas) e confira. A mesma matriz é testada dire
 | 4 | Como Dora: `/novocliente` → "Salvar e adicionar outra" 2x | ✅ "✓ 2 registro(s) adicionado(s)…" a cada salvamento; aparecem na tabela |
 | 5 | `/clientes` → Excel | ✅ "Relatório gerado — clique na mensagem para baixar" |
 | 6 | Comando de **consulta** restrito ao cargo Gerente: Vera não vê | ✅ |
+| 7 | 🔧 Dora roda `/clientes` (Consultar) e gera um Excel; Ana olha o canal (web e app) | ✅ o resultado e o relatório aparecem só para a Dora |
+| 8 | 🔧 Dora cria `/novocliente` com os campos Nome **e CPF** e registra um cliente com CPF | ✅ o registro guarda o CPF; o cartão "Registrou" no canal **não mostra o CPF** (no texto nem no card), para ninguém, porque o Operador não vê esse campo |
 
 ### O-14 Notificações e preferências
 | # | Ação | Esperado |
@@ -621,6 +629,10 @@ Logue como cada um (janelas separadas) e confira. A mesma matriz é testada dire
 | 7 | Sair (menu) | ✅ "Deseja realmente sair da sua conta?" |
 | 8 | 🔧 Sair, fechar e reabrir, online e em modo avião | ✅ pede login nos dois casos |
 | 9 | 🔧 Resposta 401 durante o envio (expirar a sessão com a fila pendente) | ✅ a alteração continua na fila e sobe depois do novo login |
+| 10 | 🔧 Atualizar o app por cima de uma versão antiga e abrir em modo avião | ✅ a senha antiga em texto some do aparelho; o login offline pede **um login online antes** (o hash mudou para PBKDF2) |
+| 11 | 🔧 Abrir o app **sem rede**, depois ligar a rede (sem sair) | ✅ o ícone passa a "Sincronizado" sozinho e as alterações feitas offline sobem |
+| 12 | 🔧 Deixar o app aberto mais de 1 h (token expira) e usar ao mesmo tempo lista e sync | ✅ continua logado; não cai com "sessão encerrada" (renovação única do token) |
+| 13 | 🔧 Sessão vencida há mais de 30 dias | ✅ pede login; **não** entra sozinho com senha guardada |
 
 ---
 
@@ -676,6 +688,22 @@ Para a **exportação**, crie um cargo "Equipe campo + Exportar" e dê ao Bruno 
 ### X-05 Filtro de dados + escopo
 - [ ] Ana cria "Cliente A3" com VIP = Sim → ✅ Ana não vê (filtro do cargo), Dora vê.
 - [ ] Pedir o PDF ou `/data/clientes/archived` como Ana → ✅ A3 também não vem.
+
+### X-06 🔧 Campo oculto não chega ao celular
+> Operador com o CPF oculto (E-07/7). Aparelho com a **Ana**; outro com o **Gil** (vê o CPF).
+
+| # | Ação | Esperado |
+|---|---|---|
+| 1 | Ana: abrir Clientes no app, ver a lista e o detalhe | ✅ CPF não aparece |
+| 2 | Diagnóstico: no servidor, `select count(*) from "EntityDataMasked" where "roleId" = '<id do Operador>'` | ✅ maior que 0: o Operador recebe a cópia sem o CPF |
+| 3 | Gil (Gerente, vê tudo): mesmo registro | ✅ CPF aparece |
+| 4 | Dora edita o CPF e o nome de um cliente da Ana | ✅ no app da Ana chega o nome novo, sem CPF |
+| 5 | Dora exclui um cliente da Ana | ✅ some do app da Ana |
+| 6 | Dora libera "Ver" do CPF no Operador; Ana sai e entra no app | ✅ o CPF passa a aparecer |
+| 7 | Dora volta a esconder o CPF; Ana sai e entra | ✅ o CPF some de novo |
+| 8 | Escopo: Bruno (equipe, com CPF oculto no cargo "Equipe campo", se configurar) | ✅ recebe os registros da equipe, sem CPF |
+
+> Cargo com campo oculto **não recebe registros arquivados** no app (não há cópia mascarada deles).
 
 ---
 
@@ -808,6 +836,7 @@ Para a **exportação**, crie um cargo "Equipe campo + Exportar" e dê ao Bruno 
 ### S-04 Política de senha aplicada
 - [ ] Com mín. 10 + símbolo (E-05): trocar senha para `Abcdefgh12` → erro da política; `Abcdefgh1!` → ok.
 - [ ] Aceite de convite novo também exige a política.
+- [ ] 🔧 Trocar a senha só funciona com a senha atual: `PATCH /api/v1/users/me` com `{"password":"..."}` → 400 "Para trocar a senha use Configuracoes > Segurança"; com `{"email":"..."}` → 400. Nome continua editável (tela *Perfil*).
 
 ### S-05 Esqueci a senha (📧)
 - [ ] `/forgot-password` com qualquer e-mail → sempre "Se o email existir, você receberá instruções…".
@@ -930,6 +959,11 @@ Os problemas achados na montagem e na auditoria deste roteiro foram corrigidos (
 | B-29 | Web e API | Excluir pessoa libera o cargo; comando criado pela tela abre a captura rápida; Auditor abre as telas de log; importação mostra as linhas com erro; importação, troca de senha e nome repetido mostram a mensagem da API; plural de tabela | E-08/19, O-13/4, E-19, O-09/2, O-09/10, P-11/3, E-06/7, O-14/6 |
 | B-28 | Web | Coluna e formulário escondem o campo negado; idioma mantém a empresa; "Criar e Continuar" abre o editor; lista mostra o rótulo da seleção; data final da auditoria inclui o dia | O-06/3, /6, O-16, E-11/2b, E-19 |
 | B-27 | Plano e menus | Desativar ou excluir libera vaga; Gerente exporta; cartões e menu seguem a permissão real | E-08/17-18, O-09/8, O-02, E-20 |
+| B-30 | Senha | `/users/me` não troca senha nem e-mail (só com a senha atual); tela *Perfil* salva o nome | S-04 |
+| B-31 | Cargos | Cargo só concede, por tabela, o que tem: ações, escopo, filtros de dados e campos ocultos | E-07/12-16 |
+| B-32 | Chat | Resultado de consulta, relatório e conversa com o `@bot` são privados de quem pediu (web, busca e app); cartão "Registrou/Editou" sem campo oculto | O-12/10, O-13/7-8 |
+| B-33 | App (sync) | Campo com "Ver" desligado não chega ao celular (cópia mascarada por cargo) | X-06 |
+| B-34 | App (sessão) | Senha não fica no aparelho (login offline com PBKDF2, sem re-login silencioso); renovação única do token; reconecta ao voltar a rede | M-07/10-13 |
 
 > App (B-13): as mudanças são em Dart e precisam de `flutter analyze` + teste no aparelho (não há Flutter no servidor de build).
 

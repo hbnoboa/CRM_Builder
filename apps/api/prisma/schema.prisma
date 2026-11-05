@@ -1339,10 +1339,14 @@ model Message {
   createdAt DateTime @default(now())
   // Copia das chaves de equipe do canal (thread de registro) p/ o bucket do PowerSync.
   visibleTeamKeysJson Json @default("[]") @map("_visibleTeamKeysJson")
+  // Mensagem privada no canal (resultado de /consulta, relatorio, conversa com o @bot):
+  // so esta pessoa ve. null = todo o canal.
+  recipientId String?
 
   channel Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
 
   @@index([channelId, createdAt])
+  @@index([recipientId])
 }
 
 // CommandTemplate: comandos do chat (Trilho A: form-command; Trilho B: bot).
@@ -1635,4 +1639,27 @@ model AnnouncementDismissal {
 
   @@unique([announcementId, userId])
   @@index([userId])
+}
+
+/// Copia do registro SEM os campos ocultos, uma por cargo com campo oculto
+/// (so para o PowerSync: o app desses cargos recebe isto no lugar de EntityData).
+/// Mantida por triggers (migration 20261118000000_masked_entity_data); nao gravar pela API.
+model EntityDataMasked {
+  id                  String    @id // recordId:roleId
+  recordId            String
+  roleId              String
+  tenantId            String
+  entityId            String
+  data                Json
+  parentRecordId      String?
+  createdById         String?
+  updatedById         String?
+  createdAt           DateTime?
+  updatedAt           DateTime?
+  visibleAll          Boolean   @default(false) @map("_visibleAll")
+  visibleOwn          Boolean   @default(false) @map("_visibleOwn")
+  visibleTeamKeysJson Json      @default("[]") @map("_visibleTeamKeysJson")
+
+  @@index([recordId])
+  @@index([tenantId, roleId])
 }

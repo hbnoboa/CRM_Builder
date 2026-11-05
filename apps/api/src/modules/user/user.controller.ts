@@ -1,5 +1,6 @@
 import { ServiceScope } from '../../common/service-scope/service-scope.decorator';
 import {
+  BadRequestException,
   Controller,
   Get,
   Post,
@@ -41,6 +42,14 @@ export class UserController {
     // Impedir auto-escalacao de privilegio
     delete dto.customRoleId;
     delete dto.status;
+    // Senha e e-mail so com a senha atual (POST /auth/change-password): uma sessao
+    // roubada nao pode trocar a senha nem o e-mail de recuperacao.
+    if (dto.password) {
+      throw new BadRequestException('Para trocar a senha use Configuracoes > Segurança (pede a senha atual)');
+    }
+    if (dto.email) {
+      throw new BadRequestException('O e-mail da conta nao pode ser trocado por aqui');
+    }
     return this.userService.update(user.id, dto, user);
   }
 

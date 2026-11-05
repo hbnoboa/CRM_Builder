@@ -85,26 +85,25 @@ class SecureStorage {
   // OFFLINE AUTH CACHE
   // ═══════════════════════════════════════════════════════
 
-  /// Cache credentials for offline login and silent re-auth.
-  /// Stores email, password (encrypted by Keychain/Keystore), hash, and user JSON.
+  /// Guarda o necessario para o login offline: e-mail, hash PBKDF2 e usuario.
+  /// A senha NAO e guardada (e a gravada por versoes antigas e apagada aqui).
   static Future<void> cacheCredentials({
     required String email,
-    required String password,
     required String passwordHash,
     required String userJson,
   }) async {
     await Future.wait([
       _storage.delete(key: AppConstants.keyLoggedOut),
+      _storage.delete(key: AppConstants.keyCachedPassword),
       _storage.write(key: AppConstants.keyCachedEmail, value: email.toLowerCase()),
-      _storage.write(key: AppConstants.keyCachedPassword, value: password),
       _storage.write(key: AppConstants.keyCachedPasswordHash, value: passwordHash),
       _storage.write(key: AppConstants.keyCachedUserJson, value: userJson),
     ]);
   }
 
-  /// Get cached password for silent re-authentication.
-  static Future<String?> getCachedPassword() async {
-    return _storage.read(key: AppConstants.keyCachedPassword);
+  /// Apaga a senha em texto que versoes antigas do app guardavam.
+  static Future<void> purgeLegacyPassword() async {
+    await _storage.delete(key: AppConstants.keyCachedPassword);
   }
 
   /// Get cached email for offline login.

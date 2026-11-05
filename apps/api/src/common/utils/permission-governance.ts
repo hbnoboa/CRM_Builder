@@ -58,6 +58,64 @@ export function assertPermissionsSubset(
   }
 }
 
+type EntityPerm = {
+  entitySlug?: string;
+  scope?: string;
+  dataFilters?: unknown[];
+  fieldPermissions?: Array<{ fieldSlug: string; canView?: boolean; canEdit?: boolean }>;
+  [key: string]: unknown;
+};
+
+const ENTITY_FLAGS = [
+  'canRead', 'canCreate', 'canUpdate', 'canDelete',
+  'canExport', 'canImport', 'canConfigureColumns', 'canEditLocked',
+] as const;
+// Quanto maior, mais registros o escopo enxerga.
+const SCOPE_BREADTH: Record<string, number> = { own: 0, team: 1, all: 2 };
+
+/**
+ * SUBSET RULE tambem por tabela: o cargo concedido nao pode ler/criar/editar/excluir/
+ * exportar... onde o ator nao pode, nem com escopo mais amplo, sem os filtros de dados
+ * do ator ou vendo campos que o ator nao ve. Regra da tabela = a especifica ou o coringa '*'.
+ */
+export function assertEntityPermissionsSubset(
+  actorModulePermissions: unknown,
+  actorPermissions: unknown,
+  requestedPermissions: unknown,
+): void {
+  if (hasFullTenantAccess(actorModulePermissions)) return;
+  const actor = (Array.isArray(actorPermissions) ? actorPermissions : []) as EntityPerm[];
+  const requested = (Array.isArray(requestedPermissions) ? requestedPermissions : []) as EntityPerm[];
+  const actorRule = (slug: string): EntityPerm | undefined =>
+    actor.find((p) => p.entitySlug === slug) ?? (slug === '*' ? undefined : actor.find((p) => p.entitySlug === '*'));
+
+  for (const req of requested) {
+    const slug = req.entitySlug ?? '';
+    const label = slug === '*' ? 'todas as tabelas' : slug;
+    const mine = actorRule(slug);
+    const deny = (what: string): never => {
+      throw new ForbiddenException(`Sem permissao para conceder: ${what} em ${label} (voce so concede permissoes que possui)`);
+    };
+    for (const flag of ENTITY_FLAGS) {
+      if (req[flag] === true && mine?.[flag] !== true) deny(flag);
+    }
+    // Sem nenhuma acao ligada, escopo/filtros/campos nao dao acesso a nada.
+    if (!ENTITY_FLAGS.some((f) => req[f] === true)) continue;
+    const reqScope = SCOPE_BREADTH[req.scope ?? 'all'] ?? 2;
+    const myScope = SCOPE_BREADTH[mine?.scope ?? 'all'] ?? 2;
+    if (reqScope > myScope) deny(`escopo "${req.scope ?? 'all'}"`);
+    const reqFilters = (req.dataFilters ?? []).map((f) => JSON.stringify(f));
+    for (const f of mine?.dataFilters ?? []) {
+      if (!reqFilters.includes(JSON.stringify(f))) deny('registros fora dos seus filtros de dados');
+    }
+    for (const fp of mine?.fieldPermissions ?? []) {
+      const r = (req.fieldPermissions ?? []).find((x) => x.fieldSlug === fp.fieldSlug);
+      if (fp.canView === false && r?.canView !== false) deny(`ver o campo ${fp.fieldSlug}`);
+      if (fp.canEdit === false && r?.canEdit !== false) deny(`editar o campo ${fp.fieldSlug}`);
+    }
+  }
+}
+
 /**
  * Bloqueia acoes SENSIVEIS/nucleares quando a sessao e de impersonacao.
  * (Ex.: gestao de cargos/permissoes/membership; impersonar de novo.)

@@ -5,7 +5,7 @@ import { PermissionCacheService } from './permission-cache.service';
 import { CreateCustomRoleDto, UpdateCustomRoleDto, QueryCustomRoleDto, DataFilterDto } from './dto/custom-role.dto';
 import { getEffectiveTenantId } from '../../common/utils/tenant.util';
 import { hasFullTenantAccess } from '../../common/utils/platform-access';
-import { assertPermissionsSubset, assertCanActOnRank, assertNotImpersonating } from '../../common/utils/permission-governance';
+import { assertPermissionsSubset, assertEntityPermissionsSubset, assertCanActOnRank, assertNotImpersonating } from '../../common/utils/permission-governance';
 import { assertAssignableRole, loadManagedMember } from '../../common/utils/member-governance';
 import { Prisma } from '@prisma/client';
 import {
@@ -97,6 +97,7 @@ export class CustomRoleService {
 
     // Governanca anti-escalada: so concede permissoes que o proprio ator possui.
     assertPermissionsSubset(currentUser.customRole?.modulePermissions, dto.modulePermissions);
+    assertEntityPermissionsSubset(currentUser.customRole?.modulePermissions, currentUser.customRole?.permissions, dto.permissions);
 
     // RANK: numero MENOR = mais poder. Cargo criado deve ser SUBORDINADO ao criador
     // (rank estritamente MAIOR), senao a governanca trava (cargos no mesmo rank nao
@@ -284,6 +285,9 @@ export class CustomRoleService {
     // Governanca anti-escalada: so concede permissoes que o proprio ator possui.
     if (dto.modulePermissions !== undefined) {
       assertPermissionsSubset(currentUser.customRole?.modulePermissions, dto.modulePermissions, role.modulePermissions);
+    }
+    if (dto.permissions !== undefined) {
+      assertEntityPermissionsSubset(currentUser.customRole?.modulePermissions, currentUser.customRole?.permissions, dto.permissions);
     }
 
     // RANK: ator so pode mover um cargo para rank estritamente MAIOR que o seu
@@ -498,6 +502,7 @@ export class CustomRoleService {
     // Governanca anti-escalada: so atribui cargo cujas permissoes o ator possui
     // e de rank inferior (numero maior) ao seu.
     assertPermissionsSubset(currentUser.customRole?.modulePermissions, role.modulePermissions);
+    assertEntityPermissionsSubset(currentUser.customRole?.modulePermissions, currentUser.customRole?.permissions, role.permissions);
 
     // So troca o cargo de quem ja e membro desta empresa e esta abaixo do ator
     // (adicionar gente nova passa por /users, que respeita o limite do plano).
