@@ -98,7 +98,7 @@ Corrigidos no PR #29 e confirmados em dev (`f399d44`).
 | Resultados de `/consulta` e `@bot` visíveis para todo o canal | **Corrigido**: resultado, relatório, pergunta e resposta do bot são privados de quem pediu (`Message.recipientId`), na API, na busca e no PowerSync (bucket `chat_private_messages`). O histórico foi migrado |
 | O app guarda a senha em texto puro no Keychain/Keystore | **Corrigido no código, sem `flutter analyze`**: a senha não fica mais no aparelho; login offline com PBKDF2-SHA256 (20 mil iterações); sem re-login silencioso. Quem usava o hash antigo entra uma vez online |
 | O app não tem refresh único de token nem reconecta ao abrir offline | **Corrigido no código, sem `flutter analyze`**: `TokenRefresher` compartilhado (interceptor, PowerSync e abertura); ao voltar a rede, renova o token, confere a sessão e conecta o sync |
-| CPF oculto ainda chega ao SQLite do celular | **Aberto**: o PowerSync envia o `data` inteiro do registro. Resolver exige uma cópia do registro sem os campos ocultos por cargo (tabela + triggers + buckets próprios). Decisão de arquitetura pendente |
+| CPF oculto ainda chega ao SQLite do celular | **Corrigido** (`458cade1`): cargo com campo oculto recebe só a cópia do registro sem esses campos (`EntityDataMasked`, token com `dataView`). O cartão "Registrou/Editou" do chat também sai sem campos ocultos; o histórico foi limpo. Arquivados não vão para esses cargos no app |
 | As migrations não sobem do zero em banco vazio | **Aberto**: a migration do filtro global cria índice com `deletedAt` antes dessa coluna existir. Corrigir mexe no histórico já aplicado em dev/prod (editar migrations antigas ou criar baseline). Decisão pendente |
 
 ## Rodada de 05/11/2026 (ambiente descartável)
@@ -110,8 +110,11 @@ Código de `develop` (`f399d443`) mais as correções acima, numa cópia do banc
 | `e2e/api/*.spec.ts` (inclui `roteiro-flows`) | 174 passaram |
 | Seed + `e2e/ui/*.spec.ts` | 1 + 63 passaram, inclusive `P-11` e as correções da rodada anterior (`O-06/3`, `E-11/1`, `E-19`, `O-06/6`, `O-16`) |
 | Correções desta rodada (API + PowerSync) | 24 passaram; mensagens privadas só chegam ao app de quem pediu |
+| Campo oculto no celular e no chat (sync real com o token da API) | 25 passaram: escopos todos/próprios/equipe sem CPF, cargo completo com CPF, edição, exclusão, liberar e esconder o campo, cartão do chat |
 | Regressão das correções B-01 a B-18 | API 51, telas 28, sub-registro 1: todos passaram |
 | Limite de requisições em suporte | 429 a partir da 11ª no minuto |
+
+**Atenção:** a bateria completa em cima do código final (`develop` com o PR #30 + estas correções) começou mas não terminou: a sessão caiu no meio. As suítes acima rodaram antes do PR #30 entrar, exceto a do campo oculto. Falta repetir em dev, depois do deploy.
 
 **Ainda não testado:** o app no aparelho (seção 5, `X-03`, mudanças do app desta rodada), e-mail (sem SMTP em dev) e o cron de exclusão (`L-04/8`).
 
