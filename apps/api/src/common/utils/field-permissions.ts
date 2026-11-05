@@ -20,3 +20,17 @@ export function omitFields<T>(data: T, slugs: Set<string>): T {
   }
   return result as T;
 }
+
+/**
+ * Cargo com algum campo oculto (fora do acesso total): no app, recebe so a copia
+ * dos registros sem esses campos (EntityDataMasked). Mesma regra de
+ * role_has_hidden_fields() no banco.
+ */
+export function roleHasHiddenFields(role: { permissions?: unknown; modulePermissions?: unknown } | null | undefined): boolean {
+  if (!role) return false;
+  const modules = (role.modulePermissions ?? {}) as Record<string, unknown>;
+  if (modules.allAccess === true) return false;
+  const perms = Array.isArray(role.permissions) ? (role.permissions as Array<{ fieldPermissions?: unknown }>) : [];
+  return perms.some((p) => Array.isArray(p.fieldPermissions)
+    && (p.fieldPermissions as Array<{ canView?: unknown }>).some((f) => f.canView === false));
+}

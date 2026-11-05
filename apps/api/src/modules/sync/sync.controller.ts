@@ -4,6 +4,7 @@ import { Controller, Post, UseGuards, Request } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { AuthenticatedRequest } from '../../common/types';
+import { roleHasHiddenFields } from '../../common/utils/field-permissions';
 
 /**
  * Sync credentials endpoint for PowerSync.
@@ -35,6 +36,8 @@ export class SyncController {
         user_id: user.id,
         tenantId: user.tenantId,
         customRoleId: user.customRoleId,
+        // Cargo com campo oculto recebe so a copia sem esses campos (buckets masked_*).
+        dataView: roleHasHiddenFields(user.customRole) ? 'masked' : 'full',
       },
       { expiresIn: '1h' },
     );

@@ -16,7 +16,7 @@ import { UploadService } from '../upload/upload.service';
 import { RedisService } from '../../common/services/redis.service';
 import { EntityDataQueryService } from '../../common/services/entity-data-query.service';
 import { CustomRoleService } from '../custom-role/custom-role.service';
-import { hiddenFieldSlugs } from '../../common/utils/field-permissions';
+import { hiddenFieldSlugs, omitFields } from '../../common/utils/field-permissions';
 import { createBotProvider, BOT_TOOLS, BotLlmProvider } from './bot-provider';
 import * as ExcelJS from 'exceljs';
 
@@ -102,6 +102,30 @@ export class ChatService {
     if (v === '@now') return new Date().toISOString();
     if (v === '@today') return new Date().toISOString().slice(0, 10);
     return v;
+  }
+
+  /**
+   * Campos que algum cargo da empresa NAO pode ver nesta tabela. O cartao do chat
+   * ("Registrou/Editou") e o mesmo para todo o canal (web e app): esses campos
+   * ficam fora dele. Quem pode ver abre o registro.
+   */
+  private async cardHiddenFields(tenantId: string, entitySlug: string | null | undefined): Promise<Set<string>> {
+    const hidden = new Set<string>();
+    if (!entitySlug) return hidden;
+    const roles = await this.prisma.customRole.findMany({
+      where: { tenantId, deletedAt: null },
+      select: { permissions: true, modulePermissions: true },
+    });
+    for (const role of roles) {
+      if (hasFullTenantAccess(role.modulePermissions)) continue;
+      const perms = (Array.isArray(role.permissions) ? role.permissions : []) as Array<{
+        entitySlug?: string;
+        fieldPermissions?: Array<{ fieldSlug: string; canView: boolean; canEdit: boolean }>;
+      }>;
+      const rule = perms.find((p) => p.entitySlug === entitySlug) ?? perms.find((p) => p.entitySlug === '*');
+      for (const slug of hiddenFieldSlugs(rule?.fieldPermissions)) hidden.add(slug);
+    }
+    return hidden;
   }
 
   private fixedValuesToObj(arr: unknown): Record<string, unknown> {
@@ -931,7 +955,13 @@ export class ChatService {
       }
     }
 
-    const summary = Object.entries(values)
+    // Campos ocultos para algum cargo nao entram no cartao (nem no texto).
+    const hiddenSelf = await this.cardHiddenFields(user.tenantId, tpl.targetEntitySlug);
+    const hiddenParent = await this.cardHiddenFields(user.tenantId, cfg.parentEntitySlug);
+    if (labelSlug && (labelSource === 'parent' ? hiddenParent : hiddenSelf).has(labelSlug)) label = '';
+    const shownValues = omitFields(values as Record<string, unknown>, hiddenSelf);
+
+    const summary = Object.entries(shownValues)
       .map(([k, v]) => `${k}: ${v}`)
       .join(' · ');
 
@@ -953,8 +983,9 @@ export class ChatService {
       if (p?.data) parentData = p.data;
     }
     for (const ff of formFieldsCfg) {
-      if (ff.source === 'parent') parentVals[ff.slug] = parentData[ff.slug];
-      else selfSlugs.push(ff.slug);
+      if (ff.source === 'parent') {
+        if (!hiddenParent.has(ff.slug)) parentVals[ff.slug] = parentData[ff.slug];
+      } else if (!hiddenSelf.has(ff.slug)) selfSlugs.push(ff.slug);
     }
     const [parentEntityName, targetEntityName] = await Promise.all([
       cfg.parentEntitySlug
@@ -975,7 +1006,7 @@ export class ChatService {
     const multi = items.length > 1;
     items.forEach((item, i) => {
       const selfVals: Record<string, unknown> = {};
-      const slugs = selfSlugs.length ? selfSlugs : Object.keys(item);
+      const slugs = selfSlugs.length ? selfSlugs : Object.keys(item).filter((k) => !hiddenSelf.has(k));
       for (const s of slugs) selfVals[s] = (item as Record<string, unknown>)[s];
       groups.push({
         level: multi ? 'child' : 'self',
@@ -994,7 +1025,7 @@ export class ChatService {
         meta: {
           templateSlug: tpl.slug,
           entitySlug: tpl.targetEntitySlug,
-          values: values as object,
+          values: shownValues as object,
           // pai -> tabela -> (filho) — o card renderiza nesta ordem
           groups: groups as unknown as Prisma.InputJsonValue,
           recordId: record?.id,
@@ -1032,9 +1063,12 @@ export class ChatService {
     // Identificador na mensagem: labelField do wizard, ou o campo de busca por padrão.
     const ucfg = (tpl.actionConfig || {}) as { labelField?: { slug?: string }; searchField?: string };
     const labelSlug = ucfg.labelField?.slug || ucfg.searchField;
-    const label = labelSlug ? this.cellLabel((before as { data?: Record<string, unknown> }).data?.[labelSlug]) : '';
+    const hidden = await this.cardHiddenFields(user.tenantId, entitySlug);
+    const label = labelSlug && !hidden.has(labelSlug)
+      ? this.cellLabel((before as { data?: Record<string, unknown> }).data?.[labelSlug])
+      : '';
 
-    const summary = Object.entries(data)
+    const summary = Object.entries(omitFields(data as Record<string, unknown>, hidden))
       .map(([k, v]) => `${k}: ${v}`)
       .join(' · ');
     const message = await this.prisma.message.create({
@@ -1047,7 +1081,7 @@ export class ChatService {
         meta: {
           templateSlug: tpl.slug,
           entitySlug,
-          values: (input.values || {}) as object,
+          values: omitFields((input.values || {}) as Record<string, unknown>, hidden) as object,
           recordId: input.recordId,
           edited: true,
           ...(label ? { label } : {}),
