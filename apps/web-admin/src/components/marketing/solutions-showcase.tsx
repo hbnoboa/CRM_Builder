@@ -77,11 +77,16 @@ export function SolutionsShowcase() {
             </div>
           ))}
         </dl>
-        <Button asChild className="mt-6 bg-orange-600 text-white hover:bg-orange-700">
-          <Link href={`/register?modelo=${current.slug}`}>
-            Usar o modelo {current.name} <ArrowRight className="ml-2 h-4 w-4" />
+        <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center">
+          <Button asChild className="bg-orange-600 text-white hover:bg-orange-700">
+            <Link href={`/register?modelo=${current.slug}`}>
+              Usar o modelo {current.name} <ArrowRight className="ml-2 h-4 w-4" />
+            </Link>
+          </Button>
+          <Link href={`/solucoes/${current.slug}`} className="text-sm font-medium text-slate-700 hover:text-orange-600">
+            Ver como funciona o modelo →
           </Link>
-        </Button>
+        </div>
       </div>
     </div>
   );

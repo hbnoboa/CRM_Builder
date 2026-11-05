@@ -6,53 +6,11 @@ import { Link } from '@/i18n/navigation';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
-// Precos por usuario/mes; anual = 20% de desconto (valores definidos pelo comercial).
-const PLANS = [
-  {
-    name: 'Essencial',
-    monthly: 49,
-    yearly: 39,
-    description: 'Para pequenas equipes tirarem a operação da planilha.',
-    features: [
-      'Até 5 usuários',
-      'Tabelas, formulários e painéis',
-      'App no celular com modo offline',
-      'Documentos em PDF',
-      'Suporte por chamado',
-    ],
-  },
-  {
-    name: 'Profissional',
-    monthly: 89,
-    yearly: 71,
-    highlight: true,
-    description: 'Para quem tem campo e escritório trabalhando juntos.',
-    features: [
-      'Até 50 usuários',
-      'Tudo do Essencial',
-      'Cargos, equipes e permissão por campo',
-      'Chat com comandos e cartões de registro',
-      'Automações e webhooks',
-    ],
-  },
-  {
-    name: 'Empresarial',
-    monthly: 149,
-    yearly: 119,
-    description: 'Para operações maiores, com integração e controle total.',
-    features: [
-      'Usuários ilimitados',
-      'Tudo do Profissional',
-      'API e chaves de integração',
-      'Política de senha, 2 etapas e sessões',
-      'Suporte prioritário',
-    ],
-  },
-];
+import { PLANS } from './plans';
 
 const brl = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 });
 
-export function Pricing() {
+export function Pricing({ showCompareLink = false }: { showCompareLink?: boolean }) {
   const [yearly, setYearly] = useState(true);
 
   return (
@@ -103,7 +61,7 @@ export function Pricing() {
               {yearly ? `cobrado anualmente · ${brl(plan.monthly)} no mensal` : 'sem fidelidade'}
             </p>
             <ul className="mt-6 flex-1 space-y-2.5 text-sm text-slate-700">
-              {plan.features.map((f) => (
+              {plan.summary.map((f) => (
                 <li key={f} className="flex items-start gap-2">
                   <Check className="mt-0.5 h-4 w-4 shrink-0 text-orange-600" /> {f}
                 </li>
@@ -122,6 +80,11 @@ export function Pricing() {
       <p className="mt-6 text-center text-xs text-slate-500">
         Todos os planos começam com teste grátis, sem cartão de crédito.
       </p>
+      {showCompareLink && (
+        <p className="mt-3 text-center">
+          <Link href="/precos" className="text-sm font-medium text-orange-600 hover:underline">Comparar tudo o que vem em cada plano →</Link>
+        </p>
+      )}
     </div>
   );
 }

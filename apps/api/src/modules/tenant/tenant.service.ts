@@ -12,6 +12,8 @@ import { recordLifecycleEvent } from '../../common/utils/tenant-lifecycle-events
 export const RESERVED_TENANT_SLUGS = new Set([
   'admin', 'api', 'app', 'p', 'login', 'register', 'signup', 'forgot-password',
   'platform', 'home', 'www', 'dashboard', 'settings', 'profile',
+  // paginas publicas do site (pagina inicial)
+  'contato', 'solucoes', 'precos', 'invite', 'reset-password', 'security-setup',
 ]);
 
 /** Campos comerciais definidos na criacao (console da plataforma / cadastro). */

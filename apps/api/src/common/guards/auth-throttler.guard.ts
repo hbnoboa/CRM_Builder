@@ -9,7 +9,7 @@ import { clientIp } from '../utils/client-ip';
  *   - login / esqueci a senha: IP + email  -> limita tentativas contra UMA conta
  *   - refresh: hash do refresh token        -> limita por sessao
  *   - rotas autenticadas: a pessoa logada
- *   - cadastro e demais (reset): IP
+ *   - cadastro, contato publico e demais (reset): IP
  * Usar so nas rotas com @Throttle proprio (nao como guard global).
  */
 @Injectable()
@@ -24,7 +24,8 @@ export class AuthThrottlerGuard extends ThrottlerGuard {
     if (userId) return `user:${userId}`;
 
     const path = String(req.url ?? '').split('?')[0];
-    if (path.endsWith('/register')) return ip;
+    // Cadastro e contato publico: por IP (trocar o e-mail nao pode furar o limite)
+    if (path.endsWith('/register') || path.endsWith('/public/contact')) return ip;
 
     // So na rota de refresh: em outra rota, um refreshToken aleatorio no corpo
     // trocaria a chave a cada tentativa e anularia o limite.
