@@ -89,14 +89,31 @@ Corrigidos no PR #29 e confirmados em dev (`f399d44`).
 - **E-mail:** `S-05`, `P-14/4` e os passos com 📧: dev não tem SMTP.
 - **Cron:** `L-04/8`, que apaga a empresa depois do prazo.
 
-## Problemas conhecidos, ainda abertos
+## Problemas conhecidos
 
-- CPF oculto ainda chega ao SQLite do celular (o sync envia `data` inteiro).
-- Resultados de `/consulta` e `@bot` ficam visíveis para todo o canal.
-- `PATCH /users/me` troca a senha sem pedir a atual; o app guarda a senha em texto puro no Keychain/Keystore.
-- Cargo com `roles.*` cria cargo com permissão por tabela maior que a dele.
-- O app não tem refresh único de token nem reconecta ao abrir offline.
-- As migrations não sobem do zero em banco vazio, o que impede um job de CI para estes testes.
+| Problema | Situação |
+|---|---|
+| `PATCH /users/me` troca a senha sem pedir a atual | **Corrigido** (branch `fix/e2e-open-issues`): `/users/me` recusa senha e e-mail; senha só por `/auth/change-password`. A tela Perfil usava `PUT /users/me`, que não existe: agora usa `/auth/profile` |
+| Cargo com `roles.*` cria cargo com permissão por tabela maior que a dele | **Corrigido**: o cargo concedido não pode ter ação, escopo mais amplo, menos filtros de dados ou campo visível que o criador não tem (criar, editar e atribuir cargo) |
+| Resultados de `/consulta` e `@bot` visíveis para todo o canal | **Corrigido**: resultado, relatório, pergunta e resposta do bot são privados de quem pediu (`Message.recipientId`), na API, na busca e no PowerSync (bucket `chat_private_messages`). O histórico foi migrado |
+| O app guarda a senha em texto puro no Keychain/Keystore | **Corrigido no código, sem `flutter analyze`**: a senha não fica mais no aparelho; login offline com PBKDF2-SHA256 (20 mil iterações); sem re-login silencioso. Quem usava o hash antigo entra uma vez online |
+| O app não tem refresh único de token nem reconecta ao abrir offline | **Corrigido no código, sem `flutter analyze`**: `TokenRefresher` compartilhado (interceptor, PowerSync e abertura); ao voltar a rede, renova o token, confere a sessão e conecta o sync |
+| CPF oculto ainda chega ao SQLite do celular | **Aberto**: o PowerSync envia o `data` inteiro do registro. Resolver exige uma cópia do registro sem os campos ocultos por cargo (tabela + triggers + buckets próprios). Decisão de arquitetura pendente |
+| As migrations não sobem do zero em banco vazio | **Aberto**: a migration do filtro global cria índice com `deletedAt` antes dessa coluna existir. Corrigir mexe no histórico já aplicado em dev/prod (editar migrations antigas ou criar baseline). Decisão pendente |
+
+## Rodada de 05/11/2026 (ambiente descartável)
+
+Código de `develop` (`f399d443`) mais as correções acima, numa cópia do banco de dev, com o Chromium do Playwright (config local `playwright.qa-local.config.ts`, fora do git).
+
+| Bloco | Resultado |
+|---|---|
+| `e2e/api/*.spec.ts` (inclui `roteiro-flows`) | 174 passaram |
+| Seed + `e2e/ui/*.spec.ts` | 1 + 63 passaram, inclusive `P-11` e as correções da rodada anterior (`O-06/3`, `E-11/1`, `E-19`, `O-06/6`, `O-16`) |
+| Correções desta rodada (API + PowerSync) | 24 passaram; mensagens privadas só chegam ao app de quem pediu |
+| Regressão das correções B-01 a B-18 | API 51, telas 28, sub-registro 1: todos passaram |
+| Limite de requisições em suporte | 429 a partir da 11ª no minuto |
+
+**Ainda não testado:** o app no aparelho (seção 5, `X-03`, mudanças do app desta rodada), e-mail (sem SMTP em dev) e o cron de exclusão (`L-04/8`).
 
 ## Contas de teste
 
