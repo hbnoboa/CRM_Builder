@@ -7,6 +7,19 @@ import { getEffectiveTenantId } from '../../common/utils/tenant.util';
 import { Prisma, type PrismaClient } from '@prisma/client';
 import { creatorFilter, teammateIds } from '../../common/utils/team-scope';
 
+/** Numeros como numeros, datas ISO como datas, o resto como texto (pt-BR). */
+function compareSortValues(a: unknown, b: unknown): number {
+  if (typeof a === 'number' && typeof b === 'number') return a - b;
+  const sa = typeof a === 'object' && a && 'label' in a ? String((a as { label: unknown }).label) : String(a);
+  const sb = typeof b === 'object' && b && 'label' in b ? String((b as { label: unknown }).label) : String(b);
+  const iso = /^\d{4}-\d{2}-\d{2}/;
+  if (iso.test(sa) && iso.test(sb)) return Date.parse(sa) - Date.parse(sb);
+  const na = Number(sa);
+  const nb = Number(sb);
+  if (sa.trim() !== '' && sb.trim() !== '' && !Number.isNaN(na) && !Number.isNaN(nb)) return na - nb;
+  return sa.localeCompare(sb, 'pt-BR', { numeric: true, sensitivity: 'base' });
+}
+
 @Injectable()
 export class StatsService {
   private readonly logger = new Logger(StatsService.name);
@@ -347,6 +360,7 @@ export class StatsService {
     queryTenantId?: string,
     days: number = 30,
     dashFilters?: DashboardFilterOptions,
+    dateField?: string,
   ) {
     const result = await this.buildEntityWhere(user, entitySlug, queryTenantId, dashFilters);
     if (!result) return [];
@@ -354,6 +368,34 @@ export class StatsService {
     const { where } = result;
     const startDate = new Date();
     startDate.setDate(startDate.getDate() - days);
+
+    // Campo de data do registro (ex.: data da vistoria) em vez da data de criacao.
+    const fields = ((result.entity?.fields ?? []) as unknown as Array<{ slug: string; type: string }>);
+    const dateSlug = dateField && fields.some((f) => f.slug === dateField && ['date', 'datetime'].includes(f.type))
+      ? dateField
+      : null;
+    if (dateSlug) {
+      const day = (v: unknown): string | null => {
+        if (typeof v !== 'string' || !v) return null;
+        const d = new Date(v);
+        return isNaN(d.getTime()) ? null : d.toISOString().split('T')[0];
+      };
+      const byField = { ...where, data: { path: [dateSlug], gte: startDate.toISOString().split('T')[0] } } as Prisma.EntityDataWhereInput;
+      const [active, archived] = await Promise.all([
+        this.prisma.entityData.findMany({ where: byField, select: { data: true } }),
+        this.prisma.archivedEntityData.findMany({
+          where: this.queryService.buildArchivedWhere(byField),
+          select: { data: true },
+        }),
+      ]);
+      const grouped: Record<string, number> = {};
+      for (const r of [...active, ...archived]) {
+        const key = day((r.data as Record<string, unknown> | null)?.[dateSlug]);
+        if (key) grouped[key] = (grouped[key] || 0) + 1;
+      }
+      return this.fillDates(startDate, grouped);
+    }
+
     where.createdAt = { gte: startDate };
     const archivedWhere = this.queryService.buildArchivedWhere(where);
 
@@ -452,11 +494,30 @@ export class StatsService {
       if (!labelMap.has(valueKey)) labelMap.set(valueKey, displayLabel);
     }
 
+    // Rotulo e cor das opcoes do campo (select/radio/booleano): o grafico mostra
+    // "Média" em vez de "media" e usa a cor configurada na opcao.
+    const fieldDef = ((result.entity?.fields ?? []) as unknown as Array<{
+      slug: string; type: string; options?: Array<string | { value: string; label?: string; color?: string }>;
+    }>).find((f) => f.slug === fieldSlug);
+    const optionMeta = new Map<string, { label: string; color?: string }>();
+    for (const o of fieldDef?.options ?? []) {
+      if (typeof o === 'string') optionMeta.set(o, { label: o });
+      else optionMeta.set(String(o.value), { label: o.label || String(o.value), color: o.color });
+    }
+    if (fieldDef?.type === 'boolean') {
+      optionMeta.set('true', { label: 'Sim', color: '#2563eb' });
+      optionMeta.set('false', { label: 'Não', color: '#94a3b8' });
+    }
+
     // Ordenar por contagem desc e limitar
     return Array.from(distribution.entries())
       .sort((a, b) => b[1] - a[1])
       .slice(0, limit)
-      .map(([value, count]) => ({ value, label: labelMap.get(value) || value, count }));
+      .map(([value, count]) => {
+        const meta = optionMeta.get(value);
+        const label = meta?.label ?? labelMap.get(value) ?? value;
+        return meta?.color ? { value, label, count, color: meta.color } : { value, label, count };
+      });
   }
 
   async getCrossFieldDistribution(
@@ -1007,9 +1068,12 @@ export class StatsService {
       allRecords.sort((a, b) => {
         const dataA = (a.data as Record<string, unknown>)?.[sortBy];
         const dataB = (b.data as Record<string, unknown>)?.[sortBy];
-        const numA = typeof dataA === 'number' ? dataA : parseFloat(String(dataA)) || 0;
-        const numB = typeof dataB === 'number' ? dataB : parseFloat(String(dataB)) || 0;
-        return sortOrder === 'desc' ? numB - numA : numA - numB;
+        // Vazios sempre no fim, em qualquer direcao
+        const emptyA = dataA === null || dataA === undefined || dataA === '';
+        const emptyB = dataB === null || dataB === undefined || dataB === '';
+        if (emptyA || emptyB) return Number(emptyA) - Number(emptyB);
+        const cmp = compareSortValues(dataA, dataB);
+        return sortOrder === 'desc' ? -cmp : cmp;
       });
     } else {
       allRecords.sort((a, b) => {

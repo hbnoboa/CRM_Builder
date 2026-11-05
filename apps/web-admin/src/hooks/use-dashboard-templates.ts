@@ -156,11 +156,12 @@ export function useEntityRecordsOverTime(
   entitySlug: string | undefined,
   days?: number,
   dashFilters?: DashboardFilterParams,
+  dateField?: string,
 ) {
   const { slug: tenantSlug } = useActiveTenant();
   return useQuery({
-    queryKey: [...entityStatsKeys.recordsOverTime(entitySlug || '', days, dashFilters), tenantSlug],
-    queryFn: () => entityStatsService.recordsOverTime(entitySlug!, days, dashFilters),
+    queryKey: [...entityStatsKeys.recordsOverTime(entitySlug || '', days, dashFilters), dateField ?? '', tenantSlug],
+    queryFn: () => entityStatsService.recordsOverTime(entitySlug!, days, dashFilters, dateField),
     enabled: !!entitySlug,
     staleTime: 30_000,
   });

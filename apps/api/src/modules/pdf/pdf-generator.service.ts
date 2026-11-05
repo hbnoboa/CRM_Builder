@@ -4,6 +4,7 @@ import {
   BadRequestException,
   Logger,
 } from '@nestjs/common';
+import { AsyncLocalStorage } from 'async_hooks';
 import { PrismaService } from '../../prisma/prisma.service';
 import { UploadService } from '../upload/upload.service';
 import { PdfTemplate, PdfGeneration, PdfGenerationStatus, Prisma } from '@prisma/client';
@@ -55,6 +56,8 @@ const http = require('http');
 export class PdfGeneratorService {
   private readonly logger = new Logger(PdfGeneratorService.name);
   private emptyFieldDefault = '';
+  /** Rotulos das opcoes (slug do campo -> valor -> rotulo) da renderizacao em curso. */
+  private readonly optionLabels = new AsyncLocalStorage<Map<string, Map<string, string>>>();
 
   constructor(
     private prisma: PrismaService,
@@ -85,7 +88,7 @@ export class PdfGeneratorService {
       : null;
     if (!entity) return [];
 
-    const { where } = await this.queryService.buildWhere({ entitySlug: entity.slug, user: currentUser, tenantId });
+    const { where } = await this.queryService.buildWhere({ entitySlug: entity.slug, user: currentUser, tenantId, includeChildren: true });
     const scoped = { ...where, id: { in: recordIds } };
     const [active, archived] = await Promise.all([
       this.prisma.entityData.findMany({ where: scoped, orderBy: { createdAt: 'asc' } }),
@@ -134,12 +137,28 @@ export class PdfGeneratorService {
       throw new NotFoundException('Registro nao encontrado');
     }
 
+    // Registro-pai em _parent.* (ex.: laudo da vistoria mostra a placa do veiculo).
+    // Mesmas regras do registro: so se o cargo enxerga o pai, e sem campos ocultos.
+    let parentData: Record<string, unknown> = {};
+    if (record.parentRecordId) {
+      const [parent] = await this.loadReadableRecords([record.parentRecordId], null, currentUser, targetTenantId);
+      if (parent) {
+        parentData = {
+          ...(parent.data as Record<string, unknown>),
+          id: parent.id,
+          createdAt: parent.createdAt,
+          updatedAt: parent.updatedAt,
+        };
+      }
+    }
+
     // Enriquecer dados com sub-entidades e campos do sistema
     const baseData = {
       ...(record.data as Record<string, unknown>),
       id: record.id,
       createdAt: record.createdAt,
       updatedAt: record.updatedAt,
+      _parent: parentData,
     };
     const data = await this.enrichDataWithSubEntities(
       baseData,
@@ -745,6 +764,14 @@ export class PdfGeneratorService {
     template: PdfTemplate,
     data: Record<string, unknown>,
   ): Promise<Buffer> {
+    const labels = await this.loadOptionLabels(template);
+    return this.optionLabels.run(labels, () => this.renderPdfDocument(template, data));
+  }
+
+  private async renderPdfDocument(
+    template: PdfTemplate,
+    data: Record<string, unknown>,
+  ): Promise<Buffer> {
     const margins = template.margins as unknown as PdfMargins || {
       top: 70,
       right: 70,
@@ -808,6 +835,15 @@ export class PdfGeneratorService {
    * renderiza os elementos que estao dentro do marcador _repeat
    */
   private async renderBatchPdf(
+    template: PdfTemplate,
+    batchData: Record<string, unknown>,
+    allRecords: Record<string, unknown>[],
+  ): Promise<Buffer> {
+    const labels = await this.loadOptionLabels(template);
+    return this.optionLabels.run(labels, () => this.renderBatchPdfDocument(template, batchData, allRecords));
+  }
+
+  private async renderBatchPdfDocument(
     template: PdfTemplate,
     batchData: Record<string, unknown>,
     allRecords: Record<string, unknown>[],
@@ -1120,7 +1156,7 @@ export class PdfGeneratorService {
             }
           }
         } else if (element.type === 'text' && element.text) {
-          const resolvedText = this.resolveBindings(element.text, data);
+          const resolvedText = this.resolveDisplayBindings(element.text, data);
           const fontSize = element.fontSize || 12;
           const padding = element.padding || 8;
 
@@ -1238,7 +1274,7 @@ export class PdfGeneratorService {
 
     // Renderizar titulo
     if (header?.title?.text) {
-      const titleText = this.resolveBindings(header.title.text, data);
+      const titleText = this.resolveDisplayBindings(header.title.text, data);
       doc
         .font(header.title.bold !== false ? 'Helvetica-Bold' : 'Helvetica')
         .fontSize(header.title.fontSize || 14)
@@ -1249,7 +1285,7 @@ export class PdfGeneratorService {
 
     // Renderizar subtitulo
     if (header?.subtitle?.text) {
-      const subtitleText = this.resolveBindings(header.subtitle.text, data);
+      const subtitleText = this.resolveDisplayBindings(header.subtitle.text, data);
       doc
         .font('Helvetica')
         .fontSize(10)
@@ -1345,7 +1381,7 @@ export class PdfGeneratorService {
     element: TextElement,
     data: Record<string, unknown>,
   ): void {
-    const text = this.resolveBindings(element.content, data);
+    const text = this.resolveDisplayBindings(element.content, data);
     const pageWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
     const font = element.fontWeight === 'bold' ? 'Helvetica-Bold' : 'Helvetica';
     const fontSize = element.fontSize || 10;
@@ -1401,7 +1437,7 @@ export class PdfGeneratorService {
         for (let c = 0; c < cols && i + c < fields.length; c++) {
           const field = fields[i + c];
           const label = field.label;
-          const value = this.resolveBindings(field.binding, data);
+          const value = this.resolveDisplayBindings(field.binding, data);
           const formattedValue = this.formatValue(value, field.format, field.defaultValue);
           const x = doc.page.margins.left + c * colWidth;
 
@@ -1419,7 +1455,7 @@ export class PdfGeneratorService {
     } else if (element.layout === 'horizontal') {
       for (const field of element.fields) {
         const label = field.label;
-        const value = this.resolveBindings(field.binding, data);
+        const value = this.resolveDisplayBindings(field.binding, data);
         const formattedValue = this.formatValue(value, field.format, field.defaultValue);
 
         if (lineSpacing) {
@@ -1450,7 +1486,7 @@ export class PdfGeneratorService {
       // Vertical: label e valor em linhas separadas
       for (const field of element.fields) {
         const label = field.label;
-        const value = this.resolveBindings(field.binding, data);
+        const value = this.resolveDisplayBindings(field.binding, data);
         const formattedValue = this.formatValue(value, field.format, field.defaultValue);
 
         doc
@@ -1547,7 +1583,7 @@ export class PdfGeneratorService {
     const tableRows = rows.map((row) =>
       element.columns.map((col) => {
         const value = this.getNestedValue(row, col.field);
-        return this.formatValue(value, col.format, col.defaultValue);
+        return this.formatValue(col.format ? value : this.displayValue(col.field, value), col.format, col.defaultValue);
       }),
     );
 
@@ -1992,9 +2028,12 @@ export class PdfGeneratorService {
         // Fall through to fallback
       }
     }
+    // Campo vazio nao e erro: o quadro fica com "Sem foto"
+    const reason = result.status === 'rejected' ? String((result.reason as Error)?.message ?? '') : '';
+    const empty = reason === 'Sem URL' || reason === 'URL vazia';
     doc.rect(x, y, width, height).strokeColor('#CCCCCC').stroke();
     doc.font('Helvetica').fontSize(6).fillColor('#999999')
-      .text('[Erro]', x, y + height / 2 - 3, { width, align: 'center' });
+      .text(empty ? 'Sem foto' : '[Erro]', x, y + height / 2 - 3, { width, align: 'center' });
   }
 
   /**
@@ -2439,6 +2478,53 @@ export class PdfGeneratorService {
   /**
    * Resolve bindings {{campo}} no texto
    */
+  /**
+   * Rotulos das opcoes de todas as tabelas da empresa (o laudo mostra campos do
+   * registro, das filhas e do pai). A tabela de origem vence em slugs repetidos.
+   */
+  private async loadOptionLabels(template: PdfTemplate): Promise<Map<string, Map<string, string>>> {
+    const entities = await this.prisma.entity.findMany({
+      where: { tenantId: template.tenantId },
+      select: { id: true, fields: true },
+    });
+    entities.sort((a, b) => Number(a.id === template.sourceEntityId) - Number(b.id === template.sourceEntityId));
+    const labels = new Map<string, Map<string, string>>();
+    for (const entity of entities) {
+      for (const field of (entity.fields as Array<{ slug?: string; options?: Array<{ value?: unknown; label?: unknown }> }>) || []) {
+        if (!field.slug || !Array.isArray(field.options) || field.options.length === 0) continue;
+        const map = new Map<string, string>();
+        for (const opt of field.options) {
+          if (opt?.value !== undefined && opt?.label) map.set(String(opt.value), String(opt.label));
+        }
+        labels.set(field.slug, map);
+      }
+    }
+    return labels;
+  }
+
+  /** Valor como o usuario le: rotulo da opcao e Sim/Nao em vez de true/false. */
+  private displayValue(path: string, value: unknown): unknown {
+    if (typeof value === 'boolean') return value ? 'Sim' : 'Não';
+    const options = this.optionLabels.getStore()?.get(path.split('.').pop() || path);
+    if (!options) return value;
+    if (Array.isArray(value)) {
+      return value.map((v) => (typeof v === 'string' || typeof v === 'number' ? options.get(String(v)) ?? v : v));
+    }
+    if (typeof value === 'string' || typeof value === 'number') return options.get(String(value)) ?? value;
+    return value;
+  }
+
+  /** Como resolveBindings, mas para texto exibido (rotulos em vez de valores crus). */
+  private resolveDisplayBindings(template: string, data: Record<string, unknown>): string {
+    if (!template) return '';
+
+    return template.replace(/\{\{([^}]+)\}\}/g, (_, path) => {
+      const value = this.displayValue(path.trim(), this.getNestedValue(data, path.trim()));
+      if (value === undefined || value === null) return '';
+      return Array.isArray(value) ? value.join(', ') : String(value);
+    });
+  }
+
   private resolveBindings(template: string, data: Record<string, unknown>): string {
     if (!template) return '';
 

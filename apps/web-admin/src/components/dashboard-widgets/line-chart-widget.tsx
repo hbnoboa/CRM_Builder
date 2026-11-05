@@ -45,6 +45,8 @@ export function LineChartWidget({ entitySlug, config, title, isEditMode }: LineC
     !isFieldTrend && !isGroupedRatio ? entitySlug : undefined,
     days,
     dashFilters,
+    undefined,
+    (config.dateField as string | undefined) || undefined,
   );
 
   const fieldTrend = useFieldTrend(

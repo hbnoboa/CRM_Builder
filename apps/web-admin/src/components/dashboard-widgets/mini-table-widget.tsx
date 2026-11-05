@@ -5,14 +5,14 @@ import { Search } from 'lucide-react';
 import { useAdaptedTopRecords as useEntityTopRecords, useAdaptedGroupedData as useGroupedData } from '@/components/entity-data/adapter-hooks';
 import { useDashboardFilters, useWidgetFilters } from './dashboard-filter-context';
 import { WidgetWrapper } from './widget-wrapper';
-import type { WidgetConfig } from '@crm-builder/shared';
+import { formatFieldValue, type FieldType, type WidgetConfig } from '@crm-builder/shared';
 
 interface MiniTableWidgetProps {
   entitySlug: string;
   config: WidgetConfig['config'];
   title?: string;
   isEditMode?: boolean;
-  entityFields?: Array<{ slug: string; name: string; label?: string; type: string }>;
+  entityFields?: Array<{ slug: string; name: string; label?: string; type: string; options?: Array<string | { value: string; label: string }> }>;
 }
 
 export function MiniTableWidget({ entitySlug, config, title, isEditMode, entityFields }: MiniTableWidgetProps) {
@@ -80,14 +80,23 @@ export function MiniTableWidget({ entitySlug, config, title, isEditMode, entityF
       : entityFields?.slice(0, 4).map((f) => ({ slug: f.slug, label: f.label || f.name })) || [];
   }
 
-  const formatCell = (value: unknown): string => {
+  const formatCell = (value: unknown, slug?: string): string => {
     if (value == null) return '-';
+    // Rotulo da opcao e data no formato local, como na tabela de registros
+    const field = slug ? entityFields?.find((f) => f.slug === slug) : undefined;
+    if (field?.options?.length && (typeof value === 'string' || typeof value === 'number')) {
+      const opt = field.options.find((o) => (typeof o === 'string' ? o : String(o.value)) === String(value));
+      return (typeof opt === 'object' ? opt.label : opt) ?? String(value);
+    }
+    if (field && (field.type === 'date' || field.type === 'datetime')) {
+      return formatFieldValue(value, { type: field.type as FieldType, emptyValue: '-' });
+    }
     if (typeof value === 'object') {
       if (Array.isArray(value)) return value.map((v) => (typeof v === 'object' && v && 'label' in v ? (v as { label: string }).label : String(v))).join(', ');
       if ('label' in (value as Record<string, unknown>)) return String((value as { label: string }).label);
       return JSON.stringify(value);
     }
-    if (typeof value === 'boolean') return value ? 'Sim' : 'Nao';
+    if (typeof value === 'boolean') return value ? 'Sim' : 'Não';
     if (typeof value === 'number') return value.toLocaleString('pt-BR');
     return String(value);
   };
@@ -133,7 +142,7 @@ export function MiniTableWidget({ entitySlug, config, title, isEditMode, entityF
     const term = searchTerm.toLowerCase();
     return allRows.filter((row) => {
       for (const col of columns) {
-        const cellText = formatCell(row.fields[col.slug]).toLowerCase();
+        const cellText = formatCell(row.fields[col.slug], col.slug).toLowerCase();
         if (cellText.includes(term)) return true;
       }
       return false;
@@ -205,7 +214,7 @@ export function MiniTableWidget({ entitySlug, config, title, isEditMode, entityF
                           if (!isEditMode && cellValue && isFilterable) toggleCrossFilter(col.slug, cellValue);
                         }}
                       >
-                        {formatCell(raw)}
+                        {formatCell(raw, col.slug)}
                       </td>
                     );
                   })}
