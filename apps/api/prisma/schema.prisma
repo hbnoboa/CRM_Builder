@@ -507,8 +507,8 @@ model ArchivedAuditLog {
   oldData    Json?
   newData    Json?
   metadata   Json?
-  createdAt  DateTime
-  archivedAt DateTime @default(now())
+  createdAt  DateTime @db.Timestamp(6)
+  archivedAt DateTime @default(now()) @db.Timestamp(6)
 
   @@index([tenantId])
   @@index([tenantId, createdAt(sort: Desc)])
@@ -1411,7 +1411,7 @@ model VisibilityRecompute {
   tenantId   String
   entitySlug String
   cursor     String   @default("")
-  createdAt  DateTime @default(now())
+  createdAt  DateTime @default(now()) @db.Timestamptz(6)
 
   @@map("visibility_recompute")
 }
