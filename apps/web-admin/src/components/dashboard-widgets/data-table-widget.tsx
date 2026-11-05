@@ -1373,10 +1373,8 @@ function DataTableWidgetInner({ entitySlug, config, title, ctx }: DataTableWidge
           entityName={entity.name}
           open={importOpen}
           onOpenChange={setImportOpen}
-          onSuccess={() => {
-            setImportOpen(false);
-            refresh();
-          }}
+          // Nao fecha aqui: o dialogo mostra o resultado e as linhas com erro.
+          onSuccess={refresh}
         />
       )}
       </div>

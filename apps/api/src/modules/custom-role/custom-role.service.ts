@@ -127,7 +127,7 @@ export class CustomRoleService {
         isDefault: dto.isDefault || false,
       },
       include: {
-        _count: { select: { tenantAccessUsers: true } },
+        _count: { select: { tenantAccessUsers: { where: { deletedAt: null, user: { deletedAt: null } } } } },
       },
     });
 
@@ -184,7 +184,7 @@ export class CustomRoleService {
       take: takeWithExtra,
       orderBy,
       include: {
-        _count: { select: { tenantAccessUsers: true } },
+        _count: { select: { tenantAccessUsers: { where: { deletedAt: null, user: { deletedAt: null } } } } },
       },
     };
 
@@ -236,7 +236,7 @@ export class CustomRoleService {
     const role = await this.prisma.customRole.findFirst({
       where: { id, tenantId },
       include: {
-        _count: { select: { tenantAccessUsers: true } },
+        _count: { select: { tenantAccessUsers: { where: { deletedAt: null, user: { deletedAt: null } } } } },
         // Identidade global (#10): usuarios do cargo vem via membership.
         tenantAccessUsers: {
           take: 10,
@@ -323,7 +323,7 @@ export class CustomRoleService {
         where: { id },
         data,
         include: {
-          _count: { select: { tenantAccessUsers: true } },
+          _count: { select: { tenantAccessUsers: { where: { deletedAt: null, user: { deletedAt: null } } } } },
         },
       });
       if (affected === '*') {
@@ -414,7 +414,7 @@ export class CustomRoleService {
 
     // Verificar se ha usuarios usando esta role (via membership)
     const usersCount = await this.prisma.userTenantAccess.count({
-      where: { customRoleId: id, deletedAt: null },
+      where: { customRoleId: id, deletedAt: null, user: { deletedAt: null } },
     });
 
     if (usersCount > 0) {

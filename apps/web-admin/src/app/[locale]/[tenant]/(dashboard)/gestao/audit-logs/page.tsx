@@ -33,12 +33,12 @@ export default function AuditLogsPage() {
   const tNav = useTranslations('navigation');
   const tAuth = useTranslations('auth');
   const { modulePermissions, hasModulePermission, isAdmin } = usePermissions();
-  // Espelha o guard da API (audit.controller): logs.canRead + logs.auditLogs.canRead
+  // Espelha o guard da API (audit.controller): logs.canRead; sem bloco proprio, auditLogs herda o grupo
   // (ou acesso total ao tenant). A API sempre escopa ao tenant do usuario.
   const auditLogsPerm = ((modulePermissions as Record<string, unknown>).logs as Record<string, unknown> | undefined)?.auditLogs as
     | { canRead?: boolean }
     | undefined;
-  const canReadAuditLogs = isAdmin || (hasModulePermission('logs', 'canRead') && auditLogsPerm?.canRead === true);
+  const canReadAuditLogs = isAdmin || (hasModulePermission('logs', 'canRead') && (auditLogsPerm === undefined || auditLogsPerm.canRead === true));
 
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');

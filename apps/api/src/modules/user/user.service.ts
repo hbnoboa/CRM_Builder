@@ -3,7 +3,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { NotificationService } from '../notification/notification.service';
 import { AuditService } from '../audit/audit.service';
 import { CreateUserDto, UpdateUserDto, QueryUserDto } from './dto/user.dto';
-import { Prisma } from '@prisma/client';
+import { Prisma, Status } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
 import {
   CurrentUser,
@@ -469,6 +469,11 @@ export class UserService {
     } else {
       // User esta no allowlist de soft-delete -> delete vira soft (deletedAt).
       await this.prisma.user.delete({ where: { id } });
+      // O vinculo sai junto: senao a pessoa excluida segue contando no cargo.
+      await this.prisma.userTenantAccess.updateMany({
+        where: { userId: id, tenantId: currentUser.tenantId, deletedAt: null },
+        data: { deletedAt: new Date(), status: Status.INACTIVE },
+      });
     }
 
     this.auditService.log(currentUser, {

@@ -382,9 +382,10 @@ export default function ChatPage() {
     if (!entity) return;
     if (cmd.actionType === 'query') { setQueryCmd({ cmd, entity }); return; }
     if (cmd.actionType === 'update_record') { setEditCmd({ cmd, entity }); return; }
-    const cfg = (cmd.actionConfig || {}) as { quickFields?: string[]; parentEntitySlug?: string };
-    // Captura rápida inline quando o comando tem quickFields; senão, form completo (modal).
-    if (Array.isArray(cfg.quickFields) && cfg.quickFields.length > 0) {
+    const cfg = (cmd.actionConfig || {}) as { quickFields?: string[]; formFields?: unknown[]; parentEntitySlug?: string };
+    // Captura rápida inline quando o comando tem campos escolhidos (formFields, gravado
+    // pela tela, ou quickFields, legado); senão, form completo (modal).
+    if ((cfg.formFields?.length ?? 0) > 0 || (cfg.quickFields?.length ?? 0) > 0) {
       const parentEntity = cfg.parentEntitySlug ? tables.find((t) => t.slug === cfg.parentEntitySlug) || null : null;
       setQuickCmd({ cmd, entity, parentEntity });
     } else {

@@ -230,8 +230,8 @@ Logue como cada um (janelas separadas) e confira. A mesma matriz é testada dire
 | 3 | Marcar "Nome" como **Obrigatório** e "Email" como **Único** → "Salvar" | ✅ salvo |
 | 4 | Criar tabela **"Visitas"** do zero com campos Data, Texto ("Resumo") | ✅ |
 | 5 | Em "Clientes", adicionar campo **Sub-entidade** apontando para `visitas` | ✅ Visitas vira sub-tabela de Clientes |
-| 6 | Criar tabela pelo template **Ordem de Servico** ("Operações") | ✅ tabela + automações do template |
-| 7 | Mesmo nome de tabela de novo | ✅ "Entidade com este slug ja existe" |
+| 6 | Criar tabela pelo template **Inspecao** ("Operações") | ✅ tabela + automações do template |
+| 7 | 🔧 Mesmo nome de tabela de novo | ✅ "Entidade com este slug ja existe" |
 | 8 | Lista *Tabelas* | ✅ cartões "N campos · N registros · categoria" |
 | 9 | Abrir o editor no celular (largura pequena) | ✅ "Edite no computador" |
 | 10 | 🔧 Abas do editor: **Campos**, **Regras de campo**, **Filtro global**, **Automações**, **Excluir** | ✅ todas aparecem; trocar de aba não perde campos não salvos |
@@ -299,7 +299,7 @@ Logue como cada um (janelas separadas) e confira. A mesma matriz é testada dire
 | 1 | *Modelos de PDF* → novo: "Ficha do cliente", slug `ficha-cliente`, **Individual**, fonte Clientes, A4 | ✅ "Criar e Continuar" abre o editor |
 | 2 | Slug com maiúscula | ✅ "Slug deve conter apenas letras minusculas…" |
 | 2b | 🔧 "Criar e Continuar" | ✅ abre o editor em `/{idioma}/{empresa}/gestao/pdf-templates/:id` |
-| 3 | No editor: Texto (título), Campo (Nome), Grupo de Campos, Divisor → "Preview" → "Salvar" → **Publicar** | ✅ selo muda de "Rascunho" para publicado |
+| 3 | No editor: Texto (título), Grupo de Campos (Nome), Divisor → "Preview" → "Salvar" → **Publicar** | ✅ selo muda de "Rascunho" para publicado |
 | 4 | Criar "Lista de clientes" **Lote** e publicar | ✅ |
 | 5 | Lista → "Duplicar" e "Excluir" a cópia | ✅ "Template duplicado…" / "Template excluido…" |
 | 6 | "Gerar" num modelo publicado (depois de ter registros) | ✅ contador "N registro(s)…"; gera PDF |
@@ -333,12 +333,12 @@ Logue como cada um (janelas separadas) e confira. A mesma matriz é testada dire
 | 1 | "Novo webhook" URL `http://localhost:8080/x` | ✅ "A URL aponta para um endereco interno" |
 | 2 | URL `http://169.254.169.254/latest` | ✅ mesmo bloqueio |
 | 3 | URL `ftp://exemplo.com` | ✅ "A URL precisa comecar com http:// ou https://" |
-| 4 | URL de teste pública (ex.: um endereço do webhook.site), tabela Clientes, eventos Criado + Editado | ✅ "Webhook salvo" |
+| 4 | URL que responda 200 ao POST (ex.: `https://dev.iossystem.com.br/pt-BR/login`; um receptor como webhook.site só se quiser conferir o header do passo 6), tabela Clientes, eventos Criado + Editado | ✅ "Webhook salvo" |
 | 5 | "Testar" | ✅ "Teste enviado: o destino respondeu 200." |
 | 6 | Criar/editar um cliente (O-06) → "Envios" | ✅ envios listados; no destino chega o POST com header `X-Webhook-Signature` |
 
 ### E-16 Integrações — automações
-- [ ] Aba *Automações*: lista as automações criadas pelo template "Ordem de Servico".
+- [ ] Aba *Automações*: lista as automações criadas pelo template "Inspecao".
 - [ ] 🔧 "Editar na tabela" abre o editor direto na aba **Automações** (Automações de evento e agendadas).
 - [ ] 🔧 Ação "Executar Script" não aparece mais. Via API, criar automação com `run_script` → ✅ "Tipo de acao invalido". Automação antiga com essa ação → ✅ falha na execução com "A acao run_script foi desativada por seguranca".
 
@@ -431,8 +431,8 @@ Logue como cada um (janelas separadas) e confira. A mesma matriz é testada dire
 | # | Ação | Esperado |
 |---|---|---|
 | 1 | "Importar" → arquivo `.csv` | ✅ "Formato não suportado. Use .xlsx ou .json" |
-| 2 | `.xlsx` de 5 linhas → mapear colunas → "Importar 5 registro(s)" | ✅ "4 importado(s)", "1 erro(s)", "Linha X: …" |
-| 3 | "Exportar" → Excel | ✅ `Clientes_AAAA-MM-DD.xlsx`; "N registros exportados" |
+| 2 | 🔧 `.xlsx` de 5 linhas → mapear colunas → "Importar 5 registro(s)" | ✅ o diálogo continua aberto com "4 importado(s)", "1 erro(s)", "Linha X: …" |
+| 3 | "Exportar" → Excel | ✅ `Clientes_AAAA-MM-DD.xlsx`; sem seleção, "Todos os registros exportados" |
 | 4 | Selecionar 2 linhas → Exportar JSON | ✅ só os 2 |
 | 5 | Exportar → PDF "Ficha do cliente" sem seleção | ✅ desabilitado ("selecione") |
 | 6 | Selecionar 1 → PDF individual | ✅ "PDF gerado com sucesso" |
@@ -698,7 +698,7 @@ Para a **exportação**, crie um cargo "Equipe campo + Exportar" e dê ao Bruno 
 |---|---|---|
 | 1 | Detalhe QA Total → Bruno → "Entrar como" | ✅ abre `/qa-total/home` como Bruno com faixa laranja "Você está impersonando Bruno (por Sérgio (equipe))" |
 | 2 | Ver registros | ✅ exatamente o que o Bruno vê (X-01) |
-| 3 | Configurações › Segurança → trocar senha | ✅ "Acao sensivel bloqueada em sessao de impersonacao: trocar a senha" |
+| 3 | Configurações › Perfil → trocar senha | ✅ "Acao sensivel bloqueada em sessao de impersonacao: trocar a senha" |
 | 4 | Bruno (na conta dele) → Aparelhos conectados | ✅ sessão com selo "Suporte: Sérgio (equipe)" |
 | 5 | 🔧 "Sair da impersonação" | ✅ volta para `/admin/tenants/{id}`; a sessão some dos aparelhos do Bruno. Com a sessão aberta, desativar o Sérgio → ✅ o próximo refresh falha ("Sessao de suporte encerrada") |
 | 6 | Auditoria do console | ✅ "entrou como usuário" com IP |
@@ -927,6 +927,7 @@ Os problemas achados na montagem e na auditoria deste roteiro foram corrigidos (
 | B-24 | Vazamentos | PDF, sugestões do chat e arquivados seguem escopo e campos; socket envia só o id e recusa sala alheia | X-01, X-05 |
 | B-25 | Console | "Adicionar membro" não muda cargo de quem já é membro; "Entrar como" dura 1 dia e cai com o staff desativado | P-10, P-11/5 |
 | B-26 | App | Excluir chega ao servidor; POST idempotente; 401 mantém a fila; "Sair" e sessão encerrada não voltam sozinhos | M-03/11, M-04/9-11, M-07/2b, /8, /9 |
+| B-29 | Web e API | Excluir pessoa libera o cargo; comando criado pela tela abre a captura rápida; Auditor abre as telas de log; importação mostra as linhas com erro; importação, troca de senha e nome repetido mostram a mensagem da API; plural de tabela | E-08/19, O-13/4, E-19, O-09/2, O-09/10, P-11/3, E-06/7, O-14/6 |
 | B-28 | Web | Coluna e formulário escondem o campo negado; idioma mantém a empresa; "Criar e Continuar" abre o editor; lista mostra o rótulo da seleção; data final da auditoria inclui o dia | O-06/3, /6, O-16, E-11/2b, E-19 |
 | B-27 | Plano e menus | Desativar ou excluir libera vaga; Gerente exporta; cartões e menu seguem a permissão real | E-08/17-18, O-09/8, O-02, E-20 |
 

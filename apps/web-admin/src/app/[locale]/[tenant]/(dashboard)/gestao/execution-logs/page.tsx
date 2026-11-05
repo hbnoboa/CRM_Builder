@@ -38,12 +38,12 @@ const STATUS_CONFIG: Record<string, { label: string; icon: typeof CheckCircle; c
 
 export default function ExecutionLogsPage() {
   const { modulePermissions, hasModulePermission, isAdmin } = usePermissions();
-  // Espelha o guard da API (execution-logs.controller): logs.canRead + logs.executionLogs.canRead
+  // Espelha o guard da API (execution-logs.controller): logs.canRead; sem bloco proprio, executionLogs herda o grupo
   // (ou acesso total ao tenant).
   const executionLogsPerm = ((modulePermissions as Record<string, unknown>).logs as Record<string, unknown> | undefined)?.executionLogs as
     | { canRead?: boolean }
     | undefined;
-  const canReadExecutionLogs = isAdmin || (hasModulePermission('logs', 'canRead') && executionLogsPerm?.canRead === true);
+  const canReadExecutionLogs = isAdmin || (hasModulePermission('logs', 'canRead') && (executionLogsPerm === undefined || executionLogsPerm.canRead === true));
 
   const [page, setPage] = useState(1);
   const [typeFilter, setTypeFilter] = useState<string>('');

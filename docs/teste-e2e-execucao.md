@@ -1,12 +1,29 @@
 # Execução do roteiro E2E em dev
 
-Registro da rodada de 04/11/2026 de `docs/teste-e2e-completo.md` em `https://dev.iossystem.com.br`.
+Registro das rodadas de `docs/teste-e2e-completo.md`. Este arquivo é atualizado a cada etapa.
 
-- **Commit testado:** `19e6f25` (`develop`, PR #28).
-- **Como rodou:** testes HTTP e Playwright headless com o Chrome do sistema.
+- **Ambiente:** `https://dev.iossystem.com.br` e, antes de cada PR, o ambiente local em cópia do banco.
+- **Como roda:** testes HTTP e Playwright headless com o Chrome do sistema.
 - **Não rodou:** o app no celular. Ver "O que não foi testado".
 
-## Resumo
+## Situação atual (04/11/2026)
+
+- **Em dev:** PR #29 (`f399d44`) confirmado: 63 de 63 nas telas e 174 de 174 na API.
+- **Em andamento:** terceira leva de correções (8 bugs), na branch `fix/e2e-round3`. Passou no teste local e segue para PR, merge e deploy. A confirmação em dev entra aqui quando terminar.
+- **Atenção:** existe a conta "QA Claude (temporario)" ativa como dona do console de dev. Não foi criada nestas rodadas nem alterada. Falta decidir se continua ativa.
+
+## Histórico
+
+| Etapa | O que aconteceu |
+|---|---|
+| PR #28 | Correções da auditoria: segurança, vazamentos, app, roteiro e testes de API. Merge e deploy em dev (`19e6f25`) |
+| Rodada 1 em dev | Testes abaixo, em `19e6f25` |
+| PR #29 | 5 bugs de tela e throttle. Teste local, depois merge e deploy em dev (`f399d44`) |
+| Telas pendentes | 52 testes em `19e6f25`: 8 bugs novos e ajustes no roteiro |
+| Confirmação em dev (`f399d44`) | Telas 63 de 63 e API 174 de 174. Inclui `O-06/3`, `O-06/6`, `E-11/2b`, `O-16`, `E-19`, "Não" e `P-11` |
+| `fix/e2e-round3` no local | Telas pendentes: 46 de 49 na rodada, e `P-11/3` passou depois de corrigir o hook. `P-18` só falha na cópia local (sem `_prisma_migrations`). `E-15/4-6` falhou no local e fica para conferir em dev |
+
+## Resumo da rodada 1 (`19e6f25`)
 
 | Bloco | Arquivo | Testes | Resultado |
 |---|---|---|---|
@@ -17,9 +34,30 @@ Registro da rodada de 04/11/2026 de `docs/teste-e2e-completo.md` em `https://dev
 
 Alguns testes tiveram defeitos próprios, corrigidos antes das rodadas finais. O seletor de `P-11` foi corrigido, mas o teste ainda não rodou de novo: **`P-11` na tela segue sem confirmação**.
 
-## Bugs encontrados nesta rodada
+## Telas pendentes (`19e6f25`)
 
-Todos corrigidos no código depois do commit testado. **A correção só vale em dev depois de novo deploy, e ainda não foi testada.**
+Arquivo: `e2e/ui/roteiro-pendentes.spec.ts`. A versão final tinha 52 testes, 12 com falha esperada: 9 por bugs do app e 3 por passos errados do roteiro. A última alteração do spec só foi conferida nos 3 testes afetados.
+
+Passaram: `P-02`, `P-03`, `P-04`, `P-11/1,2,4-7`, `P-13`, `P-14`, `P-18`, `E-04/2,4,6`, `E-06/1-5,8,11-13`, `E-11/4-6`, `E-12/1-3`, `E-15/4-5`, `E-17`, `O-07/2`, `O-09/1,4-7`, `O-12/6-8`, `O-13/1-3,5,6`, `O-14/1-7`, `O-18/1-7,9,10`.
+
+| Bug | Onde aparece | Correção (`fix/e2e-round3`) |
+|---|---|---|
+| Cargo com pessoa excluída continua contando e não pode ser removido | `E-08/19` | Excluir encerra o vínculo; a contagem ignora pessoa excluída |
+| Comando criado pela tela nunca abre a captura rápida | `O-13/4` | Abre com `formFields` ou `quickFields` |
+| Auditor vê os menus, mas as telas de log dizem "Acesso Restrito" | `E-19` | A tela segue a regra da API: o sub-módulo herda do grupo |
+| O resultado da importação some | `O-09/2` | O diálogo continua aberto com as linhas com erro |
+| Erro de limite na importação mostra "Request failed…403" | `O-09/10` | Mostra a mensagem da API |
+| Troca de senha mostra a mesma mensagem genérica | `P-11/3` | Mostra a mensagem da API |
+| Nome de tabela repetido mostra mensagem genérica | `E-06/7` | Mostra a mensagem da API |
+| Plural errado: "Clientess" | `O-14/6` | Nome terminado em "s" não ganha outro; a tela mostra o nome da tabela |
+
+Passos do roteiro ajustados: `P-11/3`, `E-06/6`, `E-16`, `E-11/3`, `O-09/3`, `E-15/4`.
+
+Não testados nesta tela: a parte final de `P-11/5`, `O-18/8` (passou por API), `P-14/1` por telefone e o header `X-Webhook-Signature` de `E-15/6`, por falta de receptor.
+
+## Bugs da rodada 1
+
+Corrigidos no PR #29 e confirmados em dev (`f399d44`).
 
 | ID | Problema | Correção |
 |---|---|---|
@@ -47,7 +85,7 @@ Todos corrigidos no código depois do commit testado. **A correção só vale em
 ## O que não foi testado
 
 - **App:** toda a seção 5 (`M-*`), `X-03`, `S-02/2`, a sessão de app em `S-03/1` e `P-16/3` no app. Exige build novo apontando para dev.
-- **Tela:** `P-11` (sem confirmação), `E-04/2,4,6`, `E-06/1-8,11-13`, `E-11/3-6`, `E-12/1-3`, `E-15/4-6`, `E-17`, `O-07/2` (Cards e Timeline), `O-09/1-7,10`, `O-12/6-8`, `O-13`, `O-14/1-7`, `O-18` e `P-13` na tela, `P-02`, `P-03`, `P-04`, `P-14` e `P-18` na tela, `E-19` com cargo Auditor.
+- **Tela:** só restam os casos listados em "Telas pendentes".
 - **E-mail:** `S-05`, `P-14/4` e os passos com 📧: dev não tem SMTP.
 - **Cron:** `L-04/8`, que apaga a empresa depois do prazo.
 
@@ -85,7 +123,8 @@ Empresas: `qa-total-r1` (plano QA Básico r1) e `qa-console-r1` (plano QA Mínim
 
 - Empresas e pessoas "QA API …" de cada rodada, porque não há rota para excluir empresa.
 - 20 planos `qa-api-*`, todos inativos.
-- Em `qa-total-r1`: chamados "UI …" resolvidos, mensagens "UI …" no canal Clientes e na conversa Ana–Gil, auditoria e notificações, sessões extras do Gil.
+- Em `qa-total-r1`: chamados "UI …" resolvidos, mensagens "UI …" no canal Clientes e na conversa Ana–Gil, auditoria e notificações, sessões extras do Gil, 161 KB de armazenamento de logos de teste.
+- O cargo `UI PEND residuo Publico - Clientes…` e contas excluídas `ui.pend.*`. Depois do deploy da terceira leva, o cargo pode ser removido.
 - Equipe de teste do console: Paula, Sérgio, Fábio e Lia continuam ativos. Os staff temporários dos testes foram removidos.
 
 ## Como repetir
@@ -99,4 +138,4 @@ pnpm test:seed
 pnpm test:ui-roteiro
 ```
 
-Depois do próximo deploy, tire o `test.fail()` dos casos corrigidos em `e2e/ui/roteiro-flows.spec.ts`.
+Para testar no ambiente local, use `e2e/.env.localtest.local` (API `:3101`, web `:3100`) com a cópia `crm_e2e` do banco e um Redis próprio. A cópia veio por `db push`, sem `_prisma_migrations`, por isso `P-06 saude` falha só nela.
