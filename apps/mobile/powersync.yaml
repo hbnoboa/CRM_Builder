@@ -261,7 +261,7 @@ sync_rules:
         data:
           - SELECT id, "tenantId", "channelId", "senderId", type, content, meta, "createdAt"
             FROM "Message"
-            WHERE "channelId" = bucket.channel_id
+            WHERE "channelId" = bucket.channel_id AND "recipientId" IS NULL
 
       # Mensagens de grupo/record COM filtro de role.
       chat_messages_role:
@@ -274,7 +274,7 @@ sync_rules:
         data:
           - SELECT id, "tenantId", "channelId", "senderId", type, content, meta, "createdAt"
             FROM "Message"
-            WHERE "channelId" = bucket.channel_id
+            WHERE "channelId" = bucket.channel_id AND "recipientId" IS NULL
 
       # Mensagens de thread de registro para cargos scope='own' (so o dono).
       chat_messages_record_own:
@@ -288,7 +288,7 @@ sync_rules:
         data:
           - SELECT id, "tenantId", "channelId", "senderId", type, content, meta, "createdAt"
             FROM "Message"
-            WHERE "channelId" = bucket.channel_id
+            WHERE "channelId" = bucket.channel_id AND "recipientId" IS NULL
 
       # Mensagens de thread de registro para cargos scope='team'. Sem JOIN: a
       # mensagem carrega a copia das chaves do canal (vazia em canal excluido).
@@ -301,7 +301,7 @@ sync_rules:
         data:
           - SELECT id, "tenantId", "channelId", "senderId", type, content, meta, "createdAt"
             FROM "Message"
-            WHERE "tenantId" = bucket.tenant_id
+            WHERE "tenantId" = bucket.tenant_id AND "recipientId" IS NULL
               AND bucket.team_key IN "_visibleTeamKeysJson"
 
       # Mensagens de DM por membership.
@@ -313,7 +313,20 @@ sync_rules:
         data:
           - SELECT id, "tenantId", "channelId", "senderId", type, content, meta, "createdAt"
             FROM "Message"
-            WHERE "channelId" = bucket.channel_id
+            WHERE "channelId" = bucket.channel_id AND "recipientId" IS NULL
+
+      # Mensagens PRIVADAS dentro de um canal (resultado de /consulta, relatorio,
+      # conversa com o @bot): so quem pediu recebe. Os buckets acima levam so
+      # "recipientId" IS NULL (migration 20261117000000_message_recipient).
+      chat_private_messages:
+        parameters: |
+          SELECT
+            request.user_id() as user_id,
+            request.jwt() ->> 'tenantId' as tenant_id
+        data:
+          - SELECT id, "tenantId", "channelId", "senderId", type, content, meta, "createdAt"
+            FROM "Message"
+            WHERE "recipientId" = bucket.user_id AND "tenantId" = bucket.tenant_id
 
       # Comandos SEM allowlist (visíveis a todos os cargos).
       chat_commands_unrestricted:

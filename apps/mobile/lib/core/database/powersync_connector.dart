@@ -9,6 +9,7 @@ import 'package:crm_mobile/core/config/env.dart';
 import 'package:crm_mobile/core/network/api_client.dart';
 import 'package:crm_mobile/core/network/plan_errors.dart';
 import 'package:logger/logger.dart';
+import 'package:crm_mobile/core/auth/token_refresher.dart';
 
 final _logger = Logger(printer: SimplePrinter());
 
@@ -168,26 +169,10 @@ class CrmPowerSyncConnector extends PowerSyncBackendConnector {
     }
   }
 
-  /// Use refresh token to get new access token.
+  /// Use refresh token to get new access token (renovacao unica do app).
   Future<String?> _refreshToken() async {
     try {
-      final refreshToken = await SecureStorage.getRefreshToken();
-      if (refreshToken == null) return null;
-
-      final refreshDio = Dio(BaseOptions(baseUrl: Env.apiUrl));
-      final response = await refreshDio.post(
-        '/auth/refresh',
-        data: {'refreshToken': refreshToken},
-      );
-
-      final newAccessToken = response.data['accessToken'] as String;
-      final newRefreshToken = response.data['refreshToken'] as String;
-
-      await SecureStorage.setTokens(
-        accessToken: newAccessToken,
-        refreshToken: newRefreshToken,
-      );
-
+      final newAccessToken = await TokenRefresher.refresh();
       _logger.i('PowerSync: token refreshed successfully');
       return newAccessToken;
     } catch (e) {

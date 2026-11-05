@@ -564,13 +564,18 @@ export class ChatService {
     return messages.map((m) => ({ ...m, senderName: m.senderId ? (nameById.get(m.senderId) ?? null) : null }));
   }
 
+  /** Mensagens do canal + as privadas desta pessoa (resultado de /consulta, @bot). */
+  private visibleTo(user: CurrentUser): Prisma.MessageWhereInput {
+    return { OR: [{ recipientId: null }, { recipientId: user.id }] };
+  }
+
   async getMessages(user: CurrentUser, channelId: string, limit = 50, before?: string, after?: string) {
     await this.assertAccess(user, channelId);
     const take = Math.min(limit, 200);
     const afterDate = after ? new Date(after) : null;
     if (afterDate && !isNaN(afterDate.getTime())) {
       const asc = await this.prisma.message.findMany({
-        where: { channelId, createdAt: { gt: afterDate } },
+        where: { channelId, createdAt: { gt: afterDate }, ...this.visibleTo(user) },
         orderBy: { createdAt: 'asc' },
         take,
       });
@@ -580,6 +585,7 @@ export class ChatService {
     const messages = await this.prisma.message.findMany({
       where: {
         channelId,
+        ...this.visibleTo(user),
         ...(beforeDate && !isNaN(beforeDate.getTime()) ? { createdAt: { lt: beforeDate } } : {}),
       },
       orderBy: { createdAt: 'desc' },
@@ -605,6 +611,7 @@ export class ChatService {
       SELECT "id", "senderId", "type", "content", "meta", "createdAt"
       FROM "Message"
       WHERE "channelId" = ${channelId}
+        AND ("recipientId" IS NULL OR "recipientId" = ${user.id})
         AND f_unaccent(content) ILIKE f_unaccent(${like})
       ORDER BY "createdAt" DESC
       LIMIT ${take}
@@ -1184,6 +1191,7 @@ export class ChatService {
       const message = await this.prisma.message.create({
         data: {
           tenantId: user.tenantId, channelId, senderId: user.id, type: 'query_result',
+          recipientId: user.id, // resultado com dados do cargo de quem pediu: so ele ve
           content: `/${tpl.slug} — ${total} resultado(s)`,
           meta: {
             templateSlug: tpl.slug, entitySlug, total,
@@ -1275,6 +1283,7 @@ export class ChatService {
     const message = await this.prisma.message.create({
       data: {
         tenantId: user.tenantId, channelId, senderId: user.id, type: 'report',
+        recipientId: user.id,
         content: `Relatório /${tpl.slug} — ${format.toUpperCase()} (${total} registro(s))`,
         meta: { templateSlug: tpl.slug, entitySlug, total, format, filename, contentType, ...(fileUrl ? { url: fileUrl } : {}) } as Prisma.InputJsonValue,
       },
@@ -1326,7 +1335,8 @@ export class ChatService {
 
     // Posta a pergunta do usuário (transparência no feed).
     await this.prisma.message.create({
-      data: { tenantId: user.tenantId, channelId, senderId: user.id, type: 'command', content: rawMessage },
+      // Conversa com o bot e privada: responde com as permissoes de quem perguntou.
+      data: { tenantId: user.tenantId, channelId, senderId: user.id, type: 'command', content: rawMessage, recipientId: user.id },
     });
 
     const channelEntity = channel.entityId
@@ -1369,6 +1379,7 @@ export class ChatService {
         tenantId: user.tenantId,
         channelId,
         senderId: null, // bot
+        recipientId: user.id,
         type: 'bot',
         content: reply,
         meta: {
@@ -1436,7 +1447,7 @@ export class ChatService {
   /** Acha a ação pendente mais recente no canal e executa (só quem pediu confirma). */
   private async confirmPending(user: CurrentUser, channelId: string): Promise<string> {
     const recent = await this.prisma.message.findMany({
-      where: { channelId, type: 'bot' }, orderBy: { createdAt: 'desc' }, take: 10,
+      where: { channelId, type: 'bot', recipientId: user.id }, orderBy: { createdAt: 'desc' }, take: 10,
     });
     const msg = recent.find((m) => {
       const p = (m.meta as { pendingAction?: { done?: boolean } } | null)?.pendingAction;

@@ -42,7 +42,8 @@ export default function ProfilePage() {
 
   const mutation = useMutation({
     mutationFn: async (form: FormData) => {
-      await api.put('/users/me', form);
+      // PUT /users/me nao existe; e-mail nao muda por aqui (so o nome).
+      await api.patch('/auth/profile', { name: form.name });
     },
   });
 
@@ -112,7 +113,8 @@ export default function ProfilePage() {
                   <Input
                     placeholder="Email"
                     {...register('email')}
-                    disabled={mutation.isPending}
+                    readOnly
+                    className="bg-muted"
                     data-testid="input-email-profile"
                   />
                   {errors.email && (

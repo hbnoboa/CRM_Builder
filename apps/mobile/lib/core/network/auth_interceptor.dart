@@ -1,6 +1,6 @@
 import 'package:dio/dio.dart';
 import 'package:crm_mobile/core/auth/secure_storage.dart';
-import 'package:crm_mobile/core/config/env.dart';
+import 'package:crm_mobile/core/auth/token_refresher.dart';
 import 'package:crm_mobile/core/network/plan_errors.dart';
 
 /// Mirrors web-admin's api.ts interceptors:
@@ -40,26 +40,13 @@ class AuthInterceptor extends QueuedInterceptor {
     _isRefreshing = true;
 
     try {
-      final refreshToken = await SecureStorage.getRefreshToken();
-      if (refreshToken == null) {
+      if (await SecureStorage.getRefreshToken() == null) {
         await _forceLogout();
         return handler.next(err);
       }
 
-      // Call refresh endpoint (use a clean Dio to avoid interceptor loop)
-      final refreshDio = Dio(BaseOptions(baseUrl: Env.apiUrl));
-      final response = await refreshDio.post(
-        '/auth/refresh',
-        data: {'refreshToken': refreshToken},
-      );
-
-      final newAccessToken = response.data['accessToken'] as String;
-      final newRefreshToken = response.data['refreshToken'] as String;
-
-      await SecureStorage.setTokens(
-        accessToken: newAccessToken,
-        refreshToken: newRefreshToken,
-      );
+      // Renovacao unica compartilhada (ver TokenRefresher).
+      final newAccessToken = await TokenRefresher.refresh();
 
       // Retry original request with new token
       final options = err.requestOptions;

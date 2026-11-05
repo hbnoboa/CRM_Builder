@@ -1339,10 +1339,14 @@ model Message {
   createdAt DateTime @default(now())
   // Copia das chaves de equipe do canal (thread de registro) p/ o bucket do PowerSync.
   visibleTeamKeysJson Json @default("[]") @map("_visibleTeamKeysJson")
+  // Mensagem privada no canal (resultado de /consulta, relatorio, conversa com o @bot):
+  // so esta pessoa ve. null = todo o canal.
+  recipientId String?
 
   channel Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
 
   @@index([channelId, createdAt])
+  @@index([recipientId])
 }
 
 // CommandTemplate: comandos do chat (Trilho A: form-command; Trilho B: bot).
