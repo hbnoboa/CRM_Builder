@@ -9,6 +9,7 @@ import { AuthController } from './auth.controller';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { UserModule } from '../user/user.module';
 import { TenantModule } from '../tenant/tenant.module';
+import { SolutionsModule } from '../solutions/solutions.module';
 
 @Module({
   imports: [
@@ -26,6 +27,7 @@ import { TenantModule } from '../tenant/tenant.module';
     }),
     UserModule,
     TenantModule,
+    SolutionsModule,
   ],
   controllers: [AuthController, AccountSecurityController, CompanySecurityController],
   providers: [AuthService, JwtStrategy, AccountSecurityService],

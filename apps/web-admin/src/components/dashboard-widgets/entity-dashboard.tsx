@@ -79,7 +79,7 @@ function renderWidget(
 
   switch (widgetConfig.type as WidgetType) {
     case 'kpi-card':
-      return <KpiCardWidget {...commonProps} />;
+      return <KpiCardWidget {...commonProps} entityFields={effectiveFields} />;
     case 'number-card':
       return <NumberCardWidget {...commonProps} />;
     case 'area-chart':

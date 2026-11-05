@@ -78,7 +78,7 @@
   },
   "auth": {
     "login": {
-      "title": "CRM Builder",
+      "title": "Inicia sesión en tu cuenta",
       "subtitle": "Ingresa tus credenciales para acceder al panel",
       "email": "Correo electrónico",
       "emailPlaceholder": "tu@email.com",
@@ -93,7 +93,7 @@
       "tenantSuspended": "El acceso de esta empresa está suspendido. Contacta al administrador o a soporte."
     },
     "register": {
-      "title": "CRM Builder",
+      "title": "Crea tu cuenta",
       "subtitle": "Crea tu empresa y pruébala gratis por {days} días",
       "name": "Nombre",
       "namePlaceholder": "Tu nombre completo",

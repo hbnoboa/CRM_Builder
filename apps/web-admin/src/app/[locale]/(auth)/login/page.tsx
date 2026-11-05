@@ -14,7 +14,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
 import { useAuthStore } from '@/stores/auth-store';
 import { getDefaultRouteForUser } from '@/hooks/use-permissions';
-import { LanguageSwitcher } from '@/components/language-switcher';
+import { AuthShell } from '@/components/auth/auth-shell';
 
 type LoginForm = {
   email: string;
@@ -94,17 +94,9 @@ function LoginPageContent() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-4">
-      <Card className="w-full max-w-md">
-        <CardHeader className="space-y-1 text-center">
-          <div className="flex justify-end mb-2">
-            <LanguageSwitcher />
-          </div>
-          <div className="flex justify-center mb-4">
-            <div className="w-12 h-12 rounded-lg bg-primary flex items-center justify-center">
-              <span className="text-2xl font-bold text-primary-foreground">C</span>
-            </div>
-          </div>
+    <AuthShell>
+      <Card className="w-full border-0 shadow-none">
+        <CardHeader className="space-y-1 px-0">
           <CardTitle className="text-2xl font-bold">{t('title')}</CardTitle>
           <CardDescription>
             {t('subtitle')}
@@ -112,7 +104,7 @@ function LoginPageContent() {
         </CardHeader>
         {mfaToken ? (
           <form onSubmit={submitCode} data-testid="mfa-step">
-            <CardContent className="space-y-4">
+            <CardContent className="space-y-4 px-0">
               {error && <div className="p-3 text-sm text-red-500 bg-red-50 dark:bg-red-950 rounded-md">{error}</div>}
               <p className="text-sm text-muted-foreground">{tMfa('prompt')}</p>
               <div className="space-y-2">
@@ -130,8 +122,8 @@ function LoginPageContent() {
                 <p className="text-xs text-muted-foreground">{tMfa('recoveryHint')}</p>
               </div>
             </CardContent>
-            <CardFooter className="flex flex-col gap-2">
-              <Button type="submit" className="w-full" disabled={isLoading || code.trim().length < 6}>
+            <CardFooter className="flex flex-col gap-2 px-0">
+              <Button type="submit" className="w-full bg-orange-600 text-white hover:bg-orange-700" disabled={isLoading || code.trim().length < 6}>
                 {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 {tMfa('verify')}
               </Button>
@@ -142,7 +134,7 @@ function LoginPageContent() {
           </form>
         ) : (
         <form onSubmit={handleSubmit(onSubmit)}>
-          <CardContent className="space-y-4">
+          <CardContent className="space-y-4 px-0">
             {suspended && !error && (
               <div className="p-3 text-sm text-amber-900 bg-amber-50 dark:bg-amber-950 dark:text-amber-100 rounded-md" data-testid="tenant-suspended-message">
                 {t('tenantSuspended')}
@@ -211,15 +203,15 @@ function LoginPageContent() {
               </label>
               <Link
                 href="/forgot-password"
-                className="text-sm text-primary hover:underline"
+                className="text-sm text-orange-600 hover:underline"
               >
                 {t('forgotPassword')}
               </Link>
             </div>
           </CardContent>
 
-          <CardFooter className="flex flex-col gap-4">
-            <Button type="submit" className="w-full" disabled={isLoading}>
+          <CardFooter className="flex flex-col gap-4 px-0">
+            <Button type="submit" className="w-full bg-orange-600 text-white hover:bg-orange-700" disabled={isLoading}>
               {isLoading ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -231,7 +223,7 @@ function LoginPageContent() {
             </Button>
             <p className="text-sm text-muted-foreground" data-testid="login-register-link">
               {t('noAccount')}{' '}
-              <Link href="/register" className="text-primary hover:underline">
+              <Link href="/register" className="font-medium text-orange-600 hover:underline">
                 {t('createAccount')}
               </Link>
             </p>
@@ -239,6 +231,6 @@ function LoginPageContent() {
         </form>
         )}
       </Card>
-    </div>
+    </AuthShell>
   );
 }

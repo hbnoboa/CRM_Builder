@@ -228,3 +228,29 @@ As 50 migrations antigas foram trocadas por `apps/api/prisma/migrations/00000000
   4. Marcar o baseline: `DATABASE_URL="$PROD_URL" npx prisma migrate resolve --applied 00000000000000_baseline`.
   5. Só então rodar o deploy de prod. Sem o passo 4, o `migrate deploy` do deploy tenta criar o
      schema de novo, falha e o deploy para antes de trocar o código (nada quebra, mas não sobe).
+
+## Modelos de solução (página inicial e cadastro com modelo)
+
+A página inicial oferece modelos prontos (Vistoria veicular, Ordem de serviço, CRM de vendas B2B,
+Chamados e manutenção). Cada modelo é uma **empresa-modelo** no próprio ambiente, montada pela API
+a partir de `apps/api/prisma/solutions/*.ts`. No cadastro com `?modelo=<slug>`, a API copia dessa
+empresa as tabelas, cargos, painéis, PDFs (já publicados), comandos do chat e, se a pessoa quiser,
+os registros de exemplo (todos fictícios).
+
+Montar as empresas-modelo (uma vez por ambiente, depois do deploy):
+
+```bash
+cd apps/api
+SOLUTIONS_API=https://<ambiente>/api/v1 SOLUTIONS_PASSWORD='<senha forte>' \
+  npx ts-node --transpile-only prisma/solutions/build.ts            # todos os modelos
+# ou: ... build.ts vistoria-veicular ordem-servico                   # só alguns
+```
+
+- O dono de cada empresa-modelo é `modelos+<slug>@iossystem.com.br` (é assim que a API acha o modelo).
+  Guarde a senha: é com ela que se edita o modelo depois (entrar como esse usuário).
+- Se a empresa-modelo já tem as tabelas, o script não refaz nada. Para remontar, encerre a empresa
+  antiga no console e rode de novo.
+- `GET /api/v1/solutions` mostra quais modelos estão disponíveis (`available`). Modelo não montado
+  some da escolha no cadastro; quem chegar com `?modelo=` dele começa em branco.
+- `SOLUTIONS_TAG` (opcional, só testes): monta `modelos+<slug>-<tag>@...`; a API com a mesma variável
+  usa essa montagem.
