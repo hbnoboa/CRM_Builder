@@ -54,6 +54,7 @@ import { api } from '@/lib/api';
 import { RecordFormDialog } from './record-form-dialog';
 import { cn } from '@/lib/utils';
 import type { EntityField } from '@/types';
+import { formatFieldValue, type FieldType } from '@crm-builder/shared';
 
 interface SubEntityFieldEnhancedProps {
   parentRecordId: string;
@@ -188,7 +189,7 @@ export default function SubEntityFieldEnhanced({
     if (searchQuery) {
       filtered = filtered.filter(record => {
         const searchableText = displayFields
-          .map(field => formatCellValue(record.data[field], tBool('yes'), tBool('no')))
+          .map(field => displayValue(field, record.data[field]))
           .join(' ')
           .toLowerCase();
         return searchableText.includes(searchQuery.toLowerCase());
@@ -218,6 +219,20 @@ export default function SubEntityFieldEnhanced({
   const getFieldType = (slug: string) => {
     const field = subEntity?.fields?.find(f => (f.slug || f.name) === slug);
     return field?.type || 'text';
+  };
+
+  // Rotulo da opcao, data/moeda no formato local e Sim/Nao (como na tabela de registros)
+  const displayValue = (slug: string, val: unknown): string => {
+    const field = subEntity?.fields?.find(f => (f.slug || f.name) === slug);
+    if (field?.options?.length && (typeof val === 'string' || typeof val === 'number')) {
+      const opt = (field.options as Array<string | { value: string; label: string }>)
+        .find((o) => (typeof o === 'string' ? o : String(o.value)) === String(val));
+      if (opt) return typeof opt === 'string' ? opt : opt.label;
+    }
+    if (field && ['date', 'datetime', 'currency', 'number', 'percentage'].includes(field.type) && val !== null && val !== undefined && val !== '') {
+      return formatFieldValue(val, { type: field.type as FieldType, emptyValue: '-' });
+    }
+    return formatCellValue(val, tBool('yes'), tBool('no'));
   };
 
   const handleCreate = () => {
@@ -458,7 +473,7 @@ export default function SubEntityFieldEnhanced({
                         <tr key={record.id} className="hover:bg-muted/30 transition-colors">
                           {displayFields.map(field => {
                             const value = record.data[field];
-                            const formatted = (record as unknown as { _formatted?: Record<string, unknown> })._formatted?.[field] as string ?? formatCellValue(value, tBool('yes'), tBool('no'));
+                            const formatted = (record as unknown as { _formatted?: Record<string, unknown> })._formatted?.[field] as string ?? displayValue(field, value);
                             const fieldType = getFieldType(field);
 
                             return (
@@ -525,7 +540,7 @@ export default function SubEntityFieldEnhanced({
                         <div className="flex items-start justify-between gap-2">
                           <div className="flex-1 min-w-0">
                             <div className="font-medium text-sm truncate">
-                              {(record as unknown as { _formatted?: Record<string, unknown> })._formatted?.[displayFields[0]] as string ?? formatCellValue(record.data[displayFields[0]], tBool('yes'), tBool('no'))}
+                              {(record as unknown as { _formatted?: Record<string, unknown> })._formatted?.[displayFields[0]] as string ?? displayValue(displayFields[0], record.data[displayFields[0]])}
                             </div>
                             <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground">
                               <Calendar className="h-3 w-3" />
@@ -566,7 +581,7 @@ export default function SubEntityFieldEnhanced({
                       <CardContent className="pt-0 space-y-2">
                         {displayFields.slice(1).map(field => {
                           const value = record.data[field];
-                          const formatted = (record as unknown as { _formatted?: Record<string, unknown> })._formatted?.[field] as string ?? formatCellValue(value, tBool('yes'), tBool('no'));
+                          const formatted = (record as unknown as { _formatted?: Record<string, unknown> })._formatted?.[field] as string ?? displayValue(field, value);
                           const fieldType = getFieldType(field);
 
                           return (
@@ -620,7 +635,7 @@ export default function SubEntityFieldEnhanced({
                               <div className="flex items-start justify-between gap-2 mb-3">
                                 <div className="flex-1">
                                   <div className="font-medium text-sm mb-1">
-                                    {(record as unknown as { _formatted?: Record<string, unknown> })._formatted?.[displayFields[0]] as string ?? formatCellValue(record.data[displayFields[0]], tBool('yes'), tBool('no'))}
+                                    {(record as unknown as { _formatted?: Record<string, unknown> })._formatted?.[displayFields[0]] as string ?? displayValue(displayFields[0], record.data[displayFields[0]])}
                                   </div>
                                   <div className="flex items-center gap-2 text-xs text-muted-foreground">
                                     <Calendar className="h-3 w-3" />
@@ -667,7 +682,7 @@ export default function SubEntityFieldEnhanced({
                               <div className="grid grid-cols-2 gap-x-4 gap-y-2">
                                 {displayFields.slice(1).map(field => {
                                   const value = record.data[field];
-                                  const formatted = (record as unknown as { _formatted?: Record<string, unknown> })._formatted?.[field] as string ?? formatCellValue(value, tBool('yes'), tBool('no'));
+                                  const formatted = (record as unknown as { _formatted?: Record<string, unknown> })._formatted?.[field] as string ?? displayValue(field, value);
                                   const fieldType = getFieldType(field);
 
                                   return (

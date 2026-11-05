@@ -52,12 +52,21 @@ const https = require('https');
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const http = require('http');
 
+/** Rotulos das opcoes por tabela (slug do campo -> valor -> rotulo) da renderizacao em curso. */
+interface OptionLabelScope {
+  byEntity: Map<string, Map<string, Map<string, string>>>;
+  /** Tabela do template, a pai (para _parent.*) e a filha de cada campo sub-tabela. */
+  sourceEntityId: string | null;
+  parentEntityId: string | null;
+  subEntityByField: Map<string, string>;
+}
+
 @Injectable()
 export class PdfGeneratorService {
   private readonly logger = new Logger(PdfGeneratorService.name);
   private emptyFieldDefault = '';
   /** Rotulos das opcoes (slug do campo -> valor -> rotulo) da renderizacao em curso. */
-  private readonly optionLabels = new AsyncLocalStorage<Map<string, Map<string, string>>>();
+  private readonly optionLabels = new AsyncLocalStorage<OptionLabelScope>();
 
   constructor(
     private prisma: PrismaService,
@@ -1045,7 +1054,7 @@ export class PdfGeneratorService {
 
       doc.font('Helvetica').fontSize(8).fillColor('#666666');
 
-      const pageLabel = `Pagina ${i + 1} de ${totalPages}`;
+      const pageLabel = `Página ${i + 1} de ${totalPages}`;
       const position = footer.position || 'center';
       const hasText = !!footer.text;
       const hasPages = !!footer.showPageNumbers;
@@ -1583,7 +1592,8 @@ export class PdfGeneratorService {
     const tableRows = rows.map((row) =>
       element.columns.map((col) => {
         const value = this.getNestedValue(row, col.field);
-        return this.formatValue(col.format ? value : this.displayValue(col.field, value), col.format, col.defaultValue);
+        const childEntityId = element.dataSource ? this.optionLabels.getStore()?.subEntityByField.get(element.dataSource) : undefined;
+        return this.formatValue(col.format ? value : this.displayValue(col.field, value, childEntityId), col.format, col.defaultValue);
       }),
     );
 
@@ -2484,33 +2494,51 @@ export class PdfGeneratorService {
    * Resolve bindings {{campo}} no texto
    */
   /**
-   * Rotulos das opcoes de todas as tabelas da empresa (o laudo mostra campos do
-   * registro, das filhas e do pai). A tabela de origem vence em slugs repetidos.
+   * Rotulos das opcoes das tabelas da empresa, separados por tabela: o laudo mostra
+   * campos do registro, das filhas (tabelas) e do pai (_parent.*), e o mesmo slug
+   * (ex.: "tipo") pode ter opcoes diferentes em cada tabela.
    */
-  private async loadOptionLabels(template: PdfTemplate): Promise<Map<string, Map<string, string>>> {
+  private async loadOptionLabels(template: PdfTemplate): Promise<OptionLabelScope> {
     const entities = await this.prisma.entity.findMany({
       where: { tenantId: template.tenantId },
       select: { id: true, fields: true },
     });
-    entities.sort((a, b) => Number(a.id === template.sourceEntityId) - Number(b.id === template.sourceEntityId));
-    const labels = new Map<string, Map<string, string>>();
+    type FieldDef = { slug?: string; type?: string; subEntityId?: string; options?: Array<{ value?: unknown; label?: unknown } | string> };
+    const byEntity = new Map<string, Map<string, Map<string, string>>>();
+    let parentEntityId: string | null = null;
+    const subEntityByField = new Map<string, string>();
     for (const entity of entities) {
-      for (const field of (entity.fields as Array<{ slug?: string; options?: Array<{ value?: unknown; label?: unknown }> }>) || []) {
+      const fields = (entity.fields as FieldDef[]) || [];
+      const perField = new Map<string, Map<string, string>>();
+      for (const field of fields) {
+        if (field.type === 'sub-entity' && field.subEntityId) {
+          if (entity.id === template.sourceEntityId && field.slug) subEntityByField.set(field.slug, field.subEntityId);
+          if (field.subEntityId === template.sourceEntityId) parentEntityId = entity.id;
+        }
         if (!field.slug || !Array.isArray(field.options) || field.options.length === 0) continue;
         const map = new Map<string, string>();
         for (const opt of field.options) {
-          if (opt?.value !== undefined && opt?.label) map.set(String(opt.value), String(opt.label));
+          if (typeof opt === 'string') map.set(opt, opt);
+          else if (opt?.value !== undefined && opt?.label) map.set(String(opt.value), String(opt.label));
         }
-        labels.set(field.slug, map);
+        perField.set(field.slug, map);
       }
+      byEntity.set(entity.id, perField);
     }
-    return labels;
+    return { byEntity, sourceEntityId: template.sourceEntityId, parentEntityId, subEntityByField };
   }
 
-  /** Valor como o usuario le: rotulo da opcao e Sim/Nao em vez de true/false. */
-  private displayValue(path: string, value: unknown): unknown {
+  /**
+   * Valor como o usuario le: rotulo da opcao e Sim/Nao em vez de true/false.
+   * entityId: tabela dona do campo (filha numa tabela do PDF); sem ele, a do template
+   * (ou a pai, para _parent.*).
+   */
+  private displayValue(path: string, value: unknown, entityId?: string | null): unknown {
     if (typeof value === 'boolean') return value ? 'Sim' : 'Não';
-    const options = this.optionLabels.getStore()?.get(path.split('.').pop() || path);
+    const scope = this.optionLabels.getStore();
+    if (!scope) return value;
+    const owner = entityId ?? (path.startsWith('_parent.') ? scope.parentEntityId : scope.sourceEntityId);
+    const options = owner ? scope.byEntity.get(owner)?.get(path.split('.').pop() || path) : undefined;
     if (!options) return value;
     if (Array.isArray(value)) {
       return value.map((v) => (typeof v === 'string' || typeof v === 'number' ? options.get(String(v)) ?? v : v));

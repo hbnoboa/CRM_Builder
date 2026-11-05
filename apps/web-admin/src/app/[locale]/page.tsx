@@ -2,14 +2,18 @@ import type { Metadata } from 'next';
 import Image from 'next/image';
 import {
   ArrowRight, Bell, Blocks, ClipboardCheck, FileText, KeyRound, LayoutDashboard, MessageSquare,
-  ShieldCheck, Smartphone, Users, Workflow, WifiOff,
+  Plug, ShieldCheck, Smartphone, Users, Workflow, WifiOff,
 } from 'lucide-react';
 import { Link } from '@/i18n/navigation';
 import { Button } from '@/components/ui/button';
-import { BrandLogo, PoweredByIos } from '@/components/brand/brand';
-import { HomeHeader } from '@/components/marketing/home-header';
+import { SiteHeader } from '@/components/marketing/site-header';
+import { SiteFooter } from '@/components/marketing/site-footer';
+import { ContactFab } from '@/components/marketing/contact-fab';
 import { SolutionsShowcase } from '@/components/marketing/solutions-showcase';
 import { Pricing } from '@/components/marketing/pricing';
+import { UseCases } from '@/components/marketing/use-cases';
+import { HowItWorks } from '@/components/marketing/how-it-works';
+import { INTEGRATIONS, SECURITY } from '@/components/marketing/content';
 
 export const metadata: Metadata = {
   title: 'CRM Builder — o sistema da sua operação, sem programar',
@@ -62,7 +66,7 @@ const FAQ = [
 export default function LocaleHome() {
   return (
     <div className="min-h-screen bg-white text-slate-900">
-      <HomeHeader />
+      <SiteHeader />
 
       <main>
         {/* Hero */}
@@ -87,7 +91,7 @@ export default function LocaleHome() {
                   </Link>
                 </Button>
                 <Button asChild size="lg" variant="outline" className="bg-white text-slate-900 border-slate-300 hover:bg-slate-50 hover:text-slate-900">
-                  <a href="#modelos">Ver os modelos</a>
+                  <Link href="/contato">Falar com especialista</Link>
                 </Button>
               </div>
               <p className="mt-3 text-xs text-slate-500">Teste grátis, sem cartão de crédito.</p>
@@ -147,6 +151,34 @@ export default function LocaleHome() {
           </div>
         </section>
 
+        {/* Casos de uso */}
+        <section id="casos-de-uso" className="scroll-mt-20">
+          <div className="mx-auto max-w-6xl px-4 py-20 sm:px-6">
+            <div className="max-w-2xl">
+              <p className="text-sm font-semibold text-orange-600">Casos de uso</p>
+              <h2 className="mt-2 text-3xl font-bold tracking-tight sm:text-4xl">Onde o CRM Builder entra na sua empresa</h2>
+              <p className="mt-4 text-slate-600">Escolha pelo seu segmento ou pela área que precisa organizar primeiro.</p>
+            </div>
+            <div className="mt-10">
+              <UseCases />
+            </div>
+          </div>
+        </section>
+
+        {/* Como funciona (abas com telas reais) */}
+        <section id="como-funciona" className="scroll-mt-20 border-t border-slate-100 bg-slate-50/60">
+          <div className="mx-auto max-w-6xl px-4 py-20 sm:px-6">
+            <div className="max-w-2xl">
+              <p className="text-sm font-semibold text-orange-600">Como funciona</p>
+              <h2 className="mt-2 text-3xl font-bold tracking-tight sm:text-4xl">Você monta. A equipe usa. Sem programação.</h2>
+              <p className="mt-4 text-slate-600">Estas são telas reais do sistema, com dados de exemplo.</p>
+            </div>
+            <div className="mt-10">
+              <HowItWorks />
+            </div>
+          </div>
+        </section>
+
         {/* Recursos */}
         <section id="recursos" className="scroll-mt-20">
           <div className="mx-auto max-w-6xl px-4 py-20 sm:px-6">
@@ -169,7 +201,7 @@ export default function LocaleHome() {
         </section>
 
         {/* Campo / offline */}
-        <section className="bg-slate-950 text-white">
+        <section id="app" className="scroll-mt-20 bg-slate-950 text-white">
           <div className="mx-auto grid max-w-6xl items-center gap-12 px-4 py-20 sm:px-6 lg:grid-cols-2">
             <div>
               <p className="text-sm font-semibold text-orange-400">Feito para quem trabalha na rua</p>
@@ -196,22 +228,53 @@ export default function LocaleHome() {
           </div>
         </section>
 
-        {/* Seguranca */}
-        <section>
-          <div className="mx-auto grid max-w-6xl gap-8 px-4 py-16 sm:px-6 md:grid-cols-3">
-            {[
-              { icon: ShieldCheck, title: 'Dados isolados por empresa', text: 'Nenhuma empresa enxerga a outra, nem no app.' },
-              { icon: KeyRound, title: 'Acesso protegido', text: 'Verificação em 2 etapas, política de senha e controle de sessões.' },
-              { icon: FileText, title: 'LGPD na prática', text: 'Permissão por campo, lixeira, exportação completa e encerramento da conta.' },
-            ].map(({ icon: Icon, title, text }) => (
-              <div key={title} className="flex gap-4">
-                <Icon className="mt-0.5 h-6 w-6 shrink-0 text-slate-900" />
-                <div>
-                  <h3 className="font-semibold">{title}</h3>
-                  <p className="mt-1 text-sm text-slate-600">{text}</p>
-                </div>
+        {/* Integracoes */}
+        <section id="integracoes" className="scroll-mt-20">
+          <div className="mx-auto max-w-6xl px-4 py-20 sm:px-6">
+            <div className="grid gap-12 lg:grid-cols-[minmax(0,4fr)_minmax(0,7fr)]">
+              <div>
+                <p className="text-sm font-semibold text-orange-600">Integrações</p>
+                <h2 className="mt-2 text-3xl font-bold tracking-tight sm:text-4xl">Conversa com o que você já usa</h2>
+                <p className="mt-4 text-slate-600">
+                  O CRM Builder não precisa substituir o ERP: ele cuida da operação e troca dados com os outros sistemas.
+                </p>
               </div>
-            ))}
+              <ul className="grid gap-x-8 gap-y-6 sm:grid-cols-2">
+                {INTEGRATIONS.map((item) => (
+                  <li key={item.title} className="flex gap-3">
+                    <Plug className="mt-0.5 h-5 w-5 shrink-0 text-orange-600" />
+                    <span>
+                      <span className="block font-semibold">{item.title}</span>
+                      <span className="mt-0.5 block text-sm text-slate-600">{item.text}</span>
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        </section>
+
+        {/* Seguranca */}
+        <section id="seguranca" className="scroll-mt-20 border-t border-slate-100">
+          <div className="mx-auto max-w-6xl px-4 py-20 sm:px-6">
+            <div className="max-w-2xl">
+              <p className="text-sm font-semibold text-orange-600">Segurança e LGPD</p>
+              <h2 className="mt-2 text-3xl font-bold tracking-tight sm:text-4xl">Seus dados protegidos de ponta a ponta</h2>
+            </div>
+            <div className="mt-10 grid gap-x-8 gap-y-8 sm:grid-cols-2 lg:grid-cols-3">
+              {SECURITY.map((item, i) => {
+                const Icon = [ShieldCheck, Users, KeyRound, ClipboardCheck, FileText, ShieldCheck][i] ?? ShieldCheck;
+                return (
+                  <div key={item.title} className="flex gap-4">
+                    <Icon className="mt-0.5 h-6 w-6 shrink-0 text-slate-900" />
+                    <div>
+                      <h3 className="font-semibold">{item.title}</h3>
+                      <p className="mt-1 text-sm text-slate-600">{item.text}</p>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           </div>
         </section>
 
@@ -224,7 +287,7 @@ export default function LocaleHome() {
               <p className="mt-4 text-slate-600">Preço por usuário. Troque de plano quando precisar.</p>
             </div>
             <div className="mt-10">
-              <Pricing />
+              <Pricing showCompareLink />
             </div>
           </div>
         </section>
@@ -254,30 +317,22 @@ export default function LocaleHome() {
             <p className="mx-auto mt-4 max-w-xl text-white/85">
               Escolha um modelo, convide a equipe e veja tudo funcionando ainda hoje.
             </p>
-            <Button asChild size="lg" className="mt-8 bg-white text-orange-700 hover:bg-orange-50">
-              <Link href="/register">
-                Começar grátis <ArrowRight className="ml-2 h-4 w-4" />
-              </Link>
-            </Button>
+            <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row">
+              <Button asChild size="lg" className="bg-white text-orange-700 hover:bg-orange-50">
+                <Link href="/register">
+                  Começar grátis <ArrowRight className="ml-2 h-4 w-4" />
+                </Link>
+              </Button>
+              <Button asChild size="lg" variant="outline" className="border-white/60 bg-transparent text-white hover:bg-white/10 hover:text-white">
+                <Link href="/contato">Falar com especialista</Link>
+              </Button>
+            </div>
           </div>
         </section>
       </main>
 
-      <footer className="border-t border-slate-200">
-        <div className="mx-auto flex max-w-6xl flex-col items-center gap-4 px-4 py-10 text-sm text-slate-500 sm:flex-row sm:justify-between sm:px-6">
-          <div className="flex flex-col items-center gap-2 sm:items-start">
-            <BrandLogo fixedDark />
-            <PoweredByIos />
-          </div>
-          <nav className="flex flex-wrap justify-center gap-x-6 gap-y-2">
-            <a href="#modelos" className="hover:text-slate-900">Modelos</a>
-            <a href="#precos" className="hover:text-slate-900">Preços</a>
-            <Link href="/login" className="hover:text-slate-900">Entrar</Link>
-            <Link href="/register" className="hover:text-slate-900">Criar conta</Link>
-          </nav>
-          <p>© {new Date().getFullYear()} IOS System</p>
-        </div>
-      </footer>
+      <SiteFooter />
+      <ContactFab />
     </div>
   );
 }

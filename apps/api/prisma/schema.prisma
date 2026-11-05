@@ -1663,3 +1663,34 @@ model EntityDataMasked {
   @@index([recordId])
   @@index([tenantId, roleId])
 }
+
+// Pedidos de contato comercial da pagina inicial ("Falar com especialista").
+// Sem empresa: e quem ainda nao e cliente. Tratados no console (Contatos comerciais).
+enum SalesLeadStatus {
+  NEW
+  CONTACTED
+  QUALIFIED
+  WON
+  DISCARDED
+}
+
+model SalesLead {
+  id        String          @id @default(cuid())
+  name      String
+  email     String
+  phone     String?
+  company   String
+  teamSize  String?
+  segment   String?
+  interest  String? // slug do modelo de interesse
+  message   String?
+  source    String? // pagina de origem (/, /solucoes/<slug>, /contato)
+  status    SalesLeadStatus @default(NEW)
+  notes     String?
+  ip        String?
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+
+  @@index([status, createdAt])
+  @@index([email])
+}
