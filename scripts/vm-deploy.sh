@@ -33,10 +33,9 @@ docker compose -f "$COMPOSE" pull $SERVICES
 
 # 4. Migrations do banco, usando a imagem NOVA ja puxada, ANTES de subir o codigo.
 #    Se falhar, o `set -e` aborta o deploy e o codigo atual segue no ar (nada foi trocado).
-#    NOTA prod: o ledger (_prisma_migrations) precisa estar baseline — migrations ja
-#    existentes marcadas como aplicadas via `prisma migrate resolve --applied` — antes
-#    do primeiro deploy com migrate; senao o migrate deploy tentaria re-aplicar o que
-#    ja existe. Dev ja foi baseline. Prod: fazer o rollout controlado + baseline primeiro.
+#    NOTA prod: as migrations comecam no baseline (00000000000000_baseline). Antes do
+#    primeiro deploy de prod, alcancar o schema atual e marcar o baseline como aplicado
+#    (ver "Baseline das migrations" em docs/DEPLOY.md). Dev ja esta marcado.
 API_SVC=$(printf '%s\n' $SERVICES | grep -m1 api)
 echo "==> prisma migrate deploy ($API_SVC)"
 docker compose -f "$COMPOSE" run --rm --no-deps "$API_SVC" \
