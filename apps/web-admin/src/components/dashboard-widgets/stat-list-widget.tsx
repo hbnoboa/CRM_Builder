@@ -60,7 +60,7 @@ export function StatListWidget({ entitySlug, config, title, isEditMode }: StatLi
         {/* Breakdown list */}
         {(data || []).map((item, idx) => {
           const isActive = activeFilter?.values.includes(item.value) ?? false;
-          const color = colors[idx % colors.length];
+          const color = item.color ?? colors[idx % colors.length];
 
           return (
             <button

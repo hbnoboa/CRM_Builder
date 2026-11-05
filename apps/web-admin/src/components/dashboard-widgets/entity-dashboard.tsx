@@ -204,10 +204,7 @@ export function EntityDashboard({ entitySlug, entityFields, templateId, external
     if (!effectiveTemplate?.layout) return {};
     return {
       lg: effectiveTemplate.layout,
-      md: effectiveTemplate.layout.map((item) => ({
-        ...item,
-        w: Math.min(item.w, 10),
-      })),
+      md: effectiveTemplate.layout,
       sm: effectiveTemplate.layout.map((item) => ({
         ...item,
         w: Math.min(item.w, 6),
@@ -281,9 +278,10 @@ export function EntityDashboard({ entitySlug, entityFields, templateId, external
           <RecordCountBadge countEntitySlug={headerCountSlug} mainEntitySlug={entitySlug} />
           <ResponsiveGridLayout
             className="layout"
+            measureBeforeMount
             layouts={layouts}
             breakpoints={{ lg: 1200, md: 996, sm: 768, xs: 480, xxs: 0 }}
-            cols={{ lg: 12, md: 10, sm: 6, xs: 4, xxs: 1 }}
+            cols={{ lg: 12, md: 12, sm: 6, xs: 4, xxs: 1 }}
             rowHeight={30}
             margin={[12, 12]}
             isDraggable={!isNarrow}
@@ -349,9 +347,7 @@ export function EntityDashboard({ entitySlug, entityFields, templateId, external
           const tabWidgetIds = new Set(tabWidgetEntries.map(([id]) => id));
           const tabLayouts = {
             lg: (effectiveTemplate.layout || []).filter((item) => tabWidgetIds.has(item.i)),
-            md: (effectiveTemplate.layout || []).filter((item) => tabWidgetIds.has(item.i)).map((item) => ({
-              ...item, w: Math.min(item.w, 10),
-            })),
+            md: (effectiveTemplate.layout || []).filter((item) => tabWidgetIds.has(item.i)),
             sm: (effectiveTemplate.layout || []).filter((item) => tabWidgetIds.has(item.i)).map((item) => ({
               ...item, w: Math.min(item.w, 6), x: 0,
             })),
@@ -367,9 +363,10 @@ export function EntityDashboard({ entitySlug, entityFields, templateId, external
             <div key={tab.id} style={{ display: isActive ? undefined : 'none' }}>
               <ResponsiveGridLayout
                 className="layout"
+                measureBeforeMount
                 layouts={tabLayouts}
                 breakpoints={{ lg: 1200, md: 996, sm: 768, xs: 480, xxs: 0 }}
-                cols={{ lg: 12, md: 10, sm: 6, xs: 4, xxs: 1 }}
+                cols={{ lg: 12, md: 12, sm: 6, xs: 4, xxs: 1 }}
                 rowHeight={30}
                 margin={[12, 12]}
                 isDraggable={!isNarrow}

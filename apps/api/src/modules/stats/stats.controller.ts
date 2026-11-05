@@ -96,9 +96,10 @@ export class StatsController {
     @Query('dateStart') dateStart?: string,
     @Query('dateEnd') dateEnd?: string,
     @Query('tenantId') tenantId?: string,
+    @Query('dateField') dateField?: string,
   ) {
     checkModulePermission(user, 'data', 'canRead');
-    return this.statsService.getEntityRecordsOverTime(user, entitySlug, tenantId, days ? Number(days) : 30, { filters, dateStart, dateEnd });
+    return this.statsService.getEntityRecordsOverTime(user, entitySlug, tenantId, days ? Number(days) : 30, { filters, dateStart, dateEnd }, dateField);
   }
 
   @Get('entity/:entitySlug/field-distribution')

@@ -1,7 +1,7 @@
 'use client';
 
 import {
-  PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend,
+  PieChart, Pie, Cell, Tooltip, ResponsiveContainer,
 } from 'recharts';
 import { useAdaptedFieldDistribution as useFieldDistribution, useAdaptedGroupedData as useGroupedData } from '@/components/entity-data/adapter-hooks';
 import { useDashboardFilters, useWidgetFilters } from './dashboard-filter-context';
@@ -37,7 +37,7 @@ export function DonutChartWidget({ entitySlug, config, title, isEditMode }: Donu
   const error = isGrouped ? groupedData.error : fieldDist.error;
 
   // Build chart data
-  let chartData: Array<{ value: string; label: string; count: number }>;
+  let chartData: Array<{ value: string; label: string; count: number; color?: string }>;
   let groupField: string;
 
   if (isGrouped && groupedData.data) {
@@ -78,6 +78,9 @@ export function DonutChartWidget({ entitySlug, config, title, isEditMode }: Donu
       isLoading={isLoading}
       error={error ? 'Erro ao carregar dados' : null}
     >
+      {/* Legenda em HTML abaixo do grafico: o donut usa so a area que sobra e os numeros nao colidem */}
+      <div className="flex h-full flex-col">
+      <div className="min-h-0 flex-1">
       <ResponsiveContainer width="100%" height="100%">
         <PieChart>
           <Pie
@@ -116,7 +119,7 @@ export function DonutChartWidget({ entitySlug, config, title, isEditMode }: Donu
             {chartData.map((entry, idx) => (
               <Cell
                 key={entry.value}
-                fill={colors[idx % colors.length]}
+                fill={entry.color ?? colors[idx % colors.length]}
                 opacity={activeFilter && !activeFilter.values.includes(entry.value) ? 0.3 : 1}
               />
             ))}
@@ -137,16 +140,26 @@ export function DonutChartWidget({ entitySlug, config, title, isEditMode }: Donu
             itemStyle={TOOLTIP_ITEM_STYLE}
             formatter={((v: number) => [(v ?? 0).toLocaleString('pt-BR'), title || '']) as never}
           />
-          {config.showLegend !== false && (
-            <Legend
-              layout="horizontal"
-              verticalAlign="bottom"
-              align="center"
-              wrapperStyle={LEGEND_STYLE}
-            />
-          )}
         </PieChart>
       </ResponsiveContainer>
+      </div>
+      {config.showLegend !== false && chartData.length > 0 && (
+        <div className="flex flex-wrap justify-center gap-x-3 gap-y-1 pt-1" style={LEGEND_STYLE}>
+          {chartData.map((entry, idx) => (
+            <button
+              key={entry.value}
+              type="button"
+              className="flex items-center gap-1.5 hover:text-foreground"
+              style={{ opacity: activeFilter && !activeFilter.values.includes(entry.value) ? 0.5 : 1 }}
+              onClick={() => groupField && toggleCrossFilter(groupField, entry.value)}
+            >
+              <span className="h-2.5 w-2.5 shrink-0 rounded-sm" style={{ backgroundColor: entry.color ?? colors[idx % colors.length] }} />
+              {entry.label}
+            </button>
+          ))}
+        </div>
+      )}
+      </div>
     </WidgetWrapper>
   );
 }

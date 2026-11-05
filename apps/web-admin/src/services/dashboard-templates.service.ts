@@ -90,9 +90,10 @@ export const entityStatsService = {
     entitySlug: string,
     days?: number,
     dashFilters?: DashboardFilterParams,
+    dateField?: string,
   ): Promise<TimeSeriesPoint[]> {
     const response = await api.get(`/stats/entity/${entitySlug}/records-over-time`, {
-      params: { days, ...dashFilters },
+      params: { days, ...dashFilters, ...(dateField ? { dateField } : {}) },
     });
     return response.data;
   },

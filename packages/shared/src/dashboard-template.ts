@@ -252,6 +252,8 @@ export interface FieldDistributionItem {
   value: string;
   label: string;
   count: number;
+  /** Cor da opcao do campo (select), quando configurada. */
+  color?: string;
 }
 
 export interface FieldAggregation {

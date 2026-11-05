@@ -92,7 +92,7 @@ export function BarChartWidget({ entitySlug, config, title, isEditMode }: BarCha
             {(data || []).map((entry, idx) => (
               <Cell
                 key={entry.value}
-                fill={colors[idx % colors.length]}
+                fill={entry.color ?? colors[idx % colors.length]}
                 opacity={activeFilter && !activeFilter.values.includes(entry.value) ? 0.3 : 1}
               />
             ))}
