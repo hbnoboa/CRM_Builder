@@ -42,6 +42,7 @@ import {
   Layers,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { getErrorMessage } from '@/lib/get-error-message';
 import { dataService } from '@/services/data.service';
 import { cn } from '@/lib/utils';
 
@@ -168,8 +169,7 @@ export function ImportDialog({
         toast.error(t('noRecordsImported'));
       }
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : t('importError');
-      toast.error(message);
+      toast.error(getErrorMessage(error, t('importError')));
     } finally {
       setLoading(false);
     }

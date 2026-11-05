@@ -12,6 +12,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
+import { getErrorMessage } from '@/lib/get-error-message';
 import api from '@/lib/api';
 import { entityTemplates, templateCategories } from '@/lib/entity-templates';
 import type { EntityTemplate } from '@/lib/entity-templates';
@@ -73,7 +74,7 @@ function NewEntityPageContent() {
       router.push(`/gestao/entities/${entityId}`);
     } catch (error) {
       console.error('Error creating entity:', error);
-      toast.error(t('toast.createError'));
+      toast.error(getErrorMessage(error, t('toast.createError')));
     } finally {
       setSaving(false);
     }

@@ -81,7 +81,7 @@ export function NotificationPreferences() {
           {entities.map((e) => {
             const muted = prefs.mutedEntities.includes(e.slug);
             return (
-              <Row key={e.slug} id={`pref-table-${e.slug}`} label={e.namePlural || e.name} checked={!muted}
+              <Row key={e.slug} id={`pref-table-${e.slug}`} label={e.name} checked={!muted}
                 onChange={(on) => update({
                   ...prefs,
                   mutedEntities: on ? prefs.mutedEntities.filter((s) => s !== e.slug) : [...prefs.mutedEntities, e.slug],

@@ -128,7 +128,7 @@ export class EntityService {
     }
 
     // Gerar namePlural se nao fornecido
-    const namePlural = dto.namePlural || `${dto.name}s`;
+    const namePlural = dto.namePlural || (/s$/i.test(dto.name) ? dto.name : `${dto.name}s`);
 
     // Garantir que cada campo tenha slug (usa name como fallback)
     const processedFields = (dto.fields || []).map(f => ({
