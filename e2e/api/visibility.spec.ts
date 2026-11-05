@@ -52,10 +52,11 @@ test.beforeAll(async ({ request }) => {
   }
 
   ids.D = await createRecord(request, tenant.owner, 'D');
-  ids.A = await createRecord(request, ana, 'A');
+  // Ana nao edita o CPF: cria sem ele.
+  ids.A = await createRecord(request, ana, 'A', 'nao', false);
   ids.B = await createRecord(request, bruno, 'B');
   ids.C = await createRecord(request, carla, 'C');
-  ids.A3 = await createRecord(request, ana, 'A3', 'sim');
+  ids.A3 = await createRecord(request, ana, 'A3', 'sim', false);
 });
 
 test('[X-01] matriz de quem ve o que na lista', async ({ request }) => {

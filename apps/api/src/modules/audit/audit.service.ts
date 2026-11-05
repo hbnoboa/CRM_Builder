@@ -39,6 +39,11 @@ const SENSITIVE_PATTERNS = [
   /authorization/i, /credit.?card/i, /ssn/i, /cpf/i, /cnpj/i,
 ];
 
+/** A tela envia so a data: o filtro inclui o dia inteiro, no horario de Brasilia. */
+export function auditDateTo(value: string): Date {
+  return new Date(/^\d{4}-\d{2}-\d{2}$/.test(value) ? `${value}T23:59:59.999-03:00` : value);
+}
+
 @Injectable()
 export class AuditService {
   private readonly logger = new Logger(AuditService.name);
@@ -206,8 +211,8 @@ export class AuditService {
         whereArchived.createdAt.gte = new Date(dateFrom);
       }
       if (dateTo) {
-        where.createdAt.lte = new Date(dateTo);
-        whereArchived.createdAt.lte = new Date(dateTo);
+        where.createdAt.lte = auditDateTo(dateTo);
+        whereArchived.createdAt.lte = auditDateTo(dateTo);
       }
     }
 

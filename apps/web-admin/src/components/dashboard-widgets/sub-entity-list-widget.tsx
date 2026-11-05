@@ -34,7 +34,7 @@ import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { api } from '@/lib/api';
 import { useTenant } from '@/stores/tenant-context';
-import { useRouter } from 'next/navigation';
+import { useRouter } from '@/i18n/tenant-navigation';
 import { cn } from '@/lib/utils';
 
 interface SubEntityListWidgetProps {

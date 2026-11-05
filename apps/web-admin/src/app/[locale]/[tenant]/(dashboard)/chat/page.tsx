@@ -151,14 +151,23 @@ export default function ChatPage() {
     return false;
   }, [user]);
 
+  // So a resposta do pedido mais recente vale: a carga inicial pode voltar depois da
+  // atualizacao feita ao abrir um chat e apagaria o chat recem-criado da lista.
+  const channelsRequestRef = useRef(0);
+  const loadChannels = useCallback(async () => {
+    const request = ++channelsRequestRef.current;
+    const chRes = await api.get('/chat/channels');
+    if (request !== channelsRequestRef.current) return;
+    setDms(chRes.data?.dms || []);
+    setThreads(chRes.data?.threads || []);
+    setGroups(chRes.data?.groups || []);
+  }, []);
+
   const reloadChannels = useCallback(async () => {
     try {
-      const chRes = await api.get('/chat/channels');
-      setDms(chRes.data?.dms || []);
-      setThreads(chRes.data?.threads || []);
-      setGroups(chRes.data?.groups || []);
+      await loadChannels();
     } catch { /* ignore */ }
-  }, []);
+  }, [loadChannels]);
 
   // Recarrega tabelas + canais ao montar E ao TROCAR DE TENANT (limpa o canal ativo
   // para não mostrar conversa do tenant anterior). Só zera o canal ativo quando o
@@ -172,16 +181,13 @@ export default function ChatPage() {
     }
     (async () => {
       try {
-        const [entRes, chRes] = await Promise.all([api.get('/entities'), api.get('/chat/channels')]);
+        const [entRes] = await Promise.all([api.get('/entities'), loadChannels()]);
         const ent: EntityLite[] = entRes.data?.data || entRes.data || [];
         setAllEntities(ent);
         setTables(ent.filter((e) => canReadEntity(e.slug)));
-        setDms(chRes.data?.dms || []);
-        setThreads(chRes.data?.threads || []);
-        setGroups(chRes.data?.groups || []);
       } catch { /* ignore */ }
     })();
-  }, [canReadEntity, effectiveTenantId]);
+  }, [canReadEntity, effectiveTenantId, loadChannels]);
 
   useEffect(() => {
     if (!canManageCommands) return;

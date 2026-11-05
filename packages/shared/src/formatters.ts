@@ -166,7 +166,7 @@ export function formatFieldValue(value: unknown, options: FormatFieldOptions): s
     locale = 'pt-BR',
     currency = 'BRL',
     emptyValue = '-',
-    booleanLabels = { true: 'Sim', false: 'Nao' },
+    booleanLabels = { true: 'Sim', false: 'Não' },
     textTransform,
     decimalPlaces = 2,
   } = options;

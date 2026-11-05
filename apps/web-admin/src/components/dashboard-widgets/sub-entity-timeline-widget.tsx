@@ -36,7 +36,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { api } from '@/lib/api';
 import { useTenant } from '@/stores/tenant-context';
-import { useRouter } from 'next/navigation';
+import { useRouter } from '@/i18n/tenant-navigation';
 import { cn } from '@/lib/utils';
 
 interface SubEntityTimelineWidgetProps {

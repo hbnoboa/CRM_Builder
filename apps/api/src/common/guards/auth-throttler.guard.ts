@@ -8,6 +8,7 @@ import { clientIp } from '../utils/client-ip';
  * costuma sair pelo mesmo IP (wi-fi/NAT) e bater o login de manha ao mesmo tempo.
  *   - login / esqueci a senha: IP + email  -> limita tentativas contra UMA conta
  *   - refresh: hash do refresh token        -> limita por sessao
+ *   - rotas autenticadas: a pessoa logada
  *   - cadastro e demais (reset): IP
  * Usar so nas rotas com @Throttle proprio (nao como guard global).
  */
@@ -18,6 +19,10 @@ export class AuthThrottlerGuard extends ThrottlerGuard {
     const body = (req.body ?? {}) as Record<string, unknown>;
 
     // Cadastro cria empresa nova: limite por IP, nao por email.
+    // Rota autenticada (privacidade, suporte): limite por pessoa, nao pelo IP da empresa.
+    const userId = (req.user as { id?: string } | undefined)?.id;
+    if (userId) return `user:${userId}`;
+
     const path = String(req.url ?? '').split('?')[0];
     if (path.endsWith('/register')) return ip;
 

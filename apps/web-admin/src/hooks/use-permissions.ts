@@ -199,6 +199,18 @@ export function usePermissions() {
     entityPermissions.find((p) => p.entitySlug === entitySlug)
     ?? entityPermissions.find((p) => p.entitySlug === '*');
 
+  /** Campos que o cargo nao ve nesta tabela. Sem entrada, o campo esta liberado. */
+  const getHiddenFields = (entitySlug: string): Set<string> => {
+    if (fullAccess) return new Set();
+    return new Set((findEntityPermission(entitySlug)?.fieldPermissions ?? []).filter((f) => !f.canView).map((f) => f.fieldSlug));
+  };
+
+  /** Campos que o cargo nao edita nesta tabela. Sem entrada, o campo esta liberado. */
+  const getReadOnlyFields = (entitySlug: string): Set<string> => {
+    if (fullAccess) return new Set();
+    return new Set((findEntityPermission(entitySlug)?.fieldPermissions ?? []).filter((f) => !f.canEdit).map((f) => f.fieldSlug));
+  };
+
   /** Lixeira: quem pode excluir em alguma tabela ve (e restaura) o que excluiu. */
   const canUseTrash = useMemo(
     () => !!user && hasRole && (fullAccess || entityPermissions.some((p) => p.canDelete)),
@@ -368,6 +380,8 @@ export function usePermissions() {
     hasModuleAction,
     hasEntityAction,
     getEntityScope,
+    getHiddenFields,
+    getReadOnlyFields,
     getDefaultRoute,
     isAdmin,
     isOperationalSurface,

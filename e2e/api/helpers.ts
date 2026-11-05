@@ -53,11 +53,15 @@ export async function loginUser(ctx: APIRequestContext, email: string, slug: str
   return { token: body.accessToken, slug, userId: body.user?.id, email };
 }
 
+// Uma sessao so por execucao: o login do console aceita 5 tentativas por minuto.
+let owner: Session | undefined;
+
 export async function ownerStaff(ctx: APIRequestContext): Promise<Session> {
   const email = process.env.PLATFORM_EMAIL;
   const password = process.env.PLATFORM_PASSWORD;
   if (!email || !password) throw new Error('Defina PLATFORM_EMAIL e PLATFORM_PASSWORD (dono do console)');
-  return loginStaff(ctx, email, password);
+  owner ??= await loginStaff(ctx, email, password);
+  return owner;
 }
 
 export type Tenant = { id: string; slug: string; name: string; ownerEmail: string; owner: Session };
@@ -110,10 +114,16 @@ export async function createClientsTable(ctx: APIRequestContext, owner: Session)
   return (await response.json()).id;
 }
 
-export async function createRecord(ctx: APIRequestContext, session: Session, nome: string, vip = 'nao'): Promise<string> {
+export async function createRecord(
+  ctx: APIRequestContext,
+  session: Session,
+  nome: string,
+  vip = 'nao',
+  withCpf = true,
+): Promise<string> {
   const response = await call(ctx, 'post', '/data/clientes', session, {
     expected: [200, 201],
-    data: { data: { nome, vip, cpf: `cpf-${nome}` } },
+    data: { data: { nome, vip, ...(withCpf ? { cpf: `cpf-${nome}` } : {}) } },
   });
   return (await response.json()).id;
 }

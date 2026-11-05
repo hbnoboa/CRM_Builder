@@ -7,7 +7,7 @@ import { ModulePermissionGuard } from '../../common/guards/module-permission.gua
 import { RequireModulePermission } from '../../common/decorators/module-permission.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { CurrentUser as CurrentUserType } from '../../common/types';
-import { AuditService } from './audit.service';
+import { AuditService, auditDateTo } from './audit.service';
 import { AuditArchiveService } from './audit-archive.service';
 import { QueryAuditLogDto, ExportAuditLogDto } from './dto/audit-log.dto';
 import { Prisma } from '@prisma/client';
@@ -43,7 +43,7 @@ export class AuditController {
     if (query.dateFrom || query.dateTo) {
       where.createdAt = {};
       if (query.dateFrom) (where.createdAt as Prisma.DateTimeFilter).gte = new Date(query.dateFrom);
-      if (query.dateTo) (where.createdAt as Prisma.DateTimeFilter).lte = new Date(query.dateTo);
+      if (query.dateTo) (where.createdAt as Prisma.DateTimeFilter).lte = auditDateTo(query.dateTo);
     }
     // Mesmos filtros da lista na tela (acao, recurso, busca).
     if (query.action) where.action = query.action;

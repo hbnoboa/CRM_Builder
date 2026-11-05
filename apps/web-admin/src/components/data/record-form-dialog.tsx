@@ -165,7 +165,9 @@ export function RecordFormFields({
   const createRecord = useCreateEntityData({ success: isEditing ? t('toast.updated') : t('toast.created') });
   const updateRecord = useUpdateEntityData({ success: t('toast.updated') });
   const { tenantId, effectiveTenantId } = useTenant();
-  const { hasEntityAction, isAdmin } = usePermissions();
+  const { hasEntityAction, isAdmin, getHiddenFields, getReadOnlyFields } = usePermissions();
+  const hiddenByRole = getHiddenFields(entity.slug);
+  const readOnlyByRole = getReadOnlyFields(entity.slug);
 
   // Lock check: registro travado quando lockField esta true
   const lockField = entity.settings?.lockField;
@@ -628,6 +630,7 @@ export function RecordFormFields({
       if (field.type === 'sub-entity' || field.type === 'section-title' || field.type === 'formula' || field.type === 'rollup' || field.type === 'lookup') return;
       // Skip fields the user cannot edit (field-level permissions)
       if (editableFields && !editableFields.includes(field.slug)) return;
+      if (readOnlyByRole.has(field.slug)) return;
       const value = formData[field.slug];
       if (value !== undefined && value !== '') {
         if (field.type === 'number' || field.type === 'rating' || field.type === 'slider') {
@@ -706,7 +709,7 @@ export function RecordFormFields({
   // ─── Group fields into grid rows ──────────────────────────────────────────
   const fieldRows = useMemo(() => {
     // Filtra campos ocultos (type === 'hidden' OU hidden === true)
-    const visibleFields = (entity.fields || []).filter(f => f.type !== 'hidden' && !f.hidden);
+    const visibleFields = (entity.fields || []).filter(f => f.type !== 'hidden' && !f.hidden && !hiddenByRole.has(f.slug));
 
     // Agrupa campos por gridRow (mesmo approach do FieldGridEditor)
     const fieldsByRow: Record<number, EntityField[]> = {};
@@ -747,7 +750,7 @@ export function RecordFormFields({
     }
 
     return rows;
-  }, [entity.fields]);
+  }, [entity.fields, hiddenByRole.size]);
 
   // ─── Render field ─────────────────────────────────────────────────────────
   const renderField = (field: EntityField) => {

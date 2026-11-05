@@ -59,3 +59,7 @@ apps/api/scripts/
 # Google Cloud SDK
 google-cloud-sdk/
 google-cloud-sdk-*.tar.gz
+
+# Contas de teste geradas pelo seed do roteiro
+e2e/.dev-accounts.local.json
+e2e/.local-accounts.local.json
