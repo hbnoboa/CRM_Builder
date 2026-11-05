@@ -73,6 +73,10 @@ export interface RegisterDate {
   password: string;
   name: string;
   tenantName: string;
+  /** Modelo de solucao escolhido na pagina inicial (slug do catalogo). */
+  modelo?: string;
+  /** Copiar os registros de exemplo do modelo. */
+  includeSamples?: boolean;
 }
 
 

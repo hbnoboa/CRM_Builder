@@ -88,7 +88,7 @@ export function MiniTableWidget({ entitySlug, config, title, isEditMode, entityF
       const opt = field.options.find((o) => (typeof o === 'string' ? o : String(o.value)) === String(value));
       return (typeof opt === 'object' ? opt.label : opt) ?? String(value);
     }
-    if (field && (field.type === 'date' || field.type === 'datetime')) {
+    if (field && ['date', 'datetime', 'currency', 'percentage'].includes(field.type)) {
       return formatFieldValue(value, { type: field.type as FieldType, emptyValue: '-' });
     }
     if (typeof value === 'object') {

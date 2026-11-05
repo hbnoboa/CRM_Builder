@@ -1604,11 +1604,15 @@ export class PdfGeneratorService {
           },
         },
       );
-    } else if (element.emptyMessage) {
+    }
+    // Sem linhas: a mensagem aparece abaixo do cabecalho (antes so saia com o cabecalho escondido)
+    if (tableRows.length === 0 && element.emptyMessage) {
       doc
         .font('Helvetica')
         .fontSize(8)
-        .text(element.emptyMessage, { align: 'center' });
+        .fillColor('#666666')
+        .text(element.emptyMessage, doc.page.margins.left, doc.y, { align: 'center' })
+        .fillColor('#000000');
     }
 
     doc.moveDown(0.5);
@@ -1658,7 +1662,7 @@ export class PdfGeneratorService {
       doc
         .font('Helvetica')
         .fontSize(8)
-        .text('Nenhuma imagem disponivel', { align: 'center' });
+        .text('Nenhuma imagem disponível', doc.page.margins.left, doc.y, { align: 'center' });
       return;
     }
 
@@ -1683,7 +1687,7 @@ export class PdfGeneratorService {
       doc
         .font('Helvetica')
         .fontSize(8)
-        .text('Nenhuma imagem disponivel', { align: 'center' });
+        .text('Nenhuma imagem disponível', doc.page.margins.left, doc.y, { align: 'center' });
       return;
     }
 
@@ -1772,12 +1776,13 @@ export class PdfGeneratorService {
     const childRecords = Array.isArray(rawData) ? rawData as Record<string, unknown>[] : [];
 
     if (childRecords.length === 0) {
-      const parentUrls = parentFields.map((f) => data[f] as string).filter(Boolean);
-      if (parentUrls.length === 0) {
-        doc.font('Helvetica').fontSize(8).text('Nenhuma imagem disponivel', { align: 'center' });
-        return;
-      }
-      const results = await Promise.allSettled(parentUrls.map((url) => this.fetchImageBuffer(url)));
+      // Uma celula por campo do pai, na coluna certa; vazio vira o quadro "Sem foto"
+      const results = await Promise.allSettled(
+        parentFields.map((f) => {
+          const url = data[f] as string;
+          return url ? this.fetchImageBuffer(url) : Promise.reject(new Error('Sem URL'));
+        }),
+      );
       const rowY = doc.y;
       for (let i = 0; i < results.length; i++) {
         const x = doc.page.margins.left + i * columnWidth + (columnWidth - imageWidth) / 2;

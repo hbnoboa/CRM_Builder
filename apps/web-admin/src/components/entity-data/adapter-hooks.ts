@@ -135,10 +135,16 @@ export function useAdaptedFieldDistribution(
     useClient ? undefined : dashFilters,
   );
 
+  // O servidor agrupa vazios em "(vazio)"; o modo local os ignora. Mesmo resultado nos dois.
+  const serverData = useMemo(
+    () => server.data?.filter((item) => item.value !== '(vazio)' && item.value !== ''),
+    [server.data],
+  );
+
   if (useClient) {
     return { data: clientData, isLoading: false, error: null } as AdapterResult<typeof clientData>;
   }
-  return server;
+  return { ...server, data: serverData } as typeof server;
 }
 
 // ─── Field Aggregation ──────────────────────────────────────────────

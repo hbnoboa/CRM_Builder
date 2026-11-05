@@ -1,4 +1,5 @@
-import { IsEmail, IsString, MinLength, MaxLength, IsOptional, Matches, IsBoolean, ValidateIf } from 'class-validator';
+import { IsEmail, IsString, MinLength, MaxLength, IsOptional, Matches, IsBoolean, ValidateIf, IsIn } from 'class-validator';
+import { SOLUTION_SLUGS } from '@crm-builder/shared';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class LoginDto {
@@ -45,6 +46,16 @@ export class RegisterDto {
   @MinLength(2, { message: 'Nome da empresa deve ter no minimo 2 caracteres' })
   @MaxLength(100)
   tenantName: string;
+
+  @ApiPropertyOptional({ description: 'Modelo de solucao para comecar (slug do catalogo)', enum: SOLUTION_SLUGS })
+  @IsOptional()
+  @IsIn(SOLUTION_SLUGS, { message: 'Modelo invalido' })
+  modelo?: string;
+
+  @ApiPropertyOptional({ description: 'Copiar os registros de exemplo do modelo (padrao: sim)' })
+  @IsOptional()
+  @IsBoolean()
+  includeSamples?: boolean;
 }
 
 export class RefreshTokenDto {

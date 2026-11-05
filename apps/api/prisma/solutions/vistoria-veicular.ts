@@ -1,4 +1,5 @@
 import { C, field, opts, rows, section } from './layout';
+import { dateAhead, daysAgo } from './samples';
 import type { SampleRecord, SolutionSpec } from './types';
 
 /**
@@ -159,19 +160,6 @@ const NCS: Array<[string, string, string]> = [
   ['carroceria', 'baixa', 'Amassado na lateral esquerda da carreta'],
   ['motor', 'alta', 'Vazamento de óleo sob o motor'],
 ];
-
-function daysAgo(days: number, hour = 8): string {
-  const d = new Date();
-  d.setDate(d.getDate() - days);
-  d.setHours(hour, (days * 7) % 60, 0, 0);
-  return d.toISOString();
-}
-
-function dateAhead(days: number): string {
-  const d = new Date();
-  d.setDate(d.getDate() + days);
-  return d.toISOString().slice(0, 10);
-}
 
 function sampleVistorias(i: number, km: number): SampleRecord[] {
   // ~1 vistoria a cada 5 dias por veiculo nos ultimos 30 dias (painel com curva continua)

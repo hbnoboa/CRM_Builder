@@ -7,6 +7,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { LoginDto, RegisterDto, RefreshTokenDto, UpdateProfileDto, ChangePasswordDto, ForgotPasswordDto, ResetPasswordDto } from './dto/auth.dto';
 import { Status, TenantLifecycle } from '@prisma/client';
 import { TenantService, RESERVED_TENANT_SLUGS } from '../tenant/tenant.service';
+import { SolutionsService } from '../solutions/solutions.service';
 import { EmailService } from '../email/email.service';
 import { transactionalEmail } from '../email/email-layout';
 import { appUrl } from '../../common/utils/app-url';
@@ -55,6 +56,7 @@ export class AuthService {
     private configService: ConfigService,
     private tenantService: TenantService,
     private email: EmailService,
+    private solutions: SolutionsService,
   ) {}
 
   // ── Resolucao de Membership (fonte da verdade de tenant + cargo) ────────────
@@ -120,7 +122,7 @@ export class AuthService {
     const trialDays = this.signupTrialDays();
     const trialEndsAt = new Date(Date.now() + trialDays * 24 * 60 * 60 * 1000);
 
-    await this.tenantService.create(
+    const tenant = await this.tenantService.create(
       {
         name: dto.tenantName,
         slug,
@@ -132,6 +134,16 @@ export class AuthService {
     );
 
     this.logger.log(`Cadastro self-service: ${dto.email} -> tenant ${slug} (trial ${trialDays}d)`);
+
+    // Modelo escolhido na pagina inicial: copia a estrutura (e os exemplos, se pedido).
+    // Falha no modelo nao desfaz o cadastro: a empresa fica em branco e o erro vai pro log.
+    if (dto.modelo) {
+      try {
+        await this.solutions.applyToTenant(dto.modelo, tenant.id, dto.includeSamples !== false);
+      } catch (error) {
+        this.logger.error(`Modelo ${dto.modelo} nao aplicado em ${slug}: ${(error as Error).message}`);
+      }
+    }
     return this.login({ email: dto.email, password: dto.password }, client);
   }
 

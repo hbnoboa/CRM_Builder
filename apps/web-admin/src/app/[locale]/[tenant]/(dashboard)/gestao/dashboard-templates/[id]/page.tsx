@@ -2528,7 +2528,7 @@ function renderLiveWidget(
   };
 
   switch (widgetConfig.type as WidgetType) {
-    case 'kpi-card': return <KpiCardWidget {...commonProps} />;
+    case 'kpi-card': return <KpiCardWidget {...commonProps} entityFields={effectiveFields} />;
     case 'number-card': return <NumberCardWidget {...commonProps} />;
     case 'area-chart': return <AreaChartWidget {...commonProps} />;
     case 'line-chart': return <LineChartWidget {...commonProps} />;

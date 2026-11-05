@@ -10,6 +10,7 @@ import { RedisModule } from './common/services/redis.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { UserModule } from './modules/user/user.module';
 import { TenantModule } from './modules/tenant/tenant.module';
+import { SolutionsModule } from './modules/solutions/solutions.module';
 import { EntityModule } from './modules/entity/entity.module';
 import { DataModule } from './modules/data/data.module';
 import { StatsModule } from './modules/stats/stats.module';
@@ -91,6 +92,7 @@ import { TenantFeatureInterceptor } from './common/interceptors/tenant-feature.i
     AuthModule,
     UserModule,
     TenantModule,
+    SolutionsModule,
     EntityModule,
     DataModule,
     CustomRoleModule,
