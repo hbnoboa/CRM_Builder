@@ -21,6 +21,7 @@ import { Link } from '@/i18n/tenant-navigation';
 import { RoleFormDialog } from '@/components/roles/role-form-dialog';
 import { DeleteRoleDialog } from '@/components/roles/delete-role-dialog';
 import type { CustomRole } from '@/types';
+import { HelpButton } from '@/components/help/help-button';
 
 export default function RolesPage() {
   const t = useTranslations();
@@ -98,7 +99,7 @@ export default function RolesPage() {
 
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-bold">{t('rolesPage.title')}</h1>
+          <h1 className="text-2xl sm:text-3xl font-bold flex items-center gap-2">{t('rolesPage.title')}<HelpButton topic="module.roles" /></h1>
           <p className="text-muted-foreground mt-1 text-sm sm:text-base">{t('rolesPage.subtitle')}</p>
           <p className="text-muted-foreground mt-1 text-xs sm:text-sm">{t('rolesPage.orderHint')}</p>
         </div>

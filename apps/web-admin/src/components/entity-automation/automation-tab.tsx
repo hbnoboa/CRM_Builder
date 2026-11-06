@@ -14,6 +14,7 @@ import {
 import { useEntityAutomations } from '@/hooks/use-entity-automations';
 import { EventAutomationsSection } from './event-automations-section';
 import { ScheduledSection } from './scheduled-section';
+import { HelpButton } from '@/components/help/help-button';
 
 import type { EntityField } from '@/types';
 
@@ -49,6 +50,9 @@ export function AutomationTab({ entityId, fields, entityName, statusField, title
 
   return (
     <div className="space-y-4">
+      <div className="flex justify-end">
+        <HelpButton topic="module.automations" label="Como funcionam as automações" />
+      </div>
       {/* ── Section 1: Event Automations ───────────────────────────── */}
       <Collapsible
         open={openSections.eventAutomations}

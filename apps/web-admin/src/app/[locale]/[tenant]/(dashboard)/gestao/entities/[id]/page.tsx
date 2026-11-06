@@ -38,6 +38,7 @@ function EntityEditorWrapper() {
   const router = useRouter();
   const [entity, setEntity] = useState<Entity | null>(null);
   const [loading, setLoading] = useState(true);
+  const [fieldsUnsaved, setFieldsUnsaved] = useState(false);
   const queryClient = useQueryClient();
   const { hasModulePermission } = usePermissions();
   const deleteEntity = useDeleteEntity({
@@ -115,6 +116,7 @@ function EntityEditorWrapper() {
               queryClient.invalidateQueries({ queryKey: entityKeys.all });
             }}
             onCancel={() => router.back()}
+            onDirtyChange={setFieldsUnsaved}
           />
         </div>
         {tab !== 'fields' && (
@@ -123,6 +125,7 @@ function EntityEditorWrapper() {
               {tab === 'settings' && (
                 <TableSettingsPanel
                   entity={entity}
+                  fieldsUnsaved={fieldsUnsaved}
                   onSaved={(updated) => {
                     setEntity((prev) => (prev ? { ...prev, settings: updated.settings } : updated));
                     queryClient.invalidateQueries({ queryKey: entityKeys.all });

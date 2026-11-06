@@ -19,6 +19,7 @@ import { useExecutionLogs, useExecutionLogsStats } from '@/hooks/use-execution-l
 import { usePermissions } from '@/hooks/use-permissions';
 import { cn } from '@/lib/utils';
 import { formatDistanceToNow } from 'date-fns';
+import { HelpButton } from '@/components/help/help-button';
 import { ptBR } from 'date-fns/locale';
 
 type ExecutionType = 'webhook' | 'action-chain' | 'scheduled-task' | 'api-execution';
@@ -109,7 +110,7 @@ export default function ExecutionLogsPage() {
         <div className="flex items-center gap-3">
           <Activity className="h-6 w-6 sm:h-8 sm:w-8 text-primary" />
           <div>
-            <h1 className="text-xl sm:text-2xl font-bold">Logs de Execucao</h1>
+            <h1 className="text-xl sm:text-2xl font-bold flex items-center gap-2">Execuções<HelpButton topic="module.executions" /></h1>
             <p className="text-sm text-muted-foreground">
               Monitore webhooks, action chains e tarefas agendadas
             </p>

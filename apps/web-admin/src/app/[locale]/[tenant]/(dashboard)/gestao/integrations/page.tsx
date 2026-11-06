@@ -23,7 +23,7 @@ export default function GestaoIntegrationsPage() {
 
   return (
     <div className="mx-auto max-w-5xl space-y-6">
-      <GestaoPageHeader title={t('title')} subtitle={t('subtitle')} />
+      <GestaoPageHeader help="module.integrations" title={t('title')} subtitle={t('subtitle')} />
       {tabs.length > 0 && (
         <Tabs defaultValue={tabs[0]}>
           <TabsList>

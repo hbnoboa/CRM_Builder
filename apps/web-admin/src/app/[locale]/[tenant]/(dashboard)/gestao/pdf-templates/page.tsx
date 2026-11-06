@@ -66,6 +66,7 @@ import {
 } from '@/hooks/use-pdf-templates';
 import { useEntityData } from '@/hooks/use-data';
 import type { PdfTemplate } from '@/services/pdf-templates.service';
+import { HelpButton } from '@/components/help/help-button';
 
 function GenerateModal({
   template,
@@ -439,7 +440,7 @@ function PdfTemplatesPageContent() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-bold">Templates de PDF</h1>
+          <h1 className="text-2xl sm:text-3xl font-bold flex items-center gap-2">Modelos de PDF<HelpButton topic="module.pdf" /></h1>
           <p className="text-muted-foreground mt-1 text-sm sm:text-base">
             Crie e gerencie templates personalizados para geracao de PDFs
           </p>

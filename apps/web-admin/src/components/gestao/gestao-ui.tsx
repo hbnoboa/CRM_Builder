@@ -1,13 +1,17 @@
 'use client';
 
 import type { ReactNode } from 'react';
+import { HelpButton } from '@/components/help/help-button';
 
 /** Cabecalho padrao das telas da administracao da empresa. */
-export function GestaoPageHeader({ title, subtitle, actions }: { title: string; subtitle?: string; actions?: ReactNode }) {
+export function GestaoPageHeader({ title, subtitle, actions, help }: { title: string; subtitle?: string; actions?: ReactNode; help?: string }) {
   return (
     <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight md:text-3xl">{title}</h1>
+        <h1 className="flex items-center gap-2 text-2xl font-bold tracking-tight md:text-3xl">
+          {title}
+          {help && <HelpButton topic={help} />}
+        </h1>
         {subtitle && <p className="mt-1 text-sm text-muted-foreground md:text-base">{subtitle}</p>}
       </div>
       {actions && <div className="flex flex-wrap gap-2">{actions}</div>}

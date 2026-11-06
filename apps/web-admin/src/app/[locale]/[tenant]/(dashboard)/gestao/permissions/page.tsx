@@ -6,6 +6,7 @@ import { Link } from '@/i18n/tenant-navigation';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { ArrowLeft, Shield, UserCog, Users, User, Eye } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { HelpButton } from '@/components/help/help-button';
 import { Badge } from '@/components/ui/badge';
 
 const SYSTEM_ROLES = [
@@ -64,7 +65,7 @@ export default function PermissionsPage() {
         </Tooltip>
       </TooltipProvider>
 
-      <h1 className="text-3xl font-bold mb-6">{t('pageTitle')}</h1>
+      <h1 className="text-3xl font-bold mb-6 flex items-center gap-2">{t('pageTitle')}<HelpButton topic="module.permissions" /></h1>
 
       <Card>
         <CardHeader>

@@ -18,6 +18,7 @@ import { useAuditLogs } from '@/hooks/use-audit-logs';
 import { usePermissions } from '@/hooks/use-permissions';
 import { auditLogsService, type AuditLog } from '@/services/audit-logs.service';
 import { cn } from '@/lib/utils';
+import { HelpButton } from '@/components/help/help-button';
 
 const ACTIONS = ['create', 'update', 'delete', 'restore', 'purge', 'export'] as const;
 const RESOURCES = ['entity_data', 'user', 'entity', 'custom_role', 'custom_api', 'page'] as const;
@@ -135,7 +136,7 @@ export default function AuditLogsPage() {
 
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-bold">{t('title')}</h1>
+          <h1 className="text-2xl sm:text-3xl font-bold flex items-center gap-2">{t('title')}<HelpButton topic="module.audit" /></h1>
           <p className="text-muted-foreground mt-1 text-sm sm:text-base">{t('subtitle')}</p>
         </div>
         <Button onClick={handleExport} disabled={exporting} variant="outline" className="w-full sm:w-auto">

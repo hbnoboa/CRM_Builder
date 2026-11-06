@@ -26,7 +26,7 @@ export default function GestaoSecurityPage() {
 
   return (
     <div className="mx-auto max-w-5xl space-y-6">
-      <GestaoPageHeader title={t('title')} subtitle={t('subtitle')} />
+      <GestaoPageHeader help="module.security" title={t('title')} subtitle={t('subtitle')} />
       <PolicyCard editable={canEditPolicy} />
       {canSeeTeam && <TeamCard canLogout={hasModulePermission('users', 'canUpdate')} />}
     </div>
