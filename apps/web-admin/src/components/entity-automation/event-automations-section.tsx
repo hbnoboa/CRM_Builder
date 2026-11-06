@@ -5,7 +5,6 @@ import {
   Plus, Pencil, Trash2, Loader2, Zap, Play, History,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
 import {
@@ -24,6 +23,10 @@ import {
 } from '@/hooks/use-entity-automations';
 import type { EntityAutomation, AutomationTrigger } from '@/services/entity-automation.service';
 import { AutomationWizard } from './automation-wizard';
+import { AutomationRecipes } from './automation-recipes';
+import { describeAutomation } from '@/lib/automation-describe';
+import { api } from '@/lib/api';
+import { useQuery } from '@tanstack/react-query';
 import { ExecutionHistoryDialog } from './execution-history-dialog';
 
 import type { EntityField } from '@/types';
@@ -31,54 +34,35 @@ import type { EntityField } from '@/types';
 interface EventAutomationsSectionProps {
   entityId: string;
   fields: EntityField[];
+  entityName?: string;
+  statusField?: string;
+  titleField?: string;
 }
 
 const EVENT_TRIGGERS: AutomationTrigger[] = [
   'ON_CREATE', 'ON_UPDATE', 'ON_FIELD_CHANGE', 'ON_STATUS_CHANGE', 'ON_DELETE', 'MANUAL',
 ];
 
-const triggerLabels: Record<string, string> = {
-  ON_CREATE: 'Ao Criar',
-  ON_UPDATE: 'Ao Atualizar',
-  ON_FIELD_CHANGE: 'Ao Mudar Campo',
-  ON_STATUS_CHANGE: 'Ao Mudar Status',
-  ON_DELETE: 'Ao Excluir',
-  MANUAL: 'Manual',
-};
-
-const triggerColors: Record<string, string> = {
-  ON_CREATE: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300',
-  ON_UPDATE: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300',
-  ON_FIELD_CHANGE: 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300',
-  ON_STATUS_CHANGE: 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300',
-  ON_DELETE: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300',
-  MANUAL: 'bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-300',
-};
-
-function getActionsSummary(actions: EntityAutomation['actions']): string {
-  if (!actions || actions.length === 0) return 'Sem acoes';
-  const types = Array.from(new Set(actions.map(a => a.type)));
-  return `${actions.length} acao(oes): ${types.join(', ')}`;
-}
-
-function getConditionsSummary(conditions?: EntityAutomation['conditions']): string {
-  if (!conditions || conditions.length === 0) return '';
-  return `${conditions.length} condicao(oes)`;
-}
-
-export function EventAutomationsSection({ entityId, fields }: EventAutomationsSectionProps) {
+export function EventAutomationsSection({ entityId, fields, entityName = 'Registro', statusField, titleField }: EventAutomationsSectionProps) {
   const { data: allAutomations, isLoading } = useEntityAutomations(entityId);
+  const [recipesOpen, setRecipesOpen] = useState(false);
+  const { data: team } = useQuery({
+    queryKey: ['team-directory'],
+    queryFn: async () => (await api.get<Array<{ id: string; name: string }>>('/team-directory')).data,
+    staleTime: 5 * 60_000,
+  });
+  const people = new Map((team || []).map((m) => [m.id, m.name]));
   const updateMutation = useUpdateAutomation(entityId, {
-    success: 'Automacao atualizada',
-    error: 'Erro ao atualizar automacao',
+    success: 'Automação atualizada',
+    error: 'Erro ao atualizar automação',
   });
   const deleteMutation = useDeleteAutomation(entityId, {
-    success: 'Automacao excluida',
-    error: 'Erro ao excluir automacao',
+    success: 'Automação excluida',
+    error: 'Erro ao excluir automação',
   });
   const executeMutation = useExecuteAutomation(entityId, {
-    success: 'Automacao executada',
-    error: 'Erro ao executar automacao',
+    success: 'Automação executada',
+    error: 'Erro ao executar automação',
   });
 
   const [wizardOpen, setWizardOpen] = useState(false);
@@ -106,7 +90,9 @@ export function EventAutomationsSection({ entityId, fields }: EventAutomationsSe
     setDeleteConfirmId(null);
   };
 
-  const openCreateWizard = () => {
+  // "Nova automação" abre as receitas; "Montar do zero" (dentro delas) abre o assistente completo
+  const openCreateWizard = () => setRecipesOpen(true);
+  const openCustomWizard = () => {
     setEditingAutomation(undefined);
     setWizardOpen(true);
   };
@@ -128,19 +114,20 @@ export function EventAutomationsSection({ entityId, fields }: EventAutomationsSe
     <div className="space-y-3">
       {eventAutomations.length === 0 ? (
         <div className="text-center py-8 border-2 border-dashed rounded-lg">
-          <Zap className="h-8 w-8 mx-auto mb-2 text-muted-foreground opacity-50" />
-          <p className="text-sm text-muted-foreground mb-3">
-            Nenhuma automacao de evento configurada.
+          <Zap className="h-8 w-8 mx-auto mb-2 text-amber-500" />
+          <p className="text-sm font-medium">Deixe o sistema trabalhar por você</p>
+          <p className="mx-auto mb-4 mt-1 max-w-md text-sm text-muted-foreground">
+            Ex.: avisar o gerente quando chegar uma OS nova, mandar e-mail ao cliente quando ela for concluída,
+            preencher a data de conclusão sozinho.
           </p>
-          <Button variant="outline" size="sm" onClick={openCreateWizard}>
+          <Button size="sm" onClick={openCreateWizard} data-testid="new-automation">
             <Plus className="h-4 w-4 mr-2" />
-            Nova Automacao
+            Criar automação
           </Button>
         </div>
       ) : (
         <>
           {eventAutomations.map(automation => {
-            const condSummary = getConditionsSummary(automation.conditions);
             return (
               <Card
                 key={automation.id}
@@ -152,47 +139,30 @@ export function EventAutomationsSection({ entityId, fields }: EventAutomationsSe
                   <div className="flex items-start gap-3">
                     <Zap className="h-4 w-4 mt-0.5 text-amber-500 flex-shrink-0" />
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="font-medium text-sm">{automation.name}</span>
-                        <Badge className={`text-xs ${triggerColors[automation.trigger] || ''}`}>
-                          {triggerLabels[automation.trigger] || automation.trigger}
-                        </Badge>
-                        {automation.trigger === 'ON_FIELD_CHANGE' && Boolean(automation.triggerConfig?.fieldSlug) && (
-                          <Badge variant="outline" className="text-xs">
-                            Campo: {String(automation.triggerConfig?.fieldSlug)}
-                          </Badge>
-                        )}
-                      </div>
-                      {automation.description && (
-                        <p className="text-xs text-muted-foreground mt-1 line-clamp-1">
-                          {automation.description}
+                      <span className="font-medium text-sm">{automation.name}</span>
+                      {(() => {
+                        const d = describeAutomation(automation, fields, entityName, people);
+                        return (
+                          <p className="mt-1 text-sm text-muted-foreground" data-testid="automation-sentence">
+                            <span className="text-foreground">{d.when}</span>, {d.then}.
+                          </p>
+                        );
+                      })()}
+                      {automation.lastRunAt && (
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          Funcionou pela última vez em {new Date(automation.lastRunAt).toLocaleString('pt-BR', {
+                            day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit',
+                          })}
                         </p>
                       )}
-                      <div className="flex items-center gap-3 mt-1.5 text-xs text-muted-foreground">
-                        <span>{getActionsSummary(automation.actions)}</span>
-                        {condSummary && (
-                          <>
-                            <span className="text-muted-foreground/40">|</span>
-                            <span>{condSummary}</span>
-                          </>
-                        )}
-                        {automation.lastRunAt && (
-                          <>
-                            <span className="text-muted-foreground/40">|</span>
-                            <span>
-                              Ultima exec.: {new Date(automation.lastRunAt).toLocaleString('pt-BR', {
-                                day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit',
-                              })}
-                            </span>
-                          </>
-                        )}
-                      </div>
                     </div>
                     <div className="flex items-center gap-1.5 flex-shrink-0">
+                      <span className="text-xs text-muted-foreground">{automation.isActive ? 'Ligada' : 'Desligada'}</span>
                       <Switch
                         checked={automation.isActive}
                         onCheckedChange={() => handleToggleActive(automation)}
                         disabled={updateMutation.isPending}
+                        aria-label={automation.isActive ? 'Desligar automação' : 'Ligar automação'}
                       />
                     </div>
                   </div>
@@ -216,7 +186,7 @@ export function EventAutomationsSection({ entityId, fields }: EventAutomationsSe
                       onClick={() => setHistoryAutomation(automation)}
                     >
                       <History className="h-3 w-3 mr-1" />
-                      Historico
+                      Histórico
                     </Button>
                     <Button
                       variant="ghost"
@@ -248,10 +218,21 @@ export function EventAutomationsSection({ entityId, fields }: EventAutomationsSe
             onClick={openCreateWizard}
           >
             <Plus className="h-4 w-4 mr-2" />
-            Nova Automacao
+            Criar automação
           </Button>
         </>
       )}
+
+      <AutomationRecipes
+        open={recipesOpen}
+        onOpenChange={setRecipesOpen}
+        entityId={entityId}
+        entityName={entityName}
+        fields={fields}
+        statusField={statusField}
+        titleField={titleField}
+        onCustom={openCustomWizard}
+      />
 
       {/* Automation Wizard */}
       <AutomationWizard
@@ -280,7 +261,7 @@ export function EventAutomationsSection({ entityId, fields }: EventAutomationsSe
           <DialogHeader>
             <DialogTitle>Excluir Automacao</DialogTitle>
             <DialogDescription>
-              Tem certeza que deseja excluir esta automacao? Esta acao nao pode ser desfeita.
+              Tem certeza que deseja excluir esta automação? Esta ação não pode ser desfeita.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>

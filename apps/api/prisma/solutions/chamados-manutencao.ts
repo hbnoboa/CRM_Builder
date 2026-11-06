@@ -1,5 +1,5 @@
 import { C, field, opts, rows, section } from './layout';
-import { cycle, daysAgo } from './samples';
+import { cycle, daysAgo, hoursAgo } from './samples';
 import type { SampleRecord, SolutionSpec } from './types';
 
 /**
@@ -53,7 +53,7 @@ const chamados = {
   color: C.blue,
   category: 'Manutenção',
   subOf: 'ativos',
-  settings: { titleField: 'numero', captureLocation: true },
+  settings: { titleField: 'numero', captureLocation: true, statusField: 'status', doneValues: ['resolvido', 'cancelado'], deadlineField: 'prazo' },
   fields: rows(
     [
       field('numero', 'Nº do chamado', 'text', 3, { required: true, unique: true, placeholder: 'CH-0001' }),
@@ -161,9 +161,13 @@ function sampleChamados(i: number, tipo: string, criticidade: string): SampleRec
     const [categoria, descricao, solucao] = cycle(PROBLEMAS[tipo], j);
     const status = cycle(STATUS_CICLO, n);
     const prioridade = categoria === 'preventiva' ? 'baixa' : criticidade === 'alta' ? cycle(['critica', 'alta'], n) : cycle(['media', 'alta', 'baixa'], n);
-    const aberto = daysAgo((i * 4 + j * 7 + j * j) % 30, 7 + (n % 10));
     const sla = SLA_HORAS[prioridade];
     const resolvido = status === 'resolvido';
+    const emAberto = !resolvido && status !== 'cancelado';
+    // Em aberto: aberto ha uma fracao do SLA (a maioria ainda no prazo, ~1 em 4 estourado)
+    const aberto = emAberto
+      ? hoursAgo(sla * cycle([0.2, 1.4, 0.5, 0.1, 0.8, 2, 0.3, 0.6], n))
+      : daysAgo((i * 4 + j * 7 + j * j) % 30, 7 + (n % 10));
     // ~1 em 4 resolvidos estoura o prazo (aparece no painel)
     const horasParaResolver = n % 4 === 0 ? sla + 6 : Math.max(1, Math.round(sla * 0.6));
     const tecnico = cycle(TECNICOS, n);

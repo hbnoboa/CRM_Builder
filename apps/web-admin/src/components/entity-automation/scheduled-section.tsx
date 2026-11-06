@@ -100,12 +100,12 @@ function formatDate(dateStr?: string): string {
 export function ScheduledSection({ entityId, fields }: ScheduledSectionProps) {
   const { data: allAutomations, isLoading } = useEntityAutomations(entityId);
   const updateMutation = useUpdateAutomation(entityId, {
-    success: 'Automacao agendada atualizada',
-    error: 'Erro ao atualizar automacao',
+    success: 'Automação agendada atualizada',
+    error: 'Erro ao atualizar automação',
   });
   const deleteMutation = useDeleteAutomation(entityId, {
-    success: 'Automacao agendada excluida',
-    error: 'Erro ao excluir automacao',
+    success: 'Automação agendada excluida',
+    error: 'Erro ao excluir automação',
   });
 
   const [wizardOpen, setWizardOpen] = useState(false);
@@ -153,11 +153,11 @@ export function ScheduledSection({ entityId, fields }: ScheduledSectionProps) {
         <div className="text-center py-8 border-2 border-dashed rounded-lg">
           <Clock className="h-8 w-8 mx-auto mb-2 text-muted-foreground opacity-50" />
           <p className="text-sm text-muted-foreground mb-3">
-            Nenhuma automacao agendada configurada.
+            Nenhuma automação agendada configurada.
           </p>
           <Button variant="outline" size="sm" onClick={openCreateWizard}>
             <Plus className="h-4 w-4 mr-2" />
-            Nova Automacao Agendada
+            Nova Automação Agendada
           </Button>
         </div>
       ) : (
@@ -203,11 +203,11 @@ export function ScheduledSection({ entityId, fields }: ScheduledSectionProps) {
                         </div>
                         <div className="flex items-center gap-4">
                           <div>
-                            <span className="font-medium">Ultima exec.:</span>{' '}
+                            <span className="font-medium">Última exec.:</span>{' '}
                             <span>{formatDate(automation.lastRunAt)}</span>
                           </div>
                           <div>
-                            <span className="font-medium">Proxima exec.:</span>{' '}
+                            <span className="font-medium">Próxima exec.:</span>{' '}
                             <span>{formatDate(automation.nextRunAt)}</span>
                           </div>
                         </div>
@@ -232,7 +232,7 @@ export function ScheduledSection({ entityId, fields }: ScheduledSectionProps) {
                       onClick={() => setHistoryAutomation(automation)}
                     >
                       <History className="h-3 w-3 mr-1" />
-                      Historico
+                      Histórico
                     </Button>
                     <Button
                       variant="ghost"
@@ -264,7 +264,7 @@ export function ScheduledSection({ entityId, fields }: ScheduledSectionProps) {
             onClick={openCreateWizard}
           >
             <Plus className="h-4 w-4 mr-2" />
-            Nova Automacao Agendada
+            Nova Automação Agendada
           </Button>
         </>
       )}
@@ -296,7 +296,7 @@ export function ScheduledSection({ entityId, fields }: ScheduledSectionProps) {
           <DialogHeader>
             <DialogTitle>Excluir Automacao Agendada</DialogTitle>
             <DialogDescription>
-              Tem certeza que deseja excluir esta automacao agendada? Esta acao nao pode ser desfeita.
+              Tem certeza que deseja excluir esta automação agendada? Esta ação não pode ser desfeita.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>

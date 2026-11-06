@@ -11,7 +11,7 @@ import { ComputedFieldsService } from './computed-fields.service';
 import { WebhookService } from '../webhook/webhook.service';
 import { ActionChainService } from '../action-chain/action-chain.service';
 import { EntityAutomationService } from '../entity-automation/entity-automation.service';
-import { Prisma, EntityData, Entity } from '@prisma/client';
+import { AutomationTrigger, Prisma, EntityData, Entity } from '@prisma/client';
 import {
   CurrentUser,
   createPaginationMeta,
@@ -163,18 +163,21 @@ export class DataService {
     // NOVO: Adicionar à fila ao invés de executar diretamente
     try {
       // Buscar automações ativas para este evento
-      const automations = await this.prisma.entityAutomation.findMany({
-        where: {
-          entityId: entity.id,
-          tenantId,
-          isActive: true,
-          trigger: event === 'status-changed' ? 'ON_STATUS_CHANGE' :
-                  event === 'created' ? 'ON_CREATE' :
-                  event === 'updated' ? 'ON_UPDATE' :
-                  'ON_DELETE',
-        },
-        select: { id: true, name: true },
+      // Alteracao pode disparar "ao alterar", "quando o campo X mudar (para Y)" e "quando a situacao mudar";
+      // quem decide e o matchesTrigger (olha o campo, de/para e se o valor mudou de fato).
+      const triggers: AutomationTrigger[] = event === 'created' ? [AutomationTrigger.ON_CREATE]
+        : event === 'deleted' ? [AutomationTrigger.ON_DELETE]
+          : [AutomationTrigger.ON_UPDATE, AutomationTrigger.ON_FIELD_CHANGE, AutomationTrigger.ON_STATUS_CHANGE];
+      const candidates = await this.prisma.entityAutomation.findMany({
+        where: { entityId: entity.id, tenantId, isActive: true, trigger: { in: triggers } },
+        select: { id: true, name: true, trigger: true, triggerConfig: true },
       });
+      const automations = candidates.filter((automation) =>
+        !this.entityAutomationService
+        || this.entityAutomationService.matchesTrigger(automation, event, {
+          event, recordId: record.id as string, record, previousRecord,
+        }),
+      );
 
       if (automations.length > 0) {
         this.logger.log(

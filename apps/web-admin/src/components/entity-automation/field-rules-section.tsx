@@ -47,9 +47,9 @@ const ruleTypeConfig: Record<FieldRuleType, {
   variant: 'default' | 'secondary' | 'destructive' | 'outline';
   color: string;
 }> = {
-  required: { label: 'Obrigatorio', icon: ShieldCheck, variant: 'destructive', color: 'text-red-600' },
+  required: { label: 'Obrigatório', icon: ShieldCheck, variant: 'destructive', color: 'text-red-600' },
   visible: { label: 'Visibilidade', icon: Eye, variant: 'secondary', color: 'text-blue-600' },
-  default: { label: 'Valor Padrao', icon: Type, variant: 'outline', color: 'text-green-600' },
+  default: { label: 'Valor Padrão', icon: Type, variant: 'outline', color: 'text-green-600' },
   computed: { label: 'Calculado', icon: Calculator, variant: 'default', color: 'text-purple-600' },
   validation: { label: 'Validacao', icon: CheckCircle, variant: 'outline', color: 'text-orange-600' },
 };
@@ -61,7 +61,7 @@ const conditionOperators = [
   { value: 'gt', label: 'Maior que' },
   { value: 'lt', label: 'Menor que' },
   { value: 'is_empty', label: 'Esta vazio' },
-  { value: 'is_not_empty', label: 'Nao esta vazio' },
+  { value: 'is_not_empty', label: 'Não está vazio' },
 ];
 
 function getConfigSummary(rule: EntityFieldRule): string {
@@ -397,7 +397,7 @@ export function FieldRulesSection({ entityId, fields }: FieldRulesSectionProps) 
               {editingRule ? 'Editar Regra de Campo' : 'Nova Regra de Campo'}
             </DialogTitle>
             <DialogDescription>
-              Configure as regras de comportamento para campos da entidade.
+              Configure as regras de comportamento para campos da tabela.
             </DialogDescription>
           </DialogHeader>
 
@@ -453,7 +453,7 @@ export function FieldRulesSection({ entityId, fields }: FieldRulesSectionProps) 
             {/* Condition (optional) */}
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <Label>Condicao (opcional)</Label>
+                <Label>Condição (opcional)</Label>
                 <Switch
                   checked={form.hasCondition}
                   onCheckedChange={(checked) => updateForm({ hasCondition: checked })}
@@ -515,7 +515,7 @@ export function FieldRulesSection({ entityId, fields }: FieldRulesSectionProps) 
 
             {/* Config by rule type */}
             <div className="space-y-3">
-              <Label className="text-sm font-semibold">Configuracao</Label>
+              <Label className="text-sm font-semibold">Configuração</Label>
 
               {form.ruleType === 'required' && (
                 <div className="space-y-2">
@@ -530,7 +530,7 @@ export function FieldRulesSection({ entityId, fields }: FieldRulesSectionProps) 
 
               {form.ruleType === 'visible' && (
                 <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
-                  <Label>Mostrar campo quando a condicao for verdadeira</Label>
+                  <Label>Mostrar campo quando a condição for verdadeira</Label>
                   <Switch
                     checked={form.visibleShow}
                     onCheckedChange={(checked) => updateForm({ visibleShow: checked })}
@@ -561,9 +561,9 @@ export function FieldRulesSection({ entityId, fields }: FieldRulesSectionProps) 
                     </div>
                   ) : (
                     <div className="space-y-1">
-                      <Label className="text-xs">Valor padrao</Label>
+                      <Label className="text-xs">Valor padrão</Label>
                       <Input
-                        placeholder="Valor padrao do campo"
+                        placeholder="Valor padrão do campo"
                         value={form.defaultValue}
                         onChange={(e) => updateForm({ defaultValue: e.target.value })}
                       />
@@ -575,7 +575,7 @@ export function FieldRulesSection({ entityId, fields }: FieldRulesSectionProps) 
               {form.ruleType === 'computed' && (
                 <div className="space-y-3">
                   <div className="space-y-1">
-                    <Label className="text-xs">Formula</Label>
+                    <Label className="text-xs">Fórmula</Label>
                     <Textarea
                       placeholder="Ex: {{campo_a}} + {{campo_b}}"
                       value={form.computedFormula}
@@ -619,7 +619,7 @@ export function FieldRulesSection({ entityId, fields }: FieldRulesSectionProps) 
               {form.ruleType === 'validation' && (
                 <div className="space-y-3">
                   <div className="space-y-1">
-                    <Label className="text-xs">Padrao (regex)</Label>
+                    <Label className="text-xs">Padrão (regex)</Label>
                     <Input
                       placeholder="^[A-Za-z]+$"
                       value={form.validationPattern}
@@ -679,7 +679,7 @@ export function FieldRulesSection({ entityId, fields }: FieldRulesSectionProps) 
           <DialogHeader>
             <DialogTitle>Excluir Regra</DialogTitle>
             <DialogDescription>
-              Tem certeza que deseja excluir esta regra? Esta acao nao pode ser desfeita.
+              Tem certeza que deseja excluir esta regra? Esta ação não pode ser desfeita.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>

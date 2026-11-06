@@ -1,4 +1,6 @@
 import { Injectable, Logger, Optional, Inject } from '@nestjs/common';
+import { EmailService } from '../email/email.service';
+import { plainEmail } from '../email/email-layout';
 import { PrismaService } from '../../prisma/prisma.service';
 import { EmailTemplateService } from '../email-template/email-template.service';
 import { NotificationService } from '../notification/notification.service';
@@ -51,6 +53,7 @@ export class AutomationExecutorService {
     private readonly emailTemplateService?: EmailTemplateService,
     @Optional() @Inject(NotificationService)
     private readonly notificationService?: NotificationService,
+    @Optional() private readonly emailService?: EmailService,
   ) {}
 
   /**
@@ -423,40 +426,37 @@ export class AutomationExecutorService {
     config: Record<string, unknown>,
     context: AutomationContext,
   ): Promise<unknown> {
-    if (!this.emailTemplateService) {
-      this.logger.warn('EmailTemplateService nao disponivel, acao send_email ignorada');
-      return { sent: false, reason: 'EmailTemplateService not available' };
-    }
+    // Destinatarios: e-mails fixos e/ou {{record.campo}} (ex.: e-mail do cliente), separados por virgula.
+    const rawTo = this.replaceStringPlaceholders((config.to as string) || context.user?.email || '', context);
+    const to = rawTo.split(/[,;\s]+/).map((v) => v.trim()).filter((v) => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v));
+    if (to.length === 0) throw new Error(`Nenhum e-mail valido para enviar (destino: "${rawTo || 'vazio'}")`);
 
-    const templateId = config.emailTemplateId as string || config.templateId as string;
-    if (!templateId) {
-      throw new Error('emailTemplateId ou templateId e obrigatorio para send_email');
-    }
-
-    const rendered = await this.emailTemplateService.renderTemplate(
-      templateId,
-      context.tenantId,
-      {
+    let subject: string;
+    let html: string;
+    let text: string | undefined;
+    const templateId = (config.emailTemplateId as string) || (config.templateId as string);
+    if (templateId) {
+      if (!this.emailTemplateService) throw new Error('Modelos de e-mail indisponiveis');
+      const rendered = await this.emailTemplateService.renderTemplate(templateId, context.tenantId, {
         user: context.user,
         record: context.record,
         entity: context.entity,
         custom: config.variables as Record<string, unknown>,
-      },
-    );
+      });
+      subject = rendered.subject;
+      html = rendered.html;
+    } else {
+      // Modo simples: assunto e texto escritos na propria automacao, com {{record.campo}}
+      subject = this.replaceStringPlaceholders((config.subject as string) || context.entity?.name || 'Aviso', context);
+      const body = this.replaceStringPlaceholders((config.body as string) || '', context);
+      ({ html, text } = plainEmail({ title: subject, body, footer: 'Mensagem automática enviada pelo CRM Builder.' }));
+    }
 
-    const to = (config.to as string) || context.user?.email;
-
-    // Log do email preparado (envio real requer integracao com servico de email)
-    this.logger.log(
-      `Email preparado: "${rendered.subject}" para ${to}`,
-    );
-
-    return {
-      subject: rendered.subject,
-      to,
-      html: rendered.html,
-      sent: false, // Marcaria true apos integracao real com SendGrid/SES
-    };
+    if (!this.emailService) throw new Error('Servico de e-mail indisponivel');
+    const result = await this.emailService.send({ to, subject, html, text });
+    if (!result.sent && result.provider === 'smtp') throw new Error('O servidor de e-mail recusou o envio');
+    // Sem provedor configurado (provider "console") o e-mail fica so registrado.
+    return { to, subject, sent: result.sent, provider: result.provider };
   }
 
   /**
@@ -553,7 +553,8 @@ export class AutomationExecutorService {
     }
 
     const fieldSlug = config.fieldSlug as string;
-    const newValue = config.value;
+    // Texto aceita {{now}}, {{today}} e {{record.campo}} (ex.: data de conclusao = agora)
+    const newValue = typeof config.value === 'string' ? this.replaceStringPlaceholders(config.value, context) : config.value;
 
     if (!fieldSlug) {
       throw new Error('fieldSlug e obrigatorio para update_field');
@@ -1152,6 +1153,7 @@ export class AutomationExecutorService {
       .replace(/\{\{entity\.id\}\}/g, context.entity?.id || '')
       .replace(/\{\{recordId\}\}/g, context.recordId || '')
       .replace(/\{\{now\}\}/g, new Date().toISOString())
+      .replace(/\{\{today\}\}/g, new Date().toISOString().slice(0, 10))
       .replace(/\{\{timestamp\}\}/g, String(Date.now()))
       .replace(/\{\{record\.([^}]+)\}\}/g, (_, path) => {
         return this.getNestedStringValue(context.record || {}, path);

@@ -221,11 +221,13 @@ function WebhookDialog({ webhook, entities, onClose }: { webhook: WebhookRow | '
               ))}
             </div>
           </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="wh-secret">{t('secret')}</Label>
-            <Input id="wh-secret" value={secret} onChange={(e) => setSecret(e.target.value)} className="font-mono text-xs" />
-            <p className="text-xs text-muted-foreground">{t('secretHint')}</p>
-          </div>
+          <details className="rounded-lg border px-3 py-2">
+            <summary className="cursor-pointer select-none text-xs text-muted-foreground">{t('secret')}</summary>
+            <div className="mt-2 space-y-1.5">
+              <Input id="wh-secret" aria-label={t('secret')} value={secret} onChange={(e) => setSecret(e.target.value)} className="font-mono text-xs" />
+              <p className="text-xs text-muted-foreground">{t('secretHint')}</p>
+            </div>
+          </details>
           <label className="flex items-center justify-between gap-3 rounded-lg border p-3 text-sm">
             {t('active')}
             <Switch checked={active} onCheckedChange={setActive} />

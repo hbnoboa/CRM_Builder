@@ -141,27 +141,36 @@ type TableSettings = {
 type FieldOption = { value: string; label: string; color?: string };
 
 const toOptions = (f?: EntityField): FieldOption[] =>
-  ((f?.options || []) as Array<string | FieldOption>).map((o) => (typeof o === 'string' ? { value: o, label: o } : o));
+  f?.type === 'boolean'
+    ? [{ value: 'true', label: 'Sim' }, { value: 'false', label: 'Não' }]
+    : ((f?.options || []) as Array<string | FieldOption>).map((o) => (typeof o === 'string' ? { value: o, label: o } : o));
 
 function SettingSelect({
-  label, hint, value, onChange, fields, emptyLabel, testId,
+  label, hint, value, onChange, fields, emptyLabel, missing, testId,
 }: {
   label: string; hint: string; value?: string; onChange: (v?: string) => void;
-  fields: EntityField[]; emptyLabel: string; testId: string;
+  fields: EntityField[]; emptyLabel: string;
+  /** Texto quando a tabela nao tem nenhum campo do tipo certo (no lugar de um select vazio). */
+  missing: string;
+  testId: string;
 }) {
   return (
     <div className="space-y-1.5">
       <Label>{label}</Label>
-      <select
-        className="h-9 w-full rounded-md border bg-background px-2 text-sm"
-        value={value || ''}
-        onChange={(e) => onChange(e.target.value || undefined)}
-        data-testid={testId}
-      >
-        <option value="">{emptyLabel}</option>
-        {fields.map((f) => <option key={f.slug} value={f.slug}>{f.label || f.name}</option>)}
-      </select>
-      <p className="text-xs text-muted-foreground">{hint}</p>
+      {fields.length === 0 ? (
+        <p className="rounded-md border border-dashed px-3 py-2 text-xs text-muted-foreground" data-testid={`${testId}-missing`}>{missing}</p>
+      ) : (
+        <select
+          className="h-9 w-full rounded-md border bg-background px-2 text-sm"
+          value={value || ''}
+          onChange={(e) => onChange(e.target.value || undefined)}
+          data-testid={testId}
+        >
+          <option value="">{emptyLabel}</option>
+          {fields.map((f) => <option key={f.slug} value={f.slug}>{f.label || f.name}</option>)}
+        </select>
+      )}
+      {fields.length > 0 && <p className="text-xs text-muted-foreground">{hint}</p>}
     </div>
   );
 }
@@ -186,7 +195,7 @@ export function TableSettingsPanel({ entity, onSaved }: { entity: Entity; onSave
   const dirty = JSON.stringify(cfg) !== JSON.stringify(initial);
 
   const titleFields = fields.filter((f) => ['text', 'email', 'phone', 'number', 'cpf', 'cnpj'].includes(f.type));
-  const statusFields = fields.filter((f) => ['select', 'radio-group'].includes(f.type));
+  const statusFields = fields.filter((f) => ['select', 'radio-group', 'boolean'].includes(f.type));
   const dateFields = fields.filter((f) => ['date', 'datetime'].includes(f.type));
   const personFields = fields.filter((f) => f.type === 'user-select');
   const statusOptions = toOptions(fields.find((f) => f.slug === cfg.statusField));
@@ -220,15 +229,17 @@ export function TableSettingsPanel({ entity, onSaved }: { entity: Entity; onSave
             onChange={(v) => set({ titleField: v })}
             fields={titleFields}
             emptyLabel="Automático (primeiro campo de texto)"
+            missing="Ainda não há um campo de texto. Crie um (ex.: Nome) na aba Campos."
             testId="setting-title-field"
           />
           <SettingSelect
             label="Situação"
-            hint="Lista que diz em que pé está. Ex.: Aberta, Em andamento, Concluída."
+            hint="Lista que diz em que pé está (Aberta, Em andamento, Concluída) ou um Sim/Não como Resolvida."
             value={cfg.statusField}
             onChange={(v) => set({ statusField: v, doneValues: [] })}
             fields={statusFields}
-            emptyLabel={statusFields.length ? 'Nenhuma' : 'Crie antes um campo "Lista de opções"'}
+            emptyLabel="Nenhuma"
+            missing='Ainda não há um campo de situação. Crie uma "Lista de opções" (ex.: Aberta, Concluída) ou um "Sim ou não" na aba Campos.'
             testId="setting-status-field"
           />
           {cfg.statusField && (
@@ -273,7 +284,8 @@ export function TableSettingsPanel({ entity, onSaved }: { entity: Entity; onSave
             value={cfg.deadlineField}
             onChange={(v) => set({ deadlineField: v })}
             fields={dateFields}
-            emptyLabel={dateFields.length ? 'Sem prazo' : 'Crie antes um campo "Data"'}
+            emptyLabel="Sem prazo"
+            missing='Ainda não há um campo de data. Crie uma "Data" (ex.: Vencimento) na aba Campos para usar prazos.'
             testId="setting-deadline-field"
           />
           <SettingSelect
@@ -282,7 +294,8 @@ export function TableSettingsPanel({ entity, onSaved }: { entity: Entity; onSave
             value={cfg.assigneeField}
             onChange={(v) => set({ assigneeField: v })}
             fields={personFields}
-            emptyLabel={personFields.length ? 'Todos que veem a tabela' : 'Todos (crie um campo "Pessoa da equipe" para separar)'}
+            emptyLabel="Todos que veem a tabela"
+            missing='Hoje todos que veem a tabela veem as mesmas pendências. Para separar por pessoa, crie um campo "Pessoa da equipe" na aba Campos.'
             testId="setting-assignee-field"
           />
         </CardContent>

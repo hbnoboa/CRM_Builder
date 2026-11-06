@@ -21,3 +21,18 @@ ${input.paragraphs.map((p) => `<p style="margin:0 0 12px;font-size:15px;line-hei
   const text = [input.title, '', ...input.paragraphs, '', `${input.buttonLabel}: ${input.url}`, '', input.footer].join('\n');
   return { html, text };
 }
+
+/** E-mail de texto simples (automacoes): titulo e paragrafos, sem botao. */
+export function plainEmail(input: { title: string; body: string; footer: string }): { html: string; text: string } {
+  const esc = (v: string) => v.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  const paragraphs = input.body.split(/\n{2,}/).map((p) => p.trim()).filter(Boolean);
+  const html = `<!doctype html><html><body style="margin:0;background:#f4f4f5;font-family:Arial,Helvetica,sans-serif;color:#18181b">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td align="center" style="padding:32px 16px">
+<table role="presentation" width="100%" style="max-width:560px;background:#ffffff;border-radius:12px;padding:32px">
+<tr><td>
+<h1 style="margin:0 0 16px;font-size:20px">${esc(input.title)}</h1>
+${paragraphs.map((p) => `<p style="margin:0 0 12px;font-size:15px;line-height:1.5">${esc(p).replace(/\n/g, '<br>')}</p>`).join('')}
+<p style="margin:20px 0 0;font-size:12px;color:#a1a1aa">${esc(input.footer)}</p>
+</td></tr></table></td></tr></table></body></html>`;
+  return { html, text: [input.title, '', input.body, '', input.footer].join('\n') };
+}

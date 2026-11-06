@@ -1579,7 +1579,11 @@ export class StatsService {
     const done = new Set(settings.doneValues || []);
     const and: Prisma.EntityDataWhereInput[] = [where];
     if (settings.statusField) {
-      for (const value of Array.from(done)) and.push({ NOT: { data: { path: [settings.statusField], equals: value } } });
+      for (const value of Array.from(done)) {
+        // Campo Sim/Nao (ex.: "Resolvida") guarda booleano; as opcoes chegam como 'true'/'false'
+        const stored = value === 'true' ? true : value === 'false' ? false : value;
+        and.push({ NOT: { data: { path: [settings.statusField], equals: stored } } });
+      }
     }
     if (settings.assigneeField) and.push({ data: { path: [settings.assigneeField], equals: user.name } });
     const rows = await this.prisma.entityData.findMany({

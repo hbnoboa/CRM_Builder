@@ -1,3 +1,4 @@
+import { Type } from 'class-transformer';
 import { RequireFeature } from '../../common/decorators/require-feature.decorator';
 import { ServiceScope } from '../../common/service-scope/service-scope.decorator';
 import {
@@ -63,6 +64,8 @@ class CreateWebhookDto {
   events: string[];
 
   @IsOptional()
+  // Objetos livres: sem @Type a conversao implicita do ValidationPipe os troca por []
+  @Type(() => Object)
   @IsArray()
   filterConditions?: Array<{ field: string; operator: string; value: unknown }>;
 

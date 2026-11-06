@@ -1,5 +1,5 @@
 import { C, field, opts, rows, section } from './layout';
-import { cycle, dateAhead, dateAgo, daysAgo } from './samples';
+import { PRAZO_ESPALHADO, cycle, dateAhead, dateAgo, daysAgo } from './samples';
 import type { SampleRecord, SolutionSpec } from './types';
 
 /**
@@ -49,7 +49,7 @@ const oportunidades = {
   color: C.violet,
   category: 'Vendas',
   subOf: 'empresas',
-  settings: { titleField: 'titulo' },
+  settings: { titleField: 'titulo', statusField: 'etapa', doneValues: ['ganho', 'perdido'], deadlineField: 'previsao' },
   fields: rows(
     [
       field('titulo', 'Oportunidade', 'text', 8, { required: true, placeholder: 'Ex.: Licenças para 40 usuários' }),
@@ -178,7 +178,7 @@ function sampleOportunidades(i: number, contato: string): SampleRecord[] {
         valor: base + (n % 4) * 1500,
         probabilidade: CHANCE[etapa],
         criada_em: dateAgo(criada),
-        previsao: fechado ? dateAgo(Math.max(criada - 10, 0)) : dateAhead(7 + (n % 5) * 9),
+        previsao: fechado ? dateAgo(Math.max(criada - 10, 0)) : dateAhead(cycle(PRAZO_ESPALHADO, n) + 3),
         vendedor: cycle(VENDEDORES, n),
         origem: cycle(['indicacao', 'site', 'evento', 'prospeccao_ativa', 'parceiro'], n),
         contato,

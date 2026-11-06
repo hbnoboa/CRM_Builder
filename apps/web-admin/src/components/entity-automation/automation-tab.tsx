@@ -20,15 +20,21 @@ import type { EntityField } from '@/types';
 interface AutomationTabProps {
   entityId: string;
   fields: EntityField[];
+  entityName?: string;
+  /** Ajustes da tabela: situacao e campo-titulo ajudam a montar as receitas. */
+  statusField?: string;
+  titleField?: string;
 }
 
-export function AutomationTab({ entityId, fields }: AutomationTabProps) {
-  const [openSections, setOpenSections] = useState<Record<string, boolean>>({
-    eventAutomations: true,
-    scheduledAutomations: true,
-  });
-
+export function AutomationTab({ entityId, fields, entityName, statusField, titleField }: AutomationTabProps) {
   const { data: automations } = useEntityAutomations(entityId);
+  const [openSections, setOpenSections] = useState<Record<string, boolean | undefined>>({
+    eventAutomations: true,
+    scheduledAutomations: undefined,
+  });
+  // Agendadas so abrem sozinhas quando ja existe alguma (sao para quem ja conhece)
+  const hasScheduled = (automations || []).some((a) => a.trigger === 'SCHEDULE');
+
 
   const eventAutomationsCount = (automations || []).filter(
     a => a.trigger !== 'SCHEDULE'
@@ -38,7 +44,7 @@ export function AutomationTab({ entityId, fields }: AutomationTabProps) {
   ).length;
 
   const toggleSection = (key: string) => {
-    setOpenSections(prev => ({ ...prev, [key]: !prev[key] }));
+    setOpenSections(prev => ({ ...prev, [key]: !(prev[key] ?? (key === 'scheduledAutomations' && hasScheduled)) }));
   };
 
   return (
@@ -57,9 +63,9 @@ export function AutomationTab({ entityId, fields }: AutomationTabProps) {
               <div className="flex items-center gap-3">
                 <Zap className="h-5 w-5 text-amber-500" />
                 <div className="text-left">
-                  <h3 className="text-sm font-semibold">Automacoes de Evento</h3>
+                  <h3 className="text-sm font-semibold">Quando algo acontecer</h3>
                   <p className="text-xs text-muted-foreground font-normal">
-                    Executa acoes quando registros sao criados, atualizados, excluidos ou quando campos mudam
+                    Avisos, e-mails e preenchimentos automáticos quando um registro é criado ou muda
                   </p>
                 </div>
               </div>
@@ -77,7 +83,7 @@ export function AutomationTab({ entityId, fields }: AutomationTabProps) {
           </CollapsibleTrigger>
           <CollapsibleContent>
             <div className="px-4 pb-4 pt-0">
-              <EventAutomationsSection entityId={entityId} fields={fields} />
+              <EventAutomationsSection entityId={entityId} fields={fields} entityName={entityName} statusField={statusField} titleField={titleField} />
             </div>
           </CollapsibleContent>
         </div>
@@ -85,7 +91,7 @@ export function AutomationTab({ entityId, fields }: AutomationTabProps) {
 
       {/* ── Section 2: Scheduled Automations ───────────────────────── */}
       <Collapsible
-        open={openSections.scheduledAutomations}
+        open={openSections.scheduledAutomations ?? hasScheduled}
         onOpenChange={() => toggleSection('scheduledAutomations')}
       >
         <div className="border rounded-lg">
@@ -97,9 +103,9 @@ export function AutomationTab({ entityId, fields }: AutomationTabProps) {
               <div className="flex items-center gap-3">
                 <Clock className="h-5 w-5 text-blue-500" />
                 <div className="text-left">
-                  <h3 className="text-sm font-semibold">Automacoes Agendadas</h3>
+                  <h3 className="text-sm font-semibold">Em horários marcados</h3>
                   <p className="text-xs text-muted-foreground font-normal">
-                    Automacoes executadas em horarios programados usando expressoes cron
+                    Rodam todo dia, toda semana ou no horário que você escolher (avançado)
                   </p>
                 </div>
               </div>
@@ -107,7 +113,7 @@ export function AutomationTab({ entityId, fields }: AutomationTabProps) {
                 <Badge variant="secondary" className="text-xs">
                   {scheduledCount}
                 </Badge>
-                {openSections.scheduledAutomations ? (
+                {(openSections.scheduledAutomations ?? hasScheduled) ? (
                   <ChevronDown className="h-4 w-4 text-muted-foreground" />
                 ) : (
                   <ChevronRight className="h-4 w-4 text-muted-foreground" />

@@ -81,7 +81,7 @@ const actionTypeLabels: Record<ActionType, string> = {
   call_webhook: 'Chamar Webhook',
   update_field: 'Atualizar Campo',
   create_record: 'Criar Registro',
-  notify_user: 'Notificar Usuario',
+  notify_user: 'Notificar Usuário',
   change_status: 'Mudar Status',
   wait: 'Aguardar',
   lookup_record: 'Buscar Registro',
@@ -103,11 +103,11 @@ const actionTypeIcons: Record<ActionType, typeof Zap> = {
 };
 
 const triggerOptions: { value: AutomationTrigger; label: string; description: string }[] = [
-  { value: 'ON_CREATE', label: 'Ao Criar', description: 'Quando um novo registro e criado' },
-  { value: 'ON_UPDATE', label: 'Ao Atualizar', description: 'Quando um registro e atualizado' },
+  { value: 'ON_CREATE', label: 'Ao Criar', description: 'Quando um novo registro é criado' },
+  { value: 'ON_UPDATE', label: 'Ao Atualizar', description: 'Quando um registro é atualizado' },
   { value: 'ON_FIELD_CHANGE', label: 'Ao Mudar Campo', description: 'Quando um campo especifico muda de valor' },
   { value: 'ON_STATUS_CHANGE', label: 'Ao Mudar Status', description: 'Quando o status do registro muda' },
-  { value: 'ON_DELETE', label: 'Ao Excluir', description: 'Quando um registro e excluido' },
+  { value: 'ON_DELETE', label: 'Ao Excluir', description: 'Quando um registro é excluído' },
   { value: 'SCHEDULE', label: 'Agendado', description: 'Executar em horarios programados' },
   { value: 'MANUAL', label: 'Manual', description: 'Executar manualmente sob demanda' },
 ];
@@ -120,7 +120,7 @@ const conditionOperators = [
   { value: 'lt', label: 'Menor que' },
   { value: 'in', label: 'Esta em (lista)' },
   { value: 'is_empty', label: 'Esta vazio' },
-  { value: 'is_not_empty', label: 'Nao esta vazio' },
+  { value: 'is_not_empty', label: 'Não está vazio' },
 ];
 
 const timezones = [
@@ -351,12 +351,12 @@ export function AutomationWizard({
   const entities = entitiesData?.data ?? [];
 
   const createMutation = useCreateAutomation(entityId, {
-    success: 'Automacao criada com sucesso',
-    error: 'Erro ao criar automacao',
+    success: 'Automação criada com sucesso',
+    error: 'Erro ao criar automação',
   });
   const updateMutation = useUpdateAutomation(entityId, {
-    success: 'Automacao atualizada com sucesso',
-    error: 'Erro ao atualizar automacao',
+    success: 'Automação atualizada com sucesso',
+    error: 'Erro ao atualizar automação',
   });
 
   // Reset form when dialog opens
@@ -422,11 +422,11 @@ export function AutomationWizard({
   // -- Save --
   const handleSave = async () => {
     if (!form.name.trim()) {
-      toast.error('Informe o nome da automacao');
+      toast.error('Informe o nome da automação');
       return;
     }
     if (form.actions.length === 0) {
-      toast.error('Adicione pelo menos uma acao');
+      toast.error('Adicione pelo menos uma ação');
       return;
     }
 
@@ -473,13 +473,13 @@ export function AutomationWizard({
   // -- Entity selector helper --
   const renderEntitySelect = (actionIndex: number, configKey: string = 'entitySlug') => (
     <div className="space-y-1">
-      <Label className="text-xs">Entidade</Label>
+      <Label className="text-xs">Tabela</Label>
       <Select
         value={getConfigValue(form.actions[actionIndex].config, configKey)}
         onValueChange={(v) => updateActionConfig(actionIndex, configKey, v)}
       >
         <SelectTrigger className="h-8 text-sm">
-          <SelectValue placeholder="Selecione a entidade" />
+          <SelectValue placeholder="Selecione a tabela" />
         </SelectTrigger>
         <SelectContent>
           {entities.map((e) => (
@@ -1023,11 +1023,11 @@ export function AutomationWizard({
           <div className="space-y-2">
             <div className="space-y-1">
               <div className="flex items-center justify-between">
-                <Label className="text-xs">Titulo</Label>
+                <Label className="text-xs">Título</Label>
                 {renderInsertFieldButton(index, 'title')}
               </div>
               <Input
-                placeholder="Titulo da notificacao"
+                placeholder="Título da notificacao"
                 value={getConfigValue(action.config, 'title')}
                 onChange={(e) => updateActionConfig(index, 'title', e.target.value)}
                 className="h-8 text-sm"
@@ -1108,7 +1108,7 @@ export function AutomationWizard({
         const dur = parseDuration(action.config.duration);
         return (
           <div className="space-y-1">
-            <Label className="text-xs">Duracao</Label>
+            <Label className="text-xs">Duração</Label>
             <div className="flex gap-2">
               <Input
                 type="number"
@@ -1195,7 +1195,7 @@ export function AutomationWizard({
                   className="h-8 text-sm"
                 />
                 <p className="text-xs text-muted-foreground">
-                  Resultado disponivel nas acoes seguintes
+                  Resultado disponível nas ações seguintes
                 </p>
               </div>
             </div>
@@ -1261,7 +1261,7 @@ export function AutomationWizard({
             ) : (
               <div className="grid grid-cols-2 gap-2">
                 <div className="space-y-1">
-                  <Label className="text-xs">Campo na entidade alvo</Label>
+                  <Label className="text-xs">Campo na tabela alvo</Label>
                   <Select
                     value={String(urFindBy.field ?? '')}
                     onValueChange={(v) => updateActionConfig(index, 'findBy', { ...urFindBy, field: v })}
@@ -1487,9 +1487,9 @@ export function AutomationWizard({
                   <SelectContent>
                     <SelectItem value="count">Contar</SelectItem>
                     <SelectItem value="sum">Somar</SelectItem>
-                    <SelectItem value="avg">Media</SelectItem>
-                    <SelectItem value="min">Minimo</SelectItem>
-                    <SelectItem value="max">Maximo</SelectItem>
+                    <SelectItem value="avg">Média</SelectItem>
+                    <SelectItem value="min">Mínimo</SelectItem>
+                    <SelectItem value="max">Máximo</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -1501,7 +1501,7 @@ export function AutomationWizard({
                     onValueChange={(v) => updateActionConfig(index, 'field', v)}
                   >
                     <SelectTrigger className="h-8 text-sm">
-                      <SelectValue placeholder="Campo numerico" />
+                      <SelectValue placeholder="Campo numérico" />
                     </SelectTrigger>
                     <SelectContent>
                       {(agNumericFields.length > 0 ? agNumericFields : agTargetFields).map(f => (
@@ -1522,7 +1522,7 @@ export function AutomationWizard({
                 className="h-8 text-sm"
               />
               <p className="text-xs text-muted-foreground">
-                Resultado disponivel nas acoes seguintes
+                Resultado disponível nas ações seguintes
               </p>
             </div>
           </div>
@@ -1539,10 +1539,10 @@ export function AutomationWizard({
       <DialogContent className="max-w-2xl max-h-[90vh] p-0 gap-0">
         <DialogHeader className="px-6 pt-6 pb-0">
           <DialogTitle>
-            {automation ? 'Editar Automacao' : 'Nova Automacao'}
+            {automation ? 'Editar Automação' : 'Nova Automação'}
           </DialogTitle>
           <DialogDescription>
-            Configure o gatilho, condicoes e acoes para esta automacao.
+            Configure o gatilho, condicoes e ações para esta automação.
           </DialogDescription>
         </DialogHeader>
 
@@ -1554,7 +1554,7 @@ export function AutomationWizard({
                 <span className="flex items-center justify-center h-5 w-5 rounded-full bg-primary/10 text-primary text-xs font-bold">
                   1
                 </span>
-                Informacoes Basicas
+                Informações Básicas
               </h3>
               <div className="space-y-2">
                 <Label>Nome</Label>
@@ -1565,7 +1565,7 @@ export function AutomationWizard({
                 />
               </div>
               <div className="space-y-2">
-                <Label>Descricao (opcional)</Label>
+                <Label>Descrição (opcional)</Label>
                 <Textarea
                   placeholder="Descreva o que esta automacao faz..."
                   value={form.description}
@@ -1718,7 +1718,7 @@ export function AutomationWizard({
               {form.trigger === 'SCHEDULE' && (
                 <div className="space-y-2 p-3 bg-muted/50 rounded-lg">
                   <div className="space-y-1">
-                    <Label className="text-xs">Expressao Cron</Label>
+                    <Label className="text-xs">Expressão Cron</Label>
                     <Input
                       placeholder="0 9 * * *"
                       value={form.cronExpression}
@@ -1758,17 +1758,17 @@ export function AutomationWizard({
                   <span className="flex items-center justify-center h-5 w-5 rounded-full bg-primary/10 text-primary text-xs font-bold">
                     3
                   </span>
-                  Condicoes - "Somente se..." (opcional)
+                  Condições - "Somente se..." (opcional)
                 </h3>
                 <Button variant="outline" size="sm" className="h-7 text-xs" onClick={addCondition}>
                   <Plus className="h-3 w-3 mr-1" />
-                  Condicao
+                  Condição
                 </Button>
               </div>
 
               {form.conditions.length === 0 && (
                 <p className="text-xs text-muted-foreground pl-7">
-                  Sem condicoes - a automacao sera executada sempre que o gatilho disparar.
+                  Sem condicoes - a automação será executada sempre que o gatilho disparar.
                 </p>
               )}
 
@@ -1831,11 +1831,11 @@ export function AutomationWizard({
                   <span className="flex items-center justify-center h-5 w-5 rounded-full bg-primary/10 text-primary text-xs font-bold">
                     4
                   </span>
-                  Acoes - "Entao faca..."
+                  Ações - "Entao faça..."
                 </h3>
                 <Button variant="outline" size="sm" className="h-7 text-xs" onClick={addAction}>
                   <Plus className="h-3 w-3 mr-1" />
-                  Acao
+                  Ação
                 </Button>
               </div>
 
@@ -1934,7 +1934,7 @@ export function AutomationWizard({
                 <span className="flex items-center justify-center h-5 w-5 rounded-full bg-primary/10 text-primary text-xs font-bold">
                   5
                 </span>
-                Configuracoes
+                Configurações
               </h3>
 
               <div className="space-y-3 pl-7">
@@ -1973,7 +1973,7 @@ export function AutomationWizard({
                     className="h-8 text-sm w-32"
                   />
                   <p className="text-xs text-muted-foreground">
-                    Limita execucoes para evitar loops infinitos.
+                    Limita execuções para evitar loops infinitos.
                   </p>
                 </div>
 
@@ -1982,7 +1982,7 @@ export function AutomationWizard({
                   <div>
                     <Label className="text-sm">Automacao ativa</Label>
                     <p className="text-xs text-muted-foreground">
-                      Desative para pausar a automacao sem excluir.
+                      Desative para pausar a automação sem excluir.
                     </p>
                   </div>
                   <Switch
@@ -2001,7 +2001,7 @@ export function AutomationWizard({
           </Button>
           <Button onClick={handleSave} disabled={isSaving}>
             {isSaving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-            {automation ? 'Salvar Alteracoes' : 'Criar Automacao'}
+            {automation ? 'Salvar alterações' : 'Criar Automação'}
           </Button>
         </DialogFooter>
       </DialogContent>

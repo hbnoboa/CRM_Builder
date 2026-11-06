@@ -27,6 +27,7 @@ export function BindingTextInput({
   multiline = false,
   placeholder,
   rows = 3,
+  tokenPrefix = '',
 }: {
   value: string;
   onChange: (value: string) => void;
@@ -34,6 +35,8 @@ export function BindingTextInput({
   multiline?: boolean;
   placeholder?: string;
   rows?: number;
+  /** Prefixo do codigo inserido (automacoes usam "record." -> {{record.campo}}). */
+  tokenPrefix?: string;
 }) {
   const ref = useRef<HTMLTextAreaElement & HTMLInputElement>(null);
   const [showAll, setShowAll] = useState(false);
@@ -43,7 +46,7 @@ export function BindingTextInput({
 
   const insert = (slug: string) => {
     const el = ref.current;
-    const token = `{{${slug}}}`;
+    const token = `{{${tokenPrefix}${slug}}}`;
     const start = el?.selectionStart ?? value.length;
     const end = el?.selectionEnd ?? value.length;
     const next = value.slice(0, start) + token + value.slice(end);
@@ -54,7 +57,10 @@ export function BindingTextInput({
     });
   };
 
-  const preview = value.replace(/\{\{\s*([^}]+?)\s*\}\}/g, (_, slug: string) => `[${nameOf.get(slug) ?? slug}]`);
+  const preview = value.replace(/\{\{\s*([^}]+?)\s*\}\}/g, (_, raw: string) => {
+    const slug = tokenPrefix && raw.startsWith(tokenPrefix) ? raw.slice(tokenPrefix.length) : raw;
+    return `[${nameOf.get(slug) ?? slug}]`;
+  });
   const hasBinding = /\{\{[^}]+\}\}/.test(value);
 
   return (
