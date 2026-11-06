@@ -37,6 +37,16 @@ export class AiBuilderController {
     return this.service.propose(dto, user);
   }
 
+  @Post('preview')
+  @HttpCode(HttpStatus.OK)
+  @RequireModulePermission('entities', 'canCreate')
+  @UseGuards(AuthThrottlerGuard)
+  @Throttle({ default: { limit: 120, ttl: 60000 } })
+  @ApiOperation({ summary: 'Confere e desenha uma proposta mexida a mao (sem IA)' })
+  previewTables(@Body() dto: AiApplyDto, @CurrentUser() user: CurrentUserType) {
+    return this.service.previewTables(dto, user);
+  }
+
   @Post('apply')
   @RequireModulePermission('entities', 'canCreate')
   @UseGuards(AuthThrottlerGuard)

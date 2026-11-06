@@ -15,6 +15,31 @@ export interface HelpTopic {
 }
 
 export const HELP: Record<string, HelpTopic> = {
+  // ── Assistente de criacao (IA) ───────────────────────────────────────
+  'ai.assistant': {
+    title: 'Assistente de criação',
+    intro: 'Você conta como é o seu negócio e a IA monta as tabelas (os cadastros) com os campos. Nada é criado até você clicar em Criar.',
+    steps: [
+      'Escreva do seu jeito o que você quer controlar, ou toque num exemplo.',
+      'Em alguns segundos aparece a proposta: as tabelas, os campos e as opções.',
+      'Ajuste direto na proposta (nomes, tipos, ordem, opções) ou pedindo por escrito.',
+      'Quando gostar, clique em Criar. Dá para mudar tudo depois, no editor de cada tabela.',
+    ],
+    example: '"Tenho uma oficina: quero controlar clientes, carros e ordens de serviço com as peças usadas."',
+  },
+  'ai.edit': {
+    title: 'Editar a proposta',
+    intro: 'A proposta é um rascunho: mexa à vontade, nada é criado e não gasta a IA.',
+    steps: [
+      'Clique no nome de uma tabela ou de um campo para trocar.',
+      'Troque o tipo do campo na lista ao lado (o "?" mostra como ele funciona).',
+      'Clique em "Opcional" para tornar obrigatório (e vice-versa).',
+      'Arraste pelo ⠿ ou use as setas para mudar a ordem; a lixeira tira o campo.',
+      'Nas listas de opções, clique na bolinha para trocar a cor e no nome para renomear.',
+      'Em "Identifica cada registro pelo", "Situação" e "Prazo" você escolhe os ajustes da tabela.',
+      'Se pedir mais alguma coisa por escrito, a IA parte do que você já mexeu.',
+    ],
+  },
   // ── Ajustes da tabela ────────────────────────────────────────────────
   'settings.title': {
     title: 'Nome do registro',
