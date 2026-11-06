@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Responsive, WidthProvider } from 'react-grid-layout/legacy';
 import type { Layout } from 'react-grid-layout';
-import { ArrowLeft, Check, GripVertical, Loader2, MousePointerClick, MoveHorizontal, Plus, Save, Trash2 } from 'lucide-react';
+import { ArrowLeft, Check, Eye, GripVertical, Loader2, MousePointerClick, MoveHorizontal, Plus, Save, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import type { Entity, EntityField, EntitySettings } from '@crm-builder/shared';
@@ -11,6 +11,7 @@ import { RecordFormFields } from '@/components/data/record-form-dialog';
 import { FieldPickerModal } from './panels/field-picker-modal';
 import { withoutSystemFields } from '@/lib/system-fields';
 import { fieldKind } from '@/lib/field-catalog';
+import { describeCondition } from './condition-editor';
 import { FULL_WIDTH_TYPES, FieldProperties, uniqueSlug } from './react-form-builder';
 
 import 'react-grid-layout/css/styles.css';
@@ -48,15 +49,22 @@ function FieldContent({
     report();
     return () => ro.disconnect();
   }, [field.slug, onMeasure]);
+  // No editor o campo aparece sempre: as regras (mostrar/exigir/travar) sao do formulario real.
   const singleFieldEntity = {
     ...entity,
-    fields: [{ ...field, gridColSpan: 12, gridColStart: undefined }],
+    fields: [{ ...field, gridColSpan: 12, gridColStart: undefined, visibleIf: undefined, requiredIf: undefined, readOnlyIf: undefined }],
   } as Entity;
+  const rule = describeCondition(field.visibleIf as never, entity.fields || []);
   return (
     // Sem readOnly: renderiza o componente exatamente como no form (com botão de
     // calendário, dropzone de arquivo, etc.). pointer-events-none impede interação.
     <div ref={ref} className="pointer-events-none">
       <RecordFormFields entity={singleFieldEntity} hideFooter />
+      {rule && (
+        <p className="mt-1 inline-flex items-center gap-1 rounded-full bg-nav-active px-2 py-0.5 text-[11px] text-nav-active-foreground">
+          <Eye className="h-3 w-3" /> Aparece só quando {rule}
+        </p>
+      )}
     </div>
   );
 }

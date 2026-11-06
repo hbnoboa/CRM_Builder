@@ -1,3 +1,4 @@
+import { Type } from 'class-transformer';
 import {
   IsString,
   IsOptional,
@@ -49,6 +50,8 @@ export class CreateAutomationDto {
     example: [{ field: 'status', operator: 'eq', value: 'active' }],
   })
   @IsOptional()
+  // Objetos livres: sem @Type a conversao implicita do ValidationPipe os troca por []
+  @Type(() => Object)
   @IsArray()
   conditions?: Array<Record<string, unknown>>;
 
@@ -63,6 +66,8 @@ export class CreateAutomationDto {
       },
     ],
   })
+  // Objetos livres: sem @Type a conversao implicita do ValidationPipe os troca por []
+  @Type(() => Object)
   @IsArray()
   actions: Array<Record<string, unknown>>;
 

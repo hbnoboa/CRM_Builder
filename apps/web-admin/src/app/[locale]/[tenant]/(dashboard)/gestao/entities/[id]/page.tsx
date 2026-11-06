@@ -139,7 +139,15 @@ function EntityEditorWrapper() {
                   }}
                 />
               )}
-              {tab === 'automations' && <AutomationTab entityId={entity.id} fields={fields} />}
+              {tab === 'automations' && (
+                <AutomationTab
+                  entityId={entity.id}
+                  fields={fields}
+                  entityName={entity.name}
+                  statusField={(entity.settings as { statusField?: string } | undefined)?.statusField}
+                  titleField={(entity.settings as { titleField?: string } | undefined)?.titleField}
+                />
+              )}
               {tab === 'danger' && (
                 <DeleteEntityPanel
                   entity={entity}

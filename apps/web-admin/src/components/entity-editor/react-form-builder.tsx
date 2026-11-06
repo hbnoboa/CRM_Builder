@@ -25,6 +25,7 @@ import { cn } from '@/lib/utils';
 import type { Entity, EntityField, EntitySettings } from '@crm-builder/shared';
 import { RecordFormFields } from '@/components/data/record-form-dialog';
 import { FieldPickerModal } from './panels/field-picker-modal';
+import { FieldConditionsEditor } from './condition-editor';
 import { useEntities } from '@/hooks/use-entities';
 import { withoutSystemFields } from '@/lib/system-fields';
 import { FIELD_GROUPS, FIELD_KINDS, fieldKind } from '@/lib/field-catalog';
@@ -459,36 +460,41 @@ export function FieldProperties({
         </div>
       )}
 
-      <details className="group rounded-lg border px-3 py-2">
+      {field.type !== 'section-title' && (
+        <details className="rounded-lg border px-3 py-2" open={!!(field.visibleIf || field.requiredIf || field.readOnlyIf)}>
+          <summary className="cursor-pointer select-none text-xs font-medium text-muted-foreground">
+            Regras: mostrar, exigir ou travar só em alguns casos
+          </summary>
+          <div className="mt-3">
+            <FieldConditionsEditor field={field} allFields={allFields} onChange={onChange} />
+          </div>
+        </details>
+      )}
+
+      <details className="rounded-lg border px-3 py-2">
         <summary className="cursor-pointer select-none text-xs font-medium text-muted-foreground">
-          Configurações avançadas
+          Mais opções
         </summary>
         <div className="mt-3 space-y-3">
           {field.type !== 'section-title' && (
             <div className="space-y-1.5">
               <Label>Texto de exemplo dentro do campo</Label>
-              <Input value={field.placeholder || ''} onChange={(e) => onChange({ placeholder: e.target.value })} />
+              <Input value={field.placeholder || ''} placeholder="Ex.: ABC-1234" onChange={(e) => onChange({ placeholder: e.target.value })} />
             </div>
           )}
           <div className="space-y-1.5">
             <Label>Dica abaixo do campo</Label>
-            <Input value={field.helpText || ''} onChange={(e) => onChange({ helpText: e.target.value })} />
+            <Input value={field.helpText || ''} placeholder="Ex.: Use a placa do documento do veículo" onChange={(e) => onChange({ helpText: e.target.value })} />
           </div>
-          <p className="text-[11px] text-muted-foreground">Código interno: <code>{field.slug}</code></p>
-          {/* Configuração avançada por tipo (JSON) — paridade com o editor antigo */}
-          {CONFIG_PROP_BY_TYPE[field.type] && (
-            <div className="border-t pt-3">
-              <JsonRow field={field} propKey={CONFIG_PROP_BY_TYPE[field.type]} label="Configuração (JSON)" onChange={onChange} />
+          <details className="rounded-md bg-muted/40 px-2 py-1.5">
+            <summary className="cursor-pointer select-none text-[11px] text-muted-foreground">Técnico (para quem programa integrações)</summary>
+            <div className="mt-2 space-y-2">
+              <p className="text-[11px] text-muted-foreground">Código interno: <code>{field.slug}</code></p>
+              {CONFIG_PROP_BY_TYPE[field.type] && (
+                <JsonRow field={field} propKey={CONFIG_PROP_BY_TYPE[field.type]} label="Configuração (JSON)" onChange={onChange} />
+              )}
             </div>
-          )}
-
-          {/* Regras condicionais (JSON) */}
-          <div className="space-y-2 border-t pt-3">
-            <p className="text-[11px] uppercase text-muted-foreground tracking-wide">Regras condicionais</p>
-            <JsonRow field={field} propKey="visibleIf" label="Visível se (JSON)" onChange={onChange} />
-            <JsonRow field={field} propKey="requiredIf" label="Obrigatório se (JSON)" onChange={onChange} />
-            <JsonRow field={field} propKey="readOnlyIf" label="Somente leitura se (JSON)" onChange={onChange} />
-          </div>
+          </details>
         </div>
       </details>
     </div>

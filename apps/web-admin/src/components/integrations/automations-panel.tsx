@@ -7,7 +7,11 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useAllAutomations } from '@/hooks/use-integrations';
 import { useEntities } from '@/hooks/use-entities';
-import type { Entity } from '@/types';
+import type { Entity, EntityField } from '@/types';
+import { useQuery } from '@tanstack/react-query';
+import { api } from '@/lib/api';
+import { describeAutomation } from '@/lib/automation-describe';
+import type { EntityAutomation } from '@/services/entity-automation.service';
 
 /** Indice das automacoes de todas as tabelas; a edicao continua no editor da tabela. */
 export function AutomationsPanel() {
@@ -17,6 +21,12 @@ export function AutomationsPanel() {
   const results = useAllAutomations(entities.map((e) => e.id), entities.length > 0);
   const loading = loadingEntities || results.some((r) => r.isLoading);
   const rows = entities.flatMap((e, i) => (results[i]?.data ?? []).map((a) => ({ ...a, entity: e })));
+  const { data: team } = useQuery({
+    queryKey: ['team-directory'],
+    queryFn: async () => (await api.get<Array<{ id: string; name: string }>>('/team-directory')).data,
+    staleTime: 5 * 60_000,
+  });
+  const people = new Map((team || []).map((m) => [m.id, m.name]));
 
   return (
     <Card data-testid="automations-panel">
@@ -41,7 +51,10 @@ export function AutomationsPanel() {
                 {!a.isActive && <Badge variant="outline">{t('paused')}</Badge>}
               </p>
               <p className="text-xs text-muted-foreground">
-                {a.entity.name} · {t.has(`triggers.${a.trigger}`) ? t(`triggers.${a.trigger}`) : a.trigger}
+                {(() => {
+                  const d = describeAutomation(a as unknown as EntityAutomation, (a.entity.fields || []) as EntityField[], a.entity.name, people);
+                  return `${a.entity.name} · ${d.when}, ${d.then}.`;
+                })()}
               </p>
             </div>
             <span className="hidden text-xs text-muted-foreground sm:inline">{t('editInTable')}</span>

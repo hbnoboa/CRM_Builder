@@ -29,7 +29,7 @@ const statusConfig: Record<
   string,
   { icon: typeof CheckCircle; label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' }
 > = {
-  completed: { icon: CheckCircle, label: 'Concluido', variant: 'default' },
+  completed: { icon: CheckCircle, label: 'Concluído', variant: 'default' },
   running: { icon: Loader2, label: 'Executando', variant: 'secondary' },
   failed: { icon: XCircle, label: 'Falhou', variant: 'destructive' },
   cancelled: { icon: AlertTriangle, label: 'Cancelado', variant: 'outline' },
@@ -87,7 +87,7 @@ export function ExecutionHistoryDialog({
         <DialogHeader>
           <DialogTitle>Historico de Execucoes - {automationName}</DialogTitle>
           <DialogDescription>
-            Visualize o historico de execucoes desta automacao.
+            Visualize o histórico de execuções desta automação.
           </DialogDescription>
         </DialogHeader>
 
@@ -209,7 +209,7 @@ export function ExecutionHistoryDialog({
                           </div>
                         ) : (
                           <div className="p-3 text-sm text-muted-foreground text-center">
-                            Nenhum resultado de passo disponivel.
+                            Nenhum resultado de passo disponível.
                           </div>
                         )}
                       </div>
