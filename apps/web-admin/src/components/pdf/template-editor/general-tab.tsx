@@ -75,8 +75,8 @@ export function GeneralTab({ template, onUpdate, isUpdating }: GeneralTabProps) 
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Configuracoes Gerais</CardTitle>
-        <CardDescription>Informacoes basicas e configuracoes de pagina do template</CardDescription>
+        <CardTitle>Configurações Gerais</CardTitle>
+        <CardDescription>Informações básicas e configurações de página do template</CardDescription>
       </CardHeader>
       <CardContent>
         <Form {...form}>
@@ -101,11 +101,11 @@ export function GeneralTab({ template, onUpdate, isUpdating }: GeneralTabProps) 
                 name="slug"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Slug</FormLabel>
+                    <FormLabel>Código interno</FormLabel>
                     <FormControl>
                       <Input {...field} />
                     </FormControl>
-                    <FormDescription>Identificador unico para URLs</FormDescription>
+                    <FormDescription>Identificador único para URLs</FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -117,7 +117,7 @@ export function GeneralTab({ template, onUpdate, isUpdating }: GeneralTabProps) 
               name="description"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Descricao (opcional)</FormLabel>
+                  <FormLabel>Descrição (opcional)</FormLabel>
                   <FormControl>
                     <Textarea rows={3} {...field} />
                   </FormControl>
@@ -141,7 +141,7 @@ export function GeneralTab({ template, onUpdate, isUpdating }: GeneralTabProps) 
                       </FormControl>
                       <SelectContent>
                         <SelectItem value="single">Individual (1 registro por PDF)</SelectItem>
-                        <SelectItem value="batch">Lote (multiplos registros)</SelectItem>
+                        <SelectItem value="batch">Lote (múltiplos registros)</SelectItem>
                       </SelectContent>
                     </Select>
                     <FormMessage />
@@ -154,11 +154,11 @@ export function GeneralTab({ template, onUpdate, isUpdating }: GeneralTabProps) 
                 name="sourceEntityId"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Entidade Fonte</FormLabel>
+                    <FormLabel>Tabela de origem</FormLabel>
                     <Select onValueChange={field.onChange} value={field.value}>
                       <FormControl>
                         <SelectTrigger>
-                          <SelectValue placeholder="Selecione uma entidade" />
+                          <SelectValue placeholder="Selecione uma tabela" />
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
@@ -175,7 +175,7 @@ export function GeneralTab({ template, onUpdate, isUpdating }: GeneralTabProps) 
                         )}
                       </SelectContent>
                     </Select>
-                    <FormDescription>Entidade da qual os dados serao extraidos</FormDescription>
+                    <FormDescription>Tabela da qual os dados serão extraídos</FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -188,7 +188,7 @@ export function GeneralTab({ template, onUpdate, isUpdating }: GeneralTabProps) 
                 name="pageSize"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Tamanho da Pagina</FormLabel>
+                    <FormLabel>Tamanho da Página</FormLabel>
                     <Select onValueChange={field.onChange} value={field.value}>
                       <FormControl>
                         <SelectTrigger>
@@ -211,7 +211,7 @@ export function GeneralTab({ template, onUpdate, isUpdating }: GeneralTabProps) 
                 name="orientation"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Orientacao</FormLabel>
+                    <FormLabel>Orientação</FormLabel>
                     <Select onValueChange={field.onChange} value={field.value}>
                       <FormControl>
                         <SelectTrigger>

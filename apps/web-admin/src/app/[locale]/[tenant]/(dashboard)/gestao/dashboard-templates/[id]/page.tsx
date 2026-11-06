@@ -310,7 +310,7 @@ function AggregationsConfig({ aggregations, entityFields, onChange }: {
   );
   return (
     <div className="space-y-1.5">
-      <Label className="text-xs">Metricas por grupo</Label>
+      <Label className="text-xs">Métricas por grupo</Label>
       {aggregations.map((agg, idx) => (
         <div key={idx} className="border rounded-md p-1.5 space-y-1">
           <div className="flex gap-1 items-center">
@@ -321,9 +321,9 @@ function AggregationsConfig({ aggregations, entityFields, onChange }: {
               <SelectContent>
                 <SelectItem value="count">Contagem</SelectItem>
                 <SelectItem value="sum">Soma</SelectItem>
-                <SelectItem value="avg">Media</SelectItem>
-                <SelectItem value="min">Minimo</SelectItem>
-                <SelectItem value="max">Maximo</SelectItem>
+                <SelectItem value="avg">Média</SelectItem>
+                <SelectItem value="min">Mínimo</SelectItem>
+                <SelectItem value="max">Máximo</SelectItem>
                 <SelectItem value="distinctCount">Contagem distinta</SelectItem>
                 <SelectItem value="first">Primeiro valor</SelectItem>
               </SelectContent>
@@ -392,7 +392,7 @@ function CrossEntityCountConfig({ value, allEntities, subEntities, onChange }: {
       {enabled && (
         <div className="space-y-1.5 pl-2 border-l-2 border-primary/20">
           <Select value={config.entitySlug} onValueChange={(v) => onChange({ ...config, entitySlug: v })}>
-            <SelectTrigger className="h-7 text-xs"><SelectValue placeholder="Entidade" /></SelectTrigger>
+            <SelectTrigger className="h-7 text-xs"><SelectValue placeholder="Tabela" /></SelectTrigger>
             <SelectContent>
               {subEntities.length > 0 && (
                 <SelectGroup>
@@ -437,7 +437,7 @@ function GroupedSortConfig({ config, updateField }: {
         <Select value={config.sortBy || ''} onValueChange={(v) => updateField('sortBy', v)}>
           <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="Selecione" /></SelectTrigger>
           <SelectContent>
-            <SelectItem value="createdAt">Data de criacao</SelectItem>
+            <SelectItem value="createdAt">Data de criação</SelectItem>
             {sortOptions.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
           </SelectContent>
         </Select>
@@ -588,7 +588,7 @@ function PropertiesPanel({
                 </div>
               </div>
               <div className="space-y-1.5">
-                <Label className="text-xs">Filtro (para razao distinta)</Label>
+                <Label className="text-xs">Filtro (para razão distinta)</Label>
                 <p className="text-[10px] text-muted-foreground">Filtra o numerador. Ex: concluido = true</p>
                 <Select
                   value={config.config.filterField || '__none__'}
@@ -615,7 +615,7 @@ function PropertiesPanel({
           )}
           {config.config.fieldSlug && !isDistinctMode && (
             <div className="space-y-1.5">
-              <Label className="text-xs">Agregacao</Label>
+              <Label className="text-xs">Agregação</Label>
               <Select
                 value={config.config.aggregation || 'sum'}
                 onValueChange={(v) => updateField('aggregation', v)}
@@ -623,9 +623,9 @@ function PropertiesPanel({
                 <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="sum">Soma</SelectItem>
-                  <SelectItem value="avg">Media</SelectItem>
-                  <SelectItem value="min">Minimo</SelectItem>
-                  <SelectItem value="max">Maximo</SelectItem>
+                  <SelectItem value="avg">Média</SelectItem>
+                  <SelectItem value="min">Mínimo</SelectItem>
+                  <SelectItem value="max">Máximo</SelectItem>
                   <SelectItem value="count">Contagem</SelectItem>
                 </SelectContent>
               </Select>
@@ -638,24 +638,24 @@ function PropertiesPanel({
                   checked={config.config.showComparison || false}
                   onCheckedChange={(v) => updateField('showComparison', v)}
                 />
-                <Label className="text-xs">Comparar com periodo anterior</Label>
+                <Label className="text-xs">Comparar com período anterior</Label>
               </div>
               {config.config.showComparison && (
                 <div className="space-y-1.5">
-                  <Label className="text-xs">Periodo de comparacao</Label>
+                  <Label className="text-xs">Período de comparação</Label>
                   <Select
                     value={String(config.config.comparisonPeriod || 30)}
                     onValueChange={(v) => updateField('comparisonPeriod', Number(v))}
                   >
                     <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="7">Ultimos 7 dias</SelectItem>
-                      <SelectItem value="14">Ultimos 14 dias</SelectItem>
-                      <SelectItem value="30">Ultimos 30 dias</SelectItem>
-                      <SelectItem value="60">Ultimos 60 dias</SelectItem>
-                      <SelectItem value="90">Ultimos 90 dias</SelectItem>
-                      <SelectItem value="180">Ultimos 6 meses</SelectItem>
-                      <SelectItem value="365">Ultimo ano</SelectItem>
+                      <SelectItem value="7">Últimos 7 dias</SelectItem>
+                      <SelectItem value="14">Últimos 14 dias</SelectItem>
+                      <SelectItem value="30">Últimos 30 dias</SelectItem>
+                      <SelectItem value="60">Últimos 60 dias</SelectItem>
+                      <SelectItem value="90">Últimos 90 dias</SelectItem>
+                      <SelectItem value="180">Últimos 6 meses</SelectItem>
+                      <SelectItem value="365">Último ano</SelectItem>
                     </SelectContent>
                   </Select>
                   <p className="text-[10px] text-muted-foreground">
@@ -668,7 +668,7 @@ function PropertiesPanel({
                 <p className="text-[10px] text-muted-foreground">Abaixo = verde, acima de warn = amarelo, acima de danger = vermelho</p>
                 <div className="grid grid-cols-2 gap-2">
                   <div className="space-y-1">
-                    <Label className="text-[10px]">Atencao</Label>
+                    <Label className="text-[10px]">Atenção</Label>
                     <Input type="number" className="h-7 text-xs" value={config.config.thresholds?.warn ?? ''}
                       onChange={(e) => {
                         const val = e.target.value ? Number(e.target.value) : undefined;
@@ -743,7 +743,7 @@ function PropertiesPanel({
               <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="records-over-time">Registros ao longo do tempo</SelectItem>
-                <SelectItem value="field-trend">Tendencia de campo</SelectItem>
+                <SelectItem value="field-trend">Tendência de campo</SelectItem>
                 {config.type === 'line-chart' && (
                   <SelectItem value="grouped-ratio">% por grupo (agrupado)</SelectItem>
                 )}
@@ -767,7 +767,7 @@ function PropertiesPanel({
                 </Select>
               </div>
               <div className="space-y-1.5">
-                <Label className="text-xs">Agregacao</Label>
+                <Label className="text-xs">Agregação</Label>
                 <Select
                   value={config.config.aggregation || 'sum'}
                   onValueChange={(v) => updateField('aggregation', v)}
@@ -775,9 +775,9 @@ function PropertiesPanel({
                   <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="sum">Soma</SelectItem>
-                    <SelectItem value="avg">Media</SelectItem>
-                    <SelectItem value="min">Minimo</SelectItem>
-                    <SelectItem value="max">Maximo</SelectItem>
+                    <SelectItem value="avg">Média</SelectItem>
+                    <SelectItem value="min">Mínimo</SelectItem>
+                    <SelectItem value="max">Máximo</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -794,10 +794,10 @@ function PropertiesPanel({
               <GroupedSortConfig config={config.config} updateField={updateField} />
               <div className="space-y-1.5">
                 <Label className="text-xs">Limiares de severidade</Label>
-                <p className="text-[10px] text-muted-foreground">Linhas horizontais coloridas no grafico</p>
+                <p className="text-[10px] text-muted-foreground">Linhas horizontais coloridas no gráfico</p>
                 <div className="grid grid-cols-2 gap-2">
                   <div className="space-y-1">
-                    <Label className="text-[10px]">Atencao</Label>
+                    <Label className="text-[10px]">Atenção</Label>
                     <Input type="number" className="h-7 text-xs" value={config.config.thresholds?.warn ?? ''}
                       onChange={(e) => {
                         const val = e.target.value ? Number(e.target.value) : undefined;
@@ -824,7 +824,7 @@ function PropertiesPanel({
           )}
           {!isGroupedRatio && (
             <div className="space-y-1.5">
-              <Label className="text-xs">Periodo (dias)</Label>
+              <Label className="text-xs">Período (dias)</Label>
               <Input type="number" className="h-8 text-sm" value={config.config.days || 30}
                 onChange={(e) => updateField('days', Number(e.target.value))} />
             </div>
@@ -855,7 +855,7 @@ function PropertiesPanel({
               >
                 <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="field-distribution">Distribuicao de campo</SelectItem>
+                  <SelectItem value="field-distribution">Distribuição de campo</SelectItem>
                   <SelectItem value="grouped">Dados agrupados</SelectItem>
                 </SelectContent>
               </Select>
@@ -950,7 +950,7 @@ function PropertiesPanel({
                   const val = e.target.value.trim();
                   updateField('stages', val ? val.split(',').map((s: string) => s.trim()).filter(Boolean) : undefined);
                 }}
-                placeholder="Ex: Novo, Em Analise, Aprovado, Concluido" />
+                placeholder="Ex: Novo, Em Análise, Aprovado, Concluído" />
               <p className="text-[10px] text-muted-foreground">Vazio = ordem natural dos dados</p>
             </div>
           )}
@@ -1076,12 +1076,12 @@ function PropertiesPanel({
                 );
               })}
               {imageTypeFields.length === 0 && (
-                <p className="text-[10px] text-muted-foreground">Nenhum campo de imagem nesta entidade</p>
+                <p className="text-[10px] text-muted-foreground">Nenhum campo de imagem nesta tabela</p>
               )}
             </div>
           </div>
           <div className="space-y-1.5">
-            <Label className="text-xs">Fotos de sub-entidade</Label>
+            <Label className="text-xs">Fotos de sub-tabela</Label>
             <Select
               value={config.config.childEntitySlug || '__none__'}
               onValueChange={(v) => {
@@ -1271,7 +1271,7 @@ function PropertiesPanel({
           {!isGroupedTable && (
             <>
               <div className="space-y-1.5">
-                <Label className="text-xs">Campos visiveis (arraste para reordenar)</Label>
+                <Label className="text-xs">Campos visíveis (arraste para reordenar)</Label>
                 <SortableFieldList
                   allFields={allFields}
                   selectedSlugs={config.config.displayFields || []}
@@ -1292,8 +1292,8 @@ function PropertiesPanel({
                 >
                   <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="createdAt">Data de criacao</SelectItem>
-                    <SelectItem value="updatedAt">Data de atualizacao</SelectItem>
+                    <SelectItem value="createdAt">Data de criação</SelectItem>
+                    <SelectItem value="updatedAt">Data de atualização</SelectItem>
                     {numericFields.map((f) => (
                       <SelectItem key={f.slug} value={f.slug}>{f.label || f.name}</SelectItem>
                     ))}
@@ -1341,7 +1341,7 @@ function PropertiesPanel({
       return (
         <>
           <div className="space-y-1.5">
-            <Label className="text-xs">Campos visiveis (arraste para reordenar)</Label>
+            <Label className="text-xs">Campos visíveis (arraste para reordenar)</Label>
             <SortableFieldList
               allFields={allFields}
               selectedSlugs={config.config.displayFields || []}
@@ -1351,11 +1351,11 @@ function PropertiesPanel({
           <div className="space-y-2">
             <div className="flex items-center gap-2">
               <Switch checked={config.config.enablePagination !== false} onCheckedChange={(v) => updateField('enablePagination', v)} />
-              <Label className="text-xs">Paginacao</Label>
+              <Label className="text-xs">Páginação</Label>
             </div>
             {config.config.enablePagination !== false && (
               <div className="space-y-1.5 pl-6">
-                <Label className="text-xs">Registros por pagina</Label>
+                <Label className="text-xs">Registros por página</Label>
                 <Select
                   value={String(config.config.pageSize || 25)}
                   onValueChange={(v) => updateField('pageSize', Number(v))}
@@ -1380,8 +1380,8 @@ function PropertiesPanel({
             >
               <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="createdAt">Data de criacao</SelectItem>
-                <SelectItem value="updatedAt">Data de atualizacao</SelectItem>
+                <SelectItem value="createdAt">Data de criação</SelectItem>
+                <SelectItem value="updatedAt">Data de atualização</SelectItem>
                 {allFields.map((f) => (
                   <SelectItem key={f.slug} value={f.slug}>{f.label || f.name}</SelectItem>
                 ))}
@@ -1424,22 +1424,22 @@ function PropertiesPanel({
             </div>
             <div className="flex items-center gap-2">
               <Switch checked={config.config.allowBatchSelect !== false} onCheckedChange={(v) => updateField('allowBatchSelect', v)} />
-              <Label className="text-xs">Selecao em lote</Label>
+              <Label className="text-xs">Seleção em lote</Label>
             </div>
           </div>
           <div className="space-y-2 pt-1">
             <Label className="text-xs font-medium">Colunas extras</Label>
             <div className="flex items-center gap-2">
               <Switch checked={config.config.showCreatedAt !== false} onCheckedChange={(v) => updateField('showCreatedAt', v)} />
-              <Label className="text-xs">Data de criacao</Label>
+              <Label className="text-xs">Data de criação</Label>
             </div>
             <div className="flex items-center gap-2">
               <Switch checked={config.config.showUpdatedAt !== false} onCheckedChange={(v) => updateField('showUpdatedAt', v)} />
-              <Label className="text-xs">Data de atualizacao</Label>
+              <Label className="text-xs">Data de atualização</Label>
             </div>
             <div className="flex items-center gap-2">
               <Switch checked={config.config.showGeolocation || false} onCheckedChange={(v) => updateField('showGeolocation', v)} />
-              <Label className="text-xs">Geolocalizacao (GPS)</Label>
+              <Label className="text-xs">Geolocalização (GPS)</Label>
             </div>
           </div>
         </>
@@ -1623,11 +1623,11 @@ function PropertiesPanel({
       const RELATIVE_DATE_OPTS = [
         { value: 'Hoje', label: 'Hoje' },
         { value: 'Ontem', label: 'Ontem' },
-        { value: 'Ultimos 7 dias', label: 'Ultimos 7 dias' },
-        { value: 'Ultimos 30 dias', label: 'Ultimos 30 dias' },
-        { value: 'Ultimos 90 dias', label: 'Ultimos 90 dias' },
-        { value: 'Este mes', label: 'Este mes' },
-        { value: 'Mes passado', label: 'Mes passado' },
+        { value: 'Ultimos 7 dias', label: 'Últimos 7 dias' },
+        { value: 'Ultimos 30 dias', label: 'Últimos 30 dias' },
+        { value: 'Ultimos 90 dias', label: 'Últimos 90 dias' },
+        { value: 'Este mes', label: 'Este mês' },
+        { value: 'Mes passado', label: 'Mês passado' },
         { value: 'Este ano', label: 'Este ano' },
       ];
       return (
@@ -1658,16 +1658,16 @@ function PropertiesPanel({
               <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="dropdown">Dropdown</SelectItem>
-                <SelectItem value="tile">Botoes</SelectItem>
+                <SelectItem value="tile">Botões</SelectItem>
                 <SelectItem value="date-range">Intervalo de datas</SelectItem>
-                <SelectItem value="numeric-range">Intervalo numerico</SelectItem>
+                <SelectItem value="numeric-range">Intervalo numérico</SelectItem>
                 <SelectItem value="relative-date">Data relativa</SelectItem>
               </SelectContent>
             </Select>
           </div>
           {config.config.slicerType === 'relative-date' && (
             <div className="space-y-1.5">
-              <Label className="text-xs">Opcoes disponiveis</Label>
+              <Label className="text-xs">Opções disponíveis</Label>
               <div className="border rounded-md p-2 max-h-40 overflow-auto space-y-0.5">
                 {RELATIVE_DATE_OPTS.map((opt) => {
                   const selected = config.config.relativeDateOptions || [];
@@ -1686,7 +1686,7 @@ function PropertiesPanel({
                   );
                 })}
               </div>
-              <p className="text-[10px] text-muted-foreground">Vazio = todas as opcoes</p>
+              <p className="text-[10px] text-muted-foreground">Vazio = todas as opções</p>
             </div>
           )}
         </>
@@ -1711,7 +1711,7 @@ function PropertiesPanel({
       return (
         <>
           <div className="space-y-1.5">
-            <Label className="text-xs">Entidade Principal</Label>
+            <Label className="text-xs">Tabela Principal</Label>
             <Select
               value={config.config.entitySlug || ''}
               onValueChange={(v) => updateField('entitySlug', v)}
@@ -1725,7 +1725,7 @@ function PropertiesPanel({
             </Select>
           </div>
           <div className="space-y-1.5">
-            <Label className="text-xs">Sub-Entidade</Label>
+            <Label className="text-xs">Sub-tabela</Label>
             <Select
               value={config.config.subEntitySlug || ''}
               onValueChange={(v) => {
@@ -1782,7 +1782,7 @@ function PropertiesPanel({
                 <p className="text-[10px] text-muted-foreground">Arraste para reordenar</p>
               </div>
               <div className="space-y-1.5">
-                <Label className="text-xs">Agrupar Por (Opcional)</Label>
+                <Label className="text-xs">Agrupar Por (opcional)</Label>
                 <Select
                   value={config.config.groupBy || '__none__'}
                   onValueChange={(v) => updateField('groupBy', v === '__none__' ? undefined : v)}
@@ -1824,7 +1824,7 @@ function PropertiesPanel({
                 </Select>
               </div>
               <div className="space-y-1.5">
-                <Label className="text-xs">Campo Descrição (Opcional)</Label>
+                <Label className="text-xs">Campo Descrição (opcional)</Label>
                 <Select
                   value={config.config.descriptionField || '__none__'}
                   onValueChange={(v) => updateField('descriptionField', v === '__none__' ? undefined : v)}
@@ -1937,7 +1937,7 @@ function PropertiesPanel({
             <p className="text-[10px] text-muted-foreground">Arraste para reordenar</p>
           </div>
           <div className="space-y-1.5">
-            <Label className="text-xs">Campo Badge (Opcional)</Label>
+            <Label className="text-xs">Campo Badge (opcional)</Label>
             <Select
               value={config.config.cardBadgeField || '__none__'}
               onValueChange={(v) => updateField('cardBadgeField', v === '__none__' ? undefined : v)}
@@ -1950,7 +1950,7 @@ function PropertiesPanel({
             </Select>
           </div>
           <div className="space-y-1.5">
-            <Label className="text-xs">Ordem das Colunas (Opcional)</Label>
+            <Label className="text-xs">Ordem das Colunas (opcional)</Label>
             <Input className="h-8 text-sm"
               value={(config.config.columnOrder || []).join(', ')}
               onChange={(e) => {
@@ -1996,7 +1996,7 @@ function PropertiesPanel({
     if (config.type === 'stacked-bar-chart' || config.type === 'grouped-bar-chart') {
       items.push(
         <div key="orientation" className="space-y-1.5">
-          <Label className="text-xs">Orientacao</Label>
+          <Label className="text-xs">Orientação</Label>
           <Select
             value={config.config.orientation || 'vertical'}
             onValueChange={(v) => updateField('orientation', v)}
@@ -2028,7 +2028,7 @@ function PropertiesPanel({
       const refs = config.config.referenceLines || [];
       items.push(
         <div key="reflines" className="space-y-1.5">
-          <Label className="text-xs">Linhas de referencia</Label>
+          <Label className="text-xs">Linhas de referência</Label>
           {refs.map((ref: { value: number; label?: string; color?: string }, idx: number) => (
             <div key={idx} className="flex gap-1 items-center">
               <Input type="number" className="h-7 text-xs w-16" value={ref.value}
@@ -2094,14 +2094,14 @@ function PropertiesPanel({
             <>
               {config.config.ratioFieldSlug === 'count' && (
                 <div className="space-y-1.5">
-                  <Label className="text-xs">Entidade do denominador</Label>
+                  <Label className="text-xs">Tabela do denominador</Label>
                   <Select
                     value={config.config.ratioEntitySlug || '__same__'}
                     onValueChange={(v) => updateField('ratioEntitySlug', v === '__same__' ? undefined : v)}
                   >
                     <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="__same__">Mesma entidade</SelectItem>
+                      <SelectItem value="__same__">Mesma tabela</SelectItem>
                       {allEntities.map((e) => (
                         <SelectItem key={e.slug} value={e.slug}>{e.name}</SelectItem>
                       ))}
@@ -2192,8 +2192,8 @@ function PropertiesPanel({
                 <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="percentage">Percentual (A/B)</SelectItem>
-                  <SelectItem value="difference">Diferenca (A-B)</SelectItem>
-                  <SelectItem value="duration">Duracao (datas)</SelectItem>
+                  <SelectItem value="difference">Diferença (A-B)</SelectItem>
+                  <SelectItem value="duration">Duração (datas)</SelectItem>
                 </SelectContent>
               </Select>
               <div className="grid grid-cols-2 gap-1">
@@ -2206,7 +2206,7 @@ function PropertiesPanel({
                   <SelectContent>
                     {aliasOptions.length > 0 && (
                       <SelectGroup>
-                        <SelectLabel className="text-xs">Metricas</SelectLabel>
+                        <SelectLabel className="text-xs">Métricas</SelectLabel>
                         {aliasOptions.map((a) => <SelectItem key={a.slug} value={a.slug}>{a.label}</SelectItem>)}
                       </SelectGroup>
                     )}
@@ -2225,7 +2225,7 @@ function PropertiesPanel({
                   <SelectContent>
                     {aliasOptions.length > 0 && (
                       <SelectGroup>
-                        <SelectLabel className="text-xs">Metricas</SelectLabel>
+                        <SelectLabel className="text-xs">Métricas</SelectLabel>
                         {aliasOptions.map((a) => <SelectItem key={a.slug} value={a.slug}>{a.label}</SelectItem>)}
                       </SelectGroup>
                     )}
@@ -2306,7 +2306,7 @@ function PropertiesPanel({
       items.push(
         <div key="chartColors" className="space-y-1.5">
           <Label className="text-xs">Paleta de cores</Label>
-          <p className="text-[10px] text-muted-foreground">Vazio = paleta padrao</p>
+          <p className="text-[10px] text-muted-foreground">Vazio = paleta padrão</p>
           <div className="flex flex-wrap gap-1">
             {colors.map((c: string, idx: number) => (
               <div key={idx} className="flex items-center gap-0.5">
@@ -2381,7 +2381,7 @@ function PropertiesPanel({
           >
             <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="__none__">Padrao</SelectItem>
+              <SelectItem value="__none__">Padrão</SelectItem>
               {groupableFields.map((f) => (
                 <SelectItem key={f.slug} value={f.slug}>{f.label || f.name}</SelectItem>
               ))}
@@ -2425,11 +2425,11 @@ function PropertiesPanel({
         {/* Geral */}
         <ConfigSection title="Geral">
           <div className="space-y-1.5">
-            <Label className="text-xs">Titulo</Label>
+            <Label className="text-xs">Título</Label>
             <Input
               value={config.title || ''}
               onChange={(e) => updateTitle(e.target.value)}
-              placeholder="Titulo do widget"
+              placeholder="Título do bloco"
               className="h-8 text-sm"
             />
           </div>
@@ -2446,9 +2446,9 @@ function PropertiesPanel({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="__parent__">Entidade do template</SelectItem>
+                <SelectItem value="__parent__">Tabela do painel</SelectItem>
                 <SelectGroup>
-                  <SelectLabel className="text-xs">Entidades</SelectLabel>
+                  <SelectLabel className="text-xs">Tabelas</SelectLabel>
                   {allEntities.map((e) => (
                     <SelectItem key={e.slug} value={e.slug}>{e.name}</SelectItem>
                   ))}
@@ -2480,7 +2480,7 @@ function PropertiesPanel({
 
         {/* Aparencia (only if there's content) */}
         {appearanceContent && (
-          <ConfigSection title="Aparencia" defaultOpen={false}>
+          <ConfigSection title="Aparência" defaultOpen={false}>
             {appearanceContent}
           </ConfigSection>
         )}
@@ -2831,14 +2831,16 @@ function TemplateBuilderContent() {
               value={name}
               onChange={(e) => setName(e.target.value)}
               className="h-8 text-sm font-medium w-48"
-              placeholder="Nome do template"
+              placeholder="Nome do painel"
+              aria-label="Nome do painel"
             />
+            <span className="hidden text-xs text-muted-foreground lg:inline">Dados de</span>
             <Select value={entitySlug || '__global__'} onValueChange={(v) => setEntitySlug(v === '__global__' ? '' : v)}>
-              <SelectTrigger className="h-8 text-sm w-48">
-                <SelectValue placeholder="Selecione a entidade" />
+              <SelectTrigger className="h-8 text-sm w-48" aria-label="Tabela principal do painel" title="Tabela principal: os blocos novos já vêm usando ela">
+                <SelectValue placeholder="Escolha a tabela" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="__global__">Global</SelectItem>
+                <SelectItem value="__global__">Várias tabelas</SelectItem>
                 {allEntityList.map((e) => (
                   <SelectItem key={e.slug} value={e.slug}>{e.name}</SelectItem>
                 ))}
@@ -2848,7 +2850,7 @@ function TemplateBuilderContent() {
           <div className="flex items-center gap-2">
             <Button variant="outline" size="sm" onClick={() => setSettingsOpen(true)}>
               <Settings2 className="h-4 w-4 mr-1" />
-              Config
+              Quem vê
             </Button>
             <Button size="sm" onClick={handleSave} disabled={isSaving}>
               {isSaving ? (
@@ -2864,34 +2866,40 @@ function TemplateBuilderContent() {
         {/* 3-column layout */}
         <div className="flex flex-1 min-h-0">
           {/* ── Left: Widget Palette ── */}
-          <div className="w-52 border-r bg-card flex-shrink-0 overflow-y-auto">
-            <div className="px-3 py-2.5 border-b">
-              <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                Widgets
-              </span>
+          <div className="w-64 border-r bg-card flex-shrink-0 overflow-y-auto" data-testid="widget-palette">
+            <div className="border-b px-3 py-3">
+              <p className="text-sm font-semibold">Adicionar ao painel</p>
+              <p className="text-xs text-muted-foreground">Clique num bloco; depois ajuste à direita.</p>
             </div>
             {(Object.entries(WIDGET_CATEGORIES) as [WidgetCategory, string][]).map(([catKey, catLabel]) => {
               const catWidgets = WIDGET_TYPES.filter((t) => WIDGET_REGISTRY[t].category === catKey);
               if (catWidgets.length === 0) return null;
               return (
-                <Collapsible key={catKey} defaultOpen>
-                  <CollapsibleTrigger className="flex items-center justify-between w-full px-3 py-2 text-xs font-medium text-muted-foreground hover:bg-accent/50 transition-colors">
+                <Collapsible key={catKey} defaultOpen={catKey !== 'analysis'}>
+                  <CollapsibleTrigger className="flex items-center justify-between w-full px-3 py-2 text-xs font-semibold text-muted-foreground hover:bg-accent/50 transition-colors">
                     {catLabel}
                     <ChevronDown className="h-3 w-3 transition-transform duration-200 [[data-state=closed]>&]:rotate-[-90deg]" />
                   </CollapsibleTrigger>
                   <CollapsibleContent>
-                    <div className="px-1 pb-1 space-y-0.5">
+                    <div className="px-1.5 pb-2 space-y-0.5">
                       {catWidgets.map((type) => {
                         const def = WIDGET_REGISTRY[type];
                         const Icon = def.icon;
                         return (
                           <button
                             key={type}
-                            className="flex items-center gap-2 w-full rounded-md px-2 py-1.5 text-xs hover:bg-accent transition-colors text-left"
+                            className="group flex w-full items-start gap-2.5 rounded-md px-2 py-1.5 text-left transition-colors hover:bg-accent"
                             onClick={() => handleAddWidget(type)}
+                            title={def.description}
+                            data-testid={`palette-${type}`}
                           >
-                            <Icon className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                            {def.label}
+                            <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-nav-active text-nav-active-foreground">
+                              <Icon className="h-3.5 w-3.5" />
+                            </span>
+                            <span className="min-w-0">
+                              <span className="block text-xs font-medium">{def.label}</span>
+                              <span className="block text-[11px] leading-snug text-muted-foreground">{def.description}</span>
+                            </span>
                           </button>
                         );
                       })}
@@ -2944,8 +2952,8 @@ function TemplateBuilderContent() {
                   <Plus className="h-8 w-8 text-muted-foreground mb-3" />
                   <p className="text-sm text-muted-foreground">
                     {!entitySlug
-                      ? 'Selecione uma entidade na toolbar acima e adicione widgets'
-                      : 'Clique em um widget na paleta para adicionar'}
+                      ? 'Escolha no alto de qual tabela vêm os dados e clique num bloco à esquerda.'
+                      : 'Painel vazio: clique num bloco à esquerda para adicionar.'}
                   </p>
                 </div>
               );
@@ -3080,7 +3088,7 @@ function TemplateBuilderContent() {
                           <div className="absolute bottom-1 left-1 z-10">
                             <Badge variant="secondary" className="text-[10px] py-0 h-4 bg-background/80">
                               <Database className="h-2.5 w-2.5 mr-0.5" />
-                              {widgetConfig.config.entitySlugOverride}
+                              {allEntityList.find((e) => e.slug === widgetConfig.config.entitySlugOverride)?.name ?? widgetConfig.config.entitySlugOverride}
                             </Badge>
                           </div>
                         )}
@@ -3109,8 +3117,8 @@ function TemplateBuilderContent() {
             ) : (
               <div className="flex flex-col items-center justify-center h-full text-center p-4 text-muted-foreground">
                 <Settings2 className="h-8 w-8 mb-2 opacity-50" />
-                <p className="text-sm font-medium">Propriedades</p>
-                <p className="text-xs mt-1">Clique em um widget para editar</p>
+                <p className="text-sm font-medium">Ajustes do bloco</p>
+                <p className="text-xs mt-1">Clique num bloco do painel para mudar título, dados e cores.</p>
               </div>
             )}
           </div>
@@ -3120,7 +3128,7 @@ function TemplateBuilderContent() {
         <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
           <DialogContent className="max-w-md max-h-[85vh] flex flex-col">
             <DialogHeader>
-              <DialogTitle>Configuracoes do Template</DialogTitle>
+              <DialogTitle>Configurações do painel</DialogTitle>
             </DialogHeader>
             <div className="space-y-4 overflow-y-auto flex-1 pr-1 -mr-1">
               <div className="space-y-1.5">
@@ -3128,15 +3136,15 @@ function TemplateBuilderContent() {
                 <Input value={name} onChange={(e) => setName(e.target.value)} />
               </div>
               <div className="space-y-1.5">
-                <Label className="text-sm">Descricao</Label>
+                <Label className="text-sm">Descrição</Label>
                 <Textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={2} />
               </div>
               <div className="space-y-1.5">
-                <Label className="text-sm">Entidade</Label>
+                <Label className="text-sm">Tabela</Label>
                 <Select value={entitySlug || '__global__'} onValueChange={(v) => setEntitySlug(v === '__global__' ? '' : v)}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="__global__">Global (todas as entidades)</SelectItem>
+                    <SelectItem value="__global__">Global (todas as tabelas)</SelectItem>
                     {allEntityList.map((e) => (
                       <SelectItem key={e.slug} value={e.slug}>{e.name}</SelectItem>
                     ))}
@@ -3148,13 +3156,13 @@ function TemplateBuilderContent() {
                 <Select value={headerCountEntitySlug || '__default__'} onValueChange={(v) => setHeaderCountEntitySlug(v === '__default__' ? '' : v)}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="__default__">Padrão (entidade do dashboard)</SelectItem>
+                    <SelectItem value="__default__">Padrão (tabela do painel)</SelectItem>
                     {allEntityList.map((e) => (
                       <SelectItem key={e.slug} value={e.slug}>{e.name}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
-                <p className="text-xs text-muted-foreground">Qual entidade o contador de registros do topo deve refletir</p>
+                <p className="text-xs text-muted-foreground">Qual tabela o contador de registros do topo deve refletir</p>
               </div>
               <div className="space-y-1.5">
                 <Label className="text-sm">Cargos atribuidos</Label>
@@ -3173,7 +3181,7 @@ function TemplateBuilderContent() {
               <div className="space-y-1.5">
                 <Label className="text-sm">Prioridade</Label>
                 <Input type="number" value={priority} onChange={(e) => setPriority(Number(e.target.value))} />
-                <p className="text-xs text-muted-foreground">Maior prioridade = usado quando ha multiplos templates</p>
+                <p className="text-xs text-muted-foreground">Maior prioridade = usado quando há vários painéis para o mesmo cargo</p>
               </div>
               <div className="flex items-center gap-2">
                 <Switch checked={isActive} onCheckedChange={setIsActive} />

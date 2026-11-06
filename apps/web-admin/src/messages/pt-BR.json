@@ -1421,7 +1421,12 @@
     "noTablesAdmin": "Crie a primeira tabela ou comece por um modelo pronto.",
     "noTablesUser": "Quando o administrador liberar tabelas para o seu cargo, elas aparecem aqui.",
     "createTable": "Criar tabela",
-    "seeAll": "Ver tudo"
+    "seeAll": "Ver tudo",
+    "pendingTitle": "Minhas pendências",
+    "overdue": "{days, plural, one {atrasado # dia} other {atrasado # dias}}",
+    "dueToday": "vence hoje",
+    "dueTomorrow": "vence amanhã",
+    "dueIn": "em {days} dias"
   },
   "platform": {
     "brand": "Console da plataforma",

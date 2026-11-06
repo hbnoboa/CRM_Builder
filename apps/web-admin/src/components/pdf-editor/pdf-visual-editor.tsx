@@ -29,12 +29,13 @@ import { ElementPickerModal, createDefaultElement } from './element-picker-modal
 import { ElementPropertiesPanel } from './element-properties-panel';
 import { TemplateInfoPanel } from './template-info-panel';
 import { ComputedFieldsDialog } from './computed-fields-dialog';
+import { BindingLabelsProvider } from './element-renderers';
 
 // ─── System fields available in all templates ────────────
 
 const SYSTEM_FIELDS = [
-  { slug: 'createdAt', name: 'Data de Criacao', label: 'Data de Criacao', type: 'datetime' },
-  { slug: 'updatedAt', name: 'Data de Atualizacao', label: 'Data de Atualizacao', type: 'datetime' },
+  { slug: 'createdAt', name: 'Data de Criacao', label: 'Data de Criação', type: 'datetime' },
+  { slug: 'updatedAt', name: 'Data de Atualizacao', label: 'Data de Atualização', type: 'datetime' },
   { slug: '_geolocation.lat', name: 'Latitude', label: 'Latitude', type: 'number' },
   { slug: '_geolocation.lng', name: 'Longitude', label: 'Longitude', type: 'number' },
   { slug: '_geolocation.city', name: 'Cidade (GPS)', label: 'Cidade (GPS)', type: 'text' },
@@ -90,7 +91,7 @@ export function PdfVisualEditor({ template }: PdfVisualEditorProps) {
   const availableFields = [
     ...(template.sourceEntity?.fields || []),
     ...SYSTEM_FIELDS,
-  ];
+  ].filter((f, i, all) => all.findIndex((o) => o.slug === f.slug) === i);
 
   // Campos da tabela-pai (fonte "_parent"): entidades cujo sub-registro e a fonte
   // deste template. Union dos campos escalares — permite ligar campos do pai no
@@ -111,6 +112,10 @@ export function PdfVisualEditor({ template }: PdfVisualEditorProps) {
     return out;
   })();
   const parentEntityName = parentEntities[0]?.name;
+  const bindingLabels = new Map<string, string>([
+    ...parentFields.map((f) => [`_parent.${f.slug}`, f.label || f.name] as [string, string]),
+    ...availableFields.map((f) => [f.slug, f.label || f.name] as [string, string]),
+  ]);
 
   // ─── Handlers ────────────────────────────────────────
 
@@ -233,6 +238,7 @@ export function PdfVisualEditor({ template }: PdfVisualEditorProps) {
   // ─── Render ──────────────────────────────────────────
 
   return (
+    <BindingLabelsProvider labels={bindingLabels}>
     <div className="flex flex-col h-screen">
       {/* ═══ Toolbar ═══ */}
       <div className="h-14 border-b bg-card flex items-center px-2 sm:px-4 gap-1.5 sm:gap-2 flex-shrink-0">
@@ -361,7 +367,7 @@ export function PdfVisualEditor({ template }: PdfVisualEditorProps) {
             <Card className="border-0 shadow-none rounded-none h-full">
               <CardHeader className="pb-2">
                 <CardTitle className="text-lg">Resultado real (PDF)</CardTitle>
-                <CardDescription>WYSIWYG — exatamente como o PDF sai</CardDescription>
+                <CardDescription>Exatamente como o PDF vai sair, com um registro de exemplo</CardDescription>
               </CardHeader>
               <CardContent>
                 <PdfPreview
@@ -423,5 +429,6 @@ export function PdfVisualEditor({ template }: PdfVisualEditorProps) {
         }
       />
     </div>
+    </BindingLabelsProvider>
   );
 }

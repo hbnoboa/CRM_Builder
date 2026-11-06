@@ -27,7 +27,7 @@ function EditPdfTemplatePageContent({ params }: PageProps) {
   if (error || !template) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen gap-4">
-        <p className="text-muted-foreground">Template nao encontrado</p>
+        <p className="text-muted-foreground">Template não encontrado</p>
         <Link href="/gestao/pdf-templates">
           <Button variant="outline">Voltar para lista</Button>
         </Link>

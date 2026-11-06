@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef } from 'react';
+import { BindingTextInput } from '@/components/pdf/binding-text-input';
 import { Trash2, Upload, X, Loader2, AlertCircle, Lock, Unlock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -103,7 +104,7 @@ export function LegacyHeaderEditor({ header, onChange, availableFields = [] }: L
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-mono truncate">{header?.logo?.url}</p>
-                  <p className="text-xs text-muted-foreground">Logo dinamico do tenant</p>
+                  <p className="text-xs text-muted-foreground">Logo dinâmico do tenant</p>
                 </div>
                 <Button
                   variant="ghost"
@@ -203,7 +204,7 @@ export function LegacyHeaderEditor({ header, onChange, availableFields = [] }: L
               </div>
 
               <div className="space-y-1">
-                <Label className="text-xs">Posicao</Label>
+                <Label className="text-xs">Posição</Label>
                 <Select
                   value={header?.logo?.position || 'left'}
                   onValueChange={(value) =>
@@ -280,11 +281,12 @@ export function LegacyHeaderEditor({ header, onChange, availableFields = [] }: L
 
       {/* Titulo */}
       <div className="space-y-3 border-t pt-4">
-        <Label className="text-base font-medium">Titulo</Label>
-        <Input
-          placeholder="Ex: Relatorio de Inspecao"
+        <Label className="text-base font-medium">Título</Label>
+        <BindingTextInput
+          placeholder="Ex.: Ordem de serviço"
           value={header?.title?.text || ''}
-          onChange={(e) => handleTitleChange({ text: e.target.value })}
+          onChange={(text) => handleTitleChange({ text })}
+          fields={availableFields}
         />
         <div className="flex items-center gap-4">
           <div className="flex-1 space-y-1">

@@ -1,5 +1,7 @@
 'use client';
 
+import { createContext, useContext } from 'react';
+
 import {
   Type,
   Table,
@@ -25,21 +27,34 @@ import type {
 
 // ─── Helpers ──────────────────────────────────────────────
 
+/** Nomes dos campos (codigo -> nome) para mostrar "[Cliente]" em vez de {{cliente}}. */
+const BindingLabelsContext = createContext<Map<string, string>>(new Map());
+
+export function BindingLabelsProvider({ labels, children }: { labels: Map<string, string>; children: React.ReactNode }) {
+  return <BindingLabelsContext.Provider value={labels}>{children}</BindingLabelsContext.Provider>;
+}
+
+function BindingChip({ token }: { token: string }) {
+  const labels = useContext(BindingLabelsContext);
+  const slug = token.slice(2, -2).trim();
+  const parent = slug.startsWith('_parent.');
+  const key = parent ? slug.slice('_parent.'.length) : slug;
+  const name = labels.get(slug) ?? labels.get(key);
+  return (
+    <span
+      className="inline-flex items-center rounded bg-blue-100 px-1 py-0.5 text-[10px] font-medium text-blue-700"
+      title={token}
+    >
+      {name ? `${parent ? '↑ ' : ''}${name}` : token}
+    </span>
+  );
+}
+
 function highlightBindings(text: string) {
   const parts = text.split(/(\{\{[^}]+\}\})/g);
-  return parts.map((part, i) => {
-    if (part.startsWith('{{') && part.endsWith('}}')) {
-      return (
-        <span
-          key={i}
-          className="inline-flex items-center px-1 py-0.5 rounded bg-blue-100 text-blue-700 text-[10px] font-mono"
-        >
-          {part}
-        </span>
-      );
-    }
-    return <span key={i}>{part}</span>;
-  });
+  return parts.map((part, i) =>
+    part.startsWith('{{') && part.endsWith('}}') ? <BindingChip key={i} token={part} /> : <span key={i}>{part}</span>,
+  );
 }
 
 // ─── Text Renderer ────────────────────────────────────────
@@ -321,7 +336,7 @@ export function HeaderRenderer({ header }: { header?: PdfHeader }) {
         )}
         {header.title && (
           <div className="flex-1 text-center text-xs font-bold">
-            {header.title.text}
+            {highlightBindings(header.title.text || '')}
           </div>
         )}
       </div>
@@ -352,7 +367,7 @@ export function FooterRenderer({ footer }: { footer?: PdfFooter }) {
     <div className={`text-[10px] text-gray-500 ${align === 'center' ? 'text-center' : align === 'right' ? 'text-right' : 'text-left'}`}>
       {footer.text && <span>{footer.text}</span>}
       {footer.text && footer.showPageNumbers && <span> — </span>}
-      {footer.showPageNumbers && <span>Pagina X de Y</span>}
+      {footer.showPageNumbers && <span>Página X de Y</span>}
       {!footer.text && !footer.showPageNumbers && (
         <span>Clique para configurar o footer</span>
       )}

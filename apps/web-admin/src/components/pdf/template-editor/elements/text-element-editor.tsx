@@ -2,7 +2,6 @@
 
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { Slider } from '@/components/ui/slider';
 import {
@@ -13,6 +12,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import type { TextElement } from '@/services/pdf-templates.service';
+import { BindingTextInput } from '@/components/pdf/binding-text-input';
 
 interface TextElementEditorProps {
   element: TextElement;
@@ -24,16 +24,14 @@ export function TextElementEditor({ element, onChange, availableFields }: TextEl
   return (
     <div className="space-y-4">
       <div className="space-y-2">
-        <Label>Conteudo</Label>
-        <Textarea
-          placeholder="Digite o texto... Use {{campo}} para valores dinamicos"
+        <Label>Texto</Label>
+        <BindingTextInput
+          multiline
           value={element.content}
-          onChange={(e) => onChange({ content: e.target.value })}
-          rows={3}
+          onChange={(content) => onChange({ content })}
+          fields={availableFields}
+          placeholder="Ex.: Problema relatado:"
         />
-        <p className="text-xs text-muted-foreground">
-          Use {`{{campo}}`} para inserir valores dinamicos. Ex: Chassi: {`{{chassi}}`}
-        </p>
       </div>
 
       <div className="grid gap-4 grid-cols-2">

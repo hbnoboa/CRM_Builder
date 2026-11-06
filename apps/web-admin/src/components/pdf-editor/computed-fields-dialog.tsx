@@ -44,7 +44,7 @@ export function ComputedFieldsDialog({
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
       <DialogContent className="sm:max-w-2xl max-h-[85vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Campos Computados e Configuracoes</DialogTitle>
+          <DialogTitle>Campos Computados e Configurações</DialogTitle>
         </DialogHeader>
 
         <DataTab

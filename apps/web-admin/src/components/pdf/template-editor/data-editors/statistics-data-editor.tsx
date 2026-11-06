@@ -16,10 +16,10 @@ import type { StatisticsElement } from '@/services/pdf-templates.service';
 const AGGREGATION_OPTIONS = [
   { value: 'count', label: 'Contagem', description: 'Quantos registros no grupo', needsField: false },
   { value: 'sum', label: 'Soma', description: 'Soma dos valores', needsField: true },
-  { value: 'avg', label: 'Media', description: 'Media dos valores', needsField: true },
+  { value: 'avg', label: 'Média', description: 'Média dos valores', needsField: true },
   { value: 'min', label: 'Menor valor', description: 'Menor valor no grupo', needsField: true },
   { value: 'max', label: 'Maior valor', description: 'Maior valor no grupo', needsField: true },
-  { value: 'percentage', label: 'Percentual', description: 'Percentual com condicao', needsField: false },
+  { value: 'percentage', label: 'Percentual', description: 'Percentual com condição', needsField: false },
 ];
 
 const PERCENTAGE_OPERATORS = [
@@ -223,7 +223,7 @@ export function StatisticsDataEditor({
                       onValueChange={(value) => handleMetricChange(index, { field: value })}
                     >
                       <SelectTrigger className="flex-1 min-w-0">
-                        <SelectValue placeholder="Campo numerico..." />
+                        <SelectValue placeholder="Campo numérico..." />
                       </SelectTrigger>
                       <SelectContent>
                         {numericFields.length > 0 ? (
@@ -277,7 +277,7 @@ export function StatisticsDataEditor({
                           <SelectValue placeholder="Campo..." />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="_default">Padrao (tem sub-registros)</SelectItem>
+                          <SelectItem value="_default">Padrão (tem sub-registros)</SelectItem>
                           {availableFields
                             .filter((f) => !['image', 'images'].includes(f.type))
                             .map((f) => (

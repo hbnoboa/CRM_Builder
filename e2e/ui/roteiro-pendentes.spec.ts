@@ -1030,10 +1030,11 @@ test.describe('Administracao II', () => {
         await go(page, '/gestao/dashboard-templates/new');
         await page.keyboard.press('Escape');
         await expect(page.getByRole('dialog')).toHaveCount(0);
-        await page.getByPlaceholder('Nome do template').fill(name);
+        await page.getByPlaceholder('Nome do painel').fill(name);
         await radixPick(page, page.locator('button[role="combobox"].w-48'), 'Clientes');
         for (const widget of widgets) {
-          await page.getByRole('button', { name: widget, exact: true }).click();
+          const paletteType: Record<string, string> = { 'KPI Card': 'kpi-card', Pizza: 'pie-chart', 'Tabela de Dados': 'data-table' };
+          await page.getByTestId(`palette-${paletteType[widget]}`).click();
           if (widget === 'Pizza') {
             const group = page.locator('div.space-y-1\\.5').filter({ has: page.getByText('Campo (agrupar por)', { exact: true }) });
             await radixPick(page, group.getByRole('combobox'), 'Status');
@@ -1044,7 +1045,7 @@ test.describe('Administracao II', () => {
             }
           }
         }
-        await page.getByRole('button', { name: 'Config', exact: true }).click();
+        await page.getByRole('button', { name: 'Quem vê', exact: true }).click();
         const settings = page.getByRole('dialog');
         for (const role of roles) await settings.locator('label').filter({ hasText: new RegExp(`^${role}$`) }).locator('input').check();
         const active = settings.locator('div.flex.items-center').filter({ has: page.getByText('Ativo', { exact: true }) }).getByRole('switch');

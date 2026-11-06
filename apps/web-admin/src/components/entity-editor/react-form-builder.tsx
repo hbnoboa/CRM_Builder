@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   DndContext,
   closestCenter,
@@ -25,6 +25,9 @@ import { cn } from '@/lib/utils';
 import type { Entity, EntityField, EntitySettings } from '@crm-builder/shared';
 import { RecordFormFields } from '@/components/data/record-form-dialog';
 import { FieldPickerModal } from './panels/field-picker-modal';
+import { useEntities } from '@/hooks/use-entities';
+import { withoutSystemFields } from '@/lib/system-fields';
+import { FIELD_GROUPS, FIELD_KINDS, fieldKind } from '@/lib/field-catalog';
 import { OptionsTraitEditor } from './traits/options-trait';
 import { AutoFillTraitEditor } from './traits/autofill-trait';
 import { WorkflowTraitEditor } from './traits/workflow-trait';
@@ -35,34 +38,6 @@ export const FULL_WIDTH_TYPES = new Set(['sub-entity', 'zone-diagram', 'section-
 const TYPES_WITH_OPTIONS = new Set(['select', 'multiselect', 'checkbox-group', 'radio-group', 'tags']);
 const NUMERIC_TYPES = new Set(['number', 'currency', 'percentage', 'slider', 'rating']);
 const AUTOFILL_TYPES = new Set(['relation', 'api-select']);
-
-// Lista achatada de tipos para o seletor (label PT-BR).
-const FIELD_TYPES: Array<{ value: string; label: string }> = [
-  { value: 'text', label: 'Texto' }, { value: 'textarea', label: 'Área de texto' },
-  { value: 'richtext', label: 'Texto rico' }, { value: 'email', label: 'Email' },
-  { value: 'url', label: 'URL' }, { value: 'password', label: 'Senha' },
-  { value: 'array', label: 'Lista de textos' }, { value: 'number', label: 'Número' },
-  { value: 'currency', label: 'Moeda' }, { value: 'percentage', label: 'Porcentagem' },
-  { value: 'slider', label: 'Slider' }, { value: 'rating', label: 'Avaliação' },
-  { value: 'phone', label: 'Telefone' }, { value: 'cpf', label: 'CPF' },
-  { value: 'cnpj', label: 'CNPJ' }, { value: 'cep', label: 'CEP' },
-  { value: 'date', label: 'Data' }, { value: 'datetime', label: 'Data e hora' },
-  { value: 'time', label: 'Hora' }, { value: 'boolean', label: 'Sim/Não' },
-  { value: 'select', label: 'Seleção única' }, { value: 'multiselect', label: 'Seleção múltipla' },
-  { value: 'checkbox-group', label: 'Grupo checkbox' }, { value: 'radio-group', label: 'Grupo radio' },
-  { value: 'tags', label: 'Tags' }, { value: 'color', label: 'Cor' },
-  { value: 'relation', label: 'Relação' }, { value: 'sub-entity', label: 'Sub-entidade' },
-  { value: 'lookup', label: 'Lookup' },
-  { value: 'api-select', label: 'API Select' }, { value: 'user-select', label: 'Seleção usuário' },
-  { value: 'file', label: 'Arquivo' }, { value: 'image', label: 'Imagem' },
-  { value: 'signature', label: 'Assinatura' },
-  { value: 'workflow-status', label: 'Status workflow' }, { value: 'timer', label: 'Cronômetro' },
-  { value: 'sla-status', label: 'Status SLA' }, { value: 'action-button', label: 'Botão de ação' },
-  { value: 'formula', label: 'Fórmula' }, { value: 'rollup', label: 'Rollup' },
-  { value: 'section-title', label: 'Título de seção' }, { value: 'map', label: 'Mapa' },
-  { value: 'zone-diagram', label: 'Diagrama de zonas' }, { value: 'json', label: 'JSON' },
-  { value: 'hidden', label: 'Oculto' },
-];
 
 interface ReactFormBuilderProps {
   entity: Entity;
@@ -167,27 +142,53 @@ export function FieldProperties({
   field,
   allFields,
   onChange,
+  currentEntitySlug,
+  autoFocusName,
 }: {
   field: EntityField;
   allFields: EntityField[];
   onChange: (patch: Partial<EntityField>) => void;
+  currentEntitySlug?: string;
+  /** Campo recem-adicionado: ja deixa o nome selecionado para renomear. */
+  autoFocusName?: boolean;
 }) {
   const isFullWidth = FULL_WIDTH_TYPES.has(field.type);
   const num = (v: string) => (v === '' ? undefined : Number(v));
+  const kind = fieldKind(field.type);
+  const KindIcon = kind.icon;
+  const { data: entitiesPage } = useEntities({ limit: 200 });
+  const otherTables = (entitiesPage?.data || []).filter((e) => e.slug !== currentEntitySlug);
+  const pickTable = (slug: string) => otherTables.find((e) => e.slug === slug);
+  const span = isFullWidth ? 12 : field.gridColSpan || 12;
+  const nameRef = useRef<HTMLInputElement>(null);
+  // Depois que o seletor fecha (ele devolve o foco ao botao), seleciona o nome para renomear.
+  useEffect(() => {
+    if (!autoFocusName) return;
+    const id = setTimeout(() => { nameRef.current?.focus(); nameRef.current?.select(); }, 250);
+    return () => clearTimeout(id);
+  }, [autoFocusName]);
 
   return (
-    <div className="space-y-4 text-sm">
-      <div>
-        <p className="text-[11px] uppercase text-muted-foreground tracking-wide">{field.type}</p>
-        <p className="font-medium">{field.label || field.name || field.slug}</p>
+    <div className="space-y-4 text-sm" data-testid="field-properties">
+      <div className="flex items-center gap-3">
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-nav-active text-nav-active-foreground">
+          <KindIcon className="h-4 w-4" />
+        </span>
+        <div className="min-w-0">
+          <p className="truncate font-semibold">{field.label || field.name || field.slug}</p>
+          <p className="truncate text-xs text-muted-foreground">{kind.label}</p>
+        </div>
       </div>
 
       {/* Geral */}
       <div className="space-y-1.5">
-        <Label>Rótulo</Label>
+        <Label>Nome do campo</Label>
         <Input
           value={field.label || field.name || ''}
+          placeholder="Ex.: Placa, Valor do serviço"
           onChange={(e) => onChange({ label: e.target.value, name: e.target.value })}
+          data-testid="field-label-input"
+          ref={nameRef}
         />
       </div>
 
@@ -198,51 +199,63 @@ export function FieldProperties({
           value={field.type}
           onChange={(e) => onChange({ type: e.target.value as EntityField['type'] })}
         >
-          {FIELD_TYPES.map((t) => (
-            <option key={t.value} value={t.value}>{t.label}</option>
+          {FIELD_GROUPS.map((g) => (
+            <optgroup key={g.key} label={g.label}>
+              {FIELD_KINDS.filter((k) => k.group === g.key).map((k) => (
+                <option key={k.type} value={k.type}>{k.label}</option>
+              ))}
+            </optgroup>
           ))}
         </select>
+        {kind.description && <p className="text-xs text-muted-foreground">{kind.description}</p>}
       </div>
 
-      {field.type !== 'section-title' && (
+      {!isFullWidth && (
         <div className="space-y-1.5">
-          <Label>Placeholder</Label>
-          <Input value={field.placeholder || ''} onChange={(e) => onChange({ placeholder: e.target.value })} />
+          <Label>Largura no formulário</Label>
+          <div className="grid grid-cols-5 gap-1" role="group" aria-label="Largura">
+            {WIDTHS.map((w) => (
+              <button
+                key={w.span}
+                type="button"
+                aria-pressed={span === w.span}
+                onClick={() => onChange({ gridColSpan: w.span })}
+                className={cn(
+                  'rounded-md border px-1 py-1.5 text-xs transition-colors',
+                  span === w.span ? 'border-primary bg-nav-active font-medium text-nav-active-foreground' : 'hover:bg-muted',
+                )}
+              >
+                {w.label}
+              </button>
+            ))}
+          </div>
         </div>
       )}
 
-      <div className="space-y-1.5">
-        <Label>Texto de ajuda</Label>
-        <Input value={field.helpText || ''} onChange={(e) => onChange({ helpText: e.target.value })} />
-      </div>
-
-      <div className="space-y-1.5">
-        <Label>Largura (colunas de 12)</Label>
-        <select
-          className="w-full h-9 rounded-md border bg-background px-2 disabled:opacity-50"
-          value={isFullWidth ? 12 : field.gridColSpan || 12}
-          disabled={isFullWidth}
-          onChange={(e) => onChange({ gridColSpan: Number(e.target.value) })}
-        >
-          {[3, 4, 6, 8, 9, 12].map((n) => (
-            <option key={n} value={n}>{n} / 12</option>
-          ))}
-        </select>
-      </div>
-
-      <div className="flex items-center justify-between">
-        <Label>Obrigatório</Label>
-        <Switch checked={!!field.required} onCheckedChange={(v) => onChange({ required: v })} />
-      </div>
-      <div className="flex items-center justify-between">
-        <Label>Único</Label>
-        <Switch checked={!!field.unique} onCheckedChange={(v) => onChange({ unique: v })} />
-      </div>
+      {field.type !== 'section-title' && (
+        <div className="space-y-3 rounded-lg border p-3">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <Label>Obrigatório</Label>
+              <p className="text-xs text-muted-foreground">Não deixa salvar sem preencher.</p>
+            </div>
+            <Switch checked={!!field.required} onCheckedChange={(v) => onChange({ required: v })} />
+          </div>
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <Label>Não pode repetir</Label>
+              <p className="text-xs text-muted-foreground">Dois registros não podem ter o mesmo valor.</p>
+            </div>
+            <Switch checked={!!field.unique} onCheckedChange={(v) => onChange({ unique: v })} />
+          </div>
+        </div>
+      )}
 
       {/* Opções (select/multiselect/radio/checkbox/tags) */}
       {TYPES_WITH_OPTIONS.has(field.type) && (
         <div className="space-y-1.5 border-t pt-3">
           <Label>Opções</Label>
+          <p className="text-xs text-muted-foreground">Dê uma cor para cada opção: ela aparece nas listas e nos painéis.</p>
           <OptionsTraitEditor
             value={JSON.stringify(field.options || [])}
             onChange={(v) => {
@@ -257,17 +270,80 @@ export function FieldProperties({
       {/* Numéricos */}
       {NUMERIC_TYPES.has(field.type) && (
         <div className="grid grid-cols-3 gap-2 border-t pt-3">
-          <div className="space-y-1"><Label>Mín</Label><Input type="number" value={field.min ?? ''} onChange={(e) => onChange({ min: num(e.target.value) })} /></div>
-          <div className="space-y-1"><Label>Máx</Label><Input type="number" value={field.max ?? ''} onChange={(e) => onChange({ max: num(e.target.value) })} /></div>
-          <div className="space-y-1"><Label>Passo</Label><Input type="number" value={field.step ?? ''} onChange={(e) => onChange({ step: num(e.target.value) })} /></div>
+          <div className="space-y-1"><Label>Mínimo</Label><Input type="number" value={field.min ?? ''} onChange={(e) => onChange({ min: num(e.target.value) })} /></div>
+          <div className="space-y-1"><Label>Máximo</Label><Input type="number" value={field.max ?? ''} onChange={(e) => onChange({ max: num(e.target.value) })} /></div>
+          <div className="space-y-1"><Label>De quanto em quanto</Label><Input type="number" value={field.step ?? ''} onChange={(e) => onChange({ step: num(e.target.value) })} /></div>
         </div>
       )}
 
-      {/* Relation */}
+      {/* Ligacao com outra tabela */}
       {field.type === 'relation' && (
         <div className="space-y-2 border-t pt-3">
-          <div className="space-y-1"><Label>Entidade relacionada (slug)</Label><Input value={field.relatedEntitySlug || ''} onChange={(e) => onChange({ relatedEntitySlug: e.target.value })} /></div>
-          <div className="space-y-1"><Label>Campo de exibição</Label><Input value={field.relatedDisplayField || ''} onChange={(e) => onChange({ relatedDisplayField: e.target.value })} /></div>
+          <div className="space-y-1">
+            <Label>Escolher registros da tabela</Label>
+            <select
+              className="w-full h-9 rounded-md border bg-background px-2"
+              value={field.relatedEntitySlug || ''}
+              onChange={(e) => {
+                const t = pickTable(e.target.value);
+                onChange({ relatedEntitySlug: e.target.value || undefined, relatedEntityId: t?.id, relatedDisplayField: undefined });
+              }}
+              data-testid="relation-table-select"
+            >
+              <option value="">Selecione a tabela...</option>
+              {otherTables.map((e) => <option key={e.id} value={e.slug}>{e.name}</option>)}
+            </select>
+          </div>
+          {field.relatedEntitySlug && (
+            <div className="space-y-1">
+              <Label>Mostrar pelo campo</Label>
+              <select
+                className="w-full h-9 rounded-md border bg-background px-2"
+                value={field.relatedDisplayField || ''}
+                onChange={(e) => onChange({ relatedDisplayField: e.target.value || undefined })}
+              >
+                <option value="">Automático (primeiro campo de texto)</option>
+                {(pickTable(field.relatedEntitySlug)?.fields || []).map((f) => (
+                  <option key={f.slug} value={f.slug}>{f.label || f.name}</option>
+                ))}
+              </select>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Lista de itens dentro (sub-tabela) */}
+      {field.type === 'sub-entity' && (
+        <div className="space-y-2 border-t pt-3">
+          <div className="space-y-1">
+            <Label>Os itens ficam na tabela</Label>
+            <select
+              className="w-full h-9 rounded-md border bg-background px-2"
+              value={field.subEntitySlug || ''}
+              onChange={(e) => {
+                const t = pickTable(e.target.value);
+                onChange({ subEntitySlug: e.target.value || undefined, subEntityId: t?.id });
+              }}
+              data-testid="sub-entity-table-select"
+            >
+              <option value="">Selecione a tabela...</option>
+              {otherTables.map((e) => <option key={e.id} value={e.slug}>{e.name}</option>)}
+            </select>
+            <p className="text-xs text-muted-foreground">Crie antes a tabela dos itens (ex.: &quot;Item da OS&quot;) e escolha aqui.</p>
+          </div>
+          <div className="space-y-1">
+            <Label>Nos itens, identificar este registro pelo campo</Label>
+            <select
+              className="w-full h-9 rounded-md border bg-background px-2"
+              value={field.parentDisplayField || ''}
+              onChange={(e) => onChange({ parentDisplayField: e.target.value || undefined })}
+            >
+              <option value="">Automático</option>
+              {allFields.filter((f) => f.slug !== field.slug && !FULL_WIDTH_TYPES.has(f.type)).map((f) => (
+                <option key={f.slug} value={f.slug}>{f.label || f.name}</option>
+              ))}
+            </select>
+          </div>
         </div>
       )}
 
@@ -298,14 +374,6 @@ export function FieldProperties({
               } catch { /* ignora */ }
             }}
           />
-        </div>
-      )}
-
-      {/* Sub-entity */}
-      {field.type === 'sub-entity' && (
-        <div className="space-y-2 border-t pt-3">
-          <div className="space-y-1"><Label>Sub-entidade (slug)</Label><Input value={field.subEntitySlug || ''} onChange={(e) => onChange({ subEntitySlug: e.target.value })} /></div>
-          <div className="space-y-1"><Label>Campo pai de exibição</Label><Input value={field.parentDisplayField || ''} onChange={(e) => onChange({ parentDisplayField: e.target.value })} /></div>
         </div>
       )}
 
@@ -379,25 +447,10 @@ export function FieldProperties({
         </div>
       )}
 
-      {/* Configuração avançada por tipo (JSON) — paridade com o editor antigo */}
-      {CONFIG_PROP_BY_TYPE[field.type] && (
-        <div className="border-t pt-3">
-          <JsonRow field={field} propKey={CONFIG_PROP_BY_TYPE[field.type]} label="Configuração (JSON)" onChange={onChange} />
-        </div>
-      )}
-
-      {/* Regras condicionais (JSON) */}
-      <div className="space-y-2 border-t pt-3">
-        <p className="text-[11px] uppercase text-muted-foreground tracking-wide">Regras condicionais</p>
-        <JsonRow field={field} propKey="visibleIf" label="Visível se (JSON)" onChange={onChange} />
-        <JsonRow field={field} propKey="requiredIf" label="Obrigatório se (JSON)" onChange={onChange} />
-        <JsonRow field={field} propKey="readOnlyIf" label="Somente leitura se (JSON)" onChange={onChange} />
-      </div>
-
       {/* Valor padrão */}
-      {!isFullWidth && (
+      {!isFullWidth && !NO_DEFAULT_TYPES.has(field.type) && (
         <div className="space-y-1.5 border-t pt-3">
-          <Label>Valor padrão</Label>
+          <Label>Já vem preenchido com</Label>
           <Textarea
             rows={2}
             value={field.default == null ? '' : String(field.default)}
@@ -405,9 +458,53 @@ export function FieldProperties({
           />
         </div>
       )}
+
+      <details className="group rounded-lg border px-3 py-2">
+        <summary className="cursor-pointer select-none text-xs font-medium text-muted-foreground">
+          Configurações avançadas
+        </summary>
+        <div className="mt-3 space-y-3">
+          {field.type !== 'section-title' && (
+            <div className="space-y-1.5">
+              <Label>Texto de exemplo dentro do campo</Label>
+              <Input value={field.placeholder || ''} onChange={(e) => onChange({ placeholder: e.target.value })} />
+            </div>
+          )}
+          <div className="space-y-1.5">
+            <Label>Dica abaixo do campo</Label>
+            <Input value={field.helpText || ''} onChange={(e) => onChange({ helpText: e.target.value })} />
+          </div>
+          <p className="text-[11px] text-muted-foreground">Código interno: <code>{field.slug}</code></p>
+          {/* Configuração avançada por tipo (JSON) — paridade com o editor antigo */}
+          {CONFIG_PROP_BY_TYPE[field.type] && (
+            <div className="border-t pt-3">
+              <JsonRow field={field} propKey={CONFIG_PROP_BY_TYPE[field.type]} label="Configuração (JSON)" onChange={onChange} />
+            </div>
+          )}
+
+          {/* Regras condicionais (JSON) */}
+          <div className="space-y-2 border-t pt-3">
+            <p className="text-[11px] uppercase text-muted-foreground tracking-wide">Regras condicionais</p>
+            <JsonRow field={field} propKey="visibleIf" label="Visível se (JSON)" onChange={onChange} />
+            <JsonRow field={field} propKey="requiredIf" label="Obrigatório se (JSON)" onChange={onChange} />
+            <JsonRow field={field} propKey="readOnlyIf" label="Somente leitura se (JSON)" onChange={onChange} />
+          </div>
+        </div>
+      </details>
     </div>
   );
 }
+
+// Tipos em que "ja vem preenchido" nao faz sentido (arquivo, foto, assinatura...)
+const NO_DEFAULT_TYPES = new Set(['image', 'file', 'signature', 'map', 'json', 'action-button', 'timer', 'sla-status', 'formula', 'rollup']);
+
+const WIDTHS = [
+  { span: 3, label: '¼' },
+  { span: 4, label: '⅓' },
+  { span: 6, label: 'Metade' },
+  { span: 8, label: '⅔' },
+  { span: 12, label: 'Inteira' },
+];
 
 // Tipo → prop de configuração (objeto). Editamos como JSON (igual ao editor antigo
 // fazia p/ a maioria), garantindo que nada se perde ao aposentar o GrapeJS.
@@ -469,7 +566,7 @@ function JsonRow({
  * EntityField puro. Variante dnd-kit (a grid é o default); ?editor=dnd ativa esta.
  */
 export default function ReactFormBuilder({ entity, onSave, onCancel }: ReactFormBuilderProps) {
-  const [fields, setFields] = useState<EntityField[]>(entity.fields || []);
+  const [fields, setFields] = useState<EntityField[]>(() => withoutSystemFields(entity.fields));
   const [name, setName] = useState(entity.name);
   const [selectedSlug, setSelectedSlug] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -571,7 +668,7 @@ export default function ReactFormBuilder({ entity, onSave, onCancel }: ReactForm
         {/* Propriedades por tipo (EntityField puro) */}
         <div className="w-72 lg:w-80 border-l bg-card flex-shrink-0 overflow-y-auto p-4">
           {selected ? (
-            <FieldProperties field={selected} allFields={fields} onChange={updateSelected} />
+            <FieldProperties field={selected} allFields={fields} onChange={updateSelected} currentEntitySlug={entity.slug} />
           ) : (
             <p className="text-sm text-muted-foreground">Selecione um campo no canvas para editar.</p>
           )}

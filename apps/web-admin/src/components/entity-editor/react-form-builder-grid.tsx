@@ -3,12 +3,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Responsive, WidthProvider } from 'react-grid-layout/legacy';
 import type { Layout } from 'react-grid-layout';
-import { ArrowLeft, Save, Loader2, Plus, Trash2 } from 'lucide-react';
+import { ArrowLeft, Check, GripVertical, Loader2, MousePointerClick, MoveHorizontal, Plus, Save, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import type { Entity, EntityField, EntitySettings } from '@crm-builder/shared';
 import { RecordFormFields } from '@/components/data/record-form-dialog';
 import { FieldPickerModal } from './panels/field-picker-modal';
+import { withoutSystemFields } from '@/lib/system-fields';
+import { fieldKind } from '@/lib/field-catalog';
 import { FULL_WIDTH_TYPES, FieldProperties, uniqueSlug } from './react-form-builder';
 
 import 'react-grid-layout/css/styles.css';
@@ -78,11 +80,22 @@ interface Props {
  * ?editor=react; a versão dnd-kit segue em ?editor=dnd.
  */
 export default function ReactFormBuilderGrid({ entity, onSave, onCancel }: Props) {
-  const [fields, setFields] = useState<EntityField[]>(entity.fields || []);
+  const [fields, setFields] = useState<EntityField[]>(() => withoutSystemFields(entity.fields));
   const [name, setName] = useState(entity.name);
+  // Ultima versao salva: compara para avisar "alteracoes nao salvas".
+  const [savedSnapshot, setSavedSnapshot] = useState(() => JSON.stringify({ n: entity.name, f: withoutSystemFields(entity.fields) }));
+  const dirty = JSON.stringify({ n: name, f: fields }) !== savedSnapshot;
+
+  useEffect(() => {
+    if (!dirty) return;
+    const warn = (e: BeforeUnloadEvent) => { e.preventDefault(); e.returnValue = ''; };
+    window.addEventListener('beforeunload', warn);
+    return () => window.removeEventListener('beforeunload', warn);
+  }, [dirty]);
   const [selectedSlug, setSelectedSlug] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [justAdded, setJustAdded] = useState<string | null>(null);
   const [heights, setHeights] = useState<Record<string, number>>({}); // px do conteúdo medido
 
   const handleMeasure = useCallback((slug: string, px: number) => {
@@ -131,7 +144,10 @@ export default function ReactFormBuilderGrid({ entity, onSave, onCancel }: Props
     const nf = { slug, name: label, label, type: fieldType, gridColSpan: 12 } as EntityField;
     setFields((prev) => [...prev, nf]);
     setSelectedSlug(slug);
+    setJustAdded(slug);
     setPickerOpen(false);
+    // Leva a pessoa ate o campo novo (ele entra no fim do formulario)
+    setTimeout(() => document.querySelector(`[data-field-slug="${slug}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 150);
   };
 
   const handleLayoutChange = (next: Layout) => {
@@ -182,6 +198,7 @@ export default function ReactFormBuilderGrid({ entity, onSave, onCancel }: Props
     setSaving(true);
     try {
       await onSave({ name, description: entity.description, fields, settings: entity.settings });
+      setSavedSnapshot(JSON.stringify({ n: name, f: fields }));
     } finally {
       setSaving(false);
     }
@@ -209,21 +226,38 @@ export default function ReactFormBuilderGrid({ entity, onSave, onCancel }: Props
       `}</style>
       {/* Toolbar */}
       <div className="h-14 border-b bg-card flex items-center px-2 sm:px-4 gap-2 flex-shrink-0">
-        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onCancel}>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-8 w-8"
+          aria-label="Voltar"
+          onClick={() => {
+            if (dirty && !window.confirm('Sair sem salvar? As alterações nos campos serão perdidas.')) return;
+            onCancel();
+          }}
+        >
           <ArrowLeft className="h-4 w-4" />
         </Button>
         <input
           type="text"
           value={name}
           onChange={(e) => setName(e.target.value)}
-          className="text-sm font-semibold bg-transparent border-none outline-none focus:ring-1 focus:ring-ring rounded px-2 py-1 max-w-[260px]"
+          aria-label="Nome da tabela"
+          className="min-w-0 max-w-[260px] rounded px-2 py-1 text-sm font-semibold bg-transparent border border-transparent outline-none hover:border-border focus:border-ring"
         />
-        <span className="text-xs text-muted-foreground mr-auto">Editor de campos</span>
-        <Button variant="outline" size="sm" onClick={() => setPickerOpen(true)}>
+        <span className="mr-auto hidden items-center gap-1.5 text-xs text-muted-foreground md:flex" data-testid="builder-save-state">
+          {dirty ? (
+            <><span className="h-1.5 w-1.5 rounded-full bg-amber-500" /> Alterações não salvas</>
+          ) : (
+            <><Check className="h-3.5 w-3.5 text-emerald-600" /> Tudo salvo</>
+          )}
+        </span>
+        <span className="mr-auto md:hidden" />
+        <Button variant="outline" size="sm" onClick={() => setPickerOpen(true)} data-testid="add-field-button">
           <Plus className="h-4 w-4 sm:mr-1.5" />
-          <span className="hidden sm:inline">Campo</span>
+          <span className="hidden sm:inline">Adicionar campo</span>
         </Button>
-        <Button size="sm" onClick={handleSave} disabled={saving}>
+        <Button size="sm" onClick={handleSave} disabled={saving || !dirty} data-testid="save-fields-button">
           {saving ? <Loader2 className="h-4 w-4 sm:mr-1.5 animate-spin" /> : <Save className="h-4 w-4 sm:mr-1.5" />}
           <span className="hidden sm:inline">Salvar</span>
         </Button>
@@ -234,9 +268,18 @@ export default function ReactFormBuilderGrid({ entity, onSave, onCancel }: Props
         <div className="flex-1 overflow-y-auto p-6 bg-muted/30">
           <div className="max-w-4xl mx-auto bg-card p-4 rounded-lg border">
             {visibleFields.length === 0 ? (
-              <p className="text-center text-sm text-muted-foreground py-10">
-                Nenhum campo ainda. Clique em &quot;Campo&quot; para adicionar.
-              </p>
+              <div className="flex flex-col items-center px-6 py-14 text-center" data-testid="builder-empty">
+                <span className="mb-3 flex h-11 w-11 items-center justify-center rounded-full bg-nav-active text-nav-active-foreground">
+                  <Plus className="h-5 w-5" />
+                </span>
+                <p className="font-semibold">Sua tabela ainda não tem campos</p>
+                <p className="mt-1 max-w-sm text-sm text-muted-foreground">
+                  Campos são as perguntas do formulário: nome do cliente, data, valor, foto...
+                </p>
+                <Button className="mt-4" onClick={() => setPickerOpen(true)}>
+                  <Plus className="mr-1.5 h-4 w-4" /> Adicionar o primeiro campo
+                </Button>
+              </div>
             ) : (
               <GridLayout
                 className="rfb-grid"
@@ -257,6 +300,7 @@ export default function ReactFormBuilderGrid({ entity, onSave, onCancel }: Props
                   return (
                     <div
                       key={field.slug}
+                      data-field-slug={field.slug}
                       onClick={() => setSelectedSlug(field.slug)}
                       className={cn(
                         'relative rounded-md border-2 p-2 overflow-hidden cursor-grab active:cursor-grabbing transition-colors',
@@ -283,15 +327,53 @@ export default function ReactFormBuilderGrid({ entity, onSave, onCancel }: Props
                 })}
               </GridLayout>
             )}
+            {visibleFields.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setPickerOpen(true)}
+                className="mt-4 flex w-full items-center justify-center gap-1.5 rounded-lg border-2 border-dashed py-3 text-sm text-muted-foreground transition-colors hover:border-primary/50 hover:text-foreground"
+              >
+                <Plus className="h-4 w-4" /> Adicionar campo
+              </button>
+            )}
           </div>
         </div>
 
         {/* Propriedades por tipo (reusa o painel da versão dnd) */}
         <div className="w-72 lg:w-80 border-l bg-card flex-shrink-0 overflow-y-auto p-4">
           {selected ? (
-            <FieldProperties field={selected} allFields={fields} onChange={updateSelected} />
+            <FieldProperties key={selected.slug} field={selected} allFields={fields} onChange={updateSelected} currentEntitySlug={entity.slug} autoFocusName={justAdded === selected.slug} />
           ) : (
-            <p className="text-sm text-muted-foreground">Selecione um campo no canvas para editar.</p>
+            <div className="space-y-5 text-sm">
+              <div className="space-y-2.5 rounded-lg bg-muted/50 p-3 text-xs text-muted-foreground">
+                <p className="flex gap-2"><MousePointerClick className="h-4 w-4 shrink-0 text-primary" /> Clique num campo para mudar o nome, o tipo e as opções.</p>
+                <p className="flex gap-2"><GripVertical className="h-4 w-4 shrink-0 text-primary" /> Arraste para mudar a ordem.</p>
+                <p className="flex gap-2"><MoveHorizontal className="h-4 w-4 shrink-0 text-primary" /> Puxe a borda lateral para deixar mais largo ou estreito.</p>
+              </div>
+              {fields.length > 0 && (
+                <div>
+                  <p className="mb-1.5 text-xs font-medium text-muted-foreground">Campos ({fields.length})</p>
+                  <ul className="space-y-0.5" data-testid="builder-field-list">
+                    {fields.map((f) => {
+                      const Icon = fieldKind(f.type).icon;
+                      return (
+                        <li key={f.slug}>
+                          <button
+                            type="button"
+                            onClick={() => setSelectedSlug(f.slug)}
+                            className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left transition-colors hover:bg-muted"
+                          >
+                            <Icon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                            <span className="min-w-0 flex-1 truncate">{f.label || f.name || f.slug}</span>
+                            {f.required && <span className="text-[10px] text-muted-foreground">obrigatório</span>}
+                          </button>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </div>
+              )}
+            </div>
           )}
         </div>
       </div>

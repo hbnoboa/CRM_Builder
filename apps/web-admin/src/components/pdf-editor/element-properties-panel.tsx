@@ -163,7 +163,7 @@ function BodyElementEditor({
       <Separator />
 
       {/* Appearance Section */}
-      <Section title="Aparencia">
+      <Section title="Aparência">
         {element.type === 'text' && (
           <TextElementEditor
             element={element as TextElement}
@@ -266,7 +266,7 @@ function BodyElementEditor({
       {templateType === 'batch' && (
         <>
           <Separator />
-          <Section title="Repeticao" defaultOpen={!!element.repeatPerRecord}>
+          <Section title="Repetição" defaultOpen={!!element.repeatPerRecord}>
             <div className="flex items-center justify-between">
               <div>
                 <Label className="text-xs">Repetir por registro</Label>

@@ -197,7 +197,7 @@ export function SimulationConfigurator({
         <Button variant="outline" size="sm" className="w-full justify-between">
           <span className="flex items-center gap-2">
             <Settings2 className="h-4 w-4" />
-            Configurar Simulacao
+            Escolher registro de exemplo
           </span>
           {isOpen ? (
             <ChevronUp className="h-4 w-4" />
