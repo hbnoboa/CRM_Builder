@@ -69,4 +69,26 @@ test.describe.serial('construtores', () => {
     expect(home.pending.map((p: { title: string }) => p.title)).toEqual(['Atrasada', 'Futura']);
     expect(home.pending[0].status).toEqual({ label: 'Aberta', color: null });
   });
+
+  test('pendencias: campo Sim/Nao encerra quando marcado', async ({ request }) => {
+    await call(request, 'post', '/entities', tenant.owner, {
+      expected: [200, 201],
+      data: {
+        name: 'Correção', slug: 'correcoes',
+        fields: [
+          { slug: 'descricao', name: 'Descrição', type: 'text' },
+          { slug: 'prazo', name: 'Prazo', type: 'date' },
+          { slug: 'resolvida', name: 'Resolvida', type: 'boolean' },
+        ],
+        settings: { titleField: 'descricao', statusField: 'resolvida', doneValues: ['true'], deadlineField: 'prazo' },
+      },
+    });
+    for (const [descricao, resolvida] of [['Pneu', false], ['Farol', true]] as const) {
+      await call(request, 'post', '/data/correcoes', tenant.owner, { expected: [200, 201], data: { data: { descricao, prazo: '2020-02-01', resolvida } } });
+    }
+    const home = await (await call(request, 'get', '/stats/my-home', tenant.owner, { expected: 200 })).json();
+    const titles = home.pending.map((p: { title: string }) => p.title);
+    expect(titles).toContain('Pneu');
+    expect(titles).not.toContain('Farol');
+  });
 });

@@ -1,5 +1,5 @@
 import { C, field, opts, rows, section } from './layout';
-import { dateAhead, daysAgo } from './samples';
+import { PRAZO_ESPALHADO, cycle, dateAhead, daysAgo } from './samples';
 import type { SampleRecord, SolutionSpec } from './types';
 
 /**
@@ -28,7 +28,7 @@ const naoConformidades = {
   color: C.red,
   category: 'Frota',
   subOf: 'vistorias',
-  settings: { titleField: 'descricao' },
+  settings: { titleField: 'descricao', statusField: 'resolvida', doneValues: ['true'], deadlineField: 'prazo' },
   fields: rows(
     [
       field('item', 'Item', 'select', 6, { required: true, options: ITEM_NC }),
@@ -187,7 +187,7 @@ function sampleVistorias(i: number, km: number): SampleRecord[] {
       },
       children: {
         'nao-conformidades': ncs.map(([item, gravidade, descricao], k) => ({
-          data: { item, gravidade, descricao, prazo: dateAhead(3 + k * 4), resolvida: j > 0 },
+          data: { item, gravidade, descricao, prazo: dateAhead(cycle(PRAZO_ESPALHADO, i * 3 + k)), resolvida: j > 0 },
         })),
       },
     };

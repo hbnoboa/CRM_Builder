@@ -1,5 +1,5 @@
 import { C, field, opts, rows, section } from './layout';
-import { cycle, dateAhead, daysAgo } from './samples';
+import { PRAZO_ESPALHADO, cycle, dateAhead, daysAgo } from './samples';
 import type { SampleRecord, SolutionSpec } from './types';
 
 /**
@@ -51,7 +51,7 @@ const ordens = {
   color: C.blue,
   category: 'Serviços',
   subOf: 'clientes',
-  settings: { titleField: 'numero', captureLocation: true },
+  settings: { titleField: 'numero', captureLocation: true, statusField: 'status', doneValues: ['concluida', 'cancelada'], deadlineField: 'agendada_para' },
   fields: rows(
     [
       field('numero', 'Nº da OS', 'text', 3, { required: true, unique: true, placeholder: 'OS-0001' }),
@@ -161,16 +161,18 @@ function sampleOrdens(i: number): SampleRecord[] {
     }));
     const total = serv.itens.reduce((sum, [, , q, u]) => sum + q * u, 0);
     const concluida = status === 'concluida';
+    const emAberto = !concluida && status !== 'cancelada';
     numeroOs += 1;
     return {
       data: {
         numero: `OS-${String(1000 + numeroOs)}`,
-        abertura: daysAgo(dias, 8 + (n % 9)),
+        // Em aberto: aberta ha poucos dias, com prazo espalhado em volta de hoje
+        abertura: emAberto ? daysAgo(5 + (n % 6), 8 + (n % 9)) : daysAgo(dias, 8 + (n % 9)),
         tipo: serv.tipo,
         prioridade: cycle(PRIORIDADE_CICLO, n),
         status,
         tecnico: cycle(TECNICOS, n),
-        agendada_para: status === 'agendada' ? `${dateAhead(1 + (n % 4))}T14:00:00.000Z` : daysAgo(Math.max(dias - 1, 0), 14),
+        agendada_para: emAberto ? `${dateAhead(cycle(PRAZO_ESPALHADO, n))}T14:00:00.000Z` : daysAgo(Math.max(dias - 1, 0), 14),
         equipamento: serv.equipamento,
         defeito: serv.defeito,
         servico_executado: concluida ? serv.executado : '',
