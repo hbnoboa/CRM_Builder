@@ -1163,10 +1163,15 @@ export class AutomationExecutorService {
       })
       .replace(/\{\{([^}]+)\}\}/g, (match, path) => {
         // Resolve lookupResults placeholders: {{saveAsName.field}} or {{saveAsName}}
-        if (!context.lookupResults) return match;
         const parts = (path as string).split('.');
         const lookupKey = parts[0];
-        if (!(lookupKey in context.lookupResults)) return match;
+        if (!context.lookupResults || !(lookupKey in context.lookupResults)) {
+          // {{campo}} sem "record." (modelos de tabela): usa o campo do registro
+          if (context.record && lookupKey in context.record) {
+            return this.getNestedStringValue(context.record, path as string);
+          }
+          return match;
+        }
         if (parts.length === 1) {
           const val = context.lookupResults[lookupKey];
           return val != null ? String(val) : '';

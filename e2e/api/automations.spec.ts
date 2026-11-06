@@ -49,4 +49,28 @@ test.describe.serial('automacoes', () => {
       return (r.data ?? r).entregue_em ?? r.data?.data?.entregue_em ?? null;
     }, { timeout: 15_000, intervals: [500] }).toBe(today);
   });
+
+  test('formato dos modelos de tabela: operador equals e {{campo}} sem record.', async ({ request }) => {
+    const fields = await (await call(request, 'get', `/entities/${entityId}`, tenant.owner, { expected: 200 })).json();
+    await call(request, 'patch', `/entities/${entityId}`, tenant.owner, {
+      expected: 200,
+      data: { fields: [...fields.fields, { slug: 'resumo', name: 'Resumo', type: 'text' }] },
+    });
+    await call(request, 'post', `/entities/${entityId}/automations`, tenant.owner, {
+      expected: [200, 201],
+      data: {
+        name: 'Resumo do pedido', trigger: 'ON_CREATE',
+        conditions: [{ field: 'status', operator: 'equals', value: 'aberto' }],
+        actions: [{ order: 1, type: 'update_field', config: { fieldSlug: 'resumo', value: 'Pedido {{numero}}' } }],
+      },
+    });
+    const aberto = await (await call(request, 'post', '/data/pedidos', tenant.owner, { expected: [200, 201], data: { data: { numero: 'P-2', status: 'aberto' } } })).json();
+    const entregue = await (await call(request, 'post', '/data/pedidos', tenant.owner, { expected: [200, 201], data: { data: { numero: 'P-3', status: 'entregue' } } })).json();
+    const resumo = async (id: string) => {
+      const r = await (await call(request, 'get', `/data/pedidos/${id}`, tenant.owner, { expected: 200 })).json();
+      return (r.data ?? r).resumo ?? null;
+    };
+    await expect.poll(() => resumo(aberto.id), { timeout: 15_000, intervals: [500] }).toBe('Pedido P-2');
+    expect(await resumo(entregue.id)).toBeNull();
+  });
 });

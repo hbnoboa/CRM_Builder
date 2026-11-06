@@ -1054,7 +1054,7 @@ export const entityTemplates: EntityTemplate[] = [
       {
         name: 'Notificar inspeção reprovada',
         description:
-          'Envia notificação quando uma inspeção e registrada como reprovada.',
+          'Envia notificação quando uma inspeção é registrada como reprovada.',
         trigger: 'ON_CREATE',
         conditions: [
           { field: 'resultado', operator: 'equals', value: 'reprovado' },
