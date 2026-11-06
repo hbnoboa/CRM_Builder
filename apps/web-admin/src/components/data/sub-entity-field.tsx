@@ -221,6 +221,15 @@ export default function SubEntityFieldEnhanced({
     return field?.type || 'text';
   };
 
+  // Texto da celula: campos com opcao/data/moeda sempre pelo rotulo local; o resto
+  // aceita o valor ja formatado pela API (_formatted)
+  const cellText = (record: SubRecord, slug: string, val: unknown): string => {
+    const field = subEntity?.fields?.find(f => (f.slug || f.name) === slug);
+    const preformatted = (record as unknown as { _formatted?: Record<string, unknown> })._formatted?.[slug];
+    const needsLocal = !!field?.options?.length || ['date', 'datetime', 'currency', 'number', 'percentage', 'boolean'].includes(field?.type || '');
+    return !needsLocal && typeof preformatted === 'string' ? preformatted : displayValue(slug, val);
+  };
+
   // Rotulo da opcao, data/moeda no formato local e Sim/Nao (como na tabela de registros)
   const displayValue = (slug: string, val: unknown): string => {
     const field = subEntity?.fields?.find(f => (f.slug || f.name) === slug);
@@ -473,7 +482,7 @@ export default function SubEntityFieldEnhanced({
                         <tr key={record.id} className="hover:bg-muted/30 transition-colors">
                           {displayFields.map(field => {
                             const value = record.data[field];
-                            const formatted = (record as unknown as { _formatted?: Record<string, unknown> })._formatted?.[field] as string ?? displayValue(field, value);
+                            const formatted = cellText(record, field, value);
                             const fieldType = getFieldType(field);
 
                             return (
@@ -540,7 +549,7 @@ export default function SubEntityFieldEnhanced({
                         <div className="flex items-start justify-between gap-2">
                           <div className="flex-1 min-w-0">
                             <div className="font-medium text-sm truncate">
-                              {(record as unknown as { _formatted?: Record<string, unknown> })._formatted?.[displayFields[0]] as string ?? displayValue(displayFields[0], record.data[displayFields[0]])}
+                              {cellText(record, displayFields[0], record.data[displayFields[0]])}
                             </div>
                             <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground">
                               <Calendar className="h-3 w-3" />
@@ -581,7 +590,7 @@ export default function SubEntityFieldEnhanced({
                       <CardContent className="pt-0 space-y-2">
                         {displayFields.slice(1).map(field => {
                           const value = record.data[field];
-                          const formatted = (record as unknown as { _formatted?: Record<string, unknown> })._formatted?.[field] as string ?? displayValue(field, value);
+                          const formatted = cellText(record, field, value);
                           const fieldType = getFieldType(field);
 
                           return (
@@ -635,7 +644,7 @@ export default function SubEntityFieldEnhanced({
                               <div className="flex items-start justify-between gap-2 mb-3">
                                 <div className="flex-1">
                                   <div className="font-medium text-sm mb-1">
-                                    {(record as unknown as { _formatted?: Record<string, unknown> })._formatted?.[displayFields[0]] as string ?? displayValue(displayFields[0], record.data[displayFields[0]])}
+                                    {cellText(record, displayFields[0], record.data[displayFields[0]])}
                                   </div>
                                   <div className="flex items-center gap-2 text-xs text-muted-foreground">
                                     <Calendar className="h-3 w-3" />
@@ -682,7 +691,7 @@ export default function SubEntityFieldEnhanced({
                               <div className="grid grid-cols-2 gap-x-4 gap-y-2">
                                 {displayFields.slice(1).map(field => {
                                   const value = record.data[field];
-                                  const formatted = (record as unknown as { _formatted?: Record<string, unknown> })._formatted?.[field] as string ?? displayValue(field, value);
+                                  const formatted = cellText(record, field, value);
                                   const fieldType = getFieldType(field);
 
                                   return (

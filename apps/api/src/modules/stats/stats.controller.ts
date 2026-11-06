@@ -49,6 +49,13 @@ export class StatsController {
     return this.statsService.getUsersActivity(user, tenantId, days || 7);
   }
 
+  @Get('my-home')
+  @ApiOperation({ summary: 'Inicio da pessoa: tabelas visiveis e registros recentes dela' })
+  async getMyHome(@CurrentUser() user: CurrentUserType) {
+    // Sem modulo proprio: cada tabela ja passa pela permissao de leitura e pelo escopo
+    return this.statsService.getMyHome(user);
+  }
+
   @Get('recent-activity')
   @ApiOperation({ summary: 'Atividades recentes' })
   async getRecentActivity(

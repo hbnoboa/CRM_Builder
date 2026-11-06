@@ -154,7 +154,20 @@
     "operational": "Operational",
     "gestao": "Administration",
     "trash": "Trash",
-    "support": "Support"
+    "support": "Support",
+    "search": "Search or go to…",
+    "searchPlaceholder": "Search a table, page or action",
+    "pages": "Pages",
+    "tables": "Tables",
+    "actions": "Actions",
+    "newTable": "New table",
+    "noResults": "Nothing found",
+    "theme": "Theme",
+    "themeLight": "Light",
+    "themeDark": "Dark",
+    "themeSystem": "System",
+    "adminArea": "Admin area",
+    "backToOperation": "Back to operation"
   },
   "roles": {
     "ADMIN": "Administrator",
@@ -654,7 +667,10 @@
         "api-select": "API Select"
       }
     },
-    "formDescription": "Fill in the fields and save."
+    "formDescription": "Fill in the fields and save.",
+    "clearFilters": "Clear search and filters",
+    "emptyHint": "Start by adding the first one. You can also import a spreadsheet.",
+    "createFirst": "Create the first"
   },
   "rolesPage": {
     "title": "Roles",
@@ -1388,7 +1404,20 @@
     "settings": "Settings",
     "settingsDesc": "Account and organization",
     "tablesTitle": "Your tables",
-    "empty": "No actions available for your profile."
+    "empty": "No actions available for your profile.",
+    "quickTitle": "Add now",
+    "newIn": "New: {name}",
+    "recentTitle": "Your recent records",
+    "recentEmpty": "Records you create or edit show up here.",
+    "recordsCount": "{count, plural, =0 {no records} one {# record} other {# records}}",
+    "openTable": "Open",
+    "adminTitle": "Administration",
+    "adminDesc": "Team, tables, documents and company settings.",
+    "noTablesTitle": "No tables yet",
+    "noTablesAdmin": "Create the first table or start from a ready-made template.",
+    "noTablesUser": "When an admin gives your role access to tables, they show up here.",
+    "createTable": "Create table",
+    "seeAll": "See all"
   },
   "platform": {
     "brand": "Platform console",

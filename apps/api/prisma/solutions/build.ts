@@ -6,8 +6,9 @@
  *     npx ts-node prisma/solutions/build.ts [slug ...]
  *
  * Cada modelo vira a empresa "<tenantName>" com o dono modelos+<slug>@iossystem.com.br.
- * Se a empresa ja tiver as tabelas do modelo, nada e refeito (rode num banco limpo ou
- * encerre a empresa antiga para remontar). Imprime o JSON { slug, tenantId, ownerEmail }.
+ * Retomavel: o que ja existe (tabelas, cargos, registros raiz pelo campo-titulo, paineis,
+ * PDFs, comandos) e mantido e so o que falta e criado. Respeita o limite do nginx
+ * (~8 req/s e nova tentativa em 429/503). Imprime o JSON { slug, tenantId, ownerEmail }.
  */
 import { SOLUTIONS } from './index';
 import type { DashboardSpec, EntitySpec, SampleRecord, SolutionSpec } from './types';
@@ -19,15 +20,18 @@ const TAG = process.env.SOLUTIONS_TAG ? `-${process.env.SOLUTIONS_TAG}` : '';
 
 type Json = Record<string, unknown>;
 
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
 async function call<T = Json>(method: string, path: string, token: string | null, body?: unknown): Promise<T> {
-  for (let attempt = 0; attempt < 6; attempt++) {
+  for (let attempt = 0; attempt < 8; attempt++) {
+    await sleep(130); // abaixo do limite do nginx (10 req/s)
     const res = await fetch(`${API}${path}`, {
       method,
       headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
       body: body === undefined ? undefined : JSON.stringify(body),
     });
-    if (res.status === 429) {
-      await new Promise((r) => setTimeout(r, 15_000)); // limite de tentativas por minuto
+    if (res.status === 429 || res.status === 503) {
+      await sleep(res.status === 429 ? 15_000 : 3_000); // limite por minuto (API) ou por segundo (nginx)
       continue;
     }
     const text = await res.text();
@@ -52,9 +56,10 @@ async function session(spec: SolutionSpec): Promise<{ token: string; tenantId: s
 }
 
 /** Filhas antes do pai (o campo sub-entity precisa do id da filha). */
-async function createEntities(token: string, entities: EntitySpec[]): Promise<Map<string, string>> {
-  const ids = new Map<string, string>();
+async function createEntities(token: string, entities: EntitySpec[], existing: Map<string, string>): Promise<Map<string, string>> {
+  const ids = new Map<string, string>(existing);
   for (const e of entities) {
+    if (ids.has(e.slug)) continue; // ja criada numa rodada anterior
     const fields = e.fields.map((f) => {
       const out: Json = { ...f };
       if (f.subEntitySlug) {
@@ -78,9 +83,11 @@ async function createEntities(token: string, entities: EntitySpec[]): Promise<Ma
   return ids;
 }
 
-async function createSamples(token: string, slug: string, records: SampleRecord[], parentRecordId?: string): Promise<number> {
+async function createSamples(token: string, slug: string, records: SampleRecord[], parentRecordId?: string, skipTitles?: Set<string>, titleField?: string): Promise<number> {
   let count = 0;
   for (const r of records) {
+    // Retomada: registro raiz que ja existe (mesmo valor no campo-titulo) fica como esta
+    if (skipTitles && titleField && skipTitles.has(String(r.data[titleField]))) continue;
     const created = await call<{ id: string }>('POST', `/data/${slug}`, token, { data: r.data, ...(parentRecordId ? { parentRecordId } : {}) });
     count++;
     for (const [childSlug, children] of Object.entries(r.children ?? {})) {
@@ -120,28 +127,40 @@ function dashboardPayload(d: DashboardSpec, roleIds: Map<string, string>): Json 
 
 async function build(spec: SolutionSpec): Promise<Json> {
   const { token, tenantId, email } = await session(spec);
-  const existing = await call<{ data: Array<{ slug: string }> }>('GET', '/entities', token);
-  if (existing.data.some((e) => spec.entities.some((s) => s.slug === e.slug))) {
-    return { slug: spec.slug, tenantId, ownerEmail: email, skipped: 'ja montado' };
-  }
+  const existingEntities = await call<{ data: Array<{ id: string; slug: string }> }>('GET', '/entities', token);
+  const existingIds = new Map(existingEntities.data.filter((e) => spec.entities.some((s) => s.slug === e.slug)).map((e) => [e.slug, e.id]));
+  if (existingIds.size === 0) await call('PATCH', '/tenants/me', token, { brandColor: spec.brandColor, darkMode: 'light' });
+  const entityIds = await createEntities(token, spec.entities, existingIds);
 
-  await call('PATCH', '/tenants/me', token, { brandColor: spec.brandColor, darkMode: 'light' });
-  const entityIds = await createEntities(token, spec.entities);
-
-  const roleIds = new Map<string, string>();
+  const roles = await call<{ data: Array<{ id: string; name: string }> }>('GET', '/custom-roles', token);
+  const roleIds = new Map(roles.data.map((r) => [r.name, r.id]));
   for (const r of spec.roles) {
+    if (roleIds.has(r.name)) continue;
     const created = await call<{ id: string }>('POST', '/custom-roles', token, r);
     roleIds.set(r.name, created.id);
   }
-  const roles = await call<{ data: Array<{ id: string; name: string }> }>('GET', '/custom-roles', token);
-  for (const r of roles.data) if (!roleIds.has(r.name)) roleIds.set(r.name, r.id);
 
   let records = 0;
-  for (const [slug, list] of Object.entries(spec.samples)) records += await createSamples(token, slug, list);
+  for (const [slug, list] of Object.entries(spec.samples)) {
+    const titleField = (spec.entities.find((e) => e.slug === slug)?.settings?.titleField as string | undefined) ?? undefined;
+    const present = new Set<string>();
+    if (titleField) {
+      const rows = await call<{ data: Array<{ data: Record<string, unknown> }> }>('GET', `/data/${slug}?limit=1000`, token);
+      for (const row of rows.data) present.add(String(row.data[titleField]));
+    }
+    records += await createSamples(token, slug, list, undefined, present, titleField);
+  }
 
-  for (const d of spec.dashboards) await call('POST', '/dashboard-templates', token, dashboardPayload(d, roleIds));
+  const dashboards = await call<Json[] | { data: Json[] }>('GET', '/dashboard-templates', token);
+  const dashNames = new Set((Array.isArray(dashboards) ? dashboards : dashboards.data).map((d) => String(d.name)));
+  for (const d of spec.dashboards) {
+    if (!dashNames.has(d.name)) await call('POST', '/dashboard-templates', token, dashboardPayload(d, roleIds));
+  }
 
+  const pdfs = await call<Json[] | { data: Json[] }>('GET', '/pdf-templates', token);
+  const pdfSlugs = new Set((Array.isArray(pdfs) ? pdfs : pdfs.data).map((t) => String(t.slug)));
   for (const p of spec.pdfs) {
+    if (pdfSlugs.has(p.slug)) continue;
     const created = await call<{ id: string }>('POST', '/pdf-templates', token, {
       name: p.name, slug: p.slug, description: p.description, pageSize: 'A4', orientation: 'PORTRAIT',
       content: p.content, sourceEntityId: entityIds.get(p.entitySlug), templateType: p.templateType,
@@ -149,11 +168,15 @@ async function build(spec: SolutionSpec): Promise<Json> {
     await call('POST', `/pdf-templates/${created.id}/publish`, token);
   }
 
-  for (const c of spec.commands) await call('POST', '/chat/commands', token, { ...c, execMode: 'as_user', isActive: true });
+  const commands = await call<Json[] | { data: Json[] }>('GET', '/chat/commands/manage', token);
+  const commandSlugs = new Set((Array.isArray(commands) ? commands : commands.data).map((c) => String(c.slug).replace(/^\//, '')));
+  for (const c of spec.commands) {
+    if (!commandSlugs.has(c.slug)) await call('POST', '/chat/commands', token, { ...c, execMode: 'as_user', isActive: true });
+  }
 
   return {
-    slug: spec.slug, tenantId, ownerEmail: email,
-    entities: spec.entities.length, roles: spec.roles.length, records,
+    slug: spec.slug, tenantId, ownerEmail: email, resumed: existingIds.size > 0,
+    entities: spec.entities.length, roles: spec.roles.length, newRecords: records,
     dashboards: spec.dashboards.length, pdfs: spec.pdfs.length, commands: spec.commands.length,
   };
 }

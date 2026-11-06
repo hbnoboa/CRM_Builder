@@ -3,20 +3,15 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import { Loader2, Star, Eye, EyeOff, Play, Pause, Square, Clock, AlertTriangle, CheckCircle, XCircle, X, Plus } from 'lucide-react';
 import { useTranslations } from 'next-intl';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
+import { DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
+import { Sheet, SheetContent, SheetDescription, SheetTitle } from '@/components/ui/sheet';
+import { OptionBadge } from '@/components/ui/option-badge';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Slider as SliderUI } from '@/components/ui/slider';
 import { SearchableSelect } from '@/components/ui/searchable-select';
@@ -1510,7 +1505,7 @@ export function RecordFormFields({
             <SignatureField
               value={value as string | undefined}
               onChange={(val) => handleFieldChange(field.slug, val)}
-              label={field.name}
+              label={field.label || field.name}
               required={fieldRequired}
               disabled={isFieldDisabled}
               config={{
@@ -1544,7 +1539,7 @@ export function RecordFormFields({
             <LookupField
               value={value as string | null}
               onChange={(val) => handleFieldChange(field.slug, val)}
-              label={field.name}
+              label={field.label || field.name}
               required={fieldRequired}
               disabled={isFieldDisabled}
               placeholder={field.placeholder || 'Buscar...'}
@@ -1717,7 +1712,7 @@ export function RecordFormFields({
       ))}
 
       {!hideFooter && (
-        <DialogFooter>
+        <DialogFooter className="sticky bottom-0 -mx-6 mt-4 border-t bg-background/95 px-6 py-3 backdrop-blur">
           {isLocked && (
             <p className="text-xs text-amber-600 mr-auto flex items-center gap-1">
               <AlertTriangle className="h-3.5 w-3.5" />
@@ -1737,7 +1732,7 @@ export function RecordFormFields({
   );
 }
 
-// ─── Dialog wrapper (API externa idêntica à de antes) ────────────────────────
+// ─── Painel lateral (API externa idêntica à do antigo diálogo) ─────────────────
 export function RecordFormDialog({
   open,
   onOpenChange,
@@ -1750,24 +1745,56 @@ export function RecordFormDialog({
 }: RecordFormDialogProps) {
   const t = useTranslations('data');
   const isEditing = !!record;
+
+  // Cabecalho do registro: titulo (campo-titulo da tabela) e situacao (1a opcao com cor)
+  const titleField = (entity.settings as Record<string, unknown> | undefined)?.titleField as string | undefined;
+  const rawTitle = record && titleField ? record.data?.[titleField] : undefined;
+  const recordTitle = rawTitle === undefined || rawTitle === null || rawTitle === '' ? null : String(rawTitle);
+  const coloredFields = (entity.fields || []).filter((f) => (f.type === 'select' || f.type === 'radio-group')
+    && ((f.options as Array<unknown> | undefined) || []).some((o) => typeof o === 'object' && o !== null && !!(o as { color?: string }).color));
+  const statusField = coloredFields.find((f) => /status|situa|etapa|resultado|estado/i.test(f.slug)) ?? coloredFields[0];
+  const statusOption = statusField && record
+    ? ((statusField.options as Array<{ value: unknown; label: string; color?: string }>) || []).find((o) => o.value === record.data?.[statusField.slug])
+    : undefined;
+  const entityColor = (entity as { color?: string | null }).color;
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-5xl max-h-[90vh] overflow-y-auto" onInteractOutside={(e) => e.preventDefault()} onPointerDownOutside={(e) => e.preventDefault()}>
-        <DialogHeader>
-          <DialogTitle>{isEditing ? t('editRecord') : t('newRecord')} - {entity.name}</DialogTitle>
-          <DialogDescription>{t('formDescription')}</DialogDescription>
-        </DialogHeader>
-        <RecordFormFields
-          entity={entity}
-          record={record}
-          onSuccess={onSuccess}
-          parentRecordId={parentRecordId}
-          editableFields={editableFields}
-          submitOverride={submitOverride}
-          onCancel={() => onOpenChange(false)}
-          onSubmitted={() => onOpenChange(false)}
-        />
-      </DialogContent>
-    </Dialog>
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent
+        className="sm:max-w-2xl lg:max-w-4xl"
+        onInteractOutside={(e) => e.preventDefault()}
+        onPointerDownOutside={(e) => e.preventDefault()}
+        data-testid="record-form-panel"
+      >
+        <div className="flex items-start gap-3 border-b px-6 py-4 pr-12">
+          <span
+            className="mt-0.5 h-2.5 w-2.5 shrink-0 rounded-full bg-primary"
+            style={entityColor ? { backgroundColor: entityColor } : undefined}
+          />
+          <div className="min-w-0 flex-1">
+            <p className="text-xs font-medium text-muted-foreground">
+              {isEditing ? `${t('editRecord')} · ${entity.name}` : entity.name}
+            </p>
+            <SheetTitle className="mt-0.5 truncate text-lg font-semibold leading-tight">
+              {isEditing ? (recordTitle ?? entity.name) : t('newRecord')}
+            </SheetTitle>
+            <SheetDescription className="sr-only">{t('formDescription')}</SheetDescription>
+          </div>
+          {statusOption && <OptionBadge label={statusOption.label} color={statusOption.color} className="mt-1" />}
+        </div>
+        <div className="flex-1 overflow-y-auto px-6 pt-5">
+          <RecordFormFields
+            entity={entity}
+            record={record}
+            onSuccess={onSuccess}
+            parentRecordId={parentRecordId}
+            editableFields={editableFields}
+            submitOverride={submitOverride}
+            onCancel={() => onOpenChange(false)}
+            onSubmitted={() => onOpenChange(false)}
+          />
+        </div>
+      </SheetContent>
+    </Sheet>
   );
 }

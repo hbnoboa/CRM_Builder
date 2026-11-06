@@ -3,16 +3,19 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
-import { Link } from '@/i18n/tenant-navigation';
+import { Link, useRouter } from '@/i18n/tenant-navigation';
 import { Database } from 'lucide-react';
 import { RequireRole } from '@/components/auth/require-role';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card } from '@/components/ui/card';
+import { EmptyState } from '@/components/ui/empty-state';
 import { api } from '@/lib/api';
 import { useTenant } from '@/stores/tenant-context';
 import { useMyDashboardTemplates } from '@/hooks/use-dashboard-templates';
 import { cn } from '@/lib/utils';
-import type { EntityField } from '@/types';
+import { usePermissions } from '@/hooks/use-permissions';
+import { RecordFormDialog } from '@/components/data/record-form-dialog';
+import type { Entity as FullEntity, EntityField } from '@/types';
 import dynamic from 'next/dynamic';
 
 const EntityDashboard = dynamic(
@@ -24,7 +27,9 @@ interface Entity {
   id: string;
   name: string;
   slug: string;
+  namePlural?: string;
   description?: string;
+  color?: string | null;
   fields?: EntityField[];
   settings?: Record<string, unknown>;
   _count?: { data: number };
@@ -35,6 +40,10 @@ function DataPageContent() {
   const t = useTranslations('data');
   const searchParams = useSearchParams();
   const entityParam = searchParams.get('entity');
+  const router = useRouter();
+  const { hasModulePermission, hasEntityPermission } = usePermissions();
+  // "+ Novo" do inicio (?novo=1): abre o formulario de criacao, qualquer que seja o painel
+  const wantsCreate = searchParams.get('novo') === '1';
   const { effectiveTenantId } = useTenant();
 
   const [entities, setEntities] = useState<Entity[]>([]);
@@ -160,20 +169,42 @@ function DataPageContent() {
         <div className="animate-pulse h-10 bg-muted rounded-lg w-full sm:w-64" />
       ) : !selectedEntity && entities.length === 0 ? (
         <Card>
-          <CardContent className="py-6 text-center">
-            <Database className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
-            <p className="text-sm text-muted-foreground">{t('noEntitiesCreated')}</p>
-            <Link href="/gestao/entities/new">
-              <Button variant="link" size="sm" data-testid="create-entity-btn">
-                {t('createEntity')}
+          <EmptyState
+            icon={<Database className="h-5 w-5" />}
+            title={t('noEntitiesCreated')}
+            action={
+              <Button asChild size="sm" data-testid="create-entity-btn">
+                <Link href="/gestao/entities/new">{t('createEntity')}</Link>
               </Button>
-            </Link>
-          </CardContent>
+            }
+          />
         </Card>
       ) : null}
 
       {selectedEntity && (
         <>
+          {/* Cabecalho da tabela: icone na cor da tabela, nome e descricao */}
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+            <div className="flex min-w-0 items-center gap-3">
+              <span
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-nav-active text-nav-active-foreground"
+                style={selectedEntity.color ? { backgroundColor: `color-mix(in srgb, ${selectedEntity.color} 14%, transparent)`, color: selectedEntity.color } : undefined}
+              >
+                <Database className="h-5 w-5" />
+              </span>
+              <div className="min-w-0">
+                <h1 className="truncate text-xl font-semibold tracking-tight sm:text-2xl" data-testid="data-page-title">
+                  {selectedEntity.namePlural || selectedEntity.name}
+                </h1>
+                {(selectedEntity.description || selectedEntity._parentEntity) && (
+                  <p className="truncate text-sm text-muted-foreground">
+                    {selectedEntity._parentEntity ? `${selectedEntity._parentEntity.name} › ` : ''}{selectedEntity.description}
+                  </p>
+                )}
+              </div>
+            </div>
+          </div>
+
           {/* Template selector — shown when user has 2+ dashboard templates */}
           {myDashboardTemplates && myDashboardTemplates.length > 1 && (
             <div className="flex items-center gap-1.5 mb-3 flex-wrap">
@@ -192,6 +223,13 @@ function DataPageContent() {
                 </button>
               ))}
             </div>
+          )}
+          {wantsCreate && selectedEntity.fields && (hasModulePermission('data', 'canCreate') || hasEntityPermission(selectedEntity.slug, 'canCreate')) && (
+            <RecordFormDialog
+              open
+              onOpenChange={(open) => { if (!open) router.replace(`/data?entity=${selectedEntity.slug}`); }}
+              entity={selectedEntity as unknown as FullEntity}
+            />
           )}
           <EntityDashboard
             entitySlug={selectedEntity.slug}
