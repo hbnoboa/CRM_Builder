@@ -522,11 +522,11 @@ function PdfTemplatesPageContent() {
           {templates.map((template) => (
             <Card
               key={template.id}
-              className="group transition-colors hover:border-primary/50"
+              className="group min-w-0 transition-colors hover:border-primary/50"
             >
               <CardContent className="p-4 sm:p-6">
                 <div className="flex items-start justify-between gap-2">
-                  <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+                  <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-1 sm:gap-2">
                         <h3 className="font-semibold text-sm sm:text-base truncate">
@@ -544,9 +544,6 @@ function PdfTemplatesPageContent() {
                           </Badge>
                         )}
                       </div>
-                      <p className="text-xs sm:text-sm text-muted-foreground truncate">
-                        {template.description || ''}
-                      </p>
                     </div>
                   </div>
                   {(hasModulePermission('pdfTemplates', 'canUpdate') ||

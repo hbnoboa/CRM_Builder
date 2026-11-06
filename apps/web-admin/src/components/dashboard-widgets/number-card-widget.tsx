@@ -50,7 +50,7 @@ export function NumberCardWidget({ entitySlug, config, title, isEditMode }: Numb
       error={error ? 'Erro ao carregar dados' : null}
     >
       <div className="flex items-center justify-center h-full">
-        <span className="text-4xl font-bold">{formatValue(value)}</span>
+        <span className="whitespace-nowrap text-[clamp(1.25rem,7vw,2.25rem)] font-bold">{formatValue(value)}</span>
       </div>
     </WidgetWrapper>
   );

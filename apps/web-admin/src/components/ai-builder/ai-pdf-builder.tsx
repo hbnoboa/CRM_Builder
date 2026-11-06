@@ -10,7 +10,7 @@ import { pdfTemplateKeys } from '@/hooks/use-pdf-templates';
 import { useAiApplyTo, type AiPdfResult } from '@/hooks/use-ai-builder';
 import api from '@/lib/api';
 import { getErrorMessage } from '@/lib/get-error-message';
-import { AiApplyBar, AiChatPanel, AiEmptyPreview, AiWarnings, useAiConversation } from './ai-chat-panel';
+import { AiApplyBar, AiBuilderLayout, AiChatPanel, AiEmptyPreview, AiWarnings, isNarrowScreen, useAiConversation } from './ai-chat-panel';
 
 const EXAMPLES = [
   'Uma ordem de serviço para entregar ao cliente, com os itens, o valor total e a assinatura no fim.',
@@ -66,6 +66,13 @@ export function AiPdfBuilder() {
     if (!result) return;
     try {
       const res = await apply.mutateAsync(result.proposal);
+      if (isNarrowScreen()) {
+        // No celular o editor de PDF e so para computador: o modelo ja fica publicado
+        await api.post(`/pdf-templates/${res.id}/publish`);
+        toast.success('Modelo de PDF criado e publicado!');
+        router.push('/gestao/pdf-templates');
+        return;
+      }
       toast.success('Modelo de PDF criado! Revise e publique no editor.');
       router.push(`/gestao/pdf-templates/${res.id}`);
     } catch (error) {
@@ -91,7 +98,11 @@ export function AiPdfBuilder() {
   );
 
   return (
-    <div className="grid gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]" data-testid="ai-builder">
+    <div data-testid="ai-builder">
+      <AiBuilderLayout
+        hasResult={!!result}
+        reply={result?.reply}
+        chat={(
       <AiChatPanel
         messages={chat.messages}
         pending={chat.pending}
@@ -104,7 +115,8 @@ export function AiPdfBuilder() {
         placeholder={table ? 'Ex.: uma OS com os itens, o total e a assinatura do cliente' : 'Escolha a tabela acima primeiro'}
         changePlaceholder='Peça uma mudança: "tire as fotos", "coloque o CPF do cliente no topo"…'
       />
-
+        )}
+        preview={(
       <div className="space-y-3" data-testid="ai-proposal">
         {!result ? (
           <AiEmptyPreview icon={<FileText className="h-8 w-8" />} text="O PDF aparece aqui, com dados de exemplo, para você revisar." />
@@ -123,11 +135,16 @@ export function AiPdfBuilder() {
                 <div className="h-[75vh]" />
               )}
             </div>
-            <p className="text-xs text-muted-foreground">Prévia com dados de exemplo. No dia a dia, o PDF sai com os dados do registro.</p>
+            <p className="text-xs text-muted-foreground">
+              Prévia com dados de exemplo. No dia a dia, o PDF sai com os dados do registro.
+              {pdfUrl && <> <a href={pdfUrl} target="_blank" rel="noopener noreferrer" className="font-medium text-primary underline">Abrir o PDF</a></>}
+            </p>
             <AiApplyBar label="Criar o modelo de PDF" onApply={() => void create()} applying={apply.isPending} disabled={chat.pending} />
           </>
         )}
       </div>
+        )}
+      />
     </div>
   );
 }

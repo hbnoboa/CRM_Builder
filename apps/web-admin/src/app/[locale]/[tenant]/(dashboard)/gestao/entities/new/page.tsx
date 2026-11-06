@@ -5,7 +5,6 @@ import { useRouter } from '@/i18n/tenant-navigation';
 import { useTranslations } from 'next-intl';
 import { ArrowLeft, ArrowRight, Database, Plus, Loader2, Sparkles, icons, type LucideIcon } from 'lucide-react';
 import { RequireRole } from '@/components/auth/require-role';
-import { DesktopOnlyEditor } from '@/components/layout/desktop-only-editor';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -257,9 +256,7 @@ function NewEntityPageContent() {
 export default function NewEntityPage() {
   return (
     <RequireRole module="entities" action="canCreate">
-      <DesktopOnlyEditor action="criar tabelas">
         <NewEntityPageContent />
-      </DesktopOnlyEditor>
     </RequireRole>
   );
 }

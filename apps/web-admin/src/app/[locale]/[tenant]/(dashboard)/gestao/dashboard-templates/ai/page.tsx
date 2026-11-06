@@ -4,13 +4,11 @@ import { ArrowLeft } from 'lucide-react';
 import { Link } from '@/i18n/tenant-navigation';
 import { Button } from '@/components/ui/button';
 import { RequireRole } from '@/components/auth/require-role';
-import { DesktopOnlyEditor } from '@/components/layout/desktop-only-editor';
 import { AiDashboardBuilder } from '@/components/ai-builder/ai-dashboard-builder';
 
 export default function AiDashboardPage() {
   return (
     <RequireRole module="dashboard" action="canCreate">
-      <DesktopOnlyEditor action="criar painéis">
         <div className="space-y-4 py-2">
           <div className="flex items-start gap-3">
             <Button asChild variant="ghost" size="icon" aria-label="Voltar">
@@ -23,7 +21,6 @@ export default function AiDashboardPage() {
           </div>
           <AiDashboardBuilder />
         </div>
-      </DesktopOnlyEditor>
     </RequireRole>
   );
 }

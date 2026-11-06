@@ -163,9 +163,10 @@ function KanbanCardItem({
   };
 
   return (
-    <Card className="p-4 hover:shadow-md transition-shadow min-h-[100px] h-full cursor-move">
+    <Card className="p-4 hover:shadow-md transition-shadow min-h-[100px] h-full">
       <div className="flex items-start gap-3 h-full">
-        <GripVertical className="h-5 w-5 text-muted-foreground mt-0.5 flex-shrink-0" />
+        {/* So a alca arrasta: no celular, tocar/rolar no cartao nao muda a situacao */}
+        <GripVertical className="kanban-drag h-5 w-5 text-muted-foreground mt-0.5 flex-shrink-0 cursor-move touch-none" />
         <div className="flex-1 min-w-0">
           <div className="font-medium text-sm mb-2 truncate">{title}</div>
           {subtitles.length > 0 && (
@@ -484,7 +485,9 @@ function KanbanBoardContent({ entitySlug, title, config, entityFields }: KanbanB
 
   return (
     <WidgetWrapper title={title}>
-      <div className="flex pb-2 relative overflow-x-auto overflow-y-auto max-h-[800px]">
+      <div className="pb-2 overflow-x-auto overflow-y-auto max-h-[800px]">
+      {/* Largura minima por coluna: no celular rola para o lado em vez de espremer */}
+      <div className="relative flex" style={{ minWidth: columns.length * 220 }}>
         {/* Headers das colunas */}
         <div className="absolute top-0 left-0 right-0 flex gap-2 z-10 pointer-events-none">
           {columns.map((column) => (
@@ -515,6 +518,7 @@ function KanbanBoardContent({ entitySlug, title, config, entityFields }: KanbanB
             rowHeight={120}
             margin={[8, 12]}
             isDraggable={true}
+            draggableHandle=".kanban-drag"
             isResizable={false}
             compactType="vertical"
             containerPadding={[0, 0]}
@@ -536,6 +540,7 @@ function KanbanBoardContent({ entitySlug, title, config, entityFields }: KanbanB
             )}
           </ResponsiveGridLayout>
         </div>
+      </div>
       </div>
     </WidgetWrapper>
   );

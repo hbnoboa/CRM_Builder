@@ -57,15 +57,17 @@ function DataPageContent() {
   const { data: myDashboardTemplates } = useMyDashboardTemplates(selectedEntity?.slug);
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
 
-  // Restore selected template when entity changes
+  // Restore selected template when entity changes (?painel=<id> abre um painel especifico)
+  const painelParam = searchParams.get('painel');
   useEffect(() => {
     if (selectedEntity?.slug) {
-      const saved = localStorage.getItem(`dashboardTemplate:${selectedEntity.slug}`);
+      if (painelParam) localStorage.setItem(`dashboardTemplate:${selectedEntity.slug}`, painelParam);
+      const saved = painelParam || localStorage.getItem(`dashboardTemplate:${selectedEntity.slug}`);
       setSelectedTemplateId(saved);
     } else {
       setSelectedTemplateId(null);
     }
-  }, [selectedEntity?.slug]);
+  }, [selectedEntity?.slug, painelParam]);
 
   const handleTemplateSelect = useCallback((templateId: string) => {
     setSelectedTemplateId(templateId);
