@@ -24,6 +24,7 @@ import { usePublicLinks, useUpdatePublicLink, useDeletePublicLink } from '@/hook
 import { usePermissions } from '@/hooks/use-permissions';
 import { PublicLinkFormDialog } from '@/components/public-links/public-link-form-dialog';
 import type { PublicLink } from '@/services/public-link.service';
+import { HelpButton } from '@/components/help/help-button';
 import { toast } from 'sonner';
 
 export default function PublicLinksPage() {
@@ -91,6 +92,7 @@ export default function PublicLinksPage() {
           <h1 className="text-2xl font-bold flex items-center gap-2">
             <Link2 className="h-6 w-6" />
             Links Publicos
+            <HelpButton topic="module.publicLinks" />
           </h1>
           <p className="text-muted-foreground text-sm mt-1">
             Gere links para acesso externo a formularios

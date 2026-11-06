@@ -20,7 +20,7 @@ export default function GestaoEntitiesPage() {
 
   return (
     <div className="space-y-6">
-      <GestaoPageHeader
+      <GestaoPageHeader help="module.entities"
         title={t('title')}
         subtitle={t('subtitle')}
         actions={hasModulePermission('entities', 'canCreate') && (

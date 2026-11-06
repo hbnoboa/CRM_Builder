@@ -1234,11 +1234,18 @@ function DataTableWidgetInner({ entitySlug, config, title, ctx }: DataTableWidge
                       />
                     </TableCell>
                   )}
-                  {visibleFields.map(field => (
+                  {visibleFields.map((field, colIndex) => (
                     <TableCell
                       key={field.slug}
                       className="cursor-pointer hover:bg-muted/30 transition-colors"
+                      title={colIndex === 0 && canEdit ? 'Abrir registro' : 'Clique para filtrar por este valor'}
+                      data-testid={colIndex === 0 && canEdit ? 'open-record-cell' : undefined}
                       onClick={() => {
+                        // Primeira coluna abre o registro; as demais filtram pelo valor clicado
+                        if (colIndex === 0 && canEdit) {
+                          handleEdit(record);
+                          return;
+                        }
                         const val = record.data?.[field.slug];
                         if (val !== null && val !== undefined) {
                           handleCellClick(field.slug, String(
@@ -1249,7 +1256,9 @@ function DataTableWidgetInner({ entitySlug, config, title, ctx }: DataTableWidge
                         }
                       }}
                     >
-                      {renderCellValue(record, field)}
+                      {colIndex === 0 && canEdit ? (
+                        <span className="font-medium text-primary hover:underline">{renderCellValue(record, field)}</span>
+                      ) : renderCellValue(record, field)}
                     </TableCell>
                   ))}
                   <TableCell>

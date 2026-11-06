@@ -15,6 +15,7 @@ import { api } from '@/lib/api';
 import { OptionBadge } from '@/components/ui/option-badge';
 import { withoutSystemFields } from '@/lib/system-fields';
 import { cn } from '@/lib/utils';
+import { HelpButton } from '@/components/help/help-button';
 import type { DataFilter, Entity, EntityField } from '@/types';
 
 const OPERATOR_LABELS: Record<string, string> = {
@@ -146,9 +147,11 @@ const toOptions = (f?: EntityField): FieldOption[] =>
     : ((f?.options || []) as Array<string | FieldOption>).map((o) => (typeof o === 'string' ? { value: o, label: o } : o));
 
 function SettingSelect({
-  label, hint, value, onChange, fields, emptyLabel, missing, testId,
+  label, hint, value, onChange, fields, emptyLabel, missing, testId, help,
 }: {
   label: string; hint: string; value?: string; onChange: (v?: string) => void;
+  /** Topico do botao "?" (lib/help-content). */
+  help?: string;
   fields: EntityField[]; emptyLabel: string;
   /** Texto quando a tabela nao tem nenhum campo do tipo certo (no lugar de um select vazio). */
   missing: string;
@@ -156,7 +159,10 @@ function SettingSelect({
 }) {
   return (
     <div className="space-y-1.5">
-      <Label>{label}</Label>
+      <div className="flex items-center gap-1.5">
+        <Label>{label}</Label>
+        {help && <HelpButton topic={help} />}
+      </div>
       {fields.length === 0 ? (
         <p className="rounded-md border border-dashed px-3 py-2 text-xs text-muted-foreground" data-testid={`${testId}-missing`}>{missing}</p>
       ) : (
@@ -180,7 +186,12 @@ function SettingSelect({
  * a situacao (e quais opcoes encerram), o prazo e o responsavel. Com isso a tela
  * inicial mostra "Minhas pendencias" e as listas ficam mais claras.
  */
-export function TableSettingsPanel({ entity, onSaved }: { entity: Entity; onSaved: (e: Entity) => void }) {
+export function TableSettingsPanel({ entity, onSaved, fieldsUnsaved = false }: {
+  entity: Entity;
+  onSaved: (e: Entity) => void;
+  /** A aba Campos tem alteracoes nao salvas (campos novos ainda nao aparecem aqui). */
+  fieldsUnsaved?: boolean;
+}) {
   const current = (entity.settings || {}) as TableSettings & Record<string, unknown>;
   const initial: TableSettings = {
     titleField: current.titleField,
@@ -216,6 +227,15 @@ export function TableSettingsPanel({ entity, onSaved }: { entity: Entity; onSave
 
   return (
     <div className="space-y-4" data-testid="table-settings">
+      {fieldsUnsaved ? (
+        <p className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200" data-testid="settings-unsaved-fields">
+          Há campos com alterações não salvas na aba <b>Campos</b>. Volte lá e clique em <b>Salvar</b> para eles aparecerem aqui.
+        </p>
+      ) : (
+        <p className="text-xs text-muted-foreground" data-testid="settings-fields-note">
+          Aqui aparecem só os campos já salvos. Criou um campo agora? Salve na aba Campos antes.
+        </p>
+      )}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base"><SlidersHorizontal className="h-4 w-4" /> Como mostrar os registros</CardTitle>
@@ -231,6 +251,7 @@ export function TableSettingsPanel({ entity, onSaved }: { entity: Entity; onSave
             emptyLabel="Automático (primeiro campo de texto)"
             missing="Ainda não há um campo de texto. Crie um (ex.: Nome) na aba Campos."
             testId="setting-title-field"
+            help="settings.title"
           />
           <SettingSelect
             label="Situação"
@@ -241,10 +262,14 @@ export function TableSettingsPanel({ entity, onSaved }: { entity: Entity; onSave
             emptyLabel="Nenhuma"
             missing='Ainda não há um campo de situação. Crie uma "Lista de opções" (ex.: Aberta, Concluída) ou um "Sim ou não" na aba Campos.'
             testId="setting-status-field"
+            help="settings.status"
           />
           {cfg.statusField && (
             <div className="space-y-2 md:col-span-2">
-              <Label>Quais situações encerram o registro?</Label>
+              <div className="flex items-center gap-1.5">
+                <Label>Quais situações encerram o registro?</Label>
+                <HelpButton topic="settings.done" />
+              </div>
               <p className="text-xs text-muted-foreground">Registros nessas situações saem das pendências. Ex.: Concluída, Cancelada.</p>
               <div className="flex flex-wrap gap-2" data-testid="setting-done-values">
                 {statusOptions.map((o) => {
@@ -287,6 +312,7 @@ export function TableSettingsPanel({ entity, onSaved }: { entity: Entity; onSave
             emptyLabel="Sem prazo"
             missing='Ainda não há um campo de data. Crie uma "Data" (ex.: Vencimento) na aba Campos para usar prazos.'
             testId="setting-deadline-field"
+            help="settings.deadline"
           />
           <SettingSelect
             label="Responsável"
@@ -297,6 +323,7 @@ export function TableSettingsPanel({ entity, onSaved }: { entity: Entity; onSave
             emptyLabel="Todos que veem a tabela"
             missing='Hoje todos que veem a tabela veem as mesmas pendências. Para separar por pessoa, crie um campo "Pessoa da equipe" na aba Campos.'
             testId="setting-assignee-field"
+            help="settings.assignee"
           />
         </CardContent>
       </Card>

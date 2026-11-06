@@ -22,13 +22,16 @@ const optionsOf = (f?: EntityField): Option[] =>
 function operatorsFor(f?: EntityField): Option[] {
   const filled = [{ value: 'is_not_empty', label: 'estiver preenchido' }, { value: 'is_empty', label: 'estiver vazio' }];
   if (!f) return filled;
-  if (CHOICE.has(f.type)) return [{ value: 'equals', label: 'for' }, { value: 'not_equals', label: 'não for' }, ...filled];
+  if (CHOICE.has(f.type)) return [{ value: 'equals', label: 'for' }, { value: 'not_equals', label: 'for diferente de' }, ...filled];
   if (NUMERIC.has(f.type)) return [
     { value: 'gt', label: 'for maior que' }, { value: 'lt', label: 'for menor que' },
-    { value: 'equals', label: 'for igual a' }, ...filled,
+    { value: 'equals', label: 'for igual a' }, { value: 'not_equals', label: 'for diferente de' }, ...filled,
   ];
   if (MULTI.has(f.type)) return filled;
-  return [{ value: 'equals', label: 'for igual a' }, { value: 'contains', label: 'contiver' }, ...filled];
+  return [
+    { value: 'equals', label: 'for igual a' }, { value: 'not_equals', label: 'for diferente de' },
+    { value: 'contains', label: 'contiver' }, ...filled,
+  ];
 }
 
 /** Valor com o tipo certo (o formulario compara com ===: Sim/Nao vira booleano, numero vira numero). */

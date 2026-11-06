@@ -18,6 +18,7 @@ import { securityApi } from '@/components/security/security-api';
 import { downloadFromApi } from '@/lib/download';
 import { getErrorMessage } from '@/lib/get-error-message';
 import { useAuthStore } from '@/stores/auth-store';
+import { HelpButton } from '@/components/help/help-button';
 
 export default function CompanyPrivacyPage() {
   const t = useTranslations('gestao.privacy');
@@ -59,7 +60,7 @@ export default function CompanyPrivacyPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold md:text-3xl">{t('title')}</h1>
+        <h1 className="text-2xl font-bold md:text-3xl flex items-center gap-2">{t('title')}<HelpButton topic="module.privacy" /></h1>
         <p className="mt-1 text-sm text-muted-foreground md:text-base">{t('subtitle')}</p>
       </div>
 

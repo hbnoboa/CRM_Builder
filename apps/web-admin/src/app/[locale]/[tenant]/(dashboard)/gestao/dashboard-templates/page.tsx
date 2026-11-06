@@ -23,6 +23,7 @@ import {
 } from '@/hooks/use-dashboard-templates';
 import type { DashboardTemplate } from '@crm-builder/shared';
 import { usePermissions } from '@/hooks/use-permissions';
+import { HelpButton } from '@/components/help/help-button';
 
 function DashboardTemplatesContent() {
   const { data: templates, isLoading } = useDashboardTemplates();
@@ -52,7 +53,7 @@ function DashboardTemplatesContent() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Dashboard Templates</h1>
+          <h1 className="text-2xl font-bold flex items-center gap-2">Painéis<HelpButton topic="module.dashboards" /></h1>
           <p className="text-sm text-muted-foreground mt-1">
             Crie dashboards customizados e atribua a cargos
           </p>

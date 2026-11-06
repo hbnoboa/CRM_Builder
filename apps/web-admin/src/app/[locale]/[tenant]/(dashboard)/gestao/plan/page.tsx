@@ -8,7 +8,7 @@ export default function GestaoPlanPage() {
   const t = useTranslations('gestao.plan');
   return (
     <div className="mx-auto max-w-4xl space-y-6">
-      <GestaoPageHeader title={t('title')} subtitle={t('subtitle')} />
+      <GestaoPageHeader help="module.plan" title={t('title')} subtitle={t('subtitle')} />
       <SubscriptionPanel />
       <OwnershipCard />
     </div>

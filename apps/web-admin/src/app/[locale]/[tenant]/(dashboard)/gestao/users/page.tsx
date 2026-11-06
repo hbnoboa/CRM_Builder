@@ -36,6 +36,7 @@ import { useAuthStore } from '@/stores/auth-store';
 import { useTenant } from '@/stores/tenant-context';
 import { formatCpf, formatPhone } from '@/lib/masks';
 import type { User } from '@/types';
+import { HelpButton } from '@/components/help/help-button';
 
 // "Administrador" agora e permission-driven: quem gere cargos ou tem acesso total ao tenant.
 const ALL_TEAMS = '__all__';
@@ -127,7 +128,7 @@ function UsersPageContent() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-bold">{t('title')}</h1>
+          <h1 className="text-2xl sm:text-3xl font-bold flex items-center gap-2">{t('title')}<HelpButton topic="module.users" /></h1>
           <p className="text-muted-foreground mt-1 text-sm sm:text-base">
             {t('subtitle')}
           </p>

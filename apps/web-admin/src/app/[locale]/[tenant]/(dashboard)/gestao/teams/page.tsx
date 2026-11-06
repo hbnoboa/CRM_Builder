@@ -23,6 +23,7 @@ import { useAllUsers } from '@/hooks/use-users';
 import { getErrorMessage } from '@/lib/get-error-message';
 import type { Team } from '@/services/teams.service';
 import type { User } from '@/types';
+import { HelpButton } from '@/components/help/help-button';
 
 const DEFAULT_COLOR = '#6366f1';
 
@@ -40,7 +41,7 @@ export default function TeamsPage() {
     <div className="space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold md:text-3xl">{t('title')}</h1>
+          <h1 className="text-2xl font-bold md:text-3xl flex items-center gap-2">{t('title')}<HelpButton topic="module.teams" /></h1>
           <p className="mt-1 text-sm text-muted-foreground md:text-base">{t('subtitle')}</p>
         </div>
         {canEdit && (

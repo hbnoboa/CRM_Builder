@@ -79,6 +79,8 @@ interface Props {
   }) => Promise<void>;
   onCancel: () => void;
   onDelete?: () => Promise<void>;
+  /** Avisa quem usa o editor que ha alteracoes nao salvas (aba Ajustes mostra o aviso). */
+  onDirtyChange?: (dirty: boolean) => void;
 }
 
 /**
@@ -87,12 +89,16 @@ interface Props {
  * resize só horizontal (largura/span), altura fixa por tipo. Ativado por
  * ?editor=react; a versão dnd-kit segue em ?editor=dnd.
  */
-export default function ReactFormBuilderGrid({ entity, onSave, onCancel }: Props) {
+export default function ReactFormBuilderGrid({ entity, onSave, onCancel, onDirtyChange }: Props) {
   const [fields, setFields] = useState<EntityField[]>(() => withoutSystemFields(entity.fields));
   const [name, setName] = useState(entity.name);
   // Ultima versao salva: compara para avisar "alteracoes nao salvas".
   const [savedSnapshot, setSavedSnapshot] = useState(() => JSON.stringify({ n: entity.name, f: withoutSystemFields(entity.fields) }));
-  const dirty = JSON.stringify({ n: name, f: fields }) !== savedSnapshot;
+  // So conta o que a pessoa mexeu: ao abrir, a grade reajusta posicoes sozinha (nao e alteracao).
+  const [touched, setTouched] = useState(false);
+  const dirty = touched && JSON.stringify({ n: name, f: fields }) !== savedSnapshot;
+
+  useEffect(() => { onDirtyChange?.(dirty); }, [dirty, onDirtyChange]);
 
   useEffect(() => {
     if (!dirty) return;
@@ -139,10 +145,12 @@ export default function ReactFormBuilderGrid({ entity, onSave, onCancel }: Props
 
   const updateSelected = (patch: Partial<EntityField>) => {
     if (!selectedSlug) return;
+    setTouched(true);
     setFields((prev) => prev.map((f) => (f.slug === selectedSlug ? { ...f, ...patch } : f)));
   };
 
   const deleteField = (slug: string) => {
+    setTouched(true);
     setFields((prev) => prev.filter((f) => f.slug !== slug));
     if (selectedSlug === slug) setSelectedSlug(null);
   };
@@ -150,6 +158,7 @@ export default function ReactFormBuilderGrid({ entity, onSave, onCancel }: Props
   const addField = (fieldType: string, label: string) => {
     const slug = uniqueSlug(label, fields);
     const nf = { slug, name: label, label, type: fieldType, gridColSpan: 12 } as EntityField;
+    setTouched(true);
     setFields((prev) => [...prev, nf]);
     setSelectedSlug(slug);
     setJustAdded(slug);
@@ -207,6 +216,7 @@ export default function ReactFormBuilderGrid({ entity, onSave, onCancel }: Props
     try {
       await onSave({ name, description: entity.description, fields, settings: entity.settings });
       setSavedSnapshot(JSON.stringify({ n: name, f: fields }));
+      setTouched(false);
     } finally {
       setSaving(false);
     }
@@ -249,7 +259,7 @@ export default function ReactFormBuilderGrid({ entity, onSave, onCancel }: Props
         <input
           type="text"
           value={name}
-          onChange={(e) => setName(e.target.value)}
+          onChange={(e) => { setTouched(true); setName(e.target.value); }}
           aria-label="Nome da tabela"
           className="min-w-0 max-w-[260px] rounded px-2 py-1 text-sm font-semibold bg-transparent border border-transparent outline-none hover:border-border focus:border-ring"
         />
@@ -302,6 +312,8 @@ export default function ReactFormBuilderGrid({ entity, onSave, onCancel }: Props
                 resizeHandles={['e', 'w']}
                 compactType="vertical"
                 onLayoutChange={handleLayoutChange}
+                onDragStop={() => setTouched(true)}
+                onResizeStop={() => setTouched(true)}
               >
                 {visibleFields.map((field) => {
                   const isSelected = selectedSlug === field.slug;

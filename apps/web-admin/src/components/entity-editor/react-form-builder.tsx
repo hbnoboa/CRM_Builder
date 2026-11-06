@@ -26,6 +26,7 @@ import type { Entity, EntityField, EntitySettings } from '@crm-builder/shared';
 import { RecordFormFields } from '@/components/data/record-form-dialog';
 import { FieldPickerModal } from './panels/field-picker-modal';
 import { FieldConditionsEditor } from './condition-editor';
+import { HelpButton } from '@/components/help/help-button';
 import { useEntities } from '@/hooks/use-entities';
 import { withoutSystemFields } from '@/lib/system-fields';
 import { FIELD_GROUPS, FIELD_KINDS, fieldKind } from '@/lib/field-catalog';
@@ -50,6 +51,7 @@ interface ReactFormBuilderProps {
   }) => Promise<void>;
   onCancel: () => void;
   onDelete?: () => Promise<void>;
+  onDirtyChange?: (dirty: boolean) => void;
 }
 
 function slugify(label: string): string {
@@ -464,6 +466,7 @@ export function FieldProperties({
         <details className="rounded-lg border px-3 py-2" open={!!(field.visibleIf || field.requiredIf || field.readOnlyIf)}>
           <summary className="cursor-pointer select-none text-xs font-medium text-muted-foreground">
             Regras: mostrar, exigir ou travar só em alguns casos
+            <HelpButton topic="rules.field" className="ml-1 align-middle" />
           </summary>
           <div className="mt-3">
             <FieldConditionsEditor field={field} allFields={allFields} onChange={onChange} />

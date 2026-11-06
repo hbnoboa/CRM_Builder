@@ -88,7 +88,7 @@ export default function GestaoOrganizationPage() {
 
   return (
     <form onSubmit={save} className="mx-auto max-w-4xl space-y-6" data-testid="organization-form">
-      <GestaoPageHeader
+      <GestaoPageHeader help="module.organization"
         title={t('title')}
         subtitle={t('subtitle')}
         actions={
