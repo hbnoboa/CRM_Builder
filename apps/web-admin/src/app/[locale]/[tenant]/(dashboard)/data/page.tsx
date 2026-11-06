@@ -16,6 +16,7 @@ import { cn } from '@/lib/utils';
 import { usePermissions } from '@/hooks/use-permissions';
 import { RecordFormDialog } from '@/components/data/record-form-dialog';
 import type { Entity as FullEntity, EntityField } from '@/types';
+import { HelpButton } from '@/components/help/help-button';
 import dynamic from 'next/dynamic';
 
 const EntityDashboard = dynamic(
@@ -193,9 +194,12 @@ function DataPageContent() {
                 <Database className="h-5 w-5" />
               </span>
               <div className="min-w-0">
-                <h1 className="truncate text-xl font-semibold tracking-tight sm:text-2xl" data-testid="data-page-title">
-                  {selectedEntity.namePlural || selectedEntity.name}
-                </h1>
+                <div className="flex items-center gap-2">
+                  <h1 className="truncate text-xl font-semibold tracking-tight sm:text-2xl" data-testid="data-page-title">
+                    {selectedEntity.namePlural || selectedEntity.name}
+                  </h1>
+                  <HelpButton topic="screen.records" />
+                </div>
                 {(selectedEntity.description || selectedEntity._parentEntity) && (
                   <p className="truncate text-sm text-muted-foreground">
                     {selectedEntity._parentEntity ? `${selectedEntity._parentEntity.name} › ` : ''}{selectedEntity.description}

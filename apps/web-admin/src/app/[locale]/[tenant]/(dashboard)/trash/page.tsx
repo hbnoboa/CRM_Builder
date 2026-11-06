@@ -21,6 +21,7 @@ import {
 } from '@/hooks/use-trash';
 import { getErrorMessage } from '@/lib/get-error-message';
 import { TRASH_RETENTION_OPTIONS, type TrashItem } from '@/services/trash.service';
+import { HelpButton } from '@/components/help/help-button';
 
 const ALL = '__all__';
 const NEVER = 'never';
@@ -68,6 +69,7 @@ export default function TrashPage() {
         <div>
           <h1 className="flex items-center gap-2 text-2xl font-bold md:text-3xl">
             <Trash2 className="h-6 w-6" /> {t('title')}
+            <HelpButton topic="screen.trash" />
           </h1>
           <p className="mt-1 text-sm text-muted-foreground md:text-base">
             {data?.retentionDays ? t('subtitleRetention', { days: data.retentionDays }) : t('subtitle')}

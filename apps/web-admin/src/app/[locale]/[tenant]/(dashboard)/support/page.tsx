@@ -18,6 +18,7 @@ import { useCreateTicket, useMyTickets } from '@/components/support/support-api'
 import { TicketPriorityBadge, TicketStatusBadge } from '@/components/support/ticket-badges';
 import { TICKET_CATEGORIES, TICKET_PRIORITIES, type TicketPriority } from '@/components/support/support-types';
 import { getErrorMessage } from '@/lib/get-error-message';
+import { HelpButton } from '@/components/help/help-button';
 
 export default function SupportPage() {
   const t = useTranslations('support');
@@ -43,7 +44,7 @@ export default function SupportPage() {
     <div className="space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h1 className="flex items-center gap-2 text-2xl font-bold md:text-3xl"><LifeBuoy className="h-6 w-6" /> {t('title')}</h1>
+          <h1 className="flex items-center gap-2 text-2xl font-bold md:text-3xl"><LifeBuoy className="h-6 w-6" /> {t('title')}<HelpButton topic="screen.support" /></h1>
           <p className="mt-1 text-sm text-muted-foreground md:text-base">{data?.seesAll ? t('subtitleAll') : t('subtitle')}</p>
         </div>
         <Button onClick={() => setOpen(true)} data-testid="ticket-new"><Plus className="mr-2 h-4 w-4" /> {t('new')}</Button>

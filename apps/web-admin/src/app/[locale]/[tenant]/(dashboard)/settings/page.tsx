@@ -16,6 +16,7 @@ import { useAuthStore } from '@/stores/auth-store';
 import { useUpdateProfile, useChangePassword } from '@/hooks/use-auth';
 import { Link, useRouter, usePathname } from '@/i18n/tenant-navigation';
 import { cn } from '@/lib/utils';
+import { HelpButton } from '@/components/help/help-button';
 
 // So a conta pessoal. Organizacao e plano moraram aqui e agora ficam na
 // administracao da empresa (/gestao/organization e /gestao/plan).
@@ -116,7 +117,7 @@ function SettingsPageContent() {
       </nav>
 
       <div>
-        <h1 className="text-2xl md:text-3xl font-bold">{t('title')}</h1>
+        <h1 className="flex items-center gap-2 text-2xl md:text-3xl font-bold">{t('title')}<HelpButton topic="screen.settings" /></h1>
         <p className="text-sm md:text-base text-muted-foreground mt-1">
           {t('subtitle')}
         </p>

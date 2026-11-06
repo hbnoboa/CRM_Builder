@@ -35,6 +35,7 @@ import { useAuthStore } from '@/stores/auth-store';
 import { useTenant } from '@/stores/tenant-context';
 import { usePermissions } from '@/hooks/use-permissions';
 import api from '@/lib/api';
+import { HelpButton } from '@/components/help/help-button';
 import { cn } from '@/lib/utils';
 
 interface DashboardStats {
@@ -242,7 +243,7 @@ export default function DashboardPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-bold" data-testid="dashboard-heading">{t('title')}</h1>
+          <div className="flex items-center gap-2"><h1 className="text-2xl sm:text-3xl font-bold" data-testid="dashboard-heading">{t('title')}</h1><HelpButton topic="screen.dashboard" /></div>
           <p className="text-muted-foreground mt-1 text-sm sm:text-base">
             {t('welcome', { name: user?.name?.split(' ')[0] ?? '' })}
           </p>
