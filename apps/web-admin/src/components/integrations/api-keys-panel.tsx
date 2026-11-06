@@ -86,12 +86,13 @@ export function ApiKeysPanel() {
             )}
           </div>
         ))}
-        <div className="rounded-lg bg-muted/60 p-3 text-xs">
-          <p className="mb-1 font-medium">{t('howTo')}</p>
+        <details className="rounded-lg bg-muted/60 p-3 text-xs">
+          <summary className="cursor-pointer select-none font-medium">Instruções para o técnico de TI</summary>
+          <p className="mb-1 mt-2 text-muted-foreground">{t('howTo')}</p>
           <code className="block overflow-x-auto whitespace-pre font-mono text-[11px]">
             {`curl -H "X-API-Key: crm_..." ${API_BASE}/data/<tabela>`}
           </code>
-        </div>
+        </details>
       </CardContent>
       <NewApiKeyDialog open={open} onOpenChange={setOpen} />
     </Card>

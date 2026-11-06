@@ -91,17 +91,17 @@ export default function PublicLinksPage() {
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2">
             <Link2 className="h-6 w-6" />
-            Links Publicos
+            Links públicos
             <HelpButton topic="module.publicLinks" />
           </h1>
           <p className="text-muted-foreground text-sm mt-1">
-            Gere links para acesso externo a formularios
+            Formulários para clientes preencherem sem login (ex.: pedir orçamento, abrir chamado). O que chega vira registro.
           </p>
         </div>
         {canCreate && (
           <Button onClick={() => { setSelectedLink(null); setFormOpen(true); }}>
             <Plus className="h-4 w-4 mr-2" />
-            Novo Link
+            Novo link
           </Button>
         )}
       </div>
@@ -126,7 +126,7 @@ export default function PublicLinksPage() {
             <Link2 className="h-12 w-12 text-muted-foreground mb-4" />
             <h3 className="text-lg font-medium mb-2">Nenhum link criado</h3>
             <p className="text-muted-foreground text-sm mb-4">
-              Crie um link publico para permitir acesso externo a formularios.
+              Crie um link e mande para o cliente ou coloque no seu site.
             </p>
             {canCreate && (
               <Button onClick={() => { setSelectedLink(null); setFormOpen(true); }}>
@@ -239,7 +239,7 @@ export default function PublicLinksPage() {
       <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Excluir link publico</AlertDialogTitle>
+            <AlertDialogTitle>Excluir link público</AlertDialogTitle>
             <AlertDialogDescription>
               Tem certeza que deseja excluir o link &ldquo;{selectedLink?.name}&rdquo;?
               Usuarios registrados por este link nao serao afetados.

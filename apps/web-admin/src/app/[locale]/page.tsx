@@ -18,11 +18,11 @@ import { INTEGRATIONS, SECURITY } from '@/components/marketing/content';
 export const metadata: Metadata = {
   title: 'CRM Builder — o sistema da sua operação, sem programar',
   description:
-    'Monte tabelas, formulários, painéis e documentos em PDF sem programar. Modelos prontos de vistoria, ordem de serviço, vendas e manutenção, com app que funciona offline.',
+    'Monte tabelas, formulários, painéis e documentos em PDF sem programar. Modelos prontos de sinistros, vistorias, ordem de serviço, vendas e manutenção, com app que funciona offline.',
 };
 
 const STEPS = [
-  { title: 'Escolha um modelo', text: 'Vistoria, ordem de serviço, vendas, chamados — ou comece em branco.' },
+  { title: 'Escolha um modelo', text: 'Sinistros, vistorias, ordem de serviço, vendas, chamados — ou comece em branco.' },
   { title: 'Ajuste ao seu jeito', text: 'Arraste campos, crie cargos, monte painéis e documentos sem escrever código.' },
   { title: 'Sua equipe já usa', text: 'No navegador e no app do celular, inclusive onde não tem sinal.' },
 ];
@@ -30,9 +30,9 @@ const STEPS = [
 const FEATURES = [
   { icon: Blocks, title: 'Tabelas e formulários', text: 'Campos de texto, foto, assinatura, local, listas, sub-tabelas e regras por campo.' },
   { icon: LayoutDashboard, title: 'Painéis por cargo', text: 'Indicadores, gráficos, quadro kanban e tabelas — cada cargo abre no painel dele.' },
-  { icon: FileText, title: 'Documentos em PDF', text: 'Laudos, OS e propostas com fotos, tabelas e assinatura, gerados a partir do registro.' },
+  { icon: FileText, title: 'Documentos em PDF', text: 'Relatórios de sinistro, laudos de vistoria, OS e propostas com fotos e assinatura, gerados a partir do registro.' },
   { icon: Users, title: 'Permissões de verdade', text: 'Quem vê o quê: por tabela, por campo, só os próprios registros ou os da equipe.' },
-  { icon: MessageSquare, title: 'Chat com comandos', text: 'Abra uma OS ou consulte pendências digitando /os ou /pendencias na conversa.' },
+  { icon: MessageSquare, title: 'Chat com comandos', text: 'Abra um sinistro, uma vistoria ou uma OS digitando /sinistro, /vistoria ou /os na conversa.' },
   { icon: Workflow, title: 'Automações e integrações', text: 'Avisos, webhooks e API para conversar com o ERP e os outros sistemas.' },
 ];
 
@@ -207,7 +207,7 @@ export default function LocaleHome() {
               <p className="text-sm font-semibold text-orange-400">Feito para quem trabalha na rua</p>
               <h2 className="mt-2 text-3xl font-bold tracking-tight sm:text-4xl">Sem sinal? O trabalho continua.</h2>
               <p className="mt-4 text-white/70">
-                O app guarda tudo no celular: vistoria, OS, foto, assinatura e localização. Quando a conexão volta,
+                O app guarda tudo no celular: vistoria, sinistro, OS, foto, assinatura e localização. Quando a conexão volta,
                 sincroniza sozinho — e cada pessoa só recebe os registros que o cargo dela pode ver.
               </p>
             </div>

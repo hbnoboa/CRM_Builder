@@ -347,7 +347,7 @@ export default function DashboardPage() {
                     <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
                     <XAxis
                       dataKey="date"
-                      tickFormatter={(value) => format(new Date(value), 'MM/dd', { locale: dateLocale })}
+                      tickFormatter={(value) => format(new Date(value), locale === 'en' ? 'MM/dd' : 'dd/MM', { locale: dateLocale })}
                       className="text-xs"
                     />
                     <YAxis className="text-xs" />

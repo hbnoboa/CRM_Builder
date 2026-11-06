@@ -787,10 +787,10 @@ export function RoleFormDialog({ open, onOpenChange, role, onSuccess }: RoleForm
                 className="mt-0.5"
               />
               <span className="text-sm">
-                <span className="font-medium">Acesso total ao tenant</span>
+                <span className="font-medium">Acesso a tudo (como o dono)</span>
                 <span className="block text-xs text-muted-foreground">
-                  Libera todos os módulos e tabelas — <strong>inclusive os criados no futuro</strong>, sem precisar re-marcar.
-                  Não dá poder de plataforma (cross-tenant). Desmarcar qualquer permissão abaixo desliga o modo automático.
+                  Vê e faz tudo na empresa, <strong>inclusive nas tabelas e telas criadas depois</strong>. Use só para quem administra.
+                  Se desmarcar qualquer item abaixo, esta opção desliga.
                 </span>
               </span>
             </label>
@@ -798,10 +798,10 @@ export function RoleFormDialog({ open, onOpenChange, role, onSuccess }: RoleForm
 
           {/* Permissions Tabs */}
           {hasModuleAction('roles', 'canManagePermissions') && (
-            <Tabs defaultValue="modules">
+            <Tabs defaultValue="entities">
               <TabsList className="w-full grid grid-cols-2">
-                <TabsTrigger value="modules">{t('form.systemModules')}</TabsTrigger>
                 <TabsTrigger value="entities">{t('form.entityPermissions')}</TabsTrigger>
+                <TabsTrigger value="modules">{t('form.systemModules')}</TabsTrigger>
               </TabsList>
 
               {/* System Modules Tab */}
@@ -840,7 +840,7 @@ export function RoleFormDialog({ open, onOpenChange, role, onSuccess }: RoleForm
                                 variant={total > 0 && activeCount === total ? 'default' : activeCount > 0 ? 'secondary' : 'outline'}
                                 className="text-[10px] px-1.5 py-0"
                               >
-                                {total === 1 ? (hasAny ? t('form.access') : t('form.noAccess')) : `${activeCount}/${total}`}
+                                {!hasAny ? t('form.noAccess') : activeCount === total ? t('form.access') : t('form.partial')}
                               </Badge>
                               <ChevronRight className={`h-4 w-4 text-muted-foreground transition-transform ${isOpen ? 'rotate-90' : ''}`} />
                             </button>
@@ -929,15 +929,20 @@ export function RoleFormDialog({ open, onOpenChange, role, onSuccess }: RoleForm
                                   <div className="text-sm font-medium">
                                     {entity?.name || perm.entityName || perm.entitySlug}
                                   </div>
-                                  <div className="text-xs text-muted-foreground">
-                                    {perm.scope === 'own' ? t('form.scopeOwn') : perm.scope === 'team' ? t('form.scopeTeam') : t('form.scopeAll')}
+                                  <div className="text-xs text-muted-foreground" data-testid={`role-entity-summary-${perm.entitySlug}`}>
+                                    {crudCount === 0 ? t('form.noAccess') : (() => {
+                                      const verbs = [perm.canRead && 'vê', perm.canCreate && 'cria', perm.canUpdate && 'edita', perm.canDelete && 'exclui'].filter(Boolean) as string[];
+                                      const sentence = verbs.length > 1 ? `${verbs.slice(0, -1).join(', ')} e ${verbs[verbs.length - 1]}` : verbs[0];
+                                      const whose = perm.scope === 'own' ? 'só os que criou' : perm.scope === 'team' ? 'os da equipe' : 'todos os registros';
+                                      return `${sentence.charAt(0).toUpperCase()}${sentence.slice(1)} · ${whose}`;
+                                    })()}
                                   </div>
                                 </div>
                                 <Badge
                                   variant={crudCount === 4 ? 'default' : crudCount > 0 ? 'secondary' : 'outline'}
                                   className="text-[10px] px-1.5 py-0"
                                 >
-                                  {crudCount}/4
+                                  {crudCount === 4 ? t('form.fullAccess') : crudCount > 0 ? t('form.partial') : t('form.noAccess')}
                                 </Badge>
                                 <ChevronRight className={`h-4 w-4 text-muted-foreground transition-transform ${isOpen ? 'rotate-90' : ''}`} />
                               </button>
@@ -1082,7 +1087,7 @@ export function RoleFormDialog({ open, onOpenChange, role, onSuccess }: RoleForm
                                             onAdd={(filter) => addDataFilter(perm.entitySlug, filter)}
                                           />
                                           <p className="text-[10px] text-muted-foreground">
-                                            Filtros restringem quais registros usuarios com esta role podem ver nesta entidade.
+                                            Os filtros limitam quais registros desta tabela as pessoas com este cargo conseguem ver (ex.: só a Situação Aberta).
                                           </p>
                                         </div>
                                       )}

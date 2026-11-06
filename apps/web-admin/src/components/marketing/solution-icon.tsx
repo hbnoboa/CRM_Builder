@@ -1,7 +1,7 @@
 import type { CSSProperties } from 'react';
-import { LayoutTemplate, LifeBuoy, Target, Truck, Wrench, type LucideIcon } from 'lucide-react';
+import { LayoutTemplate, LifeBuoy, ShieldAlert, Target, Truck, Wrench, type LucideIcon } from 'lucide-react';
 
-const ICONS: Record<string, LucideIcon> = { Truck, Wrench, Target, LifeBuoy };
+const ICONS: Record<string, LucideIcon> = { ShieldAlert, Truck, Wrench, Target, LifeBuoy };
 
 /** Icone do modelo de solucao (nome lucide vindo do catalogo). */
 export function SolutionIcon({ name, className, style }: { name: string; className?: string; style?: CSSProperties }) {

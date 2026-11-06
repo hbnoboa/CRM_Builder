@@ -63,7 +63,7 @@ export const COMPARISON: Array<{ group: string; rows: Array<{ label: string; hin
   {
     group: 'Montagem',
     rows: [
-      { label: 'Modelos prontos (vistoria, OS, vendas, chamados)', values: { essencial: true, profissional: true, empresarial: true } },
+      { label: 'Modelos prontos (sinistros, vistoria, OS, vendas, chamados)', values: { essencial: true, profissional: true, empresarial: true } },
       { label: 'Tabelas, formulários e sub-tabelas', values: { essencial: true, profissional: true, empresarial: true } },
       { label: 'Regras por campo (obrigatório, visível, cálculo)', values: { essencial: true, profissional: true, empresarial: true } },
       { label: 'Painéis com gráficos, funil e quadro kanban', values: { essencial: true, profissional: true, empresarial: true } },
@@ -77,7 +77,7 @@ export const COMPARISON: Array<{ group: string; rows: Array<{ label: string; hin
       { label: 'App no celular com modo offline', values: { essencial: true, profissional: true, empresarial: true } },
       { label: 'Fotos, assinatura e localização no registro', values: { essencial: true, profissional: true, empresarial: true } },
       { label: 'Chat por tabela, por registro e direto', values: { essencial: true, profissional: true, empresarial: true } },
-      { label: 'Comandos no chat (/os, /vistoria…)', values: { essencial: false, profissional: true, empresarial: true } },
+      { label: 'Comandos no chat (/sinistro, /vistoria, /os…)', values: { essencial: false, profissional: true, empresarial: true } },
       { label: 'Cargos personalizados', values: { essencial: 'até 3', profissional: true, empresarial: true } },
       { label: 'Equipes e escopo "da equipe"', values: { essencial: false, profissional: true, empresarial: true } },
       { label: 'Permissão por campo', values: { essencial: false, profissional: true, empresarial: true } },

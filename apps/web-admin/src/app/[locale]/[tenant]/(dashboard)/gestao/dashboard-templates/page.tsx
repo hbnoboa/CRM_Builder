@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useEntities } from '@/hooks/use-entities';
 import { Link } from '@/i18n/tenant-navigation';
 import { RequireRole } from '@/components/auth/require-role';
 import { Button } from '@/components/ui/button';
@@ -27,6 +28,8 @@ import { HelpButton } from '@/components/help/help-button';
 
 function DashboardTemplatesContent() {
   const { data: templates, isLoading } = useDashboardTemplates();
+  const { data: entitiesPage } = useEntities({ limit: 200 });
+  const entityNameOf = (slug: string) => entitiesPage?.data?.find((e) => e.slug === slug)?.name ?? slug;
   const deleteTemplate = useDeleteDashboardTemplate();
   const [deleteTarget, setDeleteTarget] = useState<DashboardTemplate | null>(null);
   // Mesma permissao da API (modulo dashboard).
@@ -55,14 +58,14 @@ function DashboardTemplatesContent() {
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2">Painéis<HelpButton topic="module.dashboards" /></h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Crie dashboards customizados e atribua a cargos
+            Monte painéis com gráficos e números e escolha quais cargos veem cada um.
           </p>
         </div>
         {canCreate && (
           <Link href="/gestao/dashboard-templates/new">
             <Button>
               <Plus className="h-4 w-4 mr-2" />
-              Novo Template
+              Novo painel
             </Button>
           </Link>
         )}
@@ -125,25 +128,25 @@ function DashboardTemplatesContent() {
                 <div className="flex flex-wrap gap-1.5">
                   {template.entitySlug && (
                     <Badge variant="outline" className="text-xs">
-                      {template.entitySlug}
+                      Tabela: {entityNameOf(template.entitySlug)}
                     </Badge>
                   )}
                   {!template.entitySlug && (
                     <Badge variant="secondary" className="text-xs">
-                      Global
+                      Várias tabelas
                     </Badge>
                   )}
-                  <Badge variant={template.isActive ? 'default' : 'secondary'} className="text-xs">
+                  <Badge variant="secondary" className={template.isActive ? 'bg-emerald-50 text-xs text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300' : 'text-xs'}>
                     {template.isActive ? 'Ativo' : 'Inativo'}
                   </Badge>
                   {template.roleIds.length > 0 && (
                     <Badge variant="outline" className="text-xs">
-                      {template.roleIds.length} cargo(s)
+                      {template.roleIds.length} {template.roleIds.length === 1 ? 'cargo' : 'cargos'}
                     </Badge>
                   )}
                   {Object.keys(template.widgets || {}).length > 0 && (
                     <Badge variant="outline" className="text-xs">
-                      {Object.keys(template.widgets).length} widget(s)
+                      {Object.keys(template.widgets).length} {Object.keys(template.widgets).length === 1 ? 'bloco' : 'blocos'}
                     </Badge>
                   )}
                 </div>

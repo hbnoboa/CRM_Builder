@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useMemo } from 'react';
+import { useEntities } from '@/hooks/use-entities';
 import { useTranslations } from 'next-intl';
 import { Link } from '@/i18n/tenant-navigation';
 import {
@@ -29,8 +30,26 @@ const ACTION_COLORS: Record<string, { bg: string; text: string }> = {
   delete: { bg: 'bg-red-100 dark:bg-red-900/30', text: 'text-red-700 dark:text-red-400' },
 };
 
+
+/** Nome legivel do item afetado (nome, titulo ou primeiro texto dos dados), no lugar do ID. */
+function itemName(log: { newData?: unknown; oldData?: unknown; metadata?: unknown }): string | null {
+  const pick = (o: unknown): string | null => {
+    if (!o || typeof o !== 'object') return null;
+    const r = o as Record<string, unknown>;
+    for (const k of ['name', 'title', 'nome', 'titulo', 'numero', 'email']) if (typeof r[k] === 'string' && r[k]) return String(r[k]);
+    if (r.data && typeof r.data === 'object') {
+      const first = Object.values(r.data as Record<string, unknown>).find((v) => typeof v === 'string' && v.length > 0 && v.length < 80);
+      if (first) return String(first);
+    }
+    return null;
+  };
+  return pick(log.newData) ?? pick(log.oldData) ?? pick(log.metadata);
+}
+
 export default function AuditLogsPage() {
   const t = useTranslations('auditLogsPage');
+  const { data: entitiesPage } = useEntities({ limit: 200 });
+  const tableName = (slug: string) => entitiesPage?.data?.find((e) => e.slug === slug)?.name ?? slug;
   const tNav = useTranslations('navigation');
   const tAuth = useTranslations('auth');
   const { modulePermissions, hasModulePermission, isAdmin } = usePermissions();
@@ -276,10 +295,10 @@ export default function AuditLogsPage() {
                     <div>
                       <span className="text-sm">{t(`resources.${log.resource}` as 'resources.user')}</span>
                       {log.metadata && Boolean((log.metadata as Record<string, unknown>).entitySlug) && (
-                        <p className="text-xs text-muted-foreground">{(log.metadata as Record<string, unknown>).entitySlug as string}</p>
+                        <p className="text-xs text-muted-foreground">{tableName((log.metadata as Record<string, unknown>).entitySlug as string)}</p>
                       )}
                     </div>
-                    <span className="text-sm text-muted-foreground font-mono truncate">{log.resourceId || '-'}</span>
+                    <span className="text-sm truncate" title={log.resourceId || undefined}>{itemName(log) ?? '—'}</span>
                     <div className="flex items-center justify-end">
                       {expandedRow === log.id ? (
                         <ChevronDown className="h-4 w-4 text-muted-foreground" />
@@ -304,8 +323,8 @@ export default function AuditLogsPage() {
                       <span className="text-sm font-medium">{log.userName || log.userId?.slice(0, 8) || '-'}</span>
                       <span className="text-sm">{t(`resources.${log.resource}` as 'resources.user')}</span>
                     </div>
-                    {log.resourceId && (
-                      <p className="text-xs text-muted-foreground font-mono truncate">{log.resourceId}</p>
+                    {itemName(log) && (
+                      <p className="text-xs text-muted-foreground truncate">{itemName(log)}</p>
                     )}
                     <div className="flex justify-end">
                       {expandedRow === log.id ? (
@@ -322,35 +341,43 @@ export default function AuditLogsPage() {
               {expandedRow === log.id && (
                 <Card className="border-t-0 rounded-t-none border-primary/20">
                   <CardContent className="p-4 space-y-4">
-                    {/* Metadata */}
-                    {log.metadata && Object.keys(log.metadata).length > 0 && (
-                      <div>
-                        <h4 className="text-sm font-medium mb-2">{t('metadata')}</h4>
-                        <pre className="text-xs bg-muted p-3 rounded-lg overflow-x-auto">
-                          {JSON.stringify(log.metadata, null, 2)}
-                        </pre>
-                      </div>
-                    )}
+                    {/* O que mudou, em linhas: campo: antes -> depois */}
+                    {(() => {
+                      const flat = (o: unknown) => {
+                        if (!o || typeof o !== 'object') return {} as Record<string, unknown>;
+                        const r = o as Record<string, unknown>;
+                        return (r.data && typeof r.data === 'object' ? r.data : r) as Record<string, unknown>;
+                      };
+                      const before = flat(log.oldData);
+                      const after = flat(log.newData);
+                      const show = (v: unknown) => (v === null || v === undefined || v === '' ? '—' : typeof v === 'object' ? JSON.stringify(v) : String(v));
+                      const keys = Array.from(new Set([...Object.keys(before), ...Object.keys(after)]))
+                        .filter((k) => !['id', 'tenantId', 'createdAt', 'updatedAt', 'createdById', 'updatedById'].includes(k))
+                        .filter((k) => show(before[k]) !== show(after[k]));
+                      if (keys.length === 0) return null;
+                      return (
+                        <div>
+                          <h4 className="mb-2 text-sm font-medium">{t('changes')}</h4>
+                          <ul className="space-y-1 text-sm" data-testid="audit-changes">
+                            {keys.slice(0, 30).map((k) => (
+                              <li key={k} className="flex flex-wrap gap-x-2">
+                                <span className="font-medium">{k}:</span>
+                                {log.oldData ? <span className="text-red-700 line-through dark:text-red-400">{show(before[k])}</span> : null}
+                                {log.oldData && log.newData ? <span className="text-muted-foreground">→</span> : null}
+                                {log.newData ? <span className="text-green-700 dark:text-green-400">{show(after[k])}</span> : null}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      );
+                    })()}
 
-                    {/* Changes diff */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {log.oldData && Object.keys(log.oldData).length > 0 && (
-                        <div>
-                          <h4 className="text-sm font-medium mb-2 text-red-600 dark:text-red-400">{t('oldData')}</h4>
-                          <pre className="text-xs bg-red-50 dark:bg-red-900/10 border border-red-200 dark:border-red-900/30 p-3 rounded-lg overflow-x-auto max-h-64">
-                            {JSON.stringify(log.oldData, null, 2)}
-                          </pre>
-                        </div>
-                      )}
-                      {log.newData && Object.keys(log.newData).length > 0 && (
-                        <div>
-                          <h4 className="text-sm font-medium mb-2 text-green-600 dark:text-green-400">{t('newData')}</h4>
-                          <pre className="text-xs bg-green-50 dark:bg-green-900/10 border border-green-200 dark:border-green-900/30 p-3 rounded-lg overflow-x-auto max-h-64">
-                            {JSON.stringify(log.newData, null, 2)}
-                          </pre>
-                        </div>
-                      )}
-                    </div>
+                    <details className="rounded-lg border px-3 py-2">
+                      <summary className="cursor-pointer select-none text-xs text-muted-foreground">{t('metadata')}</summary>
+                      <pre className="mt-2 max-h-64 overflow-auto rounded-lg bg-muted p-3 text-xs">
+                        {JSON.stringify({ metadata: log.metadata, antes: log.oldData, depois: log.newData }, null, 2)}
+                      </pre>
+                    </details>
 
                     {!log.oldData && !log.newData && (
                       <p className="text-sm text-muted-foreground italic">{t('noData')}</p>

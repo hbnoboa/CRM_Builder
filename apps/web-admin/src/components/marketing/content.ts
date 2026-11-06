@@ -20,6 +20,34 @@ export interface SolutionPage {
 }
 
 export const SOLUTION_PAGES: Record<string, SolutionPage> = {
+  'gestao-sinistros': {
+    slug: 'gestao-sinistros',
+    headline: 'Sinistros do aviso à indenização, com prazo e relatório pronto',
+    intro:
+      'O analista registra o aviso e cobra os documentos; o regulador faz a vistoria e a regulação pelo celular, com fotos e assinatura. Cada sinistro tem situação, prazo e histórico de andamentos, e o relatório sai em PDF com um clique.',
+    pains: [
+      'Avisos em e-mail e WhatsApp, sem saber em que pé cada sinistro está',
+      'Prazos estourados porque ninguém vê o que vence hoje',
+      'Fotos, boletim e documentos espalhados em pastas',
+      'Relatório de regulação montado na mão, um por um',
+    ],
+    steps: [
+      { icon: 'message', title: 'Aviso do sinistro', text: 'O analista abre o sinistro em segundos (até pelo chat, com /sinistro), já ligado ao segurado e à apólice.' },
+      { icon: 'camera', title: 'Vistoria e documentos', text: 'O regulador vai ao local com o app, tira as fotos do dano, anexa o boletim e colhe a assinatura do segurado, mesmo sem sinal.' },
+      { icon: 'clock', title: 'Prazos e andamentos', text: 'Cada etapa vira um andamento. A tela inicial de cada pessoa mostra o que está atrasado, vence hoje ou está chegando.' },
+      { icon: 'file', title: 'Relatório em PDF', text: 'Segurado, ocorrência, valores, andamentos, fotos, parecer e assinatura num relatório pronto para a seguradora.' },
+    ],
+    personas: [
+      { role: 'Regulador', text: 'Vê os segurados e só os sinistros que regula; registra vistoria, andamentos e parecer pelo app.' },
+      { role: 'Analista de sinistros', text: 'Recebe os avisos, cobra documentos, acompanha os prazos no painel e gera os relatórios.' },
+      { role: 'Administrador', text: 'Ajusta os campos, as situações, os tipos de sinistro e quem vê o quê.' },
+    ],
+    faq: [
+      { q: 'Dá para usar com várias seguradoras?', a: 'Sim. A seguradora é um campo do segurado; o painel filtra e separa por ela.' },
+      { q: 'O segurado pode enviar documentos sozinho?', a: 'Pode, com um link público que abre só o formulário de envio, sem login.' },
+      { q: 'Consigo mudar as etapas do sinistro?', a: 'Sim. A situação é uma lista de opções: você renomeia, cria ou remove etapas e escolhe quais encerram o sinistro.' },
+    ],
+  },
   'vistoria-veicular': {
     slug: 'vistoria-veicular',
     headline: 'Vistoria de frota no celular, com laudo pronto em PDF',
@@ -137,6 +165,8 @@ export const SOLUTION_PAGES: Record<string, SolutionPage> = {
 /** Casos de uso por segmento e por area; cada um aponta para o modelo mais proximo. */
 export const USE_CASES = {
   segmentos: [
+    { title: 'Reguladoras e corretoras de seguros', text: 'Aviso, vistoria, regulação e relatório de sinistro com prazo e fotos.', solution: 'gestao-sinistros' },
+    { title: 'Associações de proteção veicular', text: 'Sinistros dos associados, documentos e indenização acompanhados de perto.', solution: 'gestao-sinistros' },
     { title: 'Transporte e logística', text: 'Vistoria de saída e retorno, não conformidades e laudo por placa.', solution: 'vistoria-veicular' },
     { title: 'Locadoras e oficinas', text: 'Checklist de entrega e devolução com fotos e assinatura do cliente.', solution: 'vistoria-veicular' },
     { title: 'Assistência técnica', text: 'OS com agenda de técnicos, peças, fotos e assinatura no local.', solution: 'ordem-servico' },
@@ -145,8 +175,9 @@ export const USE_CASES = {
     { title: 'Facilities, condomínios e escolas', text: 'Chamados por local, prazo por prioridade e histórico de cada ativo.', solution: 'chamados-manutencao' },
   ],
   areas: [
+    { title: 'Sinistros e regulação', text: 'Avisos, documentos, vistoria, parecer e indenização com prazos e histórico.', solution: 'gestao-sinistros' },
+    { title: 'Vistorias e inspeções', text: 'Checklist com fotos, não conformidades com prazo e laudo em PDF.', solution: 'vistoria-veicular' },
     { title: 'Operações de campo', text: 'Formulários no celular que funcionam offline, com foto, local e assinatura.', solution: 'ordem-servico' },
-    { title: 'Qualidade e inspeção', text: 'Checklists, não conformidades com prazo e laudos padronizados.', solution: 'vistoria-veicular' },
     { title: 'Comercial', text: 'Empresas, oportunidades, atividades e propostas no mesmo lugar.', solution: 'crm-vendas-b2b' },
     { title: 'Manutenção', text: 'Chamados, apontamento de horas e custo de material por equipamento.', solution: 'chamados-manutencao' },
     { title: 'Atendimento', text: 'Abertura pelo chat com comandos, fila por situação e avisos automáticos.', solution: 'ordem-servico' },

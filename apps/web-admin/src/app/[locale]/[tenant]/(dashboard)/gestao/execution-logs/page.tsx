@@ -76,7 +76,7 @@ export default function ExecutionLogsPage() {
             <AlertTriangle className="h-12 w-12 sm:h-16 sm:w-16 text-destructive mb-4" />
             <h2 className="text-lg sm:text-xl font-semibold mb-2">Acesso Restrito</h2>
             <p className="text-muted-foreground text-center mb-4 text-sm sm:text-base px-2">
-              Voce nao tem permissao para acessar esta pagina.
+              Você não tem permissão para acessar esta página.
             </p>
             <Link href="/home">
               <Button variant="outline">
@@ -112,7 +112,7 @@ export default function ExecutionLogsPage() {
           <div>
             <h1 className="text-xl sm:text-2xl font-bold flex items-center gap-2">Execuções<HelpButton topic="module.executions" /></h1>
             <p className="text-sm text-muted-foreground">
-              Monitore webhooks, action chains e tarefas agendadas
+              Veja se as automações e integrações rodaram certo ou deram erro.
             </p>
           </div>
         </div>
@@ -138,7 +138,7 @@ export default function ExecutionLogsPage() {
                 <SelectContent>
                   <SelectItem value="day">Hoje</SelectItem>
                   <SelectItem value="week">Semana</SelectItem>
-                  <SelectItem value="month">Mes</SelectItem>
+                  <SelectItem value="month">Mês</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -175,15 +175,15 @@ export default function ExecutionLogsPage() {
           </CardHeader>
           <CardContent className="space-y-1">
             <div className="flex justify-between text-xs">
-              <span>Webhooks</span>
+              <span>Avisos para outros sistemas</span>
               <span>{stats?.webhook?.total ?? 0}</span>
             </div>
             <div className="flex justify-between text-xs">
-              <span>Action Chains</span>
+              <span>Automações</span>
               <span>{stats?.actionChain?.total ?? 0}</span>
             </div>
             <div className="flex justify-between text-xs">
-              <span>Tarefas</span>
+              <span>Tarefas agendadas</span>
               <span>{stats?.scheduledTask?.total ?? 0}</span>
             </div>
           </CardContent>
@@ -233,7 +233,7 @@ export default function ExecutionLogsPage() {
           ) : logs.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-64 text-muted-foreground">
               <Activity className="h-12 w-12 mb-4 opacity-50" />
-              <p>Nenhuma execucao encontrada</p>
+              <p>Nada rodou ainda. Quando uma automação ou integração rodar, aparece aqui.</p>
             </div>
           ) : (
             <div className="divide-y">
@@ -306,7 +306,7 @@ export default function ExecutionLogsPage() {
                               <span>{new Date(log.createdAt).toLocaleString('pt-BR')}</span>
                             </div>
                             <div>
-                              <span className="text-muted-foreground">Duracao: </span>
+                              <span className="text-muted-foreground">Duração: </span>
                               <span>{formatDuration(log.duration)}</span>
                             </div>
                           </div>
@@ -361,7 +361,7 @@ export default function ExecutionLogsPage() {
             onClick={() => setPage((p) => Math.min(meta.totalPages, p + 1))}
             disabled={page === meta.totalPages}
           >
-            Proxima
+            Próxima
           </Button>
         </div>
       )}

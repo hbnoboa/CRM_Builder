@@ -63,7 +63,7 @@ export class TenantOverviewService {
   private async recentActivity(tenantId: string) {
     const logs = await this.prisma.auditLog.findMany({
       where: { tenantId },
-      select: { id: true, action: true, resource: true, userId: true, impersonatedByName: true, createdAt: true },
+      select: { id: true, action: true, resource: true, userId: true, impersonatedByName: true, createdAt: true, newData: true, oldData: true },
       orderBy: { createdAt: 'desc' },
       take: 8,
     });
@@ -72,6 +72,21 @@ export class TenantOverviewService {
       ? await this.prisma.user.findMany({ where: { id: { in: ids } }, select: { id: true, name: true } })
       : [];
     const names = new Map(users.map((u) => [u.id, u.name]));
-    return logs.map(({ userId, ...log }) => ({ ...log, userName: userId ? names.get(userId) ?? null : null }));
+    // Nome do item afetado ("Editou tabela Cliente"), sem mandar os dados inteiros para a tela
+    const itemName = (o: unknown): string | null => {
+      if (!o || typeof o !== 'object') return null;
+      const r = o as Record<string, unknown>;
+      for (const k of ['name', 'title', 'nome', 'titulo', 'numero']) if (typeof r[k] === 'string' && r[k]) return String(r[k]).slice(0, 60);
+      if (r.data && typeof r.data === 'object') {
+        const first = Object.values(r.data as Record<string, unknown>).find((v) => typeof v === 'string' && v.length > 0 && v.length < 60);
+        if (first) return String(first);
+      }
+      return null;
+    };
+    return logs.map(({ userId, newData, oldData, ...log }) => ({
+      ...log,
+      itemName: itemName(newData) ?? itemName(oldData),
+      userName: userId ? names.get(userId) ?? null : null,
+    }));
   }
 }

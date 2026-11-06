@@ -434,7 +434,7 @@ function PdfTemplatesPageContent() {
           {tNav('gestao')}
         </Link>
         <span>/</span>
-        <span className="font-semibold text-foreground">Templates de PDF</span>
+        <span className="font-semibold text-foreground">Modelos de PDF</span>
       </nav>
 
       {/* Header */}
@@ -442,14 +442,14 @@ function PdfTemplatesPageContent() {
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold flex items-center gap-2">Modelos de PDF<HelpButton topic="module.pdf" /></h1>
           <p className="text-muted-foreground mt-1 text-sm sm:text-base">
-            Crie e gerencie templates personalizados para geracao de PDFs
+            Monte documentos (ordem de serviço, orçamento, ficha) para gerar em PDF a partir dos registros.
           </p>
         </div>
         {hasModulePermission('pdfTemplates', 'canCreate') && (
           <Link href="/gestao/pdf-templates/new" className="w-full sm:w-auto">
             <Button className="w-full sm:w-auto">
               <Plus className="h-4 w-4 mr-2" />
-              Novo Template
+              Novo modelo
             </Button>
           </Link>
         )}
@@ -460,7 +460,7 @@ function PdfTemplatesPageContent() {
         <Card>
           <CardContent className="p-3 sm:p-4">
             <div className="text-xl sm:text-2xl font-bold">{templates.length}</div>
-            <p className="text-xs sm:text-sm text-muted-foreground">Total de Templates</p>
+            <p className="text-xs sm:text-sm text-muted-foreground">Total de modelos</p>
           </CardContent>
         </Card>
         <Card>
@@ -485,7 +485,7 @@ function PdfTemplatesPageContent() {
       <div className="relative w-full sm:max-w-md">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
         <Input
-          placeholder="Buscar templates..."
+          placeholder="Buscar modelos..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className="pl-9"
@@ -545,7 +545,7 @@ function PdfTemplatesPageContent() {
                         )}
                       </div>
                       <p className="text-xs sm:text-sm text-muted-foreground truncate">
-                        /{template.slug}
+                        {template.description || ''}
                       </p>
                     </div>
                   </div>
@@ -613,7 +613,7 @@ function PdfTemplatesPageContent() {
                 <div className="mt-3 sm:mt-4">
                   <div className="flex flex-wrap gap-1">
                     <Badge variant="outline" className="text-xs">
-                      {template.templateType === 'single' ? 'Individual' : 'Lote'}
+                      {template.templateType === 'single' ? 'Um PDF por registro' : 'Relatório com vários'}
                     </Badge>
                     <Badge variant="outline" className="text-xs">
                       {template.pageSize}
