@@ -21,6 +21,9 @@ function compareSortValues(a: unknown, b: unknown): number {
   return sa.localeCompare(sb, 'pt-BR', { numeric: true, sensitivity: 'base' });
 }
 
+/** Ajustes da tabela usados na tela inicial (titulo, situacao, prazo, responsavel). */
+type HomeSettings = { titleField?: string; statusField?: string; doneValues?: string[]; deadlineField?: string; assigneeField?: string };
+
 @Injectable()
 export class StatsService {
   private readonly logger = new Logger(StatsService.name);
@@ -1470,7 +1473,7 @@ export class StatsService {
   async getMyHome(user: CurrentUser) {
     const tenantId = getEffectiveTenantId(user);
     const accessible = await this.customRoleService.getUserAccessibleEntities(user.id, tenantId);
-    if (accessible !== '*' && accessible.length === 0) return { tables: [], recent: [] };
+    if (accessible !== '*' && accessible.length === 0) return { tables: [], recent: [], pending: [] };
     const entities = await this.prisma.entity.findMany({
       where: { tenantId, deletedAt: null, ...(accessible !== '*' ? { slug: { in: accessible } } : {}) },
       select: { id: true, slug: true, name: true, namePlural: true, color: true, icon: true, fields: true, settings: true },
@@ -1502,40 +1505,104 @@ export class StatsService {
       const titleSlug = titleField && !hidden.has(titleField)
         ? titleField
         : fields.find((f) => ['text', 'email', 'phone', 'number'].includes(f.type) && !hidden.has(f.slug))?.slug;
-      // Situacao: lista com cores, preferindo a que se chama situacao/status/etapa/resultado
+      const settings = (entity.settings as HomeSettings | null) || {};
+      // Situacao: a escolhida nos Ajustes da tabela; senao uma lista com cores,
+      // preferindo a que se chama situacao/status/etapa/resultado
       const colored = fields.filter((f) => (f.type === 'select' || f.type === 'radio-group') && !hidden.has(f.slug)
         && (f.options || []).some((o) => typeof o !== 'string' && !!o.color));
-      const statusField = colored.find((f) => /status|situa|etapa|resultado|estado/i.test(f.slug)) ?? colored[0];
+      const configuredStatus = settings.statusField && !hidden.has(settings.statusField)
+        ? fields.find((f) => f.slug === settings.statusField)
+        : undefined;
+      const statusField = configuredStatus
+        ?? colored.find((f) => /status|situa|etapa|resultado|estado/i.test(f.slug)) ?? colored[0];
+      const statusOf = (data: Record<string, unknown>) => {
+        const value = statusField ? data[statusField.slug] : undefined;
+        const opt = statusField?.options?.find((o) => (typeof o === 'string' ? o : o.value) === value);
+        if (!opt) return null;
+        return typeof opt === 'string' ? { label: opt, color: null } : { label: opt.label, color: opt.color ?? null };
+      };
+      const titleOf = (data: Record<string, unknown>) => {
+        const rawTitle = titleSlug ? data[titleSlug] : undefined;
+        return rawTitle === undefined || rawTitle === null || rawTitle === '' ? null : String(rawTitle).slice(0, 120);
+      };
       const recent = mine.map((r) => {
         const data = (r.data as Record<string, unknown>) || {};
-        const statusValue = statusField ? data[statusField.slug] : undefined;
-        const opt = statusField?.options?.find((o) => typeof o !== 'string' && o.value === statusValue) as { label: string; color?: string } | undefined;
-        const rawTitle = titleSlug ? data[titleSlug] : undefined;
         return {
           id: r.id,
           entitySlug: entity.slug,
           entityName: entity.name,
           color: entity.color,
-          title: rawTitle === undefined || rawTitle === null || rawTitle === '' ? null : String(rawTitle).slice(0, 120),
-          status: opt ? { label: opt.label, color: opt.color ?? null } : null,
+          title: titleOf(data),
+          status: statusOf(data),
           updatedAt: r.updatedAt,
         };
       });
+      const pending = await this.homePending(entity, settings, fields, hidden, where, user, titleOf, statusOf);
       return {
         table: {
           slug: entity.slug, name: entity.name, namePlural: entity.namePlural, color: entity.color, icon: entity.icon,
           count, isSub: subSlugs.has(entity.slug),
         },
         recent,
+        pending,
       };
     }));
 
     return {
+      pending: perEntity.flatMap((p) => p.pending)
+        .sort((a, b) => a.deadline.localeCompare(b.deadline))
+        .slice(0, 10),
       tables: perEntity.map((p) => p.table),
       recent: perEntity.flatMap((p) => p.recent)
         .sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime())
         .slice(0, 8),
     };
+  }
+
+  /**
+   * Pendencias da tabela (Ajustes > Prazo): registros com prazo que nao estao numa
+   * situacao que encerra; com "Responsavel", so os da pessoa (o campo guarda o nome).
+   * Le no maximo 300 registros por tabela (os de prazo mais proximo vem do filtro em memoria).
+   */
+  private async homePending(
+    entity: { slug: string; name: string; color: string | null },
+    settings: HomeSettings,
+    fields: Array<{ slug: string; type: string }>,
+    hidden: Set<string>,
+    where: Prisma.EntityDataWhereInput,
+    user: CurrentUser,
+    titleOf: (data: Record<string, unknown>) => string | null,
+    statusOf: (data: Record<string, unknown>) => { label: string; color: string | null } | null,
+  ) {
+    const deadlineSlug = settings.deadlineField;
+    if (!deadlineSlug || hidden.has(deadlineSlug) || !fields.some((f) => f.slug === deadlineSlug)) return [];
+    const done = new Set(settings.doneValues || []);
+    const and: Prisma.EntityDataWhereInput[] = [where];
+    if (settings.statusField) {
+      for (const value of Array.from(done)) and.push({ NOT: { data: { path: [settings.statusField], equals: value } } });
+    }
+    if (settings.assigneeField) and.push({ data: { path: [settings.assigneeField], equals: user.name } });
+    const rows = await this.prisma.entityData.findMany({
+      where: { AND: and },
+      select: { id: true, data: true },
+      orderBy: { updatedAt: 'desc' },
+      take: 300,
+    });
+    return rows.flatMap((r) => {
+      const data = (r.data as Record<string, unknown>) || {};
+      const raw = data[deadlineSlug];
+      if (typeof raw !== 'string' || !raw) return [];
+      if (settings.statusField && done.has(String(data[settings.statusField] ?? ''))) return [];
+      return [{
+        id: r.id,
+        entitySlug: entity.slug,
+        entityName: entity.name,
+        color: entity.color,
+        title: titleOf(data),
+        status: statusOf(data),
+        deadline: raw,
+      }];
+    });
   }
 
   async getRecentActivity(user: CurrentUser, queryTenantId?: string, limit: number = 10) {

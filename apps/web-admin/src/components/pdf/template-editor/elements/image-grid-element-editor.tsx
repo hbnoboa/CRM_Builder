@@ -28,7 +28,7 @@ export function ImageGridElementEditor({
     <div className="space-y-5">
       {/* Titulo da secao */}
       <div className="space-y-2">
-        <Label className="text-sm font-medium">Titulo da Secao</Label>
+        <Label className="text-sm font-medium">Título da Seção</Label>
         <Input
           placeholder="Ex: Fotos das Avarias"
           value={element.title || ''}
@@ -149,7 +149,7 @@ export function ImageGridElementEditor({
 
       {/* Margens e tamanho de fonte */}
       <div className="space-y-3">
-        <Label className="text-xs font-medium text-muted-foreground">Espacamento</Label>
+        <Label className="text-xs font-medium text-muted-foreground">Espaçamento</Label>
         <div className="grid gap-4 grid-cols-1">
           <div className="space-y-1">
             <Label className="text-xs text-muted-foreground">Margem superior</Label>

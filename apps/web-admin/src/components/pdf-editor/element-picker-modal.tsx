@@ -35,7 +35,7 @@ const ELEMENT_TYPES: ElementTypeDef[] = [
   {
     type: 'text',
     label: 'Texto',
-    description: 'Texto estatico ou dinamico com bindings',
+    description: 'Texto estático ou dinâmico com bindings',
     icon: Type,
     category: 'content',
   },
@@ -49,13 +49,13 @@ const ELEMENT_TYPES: ElementTypeDef[] = [
   {
     type: 'table',
     label: 'Tabela',
-    description: 'Tabela com colunas e dados de sub-entidade',
+    description: 'Tabela com colunas e dados de sub-tabela',
     icon: Table,
     category: 'data',
   },
   {
     type: 'statistics',
-    label: 'Estatisticas',
+    label: 'Estatísticas',
     description: 'Dados agrupados com metricas (count, sum, avg)',
     icon: BarChart3,
     category: 'data',
@@ -63,7 +63,7 @@ const ELEMENT_TYPES: ElementTypeDef[] = [
   {
     type: 'image-grid',
     label: 'Grade de Imagens',
-    description: 'Grid de imagens do registro ou sub-entidade',
+    description: 'Grid de imagens do registro ou sub-tabela',
     icon: Image,
     category: 'media',
   },
@@ -153,7 +153,7 @@ export function createDefaultElement(type: string): PdfElement {
       return {
         id,
         type: 'statistics',
-        title: 'Estatisticas',
+        title: 'Estatísticas',
         groupBy: ['campo'],
         metrics: [
           { field: '_count', aggregation: 'count', label: 'Total' },

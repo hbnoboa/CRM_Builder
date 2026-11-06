@@ -3,14 +3,15 @@
 import { useState } from 'react';
 import { useRouter } from '@/i18n/tenant-navigation';
 import { useTranslations } from 'next-intl';
-import { ArrowLeft, Plus, Save, Loader2 } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Database, Plus, Loader2, icons, type LucideIcon } from 'lucide-react';
 import { RequireRole } from '@/components/auth/require-role';
 import { DesktopOnlyEditor } from '@/components/layout/desktop-only-editor';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
+import { Card, CardContent } from '@/components/ui/card';
+import { cn } from '@/lib/utils';
+import { fieldKind } from '@/lib/field-catalog';
 import { toast } from 'sonner';
 import { getErrorMessage } from '@/lib/get-error-message';
 import api from '@/lib/api';
@@ -70,7 +71,6 @@ function NewEntityPageContent() {
       }
 
       toast.success(t('toast.created'));
-      // Redirecionar para o editor GrapeJS
       router.push(`/gestao/entities/${entityId}`);
     } catch (error) {
       console.error('Error creating entity:', error);
@@ -80,135 +80,142 @@ function NewEntityPageContent() {
     }
   };
 
+  const templateFields = (selectedTemplate?.fields || []).filter((f) => f.type !== 'section-title');
+
   return (
-    <div className="container max-w-5xl py-6 space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <Button variant="ghost" size="icon" onClick={() => router.back()}>
-            <ArrowLeft className="h-5 w-5" />
-          </Button>
-          <div>
-            <h1 className="text-2xl font-bold">{t('newEntity')}</h1>
-            <p className="text-sm text-muted-foreground">
-              {selectedTemplate
-                ? `Template: ${selectedTemplate.name}`
-                : 'Escolha um template ou crie do zero'}
-            </p>
-          </div>
-        </div>
-        <Button onClick={handleCreate} disabled={saving || !name.trim()}>
-          {saving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
-          {t('createEntity')}
+    <div className="mx-auto max-w-5xl space-y-6 py-2">
+      {/* Cabecalho */}
+      <div className="flex items-start gap-3">
+        <Button variant="ghost" size="icon" onClick={() => router.back()} aria-label="Voltar">
+          <ArrowLeft className="h-5 w-5" />
         </Button>
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">Nova tabela</h1>
+          <p className="text-sm text-muted-foreground">
+            Uma tabela guarda um tipo de informação: clientes, ordens de serviço, veículos, visitas...
+          </p>
+        </div>
       </div>
 
-      {/* Nome e descricao */}
-      <Card>
-        <CardContent className="pt-6 space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="name">{t('name')} *</Label>
+      {/* 1. Como comecar */}
+      <section className="space-y-3">
+        <h2 className="flex items-center gap-2 text-sm font-semibold">
+          <span className="flex h-5 w-5 items-center justify-center rounded-full bg-primary text-[11px] text-primary-foreground">1</span>
+          Como quer começar?
+        </h2>
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <button
+            type="button"
+            onClick={clearTemplate}
+            data-testid="template-blank"
+            className={cn(
+              'flex items-start gap-3 rounded-xl border bg-card p-4 text-left transition-colors',
+              !selectedTemplate ? 'border-primary ring-1 ring-primary' : 'hover:border-primary/40',
+            )}
+          >
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border-2 border-dashed text-muted-foreground">
+              <Plus className="h-5 w-5" />
+            </span>
+            <span>
+              <span className="block text-sm font-medium">Em branco</span>
+              <span className="block text-xs text-muted-foreground">Você escolhe cada campo do zero.</span>
+            </span>
+          </button>
+        </div>
+        {templateCategories.map((tc) => {
+          const templates = entityTemplates.filter((tpl) => tpl.templateCategory === tc.id);
+          if (templates.length === 0) return null;
+          return (
+            <div key={tc.id} className="pt-2">
+              <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">Modelo · {tc.label}</p>
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {templates.map((template) => {
+                  const isSelected = selectedTemplate?.id === template.id;
+                  const Icon = (icons as Record<string, LucideIcon>)[template.icon] ?? Database;
+                  return (
+                    <button
+                      key={template.id}
+                      type="button"
+                      onClick={() => (isSelected ? clearTemplate() : selectTemplate(template))}
+                      data-testid={`template-${template.id}`}
+                      className={cn(
+                        'flex items-start gap-3 rounded-xl border bg-card p-4 text-left transition-colors',
+                        isSelected ? 'border-primary ring-1 ring-primary' : 'hover:border-primary/40',
+                      )}
+                    >
+                      <span
+                        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg"
+                        style={{ backgroundColor: `color-mix(in srgb, ${template.color} 14%, transparent)`, color: template.color }}
+                      >
+                        <Icon className="h-5 w-5" />
+                      </span>
+                      <span className="min-w-0">
+                        <span className="block text-sm font-medium">{template.name}</span>
+                        <span className="line-clamp-2 block text-xs text-muted-foreground">{template.description}</span>
+                        <span className="mt-1.5 block text-[11px] text-muted-foreground">{template.fields.length} campos prontos</span>
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })}
+      </section>
+
+      {/* 2. Nome */}
+      <Card className="sticky bottom-4 z-10 shadow-lg">
+        <CardContent className="space-y-4 p-5">
+          <h2 className="flex items-center gap-2 text-sm font-semibold">
+            <span className="flex h-5 w-5 items-center justify-center rounded-full bg-primary text-[11px] text-primary-foreground">2</span>
+            Dê um nome
+          </h2>
+          {selectedTemplate && (
+            <div className="flex flex-wrap items-center gap-1.5 text-xs" data-testid="template-preview">
+              <span className="text-muted-foreground">Vem com:</span>
+              {templateFields.slice(0, 10).map((f) => {
+                const Icon = fieldKind(f.type).icon;
+                return (
+                  <span key={f.slug} className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5">
+                    <Icon className="h-3 w-3 text-muted-foreground" /> {f.label || f.name}
+                  </span>
+                );
+              })}
+              {templateFields.length > 10 && <span className="text-muted-foreground">+{templateFields.length - 10}</span>}
+              <span className="text-muted-foreground">· dá para mudar tudo depois.</span>
+            </div>
+          )}
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+            <div className="flex-1 space-y-1.5">
+              <Label htmlFor="name">Nome da tabela, no singular</Label>
               <Input
                 id="name"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder={t('namePlaceholder')}
+                onKeyDown={(e) => { if (e.key === 'Enter') handleCreate(); }}
+                placeholder="Ex.: Cliente, Veículo, Ordem de serviço"
                 autoFocus
+                data-testid="entity-name-input"
               />
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="category">Categoria (Sidebar)</Label>
-              <Input
-                id="category"
-                value={category}
-                onChange={(e) => setCategory(e.target.value)}
-                placeholder="Ex: CRM, Suporte, Projetos..."
-              />
-            </div>
+            <Button size="lg" onClick={handleCreate} disabled={saving || !name.trim()} data-testid="entity-create-button">
+              {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ArrowRight className="mr-2 h-4 w-4" />}
+              Criar e montar os campos
+            </Button>
           </div>
-          <div className="space-y-2">
-            <Label htmlFor="description">{t('description')}</Label>
-            <Input
-              id="description"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder={t('descriptionPlaceholder')}
-            />
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Template Selection */}
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle className="text-lg">Escolha um template</CardTitle>
-              <CardDescription>Comece com uma estrutura pronta ou crie do zero</CardDescription>
-            </div>
-            {selectedTemplate ? (
-              <Button variant="outline" size="sm" onClick={clearTemplate}>
-                Limpar template
-              </Button>
-            ) : (
-              <div className="flex items-center gap-2">
-                <Badge variant="secondary" className="text-xs">
-                  <Plus className="h-3 w-3 mr-1" />
-                  Criar do zero — basta preencher o nome e clicar em Criar
-                </Badge>
+          <details className="text-sm">
+            <summary className="cursor-pointer select-none text-xs text-muted-foreground">Mais opções (descrição e grupo no menu)</summary>
+            <div className="mt-3 grid gap-4 md:grid-cols-2">
+              <div className="space-y-1.5">
+                <Label htmlFor="description">Descrição</Label>
+                <Input id="description" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Para que serve esta tabela (opcional)" />
               </div>
-            )}
-          </div>
-        </CardHeader>
-        <CardContent>
-          {templateCategories.map(tc => {
-            const templates = entityTemplates.filter(t => t.templateCategory === tc.id);
-            if (templates.length === 0) return null;
-            return (
-              <div key={tc.id} className="mb-6 last:mb-0">
-                <h3 className="text-sm font-semibold text-muted-foreground mb-3 flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full" style={{ backgroundColor: tc.color }} />
-                  {tc.label}
-                </h3>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                  {templates.map(template => {
-                    const isSelected = selectedTemplate?.id === template.id;
-                    return (
-                      <button
-                        key={template.id}
-                        onClick={() => isSelected ? clearTemplate() : selectTemplate(template)}
-                        className={`text-left p-4 rounded-lg border-2 transition-all group ${
-                          isSelected
-                            ? 'border-primary bg-primary/5'
-                            : 'border-transparent hover:border-primary/30 hover:bg-muted/50'
-                        }`}
-                      >
-                        <div className="flex items-start gap-3">
-                          <div
-                            className="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 text-white text-lg"
-                            style={{ backgroundColor: template.color }}
-                          >
-                            {template.icon.charAt(0)}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="font-medium text-sm group-hover:text-primary transition-colors">{template.name}</p>
-                            <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{template.description}</p>
-                            <div className="flex items-center gap-2 mt-2">
-                              <Badge variant="secondary" className="text-[10px]">{template.fields.length} campos</Badge>
-                              {template.automations && template.automations.length > 0 && (
-                                <Badge variant="outline" className="text-[10px]">{template.automations.length} automacao(es)</Badge>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="category">Grupo no menu</Label>
+                <Input id="category" value={category} onChange={(e) => setCategory(e.target.value)} placeholder="Ex.: Vendas, Serviços (opcional)" />
               </div>
-            );
-          })}
+            </div>
+          </details>
         </CardContent>
       </Card>
     </div>

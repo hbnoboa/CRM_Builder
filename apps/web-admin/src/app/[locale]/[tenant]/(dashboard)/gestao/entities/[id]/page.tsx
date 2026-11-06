@@ -8,7 +8,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { AutomationTab, FieldRulesSection } from '@/components/entity-automation';
-import { DeleteEntityPanel, GlobalFiltersPanel } from '@/components/entity-editor/entity-settings-panels';
+import { DeleteEntityPanel, GlobalFiltersPanel, TableSettingsPanel } from '@/components/entity-editor/entity-settings-panels';
 import { RequireRole } from '@/components/auth/require-role';
 import { DesktopOnlyEditor } from '@/components/layout/desktop-only-editor';
 import { usePermissions } from '@/hooks/use-permissions';
@@ -17,7 +17,7 @@ import { toast } from 'sonner';
 import api from '@/lib/api';
 import type { Entity, EntityField } from '@/types';
 
-type EditorTab = 'fields' | 'rules' | 'filters' | 'automations' | 'danger';
+type EditorTab = 'fields' | 'settings' | 'rules' | 'filters' | 'automations' | 'danger';
 
 // Editor de campos React (WYSIWYG, componentes reais, react-grid-layout). GrapeJS removido.
 //  default      → variante react-grid-layout (fluida, igual ao dashboard)
@@ -51,14 +51,14 @@ function EntityEditorWrapper() {
   // ?tab=automations (link de Integrações) abre direto na aba.
   const initialTab = searchParams.get('tab');
   const [tab, setTab] = useState<EditorTab>(
-    initialTab && ['fields', 'rules', 'filters', 'automations', 'danger'].includes(initialTab) ? (initialTab as EditorTab) : 'fields',
+    initialTab && ['fields', 'settings', 'rules', 'filters', 'automations', 'danger'].includes(initialTab) ? (initialTab as EditorTab) : 'fields',
   );
 
   useEffect(() => {
     if (params.id) {
       api.get(`/entities/${params.id}`)
         .then((res) => setEntity(res.data))
-        .catch(() => { toast.error('Entidade nao encontrada'); router.push('/data'); })
+        .catch(() => { toast.error('Tabela não encontrada'); router.push('/data'); })
         .finally(() => setLoading(false));
     }
   }, [params.id]);
@@ -72,6 +72,7 @@ function EntityEditorWrapper() {
 
   const tabs: { key: EditorTab; label: string; show: boolean }[] = [
     { key: 'fields', label: 'Campos', show: true },
+    { key: 'settings', label: 'Ajustes', show: canUpdate },
     { key: 'rules', label: 'Regras de campo', show: canUpdate },
     { key: 'filters', label: 'Filtro global', show: canUpdate },
     { key: 'automations', label: 'Automações', show: canAutomations },
@@ -119,6 +120,15 @@ function EntityEditorWrapper() {
         {tab !== 'fields' && (
           <div className="h-full overflow-y-auto bg-muted/30 p-6">
             <div className="mx-auto max-w-4xl space-y-4">
+              {tab === 'settings' && (
+                <TableSettingsPanel
+                  entity={entity}
+                  onSaved={(updated) => {
+                    setEntity((prev) => (prev ? { ...prev, settings: updated.settings } : updated));
+                    queryClient.invalidateQueries({ queryKey: entityKeys.all });
+                  }}
+                />
+              )}
               {tab === 'rules' && <FieldRulesSection entityId={entity.id} fields={fields} />}
               {tab === 'filters' && (
                 <GlobalFiltersPanel

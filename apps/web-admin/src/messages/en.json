@@ -1417,7 +1417,12 @@
     "noTablesAdmin": "Create the first table or start from a ready-made template.",
     "noTablesUser": "When an admin gives your role access to tables, they show up here.",
     "createTable": "Create table",
-    "seeAll": "See all"
+    "seeAll": "See all",
+    "pendingTitle": "My to-dos",
+    "overdue": "{days, plural, one {# day late} other {# days late}}",
+    "dueToday": "due today",
+    "dueTomorrow": "due tomorrow",
+    "dueIn": "in {days} days"
   },
   "platform": {
     "brand": "Platform console",

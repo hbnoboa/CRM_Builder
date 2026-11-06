@@ -55,7 +55,7 @@ export function TemplateInfoPanel({
   return (
     <div className="p-4 space-y-6">
       <div>
-        <h3 className="text-sm font-semibold mb-3">Informacoes do Template</h3>
+        <h3 className="text-sm font-semibold mb-3">Sobre o modelo</h3>
 
         <div className="space-y-3">
           <div>
@@ -68,7 +68,7 @@ export function TemplateInfoPanel({
           </div>
 
           <div>
-            <Label className="text-xs">Slug</Label>
+            <Label className="text-xs">Código interno</Label>
             <Input
               value={template.slug}
               disabled
@@ -77,7 +77,7 @@ export function TemplateInfoPanel({
           </div>
 
           <div>
-            <Label className="text-xs">Descricao</Label>
+            <Label className="text-xs">Descrição</Label>
             <Textarea
               value={template.description || ''}
               onChange={(e) => onTemplateFieldChange('description', e.target.value)}
@@ -100,7 +100,7 @@ export function TemplateInfoPanel({
       <Separator />
 
       <div>
-        <h3 className="text-sm font-semibold mb-3">Entidade Fonte</h3>
+        <h3 className="text-sm font-semibold mb-3">Tabela de origem</h3>
         <div className="text-sm text-muted-foreground">
           {template.sourceEntity ? (
             <Badge variant="outline" className="text-xs">
@@ -115,7 +115,7 @@ export function TemplateInfoPanel({
       <Separator />
 
       <div>
-        <h3 className="text-sm font-semibold mb-3">Pagina</h3>
+        <h3 className="text-sm font-semibold mb-3">Página</h3>
 
         <div className="grid grid-cols-2 gap-3">
           <div>
@@ -136,7 +136,7 @@ export function TemplateInfoPanel({
           </div>
 
           <div>
-            <Label className="text-xs">Orientacao</Label>
+            <Label className="text-xs">Orientação</Label>
             <Select
               value={template.orientation}
               onValueChange={(v) => onTemplateFieldChange('orientation', v)}
@@ -179,10 +179,10 @@ export function TemplateInfoPanel({
       <Separator />
 
       <div>
-        <h3 className="text-sm font-semibold mb-3">Configuracoes</h3>
+        <h3 className="text-sm font-semibold mb-3">Configurações</h3>
         <div className="space-y-3">
           <div>
-            <Label className="text-xs">Padrao para campos vazios</Label>
+            <Label className="text-xs">Padrão para campos vazios</Label>
             <Input
               value={settings.emptyFieldDefault || ''}
               onChange={(e) => handleSettingsChange('emptyFieldDefault', e.target.value)}
@@ -191,7 +191,7 @@ export function TemplateInfoPanel({
             />
           </div>
           <div>
-            <Label className="text-xs">Padrao do nome do arquivo</Label>
+            <Label className="text-xs">Padrão do nome do arquivo</Label>
             <Input
               value={settings.fileNamePattern || ''}
               onChange={(e) => handleSettingsChange('fileNamePattern', e.target.value)}

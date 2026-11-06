@@ -26,14 +26,14 @@ const FILTER_OPERATORS = [
   { value: 'greater', label: 'Maior que' },
   { value: 'less', label: 'Menor que' },
   { value: 'contains', label: 'Contem' },
-  { value: 'not_empty', label: 'Nao esta vazio' },
+  { value: 'not_empty', label: 'Não está vazio' },
 ] as const;
 
 const NO_VALUE_OPERATORS = ['not_empty', 'has_items', 'no_items'];
 
 const SYSTEM_FIELDS = [
-  { slug: 'createdAt', name: 'Data de Criacao', label: 'Data de Criacao', type: 'datetime' },
-  { slug: 'updatedAt', name: 'Data de Atualizacao', label: 'Data de Atualizacao', type: 'datetime' },
+  { slug: 'createdAt', name: 'Data de Criacao', label: 'Data de Criação', type: 'datetime' },
+  { slug: 'updatedAt', name: 'Data de Atualizacao', label: 'Data de Atualização', type: 'datetime' },
   { slug: '_geolocation.lat', name: 'Latitude', label: 'Latitude', type: 'number' },
   { slug: '_geolocation.lng', name: 'Longitude', label: 'Longitude', type: 'number' },
   { slug: '_geolocation.city', name: 'Cidade (GPS)', label: 'Cidade (GPS)', type: 'text' },
@@ -211,7 +211,7 @@ export function TableDataEditor({
                   </Select>
                 </div>
                 <Input
-                  placeholder="Titulo da coluna"
+                  placeholder="Título da coluna"
                   value={column.header}
                   onChange={(e) => handleColumnChange(index, { header: e.target.value })}
                   className="flex-1 min-w-0"
@@ -246,8 +246,8 @@ export function TableDataEditor({
                       <SelectItem value="titlecase">Primeira Maiuscula</SelectItem>
                     </SelectGroup>
                     <SelectGroup>
-                      <SelectLabel>Numeros</SelectLabel>
-                      <SelectItem value="number">Numero (1.234)</SelectItem>
+                      <SelectLabel>Números</SelectLabel>
+                      <SelectItem value="number">Número (1.234)</SelectItem>
                       <SelectItem value="currency">Moeda (R$ 1.234,56)</SelectItem>
                       <SelectItem value="percentage">Percentual (45,67%)</SelectItem>
                     </SelectGroup>
@@ -266,7 +266,7 @@ export function TableDataEditor({
                     </SelectGroup>
                     <SelectGroup>
                       <SelectLabel>Outros</SelectLabel>
-                      <SelectItem value="boolean">Sim / Nao</SelectItem>
+                      <SelectItem value="boolean">Sim / Não</SelectItem>
                     </SelectGroup>
                   </SelectContent>
                 </Select>

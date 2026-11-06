@@ -17,9 +17,9 @@ export function StatisticsElementEditor({
   return (
     <div className="space-y-4">
       <div className="space-y-2">
-        <Label>Titulo</Label>
+        <Label>Título</Label>
         <Input
-          placeholder="Ex: Estatisticas de Descarregamento"
+          placeholder="Ex: Estatísticas de Descarregamento"
           value={element.title}
           onChange={(e) => onChange({ title: e.target.value })}
         />

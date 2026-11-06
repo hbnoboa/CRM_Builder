@@ -18,9 +18,9 @@ export function TableElementEditor({
   return (
     <div className="space-y-4">
       <div className="space-y-2">
-        <Label>Titulo (opcional)</Label>
+        <Label>Título (opcional)</Label>
         <Input
-          placeholder="Ex: Nao Conformidades"
+          placeholder="Ex: Não Conformidades"
           value={element.title || ''}
           onChange={(e) => onChange({ title: e.target.value })}
         />
@@ -32,13 +32,13 @@ export function TableElementEditor({
             checked={element.showHeader ?? true}
             onCheckedChange={(checked) => onChange({ showHeader: checked })}
           />
-          <Label>Mostrar Cabecalho</Label>
+          <Label>Mostrar Cabeçalho</Label>
         </div>
       </div>
 
       <div className="grid gap-4 grid-cols-2">
         <div className="space-y-2">
-          <Label>Tamanho Fonte Cabecalho</Label>
+          <Label>Tamanho Fonte Cabeçalho</Label>
           <Slider
             value={[element.headerStyle?.fontSize || 9]}
             onValueChange={([value]) =>
@@ -50,7 +50,7 @@ export function TableElementEditor({
           />
         </div>
         <div className="space-y-2">
-          <Label>Tamanho Fonte Celulas</Label>
+          <Label>Tamanho Fonte Células</Label>
           <Slider
             value={[element.cellStyle?.fontSize || 8]}
             onValueChange={([value]) =>

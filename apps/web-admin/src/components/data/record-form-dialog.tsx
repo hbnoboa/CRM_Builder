@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import { Loader2, Star, Eye, EyeOff, Play, Pause, Square, Clock, AlertTriangle, CheckCircle, XCircle, X, Plus } from 'lucide-react';
+import { withoutSystemFields } from '@/lib/system-fields';
 import { useTranslations } from 'next-intl';
 import { DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -20,6 +21,7 @@ import { useCreateEntityData, useUpdateEntityData } from '@/hooks/use-data';
 import { usePermissions } from '@/hooks/use-permissions';
 import { useTenant } from '@/stores/tenant-context';
 import { api } from '@/lib/api';
+import { useQuery } from '@tanstack/react-query';
 import dynamic from 'next/dynamic';
 import type { EntityField, FieldType } from '@/types';
 import type { MapFieldValue } from '@/components/form/map-field';
@@ -139,7 +141,7 @@ function formatCurrencyDisplay(value: string | number): string {
 
 // ─── Component ──────────────────────────────────────────────────────────────
 export function RecordFormFields({
-  entity,
+  entity: entityProp,
   record,
   onSuccess,
   parentRecordId,
@@ -150,6 +152,11 @@ export function RecordFormFields({
   onSubmitted,
   submitOverride,
 }: RecordFormFieldsProps) {
+  // Datas de criacao/atualizacao vem junto da tabela, mas quem preenche e o sistema.
+  const entity = useMemo(
+    () => ({ ...entityProp, fields: withoutSystemFields(entityProp.fields) }),
+    [entityProp],
+  );
   // Sempre montado = "aberto". Mantém as effects/usos de `open` existentes intactos.
   const open = true;
   const t = useTranslations('data');
@@ -178,6 +185,13 @@ export function RecordFormFields({
   const [loadingRelations, setLoadingRelations] = useState<Record<string, boolean>>({});
   const [showPassword, setShowPassword] = useState<Record<string, boolean>>({});
   const [tagInputs, setTagInputs] = useState<Record<string, string>>({});
+  const hasUserSelect = entity.fields.some((f) => f.type === 'user-select');
+  const { data: teamDirectory } = useQuery({
+    queryKey: ['team-directory'],
+    queryFn: async () => (await api.get<Array<{ id: string; name: string }>>('/team-directory')).data,
+    enabled: hasUserSelect,
+    staleTime: 5 * 60_000,
+  });
 
   const normalizeSelectValue = (val: unknown): unknown => {
     if (val && typeof val === 'object' && 'value' in (val as Record<string, unknown>)) {
@@ -1206,13 +1220,17 @@ export function RecordFormFields({
       // ─── NOVOS TIPOS DE CAMPO ──────────────────────────────────────────────
 
       case 'user-select': {
-        // TODO: Implementar busca de usuarios via API
-        // Por enquanto usa as opcoes do campo ou uma lista vazia
-        const userOpts: SelectOption[] = (field.options || []).map((option: string | { value: string; label: string }) => {
+        // Equipe da empresa; o valor gravado e o NOME (aparece igual em listas, PDFs e app).
+        // Opcoes fixas do campo continuam valendo como extra.
+        const fixedOpts: SelectOption[] = (field.options || []).map((option: string | { value: string; label: string }) => {
           const optVal = typeof option === 'object' ? option.value : option;
           const optLabel = typeof option === 'object' ? option.label : option;
           return { value: optVal, label: optLabel };
         });
+        const userOpts: SelectOption[] = [
+          ...(teamDirectory || []).map((m) => ({ value: m.name, label: m.name })),
+          ...fixedOpts.filter((o) => !(teamDirectory || []).some((m) => m.name === o.value)),
+        ];
         const config = field.userSelectConfig;
         return (
           <div key={field.slug} className="space-y-2">

@@ -4,7 +4,7 @@ import { useMemo } from 'react';
 import { useParams } from 'next/navigation';
 import { useLocale, useTranslations } from 'next-intl';
 import { useQuery } from '@tanstack/react-query';
-import { ArrowRight, Clock, Database, Plus, ShieldCheck, TableProperties } from 'lucide-react';
+import { AlarmClock, ArrowRight, Clock, Database, Plus, ShieldCheck, TableProperties } from 'lucide-react';
 import { Link } from '@/i18n/tenant-navigation';
 import { useAuthStore } from '@/stores/auth-store';
 import { usePermissions } from '@/hooks/use-permissions';
@@ -33,6 +33,25 @@ interface HomeRecent {
   title: string | null;
   status: { label: string; color: string | null } | null;
   updatedAt: string;
+}
+
+interface HomePending {
+  id: string;
+  entitySlug: string;
+  entityName: string;
+  color: string | null;
+  title: string | null;
+  status: { label: string; color: string | null } | null;
+  deadline: string;
+}
+
+/** Dias inteiros entre hoje e o prazo (negativo = atrasado), pela data local. */
+function daysUntil(deadline: string) {
+  const d = /^\d{4}-\d{2}-\d{2}$/.test(deadline) ? new Date(`${deadline}T00:00:00`) : new Date(deadline);
+  const start = new Date();
+  start.setHours(0, 0, 0, 0);
+  d.setHours(0, 0, 0, 0);
+  return Math.round((d.getTime() - start.getTime()) / 86_400_000);
 }
 
 /** "ha 5 min", "ontem"... no idioma da pessoa. */
@@ -64,7 +83,7 @@ export default function HomePage() {
 
   const { data, isLoading } = useQuery({
     queryKey: ['my-home', tenantSlug, user?.id],
-    queryFn: async () => (await api.get<{ tables: HomeTable[]; recent: HomeRecent[] }>('/stats/my-home')).data,
+    queryFn: async () => (await api.get<{ tables: HomeTable[]; recent: HomeRecent[]; pending?: HomePending[] }>('/stats/my-home')).data,
     staleTime: 30_000,
   });
 
@@ -97,6 +116,44 @@ export default function HomePage() {
               </Button>
             ))}
           </div>
+        </section>
+      )}
+
+      {data?.pending && data.pending.length > 0 && (
+        <section>
+          <h2 className="mb-3 flex items-center gap-1.5 text-sm font-medium text-muted-foreground">
+            <AlarmClock className="h-4 w-4" /> {t('pendingTitle')}
+          </h2>
+          <Card>
+            <ul className="divide-y" data-testid="home-pending">
+              {data.pending.map((p) => {
+                const days = daysUntil(p.deadline);
+                const due = days < 0
+                  ? { text: t('overdue', { days: -days }), cls: 'bg-red-50 text-red-700 dark:bg-red-950/50 dark:text-red-300' }
+                  : days === 0
+                    ? { text: t('dueToday'), cls: 'bg-amber-50 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300' }
+                    : { text: days === 1 ? t('dueTomorrow') : t('dueIn', { days }), cls: 'bg-muted text-muted-foreground' };
+                return (
+                  <li key={p.id}>
+                    <Link
+                      href={`/data?entity=${p.entitySlug}`}
+                      className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-muted/50"
+                    >
+                      <span className="h-2 w-2 shrink-0 rounded-full bg-primary" style={p.color ? { backgroundColor: p.color } : undefined} />
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-sm font-medium">{p.title ?? p.entityName}</span>
+                        <span className="block truncate text-xs text-muted-foreground">
+                          {p.entityName} · {new Date(/^\d{4}-\d{2}-\d{2}$/.test(p.deadline) ? `${p.deadline}T00:00:00` : p.deadline).toLocaleDateString(locale)}
+                        </span>
+                      </span>
+                      {p.status && <OptionBadge label={p.status.label} color={p.status.color} className="hidden sm:inline-flex" />}
+                      <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-medium ${due.cls}`}>{due.text}</span>
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
+          </Card>
         </section>
       )}
 

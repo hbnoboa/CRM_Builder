@@ -20,7 +20,7 @@ import type { FieldGroupElement } from '@/services/pdf-templates.service';
 const BATCH_SOURCES = [
   { value: '_direct', label: 'Campo direto' },
   { value: '_first', label: 'Primeiro registro' },
-  { value: '_last', label: 'Ultimo registro' },
+  { value: '_last', label: 'Último registro' },
   { value: '_max', label: 'Maior valor' },
   { value: '_min', label: 'Menor valor' },
   { value: '_meta', label: 'Info do lote' },
@@ -30,8 +30,8 @@ const BATCH_META_FIELDS = [
   { value: '_totalRecords', label: 'Total de registros', type: 'number' },
   { value: '_totalDamaged', label: 'Total com sub-registros', type: 'number' },
   { value: '_timestamp', label: 'Data/hora da geracao', type: 'datetime' },
-  { value: '_firstUpdatedAt', label: 'Primeira atualizacao', type: 'datetime' },
-  { value: '_lastUpdatedAt', label: 'Ultima atualizacao', type: 'datetime' },
+  { value: '_firstUpdatedAt', label: 'Primeira atualização', type: 'datetime' },
+  { value: '_lastUpdatedAt', label: 'Última atualização', type: 'datetime' },
 ];
 
 function getFormatsForFieldType(fieldType: string | undefined): Array<{ value: string; label: string; group?: string }> {
@@ -64,7 +64,7 @@ function getFormatsForFieldType(fieldType: string | undefined): Array<{ value: s
 
   // Boolean
   if (['boolean', 'checkbox'].includes(fieldType)) {
-    formats.push({ value: 'boolean', label: 'Sim / Nao', group: 'Outros' });
+    formats.push({ value: 'boolean', label: 'Sim / Não', group: 'Outros' });
   }
 
   // Data/Hora
@@ -85,7 +85,7 @@ function getFormatsForFieldType(fieldType: string | undefined): Array<{ value: s
   // Numeros
   if (['number', 'integer', 'float', 'currency', 'percentage', 'slider', 'rating'].includes(fieldType)) {
     formats.push(
-      { value: 'number', label: 'Numero (1.234)', group: 'Numeros' },
+      { value: 'number', label: 'Número (1.234)', group: 'Numeros' },
       { value: 'currency', label: 'Moeda (R$ 1.234,56)', group: 'Numeros' },
       { value: 'percentage', label: 'Percentual (45,67%)', group: 'Numeros' },
     );
@@ -342,7 +342,7 @@ export function FieldGroupDataEditor({
                       ) : (
                         <>
                           <SelectGroup>
-                            <SelectLabel>Campos da entidade</SelectLabel>
+                            <SelectLabel>Campos da tabela</SelectLabel>
                             {entityFields.map((f) => (
                               <SelectItem key={f.slug} value={f.slug}>
                                 {f.label || f.name}

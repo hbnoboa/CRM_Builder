@@ -91,7 +91,7 @@ export function ArithmeticBuilder({ config, onChange, availableFields, computedF
         </SelectTrigger>
         <SelectContent>
           <SelectItem value="field">Campo</SelectItem>
-          <SelectItem value="number">Numero</SelectItem>
+          <SelectItem value="number">Número</SelectItem>
         </SelectContent>
       </Select>
 

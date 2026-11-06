@@ -22,6 +22,9 @@ import { GlobalFilterDto } from './dto/update-global-filters.dto';
 import { creatorFilter } from '../../common/utils/team-scope';
 import { invalidateEntityQueryCache } from '../../common/services/entity-query-cache';
 
+/** Datas que a leitura injeta em `fields`; nao sao campos da tabela. */
+const SYSTEM_FIELD_SLUGS = new Set(['createdAt', 'updatedAt']);
+
 export type QueryEntityDto = PaginationQuery;
 
 // Interface para condicao de validacao
@@ -131,10 +134,9 @@ export class EntityService {
     const namePlural = dto.namePlural || (/s$/i.test(dto.name) ? dto.name : `${dto.name}s`);
 
     // Garantir que cada campo tenha slug (usa name como fallback)
-    const processedFields = (dto.fields || []).map(f => ({
-      ...f,
-      slug: f.slug || f.name,
-    }));
+    const processedFields = (dto.fields || [])
+      .map(f => ({ ...f, slug: f.slug || f.name }))
+      .filter(f => !SYSTEM_FIELD_SLUGS.has(f.slug));
 
     const entity = await this.prisma.entity.create({
       data: {
@@ -502,6 +504,7 @@ export class EntityService {
         type: 'datetime',
         required: false,
         unique: false,
+        system: true,
       });
     }
     if (!hasUpdatedAt) {
@@ -512,6 +515,7 @@ export class EntityService {
         type: 'datetime',
         required: false,
         unique: false,
+        system: true,
       });
     }
 
@@ -558,6 +562,7 @@ export class EntityService {
         type: 'datetime',
         required: false,
         unique: false,
+        system: true,
       });
     }
     if (!hasUpdatedAt) {
@@ -568,6 +573,7 @@ export class EntityService {
         type: 'datetime',
         required: false,
         unique: false,
+        system: true,
       });
     }
 
@@ -597,10 +603,10 @@ export class EntityService {
     };
 
     if (dto.fields !== undefined) {
-      const processedFields = dto.fields.map((f: any) => ({
-        ...f,
-        slug: f.slug || f.name,
-      }));
+      // Datas de criacao/atualizacao sao injetadas na leitura; nunca gravar como campo.
+      const processedFields = dto.fields
+        .map((f: any) => ({ ...f, slug: f.slug || f.name }))
+        .filter((f: any) => !SYSTEM_FIELD_SLUGS.has(f.slug));
       updateData.fields = processedFields as unknown as Prisma.InputJsonValue;
     }
     if (dto.settings !== undefined) {

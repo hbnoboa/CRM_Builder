@@ -17,9 +17,9 @@ const OPERATORS = [
   { value: 'greater', label: 'Maior que' },
   { value: 'less', label: 'Menor que' },
   { value: 'contains', label: 'Contem' },
-  { value: 'not_empty', label: 'Nao vazio' },
+  { value: 'not_empty', label: 'Não vazio' },
   { value: 'has_items', label: 'Possui itens' },
-  { value: 'no_items', label: 'Nao possui itens' },
+  { value: 'no_items', label: 'Não possui itens' },
 ] as const;
 
 const NO_VALUE_OPERATORS = ['not_empty', 'has_items', 'no_items'];

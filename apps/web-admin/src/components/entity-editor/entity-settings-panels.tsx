@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Filter, Loader2, Trash2, X } from 'lucide-react';
+import { CalendarClock, Filter, Loader2, SlidersHorizontal, Trash2, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -11,6 +11,10 @@ import { Label } from '@/components/ui/label';
 import { DataFilterAdder } from '@/components/roles/role-form-dialog';
 import { entitiesService } from '@/services/entities.service';
 import { getErrorMessage } from '@/lib/get-error-message';
+import { api } from '@/lib/api';
+import { OptionBadge } from '@/components/ui/option-badge';
+import { withoutSystemFields } from '@/lib/system-fields';
+import { cn } from '@/lib/utils';
 import type { DataFilter, Entity, EntityField } from '@/types';
 
 const OPERATOR_LABELS: Record<string, string> = {
@@ -123,5 +127,172 @@ export function DeleteEntityPanel({ entity, onDelete }: { entity: Entity; onDele
         </Button>
       </CardContent>
     </Card>
+  );
+}
+
+type TableSettings = {
+  titleField?: string;
+  statusField?: string;
+  doneValues?: string[];
+  deadlineField?: string;
+  assigneeField?: string;
+};
+
+type FieldOption = { value: string; label: string; color?: string };
+
+const toOptions = (f?: EntityField): FieldOption[] =>
+  ((f?.options || []) as Array<string | FieldOption>).map((o) => (typeof o === 'string' ? { value: o, label: o } : o));
+
+function SettingSelect({
+  label, hint, value, onChange, fields, emptyLabel, testId,
+}: {
+  label: string; hint: string; value?: string; onChange: (v?: string) => void;
+  fields: EntityField[]; emptyLabel: string; testId: string;
+}) {
+  return (
+    <div className="space-y-1.5">
+      <Label>{label}</Label>
+      <select
+        className="h-9 w-full rounded-md border bg-background px-2 text-sm"
+        value={value || ''}
+        onChange={(e) => onChange(e.target.value || undefined)}
+        data-testid={testId}
+      >
+        <option value="">{emptyLabel}</option>
+        {fields.map((f) => <option key={f.slug} value={f.slug}>{f.label || f.name}</option>)}
+      </select>
+      <p className="text-xs text-muted-foreground">{hint}</p>
+    </div>
+  );
+}
+
+/**
+ * Ajustes da tabela em linguagem simples: qual campo da nome ao registro, qual e
+ * a situacao (e quais opcoes encerram), o prazo e o responsavel. Com isso a tela
+ * inicial mostra "Minhas pendencias" e as listas ficam mais claras.
+ */
+export function TableSettingsPanel({ entity, onSaved }: { entity: Entity; onSaved: (e: Entity) => void }) {
+  const current = (entity.settings || {}) as TableSettings & Record<string, unknown>;
+  const initial: TableSettings = {
+    titleField: current.titleField,
+    statusField: current.statusField,
+    doneValues: current.doneValues || [],
+    deadlineField: current.deadlineField,
+    assigneeField: current.assigneeField,
+  };
+  const [cfg, setCfg] = useState<TableSettings>(initial);
+  const [saving, setSaving] = useState(false);
+  const fields = withoutSystemFields((entity.fields ?? []) as EntityField[]);
+  const dirty = JSON.stringify(cfg) !== JSON.stringify(initial);
+
+  const titleFields = fields.filter((f) => ['text', 'email', 'phone', 'number', 'cpf', 'cnpj'].includes(f.type));
+  const statusFields = fields.filter((f) => ['select', 'radio-group'].includes(f.type));
+  const dateFields = fields.filter((f) => ['date', 'datetime'].includes(f.type));
+  const personFields = fields.filter((f) => f.type === 'user-select');
+  const statusOptions = toOptions(fields.find((f) => f.slug === cfg.statusField));
+  const set = (patch: Partial<TableSettings>) => setCfg((prev) => ({ ...prev, ...patch }));
+
+  const save = async () => {
+    setSaving(true);
+    try {
+      const res = await api.patch<Entity>(`/entities/${entity.id}`, { settings: { ...current, ...cfg } });
+      onSaved(res.data);
+      toast.success('Ajustes salvos');
+    } catch (e) {
+      toast.error(getErrorMessage(e));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="space-y-4" data-testid="table-settings">
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base"><SlidersHorizontal className="h-4 w-4" /> Como mostrar os registros</CardTitle>
+          <CardDescription>Ajuda a equipe a reconhecer cada registro nas listas, na tela inicial e no painel lateral.</CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-5 md:grid-cols-2">
+          <SettingSelect
+            label="Nome do registro"
+            hint="O que identifica o registro. Ex.: nome do cliente, placa, número da OS."
+            value={cfg.titleField}
+            onChange={(v) => set({ titleField: v })}
+            fields={titleFields}
+            emptyLabel="Automático (primeiro campo de texto)"
+            testId="setting-title-field"
+          />
+          <SettingSelect
+            label="Situação"
+            hint="Lista que diz em que pé está. Ex.: Aberta, Em andamento, Concluída."
+            value={cfg.statusField}
+            onChange={(v) => set({ statusField: v, doneValues: [] })}
+            fields={statusFields}
+            emptyLabel={statusFields.length ? 'Nenhuma' : 'Crie antes um campo "Lista de opções"'}
+            testId="setting-status-field"
+          />
+          {cfg.statusField && (
+            <div className="space-y-2 md:col-span-2">
+              <Label>Quais situações encerram o registro?</Label>
+              <p className="text-xs text-muted-foreground">Registros nessas situações saem das pendências. Ex.: Concluída, Cancelada.</p>
+              <div className="flex flex-wrap gap-2" data-testid="setting-done-values">
+                {statusOptions.map((o) => {
+                  const on = (cfg.doneValues || []).includes(o.value);
+                  return (
+                    <button
+                      key={o.value}
+                      type="button"
+                      aria-pressed={on}
+                      onClick={() => set({ doneValues: on ? (cfg.doneValues || []).filter((v) => v !== o.value) : [...(cfg.doneValues || []), o.value] })}
+                      className={cn('rounded-full border p-0.5 pr-2.5 text-xs transition-colors', on ? 'border-primary bg-nav-active' : 'hover:bg-muted')}
+                    >
+                      <span className="flex items-center gap-1.5">
+                        <OptionBadge label={o.label} color={o.color ?? null} />
+                        {on ? 'encerra' : ''}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base"><CalendarClock className="h-4 w-4" /> Prazos e pendências</CardTitle>
+          <CardDescription>
+            Com um prazo, a tela inicial de cada pessoa mostra o que está atrasado, vence hoje ou está chegando.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-5 md:grid-cols-2">
+          <SettingSelect
+            label="Prazo"
+            hint="Data limite do registro. Ex.: data agendada, vencimento."
+            value={cfg.deadlineField}
+            onChange={(v) => set({ deadlineField: v })}
+            fields={dateFields}
+            emptyLabel={dateFields.length ? 'Sem prazo' : 'Crie antes um campo "Data"'}
+            testId="setting-deadline-field"
+          />
+          <SettingSelect
+            label="Responsável"
+            hint="Se escolher, cada pessoa vê só as pendências em que ela é a responsável."
+            value={cfg.assigneeField}
+            onChange={(v) => set({ assigneeField: v })}
+            fields={personFields}
+            emptyLabel={personFields.length ? 'Todos que veem a tabela' : 'Todos (crie um campo "Pessoa da equipe" para separar)'}
+            testId="setting-assignee-field"
+          />
+        </CardContent>
+      </Card>
+
+      <div className="flex justify-end">
+        <Button onClick={save} disabled={!dirty || saving} data-testid="table-settings-save">
+          {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Salvar ajustes
+        </Button>
+      </div>
+    </div>
   );
 }

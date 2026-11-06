@@ -32,7 +32,7 @@ export const templateCategories = [
   { id: 'Projetos', label: 'Projetos', icon: 'FolderKanban', color: '#06b6d4' },
   {
     id: 'Operacoes',
-    label: 'Operacoes',
+    label: 'Operações',
     icon: 'Wrench',
     color: '#f97316',
   },
@@ -49,7 +49,7 @@ export const entityTemplates: EntityTemplate[] = [
     name: 'Lead',
     namePlural: 'Leads',
     description:
-      'Gerencie seus leads e oportunidades de negocio desde a captacao ate a qualificacao.',
+      'Gerencie seus leads e oportunidades de negócio desde a captação até a qualificação.',
     icon: 'Target',
     color: '#10b981',
     category: 'CRM',
@@ -93,7 +93,7 @@ export const entityTemplates: EntityTemplate[] = [
         type: 'select',
         options: [
           { value: 'site', label: 'Site', color: '#3b82f6' },
-          { value: 'indicacao', label: 'Indicacao', color: '#10b981' },
+          { value: 'indicacao', label: 'Indicação', color: '#10b981' },
           { value: 'evento', label: 'Evento', color: '#8b5cf6' },
           { value: 'rede_social', label: 'Rede Social', color: '#f59e0b' },
           { value: 'outro', label: 'Outro', color: '#6b7280' },
@@ -125,7 +125,7 @@ export const entityTemplates: EntityTemplate[] = [
       {
         slug: 'responsavel',
         name: 'responsavel',
-        label: 'Responsavel',
+        label: 'Responsável',
         type: 'text',
       },
       {
@@ -145,7 +145,7 @@ export const entityTemplates: EntityTemplate[] = [
     automations: [
       {
         name: 'Notificar novo lead',
-        description: 'Envia notificacao quando um novo lead e criado.',
+        description: 'Envia notificação quando um novo lead é criado.',
         trigger: 'ON_CREATE',
         actions: [
           {
@@ -161,7 +161,7 @@ export const entityTemplates: EntityTemplate[] = [
       {
         name: 'Notificar lead qualificado',
         description:
-          'Envia notificacao quando o status do lead muda para qualificado.',
+          'Envia notificação quando o status do lead muda para qualificado.',
         trigger: 'ON_STATUS_CHANGE',
         triggerConfig: { field: 'status' },
         conditions: [
@@ -189,7 +189,7 @@ export const entityTemplates: EntityTemplate[] = [
     name: 'Contato',
     namePlural: 'Contatos',
     description:
-      'Cadastro completo de contatos com informacoes pessoais, profissionais e endereco.',
+      'Cadastro completo de contatos com informações pessoais, profissionais e endereço.',
     icon: 'Users',
     color: '#3b82f6',
     category: 'CRM',
@@ -235,7 +235,7 @@ export const entityTemplates: EntityTemplate[] = [
       {
         slug: 'endereco',
         name: 'endereco',
-        label: 'Endereco',
+        label: 'Endereço',
         type: 'map',
         mapMode: 'address',
         gridColSpan: 2,
@@ -273,7 +273,7 @@ export const entityTemplates: EntityTemplate[] = [
       {
         slug: 'responsavel',
         name: 'responsavel',
-        label: 'Responsavel',
+        label: 'Responsável',
         type: 'text',
       },
       {
@@ -306,10 +306,10 @@ export const entityTemplates: EntityTemplate[] = [
   // ─────────────────────────────────────────────
   {
     id: 'negocios',
-    name: 'Negocio',
-    namePlural: 'Negocios',
+    name: 'Negócio',
+    namePlural: 'Negócios',
     description:
-      'Acompanhe suas oportunidades de negocio pelo funil de vendas ate o fechamento.',
+      'Acompanhe suas oportunidades de negócio pelo funil de vendas até o fechamento.',
     icon: 'Briefcase',
     color: '#8b5cf6',
     category: 'CRM',
@@ -318,7 +318,7 @@ export const entityTemplates: EntityTemplate[] = [
       {
         slug: 'titulo',
         name: 'titulo',
-        label: 'Titulo',
+        label: 'Título',
         type: 'text',
         required: true,
       },
@@ -345,7 +345,7 @@ export const entityTemplates: EntityTemplate[] = [
         options: [
           { value: 'prospeccao', label: 'Prospeccao', color: '#3b82f6' },
           { value: 'proposta', label: 'Proposta', color: '#f59e0b' },
-          { value: 'negociacao', label: 'Negociacao', color: '#8b5cf6' },
+          { value: 'negociacao', label: 'Negociação', color: '#8b5cf6' },
           {
             value: 'fechado_ganho',
             label: 'Fechado Ganho',
@@ -367,13 +367,13 @@ export const entityTemplates: EntityTemplate[] = [
       {
         slug: 'data_previsao',
         name: 'data_previsao',
-        label: 'Data de Previsao',
+        label: 'Data de Previsão',
         type: 'date',
       },
       {
         slug: 'responsavel',
         name: 'responsavel',
-        label: 'Responsavel',
+        label: 'Responsável',
         type: 'text',
       },
       {
@@ -386,9 +386,9 @@ export const entityTemplates: EntityTemplate[] = [
     ],
     automations: [
       {
-        name: 'Notificar negocio ganho',
+        name: 'Notificar negócio ganho',
         description:
-          'Envia notificacao quando o negocio e fechado como ganho.',
+          'Envia notificação quando o negócio é fechado como ganho.',
         trigger: 'ON_STATUS_CHANGE',
         triggerConfig: { field: 'etapa' },
         conditions: [
@@ -399,9 +399,9 @@ export const entityTemplates: EntityTemplate[] = [
             order: 1,
             type: 'notify_user',
             config: {
-              title: 'Negocio Fechado!',
+              title: 'Negócio Fechado!',
               message:
-                'O negocio {{titulo}} foi fechado como ganho! Valor: {{valor}}',
+                'O negócio {{titulo}} foi fechado como ganho! Valor: {{valor}}',
             },
           },
         ],
@@ -417,7 +417,7 @@ export const entityTemplates: EntityTemplate[] = [
     name: 'Ticket',
     namePlural: 'Tickets',
     description:
-      'Sistema de suporte para gerenciar solicitacoes, bugs e melhorias dos clientes.',
+      'Sistema de suporte para gerenciar solicitações, bugs e melhorias dos clientes.',
     icon: 'TicketCheck',
     color: '#f59e0b',
     category: 'Suporte',
@@ -426,14 +426,14 @@ export const entityTemplates: EntityTemplate[] = [
       {
         slug: 'titulo',
         name: 'titulo',
-        label: 'Titulo',
+        label: 'Título',
         type: 'text',
         required: true,
       },
       {
         slug: 'descricao',
         name: 'descricao',
-        label: 'Descricao',
+        label: 'Descrição',
         type: 'richtext',
         required: true,
         gridColSpan: 2,
@@ -446,7 +446,7 @@ export const entityTemplates: EntityTemplate[] = [
         options: [
           { value: 'bug', label: 'Bug', color: '#ef4444' },
           { value: 'melhoria', label: 'Melhoria', color: '#3b82f6' },
-          { value: 'duvida', label: 'Duvida', color: '#f59e0b' },
+          { value: 'duvida', label: 'Dúvida', color: '#f59e0b' },
           { value: 'solicitacao', label: 'Solicitacao', color: '#8b5cf6' },
         ],
       },
@@ -457,9 +457,9 @@ export const entityTemplates: EntityTemplate[] = [
         type: 'select',
         options: [
           { value: 'baixa', label: 'Baixa', color: '#10b981' },
-          { value: 'media', label: 'Media', color: '#f59e0b' },
+          { value: 'media', label: 'Média', color: '#f59e0b' },
           { value: 'alta', label: 'Alta', color: '#f97316' },
-          { value: 'critica', label: 'Critica', color: '#ef4444' },
+          { value: 'critica', label: 'Crítica', color: '#ef4444' },
         ],
       },
       {
@@ -482,7 +482,7 @@ export const entityTemplates: EntityTemplate[] = [
       {
         slug: 'responsavel',
         name: 'responsavel',
-        label: 'Responsavel',
+        label: 'Responsável',
         type: 'text',
       },
       {
@@ -506,7 +506,7 @@ export const entityTemplates: EntityTemplate[] = [
       {
         slug: 'resolucao',
         name: 'resolucao',
-        label: 'Resolucao',
+        label: 'Resolução',
         type: 'richtext',
         gridColSpan: 2,
       },
@@ -514,7 +514,7 @@ export const entityTemplates: EntityTemplate[] = [
     automations: [
       {
         name: 'Notificar novo ticket',
-        description: 'Envia notificacao quando um novo ticket e criado.',
+        description: 'Envia notificação quando um novo ticket é criado.',
         trigger: 'ON_CREATE',
         actions: [
           {
@@ -530,7 +530,7 @@ export const entityTemplates: EntityTemplate[] = [
       {
         name: 'Notificar ticket resolvido',
         description:
-          'Envia notificacao quando o ticket e marcado como resolvido.',
+          'Envia notificação quando o ticket é marcado como resolvido.',
         trigger: 'ON_STATUS_CHANGE',
         triggerConfig: { field: 'status' },
         conditions: [
@@ -558,7 +558,7 @@ export const entityTemplates: EntityTemplate[] = [
     name: 'Projeto',
     namePlural: 'Projetos',
     description:
-      'Gerencie projetos com acompanhamento de progresso, prazos e orcamento.',
+      'Gerencie projetos com acompanhamento de progresso, prazos e orçamento.',
     icon: 'FolderKanban',
     color: '#06b6d4',
     category: 'Projetos',
@@ -574,7 +574,7 @@ export const entityTemplates: EntityTemplate[] = [
       {
         slug: 'descricao',
         name: 'descricao',
-        label: 'Descricao',
+        label: 'Descrição',
         type: 'richtext',
         gridColSpan: 2,
       },
@@ -589,7 +589,7 @@ export const entityTemplates: EntityTemplate[] = [
       {
         slug: 'data_inicio',
         name: 'data_inicio',
-        label: 'Data de Inicio',
+        label: 'Data de Início',
         type: 'date',
       },
       {
@@ -611,7 +611,7 @@ export const entityTemplates: EntityTemplate[] = [
             color: '#f59e0b',
           },
           { value: 'pausado', label: 'Pausado', color: '#8b5cf6' },
-          { value: 'concluido', label: 'Concluido', color: '#10b981' },
+          { value: 'concluido', label: 'Concluído', color: '#10b981' },
           { value: 'cancelado', label: 'Cancelado', color: '#ef4444' },
         ],
       },
@@ -627,13 +627,13 @@ export const entityTemplates: EntityTemplate[] = [
       {
         slug: 'responsavel',
         name: 'responsavel',
-        label: 'Responsavel',
+        label: 'Responsável',
         type: 'text',
       },
       {
         slug: 'orcamento',
         name: 'orcamento',
-        label: 'Orcamento',
+        label: 'Orçamento',
         type: 'currency',
         prefix: 'R$',
       },
@@ -649,7 +649,7 @@ export const entityTemplates: EntityTemplate[] = [
       {
         name: 'Notificar projeto concluido',
         description:
-          'Envia notificacao quando o projeto e marcado como concluido.',
+          'Envia notificação quando o projeto é marcado como concluído.',
         trigger: 'ON_STATUS_CHANGE',
         triggerConfig: { field: 'status' },
         conditions: [
@@ -660,7 +660,7 @@ export const entityTemplates: EntityTemplate[] = [
             order: 1,
             type: 'notify_user',
             config: {
-              title: 'Projeto Concluido',
+              title: 'Projeto Concluído',
               message: 'O projeto {{nome}} foi concluido!',
             },
           },
@@ -677,7 +677,7 @@ export const entityTemplates: EntityTemplate[] = [
     name: 'Tarefa',
     namePlural: 'Tarefas',
     description:
-      'Organize tarefas por projeto com prioridade, responsavel e prazos.',
+      'Organize tarefas por projeto com prioridade, responsável e prazos.',
     icon: 'CheckSquare',
     color: '#14b8a6',
     category: 'Projetos',
@@ -686,14 +686,14 @@ export const entityTemplates: EntityTemplate[] = [
       {
         slug: 'titulo',
         name: 'titulo',
-        label: 'Titulo',
+        label: 'Título',
         type: 'text',
         required: true,
       },
       {
         slug: 'descricao',
         name: 'descricao',
-        label: 'Descricao',
+        label: 'Descrição',
         type: 'richtext',
         gridColSpan: 2,
       },
@@ -708,7 +708,7 @@ export const entityTemplates: EntityTemplate[] = [
       {
         slug: 'responsavel',
         name: 'responsavel',
-        label: 'Responsavel',
+        label: 'Responsável',
         type: 'text',
       },
       {
@@ -718,7 +718,7 @@ export const entityTemplates: EntityTemplate[] = [
         type: 'select',
         options: [
           { value: 'baixa', label: 'Baixa', color: '#10b981' },
-          { value: 'media', label: 'Media', color: '#f59e0b' },
+          { value: 'media', label: 'Média', color: '#f59e0b' },
           { value: 'alta', label: 'Alta', color: '#ef4444' },
         ],
       },
@@ -734,7 +734,7 @@ export const entityTemplates: EntityTemplate[] = [
             label: 'Em Andamento',
             color: '#3b82f6',
           },
-          { value: 'concluida', label: 'Concluida', color: '#10b981' },
+          { value: 'concluida', label: 'Concluída', color: '#10b981' },
           { value: 'cancelada', label: 'Cancelada', color: '#ef4444' },
         ],
       },
@@ -764,10 +764,10 @@ export const entityTemplates: EntityTemplate[] = [
   // ─────────────────────────────────────────────
   {
     id: 'ordens_servico',
-    name: 'Ordem de Servico',
-    namePlural: 'Ordens de Servico',
+    name: 'Ordem de Serviço',
+    namePlural: 'Ordens de Serviço',
     description:
-      'Controle ordens de servico com acompanhamento de execucao, valores e localizacao.',
+      'Controle ordens de serviço com acompanhamento de execução, valores e localização.',
     icon: 'Wrench',
     color: '#f97316',
     category: 'Operacoes',
@@ -776,7 +776,7 @@ export const entityTemplates: EntityTemplate[] = [
       {
         slug: 'numero',
         name: 'numero',
-        label: 'Numero',
+        label: 'Número',
         type: 'text',
       },
       {
@@ -790,18 +790,18 @@ export const entityTemplates: EntityTemplate[] = [
       {
         slug: 'descricao',
         name: 'descricao',
-        label: 'Descricao',
+        label: 'Descrição',
         type: 'richtext',
         gridColSpan: 2,
       },
       {
         slug: 'tipo_servico',
         name: 'tipo_servico',
-        label: 'Tipo de Servico',
+        label: 'Tipo de Serviço',
         type: 'select',
         options: [
-          { value: 'instalacao', label: 'Instalacao', color: '#3b82f6' },
-          { value: 'manutencao', label: 'Manutencao', color: '#f59e0b' },
+          { value: 'instalacao', label: 'Instalação', color: '#3b82f6' },
+          { value: 'manutencao', label: 'Manutenção', color: '#f59e0b' },
           { value: 'reparo', label: 'Reparo', color: '#ef4444' },
           { value: 'consultoria', label: 'Consultoria', color: '#8b5cf6' },
         ],
@@ -814,14 +814,14 @@ export const entityTemplates: EntityTemplate[] = [
         options: [
           { value: 'aberta', label: 'Aberta', color: '#3b82f6' },
           { value: 'em_execucao', label: 'Em Execucao', color: '#f59e0b' },
-          { value: 'concluida', label: 'Concluida', color: '#10b981' },
+          { value: 'concluida', label: 'Concluída', color: '#10b981' },
           { value: 'faturada', label: 'Faturada', color: '#8b5cf6' },
         ],
       },
       {
         slug: 'responsavel',
         name: 'responsavel',
-        label: 'Responsavel',
+        label: 'Responsável',
         type: 'text',
       },
       {
@@ -833,7 +833,7 @@ export const entityTemplates: EntityTemplate[] = [
       {
         slug: 'data_conclusao',
         name: 'data_conclusao',
-        label: 'Data de Conclusao',
+        label: 'Data de Conclusão',
         type: 'date',
       },
       {
@@ -854,7 +854,7 @@ export const entityTemplates: EntityTemplate[] = [
       {
         slug: 'observacoes',
         name: 'observacoes',
-        label: 'Observacoes',
+        label: 'Observações',
         type: 'richtext',
         gridColSpan: 2,
       },
@@ -869,7 +869,7 @@ export const entityTemplates: EntityTemplate[] = [
     name: 'Equipamento',
     namePlural: 'Equipamentos',
     description:
-      'Cadastro e controle de equipamentos com rastreamento de manutencao e localizacao.',
+      'Cadastro e controle de equipamentos com rastreamento de manutenção e localização.',
     icon: 'Cpu',
     color: '#64748b',
     category: 'Operacoes',
@@ -885,7 +885,7 @@ export const entityTemplates: EntityTemplate[] = [
       {
         slug: 'numero_serie',
         name: 'numero_serie',
-        label: 'Numero de Serie',
+        label: 'Número de Serie',
         type: 'text',
         unique: true,
       },
@@ -904,7 +904,7 @@ export const entityTemplates: EntityTemplate[] = [
       {
         slug: 'localizacao',
         name: 'localizacao',
-        label: 'Localizacao',
+        label: 'Localização',
         type: 'map',
         mapMode: 'address',
         gridColSpan: 2,
@@ -918,7 +918,7 @@ export const entityTemplates: EntityTemplate[] = [
           { value: 'ativo', label: 'Ativo', color: '#10b981' },
           {
             value: 'em_manutencao',
-            label: 'Em Manutencao',
+            label: 'Em Manutenção',
             color: '#f59e0b',
           },
           { value: 'inativo', label: 'Inativo', color: '#6b7280' },
@@ -928,19 +928,19 @@ export const entityTemplates: EntityTemplate[] = [
       {
         slug: 'data_aquisicao',
         name: 'data_aquisicao',
-        label: 'Data de Aquisicao',
+        label: 'Data de Aquisição',
         type: 'date',
       },
       {
         slug: 'proxima_manutencao',
         name: 'proxima_manutencao',
-        label: 'Proxima Manutencao',
+        label: 'Próxima Manutenção',
         type: 'date',
       },
       {
         slug: 'responsavel',
         name: 'responsavel',
-        label: 'Responsavel',
+        label: 'Responsável',
         type: 'text',
       },
       {
@@ -964,10 +964,10 @@ export const entityTemplates: EntityTemplate[] = [
   // ─────────────────────────────────────────────
   {
     id: 'inspecoes',
-    name: 'Inspecao',
-    namePlural: 'Inspecoes',
+    name: 'Inspeção',
+    namePlural: 'Inspeções',
     description:
-      'Registre inspecoes de equipamentos com fotos, resultados e localizacao.',
+      'Registre inspeções de equipamentos com fotos, resultados e localização.',
     icon: 'ClipboardCheck',
     color: '#0ea5e9',
     category: 'Operacoes',
@@ -976,7 +976,7 @@ export const entityTemplates: EntityTemplate[] = [
       {
         slug: 'titulo',
         name: 'titulo',
-        label: 'Titulo',
+        label: 'Título',
         type: 'text',
         required: true,
       },
@@ -997,7 +997,7 @@ export const entityTemplates: EntityTemplate[] = [
       {
         slug: 'data_inspecao',
         name: 'data_inspecao',
-        label: 'Data da Inspecao',
+        label: 'Data da Inspeção',
         type: 'date',
       },
       {
@@ -1029,7 +1029,7 @@ export const entityTemplates: EntityTemplate[] = [
       {
         slug: 'observacoes',
         name: 'observacoes',
-        label: 'Observacoes',
+        label: 'Observações',
         type: 'richtext',
         gridColSpan: 2,
       },
@@ -1052,9 +1052,9 @@ export const entityTemplates: EntityTemplate[] = [
     ],
     automations: [
       {
-        name: 'Notificar inspecao reprovada',
+        name: 'Notificar inspeção reprovada',
         description:
-          'Envia notificacao quando uma inspecao e registrada como reprovada.',
+          'Envia notificação quando uma inspeção e registrada como reprovada.',
         trigger: 'ON_CREATE',
         conditions: [
           { field: 'resultado', operator: 'equals', value: 'reprovado' },
@@ -1064,9 +1064,9 @@ export const entityTemplates: EntityTemplate[] = [
             order: 1,
             type: 'notify_user',
             config: {
-              title: 'Inspecao Reprovada',
+              title: 'Inspeção Reprovada',
               message:
-                'A inspecao {{titulo}} do equipamento {{equipamento}} foi reprovada!',
+                'A inspeção {{titulo}} do equipamento {{equipamento}} foi reprovada!',
             },
           },
         ],
@@ -1082,7 +1082,7 @@ export const entityTemplates: EntityTemplate[] = [
     name: 'Produto',
     namePlural: 'Produtos',
     description:
-      'Catalogo de produtos com controle de estoque, precos e informacoes de fornecedor.',
+      'Catalogo de produtos com controle de estoque, precos e informações de fornecedor.',
     icon: 'Package',
     color: '#a855f7',
     category: 'Estoque',
@@ -1105,7 +1105,7 @@ export const entityTemplates: EntityTemplate[] = [
       {
         slug: 'descricao',
         name: 'descricao',
-        label: 'Descricao',
+        label: 'Descrição',
         type: 'richtext',
         gridColSpan: 2,
       },
@@ -1132,14 +1132,14 @@ export const entityTemplates: EntityTemplate[] = [
       {
         slug: 'preco_custo',
         name: 'preco_custo',
-        label: 'Preco de Custo',
+        label: 'Preço de Custo',
         type: 'currency',
         prefix: 'R$',
       },
       {
         slug: 'preco_venda',
         name: 'preco_venda',
-        label: 'Preco de Venda',
+        label: 'Preço de Venda',
         type: 'currency',
         prefix: 'R$',
       },
@@ -1152,7 +1152,7 @@ export const entityTemplates: EntityTemplate[] = [
       {
         slug: 'estoque_minimo',
         name: 'estoque_minimo',
-        label: 'Estoque Minimo',
+        label: 'Estoque Mínimo',
         type: 'number',
       },
       {
@@ -1200,10 +1200,10 @@ export const entityTemplates: EntityTemplate[] = [
   // ─────────────────────────────────────────────
   {
     id: 'funcionarios',
-    name: 'Funcionario',
-    namePlural: 'Funcionarios',
+    name: 'Funcionário',
+    namePlural: 'Funcionários',
     description:
-      'Cadastro de funcionarios com informacoes pessoais, cargo, departamento e salario.',
+      'Cadastro de funcionários com informações pessoais, cargo, departamento e salário.',
     icon: 'UserCheck',
     color: '#ec4899',
     category: 'RH',
@@ -1256,13 +1256,13 @@ export const entityTemplates: EntityTemplate[] = [
       {
         slug: 'data_admissao',
         name: 'data_admissao',
-        label: 'Data de Admissao',
+        label: 'Data de Admissão',
         type: 'date',
       },
       {
         slug: 'salario',
         name: 'salario',
-        label: 'Salario',
+        label: 'Salário',
         type: 'currency',
         prefix: 'R$',
         hidden: true,
@@ -1274,7 +1274,7 @@ export const entityTemplates: EntityTemplate[] = [
         type: 'select',
         options: [
           { value: 'ativo', label: 'Ativo', color: '#10b981' },
-          { value: 'ferias', label: 'Ferias', color: '#3b82f6' },
+          { value: 'ferias', label: 'Férias', color: '#3b82f6' },
           { value: 'afastado', label: 'Afastado', color: '#f59e0b' },
           { value: 'desligado', label: 'Desligado', color: '#ef4444' },
         ],
@@ -1282,7 +1282,7 @@ export const entityTemplates: EntityTemplate[] = [
       {
         slug: 'endereco',
         name: 'endereco',
-        label: 'Endereco',
+        label: 'Endereço',
         type: 'map',
         mapMode: 'address',
         gridColSpan: 2,

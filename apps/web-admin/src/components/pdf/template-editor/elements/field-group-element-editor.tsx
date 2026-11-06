@@ -24,9 +24,9 @@ export function FieldGroupElementEditor({
   return (
     <div className="space-y-4">
       <div className="space-y-2">
-        <Label>Titulo (opcional)</Label>
+        <Label>Título (opcional)</Label>
         <Input
-          placeholder="Ex: Informacoes do Veiculo"
+          placeholder="Ex: Informações do Veículo"
           value={element.title || ''}
           onChange={(e) => onChange({ title: e.target.value })}
         />
@@ -107,7 +107,7 @@ export function FieldGroupElementEditor({
           </div>
         </div>
         <div className="space-y-2">
-          <Label className="text-xs text-muted-foreground">Espacamento</Label>
+          <Label className="text-xs text-muted-foreground">Espaçamento</Label>
           <div className="flex items-center gap-2">
             <Slider
               value={[element.lineSpacing || 0]}
