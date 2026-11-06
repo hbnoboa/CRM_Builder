@@ -18,6 +18,12 @@ import { EntityDataQueryService } from '../../common/services/entity-data-query.
 import { CustomRoleService } from '../custom-role/custom-role.service';
 import { hiddenFieldSlugs, omitFields } from '../../common/utils/field-permissions';
 import { createBotProvider, BOT_TOOLS, BotLlmProvider } from './bot-provider';
+import { createAiBuilderProvider } from '../ai-builder/ai-providers';
+import { loadTenantSchema, type SchemaTable } from '../ai-builder/tenant-schema';
+import {
+  CHAT_AI_SCHEMA, CHAT_AI_SYSTEM, CHAT_TEXT_SCHEMA, CHAT_TEXT_SYSTEM, coerceValue, describeForChat, displayValue,
+  findField, findTable, type ChatAiDecision,
+} from './chat-ai';
 import * as ExcelJS from 'exceljs';
 
 // Filtro de campo (mesmo formato do pipeline de EntityDataQueryService).
@@ -1381,9 +1387,23 @@ export class ChatService {
     let tool: string | null = null;
     let pendingAction: Record<string, unknown> | null = null;
 
-    // Confirmação de uma ação elevada pendente ("sim").
-    if (/^(sim|confirmar|confirmo|confirma|pode|ok)\b/i.test(message)) {
+    let messageType = 'bot';
+    let extraMeta: Record<string, unknown> = {};
+
+    // Confirmação de uma ação pendente ("sim") ou cancelamento ("não").
+    // So a resposta curta conta ("pode listar os sinistros?" e pergunta, nao confirmacao)
+    if (/^(sim|confirmar|confirmo|confirma|pode|ok)[\s.!]*$/i.test(message)) {
       reply = await this.confirmPending(user, channelId);
+    } else if (/^(n[aã]o|cancelar|cancela|deixa)([\s,.!]+(obrigad[oa]|pra l[aá]))?[\s.!]*$/i.test(message)) {
+      reply = await this.cancelPending(user, channelId);
+    } else if (this.ai) {
+      // IA: decide a acao; o sistema executa com as permissoes de quem pediu
+      const res = await this.askAi(user, channelId, message, channelEntity?.slug ?? null);
+      reply = res.content;
+      messageType = res.type;
+      extraMeta = res.meta;
+      tool = 'ai';
+      pendingAction = (res.meta.pendingAction as Record<string, unknown> | undefined) ?? null;
     } else {
       const decision = await this.bot.decide({
         message,
@@ -1414,9 +1434,10 @@ export class ChatService {
         channelId,
         senderId: null, // bot
         recipientId: user.id,
-        type: 'bot',
+        type: messageType,
         content: reply,
         meta: {
+          ...extraMeta,
           requestedById: user.id,
           request: rawMessage,
           ...(tool ? { tool } : {}),
@@ -1490,12 +1511,242 @@ export class ChatService {
     if (!msg) return 'Não há ação pendente para confirmar.';
     const pending = (msg.meta as { pendingAction: Record<string, unknown> }).pendingAction;
     if (pending.requestedById !== user.id) return 'Apenas quem pediu pode confirmar esta ação.';
-    const result = await this.executeElevated(user, pending);
+    // Marca antes de executar: dois cliques em "Confirmar" nao gravam duas vezes
     await this.prisma.message.update({
       where: { id: msg.id },
       data: { meta: { ...(msg.meta as object), pendingAction: { ...pending, done: true } } },
     });
-    return result;
+    return pending.kind === 'ai-create' || pending.kind === 'ai-update'
+      ? this.executeAiAction(user, pending)
+      : this.executeElevated(user, pending);
+  }
+
+  private async cancelPending(user: CurrentUser, channelId: string): Promise<string> {
+    const recent = await this.prisma.message.findMany({
+      where: { channelId, type: 'bot', recipientId: user.id }, orderBy: { createdAt: 'desc' }, take: 10,
+    });
+    const msg = recent.find((m) => {
+      const p = (m.meta as { pendingAction?: { done?: boolean } } | null)?.pendingAction;
+      return p && !p.done;
+    });
+    if (!msg) return 'Não há nada pendente para cancelar.';
+    const pending = (msg.meta as { pendingAction: Record<string, unknown> }).pendingAction;
+    await this.prisma.message.update({
+      where: { id: msg.id },
+      data: { meta: { ...(msg.meta as object), pendingAction: { ...pending, done: true, cancelled: true } } },
+    });
+    return 'Tudo bem, não fiz nada.';
+  }
+
+  /** Acao proposta pela IA e confirmada: grava COMO A PESSOA (as permissoes dela valem). */
+  private async executeAiAction(user: CurrentUser, pending: Record<string, unknown>): Promise<string> {
+    const entitySlug = pending.entitySlug as string;
+    const values = (pending.values || {}) as Record<string, unknown>;
+    try {
+      if (pending.kind === 'ai-create') {
+        await this.dataService.create(
+          entitySlug,
+          { data: values, ...(pending.parentRecordId ? { parentRecordId: pending.parentRecordId as string } : {}) } as never,
+          user,
+        );
+        return `Pronto ✅ ${String(pending.label || 'Registro')} criado.`;
+      }
+      await this.dataService.update(entitySlug, pending.recordId as string, { data: values } as never, user);
+      return `Pronto ✅ ${String(pending.label || 'Registro')} atualizado.`;
+    } catch (err) {
+      const msg = (err as { response?: { message?: unknown } }).response?.message ?? (err as Error).message;
+      return `Não consegui gravar: ${Array.isArray(msg) ? msg.join('; ') : String(msg)}`;
+    }
+  }
+
+  // ── IA no chat ───────────────────────────────────────────────────────────
+
+  private readonly ai = createAiBuilderProvider();
+
+  private async readableTables(user: CurrentUser) {
+    const all = await loadTenantSchema(this.prisma, user.tenantId);
+    return all
+      .filter((t) => this.canEntity(user, t.slug, 'canRead'))
+      .map((t) => ({ ...t, canCreate: this.canEntity(user, t.slug, 'canCreate'), canUpdate: this.canEntity(user, t.slug, 'canUpdate') }));
+  }
+
+  /** Busca registro pelo texto (numero, nome...), com as permissoes de quem pediu. */
+  private async findRecordsByText(user: CurrentUser, table: SchemaTable, text: string) {
+    const res = (await this.dataService.findAll(
+      table.slug, { search: text, limit: 20, includeChildren: 'true' } as never, user,
+    )) as unknown as { data?: Array<{ id: string; data: Record<string, unknown>; parentRecordId?: string | null }> };
+    const all = res.data || [];
+    // "SIN-1013" tambem casa com SIN-1012...: quem tem um campo igual ao texto ganha
+    const k = text.trim().toLowerCase();
+    const exact = all.filter((r) => Object.values(r.data || {}).some((v) => typeof v === 'string' && v.trim().toLowerCase() === k));
+    return (exact.length ? exact : all).slice(0, 3);
+  }
+
+  private titleOf(table: SchemaTable, data: Record<string, unknown>): string {
+    const f = table.titleField ? findField(table, table.titleField) : undefined;
+    return f ? displayValue(f, data[f.slug]) : '';
+  }
+
+  /**
+   * Pergunta ao assistente. A IA ve so a estrutura e decide a acao; aqui ela e
+   * executada com as permissoes de quem perguntou.
+   */
+  private async askAi(user: CurrentUser, channelId: string, message: string, channelEntitySlug: string | null): Promise<{ content: string; type: string; meta: Record<string, unknown> }> {
+    const tables = await this.readableTables(user);
+    if (tables.length === 0) return { content: 'Você ainda não tem acesso a nenhuma tabela.', type: 'bot', meta: {} };
+    const history = await this.prisma.message.findMany({
+      where: { channelId, type: { in: ['bot', 'query_result'] }, recipientId: user.id }, orderBy: { createdAt: 'desc' }, take: 4,
+    });
+    const today = new Date().toLocaleDateString('sv-SE', { timeZone: 'America/Sao_Paulo' });
+    const prompt = [
+      `HOJE: ${today}. Quem pergunta: ${user.name || 'alguém da equipe'}.`,
+      channelEntitySlug ? `Conversa aberta na tabela [${channelEntitySlug}].` : '',
+      'TABELAS QUE A PESSOA PODE VER (campos: identificador (tipo) "rótulo"):',
+      describeForChat(tables),
+      '',
+      'CONVERSA RECENTE:',
+      ...history.reverse().flatMap((m) => [`Pessoa: ${String((m.meta as { request?: string } | null)?.request || '').replace(/^@bot\s*/i, '')}`, `Assistente: ${(m.content || '').slice(0, 300)}`]),
+      `Pessoa: ${message}`,
+    ].filter(Boolean).join('\n');
+
+    let decision: ChatAiDecision;
+    try {
+      const out = await this.ai!.propose({ kind: 'chat', system: CHAT_AI_SYSTEM, prompt, schema: CHAT_AI_SCHEMA, lastMessage: message, current: null, tables });
+      decision = out.output as ChatAiDecision;
+    } catch {
+      return { content: 'O assistente está fora do ar agora. Tente de novo em instantes.', type: 'bot', meta: {} };
+    }
+    const action = decision?.action || { type: 'none' };
+    const reply = String(decision?.reply || '').slice(0, 1000);
+    if (action.type === 'none') return { content: reply || 'Como posso ajudar?', type: 'bot', meta: {} };
+
+    const table = findTable(tables, action.table);
+    if (!table) return { content: reply || 'Não entendi de qual tabela você está falando.', type: 'bot', meta: {} };
+
+    // Filtros da IA -> filtros do sistema (so campos que existem)
+    const filters = (action.filters || []).map((f) => {
+      const field = findField(table, f.field);
+      if (!field) return null;
+      const needsValue = !['isEmpty', 'isNotEmpty'].includes(f.operator);
+      const value = needsValue ? (['select', 'radio-group', 'multiselect', 'checkbox-group', 'boolean', 'number', 'currency', 'percentage'].includes(field.type) ? coerceValue(field, f.value) : f.value) : undefined;
+      if (needsValue && (value === undefined || value === '')) return null;
+      return { fieldSlug: field.slug, fieldType: field.type, operator: f.operator, value, ...(f.value2 ? { value2: f.value2 } : {}) };
+    }).filter(Boolean);
+
+    if (action.type === 'count' || action.type === 'list') {
+      const sortField = action.sortBy ? findField(table, action.sortBy) : undefined;
+      const limit = action.type === 'count' ? 1 : Math.min(Math.max(Number(action.limit) || 10, 1), 20);
+      const res = (await this.dataService.findAll(table.slug, {
+        limit, includeChildren: 'true', filters: JSON.stringify(filters),
+        ...(sortField ? { sortBy: sortField.slug, sortOrder: action.sortOrder === 'asc' ? 'asc' : 'desc' } : {}),
+      } as never, user)) as unknown as { data?: Array<{ id: string; data: Record<string, unknown> }>; meta?: { total?: number } };
+      const total = res.meta?.total ?? res.data?.length ?? 0;
+      if (action.type === 'count') {
+        return { content: `${reply ? `${reply}\n` : ''}${total} ${total === 1 ? table.name.toLowerCase() : table.namePlural.toLowerCase()}.`, type: 'bot', meta: { entitySlug: table.slug } };
+      }
+      const colSlugs = [...new Set([table.titleField, table.statusField, table.deadlineField, ...filters.map((f) => f!.fieldSlug)].filter(Boolean) as string[])].slice(0, 5);
+      const cols = colSlugs.map((s) => findField(table, s)).filter(Boolean) as NonNullable<ReturnType<typeof findField>>[];
+      return {
+        content: reply || `${table.namePlural}:`,
+        type: 'query_result',
+        meta: {
+          entitySlug: table.slug, total,
+          columns: cols.map((c) => ({ slug: c.slug, label: c.label })),
+          rows: (res.data || []).map((r) => cols.map((c) => displayValue(c, r.data?.[c.slug]))),
+          recordIds: (res.data || []).map((r) => r.id),
+        },
+      };
+    }
+
+    if (action.type === 'create' || action.type === 'update') {
+      const allowed = action.type === 'create' ? table.canCreate : table.canUpdate;
+      if (!allowed) return { content: `Você não tem permissão para ${action.type === 'create' ? 'criar' : 'alterar'} ${table.namePlural.toLowerCase()}.`, type: 'bot', meta: {} };
+      const values: Record<string, unknown> = {};
+      const lines: string[] = [];
+      for (const v of action.values || []) {
+        const field = findField(table, v.field);
+        if (!field || ['sub-entity', 'formula', 'rollup', 'image', 'file', 'signature'].includes(field.type)) continue;
+        const value = coerceValue(field, v.value);
+        if (value === undefined) continue;
+        values[field.slug] = value;
+        lines.push(`• ${field.label}: ${displayValue(field, value)}`);
+      }
+      if (Object.keys(values).length === 0) return { content: reply || 'O que devo preencher?', type: 'bot', meta: {} };
+
+      if (action.type === 'update') {
+        const found = action.record ? await this.findRecordsByText(user, table, action.record) : [];
+        if (found.length === 0) return { content: `Não achei ${table.name.toLowerCase()} "${action.record ?? ''}". Confira o número ou o nome.`, type: 'bot', meta: {} };
+        if (found.length > 1) return { content: `Achei mais de um: ${found.map((r) => this.titleOf(table, r.data)).join(', ')}. Qual deles?`, type: 'bot', meta: {} };
+        const label = `${table.name} ${this.titleOf(table, found[0].data)}`.trim();
+        return {
+          content: `${reply || 'Vou alterar:'}\n${label}\n${lines.join('\n')}\n\nConfirma?`,
+          type: 'bot',
+          meta: { pendingAction: { kind: 'ai-update', requestedById: user.id, entitySlug: table.slug, recordId: found[0].id, values, label } },
+        };
+      }
+
+      // Criar dentro do registro de cima (ex.: sinistro dentro do segurado)
+      let parentRecordId: string | undefined;
+      let parentLabel = '';
+      if (table.parentSlug) {
+        const parentTable = tables.find((t) => t.slug === table.parentSlug);
+        if (!parentTable || !action.parent) {
+          return { content: `${table.namePlural} ficam dentro de ${parentTable?.namePlural.toLowerCase() ?? 'outra tabela'}. Em qual ${parentTable?.name.toLowerCase() ?? 'registro'}?`, type: 'bot', meta: {} };
+        }
+        const parents = await this.findRecordsByText(user, parentTable, action.parent);
+        if (parents.length !== 1) {
+          return { content: parents.length ? `Achei mais de um: ${parents.map((r) => this.titleOf(parentTable, r.data)).join(', ')}. Qual deles?` : `Não achei ${parentTable.name.toLowerCase()} "${action.parent}".`, type: 'bot', meta: {} };
+        }
+        parentRecordId = parents[0].id;
+        parentLabel = `\nDentro de: ${parentTable.name} ${this.titleOf(parentTable, parents[0].data)}`;
+      }
+      return {
+        content: `${reply || 'Vou criar:'}\n${table.name}${parentLabel}\n${lines.join('\n')}\n\nConfirma?`,
+        type: 'bot',
+        meta: { pendingAction: { kind: 'ai-create', requestedById: user.id, entitySlug: table.slug, values, ...(parentRecordId ? { parentRecordId } : {}), label: table.name } },
+      };
+    }
+
+    // summarize / write: so com a permissao da empresa para a IA ler registros
+    const tenant = await this.prisma.tenant.findUnique({ where: { id: user.tenantId }, select: { settings: true } });
+    const readAllowed = ((tenant?.settings as { ai?: { readRecords?: boolean } } | null)?.ai?.readRecords) === true;
+    if (!readAllowed) {
+      return { content: 'Para eu ler o conteúdo dos registros (resumos e textos), a administração da empresa precisa ligar "Permitir que a IA leia registros" em Administração › Organização.', type: 'bot', meta: {} };
+    }
+    const found = action.record ? await this.findRecordsByText(user, table, action.record) : [];
+    if (found.length !== 1) {
+      return { content: found.length ? `Achei mais de um: ${found.map((r) => this.titleOf(table, r.data)).join(', ')}. Qual deles?` : `Não achei ${table.name.toLowerCase()} "${action.record ?? ''}".`, type: 'bot', meta: {} };
+    }
+    const record = found[0];
+    // So campos que a pessoa pode ver (findAll ja tirou os ocultos) e listas de dentro
+    const fieldsText = table.fields
+      .filter((f) => !['section-title', 'sub-entity', 'image', 'file', 'signature', 'json', 'hidden', 'password'].includes(f.type))
+      .map((f) => `${f.label}: ${displayValue(f, record.data?.[f.slug])}`)
+      .join('\n');
+    const childTexts: string[] = [];
+    for (const sub of table.fields.filter((f) => f.type === 'sub-entity' && f.subEntitySlug)) {
+      const child = tables.find((t) => t.slug === sub.subEntitySlug);
+      if (!child) continue;
+      const rows = (await this.dataService.findAll(child.slug, { parentRecordId: record.id, limit: 20, sortBy: 'createdAt', sortOrder: 'asc' } as never, user)) as unknown as { data?: Array<{ data: Record<string, unknown> }> };
+      const cols = child.fields.filter((f) => !['section-title', 'sub-entity', 'image', 'file', 'signature', 'json'].includes(f.type)).slice(0, 5);
+      if (rows.data?.length) childTexts.push(`${sub.label}:\n${rows.data.map((r) => `- ${cols.map((c) => `${c.label}: ${displayValue(c, r.data?.[c.slug])}`).join('; ')}`).join('\n')}`);
+    }
+    let text: string;
+    try {
+      const out = await this.ai!.propose({
+        kind: 'chat-text', system: CHAT_TEXT_SYSTEM, schema: CHAT_TEXT_SCHEMA, lastMessage: message, current: null, tables,
+        prompt: `PEDIDO: ${action.type === 'summarize' ? 'Resuma' : 'Escreva'} — ${action.instruction || message}\n\nREGISTRO (${table.name}):\n${fieldsText}${childTexts.length ? `\n\n${childTexts.join('\n\n')}` : ''}`,
+      });
+      text = String((out.output as { text?: string })?.text || '').trim();
+    } catch {
+      return { content: 'O assistente está fora do ar agora. Tente de novo em instantes.', type: 'bot', meta: {} };
+    }
+    // Transparencia (LGPD): fica registrado que a IA leu este registro, a pedido de quem
+    await this.auditService.log(user, {
+      action: 'export', resource: 'entity_data', resourceId: record.id,
+      metadata: { entitySlug: table.slug, source: 'ai', purpose: action.type, request: message.slice(0, 300) },
+    }).catch(() => undefined);
+    return { content: text || 'Não consegui escrever agora.', type: 'bot', meta: { entitySlug: table.slug, recordId: record.id } };
   }
 
   /** Executa a ação COMO O BOT (teto): update grava updatedById=bot + audit com requestedById. */

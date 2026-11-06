@@ -156,18 +156,20 @@ export class TenantService {
       else theme.brandColor = dto.brandColor.toLowerCase();
     }
     if (dto.darkMode !== undefined) theme.darkMode = dto.darkMode;
+    const ai = { ...((settings.ai ?? {}) as Record<string, unknown>) };
+    if (dto.aiReadRecords !== undefined) ai.readRecords = dto.aiReadRecords;
 
     const updated = await this.prisma.tenant.update({
       where: { id: tenantId },
       data: {
         ...(dto.name !== undefined && { name: dto.name.trim() }),
         ...(dto.logo !== undefined && { logo: dto.logo }),
-        settings: { ...settings, theme } as Prisma.InputJsonValue,
+        settings: { ...settings, theme, ai } as Prisma.InputJsonValue,
       },
     });
     return {
-      before: { name: tenant.name, logo: tenant.logo, theme: settings.theme ?? null },
-      after: { name: updated.name, logo: updated.logo, theme },
+      before: { name: tenant.name, logo: tenant.logo, theme: settings.theme ?? null, ai: settings.ai ?? null },
+      after: { name: updated.name, logo: updated.logo, theme, ai },
       tenant: updated,
     };
   }

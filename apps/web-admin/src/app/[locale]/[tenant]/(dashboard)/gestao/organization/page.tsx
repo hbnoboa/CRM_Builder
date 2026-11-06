@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
 import { useTenant } from '@/stores/tenant-context';
 import { GestaoPageHeader } from '@/components/gestao/gestao-ui';
 import api from '@/lib/api';
@@ -35,6 +36,7 @@ export default function GestaoOrganizationPage() {
   const [color, setColor] = useState(DEFAULT_COLOR);
   const [customColor, setCustomColor] = useState(false);
   const [theme, setTheme] = useState<ThemeKey>('system');
+  const [aiReadRecords, setAiReadRecords] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
 
@@ -47,6 +49,7 @@ export default function GestaoOrganizationPage() {
     setColor(saved?.brandColor || DEFAULT_COLOR);
     setCustomColor(!!saved?.brandColor);
     setTheme((saved?.darkMode as ThemeKey) || 'system');
+    setAiReadRecords(((tenant.settings as { ai?: { readRecords?: boolean } } | undefined)?.ai?.readRecords) === true);
   }, [tenant]);
 
   const uploadLogo = async (file: File) => {
@@ -75,6 +78,7 @@ export default function GestaoOrganizationPage() {
         logo,
         brandColor: customColor ? color.toLowerCase() : null,
         darkMode: theme,
+        aiReadRecords,
       });
       await refresh();
       toast.success(t('saved'));
@@ -229,6 +233,27 @@ export default function GestaoOrganizationPage() {
             <Label>{t('address.domain')}</Label>
             <Input value={tenant.domain || t('address.noDomain')} readOnly />
           </div>
+        </CardContent>
+      </Card>
+      <Card data-testid="organization-ai">
+        <CardHeader>
+          <CardTitle className="text-base">Inteligência artificial no chat</CardTitle>
+          <CardDescription>
+            O assistente do chat (@bot) conta, lista, cria e altera registros com as permissões de quem pede, sem ler o conteúdo deles.
+            Para resumir um registro ou escrever um texto a partir dele, a IA precisa ler aquele registro.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <label className="flex items-start justify-between gap-4">
+            <span className="space-y-1">
+              <span className="block text-sm font-medium">Permitir que a IA leia registros</span>
+              <span className="block text-xs text-muted-foreground">
+                Só o registro pedido, só quando alguém pede, e só os campos que essa pessoa pode ver. Cada leitura fica na Auditoria
+                (&quot;Exportou&quot;, com a origem &quot;IA&quot;). O conteúdo é enviado ao provedor de IA (Anthropic) para gerar a resposta.
+              </span>
+            </span>
+            <Switch checked={aiReadRecords} onCheckedChange={setAiReadRecords} data-testid="organization-ai-read" />
+          </label>
         </CardContent>
       </Card>
     </form>

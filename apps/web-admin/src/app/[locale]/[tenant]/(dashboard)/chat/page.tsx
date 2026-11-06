@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState, Fragment } from 'react';
-import { Hash, Send, MessageSquare, User as UserIcon, Loader2, Slash, FileText, Settings2, ArrowLeft, Pencil, Check, X, Search, ChevronDown, Plus, Trash2, Image as ImageIcon, Bot, ListChecks, FilePlus2, FileEdit, Download } from 'lucide-react';
+import { Hash, Send, MessageSquare, User as UserIcon, Loader2, Slash, FileText, Settings2, ArrowLeft, Pencil, Check, X, Search, ChevronDown, Plus, Trash2, Image as ImageIcon, Bot, ListChecks, FilePlus2, FileEdit, Download, Sparkles } from 'lucide-react';
 import { useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
 import api from '@/lib/api';
@@ -93,6 +93,9 @@ export default function ChatPage() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [commands, setCommands] = useState<ChatCommand[]>([]);
   const [draft, setDraft] = useState('');
+  // Botao IA: mensagens vao para o assistente (como "@bot ...")
+  const [aiMode, setAiMode] = useState(false);
+  const [botThinking, setBotThinking] = useState(false);
   const [opening, setOpening] = useState(false);
   const [runningCmd, setRunningCmd] = useState<{ cmd: ChatCommand; entity: Entity } | null>(null);
   const [quickCmd, setQuickCmd] = useState<{ cmd: ChatCommand; entity: EntityLite; parentEntity: EntityLite | null } | null>(null);
@@ -393,6 +396,15 @@ export default function ChatPage() {
     }
   }
 
+  async function askAssistant(text: string) {
+    if (!active) return;
+    setDraft('');
+    setBotThinking(true);
+    try { await api.post(`/chat/channels/${active.id}/bot`, { message: text }); await loadMessages(active.id); }
+    catch { setDraft(text.replace(/^@bot\s*/i, '')); }
+    finally { setBotThinking(false); }
+  }
+
   async function send(ev: React.FormEvent) {
     ev.preventDefault();
     const text = draft.trim();
@@ -403,11 +415,9 @@ export default function ChatPage() {
       const cmd = commands.find((c) => c.slug.toLowerCase() === slug);
       if (cmd) { openCommand(cmd); return; }
     }
-    // Bot: "@bot ..." → pergunta read-only (as_user), responde no canal.
-    if (text.toLowerCase().startsWith('@bot')) {
-      setDraft('');
-      try { await api.post(`/chat/channels/${active.id}/bot`, { message: text }); await loadMessages(active.id); }
-      catch { setDraft(text); }
+    // Assistente: "@bot ..." ou o botao IA ligado → responde com as permissoes de quem pergunta.
+    if (aiMode || text.toLowerCase().startsWith('@bot')) {
+      await askAssistant(text.toLowerCase().startsWith('@bot') ? text : `@bot ${text}`);
       return;
     }
     setDraft('');
@@ -415,7 +425,7 @@ export default function ChatPage() {
     catch { setDraft(text); }
   }
 
-  const slashMatches = draft.startsWith('/')
+  const slashMatches = !aiMode && draft.startsWith('/')
     ? commands.filter((c) => c.slug.toLowerCase().startsWith(draft.slice(1).toLowerCase()))
     : [];
 
@@ -664,7 +674,9 @@ export default function ChatPage() {
                 const prevDt = prev ? new Date(prev.createdAt) : null;
                 const showDate = !prevDt || !isSameDay(prevDt, dt);
                 const firstOfGroup = showDate || !prev || prev.senderId !== m.senderId || (dt.getTime() - (prevDt?.getTime() || 0)) > 5 * 60 * 1000;
-                const displayName = mine ? 'Você' : isBot ? 'Bot' : (m.senderName || 'Usuário');
+                const displayName = mine ? 'Você' : isBot ? 'Assistente' : (m.senderName || 'Usuário');
+                const pending = isBot ? (m.meta?.pendingAction as { done?: boolean; cancelled?: boolean; requestedById?: string } | undefined) : undefined;
+                const canAnswer = !!pending && !pending.done && pending.requestedById === user?.id;
                 const hue = hueFor(m.senderId || 'bot');
                 const entries = Object.entries(values);
                 const isImg = ([k, v]: [string, unknown]) => !!v && (fieldMeta(entitySlug, k).type === 'image' || looksLikeImage(v));
@@ -713,6 +725,7 @@ export default function ChatPage() {
                           </div>
                         ) : isQuery ? (
                           <div className="overflow-x-auto">
+                            {isBot && m.content && <p className="mb-1 text-sm">{m.content}</p>}
                             <div className="mb-1.5 flex items-center gap-1.5 text-[13px] font-medium text-primary">
                               <ListChecks className="h-3.5 w-3.5" /> {String(m.meta?.total ?? qRows.length)} resultado(s)
                             </div>
@@ -748,7 +761,20 @@ export default function ChatPage() {
                             );
                           })()
                         ) : (
-                          <div className="whitespace-pre-line">{m.content}</div>
+                          <div>
+                            <div className="whitespace-pre-line">{m.content}</div>
+                            {canAnswer && (
+                              <div className="mt-2 flex gap-2" data-testid="bot-confirm">
+                                <Button size="sm" className="h-8" onClick={() => void askAssistant('@bot sim')} disabled={botThinking}>
+                                  <Check className="mr-1 h-3.5 w-3.5" /> Confirmar
+                                </Button>
+                                <Button size="sm" variant="outline" className="h-8" onClick={() => void askAssistant('@bot não')} disabled={botThinking}>
+                                  <X className="mr-1 h-3.5 w-3.5" /> Cancelar
+                                </Button>
+                              </div>
+                            )}
+                            {pending?.done && <p className="mt-1 text-[11px] text-muted-foreground">{pending.cancelled ? 'Cancelado' : 'Confirmado'}</p>}
+                          </div>
                         )}
                         <div className={cn('mt-0.5 text-right text-[10px] leading-none', isText && mine ? 'text-primary-foreground/60' : 'text-muted-foreground')}>{hhmm(dt)}</div>
                       </div>
@@ -756,6 +782,11 @@ export default function ChatPage() {
                   </Fragment>
                 );
               })}
+                {botThinking && (
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground" data-testid="bot-thinking">
+                    <Loader2 className="h-4 w-4 animate-spin" /> Assistente pensando…
+                  </div>
+                )}
                 <div ref={endRef} />
               </div>
               {!atBottom && (
@@ -812,7 +843,27 @@ export default function ChatPage() {
                   </div>
                 )}
                 <form onSubmit={send} className="flex items-center gap-2 p-3">
-                  <Input value={draft} onChange={(e) => { setDraft(e.target.value); setSlashIndex(0); }} onKeyDown={handleComposerKey} placeholder="Escreva uma mensagem… ou /comando" className="flex-1" />
+                  <Button
+                    type="button"
+                    variant={aiMode ? 'default' : 'outline'}
+                    size="sm"
+                    className="h-9 shrink-0"
+                    onClick={() => setAiMode((v) => !v)}
+                    aria-pressed={aiMode}
+                    title="Perguntar ao assistente (IA)"
+                    data-testid="chat-ai-toggle"
+                  >
+                    <Sparkles className="mr-1 h-4 w-4" /> IA
+                  </Button>
+                  <Input
+                    value={draft}
+                    onChange={(e) => { setDraft(e.target.value); setSlashIndex(0); }}
+                    onKeyDown={handleComposerKey}
+                    placeholder={aiMode ? 'Pergunte ao assistente…' : 'Escreva uma mensagem… /comando ou @bot'}
+                    className="flex-1"
+                    disabled={botThinking}
+                    data-testid="chat-input"
+                  />
                   <Button type="submit" size="icon" disabled={!draft.trim()}><Send className="h-4 w-4" /></Button>
                 </form>
               </div>
