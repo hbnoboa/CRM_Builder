@@ -67,6 +67,7 @@ export default function GestaoHomePage() {
   return (
     <div className="space-y-6" data-testid="gestao-home">
       <GestaoPageHeader
+        help="screen.admin"
         title={t('title', { name: user?.name?.split(' ')[0] ?? '' })}
         subtitle={t('subtitle', { company: tenant?.name ?? '' })}
       />

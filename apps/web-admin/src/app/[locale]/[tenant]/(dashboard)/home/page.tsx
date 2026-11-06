@@ -14,6 +14,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { OptionBadge } from '@/components/ui/option-badge';
 import { EmptyState } from '@/components/ui/empty-state';
 import { OnboardingChecklist } from '@/components/subscription/subscription-widgets';
+import { HelpButton } from '@/components/help/help-button';
 import { api } from '@/lib/api';
 
 interface HomeTable {
@@ -98,7 +99,7 @@ export default function HomePage() {
     <div className="space-y-8">
       <div className="flex flex-col gap-1">
         <p className="text-sm text-muted-foreground first-letter:uppercase">{today}</p>
-        <h1 className="text-2xl font-semibold tracking-tight md:text-3xl">{t('greeting', { name: firstName })}</h1>
+        <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-tight md:text-3xl">{t('greeting', { name: firstName })}<HelpButton topic="screen.home" /></h1>
       </div>
 
       <OnboardingChecklist />

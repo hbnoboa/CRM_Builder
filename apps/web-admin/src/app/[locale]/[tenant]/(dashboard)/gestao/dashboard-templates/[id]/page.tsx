@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useCallback, useMemo, useEffect, useRef, type ComponentProps } from 'react';
+import { smartWidgetConfig } from '@/lib/widget-defaults';
 import { useParams } from 'next/navigation';
 import { Responsive, WidthProvider } from 'react-grid-layout/legacy';
 import { RequireRole } from '@/components/auth/require-role';
@@ -33,6 +34,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogFooter,
+  DialogDescription,
 } from '@/components/ui/dialog';
 import {
   ArrowLeft,
@@ -44,6 +46,7 @@ import {
   GripVertical,
   Database,
   ChevronDown,
+  CircleHelp,
 } from 'lucide-react';
 import { Link, useRouter } from '@/i18n/tenant-navigation';
 import { toast } from 'sonner';
@@ -2665,6 +2668,8 @@ function TemplateBuilderContent() {
     return (overrideEntity?.fields || []) as EntityField[];
   }, [selectedWidgetId, widgets, entityFields, allEntityList]);
 
+  const [previewType, setPreviewType] = useState<WidgetType | null>(null);
+
   const handleAddWidget = useCallback((type: WidgetType) => {
     const def = WIDGET_REGISTRY[type];
     const id = `widget-${Date.now()}`;
@@ -2690,17 +2695,8 @@ function TemplateBuilderContent() {
     ]);
 
     // Auto-populate config based on widget type
-    let defaultConfig: Record<string, unknown> = {};
-    if (type === 'data-table' && entityFields.length > 0) {
-      // Auto-populate displayFields with entity fields (limit to first 15)
-      defaultConfig = {
-        displayFields: entityFields.slice(0, 15).map(f => f.name),
-        showSearch: true,
-        showFilters: true,
-        showExport: true,
-        pageSize: 25,
-      };
-    }
+    // Ja nasce mostrando dados: agrupa pela situacao/categoria, conta, usa a data da tabela...
+    const defaultConfig: Record<string, unknown> = smartWidgetConfig(type, entityFields);
 
     setWidgets((prev) => ({
       ...prev,
@@ -2886,9 +2882,9 @@ function TemplateBuilderContent() {
                         const def = WIDGET_REGISTRY[type];
                         const Icon = def.icon;
                         return (
+                          <div key={type} className="group relative">
                           <button
-                            key={type}
-                            className="group flex w-full items-start gap-2.5 rounded-md px-2 py-1.5 text-left transition-colors hover:bg-accent"
+                            className="flex w-full items-start gap-2.5 rounded-md py-1.5 pl-2 pr-8 text-left transition-colors hover:bg-accent"
                             onClick={() => handleAddWidget(type)}
                             title={def.description}
                             data-testid={`palette-${type}`}
@@ -2901,6 +2897,17 @@ function TemplateBuilderContent() {
                               <span className="block text-[11px] leading-snug text-muted-foreground">{def.description}</span>
                             </span>
                           </button>
+                          <button
+                            type="button"
+                            onClick={() => setPreviewType(type)}
+                            className="absolute right-1 top-1.5 flex h-6 w-6 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-primary"
+                            aria-label={`Ver como fica: ${def.label}`}
+                            title="Ver como fica com os seus dados"
+                            data-testid={`palette-help-${type}`}
+                          >
+                            <CircleHelp className="h-4 w-4" />
+                          </button>
+                          </div>
                         );
                       })}
                     </div>
@@ -3224,6 +3231,15 @@ function TemplateBuilderContent() {
           </DialogContent>
         </Dialog>
       </div>
+      <WidgetPreviewDialog
+        type={previewType}
+        onClose={() => setPreviewType(null)}
+        onAdd={(t) => { handleAddWidget(t); setPreviewType(null); }}
+        entitySlug={entitySlug}
+        entityFields={entityFields}
+        allEntities={allEntityList}
+        entityName={allEntityList.find((e) => e.slug === entitySlug)?.name}
+      />
     </DashboardFilterProvider>
   );
 }
@@ -3235,5 +3251,50 @@ export default function DashboardTemplateBuilderPage() {
         <TemplateBuilderContent />
       </DesktopOnlyEditor>
     </RequireRole>
+  );
+}
+
+/** "?" da paleta: o bloco de verdade, com a configuracao inicial e os dados da tabela do painel. */
+function WidgetPreviewDialog({
+  type, onClose, onAdd, entitySlug, entityFields, allEntities, entityName,
+}: {
+  type: WidgetType | null;
+  onClose: () => void;
+  onAdd: (type: WidgetType) => void;
+  entitySlug: string;
+  entityFields: EntityField[];
+  allEntities: EntityLike[];
+  entityName?: string;
+}) {
+  const def = type ? WIDGET_REGISTRY[type] : null;
+  return (
+    <Dialog open={!!type} onOpenChange={(v) => { if (!v) onClose(); }}>
+      <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto" data-testid="widget-preview">
+        {def && type && (
+          <>
+            <DialogTitle className="flex items-center gap-2 text-lg">
+              <span className="flex h-8 w-8 items-center justify-center rounded-md bg-nav-active text-nav-active-foreground"><def.icon className="h-4 w-4" /></span>
+              {def.label}
+            </DialogTitle>
+            <DialogDescription>{def.description}</DialogDescription>
+            {entitySlug ? (
+              <>
+                <p className="text-sm font-semibold">Assim fica com os dados de {entityName ?? 'sua tabela'}</p>
+                <div className="h-80 overflow-hidden rounded-lg border bg-muted/30 p-2" data-testid="widget-preview-live">
+                  {renderLiveWidget({ type, title: def.label, config: smartWidgetConfig(type, entityFields) } as WidgetConfig, entitySlug, entityFields, allEntities)}
+                </div>
+                <p className="text-xs text-muted-foreground">Depois de adicionar, dá para mudar título, campos e cores no painel da direita.</p>
+              </>
+            ) : (
+              <p className="rounded-lg bg-muted/60 p-3 text-sm">Escolha no alto de qual tabela vêm os dados para ver este bloco com as suas informações.</p>
+            )}
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={onClose}>Voltar</Button>
+              <Button onClick={() => onAdd(type)} data-testid="widget-preview-add">Adicionar ao painel</Button>
+            </div>
+          </>
+        )}
+      </DialogContent>
+    </Dialog>
   );
 }

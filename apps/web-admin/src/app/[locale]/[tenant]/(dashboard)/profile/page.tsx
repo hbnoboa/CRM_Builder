@@ -15,6 +15,7 @@ import React, { useState } from 'react';
 import { Link } from '@/i18n/tenant-navigation';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { ArrowLeft } from 'lucide-react';
+import { HelpButton } from '@/components/help/help-button';
 import { toast } from 'sonner';
 
 const createProfileSchema = (t: (key: string) => string) => z.object({
@@ -94,7 +95,7 @@ export default function ProfilePage() {
         ) : (
           <Card>
             <CardHeader>
-              <CardTitle data-testid="profile-heading">{t('title')}</CardTitle>
+              <CardTitle className="flex items-center gap-2"><span data-testid="profile-heading">{t('title')}</span><HelpButton topic="screen.profile" /></CardTitle>
             </CardHeader>
             <CardContent>
               <form className="space-y-4" onSubmit={handleSubmit(onSubmit)}>

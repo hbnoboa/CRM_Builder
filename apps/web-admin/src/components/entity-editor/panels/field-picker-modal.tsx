@@ -1,10 +1,11 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { Search, Sparkles } from 'lucide-react';
+import { CircleHelp, Search, Sparkles } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
+import { FieldDemoDialog } from './field-demo-dialog';
 import { FIELD_GROUPS, FIELD_KINDS, POPULAR_FIELD_TYPES, fieldKind, type FieldKind } from '@/lib/field-catalog';
 
 interface FieldPickerModalProps {
@@ -15,30 +16,44 @@ interface FieldPickerModalProps {
 
 const normalize = (s: string) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
 
-function KindCard({ kind, onPick }: { kind: FieldKind; onPick: (k: FieldKind) => void }) {
+function KindCard({ kind, onPick, onHelp }: { kind: FieldKind; onPick: (k: FieldKind) => void; onHelp: (k: FieldKind) => void }) {
   const Icon = kind.icon;
   return (
-    <button
-      type="button"
-      onClick={() => onPick(kind)}
-      data-testid={`field-kind-${kind.type}`}
-      className="group flex items-start gap-3 rounded-lg border bg-card p-3 text-left transition-colors hover:border-primary/50 hover:bg-nav-active/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-    >
-      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-nav-active text-nav-active-foreground">
-        <Icon className="h-4 w-4" />
-      </span>
-      <span className="min-w-0">
-        <span className="block text-sm font-medium">{kind.label}</span>
-        <span className="block text-xs text-muted-foreground">{kind.description}</span>
-        <span className="mt-1 block truncate text-[11px] text-muted-foreground/80">Ex.: {kind.example}</span>
-      </span>
-    </button>
+    <div className="group relative">
+      <button
+        type="button"
+        onClick={() => onPick(kind)}
+        data-testid={`field-kind-${kind.type}`}
+        className="flex w-full items-start gap-3 rounded-lg border bg-card p-3 pr-9 text-left transition-colors hover:border-primary/50 hover:bg-nav-active/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      >
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-nav-active text-nav-active-foreground">
+          <Icon className="h-4 w-4" />
+        </span>
+        <span className="min-w-0">
+          <span className="block text-sm font-medium">{kind.label}</span>
+          <span className="block text-xs text-muted-foreground">{kind.description}</span>
+          <span className="mt-1 block truncate text-[11px] text-muted-foreground/80">Ex.: {kind.example}</span>
+        </span>
+      </button>
+      <button
+        type="button"
+        onClick={() => onHelp(kind)}
+        className="absolute right-2 top-2 flex h-6 w-6 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-primary"
+        aria-label={`Ver como funciona: ${kind.label}`}
+        title="Ver como funciona"
+        data-testid={`field-kind-help-${kind.type}`}
+      >
+        <CircleHelp className="h-4 w-4" />
+      </button>
+    </div>
   );
 }
 
 /** "Que tipo de informação você quer guardar?" — tipos em linguagem simples, com exemplo. */
 export function FieldPickerModal({ open, onClose, onSelect }: FieldPickerModalProps) {
   const [search, setSearch] = useState('');
+  const [demoType, setDemoType] = useState<string | null>(null);
+  const help = (k: FieldKind) => setDemoType(k.type);
 
   const close = () => {
     setSearch('');
@@ -64,7 +79,10 @@ export function FieldPickerModal({ open, onClose, onSelect }: FieldPickerModalPr
       <DialogContent className="flex h-[85vh] max-w-4xl flex-col gap-0 p-0" data-testid="field-picker">
         <div className="border-b px-6 pb-4 pt-5">
           <DialogTitle className="text-lg">Que informação você quer guardar?</DialogTitle>
-          <DialogDescription className="mt-1">Escolha o tipo. Depois você dá o nome do campo (ex.: &quot;Placa&quot;, &quot;Valor do serviço&quot;).</DialogDescription>
+          <DialogDescription className="mt-1">
+            Escolha o tipo. Depois você dá o nome do campo (ex.: &quot;Placa&quot;, &quot;Valor do serviço&quot;).
+            Na dúvida, clique no <CircleHelp className="inline h-3.5 w-3.5 align-text-bottom" /> para testar o campo.
+          </DialogDescription>
           <div className="relative mt-4">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
@@ -83,7 +101,7 @@ export function FieldPickerModal({ open, onClose, onSelect }: FieldPickerModalPr
               <p className="py-12 text-center text-sm text-muted-foreground">Nenhum tipo encontrado para &quot;{search}&quot;.</p>
             ) : (
               <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                {results.map((k) => <KindCard key={k.type} kind={k} onPick={pick} />)}
+                {results.map((k) => <KindCard key={k.type} kind={k} onPick={pick} onHelp={help} />)}
               </div>
             )
           ) : (
@@ -93,7 +111,7 @@ export function FieldPickerModal({ open, onClose, onSelect }: FieldPickerModalPr
                   <Sparkles className="h-4 w-4 text-primary" /> Mais usados
                 </h3>
                 <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                  {POPULAR_FIELD_TYPES.map((type) => <KindCard key={type} kind={fieldKind(type)} onPick={pick} />)}
+                  {POPULAR_FIELD_TYPES.map((type) => <KindCard key={type} kind={fieldKind(type)} onPick={pick} onHelp={help} />)}
                 </div>
               </section>
               {FIELD_GROUPS.map((group) => {
@@ -105,7 +123,7 @@ export function FieldPickerModal({ open, onClose, onSelect }: FieldPickerModalPr
                       {group.label}
                     </h3>
                     <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                      {kinds.map((k) => <KindCard key={k.type} kind={k} onPick={pick} />)}
+                      {kinds.map((k) => <KindCard key={k.type} kind={k} onPick={pick} onHelp={help} />)}
                     </div>
                   </section>
                 );
@@ -114,6 +132,12 @@ export function FieldPickerModal({ open, onClose, onSelect }: FieldPickerModalPr
           )}
         </div>
       </DialogContent>
+      <FieldDemoDialog
+        type={demoType}
+        open={!!demoType}
+        onOpenChange={(v) => { if (!v) setDemoType(null); }}
+        onUse={(type) => pick(fieldKind(type))}
+      />
     </Dialog>
   );
 }

@@ -30,6 +30,7 @@ import { ElementPropertiesPanel } from './element-properties-panel';
 import { TemplateInfoPanel } from './template-info-panel';
 import { ComputedFieldsDialog } from './computed-fields-dialog';
 import { BindingLabelsProvider } from './element-renderers';
+import type { Entity } from '@/types';
 
 // ─── System fields available in all templates ────────────
 
@@ -411,6 +412,8 @@ export function PdfVisualEditor({ template }: PdfVisualEditorProps) {
         open={elementPickerOpen}
         onClose={() => setElementPickerOpen(false)}
         onSelect={handleAddElement}
+        templateId={template.id}
+        sourceEntity={template.sourceEntity as Entity | undefined}
       />
 
       <ComputedFieldsDialog

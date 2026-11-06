@@ -84,3 +84,53 @@ export function buildStarterPdfBody(entity: Entity, allEntities: Entity[]): { ti
 
   return { title: titleSlug ? `${entity.name} {{${titleSlug}}}` : entity.name, body };
 }
+
+/**
+ * Um elemento de PDF ja ligado aos campos da tabela (no lugar de "{{campo}}" e
+ * "Coluna 1"). Usado ao adicionar e na previa do "?". null = a tabela nao tem
+ * o que esse elemento precisa (ex.: lista de itens para a Tabela).
+ */
+export function smartPdfElement(type: string, entity: Entity | undefined, allEntities: Entity[]): PdfElement | null {
+  const id = `el_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  const fields = withoutSystemFields((entity?.fields || []) as EntityField[]);
+  const simple = fields.filter((f) => SIMPLE_TYPES.has(f.type));
+  switch (type) {
+    case 'text': {
+      const long = fields.find((f) => LONG_TEXT.has(f.type)) ?? simple[0];
+      return { id, type: 'text', content: long ? `${label(long)}: {{${long.slug}}}` : 'Texto do documento', fontSize: 10, align: 'left' } as PdfElement;
+    }
+    case 'field-group':
+      if (simple.length === 0) return null;
+      return {
+        id, type: 'field-group', layout: 'grid', columns: 2, labelFontSize: 9, valueFontSize: 10, lineSpacing: 18,
+        fields: simple.slice(0, 6).map((f) => ({ label: `${label(f)}:`, binding: `{{${f.slug}}}`, labelBold: true, format: FORMAT_BY_TYPE[f.type] })),
+      } as PdfElement;
+    case 'table': {
+      const sub = fields.find((f) => f.type === 'sub-entity');
+      const child = sub && allEntities.find((e) => e.slug === sub.subEntitySlug || e.id === sub.subEntityId);
+      const cols = withoutSystemFields((child?.fields || []) as EntityField[]).filter((cf) => SIMPLE_TYPES.has(cf.type)).slice(0, 5);
+      if (!sub || cols.length === 0) return null;
+      return {
+        id, type: 'table', title: label(sub), dataSource: sub.slug, showHeader: true, emptyMessage: 'Nenhum item',
+        headerStyle: { bold: true, fontSize: 8 }, cellStyle: { fontSize: 8 },
+        columns: cols.map((cf) => ({ field: cf.slug, header: label(cf), align: ['currency', 'number', 'percentage'].includes(cf.type) ? 'right' : 'left', format: FORMAT_BY_TYPE[cf.type] })),
+      } as PdfElement;
+    }
+    case 'image-grid': {
+      const pics = fields.filter((f) => PICTURES.has(f.type));
+      if (pics.length === 0) return null;
+      return {
+        id, type: 'image-grid', columns: 2, imageWidth: 180, imageHeight: 120, showCaptions: true, dataSource: '_sem_filhos',
+        imageFields: [pics[0].slug], parentImageFields: pics.map((f) => f.slug), captionFields: pics.map((f) => label(f)), captionFontSize: 7,
+      } as PdfElement;
+    }
+    case 'statistics': {
+      const group = fields.find((f) => ['select', 'radio-group'].includes(f.type));
+      if (!group) return null;
+      return { id, type: 'statistics', title: `Por ${label(group).toLowerCase()}`, groupBy: [group.slug], metrics: [{ field: '_count', aggregation: 'count', label: 'Total' }] } as PdfElement;
+    }
+    case 'divider': return { id, type: 'divider', color: '#cccccc', thickness: 1 } as PdfElement;
+    case 'spacer': return { id, type: 'spacer', height: 20 } as PdfElement;
+    default: return null;
+  }
+}

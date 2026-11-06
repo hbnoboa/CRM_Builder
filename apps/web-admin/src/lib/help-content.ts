@@ -145,4 +145,50 @@ export const HELP: Record<string, HelpTopic> = {
     title: 'Dados e privacidade',
     intro: 'Exportar os dados da empresa, atender pedidos de clientes sobre dados pessoais (LGPD) e encerrar a conta.',
   },
+
+  // ── Telas do dia a dia ───────────────────────────────────────────────
+  'screen.home': {
+    title: 'Início',
+    intro: 'Sua tela de trabalho: o que lançar agora, suas pendências com prazo, os registros que você mexeu por último e as tabelas que você usa.',
+    steps: ['Use "Lançar agora" para criar um registro em um clique.', 'Em "Minhas pendências" veja o que está atrasado ou vence hoje.', 'Clique numa tabela para ver todos os registros dela.'],
+    video: 'tela-inicio',
+  },
+  'screen.records': {
+    title: 'Registros',
+    intro: 'A lista de tudo que foi lançado nesta tabela. Daqui você cria, abre, procura, filtra e exporta.',
+    steps: [
+      'Clique em "Criar" para lançar um novo.',
+      'Clique na primeira coluna (o nome ou número) para abrir e editar.',
+      'Clique em outro valor da linha para filtrar a lista por ele; "Limpar" tira os filtros.',
+      'Use a busca, "Filtrar", "Colunas" e "Exportar" no alto da lista.',
+    ],
+    video: 'tela-registros',
+  },
+  'screen.dashboard': {
+    title: 'Painel',
+    intro: 'Números e gráficos da operação, atualizados sozinhos. Clique num pedaço de gráfico para filtrar o painel inteiro.',
+    steps: ['Use as abas no alto para trocar de visão.', 'Clique numa barra ou fatia para filtrar; clique de novo para tirar.'],
+  },
+  'screen.trash': {
+    title: 'Lixeira',
+    intro: 'Os registros excluídos ficam aqui por um tempo. Dá para restaurar se foi engano.',
+    steps: ['Encontre o registro e clique em Restaurar.', 'Depois do prazo, ele é apagado de vez.'],
+  },
+  'screen.settings': {
+    title: 'Configurações',
+    intro: 'Suas preferências: idioma, tema claro ou escuro, notificações e segurança da sua conta (senha e verificação em duas etapas).',
+  },
+  'screen.support': {
+    title: 'Suporte',
+    intro: 'Fale com a equipe do CRM Builder: abra um chamado com a sua dúvida ou problema e acompanhe a resposta por aqui.',
+  },
+  'screen.profile': {
+    title: 'Perfil',
+    intro: 'Seus dados: nome, foto e contato. Para trocar a senha, use Configurações › Segurança.',
+  },
+  'screen.admin': {
+    title: 'Administração',
+    intro: 'Onde você configura a empresa: equipe e cargos, tabelas, documentos (PDF), painéis, integrações e segurança. A equipe usa o que você monta aqui.',
+    steps: ['Comece por Tabelas: o que a empresa vai registrar.', 'Depois Cargos e Usuários: quem vê e faz o quê.', 'Por fim Painéis e Modelos de PDF.'],
+  },
 };
