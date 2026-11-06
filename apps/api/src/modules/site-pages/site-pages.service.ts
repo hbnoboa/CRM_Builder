@@ -12,7 +12,7 @@ import { PdfGeneratorService } from '../pdf/pdf-generator.service';
 import { loadTenantSchema, type SchemaTable } from '../ai-builder/tenant-schema';
 import { slugify } from '../ai-builder/ai-proposal-normalizer';
 import {
-  FORM_FIELD_TYPES, TRACK_FIELD_TYPES, normalizeBlocks, publicField, requiredFields,
+  FORM_FIELD_TYPES, TRACK_FIELD_TYPES, normalizeBlocks, publicField, requiredFields, suggestMatchField,
   type FormBlock, type NormalizeContext, type RawField, type SiteBlock, type TrackingBlock,
 } from './site-blocks';
 
@@ -118,11 +118,28 @@ export class SitePagesService {
     const raw = ctx.rawFieldsBySlug.get(table.slug) || [];
     if (template === 'form') {
       const required = requiredFields(raw, table.statusField).map((f) => f.slug);
-      const extra = table.fields.filter((f) => FORM_FIELD_TYPES.has(f.type) && f.slug !== table.statusField).map((f) => f.slug);
+      // Sugestao: o que o cliente sabe responder. Fica de fora o que e da empresa
+      // (situacao, prazo, responsavel, valores); fotos e documentos vem logo depois.
+      const internal = new Set([table.statusField, table.deadlineField, table.assigneeField].filter(Boolean) as string[]);
+      const candidates = table.fields.filter((f) => FORM_FIELD_TYPES.has(f.type) && !internal.has(f.slug) && !['currency', 'percentage'].includes(f.type));
+      const extra = [
+        ...candidates.filter((f) => f.type === 'image' || f.type === 'file'),
+        ...candidates.filter((f) => f.type !== 'image' && f.type !== 'file'),
+      ].map((f) => f.slug);
+      const top = table.parentSlug ? ctx.tables.find((t) => t.slug === table.parentSlug) : undefined;
+      let parent: Record<string, unknown> | undefined;
+      if (top) {
+        const topRequired = requiredFields(ctx.rawFieldsBySlug.get(top.slug) || [], top.statusField).map((f) => f.slug);
+        const topSimple = top.fields.filter((f) => FORM_FIELD_TYPES.has(f.type) && !['image', 'file'].includes(f.type) && f.slug !== top.statusField).map((f) => f.slug);
+        parent = { entitySlug: top.slug, fields: [...new Set([...topRequired, ...topSimple])].slice(0, Math.max(6, topRequired.length)), matchField: suggestMatchField(top) };
+      }
       return [
         { type: 'heading', text: title },
         { type: 'text', text: 'Preencha os dados abaixo. Os campos com * são obrigatórios.' },
-        { type: 'form', entitySlug: table.slug, fields: [...new Set([...required, ...extra])].slice(0, Math.max(10, required.length)), submitLabel: 'Enviar' },
+        {
+          type: 'form', entitySlug: table.slug, fields: [...new Set([...required, ...extra])].slice(0, Math.max(10, required.length)), submitLabel: 'Enviar',
+          ...(parent ? { parent } : {}),
+        },
       ];
     }
     const simple = table.fields.filter((f) => TRACK_FIELD_TYPES.has(f.type) && !['image', 'file', 'textarea'].includes(f.type));
@@ -256,7 +273,15 @@ export class SitePagesService {
     const blocks = (page.blocks as SiteBlock[]).map((b) => {
       if (b.type === 'form') {
         const raw = fieldsOf(b.entitySlug);
-        return { ...b, fieldDefs: b.fields.map((s) => raw.find((f) => f.slug === s)).filter(Boolean).map((f) => publicField(f!)) };
+        const defs = (list: string[], from: RawField[]) => list.map((s) => from.find((f) => f.slug === s)).filter(Boolean).map((f) => publicField(f!));
+        return {
+          ...b,
+          entityName: entityBySlug.get(b.entitySlug)?.name ?? '',
+          fieldDefs: defs(b.fields, raw),
+          ...(b.parent
+            ? { parent: { ...b.parent, name: entityBySlug.get(b.parent.entitySlug)?.name ?? '', fieldDefs: defs(b.parent.fields, fieldsOf(b.parent.entitySlug)) } }
+            : {}),
+        };
       }
       if (b.type === 'tracking') {
         const raw = fieldsOf(b.entitySlug);
@@ -453,7 +478,7 @@ export class SitePagesService {
     return out;
   }
 
-  async submitForm(tenantSlug: string, pageSlug: string, blockId: string, body: { data?: Record<string, unknown>; website?: string }) {
+  async submitForm(tenantSlug: string, pageSlug: string, blockId: string, body: { data?: Record<string, unknown>; parentData?: Record<string, unknown>; website?: string }) {
     const { tenant, page, blocks } = await this.publicPage(tenantSlug, pageSlug);
     const block = blocks.find((b): b is FormBlock => b.type === 'form' && b.id === blockId);
     if (!block) throw new NotFoundException('Formulário não encontrado');
@@ -473,7 +498,21 @@ export class SitePagesService {
       data[status.slug] = typeof first === 'string' ? first : first.value;
     }
 
-    const record = await this.dataService.createFromSite(entity, data, `Página "${page.title}"`);
+    const actor = `Página "${page.title}"`;
+    let record;
+    if (block.parent) {
+      const parentEntity = await this.prisma.entity.findFirst({ where: { tenantId: tenant.id, slug: block.parent.entitySlug } });
+      if (!parentEntity) throw new NotFoundException('Formulário não encontrado');
+      const parentRaw = (Array.isArray(parentEntity.fields) ? parentEntity.fields : []) as unknown as RawField[];
+      const parentData = this.sanitize(parentRaw, block.parent.fields, body.parentData || {}, tenant.id);
+      // Confere o registro de dentro antes de criar o de cima (nada fica pela metade)
+      await this.dataService.validateFromSite(entity, data);
+      let parentId = block.parent.matchField ? await this.findParentByMatch(parentEntity, block.parent.matchField, parentData[block.parent.matchField]) : null;
+      if (!parentId) parentId = (await this.dataService.createFromSite(parentEntity, parentData, actor)).id;
+      record = await this.dataService.createFromSite(entity, data, actor, parentId);
+    } else {
+      record = await this.dataService.createFromSite(entity, data, actor);
+    }
     let trackingUrl: string | undefined;
     if (block.showTrackingLink !== false) {
       const trackingPage = await this.trackingPageFor(tenant.id, entity.slug);
@@ -485,12 +524,29 @@ export class SitePagesService {
     return { ok: true, message: block.successMessage, ...(trackingUrl ? { trackingUrl } : {}) };
   }
 
+  /**
+   * Registro de cima que ja existe com o mesmo valor no campo de identificacao
+   * (CPF, e-mail...), comparando so letras, numeros e @ (sem pontuacao nem maiusculas). Nao altera nada nele.
+   * Busca direta (sem usuario logado): tenant + tabela + campo escolhido pela pagina.
+   */
+  private async findParentByMatch(parentEntity: Entity, matchField: string, value: unknown): Promise<string | null> {
+    const norm = String(value ?? '').toLowerCase().replace(/[^a-z0-9@]/g, '');
+    if (norm.length < 3) return null;
+    const rows = await this.prisma.$queryRaw<Array<{ id: string }>>`
+      SELECT id FROM "EntityData"
+      WHERE "tenantId" = ${parentEntity.tenantId} AND "entityId" = ${parentEntity.id} AND "deletedAt" IS NULL
+        AND regexp_replace(lower(data->>${matchField}), '[^a-z0-9@]', '', 'g') = ${norm}
+      ORDER BY "createdAt" ASC LIMIT 1`;
+    return rows[0]?.id ?? null;
+  }
+
   /** Arquivo enviado no formulario (antes de enviar): so para campos de foto/arquivo do bloco. */
-  async uploadForForm(tenantSlug: string, pageSlug: string, blockId: string, fieldSlug: string, file: Express.Multer.File) {
+  async uploadForForm(tenantSlug: string, pageSlug: string, blockId: string, fieldSlug: string, file: Express.Multer.File, target?: string) {
     const { tenant, blocks } = await this.publicPage(tenantSlug, pageSlug);
     const block = blocks.find((b): b is FormBlock => b.type === 'form' && b.id === blockId);
-    if (!block || !block.fields.includes(fieldSlug)) throw new NotFoundException('Campo não encontrado');
-    const entity = await this.prisma.entity.findFirst({ where: { tenantId: tenant.id, slug: block.entitySlug } });
+    const scope = target === 'parent' ? block?.parent : block;
+    if (!scope || !scope.fields.includes(fieldSlug)) throw new NotFoundException('Campo não encontrado');
+    const entity = await this.prisma.entity.findFirst({ where: { tenantId: tenant.id, slug: scope.entitySlug } });
     const field = ((entity?.fields || []) as unknown as RawField[]).find((f) => f.slug === fieldSlug);
     if (!field || !['image', 'file'].includes(field.type)) throw new BadRequestException('Este campo não recebe arquivos');
     const saved = await this.uploadService.uploadFile(file, tenant.id, 'site');

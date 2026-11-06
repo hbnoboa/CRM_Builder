@@ -1336,19 +1336,15 @@ export class DataService {
    * notificacao, auditoria, automacoes); quem chama ja limitou os campos ao que a
    * pagina libera. O autor aparece como o nome da pagina.
    */
-  async createFromSite(entity: Entity, data: Record<string, unknown>, actorName: string): Promise<EntityData> {
+  async createFromSite(entity: Entity, data: Record<string, unknown>, actorName: string, parentRecordId?: string): Promise<EntityData> {
     const tenantId = entity.tenantId;
     const actor = { id: null, tenantId, name: actorName, email: '' } as unknown as CurrentUser;
-    const fields = (entity.fields as unknown) as EntityField[];
     const settings = entity.settings as EntitySettings;
-    const withComputed = await this.computedFieldsService.processComputedFields(data, fields, entity.id, tenantId, undefined, undefined, settings);
-    const errors = this.entityService.validateData(fields, withComputed);
-    if (errors.length > 0) throw new BadRequestException(errors);
-    await this.validateUniqueFields(fields, withComputed, entity.id, tenantId);
+    const withComputed = await this.validateFromSite(entity, data);
     await this.tenantPlan.assertCanAddRecords(tenantId);
 
     const record = await this.prisma.entityData.create({
-      data: { tenantId, entityId: entity.id, data: withComputed as Prisma.InputJsonValue, parentRecordId: null },
+      data: { tenantId, entityId: entity.id, data: withComputed as Prisma.InputJsonValue, parentRecordId: parentRecordId ?? null },
     });
     this.materializer.materialize(entity as any, record).catch((err) => this.logger.error(`Erro ao materializar computed fields: ${err.message}`));
 
@@ -1364,6 +1360,18 @@ export class DataService {
     this.notificationService.emitDataChanged(tenantId, { operation: 'created', entitySlug: entity.slug, recordId: record.id, userId: undefined as unknown as string });
     this.triggerAutomations('created', tenantId, { id: entity.id, slug: entity.slug, name: entity.name }, { id: record.id, ...withComputed }, actor);
     return record;
+  }
+
+  /** Confere um registro de pagina publica sem gravar (calculados, obrigatorios, unicos). */
+  async validateFromSite(entity: Entity, data: Record<string, unknown>): Promise<Record<string, unknown>> {
+    const fields = (entity.fields as unknown) as EntityField[];
+    const withComputed = await this.computedFieldsService.processComputedFields(
+      data, fields, entity.id, entity.tenantId, undefined, undefined, entity.settings as EntitySettings,
+    );
+    const errors = this.entityService.validateData(fields, withComputed);
+    if (errors.length > 0) throw new BadRequestException(errors);
+    await this.validateUniqueFields(fields, withComputed, entity.id, entity.tenantId);
+    return withComputed as Record<string, unknown>;
   }
 
   /** Alteracao vinda do link de acompanhamento (ex.: cliente enviou um documento). */

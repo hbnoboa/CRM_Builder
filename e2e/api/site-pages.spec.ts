@@ -193,3 +193,73 @@ test.describe.serial('paginas para clientes', () => {
     expect(link.url).toBe(trackingPath);
   });
 });
+
+// Formulario de tabela "de dentro" (sinistro dentro do segurado): o cliente preenche
+// os dois; o segurado e reaproveitado pelo CPF e nada fica pela metade.
+test.describe.serial('formulario que cria o registro de cima junto', () => {
+  let tenant: Tenant;
+  let pageSlug = '';
+  let blockId = '';
+
+  test.beforeAll(async ({ request }) => {
+    tenant = await createTenant(request, await ownerStaff(request));
+    const avisos = await (await call(request, 'post', '/entities', tenant.owner, {
+      expected: [200, 201],
+      data: {
+        name: 'Aviso', slug: 'avisos', settings: { titleField: 'relato' },
+        fields: [{ slug: 'relato', name: 'relato', label: 'Relato', type: 'textarea', required: true }, { slug: 'foto', name: 'foto', label: 'Foto', type: 'image' }],
+      },
+    })).json();
+    await call(request, 'post', '/entities', tenant.owner, {
+      expected: [200, 201],
+      data: {
+        name: 'Segurado', slug: 'segurados', settings: { titleField: 'nome' },
+        fields: [
+          { slug: 'nome', name: 'nome', label: 'Nome', type: 'text', required: true },
+          { slug: 'documento', name: 'documento', label: 'CPF / CNPJ', type: 'text' },
+          { slug: 'apolice', name: 'apolice', label: 'Apólice', type: 'text' },
+          { slug: 'avisos', name: 'avisos', label: 'Avisos', type: 'sub-entity', subEntitySlug: 'avisos', subEntityId: avisos.id },
+        ],
+      },
+    });
+  });
+
+  test('pagina nova ja vem com os dados de cima e o CPF para reaproveitar', async ({ request }) => {
+    const page = await (await call(request, 'post', '/site-pages', tenant.owner, {
+      expected: [200, 201], data: { title: 'Avise seu sinistro', template: 'form', entitySlug: 'avisos' },
+    })).json();
+    const form = page.blocks.find((b: { type: string }) => b.type === 'form');
+    expect(form.parent).toMatchObject({ entitySlug: 'segurados', matchField: 'documento' });
+    expect(form.parent.fields).toEqual(expect.arrayContaining(['nome', 'documento']));
+    // Obrigatorio de cima nao pode sair
+    await call(request, 'patch', `/site-pages/${page.id}`, tenant.owner, {
+      expected: 400, data: { blocks: [{ type: 'form', entitySlug: 'avisos', fields: ['relato'], parent: { fields: ['documento'] } }] },
+    });
+    await call(request, 'patch', `/site-pages/${page.id}`, tenant.owner, {
+      expected: 200, data: { blocks: [{ id: 'f1', type: 'form', entitySlug: 'avisos', fields: ['relato'], parent: { fields: ['nome', 'documento'], matchField: 'documento' } }] },
+    });
+    await call(request, 'post', `/site-pages/${page.id}/publish`, tenant.owner, { expected: 200, data: { publish: true } });
+    pageSlug = page.slug;
+    blockId = 'f1';
+    const pub = await (await call(request, 'get', `/site/${tenant.slug}/${pageSlug}`, null, { expected: 200 })).json();
+    const block = pub.blocks.find((b: { type: string }) => b.type === 'form');
+    expect(block.parent.name).toBe('Segurado');
+    expect(block.parent.fieldDefs.map((f: { slug: string }) => f.slug)).toEqual(['nome', 'documento']);
+  });
+
+  test('cria o segurado e o aviso dentro dele; mesmo CPF reaproveita; erro nao deixa segurado solto', async ({ request }) => {
+    const send = (data: Record<string, unknown>, parentData: Record<string, unknown>, expected: number) =>
+      call(request, 'post', `/site/${tenant.slug}/${pageSlug}/forms/${blockId}`, null, { expected, data: { data, parentData } });
+
+    await send({ relato: 'Bati o carro' }, { nome: 'Maria Souza', documento: '123.456.789-09', apolice: 'nao-liberado' }, 200);
+    await send({ relato: 'Vidro quebrado' }, { nome: 'Maria S.', documento: '12345678909' }, 200);
+    await send({}, { nome: 'Joao', documento: '98765432100' }, 400);
+
+    const segurados = (await (await call(request, 'get', '/data/segurados?limit=50', tenant.owner, { expected: 200 })).json()).data;
+    expect(segurados).toHaveLength(1);
+    expect(segurados[0].data).toMatchObject({ nome: 'Maria Souza', documento: '123.456.789-09' });
+    expect(segurados[0].data.apolice).toBeUndefined();
+    const avisos = (await (await call(request, 'get', `/data/avisos?limit=50&parentRecordId=${segurados[0].id}`, tenant.owner, { expected: 200 })).json()).data;
+    expect(avisos.map((a: { data: { relato: string } }) => a.data.relato).sort()).toEqual(['Bati o carro', 'Vidro quebrado']);
+  });
+});

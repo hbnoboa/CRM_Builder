@@ -21,6 +21,7 @@ export interface SchemaTable {
   titleField?: string;
   statusField?: string;
   deadlineField?: string;
+  assigneeField?: string;
   fields: SchemaField[];
   /** Tabela "de cima" quando esta e uma lista dentro de outra. */
   parentSlug?: string;
@@ -42,7 +43,7 @@ export async function loadTenantSchema(prisma: PrismaService, tenantId: string):
   const slugById = new Map(rows.map((r) => [r.id, r.slug]));
   const tables: SchemaTable[] = rows.map((e) => {
     const raw = (Array.isArray(e.fields) ? e.fields : []) as RawField[];
-    const settings = (e.settings || {}) as { titleField?: string; statusField?: string; deadlineField?: string };
+    const settings = (e.settings || {}) as { titleField?: string; statusField?: string; deadlineField?: string; assigneeField?: string };
     const fields: SchemaField[] = raw
       .filter((f) => f.slug && f.type)
       .map((f) => ({
@@ -61,6 +62,7 @@ export async function loadTenantSchema(prisma: PrismaService, tenantId: string):
       titleField: settings.titleField ?? fields.find((f) => f.type === 'text')?.slug,
       statusField: settings.statusField,
       deadlineField: settings.deadlineField,
+      assigneeField: settings.assigneeField,
       fields,
     };
   });

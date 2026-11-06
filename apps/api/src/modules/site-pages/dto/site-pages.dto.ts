@@ -84,6 +84,12 @@ export class SubmitSiteFormDto {
   @Type(() => Object)
   data: Record<string, unknown>;
 
+  @ApiPropertyOptional({ description: 'Valores do registro de cima (ex.: segurado), quando o formulario e de uma tabela de dentro' })
+  @IsOptional()
+  @IsObject()
+  @Type(() => Object)
+  parentData?: Record<string, unknown>;
+
   @ApiPropertyOptional({ description: 'Campo escondido (anti-robo); pessoas deixam vazio' })
   @IsOptional()
   @IsString()

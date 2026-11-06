@@ -24,6 +24,24 @@ export type EditorPdf = { id: string; name: string; sourceEntityId?: string | nu
 const FORM_TYPES = new Set(['text', 'textarea', 'number', 'currency', 'percentage', 'rating', 'date', 'datetime', 'time', 'select', 'multiselect', 'radio-group', 'checkbox-group', 'boolean', 'tags', 'phone', 'email', 'cpf', 'cnpj', 'cep', 'url', 'image', 'file']);
 const TRACK_TYPES = new Set([...Array.from(FORM_TYPES), 'relation', 'user-select', 'formula', 'rollup', 'workflow-status']);
 const NOT_REQUIRED = new Set(['section-title', 'sub-entity', 'formula', 'rollup', 'timer', 'sla-status', 'action-button', 'hidden']);
+const MATCH_TYPES = new Set(['text', 'cpf', 'cnpj', 'email', 'phone']);
+
+/** Tabela "de cima" (a que tem esta como lista dentro). */
+export function parentOf(entity: EditorEntity | undefined, entities: EditorEntity[]): EditorEntity | undefined {
+  if (!entity) return undefined;
+  return entities.find((e) => (e.fields || []).some((f) => f.type === 'sub-entity' && (f.subEntitySlug === entity.slug || f.subEntityId === entity.id)));
+}
+
+function requiredOf(e: EditorEntity | undefined): string[] {
+  return (e?.fields || []).filter((f) => f.required && !NOT_REQUIRED.has(f.type) && f.slug !== e?.settings?.statusField).map((f) => f.slug);
+}
+
+function suggestMatch(e: EditorEntity): string | undefined {
+  const fields = e.fields || [];
+  return fields.find((f) => f.type === 'cpf')?.slug ?? fields.find((f) => f.type === 'cnpj')?.slug
+    ?? fields.find((f) => f.type === 'text' && /cpf|cnpj|documento/i.test(`${f.slug} ${f.label ?? ''}`))?.slug
+    ?? fields.find((f) => f.type === 'email')?.slug;
+}
 
 export const BLOCK_KINDS: Array<{ type: string; label: string; icon: typeof Type; hint: string }> = [
   { type: 'heading', label: 'Título', icon: Heading, hint: 'Um título em destaque' },
@@ -163,10 +181,19 @@ function FormFields({ block, onChange, entities }: { block: SiteBlockDraft; onCh
   const selected = Array.from(new Set([...((block.fields as string[] | undefined) || []), ...Array.from(required)]));
   const status = statusSlug ? entity?.fields?.find((f) => f.slug === statusSlug) : undefined;
   const firstStatus = status?.options?.[0] as { label?: string } | string | undefined;
+  const top = parentOf(entity, entities);
+  const parent = (block.parent as { fields?: string[]; matchField?: string; title?: string } | undefined) || {};
+  const topRequired = new Set(requiredOf(top));
+  const parentSelected = Array.from(new Set([...(parent.fields || []), ...Array.from(topRequired)]));
+  const setParent = (patch: Record<string, unknown>) => onChange({ parent: { ...parent, entitySlug: top?.slug, fields: parentSelected, ...patch } });
   const pickTable = (slug: string) => {
     const e = entities.find((x) => x.slug === slug);
-    const req = (e?.fields || []).filter((f) => f.required && !NOT_REQUIRED.has(f.type) && f.slug !== e?.settings?.statusField).map((f) => f.slug);
-    onChange({ entitySlug: slug, fields: req });
+    const up = parentOf(e, entities);
+    onChange({
+      entitySlug: slug,
+      fields: requiredOf(e),
+      parent: up ? { entitySlug: up.slug, fields: requiredOf(up), matchField: suggestMatch(up) } : undefined,
+    });
   };
   return (
     <>
@@ -174,10 +201,32 @@ function FormFields({ block, onChange, entities }: { block: SiteBlockDraft; onCh
         <Label className="text-xs">Onde as respostas são guardadas</Label>
         <TableSelect value={block.entitySlug} entities={entities} onChange={pickTable} />
       </div>
+      {entity && top && (
+        <div className="space-y-2 rounded-md border border-dashed p-2.5" data-testid="form-parent">
+          <p className="text-xs font-medium">
+            {entity.namePlural || entity.name} fica dentro de {top.namePlural || top.name}: o cliente preenche também os dados de {top.name.toLowerCase()}.
+          </p>
+          <FieldChecklist fields={(top.fields || []).filter((f) => FORM_TYPES.has(f.type))} selected={parentSelected} locked={topRequired}
+            onToggle={(slug, on) => setParent({ fields: on ? [...parentSelected, slug] : parentSelected.filter((x) => x !== slug) })} />
+          <div className="space-y-1">
+            <Label className="text-xs">Se já existir {top.name.toLowerCase()} com o mesmo…</Label>
+            <select value={parent.matchField ?? ''} onChange={(e) => setParent({ matchField: e.target.value || undefined })} className="h-9 w-full rounded-md border bg-background px-3 text-sm">
+              <option value="">Sempre criar um novo</option>
+              {(top.fields || []).filter((f) => MATCH_TYPES.has(f.type) && parentSelected.includes(f.slug)).map((f) => (
+                <option key={f.slug} value={f.slug}>{labelOf(f)} (usa o mesmo, sem alterar os dados dele)</option>
+              ))}
+            </select>
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs">Título dessa parte</Label>
+            <Input value={parent.title ?? ''} onChange={(e) => setParent({ title: e.target.value })} placeholder="Seus dados" />
+          </div>
+        </div>
+      )}
       {entity && (
         <>
           <div className="space-y-1.5">
-            <Label className="text-xs">Campos que o cliente preenche</Label>
+            <Label className="text-xs">Campos {top ? `de ${entity.name.toLowerCase()}` : ''} que o cliente preenche</Label>
             <FieldChecklist fields={fields} selected={selected} locked={required}
               onToggle={(slug, on) => onChange({ fields: on ? [...selected, slug] : selected.filter((s) => s !== slug) })} />
             {status && !selected.includes(status.slug) && firstStatus && (
