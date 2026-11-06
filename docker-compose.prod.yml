@@ -215,6 +215,13 @@ services:
       SMTP_SECURE: ${SMTP_SECURE:-false}
       SMTP_USER: ${SMTP_USER:-}
       SMTP_PASS: ${SMTP_PASS:-}
+      # Assistente de criacao com IA (so dev): ponte local para o `claude -p`
+      # (scripts/ai-bridge). Sem estas variaveis o assistente fica escondido.
+      AI_BUILDER_PROVIDER: ${AI_BUILDER_PROVIDER_DEV:-}
+      AI_BRIDGE_URL: ${AI_BRIDGE_URL_DEV:-}
+      AI_BRIDGE_TOKEN: ${AI_BRIDGE_TOKEN_DEV:-}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     depends_on:
       postgres-dev:
         condition: service_healthy
