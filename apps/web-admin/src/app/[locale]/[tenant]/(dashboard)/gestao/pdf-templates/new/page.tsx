@@ -5,7 +5,7 @@ import { Link, useRouter } from '@/i18n/tenant-navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { ArrowLeft, FileText, Files, Loader2 } from 'lucide-react';
+import { ArrowLeft, FileText, Files, Loader2, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -30,6 +30,8 @@ import { RequireRole } from '@/components/auth/require-role';
 import { useEntities } from '@/hooks/use-entities';
 import { useCreatePdfTemplate } from '@/hooks/use-pdf-templates';
 import { cn } from '@/lib/utils';
+import { AiPdfBuilder } from '@/components/ai-builder/ai-pdf-builder';
+import { useAiBuilderStatus } from '@/hooks/use-ai-builder';
 import { buildStarterPdfBody } from '@/lib/pdf-starter';
 
 const createTemplateSchema = z.object({
@@ -61,6 +63,8 @@ function NewPdfTemplatePageContent() {
     const { data: entitiesData, isLoading: isLoadingEntities } = useEntities({ limit: 200 });
   const createTemplate = useCreatePdfTemplate({ success: 'Modelo criado!' });
   const [useStarter, setUseStarter] = useState(true);
+  const [aiMode, setAiMode] = useState(false);
+  const { data: aiStatus } = useAiBuilderStatus();
 
   const entities = entitiesData?.data || [];
 
@@ -132,6 +136,23 @@ function NewPdfTemplatePageContent() {
     { value: 'batch' as const, icon: Files, title: 'Um relatório com vários registros', example: 'Ex.: todas as visitas do mês num PDF só.' },
   ];
 
+  if (aiMode) {
+    return (
+      <div className="space-y-4 py-2">
+        <div className="flex items-start gap-3">
+          <Button variant="ghost" size="icon" className="flex-shrink-0" aria-label="Voltar" onClick={() => setAiMode(false)}>
+            <ArrowLeft className="h-4 w-4" />
+          </Button>
+          <div className="min-w-0">
+            <h1 className="text-2xl font-semibold tracking-tight">Criar PDF com IA</h1>
+            <p className="mt-1 text-sm text-muted-foreground">Conte como quer o documento; a IA monta e você vê o PDF antes de criar.</p>
+          </div>
+        </div>
+        <AiPdfBuilder />
+      </div>
+    );
+  }
+
   return (
     <div className="mx-auto max-w-4xl space-y-6">
       {/* Cabecalho */}
@@ -148,6 +169,23 @@ function NewPdfTemplatePageContent() {
           </p>
         </div>
       </div>
+
+      {aiStatus?.enabled && (
+        <button
+          type="button"
+          onClick={() => setAiMode(true)}
+          data-testid="pdf-ai"
+          className="flex w-full items-start gap-3 rounded-xl border border-primary/40 bg-primary/5 p-4 text-left transition-colors hover:border-primary"
+        >
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+            <Sparkles className="h-5 w-5" />
+          </span>
+          <span>
+            <span className="block text-sm font-medium">Criar com IA</span>
+            <span className="block text-xs text-muted-foreground">Conte como quer o documento (ex.: uma OS com os itens e a assinatura) e a IA monta para você revisar.</span>
+          </span>
+        </button>
+      )}
 
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">

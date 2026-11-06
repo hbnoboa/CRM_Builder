@@ -49,18 +49,45 @@ export function useAiBuilderStatus() {
   });
 }
 
-export function useAiPropose() {
-  return useMutation({
-    mutationFn: async (body: { messages: AiChatMessage[]; currentProposal?: Record<string, unknown> }) =>
-      (await api.post<AiProposeResult>('/ai-builder/propose', body, { timeout: 240_000 })).data,
-  });
-}
-
 export function useAiApply() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (proposal: Record<string, unknown>) =>
       (await api.post<AiApplyResult>('/ai-builder/apply', { proposal })).data,
     onSuccess: () => queryClient.invalidateQueries({ queryKey: entityKeys.all }),
+  });
+}
+
+export interface AiDashboardResult {
+  reply: string;
+  warnings: string[];
+  proposal: Record<string, unknown>;
+  dashboard: {
+    name: string;
+    description: string;
+    entitySlug: string;
+    layout: Array<{ i: string; x: number; y: number; w: number; h: number; minW?: number; minH?: number }>;
+    widgets: Record<string, { type: string; title: string; config: Record<string, unknown> }>;
+    tabs: Array<{ id: string; label: string; widgetIds: string[] }>;
+    roleIds: string[];
+  };
+  roleNames: string[];
+}
+
+export interface AiPdfResult {
+  reply: string;
+  warnings: string[];
+  proposal: Record<string, unknown>;
+  name: string;
+  tableName: string;
+}
+
+/** Cria o painel ou o PDF da proposta; devolve o id para abrir o editor. */
+export function useAiApplyTo(endpoint: '/ai-builder/dashboards/apply' | '/ai-builder/pdfs/apply', invalidate: readonly unknown[]) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (proposal: Record<string, unknown>) =>
+      (await api.post<{ id: string; name: string; warnings: string[] }>(endpoint, { proposal })).data,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: invalidate }),
   });
 }

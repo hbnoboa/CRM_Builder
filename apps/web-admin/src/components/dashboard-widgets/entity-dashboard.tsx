@@ -51,6 +51,8 @@ interface EntityDashboardProps {
   entityFields?: EntityFieldLike[];
   templateId?: string;
   externalFilters?: Array<{ fieldSlug: string; operator: string; value: unknown; value2?: unknown }>;
+  /** Painel ainda nao salvo (previa do assistente de IA): nao busca o modelo. */
+  previewTemplate?: { layout: unknown[]; widgets: Record<string, unknown>; tabs?: unknown[]; settings?: Record<string, unknown> };
 }
 
 function renderWidget(
@@ -154,10 +156,14 @@ function renderWidget(
   }
 }
 
-export function EntityDashboard({ entitySlug, entityFields, templateId, externalFilters }: EntityDashboardProps) {
-  const myTemplate = useMyDashboardTemplate(templateId ? undefined : entitySlug);
+const PREVIEW_COLS = { lg: 12, md: 12, sm: 12, xs: 12, xxs: 12 };
+
+export function EntityDashboard({ entitySlug, entityFields, templateId, externalFilters, previewTemplate }: EntityDashboardProps) {
+  const myTemplate = useMyDashboardTemplate(templateId || previewTemplate ? undefined : entitySlug);
   const specificTemplate = useDashboardTemplate(templateId);
-  const { data: template, isLoading } = templateId ? specificTemplate : myTemplate;
+  const fetched = templateId ? specificTemplate : myTemplate;
+  const template = (previewTemplate as typeof fetched.data | undefined) ?? fetched.data;
+  const isLoading = !previewTemplate && fetched.isLoading;
   const { data: entitiesData } = useEntities();
 
   // Check if any widget uses entitySlugOverride to decide if we need the entities list
@@ -202,6 +208,8 @@ export function EntityDashboard({ entitySlug, entityFields, templateId, external
 
   const layouts = useMemo(() => {
     if (!effectiveTemplate?.layout) return {};
+    // Previa (area estreita do assistente): sempre o layout de tela grande
+    if (previewTemplate) return { lg: effectiveTemplate.layout, md: effectiveTemplate.layout, sm: effectiveTemplate.layout, xs: effectiveTemplate.layout, xxs: effectiveTemplate.layout };
     return {
       lg: effectiveTemplate.layout,
       md: effectiveTemplate.layout,
@@ -222,7 +230,7 @@ export function EntityDashboard({ entitySlug, entityFields, templateId, external
         x: 0,
       })),
     };
-  }, [effectiveTemplate?.layout]);
+  }, [effectiveTemplate?.layout, previewTemplate]);
 
   // Celular: desliga drag/resize (senão o toque para ROLAR arrasta/redimensiona os
   // widgets — o "dashboard bugado") e o grid cai para 1 coluna (breakpoint xxs).
@@ -281,7 +289,7 @@ export function EntityDashboard({ entitySlug, entityFields, templateId, external
             measureBeforeMount
             layouts={layouts}
             breakpoints={{ lg: 1200, md: 996, sm: 768, xs: 480, xxs: 0 }}
-            cols={{ lg: 12, md: 12, sm: 6, xs: 4, xxs: 1 }}
+            cols={previewTemplate ? PREVIEW_COLS : { lg: 12, md: 12, sm: 6, xs: 4, xxs: 1 }}
             rowHeight={30}
             margin={[12, 12]}
             isDraggable={!isNarrow}
@@ -345,7 +353,9 @@ export function EntityDashboard({ entitySlug, entityFields, templateId, external
 
           const tabWidgetEntries = allWidgetEntries.filter(([id]) => tab.widgetIds.includes(id));
           const tabWidgetIds = new Set(tabWidgetEntries.map(([id]) => id));
-          const tabLayouts = {
+          const tabFull = (effectiveTemplate.layout || []).filter((item) => tabWidgetIds.has(item.i));
+          // Previa do assistente: sempre o layout de tela grande
+          const tabLayouts = previewTemplate ? { lg: tabFull, md: tabFull, sm: tabFull, xs: tabFull, xxs: tabFull } : {
             lg: (effectiveTemplate.layout || []).filter((item) => tabWidgetIds.has(item.i)),
             md: (effectiveTemplate.layout || []).filter((item) => tabWidgetIds.has(item.i)),
             sm: (effectiveTemplate.layout || []).filter((item) => tabWidgetIds.has(item.i)).map((item) => ({
@@ -366,7 +376,7 @@ export function EntityDashboard({ entitySlug, entityFields, templateId, external
                 measureBeforeMount
                 layouts={tabLayouts}
                 breakpoints={{ lg: 1200, md: 996, sm: 768, xs: 480, xxs: 0 }}
-                cols={{ lg: 12, md: 12, sm: 6, xs: 4, xxs: 1 }}
+                cols={previewTemplate ? PREVIEW_COLS : { lg: 12, md: 12, sm: 6, xs: 4, xxs: 1 }}
                 rowHeight={30}
                 margin={[12, 12]}
                 isDraggable={!isNarrow}

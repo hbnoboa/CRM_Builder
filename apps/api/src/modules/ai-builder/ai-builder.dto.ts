@@ -28,10 +28,23 @@ export class AiProposeDto {
   @IsObject()
   @Type(() => Object)
   currentProposal?: Record<string, unknown>;
+
+  @ApiPropertyOptional({ description: 'PDF: tabela de onde o documento tira os dados' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  table?: string;
 }
 
 export class AiApplyDto {
   @ApiProperty({ description: 'Proposta devolvida por /ai-builder/propose' })
+  @IsObject()
+  @Type(() => Object)
+  proposal: Record<string, unknown>;
+}
+
+export class AiPdfPreviewDto {
+  @ApiProperty({ description: 'Proposta devolvida por /ai-builder/pdfs/propose' })
   @IsObject()
   @Type(() => Object)
   proposal: Record<string, unknown>;

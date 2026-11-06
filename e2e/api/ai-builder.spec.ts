@@ -102,6 +102,74 @@ test.describe.serial('assistente de criacao (IA)', () => {
     const person = await createPerson(request, tenant.owner, tenant.slug, 'Operador', roleId);
     await call(request, 'post', '/ai-builder/apply', person, { expected: 403, data: { proposal: PROPOSAL } });
     await call(request, 'post', '/ai-builder/propose', person, { expected: 403, data: { messages: [{ role: 'user', content: 'oi' }] } });
+    await call(request, 'post', '/ai-builder/dashboards/apply', person, { expected: 403, data: { proposal: { tabs: [] } } });
+    await call(request, 'post', '/ai-builder/pdfs/apply', person, { expected: 403, data: { proposal: { table: 'ordens' } } });
+  });
+
+  test('painel: blocos sao conferidos contra os campos e o painel e criado', async ({ request }) => {
+    const proposal = {
+      reply: 'ok', name: 'Painel da oficina', description: 'OS', mainTable: 'ordens', roles: ['Cargo que nao existe'],
+      tabs: [{
+        label: 'Visão geral',
+        rows: [
+          [
+            { type: 'kpi-card', title: 'OS', table: 'ordens', width: 6, aggregation: 'count' },
+            { type: 'kpi-card', title: 'Soma inválida', table: 'ordens', width: 6, aggregation: 'sum', field: 'situacao' },
+            { type: 'donut-chart', title: 'Por situação', table: 'ordens', width: 6, groupBy: 'campo_inexistente' },
+          ],
+          [{ type: 'grafico-magico', title: 'Não existe', table: 'ordens' }],
+          [{ type: 'kanban-board', title: 'Quadro', table: 'tabela-fantasma', columns: ['numero', 'prazo', 'xyz'] }],
+        ],
+      }],
+    };
+    const res = await call(request, 'post', '/ai-builder/dashboards/apply', tenant.owner, { expected: [200, 201], data: { proposal } });
+    const body = await res.json();
+    expect(body.warnings.join(' ')).toMatch(/tipo desconhecido/);
+    expect(body.warnings.join(' ')).toMatch(/não foi encontrada/);
+    const dash = await (await call(request, 'get', `/dashboard-templates/${body.id}`, tenant.owner)).json();
+    expect(dash.entitySlug).toBe('ordens');
+    expect(dash.roleIds).toEqual([]);
+    const widgets = Object.values(dash.widgets) as Array<{ type: string; config: Record<string, unknown> }>;
+    expect(widgets.map((w) => w.type)).toEqual(['kpi-card', 'kpi-card', 'donut-chart', 'kanban-board']);
+    // Soma de campo que nao e numero vira contagem; agrupamento invalido cai na situacao
+    expect(widgets[1].config).toMatchObject({ aggregation: 'count', entitySlugOverride: 'ordens' });
+    expect(widgets[2].config).toMatchObject({ dataSource: 'field-distribution', groupByField: 'situacao' });
+    expect(widgets[3].config).toMatchObject({ groupByField: 'situacao', columnOrder: ['aberta', 'entregue'], cardTitleField: 'numero' });
+    // 6 + 6 nao cabe com o terceiro: quebra a linha
+    const donut = dash.layout.find((l: { i: string }) => l.i.startsWith('donut-chart'));
+    expect(donut).toMatchObject({ x: 0, y: 3, w: 6 });
+  });
+
+  test('PDF: campos conferidos, previa gera PDF e o modelo e criado', async ({ request }) => {
+    const proposal = {
+      reply: 'ok', name: 'Ordem de serviço', description: 'Para o cliente', table: 'ordens',
+      title: 'OS {{numero}} {{campo_fantasma}}', fileName: 'OS-{numero}',
+      sections: [
+        { kind: 'heading', title: 'Dados' },
+        { kind: 'fields', fields: ['numero', 'situacao', 'prazo', 'inexistente'], columns: 2 },
+        { kind: 'items', field: 'pecas', fields: ['descricao', 'qtd'], title: 'Peças' },
+        { kind: 'text', text: 'Recebi o serviço da OS {{numero}}. {{nao_existe}}' },
+        { kind: 'photos', fields: ['foto'] },
+        { kind: 'divider' },
+      ],
+    };
+    const preview = await call(request, 'post', '/ai-builder/pdfs/preview', tenant.owner, { expected: 200, data: { proposal } });
+    expect(preview.headers()['content-type']).toContain('application/pdf');
+    expect((await preview.body()).subarray(0, 4).toString()).toBe('%PDF');
+
+    const res = await call(request, 'post', '/ai-builder/pdfs/apply', tenant.owner, { expected: [200, 201], data: { proposal } });
+    const body = await res.json();
+    expect(body.warnings.join(' ')).toMatch(/não existe/);
+    expect(body.warnings.join(' ')).toMatch(/foto/);
+    const tpl = await (await call(request, 'get', `/pdf-templates/${body.id}`, tenant.owner)).json();
+    expect(tpl.slug).toBe('ordem-de-servico');
+    expect(tpl.content.header.title.text).toBe('OS {{numero}} ');
+    const types = tpl.content.body.map((e: { type: string }) => e.type);
+    expect(types).toEqual(['text', 'field-group', 'text', 'table', 'text', 'divider']);
+    const group = tpl.content.body[1];
+    expect(group.fields.map((f: { binding: string }) => f.binding)).toEqual(['{{numero}}', '{{situacao}}', '{{prazo}}']);
+    expect(tpl.content.body[3]).toMatchObject({ type: 'table', dataSource: 'pecas' });
+    expect(tpl.content.body[4].content).toBe('Recebi o serviço da OS {{numero}}. ');
   });
 
   test('conversa com o provedor de teste devolve proposta e ajusta', async ({ request }) => {
@@ -133,5 +201,19 @@ test.describe.serial('assistente de criacao (IA)', () => {
     await call(request, 'post', '/ai-builder/propose', tenant.owner, {
       expected: 400, data: { messages: [{ role: 'assistant', content: 'sem pergunta' }] },
     });
+
+    // Painel e PDF pelo provedor de teste
+    const dash = await (await call(request, 'post', '/ai-builder/dashboards/propose', tenant.owner, {
+      expected: 200, data: { messages: [{ role: 'user', content: 'painel das OS' }] },
+    })).json();
+    expect(Object.values(dash.dashboard.widgets).length).toBeGreaterThan(1);
+    await call(request, 'post', '/ai-builder/pdfs/propose', tenant.owner, {
+      expected: 400, data: { messages: [{ role: 'user', content: 'um PDF' }] },
+    });
+    const pdf = await (await call(request, 'post', '/ai-builder/pdfs/propose', tenant.owner, {
+      expected: 200, data: { messages: [{ role: 'user', content: 'uma OS' }], table: 'ordens' },
+    })).json();
+    expect(pdf.proposal.table).toBe('ordens');
+    expect(pdf.proposal.sections.length).toBeGreaterThan(0);
   });
 });

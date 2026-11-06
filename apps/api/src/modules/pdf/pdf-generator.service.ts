@@ -664,6 +664,47 @@ export class PdfGeneratorService {
   }
 
   /**
+   * Previa de um conteudo que ainda nao virou modelo (assistente de IA): dados de
+   * exemplo da tabela, de cada lista interna e do registro de cima (_parent).
+   */
+  async previewDraft(entityId: string, content: PdfTemplateContent, currentUser: CurrentUser): Promise<Buffer> {
+    const tenantId = getEffectiveTenantId(currentUser);
+    const entities = await this.prisma.entity.findMany({
+      where: { tenantId },
+      select: { id: true, slug: true, name: true, fields: true, settings: true },
+    });
+    const entity = entities.find((e) => e.id === entityId);
+    if (!entity) throw new NotFoundException('Tabela nao encontrada');
+
+    type DraftField = { slug: string; name: string; label?: string; type: string; options?: unknown[]; subEntityId?: string };
+    const named = (raw: unknown) => ((raw as DraftField[]) || []).map((f) => ({ ...f, name: f.label || f.name || f.slug }));
+    // Exemplo sem arquivo: foto/assinatura vazias mostram "Sem foto" em vez de erro
+    const mock = (list: DraftField[], i: number) => {
+      const record = this.generateMockRecord(list, i);
+      for (const f of list) if (['image', 'signature', 'file'].includes(f.type)) record[f.slug] = null;
+      return record;
+    };
+    const fields = named(entity.fields);
+    const data = mock(fields, 1);
+    data.id = 'previa';
+    data.createdAt = new Date().toISOString();
+    data.updatedAt = data.createdAt;
+    for (const f of fields.filter((x) => x.type === 'sub-entity' && x.subEntityId)) {
+      const child = entities.find((e) => e.id === f.subEntityId);
+      if (child) data[f.slug] = [1, 2, 3].map((i) => mock(named(child.fields), i));
+    }
+    const parent = entities.find((e) => named(e.fields).some((x) => x.type === 'sub-entity' && x.subEntityId === entity.id));
+    if (parent) data._parent = mock(named(parent.fields), 1);
+
+    const template = {
+      id: 'previa', tenantId, name: 'Prévia', slug: 'previa', pageSize: 'A4', orientation: 'PORTRAIT',
+      margins: { top: 70, right: 70, bottom: 70, left: 70 }, content, sourceEntityId: entity.id, sourceEntity: entity,
+      templateType: 'single',
+    } as unknown as PdfTemplate;
+    return this.renderPdf(template, data);
+  }
+
+  /**
    * Lista historico de geracoes
    */
   async getGenerations(currentUser: CurrentUser, query: QueryPdfGenerationDto) {
