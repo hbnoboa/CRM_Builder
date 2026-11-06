@@ -106,8 +106,8 @@ export function SubscriptionPanel() {
                 <div className="flex justify-between text-sm">
                   <span>{t(`usage.${row.key}`)}</span>
                   <span className="tabular-nums text-muted-foreground">
-                    {row.used.toLocaleString()} / {row.limit == null ? t('unlimited') : row.limit.toLocaleString()}
-                    {row.key === 'storage' && ' MB'}
+                    {row.used.toLocaleString()}{row.key === 'storage' && ' MB'}
+                    {row.limit == null ? ` · ${t('unlimited')}` : ` de ${row.limit.toLocaleString()}${row.key === 'storage' ? ' MB' : ''}`}
                   </span>
                 </div>
                 {row.limit != null && (

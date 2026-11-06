@@ -99,7 +99,7 @@ export function ExecutionHistoryDialog({
           ) : executions.length === 0 ? (
             <div className="text-center py-12 text-muted-foreground">
               <Clock className="h-8 w-8 mx-auto mb-2 opacity-50" />
-              <p>Nenhuma execucao encontrada.</p>
+              <p>Nenhuma execução encontrada.</p>
             </div>
           ) : (
             <div className="space-y-2">

@@ -102,19 +102,9 @@ export class StatsService {
       select: { id: true, slug: true, name: true, settings: true, fields: true },
     });
 
-    // Identificar sub-entidades (referenciadas por campo type=sub-entity)
-    const subEntitySlugs = new Set<string>();
-    for (const entity of entities) {
-      const fields = (entity.fields as unknown as Array<{ type: string; subEntitySlug?: string }>) || [];
-      for (const field of fields) {
-        if (field.type === 'sub-entity' && field.subEntitySlug) {
-          subEntitySlugs.add(field.subEntitySlug);
-        }
-      }
-    }
-
-    // Excluir sub-entidades
-    return entities.filter((e) => !subEntitySlugs.has(e.slug));
+    // Inclui as tabelas que ficam dentro de outra (ex.: Ordem de servico dentro de Cliente):
+    // para quem usa, elas sao tabelas do dia a dia e os numeros precisam bater com a administracao.
+    return entities;
   }
 
   /**
@@ -1640,7 +1630,8 @@ export class StatsService {
           id: true,
           createdAt: true,
           updatedAt: true,
-          entity: { select: { name: true } },
+          data: true,
+          entity: { select: { name: true, slug: true, settings: true, fields: true } },
         },
         orderBy: { updatedAt: 'desc' },
         take: limit,
@@ -1672,6 +1663,22 @@ export class StatsService {
       }),
     ]);
 
+    // Nome do registro (campo-titulo ou primeiro texto visivel ao cargo) no lugar de "Registro"
+    const hiddenBySlug = new Map<string, Set<string>>();
+    for (const slug of Array.from(new Set(records.map((r) => r.entity.slug)))) {
+      hiddenBySlug.set(slug, hiddenFieldSlugs(await this.customRoleService.getFieldPermissions(user.id, slug, effectiveTenantId)));
+    }
+    const recordTitle = (r: (typeof records)[number]): string => {
+      const hidden = hiddenBySlug.get(r.entity.slug) ?? new Set<string>();
+      const fields = (r.entity.fields as unknown as Array<{ slug: string; type: string }>) || [];
+      const titleField = (r.entity.settings as Record<string, unknown> | null)?.titleField as string | undefined;
+      const slug = titleField && !hidden.has(titleField)
+        ? titleField
+        : fields.find((f) => ['text', 'email', 'phone', 'number'].includes(f.type) && !hidden.has(f.slug))?.slug;
+      const value = slug ? (r.data as Record<string, unknown> | null)?.[slug] : undefined;
+      return value === undefined || value === null || value === '' ? 'Registro' : String(value).slice(0, 80);
+    };
+
     const activities = [
       ...records.map((r) => ({
         id: r.id,
@@ -1680,7 +1687,7 @@ export class StatsService {
           r.createdAt.getTime() === r.updatedAt.getTime()
             ? ('created' as const)
             : ('updated' as const),
-        name: `Registro`,
+        name: recordTitle(r),
         entityName: r.entity.name,
         timestamp: r.updatedAt.toISOString(),
       })),

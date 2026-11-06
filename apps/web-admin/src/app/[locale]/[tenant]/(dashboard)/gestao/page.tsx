@@ -124,6 +124,7 @@ export default function GestaoHomePage() {
                 <p>
                   <span className="font-medium">{row.userName ?? t('activity.system')}</span>
                   {' · '}{actionLabel(row.action)} {resourceLabel(row.resource).toLowerCase()}
+                  {(row as { itemName?: string | null }).itemName && <span className="font-medium"> “{(row as { itemName?: string | null }).itemName}”</span>}
                 </p>
                 <p className="text-xs text-muted-foreground">
                   {formatDate(row.createdAt, true)}

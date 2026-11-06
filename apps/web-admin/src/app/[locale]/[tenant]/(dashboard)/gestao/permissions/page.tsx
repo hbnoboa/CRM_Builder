@@ -1,107 +1,127 @@
 'use client';
 
-import { useTranslations } from 'next-intl';
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
+import { Loader2, Pencil } from 'lucide-react';
 import { Link } from '@/i18n/tenant-navigation';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { ArrowLeft, Shield, UserCog, Users, User, Eye } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { HelpButton } from '@/components/help/help-button';
-import { Badge } from '@/components/ui/badge';
+import { Card } from '@/components/ui/card';
+import { GestaoPageHeader } from '@/components/gestao/gestao-ui';
+import { useCustomRoles } from '@/hooks/use-custom-roles';
+import { useEntities } from '@/hooks/use-entities';
+import { cn } from '@/lib/utils';
 
-const SYSTEM_ROLES = [
-  {
-    key: 'ADMIN',
-    icon: Shield,
-    color: 'text-red-600',
-    bgColor: 'bg-red-100',
-  },
-  {
-    key: 'MANAGER',
-    icon: UserCog,
-    color: 'text-blue-600',
-    bgColor: 'bg-blue-100',
-  },
-  {
-    key: 'USER',
-    icon: User,
-    color: 'text-green-600',
-    bgColor: 'bg-green-100',
-  },
-  {
-    key: 'VIEWER',
-    icon: Eye,
-    color: 'text-gray-600',
-    bgColor: 'bg-gray-100',
-  },
-];
+type Perm = {
+  entitySlug: string;
+  canRead?: boolean;
+  canCreate?: boolean;
+  canUpdate?: boolean;
+  canDelete?: boolean;
+  scope?: 'all' | 'own' | 'team';
+};
 
+type RoleLike = {
+  id: string;
+  name: string;
+  color?: string | null;
+  permissions?: Perm[];
+  modulePermissions?: Record<string, unknown> & { allAccess?: boolean };
+};
+
+/** "Vê, cria e edita · só os que criou" (ou "Sem acesso"). */
+function describe(perm: Perm | undefined, full: boolean): { text: string; level: 'none' | 'some' | 'all' } {
+  if (full) return { text: 'Tudo', level: 'all' };
+  if (!perm) return { text: 'Sem acesso', level: 'none' };
+  const verbs = [perm.canRead && 'vê', perm.canCreate && 'cria', perm.canUpdate && 'edita', perm.canDelete && 'exclui'].filter(Boolean) as string[];
+  if (verbs.length === 0) return { text: 'Sem acesso', level: 'none' };
+  const sentence = verbs.length > 1 ? `${verbs.slice(0, -1).join(', ')} e ${verbs[verbs.length - 1]}` : verbs[0];
+  const whose = perm.scope === 'own' ? 'só os que criou' : perm.scope === 'team' ? 'os da equipe' : 'todos';
+  return { text: `${sentence.charAt(0).toUpperCase()}${sentence.slice(1)} · ${whose}`, level: verbs.length === 4 && perm.scope !== 'own' && perm.scope !== 'team' ? 'all' : 'some' };
+}
+
+/** Quais telas da administracao o cargo abre (resumo). */
+function adminAccess(role: RoleLike): string {
+  const mp = role.modulePermissions || {};
+  if (mp.allAccess) return 'Tudo';
+  const ADMIN_MODULES: Array<[string, string]> = [
+    ['users', 'Usuários'], ['roles', 'Cargos'], ['entities', 'Tabelas'], ['pdfTemplates', 'Modelos de PDF'],
+    ['dashboardTemplates', 'Painéis'], ['automations', 'Automações'], ['settings', 'Empresa'],
+  ];
+  const open = ADMIN_MODULES.filter(([key]) => {
+    const p = mp[key] as Record<string, unknown> | undefined;
+    return p && Object.values(p).some((v) => v === true);
+  }).map(([, label]) => label);
+  return open.length ? open.join(', ') : 'Nenhuma';
+}
+
+/**
+ * Guia de permissoes: o que cada cargo REAL da empresa faz em cada tabela, em
+ * frases. So leitura; para mudar, abre o cargo.
+ */
 export default function PermissionsPage() {
-  const t = useTranslations('permissions');
-  const tNav = useTranslations('navigation');
-  const tRoles = useTranslations('roles');
-  const tRoleDesc = useTranslations('roleDescriptions');
+  const { data: rolesPage, isLoading: loadingRoles } = useCustomRoles({ limit: 100, sortBy: "rank", sortOrder: "asc" });
+  const { data: entitiesPage, isLoading: loadingEntities } = useEntities({ limit: 200 });
+  const roles = ((rolesPage as { data?: RoleLike[] } | undefined)?.data || []) as RoleLike[];
+  const entities = entitiesPage?.data || [];
 
   return (
-    <div className="max-w-3xl mx-auto mt-8">
-      {/* Breadcrumbs */}
-      <nav className="mb-4 flex items-center gap-2 text-sm text-muted-foreground" aria-label="breadcrumb">
-        <Link href="/gestao" className="hover:underline">{tNav('gestao')}</Link>
-        <span>/</span>
-        <span className="font-semibold text-foreground">{t('title')}</span>
-      </nav>
+    <div className="mx-auto max-w-6xl space-y-6">
+      <GestaoPageHeader
+        help="module.permissions"
+        title="Guia de permissões"
+        subtitle="O que cada cargo pode fazer em cada tabela e quais telas da administração ele abre. Para mudar, edite o cargo."
+        actions={<Button asChild variant="outline"><Link href="/gestao/roles"><Pencil className="mr-1.5 h-4 w-4" />Editar cargos</Link></Button>}
+      />
 
-      {/* Back */}
-      <TooltipProvider>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Link href="/home">
-              <Button variant="ghost" size="icon" className="mb-2" aria-label={t('backToDashboard')}>
-                <ArrowLeft className="h-5 w-5" />
-              </Button>
-            </Link>
-          </TooltipTrigger>
-          <TooltipContent>{t('backToDashboard')}</TooltipContent>
-        </Tooltip>
-      </TooltipProvider>
-
-      <h1 className="text-3xl font-bold mb-6 flex items-center gap-2">{t('pageTitle')}<HelpButton topic="module.permissions" /></h1>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Shield className="h-5 w-5" />
-            {t('systemRoles')}
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            {SYSTEM_ROLES.map((role) => {
-              const Icon = role.icon;
-              return (
-                <div key={role.key} className="border p-4 rounded-lg">
-                  <div className="flex items-center gap-3">
-                    <div className={`w-10 h-10 rounded-full ${role.bgColor} flex items-center justify-center`}>
-                      <Icon className={`h-5 w-5 ${role.color}`} />
-                    </div>
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2">
-                        <span className="font-semibold">{tRoles(role.key)}</span>
-                        <Badge variant="secondary" className="text-xs">
-                          {role.key}
-                        </Badge>
-                      </div>
-                      <p className="text-sm text-muted-foreground mt-1">
-                        {tRoleDesc(role.key)}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </CardContent>
-      </Card>
+      {loadingRoles || loadingEntities ? (
+        <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+      ) : (
+        <Card className="overflow-x-auto" data-testid="permissions-matrix">
+          <table className="w-full min-w-[720px] text-sm">
+            <thead>
+              <tr className="border-b bg-muted/40 text-left">
+                <th className="px-4 py-3 font-medium text-muted-foreground">Tabela</th>
+                {roles.map((r) => (
+                  <th key={r.id} className="px-4 py-3 font-semibold">
+                    <span className="inline-flex items-center gap-1.5">
+                      <span className="h-2.5 w-2.5 rounded-full bg-primary" style={r.color ? { backgroundColor: r.color } : undefined} />
+                      {r.name}
+                    </span>
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {entities.map((e) => (
+                <tr key={e.id} className="border-b last:border-0">
+                  <td className="px-4 py-3 font-medium">{e.name}</td>
+                  {roles.map((r) => {
+                    const full = !!r.modulePermissions?.allAccess;
+                    const perms = r.permissions || [];
+                    const perm = perms.find((p) => p.entitySlug === e.slug) ?? perms.find((p) => p.entitySlug === '*');
+                    const d = describe(perm, full);
+                    return (
+                      <td key={r.id} className="px-4 py-3">
+                        <span className={cn(
+                          'text-xs',
+                          d.level === 'none' && 'text-muted-foreground/70',
+                          d.level === 'all' && 'font-medium text-emerald-700 dark:text-emerald-400',
+                        )}>
+                          {d.text}
+                        </span>
+                      </td>
+                    );
+                  })}
+                </tr>
+              ))}
+              <tr className="bg-muted/30">
+                <td className="px-4 py-3 font-medium">Telas da administração</td>
+                {roles.map((r) => (
+                  <td key={r.id} className="px-4 py-3 text-xs text-muted-foreground">{adminAccess(r)}</td>
+                ))}
+              </tr>
+            </tbody>
+          </table>
+        </Card>
+      )}
     </div>
   );
 }

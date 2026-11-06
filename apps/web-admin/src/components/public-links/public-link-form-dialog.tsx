@@ -25,8 +25,8 @@ import { toast } from 'sonner';
 import type { PublicLink } from '@/services/public-link.service';
 
 const schema = z.object({
-  name: z.string().min(2, 'Nome obrigatorio'),
-  entitySlug: z.string().min(1, 'Entidade obrigatoria'),
+  name: z.string().min(2, 'Nome obrigatório'),
+  entitySlug: z.string().min(1, 'Escolha a tabela'),
   description: z.string().optional().or(z.literal('')),
   autoCreateRole: z.boolean(),
   customRoleId: z.string().optional().or(z.literal('')),
@@ -126,11 +126,11 @@ export function PublicLinkFormDialog({ open, onOpenChange, link, onSuccess }: Pu
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
-          <DialogTitle>{isEditing ? 'Editar Link Publico' : 'Novo Link Publico'}</DialogTitle>
+          <DialogTitle>{isEditing ? 'Editar link público' : 'Novo link público'}</DialogTitle>
           <DialogDescription>
             {isEditing
-              ? 'Atualize as configuracoes do link.'
-              : 'Configure o link publico para acesso externo a uma entidade.'}
+              ? 'Atualize as configurações do link.'
+              : 'O que a pessoa preencher no link vira um registro nesta tabela.'}
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
@@ -166,14 +166,14 @@ export function PublicLinkFormDialog({ open, onOpenChange, link, onSuccess }: Pu
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="entitySlug">Entidade *</Label>
+            <Label htmlFor="entitySlug">Tabela *</Label>
             <Select
               value={form.watch('entitySlug')}
               onValueChange={(v) => form.setValue('entitySlug', v)}
               disabled={isEditing}
             >
               <SelectTrigger>
-                <SelectValue placeholder="Selecione a entidade" />
+                <SelectValue placeholder="Selecione a tabela" />
               </SelectTrigger>
               <SelectContent>
                 {entities.map((e: any) => (
@@ -187,10 +187,10 @@ export function PublicLinkFormDialog({ open, onOpenChange, link, onSuccess }: Pu
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="description">Descricao (opcional)</Label>
+            <Label htmlFor="description">Descrição (opcional)</Label>
             <Textarea
               id="description"
-              placeholder="Descricao exibida para usuarios externos"
+              placeholder="Descrição exibida para usuários externos"
               rows={2}
               {...form.register('description')}
             />
@@ -238,7 +238,7 @@ export function PublicLinkFormDialog({ open, onOpenChange, link, onSuccess }: Pu
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="maxUsers">Max usuarios (opcional)</Label>
+              <Label htmlFor="maxUsers">Máximo de pessoas (opcional)</Label>
               <Input
                 id="maxUsers"
                 type="number"

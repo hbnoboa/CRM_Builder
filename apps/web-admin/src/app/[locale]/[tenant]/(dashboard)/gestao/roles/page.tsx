@@ -203,7 +203,7 @@ export default function RolesPage() {
                         <div className="flex flex-wrap items-center gap-2 mt-1.5">
                           <span className="flex items-center gap-1 text-xs text-muted-foreground">
                             <Users className="h-3 w-3" />
-                            {role._count?.tenantAccessUsers || 0} {t('rolesPage.usersCount')}
+                            {role._count?.tenantAccessUsers || 0} {(role._count?.tenantAccessUsers || 0) === 1 ? 'usuário' : t('rolesPage.usersCount')}
                           </span>
                         </div>
                       </div>

@@ -29,6 +29,23 @@ export interface SolutionCatalogItem {
 
 export const SOLUTION_CATALOG: SolutionCatalogItem[] = [
   {
+    slug: 'gestao-sinistros',
+    name: 'Gestão de sinistros',
+    tagline: 'Aviso, regulação e indenização com fotos, documentos, prazos e relatório em PDF.',
+    audience: 'Reguladoras, corretoras, seguradoras, associações de proteção e frotas',
+    icon: 'ShieldAlert',
+    color: '#dc2626',
+    rootEntity: 'segurados',
+    image: '/home/gestao-sinistros.webp',
+    includes: {
+      tables: ['Segurados', 'Sinistros', 'Andamentos'],
+      roles: ['Regulador', 'Analista de sinistros'],
+      dashboards: ['Painel de sinistros', 'Meus sinistros'],
+      documents: ['Relatório de sinistro'],
+      commands: ['/sinistro', '/documentos'],
+    },
+  },
+  {
     slug: 'vistoria-veicular',
     name: 'Vistoria veicular',
     tagline: 'Checklist com fotos, não conformidades e laudo em PDF, até sem internet.',

@@ -472,14 +472,14 @@ export default function ChatPage() {
       <aside className={cn('shrink-0 border rounded-lg overflow-y-auto bg-card', active ? 'hidden md:block md:w-64' : 'w-full md:w-64')}>
         <div className="p-3">
           <Button size="sm" className="w-full mb-2 justify-start gap-2" onClick={() => setNewChatOpen(true)}>
-            <Plus className="h-4 w-4" /> Novo chat
+            <Plus className="h-4 w-4" /> Conversa em grupo
           </Button>
           <Button variant="outline" size="sm" className="w-full mb-2 justify-start gap-2" onClick={() => setNewDmOpen(true)} data-testid="new-dm">
-            <UserIcon className="h-4 w-4" /> Conversa direta
+            <UserIcon className="h-4 w-4" /> Mensagem para uma pessoa
           </Button>
           {canManageCommands && (
             <Button variant="outline" size="sm" className="w-full mb-3 justify-start gap-2" onClick={() => setShowCmdManager(true)}>
-              <Settings2 className="h-4 w-4" /> Comandos do bot
+              <Settings2 className="h-4 w-4" /> Comandos rápidos
             </Button>
           )}
           <div className="text-[11px] uppercase tracking-wider text-muted-foreground font-medium mb-1.5">Tabelas</div>
@@ -536,7 +536,7 @@ export default function ChatPage() {
         {!active ? (
           <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground gap-2">
             <MessageSquare className="h-8 w-8" />
-            <p className="text-sm">Selecione uma tabela para abrir o canal do time.</p>
+            <p className="text-sm">Escolha uma tabela à esquerda para conversar com a equipe sobre ela.</p>
           </div>
         ) : (
           <>

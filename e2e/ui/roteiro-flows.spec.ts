@@ -250,10 +250,10 @@ test.describe('Administracao', () => {
     await go(page, '/gestao/roles');
     await page.getByRole('button', { name: 'Novo Cargo' }).click();
     const dialog = page.getByRole('dialog');
-    await expect(dialog.getByRole('tab', { name: 'Módulos do Sistema' })).toBeVisible();
-    await dialog.getByRole('tab', { name: 'Permissões por Tabela' }).click();
+    await expect(dialog.getByRole('tab', { name: 'Telas da administração' })).toBeVisible();
+    await dialog.getByRole('tab', { name: 'O que faz nas tabelas' }).click();
     await dialog.getByRole('button', { name: /^Clientes/ }).click();
-    await dialog.getByRole('button', { name: /Permissões por Campo/ }).click();
+    await dialog.getByRole('button', { name: /Campos que pode ver ou editar/ }).click();
     const cpf = dialog.locator('tr').filter({ has: page.getByRole('cell', { name: 'CPF', exact: true }) });
     const view = cpf.getByRole('checkbox').nth(0);
     const edit = cpf.getByRole('checkbox').nth(1);
