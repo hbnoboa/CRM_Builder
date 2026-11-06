@@ -1,19 +1,18 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { AlertTriangle, ArrowLeft, Check, Database, Eye, EyeOff, Link2, ListTree, Loader2, Lock, Send, Sparkles, icons, type LucideIcon } from 'lucide-react';
+import { useMemo, useState } from 'react';
+import { ArrowLeft, Database, Eye, EyeOff, Link2, ListTree, icons, type LucideIcon } from 'lucide-react';
 import { toast } from 'sonner';
 import type { Entity } from '@crm-builder/shared';
 import { useRouter } from '@/i18n/tenant-navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Textarea } from '@/components/ui/textarea';
 import { OptionBadge } from '@/components/ui/option-badge';
 import { RecordFormFields } from '@/components/data/record-form-dialog';
 import { fieldKind } from '@/lib/field-catalog';
 import { getErrorMessage } from '@/lib/get-error-message';
-import { cn } from '@/lib/utils';
-import { useAiApply, useAiPropose, type AiChatMessage, type AiPreviewTable, type AiProposeResult } from '@/hooks/use-ai-builder';
+import { useAiApply, type AiPreviewTable, type AiProposeResult } from '@/hooks/use-ai-builder';
+import { AiApplyBar, AiChatPanel, AiEmptyPreview, AiWarnings, useAiConversation } from './ai-chat-panel';
 
 const EXAMPLES = [
   'Tenho uma oficina mecânica: quero controlar clientes, carros e ordens de serviço com as peças usadas.',
@@ -30,33 +29,9 @@ type Option = { value: string; label: string; color?: string };
  */
 export function AiTableBuilder({ onBack }: { onBack: () => void }) {
   const router = useRouter();
-  const propose = useAiPropose();
   const apply = useAiApply();
-  const [messages, setMessages] = useState<AiChatMessage[]>([]);
-  const [result, setResult] = useState<AiProposeResult | null>(null);
-  const [input, setInput] = useState('');
-  const endRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    endRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-  }, [messages, propose.isPending]);
-
-  const send = async (text: string) => {
-    const content = text.trim();
-    if (!content || propose.isPending) return;
-    const next: AiChatMessage[] = [...messages, { role: 'user', content }];
-    setMessages(next);
-    setInput('');
-    try {
-      const res = await propose.mutateAsync({ messages: next.slice(-30), ...(result ? { currentProposal: result.proposal } : {}) });
-      setResult(res);
-      setMessages([...next, { role: 'assistant', content: res.reply }]);
-    } catch (error) {
-      setMessages(messages);
-      setInput(content);
-      toast.error(getErrorMessage(error, 'O assistente não conseguiu responder. Tente de novo.'));
-    }
-  };
+  const chat = useAiConversation<AiProposeResult>('/ai-builder/propose');
+  const { result } = chat;
 
   const create = async () => {
     if (!result) return;
@@ -85,113 +60,35 @@ export function AiTableBuilder({ onBack }: { onBack: () => void }) {
       </div>
 
       <div className="grid gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
-        {/* Conversa */}
-        <Card className="flex h-fit flex-col lg:sticky lg:top-4">
-          <CardContent className="flex flex-col gap-3 p-4">
-            <div className="flex items-center gap-2">
-              <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                <Sparkles className="h-4 w-4" />
-              </span>
-              <div>
-                <p className="text-sm font-semibold">Assistente de criação</p>
-                <p className="text-xs text-muted-foreground">Conte o que você quer controlar. Nada é criado até você confirmar.</p>
-              </div>
-            </div>
+        <AiChatPanel
+          messages={chat.messages}
+          pending={chat.pending}
+          hasResult={!!result}
+          onSend={chat.send}
+          subtitle="Conte o que você quer controlar. Nada é criado até você confirmar."
+          examples={EXAMPLES}
+          placeholder="Ex.: tenho uma clínica e quero controlar pacientes e consultas"
+          changePlaceholder='Peça uma mudança: "tire o campo cor", "junte nome e sobrenome"…'
+        />
 
-            <div className="max-h-[52vh] min-h-[200px] space-y-3 overflow-y-auto rounded-lg bg-muted/40 p-3" data-testid="ai-messages">
-              {messages.length === 0 && (
-                <div className="space-y-2">
-                  <p className="text-sm text-muted-foreground">Escreva do seu jeito, como explicaria para um colega. Por exemplo:</p>
-                  {EXAMPLES.map((ex) => (
-                    <button
-                      key={ex}
-                      type="button"
-                      onClick={() => void send(ex)}
-                      className="block w-full rounded-lg border bg-card px-3 py-2 text-left text-sm transition-colors hover:border-primary/50"
-                    >
-                      {ex}
-                    </button>
-                  ))}
-                </div>
-              )}
-              {messages.map((m, i) => (
-                <div key={i} className={cn('flex', m.role === 'user' ? 'justify-end' : 'justify-start')}>
-                  <div
-                    className={cn(
-                      'max-w-[90%] whitespace-pre-wrap rounded-2xl px-3 py-2 text-sm',
-                      m.role === 'user' ? 'bg-primary text-primary-foreground' : 'border bg-card',
-                    )}
-                    data-testid={m.role === 'assistant' ? 'ai-reply' : undefined}
-                  >
-                    {m.content}
-                  </div>
-                </div>
-              ))}
-              {propose.isPending && (
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <Loader2 className="h-4 w-4 animate-spin" /> Montando a proposta… (leva de 10 a 30 segundos)
-                </div>
-              )}
-              <div ref={endRef} />
-            </div>
-
-            <div className="space-y-2">
-              <Textarea
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault();
-                    void send(input);
-                  }
-                }}
-                rows={3}
-                maxLength={2000}
-                placeholder={result ? 'Peça uma mudança: "tire o campo cor", "junte nome e sobrenome"…' : 'Ex.: tenho uma clínica e quero controlar pacientes e consultas'}
-                disabled={propose.isPending}
-                data-testid="ai-input"
-              />
-              <div className="flex items-center justify-between gap-2">
-                <p className="flex items-center gap-1 text-[11px] text-muted-foreground">
-                  <Lock className="h-3 w-3" /> A IA vê só os nomes das tabelas e campos, nunca os seus registros.
-                </p>
-                <Button size="sm" onClick={() => void send(input)} disabled={propose.isPending || !input.trim()} data-testid="ai-send">
-                  <Send className="mr-1.5 h-4 w-4" /> Enviar
-                </Button>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Proposta */}
         <div className="space-y-3" data-testid="ai-proposal">
           {!result || result.tables.length === 0 ? (
-            <div className="flex min-h-[260px] flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed p-8 text-center text-muted-foreground">
-              <Database className="h-8 w-8" />
-              <p className="text-sm">
-                {result ? 'Nenhuma tabela nova por enquanto. Veja a resposta do assistente ao lado.' : 'A proposta de tabelas aparece aqui para você revisar.'}
-              </p>
-            </div>
+            <AiEmptyPreview
+              icon={<Database className="h-8 w-8" />}
+              text={result ? 'Nenhuma tabela nova por enquanto. Veja a resposta do assistente ao lado.' : 'A proposta de tabelas aparece aqui para você revisar.'}
+            />
           ) : (
             <>
-              {result.warnings.length > 0 && (
-                <div className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-xs text-amber-900 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-200">
-                  <p className="mb-1 flex items-center gap-1.5 font-medium"><AlertTriangle className="h-3.5 w-3.5" /> Ajustei algumas coisas:</p>
-                  <ul className="list-inside list-disc space-y-0.5">{result.warnings.map((w) => <li key={w}>{w}</li>)}</ul>
-                </div>
-              )}
+              <AiWarnings warnings={result.warnings} />
               {result.tables.map((t) => (
                 <TablePreview key={t.key} table={t} names={names} />
               ))}
-              <Card className="sticky bottom-4 z-10 shadow-lg">
-                <CardContent className="flex flex-col gap-2 p-4 sm:flex-row sm:items-center sm:justify-between">
-                  <p className="text-sm text-muted-foreground">Gostou? Dá para mudar tudo depois, no editor de cada tabela.</p>
-                  <Button size="lg" onClick={() => void create()} disabled={apply.isPending || propose.isPending} data-testid="ai-apply">
-                    {apply.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Check className="mr-2 h-4 w-4" />}
-                    {result.tables.length === 1 ? 'Criar a tabela' : `Criar as ${result.tables.length} tabelas`}
-                  </Button>
-                </CardContent>
-              </Card>
+              <AiApplyBar
+                label={result.tables.length === 1 ? 'Criar a tabela' : `Criar as ${result.tables.length} tabelas`}
+                onApply={() => void create()}
+                applying={apply.isPending}
+                disabled={chat.pending}
+              />
             </>
           )}
         </div>

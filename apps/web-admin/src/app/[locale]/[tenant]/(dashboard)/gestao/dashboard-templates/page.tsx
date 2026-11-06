@@ -17,7 +17,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { Plus, Pencil, Trash2, BarChart3, Loader2 } from 'lucide-react';
+import { Plus, Pencil, Trash2, BarChart3, Loader2, Sparkles } from 'lucide-react';
 import {
   useDashboardTemplates,
   useDeleteDashboardTemplate,
@@ -25,6 +25,7 @@ import {
 import type { DashboardTemplate } from '@crm-builder/shared';
 import { usePermissions } from '@/hooks/use-permissions';
 import { HelpButton } from '@/components/help/help-button';
+import { useAiBuilderStatus } from '@/hooks/use-ai-builder';
 
 function DashboardTemplatesContent() {
   const { data: templates, isLoading } = useDashboardTemplates();
@@ -35,6 +36,7 @@ function DashboardTemplatesContent() {
   // Mesma permissao da API (modulo dashboard).
   const { hasModulePermission } = usePermissions();
   const canCreate = hasModulePermission('dashboard', 'canCreate');
+  const { data: aiStatus } = useAiBuilderStatus();
   const canUpdate = hasModulePermission('dashboard', 'canUpdate');
   const canDelete = hasModulePermission('dashboard', 'canDelete');
 
@@ -62,12 +64,22 @@ function DashboardTemplatesContent() {
           </p>
         </div>
         {canCreate && (
-          <Link href="/gestao/dashboard-templates/new">
-            <Button>
-              <Plus className="h-4 w-4 mr-2" />
-              Novo painel
-            </Button>
-          </Link>
+          <div className="flex gap-2">
+            {aiStatus?.enabled && (
+              <Link href="/gestao/dashboard-templates/ai">
+                <Button variant="outline" data-testid="dashboard-ai">
+                  <Sparkles className="h-4 w-4 mr-2" />
+                  Criar com IA
+                </Button>
+              </Link>
+            )}
+            <Link href="/gestao/dashboard-templates/new">
+              <Button>
+                <Plus className="h-4 w-4 mr-2" />
+                Novo painel
+              </Button>
+            </Link>
+          </div>
         )}
       </div>
 

@@ -1,5 +1,10 @@
 import { Logger, ServiceUnavailableException } from '@nestjs/common';
 import type { AiProposal } from './ai-builder.schema';
+import type { AiDashboardProposal } from './dashboard-proposal';
+import type { AiPdfProposal } from './pdf-proposal';
+import type { SchemaTable } from './tenant-schema';
+
+export type AiAssistantKind = 'tables' | 'dashboard' | 'pdf';
 
 /**
  * Provedor de IA do assistente (plugavel por AI_BUILDER_PROVIDER):
@@ -11,13 +16,16 @@ import type { AiProposal } from './ai-builder.schema';
  */
 
 export interface AiProposeInput {
+  kind: AiAssistantKind;
   system: string;
   /** Pedido completo em texto: tabelas existentes, proposta atual e conversa. */
   prompt: string;
   schema: Record<string, unknown>;
   /** So para o mock (deterministico). */
   lastMessage: string;
-  current: AiProposal | null;
+  current: unknown;
+  tables: SchemaTable[];
+  preferredTable?: string;
 }
 
 export interface AiProposeOutput {
@@ -36,7 +44,11 @@ export class MockAiProvider implements AiBuilderProvider {
   readonly name = 'mock';
 
   // eslint-disable-next-line @typescript-eslint/require-await
-  async propose({ lastMessage, current }: AiProposeInput): Promise<AiProposeOutput> {
+  async propose(input: AiProposeInput): Promise<AiProposeOutput> {
+    if (input.kind === 'dashboard') return { output: mockDashboard(input) };
+    if (input.kind === 'pdf') return { output: mockPdf(input) };
+    const { lastMessage } = input;
+    const current = input.current as AiProposal | null;
     if (current) {
       const next: AiProposal = JSON.parse(JSON.stringify(current)) as AiProposal;
       next.tables[0].fields.push({ key: 'observacoes', label: 'Observações', type: 'textarea', width: 'full' });
@@ -88,6 +100,54 @@ export class MockAiProvider implements AiBuilderProvider {
     };
     return { output: proposal };
   }
+}
+
+function mockDashboard({ current, tables }: AiProposeInput): AiDashboardProposal {
+  if (current) {
+    const next = JSON.parse(JSON.stringify(current)) as AiDashboardProposal;
+    next.tabs[0].rows.push([{ type: 'activity-feed', title: 'Últimas alterações', table: next.mainTable, width: 12 }]);
+    next.reply = 'Coloquei as últimas alterações no fim.';
+    return next;
+  }
+  const main = tables.find((t) => !t.parentSlug) ?? tables[0];
+  const group = main?.fields.find((f) => f.type === 'select');
+  return {
+    reply: `Montei um painel de ${main?.namePlural ?? 'registros'}.`,
+    name: `Painel de ${main?.namePlural ?? 'registros'}`,
+    description: 'Números, situação e a lista completa.',
+    mainTable: main?.slug ?? '',
+    tabs: [{
+      label: 'Visão geral',
+      rows: [
+        [{ type: 'kpi-card', title: 'Total', table: main?.slug ?? '', width: 4, aggregation: 'count' }],
+        ...(group ? [[{ type: 'donut-chart' as const, title: `Por ${group.label.toLowerCase()}`, table: main!.slug, groupBy: group.slug, width: 6 }]] : []),
+        [{ type: 'data-table', title: main?.namePlural ?? 'Registros', table: main?.slug ?? '', width: 12 }],
+      ],
+    }],
+  };
+}
+
+function mockPdf({ current, tables, preferredTable }: AiProposeInput): AiPdfProposal {
+  if (current) {
+    const next = JSON.parse(JSON.stringify(current)) as AiPdfProposal;
+    next.sections.push({ kind: 'text', title: 'Observações', text: 'Documento gerado pelo sistema.' });
+    next.reply = 'Coloquei um texto de observações no fim.';
+    return next;
+  }
+  const table = tables.find((t) => t.slug === preferredTable) ?? tables[0];
+  const simple = (table?.fields || []).filter((f) => !['sub-entity', 'section-title', 'image', 'file', 'signature'].includes(f.type));
+  return {
+    reply: `Montei um documento de ${table?.name ?? 'registro'}.`,
+    name: `Ficha de ${table?.name ?? 'registro'}`,
+    description: 'Os dados principais do registro.',
+    table: table?.slug ?? '',
+    title: table?.titleField ? `${table.name} {{${table.titleField}}}` : (table?.name ?? 'Documento'),
+    sections: [
+      { kind: 'heading', title: 'Dados' },
+      { kind: 'fields', fields: simple.slice(0, 4).map((f) => f.slug), columns: 2 },
+      { kind: 'divider' },
+    ],
+  };
 }
 
 /** Ponte local para o `claude -p` (dev). Nunca configurar em producao. */
