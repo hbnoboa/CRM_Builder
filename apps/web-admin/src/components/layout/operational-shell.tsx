@@ -22,7 +22,6 @@ import {
   ChevronDown,
   ChevronRight,
   MessageSquare,
-  CircleDot,
   LayoutDashboard,
   LifeBuoy,
   Trash2,
@@ -32,6 +31,7 @@ import { usePermissions } from '@/hooks/use-permissions';
 import { useEntitiesGrouped } from '@/hooks/use-entities';
 import { cn } from '@/lib/utils';
 import { CommandMenu, ShellTopbar, SidebarBrand, navItemClass } from '@/components/layout/shell-parts';
+import { EntityNavItem } from '@/components/layout/entity-nav-item';
 import { TrialBanner, useTenantFeatures } from '@/components/subscription/subscription-widgets';
 import { AnnouncementsBanner } from '@/components/announcements/announcements-banner';
 
@@ -82,12 +82,13 @@ export function OperationalShell({ children }: { children: React.ReactNode }) {
         )}
       >
         <div className="flex h-full flex-col">
-          <div className="flex h-14 items-center gap-3 border-b px-4">
+          {/* Cabecalho na cor da empresa: cada empresa reconhece a sua */}
+          <div className="flex h-16 items-center gap-3 bg-primary px-4 text-primary-foreground">
             <div className="min-w-0 flex-1">
-              <SidebarBrand subtitle={user?.customRole?.name || tNav('operational')} />
+              <SidebarBrand strong subtitle={user?.customRole?.name || tNav('operational')} />
             </div>
             <button
-              className="lg:hidden p-2 -mr-2 rounded-lg hover:bg-muted transition-colors"
+              className="lg:hidden p-2 -mr-2 rounded-lg hover:bg-white/15 transition-colors"
               onClick={() => setSidebarOpen(false)}
               aria-label="Fechar menu"
             >
@@ -116,32 +117,37 @@ export function OperationalShell({ children }: { children: React.ReactNode }) {
                 {registrosOpen ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
               </button>
               {registrosOpen && (
-                <div className="mt-0.5 space-y-0.5">
+                <div className="mt-1 space-y-1">
                   {entityGroups && entityGroups.length > 0 ? (
                     entityGroups.flatMap((group) => group.entities).map((entity) => {
                       const href = `/data?entity=${entity.slug}`;
                       const isActive = pathname === '/data' && searchParams.get('entity') === entity.slug;
+                      const subs = ((entity as { subEntities?: Array<{ id: string; name: string; namePlural?: string; slug: string; icon?: string; color?: string }> }).subEntities) || [];
                       return (
-                        <Link
-                          key={entity.id}
-                          href={href}
-                          prefetch={false}
-                          onClick={() => setSidebarOpen(false)}
-                          className={cn(
-                            'flex items-center rounded-md text-sm transition-colors min-h-[34px] gap-2.5 pl-7 pr-2.5 py-1',
-                            isActive ? 'bg-nav-active text-nav-active-foreground font-medium' : 'text-muted-foreground hover:text-foreground hover:bg-muted'
-                          )}
-                        >
-                          <span style={{ color: isActive ? undefined : entity.color || undefined }}>
-                            <CircleDot className="h-4 w-4" />
-                          </span>
-                          <span className="flex-1 truncate text-[13px]">{entity.name}</span>
-                          {entity._count && (
-                            <span className={cn('text-[10px] tabular-nums', isActive ? 'text-nav-active-foreground/70' : 'text-muted-foreground/50')}>
-                              {(entity._count.data || 0) + (entity._count.archivedData || 0)}
-                            </span>
-                          )}
-                        </Link>
+                        <div key={entity.id} className="space-y-1">
+                          <EntityNavItem
+                            href={href}
+                            name={entity.namePlural || entity.name}
+                            icon={entity.icon}
+                            color={entity.color}
+                            count={entity._count ? (entity._count.data || 0) + (entity._count.archivedData || 0) : undefined}
+                            active={isActive}
+                            onClick={() => setSidebarOpen(false)}
+                          />
+                          {/* Listas dentro desta tabela (ex.: Sinistros dentro de Segurados) */}
+                          {subs.map((sub) => (
+                            <EntityNavItem
+                              key={sub.id}
+                              nested
+                              href={`/data?entity=${sub.slug}`}
+                              name={sub.namePlural || sub.name}
+                              icon={sub.icon}
+                              color={sub.color}
+                              active={pathname === '/data' && searchParams.get('entity') === sub.slug}
+                              onClick={() => setSidebarOpen(false)}
+                            />
+                          ))}
+                        </div>
                       );
                     })
                   ) : (

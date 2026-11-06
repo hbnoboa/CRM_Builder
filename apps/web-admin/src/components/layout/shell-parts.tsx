@@ -29,10 +29,10 @@ import { cn } from '@/lib/utils';
 /** Classes do item de menu lateral (ativo em tom suave da marca). */
 export function navItemClass(active: boolean, extra?: string) {
   return cn(
-    'group flex items-center gap-3 rounded-md px-2.5 text-sm transition-colors min-h-[42px] lg:min-h-[36px]',
+    'group flex items-center gap-3 rounded-lg px-2.5 text-sm font-medium transition-colors min-h-[44px] lg:min-h-[40px]',
     active
-      ? 'bg-nav-active text-nav-active-foreground font-medium'
-      : 'text-muted-foreground hover:bg-muted hover:text-foreground',
+      ? 'bg-primary text-primary-foreground shadow-sm'
+      : 'text-foreground/75 hover:bg-muted hover:text-foreground',
     extra,
   );
 }
@@ -47,23 +47,26 @@ export function NavSectionLabel({ children, className }: { children: React.React
 }
 
 /** Logo (ou inicial) e nome da empresa no topo do menu. */
-export function SidebarBrand({ subtitle, hideText }: { subtitle?: React.ReactNode; hideText?: boolean }) {
+export function SidebarBrand({ subtitle, hideText, strong }: { subtitle?: React.ReactNode; hideText?: boolean; strong?: boolean }) {
   const { tenant } = useTenant();
   const name = tenant?.name || 'CRM Builder';
   return (
     <div className="flex min-w-0 items-center gap-2.5">
       {tenant?.logo ? (
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={tenant.logo} alt={name} className="h-8 w-8 shrink-0 rounded-md object-contain" />
+        <img src={tenant.logo} alt={name} className={cn('h-9 w-9 shrink-0 rounded-lg object-contain', strong && 'bg-white p-0.5')} />
       ) : (
-        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-primary text-sm font-bold text-primary-foreground">
+        <span className={cn(
+          'flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-base font-bold',
+          strong ? 'bg-white text-primary shadow-sm' : 'bg-primary text-primary-foreground',
+        )}>
           {name[0]?.toUpperCase()}
         </span>
       )}
       {!hideText && (
         <span className="min-w-0">
           <span className="block truncate text-sm font-semibold leading-tight">{name}</span>
-          {subtitle && <span className="block truncate text-[11px] text-muted-foreground">{subtitle}</span>}
+          {subtitle && <span className={cn('block truncate text-[11px]', strong ? 'text-primary-foreground/80' : 'text-muted-foreground')}>{subtitle}</span>}
         </span>
       )}
     </div>

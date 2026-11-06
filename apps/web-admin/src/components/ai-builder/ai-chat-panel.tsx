@@ -56,7 +56,10 @@ export function useAiConversation<R extends { reply: string; proposal: Record<st
     setResult(null);
   }, []);
 
-  return { messages, result, pending, send, reset };
+  /** Mexida a mao na proposta (sem IA): a proxima mensagem ja parte dela. */
+  const replaceResult = useCallback((next: R | null | ((prev: R | null) => R | null)) => setResult(next), []);
+
+  return { messages, result, pending, send, reset, replaceResult };
 }
 
 interface AiChatPanelProps {
@@ -104,7 +107,7 @@ export function AiChatPanel({ messages, pending, hasResult, onSend, subtitle, ex
 
         <div className="max-h-[52vh] min-h-[200px] space-y-3 overflow-y-auto rounded-lg bg-muted/40 p-3" data-testid="ai-messages">
           {messages.length === 0 && (
-            <div className="space-y-2">
+            <div className="space-y-2" data-tour="ai-examples">
               <p className="text-sm text-muted-foreground">Escreva do seu jeito, como explicaria para um colega. Por exemplo:</p>
               {examples.map((ex) => (
                 <button
@@ -155,6 +158,7 @@ export function AiChatPanel({ messages, pending, hasResult, onSend, subtitle, ex
             placeholder={hasResult ? changePlaceholder : placeholder}
             disabled={pending || disabled}
             data-testid="ai-input"
+            data-tour="ai-chat-input"
           />
           <div className="flex items-center justify-between gap-2">
             <p className="flex items-center gap-1 text-[11px] text-muted-foreground">
@@ -194,7 +198,7 @@ export function AiApplyBar({ label, onApply, applying, disabled }: { label: stri
     <Card className="sticky bottom-4 z-10 shadow-lg">
       <CardContent className="flex flex-col gap-2 p-4 sm:flex-row sm:items-center sm:justify-between">
         <p className="text-sm text-muted-foreground">Gostou? Dá para mudar tudo depois, no editor.</p>
-        <Button size="lg" onClick={onApply} disabled={applying || disabled} data-testid="ai-apply">
+        <Button size="lg" onClick={onApply} disabled={applying || disabled} data-testid="ai-apply" data-tour="ai-apply">
           {applying ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Check className="mr-2 h-4 w-4" />}
           {label}
         </Button>
@@ -212,7 +216,7 @@ export function isNarrowScreen(): boolean {
  * Conversa ao lado da proposta no computador; no celular, uma de cada vez
  * ("Conversa" / "Proposta"), indo para a proposta quando a IA responde.
  */
-export function AiBuilderLayout({ chat, preview, reply, hasResult, wide }: {
+export function AiBuilderLayout({ chat, preview, reply, hasResult, wide, forceTab }: {
   chat: ReactNode;
   preview: ReactNode;
   /** Ultima resposta da IA, repetida acima da proposta no celular. */
@@ -220,8 +224,13 @@ export function AiBuilderLayout({ chat, preview, reply, hasResult, wide }: {
   hasResult: boolean;
   /** Proposta mais larga (paineis): lado a lado so em telas bem grandes. */
   wide?: boolean;
+  /** Troca a aba do celular de fora (ex.: o tutorial mostrando a proposta). */
+  forceTab?: { tab: 'chat' | 'preview'; n: number };
 }) {
   const [tab, setTab] = useState<'chat' | 'preview'>('chat');
+  useEffect(() => {
+    if (forceTab) setTab(forceTab.tab);
+  }, [forceTab]);
   useEffect(() => {
     if (hasResult && reply) setTab('preview');
   }, [reply, hasResult]);

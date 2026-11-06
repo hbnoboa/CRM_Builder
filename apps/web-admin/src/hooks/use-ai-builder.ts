@@ -91,3 +91,43 @@ export function useAiApplyTo(endpoint: '/ai-builder/dashboards/apply' | '/ai-bui
     onSuccess: () => queryClient.invalidateQueries({ queryKey: invalidate }),
   });
 }
+
+/** Proposta de tabelas no formato da IA (o que a pessoa edita na previa). */
+export interface AiFieldDraft {
+  key: string;
+  label: string;
+  type: string;
+  required?: boolean;
+  width?: 'full' | 'half' | 'third' | 'quarter';
+  options?: Array<{ label: string; color?: string }>;
+  relatedTable?: string;
+  helpText?: string;
+  placeholder?: string;
+}
+
+export interface AiTableDraft {
+  key: string;
+  name: string;
+  namePlural: string;
+  description: string;
+  icon?: string;
+  color?: string;
+  parentKey?: string;
+  fields: AiFieldDraft[];
+  titleField?: string;
+  statusField?: string;
+  doneOptions?: string[];
+  deadlineField?: string;
+  assigneeField?: string;
+}
+
+export interface AiProposalDraft {
+  reply: string;
+  group?: string;
+  tables: AiTableDraft[];
+}
+
+/** Confere e desenha de novo uma proposta mexida a mao (sem IA, sem custo). */
+export async function previewAiTables(proposal: AiProposalDraft) {
+  return (await api.post<AiProposeResult>('/ai-builder/preview', { proposal })).data;
+}

@@ -113,6 +113,13 @@ export class AiBuilderService {
     return this.presentTables(normalizeProposal(output, existing), existing);
   }
 
+  /** Previa de uma proposta mexida a mao (sem IA, sem custo): confere e desenha de novo. */
+  async previewTables(dto: AiApplyDto, user: CurrentUser) {
+    const tenantId = getEffectiveTenantId(user);
+    const existing = this.toExisting(await loadTenantSchema(this.prisma, tenantId));
+    return this.presentTables(normalizeProposal(this.parseProposal(dto.proposal), existing), existing);
+  }
+
   /** Cria as tabelas da proposta (revalidada aqui; nada do cliente e confiado). */
   async apply(dto: AiApplyDto, user: CurrentUser) {
     const tenantId = getEffectiveTenantId(user);

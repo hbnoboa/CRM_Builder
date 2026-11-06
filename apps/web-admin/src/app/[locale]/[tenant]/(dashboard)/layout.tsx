@@ -16,18 +16,6 @@ import {
   PanelLeftOpen,
   ChevronDown,
   ChevronRight,
-  Target,
-  Briefcase,
-  TicketCheck,
-  FolderKanban,
-  CheckSquare,
-  Wrench,
-  Cpu,
-  ClipboardCheck,
-  Package,
-  UserCheck,
-  CircleDot,
-  Layers,
   Settings2,
   MessageSquare,
   ShieldCheck,
@@ -50,6 +38,7 @@ import { ImpersonationBanner } from '@/components/impersonation-banner';
 import { OperationalShell } from '@/components/layout/operational-shell';
 import { GestaoShell } from '@/components/layout/gestao-shell';
 import { cn } from '@/lib/utils';
+import { EntityNavItem } from '@/components/layout/entity-nav-item';
 import { CommandMenu, ShellTopbar, SidebarBrand, navItemClass } from '@/components/layout/shell-parts';
 import { TrialBanner, useTenantFeatures } from '@/components/subscription/subscription-widgets';
 import { AnnouncementsBanner } from '@/components/announcements/announcements-banner';
@@ -81,27 +70,6 @@ const bottomNavigation: NavItemConfig[] = [
   // Configurações da CONTA é de todos (#21); o tab "Organização" dentro é que é gated.
   { titleKey: 'settings', href: '/settings', icon: <Settings className="h-4 w-4" /> },
 ];
-
-const iconMap: Record<string, React.ReactNode> = {
-  Target: <Target className="h-4 w-4" />,
-  Users: <Users className="h-4 w-4" />,
-  Briefcase: <Briefcase className="h-4 w-4" />,
-  TicketCheck: <TicketCheck className="h-4 w-4" />,
-  FolderKanban: <FolderKanban className="h-4 w-4" />,
-  CheckSquare: <CheckSquare className="h-4 w-4" />,
-  Wrench: <Wrench className="h-4 w-4" />,
-  Cpu: <Cpu className="h-4 w-4" />,
-  ClipboardCheck: <ClipboardCheck className="h-4 w-4" />,
-  Package: <Package className="h-4 w-4" />,
-  UserCheck: <UserCheck className="h-4 w-4" />,
-};
-
-function getEntityIcon(iconName?: string, color?: string) {
-  if (iconName && iconMap[iconName]) {
-    return <span style={{ color: color || undefined }}>{iconMap[iconName]}</span>;
-  }
-  return <CircleDot className="h-4 w-4 text-muted-foreground" />;
-}
 
 function DashboardContent({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -301,13 +269,14 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
       >
         <TooltipProvider delayDuration={0}>
           <div className="flex flex-col h-full">
-            <div className={cn('flex items-center h-14 border-b', sidebarCollapsed ? 'lg:justify-center lg:px-2 px-4 gap-3' : 'gap-3 px-4')}>
+            {/* Cabecalho na cor da empresa: cada empresa reconhece a sua */}
+            <div className={cn('flex items-center h-16 bg-primary text-primary-foreground', sidebarCollapsed ? 'lg:justify-center lg:px-2 px-4 gap-3' : 'gap-3 px-4')}>
               {/* Quando colapsada, só o botão de expandir (logo+nome somem) p/ caber no rail. */}
               <div className={cn('min-w-0 flex-1', sidebarCollapsed && 'lg:hidden')}>
-                <SidebarBrand subtitle={user?.customRole?.name} />
+                <SidebarBrand strong subtitle={user?.customRole?.name} />
               </div>
               <button
-                className={cn('hidden lg:flex p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors', !sidebarCollapsed && '-mr-2')}
+                className={cn('hidden lg:flex p-2 rounded-lg text-primary-foreground/80 hover:text-primary-foreground hover:bg-white/15 transition-colors', !sidebarCollapsed && '-mr-2')}
                 onClick={() => {
                   setSidebarCollapsed(prev => {
                     const next = !prev;
@@ -320,7 +289,7 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
                 {sidebarCollapsed ? <PanelLeftOpen className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}
               </button>
               <button
-                className="ml-auto lg:hidden p-2 -mr-2 rounded-lg hover:bg-muted active:bg-muted/80 transition-colors"
+                className="ml-auto lg:hidden p-2 -mr-2 rounded-lg hover:bg-white/15 transition-colors"
                 onClick={() => setSidebarOpen(false)}
                 aria-label="Fechar menu"
               >
@@ -420,19 +389,9 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
                                 return (
                                   <Tooltip key={entity.id}>
                                     <TooltipTrigger asChild>
-                                      <Link
-                                        href={href}
-                                        prefetch={false}
-                                        className={cn(
-                                          'hidden lg:flex items-center justify-center rounded-md min-h-[36px] transition-colors',
-                                          isActive
-                                            ? 'bg-nav-active text-nav-active-foreground'
-                                            : 'text-muted-foreground hover:text-foreground hover:bg-muted'
-                                        )}
-                                        onClick={() => setSidebarOpen(false)}
-                                      >
-                                        {getEntityIcon(entity.icon, isActive ? undefined : entity.color)}
-                                      </Link>
+                                      <span className="hidden lg:block">
+                                        <EntityNavItem compact href={href} name={entity.namePlural || entity.name} icon={entity.icon} color={entity.color} active={isActive} onClick={() => setSidebarOpen(false)} />
+                                      </span>
                                     </TooltipTrigger>
                                     <TooltipContent side="right">
                                       <p>{entity.name}</p>
@@ -501,7 +460,7 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
                                 </span>
                               </button>
                               {isOpen && (
-                                <div className="space-y-0.5 mt-0.5">
+                                <div className="space-y-1 mt-1">
                                   {group.entities.map((entity) => {
                                     const href = `/data?entity=${entity.slug}`;
                                     const isActive = pathname === '/data' && searchParams.get('entity') === entity.slug;
@@ -510,28 +469,17 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
                                     return (
                                       <div key={entity.id}>
                                         <div className="flex items-center group">
-                                          <Link
-                                            href={href}
-                                            prefetch={false}
-                                            className={cn(
-                                              'flex items-center rounded-md text-sm transition-colors min-h-[34px] gap-2.5 pl-7 pr-2.5 py-1 flex-1 min-w-0',
-                                              isActive
-                                                ? 'bg-nav-active text-nav-active-foreground font-medium'
-                                                : 'text-muted-foreground hover:text-foreground hover:bg-muted'
-                                            )}
-                                            onClick={() => setSidebarOpen(false)}
-                                          >
-                                            {getEntityIcon(entity.icon, isActive ? undefined : entity.color)}
-                                            <span className="flex-1 truncate text-[13px]">{entity.name}</span>
-                                            {entity._count && (
-                                              <span className={cn(
-                                                'text-[10px] tabular-nums',
-                                                isActive ? 'text-nav-active-foreground/70' : 'text-muted-foreground/50'
-                                              )}>
-                                                {(entity._count.data || 0) + (entity._count.archivedData || 0)}
-                                              </span>
-                                            )}
-                                          </Link>
+                                          <div className="min-w-0 flex-1">
+                                            <EntityNavItem
+                                              href={href}
+                                              name={entity.namePlural || entity.name}
+                                              icon={entity.icon}
+                                              color={entity.color}
+                                              count={entity._count ? (entity._count.data || 0) + (entity._count.archivedData || 0) : undefined}
+                                              active={isActive}
+                                              onClick={() => setSidebarOpen(false)}
+                                            />
+                                          </div>
                                           {canEditEntities && (
                                             <Link
                                               href={`/gestao/entities/${entity.id}`}
@@ -543,29 +491,21 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
                                             </Link>
                                           )}
                                         </div>
-                                        {canEditEntities && subEntities && subEntities.length > 0 && (
-                                          <div className="space-y-0.5 mt-0.5">
-                                            {subEntities.map((sub) => {
-                                              const subHref = `/gestao/entities/${sub.id}`;
-                                              const isSubActive = pathname === `/gestao/entities/${sub.id}`;
-                                              return (
-                                                <Link
-                                                  key={sub.id}
-                                                  href={subHref}
-                                                  prefetch={false}
-                                                  className={cn(
-                                                    'flex items-center rounded-md text-xs transition-colors min-h-[30px] gap-2 pl-12 pr-2.5 py-1',
-                                                    isSubActive
-                                                      ? 'bg-nav-active text-nav-active-foreground font-medium'
-                                                      : 'text-muted-foreground/70 hover:text-foreground hover:bg-muted'
-                                                  )}
-                                                  onClick={() => setSidebarOpen(false)}
-                                                >
-                                                  <Layers className="h-3 w-3 flex-shrink-0" />
-                                                  <span className="flex-1 truncate">{sub.name}</span>
-                                                </Link>
-                                              );
-                                            })}
+                                        {subEntities && subEntities.length > 0 && (
+                                          <div className="mt-1 space-y-1">
+                                            {/* Listas dentro desta tabela: abrem os registros (o editor fica na engrenagem) */}
+                                            {subEntities.map((sub) => (
+                                              <EntityNavItem
+                                                key={sub.id}
+                                                nested
+                                                href={`/data?entity=${sub.slug}`}
+                                                name={(sub as { namePlural?: string }).namePlural || sub.name}
+                                                icon={sub.icon}
+                                                color={sub.color}
+                                                active={pathname === '/data' && searchParams.get('entity') === sub.slug}
+                                                onClick={() => setSidebarOpen(false)}
+                                              />
+                                            ))}
                                           </div>
                                         )}
                                       </div>

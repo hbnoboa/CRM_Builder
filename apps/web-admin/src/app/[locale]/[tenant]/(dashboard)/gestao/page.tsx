@@ -17,6 +17,8 @@ import { useGestaoOverview } from '@/hooks/use-gestao';
 import { useTenantFeatures } from '@/components/subscription/subscription-widgets';
 import { GestaoPageHeader, UsageMeter } from '@/components/gestao/gestao-ui';
 import { useFormatDate } from '@/components/platform/platform-ui';
+import { AiTableBuilder } from '@/components/ai-builder/ai-table-builder';
+import { useAiBuilderStatus } from '@/hooks/use-ai-builder';
 
 const SHORTCUTS = [
   { key: 'users', section: 'users', icon: Users },
@@ -37,7 +39,9 @@ export default function GestaoHomePage() {
   const slug = typeof params?.tenant === 'string' ? params.tenant : undefined;
   const user = useAuthStore((s) => s.user);
   const { tenant } = useTenant();
-  const { canAccessAdminSection } = usePermissions();
+  const { canAccessAdminSection, hasModulePermission } = usePermissions();
+  const { data: aiStatus } = useAiBuilderStatus();
+  const showAssistant = !!aiStatus?.enabled && hasModulePermission('entities', 'canCreate');
   const features = useTenantFeatures();
   const { data: sub } = useSubscription(slug);
   const { data: overview, isLoading } = useGestaoOverview();
@@ -71,6 +75,16 @@ export default function GestaoHomePage() {
         title={t('title', { name: user?.name?.split(' ')[0] ?? '' })}
         subtitle={t('subtitle', { company: tenant?.name ?? '' })}
       />
+
+      {showAssistant && (
+        <section className="space-y-3 rounded-2xl border bg-gradient-to-br from-primary/5 to-transparent p-4 sm:p-5" data-testid="gestao-assistant">
+          <div>
+            <h2 className="text-lg font-semibold">Monte sua empresa com IA</h2>
+            <p className="text-sm text-muted-foreground">Conte como é o seu negócio: a IA propõe as tabelas e você ajusta tudo aqui mesmo, antes de criar.</p>
+          </div>
+          <AiTableBuilder autoTour />
+        </section>
+      )}
 
       {sub && (
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4" data-testid="gestao-usage">

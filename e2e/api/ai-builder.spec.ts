@@ -86,6 +86,23 @@ test.describe.serial('assistente de criacao (IA)', () => {
     expect(pecas.settings).toMatchObject({ titleField: 'descricao' });
   });
 
+  test('previa de proposta mexida a mao confere sem IA', async ({ request }) => {
+    const res = await call(request, 'post', '/ai-builder/preview', tenant.owner, {
+      expected: 200,
+      data: { proposal: { reply: 'x', tables: [{ key: 'pets', name: 'Pet', namePlural: 'Pets', description: '', fields: [
+        { key: 'nome', label: 'Nome do pet', type: 'text', required: true },
+        { key: 'especie', label: 'Espécie', type: 'select', options: [] },
+        { key: 'dono', label: 'Dono', type: 'relation', relatedTable: 'clientes' },
+      ] }] } },
+    });
+    const body = await res.json();
+    const fields = body.tables[0].fields;
+    expect(fields.map((f: { label: string }) => f.label)).toEqual(['Nome do pet', 'Espécie', 'Dono']);
+    expect(fields[1].type).toBe('text'); // lista sem opcoes vira texto
+    expect(fields[2]).toMatchObject({ type: 'relation', relatedEntitySlug: 'clientes' });
+    expect(body.warnings.join(' ')).toMatch(/sem opções/);
+  });
+
   test('aplicar de novo nao colide com as tabelas que ja existem', async ({ request }) => {
     const res = await call(request, 'post', '/ai-builder/apply', tenant.owner, {
       expected: [200, 201],
@@ -101,6 +118,7 @@ test.describe.serial('assistente de criacao (IA)', () => {
     });
     const person = await createPerson(request, tenant.owner, tenant.slug, 'Operador', roleId);
     await call(request, 'post', '/ai-builder/apply', person, { expected: 403, data: { proposal: PROPOSAL } });
+    await call(request, 'post', '/ai-builder/preview', person, { expected: 403, data: { proposal: PROPOSAL } });
     await call(request, 'post', '/ai-builder/propose', person, { expected: 403, data: { messages: [{ role: 'user', content: 'oi' }] } });
     await call(request, 'post', '/ai-builder/dashboards/apply', person, { expected: 403, data: { proposal: { tabs: [] } } });
     await call(request, 'post', '/ai-builder/pdfs/apply', person, { expected: 403, data: { proposal: { table: 'ordens' } } });

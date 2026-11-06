@@ -13,8 +13,10 @@ import { GestaoPageHeader } from '@/components/gestao/gestao-ui';
 import api from '@/lib/api';
 import { getErrorMessage } from '@/lib/get-error-message';
 import { cn } from '@/lib/utils';
+import { DEFAULT_BRAND_COLOR } from '@/lib/generate-theme';
 
-const DEFAULT_COLOR = '#7c3aed';
+// Mesma cor que o tema usa quando a empresa nao escolheu nenhuma (antes: roxo aqui, laranja na tela)
+const DEFAULT_COLOR = DEFAULT_BRAND_COLOR;
 const HEX = /^#[0-9a-fA-F]{6}$/;
 const THEMES = [
   { key: 'light', icon: Sun },

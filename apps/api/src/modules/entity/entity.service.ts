@@ -360,6 +360,7 @@ export class EntityService {
           .map((sub) => ({
             id: sub!.id,
             name: sub!.name,
+            namePlural: (sub as { namePlural?: string }).namePlural || sub!.name,
             slug: sub!.slug,
             icon: (sub as any).icon || null,
             color: (sub as any).color || null,
