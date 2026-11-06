@@ -664,6 +664,36 @@ export class PdfGeneratorService {
   }
 
   /**
+   * PDF de um registro pelo link de acompanhamento (pagina para clientes): o acesso
+   * ja foi decidido pelo token; aqui so confere que o modelo e publicado, do mesmo
+   * tenant e da mesma tabela do registro.
+   */
+  async generateForTracking(templateId: string, recordId: string, tenantId: string): Promise<{ buffer: Buffer; fileName: string }> {
+    const template = await this.prisma.pdfTemplate.findFirst({
+      where: { id: templateId, tenantId, isPublished: true },
+      include: { sourceEntity: true },
+    });
+    const record = await this.prisma.entityData.findFirst({ where: { id: recordId, tenantId, deletedAt: null } });
+    if (!template || !record || template.sourceEntityId !== record.entityId) throw new NotFoundException('Documento nao encontrado');
+
+    let parentData: Record<string, unknown> = {};
+    if (record.parentRecordId) {
+      const parent = await this.prisma.entityData.findFirst({ where: { id: record.parentRecordId, tenantId, deletedAt: null } });
+      if (parent) parentData = { ...(parent.data as Record<string, unknown>), id: parent.id, createdAt: parent.createdAt, updatedAt: parent.updatedAt };
+    }
+    const data = await this.enrichDataWithSubEntities(
+      { ...(record.data as Record<string, unknown>), id: record.id, createdAt: record.createdAt, updatedAt: record.updatedAt, _parent: parentData },
+      template.sourceEntity?.fields as Array<{ slug: string; type: string; subEntityId?: string }>,
+      record.id,
+      tenantId,
+    );
+    const computedFields = (template.content as unknown as PdfTemplateContent)?.computedFields;
+    if (computedFields?.length) this.evaluateComputedFields(data, computedFields);
+    const buffer = await this.renderPdf(template, data);
+    return { buffer, fileName: `${template.slug}.pdf` };
+  }
+
+  /**
    * Previa de um conteudo que ainda nao virou modelo (assistente de IA): dados de
    * exemplo da tabela, de cada lista interna e do registro de cima (_parent).
    */

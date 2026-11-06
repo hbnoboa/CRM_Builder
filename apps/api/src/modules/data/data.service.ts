@@ -1330,6 +1330,74 @@ export class DataService {
     };
   }
 
+  /**
+   * Registro vindo de uma pagina para clientes (formulario publico), sem ninguem
+   * logado. Mesmo caminho do create (calculados, validacao, unicos, limite do plano,
+   * notificacao, auditoria, automacoes); quem chama ja limitou os campos ao que a
+   * pagina libera. O autor aparece como o nome da pagina.
+   */
+  async createFromSite(entity: Entity, data: Record<string, unknown>, actorName: string): Promise<EntityData> {
+    const tenantId = entity.tenantId;
+    const actor = { id: null, tenantId, name: actorName, email: '' } as unknown as CurrentUser;
+    const fields = (entity.fields as unknown) as EntityField[];
+    const settings = entity.settings as EntitySettings;
+    const withComputed = await this.computedFieldsService.processComputedFields(data, fields, entity.id, tenantId, undefined, undefined, settings);
+    const errors = this.entityService.validateData(fields, withComputed);
+    if (errors.length > 0) throw new BadRequestException(errors);
+    await this.validateUniqueFields(fields, withComputed, entity.id, tenantId);
+    await this.tenantPlan.assertCanAddRecords(tenantId);
+
+    const record = await this.prisma.entityData.create({
+      data: { tenantId, entityId: entity.id, data: withComputed as Prisma.InputJsonValue, parentRecordId: null },
+    });
+    this.materializer.materialize(entity as any, record).catch((err) => this.logger.error(`Erro ao materializar computed fields: ${err.message}`));
+
+    const titleField = settings?.titleField || 'nome';
+    this.notificationService.notifyRecordCreated(
+      tenantId, entity.name, String(withComputed[titleField] || record.id), actorName, entity.slug,
+      withComputed as Record<string, unknown>, { actorId: undefined as unknown as string, creatorId: undefined as unknown as string },
+    ).catch((err) => this.logger.error('Failed to send notification', err));
+    this.auditService.log(actor, {
+      action: 'create', resource: 'entity_data', resourceId: record.id, newData: withComputed as Record<string, unknown>,
+      metadata: { entitySlug: entity.slug, entityId: entity.id, source: 'site', actorName },
+    }).catch(() => {});
+    this.notificationService.emitDataChanged(tenantId, { operation: 'created', entitySlug: entity.slug, recordId: record.id, userId: undefined as unknown as string });
+    this.triggerAutomations('created', tenantId, { id: entity.id, slug: entity.slug, name: entity.name }, { id: record.id, ...withComputed }, actor);
+    return record;
+  }
+
+  /** Alteracao vinda do link de acompanhamento (ex.: cliente enviou um documento). */
+  async updateFromSite(entity: Entity, recordId: string, patch: Record<string, unknown>, actorName: string): Promise<EntityData> {
+    const tenantId = entity.tenantId;
+    const actor = { id: null, tenantId, name: actorName, email: '' } as unknown as CurrentUser;
+    const current = await this.prisma.entityData.findFirst({ where: { id: recordId, tenantId, entityId: entity.id, deletedAt: null } });
+    if (!current) throw new NotFoundException('Registro nao encontrado');
+    const fields = (entity.fields as unknown) as EntityField[];
+    const settings = entity.settings as EntitySettings;
+    const previousData = current.data as Record<string, unknown>;
+    const withComputed = await this.computedFieldsService.processComputedFields(
+      { ...previousData, ...patch }, fields, entity.id, tenantId, recordId, previousData, settings,
+    );
+    const errors = this.entityService.validateData(fields, withComputed);
+    if (errors.length > 0) throw new BadRequestException(errors);
+    const merged = { ...previousData, ...withComputed };
+    const updated = await this.prisma.entityData.update({ where: { id: recordId }, data: { data: merged as Prisma.InputJsonValue } });
+    this.materializer.materialize(entity as any, updated).catch((err) => this.logger.error(`Erro ao materializar computed fields: ${err.message}`));
+
+    const titleField = settings?.titleField || 'nome';
+    this.notificationService.notifyRecordUpdated(
+      tenantId, entity.name, String(merged[titleField] || recordId), actorName, entity.slug, merged,
+      { actorId: undefined as unknown as string, creatorId: current.createdById },
+    ).catch((err) => this.logger.error('Failed to send notification', err));
+    this.auditService.log(actor, {
+      action: 'update', resource: 'entity_data', resourceId: recordId, oldData: previousData, newData: merged,
+      metadata: { entitySlug: entity.slug, entityId: entity.id, source: 'site', actorName },
+    }).catch(() => {});
+    this.notificationService.emitDataChanged(tenantId, { operation: 'updated', entitySlug: entity.slug, recordId, userId: undefined as unknown as string });
+    this.triggerAutomations('updated', tenantId, { id: entity.id, slug: entity.slug, name: entity.name }, { id: recordId, ...merged }, actor, previousData);
+    return updated;
+  }
+
   async update(entitySlug: string, id: string, dto: CreateDataDto, currentUser: CurrentUser) {
     // Verificar permissao de edicao na entidade
     await this.checkEntityPermission(currentUser, entitySlug, 'canUpdate');

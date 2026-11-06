@@ -1,0 +1,101 @@
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
+import api from '@/lib/api';
+import { getErrorMessage } from '@/lib/get-error-message';
+import type { SitePageData } from '@/lib/site-api';
+
+export type SiteBlockDraft = { id?: string; type: string; [key: string]: unknown };
+
+export interface SitePage {
+  id: string;
+  title: string;
+  slug: string;
+  description: string | null;
+  blocks: SiteBlockDraft[];
+  isPublished: boolean;
+  updatedAt: string;
+  url: string;
+}
+
+export interface SitePageListItem {
+  id: string;
+  title: string;
+  slug: string;
+  description: string | null;
+  isPublished: boolean;
+  updatedAt: string;
+  url: string;
+  kinds: Array<'form' | 'tracking'>;
+}
+
+const keys = {
+  all: ['site-pages'] as const,
+  detail: (id: string) => ['site-pages', id] as const,
+};
+
+export function useSitePages() {
+  return useQuery({ queryKey: keys.all, queryFn: async () => (await api.get<SitePageListItem[]>('/site-pages')).data });
+}
+
+export function useSitePage(id: string | undefined) {
+  return useQuery({
+    queryKey: keys.detail(id || ''),
+    queryFn: async () => (await api.get<SitePage>(`/site-pages/${id}`)).data,
+    enabled: !!id,
+  });
+}
+
+export function useCreateSitePage() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (body: { title: string; template: 'form' | 'tracking' | 'blank'; entitySlug?: string }) =>
+      (await api.post<SitePage>('/site-pages', body)).data,
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.all }),
+    onError: (e) => toast.error(getErrorMessage(e, 'Não foi possível criar a página.')),
+  });
+}
+
+export function useUpdateSitePage(id: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (body: Partial<Pick<SitePage, 'title' | 'slug' | 'description' | 'blocks'>>) =>
+      (await api.patch<SitePage>(`/site-pages/${id}`, body)).data,
+    onSuccess: (page) => {
+      qc.setQueryData(keys.detail(id), page);
+      qc.invalidateQueries({ queryKey: keys.all });
+    },
+  });
+}
+
+export function usePublishSitePage(id: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (publish: boolean) => (await api.post<SitePage>(`/site-pages/${id}/publish`, { publish })).data,
+    onSuccess: (page) => {
+      qc.setQueryData(keys.detail(id), page);
+      qc.invalidateQueries({ queryKey: keys.all });
+      toast.success(page.isPublished ? 'Página publicada!' : 'Página tirada do ar.');
+    },
+    onError: (e) => toast.error(getErrorMessage(e, 'Não foi possível publicar.')),
+  });
+}
+
+export function useDeleteSitePage() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => (await api.delete(`/site-pages/${id}`)).data,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: keys.all });
+      toast.success('Página excluída.');
+    },
+  });
+}
+
+export async function previewSitePage(blocks: SiteBlockDraft[], title: string) {
+  return (await api.post<SitePageData | { error: string }>('/site-pages/preview', { blocks, title })).data;
+}
+
+/** Link de acompanhamento de um registro (cria se ainda nao existir). */
+export async function fetchTrackingLink(entitySlug: string, recordId: string) {
+  return (await api.post<{ url: string; pageTitle: string }>('/record-tracking/link', { entitySlug, recordId })).data;
+}
