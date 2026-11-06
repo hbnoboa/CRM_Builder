@@ -31,8 +31,7 @@ import {
   Timer,
   Users,
   UsersRound,
-  X,
-} from 'lucide-react';
+  X, Globe } from 'lucide-react';
 import { usePermissions } from '@/hooks/use-permissions';
 import { TrialBanner, useTenantFeatures } from '@/components/subscription/subscription-widgets';
 import { AnnouncementsBanner } from '@/components/announcements/announcements-banner';
@@ -65,6 +64,7 @@ const GROUPS: Array<{ key: string; items: GestaoItem[] }> = [
       { key: 'entities', section: 'entities', icon: <TableProperties className="h-4 w-4" /> },
       { key: 'pdfTemplates', section: 'pdf-templates', icon: <FileText className="h-4 w-4" />, featureKey: 'pdf' },
       { key: 'dashboardTemplates', section: 'dashboard-templates', icon: <BarChart3 className="h-4 w-4" /> },
+      { key: 'sitePages', section: 'pages', icon: <Globe className="h-4 w-4" />, featureKey: 'publicLinks' },
       { key: 'publicLinks', section: 'public-links', icon: <Link2 className="h-4 w-4" />, featureKey: 'publicLinks' },
       { key: 'integrations', section: 'integrations', icon: <Plug className="h-4 w-4" /> },
     ],

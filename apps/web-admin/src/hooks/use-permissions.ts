@@ -116,6 +116,7 @@ const ADMIN_SECTION_RULES: Record<string, SectionRule | SectionRule[]> = {
   ],
   // Mesma permissao da API: todas as rotas de links exigem canManage.
   'public-links': { module: 'publicLinks', action: 'canManage' },
+  pages: { module: 'publicLinks', action: 'canManage' },
   'audit-logs': { module: 'auditLogs', action: 'canRead' },
   'execution-logs': { module: 'executionLogs', action: 'canRead' },
   organization: { module: 'settings', action: 'canUpdate' },

@@ -40,6 +40,7 @@ import { DashboardTemplateModule } from './modules/dashboard-template/dashboard-
 import { PublicLinkModule } from './modules/public-link/public-link.module';
 import { ChatModule } from './modules/chat/chat.module';
 import { AiBuilderModule } from './modules/ai-builder/ai-builder.module';
+import { SitePagesModule } from './modules/site-pages/site-pages.module';
 import { PlatformModule } from './modules/platform/platform.module';
 import { PrivacyModule } from './modules/privacy/privacy.module';
 import { TeamModule } from './modules/team/team.module';
@@ -133,6 +134,7 @@ import { TenantFeatureInterceptor } from './common/interceptors/tenant-feature.i
     PublicLinkModule,
     ChatModule,
     AiBuilderModule,
+    SitePagesModule,
 
     // Console da plataforma (equipe)
     PlatformModule,

@@ -220,6 +220,9 @@ services:
       AI_BUILDER_PROVIDER: ${AI_BUILDER_PROVIDER_DEV:-}
       AI_BRIDGE_URL: ${AI_BRIDGE_URL_DEV:-}
       AI_BRIDGE_TOKEN: ${AI_BRIDGE_TOKEN_DEV:-}
+      # Paginas para clientes no subdominio (ex.: https://{empresa}.dev.iossystem.com.br).
+      # Vazio = endereco /p/<empresa>/<pagina>. Ver docs/paginas-para-clientes.md
+      SITE_PAGES_BASE_URL: ${SITE_PAGES_BASE_URL_DEV:-}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:

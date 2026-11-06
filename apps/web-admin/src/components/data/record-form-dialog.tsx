@@ -1,5 +1,6 @@
 'use client';
 
+import { TrackingLinkButton } from '@/components/site/tracking-link-button';
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import { Loader2, Star, Eye, EyeOff, Play, Pause, Square, Clock, AlertTriangle, CheckCircle, XCircle, X, Plus } from 'lucide-react';
 import { withoutSystemFields } from '@/lib/system-fields';
@@ -1799,6 +1800,7 @@ export function RecordFormDialog({
             <SheetDescription className="sr-only">{t('formDescription')}</SheetDescription>
           </div>
           {statusOption && <OptionBadge label={statusOption.label} color={statusOption.color} className="mt-1" />}
+          {isEditing && record?.id && <TrackingLinkButton entitySlug={entity.slug} entityName={entity.name} recordId={record.id} />}
         </div>
         <div className="flex-1 overflow-y-auto px-6 pt-5">
           <RecordFormFields
