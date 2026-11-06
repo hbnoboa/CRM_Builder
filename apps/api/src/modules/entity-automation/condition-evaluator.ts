@@ -26,7 +26,13 @@ export class ConditionEvaluator {
   ): boolean {
     const fieldValue = this.getNestedValue(recordData, condition.field);
 
-    switch (condition.operator) {
+    // Nomes usados pelos modelos de tabela e pelas regras de campo (equals/not_equals...)
+    const ALIASES: Record<string, string> = {
+      equals: 'eq', not_equals: 'neq', greater: 'gt', greater_than: 'gt', less: 'lt', less_than: 'lt',
+    };
+    const operator = ALIASES[condition.operator] ?? condition.operator;
+
+    switch (operator) {
       case 'eq':
         return fieldValue === condition.value;
 
