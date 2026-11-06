@@ -39,6 +39,7 @@ import { EntityFieldRuleModule } from './modules/entity-field-rule/entity-field-
 import { DashboardTemplateModule } from './modules/dashboard-template/dashboard-template.module';
 import { PublicLinkModule } from './modules/public-link/public-link.module';
 import { ChatModule } from './modules/chat/chat.module';
+import { AiBuilderModule } from './modules/ai-builder/ai-builder.module';
 import { PlatformModule } from './modules/platform/platform.module';
 import { PrivacyModule } from './modules/privacy/privacy.module';
 import { TeamModule } from './modules/team/team.module';
@@ -131,6 +132,7 @@ import { TenantFeatureInterceptor } from './common/interceptors/tenant-feature.i
     // Public Links (formularios externos)
     PublicLinkModule,
     ChatModule,
+    AiBuilderModule,
 
     // Console da plataforma (equipe)
     PlatformModule,
