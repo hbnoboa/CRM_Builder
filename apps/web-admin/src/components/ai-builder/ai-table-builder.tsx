@@ -12,7 +12,7 @@ import { RecordFormFields } from '@/components/data/record-form-dialog';
 import { fieldKind } from '@/lib/field-catalog';
 import { getErrorMessage } from '@/lib/get-error-message';
 import { useAiApply, type AiPreviewTable, type AiProposeResult } from '@/hooks/use-ai-builder';
-import { AiApplyBar, AiChatPanel, AiEmptyPreview, AiWarnings, useAiConversation } from './ai-chat-panel';
+import { AiApplyBar, AiBuilderLayout, AiChatPanel, AiEmptyPreview, AiWarnings, isNarrowScreen, useAiConversation } from './ai-chat-panel';
 
 const EXAMPLES = [
   'Tenho uma oficina mecânica: quero controlar clientes, carros e ordens de serviço com as peças usadas.',
@@ -38,7 +38,10 @@ export function AiTableBuilder({ onBack }: { onBack: () => void }) {
     try {
       const res = await apply.mutateAsync(result.proposal);
       toast.success(res.tables.length === 1 ? 'Tabela criada!' : `${res.tables.length} tabelas criadas!`);
-      if (res.rootId) router.push(`/gestao/entities/${res.rootId}`);
+      // No celular o editor de tabela e so para computador: vai direto para os registros
+      const root = res.tables.find((t) => t.id === res.rootId);
+      if (isNarrowScreen() && root) router.push(`/data?entity=${root.slug}`);
+      else if (res.rootId) router.push(`/gestao/entities/${res.rootId}`);
       else router.push('/gestao/entities');
     } catch (error) {
       toast.error(getErrorMessage(error, 'Não foi possível criar as tabelas.'));
@@ -59,7 +62,10 @@ export function AiTableBuilder({ onBack }: { onBack: () => void }) {
         </Button>
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
+      <AiBuilderLayout
+        hasResult={!!result}
+        reply={result?.reply}
+        chat={(
         <AiChatPanel
           messages={chat.messages}
           pending={chat.pending}
@@ -70,7 +76,8 @@ export function AiTableBuilder({ onBack }: { onBack: () => void }) {
           placeholder="Ex.: tenho uma clínica e quero controlar pacientes e consultas"
           changePlaceholder='Peça uma mudança: "tire o campo cor", "junte nome e sobrenome"…'
         />
-
+        )}
+        preview={(
         <div className="space-y-3" data-testid="ai-proposal">
           {!result || result.tables.length === 0 ? (
             <AiEmptyPreview
@@ -92,7 +99,8 @@ export function AiTableBuilder({ onBack }: { onBack: () => void }) {
             </>
           )}
         </div>
-      </div>
+        )}
+      />
     </div>
   );
 }

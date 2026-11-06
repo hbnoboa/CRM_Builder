@@ -172,7 +172,7 @@ export function KpiCardWidget({ entitySlug, config, title, isEditMode, entityFie
       error={error ? 'Erro ao carregar dados' : null}
     >
       <div className="flex flex-col justify-center h-full gap-1">
-        <span className={cn('text-3xl font-bold', getThresholdColor())}>
+        <span className={cn('whitespace-nowrap text-[clamp(1.25rem,6vw,1.875rem)] font-bold', getThresholdColor())}>
           {formatValue(value)}
         </span>
         {comparison && config.showComparison && (

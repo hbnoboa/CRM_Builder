@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
-import { AlertTriangle, Check, Loader2, Lock, Send, Sparkles } from 'lucide-react';
+import { AlertTriangle, Check, Loader2, Lock, MessageSquare, Send, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -200,5 +200,61 @@ export function AiApplyBar({ label, onApply, applying, disabled }: { label: stri
         </Button>
       </CardContent>
     </Card>
+  );
+}
+
+/** No celular a tela e estreita para conversa + proposta lado a lado. */
+export function isNarrowScreen(): boolean {
+  return typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches;
+}
+
+/**
+ * Conversa ao lado da proposta no computador; no celular, uma de cada vez
+ * ("Conversa" / "Proposta"), indo para a proposta quando a IA responde.
+ */
+export function AiBuilderLayout({ chat, preview, reply, hasResult, wide }: {
+  chat: ReactNode;
+  preview: ReactNode;
+  /** Ultima resposta da IA, repetida acima da proposta no celular. */
+  reply?: string;
+  hasResult: boolean;
+  /** Proposta mais larga (paineis): lado a lado so em telas bem grandes. */
+  wide?: boolean;
+}) {
+  const [tab, setTab] = useState<'chat' | 'preview'>('chat');
+  useEffect(() => {
+    if (hasResult && reply) setTab('preview');
+  }, [reply, hasResult]);
+  const hideOnSmall = wide ? 'hidden xl:block' : 'hidden lg:block';
+  return (
+    <div className="space-y-3">
+      <div className={cn('grid grid-cols-2 gap-1 rounded-lg bg-muted p-1', wide ? 'xl:hidden' : 'lg:hidden')} data-testid="ai-mobile-tabs">
+        {(['chat', 'preview'] as const).map((t) => (
+          <button
+            key={t}
+            type="button"
+            disabled={t === 'preview' && !hasResult}
+            onClick={() => setTab(t)}
+            className={cn('rounded-md py-2 text-sm font-medium transition-colors disabled:opacity-40', tab === t ? 'bg-background shadow-sm' : 'text-muted-foreground')}
+          >
+            {t === 'chat' ? 'Conversa' : 'Proposta'}
+          </button>
+        ))}
+      </div>
+      <div className={cn('grid gap-4', wide ? 'xl:grid-cols-[minmax(0,2fr)_minmax(0,5fr)]' : 'lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]')}>
+        <div className={cn(tab === 'chat' ? 'block' : hideOnSmall)}>{chat}</div>
+        <div className={cn('min-w-0 space-y-3', tab === 'preview' ? 'block' : hideOnSmall)}>
+          {reply && (
+            <div className={cn('rounded-lg border bg-card p-3 text-sm', wide ? 'xl:hidden' : 'lg:hidden')}>
+              <p className="whitespace-pre-wrap">{reply}</p>
+              <button type="button" onClick={() => setTab('chat')} className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-primary">
+                <MessageSquare className="h-3.5 w-3.5" /> Responder ou pedir mudança
+              </button>
+            </div>
+          )}
+          {preview}
+        </div>
+      </div>
+    </div>
   );
 }

@@ -11,7 +11,7 @@ import { dashboardTemplateKeys } from '@/hooks/use-dashboard-templates';
 import { useAiApplyTo, type AiDashboardResult } from '@/hooks/use-ai-builder';
 import { getErrorMessage } from '@/lib/get-error-message';
 import type { EntityField } from '@/types';
-import { AiApplyBar, AiChatPanel, AiEmptyPreview, AiWarnings, useAiConversation } from './ai-chat-panel';
+import { AiApplyBar, AiBuilderLayout, AiChatPanel, AiEmptyPreview, AiWarnings, isNarrowScreen, useAiConversation } from './ai-chat-panel';
 
 const EXAMPLES = [
   'Quero ver quantos registros tenho por situação e o que está com prazo vencendo.',
@@ -41,14 +41,21 @@ export function AiDashboardBuilder() {
     try {
       const res = await apply.mutateAsync(result.proposal);
       toast.success('Painel criado!');
-      router.push(`/gestao/dashboard-templates/${res.id}`);
+      // No celular abre o painel com os dados; no computador, o editor para ajustes finos
+      if (isNarrowScreen()) router.push(`/data?entity=${result.dashboard.entitySlug}&painel=${res.id}`);
+      else router.push(`/gestao/dashboard-templates/${res.id}`);
     } catch (error) {
       toast.error(getErrorMessage(error, 'Não foi possível criar o painel.'));
     }
   };
 
   return (
-    <div className="grid gap-4 xl:grid-cols-[minmax(0,2fr)_minmax(0,5fr)]" data-testid="ai-builder">
+    <div data-testid="ai-builder">
+      <AiBuilderLayout
+        hasResult={!!result}
+        reply={result?.reply}
+        wide
+        chat={(
       <AiChatPanel
         messages={chat.messages}
         pending={chat.pending}
@@ -59,7 +66,8 @@ export function AiDashboardBuilder() {
         placeholder="Ex.: quero ver os sinistros por situação e os prazos da semana"
         changePlaceholder='Peça uma mudança: "troque a pizza por barras", "tire a lista"…'
       />
-
+        )}
+        preview={(
       <div className="space-y-3" data-testid="ai-proposal">
         {!result ? (
           <AiEmptyPreview icon={<BarChart3 className="h-8 w-8" />} text="O painel aparece aqui, já com os seus dados, para você revisar." />
@@ -88,6 +96,8 @@ export function AiDashboardBuilder() {
           </>
         )}
       </div>
+        )}
+      />
     </div>
   );
 }

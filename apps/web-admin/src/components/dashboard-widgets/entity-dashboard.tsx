@@ -156,7 +156,53 @@ function renderWidget(
   }
 }
 
-const PREVIEW_COLS = { lg: 12, md: 12, sm: 12, xs: 12, xxs: 12 };
+const PREVIEW_COLS = { lg: 12, md: 12, sm: 12, xs: 4, xxs: 2 };
+const GRID_COLS = { lg: 12, md: 12, sm: 6, xs: 4, xxs: 2 };
+
+type GridItem = { i: string; x: number; y: number; w: number; h: number };
+/** Blocos pequenos (um numero) ficam lado a lado em telas estreitas. */
+const SMALL_WIDGETS = new Set(['kpi-card', 'number-card', 'gauge-chart']);
+
+/**
+ * Tela estreita: na ordem do painel (linha a linha), numeros dois por linha e o
+ * resto na largura toda. Antes cada bloco ocupava a tela inteira, um embaixo do outro.
+ */
+function packForNarrow<T extends GridItem>(items: T[], widgets: Record<string, unknown>, cols: number): T[] {
+  const ordered = [...items].sort((a, b) => a.y - b.y || a.x - b.x);
+  const out: T[] = [];
+  let x = 0;
+  let y = 0;
+  let rowH = 0;
+  for (const item of ordered) {
+    const type = (widgets[item.i] as { type?: string } | undefined)?.type ?? '';
+    const w = SMALL_WIDGETS.has(type) ? Math.max(1, Math.floor(cols / 2)) : cols;
+    if (x + w > cols) {
+      y += rowH;
+      x = 0;
+      rowH = 0;
+    }
+    out.push({ ...item, x, y, w });
+    x += w;
+    rowH = Math.max(rowH, item.h);
+    if (x >= cols) {
+      y += rowH;
+      x = 0;
+      rowH = 0;
+    }
+  }
+  return out;
+}
+
+function responsiveLayouts<T extends GridItem>(items: T[], widgets: Record<string, unknown>, preview: boolean) {
+  return {
+    lg: items,
+    md: items,
+    // Previa do assistente no computador: area estreita, mas com o layout de tela grande
+    sm: preview ? items : packForNarrow(items, widgets, GRID_COLS.sm),
+    xs: packForNarrow(items, widgets, GRID_COLS.xs),
+    xxs: packForNarrow(items, widgets, GRID_COLS.xxs),
+  };
+}
 
 export function EntityDashboard({ entitySlug, entityFields, templateId, externalFilters, previewTemplate }: EntityDashboardProps) {
   const myTemplate = useMyDashboardTemplate(templateId || previewTemplate ? undefined : entitySlug);
@@ -208,32 +254,11 @@ export function EntityDashboard({ entitySlug, entityFields, templateId, external
 
   const layouts = useMemo(() => {
     if (!effectiveTemplate?.layout) return {};
-    // Previa (area estreita do assistente): sempre o layout de tela grande
-    if (previewTemplate) return { lg: effectiveTemplate.layout, md: effectiveTemplate.layout, sm: effectiveTemplate.layout, xs: effectiveTemplate.layout, xxs: effectiveTemplate.layout };
-    return {
-      lg: effectiveTemplate.layout,
-      md: effectiveTemplate.layout,
-      sm: effectiveTemplate.layout.map((item) => ({
-        ...item,
-        w: Math.min(item.w, 6),
-        x: 0,
-      })),
-      // Celular: empilha (xs = 4 cols; xxs = 1 col full-width).
-      xs: effectiveTemplate.layout.map((item) => ({
-        ...item,
-        w: Math.min(item.w, 4),
-        x: 0,
-      })),
-      xxs: effectiveTemplate.layout.map((item) => ({
-        ...item,
-        w: 1,
-        x: 0,
-      })),
-    };
-  }, [effectiveTemplate?.layout, previewTemplate]);
+    return responsiveLayouts(effectiveTemplate.layout, effectiveTemplate.widgets || {}, !!previewTemplate);
+  }, [effectiveTemplate?.layout, effectiveTemplate?.widgets, previewTemplate]);
 
   // Celular: desliga drag/resize (senão o toque para ROLAR arrasta/redimensiona os
-  // widgets — o "dashboard bugado") e o grid cai para 1 coluna (breakpoint xxs).
+  // widgets — o "dashboard bugado") e o grid cai para 2 colunas (breakpoint xxs; numeros lado a lado).
   const [isNarrow, setIsNarrow] = useState(false);
   useEffect(() => {
     const mq = window.matchMedia('(max-width: 767px)');
@@ -289,7 +314,7 @@ export function EntityDashboard({ entitySlug, entityFields, templateId, external
             measureBeforeMount
             layouts={layouts}
             breakpoints={{ lg: 1200, md: 996, sm: 768, xs: 480, xxs: 0 }}
-            cols={previewTemplate ? PREVIEW_COLS : { lg: 12, md: 12, sm: 6, xs: 4, xxs: 1 }}
+            cols={previewTemplate ? PREVIEW_COLS : GRID_COLS}
             rowHeight={30}
             margin={[12, 12]}
             isDraggable={!isNarrow}
@@ -354,20 +379,7 @@ export function EntityDashboard({ entitySlug, entityFields, templateId, external
           const tabWidgetEntries = allWidgetEntries.filter(([id]) => tab.widgetIds.includes(id));
           const tabWidgetIds = new Set(tabWidgetEntries.map(([id]) => id));
           const tabFull = (effectiveTemplate.layout || []).filter((item) => tabWidgetIds.has(item.i));
-          // Previa do assistente: sempre o layout de tela grande
-          const tabLayouts = previewTemplate ? { lg: tabFull, md: tabFull, sm: tabFull, xs: tabFull, xxs: tabFull } : {
-            lg: (effectiveTemplate.layout || []).filter((item) => tabWidgetIds.has(item.i)),
-            md: (effectiveTemplate.layout || []).filter((item) => tabWidgetIds.has(item.i)),
-            sm: (effectiveTemplate.layout || []).filter((item) => tabWidgetIds.has(item.i)).map((item) => ({
-              ...item, w: Math.min(item.w, 6), x: 0,
-            })),
-            xs: (effectiveTemplate.layout || []).filter((item) => tabWidgetIds.has(item.i)).map((item) => ({
-              ...item, w: Math.min(item.w, 4), x: 0,
-            })),
-            xxs: (effectiveTemplate.layout || []).filter((item) => tabWidgetIds.has(item.i)).map((item) => ({
-              ...item, w: 1, x: 0,
-            })),
-          };
+          const tabLayouts = responsiveLayouts(tabFull, effectiveTemplate.widgets || {}, !!previewTemplate);
 
           return (
             <div key={tab.id} style={{ display: isActive ? undefined : 'none' }}>
@@ -376,7 +388,7 @@ export function EntityDashboard({ entitySlug, entityFields, templateId, external
                 measureBeforeMount
                 layouts={tabLayouts}
                 breakpoints={{ lg: 1200, md: 996, sm: 768, xs: 480, xxs: 0 }}
-                cols={previewTemplate ? PREVIEW_COLS : { lg: 12, md: 12, sm: 6, xs: 4, xxs: 1 }}
+                cols={previewTemplate ? PREVIEW_COLS : GRID_COLS}
                 rowHeight={30}
                 margin={[12, 12]}
                 isDraggable={!isNarrow}

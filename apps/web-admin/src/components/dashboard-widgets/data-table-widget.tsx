@@ -1180,8 +1180,42 @@ function DataTableWidgetInner({ entitySlug, config, title, ctx }: DataTableWidge
         </div>
       )}
 
+      {/* Celular: cartoes (titulo + os proximos campos) em vez de colunas espremidas */}
+      <div className="flex-1 space-y-2 overflow-auto sm:hidden" style={{ minHeight: '340px' }} data-testid="data-table-cards">
+        {isLoading ? (
+          <Loader2 className="mx-auto mt-8 h-5 w-5 animate-spin" />
+        ) : (
+          displayedRecords.map((record) => {
+            const [first, ...rest] = visibleFields;
+            return (
+              <div
+                key={record.id}
+                role={canEdit ? 'button' : undefined}
+                tabIndex={canEdit ? 0 : undefined}
+                onClick={() => canEdit && handleEdit(record)}
+                onKeyDown={(e) => { if (canEdit && (e.key === 'Enter' || e.key === ' ')) handleEdit(record); }}
+                className={`rounded-lg border bg-card p-3 ${canEdit ? 'cursor-pointer active:bg-muted/40' : ''}`}
+                data-testid={canEdit ? 'open-record-card' : undefined}
+              >
+                {first && <div className={`truncate text-sm font-semibold ${canEdit ? 'text-primary' : ''}`}>{renderCellValue(record, first)}</div>}
+                {rest.length > 0 && (
+                  <dl className="mt-1.5 grid grid-cols-2 gap-x-3 gap-y-1.5">
+                    {rest.slice(0, 4).map((field) => (
+                      <div key={field.slug} className="min-w-0">
+                        <dt className="truncate text-[11px] text-muted-foreground">{field.label || field.name}</dt>
+                        <dd className="truncate text-xs">{renderCellValue(record, field)}</dd>
+                      </div>
+                    ))}
+                  </dl>
+                )}
+              </div>
+            );
+          })
+        )}
+      </div>
+
       {/* Table — min 10 rows visible */}
-      <div className="rounded-md border overflow-auto flex-1" style={{ minHeight: '340px' }}>
+      <div className="hidden rounded-md border overflow-auto flex-1 sm:block" style={{ minHeight: '340px' }}>
         <Table>
           <TableHeader className="sticky top-0 z-10 bg-background">
             <TableRow>
