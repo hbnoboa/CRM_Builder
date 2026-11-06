@@ -154,7 +154,20 @@
     "operational": "Operativo",
     "gestao": "Administración",
     "trash": "Papelera",
-    "support": "Soporte"
+    "support": "Soporte",
+    "search": "Buscar o ir a…",
+    "searchPlaceholder": "Buscar tabla, página o acción",
+    "pages": "Páginas",
+    "tables": "Tablas",
+    "actions": "Acciones",
+    "newTable": "Nueva tabla",
+    "noResults": "Nada encontrado",
+    "theme": "Tema",
+    "themeLight": "Claro",
+    "themeDark": "Oscuro",
+    "themeSystem": "Automático",
+    "adminArea": "Área de administración",
+    "backToOperation": "Volver a la operación"
   },
   "roles": {
     "ADMIN": "Administrador",
@@ -653,7 +666,10 @@
         "api-select": "API Select"
       }
     },
-    "formDescription": "Completa los campos y guarda."
+    "formDescription": "Completa los campos y guarda.",
+    "clearFilters": "Limpiar búsqueda y filtros",
+    "emptyHint": "Empieza registrando el primero. También puedes importar una planilla.",
+    "createFirst": "Crear el primero"
   },
   "rolesPage": {
     "title": "Roles",
@@ -1385,7 +1401,20 @@
     "settings": "Configuración",
     "settingsDesc": "Cuenta y organización",
     "tablesTitle": "Tus tablas",
-    "empty": "No hay acciones disponibles para tu perfil."
+    "empty": "No hay acciones disponibles para tu perfil.",
+    "quickTitle": "Registrar ahora",
+    "newIn": "Nuevo: {name}",
+    "recentTitle": "Tus registros recientes",
+    "recentEmpty": "Los registros que crees o edites aparecen aquí.",
+    "recordsCount": "{count, plural, =0 {ningún registro} one {# registro} other {# registros}}",
+    "openTable": "Abrir",
+    "adminTitle": "Administración",
+    "adminDesc": "Equipo, tablas, documentos y configuración de la empresa.",
+    "noTablesTitle": "Aún no hay tablas",
+    "noTablesAdmin": "Crea la primera tabla o empieza con una plantilla.",
+    "noTablesUser": "Cuando el administrador habilite tablas para tu cargo, aparecerán aquí.",
+    "createTable": "Crear tabla",
+    "seeAll": "Ver todo"
   },
   "platform": {
     "brand": "Consola de la plataforma",

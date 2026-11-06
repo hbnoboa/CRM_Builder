@@ -14,7 +14,7 @@ import { useTenant } from '@/stores/tenant-context';
 import { usePermissions } from '@/hooks/use-permissions';
 import { useSubscription } from '@/hooks/use-platform';
 import { useGestaoOverview } from '@/hooks/use-gestao';
-import { OnboardingChecklist, useTenantFeatures } from '@/components/subscription/subscription-widgets';
+import { useTenantFeatures } from '@/components/subscription/subscription-widgets';
 import { GestaoPageHeader, UsageMeter } from '@/components/gestao/gestao-ui';
 import { useFormatDate } from '@/components/platform/platform-ui';
 
@@ -134,7 +134,6 @@ export default function GestaoHomePage() {
         </Card>
       </div>
 
-      <OnboardingChecklist />
 
       {shortcuts.length > 0 && (
         <div>

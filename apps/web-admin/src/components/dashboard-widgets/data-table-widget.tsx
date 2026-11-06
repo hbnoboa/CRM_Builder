@@ -83,6 +83,8 @@ import { exportToJson, exportToXlsx } from '@/lib/export-utils';
 import { pdfTemplatesService, type PdfTemplate } from '@/services/pdf-templates.service';
 import { dataService } from '@/services/data.service';
 import { formatFieldValue, type FormatFieldOptions } from '@crm-builder/shared';
+import { OptionBadge } from '@/components/ui/option-badge';
+import { EmptyState } from '@/components/ui/empty-state';
 import { useEntityBySlug } from '@/hooks/use-entities';
 import { api } from '@/lib/api';
 import { getErrorMessage } from '@/lib/get-error-message';
@@ -884,7 +886,9 @@ function DataTableWidgetInner({ entitySlug, config, title, ctx }: DataTableWidge
     }
 
     // Use shared formatter. O registro guarda o value da opcao: a lista mostra o rotulo.
-    const option = (field.options as Array<{ value: unknown; label: string }> | undefined)?.find((o) => o.value === value);
+    const option = (field.options as Array<{ value: unknown; label: string; color?: string }> | undefined)?.find((o) => o.value === value);
+    // Opcao com cor (situacao, prioridade...) vira etiqueta colorida
+    if (option?.color) return <OptionBadge label={option.label} color={option.color} />;
     const formatted = option?.label ?? formatFieldValue(value, { type: field.type } as FormatFieldOptions);
     return <span className="truncate max-w-[200px] block">{formatted}</span>;
   };
@@ -1216,18 +1220,7 @@ function DataTableWidgetInner({ entitySlug, config, title, ctx }: DataTableWidge
                   <Loader2 className="h-5 w-5 animate-spin mx-auto" />
                 </TableCell>
               </TableRow>
-            ) : displayedRecords.length === 0 ? (
-              <TableRow>
-                <TableCell
-                  colSpan={visibleFields.length + (allowBatchSelect ? 1 : 0) + (showRowActions ? 1 : 0)}
-                  className="h-24 text-center text-muted-foreground"
-                >
-                  {filters.searchTerm || filters.fieldFilters.length > 0
-                    ? t('noResultsFiltered')
-                    : t('noRecords')}
-                </TableCell>
-              </TableRow>
-            ) : (
+            ) : displayedRecords.length === 0 ? null : (
               displayedRecords.map(record => (
                 <TableRow
                   key={record.id}
@@ -1300,6 +1293,37 @@ function DataTableWidgetInner({ entitySlug, config, title, ctx }: DataTableWidge
             )}
           </TableBody>
         </Table>
+        {/* Vazio fica fora das linhas: centralizado mesmo com a tabela rolada para o lado */}
+        {!isLoading && displayedRecords.length === 0 && (
+          <div className="sticky left-0 flex w-full justify-center">
+            {filters.searchTerm || filters.fieldFilters.length > 0 ? (
+                    // Busca/filtro sem resultado: o caminho de volta e limpar
+                    <EmptyState
+                      icon={<Search className="h-5 w-5" />}
+                      title={t('noResultsFiltered')}
+                      action={
+                        <Button variant="outline" size="sm" onClick={() => { handleSearch(''); ctx.clearAllFilters(); }}>
+                          {t('clearFilters')}
+                        </Button>
+                      }
+                      className="py-10"
+                    />
+                  ) : (
+                    // Primeiro uso: um passo claro para comecar
+                    <EmptyState
+                      icon={<Plus className="h-5 w-5" />}
+                      title={t('noRecords')}
+                      description={canCreate ? t('emptyHint') : undefined}
+                      action={canCreate ? (
+                        <Button size="sm" onClick={handleCreate}>
+                          <Plus className="mr-1 h-4 w-4" /> {t('createFirst')}
+                        </Button>
+                      ) : undefined}
+                      className="py-10"
+                    />
+                  )}
+          </div>
+        )}
       </div>
 
       {/* Footer — always visible, never clipped */}

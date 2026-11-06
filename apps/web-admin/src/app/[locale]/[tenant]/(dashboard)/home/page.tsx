@@ -1,96 +1,204 @@
 'use client';
 
-import { useTranslations } from 'next-intl';
+import { useMemo } from 'react';
+import { useParams } from 'next/navigation';
+import { useLocale, useTranslations } from 'next-intl';
+import { useQuery } from '@tanstack/react-query';
+import { ArrowRight, Clock, Database, Plus, ShieldCheck, TableProperties } from 'lucide-react';
 import { Link } from '@/i18n/tenant-navigation';
-import {
-  Database,
-  TableProperties,
-  Users,
-  Shield,
-  FileText,
-  BarChart3,
-  Link2,
-  ScrollText,
-  LineChart,
-  Settings as SettingsIcon,
-  CircleDot,
-} from 'lucide-react';
 import { useAuthStore } from '@/stores/auth-store';
 import { usePermissions } from '@/hooks/use-permissions';
+import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { cn } from '@/lib/utils';
-import { OnboardingChecklist, useTenantFeatures } from '@/components/subscription/subscription-widgets';
+import { Skeleton } from '@/components/ui/skeleton';
+import { OptionBadge } from '@/components/ui/option-badge';
+import { EmptyState } from '@/components/ui/empty-state';
+import { OnboardingChecklist } from '@/components/subscription/subscription-widgets';
+import { api } from '@/lib/api';
 
-interface HomeCard {
-  key: string;
-  title: string;
-  desc: string;
-  href: string;
-  icon: React.ReactNode;
-  show: boolean;
-  tone: 'primary' | 'neutral';
+interface HomeTable {
+  slug: string;
+  name: string;
+  namePlural: string | null;
+  color: string | null;
+  count: number;
+  isSub: boolean;
 }
 
+interface HomeRecent {
+  id: string;
+  entitySlug: string;
+  entityName: string;
+  color: string | null;
+  title: string | null;
+  status: { label: string; color: string | null } | null;
+  updatedAt: string;
+}
+
+/** "ha 5 min", "ontem"... no idioma da pessoa. */
+function useRelativeTime() {
+  const locale = useLocale();
+  return useMemo(() => {
+    const rtf = new Intl.RelativeTimeFormat(locale, { numeric: 'auto' });
+    return (iso: string) => {
+      const diff = (new Date(iso).getTime() - Date.now()) / 1000;
+      const abs = Math.abs(diff);
+      if (abs < 60) return rtf.format(Math.round(diff), 'second');
+      if (abs < 3600) return rtf.format(Math.round(diff / 60), 'minute');
+      if (abs < 86400) return rtf.format(Math.round(diff / 3600), 'hour');
+      if (abs < 86400 * 30) return rtf.format(Math.round(diff / 86400), 'day');
+      return new Date(iso).toLocaleDateString(locale);
+    };
+  }, [locale]);
+}
+
+/** Inicio da pessoa: lancar agora, registros recentes dela, tabelas e (admin) administracao. */
 export default function HomePage() {
   const t = useTranslations('home');
+  const locale = useLocale();
+  const params = useParams();
+  const tenantSlug = typeof params?.tenant === 'string' ? params.tenant : '';
   const { user } = useAuthStore();
-  const { hasModuleAccess, hasModulePermission, canAccessAdminSection } = usePermissions();
-  const features = useTenantFeatures();
+  const { hasEntityPermission, hasModulePermission, canAccessAdminArea } = usePermissions();
+  const relative = useRelativeTime();
+
+  const { data, isLoading } = useQuery({
+    queryKey: ['my-home', tenantSlug, user?.id],
+    queryFn: async () => (await api.get<{ tables: HomeTable[]; recent: HomeRecent[] }>('/stats/my-home')).data,
+    staleTime: 30_000,
+  });
 
   const firstName = (user?.name || '').split(' ')[0] || user?.name || '';
-
-  const cards: HomeCard[] = [
-    // Operação (usuário) — primeiro, pois é o dia a dia
-    { key: 'records', title: t('records'), desc: t('recordsDesc'), href: '/data', icon: <Database className="h-6 w-6" />, show: hasModuleAccess('data'), tone: 'primary' },
-    { key: 'reports', title: t('reports'), desc: t('reportsDesc'), href: '/dashboard', icon: <LineChart className="h-6 w-6" />, show: hasModuleAccess('dashboard'), tone: 'neutral' },
-    // Criação/gestão (admin)
-    { key: 'newTable', title: t('newTable'), desc: t('newTableDesc'), href: '/gestao/entities/new', icon: <TableProperties className="h-6 w-6" />, show: hasModulePermission('entities', 'canCreate'), tone: 'neutral' },
-    { key: 'users', title: t('users'), desc: t('usersDesc'), href: '/gestao/users', icon: <Users className="h-6 w-6" />, show: canAccessAdminSection('users'), tone: 'neutral' },
-    { key: 'roles', title: t('roles'), desc: t('rolesDesc'), href: '/gestao/roles', icon: <Shield className="h-6 w-6" />, show: canAccessAdminSection('roles'), tone: 'neutral' },
-    { key: 'pdf', title: t('pdf'), desc: t('pdfDesc'), href: '/gestao/pdf-templates', icon: <FileText className="h-6 w-6" />, show: canAccessAdminSection('pdf-templates') && features.pdf, tone: 'neutral' },
-    { key: 'dashboards', title: t('dashboards'), desc: t('dashboardsDesc'), href: '/gestao/dashboard-templates', icon: <BarChart3 className="h-6 w-6" />, show: canAccessAdminSection('dashboard-templates'), tone: 'neutral' },
-    { key: 'publicLinks', title: t('publicLinks'), desc: t('publicLinksDesc'), href: '/gestao/public-links', icon: <Link2 className="h-6 w-6" />, show: canAccessAdminSection('public-links') && features.publicLinks, tone: 'neutral' },
-    { key: 'logs', title: t('logs'), desc: t('logsDesc'), href: '/gestao/audit-logs', icon: <ScrollText className="h-6 w-6" />, show: canAccessAdminSection('audit-logs'), tone: 'neutral' },
-    // Conta (todos)
-    { key: 'settings', title: t('settings'), desc: t('settingsDesc'), href: '/settings', icon: <SettingsIcon className="h-6 w-6" />, show: true, tone: 'neutral' },
-  ];
-
-  const visible = cards.filter((c) => c.show);
+  const today = new Date().toLocaleDateString(locale, { weekday: 'long', day: 'numeric', month: 'long' });
+  const tables = data?.tables ?? [];
+  // Lancar agora: tabelas principais em que a pessoa pode criar (sub-tabelas nascem pelo registro pai)
+  const quick = tables.filter((tb) => !tb.isSub && hasEntityPermission(tb.slug, 'canCreate')).slice(0, 4);
+  const canCreateTable = hasModulePermission('entities', 'canCreate');
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl md:text-3xl font-bold">{t('greeting', { name: firstName })}</h1>
-        <p className="text-muted-foreground mt-1">{t('subtitle')}</p>
+    <div className="space-y-8">
+      <div className="flex flex-col gap-1">
+        <p className="text-sm text-muted-foreground first-letter:uppercase">{today}</p>
+        <h1 className="text-2xl font-semibold tracking-tight md:text-3xl">{t('greeting', { name: firstName })}</h1>
       </div>
 
       <OnboardingChecklist />
 
-      {visible.length === 0 ? (
-        <Card>
-          <CardContent className="p-8 text-center text-muted-foreground">
-            <CircleDot className="h-8 w-8 mx-auto mb-3 opacity-50" />
-            {t('empty')}
-          </CardContent>
-        </Card>
-      ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4" data-testid="home-cards">
-          {visible.map((c) => (
-            <Link key={c.key} href={c.href} data-testid={`home-card-${c.key}`}>
-              <Card className={cn('h-full transition-all hover:shadow-md hover:border-primary/40', c.tone === 'primary' && 'border-primary/50 bg-primary/5')}>
-                <CardContent className="p-5 flex items-start gap-4">
-                  <div className={cn('rounded-lg p-2.5 flex-shrink-0', c.tone === 'primary' ? 'bg-primary/15 text-primary' : 'bg-muted text-foreground/70')}>
-                    {c.icon}
-                  </div>
-                  <div className="min-w-0">
-                    <h3 className="font-semibold leading-tight">{c.title}</h3>
-                    <p className="text-sm text-muted-foreground mt-0.5">{c.desc}</p>
-                  </div>
-                </CardContent>
-              </Card>
-            </Link>
-          ))}
-        </div>
+      {quick.length > 0 && (
+        <section>
+          <h2 className="mb-3 text-sm font-medium text-muted-foreground">{t('quickTitle')}</h2>
+          <div className="flex flex-wrap gap-2" data-testid="home-quick">
+            {quick.map((tb) => (
+              <Button key={tb.slug} asChild variant="outline" className="h-10 bg-card">
+                <Link href={`/data?entity=${tb.slug}&novo=1`}>
+                  <Plus className="mr-1.5 h-4 w-4 text-primary" />
+                  {t('newIn', { name: tb.name })}
+                </Link>
+              </Button>
+            ))}
+          </div>
+        </section>
+      )}
+
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
+        {/* Registros recentes da pessoa */}
+        <section>
+          <h2 className="mb-3 text-sm font-medium text-muted-foreground">{t('recentTitle')}</h2>
+          <Card>
+            {isLoading ? (
+              <CardContent className="space-y-3 p-4">
+                {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-10 w-full" />)}
+              </CardContent>
+            ) : data && data.recent.length > 0 ? (
+              <ul className="divide-y" data-testid="home-recent">
+                {data.recent.map((r) => (
+                  <li key={r.id}>
+                    <Link
+                      href={`/data?entity=${r.entitySlug}`}
+                      className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-muted/50"
+                    >
+                      <span className="h-2 w-2 shrink-0 rounded-full bg-primary" style={r.color ? { backgroundColor: r.color } : undefined} />
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-sm font-medium">{r.title ?? r.entityName}</span>
+                        <span className="block truncate text-xs text-muted-foreground">{r.entityName}</span>
+                      </span>
+                      {r.status && <OptionBadge label={r.status.label} color={r.status.color} className="hidden sm:inline-flex" />}
+                      <span className="flex shrink-0 items-center gap-1 text-xs text-muted-foreground">
+                        <Clock className="h-3 w-3" /> {relative(r.updatedAt)}
+                      </span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <EmptyState
+                icon={<Clock className="h-5 w-5" />}
+                title={t('recentTitle')}
+                description={t('recentEmpty')}
+                className="py-10"
+              />
+            )}
+          </Card>
+        </section>
+
+        {/* Tabelas que a pessoa ve */}
+        <section>
+          <h2 className="mb-3 text-sm font-medium text-muted-foreground">{t('tablesTitle')}</h2>
+          {isLoading ? (
+            <div className="space-y-2">{Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-14 w-full rounded-xl" />)}</div>
+          ) : tables.length === 0 ? (
+            <Card>
+              <EmptyState
+                icon={<TableProperties className="h-5 w-5" />}
+                title={t('noTablesTitle')}
+                description={canCreateTable ? t('noTablesAdmin') : t('noTablesUser')}
+                action={canCreateTable ? (
+                  <Button asChild size="sm"><Link href="/gestao/entities/new"><Plus className="mr-1.5 h-4 w-4" />{t('createTable')}</Link></Button>
+                ) : undefined}
+                className="py-10"
+              />
+            </Card>
+          ) : (
+            <div className="space-y-2" data-testid="home-tables">
+              {tables.map((tb) => (
+                <Link
+                  key={tb.slug}
+                  href={`/data?entity=${tb.slug}`}
+                  className="group flex items-center gap-3 rounded-xl border bg-card px-4 py-3 transition-colors hover:border-primary/40"
+                >
+                  <span
+                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-nav-active text-nav-active-foreground"
+                    style={tb.color ? { backgroundColor: `color-mix(in srgb, ${tb.color} 14%, transparent)`, color: tb.color } : undefined}
+                  >
+                    <Database className="h-4 w-4" />
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm font-medium">{tb.namePlural || tb.name}</span>
+                    <span className="block text-xs text-muted-foreground">{t('recordsCount', { count: tb.count })}</span>
+                  </span>
+                  <ArrowRight className="h-4 w-4 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
+                </Link>
+              ))}
+            </div>
+          )}
+        </section>
+      </div>
+
+      {canAccessAdminArea && (
+        <Link
+          href="/gestao"
+          className="group flex items-center gap-4 rounded-xl border border-dashed bg-card/50 px-5 py-4 transition-colors hover:border-primary/40 hover:bg-card"
+          data-testid="home-admin"
+        >
+          <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-nav-active text-nav-active-foreground">
+            <ShieldCheck className="h-4 w-4" />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-sm font-medium">{t('adminTitle')}</span>
+            <span className="block text-xs text-muted-foreground">{t('adminDesc')}</span>
+          </span>
+          <ArrowRight className="h-4 w-4 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
+        </Link>
       )}
     </div>
   );

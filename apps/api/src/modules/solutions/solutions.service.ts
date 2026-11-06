@@ -70,7 +70,25 @@ export class SolutionsService {
       },
       { publishPdfTemplates: true },
     );
+    await this.copyBrandColor(sourceTenantId, targetTenantId);
     this.logger.log(`Modelo ${slug} aplicado em ${targetTenantId}: ${JSON.stringify(result.copied)}`);
     return result;
+  }
+
+  /** A empresa nova nasce com a cor do modelo (se ainda nao escolheu uma). */
+  private async copyBrandColor(sourceTenantId: string, targetTenantId: string) {
+    const [source, target] = await Promise.all([
+      this.prisma.tenant.findUnique({ where: { id: sourceTenantId }, select: { settings: true } }),
+      this.prisma.tenant.findUnique({ where: { id: targetTenantId }, select: { settings: true } }),
+    ]);
+    const asObj = (v: unknown) => (v && typeof v === 'object' && !Array.isArray(v) ? (v as Record<string, unknown>) : {});
+    const sourceTheme = asObj(asObj(source?.settings).theme);
+    const targetSettings = asObj(target?.settings);
+    const targetTheme = asObj(targetSettings.theme);
+    if (typeof sourceTheme.brandColor !== 'string' || targetTheme.brandColor) return;
+    await this.prisma.tenant.update({
+      where: { id: targetTenantId },
+      data: { settings: { ...targetSettings, theme: { ...targetTheme, brandColor: sourceTheme.brandColor } } as object },
+    });
   }
 }

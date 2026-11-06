@@ -5,6 +5,7 @@ import { Search } from 'lucide-react';
 import { useAdaptedTopRecords as useEntityTopRecords, useAdaptedGroupedData as useGroupedData } from '@/components/entity-data/adapter-hooks';
 import { useDashboardFilters, useWidgetFilters } from './dashboard-filter-context';
 import { WidgetWrapper } from './widget-wrapper';
+import { OptionBadge } from '@/components/ui/option-badge';
 import { formatFieldValue, type FieldType, type WidgetConfig } from '@crm-builder/shared';
 
 interface MiniTableWidgetProps {
@@ -79,6 +80,14 @@ export function MiniTableWidget({ entitySlug, config, title, isEditMode, entityF
         })
       : entityFields?.slice(0, 4).map((f) => ({ slug: f.slug, label: f.label || f.name })) || [];
   }
+
+  // Cor da opcao (situacao, prioridade...) para mostrar como etiqueta
+  const optionColor = (value: unknown, slug: string): string | undefined => {
+    if (typeof value !== 'string' && typeof value !== 'number') return undefined;
+    const field = entityFields?.find((f) => f.slug === slug);
+    const opt = field?.options?.find((o) => typeof o !== 'string' && String(o.value) === String(value));
+    return opt && typeof opt !== 'string' ? (opt as { color?: string }).color : undefined;
+  };
 
   const formatCell = (value: unknown, slug?: string): string => {
     if (value == null) return '-';
@@ -214,7 +223,7 @@ export function MiniTableWidget({ entitySlug, config, title, isEditMode, entityF
                           if (!isEditMode && cellValue && isFilterable) toggleCrossFilter(col.slug, cellValue);
                         }}
                       >
-                        {formatCell(raw, col.slug)}
+                        {optionColor(raw, col.slug) ? <OptionBadge label={formatCell(raw, col.slug)} color={optionColor(raw, col.slug)} /> : formatCell(raw, col.slug)}
                       </td>
                     );
                   })}

@@ -28,6 +28,20 @@
     --input: 214.3 31.8% 91.4%;
     --ring: 222.2 84% 4.9%;
     --radius: 0.5rem;
+    /* Escala da marca padrao (laranja CRM Builder); o tema da empresa sobrescreve */
+    --brand-50: 20.5 81.2% 97%;
+    --brand-100: 20.5 81.2% 94%;
+    --brand-200: 20.5 83.0% 87%;
+    --brand-300: 20.5 85.7% 78%;
+    --brand-400: 20.5 90.2% 66%;
+    --brand-500: 20.5 90.2% 56%;
+    --brand-600: 20.5 90.2% 48%;
+    --brand-700: 20.5 85.7% 40%;
+    --brand-800: 20.5 81.2% 32%;
+    --brand-900: 20.5 76.7% 25%;
+    --brand-950: 20.5 72.2% 16%;
+    --nav-active: 20.5 81.2% 94%;
+    --nav-active-foreground: 20.5 90.2% 32%;
   }
 
   .dark {
@@ -51,6 +65,8 @@
     --border: 217.2 32.6% 17.5%;
     --input: 217.2 32.6% 17.5%;
     --ring: 212.7 26.8% 83.9%;
+    --nav-active: 20.5 40.6% 18%;
+    --nav-active-foreground: 20.5 63.1% 82%;
   }
 }
 

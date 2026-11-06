@@ -6,6 +6,7 @@ import { CurrentUser } from '../../common/types';
 import { getEffectiveTenantId } from '../../common/utils/tenant.util';
 import { Prisma, type PrismaClient } from '@prisma/client';
 import { creatorFilter, teammateIds } from '../../common/utils/team-scope';
+import { hiddenFieldSlugs } from '../../common/utils/field-permissions';
 
 /** Numeros como numeros, datas ISO como datas, o resto como texto (pt-BR). */
 function compareSortValues(a: unknown, b: unknown): number {
@@ -1459,6 +1460,82 @@ export class StatsService {
     // 5. Limit
     const limit = options?.limit || 50;
     return rows.slice(0, limit);
+  }
+
+  /**
+   * Inicio da pessoa: tabelas que ela ve (com contagem no escopo dela) e os
+   * registros que ela criou ou alterou por ultimo, com titulo e etiqueta de
+   * situacao. Tudo pelo pipeline central (escopo, filtros) e sem campos ocultos.
+   */
+  async getMyHome(user: CurrentUser) {
+    const tenantId = getEffectiveTenantId(user);
+    const accessible = await this.customRoleService.getUserAccessibleEntities(user.id, tenantId);
+    if (accessible !== '*' && accessible.length === 0) return { tables: [], recent: [] };
+    const entities = await this.prisma.entity.findMany({
+      where: { tenantId, deletedAt: null, ...(accessible !== '*' ? { slug: { in: accessible } } : {}) },
+      select: { id: true, slug: true, name: true, namePlural: true, color: true, icon: true, fields: true, settings: true },
+      orderBy: { createdAt: 'asc' },
+      take: 40,
+    });
+
+    type FieldDef = { slug: string; type: string; subEntitySlug?: string; options?: Array<string | { value: string; label: string; color?: string }> };
+    const subSlugs = new Set<string>();
+    for (const e of entities) {
+      for (const f of ((e.fields as unknown as FieldDef[]) || [])) if (f.type === 'sub-entity' && f.subEntitySlug) subSlugs.add(f.subEntitySlug);
+    }
+
+    const perEntity = await Promise.all(entities.map(async (entity) => {
+      const fields = (entity.fields as unknown as FieldDef[]) || [];
+      const hidden = hiddenFieldSlugs(await this.customRoleService.getFieldPermissions(user.id, entity.slug, tenantId));
+      const { where } = await this.queryService.buildWhere({ entitySlug: entity.slug, user, tenantId, includeChildren: true });
+      const [count, mine] = await Promise.all([
+        this.prisma.entityData.count({ where }),
+        this.prisma.entityData.findMany({
+          where: { AND: [where, { OR: [{ createdById: user.id }, { updatedById: user.id }] }] },
+          select: { id: true, data: true, updatedAt: true },
+          orderBy: { updatedAt: 'desc' },
+          take: 6,
+        }),
+      ]);
+      // Titulo: campo-titulo da tabela, senao o primeiro campo de texto visivel
+      const titleField = (entity.settings as Record<string, unknown> | null)?.titleField as string | undefined;
+      const titleSlug = titleField && !hidden.has(titleField)
+        ? titleField
+        : fields.find((f) => ['text', 'email', 'phone', 'number'].includes(f.type) && !hidden.has(f.slug))?.slug;
+      // Situacao: lista com cores, preferindo a que se chama situacao/status/etapa/resultado
+      const colored = fields.filter((f) => (f.type === 'select' || f.type === 'radio-group') && !hidden.has(f.slug)
+        && (f.options || []).some((o) => typeof o !== 'string' && !!o.color));
+      const statusField = colored.find((f) => /status|situa|etapa|resultado|estado/i.test(f.slug)) ?? colored[0];
+      const recent = mine.map((r) => {
+        const data = (r.data as Record<string, unknown>) || {};
+        const statusValue = statusField ? data[statusField.slug] : undefined;
+        const opt = statusField?.options?.find((o) => typeof o !== 'string' && o.value === statusValue) as { label: string; color?: string } | undefined;
+        const rawTitle = titleSlug ? data[titleSlug] : undefined;
+        return {
+          id: r.id,
+          entitySlug: entity.slug,
+          entityName: entity.name,
+          color: entity.color,
+          title: rawTitle === undefined || rawTitle === null || rawTitle === '' ? null : String(rawTitle).slice(0, 120),
+          status: opt ? { label: opt.label, color: opt.color ?? null } : null,
+          updatedAt: r.updatedAt,
+        };
+      });
+      return {
+        table: {
+          slug: entity.slug, name: entity.name, namePlural: entity.namePlural, color: entity.color, icon: entity.icon,
+          count, isSub: subSlugs.has(entity.slug),
+        },
+        recent,
+      };
+    }));
+
+    return {
+      tables: perEntity.map((p) => p.table),
+      recent: perEntity.flatMap((p) => p.recent)
+        .sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime())
+        .slice(0, 8),
+    };
   }
 
   async getRecentActivity(user: CurrentUser, queryTenantId?: string, limit: number = 10) {

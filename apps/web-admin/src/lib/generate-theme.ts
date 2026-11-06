@@ -118,100 +118,117 @@ export interface ThemeVariables {
   dark: Record<string, string>;
 }
 
+/** Cor padrao do produto (CRM Builder) para empresas sem cor definida. */
+export const DEFAULT_BRAND_COLOR = '#ea580c';
+
+// Escala da marca (50..950) com luminosidade fixa por passo: o mesmo passo tem
+// o mesmo peso visual para qualquer cor de empresa (base dos tons suaves do menu,
+// etiquetas e destaques). Saturacao menor nas pontas para nao "gritar".
+const BRAND_STEPS: Array<[number, number, number]> = [
+  // passo, luminosidade, fator de saturacao
+  [50, 97, 0.9], [100, 94, 0.9], [200, 87, 0.92], [300, 78, 0.95], [400, 66, 1],
+  [500, 56, 1], [600, 48, 1], [700, 40, 0.95], [800, 32, 0.9], [900, 25, 0.85], [950, 16, 0.8],
+];
+
+function brandScale(h: number, s: number): Record<string, string> {
+  const sat = clamp(s, 30, 92);
+  const out: Record<string, string> = {};
+  for (const [step, l, f] of BRAND_STEPS) out[`--brand-${step}`] = hsl(h, Math.round(sat * f * 10) / 10, l);
+  return out;
+}
+
 export function generateThemeVariables(
   hex: string,
   secondaryHex?: string,
-  accentHex?: string,
+  _accentHex?: string,
 ): ThemeVariables {
   const primary = hexToHSL(hex);
   const secondary = secondaryHex ? hexToHSL(secondaryHex) : null;
-  const accent = accentHex ? hexToHSL(accentHex) : null;
 
   const h = primary.h;
   const s = primary.s;
+  const scale = brandScale(h, s);
+  const sat = clamp(s, 30, 92);
+  // Neutros levemente tingidos pelo matiz da marca (nao competem com ela)
+  const nTint = clamp(s * 0.06, 2, 7);
 
   // ---------- LIGHT MODE ----------
-  const lBgTint = clamp(s * 0.05, 1, 4);
-  const lBackground: HSL = { h, s: lBgTint, l: 98.5 };
-  const lCard: HSL = { h, s: lBgTint, l: 99.5 };
-  const lMuted: HSL = { h, s: clamp(s * 0.06, 1, 6), l: 96 };
-  const lBorder = { h, s: clamp(s * 0.06, 2, 6), l: 90 };
+  // Pagina levemente cinza + cartoes brancos: separa as superficies sem sombra pesada
+  const lBackground: HSL = { h, s: nTint, l: 97 };
+  const lCard: HSL = { h, s: 0, l: 100 };
+  const lMuted: HSL = { h, s: nTint, l: 94.5 };
+  const lBorder: HSL = { h, s: nTint, l: 89 };
+  const lInk: HSL = { h, s: clamp(s * 0.12, 4, 14), l: 12 };
 
   const lPrimary = withAA({ h, s: clamp(s, 35, 95), l: clamp(primary.l, 20, 50) });
-  const lSecondary = withAA(
-    secondary
-      ? { h: secondary.h, s: clamp(secondary.s, 25, 85), l: clamp(secondary.l, 20, 55) }
-      : { h, s: clamp(s * 0.5, 12, 38), l: 45 },
-  );
-  const lAccent = withAA(
-    accent
-      ? { h: accent.h, s: clamp(accent.s, 25, 85), l: clamp(accent.l, 20, 55) }
-      : { h: (h + 30) % 360, s: clamp(s * 0.6, 18, 55), l: 45 },
-  );
+  // Secundario e hover (accent) NEUTROS/suaves, como no shadcn: a marca so aparece
+  // em acao principal, item ativo, foco e destaques.
+  const lSecondary: HSL = { h, s: nTint, l: 93 };
+  const lAccent: HSL = { h, s: sat * 0.9, l: 96 };
   const lDestructive = withAA({ h: 0, s: 75, l: 50 });
 
   const light: Record<string, string> = {
+    ...scale,
     '--background': hslStr(lBackground),
-    '--foreground': hslStr(foregroundFor(lBackground, { h, s: clamp(s * 0.1, 3, 12), l: 12 })),
+    '--foreground': hslStr(foregroundFor(lBackground, lInk)),
     '--card': hslStr(lCard),
-    '--card-foreground': hslStr(foregroundFor(lCard, { h, s: clamp(s * 0.1, 3, 12), l: 12 })),
+    '--card-foreground': hslStr(foregroundFor(lCard, lInk)),
     '--popover': hslStr(lCard),
-    '--popover-foreground': hslStr(foregroundFor(lCard, { h, s: clamp(s * 0.1, 3, 12), l: 12 })),
+    '--popover-foreground': hslStr(foregroundFor(lCard, lInk)),
     '--primary': hslStr(lPrimary.bg),
     '--primary-foreground': hslStr(lPrimary.fg),
-    '--secondary': hslStr(lSecondary.bg),
-    '--secondary-foreground': hslStr(lSecondary.fg),
+    '--secondary': hslStr(secondary ? withAA({ h: secondary.h, s: clamp(secondary.s, 25, 85), l: clamp(secondary.l, 20, 55) }).bg : lSecondary),
+    '--secondary-foreground': hslStr(secondary ? withAA({ h: secondary.h, s: clamp(secondary.s, 25, 85), l: clamp(secondary.l, 20, 55) }).fg : foregroundFor(lSecondary, lInk)),
     '--muted': hslStr(lMuted),
-    '--muted-foreground': hslStr(foregroundFor(lMuted, { h, s: clamp(s * 0.1, 3, 12), l: 40 })),
-    '--accent': hslStr(lAccent.bg),
-    '--accent-foreground': hslStr(lAccent.fg),
+    '--muted-foreground': hslStr(foregroundFor(lMuted, { h, s: clamp(s * 0.1, 3, 12), l: 42 })),
+    '--accent': hslStr(lAccent),
+    '--accent-foreground': hslStr(foregroundFor(lAccent, { h, s: sat, l: 28 })),
     '--destructive': hslStr(lDestructive.bg),
     '--destructive-foreground': hslStr(lDestructive.fg),
-    '--border': hsl(lBorder.h, lBorder.s, lBorder.l),
-    '--input': hsl(lBorder.h, lBorder.s, lBorder.l),
+    '--border': hslStr(lBorder),
+    '--input': hsl(h, nTint, 86),
     '--ring': hslStr(lPrimary.bg),
+    // Item ativo do menu: tom claro da marca + texto escuro da marca (nunca bloco solido)
+    '--nav-active': hsl(h, sat * 0.9, 94),
+    '--nav-active-foreground': hslStr(foregroundFor({ h, s: sat * 0.9, l: 94 }, { h, s: sat, l: 32 })),
   };
 
   // ---------- DARK MODE ----------
-  const dBgTint = clamp(s * 0.08, 1, 6);
-  const dBackground: HSL = { h, s: dBgTint, l: 6 };
-  const dCard: HSL = { h, s: dBgTint, l: 8 };
-  const dMuted: HSL = { h, s: clamp(s * 0.08, 1, 8), l: 15 };
-  const dBorder = { h, s: clamp(s * 0.08, 2, 8), l: 18 };
+  // Superficies sobem de luminosidade com a elevacao (fundo < cartao < popover)
+  const dBackground: HSL = { h, s: clamp(s * 0.08, 2, 8), l: 7 };
+  const dCard: HSL = { h, s: clamp(s * 0.08, 2, 8), l: 10 };
+  const dMuted: HSL = { h, s: clamp(s * 0.08, 2, 8), l: 15 };
+  const dBorder: HSL = { h, s: clamp(s * 0.08, 2, 8), l: 19 };
+  const dInk: HSL = { h, s: clamp(s * 0.05, 1, 6), l: 95 };
 
-  const dPrimary = withAA({ h, s: clamp(s * 0.9, 35, 90), l: clamp(primary.l > 50 ? primary.l : 100 - primary.l, 55, 78) });
-  const dSecondary = withAA(
-    secondary
-      ? { h: secondary.h, s: clamp(secondary.s * 0.85, 25, 80), l: clamp(secondary.l > 50 ? secondary.l : 100 - secondary.l, 50, 72) }
-      : { h, s: clamp(s * 0.45, 12, 36), l: 62 },
-  );
-  const dAccent = withAA(
-    accent
-      ? { h: accent.h, s: clamp(accent.s * 0.85, 25, 80), l: clamp(accent.l > 50 ? accent.l : 100 - accent.l, 50, 72) }
-      : { h: (h + 30) % 360, s: clamp(s * 0.55, 18, 55), l: 60 },
-  );
+  const dPrimary = withAA({ h, s: clamp(s * 0.85, 35, 88), l: clamp(primary.l > 50 ? primary.l : 100 - primary.l, 58, 72) });
+  const dSecondary: HSL = { h, s: clamp(s * 0.08, 2, 8), l: 17 };
+  const dAccent: HSL = { h, s: sat * 0.45, l: 17 };
   const dDestructive = withAA({ h: 0, s: 62, l: 55 });
 
   const dark: Record<string, string> = {
+    ...scale,
     '--background': hslStr(dBackground),
-    '--foreground': hslStr(foregroundFor(dBackground, { h, s: clamp(s * 0.05, 1, 6), l: 96 })),
+    '--foreground': hslStr(foregroundFor(dBackground, dInk)),
     '--card': hslStr(dCard),
-    '--card-foreground': hslStr(foregroundFor(dCard, { h, s: clamp(s * 0.05, 1, 6), l: 96 })),
-    '--popover': hslStr(dCard),
-    '--popover-foreground': hslStr(foregroundFor(dCard, { h, s: clamp(s * 0.05, 1, 6), l: 96 })),
+    '--card-foreground': hslStr(foregroundFor(dCard, dInk)),
+    '--popover': hsl(dCard.h, dCard.s, 12),
+    '--popover-foreground': hslStr(foregroundFor({ ...dCard, l: 12 }, dInk)),
     '--primary': hslStr(dPrimary.bg),
     '--primary-foreground': hslStr(dPrimary.fg),
-    '--secondary': hslStr(dSecondary.bg),
-    '--secondary-foreground': hslStr(dSecondary.fg),
+    '--secondary': hslStr(dSecondary),
+    '--secondary-foreground': hslStr(foregroundFor(dSecondary, dInk)),
     '--muted': hslStr(dMuted),
     '--muted-foreground': hslStr(foregroundFor(dMuted, { h, s: clamp(s * 0.05, 2, 8), l: 68 })),
-    '--accent': hslStr(dAccent.bg),
-    '--accent-foreground': hslStr(dAccent.fg),
+    '--accent': hslStr(dAccent),
+    '--accent-foreground': hslStr(foregroundFor(dAccent, { h, s: sat * 0.7, l: 85 })),
     '--destructive': hslStr(dDestructive.bg),
     '--destructive-foreground': hslStr(dDestructive.fg),
-    '--border': hsl(dBorder.h, dBorder.s, dBorder.l),
-    '--input': hsl(dBorder.h, dBorder.s, dBorder.l),
+    '--border': hslStr(dBorder),
+    '--input': hsl(dBorder.h, dBorder.s, 22),
     '--ring': hslStr(dPrimary.bg),
+    '--nav-active': hsl(h, sat * 0.45, 18),
+    '--nav-active-foreground': hslStr(foregroundFor({ h, s: sat * 0.45, l: 18 }, { h, s: sat * 0.7, l: 82 })),
   };
 
   return { light, dark };

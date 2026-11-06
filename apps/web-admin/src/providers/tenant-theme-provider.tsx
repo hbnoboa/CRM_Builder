@@ -3,7 +3,7 @@
 import { useEffect, ReactNode } from 'react';
 import { ThemeProvider as NextThemeProvider } from 'next-themes';
 import { useTenant } from '@/stores/tenant-context';
-import { generateThemeVariables } from '@/lib/generate-theme';
+import { DEFAULT_BRAND_COLOR, generateThemeVariables } from '@/lib/generate-theme';
 
 const THEME_STYLE_ID = 'tenant-theme';
 
@@ -41,15 +41,11 @@ export function TenantThemeProvider({ children }: TenantThemeProviderProps) {
   // Tema do tenant atual (GET /tenants/me)
   const effectiveTenant = tenant;
 
-  const brandColor = (effectiveTenant?.settings as Record<string, any>)?.theme?.brandColor as string | undefined;
+  // Empresa sem cor definida usa a cor do produto (nada de sistema todo preto e cinza)
+  const brandColor = ((effectiveTenant?.settings as Record<string, any>)?.theme?.brandColor as string | undefined) || DEFAULT_BRAND_COLOR;
   const tenantDarkMode = (effectiveTenant?.settings as Record<string, any>)?.theme?.darkMode as string | undefined;
 
   useEffect(() => {
-    if (!brandColor) {
-      removeThemeFromDOM();
-      return;
-    }
-
     try {
       const theme = generateThemeVariables(brandColor);
       applyThemeToDOM(theme);

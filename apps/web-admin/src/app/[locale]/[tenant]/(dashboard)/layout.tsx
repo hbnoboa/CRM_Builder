@@ -9,8 +9,6 @@ import {
   Home,
   Users,
   Settings,
-  LogOut,
-  Menu,
   X,
   Plus,
   Database,
@@ -36,7 +34,6 @@ import {
   Trash2,
   LifeBuoy,
 } from 'lucide-react';
-import { Button } from '@/components/ui/button';
 import {
   Tooltip,
   TooltipContent,
@@ -50,11 +47,10 @@ import { TenantProvider, useTenant } from '@/stores/tenant-context';
 import { NotificationProvider } from '@/providers/notification-provider';
 import { TenantThemeProvider } from '@/providers/tenant-theme-provider';
 import { ImpersonationBanner } from '@/components/impersonation-banner';
-import { NotificationBell } from '@/components/notifications/notification-bell';
-import { TenantSelector } from '@/components/tenant-selector';
 import { OperationalShell } from '@/components/layout/operational-shell';
 import { GestaoShell } from '@/components/layout/gestao-shell';
 import { cn } from '@/lib/utils';
+import { CommandMenu, ShellTopbar, SidebarBrand, navItemClass } from '@/components/layout/shell-parts';
 import { TrialBanner, useTenantFeatures } from '@/components/subscription/subscription-widgets';
 import { AnnouncementsBanner } from '@/components/announcements/announcements-banner';
 import type { FeatureKey } from '@/types/platform';
@@ -74,16 +70,16 @@ interface NavItemConfig {
 
 const topNavigation: NavItemConfig[] = [
   // Home de AÇÃO (sem gate): cards permission-aware decidem o que cada um vê (#21).
-  { titleKey: 'home', href: '/home', icon: <Home className="h-5 w-5" /> },
-  { titleKey: 'dashboard', href: '/dashboard', icon: <LayoutDashboard className="h-5 w-5" />, moduleKey: 'dashboard' },
-  { titleKey: 'chat', href: '/chat', icon: <MessageSquare className="h-5 w-5" />, featureKey: 'chat' },
+  { titleKey: 'home', href: '/home', icon: <Home className="h-4 w-4" /> },
+  { titleKey: 'dashboard', href: '/dashboard', icon: <LayoutDashboard className="h-4 w-4" />, moduleKey: 'dashboard' },
+  { titleKey: 'chat', href: '/chat', icon: <MessageSquare className="h-4 w-4" />, featureKey: 'chat' },
 ];
 
 const bottomNavigation: NavItemConfig[] = [
-  { titleKey: 'trash', href: '/trash', icon: <Trash2 className="h-5 w-5" />, trash: true },
-  { titleKey: 'support', href: '/support', icon: <LifeBuoy className="h-5 w-5" /> },
+  { titleKey: 'trash', href: '/trash', icon: <Trash2 className="h-4 w-4" />, trash: true },
+  { titleKey: 'support', href: '/support', icon: <LifeBuoy className="h-4 w-4" /> },
   // Configurações da CONTA é de todos (#21); o tab "Organização" dentro é que é gated.
-  { titleKey: 'settings', href: '/settings', icon: <Settings className="h-5 w-5" /> },
+  { titleKey: 'settings', href: '/settings', icon: <Settings className="h-4 w-4" /> },
 ];
 
 const iconMap: Record<string, React.ReactNode> = {
@@ -113,11 +109,12 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
   const searchParams = useSearchParams();
   const t = useTranslations();
   const tNav = useTranslations('navigation');
-  const { user, isAuthenticated, logout, ensureAuth, isLoading } = useAuthStore();
+  const { user, isAuthenticated, ensureAuth, isLoading } = useAuthStore();
   const { hasModuleAccess, hasModulePermission, getDefaultRoute, isOperationalSurface, canAccessAdminArea, canAccessAdminSection, canUseTrash } = usePermissions();
   const { tenant, effectiveTenantId } = useTenant();
   const features = useTenantFeatures();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
     if (typeof window !== 'undefined') {
       return localStorage.getItem('sidebar-collapsed') === 'true';
@@ -216,11 +213,6 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
     }
   }, [mounted, isLoading, isAuthenticated, user, pathname, hasModuleAccess, getDefaultRoute, router, canAccessAdminArea, canAccessAdminSection]);
 
-  const handleLogout = async () => {
-    await logout();
-    router.push('/login');
-  };
-
   const renderNavLink = (item: NavItemConfig) => {
     const isActive = pathname === item.href || pathname.startsWith(item.href + '/');
 
@@ -231,13 +223,7 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
             <Link
               href={item.href}
               prefetch={false}
-              className={cn(
-                'flex items-center rounded-lg text-sm font-medium transition-all min-h-[44px]',
-                'lg:justify-center lg:px-0 lg:py-2.5 gap-3 px-3 py-2.5',
-                isActive
-                  ? 'bg-primary text-primary-foreground shadow-sm'
-                  : 'text-muted-foreground hover:text-foreground hover:bg-muted'
-              )}
+              className={navItemClass(isActive, 'lg:justify-center lg:px-0')}
               onClick={() => setSidebarOpen(false)}
             >
               {item.icon}
@@ -256,12 +242,7 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
         key={item.href}
         href={item.href}
         prefetch={false}
-        className={cn(
-          'flex items-center rounded-lg text-sm font-medium transition-all min-h-[44px] gap-3 px-3 py-2.5',
-          isActive
-            ? 'bg-primary text-primary-foreground shadow-sm'
-            : 'text-muted-foreground hover:text-foreground hover:bg-muted'
-        )}
+        className={navItemClass(isActive)}
         onClick={() => setSidebarOpen(false)}
       >
         {item.icon}
@@ -320,16 +301,11 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
       >
         <TooltipProvider delayDuration={0}>
           <div className="flex flex-col h-full">
-            <div className={cn('flex items-center h-16 border-b', sidebarCollapsed ? 'lg:justify-center lg:px-2 px-4 gap-3' : 'gap-3 px-4')}>
+            <div className={cn('flex items-center h-14 border-b', sidebarCollapsed ? 'lg:justify-center lg:px-2 px-4 gap-3' : 'gap-3 px-4')}>
               {/* Quando colapsada, só o botão de expandir (logo+nome somem) p/ caber no rail. */}
-              {tenant?.logo ? (
-                <img src={tenant.logo} alt={tenant.name} className={cn('h-8 w-8 flex-shrink-0 object-contain', sidebarCollapsed && 'lg:hidden')} />
-              ) : (
-                <div className={cn('w-8 h-8 rounded-lg bg-gradient-to-br from-primary to-primary/70 flex items-center justify-center flex-shrink-0', sidebarCollapsed && 'lg:hidden')}>
-                  <span className="text-lg font-bold text-primary-foreground">{(tenant?.name || 'C')[0].toUpperCase()}</span>
-                </div>
-              )}
-              <span className={cn('font-semibold text-lg truncate flex-1', sidebarCollapsed && 'lg:hidden')}>{tenant?.name || 'CRM Builder'}</span>
+              <div className={cn('min-w-0 flex-1', sidebarCollapsed && 'lg:hidden')}>
+                <SidebarBrand subtitle={user?.customRole?.name} />
+              </div>
               <button
                 className={cn('hidden lg:flex p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors', !sidebarCollapsed && '-mr-2')}
                 onClick={() => {
@@ -346,7 +322,7 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
               <button
                 className="ml-auto lg:hidden p-2 -mr-2 rounded-lg hover:bg-muted active:bg-muted/80 transition-colors"
                 onClick={() => setSidebarOpen(false)}
-                data-testid="mobile-menu-button"
+                aria-label="Fechar menu"
               >
                 <X className="h-5 w-5" />
               </button>
@@ -354,7 +330,7 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
 
             <nav className={cn('flex-1 overflow-y-auto', sidebarCollapsed ? 'lg:p-2 p-3' : 'p-3')}>
               {/* 1. Dashboard */}
-              <div className="space-y-1">
+              <div className="space-y-0.5">
                 {filteredTopNav.map((item) => renderNavLink(item))}
               </div>
 
@@ -371,9 +347,9 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
                           href="/gestao"
                           prefetch={false}
                           data-testid="enter-gestao"
-                          className="hidden lg:flex items-center justify-center rounded-lg min-h-[44px] bg-zinc-950 text-white hover:bg-zinc-800 transition-colors"
+                          className="hidden lg:flex items-center justify-center rounded-md min-h-[36px] border bg-background text-foreground hover:bg-muted transition-colors"
                         >
-                          <ShieldCheck className="h-5 w-5" />
+                          <ShieldCheck className="h-4 w-4 text-primary" />
                         </Link>
                       </TooltipTrigger>
                       <TooltipContent side="right">{tNav('gestao')}</TooltipContent>
@@ -384,11 +360,13 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
                       prefetch={false}
                       data-testid="enter-gestao"
                       onClick={() => setSidebarOpen(false)}
-                      className="flex items-center gap-3 rounded-lg min-h-[44px] px-3 py-2.5 text-sm font-medium bg-zinc-950 text-white hover:bg-zinc-800 dark:bg-zinc-800 dark:hover:bg-zinc-700 transition-colors"
+                      className="group flex items-center gap-3 rounded-md min-h-[42px] lg:min-h-[38px] px-2.5 text-sm font-medium border bg-background hover:border-primary/40 hover:bg-nav-active hover:text-nav-active-foreground transition-colors"
                     >
-                      <ShieldCheck className="h-5 w-5" />
+                      <span className="flex h-6 w-6 items-center justify-center rounded bg-nav-active text-nav-active-foreground">
+                        <ShieldCheck className="h-3.5 w-3.5" />
+                      </span>
                       <span className="flex-1">{tNav('gestao')}</span>
-                      <ChevronRight className="h-4 w-4 opacity-60" />
+                      <ChevronRight className="h-4 w-4 opacity-50 transition-transform group-hover:translate-x-0.5" />
                     </Link>
                   )}
                   <div className={cn('my-3 border-t', sidebarCollapsed && 'lg:mx-1')} />
@@ -404,13 +382,13 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
                         <button
                           onClick={() => toggleCategory('__registros__')}
                           className={cn(
-                            'hidden lg:flex items-center justify-center rounded-lg min-h-[44px] w-full transition-all',
+                            'hidden lg:flex items-center justify-center rounded-md min-h-[36px] w-full transition-colors',
                             isRegistrosActive
                               ? 'text-foreground bg-muted'
                               : 'text-muted-foreground hover:text-foreground hover:bg-muted'
                           )}
                         >
-                          <Database className="h-5 w-5" />
+                          <Database className="h-4 w-4" />
                         </button>
                       </TooltipTrigger>
                       <TooltipContent side="right">{tNav('data')}</TooltipContent>
@@ -446,9 +424,9 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
                                         href={href}
                                         prefetch={false}
                                         className={cn(
-                                          'hidden lg:flex items-center justify-center rounded-lg min-h-[40px] transition-all',
+                                          'hidden lg:flex items-center justify-center rounded-md min-h-[36px] transition-colors',
                                           isActive
-                                            ? 'bg-primary text-primary-foreground shadow-sm'
+                                            ? 'bg-nav-active text-nav-active-foreground'
                                             : 'text-muted-foreground hover:text-foreground hover:bg-muted'
                                         )}
                                         onClick={() => setSidebarOpen(false)}
@@ -475,13 +453,13 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
                       <button
                         onClick={() => toggleCategory('__registros__')}
                         className={cn(
-                          'flex items-center gap-2 flex-1 px-3 py-2 text-sm font-medium rounded-lg transition-colors',
+                          'flex items-center gap-3 flex-1 px-2.5 min-h-[36px] text-sm font-medium rounded-md transition-colors',
                           isRegistrosActive
                             ? 'text-foreground'
                             : 'text-muted-foreground hover:text-foreground hover:bg-muted'
                         )}
                       >
-                        <Database className="h-5 w-5" />
+                        <Database className="h-4 w-4" />
                         <span className="flex-1 text-left">{tNav('data')}</span>
                         {isRegistrosOpen ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
                       </button>
@@ -514,7 +492,7 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
                             <div key={catKey} className="mb-1">
                               <button
                                 onClick={() => toggleCategory(catKey)}
-                                className="flex items-center gap-2 w-full px-3 py-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground/70 hover:text-muted-foreground transition-colors"
+                                className="flex items-center gap-2 w-full px-2.5 pt-2 pb-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70 hover:text-muted-foreground transition-colors"
                               >
                                 {isOpen ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
                                 <span className="truncate">{catLabel}</span>
@@ -536,9 +514,9 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
                                             href={href}
                                             prefetch={false}
                                             className={cn(
-                                              'flex items-center rounded-lg text-sm transition-all min-h-[36px] gap-2.5 pl-7 pr-3 py-1.5 flex-1 min-w-0',
+                                              'flex items-center rounded-md text-sm transition-colors min-h-[34px] gap-2.5 pl-7 pr-2.5 py-1 flex-1 min-w-0',
                                               isActive
-                                                ? 'bg-primary text-primary-foreground shadow-sm'
+                                                ? 'bg-nav-active text-nav-active-foreground font-medium'
                                                 : 'text-muted-foreground hover:text-foreground hover:bg-muted'
                                             )}
                                             onClick={() => setSidebarOpen(false)}
@@ -548,7 +526,7 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
                                             {entity._count && (
                                               <span className={cn(
                                                 'text-[10px] tabular-nums',
-                                                isActive ? 'text-primary-foreground/70' : 'text-muted-foreground/50'
+                                                isActive ? 'text-nav-active-foreground/70' : 'text-muted-foreground/50'
                                               )}>
                                                 {(entity._count.data || 0) + (entity._count.archivedData || 0)}
                                               </span>
@@ -576,9 +554,9 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
                                                   href={subHref}
                                                   prefetch={false}
                                                   className={cn(
-                                                    'flex items-center rounded-lg text-xs transition-all min-h-[30px] gap-2 pl-12 pr-3 py-1',
+                                                    'flex items-center rounded-md text-xs transition-colors min-h-[30px] gap-2 pl-12 pr-2.5 py-1',
                                                     isSubActive
-                                                      ? 'bg-primary text-primary-foreground shadow-sm'
+                                                      ? 'bg-nav-active text-nav-active-foreground font-medium'
                                                       : 'text-muted-foreground/70 hover:text-foreground hover:bg-muted'
                                                   )}
                                                   onClick={() => setSidebarOpen(false)}
@@ -610,70 +588,39 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
               <div className={cn('my-3 border-t', sidebarCollapsed && 'lg:mx-1')} />
 
               {/* 4. Settings */}
-              <div className="space-y-1">
+              <div className="space-y-0.5">
                 {filteredBottomNav.map((item) => renderNavLink(item))}
               </div>
             </nav>
 
-            <div className={cn('border-t bg-muted/30', sidebarCollapsed ? 'lg:p-2 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]' : 'p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]')}>
-              <div className={cn('flex items-center rounded-lg hover:bg-muted transition-colors', sidebarCollapsed ? 'lg:justify-center lg:p-2 gap-3 p-2.5' : 'gap-3 p-2.5')} data-testid="user-menu">
-                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center flex-shrink-0">
-                  <span className="text-sm font-medium text-white">
-                    {user?.name?.charAt(0)?.toUpperCase() || 'U'}
-                  </span>
-                </div>
-                <div className={cn('flex-1 min-w-0', sidebarCollapsed && 'lg:hidden')}>
-                  <p className="text-sm font-medium truncate">{user?.name || 'User'}</p>
-                  {user?.customRole && (
-                    <span
-                      className="inline-block text-xs px-1.5 py-0.5 rounded font-medium mt-0.5 bg-indigo-100 text-indigo-700"
-                    >
-                      {user.customRole.name}
-                    </span>
-                  )}
-                </div>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={handleLogout}
-                  title={t('auth.logout')}
-                  className={cn('text-muted-foreground hover:text-destructive', sidebarCollapsed && 'lg:hidden')}
-                >
-                  <LogOut className="h-4 w-4" />
-                </Button>
-              </div>
-            </div>
           </div>
         </TooltipProvider>
       </aside>
 
       <div className={cn('transition-all duration-200', sidebarCollapsed ? 'lg:pl-16' : 'lg:pl-64')}>
-        <header className="sticky top-[var(--banner-h,0px)] z-30 h-16 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-          <div className="flex items-center gap-2 sm:gap-4 h-full px-3 sm:px-4">
-            <button
-              className="lg:hidden p-2 -ml-2 rounded-lg hover:bg-muted active:bg-muted/80 transition-colors"
-              onClick={() => setSidebarOpen(true)}
-              data-testid="mobile-menu-button"
-            >
-              <Menu className="h-6 w-6" />
-            </button>
-
-            <div className="flex-1" />
-
-            <TenantSelector />
-
-            <NotificationBell />
-
-            <div className="hidden sm:flex items-center gap-2 text-sm pl-2 border-l">
-              <span className="text-muted-foreground">{tNav('hello')}</span>
-              <span className="font-medium">{user?.name?.split(' ')[0]}</span>
-            </div>
-          </div>
-        </header>
+        <ShellTopbar onOpenSidebar={() => setSidebarOpen(true)} onOpenSearch={() => setSearchOpen(true)} />
+        <CommandMenu
+          open={searchOpen}
+          onOpenChange={setSearchOpen}
+          tables={(entityGroups || []).flatMap((g) => g.entities).flatMap((e) => [
+            { label: e.name, href: `/data?entity=${e.slug}`, color: e.color, keywords: [e.slug] },
+            // Sub-tabelas (ex.: Ordem de servico dentro de Cliente) tambem sao abertas direto
+            ...(((e as { subEntities?: Array<{ name: string; slug: string; color?: string }> }).subEntities) || []).map((sub) => ({
+              label: sub.name, href: `/data?entity=${sub.slug}`, color: sub.color, keywords: [sub.slug, e.name],
+            })),
+          ])}
+          pages={[
+            ...filteredTopNav.map((item) => ({ label: tNav(item.titleKey), href: item.href, icon: item.icon })),
+            ...(canAccessAdminArea ? [{ label: tNav('gestao'), href: '/gestao', icon: <ShieldCheck className="h-4 w-4" />, keywords: ['admin', 'administracao', 'gestao'] }] : []),
+            ...filteredBottomNav.map((item) => ({ label: tNav(item.titleKey), href: item.href, icon: item.icon })),
+            { label: tNav('profile'), href: '/profile', icon: <Users className="h-4 w-4" /> },
+          ]}
+          actions={hasModuleAccess('entities') ? [{ label: tNav('newTable'), href: '/gestao/entities/new', keywords: ['criar', 'tabela', 'entidade'] }] : []}
+        />
 
         <AnnouncementsBanner />
         <TrialBanner />
-        <main className="p-4 md:p-6 lg:p-8">
+        <main className="mx-auto w-full max-w-[1600px] p-4 md:p-6 lg:p-8">
           {children}
         </main>
       </div>
