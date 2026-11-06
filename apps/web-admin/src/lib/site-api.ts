@@ -21,7 +21,12 @@ export type SiteBlockView =
   | { id: string; type: 'image'; url: string; alt?: string }
   | { id: string; type: 'button'; label: string; url: string }
   | { id: string; type: 'divider' }
-  | { id: string; type: 'form'; entitySlug: string; fields: string[]; submitLabel?: string; successMessage?: string; showTrackingLink?: boolean; fieldDefs: SiteFieldDef[] }
+  | {
+    id: string; type: 'form'; entitySlug: string; entityName?: string; fields: string[]; submitLabel?: string; successMessage?: string;
+    showTrackingLink?: boolean; fieldDefs: SiteFieldDef[];
+    /** Tabela de dentro: o cliente tambem preenche o registro de cima (ex.: segurado). */
+    parent?: { entitySlug: string; name: string; title?: string; matchField?: string; fields: string[]; fieldDefs: SiteFieldDef[] };
+  }
   | {
     id: string; type: 'tracking'; entitySlug: string; entityName: string; fields: string[]; timelineField?: string;
     uploadFields?: string[]; hasPdf: boolean; uploadDefs: SiteFieldDef[];
@@ -60,15 +65,15 @@ export const siteApi = {
     fetch(`${SITE_API_URL}/site/${encodeURIComponent(tenant)}/${encodeURIComponent(page)}${token ? `?c=${encodeURIComponent(token)}` : ''}`, { cache: 'no-store' })
       .then((r) => parse<SitePageData>(r)),
 
-  submit: (tenant: string, page: string, block: string, data: Record<string, unknown>, website: string) =>
+  submit: (tenant: string, page: string, block: string, data: Record<string, unknown>, website: string, parentData?: Record<string, unknown>) =>
     fetch(`${SITE_API_URL}/site/${tenant}/${page}/forms/${block}`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ data, website }),
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ data, website, ...(parentData ? { parentData } : {}) }),
     }).then((r) => parse<{ ok: boolean; message: string; trackingUrl?: string }>(r)),
 
-  uploadForm: (tenant: string, page: string, block: string, field: string, file: File) => {
+  uploadForm: (tenant: string, page: string, block: string, field: string, file: File, target?: 'parent') => {
     const body = new FormData();
     body.append('file', file);
-    return fetch(`${SITE_API_URL}/site/${tenant}/${page}/forms/${block}/upload?field=${encodeURIComponent(field)}`, { method: 'POST', body })
+    return fetch(`${SITE_API_URL}/site/${tenant}/${page}/forms/${block}/upload?field=${encodeURIComponent(field)}${target ? `&target=${target}` : ''}`, { method: 'POST', body })
       .then((r) => parse<{ url: string; name: string }>(r));
   },
 

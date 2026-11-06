@@ -23,6 +23,18 @@ export interface FormBlock {
   successMessage?: string;
   /** Depois de enviar, mostra o link de acompanhamento (se houver pagina de acompanhamento). */
   showTrackingLink?: boolean;
+  /**
+   * Tabela "de dentro" (ex.: sinistro dentro do segurado): o cliente tambem preenche
+   * o registro de cima, criado junto ou reaproveitado pelo campo de identificacao.
+   */
+  parent?: ParentForm;
+}
+export interface ParentForm {
+  entitySlug: string;
+  fields: string[];
+  /** Se ja existir registro de cima com o mesmo valor neste campo (ex.: CPF), usa o mesmo. */
+  matchField?: string;
+  title?: string;
 }
 export interface TrackingBlock {
   id: string;
@@ -127,7 +139,14 @@ export function normalizeBlocks(raw: unknown, ctx: NormalizeContext): SiteBlock[
       case 'form': {
         const table = bySlug.get(clip(b.entitySlug, 100));
         if (!table) throw new BadRequestException('Formulário: escolha a tabela onde as respostas serão guardadas.');
-        if (table.parentSlug) throw new BadRequestException(`Formulário: ${table.namePlural} é uma lista dentro de outra tabela; escolha uma tabela principal.`);
+        let parent: ParentForm | undefined;
+        if (table.parentSlug) {
+          const top = bySlug.get(table.parentSlug);
+          if (!top || top.parentSlug) {
+            throw new BadRequestException(`Formulário: ${table.namePlural} fica dentro de uma lista que também está dentro de outra; escolha uma tabela de até um nível.`);
+          }
+          parent = normalizeParent(b.parent, top, ctx);
+        }
         const allowed = new Map(table.fields.filter((f) => FORM_FIELD_TYPES.has(f.type)).map((f) => [f.slug, f]));
         const fields = uniq(asStrings(b.fields).filter((s) => allowed.has(s)));
         if (fields.length === 0) throw new BadRequestException('Formulário: escolha pelo menos um campo.');
@@ -140,6 +159,7 @@ export function normalizeBlocks(raw: unknown, ctx: NormalizeContext): SiteBlock[
           submitLabel: clip(b.submitLabel, 40) || 'Enviar',
           successMessage: clip(b.successMessage, 400) || 'Recebemos suas informações. Obrigado!',
           showTrackingLink: b.showTrackingLink !== false,
+          ...(parent ? { parent } : {}),
         });
         break;
       }
@@ -163,6 +183,32 @@ export function normalizeBlocks(raw: unknown, ctx: NormalizeContext): SiteBlock[
     }
   }
   return out;
+}
+
+/** Tipos que identificam o registro de cima (para reaproveitar um que ja existe). */
+export const MATCH_FIELD_TYPES = new Set(['text', 'cpf', 'cnpj', 'email', 'phone']);
+
+function normalizeParent(raw: unknown, top: SchemaTable, ctx: NormalizeContext): ParentForm {
+  const p = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
+  const allowed = new Set(top.fields.filter((f) => FORM_FIELD_TYPES.has(f.type)).map((f) => f.slug));
+  const fields = uniq(asStrings(p.fields).filter((s) => allowed.has(s)));
+  const missing = requiredFields(ctx.rawFieldsBySlug.get(top.slug) || [], top.statusField).filter((f) => !fields.includes(f.slug));
+  if (missing.length) {
+    throw new BadRequestException(`Formulário: os campos obrigatórios de ${top.namePlural} precisam estar no formulário: ${missing.map((f) => f.label || f.slug).join(', ')}.`);
+  }
+  if (fields.length === 0) throw new BadRequestException(`Formulário: escolha os dados de ${top.name} que o cliente preenche.`);
+  const match = clip(p.matchField, 100);
+  const matchField = fields.includes(match) && MATCH_FIELD_TYPES.has(top.fields.find((f) => f.slug === match)?.type ?? '') ? match : undefined;
+  const title = clip(p.title, 80);
+  return { entitySlug: top.slug, fields, ...(matchField ? { matchField } : {}), ...(title ? { title } : {}) };
+}
+
+/** Campo que melhor identifica alguem (CPF/CNPJ/e-mail), para sugerir na pagina nova. */
+export function suggestMatchField(top: SchemaTable): string | undefined {
+  const byType = (t: string) => top.fields.find((f) => f.type === t)?.slug;
+  return byType('cpf') ?? byType('cnpj')
+    ?? top.fields.find((f) => f.type === 'text' && /cpf|cnpj|documento/i.test(`${f.slug} ${f.label}`))?.slug
+    ?? byType('email') ?? byType('phone');
 }
 
 function asStrings(v: unknown): string[] {

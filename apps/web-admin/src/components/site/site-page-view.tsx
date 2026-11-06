@@ -104,6 +104,7 @@ function BlockView({ block, data, brand, tenantSlug, pageSlug, token, preview, o
 
 function PublicForm({ block, brand, tenantSlug, pageSlug, preview }: { block: Extract<SiteBlockView, { type: 'form' }>; brand: string; tenantSlug: string; pageSlug: string; preview?: boolean }) {
   const [values, setValues] = useState<Record<string, unknown>>({});
+  const [parentValues, setParentValues] = useState<Record<string, unknown>>({});
   const [website, setWebsite] = useState('');
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -113,7 +114,10 @@ function PublicForm({ block, brand, tenantSlug, pageSlug, preview }: { block: Ex
   const submit = async (e: FormEvent) => {
     e.preventDefault();
     setError(null);
-    const missing = block.fieldDefs.filter((f) => f.required && isEmpty(values[f.slug]));
+    const missing = [
+      ...(block.parent?.fieldDefs || []).filter((f) => f.required && isEmpty(parentValues[f.slug])),
+      ...block.fieldDefs.filter((f) => f.required && isEmpty(values[f.slug])),
+    ];
     if (missing.length) {
       setError(`Preencha: ${missing.map((f) => f.label).join(', ')}.`);
       return;
@@ -124,7 +128,7 @@ function PublicForm({ block, brand, tenantSlug, pageSlug, preview }: { block: Ex
     }
     setSending(true);
     try {
-      const res = await siteApi.submit(tenantSlug, pageSlug, block.id, values, website);
+      const res = await siteApi.submit(tenantSlug, pageSlug, block.id, values, website, block.parent ? parentValues : undefined);
       setDone({ message: res.message, trackingUrl: res.trackingUrl ? absoluteSiteUrl(res.trackingUrl) : undefined });
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (err) {
@@ -159,6 +163,22 @@ function PublicForm({ block, brand, tenantSlug, pageSlug, preview }: { block: Ex
 
   return (
     <form onSubmit={submit} className="space-y-4 rounded-2xl border bg-white p-5 shadow-sm" data-testid={`site-form-${block.id}`} noValidate>
+      {block.parent && (
+        <>
+          <p className="text-base font-semibold" data-testid="site-form-parent-title">{block.parent.title || 'Seus dados'}</p>
+          {block.parent.fieldDefs.map((f) => (
+            <div key={`p-${f.slug}`} className="space-y-1.5">
+              <Label htmlFor={`f-${f.slug}`} className="text-sm font-medium">
+                {f.label}{f.required && <span className="text-red-600"> *</span>}
+              </Label>
+              <FieldInput field={f} value={parentValues[f.slug]} onChange={(v) => setParentValues((prev) => ({ ...prev, [f.slug]: v }))} brand={brand}
+                upload={(file) => (preview ? Promise.reject(new Error('Na prévia não dá para enviar arquivos.')) : siteApi.uploadForm(tenantSlug, pageSlug, block.id, f.slug, file, 'parent').then((r) => r.url))} />
+              {f.helpText && <p className="text-xs text-slate-500">{f.helpText}</p>}
+            </div>
+          ))}
+          <p className="border-t pt-4 text-base font-semibold">{block.entityName || 'Dados'}</p>
+        </>
+      )}
       {block.fieldDefs.map((f) => (
         <div key={f.slug} className="space-y-1.5">
           <Label htmlFor={`f-${f.slug}`} className="text-sm font-medium">

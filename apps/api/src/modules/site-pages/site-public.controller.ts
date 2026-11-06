@@ -25,7 +25,7 @@ export class SitePublicController {
 
   @Post(':tenant/:page/forms/:block')
   @HttpCode(HttpStatus.OK)
-  @Throttle({ default: { limit: 5, ttl: 60000 } })
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
   @ApiOperation({ summary: 'Envia o formulario da pagina (vira registro)' })
   submit(@Param('tenant') tenant: string, @Param('page') page: string, @Param('block') block: string, @Body() dto: SubmitSiteFormDto) {
     return this.service.submitForm(tenant, page, block, dto);
@@ -38,9 +38,9 @@ export class SitePublicController {
   @ApiOperation({ summary: 'Foto/arquivo de um campo do formulario' })
   upload(
     @Param('tenant') tenant: string, @Param('page') page: string, @Param('block') block: string,
-    @Query('field') field: string, @UploadedFile() file: Express.Multer.File,
+    @Query('field') field: string, @UploadedFile() file: Express.Multer.File, @Query('target') target?: string,
   ) {
-    return this.service.uploadForForm(tenant, page, block, String(field || ''), file);
+    return this.service.uploadForForm(tenant, page, block, String(field || ''), file, target);
   }
 
   @Post(':tenant/:page/track/:token/files')

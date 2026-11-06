@@ -30,10 +30,12 @@ function NewPageContent() {
 
   const entities = useMemo(() => {
     const list = (entitiesPage?.data || []) as Array<{ id: string; slug: string; name: string; namePlural?: string; fields?: Array<{ type: string; subEntityId?: string; subEntitySlug?: string }> }>;
-    // Formulario so em tabela principal (lista dentro de outra precisa do registro de cima)
-    const childSlugs = new Set(list.flatMap((e) => (e.fields || []).filter((f) => f.type === 'sub-entity').map((f) => f.subEntitySlug || list.find((x) => x.id === f.subEntityId)?.slug)));
-    return kind === 'form' ? list.filter((e) => !childSlugs.has(e.slug)) : list;
-  }, [entitiesPage, kind]);
+    // Tabela de dentro: o formulario pede tambem os dados da de cima (ex.: segurado + sinistro)
+    return list.map((e) => {
+      const up = list.find((p) => (p.fields || []).some((f) => f.type === 'sub-entity' && (f.subEntitySlug === e.slug || f.subEntityId === e.id)));
+      return { ...e, parentName: up ? up.namePlural || up.name : undefined };
+    });
+  }, [entitiesPage]);
   const entity = entities.find((e) => e.slug === entitySlug);
   const suggested = entity ? (kind === 'form' ? `Formulário — ${entity.name}` : kind === 'tracking' ? `Acompanhamento — ${entity.name}` : '') : '';
 
@@ -74,6 +76,7 @@ function NewPageContent() {
               <button key={e.slug} type="button" onClick={() => setEntitySlug(e.slug)}
                 className={cn('rounded-lg border bg-card px-3 py-2.5 text-left text-sm', entitySlug === e.slug ? 'border-primary ring-1 ring-primary' : 'hover:border-primary/40')}>
                 {e.namePlural || e.name}
+                {e.parentName && <span className="block text-[11px] text-muted-foreground">dentro de {e.parentName}{kind === 'form' ? ' (pede os dois)' : ''}</span>}
               </button>
             ))}
           </div>
