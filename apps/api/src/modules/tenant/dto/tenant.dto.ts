@@ -1,4 +1,4 @@
-import { IsString, IsOptional, IsEnum, IsEmail, MinLength, MaxLength, Matches, ValidateIf, IsIn } from 'class-validator';
+import { IsString, IsOptional, IsEnum, IsEmail, MinLength, MaxLength, Matches, ValidateIf, IsIn, IsBoolean } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional, PartialType } from '@nestjs/swagger';
 import { Status } from '@prisma/client';
 import { Type } from 'class-transformer';
@@ -106,4 +106,9 @@ export class UpdateMyTenantDto {
   @IsOptional()
   @IsIn(['light', 'dark', 'system'])
   darkMode?: 'light' | 'dark' | 'system';
+
+  @ApiPropertyOptional({ description: 'Permite que a IA do chat leia o conteudo de um registro quando alguem pede (resumos e textos)' })
+  @IsOptional()
+  @IsBoolean()
+  aiReadRecords?: boolean;
 }

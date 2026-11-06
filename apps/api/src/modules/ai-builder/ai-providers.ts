@@ -4,7 +4,7 @@ import type { AiDashboardProposal } from './dashboard-proposal';
 import type { AiPdfProposal } from './pdf-proposal';
 import type { SchemaTable } from './tenant-schema';
 
-export type AiAssistantKind = 'tables' | 'dashboard' | 'pdf';
+export type AiAssistantKind = 'tables' | 'dashboard' | 'pdf' | 'chat' | 'chat-text';
 
 /**
  * Provedor de IA do assistente (plugavel por AI_BUILDER_PROVIDER):
@@ -47,6 +47,8 @@ export class MockAiProvider implements AiBuilderProvider {
   async propose(input: AiProposeInput): Promise<AiProposeOutput> {
     if (input.kind === 'dashboard') return { output: mockDashboard(input) };
     if (input.kind === 'pdf') return { output: mockPdf(input) };
+    if (input.kind === 'chat') return { output: mockChat(input) };
+    if (input.kind === 'chat-text') return { output: { text: `Resumo de teste: ${input.prompt.split('\n').filter((l) => l.includes(':')).slice(1, 3).join(' · ')}` } };
     const { lastMessage } = input;
     const current = input.current as AiProposal | null;
     if (current) {
@@ -100,6 +102,31 @@ export class MockAiProvider implements AiBuilderProvider {
     };
     return { output: proposal };
   }
+}
+
+/**
+ * Chat de teste (sem rede): "quantos X", "liste X", "crie X: titulo", "mude REG para OPCAO",
+ * "resuma REG", "escreva ... REG". Tabela = a citada pelo nome; senao a primeira.
+ */
+function mockChat({ lastMessage, tables }: AiProposeInput) {
+  const m = lastMessage.toLowerCase();
+  const table = tables.find((t) => m.includes(t.namePlural.toLowerCase()) || m.includes(t.name.toLowerCase())) ?? tables[0];
+  const slug = table?.slug ?? '';
+  const status = table?.fields.find((f) => f.slug === table.statusField) ?? table?.fields.find((f) => f.type === 'select');
+  if (/^quant/.test(m)) return { reply: 'Contagem:', action: { type: 'count', table: slug } };
+  if (/^(liste|mostre)/.test(m)) {
+    const opt = status?.options.find((o) => m.includes(o.label.toLowerCase()));
+    return { reply: 'Lista:', action: { type: 'list', table: slug, filters: opt ? [{ field: status!.slug, operator: 'equals', value: opt.label }] : [] } };
+  }
+  const create = /^crie [^:]+:\s*(.+?)(?:\s+em\s+(.+))?$/i.exec(lastMessage);
+  if (create && table?.titleField) {
+    return { reply: 'Vou criar:', action: { type: 'create', table: slug, values: [{ field: table.titleField, value: create[1] }], ...(create[2] ? { parent: create[2] } : {}) } };
+  }
+  const update = /^mude (\S+) para (.+)$/i.exec(lastMessage);
+  if (update && status) return { reply: 'Vou alterar:', action: { type: 'update', table: slug, record: update[1], values: [{ field: status.slug, value: update[2] }] } };
+  const sum = /^(resuma|escreva)\b.*?(\S+)$/i.exec(lastMessage);
+  if (sum) return { reply: '', action: { type: /^resuma/i.test(lastMessage) ? 'summarize' : 'write', table: slug, record: sum[2], instruction: lastMessage } };
+  return { reply: 'Posso contar, listar, criar ou alterar registros. Como ajudo?', action: { type: 'none' } };
 }
 
 function mockDashboard({ current, tables }: AiProposeInput): AiDashboardProposal {
