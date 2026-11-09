@@ -216,7 +216,7 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
         {item.icon}
         <span className="flex-1">{tNav(item.titleKey)}</span>
         {item.badge && (
-          <span className="text-xs bg-primary/20 text-primary px-1.5 py-0.5 rounded">
+          <span className="rounded bg-muted px-1.5 py-0.5 text-[11px] text-muted-foreground">
             {item.badge}
           </span>
         )}
@@ -261,7 +261,7 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
 
       <aside
         className={cn(
-          'fixed bottom-0 top-[var(--banner-h,0px)] left-0 z-50 max-w-[calc(100vw-3rem)] lg:max-w-none bg-card border-r transform transition-all duration-200 ease-in-out lg:translate-x-0 overflow-hidden',
+          'sidebar-corp fixed bottom-0 top-[var(--banner-h,0px)] left-0 z-50 max-w-[calc(100vw-3rem)] lg:max-w-none bg-card border-r transform transition-all duration-200 ease-in-out lg:translate-x-0 overflow-hidden',
           sidebarCollapsed ? 'lg:w-16' : 'lg:w-64',
           'w-64',
           sidebarOpen ? 'translate-x-0' : '-translate-x-full'
@@ -269,14 +269,13 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
       >
         <TooltipProvider delayDuration={0}>
           <div className="flex flex-col h-full">
-            {/* Cabecalho na cor da empresa: cada empresa reconhece a sua */}
-            <div className={cn('flex items-center h-16 bg-primary text-primary-foreground', sidebarCollapsed ? 'lg:justify-center lg:px-2 px-4 gap-3' : 'gap-3 px-4')}>
+            <div className={cn('flex items-center h-14 border-b', sidebarCollapsed ? 'lg:justify-center lg:px-2 px-4 gap-3' : 'gap-3 px-4')}>
               {/* Quando colapsada, só o botão de expandir (logo+nome somem) p/ caber no rail. */}
               <div className={cn('min-w-0 flex-1', sidebarCollapsed && 'lg:hidden')}>
-                <SidebarBrand strong subtitle={user?.customRole?.name} />
+                <SidebarBrand subtitle={user?.customRole?.name} />
               </div>
               <button
-                className={cn('hidden lg:flex p-2 rounded-lg text-primary-foreground/80 hover:text-primary-foreground hover:bg-white/15 transition-colors', !sidebarCollapsed && '-mr-2')}
+                className={cn('hidden lg:flex p-2 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors', !sidebarCollapsed && '-mr-2')}
                 onClick={() => {
                   setSidebarCollapsed(prev => {
                     const next = !prev;
@@ -289,7 +288,7 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
                 {sidebarCollapsed ? <PanelLeftOpen className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}
               </button>
               <button
-                className="ml-auto lg:hidden p-2 -mr-2 rounded-lg hover:bg-white/15 transition-colors"
+                className="ml-auto lg:hidden p-2 -mr-2 rounded-md text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
                 onClick={() => setSidebarOpen(false)}
                 aria-label="Fechar menu"
               >
@@ -318,7 +317,7 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
                           data-testid="enter-gestao"
                           className="hidden lg:flex items-center justify-center rounded-md min-h-[36px] border bg-background text-foreground hover:bg-muted transition-colors"
                         >
-                          <ShieldCheck className="h-4 w-4 text-primary" />
+                          <ShieldCheck className="h-4 w-4 text-brand-300" />
                         </Link>
                       </TooltipTrigger>
                       <TooltipContent side="right">{tNav('gestao')}</TooltipContent>
@@ -329,11 +328,9 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
                       prefetch={false}
                       data-testid="enter-gestao"
                       onClick={() => setSidebarOpen(false)}
-                      className="group flex items-center gap-3 rounded-md min-h-[42px] lg:min-h-[38px] px-2.5 text-sm font-medium border bg-background hover:border-primary/40 hover:bg-nav-active hover:text-nav-active-foreground transition-colors"
+                      className="group flex items-center gap-3 rounded-md min-h-[42px] lg:min-h-[36px] px-2.5 text-sm font-medium border text-foreground hover:bg-muted transition-colors"
                     >
-                      <span className="flex h-6 w-6 items-center justify-center rounded bg-nav-active text-nav-active-foreground">
-                        <ShieldCheck className="h-3.5 w-3.5" />
-                      </span>
+                      <ShieldCheck className="h-4 w-4 text-brand-300" />
                       <span className="flex-1">{tNav('gestao')}</span>
                       <ChevronRight className="h-4 w-4 opacity-50 transition-transform group-hover:translate-x-0.5" />
                     </Link>
@@ -460,7 +457,7 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
                                 </span>
                               </button>
                               {isOpen && (
-                                <div className="space-y-1 mt-1">
+                                <div className="space-y-0.5 mt-1">
                                   {group.entities.map((entity) => {
                                     const href = `/data?entity=${entity.slug}`;
                                     const isActive = pathname === '/data' && searchParams.get('entity') === entity.slug;
@@ -492,7 +489,7 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
                                           )}
                                         </div>
                                         {subEntities && subEntities.length > 0 && (
-                                          <div className="mt-1 space-y-1">
+                                          <div className="ml-[17px] mt-0.5 space-y-0.5 border-l pl-2">
                                             {/* Listas dentro desta tabela: abrem os registros (o editor fica na engrenagem) */}
                                             {subEntities.map((sub) => (
                                               <EntityNavItem

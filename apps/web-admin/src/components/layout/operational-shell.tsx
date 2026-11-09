@@ -77,18 +77,17 @@ export function OperationalShell({ children }: { children: React.ReactNode }) {
 
       <aside
         className={cn(
-          'fixed bottom-0 top-[var(--banner-h,0px)] left-0 z-50 w-64 max-w-[calc(100vw-3rem)] bg-card border-r transform transition-transform duration-200 ease-in-out lg:translate-x-0 overflow-hidden',
+          'sidebar-corp fixed bottom-0 top-[var(--banner-h,0px)] left-0 z-50 w-64 max-w-[calc(100vw-3rem)] bg-card border-r transform transition-transform duration-200 ease-in-out lg:translate-x-0 overflow-hidden',
           sidebarOpen ? 'translate-x-0' : '-translate-x-full'
         )}
       >
         <div className="flex h-full flex-col">
-          {/* Cabecalho na cor da empresa: cada empresa reconhece a sua */}
-          <div className="flex h-16 items-center gap-3 bg-primary px-4 text-primary-foreground">
+          <div className="flex h-14 items-center gap-3 border-b px-4">
             <div className="min-w-0 flex-1">
-              <SidebarBrand strong subtitle={user?.customRole?.name || tNav('operational')} />
+              <SidebarBrand subtitle={user?.customRole?.name || tNav('operational')} />
             </div>
             <button
-              className="lg:hidden p-2 -mr-2 rounded-lg hover:bg-white/15 transition-colors"
+              className="lg:hidden p-2 -mr-2 rounded-md text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
               onClick={() => setSidebarOpen(false)}
               aria-label="Fechar menu"
             >
@@ -117,14 +116,14 @@ export function OperationalShell({ children }: { children: React.ReactNode }) {
                 {registrosOpen ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
               </button>
               {registrosOpen && (
-                <div className="mt-1 space-y-1">
+                <div className="mt-1 space-y-0.5">
                   {entityGroups && entityGroups.length > 0 ? (
                     entityGroups.flatMap((group) => group.entities).map((entity) => {
                       const href = `/data?entity=${entity.slug}`;
                       const isActive = pathname === '/data' && searchParams.get('entity') === entity.slug;
                       const subs = ((entity as { subEntities?: Array<{ id: string; name: string; namePlural?: string; slug: string; icon?: string; color?: string }> }).subEntities) || [];
                       return (
-                        <div key={entity.id} className="space-y-1">
+                        <div key={entity.id} className="space-y-0.5">
                           <EntityNavItem
                             href={href}
                             name={entity.namePlural || entity.name}
@@ -135,7 +134,7 @@ export function OperationalShell({ children }: { children: React.ReactNode }) {
                             onClick={() => setSidebarOpen(false)}
                           />
                           {/* Listas dentro desta tabela (ex.: Sinistros dentro de Segurados) */}
-                          {subs.map((sub) => (
+                          {subs.length > 0 && <div className="ml-[17px] space-y-0.5 border-l pl-2">{subs.map((sub) => (
                             <EntityNavItem
                               key={sub.id}
                               nested
@@ -146,7 +145,7 @@ export function OperationalShell({ children }: { children: React.ReactNode }) {
                               active={pathname === '/data' && searchParams.get('entity') === sub.slug}
                               onClick={() => setSidebarOpen(false)}
                             />
-                          ))}
+                          ))}</div>}
                         </div>
                       );
                     })

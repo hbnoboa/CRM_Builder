@@ -110,7 +110,7 @@ export function GestaoShell({ children }: { children: React.ReactNode }) {
 
       <aside
         className={cn(
-          'fixed bottom-0 top-[var(--banner-h,0px)] left-0 z-50 flex w-64 max-w-[calc(100vw-3rem)] flex-col border-r bg-card transition-transform duration-200 lg:translate-x-0',
+          'sidebar-corp fixed bottom-0 top-[var(--banner-h,0px)] left-0 z-50 flex w-64 max-w-[calc(100vw-3rem)] flex-col border-r bg-card transition-transform duration-200 lg:translate-x-0',
           sidebarOpen ? 'translate-x-0' : '-translate-x-full',
         )}
       >
@@ -118,13 +118,13 @@ export function GestaoShell({ children }: { children: React.ReactNode }) {
           <div className="min-w-0 flex-1">
             <SidebarBrand
               subtitle={
-                <span className="inline-flex items-center gap-1 font-medium text-primary">
+                <span className="inline-flex items-center gap-1 font-medium text-brand-300">
                   <ShieldCheck className="h-3 w-3" /> {t('label')}
                 </span>
               }
             />
           </div>
-          <button className="rounded-lg p-2 hover:bg-muted lg:hidden" onClick={() => setSidebarOpen(false)} aria-label={t('closeMenu')}>
+          <button className="rounded-md p-2 text-muted-foreground hover:bg-muted hover:text-foreground lg:hidden" onClick={() => setSidebarOpen(false)} aria-label={t('closeMenu')}>
             <X className="h-5 w-5" />
           </button>
         </div>
@@ -157,7 +157,7 @@ export function GestaoShell({ children }: { children: React.ReactNode }) {
             href="/home"
             prefetch={false}
             data-testid="back-to-operation"
-            className="flex min-h-[40px] items-center justify-center gap-2 rounded-md border bg-background px-3 text-sm font-medium transition-colors hover:bg-muted"
+            className="flex min-h-[40px] items-center justify-center gap-2 rounded-md border px-3 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
           >
             <ArrowLeft className="h-4 w-4" />
             {t('backToOperation')}

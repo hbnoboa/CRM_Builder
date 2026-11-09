@@ -8,6 +8,7 @@ import {
   UserCheck, UserRound, Users, Utensils, Wrench, type LucideIcon,
 } from 'lucide-react';
 import { Link } from '@/i18n/tenant-navigation';
+import { navItemClass } from '@/components/layout/shell-parts';
 import { cn } from '@/lib/utils';
 
 /**
@@ -30,23 +31,23 @@ interface EntityNavItemProps {
   href: string;
   name: string;
   icon?: string | null;
+  /** Cor da tabela: so no editor e nos graficos; no menu o icone e monocromatico. */
   color?: string | null;
   count?: number;
   active: boolean;
   onClick?: () => void;
   /** Barra recolhida: so o icone. */
   compact?: boolean;
-  /** Tabela de dentro de outra (ex.: Sinistros dentro de Segurados): recuada e menor. */
+  /** Tabela de dentro de outra (ex.: Sinistros dentro de Segurados): menor, na arvore. */
   nested?: boolean;
 }
 
 /**
- * Tabela no menu: icone na cor da tabela, nome legivel e quantidade de registros.
- * A ativa fica destacada na cor da empresa.
+ * Tabela no menu: icone monocromatico, nome e quantidade de registros discreta.
+ * A ativa ganha o filete na cor da empresa (mesmo padrao dos outros itens).
  */
-export function EntityNavItem({ href, name, icon, color, count, active, onClick, compact, nested }: EntityNavItemProps) {
+export function EntityNavItem({ href, name, icon, count, active, onClick, compact, nested }: EntityNavItemProps) {
   const Icon = entityIconFor(icon);
-  const tint = color || 'hsl(var(--primary))';
   return (
     <Link
       href={href}
@@ -54,26 +55,18 @@ export function EntityNavItem({ href, name, icon, color, count, active, onClick,
       onClick={onClick}
       title={compact ? name : undefined}
       className={cn(
-        'group flex min-w-0 items-center rounded-lg transition-colors',
-        compact ? 'h-10 w-full justify-center' : nested ? 'ml-5 min-h-[38px] gap-2.5 px-2 py-1' : 'min-h-[44px] gap-3 px-2 py-1.5',
-        active ? 'bg-primary/10 text-foreground ring-1 ring-inset ring-primary/25' : 'text-foreground/80 hover:bg-muted hover:text-foreground',
+        navItemClass(active, compact ? 'w-full justify-center px-0' : undefined),
+        nested && 'min-h-[38px] gap-2.5 text-[13px] lg:min-h-[32px]',
       )}
       data-testid="nav-entity"
     >
-      <span
-        className={cn('flex shrink-0 items-center justify-center rounded-md transition-transform group-hover:scale-105', nested ? 'h-6 w-6' : 'h-8 w-8')}
-        style={active
-          ? { backgroundColor: tint, color: '#fff' }
-          : { backgroundColor: `color-mix(in srgb, ${tint} 14%, transparent)`, color: tint }}
-      >
-        <Icon className={nested ? 'h-3.5 w-3.5' : 'h-4 w-4'} />
-      </span>
+      <Icon className={nested ? 'h-3.5 w-3.5 shrink-0' : 'h-4 w-4 shrink-0'} />
       {!compact && (
         <>
-          <span className={cn('flex-1 truncate', nested ? 'text-[13px]' : 'text-sm', active ? 'font-semibold' : 'font-medium')}>{name}</span>
+          <span className="min-w-0 flex-1 truncate">{name}</span>
           {count !== undefined && (
-            <span className={cn('rounded-full px-2 py-0.5 text-[11px] font-medium tabular-nums', active ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground')}>
-              {count}
+            <span className={cn('text-[11px] font-medium tabular-nums', active ? 'text-foreground/70' : 'text-muted-foreground/80')}>
+              {count.toLocaleString('pt-BR')}
             </span>
           )}
         </>
