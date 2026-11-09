@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Param, Patch, Post, Put, Query, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { ModulePermissionGuard } from '../../common/guards/module-permission.guard';
@@ -7,7 +7,7 @@ import { RequireFeature } from '../../common/decorators/require-feature.decorato
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { CurrentUser as CurrentUserType } from '../../common/types';
 import { ServiceScope } from '../../common/service-scope/service-scope.decorator';
-import { CreateSitePageDto, PreviewSitePageDto, PublishSitePageDto, TrackingLinkDto, UpdateSitePageDto } from './dto/site-pages.dto';
+import { CreateSitePageDto, PreviewSitePageDto, PublishSitePageDto, TrackingLinkDto, UpdateSiteDto, UpdateSitePageDto } from './dto/site-pages.dto';
 import { SitePagesService } from './site-pages.service';
 
 /** Paginas para clientes: mesma permissao e plano dos links publicos. */
@@ -31,7 +31,19 @@ export class SitePagesController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Previa de blocos ainda nao salvos' })
   preview(@Body() dto: PreviewSitePageDto, @CurrentUser() user: CurrentUserType) {
-    return this.service.preview(dto.blocks, dto.title || 'Prévia', user, dto.settings);
+    return this.service.preview(dto.blocks, dto.title || 'Prévia', user, dto.settings, dto.slug);
+  }
+
+  @Get('site')
+  @ApiOperation({ summary: 'Site da empresa: aparencia, menu, rodape e pagina inicial' })
+  getSite(@CurrentUser() user: CurrentUserType) {
+    return this.service.getSite(user);
+  }
+
+  @Put('site')
+  @ApiOperation({ summary: 'Salva aparencia, menu, rodape e pagina inicial do site' })
+  updateSite(@Body() dto: UpdateSiteDto, @CurrentUser() user: CurrentUserType) {
+    return this.service.updateSite(user, dto as unknown as Record<string, unknown>);
   }
 
   @Get(':id')

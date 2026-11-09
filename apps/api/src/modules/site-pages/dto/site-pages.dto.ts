@@ -57,6 +57,12 @@ export class PreviewSitePageDto {
   @Type(() => Object)
   blocks: Record<string, unknown>[];
 
+  @ApiPropertyOptional({ description: 'Endereco da pagina (marca o item atual no menu)' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(80)
+  slug?: string;
+
   @ApiPropertyOptional()
   @IsOptional()
   @IsObject()
@@ -104,4 +110,28 @@ export class SubmitSiteFormDto {
   @IsString()
   @MaxLength(200)
   website?: string;
+}
+
+export class UpdateSiteDto {
+  @ApiPropertyOptional({ description: 'Aparencia padrao das paginas' })
+  @IsOptional()
+  @IsObject()
+  look?: Record<string, unknown>;
+
+  @ApiPropertyOptional({ description: 'Paginas do menu, na ordem: [{ slug, label? }]' })
+  @IsOptional()
+  @IsArray()
+  @Type(() => Object)
+  menu?: Record<string, unknown>[];
+
+  @ApiPropertyOptional({ description: 'Rodape: texto, endereco, horarios, telefone, whatsapp, instagram, email' })
+  @IsOptional()
+  @IsObject()
+  footer?: Record<string, unknown>;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(80)
+  homeSlug?: string;
 }

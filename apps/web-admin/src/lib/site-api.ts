@@ -39,8 +39,11 @@ export type SiteBlockView =
 
 export type SiteCatalogItem = { id: string; title: string; image?: string; price?: number; priceType?: string; description?: string; group?: string };
 
+export interface SiteFooter { text?: string; address?: string; hours?: string; phone?: string; whatsapp?: string; instagram?: string; email?: string }
+
 /** Aparencia da pagina (estilo, fundo, cor, capa). */
 export interface SiteAppearance {
+  ownLook?: boolean;
   style: 'classic' | 'scrapbook';
   background: 'plain' | 'dots' | 'hearts' | 'stars' | 'stripes' | 'grid';
   accent?: string;
@@ -62,6 +65,8 @@ export interface SiteRecordView {
 export interface SitePageData {
   tenant: { name: string; logo: string | null; brandColor: string | null };
   page: { title: string; description: string | null; slug: string; settings?: SiteAppearance };
+  /** Menu entre as paginas (2+ paginas) e rodape comum do site. */
+  site?: { menu: Array<{ slug: string; label: string; current: boolean }>; footer: SiteFooter; homeSlug: string | null };
   blocks: SiteBlockView[];
   record: SiteRecordView | null;
   trackingError: string | null;

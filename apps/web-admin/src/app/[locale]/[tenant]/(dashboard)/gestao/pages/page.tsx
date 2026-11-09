@@ -13,6 +13,7 @@ import {
 import { RequireRole } from '@/components/auth/require-role';
 import { GestaoPageHeader } from '@/components/gestao/gestao-ui';
 import { useDeleteSitePage, useSitePages, type SitePageListItem } from '@/hooks/use-site-pages';
+import { SiteSettingsCard } from '@/components/site/site-settings-card';
 import { cn } from '@/lib/utils';
 
 function PagesContent() {
@@ -25,9 +26,11 @@ function PagesContent() {
     <div className="mx-auto max-w-5xl space-y-6">
       <GestaoPageHeader
         title="Páginas para clientes"
-        subtitle="Páginas que seus clientes abrem sem login: um formulário que vira registro (ex.: Avise seu sinistro) ou o acompanhamento de um registro pelo link que você manda."
+        subtitle="O site da sua empresa: páginas que seus clientes abrem sem login (apresentação, vitrine de produtos ou cardápio, formulários que viram registro e acompanhamento pelo link). Junte tudo com um menu em “Site da empresa”."
         actions={<Button asChild><Link href="/gestao/pages/new"><Plus className="mr-1.5 h-4 w-4" />Nova página</Link></Button>}
       />
+
+      {!!pages?.length && <SiteSettingsCard />}
 
       {isLoading ? (
         <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />

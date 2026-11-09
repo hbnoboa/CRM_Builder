@@ -1,14 +1,14 @@
 'use client';
 
 import { useState, type CSSProperties, type FormEvent } from 'react';
-import { CheckCircle2, Copy, Download, ExternalLink, FileText, Loader2, Paperclip, Star, Upload, X } from 'lucide-react';
+import { AtSign, CheckCircle2, Clock, Copy, Download, ExternalLink, FileText, Loader2, Mail, MapPin, MessageCircle, Paperclip, Phone, Star, Upload, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
 import { siteScriptFont } from '@/lib/site-fonts';
-import { absoluteSiteUrl, siteApi, type SiteAppearance, type SiteBlockView, type SiteCatalogItem, type SiteFieldDef, type SitePageData, type SiteRecordView, type SiteValue } from '@/lib/site-api';
+import { absoluteSiteUrl, siteApi, type SiteAppearance, type SiteFooter, type SiteBlockView, type SiteCatalogItem, type SiteFieldDef, type SitePageData, type SiteRecordView, type SiteValue } from '@/lib/site-api';
 
 const DEFAULT_BRAND = '#2563eb';
 const SERIF = "Georgia, 'Times New Roman', serif";
@@ -72,6 +72,7 @@ export function SitePageView({ data, tenantSlug, pageSlug, token, preview, onCha
   return (
     <div className={cn('text-slate-900', siteScriptFont.variable, preview ? 'min-h-full' : 'min-h-screen')} style={style} data-testid="site-page" data-style={look.style}>
       {scrap ? <ScrapHeader data={data} look={look} brand={brand} /> : <ClassicHeader data={data} look={look} brand={brand} />}
+      <SiteMenu data={data} brand={brand} scrap={scrap} preview={preview} />
 
       <main className={cn('mx-auto px-4', scrap ? 'max-w-3xl space-y-10 py-8' : 'max-w-2xl space-y-5 py-6')}>
         {data.blocks.map((block, index) => (
@@ -92,6 +93,7 @@ export function SitePageView({ data, tenantSlug, pageSlug, token, preview, onCha
         ))}
       </main>
 
+      <SiteFooterInfo footer={data.site?.footer} brand={brand} scrap={scrap} />
       {scrap ? (
         <footer className="px-4 pb-10 pt-4 text-center">
           <p className="text-2xl" style={{ fontFamily: SCRIPT, color: brand }}>feito com ♡</p>
@@ -103,6 +105,77 @@ export function SitePageView({ data, tenantSlug, pageSlug, token, preview, onCha
         </footer>
       )}
     </div>
+  );
+}
+
+/**
+ * Menu entre as paginas do site. Links relativos (so o endereco da pagina): funcionam
+ * em /p/<empresa>/<pagina> e no subdominio da empresa. Na previa nao navega.
+ */
+function SiteMenu({ data, brand, scrap, preview }: { data: SitePageData; brand: string; scrap: boolean; preview?: boolean }) {
+  const menu = data.site?.menu || [];
+  if (menu.length < 2) return null;
+  return (
+    <nav aria-label="Páginas do site" data-testid="site-menu"
+      className={cn(scrap ? 'mx-auto max-w-3xl px-4 pt-6' : 'sticky top-0 z-20 border-b bg-white/95 backdrop-blur')}>
+      <ul className={cn('flex gap-2', scrap ? 'flex-wrap justify-center' : 'mx-auto max-w-2xl overflow-x-auto px-4 py-2')}>
+        {menu.map((m) => {
+          const cls = scrap
+            ? 'block whitespace-nowrap rounded-full border-2 px-4 py-1.5 text-[15px] font-semibold transition-colors'
+            : 'block whitespace-nowrap rounded-md px-3 py-1.5 text-sm font-medium transition-colors';
+          const style: CSSProperties = scrap
+            ? (m.current ? { backgroundColor: brand, borderColor: brand, color: '#fff' } : { borderColor: tint(brand, 45), color: brand, backgroundColor: 'white' })
+            : (m.current ? { backgroundColor: tint(brand, 12), color: brand } : { color: '#475569' });
+          return (
+            <li key={m.slug} className="shrink-0">
+              {preview
+                ? <span className={cls} style={style}>{m.label}</span>
+                : <a href={m.slug} className={cls} style={style} aria-current={m.current ? 'page' : undefined}>{m.label}</a>}
+            </li>
+          );
+        })}
+      </ul>
+    </nav>
+  );
+}
+
+/** Link do WhatsApp: numero com DDI (sem ele, assume Brasil). */
+function waLink(raw: string) {
+  const digits = raw.replace(/\D/g, '');
+  return `https://wa.me/${digits.length <= 11 ? `55${digits}` : digits}`;
+}
+
+/** Contato e horarios no fim de todas as paginas do site. */
+function SiteFooterInfo({ footer, brand, scrap }: { footer?: SiteFooter; brand: string; scrap: boolean }) {
+  if (!footer || Object.keys(footer).length === 0) return null;
+  const rows = [
+    footer.address ? { icon: MapPin, text: footer.address, href: `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(footer.address)}` } : null,
+    footer.hours ? { icon: Clock, text: footer.hours } : null,
+    footer.whatsapp ? { icon: MessageCircle, text: 'WhatsApp', href: waLink(footer.whatsapp) } : null,
+    footer.phone ? { icon: Phone, text: footer.phone, href: `tel:${footer.phone.replace(/[^\d+]/g, '')}` } : null,
+    footer.instagram ? { icon: AtSign, text: `@${footer.instagram}`, href: `https://instagram.com/${footer.instagram}` } : null,
+    footer.email ? { icon: Mail, text: footer.email, href: `mailto:${footer.email}` } : null,
+  ].filter((r): r is { icon: typeof MapPin; text: string; href?: string } => !!r);
+  return (
+    <section className={cn('mx-auto mt-6 px-4', scrap ? 'max-w-3xl' : 'max-w-2xl')} data-testid="site-footer">
+      <div className={cn('bg-white p-5', scrap ? 'rounded-[2rem] border-2 border-dashed text-center' : 'rounded-2xl border')}
+        style={scrap ? { borderColor: tint(brand, 40) } : undefined}>
+        {footer.text && <p className={cn('mb-3 whitespace-pre-line text-slate-700', scrap && 'text-[16px]')} style={scrap ? { fontFamily: SERIF } : undefined}>{footer.text}</p>}
+        <ul className={cn('flex flex-wrap gap-x-5 gap-y-2 text-sm', scrap && 'justify-center')}>
+          {rows.map((r) => {
+            const Icon = r.icon;
+            const inner = <><Icon className="h-4 w-4 shrink-0" style={{ color: brand }} /><span>{r.text}</span></>;
+            return (
+              <li key={r.text}>
+                {r.href
+                  ? <a href={r.href} target={r.href.startsWith('http') ? '_blank' : undefined} rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-slate-700 hover:underline">{inner}</a>
+                  : <span className="inline-flex items-center gap-1.5 text-slate-700">{inner}</span>}
+              </li>
+            );
+          })}
+        </ul>
+      </div>
+    </section>
   );
 }
 
@@ -201,7 +274,7 @@ function BlockView({ block, index, data, brand, scrap, tenantSlug, pageSlug, tok
     case 'button':
       return (
         <div className={scrap ? 'text-center' : undefined}>
-          <a href={block.url} target={/^[/#]/.test(block.url) ? undefined : '_blank'} rel="noopener noreferrer"
+          <a href={block.url} target={/^https?:/.test(block.url) ? '_blank' : undefined} rel="noopener noreferrer"
             className={cn('inline-flex items-center justify-center font-semibold text-white', scrap ? 'rounded-full px-8 py-3.5 text-base transition-transform hover:-translate-y-0.5' : 'h-11 rounded-lg px-5 text-sm shadow-sm')}
             style={{ backgroundColor: brand, ...(scrap ? { boxShadow: `0 5px 0 ${tint(brand, 70, 'black')}` } : {}) }}>
             {scrap && <span className="mr-2" aria-hidden>♡</span>}{block.label}
@@ -263,7 +336,7 @@ function HeroView({ block, brand, scrap }: { block: Extract<SiteBlockView, { typ
       {block.text && <p className={cn('mt-2 max-w-xl text-white/90', scrap ? 'mx-auto text-lg italic' : 'text-base')} style={scrap ? { fontFamily: SERIF } : undefined}>{block.text}</p>}
       {block.buttonLabel && block.buttonUrl && (
         <div className="mt-5">
-          <a href={block.buttonUrl} target={/^[/#]/.test(block.buttonUrl) ? undefined : '_blank'} rel="noopener noreferrer"
+          <a href={block.buttonUrl} target={/^https?:/.test(block.buttonUrl) ? '_blank' : undefined} rel="noopener noreferrer"
             className={cn('inline-flex items-center justify-center font-semibold', scrap ? 'rounded-full bg-white px-7 py-3' : 'h-11 rounded-lg px-5 text-sm text-white')}
             style={scrap ? { color: brand } : { backgroundColor: brand }}>
             {block.buttonLabel}

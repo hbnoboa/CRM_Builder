@@ -86,6 +86,8 @@ export type SiteBlock =
 export const SITE_STYLES = ['classic', 'scrapbook'] as const;
 export const SITE_BACKGROUNDS = ['plain', 'dots', 'hearts', 'stars', 'stripes', 'grid'] as const;
 export interface SitePageSettings {
+  /** A pagina tem aparencia propria; senao, usa a aparencia do site. */
+  ownLook?: boolean;
   /** classic: limpo e corporativo; scrapbook: colorido, fotos em polaroide (estilo Tumblr antigo). */
   style: (typeof SITE_STYLES)[number];
   background: (typeof SITE_BACKGROUNDS)[number];
@@ -106,8 +108,57 @@ export function normalizeSettings(raw: unknown): SitePageSettings {
   const accent = /^#[0-9a-f]{6}$/i.test(String(s.accent ?? '')) ? String(s.accent).toLowerCase() : undefined;
   const coverUrl = safeUrl(s.coverUrl);
   const tagline = clip(s.tagline, 140);
-  return { style, background, ...(accent ? { accent } : {}), ...(coverUrl ? { coverUrl } : {}), ...(tagline ? { tagline } : {}) };
+  return {
+    ...(s.ownLook === true ? { ownLook: true } : {}),
+    style, background, ...(accent ? { accent } : {}), ...(coverUrl ? { coverUrl } : {}), ...(tagline ? { tagline } : {}),
+  };
 }
+
+// ── Site (todas as paginas da empresa) ───────────────────────────────────
+
+export interface SiteFooter {
+  text?: string;
+  address?: string;
+  hours?: string;
+  phone?: string;
+  whatsapp?: string;
+  instagram?: string;
+  email?: string;
+}
+export interface SiteConfig {
+  /** Aparencia padrao de todas as paginas. */
+  look: SitePageSettings;
+  /** Paginas no menu, na ordem (vazio = todas as publicadas). */
+  menu: Array<{ slug: string; label?: string }>;
+  footer: SiteFooter;
+  /** Pagina aberta no endereco principal (subdominio sem caminho). */
+  homeSlug?: string;
+}
+
+export function normalizeSiteConfig(raw: unknown, pageSlugs?: Set<string>): SiteConfig {
+  const s = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
+  const { ownLook: _own, ...look } = normalizeSettings(s.look);
+  const known = (slug: string) => !pageSlugs || pageSlugs.has(slug);
+  const seen = new Set<string>();
+  const menu = (Array.isArray(s.menu) ? s.menu : []).slice(0, 12).map((m) => {
+    const it = (m && typeof m === 'object' ? m : {}) as Record<string, unknown>;
+    const slug = clip(it.slug, 80);
+    const label = clip(it.label, 30);
+    if (!slug || !known(slug) || seen.has(slug)) return null;
+    seen.add(slug);
+    return { slug, ...(label ? { label } : {}) };
+  }).filter((m): m is { slug: string; label?: string } => !!m);
+  const f = (s.footer && typeof s.footer === 'object' ? s.footer : {}) as Record<string, unknown>;
+  const instagram = clip(f.instagram, 80).replace(/^@/, '').replace(/^https?:\/\/(www\.)?instagram\.com\//i, '').replace(/[^a-zA-Z0-9._]/g, '');
+  const email = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(clip(f.email, 120)) ? clip(f.email, 120) : '';
+  const footer: SiteFooter = Object.fromEntries(Object.entries({
+    text: clip(f.text, 300), address: clip(f.address, 200), hours: clip(f.hours, 200), phone: clip(f.phone, 30),
+    whatsapp: clip(f.whatsapp, 30).replace(/[^\d+]/g, ''), instagram, email,
+  }).filter(([, v]) => v));
+  const home = clip(s.homeSlug, 80);
+  return { look, menu, footer, ...(home && known(home) ? { homeSlug: home } : {}) };
+}
+
 
 /** Tipos que o cliente pode preencher num formulario publico. */
 export const FORM_FIELD_TYPES = new Set([
@@ -129,6 +180,7 @@ const clip = (s: unknown, max: number): string => String(s ?? '').trim().slice(0
 const safeUrl = (u: unknown): string => {
   const url = clip(u, 1000);
   if (/^#[a-zA-Z0-9_-]{1,40}$/.test(url)) return url; // outra parte da mesma pagina
+  if (/^[a-z0-9][a-z0-9-]{0,79}$/.test(url)) return url; // outra pagina do site (pelo endereco dela)
   return /^(https?:\/\/|mailto:|tel:|\/)/i.test(url) && !/^\/\//.test(url) ? url : '';
 };
 

@@ -93,11 +93,40 @@ export function useDeleteSitePage() {
   });
 }
 
-export async function previewSitePage(blocks: SiteBlockDraft[], title: string, settings?: Record<string, unknown>) {
-  return (await api.post<SitePageData | { error: string }>('/site-pages/preview', { blocks, title, settings })).data;
+export async function previewSitePage(blocks: SiteBlockDraft[], title: string, settings?: Record<string, unknown>, slug?: string) {
+  return (await api.post<SitePageData | { error: string }>('/site-pages/preview', { blocks, title, settings, slug })).data;
 }
 
 /** Link de acompanhamento de um registro (cria se ainda nao existir). */
 export async function fetchTrackingLink(entitySlug: string, recordId: string) {
   return (await api.post<{ url: string; pageTitle: string }>('/record-tracking/link', { entitySlug, recordId })).data;
+}
+
+// ── Site: aparencia, menu, rodape e pagina inicial ─────────────────────────
+
+export interface SiteConfigDraft {
+  look: Record<string, unknown>;
+  menu: Array<{ slug: string; label?: string }>;
+  footer: Record<string, string | undefined>;
+  homeSlug?: string;
+}
+export interface SiteInfo {
+  config: SiteConfigDraft;
+  pages: Array<{ slug: string; title: string; isPublished: boolean; tracking: boolean }>;
+}
+
+export function useSiteConfig() {
+  return useQuery({ queryKey: ['site-config'], queryFn: async () => (await api.get<SiteInfo>('/site-pages/site')).data });
+}
+
+export function useUpdateSiteConfig() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (body: SiteConfigDraft) => (await api.put<SiteInfo>('/site-pages/site', body)).data,
+    onSuccess: (data) => {
+      qc.setQueryData(['site-config'], data);
+      toast.success('Site salvo!');
+    },
+    onError: (e) => toast.error(getErrorMessage(e, 'Não foi possível salvar o site.')),
+  });
 }
