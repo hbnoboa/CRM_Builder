@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState, Fragment } from 'react';
-import { Hash, Send, MessageSquare, User as UserIcon, Loader2, Slash, FileText, Settings2, ArrowLeft, Pencil, Check, X, Search, ChevronDown, Plus, Trash2, Image as ImageIcon, Bot, ListChecks, FilePlus2, FileEdit, Download, Sparkles } from 'lucide-react';
+import { Hash, Send, MessageSquare, User as UserIcon, Loader2, Slash, FileText, Settings2, ArrowLeft, Pencil, Check, X, Search, ChevronDown, Plus, Trash2, Image as ImageIcon, Bot, ListChecks, FilePlus2, FileEdit, Download, Sparkles, Paperclip, Film } from 'lucide-react';
 import { useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
 import api from '@/lib/api';
@@ -69,6 +69,72 @@ function Thumb({ url }: { url: string }) {
   return <a href={src} target="_blank" rel="noreferrer" className="shrink-0"><img src={src} alt="" onError={() => setErr(true)} className="h-14 w-14 rounded-md border object-cover hover:opacity-90" /></a>;
 }
 
+// ── Anexos ───────────────────────────────────────────────────────────────
+
+type Attachment = { url: string; name: string; size?: number; mime?: string; kind?: 'image' | 'video' | 'file' };
+
+const MAX_ATTACHMENT = 25 * 1024 * 1024;
+/** Mesmos tipos que o servidor aceita (upload.service). */
+const ACCEPT = 'image/jpeg,image/png,image/gif,image/webp,video/mp4,video/quicktime,video/webm,application/pdf,.doc,.docx,.xls,.xlsx,.csv,.txt';
+const ACCEPTED_MIME = /^(image\/(jpeg|png|gif|webp)|video\/(mp4|quicktime|webm)|application\/(pdf|msword|vnd\.openxmlformats-officedocument\.(wordprocessingml\.document|spreadsheetml\.sheet)|vnd\.ms-excel)|text\/(csv|plain))$/;
+
+const fileSize = (n?: number) => (!n ? '' : n < 1024 * 1024 ? `${Math.max(1, Math.round(n / 1024))} KB` : `${(n / 1024 / 1024).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} MB`);
+
+/** Imagens, videos e arquivos de uma mensagem. */
+function AttachmentView({ items }: { items: Attachment[] }) {
+  return (
+    <div className="space-y-1.5" data-testid="chat-attachment">
+      {items.map((a) => {
+        const src = resolveFileUrl(a.url);
+        if (a.kind === 'image') {
+          return (
+            <a key={a.url} href={src || '#'} target="_blank" rel="noreferrer" className="block">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={src || ''} alt={a.name} className="max-h-72 max-w-full rounded-lg object-contain" loading="lazy" />
+            </a>
+          );
+        }
+        if (a.kind === 'video') return <video key={a.url} src={src || ''} controls className="max-h-72 max-w-full rounded-lg" />;
+        return (
+          <button key={a.url} type="button" onClick={() => src && triggerDownload(src, a.name)}
+            className="flex w-full min-w-[220px] items-center gap-2 rounded-lg border bg-background/60 p-2 text-left text-foreground hover:bg-background">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary"><FileText className="h-4 w-4" /></span>
+            <span className="min-w-0 flex-1">
+              <span className="block truncate text-[13px] font-medium">{a.name}</span>
+              <span className="block text-[10px] text-muted-foreground">{[a.name.split('.').pop()?.toUpperCase(), fileSize(a.size)].filter(Boolean).join(' · ')} · toque para baixar</span>
+            </span>
+            <Download className="h-4 w-4 text-muted-foreground" />
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+/** Arquivo escolhido, ainda nao enviado (com previa se for imagem). */
+function PendingFile({ file, onRemove }: { file: File; onRemove: () => void }) {
+  const [url, setUrl] = useState<string | null>(null);
+  useEffect(() => {
+    if (!file.type.startsWith('image/')) return;
+    const u = URL.createObjectURL(file);
+    setUrl(u);
+    return () => URL.revokeObjectURL(u);
+  }, [file]);
+  return (
+    <span className="relative flex items-center gap-2 rounded-lg border bg-background p-1.5 pr-7 text-xs">
+      {url
+        // eslint-disable-next-line @next/next/no-img-element
+        ? <img src={url} alt="" className="h-10 w-10 rounded object-cover" />
+        : <span className="flex h-10 w-10 items-center justify-center rounded bg-muted">{file.type.startsWith('video/') ? <Film className="h-4 w-4" /> : <FileText className="h-4 w-4" />}</span>}
+      <span className="max-w-[140px]">
+        <span className="block truncate font-medium">{file.name}</span>
+        <span className="block text-[10px] text-muted-foreground">{fileSize(file.size)}</span>
+      </span>
+      <button type="button" onClick={onRemove} aria-label="Tirar anexo" className="absolute right-1 top-1 rounded-full p-0.5 hover:bg-muted"><X className="h-3.5 w-3.5" /></button>
+    </span>
+  );
+}
+
 /** Destaca a 1ª ocorrência do termo buscado (case-insensitive) no texto. */
 function highlightText(text: string, term: string) {
   const t = (term || '').trim();
@@ -95,6 +161,10 @@ export default function ChatPage() {
   const [draft, setDraft] = useState('');
   // Botao IA: mensagens vao para o assistente (como "@bot ...")
   const [aiMode, setAiMode] = useState(false);
+  const [files, setFiles] = useState<File[]>([]);
+  const [sendingFiles, setSendingFiles] = useState(false);
+  const [dragging, setDragging] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [botThinking, setBotThinking] = useState(false);
   const [opening, setOpening] = useState(false);
   const [runningCmd, setRunningCmd] = useState<{ cmd: ChatCommand; entity: Entity } | null>(null);
@@ -405,9 +475,50 @@ export default function ChatPage() {
     finally { setBotThinking(false); }
   }
 
+  /** Junta arquivos escolhidos/colados/arrastados (confere tipo e tamanho antes de enviar). */
+  function addFiles(list: FileList | File[] | null) {
+    const picked = Array.from(list || []);
+    if (!picked.length) return;
+    const ok: File[] = [];
+    for (const f of picked) {
+      if (!ACCEPTED_MIME.test(f.type)) toast.error(`${f.name}: tipo de arquivo não aceito.`);
+      else if (f.size > MAX_ATTACHMENT) toast.error(`${f.name}: maior que 25 MB.`);
+      else ok.push(f);
+    }
+    if (ok.length) {
+      setAiMode(false);
+      setFiles((prev) => [...prev, ...ok].slice(0, 10));
+    }
+  }
+
+  /** Envia cada anexo como uma mensagem; o texto digitado vai de legenda no ultimo. */
+  async function sendFiles(text: string) {
+    if (!active || files.length === 0) return;
+    setSendingFiles(true);
+    const queue = [...files];
+    try {
+      for (let i = 0; i < queue.length; i++) {
+        const f = queue[i];
+        const form = new FormData();
+        form.append('file', f);
+        if (text && i === queue.length - 1) form.append('caption', text);
+        await api.post(`/chat/channels/${active.id}/attachments`, form, { headers: { 'Content-Type': 'multipart/form-data' } });
+        setFiles((prev) => prev.filter((x) => x !== f));
+      }
+      setDraft('');
+    } catch (e) {
+      const msg = (e as { response?: { data?: { message?: string } } })?.response?.data?.message;
+      toast.error(msg || 'Não foi possível enviar o anexo.');
+    } finally {
+      setSendingFiles(false);
+      await loadMessages(active.id);
+    }
+  }
+
   async function send(ev: React.FormEvent) {
     ev.preventDefault();
     const text = draft.trim();
+    if (files.length > 0 && active) { await sendFiles(text); return; }
     if (!text || !active) return;
     // Slash-command: /slug → abre o formulário do comando em vez de enviar texto.
     if (text.startsWith('/')) {
@@ -648,7 +759,17 @@ export default function ChatPage() {
               </div>
             )}
 
-            <div className="relative flex-1 min-h-0">
+            <div
+              className="relative flex-1 min-h-0"
+              onDragOver={(e) => { if (e.dataTransfer.types.includes('Files')) { e.preventDefault(); setDragging(true); } }}
+              onDragLeave={(e) => { if (e.currentTarget === e.target) setDragging(false); }}
+              onDrop={(e) => { e.preventDefault(); setDragging(false); addFiles(e.dataTransfer.files); }}
+            >
+              {dragging && (
+                <div className="pointer-events-none absolute inset-2 z-20 flex items-center justify-center rounded-xl border-2 border-dashed border-primary bg-primary/10 text-sm font-medium text-primary">
+                  Solte para anexar
+                </div>
+              )}
               <div ref={scrollRef} onScroll={onMessagesScroll} className="absolute inset-0 overflow-y-auto p-4 space-y-3">
                 {hasMore && (
                   <div className="flex justify-center pb-1">
@@ -665,7 +786,8 @@ export default function ChatPage() {
                 const isCard = m.type === 'form_submission';
                 const isQuery = m.type === 'query_result';
                 const isReport = m.type === 'report';
-                const isText = !isCard && !isQuery && !isReport;
+                const attachments = m.type === 'attachment' ? ((m.meta?.attachments || []) as Attachment[]) : [];
+                const isText = !isCard && !isQuery && !isReport && attachments.length === 0;
                 const values = (m.meta?.values || {}) as Record<string, unknown>;
                 const qCols = (m.meta?.columns || []) as Array<{ slug: string; label: string }>;
                 const qRows = (m.meta?.rows || []) as string[][];
@@ -760,6 +882,11 @@ export default function ChatPage() {
                               </button>
                             );
                           })()
+                        ) : attachments.length > 0 ? (
+                          <div>
+                            <AttachmentView items={attachments} />
+                            {m.meta?.caption ? <div className="mt-1 whitespace-pre-line">{String(m.meta.caption)}</div> : null}
+                          </div>
                         ) : (
                           <div>
                             <div className="whitespace-pre-line">{m.content}</div>
@@ -842,13 +969,24 @@ export default function ChatPage() {
                     <span className="text-[10px] text-muted-foreground px-1">↑↓ navegar · Tab/Enter selecionar · Esc sair</span>
                   </div>
                 )}
+                {files.length > 0 && (
+                  <div className="flex flex-wrap gap-2 px-3 pt-2" data-testid="chat-pending-files">
+                    {files.map((f, i) => <PendingFile key={`${f.name}-${i}`} file={f} onRemove={() => setFiles((prev) => prev.filter((x) => x !== f))} />)}
+                  </div>
+                )}
                 <form onSubmit={send} className="flex items-center gap-2 p-3">
+                  <input ref={fileInputRef} type="file" multiple accept={ACCEPT} className="hidden" data-testid="chat-file-input"
+                    onChange={(e) => { addFiles(e.target.files); e.target.value = ''; }} />
+                  <Button type="button" variant="ghost" size="icon" className="h-9 w-9 shrink-0" onClick={() => fileInputRef.current?.click()}
+                    disabled={sendingFiles} title="Anexar foto ou arquivo" aria-label="Anexar foto ou arquivo" data-testid="chat-attach">
+                    <Paperclip className="h-4 w-4" />
+                  </Button>
                   <Button
                     type="button"
                     variant={aiMode ? 'default' : 'outline'}
                     size="sm"
                     className="h-9 shrink-0"
-                    onClick={() => setAiMode((v) => !v)}
+                    onClick={() => { setAiMode((v) => !v); setFiles([]); }}
                     aria-pressed={aiMode}
                     title="Perguntar ao assistente (IA)"
                     data-testid="chat-ai-toggle"
@@ -859,12 +997,15 @@ export default function ChatPage() {
                     value={draft}
                     onChange={(e) => { setDraft(e.target.value); setSlashIndex(0); }}
                     onKeyDown={handleComposerKey}
-                    placeholder={aiMode ? 'Pergunte ao assistente…' : 'Escreva uma mensagem… /comando ou @bot'}
+                    onPaste={(e) => { if (e.clipboardData.files.length) { e.preventDefault(); addFiles(e.clipboardData.files); } }}
+                    placeholder={aiMode ? 'Pergunte ao assistente…' : files.length ? 'Legenda (opcional)…' : 'Escreva uma mensagem… /comando ou @bot'}
                     className="flex-1"
-                    disabled={botThinking}
+                    disabled={botThinking || sendingFiles}
                     data-testid="chat-input"
                   />
-                  <Button type="submit" size="icon" disabled={!draft.trim()}><Send className="h-4 w-4" /></Button>
+                  <Button type="submit" size="icon" disabled={sendingFiles || (!draft.trim() && files.length === 0)} data-testid="chat-send">
+                    {sendingFiles ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                  </Button>
                 </form>
               </div>
             )}

@@ -681,6 +681,33 @@ export class ChatService {
     return this.prisma.message.create({ data });
   }
 
+  /**
+   * Imagem ou arquivo no canal: guarda no armazenamento da empresa (pasta chat) e
+   * cria uma mensagem "attachment". O texto da mensagem descreve o anexo, para quem
+   * le so o texto (app, busca, notificacao).
+   */
+  async postAttachment(user: CurrentUser, channelId: string, file: Express.Multer.File | undefined, caption?: string) {
+    await this.assertAccess(user, channelId);
+    if (!file) throw new BadRequestException('Escolha um arquivo para enviar.');
+    const uploaded = await this.uploadService.uploadFile(file, user.tenantId, 'chat');
+    const kind = /^image\//.test(file.mimetype) ? 'image' : /^video\//.test(file.mimetype) ? 'video' : 'file';
+    const name = Buffer.from(file.originalname || 'arquivo', 'latin1').toString('utf8').slice(0, 160);
+    const text = (caption || '').trim().slice(0, 2000);
+    return this.prisma.message.create({
+      data: {
+        tenantId: user.tenantId,
+        channelId,
+        senderId: user.id,
+        type: 'attachment',
+        content: text || `${kind === 'image' ? '📷' : kind === 'video' ? '🎬' : '📎'} ${name}`,
+        meta: {
+          caption: text || null,
+          attachments: [{ url: uploaded.publicUrl || uploaded.url, name, size: file.size, mime: file.mimetype, kind }],
+        } as Prisma.InputJsonValue,
+      },
+    });
+  }
+
   // ── Trilho A: comandos-formulário ──────────────────────────────────────────
 
   /** Lista comandos disponíveis (filtra pelo que o usuário pode executar). */
