@@ -12,15 +12,15 @@ import { PdfGeneratorService } from '../pdf/pdf-generator.service';
 import { loadTenantSchema, type SchemaTable } from '../ai-builder/tenant-schema';
 import { slugify } from '../ai-builder/ai-proposal-normalizer';
 import {
-  FORM_FIELD_TYPES, TRACK_FIELD_TYPES, normalizeBlocks, publicField, requiredFields, suggestMatchField,
-  type FormBlock, type NormalizeContext, type RawField, type SiteBlock, type TrackingBlock,
+  FORM_FIELD_TYPES, TRACK_FIELD_TYPES, normalizeBlocks, normalizeSettings, publicField, requiredFields, suggestMatchField,
+  type CatalogBlock, type FormBlock, type NormalizeContext, type RawField, type SiteBlock, type TrackingBlock,
 } from './site-blocks';
 
 const RESERVED_SLUGS = new Set(['app']);
 const MAX_TEXT = 5000;
 const MAX_FILES = 20;
 
-type PageLike = { id?: string; title: string; description: string | null; slug: string; blocks: unknown };
+type PageLike = { id?: string; title: string; description: string | null; slug: string; blocks: unknown; settings?: unknown };
 type DisplayValue = string | number | boolean | string[] | null;
 
 /**
@@ -93,7 +93,7 @@ export class SitePagesService {
     const page = await this.prisma.sitePage.findFirst({ where: { id, tenantId } });
     if (!page) throw new NotFoundException('Página não encontrada');
     const tenant = await this.prisma.tenant.findUnique({ where: { id: tenantId }, select: { slug: true } });
-    return { ...page, url: this.url(tenant!.slug, page.slug) };
+    return { ...page, settings: normalizeSettings(page.settings), url: this.url(tenant!.slug, page.slug) };
   }
 
   async create(dto: { title: string; template?: 'form' | 'tracking' | 'blank'; entitySlug?: string }, user: CurrentUser) {
@@ -157,7 +157,7 @@ export class SitePagesService {
     ];
   }
 
-  async update(id: string, dto: { title?: string; slug?: string; description?: string | null; blocks?: unknown[] }, user: CurrentUser) {
+  async update(id: string, dto: { title?: string; slug?: string; description?: string | null; blocks?: unknown[]; settings?: Record<string, unknown> }, user: CurrentUser) {
     const tenantId = getEffectiveTenantId(user);
     const page = await this.prisma.sitePage.findFirst({ where: { id, tenantId } });
     if (!page) throw new NotFoundException('Página não encontrada');
@@ -172,6 +172,7 @@ export class SitePagesService {
       data.slug = wanted;
     }
     if (dto.blocks !== undefined) data.blocks = normalizeBlocks(dto.blocks, await this.context(tenantId)) as unknown as Prisma.InputJsonValue;
+    if (dto.settings !== undefined) data.settings = normalizeSettings(dto.settings) as unknown as Prisma.InputJsonValue;
     await this.prisma.sitePage.update({ where: { id }, data });
     return this.get(id, user);
   }
@@ -194,7 +195,7 @@ export class SitePagesService {
   }
 
   /** Previa no editor: blocos ainda nao salvos, com registro de exemplo no acompanhamento. */
-  async preview(blocks: unknown[], title: string, user: CurrentUser) {
+  async preview(blocks: unknown[], title: string, user: CurrentUser, settings?: unknown) {
     const tenantId = getEffectiveTenantId(user);
     const tenant = await this.prisma.tenant.findUnique({ where: { id: tenantId } });
     const ctx = await this.context(tenantId);
@@ -204,7 +205,7 @@ export class SitePagesService {
     } catch (err) {
       return { error: (err as Error).message };
     }
-    return this.buildPublic(tenant!, { title, description: null, slug: 'previa', blocks: normalized }, ctx, { sample: true });
+    return this.buildPublic(tenant!, { title, description: null, slug: 'previa', blocks: normalized, settings }, ctx, { sample: true });
   }
 
   /**
@@ -270,7 +271,19 @@ export class SitePagesService {
     const theme = ((tenant.settings as { theme?: { brandColor?: string } } | null)?.theme) ?? {};
     const entityBySlug = new Map(ctx.entities.map((e) => [e.slug, e]));
     const fieldsOf = (slug: string) => (ctx.rawFieldsBySlug.get(slug) || []);
+    const catalogs = new Map<string, Awaited<ReturnType<SitePagesService['catalogItems']>>>();
+    for (const b of page.blocks as SiteBlock[]) {
+      if (b.type === 'catalog') catalogs.set(b.id, await this.catalogItems(tenant.id, b, ctx));
+    }
     const blocks = (page.blocks as SiteBlock[]).map((b) => {
+      if (b.type === 'catalog') {
+        const raw = fieldsOf(b.entitySlug);
+        const label = (slug?: string) => (slug ? raw.find((f) => f.slug === slug)?.label : undefined);
+        return {
+          id: b.id, type: b.type, title: b.title, entityName: entityBySlug.get(b.entitySlug)?.namePlural || entityBySlug.get(b.entitySlug)?.name || '',
+          groupLabel: label(b.groupField), items: catalogs.get(b.id) ?? [],
+        };
+      }
       if (b.type === 'form') {
         const raw = fieldsOf(b.entitySlug);
         const defs = (list: string[], from: RawField[]) => list.map((s) => from.find((f) => f.slug === s)).filter(Boolean).map((f) => publicField(f!));
@@ -306,11 +319,55 @@ export class SitePagesService {
     }
     return {
       tenant: { name: tenant.name, logo: tenant.logo, brandColor: theme.brandColor ?? null },
-      page: { title: page.title, description: page.description, slug: page.slug },
+      page: { title: page.title, description: page.description, slug: page.slug, settings: normalizeSettings(page.settings) },
       blocks,
       record,
       trackingError,
     };
+  }
+
+  /**
+   * Itens da vitrine. Pagina publica, sem usuario: a busca e direta (empresa + tabela,
+   * so registros ativos de primeiro nivel) e saem SO os campos que o bloco escolheu.
+   * A ordem de grupos segue as opcoes do campo; dentro do grupo, a ordem de cadastro.
+   */
+  private async catalogItems(tenantId: string, block: CatalogBlock, ctx: NormalizeContext & { entities: Entity[] }) {
+    const entity = ctx.entities.find((e) => e.slug === block.entitySlug);
+    if (!entity) return [];
+    const raw = ctx.rawFieldsBySlug.get(entity.slug) || [];
+    const byslug = new Map(raw.map((f) => [f.slug, f]));
+    const rows = await this.prisma.entityData.findMany({
+      where: {
+        tenantId, entityId: entity.id, deletedAt: null, parentRecordId: null,
+        ...(block.onlyField ? { data: { path: [block.onlyField], equals: true } } : {}),
+      },
+      orderBy: { createdAt: 'asc' },
+      take: block.limit,
+      select: { id: true, data: true },
+    });
+    const groupOpts = (byslug.get(block.groupField || '')?.options || []).map((o) => (typeof o === 'string' ? o : o.value));
+    const items = rows.map((r) => {
+      const data = (r.data || {}) as Record<string, unknown>;
+      const image = block.imageField ? this.display(byslug.get(block.imageField), data[block.imageField]) : null;
+      const price = block.priceField ? Number(data[block.priceField]) : NaN;
+      const description = block.descriptionField ? this.display(byslug.get(block.descriptionField), data[block.descriptionField]) : null;
+      const group = block.groupField ? this.display(byslug.get(block.groupField), data[block.groupField]) : null;
+      const groupRaw = block.groupField ? String(data[block.groupField] ?? '') : '';
+      return {
+        id: r.id,
+        title: String(this.display(byslug.get(block.titleField), data[block.titleField]) ?? ''),
+        ...(Array.isArray(image) && image[0] ? { image: image[0] } : {}),
+        ...(Number.isFinite(price) && data[block.priceField!] !== '' && data[block.priceField!] != null
+          ? { price, priceType: byslug.get(block.priceField!)?.type } : {}),
+        ...(typeof description === 'string' && description ? { description: description.slice(0, 300) } : {}),
+        ...(typeof group === 'string' && group ? { group } : {}),
+        order: groupOpts.indexOf(groupRaw),
+      };
+    }).filter((i) => i.title);
+    return items
+      .map((i, n) => ({ i, n }))
+      .sort((a, b) => ((a.i.order < 0 ? 999 : a.i.order) - (b.i.order < 0 ? 999 : b.i.order)) || a.n - b.n)
+      .map(({ i }) => { const { order: _order, ...rest } = i; return rest; });
   }
 
   private display(field: RawField | undefined, value: unknown): DisplayValue {

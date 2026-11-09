@@ -6,7 +6,10 @@ import type { SchemaField, SchemaTable } from '../ai-builder/tenant-schema';
  * para fora: so os campos listados em cada bloco sao mostrados ou aceitos.
  */
 
-export const SITE_BLOCK_TYPES = ['heading', 'text', 'image', 'button', 'divider', 'form', 'tracking'] as const;
+export const SITE_BLOCK_TYPES = [
+  'heading', 'text', 'image', 'button', 'divider', 'form', 'tracking',
+  'hero', 'gallery', 'cards', 'quote', 'catalog',
+] as const;
 export type SiteBlockType = (typeof SITE_BLOCK_TYPES)[number];
 
 export interface HeadingBlock { id: string; type: 'heading'; text: string; size?: 'lg' | 'md' }
@@ -48,7 +51,63 @@ export interface TrackingBlock {
   /** Modelo de PDF (publicado) que o cliente pode baixar. */
   pdfTemplateId?: string;
 }
-export type SiteBlock = HeadingBlock | TextBlock | ImageBlock | ButtonBlock | DividerBlock | FormBlock | TrackingBlock;
+/** Destaque do topo: foto grande com titulo, texto e botao por cima. */
+export interface HeroBlock { id: string; type: 'hero'; title: string; text?: string; imageUrl?: string; buttonLabel?: string; buttonUrl?: string }
+export interface GalleryImage { url: string; caption?: string }
+export interface GalleryBlock { id: string; type: 'gallery'; title?: string; layout: 'polaroid' | 'grid' | 'mosaic'; images: GalleryImage[] }
+export interface CardItem { title: string; text?: string; imageUrl?: string; badge?: string }
+export interface CardsBlock { id: string; type: 'cards'; title?: string; columns: 1 | 2 | 3; items: CardItem[] }
+export interface QuoteBlock { id: string; type: 'quote'; text: string; author?: string }
+/**
+ * Vitrine de uma tabela (ex.: cardapio): mostra os registros com SO os campos
+ * escolhidos aqui. Serve para o que a empresa quer publico (produtos, servicos).
+ */
+export interface CatalogBlock {
+  id: string;
+  type: 'catalog';
+  title?: string;
+  entitySlug: string;
+  titleField: string;
+  imageField?: string;
+  priceField?: string;
+  descriptionField?: string;
+  /** Lista de opcoes que separa em grupos (ex.: Categoria). */
+  groupField?: string;
+  /** Campo sim/nao: so aparecem os marcados (ex.: Disponivel). */
+  onlyField?: string;
+  limit: number;
+}
+export type SiteBlock =
+  | HeadingBlock | TextBlock | ImageBlock | ButtonBlock | DividerBlock | FormBlock | TrackingBlock
+  | HeroBlock | GalleryBlock | CardsBlock | QuoteBlock | CatalogBlock;
+
+// ── Aparencia da pagina ──────────────────────────────────────────────────
+
+export const SITE_STYLES = ['classic', 'scrapbook'] as const;
+export const SITE_BACKGROUNDS = ['plain', 'dots', 'hearts', 'stars', 'stripes', 'grid'] as const;
+export interface SitePageSettings {
+  /** classic: limpo e corporativo; scrapbook: colorido, fotos em polaroide (estilo Tumblr antigo). */
+  style: (typeof SITE_STYLES)[number];
+  background: (typeof SITE_BACKGROUNDS)[number];
+  /** Cor de destaque so desta pagina (senao, a cor da empresa). */
+  accent?: string;
+  /** Foto de capa no topo da pagina. */
+  coverUrl?: string;
+  /** Frase curta embaixo do nome da empresa. */
+  tagline?: string;
+}
+
+export function normalizeSettings(raw: unknown): SitePageSettings {
+  const s = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
+  const style = (SITE_STYLES as readonly string[]).includes(String(s.style)) ? (s.style as SitePageSettings['style']) : 'classic';
+  const background = (SITE_BACKGROUNDS as readonly string[]).includes(String(s.background))
+    ? (s.background as SitePageSettings['background'])
+    : style === 'scrapbook' ? 'dots' : 'plain';
+  const accent = /^#[0-9a-f]{6}$/i.test(String(s.accent ?? '')) ? String(s.accent).toLowerCase() : undefined;
+  const coverUrl = safeUrl(s.coverUrl);
+  const tagline = clip(s.tagline, 140);
+  return { style, background, ...(accent ? { accent } : {}), ...(coverUrl ? { coverUrl } : {}), ...(tagline ? { tagline } : {}) };
+}
 
 /** Tipos que o cliente pode preencher num formulario publico. */
 export const FORM_FIELD_TYPES = new Set([
@@ -61,11 +120,15 @@ export const TRACK_FIELD_TYPES = new Set([
   ...FORM_FIELD_TYPES, 'relation', 'user-select', 'formula', 'rollup', 'workflow-status',
 ]);
 const NOT_REQUIRED_TYPES = new Set(['section-title', 'sub-entity', 'formula', 'rollup', 'timer', 'sla-status', 'action-button', 'hidden']);
-const MAX_BLOCKS = 30;
+const MAX_BLOCKS = 40;
+const MAX_IMAGES = 24;
+const MAX_CARDS = 12;
+const MAX_CATALOG = 60;
 
 const clip = (s: unknown, max: number): string => String(s ?? '').trim().slice(0, max);
 const safeUrl = (u: unknown): string => {
   const url = clip(u, 1000);
+  if (/^#[a-zA-Z0-9_-]{1,40}$/.test(url)) return url; // outra parte da mesma pagina
   return /^(https?:\/\/|mailto:|tel:|\/)/i.test(url) && !/^\/\//.test(url) ? url : '';
 };
 
@@ -163,6 +226,79 @@ export function normalizeBlocks(raw: unknown, ctx: NormalizeContext): SiteBlock[
         });
         break;
       }
+      case 'hero': {
+        const title = clip(b.title, 120);
+        if (!title) break;
+        const imageUrl = safeUrl(b.imageUrl);
+        const buttonLabel = clip(b.buttonLabel, 40);
+        const buttonUrl = safeUrl(b.buttonUrl);
+        const text = clip(b.text, 400);
+        out.push({
+          id, type, title, ...(text ? { text } : {}), ...(imageUrl ? { imageUrl } : {}),
+          ...(buttonLabel && buttonUrl ? { buttonLabel, buttonUrl } : {}),
+        });
+        break;
+      }
+      case 'gallery': {
+        const images = (Array.isArray(b.images) ? b.images : []).slice(0, MAX_IMAGES).map((i) => {
+          const img = (i && typeof i === 'object' ? i : {}) as Record<string, unknown>;
+          const url = safeUrl(img.url);
+          const caption = clip(img.caption, 80);
+          return url ? { url, ...(caption ? { caption } : {}) } : null;
+        }).filter((i): i is GalleryImage => !!i);
+        if (!images.length) break;
+        const layout = b.layout === 'grid' || b.layout === 'mosaic' ? b.layout : 'polaroid';
+        const title = clip(b.title, 120);
+        out.push({ id, type, layout, images, ...(title ? { title } : {}) });
+        break;
+      }
+      case 'cards': {
+        const items = (Array.isArray(b.items) ? b.items : []).slice(0, MAX_CARDS).map((i) => {
+          const it = (i && typeof i === 'object' ? i : {}) as Record<string, unknown>;
+          const t = clip(it.title, 80);
+          if (!t) return null;
+          const text = clip(it.text, 400);
+          const imageUrl = safeUrl(it.imageUrl);
+          const badge = clip(it.badge, 24);
+          return { title: t, ...(text ? { text } : {}), ...(imageUrl ? { imageUrl } : {}), ...(badge ? { badge } : {}) };
+        }).filter((i): i is CardItem => !!i);
+        if (!items.length) break;
+        const columns = [1, 2, 3].includes(Number(b.columns)) ? (Number(b.columns) as 1 | 2 | 3) : Math.min(3, items.length) as 1 | 2 | 3;
+        const title = clip(b.title, 120);
+        out.push({ id, type, columns, items, ...(title ? { title } : {}) });
+        break;
+      }
+      case 'quote': {
+        const text = clip(b.text, 500);
+        const author = clip(b.author, 80);
+        if (text) out.push({ id, type, text, ...(author ? { author } : {}) });
+        break;
+      }
+      case 'catalog': {
+        const table = bySlug.get(clip(b.entitySlug, 100));
+        if (!table) throw new BadRequestException('Vitrine: escolha a tabela que vai aparecer.');
+        if (table.parentSlug) throw new BadRequestException(`Vitrine: ${table.namePlural} fica dentro de outra tabela; escolha uma tabela principal.`);
+        const field = (slug: unknown, types: string[]) => {
+          const f = table.fields.find((x) => x.slug === clip(slug, 100));
+          return f && types.includes(f.type) ? f.slug : undefined;
+        };
+        const titleField = field(b.titleField, CATALOG_TEXT) ?? field(table.titleField, CATALOG_TEXT);
+        if (!titleField) throw new BadRequestException('Vitrine: escolha o campo com o nome de cada item.');
+        const opt = {
+          imageField: field(b.imageField, ['image']),
+          priceField: field(b.priceField, ['currency', 'number']),
+          descriptionField: field(b.descriptionField, ['text', 'textarea']),
+          groupField: field(b.groupField, ['select', 'radio-group']),
+          onlyField: field(b.onlyField, ['boolean']),
+        };
+        const limit = Math.min(MAX_CATALOG, Math.max(1, Number(b.limit) || 30));
+        const title = clip(b.title, 120);
+        out.push({
+          id, type, entitySlug: table.slug, titleField, limit, ...(title ? { title } : {}),
+          ...Object.fromEntries(Object.entries(opt).filter(([, v]) => v)),
+        } as CatalogBlock);
+        break;
+      }
       case 'tracking': {
         if (++tracking > 1) throw new BadRequestException('A página pode ter só um bloco de acompanhamento.');
         const table = bySlug.get(clip(b.entitySlug, 100));
@@ -184,6 +320,9 @@ export function normalizeBlocks(raw: unknown, ctx: NormalizeContext): SiteBlock[
   }
   return out;
 }
+
+/** Campos que podem ser o nome de um item na vitrine. */
+const CATALOG_TEXT = ['text', 'textarea', 'select'];
 
 /** Tipos que identificam o registro de cima (para reaproveitar um que ja existe). */
 export const MATCH_FIELD_TYPES = new Set(['text', 'cpf', 'cnpj', 'email', 'phone']);

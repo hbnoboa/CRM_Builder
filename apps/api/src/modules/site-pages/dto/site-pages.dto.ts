@@ -45,6 +45,10 @@ export class UpdateSitePageDto {
   @IsArray()
   @Type(() => Object)
   blocks?: Record<string, unknown>[];
+  @ApiPropertyOptional({ description: 'Aparencia: estilo, fundo, cor de destaque, capa, frase' })
+  @IsOptional()
+  @IsObject()
+  settings?: Record<string, unknown>;
 }
 
 export class PreviewSitePageDto {
@@ -52,6 +56,11 @@ export class PreviewSitePageDto {
   @IsArray()
   @Type(() => Object)
   blocks: Record<string, unknown>[];
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsObject()
+  settings?: Record<string, unknown>;
 
   @ApiPropertyOptional()
   @IsOptional()
