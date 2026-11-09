@@ -12,7 +12,7 @@ import { PdfGeneratorService } from '../pdf/pdf-generator.service';
 import { loadTenantSchema, type SchemaTable } from '../ai-builder/tenant-schema';
 import { slugify } from '../ai-builder/ai-proposal-normalizer';
 import {
-  FORM_FIELD_TYPES, TRACK_FIELD_TYPES, normalizeBlocks, normalizeSettings, publicField, requiredFields, suggestMatchField,
+  FORM_FIELD_TYPES, TRACK_FIELD_TYPES, normalizeBlocks, normalizeSettings, normalizeSiteConfig, publicField, requiredFields, suggestMatchField,
   type CatalogBlock, type FormBlock, type NormalizeContext, type RawField, type SiteBlock, type TrackingBlock,
 } from './site-blocks';
 
@@ -86,6 +86,31 @@ export class SitePagesService {
       url: this.url(tenant!.slug, p.slug),
       kinds: [...new Set((p.blocks as unknown as SiteBlock[]).filter((b) => b.type === 'form' || b.type === 'tracking').map((b) => b.type))],
     }));
+  }
+
+  // ── Site: aparencia, menu e rodape de todas as paginas ─────────────────
+
+  async getSite(user: CurrentUser) {
+    const tenantId = getEffectiveTenantId(user);
+    const tenant = await this.prisma.tenant.findUnique({ where: { id: tenantId }, select: { settings: true } });
+    const pages = await this.prisma.sitePage.findMany({ where: { tenantId }, orderBy: { createdAt: 'asc' }, select: { slug: true, title: true, isPublished: true, blocks: true } });
+    return {
+      config: normalizeSiteConfig((tenant?.settings as { site?: unknown } | null)?.site, new Set(pages.map((p) => p.slug))),
+      pages: pages.map((p) => ({
+        slug: p.slug, title: p.title, isPublished: p.isPublished,
+        tracking: (p.blocks as unknown as SiteBlock[]).some((b) => b.type === 'tracking'),
+      })),
+    };
+  }
+
+  async updateSite(user: CurrentUser, raw: Record<string, unknown>) {
+    const tenantId = getEffectiveTenantId(user);
+    const tenant = await this.prisma.tenant.findUnique({ where: { id: tenantId }, select: { settings: true } });
+    const pages = await this.prisma.sitePage.findMany({ where: { tenantId }, select: { slug: true } });
+    const site = normalizeSiteConfig(raw, new Set(pages.map((p) => p.slug)));
+    const settings = { ...((tenant?.settings as Record<string, unknown> | null) || {}), site };
+    await this.prisma.tenant.update({ where: { id: tenantId }, data: { settings: settings as unknown as Prisma.InputJsonValue } });
+    return this.getSite(user);
   }
 
   async get(id: string, user: CurrentUser) {
@@ -195,7 +220,7 @@ export class SitePagesService {
   }
 
   /** Previa no editor: blocos ainda nao salvos, com registro de exemplo no acompanhamento. */
-  async preview(blocks: unknown[], title: string, user: CurrentUser, settings?: unknown) {
+  async preview(blocks: unknown[], title: string, user: CurrentUser, settings?: unknown, slug?: string) {
     const tenantId = getEffectiveTenantId(user);
     const tenant = await this.prisma.tenant.findUnique({ where: { id: tenantId } });
     const ctx = await this.context(tenantId);
@@ -205,7 +230,7 @@ export class SitePagesService {
     } catch (err) {
       return { error: (err as Error).message };
     }
-    return this.buildPublic(tenant!, { title, description: null, slug: 'previa', blocks: normalized, settings }, ctx, { sample: true });
+    return this.buildPublic(tenant!, { title, description: null, slug: slug || 'previa', blocks: normalized, settings }, ctx, { sample: true });
   }
 
   /**
@@ -250,7 +275,12 @@ export class SitePagesService {
     if (!(await this.tenantPlan.isFeatureEnabled(tenant.id, 'publicLinks'))) {
       throw new ForbiddenException({ code: 'FEATURE_DISABLED', message: 'Esta página não está disponível no momento' });
     }
-    const page = await this.prisma.sitePage.findUnique({ where: { tenantId_slug: { tenantId: tenant.id, slug: pageSlug } } });
+    let page = await this.prisma.sitePage.findUnique({ where: { tenantId_slug: { tenantId: tenant.id, slug: pageSlug } } });
+    // Endereco principal (subdominio sem caminho chega como "inicio"): abre a pagina inicial do site
+    const home = normalizeSiteConfig((tenant.settings as { site?: unknown } | null)?.site).homeSlug;
+    if ((!page || !page.isPublished) && pageSlug === 'inicio' && home) {
+      page = await this.prisma.sitePage.findUnique({ where: { tenantId_slug: { tenantId: tenant.id, slug: home } } });
+    }
     if (!page || !page.isPublished) throw new NotFoundException('Página não encontrada');
     return { tenant, page, blocks: page.blocks as unknown as SiteBlock[] };
   }
@@ -269,6 +299,9 @@ export class SitePagesService {
     opts: { token?: string; sample?: boolean },
   ) {
     const theme = ((tenant.settings as { theme?: { brandColor?: string } } | null)?.theme) ?? {};
+    const site = normalizeSiteConfig((tenant.settings as { site?: unknown } | null)?.site);
+    const own = normalizeSettings(page.settings);
+    const look = own.ownLook ? own : site.look;
     const entityBySlug = new Map(ctx.entities.map((e) => [e.slug, e]));
     const fieldsOf = (slug: string) => (ctx.rawFieldsBySlug.get(slug) || []);
     const catalogs = new Map<string, Awaited<ReturnType<SitePagesService['catalogItems']>>>();
@@ -319,10 +352,33 @@ export class SitePagesService {
     }
     return {
       tenant: { name: tenant.name, logo: tenant.logo, brandColor: theme.brandColor ?? null },
-      page: { title: page.title, description: page.description, slug: page.slug, settings: normalizeSettings(page.settings) },
+      page: { title: page.title, description: page.description, slug: page.slug, settings: look },
+      site: await this.publicSite(tenant.id, site, page.slug),
       blocks,
       record,
       trackingError,
+    };
+  }
+
+  /**
+   * Menu e rodape do site. O menu so aparece com 2+ paginas: as escolhidas (na
+   * ordem do site) ou, sem escolha, todas as publicadas. Acompanhamento fica fora
+   * (so abre pelo link do cliente).
+   */
+  private async publicSite(tenantId: string, site: ReturnType<typeof normalizeSiteConfig>, current: string) {
+    const pages = await this.prisma.sitePage.findMany({
+      where: { tenantId, isPublished: true }, orderBy: { createdAt: 'asc' }, select: { slug: true, title: true, blocks: true },
+    });
+    const usable = pages.filter((p) => !(p.blocks as unknown as SiteBlock[]).some((b) => b.type === 'tracking'));
+    const bySlug = new Map(usable.map((p) => [p.slug, p]));
+    let menu = site.menu.length
+      ? site.menu.filter((m) => bySlug.has(m.slug)).map((m) => ({ slug: m.slug, label: m.label || bySlug.get(m.slug)!.title }))
+      : usable.map((p) => ({ slug: p.slug, label: p.title }));
+    if (site.homeSlug && !site.menu.length) menu = [...menu.filter((m) => m.slug === site.homeSlug), ...menu.filter((m) => m.slug !== site.homeSlug)];
+    return {
+      menu: menu.length >= 2 ? menu.map((m) => ({ ...m, current: m.slug === current })) : [],
+      footer: site.footer,
+      homeSlug: site.homeSlug ?? null,
     };
   }
 

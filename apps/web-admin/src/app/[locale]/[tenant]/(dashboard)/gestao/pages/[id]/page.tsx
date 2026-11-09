@@ -9,6 +9,7 @@ import { Link } from '@/i18n/tenant-navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { RequireRole } from '@/components/auth/require-role';
 import { DesktopOnlyEditor } from '@/components/layout/desktop-only-editor';
@@ -62,7 +63,7 @@ function EditorContent({ id }: { id: string }) {
   useEffect(() => {
     if (!loaded.current) return;
     const timer = setTimeout(() => {
-      previewSitePage(blocks, title, look)
+      previewSitePage(blocks, title, look, page?.slug)
         .then((res) => {
           if ('error' in res) setPreviewError(res.error);
           else {
@@ -73,7 +74,7 @@ function EditorContent({ id }: { id: string }) {
         .catch(() => undefined);
     }, 500);
     return () => clearTimeout(timer);
-  }, [blocks, title, look]);
+  }, [blocks, title, look, page?.slug]);
 
   const change = (fn: (prev: SiteBlockDraft[]) => SiteBlockDraft[]) => {
     setBlocks(fn);
@@ -160,13 +161,22 @@ function EditorContent({ id }: { id: string }) {
               <span className="flex h-8 w-8 items-center justify-center rounded-md bg-muted"><Palette className="h-4 w-4" /></span>
               <span className="min-w-0 flex-1">
                 <span className="block text-sm font-medium">Aparência da página</span>
-                <span className="block truncate text-xs text-muted-foreground">{look.style === 'scrapbook' ? 'Scrapbook' : 'Clássico'} · estilo, fundo, cor e capa</span>
+                <span className="block truncate text-xs text-muted-foreground">{look.ownLook ? `Própria · ${look.style === 'scrapbook' ? 'Scrapbook' : 'Clássico'}` : 'A mesma do site'} · estilo, fundo, cor e capa</span>
               </span>
               <ChevronDown className={cn('h-4 w-4 text-muted-foreground transition-transform', lookOpen && 'rotate-180')} />
             </button>
             {lookOpen && (
-              <div className="border-t p-3">
-                <AppearanceFields look={look} brandColor={brandColor} onChange={(p) => { setLook((prev) => ({ ...prev, ...p })); setDirty(true); }} />
+              <div className="space-y-3 border-t p-3">
+                <label className="flex items-center justify-between gap-3 text-sm">
+                  <span>
+                    Aparência própria nesta página
+                    <span className="block text-[11px] text-muted-foreground">Desligado: usa a aparência do site (Páginas para clientes › Site da empresa).</span>
+                  </span>
+                  <Switch checked={!!look.ownLook} onCheckedChange={(v) => { setLook((prev) => ({ ...prev, ownLook: v })); setDirty(true); }} data-testid="page-own-look" />
+                </label>
+                {look.ownLook && (
+                  <AppearanceFields look={look} brandColor={brandColor} onChange={(p) => { setLook((prev) => ({ ...prev, ...p })); setDirty(true); }} />
+                )}
               </div>
             )}
           </div>

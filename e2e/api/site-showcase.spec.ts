@@ -49,7 +49,7 @@ test.describe.serial('paginas com vitrine e aparencia', () => {
     const saved = await (await call(request, 'patch', `/site-pages/${pageId}`, tenant.owner, {
       expected: 200,
       data: {
-        settings: { style: 'scrapbook', background: 'hearts', accent: '#E90CC0', coverUrl: 'javascript:alert(1)', tagline: 'o cantinho mais fofo', extra: 'x' },
+        settings: { ownLook: true, style: 'scrapbook', background: 'hearts', accent: '#E90CC0', coverUrl: 'javascript:alert(1)', tagline: 'o cantinho mais fofo', extra: 'x' },
         blocks: [
           { type: 'hero', title: 'Bem-vindo!', imageUrl: 'https://example.com/capa.jpg', buttonLabel: 'Reservar', buttonUrl: 'https://wa.me/5511999990000' },
           { type: 'gallery', layout: 'nao-existe', images: [{ url: 'https://example.com/a.jpg', caption: 'latte' }, { url: 'javascript:alert(1)' }, { url: '' }] },
@@ -60,7 +60,7 @@ test.describe.serial('paginas com vitrine e aparencia', () => {
       },
     })).json();
 
-    expect(saved.settings).toEqual({ style: 'scrapbook', background: 'hearts', accent: '#e90cc0', tagline: 'o cantinho mais fofo' });
+    expect(saved.settings).toEqual({ ownLook: true, style: 'scrapbook', background: 'hearts', accent: '#e90cc0', tagline: 'o cantinho mais fofo' });
     const [hero, gallery, cards, quote, catalog] = saved.blocks;
     expect(hero).toMatchObject({ type: 'hero', buttonLabel: 'Reservar', imageUrl: 'https://example.com/capa.jpg' });
     expect(gallery.layout).toBe('polaroid');
@@ -86,5 +86,36 @@ test.describe.serial('paginas com vitrine e aparencia', () => {
     // Custo interno e itens nao marcados nao saem
     const text = JSON.stringify(body);
     for (const leak of ['4.37', '3.91', '1.77', 'Item esgotado', 'custo']) expect(text).not.toContain(leak);
+  });
+
+  test('site: menu entre as paginas, rodape, aparencia comum e pagina inicial', async ({ request }) => {
+    const contato = await (await call(request, 'post', '/site-pages', tenant.owner, { expected: [200, 201], data: { title: 'Contato', template: 'blank' } })).json();
+    await call(request, 'patch', `/site-pages/${contato.id}`, tenant.owner, { expected: 200, data: { blocks: [{ type: 'heading', text: 'Fale com a gente' }] } });
+    await call(request, 'post', `/site-pages/${contato.id}/publish`, tenant.owner, { expected: [200, 201], data: { publish: true } });
+
+    const site = await (await call(request, 'put', '/site-pages/site', tenant.owner, {
+      expected: 200,
+      data: {
+        look: { style: 'scrapbook', background: 'stars' },
+        menu: [{ slug: pageSlug, label: 'Início' }, { slug: contato.slug }, { slug: 'nao-existe' }],
+        footer: { address: 'Rua das Flores, 10', instagram: '@meucafe', whatsapp: '(11) 99999-0000', email: 'nao-e-email' },
+        homeSlug: pageSlug,
+      },
+    })).json();
+    expect(site.config.menu).toEqual([{ slug: pageSlug, label: 'Início' }, { slug: contato.slug }]);
+    expect(site.config.footer).toEqual({ address: 'Rua das Flores, 10', instagram: 'meucafe', whatsapp: '11999990000' });
+
+    const pub = await (await request.get(`${API}/site/${tenant.slug}/${contato.slug}`)).json();
+    expect(pub.site.menu).toEqual([
+      { slug: pageSlug, label: 'Início', current: false },
+      { slug: contato.slug, label: 'Contato', current: true },
+    ]);
+    expect(pub.site.footer.address).toBe('Rua das Flores, 10');
+    // Sem aparencia propria, a pagina usa a do site
+    expect(pub.page.settings.background).toBe('stars');
+
+    // Endereco principal (subdominio sem caminho) abre a pagina inicial
+    const home = await (await request.get(`${API}/site/${tenant.slug}/inicio`)).json();
+    expect(home.page.slug).toBe(pageSlug);
   });
 });

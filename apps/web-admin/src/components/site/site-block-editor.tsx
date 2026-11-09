@@ -488,7 +488,7 @@ function CatalogFields({ block, onChange, entities }: { block: SiteBlockDraft; o
 
 // ── Aparencia da pagina ──────────────────────────────────────────────────
 
-export type SiteLookDraft = { style?: string; background?: string; accent?: string; coverUrl?: string; tagline?: string };
+export type SiteLookDraft = { ownLook?: boolean; style?: string; background?: string; accent?: string; coverUrl?: string; tagline?: string };
 
 const BACKGROUNDS = [
   { value: 'plain', label: 'Liso' }, { value: 'dots', label: 'Bolinhas' }, { value: 'hearts', label: 'Corações' },
