@@ -9,9 +9,12 @@ import {
   Post,
   Put,
   Query,
+  UploadedFile,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { ApiBearerAuth, ApiConsumes, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { ChatService } from './chat.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
@@ -262,6 +265,19 @@ export class ChatController {
     @CurrentUser() user: CurrentUserType,
   ) {
     return this.chatService.searchMessages(user, id, q || '');
+  }
+
+  @Post('channels/:id/attachments')
+  @ApiOperation({ summary: 'Envia uma imagem ou arquivo no canal (um por vez; legenda opcional)' })
+  @ApiConsumes('multipart/form-data')
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 25 * 1024 * 1024 } }))
+  async postAttachment(
+    @Param('id') id: string,
+    @UploadedFile() file: Express.Multer.File,
+    @Body() body: { caption?: string },
+    @CurrentUser() user: CurrentUserType,
+  ) {
+    return this.chatService.postAttachment(user, id, file, body?.caption);
   }
 
   @Post('channels/:id/messages')

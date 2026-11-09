@@ -1,6 +1,6 @@
 'use client';
 
-import { ArrowDown, ArrowUp, Heading, Image as ImageIcon, ListChecks, Minus, MousePointerClick, Send, Trash2, Type } from 'lucide-react';
+import { ArrowDown, ArrowUp, GalleryHorizontalEnd, Heading, Image as ImageIcon, LayoutGrid, ListChecks, Minus, MousePointerClick, Plus, Quote, Send, Store, Trash2, Type, Wallpaper } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -44,10 +44,15 @@ function suggestMatch(e: EditorEntity): string | undefined {
 }
 
 export const BLOCK_KINDS: Array<{ type: string; label: string; icon: typeof Type; hint: string }> = [
+  { type: 'hero', label: 'Destaque com foto', icon: Wallpaper, hint: 'Foto grande com título e botão por cima' },
   { type: 'heading', label: 'Título', icon: Heading, hint: 'Um título em destaque' },
   { type: 'text', label: 'Texto', icon: Type, hint: 'Explicação, instruções, contato' },
   { type: 'image', label: 'Imagem', icon: ImageIcon, hint: 'Foto ou banner' },
   { type: 'button', label: 'Botão', icon: MousePointerClick, hint: 'Leva para um link (WhatsApp, site...)' },
+  { type: 'gallery', label: 'Galeria de fotos', icon: GalleryHorizontalEnd, hint: 'Várias fotos: polaroide, grade ou mosaico' },
+  { type: 'cards', label: 'Cartões', icon: LayoutGrid, hint: 'Destaques em colunas, com foto e texto' },
+  { type: 'quote', label: 'Citação', icon: Quote, hint: 'Uma frase em destaque (depoimento, lema)' },
+  { type: 'catalog', label: 'Vitrine de uma tabela', icon: Store, hint: 'Mostra os itens de uma tabela (cardápio, produtos)' },
   { type: 'divider', label: 'Linha', icon: Minus, hint: 'Separa partes da página' },
   { type: 'form', label: 'Formulário', icon: Send, hint: 'O cliente preenche e vira registro' },
   { type: 'tracking', label: 'Acompanhamento', icon: ListChecks, hint: 'O cliente acompanha o registro pelo link' },
@@ -62,6 +67,11 @@ export function blockSummary(b: SiteBlockDraft, entities: EditorEntity[]): strin
     case 'image': return b.url ? 'Imagem escolhida' : 'Sem imagem';
     case 'button': return String(b.label || 'Sem texto');
     case 'divider': return '';
+    case 'hero': return String(b.title || 'Sem título');
+    case 'gallery': return `${(b.images as unknown[] | undefined)?.length ?? 0} fotos`;
+    case 'cards': return `${(b.items as unknown[] | undefined)?.length ?? 0} cartões`;
+    case 'quote': return String(b.text || '').slice(0, 60) || 'Vazio';
+    case 'catalog': return ent ? `Itens de ${ent.namePlural || ent.name}` : 'Escolha a tabela';
     case 'form': return ent ? `Guarda em ${ent.namePlural || ent.name} · ${(b.fields as string[] | undefined)?.length ?? 0} campos` : 'Escolha a tabela';
     case 'tracking': return ent ? `${ent.namePlural || ent.name} · ${(b.fields as string[] | undefined)?.length ?? 0} campos` : 'Escolha a tabela';
     default: return '';
@@ -134,6 +144,31 @@ function BlockFields({ block, onChange, entities, pdfs }: { block: SiteBlockDraf
       );
     case 'divider':
       return <p className="text-xs text-muted-foreground">Uma linha fina separando as partes da página.</p>;
+    case 'hero':
+      return (
+        <>
+          <ImagePick value={block.imageUrl} onChange={(url) => onChange({ imageUrl: url })} />
+          <Input value={String(block.title ?? '')} onChange={(e) => onChange({ title: e.target.value })} placeholder="Título. Ex.: Bem-vindo, mestre!" />
+          <Textarea rows={2} value={String(block.text ?? '')} onChange={(e) => onChange({ text: e.target.value })} placeholder="Frase de apoio (opcional)" />
+          <div className="grid grid-cols-2 gap-2">
+            <Input value={String(block.buttonLabel ?? '')} onChange={(e) => onChange({ buttonLabel: e.target.value })} placeholder="Texto do botão" />
+            <Input value={String(block.buttonUrl ?? '')} onChange={(e) => onChange({ buttonUrl: e.target.value })} placeholder="Link do botão" />
+          </div>
+        </>
+      );
+    case 'gallery':
+      return <GalleryFields block={block} onChange={onChange} />;
+    case 'cards':
+      return <CardsFields block={block} onChange={onChange} />;
+    case 'quote':
+      return (
+        <>
+          <Textarea rows={3} value={String(block.text ?? '')} onChange={(e) => onChange({ text: e.target.value })} placeholder="Ex.: O melhor chá da tarde da cidade!" />
+          <Input value={String(block.author ?? '')} onChange={(e) => onChange({ author: e.target.value })} placeholder="Quem disse (opcional)" />
+        </>
+      );
+    case 'catalog':
+      return <CatalogFields block={block} onChange={onChange} entities={entities} />;
     case 'form':
       return <FormFields block={block} onChange={onChange} entities={entities} />;
     case 'tracking':
@@ -302,5 +337,196 @@ function TrackingFields({ block, onChange, entities, pdfs }: { block: SiteBlockD
         </>
       )}
     </>
+  );
+}
+
+/** Foto: enviar do computador ou colar o link. */
+function ImagePick({ value, onChange }: { value: unknown; onChange: (url: string) => void }) {
+  const url = String(value ?? '');
+  return (
+    <div className="space-y-1.5">
+      <ImageUploadField value={url} onChange={(v) => onChange(String(Array.isArray(v) ? v[0] ?? '' : v))} mode="image" folder="site" />
+      <Input value={url} onChange={(e) => onChange(e.target.value.trim())} placeholder="…ou cole o link da imagem (https://…)" className="h-8 text-xs" />
+    </div>
+  );
+}
+
+function Segmented<T extends string | number>({ value, options, onChange }: { value: T; options: Array<{ value: T; label: string }>; onChange: (v: T) => void }) {
+  return (
+    <div className="flex flex-wrap gap-1.5">
+      {options.map((o) => (
+        <Button key={String(o.value)} type="button" size="sm" variant={value === o.value ? 'default' : 'outline'} onClick={() => onChange(o.value)}>{o.label}</Button>
+      ))}
+    </div>
+  );
+}
+
+type GalleryImage = { url: string; caption?: string };
+
+function GalleryFields({ block, onChange }: { block: SiteBlockDraft; onChange: (patch: Record<string, unknown>) => void }) {
+  const images = (block.images as GalleryImage[] | undefined) || [];
+  const setImages = (next: GalleryImage[]) => onChange({ images: next });
+  return (
+    <>
+      <Input value={String(block.title ?? '')} onChange={(e) => onChange({ title: e.target.value })} placeholder="Título da galeria (opcional)" />
+      <div className="space-y-1.5">
+        <Label className="text-xs">Jeito de mostrar</Label>
+        <Segmented value={(block.layout as string) || 'polaroid'} onChange={(v) => onChange({ layout: v })}
+          options={[{ value: 'polaroid', label: 'Polaroide' }, { value: 'mosaic', label: 'Mosaico' }, { value: 'grid', label: 'Grade' }]} />
+      </div>
+      {images.map((img, i) => (
+        <div key={i} className="space-y-1.5 rounded-md border p-2">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-medium">Foto {i + 1}</span>
+            <Button size="icon" variant="ghost" className="h-6 w-6 text-destructive" onClick={() => setImages(images.filter((_, x) => x !== i))} aria-label="Remover foto"><Trash2 className="h-3.5 w-3.5" /></Button>
+          </div>
+          <ImagePick value={img.url} onChange={(url) => setImages(images.map((x, n) => (n === i ? { ...x, url } : x)))} />
+          <Input value={img.caption ?? ''} onChange={(e) => setImages(images.map((x, n) => (n === i ? { ...x, caption: e.target.value } : x)))} placeholder="Legenda (opcional)" className="h-8" />
+        </div>
+      ))}
+      {images.length < 24 && (
+        <Button type="button" variant="outline" size="sm" className="w-full border-dashed" onClick={() => setImages([...images, { url: '' }])}>
+          <Plus className="mr-1 h-3.5 w-3.5" /> Adicionar foto
+        </Button>
+      )}
+    </>
+  );
+}
+
+type CardDraft = { title: string; text?: string; imageUrl?: string; badge?: string };
+
+function CardsFields({ block, onChange }: { block: SiteBlockDraft; onChange: (patch: Record<string, unknown>) => void }) {
+  const items = (block.items as CardDraft[] | undefined) || [];
+  const setItems = (next: CardDraft[]) => onChange({ items: next });
+  const patch = (i: number, p: Partial<CardDraft>) => setItems(items.map((x, n) => (n === i ? { ...x, ...p } : x)));
+  return (
+    <>
+      <Input value={String(block.title ?? '')} onChange={(e) => onChange({ title: e.target.value })} placeholder="Título da seção (opcional)" />
+      <div className="space-y-1.5">
+        <Label className="text-xs">Colunas (no computador; no celular fica um embaixo do outro)</Label>
+        <Segmented value={Number(block.columns) || 3} onChange={(v) => onChange({ columns: v })}
+          options={[{ value: 1, label: '1' }, { value: 2, label: '2' }, { value: 3, label: '3' }]} />
+      </div>
+      {items.map((item, i) => (
+        <div key={i} className="space-y-1.5 rounded-md border p-2">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-medium">Cartão {i + 1}</span>
+            <Button size="icon" variant="ghost" className="h-6 w-6 text-destructive" onClick={() => setItems(items.filter((_, x) => x !== i))} aria-label="Remover cartão"><Trash2 className="h-3.5 w-3.5" /></Button>
+          </div>
+          <ImagePick value={item.imageUrl} onChange={(url) => patch(i, { imageUrl: url })} />
+          <Input value={item.title} onChange={(e) => patch(i, { title: e.target.value })} placeholder="Título" className="h-8" />
+          <Textarea rows={2} value={item.text ?? ''} onChange={(e) => patch(i, { text: e.target.value })} placeholder="Texto (opcional)" />
+          <Input value={item.badge ?? ''} onChange={(e) => patch(i, { badge: e.target.value })} placeholder="Selo (opcional). Ex.: Novo!" className="h-8" />
+        </div>
+      ))}
+      {items.length < 12 && (
+        <Button type="button" variant="outline" size="sm" className="w-full border-dashed" onClick={() => setItems([...items, { title: '' }])}>
+          <Plus className="mr-1 h-3.5 w-3.5" /> Adicionar cartão
+        </Button>
+      )}
+    </>
+  );
+}
+
+function FieldSelect({ label, value, fields, onChange, emptyLabel = 'Nenhum' }: {
+  label: string; value: unknown; fields: NonNullable<EditorEntity['fields']>; onChange: (slug: string | undefined) => void; emptyLabel?: string;
+}) {
+  return (
+    <div className="space-y-1">
+      <Label className="text-xs">{label}</Label>
+      <select value={String(value ?? '')} onChange={(e) => onChange(e.target.value || undefined)} className="h-9 w-full rounded-md border bg-background px-3 text-sm">
+        <option value="">{emptyLabel}</option>
+        {fields.map((f) => <option key={f.slug} value={f.slug}>{labelOf(f)}</option>)}
+      </select>
+    </div>
+  );
+}
+
+function CatalogFields({ block, onChange, entities }: { block: SiteBlockDraft; onChange: (patch: Record<string, unknown>) => void; entities: EditorEntity[] }) {
+  // So tabelas principais (as de dentro de outra nao fazem sentido sozinhas)
+  const tops = entities.filter((e) => !parentOf(e, entities));
+  const entity = tops.find((e) => e.slug === block.entitySlug);
+  const fields = entity?.fields || [];
+  const ofType = (...types: string[]) => fields.filter((f) => types.includes(f.type));
+  const pick = (slug: string) => {
+    const e = tops.find((x) => x.slug === slug);
+    const fs = e?.fields || [];
+    const first = (...types: string[]) => fs.find((f) => types.includes(f.type))?.slug;
+    onChange({
+      entitySlug: slug,
+      titleField: e?.settings?.titleField || first('text'),
+      imageField: first('image'),
+      priceField: first('currency'),
+      descriptionField: first('textarea'),
+      groupField: first('select'),
+      onlyField: first('boolean'),
+    });
+  };
+  return (
+    <>
+      <div className="space-y-1.5">
+        <Label className="text-xs">Tabela que aparece</Label>
+        <TableSelect value={block.entitySlug} entities={tops} onChange={pick} />
+        <p className="text-[11px] text-muted-foreground">Fica público: só os campos escolhidos abaixo. Use para o que pode ser visto por todos (cardápio, produtos, serviços).</p>
+      </div>
+      {entity && (
+        <>
+          <Input value={String(block.title ?? '')} onChange={(e) => onChange({ title: e.target.value })} placeholder={`Título (padrão: ${entity.namePlural || entity.name})`} />
+          <FieldSelect label="Nome do item" value={block.titleField} fields={ofType('text', 'textarea', 'select')} onChange={(v) => onChange({ titleField: v })} emptyLabel="Escolha…" />
+          <div className="grid grid-cols-2 gap-2">
+            <FieldSelect label="Foto" value={block.imageField} fields={ofType('image')} onChange={(v) => onChange({ imageField: v })} />
+            <FieldSelect label="Preço" value={block.priceField} fields={ofType('currency', 'number')} onChange={(v) => onChange({ priceField: v })} />
+            <FieldSelect label="Descrição" value={block.descriptionField} fields={ofType('text', 'textarea')} onChange={(v) => onChange({ descriptionField: v })} />
+            <FieldSelect label="Separar por" value={block.groupField} fields={ofType('select', 'radio-group')} onChange={(v) => onChange({ groupField: v })} />
+          </div>
+          <FieldSelect label="Mostrar só os marcados em" value={block.onlyField} fields={ofType('boolean')} onChange={(v) => onChange({ onlyField: v })} emptyLabel="Mostrar todos" />
+        </>
+      )}
+    </>
+  );
+}
+
+// ── Aparencia da pagina ──────────────────────────────────────────────────
+
+export type SiteLookDraft = { style?: string; background?: string; accent?: string; coverUrl?: string; tagline?: string };
+
+const BACKGROUNDS = [
+  { value: 'plain', label: 'Liso' }, { value: 'dots', label: 'Bolinhas' }, { value: 'hearts', label: 'Corações' },
+  { value: 'stars', label: 'Estrelas' }, { value: 'stripes', label: 'Listras' }, { value: 'grid', label: 'Caderno' },
+];
+
+/** Estilo da pagina inteira: limpo (empresa) ou scrapbook (colorido, polaroides). */
+export function AppearanceFields({ look, onChange, brandColor }: { look: SiteLookDraft; onChange: (patch: SiteLookDraft) => void; brandColor?: string | null }) {
+  const style = look.style || 'classic';
+  return (
+    <div className="space-y-3" data-testid="page-appearance">
+      <div className="grid grid-cols-2 gap-2">
+        {[
+          { value: 'classic', title: 'Clássico', text: 'Limpo e direto, cara de empresa' },
+          { value: 'scrapbook', title: 'Scrapbook', text: 'Colorido, polaroides e letra à mão' },
+        ].map((o) => (
+          <button key={o.value} type="button" onClick={() => onChange({ style: o.value, background: o.value === 'scrapbook' ? (look.background && look.background !== 'plain' ? look.background : 'dots') : 'plain' })}
+            className={`rounded-lg border p-2.5 text-left transition-colors ${style === o.value ? 'border-primary bg-primary/5 ring-1 ring-primary' : 'hover:bg-muted'}`}
+            data-testid={`page-style-${o.value}`}>
+            <span className="block text-sm font-medium">{o.title}</span>
+            <span className="block text-[11px] text-muted-foreground">{o.text}</span>
+          </button>
+        ))}
+      </div>
+      <div className="space-y-1.5">
+        <Label className="text-xs">Fundo</Label>
+        <Segmented value={look.background || (style === 'scrapbook' ? 'dots' : 'plain')} options={BACKGROUNDS} onChange={(v) => onChange({ background: v })} />
+      </div>
+      <div className="flex items-center gap-2">
+        <Label className="text-xs">Cor de destaque</Label>
+        <input type="color" value={look.accent || brandColor || '#2563eb'} onChange={(e) => onChange({ accent: e.target.value })} className="h-8 w-10 cursor-pointer rounded border bg-background" aria-label="Cor de destaque" />
+        {look.accent && <Button type="button" size="sm" variant="ghost" onClick={() => onChange({ accent: undefined })}>Usar a cor da empresa</Button>}
+      </div>
+      <div className="space-y-1.5">
+        <Label className="text-xs">Foto de capa (topo da página)</Label>
+        <ImagePick value={look.coverUrl} onChange={(url) => onChange({ coverUrl: url || undefined })} />
+      </div>
+      <Input value={look.tagline ?? ''} onChange={(e) => onChange({ tagline: e.target.value })} placeholder="Frase embaixo do nome. Ex.: o cantinho mais fofo da cidade" />
+    </div>
   );
 }

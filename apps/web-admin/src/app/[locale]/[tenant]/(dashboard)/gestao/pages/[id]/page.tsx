@@ -3,7 +3,7 @@
 import { absoluteSiteUrl } from '@/lib/site-api';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams } from 'next/navigation';
-import { ArrowLeft, Copy, ExternalLink, Globe, Loader2, Plus, Save, Smartphone } from 'lucide-react';
+import { ArrowLeft, ChevronDown, Copy, ExternalLink, Globe, Loader2, Palette, Plus, Save, Smartphone } from 'lucide-react';
 import { toast } from 'sonner';
 import { Link } from '@/i18n/tenant-navigation';
 import { Button } from '@/components/ui/button';
@@ -13,13 +13,14 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { RequireRole } from '@/components/auth/require-role';
 import { DesktopOnlyEditor } from '@/components/layout/desktop-only-editor';
 import { SitePageView } from '@/components/site/site-page-view';
-import { BLOCK_KINDS, BlockCard, type EditorEntity, type EditorPdf } from '@/components/site/site-block-editor';
+import { AppearanceFields, BLOCK_KINDS, BlockCard, type EditorEntity, type EditorPdf, type SiteLookDraft } from '@/components/site/site-block-editor';
 import { useEntities } from '@/hooks/use-entities';
 import { usePdfTemplates } from '@/hooks/use-pdf-templates';
 import { previewSitePage, usePublishSitePage, useSitePage, useUpdateSitePage, type SiteBlockDraft } from '@/hooks/use-site-pages';
 import { getErrorMessage } from '@/lib/get-error-message';
 import type { SitePageData } from '@/lib/site-api';
 import { cn } from '@/lib/utils';
+import { useTenant } from '@/stores/tenant-context';
 
 const newId = (type: string) => `${type}-${Date.now().toString(36)}${Math.floor(Math.random() * 1e3).toString(36)}`;
 
@@ -38,6 +39,10 @@ function EditorContent({ id }: { id: string }) {
   const [title, setTitle] = useState('');
   const [slug, setSlug] = useState('');
   const [blocks, setBlocks] = useState<SiteBlockDraft[]>([]);
+  const [look, setLook] = useState<SiteLookDraft>({});
+  const [lookOpen, setLookOpen] = useState(false);
+  const { tenant } = useTenant();
+  const brandColor = (tenant?.settings as { theme?: { brandColor?: string } } | undefined)?.theme?.brandColor ?? null;
   const [openId, setOpenId] = useState<string | null>(null);
   const [dirty, setDirty] = useState(false);
   const loaded = useRef(false);
@@ -50,13 +55,14 @@ function EditorContent({ id }: { id: string }) {
     setTitle(page.title);
     setSlug(page.slug);
     setBlocks(page.blocks.map((b) => ({ ...b, id: b.id || newId(b.type) })));
+    setLook((page.settings as SiteLookDraft | undefined) || {});
   }, [page]);
 
   // Previa ao vivo (com registro de exemplo no acompanhamento)
   useEffect(() => {
     if (!loaded.current) return;
     const timer = setTimeout(() => {
-      previewSitePage(blocks, title)
+      previewSitePage(blocks, title, look)
         .then((res) => {
           if ('error' in res) setPreviewError(res.error);
           else {
@@ -67,7 +73,7 @@ function EditorContent({ id }: { id: string }) {
         .catch(() => undefined);
     }, 500);
     return () => clearTimeout(timer);
-  }, [blocks, title]);
+  }, [blocks, title, look]);
 
   const change = (fn: (prev: SiteBlockDraft[]) => SiteBlockDraft[]) => {
     setBlocks(fn);
@@ -81,16 +87,21 @@ function EditorContent({ id }: { id: string }) {
     return next;
   });
   const add = (type: string) => {
-    const block: SiteBlockDraft = { id: newId(type), type, ...(type === 'heading' ? { text: 'Novo título' } : type === 'text' ? { text: '' } : {}) };
+    const starters: Record<string, Record<string, unknown>> = {
+      heading: { text: 'Novo título' }, text: { text: '' }, hero: { title: 'Bem-vindo!' },
+      gallery: { layout: 'polaroid', images: [{ url: '' }] }, cards: { columns: 3, items: [{ title: '' }] }, quote: { text: '' },
+    };
+    const block: SiteBlockDraft = { id: newId(type), type, ...(starters[type] || {}) };
     change((prev) => [...prev, block]);
     setOpenId(block.id!);
   };
 
   const save = async (): Promise<boolean> => {
     try {
-      const saved = await update.mutateAsync({ title, slug, blocks });
+      const saved = await update.mutateAsync({ title, slug, blocks, settings: look });
       setSlug(saved.slug);
       setBlocks(saved.blocks);
+      setLook((saved.settings as SiteLookDraft | undefined) || {});
       setDirty(false);
       toast.success('Página salva!');
       return true;
@@ -144,6 +155,21 @@ function EditorContent({ id }: { id: string }) {
 
       <div className="grid gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
         <div className="space-y-2" data-testid="page-blocks">
+          <div className="rounded-lg border bg-card">
+            <button type="button" onClick={() => setLookOpen((v) => !v)} className="flex w-full items-center gap-2 p-2.5 text-left" data-testid="page-appearance-toggle">
+              <span className="flex h-8 w-8 items-center justify-center rounded-md bg-muted"><Palette className="h-4 w-4" /></span>
+              <span className="min-w-0 flex-1">
+                <span className="block text-sm font-medium">Aparência da página</span>
+                <span className="block truncate text-xs text-muted-foreground">{look.style === 'scrapbook' ? 'Scrapbook' : 'Clássico'} · estilo, fundo, cor e capa</span>
+              </span>
+              <ChevronDown className={cn('h-4 w-4 text-muted-foreground transition-transform', lookOpen && 'rotate-180')} />
+            </button>
+            {lookOpen && (
+              <div className="border-t p-3">
+                <AppearanceFields look={look} brandColor={brandColor} onChange={(p) => { setLook((prev) => ({ ...prev, ...p })); setDirty(true); }} />
+              </div>
+            )}
+          </div>
           {blocks.map((b, i) => (
             <BlockCard
               key={b.id}

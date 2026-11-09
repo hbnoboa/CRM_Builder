@@ -3,7 +3,8 @@
 /**
  * Pecas compartilhadas das molduras do app (principal, operacional e administracao):
  * item de menu, marca da empresa, menu do usuario, busca Ctrl+K e barra do topo.
- * Visual: neutros + cor da empresa so em acento (item ativo em tom suave, nunca bloco).
+ * Visual corporativo: barra grafite (.sidebar-corp), icones monocromaticos e a cor da
+ * empresa so como acento (filete e icone do item ativo).
  */
 
 import { useEffect, useState } from 'react';
@@ -26,13 +27,13 @@ import { NotificationBell } from '@/components/notifications/notification-bell';
 import { TenantSelector } from '@/components/tenant-selector';
 import { cn } from '@/lib/utils';
 
-/** Classes do item de menu lateral (ativo em tom suave da marca). */
+/** Classes do item de menu lateral: ativo com filete e icone na cor da empresa. */
 export function navItemClass(active: boolean, extra?: string) {
   return cn(
-    'group flex items-center gap-3 rounded-lg px-2.5 text-sm font-medium transition-colors min-h-[44px] lg:min-h-[40px]',
+    'group relative flex items-center gap-3 rounded-md px-2.5 text-sm transition-colors min-h-[42px] lg:min-h-[36px]',
     active
-      ? 'bg-primary text-primary-foreground shadow-sm'
-      : 'text-foreground/75 hover:bg-muted hover:text-foreground',
+      ? 'bg-nav-active font-semibold text-foreground [&>svg]:text-brand-300 before:absolute before:inset-y-2 before:left-0 before:w-[3px] before:rounded-full before:bg-brand-400'
+      : 'font-medium text-muted-foreground hover:bg-muted hover:text-foreground',
     extra,
   );
 }
@@ -54,11 +55,11 @@ export function SidebarBrand({ subtitle, hideText, strong }: { subtitle?: React.
     <div className="flex min-w-0 items-center gap-2.5">
       {tenant?.logo ? (
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={tenant.logo} alt={name} className={cn('h-9 w-9 shrink-0 rounded-lg object-contain', strong && 'bg-white p-0.5')} />
+        <img src={tenant.logo} alt={name} className="h-8 w-8 shrink-0 rounded-md bg-white object-contain p-0.5" />
       ) : (
         <span className={cn(
-          'flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-base font-bold',
-          strong ? 'bg-white text-primary shadow-sm' : 'bg-primary text-primary-foreground',
+          'flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-sm font-bold',
+          strong ? 'bg-white text-primary' : 'bg-primary text-primary-foreground',
         )}>
           {name[0]?.toUpperCase()}
         </span>

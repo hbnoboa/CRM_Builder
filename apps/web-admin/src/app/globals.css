@@ -68,6 +68,28 @@
     --nav-active: 20.5 40.6% 18%;
     --nav-active-foreground: 20.5 63.1% 82%;
   }
+
+  /* Barra lateral corporativa: grafite neutro nos dois temas; a cor da empresa
+     aparece so no filete do item ativo e no icone dele (escala brand). */
+  .sidebar-corp {
+    --background: 222 22% 11%;
+    --card: 222 22% 11%;
+    --card-foreground: 210 20% 96%;
+    --foreground: 210 20% 96%;
+    --muted: 220 15% 18%;
+    --muted-foreground: 218 11% 66%;
+    --accent: 220 15% 18%;
+    --accent-foreground: 210 20% 96%;
+    --border: 220 14% 20%;
+    --input: 220 14% 20%;
+    --nav-active: 220 15% 20%;
+    --nav-active-foreground: 0 0% 100%;
+    color: hsl(var(--foreground));
+  }
+  .dark .sidebar-corp {
+    --background: 224 28% 7%;
+    --card: 224 28% 7%;
+  }
 }
 
 @layer base {

@@ -12,6 +12,8 @@ export interface SitePage {
   slug: string;
   description: string | null;
   blocks: SiteBlockDraft[];
+  /** Aparencia (estilo, fundo, cor, capa, frase). */
+  settings?: Record<string, unknown>;
   isPublished: boolean;
   updatedAt: string;
   url: string;
@@ -58,7 +60,7 @@ export function useCreateSitePage() {
 export function useUpdateSitePage(id: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (body: Partial<Pick<SitePage, 'title' | 'slug' | 'description' | 'blocks'>>) =>
+    mutationFn: async (body: Partial<Pick<SitePage, 'title' | 'slug' | 'description' | 'blocks' | 'settings'>>) =>
       (await api.patch<SitePage>(`/site-pages/${id}`, body)).data,
     onSuccess: (page) => {
       qc.setQueryData(keys.detail(id), page);
@@ -91,8 +93,8 @@ export function useDeleteSitePage() {
   });
 }
 
-export async function previewSitePage(blocks: SiteBlockDraft[], title: string) {
-  return (await api.post<SitePageData | { error: string }>('/site-pages/preview', { blocks, title })).data;
+export async function previewSitePage(blocks: SiteBlockDraft[], title: string, settings?: Record<string, unknown>) {
+  return (await api.post<SitePageData | { error: string }>('/site-pages/preview', { blocks, title, settings })).data;
 }
 
 /** Link de acompanhamento de um registro (cria se ainda nao existir). */

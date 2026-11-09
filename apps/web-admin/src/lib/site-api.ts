@@ -30,7 +30,23 @@ export type SiteBlockView =
   | {
     id: string; type: 'tracking'; entitySlug: string; entityName: string; fields: string[]; timelineField?: string;
     uploadFields?: string[]; hasPdf: boolean; uploadDefs: SiteFieldDef[];
-  };
+  }
+  | { id: string; type: 'hero'; title: string; text?: string; imageUrl?: string; buttonLabel?: string; buttonUrl?: string }
+  | { id: string; type: 'gallery'; title?: string; layout: 'polaroid' | 'grid' | 'mosaic'; images: Array<{ url: string; caption?: string }> }
+  | { id: string; type: 'cards'; title?: string; columns: 1 | 2 | 3; items: Array<{ title: string; text?: string; imageUrl?: string; badge?: string }> }
+  | { id: string; type: 'quote'; text: string; author?: string }
+  | { id: string; type: 'catalog'; title?: string; entityName: string; groupLabel?: string; items: SiteCatalogItem[] };
+
+export type SiteCatalogItem = { id: string; title: string; image?: string; price?: number; priceType?: string; description?: string; group?: string };
+
+/** Aparencia da pagina (estilo, fundo, cor, capa). */
+export interface SiteAppearance {
+  style: 'classic' | 'scrapbook';
+  background: 'plain' | 'dots' | 'hearts' | 'stars' | 'stripes' | 'grid';
+  accent?: string;
+  coverUrl?: string;
+  tagline?: string;
+}
 
 export type SiteValue = string | number | boolean | string[] | null;
 
@@ -45,7 +61,7 @@ export interface SiteRecordView {
 
 export interface SitePageData {
   tenant: { name: string; logo: string | null; brandColor: string | null };
-  page: { title: string; description: string | null; slug: string };
+  page: { title: string; description: string | null; slug: string; settings?: SiteAppearance };
   blocks: SiteBlockView[];
   record: SiteRecordView | null;
   trackingError: string | null;
