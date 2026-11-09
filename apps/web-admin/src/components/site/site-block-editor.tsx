@@ -139,7 +139,7 @@ function BlockFields({ block, onChange, entities, pdfs }: { block: SiteBlockDraf
       return (
         <>
           <Input value={String(block.label ?? '')} onChange={(e) => onChange({ label: e.target.value })} placeholder="Texto do botão. Ex.: Fale no WhatsApp" />
-          <Input value={String(block.url ?? '')} onChange={(e) => onChange({ url: e.target.value })} placeholder="Link. Ex.: https://wa.me/5511999990000" />
+          <Input value={String(block.url ?? '')} onChange={(e) => onChange({ url: e.target.value })} placeholder="Link: https://wa.me/55119…, ou o endereço de outra página (ex.: cardapio)" />
         </>
       );
     case 'divider':

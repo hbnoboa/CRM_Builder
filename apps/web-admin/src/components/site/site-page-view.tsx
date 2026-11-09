@@ -118,7 +118,7 @@ function SiteMenu({ data, brand, scrap, preview }: { data: SitePageData; brand: 
   return (
     <nav aria-label="Páginas do site" data-testid="site-menu"
       className={cn(scrap ? 'mx-auto max-w-3xl px-4 pt-6' : 'sticky top-0 z-20 border-b bg-white/95 backdrop-blur')}>
-      <ul className={cn('flex gap-2 overflow-x-auto', scrap ? 'justify-start pb-1 sm:justify-center' : 'mx-auto max-w-2xl px-4 py-2')}>
+      <ul className={cn('flex gap-2', scrap ? 'flex-wrap justify-center' : 'mx-auto max-w-2xl overflow-x-auto px-4 py-2')}>
         {menu.map((m) => {
           const cls = scrap
             ? 'block whitespace-nowrap rounded-full border-2 px-4 py-1.5 text-[15px] font-semibold transition-colors'
@@ -274,7 +274,7 @@ function BlockView({ block, index, data, brand, scrap, tenantSlug, pageSlug, tok
     case 'button':
       return (
         <div className={scrap ? 'text-center' : undefined}>
-          <a href={block.url} target={/^[/#]/.test(block.url) ? undefined : '_blank'} rel="noopener noreferrer"
+          <a href={block.url} target={/^https?:/.test(block.url) ? '_blank' : undefined} rel="noopener noreferrer"
             className={cn('inline-flex items-center justify-center font-semibold text-white', scrap ? 'rounded-full px-8 py-3.5 text-base transition-transform hover:-translate-y-0.5' : 'h-11 rounded-lg px-5 text-sm shadow-sm')}
             style={{ backgroundColor: brand, ...(scrap ? { boxShadow: `0 5px 0 ${tint(brand, 70, 'black')}` } : {}) }}>
             {scrap && <span className="mr-2" aria-hidden>♡</span>}{block.label}
@@ -336,7 +336,7 @@ function HeroView({ block, brand, scrap }: { block: Extract<SiteBlockView, { typ
       {block.text && <p className={cn('mt-2 max-w-xl text-white/90', scrap ? 'mx-auto text-lg italic' : 'text-base')} style={scrap ? { fontFamily: SERIF } : undefined}>{block.text}</p>}
       {block.buttonLabel && block.buttonUrl && (
         <div className="mt-5">
-          <a href={block.buttonUrl} target={/^[/#]/.test(block.buttonUrl) ? undefined : '_blank'} rel="noopener noreferrer"
+          <a href={block.buttonUrl} target={/^https?:/.test(block.buttonUrl) ? '_blank' : undefined} rel="noopener noreferrer"
             className={cn('inline-flex items-center justify-center font-semibold', scrap ? 'rounded-full bg-white px-7 py-3' : 'h-11 rounded-lg px-5 text-sm text-white')}
             style={scrap ? { color: brand } : { backgroundColor: brand }}>
             {block.buttonLabel}

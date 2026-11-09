@@ -180,6 +180,7 @@ const clip = (s: unknown, max: number): string => String(s ?? '').trim().slice(0
 const safeUrl = (u: unknown): string => {
   const url = clip(u, 1000);
   if (/^#[a-zA-Z0-9_-]{1,40}$/.test(url)) return url; // outra parte da mesma pagina
+  if (/^[a-z0-9][a-z0-9-]{0,79}$/.test(url)) return url; // outra pagina do site (pelo endereco dela)
   return /^(https?:\/\/|mailto:|tel:|\/)/i.test(url) && !/^\/\//.test(url) ? url : '';
 };
 
