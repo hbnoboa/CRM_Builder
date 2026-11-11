@@ -1781,3 +1781,25 @@ model DomainOrder {
   @@index([tenantId])
   @@index([status])
 }
+
+/// Pedido de acesso feito pelo dominio proprio da empresa ("Pedir acesso" no login).
+/// A conta so e criada quando um administrador aprova e escolhe o cargo.
+model AccessRequest {
+  id           String    @id @default(cuid())
+  tenantId     String
+  name         String
+  email        String
+  /// Senha escolhida no pedido (hash). Usada so se a pessoa ainda nao tem conta.
+  passwordHash String
+  /// pending | approved | rejected
+  status       String    @default("pending")
+  customRoleId String?
+  decidedById  String?
+  decidedAt    DateTime?
+  ip           String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@index([tenantId, status])
+  @@index([email])
+}

@@ -511,7 +511,7 @@ export class AuthService {
     return { message: 'Senha alterada com sucesso' };
   }
 
-  async forgotPassword(dto: ForgotPasswordDto) {
+  async forgotPassword(dto: ForgotPasswordDto, host?: string) {
     // Email e global -> nao filtra por tenant.
     const user = await this.prisma.user.findFirst({
       where: { email: dto.email, status: Status.ACTIVE, isServiceAccount: false },
@@ -531,7 +531,10 @@ export class AuthService {
       data: { resetToken, resetTokenExpires: resetExpires },
     });
 
-    const url = `${appUrl()}/pt-BR/reset-password?token=${resetToken}`;
+    // Pedido feito pelo dominio proprio de uma empresa: o link volta para ele
+    const domainTenantId = host ? await tenantIdForHost(this.prisma, host) : null;
+    const base = domainTenantId && host ? `https://${host.split(':')[0].toLowerCase()}` : appUrl();
+    const url = `${base}/pt-BR/reset-password?token=${resetToken}`;
     const { html, text } = transactionalEmail({
       title: 'Redefinir sua senha',
       paragraphs: [`Olá, ${user.name}!`, 'Recebemos um pedido para redefinir a sua senha. O link vale por 1 hora.'],

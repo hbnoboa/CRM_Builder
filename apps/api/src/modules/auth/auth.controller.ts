@@ -167,8 +167,8 @@ export class AuthController {
   @ApiOperation({ summary: 'Solicitar recuperacao de senha' })
   @ApiResponse({ status: 200, description: 'Email enviado (se existir)' })
   @ApiResponse({ status: 429, description: 'Muitas tentativas. Tente novamente em 1 minuto.' })
-  async forgotPassword(@Body() dto: ForgotPasswordDto) {
-    return this.authService.forgotPassword(dto);
+  async forgotPassword(@Body() dto: ForgotPasswordDto, @Req() req: Request) {
+    return this.authService.forgotPassword(dto, requestHost(req));
   }
 
   @Post('reset-password')

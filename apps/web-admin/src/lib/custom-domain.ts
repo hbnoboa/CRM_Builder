@@ -24,6 +24,7 @@ export interface CustomDomainBrand {
 }
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || '/api/v1';
+let brandRequest: Promise<CustomDomainBrand | null> | null = null;
 
 /** Marca da empresa dona do endereco atual; null no endereco da plataforma. */
 export function useCustomDomain(): { brand: CustomDomainBrand | null; loading: boolean } {
@@ -34,10 +35,13 @@ export function useCustomDomain(): { brand: CustomDomainBrand | null; loading: b
       setState({ brand: null, loading: false });
       return;
     }
-    fetch(`${API_URL}/public/domains/resolve?host=${encodeURIComponent(host)}`)
+    // Uma busca so por pagina (moldura e formulario usam a mesma resposta)
+    brandRequest ??= fetch(`${API_URL}/public/domains/resolve?host=${encodeURIComponent(host)}`)
       .then((r) => (r.ok ? r.json() : null))
-      .then((brand: CustomDomainBrand | null) => setState({ brand, loading: false }))
-      .catch(() => setState({ brand: null, loading: false }));
+      .catch(() => null);
+    let alive = true;
+    brandRequest.then((brand) => { if (alive) setState({ brand, loading: false }); });
+    return () => { alive = false; };
   }, []);
   return state;
 }

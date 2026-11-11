@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { API, PASSWORD, call, createTenant, ownerStaff, type Session, type Tenant } from './helpers';
+import { API, PASSWORD, call, createTenant, listRoles, ownerStaff, type Session, type Tenant } from './helpers';
 
 // Dominio proprio do site. A API de teste roda com DOMAIN_DNS_CHECK=mock (conta como
 // apontado o endereco terminado em ".ok.test") e DOMAIN_REGISTRAR=mock (registrador de
@@ -137,5 +137,52 @@ test.describe.serial('dominio proprio do site', () => {
     expect(me.status()).toBe(401);
     // E o token desta empresa continua valendo no endereco normal
     expect((await request.get(`${API}/auth/me`, { headers: { Authorization: `Bearer ${body.accessToken}` } })).status()).toBe(200);
+  });
+
+  test('pedir acesso pelo dominio: so entra depois de aprovado, com o cargo escolhido', async ({ request }) => {
+    const host = `acesso${suffix}.ok.test`;
+    await call(request, 'post', '/site-domains', tenant.owner, { expected: [200, 201], data: { hostname: host } });
+    const ask = (data: Record<string, string>, h = host) => request.post(`${API}/public/access-requests`, { headers: { Host: h }, data });
+    const email = `novo.${suffix}@example.com`;
+
+    // Fora do dominio da empresa nao existe; senha fraca e recusada
+    expect((await ask({ name: 'Ana Teste', email, password: PASSWORD }, '127.0.0.1')).status()).toBe(400);
+    expect((await ask({ name: 'Ana Teste', email, password: 'fraca123' })).status()).toBe(400);
+
+    const sent = await ask({ name: 'Ana Teste', email, password: PASSWORD });
+    expect(sent.status(), await sent.text()).toBe(201);
+    expect((await sent.json()).message).toContain('Pedido enviado');
+    // Antes de aprovar, nao entra
+    expect((await request.post(`${API}/auth/login`, { headers: { Host: host }, data: { email, password: PASSWORD } })).status()).toBe(401);
+
+    const pending = await (await call(request, 'get', '/access-requests', tenant.owner, { expected: 200 })).json();
+    const mine = pending.find((r: { email: string }) => r.email === email);
+    expect(mine).toBeTruthy();
+    // Outra empresa nao ve os pedidos desta
+    expect((await (await call(request, 'get', '/access-requests', other.owner, { expected: 200 })).json()).some((r: { email: string }) => r.email === email)).toBe(false);
+
+    const roles = await listRoles(request, tenant.owner);
+    const operador = roles.find((r) => /operador/i.test(r.name)) ?? roles[roles.length - 1];
+    await call(request, 'post', `/access-requests/${mine.id}/approve`, tenant.owner, { expected: 200, data: { customRoleId: operador.id } });
+
+    const login = await request.post(`${API}/auth/login`, { headers: { Host: host }, data: { email, password: PASSWORD } });
+    expect(login.status(), await login.text()).toBe(200);
+    expect((await login.json()).user.tenant.slug).toBe(tenant.slug);
+
+    // Recusado: continua sem acesso
+    const email2 = `recusado.${suffix}@example.com`;
+    await ask({ name: 'Bruno Teste', email: email2, password: PASSWORD });
+    const list2 = await (await call(request, 'get', '/access-requests', tenant.owner, { expected: 200 })).json();
+    await call(request, 'post', `/access-requests/${list2.find((r: { email: string }) => r.email === email2).id}/reject`, tenant.owner, { expected: 200 });
+    expect((await request.post(`${API}/auth/login`, { headers: { Host: host }, data: { email: email2, password: PASSWORD } })).status()).toBe(401);
+
+    // Quem ja tem conta em outra empresa: aprovado, entra com a senha que ja usa
+    await ask({ name: 'Dono da outra', email: other.ownerEmail, password: 'OutraSenha@99' });
+    const list3 = await (await call(request, 'get', '/access-requests', tenant.owner, { expected: 200 })).json();
+    const approved = await (await call(request, 'post', `/access-requests/${list3.find((r: { email: string }) => r.email === other.ownerEmail).id}/approve`, tenant.owner, { expected: 200, data: { customRoleId: operador.id } })).json();
+    expect(approved.existingAccount).toBe(true);
+    const both = await request.post(`${API}/auth/login`, { headers: { Host: host }, data: { email: other.ownerEmail, password: PASSWORD } });
+    expect(both.status()).toBe(200);
+    expect((await both.json()).user.tenant.slug).toBe(tenant.slug);
   });
 });

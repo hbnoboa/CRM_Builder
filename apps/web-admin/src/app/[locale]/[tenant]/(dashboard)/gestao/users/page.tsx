@@ -31,7 +31,7 @@ import {
 import { useAllUsers } from '@/hooks/use-users';
 import { useTeams } from '@/hooks/use-teams';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { UserFormDialog, DeleteUserDialog, InviteUserDialog, PendingInvitations } from '@/components/users';
+import { UserFormDialog, DeleteUserDialog, InviteUserDialog, PendingInvitations, AccessRequests } from '@/components/users';
 import { useAuthStore } from '@/stores/auth-store';
 import { useTenant } from '@/stores/tenant-context';
 import { formatCpf, formatPhone } from '@/lib/masks';
@@ -147,6 +147,7 @@ function UsersPageContent() {
         )}
       </div>
 
+      <AccessRequests canManage={hasModulePermission('users', 'canCreate')} />
       <PendingInvitations canManage={hasModulePermission('users', 'canCreate')} />
 
       {/* Stats */}
