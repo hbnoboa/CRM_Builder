@@ -156,4 +156,14 @@ export class UpdateSiteDto {
   @IsArray()
   @Type(() => Object)
   savedThemes?: Record<string, unknown>[];
+
+  @ApiPropertyOptional({ description: 'Topo: formato, estilo do menu, fixo ao rolar, logo, botao de destaque' })
+  @IsOptional()
+  @IsObject()
+  header?: Record<string, unknown>;
+
+  @ApiPropertyOptional({ description: 'Rodape: formato e cor' })
+  @IsOptional()
+  @IsObject()
+  footerStyle?: Record<string, unknown>;
 }

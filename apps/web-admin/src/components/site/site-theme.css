@@ -77,6 +77,7 @@
 .site-canvas[data-btn='outline'] .site-btn { background-color: transparent; color: var(--site-accent); }
 .site-canvas[data-btn='soft'] .site-btn { background-color: color-mix(in srgb, var(--site-accent) 15%, transparent); border-color: transparent; color: var(--site-accent); }
 .site-canvas[data-btn='shadow'] .site-btn { box-shadow: 0 5px 0 color-mix(in srgb, var(--site-accent) 70%, black); }
+.site-canvas .site-btn-alt { background-color: transparent; color: var(--site-accent); }
 .site-canvas .site-btn-light { background-color: #ffffff; border-color: #ffffff; color: var(--site-accent); }
 
 /* Variacoes de cor da secao */
@@ -106,3 +107,18 @@
 
 /* Espaco em cima/embaixo das secoes segue o espacamento do tema */
 .site-sec-pad { padding-block: calc(var(--sec-pad, 2rem) * var(--site-space, 1)); }
+
+/* Topo: menu em linha no computador, botao de menu (tres tracinhos) no celular */
+@container site (max-width: 639.98px) { .site-nav-wide { display: none !important; } }
+@container site (min-width: 640px) { .site-nav-burger { display: none !important; } }
+
+/* Animacao ao aparecer (so depois que a pagina liga o observador: sem JS nada some) */
+.site-anim { transition: opacity 0.7s ease, transform 0.7s cubic-bezier(0.2, 0.7, 0.2, 1); }
+.site-anim-ready .site-anim:not(.site-in) { opacity: 0; }
+.site-anim-ready .site-anim-rise:not(.site-in) { transform: translateY(28px); }
+.site-anim-ready .site-anim-zoom:not(.site-in) { transform: scale(0.94); }
+.site-anim-ready .site-anim-slide:not(.site-in) { transform: translateX(-36px); }
+@media (prefers-reduced-motion: reduce) {
+  .site-anim { transition: none; }
+  .site-anim-ready .site-anim:not(.site-in) { opacity: 1; transform: none; }
+}

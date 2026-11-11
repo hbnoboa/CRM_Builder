@@ -1,6 +1,9 @@
 'use client';
 
-import { GalleryHorizontalEnd, Heading, Image as ImageIcon, LayoutGrid, ListChecks, Minus, MousePointerClick, Plus, Quote, Send, Store, Trash2, Type, Wallpaper } from 'lucide-react';
+import {
+  BadgeDollarSign, Building2, CircleHelp, GalleryHorizontalEnd, Hash, Heading, Image as ImageIcon, LayoutGrid, ListChecks, Map as MapIcon,
+  MessageSquareQuote, Minus, MousePointerClick, MoveVertical, Plus, Quote, Send, Shapes, Share2, Store, Trash2, Type, Video, Wallpaper,
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -55,6 +58,16 @@ export const BLOCK_KINDS: Array<{ type: string; label: string; icon: typeof Type
   { type: 'quote', label: 'Citação', icon: Quote, hint: 'Uma frase em destaque (depoimento, lema)' },
   { type: 'catalog', label: 'Vitrine de uma tabela', icon: Store, hint: 'Mostra os itens de uma tabela (cardápio, produtos)' },
   { type: 'divider', label: 'Linha', icon: Minus, hint: 'Separa partes da página' },
+  { type: 'video', label: 'Vídeo', icon: Video, hint: 'YouTube, Vimeo ou vídeo do computador' },
+  { type: 'map', label: 'Mapa', icon: MapIcon, hint: 'Endereço com “Ver no mapa” e “Como chegar”' },
+  { type: 'faq', label: 'Perguntas', icon: CircleHelp, hint: 'Perguntas frequentes que abrem e fecham' },
+  { type: 'icons', label: 'Ícones com texto', icon: Shapes, hint: 'Serviços ou vantagens com ícone' },
+  { type: 'stats', label: 'Números', icon: Hash, hint: 'Ex.: +500 clientes, 10 anos' },
+  { type: 'pricing', label: 'Preços', icon: BadgeDollarSign, hint: 'Planos ou pacotes lado a lado' },
+  { type: 'testimonials', label: 'Depoimentos', icon: MessageSquareQuote, hint: 'O que os clientes dizem' },
+  { type: 'logos', label: 'Logos', icon: Building2, hint: 'Clientes, parceiros, marcas' },
+  { type: 'social', label: 'Redes sociais', icon: Share2, hint: 'Instagram, WhatsApp, Facebook…' },
+  { type: 'spacer', label: 'Espaço', icon: MoveVertical, hint: 'Um respiro entre partes da página' },
   { type: 'form', label: 'Formulário', icon: Send, hint: 'O cliente preenche e vira registro' },
   { type: 'tracking', label: 'Acompanhamento', icon: ListChecks, hint: 'O cliente acompanha o registro pelo link' },
 ];

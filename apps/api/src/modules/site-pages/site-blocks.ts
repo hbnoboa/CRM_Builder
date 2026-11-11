@@ -1,6 +1,7 @@
 import { BadRequestException } from '@nestjs/common';
 import type { SchemaField, SchemaTable } from '../ai-builder/tenant-schema';
 import { normalizeRichDoc, normalizeTheme, richPlainText, type RichNode, type SiteTheme } from './site-theme';
+import { EXTRA_BLOCK_TYPES, missingExtra, normalizeExtraBlock, type ExtraBlock } from './site-blocks-more';
 
 /**
  * Blocos das paginas para clientes. A pagina e a unica coisa que decide o que sai
@@ -9,7 +10,7 @@ import { normalizeRichDoc, normalizeTheme, richPlainText, type RichNode, type Si
 
 export const SITE_BLOCK_TYPES = [
   'heading', 'text', 'image', 'button', 'divider', 'form', 'tracking',
-  'hero', 'gallery', 'cards', 'quote', 'catalog',
+  'hero', 'gallery', 'cards', 'quote', 'catalog', ...EXTRA_BLOCK_TYPES,
 ] as const;
 export type SiteBlockType = (typeof SITE_BLOCK_TYPES)[number];
 
@@ -81,7 +82,7 @@ export interface CatalogBlock {
 }
 export type SiteBlock =
   | HeadingBlock | TextBlock | ImageBlock | ButtonBlock | DividerBlock | FormBlock | TrackingBlock
-  | HeroBlock | GalleryBlock | CardsBlock | QuoteBlock | CatalogBlock;
+  | HeroBlock | GalleryBlock | CardsBlock | QuoteBlock | CatalogBlock | ExtraBlock;
 
 // ── Aparencia da pagina ──────────────────────────────────────────────────
 
@@ -130,6 +131,28 @@ export interface SiteFooter {
   whatsapp?: string;
   instagram?: string;
   email?: string;
+  facebook?: string;
+  tiktok?: string;
+  youtube?: string;
+  linkedin?: string;
+}
+
+/** Topo do site: formato, menu, botao de destaque e comportamento ao rolar. */
+export const HEADER_LAYOUTS = ['bar', 'inline', 'centered', 'cover', 'minimal'] as const;
+export const MENU_STYLES = ['pills', 'underline', 'plain', 'buttons'] as const;
+export interface SiteHeader {
+  layout?: (typeof HEADER_LAYOUTS)[number];
+  menuStyle?: (typeof MENU_STYLES)[number];
+  sticky?: boolean;
+  hideLogo?: boolean;
+  hideName?: boolean;
+  logoSize?: 'sm' | 'md' | 'lg';
+  cta?: { label: string; url: string };
+}
+export const FOOTER_LAYOUTS = ['card', 'columns', 'centered', 'minimal'] as const;
+export interface SiteFooterStyle {
+  layout?: (typeof FOOTER_LAYOUTS)[number];
+  tone?: 'page' | 'surface' | 'dark' | 'accent';
 }
 export interface SiteConfig {
   /** Aparencia padrao de todas as paginas. */
@@ -141,6 +164,29 @@ export interface SiteConfig {
   homeSlug?: string;
   /** Temas guardados pela empresa ("Meus temas"), para reaproveitar. */
   savedThemes?: Array<{ name: string; look: SitePageSettings }>;
+  header?: SiteHeader;
+  footerStyle?: SiteFooterStyle;
+}
+
+function normalizeHeader(raw: unknown): SiteHeader | undefined {
+  const h = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
+  const c = (h.cta && typeof h.cta === 'object' ? h.cta : {}) as Record<string, unknown>;
+  const label = clip(c.label, 30);
+  const url = safeUrl(c.url);
+  const out = Object.fromEntries(Object.entries({
+    layout: pick(HEADER_LAYOUTS, h.layout), menuStyle: pick(MENU_STYLES, h.menuStyle),
+    sticky: h.sticky === true || undefined, hideLogo: h.hideLogo === true || undefined, hideName: h.hideName === true || undefined,
+    logoSize: pick(['sm', 'md', 'lg'] as const, h.logoSize), cta: label && url ? { label, url } : undefined,
+  }).filter(([, v]) => v !== undefined));
+  return Object.keys(out).length ? (out as SiteHeader) : undefined;
+}
+
+function normalizeFooterStyle(raw: unknown): SiteFooterStyle | undefined {
+  const f = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
+  const out = Object.fromEntries(Object.entries({
+    layout: pick(FOOTER_LAYOUTS, f.layout), tone: pick(['page', 'surface', 'dark', 'accent'] as const, f.tone),
+  }).filter(([, v]) => v !== undefined));
+  return Object.keys(out).length ? (out as SiteFooterStyle) : undefined;
 }
 
 export function normalizeSiteConfig(raw: unknown, pageSlugs?: Set<string>): SiteConfig {
@@ -159,9 +205,16 @@ export function normalizeSiteConfig(raw: unknown, pageSlugs?: Set<string>): Site
   const f = (s.footer && typeof s.footer === 'object' ? s.footer : {}) as Record<string, unknown>;
   const instagram = clip(f.instagram, 80).replace(/^@/, '').replace(/^https?:\/\/(www\.)?instagram\.com\//i, '').replace(/[^a-zA-Z0-9._]/g, '');
   const email = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(clip(f.email, 120)) ? clip(f.email, 120) : '';
+  const social = (v: unknown) => {
+    const raw = clip(v, 200);
+    // Outro protocolo (javascript:, data:...) nao vira link
+    if (!raw || (/^[a-z][a-z0-9+.-]*:/i.test(raw) && !/^https?:/i.test(raw))) return '';
+    return safeUrl(/^https?:\/\//i.test(raw) ? raw : `https://${raw.replace(/^\/+/, '')}`);
+  };
   const footer: SiteFooter = Object.fromEntries(Object.entries({
     text: clip(f.text, 300), address: clip(f.address, 200), hours: clip(f.hours, 200), phone: clip(f.phone, 30),
     whatsapp: clip(f.whatsapp, 30).replace(/[^\d+]/g, ''), instagram, email,
+    facebook: social(f.facebook), tiktok: social(f.tiktok), youtube: social(f.youtube), linkedin: social(f.linkedin),
   }).filter(([, v]) => v));
   const home = clip(s.homeSlug, 80);
   const savedThemes = (Array.isArray(s.savedThemes) ? s.savedThemes : []).slice(0, 12).map((t) => {
@@ -171,9 +224,12 @@ export function normalizeSiteConfig(raw: unknown, pageSlugs?: Set<string>): Site
     const { ownLook: _o, ...saved } = normalizeSettings(it.look);
     return { name, look: saved };
   }).filter((t): t is { name: string; look: SitePageSettings } => !!t);
+  const header = normalizeHeader(s.header);
+  const footerStyle = normalizeFooterStyle(s.footerStyle);
   return {
     look, menu, footer, ...(home && known(home) ? { homeSlug: home } : {}),
     ...(savedThemes.length ? { savedThemes } : {}),
+    ...(header ? { header } : {}), ...(footerStyle ? { footerStyle } : {}),
   };
 }
 
@@ -192,6 +248,8 @@ const HIDE_ON = ['mobile', 'desktop'] as const;
 const ALIGNS = ['left', 'center', 'right'] as const;
 const V_ALIGNS = ['top', 'center', 'bottom'] as const;
 const RADII = ['none', 'sm', 'lg'] as const;
+/** Animacao ao aparecer na tela (por elemento; sem: a do tema). */
+const ANIMS = ['none', 'fade', 'rise', 'zoom', 'slide'] as const;
 export const GRID_COLS = 12;
 const MAX_SECTIONS = 30;
 const MAX_ROW = 20000;
@@ -205,6 +263,7 @@ export interface SiteItemStyle {
   shadow?: boolean;
   /** Texto claro (para fundo escuro). */
   light?: boolean;
+  anim?: (typeof ANIMS)[number];
 }
 export interface SiteLayoutItem {
   /** id do bloco */
@@ -259,7 +318,7 @@ function normalizeItemStyle(raw: unknown): SiteItemStyle | undefined {
   const s = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
   const style = compact<SiteItemStyle>({
     align: pick(ALIGNS, s.align), vAlign: pick(V_ALIGNS, s.vAlign), bg: hex(s.bg), padding: pick(SPACINGS, s.padding),
-    radius: pick(RADII, s.radius), shadow: s.shadow === true, light: s.light === true,
+    radius: pick(RADII, s.radius), shadow: s.shadow === true, light: s.light === true, anim: pick(ANIMS, s.anim),
   });
   return Object.keys(style).length ? style : undefined;
 }
@@ -550,6 +609,10 @@ export function normalizeBlocks(raw: unknown, ctx: NormalizeContext): SiteBlock[
         });
         break;
       }
+      default: {
+        const extra = normalizeExtraBlock(type, b, id, { clip, safeUrl });
+        if (extra) out.push(extra);
+      }
     }
   }
   return out;
@@ -567,7 +630,7 @@ export function missingPart(b: SiteBlock): string | null {
     case 'hero': return b.title ? null : 'o título';
     case 'gallery': return b.images.length ? null : 'as fotos';
     case 'cards': return b.items.length ? null : 'os cartões';
-    default: return null;
+    default: return missingExtra(b as ExtraBlock);
   }
 }
 

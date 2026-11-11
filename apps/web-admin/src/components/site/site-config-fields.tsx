@@ -14,6 +14,10 @@ const FOOTER_FIELDS: Array<{ key: string; label: string; placeholder: string }> 
   { key: 'phone', label: 'Telefone', placeholder: '(11) 3333-0000' },
   { key: 'instagram', label: 'Instagram', placeholder: '@suaempresa' },
   { key: 'email', label: 'E-mail', placeholder: 'contato@suaempresa.com.br' },
+  { key: 'facebook', label: 'Facebook', placeholder: 'facebook.com/suaempresa' },
+  { key: 'tiktok', label: 'TikTok', placeholder: 'tiktok.com/@suaempresa' },
+  { key: 'youtube', label: 'YouTube', placeholder: 'youtube.com/@suaempresa' },
+  { key: 'linkedin', label: 'LinkedIn', placeholder: 'linkedin.com/company/suaempresa' },
 ];
 
 type SitePages = SiteInfo['pages'];

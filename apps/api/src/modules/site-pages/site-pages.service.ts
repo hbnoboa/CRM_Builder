@@ -402,6 +402,8 @@ export class SitePagesService {
       menu: menu.length >= 2 ? menu.map((m) => ({ ...m, current: m.slug === current })) : [],
       footer: site.footer,
       homeSlug: site.homeSlug ?? null,
+      header: site.header ?? {},
+      footerStyle: site.footerStyle ?? {},
     };
   }
 

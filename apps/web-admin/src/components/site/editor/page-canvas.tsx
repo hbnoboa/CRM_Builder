@@ -65,6 +65,21 @@ function viewFor(b: SiteBlockDraft, fromServer: Map<string, SiteBlockView>): Sit
       return items.length ? { id, type: 'cards', title: str(b.title), columns: ([1, 2, 3].includes(Number(b.columns)) ? Number(b.columns) : 3) as 1 | 2 | 3, items } : 'Cartões: escreva o título de pelo menos um.';
     }
     case 'quote': return str(b.text) ? { id, type: 'quote', text: str(b.text), author: str(b.author) } : 'Citação vazia: escreva a frase no painel ao lado.';
+    case 'video': case 'map': case 'faq': case 'icons': case 'social': case 'spacer': case 'stats': case 'pricing': case 'testimonials': case 'logos': {
+      const kind = BLOCK_KINDS.find((k) => k.type === b.type)?.label ?? 'Elemento';
+      const missing = missingPart(b);
+      // Mesmo formato do servidor; item sem o principal (pergunta, nome...) nao aparece
+      const rows = (v: unknown) => (Array.isArray(v) ? (v as Array<Record<string, unknown>>) : []);
+      const clean = {
+        ...b,
+        items: rows(b.items).filter((i) => str(i.q) || str(i.title) || str(i.value) || str(i.text)),
+        links: rows(b.links).filter((l) => str(l.url)),
+        plans: rows(b.plans).filter((p) => str(p.name)).map((p) => ({ ...p, features: (Array.isArray(p.features) ? p.features : []).filter(Boolean) })),
+        images: rows(b.images).filter((i) => str(i.url)),
+        columns: Number(b.columns) || 3, zoom: Number(b.zoom) || 15, height: Number(b.height) || (b.type === 'spacer' ? 48 : 320),
+      };
+      return missing && b.type !== 'spacer' ? `${kind}: falta ${missing} (no painel ao lado).` : (clean as unknown as SiteBlockView);
+    }
     default: {
       const kind = BLOCK_KINDS.find((k) => k.type === b.type)?.label ?? 'Bloco';
       return fromServer.get(id) ?? `${kind}: configure no painel ao lado.`;

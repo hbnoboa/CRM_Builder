@@ -35,11 +35,39 @@ export type SiteBlockView =
   | { id: string; type: 'gallery'; title?: string; layout: 'polaroid' | 'grid' | 'mosaic'; images: Array<{ url: string; caption?: string }> }
   | { id: string; type: 'cards'; title?: string; columns: 1 | 2 | 3; items: Array<{ title: string; text?: string; imageUrl?: string; badge?: string }> }
   | { id: string; type: 'quote'; text: string; author?: string }
-  | { id: string; type: 'catalog'; title?: string; entityName: string; groupLabel?: string; items: SiteCatalogItem[] };
+  | { id: string; type: 'catalog'; title?: string; entityName: string; groupLabel?: string; items: SiteCatalogItem[] }
+  | { id: string; type: 'video'; url: string; caption?: string }
+  | { id: string; type: 'map'; address: string; zoom: number; height: number }
+  | { id: string; type: 'faq'; title?: string; items: Array<{ q: string; a: string }> }
+  | { id: string; type: 'icons'; title?: string; columns: 1 | 2 | 3 | 4; layout: 'top' | 'side'; items: Array<{ icon: string; title: string; text?: string }> }
+  | { id: string; type: 'social'; style: 'icons' | 'labels'; links: Array<{ network: string; url: string }> }
+  | { id: string; type: 'spacer'; height: number }
+  | { id: string; type: 'stats'; items: Array<{ value: string; label: string }> }
+  | {
+    id: string; type: 'pricing'; title?: string;
+    plans: Array<{ name: string; price: string; period?: string; features: string[]; buttonLabel?: string; buttonUrl?: string; highlight?: boolean }>;
+  }
+  | { id: string; type: 'testimonials'; title?: string; items: Array<{ text: string; author: string; role?: string; photo?: string }> }
+  | { id: string; type: 'logos'; title?: string; gray: boolean; images: Array<{ url: string; alt?: string }> };
 
 export type SiteCatalogItem = { id: string; title: string; image?: string; price?: number; priceType?: string; description?: string; group?: string };
 
-export interface SiteFooter { text?: string; address?: string; hours?: string; phone?: string; whatsapp?: string; instagram?: string; email?: string }
+export interface SiteFooter {
+  text?: string; address?: string; hours?: string; phone?: string; whatsapp?: string; instagram?: string; email?: string;
+  facebook?: string; tiktok?: string; youtube?: string; linkedin?: string;
+}
+
+/** Topo do site: formato, estilo do menu, fixo ao rolar, logo e botao de destaque. */
+export interface SiteHeader {
+  layout?: 'bar' | 'inline' | 'centered' | 'cover' | 'minimal';
+  menuStyle?: 'pills' | 'underline' | 'plain' | 'buttons';
+  sticky?: boolean;
+  hideLogo?: boolean;
+  hideName?: boolean;
+  logoSize?: 'sm' | 'md' | 'lg';
+  cta?: { label: string; url: string };
+}
+export interface SiteFooterStyle { layout?: 'card' | 'columns' | 'centered' | 'minimal'; tone?: 'page' | 'surface' | 'dark' | 'accent' }
 
 /** Texto formatado (estilo Word): documento do editor, conferido no servidor. */
 export interface RichNode {
@@ -66,6 +94,8 @@ export interface SiteTheme {
   bgImage?: string;
   bgVideo?: string;
   bgDim?: number;
+  /** Como os elementos aparecem ao rolar a pagina. */
+  animation?: 'none' | 'fade' | 'rise' | 'zoom' | 'slide';
 }
 
 /** Aparencia da pagina (estilo, fundo, cor, capa). */
@@ -90,6 +120,7 @@ export interface SiteItemStyle {
   radius?: 'none' | 'sm' | 'lg';
   shadow?: boolean;
   light?: boolean;
+  anim?: 'none' | 'fade' | 'rise' | 'zoom' | 'slide';
 }
 export interface SiteLayoutItem {
   id: string; x: number; y: number; w: number; h: number; hide?: SiteHideOn; style?: SiteItemStyle;
@@ -133,7 +164,10 @@ export interface SitePageData {
   tenant: { name: string; logo: string | null; brandColor: string | null };
   page: { title: string; description: string | null; slug: string; settings?: SiteAppearance };
   /** Menu entre as paginas (2+ paginas) e rodape comum do site. */
-  site?: { menu: Array<{ slug: string; label: string; current: boolean }>; footer: SiteFooter; homeSlug: string | null };
+  site?: {
+    menu: Array<{ slug: string; label: string; current: boolean }>; footer: SiteFooter; homeSlug: string | null;
+    header?: SiteHeader; footerStyle?: SiteFooterStyle;
+  };
   blocks: SiteBlockView[];
   /** Secoes e grade (paginas antigas: uma secao com os blocos em sequencia). */
   layout?: SiteLayout;
