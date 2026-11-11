@@ -18,6 +18,14 @@ import type { SiteHideOn, SiteItemStyle, SiteLayoutItem, SiteSection, SiteSpacin
 import { SITE_GRID, mobileOrder, rowsToPx } from '@/components/site/site-page-view';
 import { sectionOf, type PageDoc, type Selection } from './page-doc';
 import { ThemeFields, type SavedTheme } from './theme-fields';
+import { ExtraBlockFields } from './extra-block-fields';
+import type { SiteFooterStyle, SiteHeader } from '@/lib/site-api';
+
+const EXTRA_TYPES = new Set(['video', 'map', 'faq', 'icons', 'social', 'spacer', 'stats', 'pricing', 'testimonials', 'logos']);
+const ANIMS: Array<{ value: 'theme' | 'none' | 'fade' | 'rise' | 'zoom' | 'slide'; label: string }> = [
+  { value: 'theme', label: 'A do tema' }, { value: 'none', label: 'Nenhuma' }, { value: 'fade', label: 'Surgir' },
+  { value: 'rise', label: 'Subir' }, { value: 'zoom', label: 'Aproximar' }, { value: 'slide', label: 'Deslizar' },
+];
 
 const SPACING: Array<{ value: SiteSpacing; label: string }> = [
   { value: 'none', label: 'Nenhum' }, { value: 'sm', label: 'Pequeno' }, { value: 'md', label: 'Médio' }, { value: 'lg', label: 'Grande' },
@@ -188,11 +196,58 @@ function HeaderPanel(props: Props) {
   return (
     <Panel title="Topo e menu" subtitle="O menu e a página inicial valem para todas as páginas do site.">
       <HeaderLook {...props} />
+      <HeaderFormat {...props} />
       <div className="space-y-2 border-t pt-4">
         <p className="text-sm font-medium">Menu do site</p>
         <SiteMenuFields site={doc.site} pages={sitePages} onChange={(p) => patchSite(p, `site-menu:${Object.keys(p).join()}`)} />
       </div>
     </Panel>
+  );
+}
+
+/** Formato do topo: barra, linha unica, centralizado, capa grande ou minimo; menu, logo e botao. */
+function HeaderFormat({ doc, patchSite }: Props) {
+  const h: SiteHeader = doc.site.header ?? {};
+  const set = (p: Partial<SiteHeader>) => patchSite({ header: { ...h, ...p } }, `site-header:${Object.keys(p).join()}`);
+  const scrap = (doc.look.ownLook ? doc.look.style : (doc.site.look as SiteLookDraft).style) === 'scrapbook';
+  return (
+    <div className="space-y-3 border-t pt-4">
+      <p className="text-sm font-medium">Formato do topo</p>
+      <div className="grid grid-cols-2 gap-1.5" data-testid="header-layouts">
+        {([
+          ['bar', 'Barra', 'Logo e nome; menu numa faixa embaixo'],
+          ['inline', 'Em linha', 'Logo à esquerda e menu à direita'],
+          ['centered', 'Centralizado', 'Logo e nome no meio, menu embaixo'],
+          ['cover', 'Capa grande', 'Foto grande e logo redondo'],
+          ['minimal', 'Mínimo', 'Só o nome e o menu'],
+        ] as const).map(([value, label, hint]) => {
+          const active = (h.layout ?? (scrap ? 'cover' : 'bar')) === value;
+          return (
+            <button key={value} type="button" onClick={() => set({ layout: value })} data-testid={`header-layout-${value}`}
+              className={cn('rounded-lg border p-2 text-left', active ? 'border-primary bg-primary/5 ring-1 ring-primary' : 'hover:bg-muted')}>
+              <span className="block text-sm font-medium">{label}</span>
+              <span className="block text-[11px] leading-tight text-muted-foreground">{hint}</span>
+            </button>
+          );
+        })}
+      </div>
+      <Field label="Estilo do menu">
+        <Segmented value={h.menuStyle ?? (scrap ? 'buttons' : 'pills')} onChange={(menuStyle) => set({ menuStyle })}
+          options={[{ value: 'pills', label: 'Fundo suave' }, { value: 'underline', label: 'Sublinhado' }, { value: 'plain', label: 'Só texto' }, { value: 'buttons', label: 'Botões' }]} />
+      </Field>
+      <label className="flex items-center justify-between text-sm">Fixo no topo ao rolar a página <Switch checked={h.sticky ?? (h.layout ?? 'bar') === 'bar'} onCheckedChange={(sticky) => set({ sticky })} /></label>
+      <label className="flex items-center justify-between text-sm">Mostrar o logo <Switch checked={!h.hideLogo} onCheckedChange={(v) => set({ hideLogo: !v || undefined })} /></label>
+      <label className="flex items-center justify-between text-sm">Mostrar o nome da empresa <Switch checked={!h.hideName} onCheckedChange={(v) => set({ hideName: !v || undefined })} /></label>
+      <Field label="Tamanho do logo">
+        <Segmented value={h.logoSize ?? 'md'} onChange={(logoSize) => set({ logoSize })} options={[{ value: 'sm', label: 'Pequeno' }, { value: 'md', label: 'Médio' }, { value: 'lg', label: 'Grande' }]} />
+      </Field>
+      <Field label="Botão de destaque no topo (opcional)" hint="Ex.: Reservar, Pedir pelo WhatsApp. Precisa de texto e link.">
+        <div className="grid grid-cols-2 gap-1.5">
+          <Input value={h.cta?.label ?? ''} onChange={(e) => set({ cta: { label: e.target.value, url: h.cta?.url ?? '' } })} placeholder="Texto" className="h-8" data-testid="header-cta-label" />
+          <Input value={h.cta?.url ?? ''} onChange={(e) => set({ cta: { label: h.cta?.label ?? '', url: e.target.value } })} placeholder="Link" className="h-8" data-testid="header-cta-url" />
+        </div>
+      </Field>
+    </div>
   );
 }
 
@@ -213,8 +268,18 @@ function HeaderLook(props: Props) {
 }
 
 function FooterPanel({ doc, patchSite }: Props) {
+  const fs: SiteFooterStyle = doc.site.footerStyle ?? {};
+  const setFs = (p: Partial<SiteFooterStyle>) => patchSite({ footerStyle: { ...fs, ...p } });
   return (
     <Panel title="Rodapé" subtitle="Igual em todas as páginas do site. Campo vazio não aparece.">
+      <Field label="Formato">
+        <Segmented value={fs.layout ?? 'card'} onChange={(layout) => setFs({ layout })}
+          options={[{ value: 'card', label: 'Caixa' }, { value: 'columns', label: 'Colunas' }, { value: 'centered', label: 'Centralizado' }, { value: 'minimal', label: 'Mínimo' }]} />
+      </Field>
+      <Field label="Cor do rodapé">
+        <Segmented value={fs.tone ?? 'page'} onChange={(tone) => setFs({ tone })}
+          options={[{ value: 'page', label: 'Como a página' }, { value: 'surface', label: 'Caixa' }, { value: 'dark', label: 'Escura' }, { value: 'accent', label: 'Destaque' }]} />
+      </Field>
       <SiteFooterFields footer={doc.site.footer} onChange={(footer) => patchSite({ footer }, 'site-footer')} />
     </Panel>
   );
@@ -331,6 +396,8 @@ function ItemPanel({ block, section, item, doc, entities, pdfs, scrap, editText,
               <Button size="sm" onClick={() => editText(item.id)} data-testid="editor-edit-text"><Type className="mr-1.5 h-4 w-4" />Escrever e formatar</Button>
               <p className="text-[11px] text-muted-foreground">Atalho: dois cliques no texto.</p>
             </div>
+          ) : EXTRA_TYPES.has(block.type) ? (
+            <ExtraBlockFields block={block} onChange={(patch) => patchBlock(item.id, patch)} />
           ) : (
             <BlockFields block={block} onChange={(patch) => patchBlock(item.id, patch)} entities={entities} pdfs={pdfs} />
           )}
@@ -370,6 +437,9 @@ function ItemPanel({ block, section, item, doc, entities, pdfs, scrap, editText,
               options={[{ value: 'none', label: 'Retos' }, { value: 'sm', label: 'Arredondados' }, { value: 'lg', label: 'Bem redondos' }]} />
           </Field>
           <label className="flex items-center justify-between text-sm">Sombra <Switch checked={!!style.shadow} onCheckedChange={(v) => setStyle({ shadow: v })} /></label>
+          <Field label="Animação ao aparecer" hint="Na página publicada, quando a pessoa rola até aqui.">
+            <Segmented value={style.anim ?? 'theme'} onChange={(v) => setStyle({ anim: v === 'theme' ? undefined : v })} options={ANIMS} />
+          </Field>
           <label className="flex items-center justify-between text-sm">Texto claro <Switch checked={!!style.light} onCheckedChange={(v) => setStyle({ light: v })} /></label>
           <Field label="Mostrar">
             <div className="flex flex-wrap gap-1.5">

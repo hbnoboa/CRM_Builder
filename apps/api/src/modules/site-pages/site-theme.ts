@@ -21,6 +21,7 @@ const FILLS = ['solid', 'outline', 'soft', 'shadow'] as const;
 const RADII = ['none', 'sm', 'md', 'lg', 'xl'] as const;
 const SHADOWS = ['none', 'soft', 'strong'] as const;
 const SPACINGS = ['compact', 'normal', 'airy'] as const;
+const ANIMATIONS = ['none', 'fade', 'rise', 'zoom', 'slide'] as const;
 
 export interface SiteTextStyle {
   font?: string;
@@ -50,6 +51,8 @@ export interface SiteTheme {
   bgVideo?: string;
   /** Escurece/clareia a foto ou video de fundo (0 a 80 %). */
   bgDim?: number;
+  /** Como os elementos aparecem ao rolar a pagina. */
+  animation?: (typeof ANIMATIONS)[number];
 }
 
 const obj = (v: unknown) => (v && typeof v === 'object' && !Array.isArray(v) ? (v as Record<string, unknown>) : {});
@@ -107,6 +110,7 @@ export function normalizeTheme(raw: unknown, safeUrl: (u: unknown) => string): S
     bgImage: bgImage || undefined,
     bgVideo: bgVideo || undefined,
     bgDim: num(t.bgDim, 0, 80),
+    animation: pick(ANIMATIONS, t.animation),
   });
 }
 

@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, type CSSProperties, type FormEvent, type ReactNode } from 'react';
-import { AtSign, CheckCircle2, Clock, Copy, Download, ExternalLink, FileText, Loader2, Mail, MapPin, MessageCircle, Paperclip, Phone, Star, Upload, X } from 'lucide-react';
+import { useEffect, useRef, useState, type CSSProperties, type FormEvent, type ReactNode } from 'react';
+import { CheckCircle2, Copy, Download, ExternalLink, FileText, Loader2, Paperclip, Star, Upload, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -10,9 +10,11 @@ import { cn } from '@/lib/utils';
 import { siteScriptFont } from '@/lib/site-fonts';
 import { customFontCss, resolveTheme, themeVars, type ResolvedTheme } from '@/lib/site-theme';
 import { RichTextView, plainToDoc } from '@/components/site/rich-text-view';
+import { SiteFooterView, SiteHeaderView } from '@/components/site/site-chrome';
+import { FaqView, IconsView, LogosView, MapView, PricingView, SocialView, StatsView, TestimonialsView, VideoView } from '@/components/site/site-blocks-view';
 import './site-fonts.css';
 import './site-theme.css';
-import { absoluteSiteUrl, siteApi, type SiteAppearance, type SiteFooter, type SiteBlockView, type SiteCatalogItem, type SiteFieldDef, type SiteItemStyle, type SiteLayout, type SiteLayoutItem, type SitePageData, type SiteRecordView, type SiteSection, type SiteSpacing, type SiteValue } from '@/lib/site-api';
+import { absoluteSiteUrl, siteApi, type SiteAppearance, type SiteBlockView, type SiteCatalogItem, type SiteFieldDef, type SiteItemStyle, type SiteLayout, type SiteLayoutItem, type SitePageData, type SiteRecordView, type SiteSection, type SiteSpacing, type SiteValue } from '@/lib/site-api';
 
 const DEFAULT_BRAND = '#2563eb';
 // Fontes do tema: texto (corpo) e titulos. Os blocos usam estas variaveis.
@@ -115,12 +117,29 @@ export const SITE_GRID = { cols: 12, rowPx: 8, gapX: 24, gapY: (scrap: boolean) 
 
 /** Pagina para clientes: o que o cliente final ve, no computador e no celular. */
 export function SitePageView({ data, tenantSlug, pageSlug, token, preview, onChanged }: SitePageViewProps) {
-  const { brand, scrap } = siteLook(data);
+  const { brand, scrap, theme } = siteLook(data);
+  const mainRef = useRef<HTMLElement>(null);
+  // Animacao ao aparecer: so na pagina publicada; o CSS so esconde depois que o observador esta pronto
+  useEffect(() => {
+    const main = mainRef.current;
+    const root = main?.closest('.site-canvas');
+    if (preview || !main || !root || typeof IntersectionObserver === 'undefined') return;
+    const items = main.querySelectorAll('.site-anim');
+    if (!items.length) return;
+    const io = new IntersectionObserver((entries) => {
+      for (const e of entries) {
+        if (e.isIntersecting) { e.target.classList.add('site-in'); io.unobserve(e.target); }
+      }
+    }, { rootMargin: '0px 0px -8% 0px', threshold: 0.08 });
+    items.forEach((el) => io.observe(el));
+    root.classList.add('site-anim-ready');
+    return () => io.disconnect();
+  }, [preview, data]);
   const byId = new Map(data.blocks.map((b) => [b.id, b]));
   let order = 0;
   return (
     <SiteFrame data={data} preview={preview}>
-      <main>
+      <main ref={mainRef}>
         {layoutOf(data).sections.map((section) => {
           const onPhone = mobileOrder(section.items);
           return (
@@ -130,16 +149,18 @@ export function SitePageView({ data, tenantSlug, pageSlug, token, preview, onCha
                   const block = byId.get(item.id);
                   if (!block) return null;
                   const visual = itemVisual(item);
+                  const anim = preview ? 'none' : item.style?.anim ?? theme.animation ?? 'none';
                   return (
                     <div
                       key={item.id}
                       id={block.id}
-                      className={cn('site-item scroll-mt-4', visual.className, item.hide && `site-hide-${item.hide}`)}
+                      className={cn('site-item scroll-mt-4', visual.className, item.hide && `site-hide-${item.hide}`, anim !== 'none' && `site-anim site-anim-${anim}`)}
                       style={{
                         ...visual.style,
                         '--site-col': `${item.x + 1} / span ${item.w}`,
                         '--site-rows': `${item.y + 1} / span ${item.h}`,
                         '--site-order': onPhone.indexOf(item),
+                      ...(anim !== 'none' ? { transitionDelay: `${(item.x / 12) * 0.3}s` } : {}),
                         ...(item.minH ? { '--site-minh': `${rowsToPx(item.minH, scrap)}px` } : {}),
                       } as CSSProperties}
                     >
@@ -180,29 +201,11 @@ export function SiteFrame({ data, preview, children, onHeaderClick, onFooterClic
       {fonts.length > 0 && <style>{customFontCss(fonts)}</style>}
       <BackgroundMedia image={theme.bgImage} video={theme.bgVideo} dim={theme.bgDim} sticky />
       <div onClick={onHeaderClick} className={cn(onHeaderClick && 'site-editable cursor-pointer', highlight === 'header' && 'site-editable-on')} data-testid="site-frame-header">
-        {scrap ? <ScrapHeader data={data} look={look} brand={brand} /> : <ClassicHeader data={data} look={look} brand={brand} width={width} />}
-        <SiteMenu data={data} brand={brand} scrap={scrap} preview={preview} width={width} />
+        <SiteHeaderView data={data} look={look} brand={brand} scrap={scrap} width={width} preview={preview} />
       </div>
       {children}
       <div onClick={onFooterClick} className={cn(onFooterClick && 'site-editable cursor-pointer', highlight === 'footer' && 'site-editable-on')} data-testid="site-frame-footer">
-        <SiteFooterInfo footer={data.site?.footer} brand={brand} scrap={scrap} width={width} />
-        {onFooterClick && !Object.keys(data.site?.footer || {}).length && (
-          <div className={cn('mx-auto mt-6 px-4', width)}>
-            <p className="rounded-2xl border-2 border-dashed border-slate-300 bg-white/70 p-4 text-center text-sm text-slate-500">
-              Rodapé do site: clique para colocar endereço, horários e contato
-            </p>
-          </div>
-        )}
-        {scrap ? (
-          <footer className="px-4 pb-10 pt-4 text-center">
-            <p className="text-2xl" style={{ fontFamily: SCRIPT, color: brand }}>feito com ♡</p>
-            <p className="mt-1 text-xs text-slate-500">{data.tenant.name} · CRM Builder</p>
-          </footer>
-        ) : (
-          <footer className={cn('mx-auto px-4 pb-8 pt-2 text-center text-xs text-slate-400', width)}>
-            {data.tenant.name} · feito com CRM Builder
-          </footer>
-        )}
+        <SiteFooterView data={data} brand={brand} scrap={scrap} width={width} editing={!!onFooterClick} />
       </div>
     </div>
   );
@@ -262,122 +265,6 @@ export function itemVisual(item: SiteLayoutItem): { className: string; style: CS
     ),
     style: { ...(st.bg ? { backgroundColor: st.bg } : {}), ...(st.light ? { color: '#fff' } : {}) },
   };
-}
-
-/**
- * Menu entre as paginas do site. Links relativos (so o endereco da pagina): funcionam
- * em /p/<empresa>/<pagina> e no subdominio da empresa. Na previa nao navega.
- */
-function SiteMenu({ data, brand, scrap, preview, width }: { data: SitePageData; brand: string; scrap: boolean; preview?: boolean; width: string }) {
-  const menu = data.site?.menu || [];
-  if (menu.length < 2) return null;
-  return (
-    <nav aria-label="Páginas do site" data-testid="site-menu"
-      className={cn(scrap ? 'mx-auto max-w-3xl px-4 pt-6' : 'sticky top-0 z-20 border-b bg-white/95 backdrop-blur')}>
-      <ul className={cn('flex gap-2', scrap ? 'flex-wrap justify-center' : cn('mx-auto overflow-x-auto px-4 py-2', width))}>
-        {menu.map((m) => {
-          const cls = scrap
-            ? 'block whitespace-nowrap rounded-full border-2 px-4 py-1.5 text-[15px] font-semibold transition-colors'
-            : 'block whitespace-nowrap rounded-md px-3 py-1.5 text-sm font-medium transition-colors';
-          const style: CSSProperties = scrap
-            ? (m.current ? { backgroundColor: brand, borderColor: brand, color: '#fff' } : { borderColor: tint(brand, 45), color: brand, backgroundColor: 'white' })
-            : (m.current ? { backgroundColor: tint(brand, 12), color: brand } : { color: '#475569' });
-          return (
-            <li key={m.slug} className="shrink-0">
-              {preview
-                ? <span className={cls} style={style}>{m.label}</span>
-                : <a href={m.slug} className={cls} style={style} aria-current={m.current ? 'page' : undefined}>{m.label}</a>}
-            </li>
-          );
-        })}
-      </ul>
-    </nav>
-  );
-}
-
-/** Link do WhatsApp: numero com DDI (sem ele, assume Brasil). */
-function waLink(raw: string) {
-  const digits = raw.replace(/\D/g, '');
-  return `https://wa.me/${digits.length <= 11 ? `55${digits}` : digits}`;
-}
-
-/** Contato e horarios no fim de todas as paginas do site. */
-function SiteFooterInfo({ footer, brand, scrap, width }: { footer?: SiteFooter; brand: string; scrap: boolean; width: string }) {
-  if (!footer || Object.keys(footer).length === 0) return null;
-  const rows = [
-    footer.address ? { icon: MapPin, text: footer.address, href: `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(footer.address)}` } : null,
-    footer.hours ? { icon: Clock, text: footer.hours } : null,
-    footer.whatsapp ? { icon: MessageCircle, text: 'WhatsApp', href: waLink(footer.whatsapp) } : null,
-    footer.phone ? { icon: Phone, text: footer.phone, href: `tel:${footer.phone.replace(/[^\d+]/g, '')}` } : null,
-    footer.instagram ? { icon: AtSign, text: `@${footer.instagram}`, href: `https://instagram.com/${footer.instagram}` } : null,
-    footer.email ? { icon: Mail, text: footer.email, href: `mailto:${footer.email}` } : null,
-  ].filter((r): r is { icon: typeof MapPin; text: string; href?: string } => !!r);
-  return (
-    <section className={cn('mx-auto mt-6 px-4', width)} data-testid="site-footer">
-      <div className={cn('bg-white p-5', scrap ? 'rounded-[2rem] border-2 border-dashed text-center' : 'rounded-2xl border')}
-        style={scrap ? { borderColor: tint(brand, 40) } : undefined}>
-        {footer.text && <p className={cn('mb-3 whitespace-pre-line text-slate-700', scrap && 'text-[16px]')} style={scrap ? { fontFamily: SERIF } : undefined}>{footer.text}</p>}
-        <ul className={cn('flex flex-wrap gap-x-5 gap-y-2 text-sm', scrap && 'justify-center')}>
-          {rows.map((r) => {
-            const Icon = r.icon;
-            const inner = <><Icon className="h-4 w-4 shrink-0" style={{ color: brand }} /><span>{r.text}</span></>;
-            return (
-              <li key={r.text}>
-                {r.href
-                  ? <a href={r.href} target={r.href.startsWith('http') ? '_blank' : undefined} rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-slate-700 hover:underline">{inner}</a>
-                  : <span className="inline-flex items-center gap-1.5 text-slate-700">{inner}</span>}
-              </li>
-            );
-          })}
-        </ul>
-      </div>
-    </section>
-  );
-}
-
-function Avatar({ data, brand, className }: { data: SitePageData; brand: string; className: string }) {
-  return data.tenant.logo ? (
-    // eslint-disable-next-line @next/next/no-img-element
-    <img src={data.tenant.logo} alt={data.tenant.name} className={cn('bg-white object-contain', className)} />
-  ) : (
-    <span className={cn('flex items-center justify-center font-bold text-white', className)} style={{ backgroundColor: brand }}>
-      {data.tenant.name.charAt(0).toUpperCase()}
-    </span>
-  );
-}
-
-function ClassicHeader({ data, look, brand, width }: { data: SitePageData; look: SiteAppearance; brand: string; width: string }) {
-  return (
-    <header className="border-b bg-white">
-      {look.coverUrl && <div className="h-36 w-full bg-cover bg-center csm:h-48" style={{ backgroundImage: `url(${look.coverUrl})` }} />}
-      <div className={cn('mx-auto flex items-center gap-3 px-4 py-3', width)}>
-        <Avatar data={data} brand={brand} className="h-9 w-9 rounded-lg text-sm" />
-        <span className="min-w-0">
-          <span className="block font-semibold">{data.tenant.name}</span>
-          {look.tagline && <span className="block truncate text-xs text-slate-500">{look.tagline}</span>}
-        </span>
-      </div>
-    </header>
-  );
-}
-
-/** Topo estilo blog antigo: capa, avatar redondo, nome em serifa e frase manuscrita. */
-function ScrapHeader({ data, look, brand }: { data: SitePageData; look: SiteAppearance; brand: string }) {
-  return (
-    <header className="relative">
-      {look.coverUrl ? (
-        <div className="h-52 w-full bg-cover bg-center csm:h-72" style={{ backgroundImage: `url(${look.coverUrl})` }} />
-      ) : (
-        <div className="h-28 w-full" style={{ background: `linear-gradient(135deg, ${brand}, ${tint(brand, 45)})` }} />
-      )}
-      <div className="mx-auto -mt-14 max-w-3xl px-4 text-center">
-        <Avatar data={data} brand={brand} className="mx-auto h-28 w-28 rounded-full border-[5px] border-white text-4xl shadow-lg" />
-        <h1 className="mt-3 text-4xl font-bold italic tracking-tight csm:text-5xl" style={{ fontFamily: SERIF }}>{data.tenant.name}</h1>
-        {look.tagline && <p className="mt-1 text-2xl csm:text-3xl" style={{ fontFamily: SCRIPT, color: brand }}>{look.tagline}</p>}
-        <p className="mt-3 text-sm tracking-[0.6em]" style={{ color: brand }} aria-hidden>✿ ♡ ✿</p>
-      </div>
-    </header>
-  );
 }
 
 /** Fita adesiva das polaroides. */
@@ -458,6 +345,16 @@ export function BlockView({ block, index, data, brand, scrap, tenantSlug, pageSl
           {block.author && <footer className="mt-1 text-sm text-slate-500">— {block.author}</footer>}
         </blockquote>
       );
+    case 'video': return <VideoView block={block} preview={preview} />;
+    case 'map': return <MapView block={block} preview={preview} />;
+    case 'faq': return <FaqView block={block} />;
+    case 'icons': return <IconsView block={block} />;
+    case 'social': return <SocialView block={block} preview={preview} />;
+    case 'spacer': return <div aria-hidden style={{ height: block.height }} />;
+    case 'stats': return <StatsView block={block} />;
+    case 'pricing': return <PricingView block={block} preview={preview} />;
+    case 'testimonials': return <TestimonialsView block={block} />;
+    case 'logos': return <LogosView block={block} />;
     case 'catalog':
       return <CatalogView block={block} brand={brand} scrap={scrap} preview={preview} />;
     case 'form':

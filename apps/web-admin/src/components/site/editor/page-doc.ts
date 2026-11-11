@@ -33,10 +33,23 @@ export const STARTERS: Record<string, Record<string, unknown>> = {
   cards: { columns: 3, items: [{ title: 'Destaque 1' }, { title: 'Destaque 2' }, { title: 'Destaque 3' }] },
   quote: { text: 'Uma frase marcante sobre a empresa.' },
   catalog: { limit: 30 },
+  video: { url: '' },
+  map: { address: '', zoom: 15, height: 320 },
+  faq: { title: 'Perguntas frequentes', items: [{ q: 'Qual o horário de funcionamento?', a: 'Escreva aqui a resposta.' }, { q: 'Vocês fazem entrega?', a: 'Escreva aqui a resposta.' }] },
+  icons: { columns: 3, layout: 'top', items: [{ icon: 'star', title: 'Qualidade', text: 'Conte por que vale a pena.' }, { icon: 'heart', title: 'Atendimento', text: 'Conte como você atende.' }, { icon: 'truck', title: 'Entrega', text: 'Conte como funciona.' }] },
+  social: { style: 'icons', links: [{ network: 'instagram', url: '' }, { network: 'whatsapp', url: '' }] },
+  spacer: { height: 48 },
+  stats: { items: [{ value: '+500', label: 'clientes atendidos' }, { value: '10', label: 'anos de experiência' }, { value: '4,9★', label: 'de avaliação' }] },
+  pricing: { title: 'Planos', plans: [
+    { name: 'Básico', price: 'R$ 49', period: '/mês', features: ['Item incluído', 'Outro item'], buttonLabel: 'Quero este', buttonUrl: '' },
+    { name: 'Completo', price: 'R$ 99', period: '/mês', features: ['Tudo do Básico', 'Mais um item', 'Atendimento prioritário'], buttonLabel: 'Quero este', buttonUrl: '', highlight: true },
+  ] },
+  testimonials: { title: 'O que dizem os clientes', items: [{ text: 'Adorei o atendimento, recomendo muito!', author: 'Maria' }, { text: 'Tudo perfeito, voltarei com certeza.', author: 'João' }] },
+  logos: { title: 'Quem confia na gente', gray: true, images: [] },
 };
 
 /** Largura inicial (em colunas de 12) de cada tipo. */
-export const DEFAULT_W: Record<string, number> = { image: 6, button: 4, quote: 8 };
+export const DEFAULT_W: Record<string, number> = { image: 6, button: 4, quote: 8, social: 6, map: 6 };
 
 export const sectionOf = (layout: SiteLayout, itemId: string) => layout.sections.find((s) => s.items.some((it) => it.id === itemId));
 export const itemOf = (layout: SiteLayout, itemId: string) => sectionOf(layout, itemId)?.items.find((it) => it.id === itemId);
@@ -163,6 +176,7 @@ export function autoMobileOrder(doc: PageDoc, sectionId: string): PageDoc {
  */
 export function missingPart(b: SiteBlockDraft): string | null {
   const has = (v: unknown) => typeof v === 'string' && v.trim() !== '';
+  const rows = (v: unknown) => (Array.isArray(v) ? (v as Array<Record<string, unknown>>) : []);
   switch (b.type) {
     case 'heading': case 'text': case 'quote': return has(b.text) ? null : 'o texto';
     case 'image': return has(b.url) ? null : 'a foto';
@@ -170,6 +184,15 @@ export function missingPart(b: SiteBlockDraft): string | null {
     case 'hero': return has(b.title) ? null : 'o título';
     case 'gallery': return ((b.images as Array<{ url?: string }> | undefined) || []).some((i) => has(i?.url)) ? null : 'as fotos';
     case 'cards': return ((b.items as Array<{ title?: string }> | undefined) || []).some((i) => has(i?.title)) ? null : 'os cartões';
+    case 'video': return has(b.url) ? null : 'o link do vídeo';
+    case 'map': return has(b.address) ? null : 'o endereço';
+    case 'faq': return rows(b.items).some((i) => has(i.q)) ? null : 'as perguntas';
+    case 'icons': return rows(b.items).some((i) => has(i.title)) ? null : 'os itens';
+    case 'social': return rows(b.links).some((i) => has(i.url)) ? null : 'os links';
+    case 'stats': return rows(b.items).some((i) => has(i.value)) ? null : 'os números';
+    case 'pricing': return rows(b.plans).some((i) => has(i.name)) ? null : 'os planos';
+    case 'testimonials': return rows(b.items).some((i) => has(i.text)) ? null : 'os depoimentos';
+    case 'logos': return rows(b.images).some((i) => has(i.url)) ? null : 'as imagens';
     default: return null;
   }
 }

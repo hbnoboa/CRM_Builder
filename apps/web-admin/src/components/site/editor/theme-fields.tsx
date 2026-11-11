@@ -157,6 +157,12 @@ export function ThemeFields({ look, brandColor, onChange, saved, onSaved }: Prop
         )}
       </Group>
 
+      <Group title="Animações" hint="Como os elementos aparecem ao rolar a página">
+        <Segmented value={theme.animation ?? 'none'} onChange={(animation) => setTheme({ animation })}
+          options={[{ value: 'none', label: 'Nenhuma' }, { value: 'fade', label: 'Surgir' }, { value: 'rise', label: 'Subir' }, { value: 'zoom', label: 'Aproximar' }, { value: 'slide', label: 'Deslizar' }]} />
+        <p className="text-[11px] text-muted-foreground">Vale para a página publicada. Cada elemento pode ter a sua (Estilo e posição).</p>
+      </Group>
+
       <Group title="Enfeites">
         <label className="flex items-center justify-between gap-3 text-sm">
           <span>Enfeites de scrapbook<span className="block text-[11px] text-muted-foreground">Fitas, polaroides tortinhas, corações e bordas tracejadas.</span></span>

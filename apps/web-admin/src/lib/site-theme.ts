@@ -97,13 +97,14 @@ export interface ResolvedTheme {
   bgImage?: string;
   bgVideo?: string;
   bgDim: number;
+  animation: 'none' | 'fade' | 'rise' | 'zoom' | 'slide';
 }
 
 const TS = (font: string, size: number, extra: Partial<ResolvedTextStyle> = {}): ResolvedTextStyle =>
   ({ font, size, bold: true, italic: false, upper: false, spacing: 0, line: 120, ...extra });
 
 /** Padrao de cada estilo antigo (pagina sem tema escolhido fica como era). */
-function baseTheme(decor: 'classic' | 'scrapbook', accent: string): Omit<ResolvedTheme, 'pattern'> {
+function baseTheme(decor: 'classic' | 'scrapbook', accent: string): Omit<ResolvedTheme, 'pattern' | 'animation'> {
   if (decor === 'scrapbook') {
     return {
       decor,
@@ -174,6 +175,7 @@ export function resolveTheme(look: SiteAppearance | undefined, brand: string): R
     bgImage: t.bgImage,
     bgVideo: t.bgVideo,
     bgDim: t.bgDim ?? 0,
+    animation: t.animation ?? 'none',
   };
 }
 

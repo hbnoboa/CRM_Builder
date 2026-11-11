@@ -26,6 +26,7 @@ import { DESKTOP_WIDTH, PHONE_WIDTH, PageCanvas, TEXT_TYPES, gridSpot, rowsFor }
 import { PageInspector } from './page-inspector';
 import * as ops from './page-doc';
 import { useDocHistory } from './use-doc-history';
+import { SECTION_TEMPLATES, insertTemplate } from './section-templates';
 
 const docOf = (page: SitePage, site: SiteConfigDraft): ops.PageDoc => ({
   blocks: page.blocks,
@@ -77,6 +78,7 @@ export function SitePageEditor({ id }: { id: string }) {
   const [dragType, setDragType] = useState<string | null>(null);
   const [dragOverSection, setDragOverSection] = useState<string | null>(null);
   const [toolbarSlot, setToolbarSlot] = useState<HTMLDivElement | null>(null);
+  const [paletteTab, setPaletteTab] = useState<'elements' | 'sections'>('elements');
   const [preview, setPreview] = useState<SitePageData | null>(null);
   const [previewError, setPreviewError] = useState<string | null>(null);
 
@@ -322,7 +324,34 @@ export function SitePageEditor({ id }: { id: string }) {
       <div className="flex min-h-0 flex-1">
         {/* Esquerda: elementos para adicionar e secoes */}
         <aside className="w-60 shrink-0 overflow-y-auto border-r p-3" data-testid="editor-palette">
-          <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Adicionar</p>
+          <div className="mb-3 grid grid-cols-2 rounded-lg border p-0.5 text-xs font-medium">
+            {([['elements', 'Elementos'], ['sections', 'Seções prontas']] as const).map(([value, label]) => (
+              <button key={value} type="button" onClick={() => setPaletteTab(value)} data-testid={`palette-tab-${value}`}
+                className={cn('rounded-md py-1.5', paletteTab === value ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground')}>{label}</button>
+            ))}
+          </div>
+          {paletteTab === 'sections' ? (
+            <div className="space-y-1.5" data-testid="section-templates">
+              <p className="mb-1 text-[11px] text-muted-foreground">Clique para encaixar depois da seção escolhida. Depois troque textos e fotos.</p>
+              {SECTION_TEMPLATES.map((t) => (
+                <button key={t.id} type="button" data-testid={`template-${t.id}`}
+                  onClick={() => {
+                    const res = insertTemplate(doc, t, selectedSectionId ?? doc.layout.sections[doc.layout.sections.length - 1]?.id ?? null);
+                    change(() => res.doc);
+                    setSelection({ kind: 'section', id: res.id });
+                    setTimeout(() => document.getElementById(res.id)?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 150);
+                  }}
+                  className="flex w-full items-center gap-2.5 rounded-md border bg-card p-2 text-left hover:border-primary hover:bg-primary/5">
+                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-muted"><t.icon className="h-4 w-4" /></span>
+                  <span className="min-w-0">
+                    <span className="block text-sm font-medium">{t.name}</span>
+                    <span className="block truncate text-[11px] text-muted-foreground">{t.hint}</span>
+                  </span>
+                </button>
+              ))}
+            </div>
+          ) : (
+          <>
           <p className="mb-2 text-[11px] text-muted-foreground">Arraste para a página ou clique.</p>
           <div className="grid grid-cols-2 gap-1.5">
             {BLOCK_KINDS.filter((k) => k.type !== 'tracking' || !hasTracking).map((k) => (
@@ -343,6 +372,8 @@ export function SitePageEditor({ id }: { id: string }) {
               </button>
             ))}
           </div>
+          </>
+          )}
           <SectionList
             doc={doc}
             selectedId={selectedSectionId}

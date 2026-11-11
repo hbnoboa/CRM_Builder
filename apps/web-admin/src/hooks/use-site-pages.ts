@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import api from '@/lib/api';
 import { getErrorMessage } from '@/lib/get-error-message';
-import type { SiteLayout, SitePageData } from '@/lib/site-api';
+import type { SiteFooterStyle, SiteHeader, SiteLayout, SitePageData } from '@/lib/site-api';
 
 export type SiteBlockDraft = { id?: string; type: string; [key: string]: unknown };
 
@@ -111,6 +111,8 @@ export interface SiteConfigDraft {
   footer: Record<string, string | undefined>;
   homeSlug?: string;
   savedThemes?: Array<{ name: string; look: Record<string, unknown> }>;
+  header?: SiteHeader;
+  footerStyle?: SiteFooterStyle;
 }
 export interface SiteInfo {
   config: SiteConfigDraft;
