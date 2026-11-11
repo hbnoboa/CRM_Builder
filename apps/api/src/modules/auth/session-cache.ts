@@ -6,6 +6,8 @@ export const hashRefreshToken = (token: string) => createHash('sha256').update(t
 export interface ClientInfo {
   ip?: string;
   userAgent?: string;
+  /** Endereco usado (Host): no dominio proprio de uma empresa, so ela. */
+  host?: string;
 }
 
 // Sessao valida? O JwtStrategy pergunta a cada requisicao; guarda a resposta por 10s

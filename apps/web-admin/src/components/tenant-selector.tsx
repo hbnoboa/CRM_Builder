@@ -1,5 +1,6 @@
 'use client';
 
+import { onCustomDomain } from '@/lib/custom-domain';
 import { Building2, ChevronDown, Globe, Home } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useParams } from 'next/navigation';
@@ -35,7 +36,8 @@ export function TenantSelector() {
   };
 
   // Mostra apenas para usuarios com membership em multiplos tenants
-  if (!hasMultipleTenants) return null;
+  // No dominio proprio de uma empresa so ela existe: sem troca
+  if (!hasMultipleTenants || onCustomDomain()) return null;
 
   const tenants = accessibleTenants;
 
