@@ -23,7 +23,8 @@ export type AuditResource =
   | 'tenant'
   | 'invitation'
   | 'api_key'
-  | 'team';
+  | 'team'
+  | 'site_domain';
 
 export interface AuditLogInput {
   action: AuditAction;

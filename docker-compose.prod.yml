@@ -58,6 +58,10 @@ services:
       REDIS_HOST: redis
       REDIS_PORT: 6379
       REDIS_PASSWORD: ${REDIS_PASSWORD}
+      # Dominios proprios: sem DOMAIN_REGISTRAR a compra fica desligada (so ligar dominio existente)
+      SITE_DOMAIN_CNAME: ${SITE_DOMAIN_CNAME:-iossystem.com.br}
+      SITE_DOMAIN_IPS: ${SITE_DOMAIN_IPS:-}
+      DOMAIN_REGISTRAR: ${DOMAIN_REGISTRAR:-}
       JWT_SECRET: ${JWT_SECRET}
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
       JWT_EXPIRATION: ${JWT_EXPIRATION:-8h}
@@ -108,6 +112,8 @@ services:
     environment:
       TZ: America/Sao_Paulo
       NODE_ENV: production
+      # Dominio proprio das empresas: o web pergunta a API qual empresa responde no endereco
+      INTERNAL_API_URL: http://api:3001/api/v1
     depends_on:
       api:
         condition: service_healthy
@@ -223,6 +229,11 @@ services:
       # Paginas para clientes no subdominio (ex.: https://{empresa}.dev.iossystem.com.br).
       # Vazio = endereco /p/<empresa>/<pagina>. Ver docs/paginas-para-clientes.md
       SITE_PAGES_BASE_URL: ${SITE_PAGES_BASE_URL_DEV:-}
+      # Dominios proprios (ver docs/dominios-proprios.md): destino do CNAME/IPs do registro A
+      # e registrador. Em dev a compra usa o registrador de TESTE (nada e registrado de verdade).
+      SITE_DOMAIN_CNAME: ${SITE_DOMAIN_CNAME_DEV:-dev.iossystem.com.br}
+      SITE_DOMAIN_IPS: ${SITE_DOMAIN_IPS_DEV:-}
+      DOMAIN_REGISTRAR: ${DOMAIN_REGISTRAR_DEV:-mock}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:
@@ -256,6 +267,7 @@ services:
     environment:
       TZ: America/Sao_Paulo
       NODE_ENV: production
+      INTERNAL_API_URL: http://api-dev:3001/api/v1
     depends_on:
       api-dev:
         condition: service_healthy

@@ -14,6 +14,7 @@ import { RequireRole } from '@/components/auth/require-role';
 import { GestaoPageHeader } from '@/components/gestao/gestao-ui';
 import { useDeleteSitePage, useSitePages, type SitePageListItem } from '@/hooks/use-site-pages';
 import { SiteSettingsCard } from '@/components/site/site-settings-card';
+import { SiteDomainsCard } from '@/components/site/site-domains-card';
 import { cn } from '@/lib/utils';
 
 function PagesContent() {
@@ -31,6 +32,7 @@ function PagesContent() {
       />
 
       {!!pages?.length && <SiteSettingsCard />}
+      {!!pages?.length && <SiteDomainsCard />}
 
       {isLoading ? (
         <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
