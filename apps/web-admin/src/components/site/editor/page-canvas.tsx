@@ -110,7 +110,13 @@ export function PageCanvas(props: CanvasProps) {
   const nextIndex = () => order++;
 
   return (
-    <SiteFrame data={data} preview onHeaderClick={() => onSelect({ kind: 'page' })}>
+    <SiteFrame
+      data={data}
+      preview
+      onHeaderClick={() => onSelect({ kind: 'header' })}
+      onFooterClick={() => onSelect({ kind: 'footer' })}
+      highlight={selection.kind === 'header' || selection.kind === 'footer' ? selection.kind : null}
+    >
       <main onClick={(e) => { if (e.target === e.currentTarget) onSelect({ kind: 'page' }); }} className="pb-4">
         {doc.layout.sections.map((section, i) => {
           const selected = selection.kind === 'section' && selection.id === section.id;

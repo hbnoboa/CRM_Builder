@@ -58,6 +58,11 @@ export class UpdateSitePageDto {
 }
 
 export class PreviewSitePageDto {
+  @ApiPropertyOptional({ description: 'Aparencia, menu e rodape do site ainda nao salvos' })
+  @IsOptional()
+  @IsObject()
+  site?: Record<string, unknown>;
+
   @ApiProperty()
   @IsArray()
   @Type(() => Object)

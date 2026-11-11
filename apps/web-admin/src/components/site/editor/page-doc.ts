@@ -1,16 +1,23 @@
-import type { SiteBlockDraft } from '@/hooks/use-site-pages';
+import type { SiteBlockDraft, SiteConfigDraft } from '@/hooks/use-site-pages';
 import type { SiteItemStyle, SiteLayout, SiteLayoutItem, SiteSection } from '@/lib/site-api';
 import type { SiteLookDraft } from '@/components/site/site-block-editor';
 import { mobileOrder } from '@/components/site/site-page-view';
 
-/** O que o editor de pagina edita (e desfaz/refaz): blocos, secoes/grade e aparencia. */
+/**
+ * O que o editor de pagina edita (e desfaz/refaz): blocos, secoes/grade e aparencia
+ * da pagina, e o site (aparencia comum, menu, pagina inicial, rodape), que vale
+ * para todas as paginas.
+ */
 export interface PageDoc {
   blocks: SiteBlockDraft[];
   layout: SiteLayout;
   look: SiteLookDraft;
+  site: SiteConfigDraft;
 }
 
-export type Selection = { kind: 'page' } | { kind: 'section'; id: string } | { kind: 'item'; id: string };
+export type Selection =
+  | { kind: 'page' } | { kind: 'header' } | { kind: 'footer' }
+  | { kind: 'section'; id: string } | { kind: 'item'; id: string };
 
 export const COLS = 12;
 

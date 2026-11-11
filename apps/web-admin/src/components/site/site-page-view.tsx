@@ -141,29 +141,42 @@ export function SitePageView({ data, tenantSlug, pageSlug, token, preview, onCha
 }
 
 /** Fundo, topo, menu e rodape da pagina, em volta do conteudo. */
-export function SiteFrame({ data, preview, children, onHeaderClick }: { data: SitePageData; preview?: boolean; children: ReactNode; onHeaderClick?: () => void }) {
+export function SiteFrame({ data, preview, children, onHeaderClick, onFooterClick, highlight }: {
+  data: SitePageData; preview?: boolean; children: ReactNode;
+  /** Editor: topo (com menu) e rodape sao clicaveis e mostram quando estao selecionados. */
+  onHeaderClick?: () => void; onFooterClick?: () => void; highlight?: 'header' | 'footer' | null;
+}) {
   const { look, brand, scrap } = siteLook(data);
   // Topo, menu e rodape acompanham a largura do conteudo (pagina so com secoes estreitas fica como era)
   const width = layoutOf(data).sections.some((s) => s.width !== 'narrow') ? 'max-w-6xl' : scrap ? 'max-w-3xl' : 'max-w-2xl';
   const style = { '--site-brand': brand, '--site-gap-y': `${SITE_GRID.gapY(scrap)}px`, ...backgroundStyle(look, brand) } as CSSProperties;
   return (
     <div className={cn('site-canvas text-slate-900', siteScriptFont.variable, preview ? 'min-h-full' : 'min-h-screen')} style={style} data-testid="site-page" data-style={look.style}>
-      <div onClick={onHeaderClick} className={onHeaderClick ? 'cursor-pointer' : undefined}>
+      <div onClick={onHeaderClick} className={cn(onHeaderClick && 'site-editable cursor-pointer', highlight === 'header' && 'site-editable-on')} data-testid="site-frame-header">
         {scrap ? <ScrapHeader data={data} look={look} brand={brand} /> : <ClassicHeader data={data} look={look} brand={brand} width={width} />}
         <SiteMenu data={data} brand={brand} scrap={scrap} preview={preview} width={width} />
       </div>
       {children}
-      <SiteFooterInfo footer={data.site?.footer} brand={brand} scrap={scrap} width={width} />
-      {scrap ? (
-        <footer className="px-4 pb-10 pt-4 text-center">
-          <p className="text-2xl" style={{ fontFamily: SCRIPT, color: brand }}>feito com ♡</p>
-          <p className="mt-1 text-xs text-slate-500">{data.tenant.name} · CRM Builder</p>
-        </footer>
-      ) : (
-        <footer className={cn('mx-auto px-4 pb-8 pt-2 text-center text-xs text-slate-400', width)}>
-          {data.tenant.name} · feito com CRM Builder
-        </footer>
-      )}
+      <div onClick={onFooterClick} className={cn(onFooterClick && 'site-editable cursor-pointer', highlight === 'footer' && 'site-editable-on')} data-testid="site-frame-footer">
+        <SiteFooterInfo footer={data.site?.footer} brand={brand} scrap={scrap} width={width} />
+        {onFooterClick && !Object.keys(data.site?.footer || {}).length && (
+          <div className={cn('mx-auto mt-6 px-4', width)}>
+            <p className="rounded-2xl border-2 border-dashed border-slate-300 bg-white/70 p-4 text-center text-sm text-slate-500">
+              Rodapé do site: clique para colocar endereço, horários e contato
+            </p>
+          </div>
+        )}
+        {scrap ? (
+          <footer className="px-4 pb-10 pt-4 text-center">
+            <p className="text-2xl" style={{ fontFamily: SCRIPT, color: brand }}>feito com ♡</p>
+            <p className="mt-1 text-xs text-slate-500">{data.tenant.name} · CRM Builder</p>
+          </footer>
+        ) : (
+          <footer className={cn('mx-auto px-4 pb-8 pt-2 text-center text-xs text-slate-400', width)}>
+            {data.tenant.name} · feito com CRM Builder
+          </footer>
+        )}
+      </div>
     </div>
   );
 }
