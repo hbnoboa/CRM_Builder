@@ -18,7 +18,8 @@ import { getErrorMessage } from '@/lib/get-error-message';
 import { absoluteSiteUrl, type SiteBlockView, type SitePageData } from '@/lib/site-api';
 import { cn } from '@/lib/utils';
 import { useTenant } from '@/stores/tenant-context';
-import { DESKTOP_WIDTH, PHONE_WIDTH, PageCanvas, TEXT_TYPES } from './page-canvas';
+import { SITE_GRID, siteLook } from '@/components/site/site-page-view';
+import { DESKTOP_WIDTH, PHONE_WIDTH, PageCanvas, TEXT_TYPES, gridSpot, rowsFor } from './page-canvas';
 import { PageInspector } from './page-inspector';
 import * as ops from './page-doc';
 import { useDocHistory } from './use-doc-history';
@@ -66,6 +67,7 @@ export function SitePageEditor({ id }: { id: string }) {
   const [editVersion, setEditVersion] = useState(0);
   const [heights, setHeights] = useState<Record<string, number>>({});
   const [dragType, setDragType] = useState<string | null>(null);
+  const [dragOverSection, setDragOverSection] = useState<string | null>(null);
   const [preview, setPreview] = useState<SitePageData | null>(null);
   const [previewError, setPreviewError] = useState<string | null>(null);
 
@@ -216,6 +218,8 @@ export function SitePageEditor({ id }: { id: string }) {
   };
 
   if (isLoading || !page) return <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />;
+  const scrap = preview ? siteLook(preview).scrap : false;
+  const contentRows = (bid: string) => (heights[bid] ? rowsFor(heights[bid], SITE_GRID.gapY(scrap)) : 0);
   const fullUrl = absoluteSiteUrl(page.url.replace(/[^/]+$/, slug || page.slug));
   const hasTracking = doc.blocks.some((b) => b.type === 'tracking');
 
@@ -225,6 +229,12 @@ export function SitePageEditor({ id }: { id: string }) {
     patchItem: (bid: string, patch: Parameters<typeof ops.patchItem>[2]) => change((d) => ops.patchItem(d, bid, patch)),
     patchSection: (sid: string, patch: Parameters<typeof ops.patchSection>[2]) => change((d) => ops.patchSection(d, sid, patch), `section:${sid}:${Object.keys(patch).join()}`),
     moveItemToSection: (bid: string, sid: string) => change((d) => ops.moveItemToSection(d, bid, sid)),
+    moveOnPhone: (bid: string, dir: -1 | 1) => change((d) => ops.moveOnPhone(d, bid, dir)),
+    autoMobileOrder: (sid: string) => change((d) => ops.autoMobileOrder(d, sid)),
+    setMinH: (bid: string, rows: number | undefined) => change((d) => {
+      const item = ops.itemOf(d.layout, bid);
+      return ops.patchItem(d, bid, { minH: rows, h: Math.max(rows ?? 1, contentRows(bid) || item?.h || 1) });
+    }, `minh:${bid}`),
     duplicateItem,
     removeItem,
     moveSection: (sid: string, dir: -1 | 1) => change((d) => ops.moveSection(d, sid, d.layout.sections.findIndex((s) => s.id === sid) + dir)),
@@ -349,20 +359,34 @@ export function SitePageEditor({ id }: { id: string }) {
                   onAddSection={addSection}
                   onDuplicate={duplicateItem}
                   onRemove={removeItem}
+                  dragOverSection={dragOverSection}
+                  onDragOverSection={setDragOverSection}
+                  onMoveAcross={(bid, sid, point) => {
+                    beforeGesture.current = null;
+                    const item = ops.itemOf(doc.layout, bid);
+                    const at = item ? gridSpot(sid, point, item.w, scale, scrap) : undefined;
+                    change((d) => ops.moveItemToSection(d, bid, sid, at));
+                    setSelection({ kind: 'item', id: bid });
+                  }}
+                  onResizeItem={(bid, h) => {
+                    // Mais alto que o conteudo: guarda a altura escolhida; menor: volta a automatica
+                    updateDoc((d) => ops.patchItem(d, bid, { minH: h > contentRows(bid) ? h : undefined }), { silent: true });
+                  }}
+                  onMobileOrder={(sid, ids) => change((d) => ops.setMobileOrder(d, sid, ids))}
                 />
               </div>
             </div>
           )}
           {device === 'mobile' && (
             <p className="mx-auto mt-3 max-w-sm text-center text-xs text-muted-foreground">
-              No celular, os elementos de cada seção ficam um embaixo do outro. Para mudar a posição, use o modo Computador.
+              No celular, os elementos de cada seção ficam um embaixo do outro. Arraste para mudar a ordem só no celular.
             </p>
           )}
         </div>
 
         {/* Direita: propriedades */}
         <aside className="w-80 shrink-0 overflow-y-auto border-l">
-          <PageInspector doc={doc} selection={selection} brandColor={brandColor} entities={entities} pdfs={pdfs} {...actions} />
+          <PageInspector doc={doc} selection={selection} brandColor={brandColor} entities={entities} pdfs={pdfs} scrap={scrap} {...actions} />
         </aside>
       </div>
     </div>,

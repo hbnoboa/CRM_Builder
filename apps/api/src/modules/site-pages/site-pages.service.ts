@@ -12,7 +12,7 @@ import { PdfGeneratorService } from '../pdf/pdf-generator.service';
 import { loadTenantSchema, type SchemaTable } from '../ai-builder/tenant-schema';
 import { slugify } from '../ai-builder/ai-proposal-normalizer';
 import {
-  FORM_FIELD_TYPES, TRACK_FIELD_TYPES, normalizeBlocks, normalizeLayout, normalizeSettings, readingOrder, normalizeSiteConfig, publicField, requiredFields, suggestMatchField,
+  FORM_FIELD_TYPES, TRACK_FIELD_TYPES, missingPart, normalizeBlocks, normalizeLayout, normalizeSettings, readingOrder, normalizeSiteConfig, publicField, requiredFields, suggestMatchField,
   type CatalogBlock, type FormBlock, type NormalizeContext, type RawField, type SiteBlock, type TrackingBlock,
 } from './site-blocks';
 
@@ -320,13 +320,15 @@ export class SitePagesService {
     const site = normalizeSiteConfig((tenant.settings as { site?: unknown } | null)?.site);
     const own = normalizeSettings(page.settings);
     const look = own.ownLook ? own : site.look;
+    // Rascunhos (bloco sem texto, foto ou link) ficam guardados, mas nao saem na pagina
+    const visible = (page.blocks as SiteBlock[]).filter((b) => !missingPart(b));
     const entityBySlug = new Map(ctx.entities.map((e) => [e.slug, e]));
     const fieldsOf = (slug: string) => (ctx.rawFieldsBySlug.get(slug) || []);
     const catalogs = new Map<string, Awaited<ReturnType<SitePagesService['catalogItems']>>>();
     for (const b of page.blocks as SiteBlock[]) {
       if (b.type === 'catalog') catalogs.set(b.id, await this.catalogItems(tenant.id, b, ctx));
     }
-    const blocks = (page.blocks as SiteBlock[]).map((b) => {
+    const blocks = visible.map((b) => {
       if (b.type === 'catalog') {
         const raw = fieldsOf(b.entitySlug);
         const label = (slug?: string) => (slug ? raw.find((f) => f.slug === slug)?.label : undefined);
@@ -373,7 +375,7 @@ export class SitePagesService {
       page: { title: page.title, description: page.description, slug: page.slug, settings: look },
       site: await this.publicSite(tenant.id, site, page.slug),
       blocks,
-      layout: normalizeLayout(page.layout, page.blocks as SiteBlock[]),
+      layout: normalizeLayout(page.layout, visible),
       record,
       trackingError,
     };

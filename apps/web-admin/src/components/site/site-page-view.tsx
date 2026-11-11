@@ -74,8 +74,18 @@ export function layoutOf(data: Pick<SitePageData, 'blocks' | 'layout'>): SiteLay
   return { sections: [{ id: 'secao-1', width: 'narrow', padding: 'md', items: data.blocks.map((b, i) => ({ id: b.id, x: 0, y: i, w: 12, h: 1 })) }] };
 }
 
-/** Ordem de leitura de uma secao (e a ordem no celular). */
+/** Ordem de leitura de uma secao (de cima para baixo, da esquerda para a direita). */
 export const readingOrder = (items: SiteLayoutItem[]) => [...items].sort((a, b) => a.y - b.y || a.x - b.x);
+
+/** Ordem no celular: a escolhida no editor ou, sem escolha, a de leitura. */
+export function mobileOrder(items: SiteLayoutItem[]): SiteLayoutItem[] {
+  const read = readingOrder(items);
+  if (!items.some((it) => it.order !== undefined)) return read;
+  return read.map((it, i) => ({ it, k: it.order ?? 1000 + i })).sort((a, b) => a.k - b.k).map((x) => x.it);
+}
+
+/** Altura escolhida (linhas da grade) em px. */
+export const rowsToPx = (rows: number, scrap: boolean) => rows * (SITE_GRID.rowPx + SITE_GRID.gapY(scrap)) - SITE_GRID.gapY(scrap);
 
 /**
  * Grade: no computador 12 colunas (linha minima de ROW_PX, espacos de GAP_X/gap);
@@ -92,30 +102,39 @@ export function SitePageView({ data, tenantSlug, pageSlug, token, preview, onCha
   return (
     <SiteFrame data={data} preview={preview}>
       <main>
-        {layoutOf(data).sections.map((section) => (
-          <SectionShell key={section.id} section={section} brand={brand} scrap={scrap}>
-            <div className="site-grid">
-              {readingOrder(section.items).map((item) => {
-                const block = byId.get(item.id);
-                if (!block) return null;
-                const visual = itemVisual(item);
-                return (
-                  <div
-                    key={item.id}
-                    id={block.id}
-                    className={cn('site-item scroll-mt-4', visual.className, item.hide && `site-hide-${item.hide}`)}
-                    style={{ ...visual.style, '--site-col': `${item.x + 1} / span ${item.w}`, '--site-rows': `${item.y + 1} / span ${item.h}` } as CSSProperties}
-                  >
-                    <BlockView
-                      block={block} index={order++} data={data} brand={brand} scrap={scrap}
-                      tenantSlug={tenantSlug} pageSlug={pageSlug} token={token} preview={preview} onChanged={onChanged}
-                    />
-                  </div>
-                );
-              })}
-            </div>
-          </SectionShell>
-        ))}
+        {layoutOf(data).sections.map((section) => {
+          const onPhone = mobileOrder(section.items);
+          return (
+            <SectionShell key={section.id} section={section} brand={brand} scrap={scrap}>
+              <div className="site-grid">
+                {readingOrder(section.items).map((item) => {
+                  const block = byId.get(item.id);
+                  if (!block) return null;
+                  const visual = itemVisual(item);
+                  return (
+                    <div
+                      key={item.id}
+                      id={block.id}
+                      className={cn('site-item scroll-mt-4', visual.className, item.hide && `site-hide-${item.hide}`)}
+                      style={{
+                        ...visual.style,
+                        '--site-col': `${item.x + 1} / span ${item.w}`,
+                        '--site-rows': `${item.y + 1} / span ${item.h}`,
+                        '--site-order': onPhone.indexOf(item),
+                        ...(item.minH ? { '--site-minh': `${rowsToPx(item.minH, scrap)}px` } : {}),
+                      } as CSSProperties}
+                    >
+                      <BlockView
+                        block={block} index={order++} data={data} brand={brand} scrap={scrap}
+                        tenantSlug={tenantSlug} pageSlug={pageSlug} token={token} preview={preview} onChanged={onChanged}
+                      />
+                    </div>
+                  );
+                })}
+              </div>
+            </SectionShell>
+          );
+        })}
       </main>
     </SiteFrame>
   );

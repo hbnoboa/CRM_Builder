@@ -1,15 +1,18 @@
 'use client';
 
-import { useEffect, useMemo, useRef, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { DndContext, PointerSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core';
+import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import ReactGridLayout, { WidthProvider } from 'react-grid-layout/legacy';
 import type { Layout, LayoutItem } from 'react-grid-layout';
-import { Copy, EyeOff, Plus, Trash2 } from 'lucide-react';
+import { AlertTriangle, Copy, EyeOff, Plus, Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { BLOCK_KINDS } from '@/components/site/site-block-editor';
-import { BlockView, SITE_GRID, SectionShell, SiteFrame, itemVisual, readingOrder, siteLook } from '@/components/site/site-page-view';
+import { BlockView, SITE_GRID, SectionShell, SiteFrame, itemVisual, mobileOrder, readingOrder, rowsToPx, siteLook } from '@/components/site/site-page-view';
 import type { SiteBlockDraft } from '@/hooks/use-site-pages';
 import type { SiteBlockView, SiteLayoutItem, SitePageData, SiteSection } from '@/lib/site-api';
-import { DEFAULT_W, type PageDoc, type Selection } from './page-doc';
+import { DEFAULT_W, missingPart, type PageDoc, type Selection } from './page-doc';
 import 'react-grid-layout/css/styles.css';
 
 const Grid = WidthProvider(ReactGridLayout);
@@ -76,7 +79,27 @@ interface CanvasProps {
   onAddSection: (afterId: string | null) => void;
   onDuplicate: (id: string) => void;
   onRemove: (id: string) => void;
+  /** Secao embaixo do ponteiro enquanto arrasta um elemento de outra secao. */
+  dragOverSection: string | null;
+  onDragOverSection: (sectionId: string | null) => void;
+  onMoveAcross: (id: string, sectionId: string, point: { x: number; y: number }) => void;
+  onResizeItem: (id: string, h: number) => void;
+  onMobileOrder: (sectionId: string, ids: string[]) => void;
 }
+
+/** Secao (que nao seja a de origem) embaixo do ponteiro. */
+function sectionAt(point: { x: number; y: number }, except: string): string | null {
+  for (const el of document.elementsFromPoint(point.x, point.y)) {
+    const id = (el as HTMLElement).closest<HTMLElement>('[data-section-box]')?.dataset.sectionBox;
+    if (id && id !== except) return id;
+  }
+  return null;
+}
+
+const pointOf = (e: Event) => {
+  const t = (e as TouchEvent).changedTouches?.[0];
+  return t ? { x: t.clientX, y: t.clientY } : { x: (e as MouseEvent).clientX, y: (e as MouseEvent).clientY };
+};
 
 export function PageCanvas(props: CanvasProps) {
   const { doc, frame, device, selection, onSelect } = props;
@@ -92,11 +115,13 @@ export function PageCanvas(props: CanvasProps) {
         {doc.layout.sections.map((section, i) => {
           const selected = selection.kind === 'section' && selection.id === section.id;
           const hidden = section.hide === (device === 'mobile' ? 'mobile' : 'desktop');
+          const dropHere = props.dragOverSection === section.id;
           return (
-            <div key={section.id} className="group/section relative" data-testid="editor-section">
+            <div key={section.id} className="group/section relative" data-testid="editor-section" data-section-box={section.id}>
               <div
                 onClick={(e) => { e.stopPropagation(); onSelect({ kind: 'section', id: section.id }); }}
-                className={cn('outline-offset-[-2px] transition-[outline-color]', selected ? 'outline outline-2 outline-sky-500' : 'outline-dashed outline-1 outline-transparent hover:outline-sky-400/70', hidden && 'opacity-40')}
+                className={cn('outline-offset-[-2px] transition-[outline-color]', selected ? 'outline outline-2 outline-sky-500' : 'outline-dashed outline-1 outline-transparent hover:outline-sky-400/70', hidden && 'opacity-40',
+                  dropHere && 'bg-sky-400/10 outline outline-4 outline-sky-500')}
               >
                 <SectionShell section={section} brand={brand} scrap={scrap} editing>
                   {device === 'desktop'
@@ -108,9 +133,9 @@ export function PageCanvas(props: CanvasProps) {
                 type="button"
                 onClick={(e) => { e.stopPropagation(); onSelect({ kind: 'section', id: section.id }); }}
                 className={cn('absolute left-2 top-2 z-20 rounded-md bg-sky-500 px-2 py-0.5 text-[11px] font-medium text-white shadow transition-opacity',
-                  selected ? 'opacity-100' : 'opacity-0 group-hover/section:opacity-100')}
+                  selected || dropHere ? 'opacity-100' : 'opacity-0 group-hover/section:opacity-100')}
               >
-                {section.name || `Seção ${i + 1}`}{hidden ? ` · escondida no ${device === 'mobile' ? 'celular' : 'computador'}` : ''}
+                {dropHere ? 'Soltar nesta seção' : section.name || `Seção ${i + 1}`}{hidden ? ` · escondida no ${device === 'mobile' ? 'celular' : 'computador'}` : ''}
               </button>
               <AddSectionButton onClick={() => props.onAddSection(section.id)} />
             </div>
@@ -147,17 +172,25 @@ type SectionProps = CanvasProps & {
   nextIndex: () => number;
 };
 
-/** Computador: grade de 12 colunas (arrastar, largura pelas laterais, soltar blocos novos). */
+/**
+ * Computador: grade de 12 colunas. Arrastar muda o lugar (ate para outra secao),
+ * as laterais mudam a largura e a borda de baixo a altura; blocos novos sao soltos aqui.
+ */
 function SectionGrid(props: SectionProps) {
   const { section, heights, scrap, scale, editingId, dragType } = props;
   const gapY = SITE_GRID.gapY(scrap);
   const items = readingOrder(section.items);
+  const [dragging, setDragging] = useState<string | null>(null);
   const layout = items.map((it) => ({
     i: it.id, x: it.x, y: it.y, w: it.w, minW: 1, maxW: SITE_GRID.cols,
-    h: heights[it.id] ? rowsFor(heights[it.id], gapY) : it.h,
+    h: heights[it.id] ? Math.max(rowsFor(heights[it.id], gapY), it.minH ?? 1) : it.h,
     isDraggable: editingId !== it.id,
   }));
+  // Arrastando: a grade nao cresce sem fim para baixo, assim o ponteiro alcanca a proxima secao
+  const bottom = layout.reduce((max, l) => Math.max(max, l.y + l.h), 0);
+  const draggedH = layout.find((l) => l.i === dragging)?.h ?? 0;
   return (
+    <div data-grid-section={section.id}>
     <Grid
       className={cn('site-editor-grid', items.length === 0 && 'min-h-[110px] rounded-lg border-2 border-dashed border-slate-300/80')}
       layout={layout}
@@ -167,7 +200,8 @@ function SectionGrid(props: SectionProps) {
       containerPadding={[0, 0]}
       compactType="vertical"
       isResizable
-      resizeHandles={['e', 'w']}
+      resizeHandles={['e', 'w', 's', 'se', 'sw']}
+      maxRows={dragging ? bottom + draggedH : Infinity}
       isDroppable={!!dragType}
       droppingItem={{ i: '__novo__', x: 0, y: 0, w: dragType ? DEFAULT_W[dragType] ?? SITE_GRID.cols : SITE_GRID.cols, h: 6 }}
       onDropDragOver={() => (dragType ? { w: DEFAULT_W[dragType] ?? SITE_GRID.cols, h: 6 } : false)}
@@ -175,10 +209,18 @@ function SectionGrid(props: SectionProps) {
       transformScale={scale}
       draggableCancel=".no-drag,[contenteditable='true'],[contenteditable='plaintext-only']"
       onLayoutChange={(l: Layout) => props.onGridChange(section.id, l.filter((g) => g.i !== '__novo__'))}
-      onDragStart={props.onGestureStart}
-      onDragStop={props.onGestureEnd}
+      onDragStart={(_l: Layout, _o: LayoutItem | null, n: LayoutItem | null) => { setDragging(n?.i ?? null); props.onGestureStart(); }}
+      onDrag={(_l: Layout, _o: LayoutItem | null, _n: LayoutItem | null, _p: LayoutItem | null, e: Event) => props.onDragOverSection(sectionAt(pointOf(e), section.id))}
+      onDragStop={(_l: Layout, _o: LayoutItem | null, n: LayoutItem | null, _p: LayoutItem | null, e: Event) => {
+        setDragging(null);
+        props.onDragOverSection(null);
+        const point = pointOf(e);
+        const target = n ? sectionAt(point, section.id) : null;
+        if (n && target) props.onMoveAcross(n.i, target, point);
+        else props.onGestureEnd();
+      }}
       onResizeStart={props.onGestureStart}
-      onResizeStop={props.onGestureEnd}
+      onResizeStop={(_l: Layout, _o: LayoutItem | null, n: LayoutItem | null) => { if (n) props.onResizeItem(n.i, n.h); props.onGestureEnd(); }}
     >
       {items.map((it) => (
         <div key={it.id}>
@@ -186,15 +228,52 @@ function SectionGrid(props: SectionProps) {
         </div>
       ))}
     </Grid>
+    </div>
   );
 }
 
-/** Celular: um embaixo do outro, na ordem de leitura (como a pagina publicada). */
+/** Posicao na grade de uma secao para um ponto da tela (onde o elemento foi solto). */
+export function gridSpot(sectionId: string, point: { x: number; y: number }, w: number, scale: number, scrap: boolean) {
+  const el = document.querySelector<HTMLElement>(`[data-grid-section="${sectionId}"]`);
+  if (!el) return undefined;
+  const rect = el.getBoundingClientRect();
+  const width = rect.width / scale;
+  const colW = (width + SITE_GRID.gapX) / SITE_GRID.cols;
+  const x = Math.round(((point.x - rect.left) / scale) / colW - w / 2);
+  const y = Math.floor(((point.y - rect.top) / scale) / (SITE_GRID.rowPx + SITE_GRID.gapY(scrap)));
+  return { x: Math.min(Math.max(x, 0), SITE_GRID.cols - w), y: Math.max(y, 0) };
+}
+
+/** Celular: um embaixo do outro, na ordem do celular; arrastar muda essa ordem. */
 function SectionStack(props: SectionProps) {
-  const items = readingOrder(props.section.items);
+  const items = mobileOrder(props.section.items);
+  const ids = items.map((it) => it.id);
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
+  const onDragEnd = (e: DragEndEvent) => {
+    if (!e.over || e.active.id === e.over.id) return;
+    const next = ids.filter((id) => id !== e.active.id);
+    next.splice(ids.indexOf(String(e.over.id)), 0, String(e.active.id));
+    props.onMobileOrder(props.section.id, next);
+  };
   return (
-    <div className={cn('flex flex-col', items.length === 0 && 'min-h-[80px] rounded-lg border-2 border-dashed border-slate-300/80')} style={{ gap: 'var(--site-gap-y)' }}>
-      {items.map((it) => <ItemBox key={it.id} {...props} item={it} />)}
+    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
+      <SortableContext items={ids} strategy={verticalListSortingStrategy}>
+        <div className={cn('flex flex-col', items.length === 0 && 'min-h-[80px] rounded-lg border-2 border-dashed border-slate-300/80')} style={{ gap: 'var(--site-gap-y)' }}>
+          {items.map((it) => <SortableItem key={it.id} {...props} item={it} />)}
+        </div>
+      </SortableContext>
+    </DndContext>
+  );
+}
+
+function SortableItem(props: SectionProps & { item: SiteLayoutItem }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: props.item.id, disabled: props.editingId === props.item.id });
+  const minH = props.item.minH ? rowsToPx(props.item.minH, props.scrap) : undefined;
+  return (
+    <div ref={setNodeRef} {...attributes} {...listeners}
+      style={{ transform: CSS.Transform.toString(transform), transition, minHeight: minH, zIndex: isDragging ? 30 : undefined, position: 'relative' }}
+      className={cn('flex flex-col', isDragging && 'opacity-80')}>
+      <ItemBox {...props} />
     </div>
   );
 }
@@ -210,17 +289,19 @@ function ItemBox(props: SectionProps & { item: SiteLayoutItem; measure?: boolean
   const hidden = item.hide === (device === 'mobile' ? 'mobile' : 'desktop');
   const visual = itemVisual(item);
   const pad = ITEM_PAD_PX[item.style?.padding ?? ''] ?? 0;
+  const missing = missingPart(block);
   return (
     <div
-      className={cn('group/item relative h-full', !editing && 'cursor-grab active:cursor-grabbing',
+      className={cn('group/item relative flex h-full flex-1 flex-col', !editing && 'cursor-grab active:cursor-grabbing',
         selected ? 'outline outline-2 outline-offset-2 outline-primary' : 'hover:outline hover:outline-1 hover:outline-offset-2 hover:outline-primary/60')}
-      onMouseDown={(e) => { e.stopPropagation(); if (!editing) onSelect({ kind: 'item', id: item.id }); }}
+      // Sem stopPropagation: o mousedown precisa chegar na grade para arrastar
+      onMouseDown={() => { if (!editing) onSelect({ kind: 'item', id: item.id }); }}
       onClick={(e) => e.stopPropagation()}
       onDoubleClick={() => { if (TEXT_TYPES.has(block.type) && typeof view !== 'string') props.onStartEdit(item.id); }}
       data-testid="editor-item"
       data-type={block.type}
     >
-      <div className={cn('h-full', visual.className, hidden && 'opacity-40')} style={visual.style}>
+      <div className={cn('flex-1', visual.className, hidden && 'opacity-40')} style={visual.style}>
         <Measured
           key={`${item.id}-${editing ? 'edit' : props.editVersion}`}
           id={item.id}
@@ -236,6 +317,11 @@ function ItemBox(props: SectionProps & { item: SiteLayoutItem; measure?: boolean
           )}
         </Measured>
       </div>
+      {missing && typeof view !== 'string' && (
+        <span className="absolute bottom-1 left-1 z-10 inline-flex items-center gap-1 rounded bg-amber-500 px-1.5 py-0.5 text-[11px] font-medium text-white shadow" data-testid="editor-item-draft">
+          <AlertTriangle className="h-3 w-3" /> Falta {missing}: não aparece na página
+        </span>
+      )}
       {hidden && (
         <span className="absolute left-1 top-1 inline-flex items-center gap-1 rounded bg-slate-800/80 px-1.5 py-0.5 text-[10px] text-white">
           <EyeOff className="h-3 w-3" /> Escondido no {device === 'mobile' ? 'celular' : 'computador'}

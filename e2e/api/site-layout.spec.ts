@@ -6,7 +6,7 @@ import { API, call, createTenant, ownerStaff, type Tenant } from './helpers';
 // secoes contra os blocos: cada bloco uma vez, nada de bloco inventado, valores
 // fora da lista saem.
 
-type Item = { id: string; x: number; y: number; w: number; h: number; hide?: string; style?: Record<string, unknown> };
+type Item = { id: string; x: number; y: number; w: number; h: number; hide?: string; style?: Record<string, unknown>; order?: number; minH?: number };
 type Section = { id: string; width: string; padding: string; bg?: string; bgImage?: string; light?: boolean; items: Item[] };
 
 test.describe.serial('paginas em secoes e grade', () => {
@@ -111,5 +111,46 @@ test.describe.serial('paginas em secoes e grade', () => {
     })).json();
     // texto vazio nao entra na pagina; a grade segue so com o que ficou
     expect(preview.layout.sections[0].items).toEqual([{ id: 'a', x: 3, y: 0, w: 6, h: 4 }]);
+  });
+
+  test('ordem no celular e altura escolhida sao guardadas e conferidas', async ({ request }) => {
+    const saved = await (await call(request, 'patch', `/site-pages/${pageId}`, tenant.owner, {
+      expected: 200,
+      data: {
+        blocks: [{ id: 'a', type: 'heading', text: 'A' }, { id: 'b', type: 'text', text: 'B' }],
+        layout: { sections: [{ id: 's1', width: 'normal', padding: 'md', items: [
+          { id: 'a', x: 0, y: 0, w: 6, h: 3, order: 1, minH: 12 },
+          { id: 'b', x: 6, y: 0, w: 6, h: 3, order: -4, minH: 'x' },
+        ] }] },
+      },
+    })).json();
+    const [a, b] = saved.layout.sections[0].items as Item[];
+    expect(a).toMatchObject({ order: 1, minH: 12, h: 12 }); // altura nunca menor que a escolhida
+    expect(b).toMatchObject({ order: 0, minH: 1 });
+  });
+
+  test('rascunho (sem texto, foto ou link) fica guardado, mas nao aparece na pagina', async ({ request }) => {
+    const saved = await (await call(request, 'patch', `/site-pages/${pageId}`, tenant.owner, {
+      expected: 200,
+      data: {
+        blocks: [
+          { id: 'foto', type: 'image', url: '' },
+          { id: 'botao', type: 'button', label: 'WhatsApp', url: '' },
+          { id: 'galeria', type: 'gallery', images: [] },
+          { id: 'texto', type: 'text', text: 'Fica' },
+        ],
+        layout: { sections: [{ id: 's1', width: 'normal', padding: 'md', items: [
+          { id: 'foto', x: 0, y: 0, w: 12, h: 10 },
+          { id: 'botao', x: 0, y: 10, w: 4, h: 3 },
+          { id: 'galeria', x: 0, y: 13, w: 12, h: 10 },
+          { id: 'texto', x: 0, y: 23, w: 12, h: 3 },
+        ] }] },
+      },
+    })).json();
+    expect(saved.blocks.map((b: { id: string }) => b.id)).toEqual(['foto', 'botao', 'galeria', 'texto']);
+    const pub = await (await request.get(`${API}/site/${tenant.slug}/${pageSlug}`)).json();
+    expect(pub.blocks.map((b: { id: string }) => b.id)).toEqual(['texto']);
+    // sem buraco onde estavam os rascunhos
+    expect(pub.layout.sections[0].items).toEqual([{ id: 'texto', x: 0, y: 0, w: 12, h: 3 }]);
   });
 });

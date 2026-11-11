@@ -130,6 +130,7 @@
 }
 @container site (max-width: 767.98px) {
   .site-hide-mobile { display: none !important; }
+  .site-grid > .site-item { order: var(--site-order, 0); min-height: var(--site-minh, 0); }
 }
 /* Texto claro sobre fundo escuro (secao ou elemento) */
 .site-ink-light :is(.text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600, .text-slate-500) { color: rgb(255 255 255 / 0.92); }

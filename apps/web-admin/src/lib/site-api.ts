@@ -63,7 +63,13 @@ export interface SiteItemStyle {
   shadow?: boolean;
   light?: boolean;
 }
-export interface SiteLayoutItem { id: string; x: number; y: number; w: number; h: number; hide?: SiteHideOn; style?: SiteItemStyle }
+export interface SiteLayoutItem {
+  id: string; x: number; y: number; w: number; h: number; hide?: SiteHideOn; style?: SiteItemStyle;
+  /** Posicao no celular dentro da secao (sem: ordem de leitura). */
+  order?: number;
+  /** Altura escolhida, em linhas da grade (sem: a do conteudo). */
+  minH?: number;
+}
 export interface SiteSection {
   id: string;
   name?: string;

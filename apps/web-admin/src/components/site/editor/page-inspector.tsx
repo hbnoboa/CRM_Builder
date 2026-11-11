@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { AlignCenter, AlignLeft, AlignRight, ArrowDown, ArrowUp, Copy, Monitor, Smartphone, Trash2, Type } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -12,6 +12,7 @@ import {
   type EditorEntity, type EditorPdf, type SiteLookDraft,
 } from '@/components/site/site-block-editor';
 import type { SiteHideOn, SiteItemStyle, SiteLayoutItem, SiteSection, SiteSpacing } from '@/lib/site-api';
+import { SITE_GRID, mobileOrder, rowsToPx } from '@/components/site/site-page-view';
 import { sectionOf, type PageDoc, type Selection } from './page-doc';
 
 const SPACING: Array<{ value: SiteSpacing; label: string }> = [
@@ -30,6 +31,9 @@ export interface InspectorActions {
   patchItem: (id: string, patch: Partial<SiteLayoutItem>) => void;
   patchSection: (id: string, patch: Partial<SiteSection>) => void;
   moveItemToSection: (id: string, sectionId: string) => void;
+  moveOnPhone: (id: string, dir: -1 | 1) => void;
+  autoMobileOrder: (sectionId: string) => void;
+  setMinH: (id: string, rows: number | undefined) => void;
   duplicateItem: (id: string) => void;
   removeItem: (id: string) => void;
   moveSection: (id: string, dir: -1 | 1) => void;
@@ -43,6 +47,7 @@ interface Props extends InspectorActions {
   brandColor: string | null;
   entities: EditorEntity[];
   pdfs: EditorPdf[];
+  scrap: boolean;
 }
 
 /** Painel da direita: o que estiver selecionado na pagina (pagina, secao ou elemento). */
@@ -153,7 +158,7 @@ function SectionPanel({ section, index, doc, patchSection, moveSection, duplicat
   );
 }
 
-function ItemPanel({ block, section, item, doc, entities, pdfs, patchBlock, patchItem, moveItemToSection, duplicateItem, removeItem }: Props & {
+function ItemPanel({ block, section, item, doc, entities, pdfs, scrap, patchBlock, patchItem, moveItemToSection, duplicateItem, removeItem, moveOnPhone, autoMobileOrder, setMinH }: Props & {
   block: PageDoc['blocks'][number]; section: SiteSection; item: SiteLayoutItem;
 }) {
   const [tab, setTab] = useState<'content' | 'style'>('content');
@@ -187,10 +192,10 @@ function ItemPanel({ block, section, item, doc, entities, pdfs, patchBlock, patc
         <div className="space-y-3 p-4">
           <BlockFields block={block} onChange={(patch) => patchBlock(item.id, patch)} entities={entities} pdfs={pdfs} />
           {(block.type === 'image' || block.type === 'gallery') && (
-            <p className="text-[11px] text-muted-foreground">Sem foto, este elemento não é salvo.</p>
+            <p className="text-[11px] text-muted-foreground">Sem foto, fica guardado, mas não aparece na página publicada.</p>
           )}
           {block.type === 'button' && !block.url && (
-            <p className="text-[11px] text-amber-700 dark:text-amber-400">Sem link, o botão não é salvo.</p>
+            <p className="text-[11px] text-amber-700 dark:text-amber-400">Sem link, o botão fica guardado, mas não aparece na página publicada.</p>
           )}
         </div>
       ) : (
@@ -199,6 +204,8 @@ function ItemPanel({ block, section, item, doc, entities, pdfs, patchBlock, patc
             <Segmented value={WIDTHS.some((w) => w.value === item.w) ? item.w : -1} options={WIDTHS}
               onChange={(w) => patchItem(item.id, { w, x: Math.min(item.x, 12 - w) })} />
           </Field>
+          <HeightField item={item} scrap={scrap} onChange={(rows) => setMinH(item.id, rows)} />
+          <PhoneOrderField item={item} section={section} onMove={(dir) => moveOnPhone(item.id, dir)} onAuto={() => autoMobileOrder(section.id)} />
           <Field label="Alinhamento do texto">
             <div className="flex gap-1.5">
               {([['left', AlignLeft], ['center', AlignCenter], ['right', AlignRight]] as const).map(([value, AlignIcon]) => (
@@ -244,5 +251,45 @@ function ItemPanel({ block, section, item, doc, entities, pdfs, patchBlock, patc
         </div>
       )}
     </div>
+  );
+}
+
+/** Altura escolhida (px). Vazio: a do conteudo. Tambem da para puxar a borda de baixo na pagina. */
+function HeightField({ item, scrap, onChange }: { item: SiteLayoutItem; scrap: boolean; onChange: (rows: number | undefined) => void }) {
+  const current = item.minH ? String(rowsToPx(item.minH, scrap)) : '';
+  const [text, setText] = useState(current);
+  useEffect(() => setText(current), [current]);
+  const commit = () => {
+    const px = Number(text);
+    if (!text.trim() || !Number.isFinite(px) || px <= 0) { onChange(undefined); setText(''); return; }
+    const gap = SITE_GRID.gapY(scrap);
+    onChange(Math.min(1000, Math.max(1, Math.ceil((px + gap) / (SITE_GRID.rowPx + gap)))));
+  };
+  return (
+    <Field label="Altura mínima" hint="Puxe a borda de baixo do elemento na página, ou escreva em pixels. Vazio: a altura do conteúdo.">
+      <div className="flex items-center gap-2">
+        <Input value={text} inputMode="numeric" placeholder="Automática" className="h-8 w-28"
+          onChange={(e) => setText(e.target.value.replace(/[^0-9]/g, ''))} onBlur={commit}
+          onKeyDown={(e) => { if (e.key === 'Enter') commit(); }} data-testid="editor-min-height" />
+        <span className="text-xs text-muted-foreground">px</span>
+        {item.minH && <Button type="button" size="sm" variant="ghost" className="h-8 px-2 text-xs" onClick={() => onChange(undefined)}>Automática</Button>}
+      </div>
+    </Field>
+  );
+}
+
+/** Posicao do elemento no celular (dentro da secao). */
+function PhoneOrderField({ item, section, onMove, onAuto }: { item: SiteLayoutItem; section: SiteSection; onMove: (dir: -1 | 1) => void; onAuto: () => void }) {
+  const list = mobileOrder(section.items);
+  const index = list.findIndex((it) => it.id === item.id);
+  const custom = section.items.some((it) => it.order !== undefined);
+  return (
+    <Field label={`Ordem no celular: ${index + 1}º de ${list.length}`} hint={custom ? 'Ordem escolhida para esta seção.' : 'Automática: de cima para baixo, da esquerda para a direita.'}>
+      <div className="flex flex-wrap gap-1.5">
+        <Button type="button" size="sm" variant="outline" disabled={index <= 0} onClick={() => onMove(-1)} data-testid="editor-phone-up"><ArrowUp className="mr-1 h-3.5 w-3.5" />Antes</Button>
+        <Button type="button" size="sm" variant="outline" disabled={index >= list.length - 1} onClick={() => onMove(1)} data-testid="editor-phone-down"><ArrowDown className="mr-1 h-3.5 w-3.5" />Depois</Button>
+        {custom && <Button type="button" size="sm" variant="ghost" onClick={onAuto}>Voltar à automática</Button>}
+      </div>
+    </Field>
   );
 }

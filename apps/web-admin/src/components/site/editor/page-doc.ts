@@ -1,6 +1,7 @@
 import type { SiteBlockDraft } from '@/hooks/use-site-pages';
 import type { SiteItemStyle, SiteLayout, SiteLayoutItem, SiteSection } from '@/lib/site-api';
 import type { SiteLookDraft } from '@/components/site/site-block-editor';
+import { mobileOrder } from '@/components/site/site-page-view';
 
 /** O que o editor de pagina edita (e desfaz/refaz): blocos, secoes/grade e aparencia. */
 export interface PageDoc {
@@ -96,15 +97,74 @@ export function patchItem(doc: PageDoc, id: string, patch: Partial<Omit<SiteLayo
   return mapSection(doc, section.id, (s) => ({ ...s, items: s.items.map((it) => (it.id === id ? { ...it, ...patch } : it)) }));
 }
 
-/** Leva o elemento para o fim de outra secao. */
-export function moveItemToSection(doc: PageDoc, id: string, sectionId: string): PageDoc {
+/** Leva o elemento para outra secao: no lugar onde foi solto ou no fim dela. */
+export function moveItemToSection(doc: PageDoc, id: string, sectionId: string, at?: { x: number; y: number }): PageDoc {
   const item = itemOf(doc.layout, id);
-  if (!item) return doc;
+  if (!item || sectionOf(doc.layout, id)?.id === sectionId) return doc;
+  const rest: SiteLayoutItem = { ...item };
+  delete rest.order; // a ordem do celular era da secao de origem
   const sections = doc.layout.sections.map((s) => ({ ...s, items: s.items.filter((it) => it.id !== id) }));
   return {
     ...doc,
-    layout: { sections: sections.map((s) => (s.id === sectionId ? { ...s, items: [...s.items, { ...item, y: bottom(s.items) }] } : s)) },
+    layout: {
+      sections: sections.map((s) => {
+        if (s.id !== sectionId) return s;
+        const moved = at
+          ? { ...rest, x: Math.min(Math.max(at.x, 0), COLS - item.w), y: Math.max(at.y, 0) }
+          : { ...rest, y: bottom(s.items) };
+        // Quem esta no caminho desce (a grade compacta depois)
+        const items = at ? s.items.map((it) => (it.y >= moved.y ? { ...it, y: it.y + moved.h } : it)) : s.items;
+        return { ...s, items: [...items, moved] };
+      }),
+    },
   };
+}
+
+/** Ordem no celular: grava a posicao de todos os elementos da secao. */
+export function setMobileOrder(doc: PageDoc, sectionId: string, ids: string[]): PageDoc {
+  const pos = new Map(ids.map((id, i) => [id, i]));
+  return mapSection(doc, sectionId, (s) => ({ ...s, items: s.items.map((it) => ({ ...it, order: pos.get(it.id) ?? ids.length })) }));
+}
+
+/** Sobe/desce o elemento na ordem do celular. */
+export function moveOnPhone(doc: PageDoc, id: string, dir: -1 | 1): PageDoc {
+  const section = sectionOf(doc.layout, id);
+  if (!section) return doc;
+  const ids = mobileOrder(section.items).map((it) => it.id);
+  const i = ids.indexOf(id);
+  const j = i + dir;
+  if (j < 0 || j >= ids.length) return doc;
+  [ids[i], ids[j]] = [ids[j], ids[i]];
+  return setMobileOrder(doc, section.id, ids);
+}
+
+/** Volta a ordem do celular para a automatica (a de leitura). */
+export function autoMobileOrder(doc: PageDoc, sectionId: string): PageDoc {
+  return mapSection(doc, sectionId, (s) => ({
+    ...s,
+    items: s.items.map((it) => {
+      const next = { ...it };
+      delete next.order;
+      return next;
+    }),
+  }));
+}
+
+/**
+ * O que falta para o bloco aparecer na pagina publicada (mesma regra do
+ * servidor, site-blocks.ts missingPart). Incompleto fica salvo como rascunho.
+ */
+export function missingPart(b: SiteBlockDraft): string | null {
+  const has = (v: unknown) => typeof v === 'string' && v.trim() !== '';
+  switch (b.type) {
+    case 'heading': case 'text': case 'quote': return has(b.text) ? null : 'o texto';
+    case 'image': return has(b.url) ? null : 'a foto';
+    case 'button': return !has(b.url) ? 'o link' : !has(b.label) ? 'o texto' : null;
+    case 'hero': return has(b.title) ? null : 'o título';
+    case 'gallery': return ((b.images as Array<{ url?: string }> | undefined) || []).some((i) => has(i?.url)) ? null : 'as fotos';
+    case 'cards': return ((b.items as Array<{ title?: string }> | undefined) || []).some((i) => has(i?.title)) ? null : 'os cartões';
+    default: return null;
+  }
 }
 
 export function patchSection(doc: PageDoc, id: string, patch: Partial<Omit<SiteSection, 'id' | 'items'>>): PageDoc {

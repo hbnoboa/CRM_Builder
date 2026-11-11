@@ -197,6 +197,10 @@ export interface SiteLayoutItem {
   h: number;
   hide?: (typeof HIDE_ON)[number];
   style?: SiteItemStyle;
+  /** Posicao no celular dentro da secao (sem: segue a ordem de leitura). */
+  order?: number;
+  /** Altura escolhida (em linhas da grade); sem: a do conteudo. */
+  minH?: number;
 }
 export interface SiteSection {
   id: string;
@@ -261,9 +265,11 @@ export function normalizeLayout(raw: unknown, blocks: Array<{ id: string }>): Si
       used.add(bid);
       const w = int(o.w, 1, GRID_COLS, GRID_COLS);
       const style = normalizeItemStyle(o.style);
+      const minH = o.minH === undefined || o.minH === null ? undefined : int(o.minH, 1, 1000, 1);
       return compact<SiteLayoutItem>({
-        id: bid, x: int(o.x, 0, GRID_COLS - w, 0), y: int(o.y, 0, MAX_ROW, i), w, h: int(o.h, 1, 1000, 1),
+        id: bid, x: int(o.x, 0, GRID_COLS - w, 0), y: int(o.y, 0, MAX_ROW, i), w, h: Math.max(int(o.h, 1, 1000, 1), minH ?? 1),
         hide: pick(HIDE_ON, o.hide), style,
+        order: o.order === undefined || o.order === null ? undefined : int(o.order, 0, 999, 0), minH,
       });
     }).filter((it): it is SiteLayoutItem => !!it);
     const bgImage = safeUrl(s.bgImage);
@@ -372,23 +378,23 @@ export function normalizeBlocks(raw: unknown, ctx: NormalizeContext): SiteBlock[
     switch (type) {
       case 'heading': {
         const text = clip(b.text, 160);
-        if (text) out.push({ id, type, text, size: b.size === 'md' ? 'md' : 'lg' });
+        out.push({ id, type, text, size: b.size === 'md' ? 'md' : 'lg' });
         break;
       }
       case 'text': {
         const text = clip(b.text, 4000);
-        if (text) out.push({ id, type, text });
+        out.push({ id, type, text });
         break;
       }
       case 'image': {
         const url = safeUrl(b.url);
-        if (url) out.push({ id, type, url, ...(clip(b.alt, 160) ? { alt: clip(b.alt, 160) } : {}) });
+        out.push({ id, type, url, ...(clip(b.alt, 160) ? { alt: clip(b.alt, 160) } : {}) });
         break;
       }
       case 'button': {
         const label = clip(b.label, 60);
         const url = safeUrl(b.url);
-        if (label && url) out.push({ id, type, label, url });
+        out.push({ id, type, label, url });
         break;
       }
       case 'divider':
@@ -423,7 +429,6 @@ export function normalizeBlocks(raw: unknown, ctx: NormalizeContext): SiteBlock[
       }
       case 'hero': {
         const title = clip(b.title, 120);
-        if (!title) break;
         const imageUrl = safeUrl(b.imageUrl);
         const buttonLabel = clip(b.buttonLabel, 40);
         const buttonUrl = safeUrl(b.buttonUrl);
@@ -441,7 +446,6 @@ export function normalizeBlocks(raw: unknown, ctx: NormalizeContext): SiteBlock[
           const caption = clip(img.caption, 80);
           return url ? { url, ...(caption ? { caption } : {}) } : null;
         }).filter((i): i is GalleryImage => !!i);
-        if (!images.length) break;
         const layout = b.layout === 'grid' || b.layout === 'mosaic' ? b.layout : 'polaroid';
         const title = clip(b.title, 120);
         out.push({ id, type, layout, images, ...(title ? { title } : {}) });
@@ -457,7 +461,6 @@ export function normalizeBlocks(raw: unknown, ctx: NormalizeContext): SiteBlock[
           const badge = clip(it.badge, 24);
           return { title: t, ...(text ? { text } : {}), ...(imageUrl ? { imageUrl } : {}), ...(badge ? { badge } : {}) };
         }).filter((i): i is CardItem => !!i);
-        if (!items.length) break;
         const columns = [1, 2, 3].includes(Number(b.columns)) ? (Number(b.columns) as 1 | 2 | 3) : Math.min(3, items.length) as 1 | 2 | 3;
         const title = clip(b.title, 120);
         out.push({ id, type, columns, items, ...(title ? { title } : {}) });
@@ -466,7 +469,7 @@ export function normalizeBlocks(raw: unknown, ctx: NormalizeContext): SiteBlock[
       case 'quote': {
         const text = clip(b.text, 500);
         const author = clip(b.author, 80);
-        if (text) out.push({ id, type, text, ...(author ? { author } : {}) });
+        out.push({ id, type, text, ...(author ? { author } : {}) });
         break;
       }
       case 'catalog': {
@@ -514,6 +517,22 @@ export function normalizeBlocks(raw: unknown, ctx: NormalizeContext): SiteBlock[
     }
   }
   return out;
+}
+
+/**
+ * Bloco ainda incompleto (rascunho do editor): fica guardado, mas nao aparece
+ * na pagina publicada. Devolve o que falta.
+ */
+export function missingPart(b: SiteBlock): string | null {
+  switch (b.type) {
+    case 'heading': case 'text': case 'quote': return b.text ? null : 'o texto';
+    case 'image': return b.url ? null : 'a foto';
+    case 'button': return !b.url ? 'o link' : !b.label ? 'o texto' : null;
+    case 'hero': return b.title ? null : 'o título';
+    case 'gallery': return b.images.length ? null : 'as fotos';
+    case 'cards': return b.items.length ? null : 'os cartões';
+    default: return null;
+  }
 }
 
 /** Campos que podem ser o nome de um item na vitrine. */
