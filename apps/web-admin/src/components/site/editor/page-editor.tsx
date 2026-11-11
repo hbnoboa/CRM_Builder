@@ -13,7 +13,10 @@ import { Input } from '@/components/ui/input';
 import { BLOCK_KINDS, type EditorEntity, type EditorPdf, type SiteLookDraft } from '@/components/site/site-block-editor';
 import { useEntities } from '@/hooks/use-entities';
 import { usePdfTemplates } from '@/hooks/use-pdf-templates';
-import { previewSitePage, usePublishSitePage, useSitePage, useUpdateSitePage, type SitePage } from '@/hooks/use-site-pages';
+import {
+  previewSitePage, usePublishSitePage, useSiteConfig, useSitePage, useUpdateSiteConfig, useUpdateSitePage,
+  type SiteConfigDraft, type SitePage,
+} from '@/hooks/use-site-pages';
 import { getErrorMessage } from '@/lib/get-error-message';
 import { absoluteSiteUrl, type SiteBlockView, type SitePageData } from '@/lib/site-api';
 import { cn } from '@/lib/utils';
@@ -24,11 +27,13 @@ import { PageInspector } from './page-inspector';
 import * as ops from './page-doc';
 import { useDocHistory } from './use-doc-history';
 
-const docOf = (page: SitePage): ops.PageDoc => ({
+const docOf = (page: SitePage, site: SiteConfigDraft): ops.PageDoc => ({
   blocks: page.blocks,
   layout: page.layout ?? { sections: [] },
   look: (page.settings as SiteLookDraft | undefined) || {},
+  site,
 });
+const EMPTY_SITE: SiteConfigDraft = { look: {}, menu: [], footer: {} };
 
 const isTyping = (el: EventTarget | null) =>
   el instanceof HTMLElement && (el.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(el.tagName));
@@ -41,6 +46,8 @@ const isTyping = (el: EventTarget | null) =>
 export function SitePageEditor({ id }: { id: string }) {
   const { data: page, isLoading } = useSitePage(id);
   const update = useUpdateSitePage(id);
+  const { data: siteInfo } = useSiteConfig();
+  const updateSite = useUpdateSiteConfig();
   const publish = usePublishSitePage(id);
   const { data: entitiesPage } = useEntities({ limit: 200 });
   const { data: pdfPage } = usePdfTemplates({ limit: 100 } as never);
@@ -52,12 +59,13 @@ export function SitePageEditor({ id }: { id: string }) {
   const { tenant } = useTenant();
   const brandColor = (tenant?.settings as { theme?: { brandColor?: string } } | undefined)?.theme?.brandColor ?? null;
 
-  const history = useDocHistory<ops.PageDoc>({ blocks: [], layout: { sections: [] }, look: {} });
+  const history = useDocHistory<ops.PageDoc>({ blocks: [], layout: { sections: [] }, look: {}, site: EMPTY_SITE });
   const { doc, update: updateDoc, checkpoint, reset, undo, redo } = history;
   const [title, setTitle] = useState('');
   const [slug, setSlug] = useState('');
   const [meta, setMeta] = useState(false); // titulo/endereco mudaram
   const [saved, setSaved] = useState('');
+  const [savedSite, setSavedSite] = useState('');
   const [touched, setTouched] = useState(false);
   const loaded = useRef(false);
 
@@ -72,16 +80,19 @@ export function SitePageEditor({ id }: { id: string }) {
   const [previewError, setPreviewError] = useState<string | null>(null);
 
   const snapshot = (d: ops.PageDoc) => JSON.stringify({ b: d.blocks, l: d.layout, k: d.look });
-  const dirty = meta || (touched && snapshot(doc) !== saved);
+  const siteChanged = touched && JSON.stringify(doc.site) !== savedSite;
+  const dirty = meta || siteChanged || (touched && snapshot(doc) !== saved);
 
   useEffect(() => {
-    if (!page || loaded.current) return;
+    if (!page || !siteInfo || loaded.current) return;
     loaded.current = true;
     setTitle(page.title);
     setSlug(page.slug);
-    reset(docOf(page));
-    setSaved(snapshot(docOf(page)));
-  }, [page, reset]);
+    const first = docOf(page, siteInfo.config);
+    reset(first);
+    setSaved(snapshot(first));
+    setSavedSite(JSON.stringify(first.site));
+  }, [page, siteInfo, reset]);
 
   useEffect(() => {
     if (!dirty) return;
@@ -94,7 +105,7 @@ export function SitePageEditor({ id }: { id: string }) {
   useEffect(() => {
     if (!loaded.current) return;
     const timer = setTimeout(() => {
-      previewSitePage(doc.blocks, title, doc.look, page?.slug)
+      previewSitePage(doc.blocks, title, doc.look, page?.slug, doc.site)
         .then((res) => {
           if ('error' in res) setPreviewError(res.error);
           else { setPreviewError(null); setPreview(res); }
@@ -102,7 +113,7 @@ export function SitePageEditor({ id }: { id: string }) {
         .catch(() => undefined);
     }, 450);
     return () => clearTimeout(timer);
-  }, [doc.blocks, doc.look, title, page?.slug]);
+  }, [doc.blocks, doc.look, doc.site, title, page?.slug]);
 
   const serverBlocks = useMemo(() => new Map<string, SiteBlockView>((preview?.blocks || []).map((b) => [b.id, b])), [preview]);
 
@@ -198,13 +209,16 @@ export function SitePageEditor({ id }: { id: string }) {
   const save = async (): Promise<boolean> => {
     try {
       const res = await update.mutateAsync({ title, slug, blocks: doc.blocks, layout: doc.layout, settings: doc.look });
+      // Aparencia comum, menu e rodape valem para todas as paginas: salvos junto
+      const site = siteChanged ? (await updateSite.mutateAsync(doc.site)).config : doc.site;
       setSlug(res.slug);
-      const next = docOf(res);
+      const next = docOf(res, site);
       reset(next, true);
       setSaved(snapshot(next));
+      setSavedSite(JSON.stringify(site));
       setTouched(false);
       setMeta(false);
-      toast.success('Página salva!');
+      toast.success(siteChanged ? 'Página e site salvos!' : 'Página salva!');
       return true;
     } catch (error) {
       toast.error(getErrorMessage(error, 'Não foi possível salvar.'));
@@ -217,7 +231,7 @@ export function SitePageEditor({ id }: { id: string }) {
     publish.mutate(!page.isPublished);
   };
 
-  if (isLoading || !page) return <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />;
+  if (isLoading || !page || !siteInfo) return <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />;
   const scrap = preview ? siteLook(preview).scrap : false;
   const contentRows = (bid: string) => (heights[bid] ? rowsFor(heights[bid], SITE_GRID.gapY(scrap)) : 0);
   const fullUrl = absoluteSiteUrl(page.url.replace(/[^/]+$/, slug || page.slug));
@@ -225,6 +239,8 @@ export function SitePageEditor({ id }: { id: string }) {
 
   const actions = {
     patchLook: (patch: SiteLookDraft) => change((d) => ({ ...d, look: { ...d.look, ...patch } }), 'look'),
+    patchSite: (patch: Partial<SiteConfigDraft>, tag?: string) => change((d) => ({ ...d, site: { ...d.site, ...patch } }), tag),
+    select: setSelection,
     patchBlock: (bid: string, patch: Record<string, unknown>) => change((d) => ops.patchBlock(d, bid, patch), `block:${bid}:${Object.keys(patch).join()}`),
     patchItem: (bid: string, patch: Parameters<typeof ops.patchItem>[2]) => change((d) => ops.patchItem(d, bid, patch)),
     patchSection: (sid: string, patch: Parameters<typeof ops.patchSection>[2]) => change((d) => ops.patchSection(d, sid, patch), `section:${sid}:${Object.keys(patch).join()}`),
@@ -281,8 +297,8 @@ export function SitePageEditor({ id }: { id: string }) {
         <span className={cn('rounded-full px-2.5 py-1 text-xs font-medium', page.isPublished ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300' : 'bg-muted text-muted-foreground')}>
           {page.isPublished ? 'No ar' : 'Rascunho'}
         </span>
-        <Button variant="outline" onClick={() => void save()} disabled={update.isPending || !dirty} data-testid="page-save">
-          {update.isPending ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Save className="mr-1.5 h-4 w-4" />}
+        <Button variant="outline" onClick={() => void save()} disabled={update.isPending || updateSite.isPending || !dirty} data-testid="page-save">
+          {update.isPending || updateSite.isPending ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Save className="mr-1.5 h-4 w-4" />}
           {dirty ? 'Salvar' : 'Salvo'}
         </Button>
         <Button onClick={() => void togglePublish()} disabled={publish.isPending} variant={page.isPublished ? 'outline' : 'default'} data-testid="page-publish">
@@ -386,7 +402,7 @@ export function SitePageEditor({ id }: { id: string }) {
 
         {/* Direita: propriedades */}
         <aside className="w-80 shrink-0 overflow-y-auto border-l">
-          <PageInspector doc={doc} selection={selection} brandColor={brandColor} entities={entities} pdfs={pdfs} scrap={scrap} {...actions} />
+          <PageInspector doc={doc} selection={selection} brandColor={brandColor} entities={entities} pdfs={pdfs} scrap={scrap} sitePages={siteInfo.pages} {...actions} />
         </aside>
       </div>
     </div>,

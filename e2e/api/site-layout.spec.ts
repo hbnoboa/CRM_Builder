@@ -153,4 +153,20 @@ test.describe.serial('paginas em secoes e grade', () => {
     // sem buraco onde estavam os rascunhos
     expect(pub.layout.sections[0].items).toEqual([{ id: 'texto', x: 0, y: 0, w: 12, h: 3 }]);
   });
+
+  test('previa do editor mostra a aparencia, o menu e o rodape do site ainda nao salvos', async ({ request }) => {
+    const preview = await (await call(request, 'post', '/site-pages/preview', tenant.owner, {
+      expected: [200, 201],
+      data: {
+        title: 'Prévia', slug: pageSlug,
+        blocks: [{ id: 'a', type: 'heading', text: 'A' }],
+        site: { look: { style: 'scrapbook', background: 'stars', accent: '#AA0055' }, footer: { phone: '(11) 3333-0000', hours: 'Todo dia' }, menu: [] },
+      },
+    })).json();
+    expect(preview.page.settings).toMatchObject({ style: 'scrapbook', background: 'stars', accent: '#aa0055' });
+    expect(preview.site.footer).toEqual({ phone: '(11) 3333-0000', hours: 'Todo dia' });
+    // nada foi salvo: o site da empresa continua como estava
+    const site = await (await call(request, 'get', '/site-pages/site', tenant.owner)).json();
+    expect(site.config.footer).toEqual({});
+  });
 });

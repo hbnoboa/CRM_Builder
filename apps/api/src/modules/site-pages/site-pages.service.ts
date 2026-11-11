@@ -238,7 +238,7 @@ export class SitePagesService {
   }
 
   /** Previa no editor: blocos ainda nao salvos, com registro de exemplo no acompanhamento. */
-  async preview(blocks: unknown[], title: string, user: CurrentUser, settings?: unknown, slug?: string, layout?: unknown) {
+  async preview(blocks: unknown[], title: string, user: CurrentUser, settings?: unknown, slug?: string, layout?: unknown, site?: unknown) {
     const tenantId = getEffectiveTenantId(user);
     const tenant = await this.prisma.tenant.findUnique({ where: { id: tenantId } });
     const ctx = await this.context(tenantId);
@@ -248,7 +248,7 @@ export class SitePagesService {
     } catch (err) {
       return { error: (err as Error).message };
     }
-    return this.buildPublic(tenant!, { title, description: null, slug: slug || 'previa', blocks: normalized, layout, settings }, ctx, { sample: true });
+    return this.buildPublic(tenant!, { title, description: null, slug: slug || 'previa', blocks: normalized, layout, settings }, ctx, { sample: true, site });
   }
 
   /**
@@ -314,10 +314,11 @@ export class SitePagesService {
     tenant: { id: string; name: string; logo: string | null; settings: unknown },
     page: PageLike,
     ctx: NormalizeContext & { entities: Entity[] },
-    opts: { token?: string; sample?: boolean },
+    /** site: aparencia/menu/rodape ainda nao salvos (previa do editor). */
+    opts: { token?: string; sample?: boolean; site?: unknown },
   ) {
     const theme = ((tenant.settings as { theme?: { brandColor?: string } } | null)?.theme) ?? {};
-    const site = normalizeSiteConfig((tenant.settings as { site?: unknown } | null)?.site);
+    const site = normalizeSiteConfig(opts.site !== undefined ? opts.site : (tenant.settings as { site?: unknown } | null)?.site);
     const own = normalizeSettings(page.settings);
     const look = own.ownLook ? own : site.look;
     // Rascunhos (bloco sem texto, foto ou link) ficam guardados, mas nao saem na pagina

@@ -134,3 +134,7 @@
 }
 /* Texto claro sobre fundo escuro (secao ou elemento) */
 .site-ink-light :is(.text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600, .text-slate-500) { color: rgb(255 255 255 / 0.92); }
+/* Editor de paginas: topo e rodape do site clicaveis */
+.site-editable { outline: 1px dashed transparent; outline-offset: -2px; }
+.site-editable:hover { outline-color: rgb(56 189 248 / 0.7); }
+.site-editable-on, .site-editable-on:hover { outline: 2px solid rgb(14 165 233); }

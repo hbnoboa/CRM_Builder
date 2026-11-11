@@ -94,8 +94,8 @@ export function useDeleteSitePage() {
   });
 }
 
-export async function previewSitePage(blocks: SiteBlockDraft[], title: string, settings?: Record<string, unknown>, slug?: string, layout?: SiteLayout) {
-  return (await api.post<SitePageData | { error: string }>('/site-pages/preview', { blocks, title, settings, slug, layout })).data;
+export async function previewSitePage(blocks: SiteBlockDraft[], title: string, settings?: Record<string, unknown>, slug?: string, site?: SiteConfigDraft) {
+  return (await api.post<SitePageData | { error: string }>('/site-pages/preview', { blocks, title, settings, slug, site })).data;
 }
 
 /** Link de acompanhamento de um registro (cria se ainda nao existir). */
@@ -124,10 +124,6 @@ export function useUpdateSiteConfig() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (body: SiteConfigDraft) => (await api.put<SiteInfo>('/site-pages/site', body)).data,
-    onSuccess: (data) => {
-      qc.setQueryData(['site-config'], data);
-      toast.success('Site salvo!');
-    },
-    onError: (e) => toast.error(getErrorMessage(e, 'Não foi possível salvar o site.')),
+    onSuccess: (data) => qc.setQueryData(['site-config'], data),
   });
 }

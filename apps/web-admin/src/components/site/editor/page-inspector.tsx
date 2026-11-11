@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, type ReactNode } from 'react';
-import { AlignCenter, AlignLeft, AlignRight, ArrowDown, ArrowUp, Copy, Monitor, Smartphone, Trash2, Type } from 'lucide-react';
+import { AlignCenter, AlignLeft, AlignRight, ArrowDown, ArrowUp, ChevronRight, Copy, Monitor, PanelBottom, PanelTop, Smartphone, Trash2, Type } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -11,6 +11,8 @@ import {
   AppearanceFields, BLOCK_KINDS, BlockFields, ImagePick, Segmented,
   type EditorEntity, type EditorPdf, type SiteLookDraft,
 } from '@/components/site/site-block-editor';
+import { SiteFooterFields, SiteMenuFields } from '@/components/site/site-config-fields';
+import type { SiteConfigDraft, SiteInfo } from '@/hooks/use-site-pages';
 import type { SiteHideOn, SiteItemStyle, SiteLayoutItem, SiteSection, SiteSpacing } from '@/lib/site-api';
 import { SITE_GRID, mobileOrder, rowsToPx } from '@/components/site/site-page-view';
 import { sectionOf, type PageDoc, type Selection } from './page-doc';
@@ -27,6 +29,8 @@ const WIDTHS: Array<{ value: number; label: string }> = [
 
 export interface InspectorActions {
   patchLook: (patch: SiteLookDraft) => void;
+  patchSite: (patch: Partial<SiteConfigDraft>, tag?: string) => void;
+  select: (sel: Selection) => void;
   patchBlock: (id: string, patch: Record<string, unknown>) => void;
   patchItem: (id: string, patch: Partial<SiteLayoutItem>) => void;
   patchSection: (id: string, patch: Partial<SiteSection>) => void;
@@ -48,6 +52,7 @@ interface Props extends InspectorActions {
   entities: EditorEntity[];
   pdfs: EditorPdf[];
   scrap: boolean;
+  sitePages: SiteInfo['pages'];
 }
 
 /** Painel da direita: o que estiver selecionado na pagina (pagina, secao ou elemento). */
@@ -63,6 +68,8 @@ export function PageInspector(props: Props) {
     const index = doc.layout.sections.findIndex((s) => s.id === selection.id);
     if (index >= 0) return <SectionPanel {...props} section={doc.layout.sections[index]} index={index} />;
   }
+  if (selection.kind === 'header') return <HeaderPanel {...props} />;
+  if (selection.kind === 'footer') return <FooterPanel {...props} />;
   return <PagePanel {...props} />;
 }
 
@@ -98,27 +105,84 @@ function ColorField({ label, value, onChange }: { label: string; value?: string;
   );
 }
 
-function PagePanel({ doc, brandColor, patchLook }: Props) {
-  const look = doc.look;
+/**
+ * Aparencia que vale nesta pagina: a do site (todas as paginas) ou a propria.
+ * Editar a do site muda todas as paginas que nao tem aparencia propria.
+ */
+function LookFields({ doc, brandColor, patchLook, patchSite }: Props) {
+  const own = !!doc.look.ownLook;
   return (
-    <Panel title="Página" subtitle="Clique numa seção ou num elemento da página para mudar só ele.">
-      <label className="flex items-center justify-between gap-3 text-sm">
-        <span>
-          Aparência própria nesta página
-          <span className="block text-[11px] text-muted-foreground">Desligado: usa a aparência do site (Páginas para clientes › Site da empresa).</span>
-        </span>
-        <Switch checked={!!look.ownLook} onCheckedChange={(v) => patchLook({ ownLook: v })} data-testid="page-own-look" />
-      </label>
-      {look.ownLook && <AppearanceFields look={look} brandColor={brandColor} onChange={patchLook} />}
+    <div className="space-y-3">
+      <Segmented value={own ? 'own' : 'site'} onChange={(v) => patchLook({ ownLook: v === 'own' })}
+        options={[{ value: 'site', label: 'A do site' }, { value: 'own', label: 'Só desta página' }]} />
+      <p className="rounded-md bg-sky-50 px-2.5 py-1.5 text-[11px] text-sky-900 dark:bg-sky-950 dark:text-sky-200" data-testid="editor-look-scope">
+        {own
+          ? 'Esta página tem aparência própria: o que mudar aqui vale só para ela.'
+          : 'Aparência de todas as páginas do site: o que mudar aqui muda as outras páginas também.'}
+      </p>
+      {own
+        ? <AppearanceFields look={doc.look} brandColor={brandColor} onChange={patchLook} />
+        : <AppearanceFields look={doc.site.look as SiteLookDraft} brandColor={brandColor} onChange={(p) => patchSite({ look: { ...doc.site.look, ...p } }, 'site-look')} />}
+    </div>
+  );
+}
+
+function JumpButton({ icon: Icon, title, text, onClick }: { icon: typeof PanelTop; title: string; text: string; onClick: () => void }) {
+  return (
+    <button type="button" onClick={onClick} className="flex w-full items-center gap-2.5 rounded-lg border p-2.5 text-left hover:bg-muted">
+      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-muted"><Icon className="h-4 w-4" /></span>
+      <span className="min-w-0 flex-1">
+        <span className="block text-sm font-medium">{title}</span>
+        <span className="block truncate text-[11px] text-muted-foreground">{text}</span>
+      </span>
+      <ChevronRight className="h-4 w-4 text-muted-foreground" />
+    </button>
+  );
+}
+
+function PagePanel(props: Props) {
+  const { select } = props;
+  return (
+    <Panel title="Aparência" subtitle="Estilo, fundo, cor de destaque, capa e frase do topo.">
+      <LookFields {...props} />
+      <div className="space-y-1.5 border-t pt-4">
+        <p className="text-xs font-medium text-muted-foreground">Também em todas as páginas</p>
+        <JumpButton icon={PanelTop} title="Topo e menu" text="Menu entre as páginas e página inicial" onClick={() => select({ kind: 'header' })} />
+        <JumpButton icon={PanelBottom} title="Rodapé" text="Endereço, horários e contato" onClick={() => select({ kind: 'footer' })} />
+      </div>
       <div className="rounded-lg bg-muted/60 p-3 text-xs text-muted-foreground">
         <p className="mb-1 font-medium text-foreground">Como montar</p>
         <ul className="list-disc space-y-1 pl-4">
+          <li>Clique no topo, numa seção, num elemento ou no rodapé da página para mudar só aquilo.</li>
           <li>Arraste um elemento da esquerda para dentro de uma seção (ou clique nele).</li>
-          <li>Arraste os elementos para mudar o lugar; puxe pelas laterais para mudar a largura.</li>
+          <li>Arraste os elementos para mudar o lugar; puxe as laterais para a largura e a borda de baixo para a altura.</li>
           <li>Dois cliques num título ou texto para escrever direto na página.</li>
-          <li>No celular, os elementos ficam um embaixo do outro, da esquerda para a direita e de cima para baixo.</li>
         </ul>
       </div>
+    </Panel>
+  );
+}
+
+function HeaderPanel(props: Props) {
+  const { doc, sitePages, patchSite } = props;
+  return (
+    <Panel title="Topo e menu" subtitle="O menu e a página inicial valem para todas as páginas do site.">
+      <div className="space-y-2">
+        <p className="text-sm font-medium">Aparência do topo</p>
+        <LookFields {...props} />
+      </div>
+      <div className="space-y-2 border-t pt-4">
+        <p className="text-sm font-medium">Menu do site</p>
+        <SiteMenuFields site={doc.site} pages={sitePages} onChange={(p) => patchSite(p, `site-menu:${Object.keys(p).join()}`)} />
+      </div>
+    </Panel>
+  );
+}
+
+function FooterPanel({ doc, patchSite }: Props) {
+  return (
+    <Panel title="Rodapé" subtitle="Igual em todas as páginas do site. Campo vazio não aparece.">
+      <SiteFooterFields footer={doc.site.footer} onChange={(footer) => patchSite({ footer }, 'site-footer')} />
     </Panel>
   );
 }
