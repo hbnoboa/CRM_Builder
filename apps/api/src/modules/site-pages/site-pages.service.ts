@@ -17,7 +17,7 @@ import {
 } from './site-blocks';
 
 // 'entrar'/'login': no dominio proprio da empresa sao a tela de login do sistema
-const RESERVED_SLUGS = new Set(['app', 'entrar', 'login']);
+const RESERVED_SLUGS = new Set(['app', 'entrar', 'login', 'pedir-acesso']);
 const MAX_TEXT = 5000;
 const MAX_FILES = 20;
 

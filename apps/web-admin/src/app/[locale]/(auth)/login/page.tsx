@@ -15,19 +15,13 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter }
 import { useAuthStore } from '@/stores/auth-store';
 import { getDefaultRouteForUser } from '@/hooks/use-permissions';
 import { AuthShell } from '@/components/auth/auth-shell';
-import { BrandedAuthShell } from '@/components/auth/branded-auth-shell';
-import { onCustomDomain, useCustomDomain, type CustomDomainBrand } from '@/lib/custom-domain';
+import { onCustomDomain, useCustomDomain } from '@/lib/custom-domain';
 
 type LoginForm = {
   email: string;
   password: string;
   rememberMe: boolean;
 };
-
-/** Moldura do login: marca da empresa no dominio proprio dela; senao, a do CRM Builder. */
-function LoginShell({ brand, children }: { brand: CustomDomainBrand | null; children: React.ReactNode }) {
-  return brand ? <BrandedAuthShell brand={brand}>{children}</BrandedAuthShell> : <AuthShell>{children}</AuthShell>;
-}
 
 export default function LoginPage() {
   return (
@@ -107,7 +101,7 @@ function LoginPageContent() {
     return <div className="flex min-h-screen items-center justify-center"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>;
   }
   return (
-    <LoginShell brand={brand}>
+    <AuthShell>
       <Card className="w-full border-0 shadow-none">
         <CardHeader className="space-y-1 px-0">
           <CardTitle className="text-2xl font-bold">{brand ? 'Entrar' : t('title')}</CardTitle>
@@ -234,6 +228,14 @@ function LoginPageContent() {
                 t('signIn')
               )}
             </Button>
+            {brand && (
+              <p className="text-sm text-muted-foreground" data-testid="login-request-access-link">
+                Ainda não tem acesso?{' '}
+                <Link href="/request-access" className="font-medium hover:underline" style={brand.brandColor ? { color: brand.brandColor } : undefined}>
+                  Pedir acesso
+                </Link>
+              </p>
+            )}
             {!brand && (
               <p className="text-sm text-muted-foreground" data-testid="login-register-link">
                 {t('noAccount')}{' '}
@@ -246,6 +248,6 @@ function LoginPageContent() {
         </form>
         )}
       </Card>
-    </LoginShell>
+    </AuthShell>
   );
 }

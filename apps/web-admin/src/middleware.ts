@@ -49,7 +49,7 @@ async function tenantForHost(host: string): Promise<string | null> {
 }
 
 // Telas de conta (sem empresa na URL) que abrem no dominio da empresa
-const AUTH_PAGES = new Set(['login', 'forgot-password', 'reset-password', 'security-setup', 'invite']);
+const AUTH_PAGES = new Set(['login', 'forgot-password', 'reset-password', 'security-setup', 'invite', 'request-access']);
 
 /** Dominio de uma empresa: login e sistema dela; o resto e o site. */
 function customDomain(request: NextRequest, tenant: string) {
@@ -57,6 +57,10 @@ function customDomain(request: NextRequest, tenant: string) {
   const url = request.nextUrl.clone();
   if (parts[0] === 'entrar' || parts[0] === 'login') {
     url.pathname = `/${defaultLocale}/login`;
+    return NextResponse.rewrite(url);
+  }
+  if (parts[0] === 'pedir-acesso') {
+    url.pathname = `/${defaultLocale}/request-access`;
     return NextResponse.rewrite(url);
   }
   if ((locales as readonly string[]).includes(parts[0])) {

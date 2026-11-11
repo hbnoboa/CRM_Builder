@@ -15,7 +15,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { CurrentUser } from '../../common/types';
 import { TenantPlanService } from '../../common/services/tenant-plan.service';
 import { assertAssignableRole } from '../../common/utils/member-governance';
-import { appUrl } from '../../common/utils/app-url';
+import { tenantAppUrl } from '../../common/utils/app-url';
 import { assertPasswordPolicy } from '../../common/utils/password-policy';
 import { EmailService } from '../email/email.service';
 import { transactionalEmail } from '../email/email-layout';
@@ -213,9 +213,10 @@ export class InvitationService {
   private async deliver(currentUser: CurrentUser, id: string, token: string) {
     const invitation = await this.prisma.invitation.findUniqueOrThrow({
       where: { id },
-      select: { email: true, name: true, tenant: { select: { name: true } }, customRole: { select: { name: true } } },
+      select: { email: true, name: true, tenantId: true, tenant: { select: { name: true } }, customRole: { select: { name: true } } },
     });
-    const link = `${appUrl()}/pt-BR/invite/${token}`;
+    // Empresa com dominio proprio: o convite abre nele (com a marca dela)
+    const link = `${await tenantAppUrl(this.prisma, invitation.tenantId)}/pt-BR/invite/${token}`;
     const { html, text } = transactionalEmail({
       title: `Convite para ${invitation.tenant.name}`,
       paragraphs: [

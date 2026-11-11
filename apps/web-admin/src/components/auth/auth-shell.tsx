@@ -1,7 +1,12 @@
+'use client';
+
 import { Check } from 'lucide-react';
 import { Link } from '@/i18n/navigation';
 import { LanguageSwitcher } from '@/components/language-switcher';
+import { Loader2 } from 'lucide-react';
 import { BrandLogo, PoweredByIos } from '@/components/brand/brand';
+import { BrandedAuthShell } from '@/components/auth/branded-auth-shell';
+import { onCustomDomain, useCustomDomain } from '@/lib/custom-domain';
 
 const HIGHLIGHTS = [
   'Tabelas, formulários e painéis sem programar',
@@ -10,8 +15,16 @@ const HIGHLIGHTS = [
   'Cada cargo vê só o que precisa',
 ];
 
-/** Login/cadastro: marca a esquerda, formulario a direita (empilha no celular). */
+/**
+ * Login/cadastro: marca a esquerda, formulario a direita (empilha no celular).
+ * No dominio proprio de uma empresa, a moldura e a da empresa (sem CRM Builder).
+ */
 export function AuthShell({ children }: { children: React.ReactNode }) {
+  const { brand, loading } = useCustomDomain();
+  if (loading && onCustomDomain()) {
+    return <div className="flex min-h-screen items-center justify-center"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>;
+  }
+  if (brand) return <BrandedAuthShell brand={brand}>{children}</BrandedAuthShell>;
   return (
     <div className="grid min-h-screen bg-background lg:grid-cols-[minmax(0,5fr)_minmax(0,6fr)]">
       <aside className="relative hidden overflow-hidden bg-slate-950 p-10 text-white lg:flex lg:flex-col">
