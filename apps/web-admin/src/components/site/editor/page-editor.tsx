@@ -76,6 +76,7 @@ export function SitePageEditor({ id }: { id: string }) {
   const [heights, setHeights] = useState<Record<string, number>>({});
   const [dragType, setDragType] = useState<string | null>(null);
   const [dragOverSection, setDragOverSection] = useState<string | null>(null);
+  const [toolbarSlot, setToolbarSlot] = useState<HTMLDivElement | null>(null);
   const [preview, setPreview] = useState<SitePageData | null>(null);
   const [previewError, setPreviewError] = useState<string | null>(null);
 
@@ -162,6 +163,14 @@ export function SitePageEditor({ id }: { id: string }) {
     change(() => res.doc);
     setSelection({ kind: 'section', id: res.id });
   };
+  // Selecionou outra coisa: termina a edicao do texto
+  useEffect(() => {
+    if (editingId && !(selection.kind === 'item' && selection.id === editingId)) {
+      setEditingId(null);
+      setEditVersion((v) => v + 1);
+    }
+  }, [selection, editingId]);
+
   const commitText = (bid: string, text: string | null) => {
     setEditingId(null);
     setEditVersion((v) => v + 1);
@@ -241,6 +250,7 @@ export function SitePageEditor({ id }: { id: string }) {
     patchLook: (patch: SiteLookDraft) => change((d) => ({ ...d, look: { ...d.look, ...patch } }), 'look'),
     patchSite: (patch: Partial<SiteConfigDraft>, tag?: string) => change((d) => ({ ...d, site: { ...d.site, ...patch } }), tag),
     select: setSelection,
+    editText: (bid: string) => { setSelection({ kind: 'item', id: bid }); setEditingId(bid); },
     patchBlock: (bid: string, patch: Record<string, unknown>) => change((d) => ops.patchBlock(d, bid, patch), `block:${bid}:${Object.keys(patch).join()}`),
     patchItem: (bid: string, patch: Parameters<typeof ops.patchItem>[2]) => change((d) => ops.patchItem(d, bid, patch)),
     patchSection: (sid: string, patch: Parameters<typeof ops.patchSection>[2]) => change((d) => ops.patchSection(d, sid, patch), `section:${sid}:${Object.keys(patch).join()}`),
@@ -305,6 +315,9 @@ export function SitePageEditor({ id }: { id: string }) {
           <Globe className="mr-1.5 h-4 w-4" /> {page.isPublished ? 'Tirar do ar' : 'Publicar'}
         </Button>
       </div>
+
+      {/* Barra de formatacao do texto (aparece enquanto escreve, como no Word) */}
+      <div ref={setToolbarSlot} className="shrink-0 empty:hidden" />
 
       <div className="flex min-h-0 flex-1">
         {/* Esquerda: elementos para adicionar e secoes */}
@@ -389,6 +402,8 @@ export function SitePageEditor({ id }: { id: string }) {
                     updateDoc((d) => ops.patchItem(d, bid, { minH: h > contentRows(bid) ? h : undefined }), { silent: true });
                   }}
                   onMobileOrder={(sid, ids) => change((d) => ops.setMobileOrder(d, sid, ids))}
+                  toolbarSlot={toolbarSlot}
+                  onRichChange={(bid, richDoc, text) => change((d) => ops.patchBlock(d, bid, { doc: richDoc, text: text.trim() }), `rich:${bid}`)}
                 />
               </div>
             </div>

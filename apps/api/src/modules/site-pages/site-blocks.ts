@@ -1,5 +1,6 @@
 import { BadRequestException } from '@nestjs/common';
 import type { SchemaField, SchemaTable } from '../ai-builder/tenant-schema';
+import { normalizeRichDoc, normalizeTheme, richPlainText, type RichNode, type SiteTheme } from './site-theme';
 
 /**
  * Blocos das paginas para clientes. A pagina e a unica coisa que decide o que sai
@@ -13,7 +14,8 @@ export const SITE_BLOCK_TYPES = [
 export type SiteBlockType = (typeof SITE_BLOCK_TYPES)[number];
 
 export interface HeadingBlock { id: string; type: 'heading'; text: string; size?: 'lg' | 'md' }
-export interface TextBlock { id: string; type: 'text'; text: string }
+/** Texto: `doc` e o texto formatado (estilo Word); `text` e o mesmo texto puro. */
+export interface TextBlock { id: string; type: 'text'; text: string; doc?: RichNode }
 export interface ImageBlock { id: string; type: 'image'; url: string; alt?: string }
 export interface ButtonBlock { id: string; type: 'button'; label: string; url: string }
 export interface DividerBlock { id: string; type: 'divider' }
@@ -97,6 +99,8 @@ export interface SitePageSettings {
   coverUrl?: string;
   /** Frase curta embaixo do nome da empresa. */
   tagline?: string;
+  /** Cores, fontes, estilos de texto, botoes, cantos, sombras, espacamento e fundo. */
+  theme?: SiteTheme;
 }
 
 export function normalizeSettings(raw: unknown): SitePageSettings {
@@ -108,9 +112,11 @@ export function normalizeSettings(raw: unknown): SitePageSettings {
   const accent = /^#[0-9a-f]{6}$/i.test(String(s.accent ?? '')) ? String(s.accent).toLowerCase() : undefined;
   const coverUrl = safeUrl(s.coverUrl);
   const tagline = clip(s.tagline, 140);
+  const theme = normalizeTheme(s.theme, safeUrl);
   return {
     ...(s.ownLook === true ? { ownLook: true } : {}),
     style, background, ...(accent ? { accent } : {}), ...(coverUrl ? { coverUrl } : {}), ...(tagline ? { tagline } : {}),
+    ...(theme ? { theme } : {}),
   };
 }
 
@@ -133,6 +139,8 @@ export interface SiteConfig {
   footer: SiteFooter;
   /** Pagina aberta no endereco principal (subdominio sem caminho). */
   homeSlug?: string;
+  /** Temas guardados pela empresa ("Meus temas"), para reaproveitar. */
+  savedThemes?: Array<{ name: string; look: SitePageSettings }>;
 }
 
 export function normalizeSiteConfig(raw: unknown, pageSlugs?: Set<string>): SiteConfig {
@@ -156,7 +164,17 @@ export function normalizeSiteConfig(raw: unknown, pageSlugs?: Set<string>): Site
     whatsapp: clip(f.whatsapp, 30).replace(/[^\d+]/g, ''), instagram, email,
   }).filter(([, v]) => v));
   const home = clip(s.homeSlug, 80);
-  return { look, menu, footer, ...(home && known(home) ? { homeSlug: home } : {}) };
+  const savedThemes = (Array.isArray(s.savedThemes) ? s.savedThemes : []).slice(0, 12).map((t) => {
+    const it = (t && typeof t === 'object' ? t : {}) as Record<string, unknown>;
+    const name = clip(it.name, 40);
+    if (!name) return null;
+    const { ownLook: _o, ...saved } = normalizeSettings(it.look);
+    return { name, look: saved };
+  }).filter((t): t is { name: string; look: SitePageSettings } => !!t);
+  return {
+    look, menu, footer, ...(home && known(home) ? { homeSlug: home } : {}),
+    ...(savedThemes.length ? { savedThemes } : {}),
+  };
 }
 
 
@@ -210,12 +228,21 @@ export interface SiteSection {
   padding: (typeof SPACINGS)[number];
   bg?: string;
   bgImage?: string;
-  /** Escurece a foto de fundo para o texto aparecer. */
+  /** Video de fundo (mp4/webm), toca sem som e em repeticao. */
+  bgVideo?: string;
+  /** Escurece a foto/video de fundo para o texto aparecer. */
   overlay?: boolean;
+  /** Foto de fundo parada enquanto a pagina rola. */
+  parallax?: boolean;
+  /** Variacao de cor do tema: superficie, destaque, destaque 2 ou escura. */
+  tone?: (typeof TONES)[number];
+  gradient?: { from: string; to: string; angle: number; kind: 'linear' | 'radial' };
+  pattern?: (typeof SITE_BACKGROUNDS)[number];
   light?: boolean;
   hide?: (typeof HIDE_ON)[number];
   items: SiteLayoutItem[];
 }
+const TONES = ['surface', 'accent', 'accent2', 'dark'] as const;
 export interface SiteLayout { sections: SiteSection[] }
 
 const pick = <T extends readonly string[]>(list: T, v: unknown): T[number] | undefined =>
@@ -273,12 +300,20 @@ export function normalizeLayout(raw: unknown, blocks: Array<{ id: string }>): Si
       });
     }).filter((it): it is SiteLayoutItem => !!it);
     const bgImage = safeUrl(s.bgImage);
+    const bgVideo = safeUrl(s.bgVideo);
     const name = clip(s.name, 40);
+    const g = (s.gradient && typeof s.gradient === 'object' ? s.gradient : {}) as Record<string, unknown>;
+    const gradient = hex(g.from) && hex(g.to)
+      ? { from: hex(g.from)!, to: hex(g.to)!, angle: int(g.angle, 0, 360, 135), kind: g.kind === 'radial' ? 'radial' as const : 'linear' as const }
+      : undefined;
+    const pattern = pick(SITE_BACKGROUNDS, s.pattern);
     return compact<SiteSection>({
       id, ...(name ? { name } : {}),
       width: pick(SECTION_WIDTHS, s.width) ?? 'normal',
       padding: pick(SPACINGS, s.padding) ?? 'md',
-      bg: hex(s.bg), ...(bgImage ? { bgImage } : {}), overlay: s.overlay === true, light: s.light === true,
+      bg: hex(s.bg), ...(bgImage ? { bgImage } : {}), ...(bgVideo ? { bgVideo } : {}),
+      overlay: s.overlay === true, parallax: s.parallax === true, light: s.light === true,
+      tone: pick(TONES, s.tone), gradient, pattern: pattern === 'plain' ? undefined : pattern,
       hide: pick(HIDE_ON, s.hide), items: compactUp(items),
     });
   });
@@ -382,8 +417,9 @@ export function normalizeBlocks(raw: unknown, ctx: NormalizeContext): SiteBlock[
         break;
       }
       case 'text': {
-        const text = clip(b.text, 4000);
-        out.push({ id, type, text });
+        const doc = normalizeRichDoc(b.doc, safeUrl);
+        const text = doc ? richPlainText(doc).slice(0, 20000) : clip(b.text, 4000);
+        out.push({ id, type, text, ...(doc ? { doc } : {}) });
         break;
       }
       case 'image': {

@@ -17,7 +17,7 @@ export type SiteFieldDef = {
 
 export type SiteBlockView =
   | { id: string; type: 'heading'; text: string; size?: 'lg' | 'md' }
-  | { id: string; type: 'text'; text: string }
+  | { id: string; type: 'text'; text: string; doc?: RichNode }
   | { id: string; type: 'image'; url: string; alt?: string }
   | { id: string; type: 'button'; label: string; url: string }
   | { id: string; type: 'divider' }
@@ -41,6 +41,33 @@ export type SiteCatalogItem = { id: string; title: string; image?: string; price
 
 export interface SiteFooter { text?: string; address?: string; hours?: string; phone?: string; whatsapp?: string; instagram?: string; email?: string }
 
+/** Texto formatado (estilo Word): documento do editor, conferido no servidor. */
+export interface RichNode {
+  type: string;
+  attrs?: Record<string, string | number>;
+  marks?: Array<{ type: string; attrs?: Record<string, string> }>;
+  text?: string;
+  content?: RichNode[];
+}
+
+/** Estilo de texto do tema (como os estilos do Word). */
+export interface SiteTextStyle { font?: string; size?: number; bold?: boolean; italic?: boolean; upper?: boolean; color?: string; spacing?: number; line?: number }
+
+/** Tema: cores, fontes, estilos de texto, botoes, cantos, sombras, espacamento e fundo. */
+export interface SiteTheme {
+  preset?: string;
+  colors?: { bg?: string; surface?: string; text?: string; muted?: string; accent2?: string };
+  fonts?: { heading?: string; body?: string };
+  text?: { h1?: SiteTextStyle; h2?: SiteTextStyle; h3?: SiteTextStyle; body?: SiteTextStyle };
+  buttons?: { shape?: 'square' | 'rounded' | 'pill'; fill?: 'solid' | 'outline' | 'soft' | 'shadow' };
+  radius?: 'none' | 'sm' | 'md' | 'lg' | 'xl';
+  shadow?: 'none' | 'soft' | 'strong';
+  spacing?: 'compact' | 'normal' | 'airy';
+  bgImage?: string;
+  bgVideo?: string;
+  bgDim?: number;
+}
+
 /** Aparencia da pagina (estilo, fundo, cor, capa). */
 export interface SiteAppearance {
   ownLook?: boolean;
@@ -49,6 +76,7 @@ export interface SiteAppearance {
   accent?: string;
   coverUrl?: string;
   tagline?: string;
+  theme?: SiteTheme;
 }
 
 /** Secoes da pagina e posicao de cada bloco na grade (mesmo formato do servidor, site-blocks.ts). */
@@ -77,7 +105,13 @@ export interface SiteSection {
   padding: SiteSpacing;
   bg?: string;
   bgImage?: string;
+  bgVideo?: string;
   overlay?: boolean;
+  parallax?: boolean;
+  /** Variacao de cor do tema. */
+  tone?: 'surface' | 'accent' | 'accent2' | 'dark';
+  gradient?: { from: string; to: string; angle: number; kind: 'linear' | 'radial' };
+  pattern?: SiteAppearance['background'];
   light?: boolean;
   hide?: SiteHideOn;
   items: SiteLayoutItem[];
@@ -103,6 +137,8 @@ export interface SitePageData {
   blocks: SiteBlockView[];
   /** Secoes e grade (paginas antigas: uma secao com os blocos em sequencia). */
   layout?: SiteLayout;
+  /** Fontes enviadas pela empresa (arquivos em /site/fonts/<id>). */
+  fonts?: Array<{ id: string; name: string }>;
   record: SiteRecordView | null;
   trackingError: string | null;
 }

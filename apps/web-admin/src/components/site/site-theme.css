@@ -1,0 +1,108 @@
+/*
+ * Tema das paginas para clientes. As variaveis vem de lib/site-theme.ts (themeVars)
+ * no .site-canvas; aqui elas sao ligadas aos blocos. As classes fixas dos blocos
+ * (text-slate-*, bg-white...) passam a seguir o tema, e as variacoes de secao
+ * (.site-tone-*) trocam as variaveis so dentro da secao.
+ */
+
+.site-canvas {
+  isolation: isolate;
+  background-color: var(--site-bg);
+  color: var(--site-text);
+  font-family: var(--site-font-body);
+}
+.site-canvas :is(h1, h2, h3) { font-family: var(--site-font-heading); }
+
+/* Cores fixas dos blocos -> cores do tema */
+.site-canvas :is(.text-slate-900, .text-slate-800) { color: var(--site-text); }
+.site-canvas :is(.text-slate-700, .text-slate-600) { color: var(--site-text-2); }
+.site-canvas :is(.text-slate-500, .text-slate-400) { color: var(--site-muted); }
+.site-canvas .bg-white { background-color: var(--site-surface); }
+.site-canvas :is(.bg-white\/95, .bg-white\/90) { background-color: color-mix(in srgb, var(--site-surface) 92%, transparent); }
+.site-canvas .bg-white\/70 { background-color: color-mix(in srgb, var(--site-surface) 70%, transparent); }
+.site-canvas .bg-slate-50 { background-color: var(--site-bg); }
+.site-canvas :is(.border-slate-200, .border-slate-300, .border-b) { border-color: var(--site-line); }
+.site-canvas :is(.rounded-xl, .rounded-2xl, .rounded-\[2rem\]) { border-radius: var(--site-radius); }
+.site-canvas[data-shadow='none'] :is(.shadow-sm, .shadow-md, .shadow-lg, .shadow-xl) { box-shadow: none; }
+.site-canvas[data-shadow='strong'] :is(.shadow-sm, .shadow-md, .shadow-lg) { box-shadow: 0 18px 40px -18px rgb(0 0 0 / 0.45); }
+
+/* Estilos de texto (como os estilos do Word): Titulo 1, 2, 3 e Paragrafo */
+.site-canvas :is(.site-h1, .site-rich h1) {
+  font-family: var(--ts-h1-font, var(--site-font-heading)); font-size: var(--ts-h1-size); font-weight: var(--ts-h1-weight);
+  font-style: var(--ts-h1-style); text-transform: var(--ts-h1-transform); letter-spacing: var(--ts-h1-ls);
+  line-height: var(--ts-h1-lh); color: var(--ts-h1-color, var(--site-text));
+}
+.site-canvas :is(.site-h2, .site-rich h2) {
+  font-family: var(--ts-h2-font, var(--site-font-heading)); font-size: var(--ts-h2-size); font-weight: var(--ts-h2-weight);
+  font-style: var(--ts-h2-style); text-transform: var(--ts-h2-transform); letter-spacing: var(--ts-h2-ls);
+  line-height: var(--ts-h2-lh); color: var(--ts-h2-color, var(--site-text));
+}
+.site-canvas :is(.site-h3, .site-rich h3) {
+  font-family: var(--ts-h3-font, var(--site-font-heading)); font-size: var(--ts-h3-size); font-weight: var(--ts-h3-weight);
+  font-style: var(--ts-h3-style); text-transform: var(--ts-h3-transform); letter-spacing: var(--ts-h3-ls);
+  line-height: var(--ts-h3-lh); color: var(--ts-h3-color, var(--site-text));
+}
+.site-canvas :is(.site-body, .site-rich p, .site-rich li) {
+  font-family: var(--ts-body-font, var(--site-font-body)); font-size: var(--ts-body-size); font-weight: var(--ts-body-weight);
+  font-style: var(--ts-body-style); text-transform: var(--ts-body-transform); letter-spacing: var(--ts-body-ls);
+  line-height: var(--ts-body-lh); color: var(--ts-body-color, var(--site-text-2));
+}
+/* No celular os titulos encolhem um pouco */
+@container (max-width: 640px) {
+  .site-canvas :is(.site-h1, .site-rich h1) { font-size: calc(var(--ts-h1-size) * 0.78); }
+  .site-canvas :is(.site-h2, .site-rich h2) { font-size: calc(var(--ts-h2-size) * 0.85); }
+}
+
+/* Texto formatado */
+.site-rich > * + * { margin-top: 0.7em; }
+.site-rich :is(ul, ol) { padding-left: 1.4em; }
+.site-rich ul { list-style: disc; }
+.site-rich ol { list-style: decimal; }
+.site-rich li + li { margin-top: 0.25em; }
+.site-rich li > p { margin: 0; }
+.site-rich blockquote { border-left: 4px solid var(--site-accent); padding-left: 1em; font-style: italic; }
+.site-rich a { color: var(--site-accent); text-decoration: underline; text-underline-offset: 2px; }
+.site-rich mark { background-color: color-mix(in srgb, var(--site-accent) 28%, transparent); color: inherit; padding: 0 0.1em; border-radius: 2px; }
+.site-rich p:empty::before { content: '\200b'; }
+
+/* Botoes do tema: formato e preenchimento */
+.site-canvas .site-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 0.4em;
+  min-height: 2.75rem; padding: 0.7rem 1.4rem; font-weight: 600; font-size: 0.95rem;
+  border-radius: var(--site-btn-radius); border: 2px solid var(--site-accent);
+  background-color: var(--site-accent); color: var(--site-on-accent);
+  transition: transform 0.15s, filter 0.15s;
+}
+.site-canvas .site-btn:hover { filter: brightness(1.06); transform: translateY(-1px); }
+.site-canvas[data-btn='outline'] .site-btn { background-color: transparent; color: var(--site-accent); }
+.site-canvas[data-btn='soft'] .site-btn { background-color: color-mix(in srgb, var(--site-accent) 15%, transparent); border-color: transparent; color: var(--site-accent); }
+.site-canvas[data-btn='shadow'] .site-btn { box-shadow: 0 5px 0 color-mix(in srgb, var(--site-accent) 70%, black); }
+.site-canvas .site-btn-light { background-color: #ffffff; border-color: #ffffff; color: var(--site-accent); }
+
+/* Variacoes de cor da secao */
+.site-tone-surface { background-color: var(--site-surface); }
+.site-tone-accent, .site-tone-accent2, .site-tone-dark { color: var(--site-text); }
+.site-tone-accent {
+  background-color: var(--site-accent);
+  --site-text: var(--site-on-accent); --site-text-2: var(--site-on-accent);
+  --site-muted: color-mix(in srgb, var(--site-on-accent) 72%, var(--site-accent));
+  --site-line: color-mix(in srgb, var(--site-on-accent) 25%, var(--site-accent));
+  --site-surface: color-mix(in srgb, var(--site-on-accent) 12%, var(--site-accent));
+}
+.site-tone-accent2 {
+  background-color: var(--site-accent-2);
+  --site-text: var(--site-on-accent-2); --site-text-2: var(--site-on-accent-2);
+  --site-muted: color-mix(in srgb, var(--site-on-accent-2) 72%, var(--site-accent-2));
+  --site-line: color-mix(in srgb, var(--site-on-accent-2) 25%, var(--site-accent-2));
+  --site-surface: color-mix(in srgb, var(--site-on-accent-2) 12%, var(--site-accent-2));
+}
+.site-tone-dark {
+  background-color: var(--site-dark);
+  --site-text: #f8fafc; --site-text-2: #e2e8f0; --site-muted: #94a3b8;
+  --site-line: rgb(255 255 255 / 0.16); --site-surface: color-mix(in srgb, #ffffff 8%, var(--site-dark));
+}
+/* Botao sobre secao na cor de destaque: inverte para continuar aparecendo */
+.site-tone-accent .site-btn { background-color: var(--site-on-accent); border-color: var(--site-on-accent); color: var(--site-accent); }
+
+/* Espaco em cima/embaixo das secoes segue o espacamento do tema */
+.site-sec-pad { padding-block: calc(var(--sec-pad, 2rem) * var(--site-space, 1)); }

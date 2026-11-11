@@ -4,8 +4,8 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { DndContext, PointerSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core';
 import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import ReactGridLayout, { WidthProvider } from 'react-grid-layout/legacy';
-import type { Layout, LayoutItem } from 'react-grid-layout';
+import { GridLayout, useContainerWidth, type Layout, type LayoutItem } from 'react-grid-layout';
+import type { PositionStrategy } from 'react-grid-layout/core';
 import { AlertTriangle, Copy, EyeOff, Plus, Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { BLOCK_KINDS } from '@/components/site/site-block-editor';
@@ -13,9 +13,24 @@ import { BlockView, SITE_GRID, SectionShell, SiteFrame, itemVisual, mobileOrder,
 import type { SiteBlockDraft } from '@/hooks/use-site-pages';
 import type { SiteBlockView, SiteLayoutItem, SitePageData, SiteSection } from '@/lib/site-api';
 import { DEFAULT_W, missingPart, type PageDoc, type Selection } from './page-doc';
+import { RichTextEditor } from './rich-text-editor';
+import { plainToDoc } from '@/components/site/rich-text-view';
+import type { RichNode } from '@/lib/site-api';
 import 'react-grid-layout/css/styles.css';
 
-const Grid = WidthProvider(ReactGridLayout);
+/**
+ * Posicao na grade com a pagina em escala (modo computador). A estrategia de escala
+ * da propria biblioteca calcula o inicio do arrasto pela janela, e nao pela grade
+ * (o elemento pulava); sem calcDragPosition ela usa a conta certa (pai, escala).
+ */
+const scaledStrategy = (scale: number): PositionStrategy => ({
+  type: 'transform',
+  scale,
+  calcStyle: ({ top, left, width, height }) => ({
+    transform: `translate(${left}px,${top}px)`, width: `${width}px`, height: `${height}px`, position: 'absolute',
+  }),
+});
+const GRID_CANCEL = ".no-drag,[contenteditable='true'],[contenteditable='plaintext-only']";
 
 /** Largura da pagina no modo computador (a tela do editor mostra em escala). */
 export const DESKTOP_WIDTH = 1280;
@@ -36,7 +51,7 @@ function viewFor(b: SiteBlockDraft, fromServer: Map<string, SiteBlockView>): Sit
   const id = b.id!;
   switch (b.type) {
     case 'heading': return { id, type: 'heading', text: str(b.text) || 'Título', size: b.size === 'md' ? 'md' : 'lg' };
-    case 'text': return str(b.text) ? { id, type: 'text', text: str(b.text) } : 'Texto vazio: escreva no painel ao lado.';
+    case 'text': return str(b.text) ? { id, type: 'text', text: str(b.text), doc: b.doc as RichNode | undefined } : 'Texto vazio: dois cliques para escrever.';
     case 'image': return str(b.url) ? { id, type: 'image', url: str(b.url), alt: str(b.alt) } : 'Imagem: escolha a foto no painel ao lado.';
     case 'button': return { id, type: 'button', label: str(b.label) || 'Botão', url: str(b.url) || '#' };
     case 'divider': return { id, type: 'divider' };
@@ -85,6 +100,9 @@ interface CanvasProps {
   onMoveAcross: (id: string, sectionId: string, point: { x: number; y: number }) => void;
   onResizeItem: (id: string, h: number) => void;
   onMobileOrder: (sectionId: string, ids: string[]) => void;
+  /** Texto formatado: barra de formatacao (em cima da pagina) e mudancas. */
+  toolbarSlot: HTMLElement | null;
+  onRichChange: (id: string, doc: RichNode, text: string) => void;
 }
 
 /** Secao (que nao seja a de origem) embaixo do ponteiro. */
@@ -187,6 +205,8 @@ function SectionGrid(props: SectionProps) {
   const gapY = SITE_GRID.gapY(scrap);
   const items = readingOrder(section.items);
   const [dragging, setDragging] = useState<string | null>(null);
+  const { width, containerRef, mounted } = useContainerWidth();
+  const strategy = useMemo(() => scaledStrategy(scale), [scale]);
   const layout = items.map((it) => ({
     i: it.id, x: it.x, y: it.y, w: it.w, minW: 1, maxW: SITE_GRID.cols,
     h: heights[it.id] ? Math.max(rowsFor(heights[it.id], gapY), it.minH ?? 1) : it.h,
@@ -195,45 +215,44 @@ function SectionGrid(props: SectionProps) {
   // Arrastando: a grade nao cresce sem fim para baixo, assim o ponteiro alcanca a proxima secao
   const bottom = layout.reduce((max, l) => Math.max(max, l.y + l.h), 0);
   const draggedH = layout.find((l) => l.i === dragging)?.h ?? 0;
+  const dropW = dragType ? DEFAULT_W[dragType] ?? SITE_GRID.cols : SITE_GRID.cols;
   return (
-    <div data-grid-section={section.id}>
-    <Grid
-      className={cn('site-editor-grid', items.length === 0 && 'min-h-[110px] rounded-lg border-2 border-dashed border-slate-300/80')}
-      layout={layout}
-      cols={SITE_GRID.cols}
-      rowHeight={SITE_GRID.rowPx}
-      margin={[SITE_GRID.gapX, gapY]}
-      containerPadding={[0, 0]}
-      compactType="vertical"
-      isResizable
-      resizeHandles={['e', 'w', 's', 'se', 'sw']}
-      maxRows={dragging ? bottom + draggedH : Infinity}
-      isDroppable={!!dragType}
-      droppingItem={{ i: '__novo__', x: 0, y: 0, w: dragType ? DEFAULT_W[dragType] ?? SITE_GRID.cols : SITE_GRID.cols, h: 6 }}
-      onDropDragOver={() => (dragType ? { w: DEFAULT_W[dragType] ?? SITE_GRID.cols, h: 6 } : false)}
-      onDrop={(_l: Layout, item: LayoutItem | undefined) => { if (dragType && item) props.onDropBlock(section.id, dragType, { x: item.x, y: item.y, w: item.w }); }}
-      transformScale={scale}
-      draggableCancel=".no-drag,[contenteditable='true'],[contenteditable='plaintext-only']"
-      onLayoutChange={(l: Layout) => props.onGridChange(section.id, l.filter((g) => g.i !== '__novo__'))}
-      onDragStart={(_l: Layout, _o: LayoutItem | null, n: LayoutItem | null) => { setDragging(n?.i ?? null); props.onGestureStart(); }}
-      onDrag={(_l: Layout, _o: LayoutItem | null, _n: LayoutItem | null, _p: LayoutItem | null, e: Event) => props.onDragOverSection(sectionAt(pointOf(e), section.id))}
-      onDragStop={(_l: Layout, _o: LayoutItem | null, n: LayoutItem | null, _p: LayoutItem | null, e: Event) => {
-        setDragging(null);
-        props.onDragOverSection(null);
-        const point = pointOf(e);
-        const target = n ? sectionAt(point, section.id) : null;
-        if (n && target) props.onMoveAcross(n.i, target, point);
-        else props.onGestureEnd();
-      }}
-      onResizeStart={props.onGestureStart}
-      onResizeStop={(_l: Layout, _o: LayoutItem | null, n: LayoutItem | null) => { if (n) props.onResizeItem(n.i, n.h); props.onGestureEnd(); }}
-    >
-      {items.map((it) => (
-        <div key={it.id}>
-          <ItemBox {...props} item={it} measure />
-        </div>
-      ))}
-    </Grid>
+    <div data-grid-section={section.id} ref={containerRef}>
+      {mounted && (
+        <GridLayout
+          width={width}
+          className={cn('site-editor-grid', items.length === 0 && 'min-h-[110px] rounded-lg border-2 border-dashed border-slate-300/80')}
+          layout={layout}
+          gridConfig={{ cols: SITE_GRID.cols, rowHeight: SITE_GRID.rowPx, margin: [SITE_GRID.gapX, gapY], containerPadding: [0, 0], maxRows: dragging ? bottom + draggedH : Infinity }}
+          // Precisa mover 4px para virar arrasto: clique e dois cliques continuam sendo clique
+          dragConfig={{ enabled: true, cancel: GRID_CANCEL, threshold: 4 }}
+          resizeConfig={{ enabled: true, handles: ['e', 'w', 's', 'se', 'sw'] }}
+          dropConfig={{ enabled: !!dragType, defaultItem: { w: dropW, h: 6 } }}
+          positionStrategy={strategy}
+          droppingItem={{ i: '__novo__', x: 0, y: 0, w: dropW, h: 6 }}
+          onDropDragOver={() => (dragType ? { w: dropW, h: 6 } : false)}
+          onDrop={(_l: Layout, item: LayoutItem | undefined) => { if (dragType && item) props.onDropBlock(section.id, dragType, { x: item.x, y: item.y, w: item.w }); }}
+          onLayoutChange={(l: Layout) => props.onGridChange(section.id, l.filter((g) => g.i !== '__novo__'))}
+          onDragStart={(_l, _o, n) => { setDragging(n?.i ?? null); props.onGestureStart(); }}
+          onDrag={(_l, _o, _n, _p, e) => props.onDragOverSection(sectionAt(pointOf(e), section.id))}
+          onDragStop={(_l, _o, n, _p, e) => {
+            setDragging(null);
+            props.onDragOverSection(null);
+            const point = pointOf(e);
+            const target = n ? sectionAt(point, section.id) : null;
+            if (n && target) props.onMoveAcross(n.i, target, point);
+            else props.onGestureEnd();
+          }}
+          onResizeStart={props.onGestureStart}
+          onResizeStop={(_l, _o, n) => { if (n) props.onResizeItem(n.i, n.h); props.onGestureEnd(); }}
+        >
+          {items.map((it) => (
+            <div key={it.id}>
+              <ItemBox {...props} item={it} measure />
+            </div>
+          ))}
+        </GridLayout>
+      )}
     </div>
   );
 }
@@ -303,7 +322,7 @@ function ItemBox(props: SectionProps & { item: SiteLayoutItem; measure?: boolean
       // Sem stopPropagation: o mousedown precisa chegar na grade para arrastar
       onMouseDown={() => { if (!editing) onSelect({ kind: 'item', id: item.id }); }}
       onClick={(e) => e.stopPropagation()}
-      onDoubleClick={() => { if (TEXT_TYPES.has(block.type) && typeof view !== 'string') props.onStartEdit(item.id); }}
+      onDoubleClick={() => { if (TEXT_TYPES.has(block.type) && (typeof view !== 'string' || block.type === 'text')) props.onStartEdit(item.id); }}
       data-testid="editor-item"
       data-type={block.type}
     >
@@ -313,10 +332,19 @@ function ItemBox(props: SectionProps & { item: SiteLayoutItem; measure?: boolean
           id={item.id}
           extra={pad}
           onMeasure={props.measure ? props.onMeasure : undefined}
-          editing={editing}
+          editing={editing && block.type !== 'text'}
+          live={editing && block.type === 'text'}
           onCommit={(text) => props.onCommitText(item.id, text)}
         >
-          {typeof view === 'string' ? (
+          {editing && block.type === 'text' ? (
+            <RichTextEditor
+              doc={(block.doc as RichNode | undefined) ?? plainToDoc(str(block.text))}
+              fonts={props.data.fonts || []}
+              toolbarSlot={props.toolbarSlot}
+              onChange={(doc, text) => props.onRichChange(item.id, doc, text)}
+              onDone={() => props.onCommitText(item.id, null)}
+            />
+          ) : typeof view === 'string' ? (
             <div className="rounded-lg border-2 border-dashed border-slate-300 bg-white/70 p-4 text-center text-sm text-slate-500">{view}</div>
           ) : (
             <BlockView block={view} index={index} data={props.data} brand={props.brand} scrap={props.scrap} tenantSlug="" pageSlug="" preview />
@@ -340,7 +368,9 @@ function ItemBox(props: SectionProps & { item: SiteLayoutItem; measure?: boolean
         </div>
       )}
       {selected && TEXT_TYPES.has(block.type) && !editing && (
-        <span className="pointer-events-none absolute -bottom-7 left-0 z-20 rounded bg-primary px-2 py-0.5 text-xs text-primary-foreground">Dois cliques para editar o texto</span>
+        <span className="pointer-events-none absolute -bottom-7 left-0 z-20 rounded bg-primary px-2 py-0.5 text-xs text-primary-foreground">
+          {block.type === 'text' ? 'Dois cliques para escrever e formatar (como no Word)' : 'Dois cliques para editar o texto'}
+        </span>
       )}
     </div>
   );
@@ -350,8 +380,8 @@ function ItemBox(props: SectionProps & { item: SiteLayoutItem; measure?: boolean
  * Conteudo do bloco: mede a altura natural (para a grade) e, em edicao,
  * deixa o texto editavel ali mesmo na pagina.
  */
-function Measured({ id, extra, onMeasure, editing, onCommit, children }: {
-  id: string; extra: number; onMeasure?: (id: string, px: number) => void; editing: boolean; onCommit: (text: string | null) => void; children: ReactNode;
+function Measured({ id, extra, onMeasure, editing, live, onCommit, children }: {
+  id: string; extra: number; onMeasure?: (id: string, px: number) => void; editing: boolean; live?: boolean; onCommit: (text: string | null) => void; children: ReactNode;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const commitRef = useRef(onCommit);
@@ -400,5 +430,5 @@ function Measured({ id, extra, onMeasure, editing, onCommit, children }: {
     };
   }, [editing]);
 
-  return <div ref={ref} className={editing ? undefined : 'pointer-events-none select-none'}>{children}</div>;
+  return <div ref={ref} className={editing || live ? undefined : 'pointer-events-none select-none'}>{children}</div>;
 }

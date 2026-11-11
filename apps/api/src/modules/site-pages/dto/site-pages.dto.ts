@@ -150,4 +150,10 @@ export class UpdateSiteDto {
   @IsString()
   @MaxLength(80)
   homeSlug?: string;
+
+  @ApiPropertyOptional({ description: 'Meus temas: [{ name, look }] (ate 12)' })
+  @IsOptional()
+  @IsArray()
+  @Type(() => Object)
+  savedThemes?: Record<string, unknown>[];
 }
