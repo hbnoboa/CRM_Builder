@@ -45,6 +45,12 @@ export class UpdateSitePageDto {
   @IsArray()
   @Type(() => Object)
   blocks?: Record<string, unknown>[];
+
+  @ApiPropertyOptional({ description: 'Secoes e posicao de cada bloco na grade' })
+  @IsOptional()
+  @IsObject()
+  layout?: Record<string, unknown>;
+
   @ApiPropertyOptional({ description: 'Aparencia: estilo, fundo, cor de destaque, capa, frase' })
   @IsOptional()
   @IsObject()
@@ -56,6 +62,11 @@ export class PreviewSitePageDto {
   @IsArray()
   @Type(() => Object)
   blocks: Record<string, unknown>[];
+
+  @ApiPropertyOptional({ description: 'Secoes e posicao de cada bloco na grade' })
+  @IsOptional()
+  @IsObject()
+  layout?: Record<string, unknown>;
 
   @ApiPropertyOptional({ description: 'Endereco da pagina (marca o item atual no menu)' })
   @IsOptional()

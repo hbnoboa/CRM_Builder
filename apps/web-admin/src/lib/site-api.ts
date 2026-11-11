@@ -51,6 +51,39 @@ export interface SiteAppearance {
   tagline?: string;
 }
 
+/** Secoes da pagina e posicao de cada bloco na grade (mesmo formato do servidor, site-blocks.ts). */
+export type SiteSpacing = 'none' | 'sm' | 'md' | 'lg';
+export type SiteHideOn = 'mobile' | 'desktop';
+export interface SiteItemStyle {
+  align?: 'left' | 'center' | 'right';
+  vAlign?: 'top' | 'center' | 'bottom';
+  bg?: string;
+  padding?: SiteSpacing;
+  radius?: 'none' | 'sm' | 'lg';
+  shadow?: boolean;
+  light?: boolean;
+}
+export interface SiteLayoutItem {
+  id: string; x: number; y: number; w: number; h: number; hide?: SiteHideOn; style?: SiteItemStyle;
+  /** Posicao no celular dentro da secao (sem: ordem de leitura). */
+  order?: number;
+  /** Altura escolhida, em linhas da grade (sem: a do conteudo). */
+  minH?: number;
+}
+export interface SiteSection {
+  id: string;
+  name?: string;
+  width: 'narrow' | 'normal' | 'full';
+  padding: SiteSpacing;
+  bg?: string;
+  bgImage?: string;
+  overlay?: boolean;
+  light?: boolean;
+  hide?: SiteHideOn;
+  items: SiteLayoutItem[];
+}
+export interface SiteLayout { sections: SiteSection[] }
+
 export type SiteValue = string | number | boolean | string[] | null;
 
 export interface SiteRecordView {
@@ -68,6 +101,8 @@ export interface SitePageData {
   /** Menu entre as paginas (2+ paginas) e rodape comum do site. */
   site?: { menu: Array<{ slug: string; label: string; current: boolean }>; footer: SiteFooter; homeSlug: string | null };
   blocks: SiteBlockView[];
+  /** Secoes e grade (paginas antigas: uma secao com os blocos em sequencia). */
+  layout?: SiteLayout;
   record: SiteRecordView | null;
   trackingError: string | null;
 }

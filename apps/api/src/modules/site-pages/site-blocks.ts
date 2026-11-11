@@ -160,6 +160,155 @@ export function normalizeSiteConfig(raw: unknown, pageSlugs?: Set<string>): Site
 }
 
 
+// ── Secoes e grade ───────────────────────────────────────────────────────
+
+/**
+ * Como os blocos ficam na pagina: secoes (faixas de cima para baixo) com uma grade
+ * de 12 colunas no computador. No celular os blocos de cada secao ficam um embaixo
+ * do outro, na ordem de leitura (de cima para baixo, da esquerda para a direita).
+ * `h` e a altura em linhas da grade, medida no editor; na pagina e so o minimo.
+ */
+export const SECTION_WIDTHS = ['narrow', 'normal', 'full'] as const;
+export const SPACINGS = ['none', 'sm', 'md', 'lg'] as const;
+const HIDE_ON = ['mobile', 'desktop'] as const;
+const ALIGNS = ['left', 'center', 'right'] as const;
+const V_ALIGNS = ['top', 'center', 'bottom'] as const;
+const RADII = ['none', 'sm', 'lg'] as const;
+export const GRID_COLS = 12;
+const MAX_SECTIONS = 30;
+const MAX_ROW = 20000;
+
+export interface SiteItemStyle {
+  align?: (typeof ALIGNS)[number];
+  vAlign?: (typeof V_ALIGNS)[number];
+  bg?: string;
+  padding?: (typeof SPACINGS)[number];
+  radius?: (typeof RADII)[number];
+  shadow?: boolean;
+  /** Texto claro (para fundo escuro). */
+  light?: boolean;
+}
+export interface SiteLayoutItem {
+  /** id do bloco */
+  id: string;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  hide?: (typeof HIDE_ON)[number];
+  style?: SiteItemStyle;
+  /** Posicao no celular dentro da secao (sem: segue a ordem de leitura). */
+  order?: number;
+  /** Altura escolhida (em linhas da grade); sem: a do conteudo. */
+  minH?: number;
+}
+export interface SiteSection {
+  id: string;
+  name?: string;
+  /** narrow: coluna de leitura; normal: largura de site; full: a tela toda. */
+  width: (typeof SECTION_WIDTHS)[number];
+  padding: (typeof SPACINGS)[number];
+  bg?: string;
+  bgImage?: string;
+  /** Escurece a foto de fundo para o texto aparecer. */
+  overlay?: boolean;
+  light?: boolean;
+  hide?: (typeof HIDE_ON)[number];
+  items: SiteLayoutItem[];
+}
+export interface SiteLayout { sections: SiteSection[] }
+
+const pick = <T extends readonly string[]>(list: T, v: unknown): T[number] | undefined =>
+  (list as readonly string[]).includes(String(v)) ? (v as T[number]) : undefined;
+const hex = (v: unknown) => (/^#[0-9a-f]{6}$/i.test(String(v ?? '')) ? String(v).toLowerCase() : undefined);
+const int = (v: unknown, min: number, max: number, fallback: number) => {
+  const n = Math.round(Number(v));
+  return Number.isFinite(n) ? Math.min(max, Math.max(min, n)) : fallback;
+};
+const cleanId = (v: unknown) => clip(v, 40).replace(/[^a-zA-Z0-9_-]/g, '');
+const compact = <T extends object>(o: T): T => Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined && v !== false)) as T;
+
+function normalizeItemStyle(raw: unknown): SiteItemStyle | undefined {
+  const s = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
+  const style = compact<SiteItemStyle>({
+    align: pick(ALIGNS, s.align), vAlign: pick(V_ALIGNS, s.vAlign), bg: hex(s.bg), padding: pick(SPACINGS, s.padding),
+    radius: pick(RADII, s.radius), shadow: s.shadow === true, light: s.light === true,
+  });
+  return Object.keys(style).length ? style : undefined;
+}
+
+/** Bloco de largura toda, embaixo do que ja existe na secao. */
+const appendItem = (section: SiteSection, id: string) => {
+  const y = section.items.reduce((max, it) => Math.max(max, it.y + it.h), 0);
+  section.items.push({ id, x: 0, y, w: GRID_COLS, h: 1 });
+};
+
+/**
+ * Valida as secoes vindas do editor contra os blocos da pagina: cada bloco aparece
+ * uma vez; bloco que ficou de fora vai para o fim da ultima secao. Pagina antiga
+ * (sem secoes) vira uma secao estreita com os blocos em sequencia, como era antes.
+ */
+export function normalizeLayout(raw: unknown, blocks: Array<{ id: string }>): SiteLayout {
+  const r = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
+  const known = new Set(blocks.map((b) => b.id));
+  const used = new Set<string>();
+  const sectionIds = new Set<string>();
+  const sections: SiteSection[] = (Array.isArray(r.sections) ? r.sections : []).slice(0, MAX_SECTIONS).map((item, index) => {
+    const s = (item && typeof item === 'object' ? item : {}) as Record<string, unknown>;
+    let id = cleanId(s.id) || `secao-${index + 1}`;
+    while (sectionIds.has(id)) id = `${id}-${index + 1}`;
+    sectionIds.add(id);
+    const items = (Array.isArray(s.items) ? s.items : []).map((it, i) => {
+      const o = (it && typeof it === 'object' ? it : {}) as Record<string, unknown>;
+      const bid = clip(o.id, 40);
+      if (!known.has(bid) || used.has(bid)) return null;
+      used.add(bid);
+      const w = int(o.w, 1, GRID_COLS, GRID_COLS);
+      const style = normalizeItemStyle(o.style);
+      const minH = o.minH === undefined || o.minH === null ? undefined : int(o.minH, 1, 1000, 1);
+      return compact<SiteLayoutItem>({
+        id: bid, x: int(o.x, 0, GRID_COLS - w, 0), y: int(o.y, 0, MAX_ROW, i), w, h: Math.max(int(o.h, 1, 1000, 1), minH ?? 1),
+        hide: pick(HIDE_ON, o.hide), style,
+        order: o.order === undefined || o.order === null ? undefined : int(o.order, 0, 999, 0), minH,
+      });
+    }).filter((it): it is SiteLayoutItem => !!it);
+    const bgImage = safeUrl(s.bgImage);
+    const name = clip(s.name, 40);
+    return compact<SiteSection>({
+      id, ...(name ? { name } : {}),
+      width: pick(SECTION_WIDTHS, s.width) ?? 'normal',
+      padding: pick(SPACINGS, s.padding) ?? 'md',
+      bg: hex(s.bg), ...(bgImage ? { bgImage } : {}), overlay: s.overlay === true, light: s.light === true,
+      hide: pick(HIDE_ON, s.hide), items: compactUp(items),
+    });
+  });
+  const missing = blocks.filter((b) => !used.has(b.id));
+  if (missing.length) {
+    if (!sections.length) sections.push({ id: 'secao-1', width: 'narrow', padding: 'md', items: [] });
+    for (const b of missing) appendItem(sections[sections.length - 1], b.id);
+  }
+  return { sections };
+}
+
+/**
+ * Sobe cada bloco ate encostar no de cima (como a grade do editor faz): bloco
+ * removido ou invalido nao deixa buraco na pagina.
+ */
+function compactUp(items: SiteLayoutItem[]): SiteLayoutItem[] {
+  const placed: SiteLayoutItem[] = [];
+  for (const it of [...items].sort((a, b) => a.y - b.y || a.x - b.x)) {
+    const above = placed.filter((p) => p.x < it.x + it.w && it.x < p.x + p.w);
+    placed.push({ ...it, y: above.reduce((max, p) => Math.max(max, p.y + p.h), 0) });
+  }
+  const pos = new Map(placed.map((p) => [p.id, p.y]));
+  return items.map((it) => ({ ...it, y: pos.get(it.id)! }));
+}
+
+/** Ordem de leitura dos blocos (secao, linha, coluna): e a ordem no celular. */
+export function readingOrder(layout: SiteLayout): string[] {
+  return layout.sections.flatMap((s) => [...s.items].sort((a, b) => a.y - b.y || a.x - b.x).map((it) => it.id));
+}
+
 /** Tipos que o cliente pode preencher num formulario publico. */
 export const FORM_FIELD_TYPES = new Set([
   'text', 'textarea', 'number', 'currency', 'percentage', 'rating', 'date', 'datetime', 'time',
@@ -171,7 +320,7 @@ export const TRACK_FIELD_TYPES = new Set([
   ...FORM_FIELD_TYPES, 'relation', 'user-select', 'formula', 'rollup', 'workflow-status',
 ]);
 const NOT_REQUIRED_TYPES = new Set(['section-title', 'sub-entity', 'formula', 'rollup', 'timer', 'sla-status', 'action-button', 'hidden']);
-const MAX_BLOCKS = 40;
+const MAX_BLOCKS = 80;
 const MAX_IMAGES = 24;
 const MAX_CARDS = 12;
 const MAX_CATALOG = 60;
@@ -229,23 +378,23 @@ export function normalizeBlocks(raw: unknown, ctx: NormalizeContext): SiteBlock[
     switch (type) {
       case 'heading': {
         const text = clip(b.text, 160);
-        if (text) out.push({ id, type, text, size: b.size === 'md' ? 'md' : 'lg' });
+        out.push({ id, type, text, size: b.size === 'md' ? 'md' : 'lg' });
         break;
       }
       case 'text': {
         const text = clip(b.text, 4000);
-        if (text) out.push({ id, type, text });
+        out.push({ id, type, text });
         break;
       }
       case 'image': {
         const url = safeUrl(b.url);
-        if (url) out.push({ id, type, url, ...(clip(b.alt, 160) ? { alt: clip(b.alt, 160) } : {}) });
+        out.push({ id, type, url, ...(clip(b.alt, 160) ? { alt: clip(b.alt, 160) } : {}) });
         break;
       }
       case 'button': {
         const label = clip(b.label, 60);
         const url = safeUrl(b.url);
-        if (label && url) out.push({ id, type, label, url });
+        out.push({ id, type, label, url });
         break;
       }
       case 'divider':
@@ -280,7 +429,6 @@ export function normalizeBlocks(raw: unknown, ctx: NormalizeContext): SiteBlock[
       }
       case 'hero': {
         const title = clip(b.title, 120);
-        if (!title) break;
         const imageUrl = safeUrl(b.imageUrl);
         const buttonLabel = clip(b.buttonLabel, 40);
         const buttonUrl = safeUrl(b.buttonUrl);
@@ -298,7 +446,6 @@ export function normalizeBlocks(raw: unknown, ctx: NormalizeContext): SiteBlock[
           const caption = clip(img.caption, 80);
           return url ? { url, ...(caption ? { caption } : {}) } : null;
         }).filter((i): i is GalleryImage => !!i);
-        if (!images.length) break;
         const layout = b.layout === 'grid' || b.layout === 'mosaic' ? b.layout : 'polaroid';
         const title = clip(b.title, 120);
         out.push({ id, type, layout, images, ...(title ? { title } : {}) });
@@ -314,7 +461,6 @@ export function normalizeBlocks(raw: unknown, ctx: NormalizeContext): SiteBlock[
           const badge = clip(it.badge, 24);
           return { title: t, ...(text ? { text } : {}), ...(imageUrl ? { imageUrl } : {}), ...(badge ? { badge } : {}) };
         }).filter((i): i is CardItem => !!i);
-        if (!items.length) break;
         const columns = [1, 2, 3].includes(Number(b.columns)) ? (Number(b.columns) as 1 | 2 | 3) : Math.min(3, items.length) as 1 | 2 | 3;
         const title = clip(b.title, 120);
         out.push({ id, type, columns, items, ...(title ? { title } : {}) });
@@ -323,7 +469,7 @@ export function normalizeBlocks(raw: unknown, ctx: NormalizeContext): SiteBlock[
       case 'quote': {
         const text = clip(b.text, 500);
         const author = clip(b.author, 80);
-        if (text) out.push({ id, type, text, ...(author ? { author } : {}) });
+        out.push({ id, type, text, ...(author ? { author } : {}) });
         break;
       }
       case 'catalog': {
@@ -371,6 +517,22 @@ export function normalizeBlocks(raw: unknown, ctx: NormalizeContext): SiteBlock[
     }
   }
   return out;
+}
+
+/**
+ * Bloco ainda incompleto (rascunho do editor): fica guardado, mas nao aparece
+ * na pagina publicada. Devolve o que falta.
+ */
+export function missingPart(b: SiteBlock): string | null {
+  switch (b.type) {
+    case 'heading': case 'text': case 'quote': return b.text ? null : 'o texto';
+    case 'image': return b.url ? null : 'a foto';
+    case 'button': return !b.url ? 'o link' : !b.label ? 'o texto' : null;
+    case 'hero': return b.title ? null : 'o título';
+    case 'gallery': return b.images.length ? null : 'as fotos';
+    case 'cards': return b.items.length ? null : 'os cartões';
+    default: return null;
+  }
 }
 
 /** Campos que podem ser o nome de um item na vitrine. */

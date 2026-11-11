@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import api from '@/lib/api';
 import { getErrorMessage } from '@/lib/get-error-message';
-import type { SitePageData } from '@/lib/site-api';
+import type { SiteLayout, SitePageData } from '@/lib/site-api';
 
 export type SiteBlockDraft = { id?: string; type: string; [key: string]: unknown };
 
@@ -12,6 +12,7 @@ export interface SitePage {
   slug: string;
   description: string | null;
   blocks: SiteBlockDraft[];
+  layout: SiteLayout;
   /** Aparencia (estilo, fundo, cor, capa, frase). */
   settings?: Record<string, unknown>;
   isPublished: boolean;
@@ -60,7 +61,7 @@ export function useCreateSitePage() {
 export function useUpdateSitePage(id: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (body: Partial<Pick<SitePage, 'title' | 'slug' | 'description' | 'blocks' | 'settings'>>) =>
+    mutationFn: async (body: Partial<Pick<SitePage, 'title' | 'slug' | 'description' | 'blocks' | 'layout' | 'settings'>>) =>
       (await api.patch<SitePage>(`/site-pages/${id}`, body)).data,
     onSuccess: (page) => {
       qc.setQueryData(keys.detail(id), page);
@@ -93,8 +94,8 @@ export function useDeleteSitePage() {
   });
 }
 
-export async function previewSitePage(blocks: SiteBlockDraft[], title: string, settings?: Record<string, unknown>, slug?: string) {
-  return (await api.post<SitePageData | { error: string }>('/site-pages/preview', { blocks, title, settings, slug })).data;
+export async function previewSitePage(blocks: SiteBlockDraft[], title: string, settings?: Record<string, unknown>, slug?: string, layout?: SiteLayout) {
+  return (await api.post<SitePageData | { error: string }>('/site-pages/preview', { blocks, title, settings, slug, layout })).data;
 }
 
 /** Link de acompanhamento de um registro (cria se ainda nao existir). */

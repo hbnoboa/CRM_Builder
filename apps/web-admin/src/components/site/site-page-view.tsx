@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, type CSSProperties, type FormEvent } from 'react';
+import { useState, type CSSProperties, type FormEvent, type ReactNode } from 'react';
 import { AtSign, CheckCircle2, Clock, Copy, Download, ExternalLink, FileText, Loader2, Mail, MapPin, MessageCircle, Paperclip, Phone, Star, Upload, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -8,7 +8,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
 import { siteScriptFont } from '@/lib/site-fonts';
-import { absoluteSiteUrl, siteApi, type SiteAppearance, type SiteFooter, type SiteBlockView, type SiteCatalogItem, type SiteFieldDef, type SitePageData, type SiteRecordView, type SiteValue } from '@/lib/site-api';
+import { absoluteSiteUrl, siteApi, type SiteAppearance, type SiteFooter, type SiteBlockView, type SiteCatalogItem, type SiteFieldDef, type SiteItemStyle, type SiteLayout, type SiteLayoutItem, type SitePageData, type SiteRecordView, type SiteSection, type SiteSpacing, type SiteValue } from '@/lib/site-api';
 
 const DEFAULT_BRAND = '#2563eb';
 const SERIF = "Georgia, 'Times New Roman', serif";
@@ -62,45 +62,105 @@ function backgroundStyle(look: SiteAppearance, brand: string): CSSProperties {
   }
 }
 
-/** Pagina para clientes: o que o cliente final ve (celular primeiro). */
-export function SitePageView({ data, tenantSlug, pageSlug, token, preview, onChanged }: SitePageViewProps) {
+export function siteLook(data: SitePageData) {
   const look: SiteAppearance = data.page.settings ?? { style: 'classic', background: 'plain' };
   const brand = look.accent || data.tenant.brandColor || DEFAULT_BRAND;
-  const scrap = look.style === 'scrapbook';
-  const style = { '--site-brand': brand, ...backgroundStyle(look, brand) } as CSSProperties;
+  return { look, brand, scrap: look.style === 'scrapbook' };
+}
 
+/** Pagina antiga (sem secoes): uma secao estreita com os blocos em sequencia. */
+export function layoutOf(data: Pick<SitePageData, 'blocks' | 'layout'>): SiteLayout {
+  if (data.layout?.sections?.length) return data.layout;
+  return { sections: [{ id: 'secao-1', width: 'narrow', padding: 'md', items: data.blocks.map((b, i) => ({ id: b.id, x: 0, y: i, w: 12, h: 1 })) }] };
+}
+
+/** Ordem de leitura de uma secao (de cima para baixo, da esquerda para a direita). */
+export const readingOrder = (items: SiteLayoutItem[]) => [...items].sort((a, b) => a.y - b.y || a.x - b.x);
+
+/** Ordem no celular: a escolhida no editor ou, sem escolha, a de leitura. */
+export function mobileOrder(items: SiteLayoutItem[]): SiteLayoutItem[] {
+  const read = readingOrder(items);
+  if (!items.some((it) => it.order !== undefined)) return read;
+  return read.map((it, i) => ({ it, k: it.order ?? 1000 + i })).sort((a, b) => a.k - b.k).map((x) => x.it);
+}
+
+/** Altura escolhida (linhas da grade) em px. */
+export const rowsToPx = (rows: number, scrap: boolean) => rows * (SITE_GRID.rowPx + SITE_GRID.gapY(scrap)) - SITE_GRID.gapY(scrap);
+
+/**
+ * Grade: no computador 12 colunas (linha minima de ROW_PX, espacos de GAP_X/gap);
+ * no celular, um embaixo do outro. O editor usa os mesmos numeros, para a pagina
+ * sair igual ao que se montou.
+ */
+export const SITE_GRID = { cols: 12, rowPx: 8, gapX: 24, gapY: (scrap: boolean) => (scrap ? 32 : 20) };
+
+/** Pagina para clientes: o que o cliente final ve, no computador e no celular. */
+export function SitePageView({ data, tenantSlug, pageSlug, token, preview, onChanged }: SitePageViewProps) {
+  const { brand, scrap } = siteLook(data);
+  const byId = new Map(data.blocks.map((b) => [b.id, b]));
+  let order = 0;
   return (
-    <div className={cn('text-slate-900', siteScriptFont.variable, preview ? 'min-h-full' : 'min-h-screen')} style={style} data-testid="site-page" data-style={look.style}>
-      {scrap ? <ScrapHeader data={data} look={look} brand={brand} /> : <ClassicHeader data={data} look={look} brand={brand} />}
-      <SiteMenu data={data} brand={brand} scrap={scrap} preview={preview} />
-
-      <main className={cn('mx-auto px-4', scrap ? 'max-w-3xl space-y-10 py-8' : 'max-w-2xl space-y-5 py-6')}>
-        {data.blocks.map((block, index) => (
-          <div key={block.id} id={block.id} className="scroll-mt-4">
-            <BlockView
-              block={block}
-              index={index}
-              data={data}
-              brand={brand}
-              scrap={scrap}
-              tenantSlug={tenantSlug}
-              pageSlug={pageSlug}
-              token={token}
-              preview={preview}
-              onChanged={onChanged}
-            />
-          </div>
-        ))}
+    <SiteFrame data={data} preview={preview}>
+      <main>
+        {layoutOf(data).sections.map((section) => {
+          const onPhone = mobileOrder(section.items);
+          return (
+            <SectionShell key={section.id} section={section} brand={brand} scrap={scrap}>
+              <div className="site-grid">
+                {readingOrder(section.items).map((item) => {
+                  const block = byId.get(item.id);
+                  if (!block) return null;
+                  const visual = itemVisual(item);
+                  return (
+                    <div
+                      key={item.id}
+                      id={block.id}
+                      className={cn('site-item scroll-mt-4', visual.className, item.hide && `site-hide-${item.hide}`)}
+                      style={{
+                        ...visual.style,
+                        '--site-col': `${item.x + 1} / span ${item.w}`,
+                        '--site-rows': `${item.y + 1} / span ${item.h}`,
+                        '--site-order': onPhone.indexOf(item),
+                        ...(item.minH ? { '--site-minh': `${rowsToPx(item.minH, scrap)}px` } : {}),
+                      } as CSSProperties}
+                    >
+                      <BlockView
+                        block={block} index={order++} data={data} brand={brand} scrap={scrap}
+                        tenantSlug={tenantSlug} pageSlug={pageSlug} token={token} preview={preview} onChanged={onChanged}
+                      />
+                    </div>
+                  );
+                })}
+              </div>
+            </SectionShell>
+          );
+        })}
       </main>
+    </SiteFrame>
+  );
+}
 
-      <SiteFooterInfo footer={data.site?.footer} brand={brand} scrap={scrap} />
+/** Fundo, topo, menu e rodape da pagina, em volta do conteudo. */
+export function SiteFrame({ data, preview, children, onHeaderClick }: { data: SitePageData; preview?: boolean; children: ReactNode; onHeaderClick?: () => void }) {
+  const { look, brand, scrap } = siteLook(data);
+  // Topo, menu e rodape acompanham a largura do conteudo (pagina so com secoes estreitas fica como era)
+  const width = layoutOf(data).sections.some((s) => s.width !== 'narrow') ? 'max-w-6xl' : scrap ? 'max-w-3xl' : 'max-w-2xl';
+  const style = { '--site-brand': brand, '--site-gap-y': `${SITE_GRID.gapY(scrap)}px`, ...backgroundStyle(look, brand) } as CSSProperties;
+  return (
+    <div className={cn('site-canvas text-slate-900', siteScriptFont.variable, preview ? 'min-h-full' : 'min-h-screen')} style={style} data-testid="site-page" data-style={look.style}>
+      <div onClick={onHeaderClick} className={onHeaderClick ? 'cursor-pointer' : undefined}>
+        {scrap ? <ScrapHeader data={data} look={look} brand={brand} /> : <ClassicHeader data={data} look={look} brand={brand} width={width} />}
+        <SiteMenu data={data} brand={brand} scrap={scrap} preview={preview} width={width} />
+      </div>
+      {children}
+      <SiteFooterInfo footer={data.site?.footer} brand={brand} scrap={scrap} width={width} />
       {scrap ? (
         <footer className="px-4 pb-10 pt-4 text-center">
           <p className="text-2xl" style={{ fontFamily: SCRIPT, color: brand }}>feito com ♡</p>
           <p className="mt-1 text-xs text-slate-500">{data.tenant.name} · CRM Builder</p>
         </footer>
       ) : (
-        <footer className="mx-auto max-w-2xl px-4 pb-8 pt-2 text-center text-xs text-slate-400">
+        <footer className={cn('mx-auto px-4 pb-8 pt-2 text-center text-xs text-slate-400', width)}>
           {data.tenant.name} · feito com CRM Builder
         </footer>
       )}
@@ -108,17 +168,64 @@ export function SitePageView({ data, tenantSlug, pageSlug, token, preview, onCha
   );
 }
 
+const SECTION_WIDTH: Record<SiteSection['width'], string> = { narrow: 'max-w-3xl', normal: 'max-w-6xl', full: 'max-w-none csm:px-8' };
+const SECTION_PAD: Record<SiteSpacing, string> = { none: 'py-0', sm: 'py-4', md: 'py-8', lg: 'py-14 csm:py-24' };
+const ITEM_PAD: Record<SiteSpacing, string> = { none: '', sm: 'p-3', md: 'p-5', lg: 'p-8' };
+const ITEM_RADIUS: Record<NonNullable<SiteItemStyle['radius']>, string> = { none: 'rounded-none', sm: 'rounded-lg', lg: 'rounded-3xl' };
+
+/** Faixa da pagina: largura, espaco em cima/embaixo, cor ou foto de fundo. */
+export function SectionShell({ section, brand, scrap, children, className, editing }: {
+  section: SiteSection; brand: string; scrap: boolean; children: ReactNode; className?: string; editing?: boolean;
+}) {
+  const style: CSSProperties = {};
+  if (section.bgImage) {
+    style.backgroundImage = `${section.overlay ? 'linear-gradient(rgba(0,0,0,0.5), rgba(0,0,0,0.5)), ' : ''}url(${section.bgImage})`;
+    style.backgroundSize = 'cover';
+    style.backgroundPosition = 'center';
+  }
+  if (section.bg) style.backgroundColor = section.bg;
+  if (section.light) style.color = '#fff';
+  return (
+    <section
+      id={section.id}
+      data-scrap={scrap || undefined}
+      className={cn('relative scroll-mt-4', SECTION_PAD[section.padding], section.light && 'site-ink-light', !editing && section.hide && `site-hide-${section.hide}`, className)}
+      style={{ ...style, '--site-brand': brand } as CSSProperties}
+    >
+      <div className={cn('mx-auto px-4', SECTION_WIDTH[section.width], section.width === 'full' && section.padding === 'none' && 'px-0 csm:px-0')}>
+        {children}
+      </div>
+    </section>
+  );
+}
+
+/** Aparencia de um elemento na grade: fundo, espaco interno, cantos, sombra, alinhamento. */
+export function itemVisual(item: SiteLayoutItem): { className: string; style: CSSProperties } {
+  const st = item.style || {};
+  return {
+    className: cn(
+      st.padding && ITEM_PAD[st.padding],
+      st.radius && ITEM_RADIUS[st.radius],
+      st.shadow && 'shadow-lg',
+      st.align === 'center' ? 'text-center' : st.align === 'right' ? 'text-right' : st.align === 'left' ? 'text-left' : '',
+      st.vAlign && st.vAlign !== 'top' && cn('flex flex-col', st.vAlign === 'center' ? 'justify-center' : 'justify-end'),
+      st.light && 'site-ink-light',
+    ),
+    style: { ...(st.bg ? { backgroundColor: st.bg } : {}), ...(st.light ? { color: '#fff' } : {}) },
+  };
+}
+
 /**
  * Menu entre as paginas do site. Links relativos (so o endereco da pagina): funcionam
  * em /p/<empresa>/<pagina> e no subdominio da empresa. Na previa nao navega.
  */
-function SiteMenu({ data, brand, scrap, preview }: { data: SitePageData; brand: string; scrap: boolean; preview?: boolean }) {
+function SiteMenu({ data, brand, scrap, preview, width }: { data: SitePageData; brand: string; scrap: boolean; preview?: boolean; width: string }) {
   const menu = data.site?.menu || [];
   if (menu.length < 2) return null;
   return (
     <nav aria-label="Páginas do site" data-testid="site-menu"
       className={cn(scrap ? 'mx-auto max-w-3xl px-4 pt-6' : 'sticky top-0 z-20 border-b bg-white/95 backdrop-blur')}>
-      <ul className={cn('flex gap-2', scrap ? 'flex-wrap justify-center' : 'mx-auto max-w-2xl overflow-x-auto px-4 py-2')}>
+      <ul className={cn('flex gap-2', scrap ? 'flex-wrap justify-center' : cn('mx-auto overflow-x-auto px-4 py-2', width))}>
         {menu.map((m) => {
           const cls = scrap
             ? 'block whitespace-nowrap rounded-full border-2 px-4 py-1.5 text-[15px] font-semibold transition-colors'
@@ -146,7 +253,7 @@ function waLink(raw: string) {
 }
 
 /** Contato e horarios no fim de todas as paginas do site. */
-function SiteFooterInfo({ footer, brand, scrap }: { footer?: SiteFooter; brand: string; scrap: boolean }) {
+function SiteFooterInfo({ footer, brand, scrap, width }: { footer?: SiteFooter; brand: string; scrap: boolean; width: string }) {
   if (!footer || Object.keys(footer).length === 0) return null;
   const rows = [
     footer.address ? { icon: MapPin, text: footer.address, href: `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(footer.address)}` } : null,
@@ -157,7 +264,7 @@ function SiteFooterInfo({ footer, brand, scrap }: { footer?: SiteFooter; brand: 
     footer.email ? { icon: Mail, text: footer.email, href: `mailto:${footer.email}` } : null,
   ].filter((r): r is { icon: typeof MapPin; text: string; href?: string } => !!r);
   return (
-    <section className={cn('mx-auto mt-6 px-4', scrap ? 'max-w-3xl' : 'max-w-2xl')} data-testid="site-footer">
+    <section className={cn('mx-auto mt-6 px-4', width)} data-testid="site-footer">
       <div className={cn('bg-white p-5', scrap ? 'rounded-[2rem] border-2 border-dashed text-center' : 'rounded-2xl border')}
         style={scrap ? { borderColor: tint(brand, 40) } : undefined}>
         {footer.text && <p className={cn('mb-3 whitespace-pre-line text-slate-700', scrap && 'text-[16px]')} style={scrap ? { fontFamily: SERIF } : undefined}>{footer.text}</p>}
@@ -190,11 +297,11 @@ function Avatar({ data, brand, className }: { data: SitePageData; brand: string;
   );
 }
 
-function ClassicHeader({ data, look, brand }: { data: SitePageData; look: SiteAppearance; brand: string }) {
+function ClassicHeader({ data, look, brand, width }: { data: SitePageData; look: SiteAppearance; brand: string; width: string }) {
   return (
     <header className="border-b bg-white">
-      {look.coverUrl && <div className="h-36 w-full bg-cover bg-center sm:h-48" style={{ backgroundImage: `url(${look.coverUrl})` }} />}
-      <div className="mx-auto flex max-w-2xl items-center gap-3 px-4 py-3">
+      {look.coverUrl && <div className="h-36 w-full bg-cover bg-center csm:h-48" style={{ backgroundImage: `url(${look.coverUrl})` }} />}
+      <div className={cn('mx-auto flex items-center gap-3 px-4 py-3', width)}>
         <Avatar data={data} brand={brand} className="h-9 w-9 rounded-lg text-sm" />
         <span className="min-w-0">
           <span className="block font-semibold">{data.tenant.name}</span>
@@ -210,14 +317,14 @@ function ScrapHeader({ data, look, brand }: { data: SitePageData; look: SiteAppe
   return (
     <header className="relative">
       {look.coverUrl ? (
-        <div className="h-52 w-full bg-cover bg-center sm:h-72" style={{ backgroundImage: `url(${look.coverUrl})` }} />
+        <div className="h-52 w-full bg-cover bg-center csm:h-72" style={{ backgroundImage: `url(${look.coverUrl})` }} />
       ) : (
         <div className="h-28 w-full" style={{ background: `linear-gradient(135deg, ${brand}, ${tint(brand, 45)})` }} />
       )}
       <div className="mx-auto -mt-14 max-w-3xl px-4 text-center">
         <Avatar data={data} brand={brand} className="mx-auto h-28 w-28 rounded-full border-[5px] border-white text-4xl shadow-lg" />
-        <h1 className="mt-3 text-4xl font-bold italic tracking-tight sm:text-5xl" style={{ fontFamily: SERIF }}>{data.tenant.name}</h1>
-        {look.tagline && <p className="mt-1 text-2xl sm:text-3xl" style={{ fontFamily: SCRIPT, color: brand }}>{look.tagline}</p>}
+        <h1 className="mt-3 text-4xl font-bold italic tracking-tight csm:text-5xl" style={{ fontFamily: SERIF }}>{data.tenant.name}</h1>
+        {look.tagline && <p className="mt-1 text-2xl csm:text-3xl" style={{ fontFamily: SCRIPT, color: brand }}>{look.tagline}</p>}
         <p className="mt-3 text-sm tracking-[0.6em]" style={{ color: brand }} aria-hidden>✿ ♡ ✿</p>
       </div>
     </header>
@@ -233,34 +340,34 @@ function Tape({ brand, rotate = -4 }: { brand: string; rotate?: number }) {
 }
 
 const TILT = [-2.2, 1.6, -0.8, 2.4, -1.4, 0.9];
-const COLS: Record<number, string> = { 1: '', 2: 'sm:grid-cols-2', 3: 'sm:grid-cols-3' };
+const COLS: Record<number, string> = { 1: '', 2: 'csm:grid-cols-2', 3: 'csm:grid-cols-3' };
 
 function BlockTitle({ text, brand, scrap }: { text?: string; brand: string; scrap: boolean }) {
   if (!text) return null;
   return scrap
-    ? <h2 className="mb-5 text-center text-4xl sm:text-5xl" style={{ fontFamily: SCRIPT, color: brand }}>{text}</h2>
+    ? <h2 className="mb-5 text-center text-4xl csm:text-5xl" style={{ fontFamily: SCRIPT, color: brand }}>{text}</h2>
     : <h2 className="mb-3 text-xl font-semibold">{text}</h2>;
 }
 
-type BlockViewProps = { block: SiteBlockView; index: number; data: SitePageData; brand: string; scrap: boolean } & Omit<SitePageViewProps, 'data'>;
+export type BlockViewProps = { block: SiteBlockView; index: number; data: SitePageData; brand: string; scrap: boolean } & Omit<SitePageViewProps, 'data'>;
 
-function BlockView({ block, index, data, brand, scrap, tenantSlug, pageSlug, token, preview, onChanged }: BlockViewProps) {
+export function BlockView({ block, index, data, brand, scrap, tenantSlug, pageSlug, token, preview, onChanged }: BlockViewProps) {
   switch (block.type) {
     case 'heading':
       if (scrap) {
         return block.size === 'md'
-          ? <h2 className="text-center text-2xl font-bold italic" style={{ fontFamily: SERIF }}><span style={{ color: brand }}>♡</span> {block.text} <span style={{ color: brand }}>♡</span></h2>
-          : <h2 className="text-center text-5xl leading-tight sm:text-6xl" style={{ fontFamily: SCRIPT, color: brand }}>{block.text}</h2>;
+          ? <h2 className="text-center text-2xl font-bold italic" style={{ fontFamily: SERIF }}><span style={{ color: brand }}>♡</span> <span data-edit="text">{block.text}</span> <span style={{ color: brand }}>♡</span></h2>
+          : <h2 className="text-center text-5xl leading-tight csm:text-6xl" style={{ fontFamily: SCRIPT, color: brand }} data-edit="text">{block.text}</h2>;
       }
       return block.size === 'md'
-        ? <h2 className="text-xl font-semibold">{block.text}</h2>
-        : <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">{block.text}</h1>;
+        ? <h2 className="text-xl font-semibold" data-edit="text">{block.text}</h2>
+        : <h1 className="text-2xl font-bold tracking-tight csm:text-3xl" data-edit="text">{block.text}</h1>;
     case 'text':
       return scrap ? (
         <div className="relative mx-auto max-w-2xl rounded-md border-2 border-dashed bg-white/90 px-6 py-5 shadow-sm" style={{ borderColor: tint(brand, 35) }}>
-          <p className={cn('whitespace-pre-line text-[17px] leading-relaxed text-slate-700', block.text.length < 220 && 'text-center')} style={{ fontFamily: SERIF }}>{block.text}</p>
+          <p className={cn('whitespace-pre-line text-[17px] leading-relaxed text-slate-700', block.text.length < 220 && 'text-center')} style={{ fontFamily: SERIF }} data-edit="text">{block.text}</p>
         </div>
-      ) : <p className="whitespace-pre-line text-[15px] leading-relaxed text-slate-700">{block.text}</p>;
+      ) : <p className="whitespace-pre-line text-[15px] leading-relaxed text-slate-700" data-edit="text">{block.text}</p>;
     case 'image':
       return scrap ? (
         <figure className="relative mx-auto max-w-md bg-white p-3 pb-10 shadow-lg" style={{ transform: `rotate(${TILT[index % TILT.length]}deg)` }}>
@@ -295,12 +402,12 @@ function BlockView({ block, index, data, brand, scrap, tenantSlug, pageSlug, tok
       return scrap ? (
         <blockquote className="mx-auto max-w-2xl rounded-[2rem] px-6 py-8 text-center" style={{ backgroundColor: tint(brand, 14) }}>
           <span className="block text-7xl leading-[0.5]" style={{ fontFamily: SERIF, color: brand }} aria-hidden>“</span>
-          <p className="mt-2 text-xl italic text-slate-800 sm:text-2xl" style={{ fontFamily: SERIF }}>{block.text}</p>
+          <p className="mt-2 text-xl italic text-slate-800 csm:text-2xl" style={{ fontFamily: SERIF }} data-edit="text">{block.text}</p>
           {block.author && <footer className="mt-3 text-xl" style={{ fontFamily: SCRIPT, color: brand }}>— {block.author}</footer>}
         </blockquote>
       ) : (
         <blockquote className="border-l-4 pl-4" style={{ borderColor: brand }}>
-          <p className="text-lg italic text-slate-700">“{block.text}”</p>
+          <p className="text-lg italic text-slate-700">“<span data-edit="text">{block.text}</span>”</p>
           {block.author && <footer className="mt-1 text-sm text-slate-500">— {block.author}</footer>}
         </blockquote>
       );
@@ -326,12 +433,12 @@ function HeroView({ block, brand, scrap }: { block: Extract<SiteBlockView, { typ
     : { background: `linear-gradient(135deg, ${brand}, ${tint(brand, 55, 'black')})` };
   return (
     <section
-      className={cn('relative flex min-h-[300px] flex-col justify-end overflow-hidden bg-cover bg-center p-6 text-white sm:min-h-[380px] sm:p-10',
+      className={cn('relative flex min-h-[300px] flex-col justify-end overflow-hidden bg-cover bg-center p-6 text-white csm:min-h-[380px] csm:p-10',
         scrap ? 'rounded-[2rem] border-[6px] border-white text-center shadow-xl' : 'rounded-2xl')}
       style={bg}
       data-testid="site-hero"
     >
-      <h2 className={scrap ? 'text-5xl leading-tight drop-shadow sm:text-6xl' : 'text-3xl font-bold tracking-tight sm:text-4xl'}
+      <h2 className={scrap ? 'text-5xl leading-tight drop-shadow csm:text-6xl' : 'text-3xl font-bold tracking-tight csm:text-4xl'}
         style={scrap ? { fontFamily: SCRIPT } : undefined}>{block.title}</h2>
       {block.text && <p className={cn('mt-2 max-w-xl text-white/90', scrap ? 'mx-auto text-lg italic' : 'text-base')} style={scrap ? { fontFamily: SERIF } : undefined}>{block.text}</p>}
       {block.buttonLabel && block.buttonUrl && (
@@ -352,19 +459,19 @@ function GalleryView({ block, brand, scrap }: { block: Extract<SiteBlockView, { 
     <section data-testid="site-gallery">
       <BlockTitle text={block.title} brand={brand} scrap={scrap} />
       {block.layout === 'polaroid' ? (
-        <div className="grid grid-cols-2 gap-x-4 gap-y-7 sm:grid-cols-3 sm:gap-x-6">
+        <div className="grid grid-cols-2 gap-x-4 gap-y-7 csm:grid-cols-3 csm:gap-x-6">
           {block.images.map((img, i) => (
-            <figure key={`${img.url}-${i}`} className="relative bg-white p-2 pb-9 shadow-md transition-transform hover:z-20 hover:scale-105 sm:p-2.5 sm:pb-10"
+            <figure key={`${img.url}-${i}`} className="relative bg-white p-2 pb-9 shadow-md transition-transform hover:z-20 hover:scale-105 csm:p-2.5 csm:pb-10"
               style={{ transform: `rotate(${TILT[i % TILT.length]}deg)` }}>
               {i % 2 === 0 && <Tape brand={brand} rotate={TILT[(i + 2) % TILT.length] * 2} />}
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={img.url} alt={img.caption || ''} className="aspect-square w-full object-cover" loading="lazy" />
-              {img.caption && <figcaption className="absolute inset-x-1 bottom-1.5 truncate text-center text-lg text-slate-600 sm:text-xl" style={{ fontFamily: SCRIPT }}>{img.caption}</figcaption>}
+              {img.caption && <figcaption className="absolute inset-x-1 bottom-1.5 truncate text-center text-lg text-slate-600 csm:text-xl" style={{ fontFamily: SCRIPT }}>{img.caption}</figcaption>}
             </figure>
           ))}
         </div>
       ) : block.layout === 'mosaic' ? (
-        <div className="columns-2 gap-3 sm:columns-3">
+        <div className="columns-2 gap-3 csm:columns-3">
           {block.images.map((img, i) => (
             <figure key={`${img.url}-${i}`} className={cn('relative mb-3 break-inside-avoid overflow-hidden', scrap ? 'rounded-2xl border-4 border-white shadow-md' : 'rounded-xl')}>
               {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -374,7 +481,7 @@ function GalleryView({ block, brand, scrap }: { block: Extract<SiteBlockView, { 
           ))}
         </div>
       ) : (
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+        <div className="grid grid-cols-2 gap-2 csm:grid-cols-3">
           {block.images.map((img, i) => (
             // eslint-disable-next-line @next/next/no-img-element
             <img key={`${img.url}-${i}`} src={img.url} alt={img.caption || ''} title={img.caption} className={cn('aspect-square w-full object-cover', scrap ? 'rounded-2xl' : 'rounded-lg')} loading="lazy" />
@@ -430,7 +537,7 @@ function CatalogView({ block, brand, scrap, preview }: { block: Extract<SiteBloc
     g.items.push(item);
   }
   return (
-    <section className={cn(scrap ? 'rounded-[2rem] border-2 border-dashed bg-white px-5 py-7 shadow-md sm:px-8' : 'rounded-2xl border bg-white p-5 shadow-sm')}
+    <section className={cn(scrap ? 'rounded-[2rem] border-2 border-dashed bg-white px-5 py-7 shadow-md csm:px-8' : 'rounded-2xl border bg-white p-5 shadow-sm')}
       style={scrap ? { borderColor: tint(brand, 40) } : undefined} data-testid="site-catalog">
       <BlockTitle text={block.title || block.entityName} brand={brand} scrap={scrap} />
       <div className="space-y-7">
@@ -741,7 +848,7 @@ function TrackingView({ block, record, error, brand, tenantSlug, pageSlug, token
         </div>
         <p className="mt-1 text-xs text-slate-500">Atualizado em {formatValue('datetime', record.updatedAt)}</p>
         {record.fields.length > 0 && (
-          <dl className="mt-4 grid gap-3 sm:grid-cols-2">
+          <dl className="mt-4 grid gap-3 csm:grid-cols-2">
             {record.fields.map((f) => (
               <div key={f.slug}>
                 <dt className="text-xs text-slate-500">{f.label}</dt>

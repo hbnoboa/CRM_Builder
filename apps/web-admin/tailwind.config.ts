@@ -90,7 +90,12 @@ const config: Config = {
       },
     },
   },
-  plugins: [require("tailwindcss-animate")],
+  plugins: [
+    require("tailwindcss-animate"),
+    // Paginas para clientes: "csm:" = o bloco (ou a pagina) tem 640px ou mais de largura.
+    // Responde ao espaco do bloco na grade e a moldura da previa, nao a tela inteira.
+    ({ addVariant }: { addVariant: (name: string, def: string) => void }) => addVariant("csm", "@container (min-width: 640px)"),
+  ],
 };
 
 export default config;

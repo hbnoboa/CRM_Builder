@@ -1,0 +1,1 @@
+ALTER TABLE "SitePage" ADD COLUMN "layout" JSONB;

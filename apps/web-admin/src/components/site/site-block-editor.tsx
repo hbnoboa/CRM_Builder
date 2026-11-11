@@ -1,6 +1,6 @@
 'use client';
 
-import { ArrowDown, ArrowUp, GalleryHorizontalEnd, Heading, Image as ImageIcon, LayoutGrid, ListChecks, Minus, MousePointerClick, Plus, Quote, Send, Store, Trash2, Type, Wallpaper } from 'lucide-react';
+import { GalleryHorizontalEnd, Heading, Image as ImageIcon, LayoutGrid, ListChecks, Minus, MousePointerClick, Plus, Quote, Send, Store, Trash2, Type, Wallpaper } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -60,60 +60,7 @@ export const BLOCK_KINDS: Array<{ type: string; label: string; icon: typeof Type
 
 const labelOf = (f: { label?: string; name?: string; slug: string }) => f.label || f.name || f.slug;
 
-export function blockSummary(b: SiteBlockDraft, entities: EditorEntity[]): string {
-  const ent = entities.find((e) => e.slug === b.entitySlug);
-  switch (b.type) {
-    case 'heading': case 'text': return String(b.text || '').slice(0, 60) || 'Vazio';
-    case 'image': return b.url ? 'Imagem escolhida' : 'Sem imagem';
-    case 'button': return String(b.label || 'Sem texto');
-    case 'divider': return '';
-    case 'hero': return String(b.title || 'Sem título');
-    case 'gallery': return `${(b.images as unknown[] | undefined)?.length ?? 0} fotos`;
-    case 'cards': return `${(b.items as unknown[] | undefined)?.length ?? 0} cartões`;
-    case 'quote': return String(b.text || '').slice(0, 60) || 'Vazio';
-    case 'catalog': return ent ? `Itens de ${ent.namePlural || ent.name}` : 'Escolha a tabela';
-    case 'form': return ent ? `Guarda em ${ent.namePlural || ent.name} · ${(b.fields as string[] | undefined)?.length ?? 0} campos` : 'Escolha a tabela';
-    case 'tracking': return ent ? `${ent.namePlural || ent.name} · ${(b.fields as string[] | undefined)?.length ?? 0} campos` : 'Escolha a tabela';
-    default: return '';
-  }
-}
-
-interface BlockCardProps {
-  block: SiteBlockDraft;
-  open: boolean;
-  onToggle: () => void;
-  onChange: (patch: Record<string, unknown>) => void;
-  onMove: (dir: -1 | 1) => void;
-  onRemove: () => void;
-  first: boolean;
-  last: boolean;
-  entities: EditorEntity[];
-  pdfs: EditorPdf[];
-}
-
-export function BlockCard({ block, open, onToggle, onChange, onMove, onRemove, first, last, entities, pdfs }: BlockCardProps) {
-  const kind = BLOCK_KINDS.find((k) => k.type === block.type);
-  const Icon = kind?.icon ?? Type;
-  return (
-    <div className="rounded-lg border bg-card" data-testid={`block-${block.type}`}>
-      <div className="flex items-center gap-2 p-2.5">
-        <button type="button" onClick={onToggle} className="flex min-w-0 flex-1 items-center gap-2 text-left">
-          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-muted"><Icon className="h-4 w-4" /></span>
-          <span className="min-w-0">
-            <span className="block text-sm font-medium">{kind?.label ?? block.type}</span>
-            <span className="block truncate text-xs text-muted-foreground">{blockSummary(block, entities)}</span>
-          </span>
-        </button>
-        <Button size="icon" variant="ghost" className="h-7 w-7" disabled={first} onClick={() => onMove(-1)} aria-label="Subir"><ArrowUp className="h-3.5 w-3.5" /></Button>
-        <Button size="icon" variant="ghost" className="h-7 w-7" disabled={last} onClick={() => onMove(1)} aria-label="Descer"><ArrowDown className="h-3.5 w-3.5" /></Button>
-        <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive" onClick={onRemove} aria-label="Remover"><Trash2 className="h-3.5 w-3.5" /></Button>
-      </div>
-      {open && <div className="space-y-3 border-t p-3"><BlockFields block={block} onChange={onChange} entities={entities} pdfs={pdfs} /></div>}
-    </div>
-  );
-}
-
-function BlockFields({ block, onChange, entities, pdfs }: { block: SiteBlockDraft; onChange: (patch: Record<string, unknown>) => void; entities: EditorEntity[]; pdfs: EditorPdf[] }) {
+export function BlockFields({ block, onChange, entities, pdfs }: { block: SiteBlockDraft; onChange: (patch: Record<string, unknown>) => void; entities: EditorEntity[]; pdfs: EditorPdf[] }) {
   switch (block.type) {
     case 'heading':
       return (
@@ -341,7 +288,7 @@ function TrackingFields({ block, onChange, entities, pdfs }: { block: SiteBlockD
 }
 
 /** Foto: enviar do computador ou colar o link. */
-function ImagePick({ value, onChange }: { value: unknown; onChange: (url: string) => void }) {
+export function ImagePick({ value, onChange }: { value: unknown; onChange: (url: string) => void }) {
   const url = String(value ?? '');
   return (
     <div className="space-y-1.5">
@@ -351,7 +298,7 @@ function ImagePick({ value, onChange }: { value: unknown; onChange: (url: string
   );
 }
 
-function Segmented<T extends string | number>({ value, options, onChange }: { value: T; options: Array<{ value: T; label: string }>; onChange: (v: T) => void }) {
+export function Segmented<T extends string | number>({ value, options, onChange }: { value: T; options: Array<{ value: T; label: string }>; onChange: (v: T) => void }) {
   return (
     <div className="flex flex-wrap gap-1.5">
       {options.map((o) => (

@@ -12,7 +12,7 @@ import { PdfGeneratorService } from '../pdf/pdf-generator.service';
 import { loadTenantSchema, type SchemaTable } from '../ai-builder/tenant-schema';
 import { slugify } from '../ai-builder/ai-proposal-normalizer';
 import {
-  FORM_FIELD_TYPES, TRACK_FIELD_TYPES, normalizeBlocks, normalizeSettings, normalizeSiteConfig, publicField, requiredFields, suggestMatchField,
+  FORM_FIELD_TYPES, TRACK_FIELD_TYPES, missingPart, normalizeBlocks, normalizeLayout, normalizeSettings, readingOrder, normalizeSiteConfig, publicField, requiredFields, suggestMatchField,
   type CatalogBlock, type FormBlock, type NormalizeContext, type RawField, type SiteBlock, type TrackingBlock,
 } from './site-blocks';
 
@@ -21,7 +21,7 @@ const RESERVED_SLUGS = new Set(['app', 'entrar', 'login', 'pedir-acesso']);
 const MAX_TEXT = 5000;
 const MAX_FILES = 20;
 
-type PageLike = { id?: string; title: string; description: string | null; slug: string; blocks: unknown; settings?: unknown };
+type PageLike = { id?: string; title: string; description: string | null; slug: string; blocks: unknown; layout?: unknown; settings?: unknown };
 type DisplayValue = string | number | boolean | string[] | null;
 
 /**
@@ -128,7 +128,7 @@ export class SitePagesService {
     const page = await this.prisma.sitePage.findFirst({ where: { id, tenantId } });
     if (!page) throw new NotFoundException('Página não encontrada');
     const tenant = await this.prisma.tenant.findUnique({ where: { id: tenantId }, select: { slug: true } });
-    return { ...page, settings: normalizeSettings(page.settings), url: this.url(tenant!.slug, page.slug, await this.primaryHost(tenantId)) };
+    return { ...page, layout: normalizeLayout(page.layout, page.blocks as unknown as SiteBlock[]), settings: normalizeSettings(page.settings), url: this.url(tenant!.slug, page.slug, await this.primaryHost(tenantId)) };
   }
 
   async create(dto: { title: string; template?: 'form' | 'tracking' | 'blank'; entitySlug?: string }, user: CurrentUser) {
@@ -192,7 +192,7 @@ export class SitePagesService {
     ];
   }
 
-  async update(id: string, dto: { title?: string; slug?: string; description?: string | null; blocks?: unknown[]; settings?: Record<string, unknown> }, user: CurrentUser) {
+  async update(id: string, dto: { title?: string; slug?: string; description?: string | null; blocks?: unknown[]; layout?: Record<string, unknown>; settings?: Record<string, unknown> }, user: CurrentUser) {
     const tenantId = getEffectiveTenantId(user);
     const page = await this.prisma.sitePage.findFirst({ where: { id, tenantId } });
     if (!page) throw new NotFoundException('Página não encontrada');
@@ -206,7 +206,15 @@ export class SitePagesService {
       if (clash) throw new ConflictException('Já existe uma página com esse endereço.');
       data.slug = wanted;
     }
-    if (dto.blocks !== undefined) data.blocks = normalizeBlocks(dto.blocks, await this.context(tenantId)) as unknown as Prisma.InputJsonValue;
+    if (dto.blocks !== undefined || dto.layout !== undefined) {
+      const blocks = dto.blocks !== undefined ? normalizeBlocks(dto.blocks, await this.context(tenantId)) : (page.blocks as unknown as SiteBlock[]);
+      const layout = normalizeLayout(dto.layout !== undefined ? dto.layout : page.layout, blocks);
+      // Blocos guardados na ordem de leitura (a do celular): quem le so a lista ve a ordem certa
+      const position = new Map(readingOrder(layout).map((bid, i) => [bid, i]));
+      blocks.sort((a, b) => (position.get(a.id) ?? 0) - (position.get(b.id) ?? 0));
+      data.blocks = blocks as unknown as Prisma.InputJsonValue;
+      data.layout = layout as unknown as Prisma.InputJsonValue;
+    }
     if (dto.settings !== undefined) data.settings = normalizeSettings(dto.settings) as unknown as Prisma.InputJsonValue;
     await this.prisma.sitePage.update({ where: { id }, data });
     return this.get(id, user);
@@ -230,7 +238,7 @@ export class SitePagesService {
   }
 
   /** Previa no editor: blocos ainda nao salvos, com registro de exemplo no acompanhamento. */
-  async preview(blocks: unknown[], title: string, user: CurrentUser, settings?: unknown, slug?: string) {
+  async preview(blocks: unknown[], title: string, user: CurrentUser, settings?: unknown, slug?: string, layout?: unknown) {
     const tenantId = getEffectiveTenantId(user);
     const tenant = await this.prisma.tenant.findUnique({ where: { id: tenantId } });
     const ctx = await this.context(tenantId);
@@ -240,7 +248,7 @@ export class SitePagesService {
     } catch (err) {
       return { error: (err as Error).message };
     }
-    return this.buildPublic(tenant!, { title, description: null, slug: slug || 'previa', blocks: normalized, settings }, ctx, { sample: true });
+    return this.buildPublic(tenant!, { title, description: null, slug: slug || 'previa', blocks: normalized, layout, settings }, ctx, { sample: true });
   }
 
   /**
@@ -312,13 +320,15 @@ export class SitePagesService {
     const site = normalizeSiteConfig((tenant.settings as { site?: unknown } | null)?.site);
     const own = normalizeSettings(page.settings);
     const look = own.ownLook ? own : site.look;
+    // Rascunhos (bloco sem texto, foto ou link) ficam guardados, mas nao saem na pagina
+    const visible = (page.blocks as SiteBlock[]).filter((b) => !missingPart(b));
     const entityBySlug = new Map(ctx.entities.map((e) => [e.slug, e]));
     const fieldsOf = (slug: string) => (ctx.rawFieldsBySlug.get(slug) || []);
     const catalogs = new Map<string, Awaited<ReturnType<SitePagesService['catalogItems']>>>();
     for (const b of page.blocks as SiteBlock[]) {
       if (b.type === 'catalog') catalogs.set(b.id, await this.catalogItems(tenant.id, b, ctx));
     }
-    const blocks = (page.blocks as SiteBlock[]).map((b) => {
+    const blocks = visible.map((b) => {
       if (b.type === 'catalog') {
         const raw = fieldsOf(b.entitySlug);
         const label = (slug?: string) => (slug ? raw.find((f) => f.slug === slug)?.label : undefined);
@@ -365,6 +375,7 @@ export class SitePagesService {
       page: { title: page.title, description: page.description, slug: page.slug, settings: look },
       site: await this.publicSite(tenant.id, site, page.slug),
       blocks,
+      layout: normalizeLayout(page.layout, visible),
       record,
       trackingError,
     };
