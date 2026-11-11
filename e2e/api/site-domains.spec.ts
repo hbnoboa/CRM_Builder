@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { API, call, createTenant, ownerStaff, type Session, type Tenant } from './helpers';
+import { API, PASSWORD, call, createTenant, ownerStaff, type Session, type Tenant } from './helpers';
 
 // Dominio proprio do site. A API de teste roda com DOMAIN_DNS_CHECK=mock (conta como
 // apontado o endereco terminado em ".ok.test") e DOMAIN_REGISTRAR=mock (registrador de
@@ -112,5 +112,30 @@ test.describe.serial('dominio proprio do site', () => {
     const after = await (await call(request, 'get', '/site-domains', tenant.owner, { expected: 200 })).json();
     expect(after.domains.filter((d: { isPrimary: boolean }) => d.isPrimary)).toHaveLength(1);
     expect(after.domains.find((d: { id: string }) => d.id === primary.id)).toBeUndefined();
+  });
+
+  test('login no dominio da empresa: so as contas dela entram, e o token so vale para ela', async ({ request }) => {
+    const host = `entrar${suffix}.ok.test`;
+    await call(request, 'post', '/site-domains', tenant.owner, { expected: [200, 201], data: { hostname: host } });
+
+    const brand = await (await request.get(`${API}/public/domains/resolve?host=${host}`)).json();
+    expect(brand).toMatchObject({ tenant: tenant.slug, name: tenant.name });
+
+    // Dono desta empresa entra pelo dominio dela
+    const ok = await request.post(`${API}/auth/login`, { headers: { Host: host }, data: { email: tenant.ownerEmail, password: PASSWORD } });
+    expect(ok.status(), await ok.text()).toBe(200);
+    const body = await ok.json();
+    expect(body.user.tenant.slug).toBe(tenant.slug);
+
+    // Conta de outra empresa: recusada no dominio desta
+    const denied = await request.post(`${API}/auth/login`, { headers: { Host: host }, data: { email: other.ownerEmail, password: PASSWORD } });
+    expect(denied.status()).toBe(401);
+    expect(await denied.text()).toContain('não é desta empresa');
+
+    // Token de outra empresa nao serve no dominio desta (nem com o cabecalho da empresa dele)
+    const me = await request.get(`${API}/auth/me`, { headers: { Host: host, Authorization: `Bearer ${other.owner.token}`, 'X-Tenant-Slug': other.slug } });
+    expect(me.status()).toBe(401);
+    // E o token desta empresa continua valendo no endereco normal
+    expect((await request.get(`${API}/auth/me`, { headers: { Authorization: `Bearer ${body.accessToken}` } })).status()).toBe(200);
   });
 });

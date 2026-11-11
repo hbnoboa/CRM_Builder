@@ -15,12 +15,19 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter }
 import { useAuthStore } from '@/stores/auth-store';
 import { getDefaultRouteForUser } from '@/hooks/use-permissions';
 import { AuthShell } from '@/components/auth/auth-shell';
+import { BrandedAuthShell } from '@/components/auth/branded-auth-shell';
+import { onCustomDomain, useCustomDomain, type CustomDomainBrand } from '@/lib/custom-domain';
 
 type LoginForm = {
   email: string;
   password: string;
   rememberMe: boolean;
 };
+
+/** Moldura do login: marca da empresa no dominio proprio dela; senao, a do CRM Builder. */
+function LoginShell({ brand, children }: { brand: CustomDomainBrand | null; children: React.ReactNode }) {
+  return brand ? <BrandedAuthShell brand={brand}>{children}</BrandedAuthShell> : <AuthShell>{children}</AuthShell>;
+}
 
 export default function LoginPage() {
   return (
@@ -41,6 +48,9 @@ function LoginPageContent() {
   const [code, setCode] = useState('');
   const searchParams = useSearchParams();
   const suspended = searchParams.get('reason') === 'suspended';
+  // Dominio proprio da empresa: login so dela, com a marca dela
+  const { brand, loading: brandLoading } = useCustomDomain();
+  const buttonStyle = brand?.brandColor ? { backgroundColor: brand.brandColor } : undefined;
 
   const loginSchema = useMemo(() => z.object({
     email: z.string().min(1, tValidation('emailRequired')).email(tValidation('emailInvalid')),
@@ -64,7 +74,7 @@ function LoginPageContent() {
   const goHome = () => {
     const user = useAuthStore.getState().user;
     // Tenant na URL: prefixa o slug do tenant "home" do usuário (#15 robusto).
-    const slug = (user as { tenant?: { slug?: string } } | null)?.tenant?.slug;
+    const slug = brand?.tenant || (user as { tenant?: { slug?: string } } | null)?.tenant?.slug;
     const route = getDefaultRouteForUser(user); // '/home'
     router.push(slug ? `/${slug}${route}` : route);
   };
@@ -93,13 +103,16 @@ function LoginPageContent() {
     }
   };
 
+  if (brandLoading && onCustomDomain()) {
+    return <div className="flex min-h-screen items-center justify-center"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>;
+  }
   return (
-    <AuthShell>
+    <LoginShell brand={brand}>
       <Card className="w-full border-0 shadow-none">
         <CardHeader className="space-y-1 px-0">
-          <CardTitle className="text-2xl font-bold">{t('title')}</CardTitle>
+          <CardTitle className="text-2xl font-bold">{brand ? 'Entrar' : t('title')}</CardTitle>
           <CardDescription>
-            {t('subtitle')}
+            {brand ? `Use o e-mail e a senha da sua conta em ${brand.name}.` : t('subtitle')}
           </CardDescription>
         </CardHeader>
         {mfaToken ? (
@@ -123,7 +136,7 @@ function LoginPageContent() {
               </div>
             </CardContent>
             <CardFooter className="flex flex-col gap-2 px-0">
-              <Button type="submit" className="w-full bg-orange-600 text-white hover:bg-orange-700" disabled={isLoading || code.trim().length < 6}>
+              <Button type="submit" className="w-full bg-orange-600 text-white hover:bg-orange-700 hover:opacity-90" style={buttonStyle} disabled={isLoading || code.trim().length < 6}>
                 {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 {tMfa('verify')}
               </Button>
@@ -211,7 +224,7 @@ function LoginPageContent() {
           </CardContent>
 
           <CardFooter className="flex flex-col gap-4 px-0">
-            <Button type="submit" className="w-full bg-orange-600 text-white hover:bg-orange-700" disabled={isLoading}>
+            <Button type="submit" className="w-full bg-orange-600 text-white hover:bg-orange-700 hover:opacity-90" style={buttonStyle} disabled={isLoading} data-testid="login-submit">
               {isLoading ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -221,16 +234,18 @@ function LoginPageContent() {
                 t('signIn')
               )}
             </Button>
-            <p className="text-sm text-muted-foreground" data-testid="login-register-link">
-              {t('noAccount')}{' '}
-              <Link href="/register" className="font-medium text-orange-600 hover:underline">
-                {t('createAccount')}
-              </Link>
-            </p>
+            {!brand && (
+              <p className="text-sm text-muted-foreground" data-testid="login-register-link">
+                {t('noAccount')}{' '}
+                <Link href="/register" className="font-medium text-orange-600 hover:underline">
+                  {t('createAccount')}
+                </Link>
+              </p>
+            )}
           </CardFooter>
         </form>
         )}
       </Card>
-    </AuthShell>
+    </LoginShell>
   );
 }

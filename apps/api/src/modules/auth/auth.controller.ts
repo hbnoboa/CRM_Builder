@@ -19,6 +19,7 @@ import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { CurrentUser as CurrentUserType } from '../../common/types';
 import { clientIp } from '../../common/utils/client-ip';
+import { requestHost } from '../../common/utils/custom-domain';
 import { assertNotImpersonating } from '../../common/utils/permission-governance';
 import type { Request } from 'express';
 import type { ClientInfo } from './session-cache';
@@ -27,6 +28,7 @@ const clientInfo = (req: Request): ClientInfo => ({
   // IPv4 chega como ::ffff:1.2.3.4 quando o servidor escuta em IPv6.
   ip: clientIp(req)?.replace(/^::ffff:/i, ''),
   userAgent: typeof req.headers['user-agent'] === 'string' ? req.headers['user-agent'] : undefined,
+  host: requestHost(req),
 });
 
 @ApiTags('Auth')

@@ -16,7 +16,8 @@ import {
   type CatalogBlock, type FormBlock, type NormalizeContext, type RawField, type SiteBlock, type TrackingBlock,
 } from './site-blocks';
 
-const RESERVED_SLUGS = new Set(['app']);
+// 'entrar'/'login': no dominio proprio da empresa sao a tela de login do sistema
+const RESERVED_SLUGS = new Set(['app', 'entrar', 'login']);
 const MAX_TEXT = 5000;
 const MAX_FILES = 20;
 

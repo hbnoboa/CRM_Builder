@@ -258,15 +258,17 @@ export class SiteDomainsService {
 
   // ── Publico (site no dominio do cliente) ───────────────────────────────
 
-  /** Qual empresa responde neste endereco (so dominios ativos de empresas ativas). */
+  /** Qual empresa responde neste endereco (so dominios ativos de empresas ativas), com a marca dela. */
   async resolve(rawHost: string) {
     const hostname = normalizeHostname(rawHost);
     if (!hostname) return null;
     const domain = await this.prisma.tenantDomain.findUnique({ where: { hostname } });
     if (!domain || domain.status === 'pending_dns') return null;
-    const tenant = await this.prisma.tenant.findUnique({ where: { id: domain.tenantId }, select: { slug: true, status: true } });
+    const tenant = await this.prisma.tenant.findUnique({ where: { id: domain.tenantId }, select: { slug: true, status: true, name: true, logo: true, settings: true } });
     if (!tenant || tenant.status !== Status.ACTIVE) return null;
-    return { tenant: tenant.slug };
+    // Nome, logo e cor: a tela de login no dominio da empresa usa a marca dela
+    const brandColor = (tenant.settings as { theme?: { brandColor?: string } } | null)?.theme?.brandColor ?? null;
+    return { tenant: tenant.slug, name: tenant.name, logo: tenant.logo, brandColor };
   }
 
   /** O servidor pode pedir certificado para este endereco? (so dominios cadastrados) */

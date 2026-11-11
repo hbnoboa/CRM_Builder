@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from 'next/server';
-import { defaultLocale } from './i18n/config';
+import { defaultLocale, locales } from './i18n/config';
 
 /**
  * Unico middleware que o Next usa (com src/, ele le src/middleware.ts; o arquivo
@@ -10,6 +10,9 @@ import { defaultLocale } from './i18n/config';
  *   <empresa>.dev.iossystem.com.br/<pagina>  -> idem (ambiente dev)
  *   www.dominiodocliente.com.br/<pagina>     -> idem, achando a empresa pelo dominio
  *                                               (Site da empresa › Domínio próprio)
+ *   www.dominiodocliente.com.br/entrar       -> login do sistema, so para essa empresa
+ *   www.dominiodocliente.com.br/pt-BR/<empresa>/... -> o sistema dela (outras empresas
+ *                                               e o console da plataforma sao barrados)
  *
  * O endereco no navegador continua o do cliente. Precisa do proxy mandando esses
  * hosts para o web (e /api para a API) e de certificado para cada um.
@@ -45,6 +48,30 @@ async function tenantForHost(host: string): Promise<string | null> {
   return tenant;
 }
 
+// Telas de conta (sem empresa na URL) que abrem no dominio da empresa
+const AUTH_PAGES = new Set(['login', 'forgot-password', 'reset-password', 'security-setup', 'invite']);
+
+/** Dominio de uma empresa: login e sistema dela; o resto e o site. */
+function customDomain(request: NextRequest, tenant: string) {
+  const parts = request.nextUrl.pathname.split('/').filter(Boolean);
+  const url = request.nextUrl.clone();
+  if (parts[0] === 'entrar' || parts[0] === 'login') {
+    url.pathname = `/${defaultLocale}/login`;
+    return NextResponse.rewrite(url);
+  }
+  if ((locales as readonly string[]).includes(parts[0])) {
+    const [, second, third] = parts;
+    if (second && AUTH_PAGES.has(second)) return NextResponse.next();
+    if (second === tenant) return NextResponse.next();
+    if (second === 'p' && third === tenant) return NextResponse.next();
+    // Outra empresa, console da plataforma ou cadastro: volta para o login desta empresa
+    url.pathname = second ? '/entrar' : '/';
+    url.search = '';
+    return NextResponse.redirect(url);
+  }
+  return rewrite(request, tenant);
+}
+
 function rewrite(request: NextRequest, tenant: string) {
   const page = request.nextUrl.pathname.split('/').filter(Boolean)[0] || 'inicio';
   const url = request.nextUrl.clone();
@@ -59,7 +86,7 @@ export async function middleware(request: NextRequest) {
   if (isPlatformHost(host)) return NextResponse.next();
 
   const tenant = await tenantForHost(host);
-  if (tenant) return rewrite(request, tenant);
+  if (tenant) return customDomain(request, tenant);
   return new NextResponse('Este endereço ainda não está ligado a nenhum site.', { status: 404, headers: { 'content-type': 'text/plain; charset=utf-8' } });
 }
 

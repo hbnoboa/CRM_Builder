@@ -1,4 +1,5 @@
-import { Injectable, UnauthorizedException, ConflictException, BadRequestException, Logger } from '@nestjs/common';
+import { tenantIdForHost } from '../../common/utils/custom-domain';
+import { Injectable, UnauthorizedException, ConflictException, BadRequestException, ForbiddenException, Logger } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
@@ -228,10 +229,13 @@ export class AuthService {
     rememberMe: boolean,
     client: ClientInfo,
   ) {
-    // Tenant + cargo vem da membership home.
-    const membership = await this.loadPrimaryMembership(user.id);
+    // Tenant + cargo vem da membership home; no dominio proprio de uma empresa, dela.
+    const domainTenantId = client.host ? await tenantIdForHost(this.prisma, client.host) : null;
+    const membership = domainTenantId
+      ? await this.loadMembership(user.id, domainTenantId).then((m) => (this.isMembershipUsable(m) ? m : null))
+      : await this.loadPrimaryMembership(user.id);
     if (!membership) {
-      throw new UnauthorizedException('Usuario sem acesso a nenhum tenant');
+      throw new UnauthorizedException(domainTenantId ? 'Esta conta não é desta empresa.' : 'Usuario sem acesso a nenhum tenant');
     }
     if (membership.tenant.status !== Status.ACTIVE) {
       throw new UnauthorizedException('Tenant suspenso ou inativo');
@@ -579,6 +583,11 @@ export class AuthService {
     const primary = await this.loadPrimaryMembership(userId);
     if (!primary) {
       throw new UnauthorizedException('Usuario sem acesso a nenhum tenant');
+    }
+    // No dominio proprio de uma empresa nao se troca para outra
+    const domainTenantId = client.host ? await tenantIdForHost(this.prisma, client.host) : null;
+    if (domainTenantId && domainTenantId !== targetTenantId) {
+      throw new ForbiddenException('Neste endereço só dá para usar a empresa dona dele.');
     }
 
     const buildResult = (

@@ -7,6 +7,7 @@ import { PrismaService } from '../../../prisma/prisma.service';
 import { JwtPayload, CurrentUser } from '../../../common/types/auth.types';
 import { securityOf } from '../../../common/utils/password-policy';
 import { cachedSessionValidity, rememberSessionValidity } from '../session-cache';
+import { requestHost, tenantIdForHost } from '../../../common/utils/custom-domain';
 
 type RoleSel = {
   id: string;
@@ -118,7 +119,10 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       slugTenantId = bySlug?.id;
     }
     const headerTenant = req?.headers?.['x-tenant-id'];
+    // Dominio proprio de uma empresa: vale sempre a empresa dona do endereco
+    const domainTenantId = await tenantIdForHost(this.prisma, requestHost(req as never));
     const requestedTenantId =
+      domainTenantId ||
       slugTenantId ||
       (typeof headerTenant === 'string' && headerTenant) ||
       payload.tenantId ||
@@ -165,7 +169,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     }
 
     // Sem membership no tenant solicitado: nunca entra (cross-tenant so pelo console).
-    throw new UnauthorizedException('Sem acesso a este tenant');
+    throw new UnauthorizedException(domainTenantId ? 'Esta conta não é desta empresa.' : 'Sem acesso a este tenant');
   }
 
   /**
