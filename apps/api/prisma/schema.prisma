@@ -1704,6 +1704,8 @@ model SitePage {
   title       String
   description String?
   blocks      Json      @default("[]")
+  /// Secoes da pagina e a posicao de cada bloco na grade (12 colunas no computador).
+  layout      Json?
   settings    Json      @default("{}")
   isPublished Boolean   @default(false)
   publishedAt DateTime?

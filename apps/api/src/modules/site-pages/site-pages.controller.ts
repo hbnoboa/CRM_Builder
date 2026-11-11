@@ -31,7 +31,7 @@ export class SitePagesController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Previa de blocos ainda nao salvos' })
   preview(@Body() dto: PreviewSitePageDto, @CurrentUser() user: CurrentUserType) {
-    return this.service.preview(dto.blocks, dto.title || 'Prévia', user, dto.settings, dto.slug);
+    return this.service.preview(dto.blocks, dto.title || 'Prévia', user, dto.settings, dto.slug, dto.layout);
   }
 
   @Get('site')
