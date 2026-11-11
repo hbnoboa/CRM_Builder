@@ -8,14 +8,16 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { cn } from '@/lib/utils';
 import {
-  AppearanceFields, BLOCK_KINDS, BlockFields, ImagePick, Segmented,
+  BLOCK_KINDS, BlockFields, ImagePick, Segmented,
   type EditorEntity, type EditorPdf, type SiteLookDraft,
 } from '@/components/site/site-block-editor';
 import { SiteFooterFields, SiteMenuFields } from '@/components/site/site-config-fields';
+import ImageUploadField from '@/components/form/image-upload-field';
 import type { SiteConfigDraft, SiteInfo } from '@/hooks/use-site-pages';
 import type { SiteHideOn, SiteItemStyle, SiteLayoutItem, SiteSection, SiteSpacing } from '@/lib/site-api';
 import { SITE_GRID, mobileOrder, rowsToPx } from '@/components/site/site-page-view';
 import { sectionOf, type PageDoc, type Selection } from './page-doc';
+import { ThemeFields, type SavedTheme } from './theme-fields';
 
 const SPACING: Array<{ value: SiteSpacing; label: string }> = [
   { value: 'none', label: 'Nenhum' }, { value: 'sm', label: 'Pequeno' }, { value: 'md', label: 'Médio' }, { value: 'lg', label: 'Grande' },
@@ -31,6 +33,8 @@ export interface InspectorActions {
   patchLook: (patch: SiteLookDraft) => void;
   patchSite: (patch: Partial<SiteConfigDraft>, tag?: string) => void;
   select: (sel: Selection) => void;
+  /** Abre o texto formatado para escrever na propria pagina. */
+  editText: (id: string) => void;
   patchBlock: (id: string, patch: Record<string, unknown>) => void;
   patchItem: (id: string, patch: Partial<SiteLayoutItem>) => void;
   patchSection: (id: string, patch: Partial<SiteSection>) => void;
@@ -105,14 +109,20 @@ function ColorField({ label, value, onChange }: { label: string; value?: string;
   );
 }
 
-/**
- * Aparencia que vale nesta pagina: a do site (todas as paginas) ou a propria.
- * Editar a do site muda todas as paginas que nao tem aparencia propria.
- */
-function LookFields({ doc, brandColor, patchLook, patchSite }: Props) {
+/** Aparencia (tema) que vale nesta pagina: a do site ou a propria, e como mudar. */
+function useActiveLook({ doc, patchLook, patchSite }: Props) {
+  const own = !!doc.look.ownLook;
+  return {
+    own,
+    look: (own ? doc.look : doc.site.look) as SiteLookDraft,
+    patch: (p: SiteLookDraft) => (own ? patchLook(p) : patchSite({ look: { ...doc.site.look, ...p } }, `site-look:${Object.keys(p).join()}`)),
+  };
+}
+
+function LookScope({ doc, patchLook }: Props) {
   const own = !!doc.look.ownLook;
   return (
-    <div className="space-y-3">
+    <div className="space-y-2">
       <Segmented value={own ? 'own' : 'site'} onChange={(v) => patchLook({ ownLook: v === 'own' })}
         options={[{ value: 'site', label: 'A do site' }, { value: 'own', label: 'Só desta página' }]} />
       <p className="rounded-md bg-sky-50 px-2.5 py-1.5 text-[11px] text-sky-900 dark:bg-sky-950 dark:text-sky-200" data-testid="editor-look-scope">
@@ -120,9 +130,19 @@ function LookFields({ doc, brandColor, patchLook, patchSite }: Props) {
           ? 'Esta página tem aparência própria: o que mudar aqui vale só para ela.'
           : 'Aparência de todas as páginas do site: o que mudar aqui muda as outras páginas também.'}
       </p>
-      {own
-        ? <AppearanceFields look={doc.look} brandColor={brandColor} onChange={patchLook} />
-        : <AppearanceFields look={doc.site.look as SiteLookDraft} brandColor={brandColor} onChange={(p) => patchSite({ look: { ...doc.site.look, ...p } }, 'site-look')} />}
+    </div>
+  );
+}
+
+/** Tema completo (cores, fontes, estilos de texto, botoes, fundo...). */
+function LookFields(props: Props) {
+  const { doc, brandColor, patchSite } = props;
+  const active = useActiveLook(props);
+  return (
+    <div className="space-y-3">
+      <LookScope {...props} />
+      <ThemeFields look={active.look} brandColor={brandColor} onChange={active.patch}
+        saved={(doc.site.savedThemes || []) as SavedTheme[]} onSaved={(list) => patchSite({ savedThemes: list }, 'saved-themes')} />
     </div>
   );
 }
@@ -143,7 +163,7 @@ function JumpButton({ icon: Icon, title, text, onClick }: { icon: typeof PanelTo
 function PagePanel(props: Props) {
   const { select } = props;
   return (
-    <Panel title="Aparência" subtitle="Estilo, fundo, cor de destaque, capa e frase do topo.">
+    <Panel title="Aparência" subtitle="Tema do site: cores, fontes, estilos de texto, botões e fundo.">
       <LookFields {...props} />
       <div className="space-y-1.5 border-t pt-4">
         <p className="text-xs font-medium text-muted-foreground">Também em todas as páginas</p>
@@ -167,15 +187,28 @@ function HeaderPanel(props: Props) {
   const { doc, sitePages, patchSite } = props;
   return (
     <Panel title="Topo e menu" subtitle="O menu e a página inicial valem para todas as páginas do site.">
-      <div className="space-y-2">
-        <p className="text-sm font-medium">Aparência do topo</p>
-        <LookFields {...props} />
-      </div>
+      <HeaderLook {...props} />
       <div className="space-y-2 border-t pt-4">
         <p className="text-sm font-medium">Menu do site</p>
         <SiteMenuFields site={doc.site} pages={sitePages} onChange={(p) => patchSite(p, `site-menu:${Object.keys(p).join()}`)} />
       </div>
     </Panel>
+  );
+}
+
+/** Capa e frase do topo (da aparencia que vale nesta pagina). */
+function HeaderLook(props: Props) {
+  const active = useActiveLook(props);
+  return (
+    <div className="space-y-3">
+      <LookScope {...props} />
+      <Field label="Foto de capa (topo da página)">
+        <ImagePick value={active.look.coverUrl} onChange={(url) => active.patch({ coverUrl: url || undefined })} />
+      </Field>
+      <Field label="Frase embaixo do nome">
+        <Input value={active.look.tagline ?? ''} onChange={(e) => active.patch({ tagline: e.target.value })} placeholder="Ex.: o cantinho mais fofo da cidade" className="h-8" />
+      </Field>
+    </div>
   );
 }
 
@@ -207,12 +240,50 @@ function SectionPanel({ section, index, doc, patchSection, moveSection, duplicat
       <Field label="Espaço em cima e embaixo">
         <Segmented value={section.padding} onChange={(v) => set({ padding: v })} options={SPACING} />
       </Field>
-      <ColorField label="Cor de fundo" value={section.bg} onChange={(bg) => set({ bg })} />
+      <Field label="Cores da seção" hint="Variações do tema: mudou o tema, a seção acompanha.">
+        <Segmented value={section.tone ?? 'page'} onChange={(v) => set({ tone: v === 'page' ? undefined : v })}
+          options={[{ value: 'page', label: 'Como a página' }, { value: 'surface', label: 'Caixa' }, { value: 'accent', label: 'Destaque' }, { value: 'accent2', label: 'Destaque 2' }, { value: 'dark', label: 'Escura' }]} />
+      </Field>
+      <ColorField label="Cor de fundo própria" value={section.bg} onChange={(bg) => set({ bg })} />
+      <div className="space-y-2 rounded-md border p-2.5">
+        <label className="flex items-center justify-between text-sm">Degradê
+          <Switch checked={!!section.gradient} onCheckedChange={(v) => set({ gradient: v ? { from: '#6366f1', to: '#ec4899', angle: 135, kind: 'linear' } : undefined })} data-testid="editor-section-gradient" />
+        </label>
+        {section.gradient && (
+          <>
+            <div className="flex items-center gap-2 text-xs">
+              <input type="color" value={section.gradient.from} onChange={(e) => set({ gradient: { ...section.gradient!, from: e.target.value } })} className="h-8 w-10 rounded border" aria-label="Cor inicial" />
+              <span>para</span>
+              <input type="color" value={section.gradient.to} onChange={(e) => set({ gradient: { ...section.gradient!, to: e.target.value } })} className="h-8 w-10 rounded border" aria-label="Cor final" />
+              <Segmented value={section.gradient.kind} onChange={(kind) => set({ gradient: { ...section.gradient!, kind } })}
+                options={[{ value: 'linear', label: 'Reto' }, { value: 'radial', label: 'Redondo' }]} />
+            </div>
+            {section.gradient.kind === 'linear' && (
+              <label className="block text-[11px] text-muted-foreground">Ângulo: {section.gradient.angle}°
+                <input type="range" min={0} max={360} step={15} value={section.gradient.angle} onChange={(e) => set({ gradient: { ...section.gradient!, angle: Number(e.target.value) } })} className="w-full" />
+              </label>
+            )}
+          </>
+        )}
+      </div>
+      <Field label="Padrão por cima">
+        <Segmented value={section.pattern ?? 'plain'} onChange={(v) => set({ pattern: v === 'plain' ? undefined : v })}
+          options={[{ value: 'plain', label: 'Nenhum' }, { value: 'dots', label: 'Bolinhas' }, { value: 'hearts', label: 'Corações' }, { value: 'stars', label: 'Estrelas' }, { value: 'stripes', label: 'Listras' }, { value: 'grid', label: 'Caderno' }]} />
+      </Field>
       <Field label="Foto de fundo">
         <ImagePick value={section.bgImage} onChange={(url) => set({ bgImage: url || undefined })} />
       </Field>
-      {section.bgImage && (
-        <label className="flex items-center justify-between text-sm">Escurecer a foto <Switch checked={!!section.overlay} onCheckedChange={(v) => set({ overlay: v })} /></label>
+      <Field label="Vídeo de fundo (mp4 ou webm)">
+        <ImageUploadField value={section.bgVideo ?? ''} onChange={(v) => set({ bgVideo: String(Array.isArray(v) ? v[0] ?? '' : v) || undefined })} mode="file" accept="video/mp4,video/webm" folder="site" />
+        <Input value={section.bgVideo ?? ''} onChange={(e) => set({ bgVideo: e.target.value.trim() || undefined })} placeholder="…ou cole o link do vídeo (https://…mp4)" className="h-8 text-xs" />
+      </Field>
+      {(section.bgImage || section.bgVideo) && (
+        <>
+          <label className="flex items-center justify-between text-sm">Escurecer a foto/vídeo <Switch checked={!!section.overlay} onCheckedChange={(v) => set({ overlay: v })} /></label>
+          {section.bgImage && !section.bgVideo && (
+            <label className="flex items-center justify-between text-sm">Foto parada ao rolar (efeito parallax) <Switch checked={!!section.parallax} onCheckedChange={(v) => set({ parallax: v })} /></label>
+          )}
+        </>
       )}
       <label className="flex items-center justify-between text-sm">Texto claro (para fundo escuro) <Switch checked={!!section.light} onCheckedChange={(v) => set({ light: v })} /></label>
       <Field label="Mostrar">
@@ -222,7 +293,7 @@ function SectionPanel({ section, index, doc, patchSection, moveSection, duplicat
   );
 }
 
-function ItemPanel({ block, section, item, doc, entities, pdfs, scrap, patchBlock, patchItem, moveItemToSection, duplicateItem, removeItem, moveOnPhone, autoMobileOrder, setMinH }: Props & {
+function ItemPanel({ block, section, item, doc, entities, pdfs, scrap, editText, patchBlock, patchItem, moveItemToSection, duplicateItem, removeItem, moveOnPhone, autoMobileOrder, setMinH }: Props & {
   block: PageDoc['blocks'][number]; section: SiteSection; item: SiteLayoutItem;
 }) {
   const [tab, setTab] = useState<'content' | 'style'>('content');
@@ -254,7 +325,15 @@ function ItemPanel({ block, section, item, doc, entities, pdfs, scrap, patchBloc
       </div>
       {tab === 'content' ? (
         <div className="space-y-3 p-4">
-          <BlockFields block={block} onChange={(patch) => patchBlock(item.id, patch)} entities={entities} pdfs={pdfs} />
+          {block.type === 'text' ? (
+            <div className="space-y-2 rounded-lg bg-muted/60 p-3 text-sm">
+              <p>O texto é escrito e formatado direto na página, como no Word: fonte, tamanho, cor, negrito, listas, alinhamento e links.</p>
+              <Button size="sm" onClick={() => editText(item.id)} data-testid="editor-edit-text"><Type className="mr-1.5 h-4 w-4" />Escrever e formatar</Button>
+              <p className="text-[11px] text-muted-foreground">Atalho: dois cliques no texto.</p>
+            </div>
+          ) : (
+            <BlockFields block={block} onChange={(patch) => patchBlock(item.id, patch)} entities={entities} pdfs={pdfs} />
+          )}
           {(block.type === 'image' || block.type === 'gallery') && (
             <p className="text-[11px] text-muted-foreground">Sem foto, fica guardado, mas não aparece na página publicada.</p>
           )}

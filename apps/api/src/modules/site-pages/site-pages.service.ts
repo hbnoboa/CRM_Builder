@@ -377,6 +377,7 @@ export class SitePagesService {
       site: await this.publicSite(tenant.id, site, page.slug),
       blocks,
       layout: normalizeLayout(page.layout, visible),
+      fonts: await this.prisma.siteFont.findMany({ where: { tenantId: tenant.id }, orderBy: { createdAt: 'asc' }, select: { id: true, name: true } }),
       record,
       trackingError,
     };

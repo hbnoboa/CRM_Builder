@@ -8,11 +8,16 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
 import { siteScriptFont } from '@/lib/site-fonts';
+import { customFontCss, resolveTheme, themeVars, type ResolvedTheme } from '@/lib/site-theme';
+import { RichTextView, plainToDoc } from '@/components/site/rich-text-view';
+import './site-fonts.css';
+import './site-theme.css';
 import { absoluteSiteUrl, siteApi, type SiteAppearance, type SiteFooter, type SiteBlockView, type SiteCatalogItem, type SiteFieldDef, type SiteItemStyle, type SiteLayout, type SiteLayoutItem, type SitePageData, type SiteRecordView, type SiteSection, type SiteSpacing, type SiteValue } from '@/lib/site-api';
 
 const DEFAULT_BRAND = '#2563eb';
-const SERIF = "Georgia, 'Times New Roman', serif";
-const SCRIPT = "var(--font-site-script), 'Snell Roundhand', 'Segoe Script', cursive";
+// Fontes do tema: texto (corpo) e titulos. Os blocos usam estas variaveis.
+const SERIF = 'var(--site-font-body)';
+const SCRIPT = 'var(--site-font-heading)';
 
 interface SitePageViewProps {
   data: SitePageData;
@@ -29,31 +34,29 @@ const tint = (color: string, pct: number, base = 'white') => `color-mix(in srgb,
 
 const svgUrl = (svg: string) => `url("data:image/svg+xml,${encodeURIComponent(svg)}")`;
 
-/** Fundo da pagina: cor clara da marca com um padrao leve (bolinhas, coracoes...). */
-function backgroundStyle(look: SiteAppearance, brand: string): CSSProperties {
-  const scrap = look.style === 'scrapbook';
-  const base = scrap ? tint(brand, 9) : '#f8fafc';
-  const ink = tint(brand, scrap ? 26 : 14, 'transparent');
-  switch (look.background) {
+/** Padrao leve por cima de uma cor (bolinhas, coracoes...), na cor de destaque. */
+export function patternStyle(pattern: SiteAppearance['background'] | undefined, base: string, accent: string): CSSProperties {
+  const ink = `color-mix(in srgb, ${accent} 22%, transparent)`;
+  switch (pattern) {
     case 'dots':
       return { backgroundColor: base, backgroundImage: `radial-gradient(${ink} 1.6px, transparent 1.8px)`, backgroundSize: '20px 20px' };
     case 'hearts':
       return {
         backgroundColor: base,
-        backgroundImage: svgUrl(`<svg xmlns='http://www.w3.org/2000/svg' width='56' height='56'><path d='M28 40s-11-7-11-14a6 6 0 0 1 11-3 6 6 0 0 1 11 3c0 7-11 14-11 14z' fill='${brand}' fill-opacity='0.09'/></svg>`),
+        backgroundImage: svgUrl(`<svg xmlns='http://www.w3.org/2000/svg' width='56' height='56'><path d='M28 40s-11-7-11-14a6 6 0 0 1 11-3 6 6 0 0 1 11 3c0 7-11 14-11 14z' fill='${accent}' fill-opacity='0.09'/></svg>`),
         backgroundSize: '56px 56px',
       };
     case 'stars':
       return {
         backgroundColor: base,
-        backgroundImage: svgUrl(`<svg xmlns='http://www.w3.org/2000/svg' width='60' height='60'><path d='M15 8l2 5 5 .4-4 3.3 1.3 5-4.3-2.8-4.3 2.8 1.3-5-4-3.3 5-.4z' fill='${brand}' fill-opacity='0.16'/><circle cx='44' cy='42' r='2' fill='${brand}' fill-opacity='0.2'/></svg>`),
+        backgroundImage: svgUrl(`<svg xmlns='http://www.w3.org/2000/svg' width='60' height='60'><path d='M15 8l2 5 5 .4-4 3.3 1.3 5-4.3-2.8-4.3 2.8 1.3-5-4-3.3 5-.4z' fill='${accent}' fill-opacity='0.16'/><circle cx='44' cy='42' r='2' fill='${accent}' fill-opacity='0.2'/></svg>`),
         backgroundSize: '60px 60px',
       };
     case 'stripes':
-      return { backgroundColor: base, backgroundImage: `repeating-linear-gradient(135deg, ${tint(brand, 6, 'transparent')} 0 16px, transparent 16px 32px)` };
+      return { backgroundColor: base, backgroundImage: `repeating-linear-gradient(135deg, color-mix(in srgb, ${accent} 7%, transparent) 0 16px, transparent 16px 32px)` };
     case 'grid':
       return {
-        backgroundColor: scrap ? '#fffdf8' : base,
+        backgroundColor: base,
         backgroundImage: `linear-gradient(${ink} 1px, transparent 1px), linear-gradient(90deg, ${ink} 1px, transparent 1px)`,
         backgroundSize: '24px 24px',
       };
@@ -62,10 +65,26 @@ function backgroundStyle(look: SiteAppearance, brand: string): CSSProperties {
   }
 }
 
+/** Foto ou video de fundo (da pagina ou de uma secao), com o veu que ajuda a ler. */
+function BackgroundMedia({ image, video, dim, sticky, parallax }: { image?: string; video?: string; dim: number; sticky?: boolean; parallax?: boolean }) {
+  if (!image && !video) return null;
+  return (
+    <div aria-hidden className="pointer-events-none absolute inset-0 -z-10 overflow-hidden">
+      {video ? (
+        <video src={video} autoPlay muted loop playsInline className={cn('w-full object-cover', sticky ? 'sticky top-0 h-screen' : 'h-full')} />
+      ) : (
+        <div className={cn('w-full bg-cover bg-center', sticky ? 'sticky top-0 h-screen' : 'h-full')}
+          style={{ backgroundImage: `url(${image})`, ...(parallax ? { backgroundAttachment: 'fixed' } : {}) }} />
+      )}
+      {dim > 0 && <div className="absolute inset-0" style={{ backgroundColor: `color-mix(in srgb, var(--site-bg) ${dim}%, transparent)` }} />}
+    </div>
+  );
+}
+
 export function siteLook(data: SitePageData) {
   const look: SiteAppearance = data.page.settings ?? { style: 'classic', background: 'plain' };
-  const brand = look.accent || data.tenant.brandColor || DEFAULT_BRAND;
-  return { look, brand, scrap: look.style === 'scrapbook' };
+  const theme: ResolvedTheme = resolveTheme(look, data.tenant.brandColor || DEFAULT_BRAND);
+  return { look, theme, brand: theme.colors.accent, scrap: look.style === 'scrapbook' };
 }
 
 /** Pagina antiga (sem secoes): uma secao estreita com os blocos em sequencia. */
@@ -146,12 +165,20 @@ export function SiteFrame({ data, preview, children, onHeaderClick, onFooterClic
   /** Editor: topo (com menu) e rodape sao clicaveis e mostram quando estao selecionados. */
   onHeaderClick?: () => void; onFooterClick?: () => void; highlight?: 'header' | 'footer' | null;
 }) {
-  const { look, brand, scrap } = siteLook(data);
+  const { look, theme, brand, scrap } = siteLook(data);
   // Topo, menu e rodape acompanham a largura do conteudo (pagina so com secoes estreitas fica como era)
   const width = layoutOf(data).sections.some((s) => s.width !== 'narrow') ? 'max-w-6xl' : scrap ? 'max-w-3xl' : 'max-w-2xl';
-  const style = { '--site-brand': brand, '--site-gap-y': `${SITE_GRID.gapY(scrap)}px`, ...backgroundStyle(look, brand) } as CSSProperties;
+  const fonts = data.fonts || [];
+  const style = {
+    ...themeVars(theme, fonts),
+    '--site-gap-y': `${SITE_GRID.gapY(scrap)}px`,
+    ...patternStyle(theme.pattern, theme.colors.bg, brand),
+  } as CSSProperties;
   return (
-    <div className={cn('site-canvas text-slate-900', siteScriptFont.variable, preview ? 'min-h-full' : 'min-h-screen')} style={style} data-testid="site-page" data-style={look.style}>
+    <div className={cn('site-canvas relative', siteScriptFont.variable, preview ? 'min-h-full' : 'min-h-screen')} style={style}
+      data-testid="site-page" data-style={look.style} data-btn={theme.buttons.fill} data-shadow={theme.shadow}>
+      {fonts.length > 0 && <style>{customFontCss(fonts)}</style>}
+      <BackgroundMedia image={theme.bgImage} video={theme.bgVideo} dim={theme.bgDim} sticky />
       <div onClick={onHeaderClick} className={cn(onHeaderClick && 'site-editable cursor-pointer', highlight === 'header' && 'site-editable-on')} data-testid="site-frame-header">
         {scrap ? <ScrapHeader data={data} look={look} brand={brand} /> : <ClassicHeader data={data} look={look} brand={brand} width={width} />}
         <SiteMenu data={data} brand={brand} scrap={scrap} preview={preview} width={width} />
@@ -182,29 +209,38 @@ export function SiteFrame({ data, preview, children, onHeaderClick, onFooterClic
 }
 
 const SECTION_WIDTH: Record<SiteSection['width'], string> = { narrow: 'max-w-3xl', normal: 'max-w-6xl', full: 'max-w-none csm:px-8' };
-const SECTION_PAD: Record<SiteSpacing, string> = { none: 'py-0', sm: 'py-4', md: 'py-8', lg: 'py-14 csm:py-24' };
+const SECTION_PAD: Record<SiteSpacing, string> = { none: '0rem', sm: '1rem', md: '2rem', lg: '4.5rem' };
 const ITEM_PAD: Record<SiteSpacing, string> = { none: '', sm: 'p-3', md: 'p-5', lg: 'p-8' };
 const ITEM_RADIUS: Record<NonNullable<SiteItemStyle['radius']>, string> = { none: 'rounded-none', sm: 'rounded-lg', lg: 'rounded-3xl' };
 
-/** Faixa da pagina: largura, espaco em cima/embaixo, cor ou foto de fundo. */
-export function SectionShell({ section, brand, scrap, children, className, editing }: {
+/**
+ * Faixa da pagina: largura, espaco em cima/embaixo e fundo (variacao de cor do
+ * tema, cor, degrade, padrao, foto ou video).
+ */
+export function SectionShell({ section, brand, children, className, editing }: {
   section: SiteSection; brand: string; scrap: boolean; children: ReactNode; className?: string; editing?: boolean;
 }) {
-  const style: CSSProperties = {};
-  if (section.bgImage) {
-    style.backgroundImage = `${section.overlay ? 'linear-gradient(rgba(0,0,0,0.5), rgba(0,0,0,0.5)), ' : ''}url(${section.bgImage})`;
-    style.backgroundSize = 'cover';
-    style.backgroundPosition = 'center';
+  const base = section.bg || (section.tone ? undefined : 'transparent');
+  let style: CSSProperties = section.pattern ? patternStyle(section.pattern, base || 'transparent', brand) : base && base !== 'transparent' ? { backgroundColor: base } : {};
+  if (section.gradient) {
+    const g = section.gradient;
+    style = {
+      ...style,
+      backgroundImage: [style.backgroundImage, g.kind === 'radial'
+        ? `radial-gradient(circle at center, ${g.from}, ${g.to})`
+        : `linear-gradient(${g.angle}deg, ${g.from}, ${g.to})`].filter(Boolean).join(', '),
+    };
   }
-  if (section.bg) style.backgroundColor = section.bg;
   if (section.light) style.color = '#fff';
   return (
     <section
       id={section.id}
-      data-scrap={scrap || undefined}
-      className={cn('relative scroll-mt-4', SECTION_PAD[section.padding], section.light && 'site-ink-light', !editing && section.hide && `site-hide-${section.hide}`, className)}
-      style={{ ...style, '--site-brand': brand } as CSSProperties}
+      className={cn('site-sec-pad relative isolate scroll-mt-4', section.tone && `site-tone-${section.tone}`, section.light && 'site-ink-light',
+        !editing && section.hide && `site-hide-${section.hide}`, className)}
+      style={{ ...style, '--sec-pad': SECTION_PAD[section.padding] } as CSSProperties}
     >
+      <BackgroundMedia image={section.bgImage} video={section.bgVideo} dim={0} parallax={section.parallax} />
+      {section.overlay && (section.bgImage || section.bgVideo) && <div aria-hidden className="pointer-events-none absolute inset-0 -z-10 bg-black/40" />}
       <div className={cn('mx-auto px-4', SECTION_WIDTH[section.width], section.width === 'full' && section.padding === 'none' && 'px-0 csm:px-0')}>
         {children}
       </div>
@@ -355,11 +391,11 @@ function Tape({ brand, rotate = -4 }: { brand: string; rotate?: number }) {
 const TILT = [-2.2, 1.6, -0.8, 2.4, -1.4, 0.9];
 const COLS: Record<number, string> = { 1: '', 2: 'csm:grid-cols-2', 3: 'csm:grid-cols-3' };
 
-function BlockTitle({ text, brand, scrap }: { text?: string; brand: string; scrap: boolean }) {
+function BlockTitle({ text, scrap }: { text?: string; scrap: boolean }) {
   if (!text) return null;
   return scrap
-    ? <h2 className="mb-5 text-center text-4xl csm:text-5xl" style={{ fontFamily: SCRIPT, color: brand }}>{text}</h2>
-    : <h2 className="mb-3 text-xl font-semibold">{text}</h2>;
+    ? <h2 className="site-h2 mb-5 text-center">{text}</h2>
+    : <h2 className="site-h3 mb-3">{text}</h2>;
 }
 
 export type BlockViewProps = { block: SiteBlockView; index: number; data: SitePageData; brand: string; scrap: boolean } & Omit<SitePageViewProps, 'data'>;
@@ -369,18 +405,18 @@ export function BlockView({ block, index, data, brand, scrap, tenantSlug, pageSl
     case 'heading':
       if (scrap) {
         return block.size === 'md'
-          ? <h2 className="text-center text-2xl font-bold italic" style={{ fontFamily: SERIF }}><span style={{ color: brand }}>♡</span> <span data-edit="text">{block.text}</span> <span style={{ color: brand }}>♡</span></h2>
-          : <h2 className="text-center text-5xl leading-tight csm:text-6xl" style={{ fontFamily: SCRIPT, color: brand }} data-edit="text">{block.text}</h2>;
+          ? <h2 className="site-h3 text-center"><span style={{ color: brand }}>♡</span> <span data-edit="text">{block.text}</span> <span style={{ color: brand }}>♡</span></h2>
+          : <h2 className="site-h1 text-center" data-edit="text">{block.text}</h2>;
       }
       return block.size === 'md'
-        ? <h2 className="text-xl font-semibold" data-edit="text">{block.text}</h2>
-        : <h1 className="text-2xl font-bold tracking-tight csm:text-3xl" data-edit="text">{block.text}</h1>;
-    case 'text':
+        ? <h2 className="site-h2" data-edit="text">{block.text}</h2>
+        : <h1 className="site-h1" data-edit="text">{block.text}</h1>;
+    case 'text': {
+      const rich = <RichTextView doc={block.doc ?? plainToDoc(block.text)} fonts={data.fonts} className={cn(!block.doc && block.text.length < 220 && scrap && 'text-center')} />;
       return scrap ? (
-        <div className="relative mx-auto max-w-2xl rounded-md border-2 border-dashed bg-white/90 px-6 py-5 shadow-sm" style={{ borderColor: tint(brand, 35) }}>
-          <p className={cn('whitespace-pre-line text-[17px] leading-relaxed text-slate-700', block.text.length < 220 && 'text-center')} style={{ fontFamily: SERIF }} data-edit="text">{block.text}</p>
-        </div>
-      ) : <p className="whitespace-pre-line text-[15px] leading-relaxed text-slate-700" data-edit="text">{block.text}</p>;
+        <div className="relative mx-auto max-w-2xl rounded-md border-2 border-dashed bg-white/90 px-6 py-5 shadow-sm" style={{ borderColor: tint(brand, 35) }}>{rich}</div>
+      ) : rich;
+    }
     case 'image':
       return scrap ? (
         <figure className="relative mx-auto max-w-md bg-white p-3 pb-10 shadow-lg" style={{ transform: `rotate(${TILT[index % TILT.length]}deg)` }}>
@@ -394,9 +430,7 @@ export function BlockView({ block, index, data, brand, scrap, tenantSlug, pageSl
     case 'button':
       return (
         <div className={scrap ? 'text-center' : undefined}>
-          <a href={block.url} target={/^https?:/.test(block.url) ? '_blank' : undefined} rel="noopener noreferrer"
-            className={cn('inline-flex items-center justify-center font-semibold text-white', scrap ? 'rounded-full px-8 py-3.5 text-base transition-transform hover:-translate-y-0.5' : 'h-11 rounded-lg px-5 text-sm shadow-sm')}
-            style={{ backgroundColor: brand, ...(scrap ? { boxShadow: `0 5px 0 ${tint(brand, 70, 'black')}` } : {}) }}>
+          <a href={block.url} target={/^https?:/.test(block.url) ? '_blank' : undefined} rel="noopener noreferrer" className="site-btn">
             {scrap && <span className="mr-2" aria-hidden>♡</span>}{block.label}
           </a>
         </div>
@@ -451,14 +485,12 @@ function HeroView({ block, brand, scrap }: { block: Extract<SiteBlockView, { typ
       style={bg}
       data-testid="site-hero"
     >
-      <h2 className={scrap ? 'text-5xl leading-tight drop-shadow csm:text-6xl' : 'text-3xl font-bold tracking-tight csm:text-4xl'}
-        style={scrap ? { fontFamily: SCRIPT } : undefined}>{block.title}</h2>
+      <h2 className="site-h1 drop-shadow" style={{ color: '#fff' }}>{block.title}</h2>
       {block.text && <p className={cn('mt-2 max-w-xl text-white/90', scrap ? 'mx-auto text-lg italic' : 'text-base')} style={scrap ? { fontFamily: SERIF } : undefined}>{block.text}</p>}
       {block.buttonLabel && block.buttonUrl && (
         <div className="mt-5">
           <a href={block.buttonUrl} target={/^https?:/.test(block.buttonUrl) ? '_blank' : undefined} rel="noopener noreferrer"
-            className={cn('inline-flex items-center justify-center font-semibold', scrap ? 'rounded-full bg-white px-7 py-3' : 'h-11 rounded-lg px-5 text-sm text-white')}
-            style={scrap ? { color: brand } : { backgroundColor: brand }}>
+            className={cn('site-btn', scrap && 'site-btn-light')}>
             {block.buttonLabel}
           </a>
         </div>
@@ -470,7 +502,7 @@ function HeroView({ block, brand, scrap }: { block: Extract<SiteBlockView, { typ
 function GalleryView({ block, brand, scrap }: { block: Extract<SiteBlockView, { type: 'gallery' }>; brand: string; scrap: boolean }) {
   return (
     <section data-testid="site-gallery">
-      <BlockTitle text={block.title} brand={brand} scrap={scrap} />
+      <BlockTitle text={block.title} scrap={scrap} />
       {block.layout === 'polaroid' ? (
         <div className="grid grid-cols-2 gap-x-4 gap-y-7 csm:grid-cols-3 csm:gap-x-6">
           {block.images.map((img, i) => (
@@ -508,7 +540,7 @@ function GalleryView({ block, brand, scrap }: { block: Extract<SiteBlockView, { 
 function CardsView({ block, brand, scrap }: { block: Extract<SiteBlockView, { type: 'cards' }>; brand: string; scrap: boolean }) {
   return (
     <section data-testid="site-cards">
-      <BlockTitle text={block.title} brand={brand} scrap={scrap} />
+      <BlockTitle text={block.title} scrap={scrap} />
       <div className={cn('grid gap-5', COLS[block.columns])}>
         {block.items.map((item, i) => (
           <article key={`${item.title}-${i}`}
@@ -552,7 +584,7 @@ function CatalogView({ block, brand, scrap, preview }: { block: Extract<SiteBloc
   return (
     <section className={cn(scrap ? 'rounded-[2rem] border-2 border-dashed bg-white px-5 py-7 shadow-md csm:px-8' : 'rounded-2xl border bg-white p-5 shadow-sm')}
       style={scrap ? { borderColor: tint(brand, 40) } : undefined} data-testid="site-catalog">
-      <BlockTitle text={block.title || block.entityName} brand={brand} scrap={scrap} />
+      <BlockTitle text={block.title || block.entityName} scrap={scrap} />
       <div className="space-y-7">
         {groups.map((g) => (
           <div key={g.name || '-'}>
@@ -684,8 +716,7 @@ function PublicForm({ block, brand, scrap, tenantSlug, pageSlug, preview }: { bl
       <input type="text" name="website" value={website} onChange={(e) => setWebsite(e.target.value)} tabIndex={-1} autoComplete="off" aria-hidden="true" className="absolute left-[-9999px] h-0 w-0 opacity-0" />
       {error && <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700" role="alert">{error}</p>}
       <button type="submit" disabled={sending}
-        className={cn('inline-flex h-12 w-full items-center justify-center gap-2 text-base font-semibold text-white disabled:opacity-60', scrap ? 'rounded-full' : 'rounded-lg shadow-sm')}
-        style={{ backgroundColor: brand, ...(scrap ? { boxShadow: `0 5px 0 ${tint(brand, 70, 'black')}` } : {}) }} data-testid="site-form-submit">
+        className="site-btn w-full disabled:opacity-60" data-testid="site-form-submit">
         {sending && <Loader2 className="h-4 w-4 animate-spin" />} {scrap && !sending && <span aria-hidden>♡</span>} {block.submitLabel || 'Enviar'}
       </button>
     </form>

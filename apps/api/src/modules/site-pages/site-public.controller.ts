@@ -6,6 +6,7 @@ import type { Response } from 'express';
 import { AuthThrottlerGuard } from '../../common/guards/auth-throttler.guard';
 import { SubmitSiteFormDto } from './dto/site-pages.dto';
 import { SitePagesService } from './site-pages.service';
+import { SiteFontsService } from './site-fonts.service';
 
 const UPLOAD = { limits: { fileSize: 10 * 1024 * 1024 } };
 
@@ -14,7 +15,22 @@ const UPLOAD = { limits: { fileSize: 10 * 1024 * 1024 } };
 @Controller('site')
 @UseGuards(AuthThrottlerGuard)
 export class SitePublicController {
-  constructor(private readonly service: SitePagesService) {}
+  constructor(private readonly service: SitePagesService, private readonly fonts: SiteFontsService) {}
+
+  // Antes de ':tenant/:page' (senao "fonts" viraria o endereco de uma empresa)
+  @Get('fonts/:id')
+  @Throttle({ default: { limit: 120, ttl: 60000 } })
+  @ApiOperation({ summary: 'Arquivo de uma fonte enviada pela empresa' })
+  async font(@Param('id') id: string, @Res() res: Response) {
+    const font = await this.fonts.file(id);
+    res.set({
+      'Content-Type': font.mime,
+      'Cache-Control': 'public, max-age=31536000, immutable',
+      'Access-Control-Allow-Origin': '*',
+      'X-Content-Type-Options': 'nosniff',
+    });
+    res.send(Buffer.from(font.data));
+  }
 
   @Get(':tenant/:page')
   @Throttle({ default: { limit: 60, ttl: 60000 } })

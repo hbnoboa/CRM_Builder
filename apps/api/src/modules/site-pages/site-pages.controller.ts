@@ -1,4 +1,5 @@
-import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Param, Patch, Post, Put, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Param, Patch, Post, Put, Query, UploadedFile, UseGuards, UseInterceptors } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { ModulePermissionGuard } from '../../common/guards/module-permission.guard';
@@ -9,6 +10,7 @@ import { CurrentUser as CurrentUserType } from '../../common/types';
 import { ServiceScope } from '../../common/service-scope/service-scope.decorator';
 import { CreateSitePageDto, PreviewSitePageDto, PublishSitePageDto, TrackingLinkDto, UpdateSiteDto, UpdateSitePageDto } from './dto/site-pages.dto';
 import { SitePagesService } from './site-pages.service';
+import { MAX_FONT_BYTES, SiteFontsService } from './site-fonts.service';
 
 /** Paginas para clientes: mesma permissao e plano dos links publicos. */
 @ApiTags('Site Pages')
@@ -19,7 +21,7 @@ import { SitePagesService } from './site-pages.service';
 @RequireModulePermission('publicLinks', 'canManage')
 @ApiBearerAuth()
 export class SitePagesController {
-  constructor(private readonly service: SitePagesService) {}
+  constructor(private readonly service: SitePagesService, private readonly fonts: SiteFontsService) {}
 
   @Get()
   @ApiOperation({ summary: 'Lista as paginas para clientes' })
@@ -32,6 +34,25 @@ export class SitePagesController {
   @ApiOperation({ summary: 'Previa de blocos ainda nao salvos' })
   preview(@Body() dto: PreviewSitePageDto, @CurrentUser() user: CurrentUserType) {
     return this.service.preview(dto.blocks, dto.title || 'Prévia', user, dto.settings, dto.slug, dto.layout, dto.site);
+  }
+
+  @Get('fonts')
+  @ApiOperation({ summary: 'Fontes enviadas pela empresa para o site' })
+  listFonts(@CurrentUser() user: CurrentUserType) {
+    return this.fonts.list(user);
+  }
+
+  @Post('fonts')
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: MAX_FONT_BYTES + 1 } }))
+  @ApiOperation({ summary: 'Envia uma fonte (.woff2, .woff, .ttf, .otf, ate 2 MB)' })
+  uploadFont(@UploadedFile() file: Express.Multer.File, @Body('name') name: string | undefined, @CurrentUser() user: CurrentUserType) {
+    return this.fonts.upload(file, typeof name === 'string' ? name : undefined, user);
+  }
+
+  @Delete('fonts/:fontId')
+  @ApiOperation({ summary: 'Apaga uma fonte enviada' })
+  removeFont(@Param('fontId') fontId: string, @CurrentUser() user: CurrentUserType) {
+    return this.fonts.remove(fontId, user);
   }
 
   @Get('site')

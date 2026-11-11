@@ -110,6 +110,7 @@ export interface SiteConfigDraft {
   menu: Array<{ slug: string; label?: string }>;
   footer: Record<string, string | undefined>;
   homeSlug?: string;
+  savedThemes?: Array<{ name: string; look: Record<string, unknown> }>;
 }
 export interface SiteInfo {
   config: SiteConfigDraft;

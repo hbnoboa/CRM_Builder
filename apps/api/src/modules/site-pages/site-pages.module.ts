@@ -7,10 +7,11 @@ import { PdfModule } from '../pdf/pdf.module';
 import { RecordTrackingController, SitePagesController } from './site-pages.controller';
 import { SitePublicController } from './site-public.controller';
 import { SitePagesService } from './site-pages.service';
+import { SiteFontsService } from './site-fonts.service';
 
 @Module({
   imports: [PrismaModule, EntityDataQueryModule, DataModule, UploadModule, PdfModule],
   controllers: [SitePagesController, RecordTrackingController, SitePublicController],
-  providers: [SitePagesService],
+  providers: [SitePagesService, SiteFontsService],
 })
 export class SitePagesModule {}

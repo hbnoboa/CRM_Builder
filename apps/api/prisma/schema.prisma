@@ -1717,6 +1717,20 @@ model SitePage {
   @@index([tenantId])
 }
 
+/// Fonte enviada pela empresa para as paginas para clientes (arquivo guardado
+/// aqui mesmo; a API serve para o site, no mesmo endereco da pagina).
+model SiteFont {
+  id        String   @id @default(cuid())
+  tenantId  String
+  name      String
+  mime      String
+  size      Int
+  data      Bytes
+  createdAt DateTime @default(now())
+
+  @@index([tenantId])
+}
+
 /// Link de acompanhamento de um registro: quem tem o token ve, na pagina de
 /// acompanhamento, so os campos que a pagina libera. Um por registro.
 model RecordTrackingLink {

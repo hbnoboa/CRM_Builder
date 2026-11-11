@@ -9,6 +9,7 @@ import { Switch } from '@/components/ui/switch';
 import ImageUploadField from '@/components/form/image-upload-field';
 import { fieldKind } from '@/lib/field-catalog';
 import type { SiteBlockDraft } from '@/hooks/use-site-pages';
+import type { SiteAppearance, SiteTheme } from '@/lib/site-api';
 
 export type EditorEntity = {
   id: string;
@@ -435,45 +436,8 @@ function CatalogFields({ block, onChange, entities }: { block: SiteBlockDraft; o
 
 // ── Aparencia da pagina ──────────────────────────────────────────────────
 
-export type SiteLookDraft = { ownLook?: boolean; style?: string; background?: string; accent?: string; coverUrl?: string; tagline?: string };
+export type SiteLookDraft = {
+  ownLook?: boolean; style?: 'classic' | 'scrapbook'; background?: SiteAppearance['background']; accent?: string; coverUrl?: string; tagline?: string;
+  theme?: SiteTheme;
+};
 
-const BACKGROUNDS = [
-  { value: 'plain', label: 'Liso' }, { value: 'dots', label: 'Bolinhas' }, { value: 'hearts', label: 'Corações' },
-  { value: 'stars', label: 'Estrelas' }, { value: 'stripes', label: 'Listras' }, { value: 'grid', label: 'Caderno' },
-];
-
-/** Estilo da pagina inteira: limpo (empresa) ou scrapbook (colorido, polaroides). */
-export function AppearanceFields({ look, onChange, brandColor }: { look: SiteLookDraft; onChange: (patch: SiteLookDraft) => void; brandColor?: string | null }) {
-  const style = look.style || 'classic';
-  return (
-    <div className="space-y-3" data-testid="page-appearance">
-      <div className="grid grid-cols-2 gap-2">
-        {[
-          { value: 'classic', title: 'Clássico', text: 'Limpo e direto, cara de empresa' },
-          { value: 'scrapbook', title: 'Scrapbook', text: 'Colorido, polaroides e letra à mão' },
-        ].map((o) => (
-          <button key={o.value} type="button" onClick={() => onChange({ style: o.value, background: o.value === 'scrapbook' ? (look.background && look.background !== 'plain' ? look.background : 'dots') : 'plain' })}
-            className={`rounded-lg border p-2.5 text-left transition-colors ${style === o.value ? 'border-primary bg-primary/5 ring-1 ring-primary' : 'hover:bg-muted'}`}
-            data-testid={`page-style-${o.value}`}>
-            <span className="block text-sm font-medium">{o.title}</span>
-            <span className="block text-[11px] text-muted-foreground">{o.text}</span>
-          </button>
-        ))}
-      </div>
-      <div className="space-y-1.5">
-        <Label className="text-xs">Fundo</Label>
-        <Segmented value={look.background || (style === 'scrapbook' ? 'dots' : 'plain')} options={BACKGROUNDS} onChange={(v) => onChange({ background: v })} />
-      </div>
-      <div className="flex items-center gap-2">
-        <Label className="text-xs">Cor de destaque</Label>
-        <input type="color" value={look.accent || brandColor || '#2563eb'} onChange={(e) => onChange({ accent: e.target.value })} className="h-8 w-10 cursor-pointer rounded border bg-background" aria-label="Cor de destaque" />
-        {look.accent && <Button type="button" size="sm" variant="ghost" onClick={() => onChange({ accent: undefined })}>Usar a cor da empresa</Button>}
-      </div>
-      <div className="space-y-1.5">
-        <Label className="text-xs">Foto de capa (topo da página)</Label>
-        <ImagePick value={look.coverUrl} onChange={(url) => onChange({ coverUrl: url || undefined })} />
-      </div>
-      <Input value={look.tagline ?? ''} onChange={(e) => onChange({ tagline: e.target.value })} placeholder="Frase embaixo do nome. Ex.: o cantinho mais fofo da cidade" />
-    </div>
-  );
-}
