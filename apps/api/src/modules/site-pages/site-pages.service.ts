@@ -69,10 +69,18 @@ export class SitePagesService {
    * Endereco da pagina. Com SITE_PAGES_BASE_URL (ex.: https://{empresa}.iossystem.com.br)
    * vira o subdominio da empresa; sem ela, o caminho /p/<empresa>/<pagina> no site.
    */
-  private url(tenantSlug: string, pageSlug: string) {
+  private url(tenantSlug: string, pageSlug: string, host?: string | null) {
+    // Dominio proprio da empresa (principal e conectado) tem prioridade
+    if (host) return `https://${host}/${pageSlug}`;
     const base = process.env.SITE_PAGES_BASE_URL;
     if (base && base.includes('{empresa}')) return `${base.replace('{empresa}', tenantSlug).replace(/\/$/, '')}/${pageSlug}`;
     return `/p/${tenantSlug}/${pageSlug}`;
+  }
+
+  /** Dominio principal ativo da empresa (Site da empresa › Domínios), se houver. */
+  private async primaryHost(tenantId: string): Promise<string | null> {
+    const d = await this.prisma.tenantDomain.findFirst({ where: { tenantId, isPrimary: true, status: 'active' }, select: { hostname: true } });
+    return d?.hostname ?? null;
   }
 
   // ── Administracao ──────────────────────────────────────────────────────
@@ -81,9 +89,10 @@ export class SitePagesService {
     const tenantId = getEffectiveTenantId(user);
     const tenant = await this.prisma.tenant.findUnique({ where: { id: tenantId }, select: { slug: true } });
     const pages = await this.prisma.sitePage.findMany({ where: { tenantId }, orderBy: { updatedAt: 'desc' } });
+    const host = await this.primaryHost(tenantId);
     return pages.map((p) => ({
       id: p.id, title: p.title, slug: p.slug, description: p.description, isPublished: p.isPublished, updatedAt: p.updatedAt,
-      url: this.url(tenant!.slug, p.slug),
+      url: this.url(tenant!.slug, p.slug, host),
       kinds: [...new Set((p.blocks as unknown as SiteBlock[]).filter((b) => b.type === 'form' || b.type === 'tracking').map((b) => b.type))],
     }));
   }
@@ -118,7 +127,7 @@ export class SitePagesService {
     const page = await this.prisma.sitePage.findFirst({ where: { id, tenantId } });
     if (!page) throw new NotFoundException('Página não encontrada');
     const tenant = await this.prisma.tenant.findUnique({ where: { id: tenantId }, select: { slug: true } });
-    return { ...page, settings: normalizeSettings(page.settings), url: this.url(tenant!.slug, page.slug) };
+    return { ...page, settings: normalizeSettings(page.settings), url: this.url(tenant!.slug, page.slug, await this.primaryHost(tenantId)) };
   }
 
   async create(dto: { title: string; template?: 'form' | 'tracking' | 'blank'; entitySlug?: string }, user: CurrentUser) {
@@ -246,7 +255,7 @@ export class SitePagesService {
     if (!page) throw new NotFoundException('Nenhuma página de acompanhamento publicada para esta tabela. Crie uma em Páginas para clientes.');
     const token = await this.ensureToken(tenantId, entity.id, record.id, user.id);
     const tenant = await this.prisma.tenant.findUnique({ where: { id: tenantId }, select: { slug: true } });
-    return { url: `${this.url(tenant!.slug, page.slug)}?c=${token}`, pageTitle: page.title };
+    return { url: `${this.url(tenant!.slug, page.slug, await this.primaryHost(tenantId))}?c=${token}`, pageTitle: page.title };
   }
 
   /** O botao "Link de acompanhamento" so aparece se houver pagina publicada para a tabela. */
@@ -631,7 +640,7 @@ export class SitePagesService {
       const trackingPage = await this.trackingPageFor(tenant.id, entity.slug);
       if (trackingPage) {
         const token = await this.ensureToken(tenant.id, entity.id, record.id, null);
-        trackingUrl = `${this.url(tenant.slug, trackingPage.slug)}?c=${token}`;
+        trackingUrl = `${this.url(tenant.slug, trackingPage.slug, await this.primaryHost(tenant.id))}?c=${token}`;
       }
     }
     return { ok: true, message: block.successMessage, ...(trackingUrl ? { trackingUrl } : {}) };

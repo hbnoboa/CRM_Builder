@@ -1729,3 +1729,55 @@ model RecordTrackingLink {
 
   @@index([tenantId])
 }
+
+/// Dominio proprio de uma empresa para o site (ex.: meucafe.com.br). Ligado pelo
+/// cliente (connected: ele aponta o DNS) ou comprado pela plataforma (purchased).
+/// Um dominio pertence a uma empresa so (hostname unico no sistema todo).
+model TenantDomain {
+  id          String    @id @default(cuid())
+  tenantId    String
+  hostname    String    @unique
+  /// connected | purchased
+  kind        String    @default("connected")
+  /// pending_dns | active | error
+  status      String    @default("pending_dns")
+  /// Dominio principal: usado nos links do site (acompanhamento, menu).
+  isPrimary   Boolean   @default(false)
+  verifiedAt  DateTime?
+  lastCheckAt DateTime?
+  lastError   String?
+  orderId     String?
+  createdById String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([tenantId])
+}
+
+/// Pedido de compra de dominio. A cobranca e feita fora do sistema: a equipe da
+/// plataforma marca como pago no console e entao o registro acontece.
+model DomainOrder {
+  id           String    @id @default(cuid())
+  tenantId     String
+  hostname     String
+  years        Int       @default(1)
+  priceCents   Int
+  currency     String    @default("BRL")
+  /// awaiting_payment | registering | registered | failed | cancelled
+  status       String    @default("awaiting_payment")
+  /// Titular do dominio (nome, CPF/CNPJ, e-mail, telefone). Dado pessoal (LGPD).
+  registrant   Json
+  provider     String
+  providerRef  String?
+  expiresAt    DateTime?
+  paidAt       DateTime?
+  paidByStaff  String?
+  lastError    String?
+  notes        String?
+  createdById  String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@index([tenantId])
+  @@index([status])
+}

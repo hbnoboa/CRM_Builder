@@ -51,6 +51,9 @@ export const PLATFORM_PERMISSIONS = {
   'users.read': ALL,
   // Acoes de suporte na conta da pessoa (link de senha, desconectar, desligar 2 etapas).
   'users.support': ['OWNER', 'SUPPORT'],
+  // Pedidos de dominio das empresas: ver (todos) e marcar como pago/cancelar (cobranca).
+  'domains.read': ALL,
+  'domains.manage': ['OWNER', 'FINANCE'],
 } satisfies Record<string, PlatformStaffRole[]>;
 
 export type PlatformPermission = keyof typeof PLATFORM_PERMISSIONS;
