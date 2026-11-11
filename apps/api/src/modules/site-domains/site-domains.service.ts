@@ -1,4 +1,5 @@
 import { BadRequestException, ConflictException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { Cron } from '@nestjs/schedule';
 import { Prisma, Status } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CurrentUser } from '../../common/types';
@@ -233,6 +234,26 @@ export class SiteDomainsService {
     if (!['awaiting_payment', 'failed'].includes(order.status)) throw new BadRequestException('Só dá para cancelar pedidos não registrados.');
     await this.platformAudit.log(staff, { action: 'domain.cancelled', targetType: 'domain_order', targetId: id, tenantId: order.tenantId, metadata: { hostname: order.hostname } });
     return this.prisma.domainOrder.update({ where: { id }, data: { status: 'cancelled', ...(notes ? { notes: notes.slice(0, 500) } : {}) } });
+  }
+
+  /**
+   * Confere sozinho, a cada 10 minutos, os dominios ainda esperando o DNS (e os que
+   * deram erro), para a pessoa nao precisar clicar em "Conferir agora".
+   */
+  @Cron('*/10 * * * *', { name: 'site-domains-recheck', timeZone: 'America/Sao_Paulo' })
+  async recheckPending() {
+    const due = new Date(Date.now() - 9 * 60 * 1000);
+    const list = await this.prisma.tenantDomain.findMany({
+      where: { status: { in: ['pending_dns', 'error'] }, OR: [{ lastCheckAt: null }, { lastCheckAt: { lt: due } }] },
+      orderBy: { lastCheckAt: 'asc' }, take: 50, select: { id: true, tenantId: true },
+    });
+    for (const d of list) {
+      try {
+        await this.verifyRecord(d.id, d.tenantId);
+      } catch (err) {
+        this.logger.warn(`Conferencia de DNS falhou (${d.id}): ${(err as Error).message}`);
+      }
+    }
   }
 
   // ── Publico (site no dominio do cliente) ───────────────────────────────
