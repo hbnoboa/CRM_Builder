@@ -69,7 +69,7 @@ const sinistros = {
       field('prioridade', 'Prioridade', 'select', 3, { required: true, default: 'normal', options: PRIORIDADE }),
     ],
     [
-      field('status', 'Situação', 'select', 4, { required: true, options: STATUS }),
+      field('status', 'Situação', 'select', 4, { required: true, default: 'aberto', options: STATUS }),
       field('regulador', 'Regulador', 'text', 4, { placeholder: 'Quem regula o sinistro' }),
       field('prazo', 'Prazo', 'date', 4, { helpText: 'Data limite para a próxima etapa' }),
     ],
@@ -201,6 +201,18 @@ export const sinistrosModelo: SolutionSpec = {
   brandColor: '#dc2626',
   entities: [andamentos, sinistros, segurados],
   roles: [
+    {
+      // Portal do cliente: o segurado ve so o cadastro dele e os sinistros dele
+      name: 'Segurado (portal)',
+      description: 'Login do segurado: acompanha os próprios sinistros e avisa novos.',
+      color: C.gray,
+      permissions: [
+        { entitySlug: 'segurados', canRead: true, canCreate: false, canUpdate: false, canDelete: false, scope: 'client' },
+        { entitySlug: 'sinistros', canRead: true, canCreate: true, canUpdate: false, canDelete: false, scope: 'client', fieldPermissions: [{ fieldSlug: 'prioridade', canView: false, canEdit: false }, { fieldSlug: 'parecer', canView: false, canEdit: false }] },
+        { entitySlug: 'andamentos', canRead: true, canCreate: false, canUpdate: false, canDelete: false, scope: 'client' },
+      ],
+      modulePermissions: { data: { canRead: true, canCreate: true } },
+    },
     {
       name: 'Regulador',
       description: 'Faz a vistoria e a regulação no app, registra andamentos e o parecer.',

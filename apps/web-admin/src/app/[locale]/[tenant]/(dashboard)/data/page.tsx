@@ -14,6 +14,7 @@ import { useTenant } from '@/stores/tenant-context';
 import { useMyDashboardTemplates } from '@/hooks/use-dashboard-templates';
 import { cn } from '@/lib/utils';
 import { usePermissions } from '@/hooks/use-permissions';
+import { useAuthStore } from '@/stores/auth-store';
 import { RecordFormDialog } from '@/components/data/record-form-dialog';
 import type { Entity as FullEntity, EntityField } from '@/types';
 import { HelpButton } from '@/components/help/help-button';
@@ -43,6 +44,8 @@ function DataPageContent() {
   const entityParam = searchParams.get('entity');
   const router = useRouter();
   const { hasModulePermission, hasEntityPermission } = usePermissions();
+  // Portal do cliente: so a permissao da tabela vale para criar
+  const portal = !!useAuthStore((s) => s.user?.clientPortal);
   // "+ Novo" do inicio (?novo=1): abre o formulario de criacao, qualquer que seja o painel
   const wantsCreate = searchParams.get('novo') === '1';
   const { effectiveTenantId } = useTenant();
@@ -230,7 +233,7 @@ function DataPageContent() {
               ))}
             </div>
           )}
-          {wantsCreate && selectedEntity.fields && (hasModulePermission('data', 'canCreate') || hasEntityPermission(selectedEntity.slug, 'canCreate')) && (
+          {wantsCreate && selectedEntity.fields && ((!portal && hasModulePermission('data', 'canCreate')) || hasEntityPermission(selectedEntity.slug, 'canCreate')) && (
             <RecordFormDialog
               open
               onOpenChange={(open) => { if (!open) router.replace(`/data?entity=${selectedEntity.slug}`); }}

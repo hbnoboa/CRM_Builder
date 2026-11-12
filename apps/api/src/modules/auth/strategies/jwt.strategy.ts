@@ -92,6 +92,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
             customRoleId: true,
             isPrimary: true,
             expiresAt: true,
+            clientRecordId: true,
             tenant: { select: { status: true, settings: true } },
             customRole: { select: ROLE_SELECT },
           },
@@ -164,6 +165,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
           membership.customRole as RoleSel,
           payload.impersonatedBy,
         ),
+        ...(membership.clientRecordId ? { clientRecordId: membership.clientRecordId } : {}),
         ...(payload.sid && { sessionId: payload.sid }),
       };
     }

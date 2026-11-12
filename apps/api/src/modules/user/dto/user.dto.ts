@@ -40,6 +40,16 @@ export class CreateUserDto {
   @ApiProperty({ description: 'ID da role customizada (obrigatorio)' })
   @IsString()
   customRoleId: string;
+
+  @ApiPropertyOptional({ description: 'Portal do cliente: tabela do cliente que a pessoa representa (ex.: empresas)' })
+  @IsString()
+  @IsOptional()
+  clientEntitySlug?: string;
+
+  @ApiPropertyOptional({ description: 'Portal do cliente: registro do cliente que a pessoa representa (null tira o vinculo)' })
+  @IsString()
+  @IsOptional()
+  clientRecordId?: string | null;
 }
 
 export class UpdateUserDto extends PartialType(CreateUserDto) {
@@ -50,6 +60,11 @@ export class UpdateUserDto extends PartialType(CreateUserDto) {
 }
 
 export class QueryUserDto {
+  @ApiPropertyOptional({ description: 'So quem representa este cliente (portal do cliente)' })
+  @IsString()
+  @IsOptional()
+  clientRecordId?: string;
+
   @ApiPropertyOptional({ default: 1 })
   @Type(() => Number)
   @IsOptional()

@@ -736,7 +736,8 @@
       "field": "Campo",
       "view": "Ver",
       "editField": "Editar",
-      "scopeTeam": "Os da equipe dela"
+      "scopeTeam": "Os da equipe dela",
+      "scopeClient": "Do cliente vinculado"
     },
     "modules": {
       "dashboard": "Painel",

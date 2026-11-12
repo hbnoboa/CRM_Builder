@@ -25,7 +25,7 @@ import {
   Eye, Plus, Pencil, Trash2, Shield, Database, Users,
   Settings, Code, LayoutDashboard, Globe, User, UsersRound,
   ChevronRight, ListFilter, X, FileText, Bell, ScrollText, BarChart3,
-  Webhook, Zap, Mail,
+  Webhook, Zap, Mail, Building2,
 } from 'lucide-react';
 import { useCreateCustomRole, useUpdateCustomRole } from '@/hooks/use-custom-roles';
 import { useQuery } from '@tanstack/react-query';
@@ -983,7 +983,7 @@ export function RoleFormDialog({ open, onOpenChange, role, onSuccess }: RoleForm
                                     value={perm.scope || 'all'}
                                     onValueChange={(value: PermissionScope) => setEntityScope(perm.entitySlug, value)}
                                   >
-                                    <SelectTrigger className="h-7 w-[150px] text-xs" data-testid={`scope-${perm.entitySlug}`}>
+                                    <SelectTrigger className="h-7 w-[190px] text-xs" data-testid={`scope-${perm.entitySlug}`}>
                                       <SelectValue />
                                     </SelectTrigger>
                                     <SelectContent>
@@ -1003,6 +1003,13 @@ export function RoleFormDialog({ open, onOpenChange, role, onSuccess }: RoleForm
                                         <div className="flex items-center gap-1.5">
                                           <User className="h-3.5 w-3.5" />
                                           {t('form.scopeOwn')}
+                                        </div>
+                                      </SelectItem>
+                                      {/* Portal do cliente: so o registro do cliente vinculado a pessoa e o que esta dentro dele */}
+                                      <SelectItem value="client">
+                                        <div className="flex items-center gap-1.5">
+                                          <Building2 className="h-3.5 w-3.5" />
+                                          {t('form.scopeClient')}
                                         </div>
                                       </SelectItem>
                                     </SelectContent>

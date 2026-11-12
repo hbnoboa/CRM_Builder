@@ -15,7 +15,7 @@ type Perm = {
   canCreate?: boolean;
   canUpdate?: boolean;
   canDelete?: boolean;
-  scope?: 'all' | 'own' | 'team';
+  scope?: 'all' | 'own' | 'team' | 'client';
 };
 
 type RoleLike = {
@@ -33,8 +33,8 @@ function describe(perm: Perm | undefined, full: boolean): { text: string; level:
   const verbs = [perm.canRead && 'vê', perm.canCreate && 'cria', perm.canUpdate && 'edita', perm.canDelete && 'exclui'].filter(Boolean) as string[];
   if (verbs.length === 0) return { text: 'Sem acesso', level: 'none' };
   const sentence = verbs.length > 1 ? `${verbs.slice(0, -1).join(', ')} e ${verbs[verbs.length - 1]}` : verbs[0];
-  const whose = perm.scope === 'own' ? 'só os que criou' : perm.scope === 'team' ? 'os da equipe' : 'todos';
-  return { text: `${sentence.charAt(0).toUpperCase()}${sentence.slice(1)} · ${whose}`, level: verbs.length === 4 && perm.scope !== 'own' && perm.scope !== 'team' ? 'all' : 'some' };
+  const whose = perm.scope === 'own' ? 'só os que criou' : perm.scope === 'team' ? 'os da equipe' : perm.scope === 'client' ? 'só os do cliente vinculado' : 'todos';
+  return { text: `${sentence.charAt(0).toUpperCase()}${sentence.slice(1)} · ${whose}`, level: verbs.length === 4 && (perm.scope ?? 'all') === 'all' ? 'all' : 'some' };
 }
 
 /** Quais telas da administracao o cargo abre (resumo). */

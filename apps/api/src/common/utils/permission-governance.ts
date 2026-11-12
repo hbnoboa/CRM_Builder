@@ -71,7 +71,8 @@ const ENTITY_FLAGS = [
   'canExport', 'canImport', 'canConfigureColumns', 'canEditLocked',
 ] as const;
 // Quanto maior, mais registros o escopo enxerga.
-const SCOPE_BREADTH: Record<string, number> = { own: 0, team: 1, all: 2 };
+// 'client' mostra registros que a pessoa nao criou (os do cliente): exige quem concede ver mais que os proprios.
+const SCOPE_BREADTH: Record<string, number> = { own: 0, team: 1, client: 1, all: 2 };
 
 /**
  * SUBSET RULE tambem por tabela: o cargo concedido nao pode ler/criar/editar/excluir/

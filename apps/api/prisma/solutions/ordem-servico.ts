@@ -60,7 +60,7 @@ const ordens = {
       field('prioridade', 'Prioridade', 'select', 3, { required: true, default: 'normal', options: PRIORIDADE }),
     ],
     [
-      field('status', 'Situação', 'select', 4, { required: true, options: STATUS }),
+      field('status', 'Situação', 'select', 4, { required: true, default: 'aberta', options: STATUS }),
       field('tecnico', 'Técnico', 'text', 4, { placeholder: 'Quem vai executar' }),
       field('agendada_para', 'Agendada para', 'datetime', 4),
     ],
@@ -190,6 +190,18 @@ export const ordemServico: SolutionSpec = {
   brandColor: '#2563eb',
   entities: [itensOs, ordens, clientes],
   roles: [
+    {
+      // Portal do cliente: o cliente ve so o cadastro dele e as ordens de servico dele
+      name: 'Cliente (portal)',
+      description: 'Login do cliente: acompanha as próprias ordens de serviço e pede atendimento.',
+      color: C.gray,
+      permissions: [
+        { entitySlug: 'clientes', canRead: true, canCreate: false, canUpdate: false, canDelete: false, scope: 'client' },
+        { entitySlug: 'ordens-servico', canRead: true, canCreate: true, canUpdate: false, canDelete: false, scope: 'client', fieldPermissions: [{ fieldSlug: 'prioridade', canView: false, canEdit: false }] },
+        { entitySlug: 'itens-os', canRead: true, canCreate: false, canUpdate: false, canDelete: false, scope: 'client' },
+      ],
+      modulePermissions: { data: { canRead: true, canCreate: true } },
+    },
     {
       name: 'Técnico',
       description: 'Recebe as ordens no app, registra o serviço, fotos, peças e a assinatura do cliente.',

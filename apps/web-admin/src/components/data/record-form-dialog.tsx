@@ -1,6 +1,7 @@
 'use client';
 
 import { TrackingLinkButton } from '@/components/site/tracking-link-button';
+import { ClientPortalButton } from './client-portal-button';
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import { Loader2, Star, Eye, EyeOff, Play, Pause, Square, Clock, AlertTriangle, CheckCircle, XCircle, X, Plus } from 'lucide-react';
 import { withoutSystemFields } from '@/lib/system-fields';
@@ -93,6 +94,8 @@ interface RecordFormDialogProps {
   parentRecordId?: string;
   editableFields?: string[];
   submitOverride?: (data: Record<string, unknown>) => Promise<void>;
+  /** So leitura (ex.: portal do cliente sem permissao de editar): sem salvar. */
+  readOnly?: boolean;
 }
 
 // ─── Masks ──────────────────────────────────────────────────────────────────
@@ -1740,7 +1743,7 @@ export function RecordFormFields({
             </p>
           )}
           <Button type="button" variant="outline" onClick={() => onCancel?.()}>{tCommon('cancel')}</Button>
-          {!isLocked && (
+          {!isLocked && !readOnly && (
             <Button type="submit" disabled={isLoading || !entity.fields?.length}>
               {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               {isLoading ? tCommon('saving') : isEditing ? tCommon('save') : tCommon('create')}
@@ -1762,6 +1765,7 @@ export function RecordFormDialog({
   parentRecordId,
   editableFields,
   submitOverride,
+  readOnly = false,
 }: RecordFormDialogProps) {
   const t = useTranslations('data');
   const isEditing = !!record;
@@ -1793,7 +1797,7 @@ export function RecordFormDialog({
           />
           <div className="min-w-0 flex-1">
             <p className="text-xs font-medium text-muted-foreground">
-              {isEditing ? `${t('editRecord')} · ${entity.name}` : entity.name}
+              {isEditing && !readOnly ? `${t('editRecord')} · ${entity.name}` : entity.name}
             </p>
             <SheetTitle className="mt-0.5 truncate text-lg font-semibold leading-tight">
               {isEditing ? (recordTitle ?? entity.name) : t('newRecord')}
@@ -1802,6 +1806,7 @@ export function RecordFormDialog({
           </div>
           {statusOption && <OptionBadge label={statusOption.label} color={statusOption.color} className="mt-1" />}
           {isEditing && record?.id && <TrackingLinkButton entitySlug={entity.slug} entityName={entity.name} recordId={record.id} />}
+          {isEditing && record?.id && <ClientPortalButton entitySlug={entity.slug} recordId={record.id} recordTitle={recordTitle} />}
         </div>
         <div className="flex-1 overflow-y-auto px-6 pt-5">
           <RecordFormFields
@@ -1811,6 +1816,7 @@ export function RecordFormDialog({
             parentRecordId={parentRecordId}
             editableFields={editableFields}
             submitOverride={submitOverride}
+            readOnly={readOnly}
             onCancel={() => onOpenChange(false)}
             onSubmitted={() => onOpenChange(false)}
           />

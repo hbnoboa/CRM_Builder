@@ -43,6 +43,8 @@ export function OperationalShell({ children }: { children: React.ReactNode }) {
   const { user } = useAuthStore();
   const { hasModuleAccess, canUseTrash } = usePermissions();
   const features = useTenantFeatures();
+  // Portal do cliente: sem chat, suporte e aviso do plano (sao da equipe)
+  const isClient = !!user?.clientPortal;
   const routeParams = useParams();
   const currentTenantSlug = typeof routeParams?.tenant === 'string' ? routeParams.tenant : undefined;
   const { data: entityGroups } = useEntitiesGrouped(currentTenantSlug);
@@ -98,7 +100,7 @@ export function OperationalShell({ children }: { children: React.ReactNode }) {
           <nav className="flex-1 overflow-y-auto p-3 space-y-0.5">
             {navLink('/home', <Home className="h-4 w-4" />, tNav('home'))}
             {hasModuleAccess('dashboard') && navLink('/dashboard', <LayoutDashboard className="h-4 w-4" />, tNav('dashboard'))}
-            {features.chat && navLink('/chat', <MessageSquare className="h-4 w-4" />, tNav('chat'))}
+            {features.chat && !isClient && navLink('/chat', <MessageSquare className="h-4 w-4" />, tNav('chat'))}
 
             <div className="my-3 border-t" />
 
@@ -159,7 +161,7 @@ export function OperationalShell({ children }: { children: React.ReactNode }) {
             <div className="my-3 border-t" />
 
             {canUseTrash && navLink('/trash', <Trash2 className="h-4 w-4" />, tNav('trash'))}
-            {navLink('/support', <LifeBuoy className="h-4 w-4" />, tNav('support'))}
+            {!isClient && navLink('/support', <LifeBuoy className="h-4 w-4" />, tNav('support'))}
             {navLink('/settings', <Settings className="h-4 w-4" />, tNav('settings'))}
           </nav>
 
@@ -181,15 +183,15 @@ export function OperationalShell({ children }: { children: React.ReactNode }) {
           pages={[
             { label: tNav('home'), href: '/home', icon: <Home className="h-4 w-4" /> },
             ...(hasModuleAccess('dashboard') ? [{ label: tNav('dashboard'), href: '/dashboard', icon: <LayoutDashboard className="h-4 w-4" /> }] : []),
-            ...(features.chat ? [{ label: tNav('chat'), href: '/chat', icon: <MessageSquare className="h-4 w-4" /> }] : []),
+            ...(features.chat && !isClient ? [{ label: tNav('chat'), href: '/chat', icon: <MessageSquare className="h-4 w-4" /> }] : []),
             ...(canUseTrash ? [{ label: tNav('trash'), href: '/trash', icon: <Trash2 className="h-4 w-4" /> }] : []),
-            { label: tNav('support'), href: '/support', icon: <LifeBuoy className="h-4 w-4" /> },
+            ...(isClient ? [] : [{ label: tNav('support'), href: '/support', icon: <LifeBuoy className="h-4 w-4" /> }]),
             { label: tNav('settings'), href: '/settings', icon: <Settings className="h-4 w-4" /> },
           ]}
         />
 
         <AnnouncementsBanner />
-        <TrialBanner />
+        {!isClient && <TrialBanner />}
         <main className="mx-auto w-full max-w-[1600px] p-4 md:p-6 lg:p-8">{children}</main>
       </div>
     </div>

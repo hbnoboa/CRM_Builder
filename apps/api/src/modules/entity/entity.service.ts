@@ -393,7 +393,7 @@ export class EntityService {
    * Usado pelo sidebar para mostrar contagens corretas por role.
    */
   private async countFilteredEntityRecords(
-    entity: { id: string; slug: string; settings: Prisma.JsonValue },
+    entity: { id: string; slug: string; settings: Prisma.JsonValue; fields: Prisma.JsonValue },
     user: CurrentUser,
     effectiveTenantId: string,
   ): Promise<{ active: number; archived: number }> {
@@ -408,8 +408,13 @@ export class EntityService {
 
     // Escopo permission-driven: 'all' => sem restricao; 'team' => criados pela
     // equipe; senao (own/sem acesso) só os do proprio usuario.
-    const creators = creatorFilter(await this.customRoleService.getVisibleCreatorIds(user, entity.slug));
-    if (creators) where.createdById = creators;
+    // Portal do cliente: so o que e do cliente vinculado
+    const clientWhere = await this.customRoleService.clientScopeFor(user, entity);
+    if (clientWhere) where.AND = [clientWhere];
+    else {
+      const creators = creatorFilter(await this.customRoleService.getVisibleCreatorIds(user, entity.slug));
+      if (creators) where.createdById = creators;
+    }
 
     // Filtros globais da entidade
     const entitySettings = entity.settings as Record<string, unknown> | null;

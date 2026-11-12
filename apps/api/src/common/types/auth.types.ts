@@ -28,6 +28,8 @@ export interface CurrentUser {
   tenantId: string;
   customRoleId: string;
   customRole: CurrentUserCustomRole;
+  // Portal do cliente: registro do cliente que a pessoa representa (sem = equipe da empresa).
+  clientRecordId?: string;
   // Presente quando a sessao e uma impersonacao (ator real que assumiu este usuario).
   impersonatedBy?: { id: string; name: string };
   // Presente quando a requisicao veio de uma chave de API (age em nome de quem a criou).

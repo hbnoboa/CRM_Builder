@@ -144,7 +144,7 @@ export class EntityDataQueryService {
 
     // 7. Scope (own = apenas registros criados pelo usuario)
     if (!skipScope) {
-      await this.applyScopeFromCustomRole(where, user, entitySlug);
+      await this.applyScopeFromCustomRole(where, user, entity);
     }
 
     // 8. Filtros globais da entidade (entity.settings.globalFilters)
@@ -735,11 +735,24 @@ export class EntityDataQueryService {
   private async applyScopeFromCustomRole(
     where: Prisma.EntityDataWhereInput,
     user: CurrentUser,
-    entitySlug: string,
+    entity: { id: string; slug: string; fields: unknown },
   ): Promise<void> {
-    const ids = await this.customRoleService.getVisibleCreatorIds(user, entitySlug);
+    const clientWhere = await this.clientScopeFor(user, entity);
+    if (clientWhere) {
+      where.AND = [...((where.AND as Prisma.EntityDataWhereInput[] | undefined) ?? []), clientWhere];
+      return;
+    }
+    const ids = await this.customRoleService.getVisibleCreatorIds(user, entity.slug);
     const filter = creatorFilter(ids);
     if (filter) where.createdById = filter;
+  }
+
+  /**
+   * Portal do cliente: com escopo 'client' na tabela, so o que e do cliente vinculado
+   * (o registro dele, o que esta dentro dele e o que aponta para ele). null = outro escopo.
+   */
+  clientScopeFor(user: CurrentUser, entity: { id: string; slug: string; fields: unknown }): Promise<Prisma.EntityDataWhereInput | null> {
+    return this.customRoleService.clientScopeFor(user, entity);
   }
 
   /**

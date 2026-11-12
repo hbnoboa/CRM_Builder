@@ -75,6 +75,7 @@ import { Switch } from '@/components/ui/switch';
 import { toast } from 'sonner';
 import { useEntityDataOptional, useEntityData, EntityDataProvider } from '@/components/entity-data/entity-data-context';
 import { usePermissions } from '@/hooks/use-permissions';
+import { useAuthStore } from '@/stores/auth-store';
 import { useRouter } from '@/i18n/tenant-navigation';
 import { useDeleteEntityData } from '@/hooks/use-data';
 import { RecordFormDialog } from '@/components/data/record-form-dialog';
@@ -399,9 +400,15 @@ function DataTableWidgetInner({ entitySlug, config, title, ctx }: DataTableWidge
   // Permissions - check both module-level and entity-level (same as backend)
   // CRUD básico usa hasModulePermission (para canCreate, canUpdate, canDelete)
   // Ações sub-granulares usam hasModuleAction (para canExport, canImport, etc)
-  const canCreate = allowCreate && (hasModulePermission('data', 'canCreate') || hasEntityPermission(entitySlug, 'canCreate'));
-  const canEdit = allowEdit && (hasModulePermission('data', 'canUpdate') || hasEntityPermission(entitySlug, 'canUpdate'));
-  const canDelete = allowDelete && (hasModulePermission('data', 'canDelete') || hasEntityPermission(entitySlug, 'canDelete'));
+  // Portal do cliente: vale so a permissao da tabela (o modulo libera so as tabelas do cargo)
+  const portal = !!useAuthStore((s) => s.user?.clientPortal);
+  const can = (action: 'canCreate' | 'canUpdate' | 'canDelete') =>
+    portal ? hasEntityPermission(entitySlug, action) : hasModulePermission('data', action) || hasEntityPermission(entitySlug, action);
+  const canCreate = allowCreate && can('canCreate');
+  // Portal do cliente: sem editar, o registro abre so para ler (e ver o que esta dentro dele)
+  const canOpen = (allowEdit && can('canUpdate')) || portal;
+  const canEdit = allowEdit && can('canUpdate');
+  const canDelete = allowDelete && can('canDelete');
   // Coluna de ações sempre presente: "Abrir chat" vale para qualquer um que veja a linha.
   const showRowActions = true;
   const canExport = allowExport && (hasModuleAction('data', 'canExport') || hasEntityAction(entitySlug, 'canExport'));
@@ -1190,14 +1197,14 @@ function DataTableWidgetInner({ entitySlug, config, title, ctx }: DataTableWidge
             return (
               <div
                 key={record.id}
-                role={canEdit ? 'button' : undefined}
-                tabIndex={canEdit ? 0 : undefined}
-                onClick={() => canEdit && handleEdit(record)}
-                onKeyDown={(e) => { if (canEdit && (e.key === 'Enter' || e.key === ' ')) handleEdit(record); }}
-                className={`rounded-lg border bg-card p-3 ${canEdit ? 'cursor-pointer active:bg-muted/40' : ''}`}
-                data-testid={canEdit ? 'open-record-card' : undefined}
+                role={canOpen ? 'button' : undefined}
+                tabIndex={canOpen ? 0 : undefined}
+                onClick={() => canOpen && handleEdit(record)}
+                onKeyDown={(e) => { if (canOpen && (e.key === 'Enter' || e.key === ' ')) handleEdit(record); }}
+                className={`rounded-lg border bg-card p-3 ${canOpen ? 'cursor-pointer active:bg-muted/40' : ''}`}
+                data-testid={canOpen ? 'open-record-card' : undefined}
               >
-                {first && <div className={`truncate text-sm font-semibold ${canEdit ? 'text-primary' : ''}`}>{renderCellValue(record, first)}</div>}
+                {first && <div className={`truncate text-sm font-semibold ${canOpen ? 'text-primary' : ''}`}>{renderCellValue(record, first)}</div>}
                 {rest.length > 0 && (
                   <dl className="mt-1.5 grid grid-cols-2 gap-x-3 gap-y-1.5">
                     {rest.slice(0, 4).map((field) => (
@@ -1272,11 +1279,11 @@ function DataTableWidgetInner({ entitySlug, config, title, ctx }: DataTableWidge
                     <TableCell
                       key={field.slug}
                       className="cursor-pointer hover:bg-muted/30 transition-colors"
-                      title={colIndex === 0 && canEdit ? 'Abrir registro' : 'Clique para filtrar por este valor'}
-                      data-testid={colIndex === 0 && canEdit ? 'open-record-cell' : undefined}
+                      title={colIndex === 0 && canOpen ? 'Abrir registro' : 'Clique para filtrar por este valor'}
+                      data-testid={colIndex === 0 && canOpen ? 'open-record-cell' : undefined}
                       onClick={() => {
                         // Primeira coluna abre o registro; as demais filtram pelo valor clicado
-                        if (colIndex === 0 && canEdit) {
+                        if (colIndex === 0 && canOpen) {
                           handleEdit(record);
                           return;
                         }
@@ -1290,7 +1297,7 @@ function DataTableWidgetInner({ entitySlug, config, title, ctx }: DataTableWidge
                         }
                       }}
                     >
-                      {colIndex === 0 && canEdit ? (
+                      {colIndex === 0 && canOpen ? (
                         <span className="font-medium text-primary hover:underline">{renderCellValue(record, field)}</span>
                       ) : renderCellValue(record, field)}
                     </TableCell>
@@ -1303,10 +1310,17 @@ function DataTableWidgetInner({ entitySlug, config, title, ctx }: DataTableWidge
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => router.push(`/chat?thread=${entitySlug}:${record.id}`)}>
-                            <MessageSquare className="h-4 w-4 mr-2" />
-                            Abrir chat
-                          </DropdownMenuItem>
+                          {portal ? (
+                            <DropdownMenuItem onClick={() => handleEdit(record)}>
+                              <Eye className="h-4 w-4 mr-2" />
+                              Abrir
+                            </DropdownMenuItem>
+                          ) : (
+                            <DropdownMenuItem onClick={() => router.push(`/chat?thread=${entitySlug}:${record.id}`)}>
+                              <MessageSquare className="h-4 w-4 mr-2" />
+                              Abrir chat
+                            </DropdownMenuItem>
+                          )}
                           {canEdit && (
                             <>
                             <DropdownMenuSeparator />
@@ -1410,6 +1424,7 @@ function DataTableWidgetInner({ entitySlug, config, title, ctx }: DataTableWidge
           entity={entityForDialog}
           record={editRecord ? { id: editRecord.id, data: editRecord.data } as unknown as null : null}
           onSuccess={handleFormSuccess}
+          readOnly={!!editRecord && !canEdit}
         />
       )}
 

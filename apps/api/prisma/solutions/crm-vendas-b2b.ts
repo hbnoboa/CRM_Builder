@@ -53,7 +53,7 @@ const oportunidades = {
   fields: rows(
     [
       field('titulo', 'Oportunidade', 'text', 8, { required: true, placeholder: 'Ex.: Licenças para 40 usuários' }),
-      field('etapa', 'Etapa', 'select', 4, { required: true, options: ETAPA }),
+      field('etapa', 'Etapa', 'select', 4, { required: true, default: 'prospeccao', options: ETAPA }),
     ],
     [
       field('valor', 'Valor', 'currency', 3, { min: 0 }),
@@ -211,6 +211,17 @@ export const crmVendasB2b: SolutionSpec = {
   brandColor: '#7c3aed',
   entities: [atividades, oportunidades, empresas],
   roles: [
+    {
+      // Portal do cliente: quem representa uma empresa cliente ve so ela e os pedidos dela
+      name: 'Cliente (portal)',
+      description: 'Login do cliente: vê a própria empresa e os orçamentos dela, e pede novos.',
+      color: C.gray,
+      permissions: [
+        { entitySlug: 'empresas', canRead: true, canCreate: false, canUpdate: false, canDelete: false, scope: 'client', fieldPermissions: [{ fieldSlug: 'responsavel', canView: false, canEdit: false }, { fieldSlug: 'situacao', canView: false, canEdit: false }] },
+        { entitySlug: 'oportunidades', canRead: true, canCreate: true, canUpdate: false, canDelete: false, scope: 'client', fieldPermissions: [{ fieldSlug: 'probabilidade', canView: false, canEdit: false }, { fieldSlug: 'vendedor', canView: false, canEdit: false }, { fieldSlug: 'origem', canView: false, canEdit: false }, { fieldSlug: 'motivo_perda', canView: false, canEdit: false }, { fieldSlug: 'proximo_passo', canView: false, canEdit: false }] },
+      ],
+      modulePermissions: { data: { canRead: true, canCreate: true } },
+    },
     {
       name: 'Vendedor',
       description: 'Cuida das próprias oportunidades e atividades; vê todas as empresas.',

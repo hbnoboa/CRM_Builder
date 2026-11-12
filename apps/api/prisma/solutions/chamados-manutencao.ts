@@ -62,7 +62,7 @@ const chamados = {
       field('prioridade', 'Prioridade', 'select', 3, { required: true, default: 'media', options: PRIORIDADE }),
     ],
     [
-      field('status', 'Situação', 'select', 4, { required: true, options: STATUS }),
+      field('status', 'Situação', 'select', 4, { required: true, default: 'aberto', options: STATUS }),
       field('solicitante', 'Solicitante', 'text', 4, { required: true }),
       field('responsavel', 'Responsável', 'text', 4),
     ],
