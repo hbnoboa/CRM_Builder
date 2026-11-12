@@ -41,6 +41,10 @@ Scripts em `apps/api/prisma/data-migration/` (todos sem `DELETE`/`DROP TABLE` de
 9. **Migrations**: o alinhamento já levou o schema até a última; marcar **todas** como aplicadas:
    `for m in $(ls prisma/migrations | grep -v toml); do DATABASE_URL="$ENSAIO" npx prisma migrate resolve --applied $m; done`
    e conferir com `npx prisma migrate status` ("Database schema is up to date").
+9b. **Ajustes por empresa** (decididos no ensaio; script gerado fora do repositório porque
+    cita clientes e senha: `gerar-ajustes.mjs`, só hash da senha no SQL): cargos padrão onde
+    não há cargo não-admin, administrador/dono onde não há. Rodar `ajustes.sql` e conferir o
+    relatório de cargos e donos.
 10. **API e web de `develop`** apontando para o ensaio (porta separada, sem tocar nos
     containers de prod), depois `2026-11_prod_post_deploy.sql`.
 11. **Validação** (ver abaixo). Anotar o tempo de cada etapa: é a janela de manutenção.
