@@ -24,6 +24,7 @@ import { DASHBOARD_MAX_LIMIT } from '@crm-builder/shared';
 import { getEffectiveTenantId } from '../../common/utils/tenant.util';
 import { EntityDataQueryService } from '../../common/services/entity-data-query.service';
 import { clientRelationFields } from '../../common/utils/client-scope';
+import { hasDefault, isDefaultValue, resolveDefault } from '../../common/utils/field-defaults';
 import { AuditService } from '../audit/audit.service';
 import { formatRecordData } from '../../common/utils/format-record';
 import { TenantPlanService } from '../../common/services/tenant-plan.service';
@@ -98,6 +99,7 @@ interface EntityField {
   parentDisplayField?: string;
   relatedEntityId?: string;
   relatedEntitySlug?: string;
+  default?: string | number | boolean | null;
   relatedDisplayField?: string;
 }
 
@@ -272,14 +274,25 @@ export class DataService {
     // Field-level permissions: campo somente leitura nao recebe valor na criacao.
     const fieldPerms = await this.customRoleService.getFieldPermissions(currentUser.id, entitySlug, currentUser.tenantId);
     const readOnly = readOnlyFieldSlugs(fieldPerms);
-    for (const key of Object.keys((dto.data as Record<string, unknown>) || {})) {
+    const entityFields = (entity.fields as unknown) as EntityField[];
+    const sent = { ...((dto.data as Record<string, unknown>) || {}) };
+    for (const key of Object.keys(sent)) {
       if (readOnly.has(key)) {
+        // O formulario manda os valores padrao: o proprio padrao nao conta como edicao
+        const field = entityFields.find((f) => f.slug === key);
+        if (field && isDefaultValue(field, sent[key])) { delete sent[key]; continue; }
         throw new ForbiddenException(`Sem permissao para editar o campo: ${key}`);
+      }
+    }
+    // Valor padrao da tabela no que veio vazio (inclusive campo que o cargo nao edita)
+    for (const field of entityFields) {
+      if (hasDefault(field) && (sent[field.slug] === undefined || sent[field.slug] === null || sent[field.slug] === '')) {
+        sent[field.slug] = resolveDefault(field.default);
       }
     }
 
     // Portal do cliente: o registro novo fica preso ao cliente da pessoa
-    const bound = await this.bindToClient(currentUser, entity, (dto.data as Record<string, unknown>) || {}, dto.parentRecordId, true);
+    const bound = await this.bindToClient(currentUser, entity, sent, dto.parentRecordId, true);
 
     // Processar campos calculados (formula, rollup, timer, sla-status)
     const fields = (entity.fields as unknown) as EntityField[];

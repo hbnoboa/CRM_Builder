@@ -1,4 +1,5 @@
 import { BadRequestException } from '@nestjs/common';
+import { hasDefault } from '../../common/utils/field-defaults';
 import type { SchemaField, SchemaTable } from '../ai-builder/tenant-schema';
 import { normalizeRichDoc, normalizeTheme, richPlainText, type RichNode, type SiteTheme } from './site-theme';
 import { EXTRA_BLOCK_TYPES, missingExtra, normalizeExtraBlock, type ExtraBlock } from './site-blocks-more';
@@ -441,14 +442,7 @@ export interface RawField {
   default?: unknown;
 }
 
-export const hasDefault = (f: RawField) => f.default !== undefined && f.default !== null && f.default !== '';
-
-/** Padrao com marcador de data ({{now}} = agora, {{today}} = hoje no horario de Brasilia). */
-export function resolveDefault(value: unknown, now = new Date()): unknown {
-  if (value === '{{now}}') return now.toISOString();
-  if (value === '{{today}}') return now.toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });
-  return value;
-}
+export { hasDefault, resolveDefault } from '../../common/utils/field-defaults';
 
 /** Campos obrigatorios da tabela que o cliente teria de preencher (os com padrao se preenchem sozinhos). */
 export function requiredFields(rawFields: RawField[], statusField?: string): RawField[] {

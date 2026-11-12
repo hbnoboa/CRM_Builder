@@ -150,3 +150,46 @@ test.describe.serial('portal do cliente', () => {
     });
   });
 });
+
+// Valor padrao do campo vale no cadastro normal (nao so no site): obrigatorio com
+// padrao pode vir vazio; campo que o cargo nao edita aceita so o proprio padrao.
+test.describe.serial('valor padrao no cadastro', () => {
+  let tenant: Tenant;
+  let limited: Session;
+  test.beforeAll(async ({ request }) => {
+    tenant = await createTenant(request, await ownerStaff(request));
+    await call(request, 'post', '/entities', tenant.owner, {
+      expected: [200, 201],
+      data: {
+        name: 'Tarefa', slug: 'tarefas', settings: { titleField: 'titulo' },
+        fields: [
+          { slug: 'titulo', name: 'titulo', label: 'Título', type: 'text', required: true },
+          { slug: 'prioridade', name: 'prioridade', label: 'Prioridade', type: 'select', required: true, default: 'media', options: [{ value: 'baixa', label: 'Baixa' }, { value: 'media', label: 'Média' }, { value: 'alta', label: 'Alta' }] },
+          { slug: 'aberta_em', name: 'aberta_em', label: 'Aberta em', type: 'datetime', required: true, default: '{{now}}' },
+        ],
+      },
+    });
+    const roleId = await createRole(request, tenant.owner, {
+      name: 'Sem prioridade',
+      permissions: [{ entitySlug: 'tarefas', canRead: true, canCreate: true, scope: 'all', fieldPermissions: [{ fieldSlug: 'prioridade', canView: false, canEdit: false }] }],
+      modulePermissions: { data: { canRead: true, canCreate: true } },
+    });
+    const email = `qa-padrao-${Date.now()}@example.com`;
+    await call(request, 'post', '/users', tenant.owner, { expected: [200, 201], data: { name: 'Limitado', email, password: PASSWORD, customRoleId: roleId } });
+    limited = await loginUser(request, email, tenant.slug);
+  });
+
+  test('obrigatorio com padrao pode vir vazio; campo que o cargo nao edita aceita so o padrao', async ({ request }) => {
+    const before = Date.now();
+    const created = await (await call(request, 'post', '/data/tarefas', limited, { expected: [200, 201], data: { data: { titulo: 'Sem nada' } } })).json();
+    // Campo oculto para o cargo: confere pelo dono
+    const a = await (await call(request, 'get', `/data/tarefas/${created.id}`, tenant.owner, { expected: 200 })).json();
+    expect(a.data.prioridade).toBe('media');
+    expect(Math.abs(Date.parse(a.data.aberta_em) - before)).toBeLessThan(60_000);
+    // O formulario manda o padrao junto: nao e edicao
+    await call(request, 'post', '/data/tarefas', limited, { expected: [200, 201], data: { data: { titulo: 'Com padrao', prioridade: 'media', aberta_em: new Date().toISOString() } } });
+    await call(request, 'post', '/data/tarefas', limited, { expected: 403, data: { data: { titulo: 'Furando', prioridade: 'alta' } } });
+    const b = await (await call(request, 'post', '/data/tarefas', tenant.owner, { expected: [200, 201], data: { data: { titulo: 'Dono escolhe', prioridade: 'alta' } } })).json();
+    expect(b.data.prioridade).toBe('alta');
+  });
+});
