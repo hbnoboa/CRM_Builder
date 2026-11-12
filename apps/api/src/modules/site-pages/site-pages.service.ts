@@ -12,7 +12,7 @@ import { PdfGeneratorService } from '../pdf/pdf-generator.service';
 import { loadTenantSchema, type SchemaTable } from '../ai-builder/tenant-schema';
 import { slugify } from '../ai-builder/ai-proposal-normalizer';
 import {
-  FORM_FIELD_TYPES, TRACK_FIELD_TYPES, missingPart, normalizeBlocks, normalizeLayout, normalizeSettings, readingOrder, normalizeSiteConfig, publicField, requiredFields, suggestMatchField,
+  FORM_FIELD_TYPES, TRACK_FIELD_TYPES, hasDefault, missingPart, resolveDefault, normalizeBlocks, normalizeLayout, normalizeSettings, readingOrder, normalizeSiteConfig, publicField, requiredFields, suggestMatchField,
   type CatalogBlock, type FormBlock, type NormalizeContext, type RawField, type SiteBlock, type TrackingBlock,
 } from './site-blocks';
 
@@ -572,6 +572,14 @@ export class SitePagesService {
   }
 
   /** So os campos do bloco, convertidos e conferidos pelo tipo. */
+  /** Campo com valor padrao que veio vazio (ou ficou fora do formulario) recebe o padrao, conferido como se o cliente tivesse enviado. */
+  private withDefaults(raw: RawField[], data: Record<string, unknown>, tenantId: string) {
+    const missing = raw.filter((f) => hasDefault(f) && data[f.slug] === undefined);
+    if (!missing.length) return data;
+    const defaults = this.sanitize(raw, missing.map((f) => f.slug), Object.fromEntries(missing.map((f) => [f.slug, resolveDefault(f.default)])), tenantId);
+    return { ...defaults, ...data };
+  }
+
   private sanitize(raw: RawField[], allowed: string[], input: Record<string, unknown>, tenantId: string) {
     const out: Record<string, unknown> = {};
     for (const slug of allowed) {
@@ -626,12 +634,12 @@ export class SitePagesService {
     const entity = await this.prisma.entity.findFirst({ where: { tenantId: tenant.id, slug: block.entitySlug } });
     if (!entity) throw new NotFoundException('Formulário não encontrado');
     const raw = (Array.isArray(entity.fields) ? entity.fields : []) as unknown as RawField[];
-    const data = this.sanitize(raw, block.fields, body.data || {}, tenant.id);
+    const data = this.withDefaults(raw, this.sanitize(raw, block.fields, body.data || {}, tenant.id), tenant.id);
 
-    // Situacao fora do formulario comeca na primeira opcao
+    // Situacao fora do formulario (e sem padrao) comeca na primeira opcao
     const statusSlug = (entity.settings as { statusField?: string } | null)?.statusField;
     const status = statusSlug ? raw.find((f) => f.slug === statusSlug) : undefined;
-    if (status && !block.fields.includes(status.slug) && status.options?.length) {
+    if (status && !block.fields.includes(status.slug) && data[status.slug] === undefined && status.options?.length) {
       const first = status.options[0];
       data[status.slug] = typeof first === 'string' ? first : first.value;
     }
@@ -642,7 +650,7 @@ export class SitePagesService {
       const parentEntity = await this.prisma.entity.findFirst({ where: { tenantId: tenant.id, slug: block.parent.entitySlug } });
       if (!parentEntity) throw new NotFoundException('Formulário não encontrado');
       const parentRaw = (Array.isArray(parentEntity.fields) ? parentEntity.fields : []) as unknown as RawField[];
-      const parentData = this.sanitize(parentRaw, block.parent.fields, body.parentData || {}, tenant.id);
+      const parentData = this.withDefaults(parentRaw, this.sanitize(parentRaw, block.parent.fields, body.parentData || {}, tenant.id), tenant.id);
       // Confere o registro de dentro antes de criar o de cima (nada fica pela metade)
       await this.dataService.validateFromSite(entity, data);
       let parentId = block.parent.matchField ? await this.findParentByMatch(parentEntity, block.parent.matchField, parentData[block.parent.matchField]) : null;

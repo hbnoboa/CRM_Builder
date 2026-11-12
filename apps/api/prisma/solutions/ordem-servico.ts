@@ -54,10 +54,10 @@ const ordens = {
   settings: { titleField: 'numero', captureLocation: true, statusField: 'status', doneValues: ['concluida', 'cancelada'], deadlineField: 'agendada_para' },
   fields: rows(
     [
-      field('numero', 'Nº da OS', 'text', 3, { required: true, unique: true, placeholder: 'OS-0001' }),
-      field('abertura', 'Abertura', 'datetime', 3, { required: true }),
+      field('numero', 'Nº da OS', 'text', 3, { unique: true, placeholder: 'OS-0001', helpText: 'A equipe preenche ao receber o pedido' }),
+      field('abertura', 'Abertura', 'datetime', 3, { required: true, default: '{{now}}' }),
       field('tipo', 'Tipo de serviço', 'select', 3, { required: true, options: TIPO_OS }),
-      field('prioridade', 'Prioridade', 'select', 3, { required: true, options: PRIORIDADE }),
+      field('prioridade', 'Prioridade', 'select', 3, { required: true, default: 'normal', options: PRIORIDADE }),
     ],
     [
       field('status', 'Situação', 'select', 4, { required: true, options: STATUS }),

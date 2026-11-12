@@ -38,6 +38,11 @@ test.describe('pagina com IA', () => {
     const third = body.page.layout.sections[2].items;
     expect(third.map((i: { x: number; w: number }) => [i.x, i.w])).toEqual([[0, 6], [6, 6]]);
     expect(body.page.layout.sections[2].tone).toBe('surface');
+    // Foto + titulo, depois texto e botao em linhas: vao para a coluna ao lado da foto
+    const beside = body.page.layout.sections[3].items.map((i: { x: number; y: number; w: number; h: number }) => [i.x, i.y, i.w, i.h]);
+    expect(beside).toEqual([[0, 0, 6, 3], [6, 0, 6, 1], [6, 1, 6, 1], [6, 2, 6, 1]]);
+    // Faixa com foto de fundo vem escurecida e com letra clara (texto legivel)
+    expect(body.page.layout.sections[4]).toMatchObject({ bgImage: 'https://example.com/fundo.jpg', overlay: true, light: true });
     expect(body.page.settings.theme).toMatchObject({ fonts: { heading: 'playfair-display', body: 'lato' }, animation: 'rise' });
     expect(body.page.settings.accent).toBe('#0f766e');
     expect(body.header).toMatchObject({ layout: 'inline', cta: { label: 'Fale com a gente' } });

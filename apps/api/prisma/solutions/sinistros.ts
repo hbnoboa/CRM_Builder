@@ -63,10 +63,10 @@ const sinistros = {
   },
   fields: rows(
     [
-      field('numero', 'Nº do sinistro', 'text', 3, { required: true, unique: true, placeholder: 'SIN-0001' }),
+      field('numero', 'Nº do sinistro', 'text', 3, { unique: true, placeholder: 'SIN-0001', helpText: 'A equipe preenche ao receber o aviso' }),
       field('data_ocorrencia', 'Data da ocorrência', 'datetime', 3, { required: true }),
       field('tipo', 'Tipo', 'select', 3, { required: true, options: TIPO }),
-      field('prioridade', 'Prioridade', 'select', 3, { required: true, options: PRIORIDADE }),
+      field('prioridade', 'Prioridade', 'select', 3, { required: true, default: 'normal', options: PRIORIDADE }),
     ],
     [
       field('status', 'Situação', 'select', 4, { required: true, options: STATUS }),

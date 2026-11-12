@@ -205,6 +205,14 @@ function mockPage({ current, lastMessage, images }: AiProposeInput) {
         { w: 6, block: { type: 'text', text: 'Conte aqui a história da empresa.' } },
         { w: 6, block: { type: 'map', address: 'Seu endereço aqui' } },
       ] },
+      // Foto com coluna ao lado, descrita em linhas (como a IA costuma mandar)
+      { width: 'normal', padding: 'lg', items: [
+        { w: 6, block: { type: 'image', url: 'https://example.com/loja.jpg', alt: 'Loja' } },
+        { w: 6, block: { type: 'heading', text: 'A casa' } },
+        { w: 6, newRow: true, block: { type: 'text', text: 'Um pouco da nossa história.' } },
+        { w: 6, newRow: true, block: { type: 'button', label: 'Visite', url: '#servicos' } },
+      ] },
+      { width: 'full', padding: 'lg', bgImage: 'https://example.com/fundo.jpg', items: [{ w: 12, block: { type: 'heading', text: 'Venha nos ver' } }] },
     ],
   };
 }

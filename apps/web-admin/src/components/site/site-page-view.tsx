@@ -108,6 +108,38 @@ export function mobileOrder(items: SiteLayoutItem[]): SiteLayoutItem[] {
   return read.map((it, i) => ({ it, k: it.order ?? 1000 + i })).sort((a, b) => a.k - b.k).map((x) => x.it);
 }
 
+/**
+ * Coluna ao lado de um elemento alto: elementos na mesma faixa de colunas, encostados
+ * um embaixo do outro e cobrindo exatamente as linhas do alto. Na grade, a altura que
+ * sobra seria dividida entre essas linhas (buracos entre titulo, texto e botao); como
+ * pilha, eles ficam juntos e a sobra vai para baixo. Devolve id do alto -> pilha.
+ */
+export function columnStacks(items: SiteLayoutItem[]): Map<string, SiteLayoutItem[]> {
+  const out = new Map<string, SiteLayoutItem[]>();
+  const used = new Set<string>();
+  const overlapsCols = (a: SiteLayoutItem, b: SiteLayoutItem) => a.x < b.x + b.w && b.x < a.x + a.w;
+  for (const tall of items) {
+    if (tall.h < 2 || used.has(tall.id)) continue;
+    const end = tall.y + tall.h;
+    const inside = items.filter((it) => it !== tall && !used.has(it.id) && !overlapsCols(it, tall) && it.y >= tall.y && it.y + it.h <= end);
+    const byCol = new Map<string, SiteLayoutItem[]>();
+    for (const it of inside) byCol.set(`${it.x}:${it.w}`, [...(byCol.get(`${it.x}:${it.w}`) ?? []), it]);
+    for (const col of Array.from(byCol.values())) {
+      const stack = readingOrder(col);
+      if (stack.length < 2 || stack[0].y !== tall.y || stack[stack.length - 1].y + stack[stack.length - 1].h !== end) continue;
+      if (stack.some((it, i) => i > 0 && it.y !== stack[i - 1].y + stack[i - 1].h)) continue;
+      // Nada mais pode dividir essas linhas nessas colunas
+      const others = items.filter((it) => it !== tall && !stack.includes(it) && overlapsCols(it, stack[0]) && it.y < end && it.y + it.h > tall.y);
+      if (others.length) continue;
+      out.set(tall.id, stack);
+      stack.forEach((it) => used.add(it.id));
+      used.add(tall.id);
+      break;
+    }
+  }
+  return out;
+}
+
 /** Altura escolhida (linhas da grade) em px. */
 export const rowsToPx = (rows: number, scrap: boolean) => rows * (SITE_GRID.rowPx + SITE_GRID.gapY(scrap)) - SITE_GRID.gapY(scrap);
 
@@ -145,36 +177,57 @@ export function SitePageView({ data, tenantSlug, pageSlug, token, preview, onCha
       <main ref={mainRef}>
         {layoutOf(data).sections.map((section) => {
           const onPhone = mobileOrder(section.items);
+          const stacks = columnStacks(section.items);
+          const stacked = new Map<string, SiteLayoutItem[]>();
+          stacks.forEach((col) => stacked.set(col[0].id, col));
+          const inStack = new Set(Array.from(stacks.values()).flat().map((it) => it.id));
+          const renderItem = (item: SiteLayoutItem, inPile = false) => {
+            const block = byId.get(item.id);
+            if (!block) return null;
+            const visual = itemVisual(item);
+            const anim = preview ? 'none' : item.style?.anim ?? theme.animation ?? 'none';
+            const fill = !!item.minH && FILL_BLOCKS.has(block.type);
+            return (
+              <div
+                key={item.id}
+                id={block.id}
+                className={cn('site-item scroll-mt-4', visual.className, fill && 'site-fill', item.hide && `site-hide-${item.hide}`, anim !== 'none' && `site-anim site-anim-${anim}`)}
+                style={{
+                  ...visual.style,
+                  '--site-col': `${item.x + 1} / span ${item.w}`,
+                  '--site-rows': `${item.y + 1} / span ${item.h}`,
+                  '--site-order': onPhone.indexOf(item),
+                ...(anim !== 'none' ? { transitionDelay: `${(item.x / 12) * 0.3}s` } : {}),
+                  ...(item.minH ? { '--site-minh': `${rowsToPx(item.minH, scrap)}px` } : {}),
+                  // Na pilha, cada um guarda a altura das linhas que ocupava na grade
+                  ...(inPile ? { '--site-pile-h': `${rowsToPx(item.h, scrap)}px` } : {}),
+                } as CSSProperties}
+              >
+                <BlockView
+                  // Destaque como variavel: dentro de secao colorida ele vira a cor que aparece
+                block={block} index={order++} data={data} brand="var(--site-accent)" scrap={scrap} fill={fill}
+                  tenantSlug={tenantSlug} pageSlug={pageSlug} token={token} preview={preview} onChanged={onChanged}
+                />
+              </div>
+            );
+          };
           return (
             <SectionShell key={section.id} section={section} brand={brand} scrap={scrap}>
               <div className="site-grid">
                 {readingOrder(section.items).map((item) => {
-                  const block = byId.get(item.id);
-                  if (!block) return null;
-                  const visual = itemVisual(item);
-                  const anim = preview ? 'none' : item.style?.anim ?? theme.animation ?? 'none';
-                  const fill = !!item.minH && FILL_BLOCKS.has(block.type);
-                  return (
-                    <div
-                      key={item.id}
-                      id={block.id}
-                      className={cn('site-item scroll-mt-4', visual.className, fill && 'site-fill', item.hide && `site-hide-${item.hide}`, anim !== 'none' && `site-anim site-anim-${anim}`)}
-                      style={{
-                        ...visual.style,
+                  const pile = stacked.get(item.id);
+                  if (pile) {
+                    const last = pile[pile.length - 1];
+                    return (
+                      <div key={`pilha-${item.id}`} className="site-stack" style={{
                         '--site-col': `${item.x + 1} / span ${item.w}`,
-                        '--site-rows': `${item.y + 1} / span ${item.h}`,
-                        '--site-order': onPhone.indexOf(item),
-                      ...(anim !== 'none' ? { transitionDelay: `${(item.x / 12) * 0.3}s` } : {}),
-                        ...(item.minH ? { '--site-minh': `${rowsToPx(item.minH, scrap)}px` } : {}),
-                      } as CSSProperties}
-                    >
-                      <BlockView
-                        // Destaque como variavel: dentro de secao colorida ele vira a cor que aparece
-                      block={block} index={order++} data={data} brand="var(--site-accent)" scrap={scrap} fill={fill}
-                        tenantSlug={tenantSlug} pageSlug={pageSlug} token={token} preview={preview} onChanged={onChanged}
-                      />
-                    </div>
-                  );
+                        '--site-rows': `${item.y + 1} / span ${last.y + last.h - item.y}`,
+                      } as CSSProperties}>
+                        {pile.map((it) => renderItem(it, true))}
+                      </div>
+                    );
+                  }
+                  return inStack.has(item.id) ? null : renderItem(item);
                 })}
               </div>
             </SectionShell>

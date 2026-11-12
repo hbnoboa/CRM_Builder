@@ -152,6 +152,50 @@ export interface NormalizedPage {
   footerStyle?: SiteFooterStyle;
 }
 
+interface PlacedItem { id: string; x: number; y: number; w: number; h: number; style?: Record<string, unknown> }
+
+/** Elementos altos que costumam ter uma coluna de texto ao lado. */
+const TALL = new Set(['image', 'video', 'map', 'form', 'gallery']);
+
+/**
+ * A IA descreve a pagina em linhas: "foto (6) + titulo (6)", depois "texto (6)" e
+ * "botao (6)". Na grade isso deixaria o texto embaixo da foto. Quando uma linha tem
+ * so um elemento alto e um do lado, e as linhas seguintes cabem na coluna livre, elas
+ * vao para essa coluna, uma embaixo da outra, e o elemento alto ocupa essas linhas.
+ */
+export function stackBesideTall(items: PlacedItem[], typeOf: Map<string, string>): PlacedItem[] {
+  const rows: PlacedItem[][] = [];
+  for (const it of [...items].sort((a, b) => a.y - b.y || a.x - b.x)) {
+    const last = rows[rows.length - 1];
+    if (last && last[0].y === it.y) last.push(it);
+    else rows.push([it]);
+  }
+  const tall = (i: PlacedItem) => TALL.has(typeOf.get(i.id) ?? '');
+  const out: PlacedItem[] = [];
+  let y = 0;
+  for (let r = 0; r < rows.length; r++) {
+    const row = rows[r];
+    const anchors = row.filter(tall);
+    const side = row.filter((i) => !tall(i));
+    if (anchors.length === 1 && side.length === 1 && anchors[0].w <= 8) {
+      const a = anchors[0];
+      const free = 12 - a.w;
+      const col = [side[0]];
+      while (rows[r + 1] && rows[r + 1].every((i) => !tall(i) && i.w <= free)) col.push(...rows[++r]);
+      if (col.length > 1) {
+        const x = a.x === 0 ? a.w : 0;
+        out.push({ ...a, x: a.x === 0 ? 0 : free, y, h: col.length });
+        col.forEach((it, k) => out.push({ ...it, x, w: free, y: y + k, h: 1 }));
+        y += col.length;
+        continue;
+      }
+    }
+    for (const it of row) out.push({ ...it, y });
+    y += 1;
+  }
+  return out;
+}
+
 const obj = (v: unknown) => (v && typeof v === 'object' && !Array.isArray(v) ? (v as Record<string, unknown>) : {});
 
 /** Confere a pagina da IA com os mesmos conferidores do editor; elemento invalido sai com aviso. */
@@ -173,6 +217,7 @@ export function normalizePage(raw: unknown, ctx: NormalizeContext): NormalizedPa
   const site = normalizeSiteConfig({ header: p.header, footerStyle: p.footer });
 
   const blocks: SiteBlock[] = [];
+  const typeById = new Map<string, string>();
   let n = 0;
   const sections = (Array.isArray(p.sections) ? p.sections : []).slice(0, 14).map((rawSection, si) => {
     const s = obj(rawSection);
@@ -191,16 +236,19 @@ export function normalizePage(raw: unknown, ctx: NormalizeContext): NormalizedPa
       }
       if (!normalized.length) return null;
       blocks.push(normalized[0]);
+      typeById.set(normalized[0].id, normalized[0].type);
       const w = Math.min(12, Math.max(1, Math.round(Number(it.w)) || 12));
       if (it.newRow === true || x + w > 12) { x = 0; y += 1; }
-      const item = { id: normalized[0].id, x, y, w, h: 1, ...(it.align ? { style: { align: it.align } } : {}) };
+      const item: PlacedItem = { id: normalized[0].id, x, y, w, h: 1, ...(it.align ? { style: { align: it.align } } : {}) };
       x += w;
       return item;
-    }).filter(Boolean);
+    }).filter((i): i is PlacedItem => !!i);
     return {
       id: `secao-${si + 1}`, name: s.name, width: s.width, padding: s.padding,
       tone: s.tone === 'page' ? undefined : s.tone, bg: s.bg, gradient: s.gradient, pattern: s.pattern, bgImage: s.bgImage,
-      items,
+      // Foto de fundo atras de texto: escurece e usa letra clara por padrao (texto legivel)
+      ...(s.bgImage ? { overlay: s.overlay !== false, light: s.light !== false } : {}),
+      items: stackBesideTall(items, typeById),
     };
   });
   const layout = normalizeLayout({ sections }, blocks);
