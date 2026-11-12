@@ -95,6 +95,9 @@ export function layoutOf(data: Pick<SitePageData, 'blocks' | 'layout'>): SiteLay
   return { sections: [{ id: 'secao-1', width: 'narrow', padding: 'md', items: data.blocks.map((b, i) => ({ id: b.id, x: 0, y: i, w: 12, h: 1 })) }] };
 }
 
+/** Elementos que ocupam a altura escolhida no editor (o resto tem a altura do conteudo). */
+const FILL_BLOCKS = new Set(['image', 'hero', 'map', 'video', 'spacer']);
+
 /** Ordem de leitura de uma secao (de cima para baixo, da esquerda para a direita). */
 export const readingOrder = (items: SiteLayoutItem[]) => [...items].sort((a, b) => a.y - b.y || a.x - b.x);
 
@@ -150,11 +153,12 @@ export function SitePageView({ data, tenantSlug, pageSlug, token, preview, onCha
                   if (!block) return null;
                   const visual = itemVisual(item);
                   const anim = preview ? 'none' : item.style?.anim ?? theme.animation ?? 'none';
+                  const fill = !!item.minH && FILL_BLOCKS.has(block.type);
                   return (
                     <div
                       key={item.id}
                       id={block.id}
-                      className={cn('site-item scroll-mt-4', visual.className, item.hide && `site-hide-${item.hide}`, anim !== 'none' && `site-anim site-anim-${anim}`)}
+                      className={cn('site-item scroll-mt-4', visual.className, fill && 'site-fill', item.hide && `site-hide-${item.hide}`, anim !== 'none' && `site-anim site-anim-${anim}`)}
                       style={{
                         ...visual.style,
                         '--site-col': `${item.x + 1} / span ${item.w}`,
@@ -166,7 +170,7 @@ export function SitePageView({ data, tenantSlug, pageSlug, token, preview, onCha
                     >
                       <BlockView
                         // Destaque como variavel: dentro de secao colorida ele vira a cor que aparece
-                      block={block} index={order++} data={data} brand="var(--site-accent)" scrap={scrap}
+                      block={block} index={order++} data={data} brand="var(--site-accent)" scrap={scrap} fill={fill}
                         tenantSlug={tenantSlug} pageSlug={pageSlug} token={token} preview={preview} onChanged={onChanged}
                       />
                     </div>
@@ -292,9 +296,13 @@ function BlockTitle({ text, scrap }: { text?: string; scrap: boolean }) {
     : <h2 className="site-h3 mb-3">{text}</h2>;
 }
 
-export type BlockViewProps = { block: SiteBlockView; index: number; data: SitePageData; brand: string; scrap: boolean } & Omit<SitePageViewProps, 'data'>;
+export type BlockViewProps = {
+  block: SiteBlockView; index: number; data: SitePageData; brand: string; scrap: boolean;
+  /** Ocupa a altura escolhida no editor (foto, destaque, mapa, video, espaco). */
+  fill?: boolean;
+} & Omit<SitePageViewProps, 'data'>;
 
-export function BlockView({ block, index, data, brand, scrap, tenantSlug, pageSlug, token, preview, onChanged }: BlockViewProps) {
+export function BlockView({ block, index, data, brand, scrap, tenantSlug, pageSlug, token, preview, onChanged, fill }: BlockViewProps) {
   switch (block.type) {
     case 'heading':
       if (scrap) {
@@ -320,7 +328,7 @@ export function BlockView({ block, index, data, brand, scrap, tenantSlug, pageSl
           {block.alt && <figcaption className="absolute inset-x-0 bottom-2 text-center text-xl text-slate-600" style={{ fontFamily: SCRIPT }}>{block.alt}</figcaption>}
         </figure>
       // eslint-disable-next-line @next/next/no-img-element
-      ) : <img src={block.url} alt={block.alt || ''} className="w-full rounded-xl object-cover" />;
+      ) : <img src={block.url} alt={block.alt || ''} className={cn('w-full rounded-xl object-cover', fill && 'h-full')} />;
     case 'button':
       return (
         <div className={scrap ? 'text-center' : undefined}>
@@ -334,7 +342,7 @@ export function BlockView({ block, index, data, brand, scrap, tenantSlug, pageSl
         ? <p className="text-center text-lg tracking-[0.5em]" style={{ color: brand }} aria-hidden>· ✿ · ♡ · ✿ ·</p>
         : <hr className="border-slate-200" />;
     case 'hero':
-      return <HeroView block={block} brand={brand} scrap={scrap} />;
+      return <HeroView block={block} brand={brand} scrap={scrap} fill={fill} />;
     case 'gallery':
       return <GalleryView block={block} brand={brand} scrap={scrap} />;
     case 'cards':
@@ -352,12 +360,12 @@ export function BlockView({ block, index, data, brand, scrap, tenantSlug, pageSl
           {block.author && <footer className="mt-1 text-sm text-slate-500">— {block.author}</footer>}
         </blockquote>
       );
-    case 'video': return <VideoView block={block} preview={preview} />;
-    case 'map': return <MapView block={block} preview={preview} />;
+    case 'video': return <VideoView block={block} preview={preview} fill={fill} />;
+    case 'map': return <MapView block={block} preview={preview} fill={fill} />;
     case 'faq': return <FaqView block={block} />;
     case 'icons': return <IconsView block={block} />;
     case 'social': return <SocialView block={block} preview={preview} />;
-    case 'spacer': return <div aria-hidden style={{ height: block.height }} />;
+    case 'spacer': return <div aria-hidden style={{ height: fill ? '100%' : block.height }} />;
     case 'stats': return <StatsView block={block} />;
     case 'pricing': return <PricingView block={block} preview={preview} />;
     case 'testimonials': return <TestimonialsView block={block} />;
@@ -378,13 +386,13 @@ export function BlockView({ block, index, data, brand, scrap, tenantSlug, pageSl
   }
 }
 
-function HeroView({ block, brand, scrap }: { block: Extract<SiteBlockView, { type: 'hero' }>; brand: string; scrap: boolean }) {
+function HeroView({ block, brand, scrap, fill }: { block: Extract<SiteBlockView, { type: 'hero' }>; brand: string; scrap: boolean; fill?: boolean }) {
   const bg: CSSProperties = block.imageUrl
     ? { backgroundImage: `linear-gradient(to top, rgba(0,0,0,0.62), rgba(0,0,0,0.08) 65%), url(${block.imageUrl})` }
     : { background: `linear-gradient(135deg, ${brand}, ${tint(brand, 55, 'black')})` };
   return (
     <section
-      className={cn('relative flex min-h-[300px] flex-col justify-end overflow-hidden bg-cover bg-center p-6 text-white csm:min-h-[380px] csm:p-10',
+      className={cn('relative flex flex-col justify-end overflow-hidden bg-cover bg-center p-6 text-white csm:p-10', fill ? 'h-full min-h-[160px]' : 'min-h-[300px] csm:min-h-[380px]',
         scrap ? 'rounded-[2rem] border-[6px] border-white text-center shadow-xl' : 'rounded-2xl')}
       style={bg}
       data-testid="site-hero"
@@ -657,7 +665,7 @@ function FieldInput({ field, value, onChange, brand, upload }: { field: SiteFiel
         <div className="flex gap-1">
           {[1, 2, 3, 4, 5].map((n) => (
             <button key={n} type="button" onClick={() => onChange(n)} aria-label={`${n} estrelas`}>
-              <Star className="h-7 w-7" style={{ color: brand }} fill={Number(value) >= n ? brand : 'transparent'} />
+              <Star className="h-7 w-7" style={{ color: brand, fill: Number(value) >= n ? brand : 'transparent' }} />
             </button>
           ))}
         </div>

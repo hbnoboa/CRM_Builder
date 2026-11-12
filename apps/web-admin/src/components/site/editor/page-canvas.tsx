@@ -1,15 +1,11 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { DndContext, PointerSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core';
-import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
-import { CSS } from '@dnd-kit/utilities';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { GridLayout, useContainerWidth, type Layout, type LayoutItem } from 'react-grid-layout';
-import type { PositionStrategy } from 'react-grid-layout/core';
 import { AlertTriangle, Copy, EyeOff, Plus, Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { BLOCK_KINDS } from '@/components/site/site-block-editor';
-import { BlockView, SITE_GRID, SectionShell, SiteFrame, itemVisual, mobileOrder, readingOrder, rowsToPx, siteLook } from '@/components/site/site-page-view';
+import { BlockView, SITE_GRID, SectionShell, SiteFrame, itemVisual, mobileOrder, readingOrder, siteLook } from '@/components/site/site-page-view';
 import type { SiteBlockDraft } from '@/hooks/use-site-pages';
 import type { SiteBlockView, SiteLayoutItem, SitePageData, SiteSection } from '@/lib/site-api';
 import { DEFAULT_W, missingPart, type PageDoc, type Selection } from './page-doc';
@@ -18,25 +14,17 @@ import { plainToDoc } from '@/components/site/rich-text-view';
 import type { RichNode } from '@/lib/site-api';
 import 'react-grid-layout/css/styles.css';
 
-/**
- * Posicao na grade com a pagina em escala (modo computador). A estrategia de escala
- * da propria biblioteca calcula o inicio do arrasto pela janela, e nao pela grade
- * (o elemento pulava); sem calcDragPosition ela usa a conta certa (pai, escala).
- */
-const scaledStrategy = (scale: number): PositionStrategy => ({
-  type: 'transform',
-  scale,
-  calcStyle: ({ top, left, width, height }) => ({
-    transform: `translate(${left}px,${top}px)`, width: `${width}px`, height: `${height}px`, position: 'absolute',
-  }),
-});
 const GRID_CANCEL = ".no-drag,[contenteditable='true'],[contenteditable='plaintext-only']";
 
 /** Largura da pagina no modo computador (a tela do editor mostra em escala). */
-export const DESKTOP_WIDTH = 1280;
+/** Largura minima da pagina no modo computador (a de um notebook); mais larga se couber. */
+export const DESKTOP_WIDTH = 1024;
 export const PHONE_WIDTH = 390;
 const ITEM_PAD_PX: Record<string, number> = { sm: 24, md: 40, lg: 64 };
 export const TEXT_TYPES = new Set(['heading', 'text', 'quote']);
+/** Elementos que ocupam a altura que a pessoa der (foto, destaque, mapa, video, espaco). */
+export const FILL_TYPES = new Set(['image', 'hero', 'map', 'video', 'spacer']);
+const fills = (type: string | undefined, item: SiteLayoutItem) => !!type && FILL_TYPES.has(type) && !!item.minH;
 
 /** Linhas da grade para uma altura em px (mesma conta da pagina publicada). */
 export const rowsFor = (px: number, gapY: number) => Math.max(1, Math.ceil((px + gapY) / (SITE_GRID.rowPx + gapY)));
@@ -216,17 +204,22 @@ type SectionProps = CanvasProps & {
  * as laterais mudam a largura e a borda de baixo a altura; blocos novos sao soltos aqui.
  */
 function SectionGrid(props: SectionProps) {
-  const { section, heights, scrap, scale, editingId, dragType } = props;
+  const { section, heights, scrap, editingId, dragType, selection, blocks } = props;
   const gapY = SITE_GRID.gapY(scrap);
   const items = readingOrder(section.items);
   const [dragging, setDragging] = useState<string | null>(null);
   const { width, containerRef, mounted } = useContainerWidth();
-  const strategy = useMemo(() => scaledStrategy(scale), [scale]);
-  const layout = items.map((it) => ({
-    i: it.id, x: it.x, y: it.y, w: it.w, minW: 1, maxW: SITE_GRID.cols,
-    h: heights[it.id] ? Math.max(rowsFor(heights[it.id], gapY), it.minH ?? 1) : it.h,
-    isDraggable: editingId !== it.id,
-  }));
+  const layout = items.map((it) => {
+    const fill = fills(blocks.get(it.id)?.type, it);
+    return {
+      i: it.id, x: it.x, y: it.y, w: it.w, minW: 1, maxW: SITE_GRID.cols,
+      // Foto/destaque/mapa com altura escolhida: a altura e a escolhida; o resto, a do conteudo (ou mais)
+      h: fill ? it.minH! : heights[it.id] ? Math.max(rowsFor(heights[it.id], gapY), it.minH ?? 1) : it.h,
+      isDraggable: editingId !== it.id,
+      // Alcas so no elemento selecionado: nos outros nao atrapalham clicar e arrastar
+      isResizable: selection.kind === 'item' && selection.id === it.id,
+    };
+  });
   // Arrastando: a grade nao cresce sem fim para baixo, assim o ponteiro alcanca a proxima secao
   const bottom = layout.reduce((max, l) => Math.max(max, l.y + l.h), 0);
   const draggedH = layout.find((l) => l.i === dragging)?.h ?? 0;
@@ -243,7 +236,6 @@ function SectionGrid(props: SectionProps) {
           dragConfig={{ enabled: true, cancel: GRID_CANCEL, threshold: 4 }}
           resizeConfig={{ enabled: true, handles: ['e', 'w', 's', 'se', 'sw'] }}
           dropConfig={{ enabled: !!dragType, defaultItem: { w: dropW, h: 6 } }}
-          positionStrategy={strategy}
           droppingItem={{ i: '__novo__', x: 0, y: 0, w: dropW, h: 6 }}
           onDropDragOver={() => (dragType ? { w: dropW, h: 6 } : false)}
           onDrop={(_l: Layout, item: LayoutItem | undefined) => { if (dragType && item) props.onDropBlock(section.id, dragType, { x: item.x, y: item.y, w: item.w }); }}
@@ -262,8 +254,8 @@ function SectionGrid(props: SectionProps) {
           onResizeStop={(_l, _o, n) => { if (n) props.onResizeItem(n.i, n.h); props.onGestureEnd(); }}
         >
           {items.map((it) => (
-            <div key={it.id}>
-              <ItemBox {...props} item={it} measure />
+            <div key={it.id} className={selection.kind === 'item' && selection.id === it.id ? 'is-selected' : undefined}>
+              <ItemBox {...props} item={it} measure={!fills(blocks.get(it.id)?.type, it)} />
             </div>
           ))}
         </GridLayout>
@@ -284,41 +276,53 @@ export function gridSpot(sectionId: string, point: { x: number; y: number }, w: 
   return { x: Math.min(Math.max(x, 0), SITE_GRID.cols - w), y: Math.max(y, 0) };
 }
 
-/** Celular: um embaixo do outro, na ordem do celular; arrastar muda essa ordem. */
+/**
+ * Celular: uma coluna da mesma grade, na ordem do celular; arrastar para cima ou
+ * para baixo muda essa ordem (so no celular).
+ */
 function SectionStack(props: SectionProps) {
-  const items = mobileOrder(props.section.items);
-  const ids = items.map((it) => it.id);
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
-  const onDragEnd = (e: DragEndEvent) => {
-    if (!e.over || e.active.id === e.over.id) return;
-    const next = ids.filter((id) => id !== e.active.id);
-    next.splice(ids.indexOf(String(e.over.id)), 0, String(e.active.id));
-    props.onMobileOrder(props.section.id, next);
-  };
+  const { section, heights, scrap, editingId, blocks, onMeasure: measureAll } = props;
+  const gapY = SITE_GRID.gapY(scrap);
+  const items = mobileOrder(section.items);
+  const { width, containerRef, mounted } = useContainerWidth();
+  let y = 0;
+  const layout = items.map((it) => {
+    const fill = fills(blocks.get(it.id)?.type, it);
+    const measured = heights[`m:${it.id}`];
+    const h = fill ? it.minH! : measured ? Math.max(rowsFor(measured, gapY), it.minH ?? 1) : 4;
+    const entry = { i: it.id, x: 0, y, w: 1, h, isDraggable: editingId !== it.id, isResizable: false };
+    y += h;
+    return entry;
+  });
+  // Alturas do celular ficam separadas das do computador
+  const onMeasure = useCallback((id: string, px: number) => measureAll(`m:${id}`, px), [measureAll]);
   return (
-    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
-      <SortableContext items={ids} strategy={verticalListSortingStrategy}>
-        <div className={cn('flex flex-col', items.length === 0 && 'min-h-[80px] rounded-lg border-2 border-dashed border-slate-300/80')} style={{ gap: 'var(--site-gap-y)' }}>
-          {items.map((it) => <SortableItem key={it.id} {...props} item={it} />)}
-        </div>
-      </SortableContext>
-    </DndContext>
-  );
-}
-
-function SortableItem(props: SectionProps & { item: SiteLayoutItem }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: props.item.id, disabled: props.editingId === props.item.id });
-  const minH = props.item.minH ? rowsToPx(props.item.minH, props.scrap) : undefined;
-  return (
-    <div ref={setNodeRef} {...attributes} {...listeners}
-      style={{ transform: CSS.Transform.toString(transform), transition, minHeight: minH, zIndex: isDragging ? 30 : undefined, position: 'relative' }}
-      className={cn('flex flex-col', isDragging && 'opacity-80')}>
-      <ItemBox {...props} />
+    <div ref={containerRef} className={cn(items.length === 0 && 'min-h-[80px] rounded-lg border-2 border-dashed border-slate-300/80')}>
+      {mounted && (
+        <GridLayout
+          width={width}
+          className="site-editor-grid"
+          layout={layout}
+          gridConfig={{ cols: 1, rowHeight: SITE_GRID.rowPx, margin: [0, gapY], containerPadding: [0, 0], maxRows: Infinity }}
+          dragConfig={{ enabled: true, cancel: GRID_CANCEL, threshold: 4 }}
+          resizeConfig={{ enabled: false, handles: [] }}
+          onDragStop={(l: Layout) => {
+            const ids = [...l].sort((a, b) => a.y - b.y).map((g) => g.i);
+            if (ids.join() !== items.map((it) => it.id).join()) props.onMobileOrder(section.id, ids);
+          }}
+        >
+          {items.map((it) => (
+            <div key={it.id}>
+              <ItemBox {...props} item={it} measure={!fills(blocks.get(it.id)?.type, it)} measureFn={onMeasure} />
+            </div>
+          ))}
+        </GridLayout>
+      )}
     </div>
   );
 }
 
-function ItemBox(props: SectionProps & { item: SiteLayoutItem; measure?: boolean }) {
+function ItemBox(props: SectionProps & { item: SiteLayoutItem; measure?: boolean; measureFn?: (id: string, px: number) => void }) {
   const { item, blocks, selection, onSelect, editingId, device } = props;
   const block = blocks.get(item.id);
   const index = props.nextIndex();
@@ -330,6 +334,7 @@ function ItemBox(props: SectionProps & { item: SiteLayoutItem; measure?: boolean
   const visual = itemVisual(item);
   const pad = ITEM_PAD_PX[item.style?.padding ?? ''] ?? 0;
   const missing = missingPart(block);
+  const fill = fills(block.type, item);
   return (
     <div
       className={cn('group/item relative flex h-full flex-1 flex-col', !editing && 'cursor-grab active:cursor-grabbing',
@@ -341,12 +346,13 @@ function ItemBox(props: SectionProps & { item: SiteLayoutItem; measure?: boolean
       data-testid="editor-item"
       data-type={block.type}
     >
-      <div className={cn('flex-1', visual.className, hidden && 'opacity-40')} style={visual.style}>
+      <div className={cn('flex-1', visual.className, fill && 'flex flex-col', hidden && 'opacity-40')} style={visual.style}>
         <Measured
           key={`${item.id}-${editing ? 'edit' : props.editVersion}`}
           id={item.id}
           extra={pad}
-          onMeasure={props.measure ? props.onMeasure : undefined}
+          onMeasure={props.measure ? props.measureFn ?? props.onMeasure : undefined}
+          fill={fill}
           editing={editing && block.type !== 'text'}
           live={editing && block.type === 'text'}
           onCommit={(text) => props.onCommitText(item.id, text)}
@@ -362,7 +368,7 @@ function ItemBox(props: SectionProps & { item: SiteLayoutItem; measure?: boolean
           ) : typeof view === 'string' ? (
             <div className="rounded-lg border-2 border-dashed border-slate-300 bg-white/70 p-4 text-center text-sm text-slate-500">{view}</div>
           ) : (
-            <BlockView block={view} index={index} data={props.data} brand="var(--site-accent)" scrap={props.scrap} tenantSlug="" pageSlug="" preview />
+            <BlockView block={view} index={index} data={props.data} brand="var(--site-accent)" scrap={props.scrap} tenantSlug="" pageSlug="" preview fill={fill} />
           )}
         </Measured>
       </div>
@@ -395,8 +401,8 @@ function ItemBox(props: SectionProps & { item: SiteLayoutItem; measure?: boolean
  * Conteudo do bloco: mede a altura natural (para a grade) e, em edicao,
  * deixa o texto editavel ali mesmo na pagina.
  */
-function Measured({ id, extra, onMeasure, editing, live, onCommit, children }: {
-  id: string; extra: number; onMeasure?: (id: string, px: number) => void; editing: boolean; live?: boolean; onCommit: (text: string | null) => void; children: ReactNode;
+function Measured({ id, extra, onMeasure, editing, live, fill, onCommit, children }: {
+  id: string; extra: number; onMeasure?: (id: string, px: number) => void; editing: boolean; live?: boolean; fill?: boolean; onCommit: (text: string | null) => void; children: ReactNode;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const commitRef = useRef(onCommit);
@@ -445,5 +451,5 @@ function Measured({ id, extra, onMeasure, editing, live, onCommit, children }: {
     };
   }, [editing]);
 
-  return <div ref={ref} className={editing || live ? undefined : 'pointer-events-none select-none'}>{children}</div>;
+  return <div ref={ref} className={cn(!(editing || live) && 'pointer-events-none select-none', fill && 'site-fill flex-1')}>{children}</div>;
 }
