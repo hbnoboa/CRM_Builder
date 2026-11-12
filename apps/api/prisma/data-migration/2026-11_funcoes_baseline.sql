@@ -4,6 +4,19 @@
 
 BEGIN;
 
+CREATE EXTENSION IF NOT EXISTS pg_trgm WITH SCHEMA public;
+
+CREATE EXTENSION IF NOT EXISTS unaccent WITH SCHEMA public;
+
+DO $old$
+DECLARE t record;
+BEGIN
+  FOR t IN SELECT tgname, tgrelid::regclass AS tbl FROM pg_trigger
+           WHERE NOT tgisinternal AND tgname NOT IN ('trg_channel_calc_visible_roles', 'trg_channel_sync_message_team_keys', 'trg_command_template_visible_roles', 'trg_custom_role_masked', 'trg_entity_data_calc_visible_roles', 'trg_entity_data_global_filter', 'trg_entity_data_masked', 'trg_entity_data_propagate_visible_roles', 'trg_entity_data_sync_record_channel', 'trg_entity_settings_global_filter', 'trg_membership_team_keys', 'trg_message_team_keys', 'trg_propagate_filter_to_children', 'trg_team_member_changed') LOOP
+    EXECUTE format('DROP TRIGGER IF EXISTS %I ON %s', t.tgname, t.tbl);
+  END LOOP;
+END $old$;
+
 DROP FUNCTION IF EXISTS public.calc_channel_group_visibility(text, text) CASCADE;
 CREATE FUNCTION public.calc_channel_group_visibility(p_tenant_id text, p_entity_id text, OUT all_roles text[], OUT has_filter boolean) RETURNS record
     LANGUAGE plpgsql STABLE
@@ -1274,46 +1287,46 @@ BEGIN
 END;
 $$;
 
-DROP TRIGGER IF EXISTS Channel ON public.trg_channel_calc_visible_roles;
+DROP TRIGGER IF EXISTS trg_channel_calc_visible_roles ON public."Channel";
 CREATE TRIGGER trg_channel_calc_visible_roles BEFORE INSERT OR UPDATE ON public."Channel" FOR EACH ROW EXECUTE FUNCTION public.trg_channel_calc_visible_roles();
 
-DROP TRIGGER IF EXISTS Channel ON public.trg_channel_sync_message_team_keys;
+DROP TRIGGER IF EXISTS trg_channel_sync_message_team_keys ON public."Channel";
 CREATE TRIGGER trg_channel_sync_message_team_keys AFTER UPDATE ON public."Channel" FOR EACH ROW WHEN ((old."_visibleTeamKeysJson" IS DISTINCT FROM new."_visibleTeamKeysJson")) EXECUTE FUNCTION public.trg_channel_sync_message_team_keys();
 
-DROP TRIGGER IF EXISTS CommandTemplate ON public.trg_command_template_visible_roles;
+DROP TRIGGER IF EXISTS trg_command_template_visible_roles ON public."CommandTemplate";
 CREATE TRIGGER trg_command_template_visible_roles BEFORE INSERT OR UPDATE ON public."CommandTemplate" FOR EACH ROW EXECUTE FUNCTION public.trg_command_template_visible_roles();
 
-DROP TRIGGER IF EXISTS CustomRole ON public.trg_custom_role_masked;
+DROP TRIGGER IF EXISTS trg_custom_role_masked ON public."CustomRole";
 CREATE TRIGGER trg_custom_role_masked AFTER INSERT OR DELETE OR UPDATE ON public."CustomRole" FOR EACH ROW EXECUTE FUNCTION public.trg_custom_role_masked();
 
-DROP TRIGGER IF EXISTS EntityData ON public.trg_entity_data_calc_visible_roles;
+DROP TRIGGER IF EXISTS trg_entity_data_calc_visible_roles ON public."EntityData";
 CREATE TRIGGER trg_entity_data_calc_visible_roles BEFORE INSERT OR UPDATE ON public."EntityData" FOR EACH ROW EXECUTE FUNCTION public.trg_entity_data_calc_visible_roles();
 
-DROP TRIGGER IF EXISTS EntityData ON public.trg_entity_data_global_filter;
+DROP TRIGGER IF EXISTS trg_entity_data_global_filter ON public."EntityData";
 CREATE TRIGGER trg_entity_data_global_filter BEFORE INSERT OR UPDATE OF data, "entityId" ON public."EntityData" FOR EACH ROW EXECUTE FUNCTION public.trg_entity_data_check_global_filter();
 
-DROP TRIGGER IF EXISTS EntityData ON public.trg_entity_data_masked;
+DROP TRIGGER IF EXISTS trg_entity_data_masked ON public."EntityData";
 CREATE TRIGGER trg_entity_data_masked AFTER INSERT OR DELETE OR UPDATE ON public."EntityData" FOR EACH ROW EXECUTE FUNCTION public.trg_entity_data_masked();
 
-DROP TRIGGER IF EXISTS EntityData ON public.trg_entity_data_propagate_visible_roles;
+DROP TRIGGER IF EXISTS trg_entity_data_propagate_visible_roles ON public."EntityData";
 CREATE TRIGGER trg_entity_data_propagate_visible_roles AFTER UPDATE ON public."EntityData" FOR EACH ROW EXECUTE FUNCTION public.trg_entity_data_propagate_visible_roles();
 
-DROP TRIGGER IF EXISTS EntityData ON public.trg_entity_data_sync_record_channel;
+DROP TRIGGER IF EXISTS trg_entity_data_sync_record_channel ON public."EntityData";
 CREATE TRIGGER trg_entity_data_sync_record_channel AFTER UPDATE ON public."EntityData" FOR EACH ROW WHEN (((old."_visibleTeamKeysJson" IS DISTINCT FROM new."_visibleTeamKeysJson") OR (old."_visibleToRoles" IS DISTINCT FROM new."_visibleToRoles") OR (old."_visibleToRolesOwnJson" IS DISTINCT FROM new."_visibleToRolesOwnJson") OR (old."createdById" IS DISTINCT FROM new."createdById"))) EXECUTE FUNCTION public.trg_entity_data_sync_record_channel();
 
-DROP TRIGGER IF EXISTS Entity ON public.trg_entity_settings_global_filter;
+DROP TRIGGER IF EXISTS trg_entity_settings_global_filter ON public."Entity";
 CREATE TRIGGER trg_entity_settings_global_filter AFTER UPDATE OF settings ON public."Entity" FOR EACH ROW EXECUTE FUNCTION public.trg_entity_settings_update_global_filter();
 
-DROP TRIGGER IF EXISTS UserTenantAccess ON public.trg_membership_team_keys;
+DROP TRIGGER IF EXISTS trg_membership_team_keys ON public."UserTenantAccess";
 CREATE TRIGGER trg_membership_team_keys AFTER INSERT OR DELETE OR UPDATE OF "customRoleId", status, "deletedAt" ON public."UserTenantAccess" FOR EACH ROW EXECUTE FUNCTION public.trg_membership_team_keys();
 
-DROP TRIGGER IF EXISTS Message ON public.trg_message_team_keys;
+DROP TRIGGER IF EXISTS trg_message_team_keys ON public."Message";
 CREATE TRIGGER trg_message_team_keys BEFORE INSERT ON public."Message" FOR EACH ROW EXECUTE FUNCTION public.trg_message_team_keys();
 
-DROP TRIGGER IF EXISTS EntityData ON public.trg_propagate_filter_to_children;
+DROP TRIGGER IF EXISTS trg_propagate_filter_to_children ON public."EntityData";
 CREATE TRIGGER trg_propagate_filter_to_children AFTER UPDATE OF "_matchesGlobalFilter", "_parentMatchesFilter" ON public."EntityData" FOR EACH ROW EXECUTE FUNCTION public.propagate_filter_to_children();
 
-DROP TRIGGER IF EXISTS TeamMember ON public.trg_team_member_changed;
+DROP TRIGGER IF EXISTS trg_team_member_changed ON public."TeamMember";
 CREATE TRIGGER trg_team_member_changed AFTER INSERT OR DELETE ON public."TeamMember" FOR EACH ROW EXECUTE FUNCTION public.trg_team_member_changed();
 
 COMMIT;

@@ -13,10 +13,23 @@ for i, m in enumerate(parts):
     if m['type'] == 'FUNCTION':
         funcs.append(f"DROP FUNCTION IF EXISTS public.{m['name']} CASCADE;\n{body}")
     elif m['type'] == 'TRIGGER':
-        trig, table = m['name'].split(' ', 1)
-        trigs.append(f'DROP TRIGGER IF EXISTS {trig} ON public.{table};\n{body}')
+        table, trig = m['name'].split(' ', 1)  # cabecalho do pg_dump: "<tabela> <trigger>"
+        trigs.append(f'DROP TRIGGER IF EXISTS {trig} ON public."{table}";\n{body}')
+# Extensoes que as funcoes usam (o migrate diff tambem nao cria extensoes)
+exts = [re.sub(r'CREATE EXTENSION (IF NOT EXISTS )?', 'CREATE EXTENSION IF NOT EXISTS ', e)
+        for e in re.findall(r'^CREATE EXTENSION[^;]*;', sql, re.M)]
+# Triggers antigos (fora do baseline) nas tabelas do sistema saem
+keep = ', '.join(sorted({f"'{m['name'].split(' ', 1)[1]}'" for m in parts if m['type'] == 'TRIGGER'}))
+drop_old = f'''DO $old$
+DECLARE t record;
+BEGIN
+  FOR t IN SELECT tgname, tgrelid::regclass AS tbl FROM pg_trigger
+           WHERE NOT tgisinternal AND tgname NOT IN ({keep}) LOOP
+    EXECUTE format('DROP TRIGGER IF EXISTS %I ON %s', t.tgname, t.tbl);
+  END LOOP;
+END $old$;'''
 out = ['-- Gerado de 00000000000000_baseline por gerar-funcoes-baseline.py: funcoes e triggers do modelo novo.',
        '-- Reaplicavel. Rodar depois do alinhamento das tabelas (migrate diff) e antes do migrate resolve.',
-       'BEGIN;', *funcs, *trigs, 'COMMIT;']
+       'BEGIN;', *exts, drop_old, *funcs, *trigs, 'COMMIT;']
 sys.stdout.write('\n\n'.join(out) + '\n')
 print(f'-- {len(funcs)} funcoes, {len(trigs)} triggers', file=sys.stderr)
