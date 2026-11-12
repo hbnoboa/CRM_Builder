@@ -83,27 +83,29 @@
 /* Variacoes de cor da secao */
 .site-tone-surface { background-color: var(--site-surface); }
 .site-tone-accent, .site-tone-accent2, .site-tone-dark { color: var(--site-text); }
+/* Secao na cor de destaque: o "destaque" la dentro vira a cor do texto (numeros, icones,
+   botoes) e o botao inverte; senao, tudo que usa o destaque some no fundo */
 .site-tone-accent {
-  background-color: var(--site-accent);
-  --site-text: var(--site-on-accent); --site-text-2: var(--site-on-accent);
-  --site-muted: color-mix(in srgb, var(--site-on-accent) 72%, var(--site-accent));
-  --site-line: color-mix(in srgb, var(--site-on-accent) 25%, var(--site-accent));
-  --site-surface: color-mix(in srgb, var(--site-on-accent) 12%, var(--site-accent));
+  background-color: var(--site-accent-base);
+  --site-accent: var(--site-on-accent-base); --site-on-accent: var(--site-accent-base);
+  --site-text: var(--site-on-accent-base); --site-text-2: var(--site-on-accent-base);
+  --site-muted: color-mix(in srgb, var(--site-on-accent-base) 72%, var(--site-accent-base));
+  --site-line: color-mix(in srgb, var(--site-on-accent-base) 25%, var(--site-accent-base));
+  --site-surface: color-mix(in srgb, var(--site-on-accent-base) 12%, var(--site-accent-base));
 }
 .site-tone-accent2 {
-  background-color: var(--site-accent-2);
-  --site-text: var(--site-on-accent-2); --site-text-2: var(--site-on-accent-2);
-  --site-muted: color-mix(in srgb, var(--site-on-accent-2) 72%, var(--site-accent-2));
-  --site-line: color-mix(in srgb, var(--site-on-accent-2) 25%, var(--site-accent-2));
-  --site-surface: color-mix(in srgb, var(--site-on-accent-2) 12%, var(--site-accent-2));
+  background-color: var(--site-accent-2-base);
+  --site-accent: var(--site-on-accent-2-base); --site-on-accent: var(--site-accent-2-base);
+  --site-text: var(--site-on-accent-2-base); --site-text-2: var(--site-on-accent-2-base);
+  --site-muted: color-mix(in srgb, var(--site-on-accent-2-base) 72%, var(--site-accent-2-base));
+  --site-line: color-mix(in srgb, var(--site-on-accent-2-base) 25%, var(--site-accent-2-base));
+  --site-surface: color-mix(in srgb, var(--site-on-accent-2-base) 12%, var(--site-accent-2-base));
 }
 .site-tone-dark {
   background-color: var(--site-dark);
   --site-text: #f8fafc; --site-text-2: #e2e8f0; --site-muted: #94a3b8;
   --site-line: rgb(255 255 255 / 0.16); --site-surface: color-mix(in srgb, #ffffff 8%, var(--site-dark));
 }
-/* Botao sobre secao na cor de destaque: inverte para continuar aparecendo */
-.site-tone-accent .site-btn { background-color: var(--site-on-accent); border-color: var(--site-on-accent); color: var(--site-accent); }
 
 /* Espaco em cima/embaixo das secoes segue o espacamento do tema */
 .site-sec-pad { padding-block: calc(var(--sec-pad, 2rem) * var(--site-space, 1)); }

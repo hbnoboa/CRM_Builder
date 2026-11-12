@@ -220,7 +220,7 @@ function RowList({ rows, brand, className, iconsOnly }: { rows: Row[]; brand: st
     <ul className={cn('flex flex-wrap gap-x-5 gap-y-2 text-sm', className)}>
       {rows.map((r) => {
         const Icon = r.icon;
-        const inner = <><Icon className="h-4 w-4 shrink-0" style={{ color: brand }} />{iconsOnly ? <span className="sr-only">{r.text}</span> : <span>{r.text}</span>}</>;
+        const inner = <><Icon className="h-4 w-4 shrink-0" style={{ color: brand === 'var(--site-accent)' ? brand : 'var(--site-accent)' }} />{iconsOnly ? <span className="sr-only">{r.text}</span> : <span>{r.text}</span>}</>;
         return (
           <li key={r.text}>
             {r.href

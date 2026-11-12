@@ -165,7 +165,8 @@ export function SitePageView({ data, tenantSlug, pageSlug, token, preview, onCha
                       } as CSSProperties}
                     >
                       <BlockView
-                        block={block} index={order++} data={data} brand={brand} scrap={scrap}
+                        // Destaque como variavel: dentro de secao colorida ele vira a cor que aparece
+                      block={block} index={order++} data={data} brand="var(--site-accent)" scrap={scrap}
                         tenantSlug={tenantSlug} pageSlug={pageSlug} token={token} preview={preview} onChanged={onChanged}
                       />
                     </div>
@@ -223,8 +224,14 @@ const ITEM_RADIUS: Record<NonNullable<SiteItemStyle['radius']>, string> = { none
 export function SectionShell({ section, brand, children, className, editing }: {
   section: SiteSection; brand: string; scrap: boolean; children: ReactNode; className?: string; editing?: boolean;
 }) {
-  const base = section.bg || (section.tone ? undefined : 'transparent');
-  let style: CSSProperties = section.pattern ? patternStyle(section.pattern, base || 'transparent', brand) : base && base !== 'transparent' ? { backgroundColor: base } : {};
+  // Cor de fundo: a escolhida ou a da variacao do tema (classe). O padrao vai por cima sem apagar a cor.
+  let style: CSSProperties = {};
+  if (section.pattern) {
+    const p = patternStyle(section.pattern, section.bg || 'transparent', brand);
+    style = { backgroundImage: p.backgroundImage, backgroundSize: p.backgroundSize, ...(section.bg ? { backgroundColor: section.bg } : {}) };
+  } else if (section.bg) {
+    style = { backgroundColor: section.bg };
+  }
   if (section.gradient) {
     const g = section.gradient;
     style = {

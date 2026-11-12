@@ -199,6 +199,11 @@ export function themeVars(th: ResolvedTheme, custom: SiteCustomFont[]): CSSPrope
     '--site-on-accent': readableOn(c.accent),
     '--site-accent-2': c.accent2,
     '--site-on-accent-2': readableOn(c.accent2),
+    // Cores originais: as secoes coloridas trocam --site-accent por dentro e precisam delas
+    '--site-accent-base': c.accent,
+    '--site-on-accent-base': readableOn(c.accent),
+    '--site-accent-2-base': c.accent2,
+    '--site-on-accent-2-base': readableOn(c.accent2),
     '--site-dark': darkText ? c.text : mix(c.bg, '#000000', 70),
     '--site-font-heading': fontStack(th.fonts.heading, custom) ?? FALLBACK.sans,
     '--site-font-body': fontStack(th.fonts.body, custom) ?? FALLBACK.sans,

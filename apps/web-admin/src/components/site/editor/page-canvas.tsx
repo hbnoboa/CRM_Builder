@@ -362,7 +362,7 @@ function ItemBox(props: SectionProps & { item: SiteLayoutItem; measure?: boolean
           ) : typeof view === 'string' ? (
             <div className="rounded-lg border-2 border-dashed border-slate-300 bg-white/70 p-4 text-center text-sm text-slate-500">{view}</div>
           ) : (
-            <BlockView block={view} index={index} data={props.data} brand={props.brand} scrap={props.scrap} tenantSlug="" pageSlug="" preview />
+            <BlockView block={view} index={index} data={props.data} brand="var(--site-accent)" scrap={props.scrap} tenantSlug="" pageSlug="" preview />
           )}
         </Measured>
       </div>
