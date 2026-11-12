@@ -9,7 +9,7 @@ import { HelpButton } from '@/components/help/help-button';
 import { GuidedTour, type TourStep } from '@/components/help/guided-tour';
 import { getErrorMessage } from '@/lib/get-error-message';
 import { useEntities } from '@/hooks/use-entities';
-import { previewAiTables, useAiApply, type AiProposalDraft, type AiProposeResult } from '@/hooks/use-ai-builder';
+import { previewAiTables, useAiApply, type AiApplyResult, type AiProposalDraft, type AiProposeResult } from '@/hooks/use-ai-builder';
 import { AiApplyBar, AiBuilderLayout, AiChatPanel, AiEmptyPreview, AiWarnings, isNarrowScreen, useAiConversation } from './ai-chat-panel';
 import { EditableTableCard } from './editable-table-card';
 import { SAMPLE_PROPOSAL } from './ai-sample';
@@ -28,13 +28,18 @@ interface AiTableBuilderProps {
   onBack?: () => void;
   /** Abre o tutorial sozinho na primeira visita (tela principal da Administracao). */
   autoTour?: boolean;
+  /**
+   * Monte sua empresa: em vez de abrir o editor, segue para o proximo passo
+   * (painel e site), levando o que a pessoa contou na conversa.
+   */
+  onCreated?: (result: AiApplyResult, description: string) => void;
 }
 
 /**
  * "Criar com IA": a pessoa descreve o negocio, a IA propoe as tabelas e a pessoa
  * ajusta direto na proposta (ou conversando). Nada e criado antes do botao.
  */
-export function AiTableBuilder({ onBack, autoTour }: AiTableBuilderProps) {
+export function AiTableBuilder({ onBack, autoTour, onCreated }: AiTableBuilderProps) {
   const router = useRouter();
   const apply = useAiApply();
   const chat = useAiConversation<AiProposeResult>('/ai-builder/propose');
@@ -134,6 +139,10 @@ export function AiTableBuilder({ onBack, autoTour }: AiTableBuilderProps) {
     try {
       const res = await apply.mutateAsync(result.proposal);
       toast.success(res.tables.length === 1 ? 'Tabela criada!' : `${res.tables.length} tabelas criadas!`);
+      if (onCreated) {
+        onCreated(res, chat.messages.filter((m) => m.role === 'user').map((m) => m.content).join('\n'));
+        return;
+      }
       // No celular o editor de tabela e so para computador: vai direto para os registros
       const root = res.tables.find((t) => t.id === res.rootId);
       if (isNarrowScreen() && root) router.push(`/data?entity=${root.slug}`);

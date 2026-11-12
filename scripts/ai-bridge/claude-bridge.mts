@@ -25,7 +25,9 @@ const PORT = Number(process.env.AI_BRIDGE_PORT ?? 8787);
 const CLAUDE = process.env.CLAUDE_BIN ?? 'claude';
 const MODEL = process.env.AI_BRIDGE_MODEL;
 const EFFORT = process.env.AI_BRIDGE_EFFORT ?? 'low';
-const MAX_BODY = 512 * 1024;
+// Com imagens (ate 3 de 5 MB em base64) o corpo cresce
+const MAX_BODY = 24 * 1024 * 1024;
+const IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif']);
 const TIMEOUT_MS = 180_000;
 const MAX_RUNNING = 2;
 
@@ -38,6 +40,8 @@ interface ProposeBody {
   system: string;
   prompt: string;
   schema: Record<string, unknown>;
+  /** Imagens (modelo de pagina, fotos): vao junto do pedido, via stream-json. */
+  images?: Array<{ mediaType: string; data: string }>;
 }
 
 interface ClaudeResult {
@@ -72,11 +76,25 @@ async function readBody(req: IncomingMessage): Promise<string> {
   return Buffer.concat(chunks).toString('utf8');
 }
 
-async function runClaude({ system, prompt, schema }: ProposeBody): Promise<ClaudeResult> {
+async function runClaude({ system, prompt, schema, images }: ProposeBody): Promise<ClaudeResult> {
   const cwd = await mkdtemp(join(tmpdir(), 'ai-bridge-'));
+  const withImages = !!images?.length;
+  // Com imagens o pedido vai como mensagem estruturada (imagens + texto) e a resposta vem em linhas JSON
+  const input = withImages
+    ? `${JSON.stringify({
+      type: 'user',
+      message: {
+        role: 'user',
+        content: [
+          ...images!.map((img) => ({ type: 'image', source: { type: 'base64', media_type: img.mediaType, data: img.data } })),
+          { type: 'text', text: prompt },
+        ],
+      },
+    })}\n`
+    : prompt;
   const args = [
     '-p',
-    '--output-format', 'json',
+    ...(withImages ? ['--input-format', 'stream-json', '--output-format', 'stream-json', '--verbose'] : ['--output-format', 'json']),
     '--tools', '',
     '--strict-mcp-config',
     '--no-session-persistence',
@@ -98,12 +116,17 @@ async function runClaude({ system, prompt, schema }: ProposeBody): Promise<Claud
       child.on('close', (code) => {
         clearTimeout(timer);
         try {
-          resolve(JSON.parse(out) as ClaudeResult);
+          if (!withImages) return resolve(JSON.parse(out) as ClaudeResult);
+          const result = out.split('\n').filter(Boolean).map((l) => {
+            try { return JSON.parse(l) as ClaudeResult & { type?: string }; } catch { return null; }
+          }).find((m) => m?.type === 'result');
+          if (!result) throw new Error('sem resultado');
+          resolve(result);
         } catch {
           reject(new Error(`claude saiu com ${code}: ${err.slice(0, 300) || out.slice(0, 300)}`));
         }
       });
-      child.stdin.end(prompt);
+      child.stdin.end(input);
     });
   } finally {
     await rm(cwd, { recursive: true, force: true });
@@ -122,6 +145,10 @@ const server = createServer((req, res) => {
       body = JSON.parse(await readBody(req)) as ProposeBody;
       if (typeof body.system !== 'string' || typeof body.prompt !== 'string' || typeof body.schema !== 'object') {
         throw new Error('formato invalido');
+      }
+      if (body.images !== undefined && (!Array.isArray(body.images) || body.images.length > 3
+        || body.images.some((i) => !IMAGE_TYPES.has(i?.mediaType) || typeof i?.data !== 'string'))) {
+        throw new Error('imagens invalidas');
       }
     } catch (e) {
       return send(res, 400, { error: (e as Error).message });

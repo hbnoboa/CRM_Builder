@@ -9,7 +9,10 @@ import { PdfGeneratorService } from '../pdf/pdf-generator.service';
 import type { PdfTemplateContent } from '../pdf/interfaces/pdf-element.interface';
 import { AI_PROPOSAL_JSON_SCHEMA, AI_SYSTEM_PROMPT } from './ai-builder.schema';
 import { AiApplyDto, AiPdfPreviewDto, AiProposeDto } from './ai-builder.dto';
-import { createAiBuilderProvider, type AiAssistantKind, type AiBuilderProvider } from './ai-providers';
+import { createAiBuilderProvider, type AiAssistantKind, type AiBuilderProvider, type AiImage } from './ai-providers';
+import { AI_PAGE_JSON_SCHEMA, AI_PAGE_SYSTEM_PROMPT, normalizePage } from './page-proposal';
+import { UploadService } from '../upload/upload.service';
+import type { RawField } from '../site-pages/site-blocks';
 import { creationOrder, normalizeProposal, slugify, type ExistingTable, type NormalizedProposal } from './ai-proposal-normalizer';
 import { AI_DASHBOARD_JSON_SCHEMA, AI_DASHBOARD_SYSTEM_PROMPT, normalizeDashboard, type NormalizedDashboard } from './dashboard-proposal';
 import { AI_PDF_JSON_SCHEMA, AI_PDF_SYSTEM_PROMPT, normalizePdf, type NormalizedPdf } from './pdf-proposal';
@@ -28,6 +31,7 @@ export class AiBuilderService {
     private readonly dashboardService: DashboardTemplateService,
     private readonly pdfTemplateService: PdfTemplateService,
     private readonly pdfGenerator: PdfGeneratorService,
+    private readonly uploadService: UploadService,
   ) {}
 
   status() {
@@ -64,6 +68,7 @@ export class AiBuilderService {
     current: unknown,
     tables: SchemaTable[],
     preferredTable?: string,
+    images?: AiImage[],
   ): Promise<unknown> {
     if (!this.provider) throw new ServiceUnavailableException('O assistente não está ligado neste ambiente.');
     const conversation = this.conversation(dto.messages);
@@ -76,6 +81,7 @@ export class AiBuilderService {
     const started = Date.now();
     const result = await this.provider.propose({
       kind, system, prompt, schema, lastMessage: dto.messages[dto.messages.length - 1].content, current, tables, preferredTable,
+      ...(images?.length ? { images } : {}),
     });
     // So metadados no log (nada do que a pessoa escreveu)
     this.logger.log(
@@ -277,5 +283,48 @@ export class AiBuilderService {
       user,
     );
     return { id: created.id, name: created.name, warnings: n.warnings };
+  }
+
+  // ── Paginas para clientes ────────────────────────────────────────────
+
+  /**
+   * Conversa da pagina: a IA monta a pagina inteira. Imagens enviadas (modelo ou
+   * fotos da empresa) vao para a IA e ficam guardadas para usar na pagina.
+   */
+  async proposePage(dto: AiProposeDto, files: Express.Multer.File[], user: CurrentUser) {
+    const tenantId = getEffectiveTenantId(user);
+    const [tables, entities, pdfTemplates, pages] = await Promise.all([
+      loadTenantSchema(this.prisma, tenantId),
+      this.prisma.entity.findMany({ where: { tenantId }, select: { slug: true, fields: true } }),
+      this.prisma.pdfTemplate.findMany({ where: { tenantId, isPublished: true, templateType: 'single' }, select: { id: true, sourceEntityId: true } }),
+      this.prisma.sitePage.findMany({ where: { tenantId }, select: { slug: true, title: true } }),
+    ]);
+    const ctx = {
+      tables, pdfTemplates,
+      rawFieldsBySlug: new Map(entities.map((e) => [e.slug, (Array.isArray(e.fields) ? e.fields : []) as unknown as RawField[]])),
+    };
+    const uploaded: string[] = [];
+    const images: AiImage[] = [];
+    for (const file of files) {
+      const saved = await this.uploadService.uploadFile(file, tenantId, 'site');
+      uploaded.push(saved.url);
+      images.push({ mediaType: file.mimetype, data: file.buffer.toString('base64') });
+    }
+    const current = this.parseProposal(dto.currentProposal);
+    const context = [
+      'TABELAS DA EMPRESA (identificadores entre colchetes; campos: identificador (tipo) "rótulo"):',
+      tables.length ? describeSchema(tables, true) : '(nenhuma ainda)',
+      '', `PÁGINAS QUE JÁ EXISTEM NO SITE: ${pages.map((p) => `${p.title} (endereço "${p.slug}")`).join(', ') || '(nenhuma)'}`,
+      '', uploaded.length
+        ? `IMAGENS ENVIADAS NESTA MENSAGEM (na ordem em que aparecem): ${uploaded.map((u, i) => `Imagem ${i + 1}: ${u}`).join(' · ')}`
+        : 'Nenhuma imagem nesta mensagem.',
+    ];
+    const output = await this.ask('page', tenantId, AI_PAGE_SYSTEM_PROMPT, AI_PAGE_JSON_SCHEMA, context, dto, current, tables, undefined, images);
+    const n = normalizePage(output, ctx);
+    return {
+      reply: n.reply, warnings: n.warnings, proposal: n.proposal, images: uploaded,
+      page: { title: n.title, blocks: n.blocks, layout: n.layout, settings: n.settings },
+      header: n.header ?? null, footerStyle: n.footerStyle ?? null,
+    };
   }
 }

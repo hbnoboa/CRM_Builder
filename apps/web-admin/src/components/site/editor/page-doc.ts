@@ -263,3 +263,36 @@ export function applyGrid(doc: PageDoc, sectionId: string, grid: Array<{ i: stri
   }));
   return changed ? next : doc;
 }
+
+/**
+ * A pagina do editor no formato do assistente de IA (secoes com elementos na grade),
+ * para ela partir do que ja existe quando a pessoa pede mudancas.
+ */
+export function docToAi(doc: PageDoc, title: string): Record<string, unknown> {
+  const look = (doc.look.ownLook ? doc.look : doc.site.look) as SiteLookDraft;
+  const theme = look.theme ?? {};
+  const byId = new Map(doc.blocks.map((b) => [b.id, b]));
+  return {
+    reply: '',
+    title,
+    theme: {
+      decor: look.style ?? 'classic', pattern: look.background, accent: look.accent, coverUrl: look.coverUrl, tagline: look.tagline,
+      colors: theme.colors, fonts: theme.fonts, text: theme.text, buttons: theme.buttons,
+      radius: theme.radius, shadow: theme.shadow, spacing: theme.spacing, animation: theme.animation,
+    },
+    header: doc.site.header ?? {},
+    footer: doc.site.footerStyle ?? {},
+    sections: doc.layout.sections.map((s) => {
+      const items = [...s.items].sort((a, b) => a.y - b.y || a.x - b.x);
+      return {
+        name: s.name, width: s.width, padding: s.padding, tone: s.tone, bg: s.bg, gradient: s.gradient, pattern: s.pattern, bgImage: s.bgImage,
+        items: items.map((it, i) => {
+          const block = { ...(byId.get(it.id) || {}) } as Record<string, unknown>;
+          delete block.id;
+          delete block.doc;
+          return { w: it.w, newRow: i > 0 && it.y !== items[i - 1].y, ...(it.style?.align ? { align: it.style.align } : {}), block };
+        }),
+      };
+    }),
+  };
+}

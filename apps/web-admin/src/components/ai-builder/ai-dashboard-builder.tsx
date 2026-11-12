@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { BarChart3, Users } from 'lucide-react';
 import { toast } from 'sonner';
 import { useRouter } from '@/i18n/tenant-navigation';
@@ -24,9 +24,20 @@ const EXAMPLES = [
  * "Criar painel com IA": a previa mostra os blocos de verdade, com os dados da
  * empresa (carregados aqui, na tela de quem pediu; a IA nao ve nada disso).
  */
-export function AiDashboardBuilder() {
+export function AiDashboardBuilder({ autoStart, onCreated }: {
+  /** Mensagem enviada sozinha ao abrir (Monte sua empresa: o que a pessoa contou). */
+  autoStart?: string;
+  /** Monte sua empresa: segue para o proximo passo em vez de abrir o editor. */
+  onCreated?: (id: string) => void;
+} = {}) {
   const router = useRouter();
   const chat = useAiConversation<AiDashboardResult>('/ai-builder/dashboards/propose');
+  const started = useRef(false);
+  useEffect(() => {
+    if (!autoStart || started.current) return;
+    started.current = true;
+    void chat.send(autoStart);
+  }, [autoStart, chat]);
   const apply = useAiApplyTo('/ai-builder/dashboards/apply', dashboardTemplateKeys.all);
   const { data: entitiesPage } = useEntities({ limit: 200 });
   const { result } = chat;
@@ -41,6 +52,7 @@ export function AiDashboardBuilder() {
     try {
       const res = await apply.mutateAsync(result.proposal);
       toast.success('Painel criado!');
+      if (onCreated) { onCreated(res.id); return; }
       // No celular abre o painel com os dados; no computador, o editor para ajustes finos
       if (isNarrowScreen()) router.push(`/data?entity=${result.dashboard.entitySlug}&painel=${res.id}`);
       else router.push(`/gestao/dashboard-templates/${res.id}`);

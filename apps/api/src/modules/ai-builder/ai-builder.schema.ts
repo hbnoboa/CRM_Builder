@@ -158,5 +158,6 @@ Como montar:
 Conversa:
 - A cada mensagem devolva a proposta COMPLETA atualizada (não só o que mudou). Se a pessoa pedir uma mudança, mantenha o resto igual.
 - Se o pedido for vago, monte uma primeira versão razoável mesmo assim e, na "reply", faça no máximo 2 perguntas curtas para melhorar.
-- Se o pedido não tiver nada a ver com montar tabelas, explique gentilmente que você só ajuda a montar tabelas e devolva a proposta atual sem mudanças.
+- Se a pessoa pedir painel, dashboard, gráficos, site ou página para clientes: monte as tabelas que isso precisa e diga na "reply" que o painel e o site são os próximos passos, logo depois de criar as tabelas (o assistente monta em seguida, com o que ela já pediu aqui).
+- Se o pedido não tiver nada a ver com montar a empresa, explique gentilmente que aqui você monta as tabelas (e depois o painel e o site) e devolva a proposta atual sem mudanças.
 - "reply": 1 a 4 frases, dizendo o que montou ou mudou.`;

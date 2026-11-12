@@ -4,7 +4,14 @@ import type { AiDashboardProposal } from './dashboard-proposal';
 import type { AiPdfProposal } from './pdf-proposal';
 import type { SchemaTable } from './tenant-schema';
 
-export type AiAssistantKind = 'tables' | 'dashboard' | 'pdf' | 'chat' | 'chat-text';
+export type AiAssistantKind = 'tables' | 'dashboard' | 'pdf' | 'chat' | 'chat-text' | 'page';
+
+/** Imagem enviada junto do pedido (modelo de pagina, por exemplo). */
+export interface AiImage {
+  mediaType: string;
+  /** base64 */
+  data: string;
+}
 
 /**
  * Provedor de IA do assistente (plugavel por AI_BUILDER_PROVIDER):
@@ -26,6 +33,7 @@ export interface AiProposeInput {
   current: unknown;
   tables: SchemaTable[];
   preferredTable?: string;
+  images?: AiImage[];
 }
 
 export interface AiProposeOutput {
@@ -46,6 +54,7 @@ export class MockAiProvider implements AiBuilderProvider {
   // eslint-disable-next-line @typescript-eslint/require-await
   async propose(input: AiProposeInput): Promise<AiProposeOutput> {
     if (input.kind === 'dashboard') return { output: mockDashboard(input) };
+    if (input.kind === 'page') return { output: mockPage(input) };
     if (input.kind === 'pdf') return { output: mockPdf(input) };
     if (input.kind === 'chat') return { output: mockChat(input) };
     if (input.kind === 'chat-text') return { output: { text: `Resumo de teste: ${input.prompt.split('\n').filter((l) => l.includes(':')).slice(1, 3).join(' · ')}` } };
@@ -177,6 +186,29 @@ function mockPdf({ current, tables, preferredTable }: AiProposeInput): AiPdfProp
   };
 }
 
+/** Pagina de teste: destaque, texto, icones e contato (com quantas imagens vieram). */
+function mockPage({ current, lastMessage, images }: AiProposeInput) {
+  const prev = current as { title?: string } | null;
+  return {
+    reply: `Página de teste montada${images?.length ? ` a partir de ${images.length} imagem(ns)` : ''}. (${lastMessage.slice(0, 40)})`,
+    title: prev?.title || 'Início',
+    theme: { decor: 'classic', accent: '#0f766e', colors: { bg: '#f0fdfa', text: '#134e4a' }, fonts: { heading: 'playfair-display', body: 'lato' }, buttons: { shape: 'pill', fill: 'solid' }, animation: 'rise' },
+    header: { layout: 'inline', cta: { label: 'Fale com a gente', url: 'https://wa.me/5511999990000' } },
+    footer: { layout: 'columns', tone: 'dark' },
+    sections: [
+      { width: 'full', padding: 'none', items: [{ w: 12, block: { type: 'hero', title: 'Bem-vindo!', text: 'Uma frase sobre o negócio.', buttonLabel: 'Conheça', buttonUrl: '#servicos' } }] },
+      { name: 'servicos', width: 'normal', padding: 'lg', items: [
+        { w: 12, align: 'center', block: { type: 'heading', text: 'O que fazemos' } },
+        { w: 12, newRow: true, block: { type: 'icons', columns: 3, items: [{ icon: 'star', title: 'Qualidade' }, { icon: 'heart', title: 'Carinho' }, { icon: 'truck', title: 'Entrega' }] } },
+      ] },
+      { width: 'normal', padding: 'lg', tone: 'surface', items: [
+        { w: 6, block: { type: 'text', text: 'Conte aqui a história da empresa.' } },
+        { w: 6, block: { type: 'map', address: 'Seu endereço aqui' } },
+      ] },
+    ],
+  };
+}
+
 /** Ponte local para o `claude -p` (dev). Nunca configurar em producao. */
 export class ClaudeCliBridgeProvider implements AiBuilderProvider {
   readonly name = 'claude-cli';
@@ -184,13 +216,13 @@ export class ClaudeCliBridgeProvider implements AiBuilderProvider {
 
   constructor(private readonly url: string, private readonly token: string) {}
 
-  async propose({ system, prompt, schema }: AiProposeInput): Promise<AiProposeOutput> {
+  async propose({ system, prompt, schema, images }: AiProposeInput): Promise<AiProposeOutput> {
     let res: Response;
     try {
       res = await fetch(`${this.url.replace(/\/$/, '')}/propose`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${this.token}` },
-        body: JSON.stringify({ system, prompt, schema }),
+        body: JSON.stringify({ system, prompt, schema, ...(images?.length ? { images } : {}) }),
         signal: AbortSignal.timeout(200_000),
       });
     } catch (err) {

@@ -6,6 +6,8 @@ import { entityKeys } from './use-entities';
 export interface AiChatMessage {
   role: 'user' | 'assistant';
   content: string;
+  /** Miniaturas das imagens enviadas (so na tela; nao voltam para a IA). */
+  images?: string[];
 }
 
 export interface AiPreviewTable {

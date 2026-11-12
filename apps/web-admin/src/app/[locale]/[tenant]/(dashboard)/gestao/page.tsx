@@ -17,7 +17,7 @@ import { useGestaoOverview } from '@/hooks/use-gestao';
 import { useTenantFeatures } from '@/components/subscription/subscription-widgets';
 import { GestaoPageHeader, UsageMeter } from '@/components/gestao/gestao-ui';
 import { useFormatDate } from '@/components/platform/platform-ui';
-import { AiTableBuilder } from '@/components/ai-builder/ai-table-builder';
+import { AiCompanyBuilder } from '@/components/ai-builder/ai-company-builder';
 import { useAiBuilderStatus } from '@/hooks/use-ai-builder';
 
 const SHORTCUTS = [
@@ -80,9 +80,9 @@ export default function GestaoHomePage() {
         <section className="space-y-3 rounded-2xl border bg-gradient-to-br from-primary/5 to-transparent p-4 sm:p-5" data-testid="gestao-assistant">
           <div>
             <h2 className="text-lg font-semibold">Monte sua empresa com IA</h2>
-            <p className="text-sm text-muted-foreground">Conte como é o seu negócio: a IA propõe as tabelas e você ajusta tudo aqui mesmo, antes de criar.</p>
+            <p className="text-sm text-muted-foreground">Conte como é o seu negócio: a IA monta as tabelas, depois o painel e o site. Você ajusta tudo antes de criar.</p>
           </div>
-          <AiTableBuilder autoTour />
+          <AiCompanyBuilder />
         </section>
       )}
 

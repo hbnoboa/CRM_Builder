@@ -94,8 +94,8 @@ export function useDeleteSitePage() {
   });
 }
 
-export async function previewSitePage(blocks: SiteBlockDraft[], title: string, settings?: Record<string, unknown>, slug?: string, site?: SiteConfigDraft) {
-  return (await api.post<SitePageData | { error: string }>('/site-pages/preview', { blocks, title, settings, slug, site })).data;
+export async function previewSitePage(blocks: SiteBlockDraft[], title: string, settings?: Record<string, unknown>, slug?: string, site?: SiteConfigDraft, layout?: SiteLayout) {
+  return (await api.post<SitePageData | { error: string }>('/site-pages/preview', { blocks, title, settings, slug, site, ...(layout ? { layout } : {}) })).data;
 }
 
 /** Link de acompanhamento de um registro (cria se ainda nao existir). */

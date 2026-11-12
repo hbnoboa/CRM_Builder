@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
-import { AlertTriangle, Check, Loader2, Lock, MessageSquare, Send, Sparkles } from 'lucide-react';
+import { AlertTriangle, Check, ImagePlus, Loader2, Lock, MessageSquare, Send, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -18,25 +18,39 @@ import type { AiChatMessage } from '@/hooks/use-ai-builder';
 export function useAiConversation<R extends { reply: string; proposal: Record<string, unknown> }>(
   endpoint: string,
   extra?: Record<string, unknown>,
+  /** Envia como formulario (payload + imagens), para assistentes que aceitam imagem. */
+  options?: { multipart?: boolean },
 ) {
   const [messages, setMessages] = useState<AiChatMessage[]>([]);
   const [result, setResult] = useState<R | null>(null);
   const [pending, setPending] = useState(false);
 
   const send = useCallback(
-    async (content: string): Promise<boolean> => {
-      const text = content.trim();
+    async (content: string, files: File[] = []): Promise<boolean> => {
+      const text = content.trim() || (files.length ? 'Use esta imagem como modelo.' : '');
       if (!text || pending) return false;
       const before = messages;
-      const next: AiChatMessage[] = [...before, { role: 'user', content: text }];
+      const thumbs = files.map((f) => URL.createObjectURL(f));
+      const next: AiChatMessage[] = [...before, { role: 'user', content: text, ...(thumbs.length ? { images: thumbs } : {}) }];
       setMessages(next);
       setPending(true);
       try {
-        const { data } = await api.post<R>(
-          endpoint,
-          { messages: next.slice(-30), ...(result ? { currentProposal: result.proposal } : {}), ...(extra || {}) },
-          { timeout: 240_000 },
-        );
+        const body = {
+          messages: next.slice(-30).map(({ role, content: c }) => ({ role, content: c })),
+          ...(result ? { currentProposal: result.proposal } : {}),
+          ...(extra || {}),
+        };
+        let payload: unknown = body;
+        if (options?.multipart) {
+          const form = new FormData();
+          form.append('payload', JSON.stringify(body));
+          files.forEach((f) => form.append('images', f));
+          payload = form;
+        }
+        const { data } = await api.post<R>(endpoint, payload, {
+          timeout: 240_000,
+          ...(options?.multipart ? { headers: { 'Content-Type': 'multipart/form-data' } } : {}),
+        });
         setResult(data);
         setMessages([...next, { role: 'assistant', content: data.reply }]);
         return true;
@@ -48,7 +62,7 @@ export function useAiConversation<R extends { reply: string; proposal: Record<st
         setPending(false);
       }
     },
-    [endpoint, extra, messages, pending, result],
+    [endpoint, extra, messages, pending, result, options?.multipart],
   );
 
   const reset = useCallback(() => {
@@ -66,7 +80,11 @@ interface AiChatPanelProps {
   messages: AiChatMessage[];
   pending: boolean;
   hasResult: boolean;
-  onSend: (text: string) => Promise<boolean>;
+  onSend: (text: string, files?: File[]) => Promise<boolean>;
+  /** Deixa anexar imagens (modelo de pagina, fotos). */
+  allowImages?: boolean;
+  /** Texto da protecao de dados embaixo da caixa (padrao: so nomes de tabelas e campos). */
+  privacyNote?: string;
   subtitle: string;
   examples: string[];
   placeholder: string;
@@ -76,8 +94,15 @@ interface AiChatPanelProps {
   disabled?: boolean;
 }
 
-export function AiChatPanel({ messages, pending, hasResult, onSend, subtitle, examples, placeholder, changePlaceholder, header, disabled }: AiChatPanelProps) {
+export function AiChatPanel({ messages, pending, hasResult, onSend, subtitle, examples, placeholder, changePlaceholder, header, disabled, allowImages, privacyNote }: AiChatPanelProps) {
   const [input, setInput] = useState('');
+  const [files, setFiles] = useState<File[]>([]);
+  const fileInput = useRef<HTMLInputElement>(null);
+  const addFiles = (list: FileList | File[]) => {
+    const images = Array.from(list).filter((f) => /^image\/(jpeg|png|webp|gif)$/.test(f.type));
+    if (images.some((f) => f.size > 5 * 1024 * 1024)) toast.error('Cada imagem pode ter até 5 MB.');
+    setFiles((prev) => [...prev, ...images.filter((f) => f.size <= 5 * 1024 * 1024)].slice(0, 3));
+  };
   const endRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -86,9 +111,11 @@ export function AiChatPanel({ messages, pending, hasResult, onSend, subtitle, ex
 
   const send = async (text: string) => {
     if (disabled) return;
+    const sending = files;
     setInput('');
-    const ok = await onSend(text);
-    if (!ok) setInput(text);
+    setFiles([]);
+    const ok = await onSend(text, sending);
+    if (!ok) { setInput(text); setFiles(sending); }
   };
 
   return (
@@ -131,6 +158,12 @@ export function AiChatPanel({ messages, pending, hasResult, onSend, subtitle, ex
                 )}
                 data-testid={m.role === 'assistant' ? 'ai-reply' : undefined}
               >
+                {m.images && m.images.length > 0 && (
+                  <span className="mb-1.5 flex flex-wrap gap-1.5">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    {m.images.map((src) => <img key={src} src={src} alt="" className="h-16 w-16 rounded-md object-cover" />)}
+                  </span>
+                )}
                 {m.content}
               </div>
             </div>
@@ -143,10 +176,25 @@ export function AiChatPanel({ messages, pending, hasResult, onSend, subtitle, ex
           <div ref={endRef} />
         </div>
 
-        <div className="space-y-2">
+        <div className="space-y-2"
+          onDragOver={allowImages ? (e) => e.preventDefault() : undefined}
+          onDrop={allowImages ? (e) => { e.preventDefault(); addFiles(e.dataTransfer.files); } : undefined}>
+          {files.length > 0 && (
+            <div className="flex flex-wrap gap-2" data-testid="ai-attachments">
+              {files.map((f, i) => (
+                <span key={`${f.name}-${i}`} className="relative">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={URL.createObjectURL(f)} alt={f.name} className="h-14 w-14 rounded-md border object-cover" />
+                  <button type="button" onClick={() => setFiles(files.filter((_, j) => j !== i))} aria-label="Tirar imagem"
+                    className="absolute -right-1.5 -top-1.5 rounded-full bg-foreground px-1 text-[10px] leading-4 text-background">×</button>
+                </span>
+              ))}
+            </div>
+          )}
           <Textarea
             value={input}
             onChange={(e) => setInput(e.target.value)}
+            onPaste={allowImages ? (e) => { if (e.clipboardData.files.length) { e.preventDefault(); addFiles(e.clipboardData.files); } } : undefined}
             onKeyDown={(e) => {
               if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
@@ -160,13 +208,24 @@ export function AiChatPanel({ messages, pending, hasResult, onSend, subtitle, ex
             data-testid="ai-input"
             data-tour="ai-chat-input"
           />
-          <div className="flex items-center justify-between gap-2">
+          <div className={cn('flex items-center justify-between gap-2', allowImages && 'flex-col-reverse items-stretch')}>
             <p className="flex items-center gap-1 text-[11px] text-muted-foreground">
-              <Lock className="h-3 w-3" /> A IA vê só os nomes das tabelas e campos, nunca os seus registros.
+              <Lock className="h-3 w-3" /> {privacyNote ?? 'A IA vê só os nomes das tabelas e campos, nunca os seus registros.'}
             </p>
-            <Button size="sm" onClick={() => void send(input)} disabled={pending || disabled || !input.trim()} data-testid="ai-send">
-              <Send className="mr-1.5 h-4 w-4" /> Enviar
-            </Button>
+            <span className={cn('flex shrink-0 items-center gap-1.5', allowImages && 'justify-end')}>
+              {allowImages && (
+                <>
+                  <input ref={fileInput} type="file" accept="image/jpeg,image/png,image/webp,image/gif" multiple className="hidden" data-testid="ai-image-input"
+                    onChange={(e) => { if (e.target.files) addFiles(e.target.files); e.target.value = ''; }} />
+                  <Button size="sm" variant="outline" onClick={() => fileInput.current?.click()} disabled={pending || disabled || files.length >= 3} title="Enviar imagem de modelo ou foto (até 3)" data-testid="ai-attach">
+                    <ImagePlus className="mr-1.5 h-4 w-4" /> Imagem
+                  </Button>
+                </>
+              )}
+              <Button size="sm" onClick={() => void send(input)} disabled={pending || disabled || (!input.trim() && files.length === 0)} data-testid="ai-send">
+                <Send className="mr-1.5 h-4 w-4" /> Enviar
+              </Button>
+            </span>
           </div>
         </div>
       </CardContent>
