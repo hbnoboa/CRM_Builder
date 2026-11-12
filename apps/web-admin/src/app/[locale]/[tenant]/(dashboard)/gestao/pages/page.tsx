@@ -2,7 +2,7 @@
 
 import { absoluteSiteUrl } from '@/lib/site-api';
 import { useState } from 'react';
-import { Copy, ExternalLink, Globe, ListChecks, Loader2, Pencil, Plus, Send, Trash2 } from 'lucide-react';
+import { Copy, ExternalLink, Globe, ListChecks, Loader2, Pencil, Plus, Send, Sparkles, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Link } from '@/i18n/tenant-navigation';
 import { Button } from '@/components/ui/button';
@@ -13,11 +13,13 @@ import {
 import { RequireRole } from '@/components/auth/require-role';
 import { GestaoPageHeader } from '@/components/gestao/gestao-ui';
 import { useDeleteSitePage, useSitePages, type SitePageListItem } from '@/hooks/use-site-pages';
+import { useAiBuilderStatus } from '@/hooks/use-ai-builder';
 import { SiteDomainsCard } from '@/components/site/site-domains-card';
 import { cn } from '@/lib/utils';
 
 function PagesContent() {
   const { data: pages, isLoading } = useSitePages();
+  const { data: aiStatus } = useAiBuilderStatus();
   const remove = useDeleteSitePage();
   const [deleting, setDeleting] = useState<SitePageListItem | null>(null);
   const fullUrl = (p: SitePageListItem) => absoluteSiteUrl(p.url);
@@ -27,7 +29,14 @@ function PagesContent() {
       <GestaoPageHeader
         title="Páginas para clientes"
         subtitle="O site da sua empresa: páginas que seus clientes abrem sem login (apresentação, vitrine de produtos ou cardápio, formulários que viram registro e acompanhamento pelo link). A aparência, o menu e o rodapé do site são editados dentro de qualquer página: clique no topo ou no rodapé dela."
-        actions={<Button asChild><Link href="/gestao/pages/new"><Plus className="mr-1.5 h-4 w-4" />Nova página</Link></Button>}
+        actions={(
+          <div className="flex flex-wrap gap-2">
+            {aiStatus?.enabled && (
+              <Button asChild variant="outline" data-testid="pages-ai"><Link href="/gestao/pages/ai"><Sparkles className="mr-1.5 h-4 w-4" />Criar com IA</Link></Button>
+            )}
+            <Button asChild><Link href="/gestao/pages/new"><Plus className="mr-1.5 h-4 w-4" />Nova página</Link></Button>
+          </div>
+        )}
       />
 
       {!!pages?.length && <SiteDomainsCard />}

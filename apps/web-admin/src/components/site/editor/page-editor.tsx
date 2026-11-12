@@ -5,7 +5,7 @@ import { createPortal } from 'react-dom';
 import { DndContext, PointerSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core';
 import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { ArrowLeft, Copy, ExternalLink, Globe, GripVertical, Loader2, Monitor, Plus, Redo2, Save, Smartphone, Undo2 } from 'lucide-react';
+import { ArrowLeft, Copy, ExternalLink, Globe, GripVertical, Loader2, Monitor, Plus, Redo2, Save, Smartphone, Sparkles, Undo2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Link } from '@/i18n/tenant-navigation';
 import { Button } from '@/components/ui/button';
@@ -27,6 +27,9 @@ import { PageInspector } from './page-inspector';
 import * as ops from './page-doc';
 import { useDocHistory } from './use-doc-history';
 import { SECTION_TEMPLATES, insertTemplate } from './section-templates';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { AiPageBuilder, type AiPageResult } from '@/components/ai-builder/ai-page-builder';
+import { useAiBuilderStatus } from '@/hooks/use-ai-builder';
 
 const docOf = (page: SitePage, site: SiteConfigDraft): ops.PageDoc => ({
   blocks: page.blocks,
@@ -79,6 +82,8 @@ export function SitePageEditor({ id }: { id: string }) {
   const [dragOverSection, setDragOverSection] = useState<string | null>(null);
   const [toolbarSlot, setToolbarSlot] = useState<HTMLDivElement | null>(null);
   const [paletteTab, setPaletteTab] = useState<'elements' | 'sections'>('elements');
+  const [aiOpen, setAiOpen] = useState(false);
+  const { data: aiStatus } = useAiBuilderStatus();
   const [preview, setPreview] = useState<SitePageData | null>(null);
   const [previewError, setPreviewError] = useState<string | null>(null);
 
@@ -304,6 +309,11 @@ export function SitePageEditor({ id }: { id: string }) {
           ))}
         </div>
 
+        {aiStatus?.enabled && (
+          <Button variant="outline" className="h-9" onClick={() => setAiOpen(true)} data-testid="editor-ai">
+            <Sparkles className="mr-1.5 h-4 w-4" /> IA
+          </Button>
+        )}
         <Button size="icon" variant="ghost" className="h-9 w-9" disabled={!history.canUndo} onClick={undo} title="Desfazer (Ctrl+Z)" data-testid="editor-undo"><Undo2 className="h-4 w-4" /></Button>
         <Button size="icon" variant="ghost" className="h-9 w-9" disabled={!history.canRedo} onClick={redo} title="Refazer (Ctrl+Shift+Z)" data-testid="editor-redo"><Redo2 className="h-4 w-4" /></Button>
         <span className={cn('rounded-full px-2.5 py-1 text-xs font-medium', page.isPublished ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300' : 'bg-muted text-muted-foreground')}>
@@ -451,6 +461,37 @@ export function SitePageEditor({ id }: { id: string }) {
           <PageInspector doc={doc} selection={selection} brandColor={brandColor} entities={entities} pdfs={pdfs} scrap={scrap} sitePages={siteInfo.pages} {...actions} />
         </aside>
       </div>
+      <Dialog open={aiOpen} onOpenChange={setAiOpen}>
+        <DialogContent className="max-h-[92vh] max-w-[min(1400px,96vw)] overflow-y-auto" data-testid="editor-ai-dialog">
+          <DialogHeader><DialogTitle>Mudar a página com IA</DialogTitle></DialogHeader>
+          {aiOpen && (
+            <AiPageBuilder
+              mode="edit"
+              current={ops.docToAi(doc, title)}
+              onApply={(r: AiPageResult) => {
+                const look = { ...r.page.settings };
+                delete look.ownLook;
+                // A pagina vira a proposta; o visual vai para onde vale (a pagina ou o site); da para desfazer
+                change((d) => ({
+                  ...d,
+                  blocks: r.page.blocks,
+                  layout: r.page.layout,
+                  look: d.look.ownLook ? { ...(look as SiteLookDraft), ownLook: true } : d.look,
+                  site: d.look.ownLook ? d.site : {
+                    ...d.site, look,
+                    ...(r.header ? { header: r.header } : {}),
+                    ...(r.footerStyle ? { footerStyle: r.footerStyle } : {}),
+                  },
+                }));
+                if (r.page.title && !title.trim()) setTitle(r.page.title);
+                setSelection({ kind: 'page' });
+                setAiOpen(false);
+                toast.success('Página trocada pela proposta da IA. Confira e salve (dá para desfazer).');
+              }}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
     </div>,
     document.body,
   );
