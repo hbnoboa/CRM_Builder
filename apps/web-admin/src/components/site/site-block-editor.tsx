@@ -20,7 +20,7 @@ export type EditorEntity = {
   name: string;
   namePlural?: string;
   settings?: { statusField?: string; titleField?: string } | null;
-  fields?: Array<{ slug: string; name?: string; label?: string; type: string; required?: boolean; options?: unknown[]; subEntitySlug?: string; subEntityId?: string }>;
+  fields?: Array<{ slug: string; name?: string; label?: string; type: string; required?: boolean; default?: unknown; options?: unknown[]; subEntitySlug?: string; subEntityId?: string }>;
 };
 export type EditorPdf = { id: string; name: string; sourceEntityId?: string | null; isPublished?: boolean; templateType?: string };
 
@@ -36,8 +36,12 @@ export function parentOf(entity: EditorEntity | undefined, entities: EditorEntit
   return entities.find((e) => (e.fields || []).some((f) => f.type === 'sub-entity' && (f.subEntitySlug === entity.slug || f.subEntityId === entity.id)));
 }
 
+/** Obrigatorio que o cliente precisa preencher: com valor padrao, o servidor preenche sozinho. */
+const mustFill = (f: NonNullable<EditorEntity['fields']>[number], statusField?: string) =>
+  !!f.required && !NOT_REQUIRED.has(f.type) && f.slug !== statusField && (f.default === undefined || f.default === null || f.default === '');
+
 function requiredOf(e: EditorEntity | undefined): string[] {
-  return (e?.fields || []).filter((f) => f.required && !NOT_REQUIRED.has(f.type) && f.slug !== e?.settings?.statusField).map((f) => f.slug);
+  return (e?.fields || []).filter((f) => mustFill(f, e?.settings?.statusField)).map((f) => f.slug);
 }
 
 function suggestMatch(e: EditorEntity): string | undefined {
@@ -173,7 +177,7 @@ function FormFields({ block, onChange, entities }: { block: SiteBlockDraft; onCh
   const entity = entities.find((e) => e.slug === block.entitySlug);
   const fields = (entity?.fields || []).filter((f) => FORM_TYPES.has(f.type));
   const statusSlug = entity?.settings?.statusField;
-  const required = new Set((entity?.fields || []).filter((f) => f.required && !NOT_REQUIRED.has(f.type) && f.slug !== statusSlug).map((f) => f.slug));
+  const required = new Set(requiredOf(entity));
   const selected = Array.from(new Set([...((block.fields as string[] | undefined) || []), ...Array.from(required)]));
   const status = statusSlug ? entity?.fields?.find((f) => f.slug === statusSlug) : undefined;
   const firstStatus = status?.options?.[0] as { label?: string } | string | undefined;

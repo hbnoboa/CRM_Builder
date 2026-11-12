@@ -437,11 +437,22 @@ export interface RawField {
   placeholder?: string;
   helpText?: string;
   multiple?: boolean;
+  /** Valor padrao: campo obrigatorio com padrao nao precisa estar no formulario. */
+  default?: unknown;
 }
 
-/** Campos obrigatorios da tabela que o cliente teria de preencher. */
+export const hasDefault = (f: RawField) => f.default !== undefined && f.default !== null && f.default !== '';
+
+/** Padrao com marcador de data ({{now}} = agora, {{today}} = hoje no horario de Brasilia). */
+export function resolveDefault(value: unknown, now = new Date()): unknown {
+  if (value === '{{now}}') return now.toISOString();
+  if (value === '{{today}}') return now.toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });
+  return value;
+}
+
+/** Campos obrigatorios da tabela que o cliente teria de preencher (os com padrao se preenchem sozinhos). */
 export function requiredFields(rawFields: RawField[], statusField?: string): RawField[] {
-  return rawFields.filter((f) => f.required && !NOT_REQUIRED_TYPES.has(f.type) && f.slug !== statusField);
+  return rawFields.filter((f) => f.required && !NOT_REQUIRED_TYPES.has(f.type) && f.slug !== statusField && !hasDefault(f));
 }
 
 export interface NormalizeContext {

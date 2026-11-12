@@ -7,7 +7,8 @@
  *
  * Cada modelo vira a empresa "<tenantName>" com o dono modelos+<slug>@iossystem.com.br.
  * Retomavel: o que ja existe (tabelas, cargos, registros raiz pelo campo-titulo, paineis,
- * PDFs, comandos) e mantido e so o que falta e criado. Respeita o limite do nginx
+ * PDFs, comandos) e mantido e so o que falta e criado. Com SOLUTIONS_SYNC_FIELDS=1, as regras
+ * dos campos que ja existem (obrigatorio, padrao, ajuda) tambem sao alinhadas com o modelo. Respeita o limite do nginx
  * (~8 req/s e nova tentativa em 429/503). Imprime o JSON { slug, tenantId, ownerEmail }.
  */
 import { SOLUTIONS } from './index';
@@ -17,6 +18,8 @@ const API = (process.env.SOLUTIONS_API || 'http://127.0.0.1:3901/api/v1').replac
 const PASSWORD = process.env.SOLUTIONS_PASSWORD;
 // Etiqueta opcional no e-mail do dono (rodadas de teste): modelos+<slug>-<tag>@...
 const TAG = process.env.SOLUTIONS_TAG ? `-${process.env.SOLUTIONS_TAG}` : '';
+// Modelos ja montados: alinha obrigatorio/padrao/ajuda dos campos existentes com o codigo
+const SYNC_FIELDS = process.env.SOLUTIONS_SYNC_FIELDS === '1';
 
 type Json = Record<string, unknown>;
 
@@ -55,11 +58,39 @@ async function session(spec: SolutionSpec): Promise<{ token: string; tenantId: s
   }
 }
 
+/**
+ * Empresa-modelo ja montada: alinha so as regras dos campos que existem (obrigatorio,
+ * valor padrao, texto de ajuda) com o modelo. Nao cria, nao apaga e nao mexe no resto.
+ */
+async function syncFieldRules(token: string, entityId: string, e: EntitySpec): Promise<void> {
+  const current = await call<{ fields: Json[] }>('GET', `/entities/${entityId}`, token);
+  const spec = new Map(e.fields.map((f) => [f.slug, f as unknown as Json]));
+  let changed = 0;
+  const fields = current.fields.filter((f) => !f.system).map((f) => {
+    const want = spec.get(String(f.slug));
+    if (!want) return f;
+    const next: Json = { ...f };
+    for (const key of ['required', 'default', 'helpText']) {
+      if (want[key] === undefined) delete next[key];
+      else next[key] = want[key];
+    }
+    if (JSON.stringify(next) !== JSON.stringify(f)) changed++;
+    return next;
+  });
+  if (!changed) return;
+  await call('PATCH', `/entities/${entityId}`, token, { fields });
+  console.error(`  ${e.slug}: ${changed} campo(s) alinhado(s) com o modelo`);
+}
+
 /** Filhas antes do pai (o campo sub-entity precisa do id da filha). */
 async function createEntities(token: string, entities: EntitySpec[], existing: Map<string, string>): Promise<Map<string, string>> {
   const ids = new Map<string, string>(existing);
   for (const e of entities) {
-    if (ids.has(e.slug)) continue; // ja criada numa rodada anterior
+    if (ids.has(e.slug)) {
+      // ja criada numa rodada anterior; SOLUTIONS_SYNC_FIELDS=1 alinha obrigatorio/padrao/ajuda com o modelo
+      if (SYNC_FIELDS) await syncFieldRules(token, ids.get(e.slug) as string, e);
+      continue;
+    }
     const fields = e.fields.map((f) => {
       const out: Json = { ...f };
       if (f.subEntitySlug) {

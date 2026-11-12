@@ -365,7 +365,8 @@ export function RecordFormFields({
       } else {
         const initialData: Record<string, unknown> = {};
         entity.fields?.forEach((field) => {
-          if (field.default !== undefined) initialData[field.slug] = field.default;
+          // Padrao pode ser marcador ({{now}}, {{today}}), como no preenchimento automatico
+          if (field.default !== undefined) initialData[field.slug] = typeof field.default === 'string' ? resolveValueTemplate(field.default) : field.default;
           else if (field.type === 'boolean') initialData[field.slug] = false;
           else if (field.type === 'number' || field.type === 'currency' || field.type === 'percentage') initialData[field.slug] = '';
           else if (field.type === 'multiselect') initialData[field.slug] = [];

@@ -56,10 +56,10 @@ const chamados = {
   settings: { titleField: 'numero', captureLocation: true, statusField: 'status', doneValues: ['resolvido', 'cancelado'], deadlineField: 'prazo' },
   fields: rows(
     [
-      field('numero', 'Nº do chamado', 'text', 3, { required: true, unique: true, placeholder: 'CH-0001' }),
-      field('aberto_em', 'Aberto em', 'datetime', 3, { required: true }),
+      field('numero', 'Nº do chamado', 'text', 3, { unique: true, placeholder: 'CH-0001', helpText: 'A equipe preenche ao receber o chamado' }),
+      field('aberto_em', 'Aberto em', 'datetime', 3, { required: true, default: '{{now}}' }),
       field('categoria', 'Categoria', 'select', 3, { required: true, options: CATEGORIA }),
-      field('prioridade', 'Prioridade', 'select', 3, { required: true, options: PRIORIDADE }),
+      field('prioridade', 'Prioridade', 'select', 3, { required: true, default: 'media', options: PRIORIDADE }),
     ],
     [
       field('status', 'Situação', 'select', 4, { required: true, options: STATUS }),

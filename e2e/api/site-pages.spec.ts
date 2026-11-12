@@ -263,3 +263,40 @@ test.describe.serial('formulario que cria o registro de cima junto', () => {
     expect(avisos.map((a: { data: { relato: string } }) => a.data.relato).sort()).toEqual(['Bati o carro', 'Vidro quebrado']);
   });
 });
+
+// Obrigatorio com valor padrao (ex.: prioridade, data de abertura) nao precisa estar no
+// formulario do site: o servidor preenche, inclusive com {{now}}/{{today}}.
+test.describe.serial('valor padrao nos formularios do site', () => {
+  let tenant: Tenant;
+  test.beforeAll(async ({ request }) => {
+    tenant = await createTenant(request, await ownerStaff(request));
+    await call(request, 'post', '/entities', tenant.owner, {
+      expected: [200, 201],
+      data: {
+        name: 'Chamado', slug: 'chamados', settings: { titleField: 'relato', statusField: 'status' },
+        fields: [
+          { slug: 'relato', name: 'relato', label: 'Relato', type: 'textarea', required: true },
+          { slug: 'prioridade', name: 'prioridade', label: 'Prioridade', type: 'select', required: true, default: 'media', options: [{ value: 'baixa', label: 'Baixa' }, { value: 'media', label: 'Média' }] },
+          { slug: 'aberto_em', name: 'aberto_em', label: 'Aberto em', type: 'datetime', required: true, default: '{{now}}' },
+          { slug: 'dia', name: 'dia', label: 'Dia', type: 'date', required: true, default: '{{today}}' },
+          { slug: 'status', name: 'status', label: 'Situação', type: 'select', required: true, options: STATUS },
+        ],
+      },
+    });
+  });
+
+  test('formulario so com o relato e aceito e o registro sai com os padroes', async ({ request }) => {
+    const page = await (await call(request, 'post', '/site-pages', tenant.owner, { expected: [200, 201], data: { title: 'Abrir chamado', template: 'blank' } })).json();
+    await call(request, 'patch', `/site-pages/${page.id}`, tenant.owner, {
+      expected: 200, data: { blocks: [{ id: 'f', type: 'form', entitySlug: 'chamados', fields: ['relato'] }] },
+    });
+    await call(request, 'post', `/site-pages/${page.id}/publish`, tenant.owner, { expected: [200, 201], data: { publish: true } });
+    const before = Date.now();
+    await call(request, 'post', `/site/${tenant.slug}/${page.slug}/forms/f`, null, { expected: [200, 201], data: { data: { relato: 'Luz queimada' } } });
+    const list = await (await call(request, 'get', '/data/chamados', tenant.owner)).json();
+    const rec = list.data[0].data;
+    expect(rec).toMatchObject({ relato: 'Luz queimada', prioridade: 'media', status: 'aberto' });
+    expect(Math.abs(Date.parse(rec.aberto_em) - before)).toBeLessThan(60_000);
+    expect(rec.dia).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+  });
+});

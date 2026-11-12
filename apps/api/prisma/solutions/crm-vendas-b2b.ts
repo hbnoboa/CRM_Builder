@@ -56,10 +56,10 @@ const oportunidades = {
       field('etapa', 'Etapa', 'select', 4, { required: true, options: ETAPA }),
     ],
     [
-      field('valor', 'Valor', 'currency', 3, { required: true, min: 0 }),
+      field('valor', 'Valor', 'currency', 3, { min: 0 }),
       field('probabilidade', 'Chance de fechar', 'percentage', 3, { min: 0, max: 100 }),
       field('previsao', 'Previsão de fechamento', 'date', 3),
-      field('criada_em', 'Criada em', 'date', 3, { required: true }),
+      field('criada_em', 'Criada em', 'date', 3, { required: true, default: '{{today}}' }),
     ],
     [
       field('vendedor', 'Vendedor', 'text', 4),
@@ -97,6 +97,7 @@ const empresas = {
       field('nome', 'Empresa', 'text', 8, { required: true }),
       field('situacao', 'Situação', 'select', 4, {
         required: true,
+        default: 'prospect',
         options: opts(['prospect', 'Prospect', C.blue], ['cliente', 'Cliente', C.green], ['inativa', 'Inativa', C.gray]),
       }),
     ],

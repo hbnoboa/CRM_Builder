@@ -117,6 +117,8 @@
 .site-canvas { container-type: inline-size; container-name: site; }
 .site-grid { display: flex; flex-direction: column; gap: var(--site-gap-y, 20px); }
 .site-item { min-width: 0; container-type: inline-size; }
+/* Pilha (coluna ao lado de um elemento alto): no celular nao existe, cada elemento segue a ordem da grade */
+.site-stack { display: contents; }
 @container site (min-width: 768px) {
   .site-grid {
     display: grid;
@@ -126,11 +128,16 @@
     row-gap: var(--site-gap-y, 20px);
   }
   .site-grid > .site-item { grid-column: var(--site-col, 1 / -1); grid-row: var(--site-rows, auto); }
+  .site-grid > .site-stack {
+    display: flex; flex-direction: column; gap: var(--site-gap-y, 20px); min-width: 0;
+    grid-column: var(--site-col, 1 / -1); grid-row: var(--site-rows, auto);
+  }
+  .site-stack > .site-item { min-height: var(--site-pile-h, 0); }
   .site-hide-desktop { display: none !important; }
 }
 @container site (max-width: 767.98px) {
   .site-hide-mobile { display: none !important; }
-  .site-grid > .site-item { order: var(--site-order, 0); min-height: var(--site-minh, 0); }
+  :is(.site-grid, .site-stack) > .site-item { order: var(--site-order, 0); min-height: var(--site-minh, 0); }
 }
 /* Texto claro sobre fundo escuro (secao ou elemento) */
 .site-ink-light :is(.text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600, .text-slate-500) { color: rgb(255 255 255 / 0.92); }
