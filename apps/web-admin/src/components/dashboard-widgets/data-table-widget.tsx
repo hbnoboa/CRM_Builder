@@ -704,6 +704,22 @@ function DataTableWidgetInner({ entitySlug, config, title, ctx }: DataTableWidge
     refresh();
   }, [refresh]);
 
+  // Busca e filtros de campo ativos, no formato da API (exportacao e PDF em lote usam os mesmos)
+  const activeQueryFilters = useCallback((): { search?: string; filters?: string } => ({
+    ...(filters.searchTerm ? { search: filters.searchTerm } : {}),
+    ...(filters.fieldFilters.length > 0
+      ? {
+          filters: JSON.stringify(filters.fieldFilters.map(f => ({
+            fieldSlug: f.fieldSlug,
+            operator: f.operator,
+            value: f.value,
+            ...(f.value2 !== undefined ? { value2: f.value2 } : {}),
+            fieldType: f.fieldType,
+          }))),
+        }
+      : {}),
+  }), [filters]);
+
   // Export
   const handleExport = useCallback(async (format: 'json' | 'xlsx') => {
     try {
@@ -720,26 +736,11 @@ function DataTableWidgetInner({ entitySlug, config, title, ctx }: DataTableWidge
       };
 
       // SEMPRE aplicar filtros (search, sort, field filters)
-      if (filters.searchTerm) {
-        params.search = filters.searchTerm;
-        console.log('🔍 [Export] Aplicando search:', params.search);
-      }
+      Object.assign(params, activeQueryFilters());
       if (filters.sortBy) {
         params.sortBy = filters.sortBy;
         params.sortOrder = filters.sortOrder;
         console.log('↕️ [Export] Aplicando sort:', params.sortBy, params.sortOrder);
-      }
-      // Convert fieldFilters to backend format
-      if (filters.fieldFilters.length > 0) {
-        const backendFilters = filters.fieldFilters.map(f => ({
-          fieldSlug: f.fieldSlug,
-          operator: f.operator,
-          value: f.value,
-          ...(f.value2 !== undefined ? { value2: f.value2 } : {}),
-          fieldType: f.fieldType,
-        }));
-        params.filters = JSON.stringify(backendFilters);
-        console.log('🎯 [Export] Aplicando filtros de campo:', backendFilters);
       }
 
       // Se houver registros selecionados, exportar apenas esses (mas respeitando os filtros acima)
@@ -772,7 +773,7 @@ function DataTableWidgetInner({ entitySlug, config, title, ctx }: DataTableWidge
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Erro ao exportar');
     }
-  }, [selectedIds, filters, entity?.name, entitySlug]);
+  }, [selectedIds, filters, activeQueryFilters, entity?.name, entitySlug]);
 
   // PDF export
   const handlePdfExport = useCallback(async (template: PdfTemplate) => {
@@ -812,7 +813,8 @@ function DataTableWidgetInner({ entitySlug, config, title, ctx }: DataTableWidge
         toast.success(ids.length === 1 ? 'PDF gerado com sucesso' : `${success} de ${ids.length} PDF(s) gerado(s)`);
       } else {
         const { blob, fileName } = await pdfTemplatesService.generateBatch(template.id, {
-          ...(hasSelection ? { recordIds: ids } : { useAllRecords: true }),
+          // Sem selecao: todos os registros QUE PASSAM na busca e nos filtros da tabela
+          ...(hasSelection ? { recordIds: ids } : { useAllRecords: true, ...activeQueryFilters() }),
           mergePdfs: true,
         });
         const url = URL.createObjectURL(blob);
@@ -830,7 +832,7 @@ function DataTableWidgetInner({ entitySlug, config, title, ctx }: DataTableWidge
     } finally {
       setGeneratingPdf(false);
     }
-  }, [generatingPdf, selectedIds, sortedRecords]);
+  }, [generatingPdf, selectedIds, sortedRecords, activeQueryFilters]);
 
   // Column toggle
   const toggleColumn = useCallback((slug: string) => {
