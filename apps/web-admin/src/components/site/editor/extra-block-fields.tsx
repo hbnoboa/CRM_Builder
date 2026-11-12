@@ -71,7 +71,6 @@ export function ExtraBlockFields({ block, onChange }: { block: SiteBlockDraft; o
       return (
         <>
           <Input value={str(block.url)} onChange={(e) => onChange({ url: e.target.value.trim() })} placeholder="Link do YouTube ou Vimeo (https://youtu.be/…)" data-testid="field-video-url" />
-          <p className="text-[11px] text-muted-foreground">YouTube e Vimeo aparecem com a capa e o botão de play, que abre o vídeo. Vídeo enviado do computador toca na própria página.</p>
           <p className="text-[11px] text-muted-foreground">…ou envie um vídeo do computador (mp4/webm):</p>
           <ImageUploadField value={str(block.url)} onChange={(v) => onChange({ url: String(Array.isArray(v) ? v[0] ?? '' : v) })} mode="file" accept="video/mp4,video/webm" folder="site" />
           <Input value={str(block.caption)} onChange={(e) => onChange({ caption: e.target.value })} placeholder="Legenda (opcional)" />
@@ -81,8 +80,8 @@ export function ExtraBlockFields({ block, onChange }: { block: SiteBlockDraft; o
       return (
         <>
           <Input value={str(block.address)} onChange={(e) => onChange({ address: e.target.value })} placeholder="Endereço. Ex.: Av. Paulista, 1000, São Paulo" data-testid="field-map-address" />
-          <Range label="Altura" value={Number(block.height) || 320} min={160} max={360} step={20} suffix="px" onChange={(height) => onChange({ height })} />
-          <p className="text-[11px] text-muted-foreground">Na página aparece o endereço com os botões “Ver no mapa” e “Como chegar” (Google Maps).</p>
+          <Range label="Aproximação" value={Number(block.zoom) || 15} min={3} max={20} onChange={(zoom) => onChange({ zoom })} />
+          <Range label="Altura" value={Number(block.height) || 320} min={160} max={800} step={20} suffix="px" onChange={(height) => onChange({ height })} />
         </>
       );
     case 'faq':

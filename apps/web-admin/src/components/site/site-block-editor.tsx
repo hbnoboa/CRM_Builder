@@ -59,7 +59,7 @@ export const BLOCK_KINDS: Array<{ type: string; label: string; icon: typeof Type
   { type: 'catalog', label: 'Vitrine de uma tabela', icon: Store, hint: 'Mostra os itens de uma tabela (cardápio, produtos)' },
   { type: 'divider', label: 'Linha', icon: Minus, hint: 'Separa partes da página' },
   { type: 'video', label: 'Vídeo', icon: Video, hint: 'YouTube, Vimeo ou vídeo do computador' },
-  { type: 'map', label: 'Mapa', icon: MapIcon, hint: 'Endereço com “Ver no mapa” e “Como chegar”' },
+  { type: 'map', label: 'Mapa', icon: MapIcon, hint: 'Mapa do Google com o endereço' },
   { type: 'faq', label: 'Perguntas', icon: CircleHelp, hint: 'Perguntas frequentes que abrem e fecham' },
   { type: 'icons', label: 'Ícones com texto', icon: Shapes, hint: 'Serviços ou vantagens com ícone' },
   { type: 'stats', label: 'Números', icon: Hash, hint: 'Ex.: +500 clientes, 10 anos' },

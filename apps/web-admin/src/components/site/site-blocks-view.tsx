@@ -1,6 +1,6 @@
 'use client';
 
-import { Check, ChevronDown, MapPin, Play, Quote } from 'lucide-react';
+import { Check, ChevronDown, Quote } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { SITE_ICON_MAP, SOCIALS, parseVideo } from '@/lib/site-icons';
 import type { SiteBlockView } from '@/lib/site-api';
@@ -19,61 +19,49 @@ function Title({ text, center }: { text?: string; center?: boolean }) {
 
 const GRID: Record<number, string> = { 1: '', 2: 'csm:grid-cols-2', 3: 'csm:grid-cols-3', 4: 'csm:grid-cols-4' };
 
-/**
- * Video: arquivo enviado toca na propria pagina; YouTube/Vimeo aparecem com a capa
- * e o botao de play, que abre o video (sem embutir player de outro site na pagina).
- */
+/** Video: arquivo enviado, YouTube ou Vimeo tocam na propria pagina. */
 export function VideoView({ block, preview }: { block: Of<'video'>; preview?: boolean }) {
   const v = parseVideo(block.url);
   if (!v) return null;
   return (
     <figure>
-      {v.kind === 'file' ? (
-        <div className="relative aspect-video w-full overflow-hidden rounded-2xl bg-black shadow-md">
+      <div className="relative aspect-video w-full overflow-hidden rounded-2xl bg-black shadow-md">
+        {v.kind === 'file' ? (
           <video src={v.url} controls playsInline className="absolute inset-0 h-full w-full object-cover" />
-        </div>
-      ) : (
-        <a href={preview ? undefined : v.watch} target="_blank" rel="noopener noreferrer" data-testid="site-video-link"
-          className="group relative block aspect-video w-full overflow-hidden rounded-2xl bg-slate-900 shadow-md">
-          {v.thumb
-            // eslint-disable-next-line @next/next/no-img-element
-            ? <img src={v.thumb} alt={block.caption || 'Vídeo'} className="absolute inset-0 h-full w-full object-cover transition-transform duration-300 group-hover:scale-105" />
-            : <span className="absolute inset-0" style={{ background: 'linear-gradient(135deg, var(--site-accent), #111)' }} />}
-          <span className="absolute inset-0 bg-black/25" />
-          <span className="absolute left-1/2 top-1/2 flex h-16 w-16 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full shadow-xl transition-transform group-hover:scale-110"
-            style={{ backgroundColor: 'var(--site-accent)', color: 'var(--site-on-accent)' }}>
-            <Play className="ml-1 h-7 w-7" fill="currentColor" />
-          </span>
-          <span className="absolute bottom-3 right-3 rounded-full bg-black/60 px-2.5 py-1 text-xs text-white">
-            Assistir no {v.kind === 'youtube' ? 'YouTube' : 'Vimeo'}
-          </span>
-        </a>
+        ) : (
+          <iframe src={v.embed} title={block.caption || 'Vídeo'} loading="lazy" allowFullScreen data-testid="site-video-embed"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+            referrerPolicy="strict-origin-when-cross-origin"
+            className={cn('absolute inset-0 h-full w-full border-0', preview && 'pointer-events-none')} />
+        )}
+      </div>
+      {(block.caption || v.kind !== 'file') && (
+        <figcaption className="mt-2 flex flex-wrap items-center justify-center gap-x-3 text-sm text-slate-500">
+          {block.caption && <span>{block.caption}</span>}
+          {v.kind !== 'file' && !preview && (
+            <a href={v.watch} target="_blank" rel="noopener noreferrer" className="text-xs underline">Abrir no {v.kind === 'youtube' ? 'YouTube' : 'Vimeo'}</a>
+          )}
+        </figcaption>
       )}
-      {block.caption && <figcaption className="mt-2 text-center text-sm text-slate-500">{block.caption}</figcaption>}
     </figure>
   );
 }
 
-/** Mapa: endereco com os botoes do Google Maps (ver no mapa e como chegar). */
+/** Mapa do Google com o endereco, e os botoes para abrir o mapa e tracar a rota. */
 export function MapView({ block, preview }: { block: Of<'map'>; preview?: boolean }) {
   const q = encodeURIComponent(block.address);
+  const src = `https://www.google.com/maps?q=${q}&z=${block.zoom}&output=embed`;
   const links = [
     { label: 'Ver no mapa', href: `https://www.google.com/maps/search/?api=1&query=${q}` },
     { label: 'Como chegar', href: `https://www.google.com/maps/dir/?api=1&destination=${q}` },
   ];
   return (
-    <div className="relative flex flex-col items-center justify-center overflow-hidden rounded-2xl border p-6 text-center shadow-sm"
-      style={{
-        minHeight: Math.min(block.height, 360),
-        backgroundColor: 'var(--site-surface)',
-        backgroundImage: 'linear-gradient(color-mix(in srgb, var(--site-accent) 10%, transparent) 1px, transparent 1px), linear-gradient(90deg, color-mix(in srgb, var(--site-accent) 10%, transparent) 1px, transparent 1px)',
-        backgroundSize: '28px 28px',
-      }} data-testid="site-map">
-      <span className="flex h-14 w-14 items-center justify-center rounded-full shadow-md" style={{ backgroundColor: 'var(--site-accent)', color: 'var(--site-on-accent)' }}>
-        <MapPin className="h-7 w-7" />
-      </span>
-      <p className="mt-3 max-w-sm font-semibold">{block.address}</p>
-      <div className="mt-4 flex flex-wrap justify-center gap-2">
+    <div data-testid="site-map">
+      <div className="overflow-hidden rounded-2xl border shadow-sm">
+        <iframe src={src} title={`Mapa: ${block.address}`} loading="lazy" referrerPolicy="no-referrer-when-downgrade" data-testid="site-map-embed"
+          className={cn('block w-full border-0', preview && 'pointer-events-none')} style={{ height: block.height }} />
+      </div>
+      <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
         {links.map((l, i) => (
           preview
             ? <span key={l.label} className={cn('site-btn !min-h-9 !px-4 !py-1.5 !text-sm', i > 0 && 'site-btn-alt')}>{l.label}</span>

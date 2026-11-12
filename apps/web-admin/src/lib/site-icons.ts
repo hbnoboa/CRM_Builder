@@ -34,16 +34,16 @@ export const SOCIALS: Record<string, { label: string; icon: LucideIcon; placehol
   site: { label: 'Site', icon: Globe, placeholder: 'https://suaempresa.com.br' },
 };
 
-/** Video do YouTube, do Vimeo ou arquivo: como mostrar na pagina. */
+/** Video do YouTube, do Vimeo ou arquivo: player embutido e link para abrir fora. */
 export type ParsedVideo =
-  | { kind: 'youtube' | 'vimeo'; watch: string; thumb?: string }
+  | { kind: 'youtube' | 'vimeo'; embed: string; watch: string }
   | { kind: 'file'; url: string }
   | null;
 export function parseVideo(url: string | undefined): ParsedVideo {
   if (!url) return null;
   const yt = url.match(/(?:youtube(?:-nocookie)?\.com\/(?:watch\?(?:.*&)?v=|embed\/|shorts\/|live\/)|youtu\.be\/)([\w-]{6,20})/i);
-  if (yt) return { kind: 'youtube', watch: `https://www.youtube.com/watch?v=${yt[1]}`, thumb: `https://i.ytimg.com/vi/${yt[1]}/hqdefault.jpg` };
+  if (yt) return { kind: 'youtube', embed: `https://www.youtube-nocookie.com/embed/${yt[1]}?rel=0`, watch: `https://www.youtube.com/watch?v=${yt[1]}` };
   const vm = url.match(/vimeo\.com\/(?:video\/)?(\d{5,12})/i);
-  if (vm) return { kind: 'vimeo', watch: `https://vimeo.com/${vm[1]}` };
+  if (vm) return { kind: 'vimeo', embed: `https://player.vimeo.com/video/${vm[1]}`, watch: `https://vimeo.com/${vm[1]}` };
   return /^https?:\/\//i.test(url) ? { kind: 'file', url } : null;
 }
