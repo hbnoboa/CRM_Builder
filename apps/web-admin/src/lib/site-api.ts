@@ -166,7 +166,7 @@ export interface SitePageData {
   /** Menu entre as paginas (2+ paginas) e rodape comum do site. */
   site?: {
     menu: Array<{ slug: string; label: string; current: boolean }>; footer: SiteFooter; homeSlug: string | null;
-    header?: SiteHeader; footerStyle?: SiteFooterStyle;
+    header?: SiteHeader; footerStyle?: SiteFooterStyle; teamLink?: boolean;
   };
   blocks: SiteBlockView[];
   /** Secoes e grade (paginas antigas: uma secao com os blocos em sequencia). */

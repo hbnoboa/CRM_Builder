@@ -167,6 +167,8 @@ export interface SiteConfig {
   savedThemes?: Array<{ name: string; look: SitePageSettings }>;
   header?: SiteHeader;
   footerStyle?: SiteFooterStyle;
+  /** Link discreto "Area da equipe" no rodape (login dos funcionarios e clientes). */
+  teamLink?: boolean;
 }
 
 function normalizeHeader(raw: unknown): SiteHeader | undefined {
@@ -231,6 +233,7 @@ export function normalizeSiteConfig(raw: unknown, pageSlugs?: Set<string>): Site
     look, menu, footer, ...(home && known(home) ? { homeSlug: home } : {}),
     ...(savedThemes.length ? { savedThemes } : {}),
     ...(header ? { header } : {}), ...(footerStyle ? { footerStyle } : {}),
+    ...(s.teamLink === true ? { teamLink: true } : {}),
   };
 }
 

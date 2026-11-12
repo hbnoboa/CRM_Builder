@@ -404,6 +404,7 @@ export class SitePagesService {
       homeSlug: site.homeSlug ?? null,
       header: site.header ?? {},
       footerStyle: site.footerStyle ?? {},
+      teamLink: site.teamLink === true,
     };
   }
 

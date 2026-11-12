@@ -113,6 +113,8 @@ export interface SiteConfigDraft {
   savedThemes?: Array<{ name: string; look: Record<string, unknown> }>;
   header?: SiteHeader;
   footerStyle?: SiteFooterStyle;
+  /** Link "Area da equipe" no rodape. */
+  teamLink?: boolean;
 }
 export interface SiteInfo {
   config: SiteConfigDraft;
