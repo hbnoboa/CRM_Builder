@@ -25,6 +25,7 @@ import {
   PlatformLoginDto,
   PlatformQueryAuditDto,
   PlatformQueryTenantsDto,
+  PlatformQueryUsersDto,
   PlatformTenantFeaturesDto,
   PlatformTenantLifecycleDto,
   PlatformTenantAddMemberDto,
@@ -120,8 +121,8 @@ export class PlatformController {
 
   @Get('users')
   @RequirePlatformPermission('users.read')
-  searchUsers(@Query('q') q?: string) {
-    return this.usersService.search(q ?? '');
+  listUsers(@Query() query: PlatformQueryUsersDto) {
+    return this.usersService.list(query);
   }
 
   @Get('users/:id')

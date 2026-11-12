@@ -31,11 +31,21 @@ export interface PersonDetail extends Person {
 
 const KEY = ['platform', 'people'] as const;
 
-export function usePeopleSearch(q: string) {
+export interface PeopleParams {
+  q?: string;
+  tenantId?: string;
+  status?: 'ACTIVE' | 'INACTIVE' | 'SUSPENDED';
+  mfa?: 'on' | 'off';
+  owner?: 'true';
+  page?: number;
+  limit?: number;
+}
+
+/** Pessoas de todas as empresas (mais recentes primeiro), com busca e filtros. */
+export function usePeople(params: PeopleParams) {
   return useQuery({
-    queryKey: [...KEY, 'search', q],
-    queryFn: async () => (await platformApi.get<Person[]>('/users', { params: { q } })).data,
-    enabled: q.trim().length >= 2,
+    queryKey: [...KEY, 'list', params],
+    queryFn: async () => (await platformApi.get<{ data: Person[]; meta: { total: number; page: number; limit: number; totalPages: number } }>('/users', { params })).data,
     placeholderData: (prev) => prev,
   });
 }
