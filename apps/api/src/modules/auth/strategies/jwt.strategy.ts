@@ -1,9 +1,35 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { ForbiddenException, Injectable, UnauthorizedException } from '@nestjs/common';
 import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
 import { ConfigService } from '@nestjs/config';
+import { Request } from 'express';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { JwtPayload, CurrentUser } from '../../../common/types/auth.types';
+import { securityOf } from '../../../common/utils/password-policy';
+import { cachedSessionValidity, rememberSessionValidity } from '../session-cache';
+import { requestHost, tenantIdForHost } from '../../../common/utils/custom-domain';
+
+type RoleSel = {
+  id: string;
+  name: string;
+  isSystem: boolean;
+  rank: number;
+  permissions: unknown;
+  modulePermissions: unknown;
+  tenantPermissions: unknown;
+  permsVersion: number;
+};
+
+const ROLE_SELECT = {
+  id: true,
+  name: true,
+  isSystem: true,
+  rank: true,
+  permissions: true,
+  modulePermissions: true,
+  tenantPermissions: true,
+  permsVersion: true,
+} as const;
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
@@ -16,10 +42,41 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       ignoreExpiration: false,
       secretOrKey: configService.get<string>('JWT_SECRET'),
       audience: 'powersync',
+      // Necessario para resolver o tenant a partir do contexto da request
+      // (header X-Tenant-Id agora; segmento de URL no frontend depois — Modelo B).
+      passReqToCallback: true,
     });
   }
 
-  async validate(payload: JwtPayload): Promise<CurrentUser> {
+  private buildCurrentUser(
+    user: { id: string; email: string; name: string },
+    tenantId: string,
+    customRoleId: string,
+    role: RoleSel,
+    impersonatedBy?: { id: string; name: string },
+  ): CurrentUser {
+    return {
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      tenantId,
+      customRoleId,
+      ...(impersonatedBy ? { impersonatedBy } : {}),
+      customRole: {
+        id: role.id,
+        name: role.name,
+        isSystem: role.isSystem,
+        rank: role.rank,
+        permissions: role.permissions as unknown[],
+        modulePermissions: role.modulePermissions as Record<string, boolean>,
+        tenantPermissions: role.tenantPermissions as Record<string, unknown>,
+      },
+    };
+  }
+
+  async validate(req: Request, payload: JwtPayload): Promise<CurrentUser> {
+    // IDENTIDADE GLOBAL (#10): User e so identidade. Tenant + cargo vem das
+    // memberships (UserTenantAccess). Carregamos as memberships ativas com os cargos.
     const user = await this.prisma.user.findUnique({
       where: { id: payload.sub },
       select: {
@@ -27,17 +84,17 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
         email: true,
         name: true,
         status: true,
-        tenantId: true,
-        customRoleId: true,
-        customRole: {
+        mfaEnabledAt: true,
+        tenantAccess: {
+          where: { deletedAt: null, status: 'ACTIVE' },
           select: {
-            id: true,
-            name: true,
-            roleType: true,
-            isSystem: true,
-            permissions: true,
-            modulePermissions: true,
-            tenantPermissions: true,
+            tenantId: true,
+            customRoleId: true,
+            isPrimary: true,
+            expiresAt: true,
+            clientRecordId: true,
+            tenant: { select: { status: true, settings: true } },
+            customRole: { select: ROLE_SELECT },
           },
         },
       },
@@ -46,103 +103,100 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     if (!user || user.status !== 'ACTIVE') {
       throw new UnauthorizedException('Usuario nao encontrado ou inativo');
     }
+    if (payload.sid) await this.ensureSessionActive(payload.sid);
 
-    if (!user.customRole || !user.customRoleId) {
-      throw new UnauthorizedException('Usuario sem role definida');
+    const memberships = user.tenantAccess;
+    const primary = memberships.find((m) => m.isPrimary) ?? memberships[0];
+
+    // Tenant na URL (Modelo B): o front manda X-Tenant-Slug (segmento [tenant]);
+    // resolvemos slug -> id no servidor. Fallback: X-Tenant-Id -> token -> primária.
+    const headerSlug = req?.headers?.['x-tenant-slug'];
+    let slugTenantId: string | undefined;
+    if (typeof headerSlug === 'string' && headerSlug) {
+      const bySlug = await this.prisma.tenant.findFirst({
+        where: { slug: headerSlug, deletedAt: null },
+        select: { id: true },
+      });
+      slugTenantId = bySlug?.id;
+    }
+    const headerTenant = req?.headers?.['x-tenant-id'];
+    // Dominio proprio de uma empresa: vale sempre a empresa dona do endereco
+    const domainTenantId = await tenantIdForHost(this.prisma, requestHost(req as never));
+    const requestedTenantId =
+      domainTenantId ||
+      slugTenantId ||
+      (typeof headerTenant === 'string' && headerTenant) ||
+      payload.tenantId ||
+      primary?.tenantId ||
+      undefined;
+
+    if (!requestedTenantId) {
+      throw new UnauthorizedException('Tenant nao resolvido');
     }
 
-    // Se o tenantId do token e diferente do home tenant, validar
-    if (payload.tenantId && payload.tenantId !== user.tenantId) {
-      const isPlatformAdmin = user.customRole.roleType === 'PLATFORM_ADMIN';
+    // FONTE DA VERDADE: membership do (usuario, tenant solicitado).
+    const membership = memberships.find((m) => m.tenantId === requestedTenantId);
 
-      // PLATFORM_ADMIN: mantém sua role original (para bypass de permissões)
-      // mas usa tenantId do JWT (para scope de queries)
-      if (isPlatformAdmin) {
-        // Retornar CurrentUser com tenantId do token, mas role original
-        return {
-          id: user.id,
-          email: user.email,
-          name: user.name,
-          tenantId: payload.tenantId,
-          customRoleId: user.customRoleId,
-          customRole: {
-            id: user.customRole.id,
-            name: user.customRole.name,
-            roleType: user.customRole.roleType as CurrentUser['customRole']['roleType'],
-            isSystem: user.customRole.isSystem,
-            permissions: user.customRole.permissions as unknown[],
-            modulePermissions: user.customRole.modulePermissions as Record<string, boolean>,
-            tenantPermissions: user.customRole.tenantPermissions as Record<string, unknown>,
-          },
-        };
-      }
-
-      // Multi-tenant user: validar via UserTenantAccess
-      const access = await this.prisma.userTenantAccess.findUnique({
-        where: {
-          userId_tenantId: {
-            userId: user.id,
-            tenantId: payload.tenantId,
-          },
-        },
-        include: {
-          customRole: {
-            select: {
-              id: true,
-              name: true,
-              roleType: true,
-              isSystem: true,
-              permissions: true,
-              modulePermissions: true,
-              tenantPermissions: true,
-            },
-          },
-        },
-      });
-
-      if (!access || access.status !== 'ACTIVE') {
-        throw new UnauthorizedException('Token tenant mismatch');
-      }
-
-      // Verificar expiracao
-      if (access.expiresAt && access.expiresAt < new Date()) {
+    if (membership) {
+      if (membership.expiresAt && membership.expiresAt < new Date()) {
         throw new UnauthorizedException('Acesso ao tenant expirado');
       }
-
-      // Retornar CurrentUser com o tenant e role do acesso
+      // Tenant suspenso/cancelado pelo console: corta sessoes ja abertas, nao so o
+      // proximo login. 403 (nao 401) para o cliente nao entrar em loop de refresh.
+      if (membership.tenant.status !== 'ACTIVE') {
+        throw new ForbiddenException({ code: 'TENANT_SUSPENDED', message: 'Tenant suspenso ou inativo' });
+      }
+      this.ensurePermsFresh(payload, membership.customRole as RoleSel);
+      // Empresa exige duas etapas e a pessoa nao ativou: so as rotas de /auth (onde
+      // ela ativa) respondem. A equipe da plataforma em "entrar como" nao e barrada.
+      if (
+        securityOf(membership.tenant.settings).requireMfa &&
+        !user.mfaEnabledAt &&
+        !payload.impersonatedBy &&
+        !req.originalUrl.startsWith('/api/v1/auth/')
+      ) {
+        throw new ForbiddenException({ code: 'MFA_SETUP_REQUIRED', message: 'Esta empresa exige verificacao em duas etapas. Ative para continuar.' });
+      }
       return {
-        id: user.id,
-        email: user.email,
-        name: user.name,
-        tenantId: payload.tenantId,
-        customRoleId: access.customRoleId,
-        customRole: {
-          id: access.customRole.id,
-          name: access.customRole.name,
-          roleType: access.customRole.roleType as CurrentUser['customRole']['roleType'],
-          isSystem: access.customRole.isSystem,
-          permissions: access.customRole.permissions as unknown[],
-          modulePermissions: access.customRole.modulePermissions as Record<string, boolean>,
-          tenantPermissions: access.customRole.tenantPermissions as Record<string, unknown>,
-        },
+        ...this.buildCurrentUser(
+          user,
+          requestedTenantId,
+          membership.customRoleId,
+          membership.customRole as RoleSel,
+          payload.impersonatedBy,
+        ),
+        ...(membership.clientRecordId ? { clientRecordId: membership.clientRecordId } : {}),
+        ...(payload.sid && { sessionId: payload.sid }),
       };
     }
 
-    return {
-      id: user.id,
-      email: user.email,
-      name: user.name,
-      tenantId: user.tenantId,
-      customRoleId: user.customRoleId,
-      customRole: {
-        id: user.customRole.id,
-        name: user.customRole.name,
-        roleType: user.customRole.roleType as CurrentUser['customRole']['roleType'],
-        isSystem: user.customRole.isSystem,
-        permissions: user.customRole.permissions as unknown[],
-        modulePermissions: user.customRole.modulePermissions as Record<string, boolean>,
-        tenantPermissions: user.customRole.tenantPermissions as Record<string, unknown>,
-      },
-    };
+    // Sem membership no tenant solicitado: nunca entra (cross-tenant so pelo console).
+    throw new UnauthorizedException(domainTenantId ? 'Esta conta não é desta empresa.' : 'Sem acesso a este tenant');
+  }
+
+  /**
+   * Refresh silencioso: se o token foi mintado com um permsV mais antigo que o
+   * permsVersion atual do cargo, rejeita com 401 (PERMS_STALE). O cliente cai no
+   * fluxo 401 -> refresh que ja existe e recebe token + permissoes frescas.
+   * - Impersonacao: nao forca (sessao curta; "parar" e client-side).
+   * - Tokens antigos sem permsV: nao sao checados (compat retroativa).
+   */
+  /** Sessao encerrada (sair, sair de todos, admin desconectou) derruba o token na hora. */
+  private async ensureSessionActive(sessionId: string): Promise<void> {
+    let valid = cachedSessionValidity(sessionId);
+    if (valid === undefined) {
+      const session = await this.prisma.userSession.findUnique({ where: { id: sessionId }, select: { revokedAt: true } });
+      valid = !!session && !session.revokedAt;
+      rememberSessionValidity(sessionId, valid);
+    }
+    if (!valid) throw new UnauthorizedException('SESSION_REVOKED');
+  }
+
+  private ensurePermsFresh(payload: JwtPayload, role: RoleSel): void {
+    if (payload.impersonatedBy) return;
+    if (payload.permsV == null) return;
+    if (payload.permsV !== role.permsVersion) {
+      throw new UnauthorizedException('PERMS_STALE');
+    }
   }
 }

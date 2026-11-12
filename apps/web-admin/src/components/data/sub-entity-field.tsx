@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { useTranslations } from 'next-intl';
+import { getErrorMessage } from '@/lib/get-error-message';
 import {
   Plus,
   Trash2,
@@ -50,10 +51,11 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
-import { useTenant } from '@/stores/tenant-context';
 import { RecordFormDialog } from './record-form-dialog';
 import { cn } from '@/lib/utils';
 import type { EntityField } from '@/types';
+import { usePermissions } from '@/hooks/use-permissions';
+import { formatFieldValue, type FieldType } from '@crm-builder/shared';
 
 interface SubEntityFieldEnhancedProps {
   parentRecordId: string;
@@ -118,10 +120,11 @@ export default function SubEntityFieldEnhanced({
   enableSort = true,
   enableFilter = false,
 }: SubEntityFieldEnhancedProps) {
+  const { getHiddenFields } = usePermissions();
   const t = useTranslations('subEntity');
   const tCommon = useTranslations('common');
+  const tData = useTranslations('data');
   const tBool = useTranslations('booleanValues');
-  const { tenantId } = useTenant();
 
   const [subEntity, setSubEntity] = useState<SubEntity | null>(null);
   const [records, setRecords] = useState<SubRecord[]>([]);
@@ -146,9 +149,7 @@ export default function SubEntityFieldEnhanced({
 
   const loadSubEntity = useCallback(async () => {
     try {
-      const params: Record<string, string> = {};
-      if (tenantId) params.tenantId = tenantId;
-      const response = await api.get('/entities', { params });
+      const response = await api.get('/entities');
       const allEntities = Array.isArray(response.data) ? response.data : response.data?.data || [];
       const found = allEntities.find((e: SubEntity) => e.slug === subEntitySlug || e.id === subEntityId);
       if (found) {
@@ -158,7 +159,7 @@ export default function SubEntityFieldEnhanced({
       console.error('Error loading sub-entity:', error);
       toast.error(t('loadError'));
     }
-  }, [subEntitySlug, subEntityId, tenantId, t]);
+  }, [subEntitySlug, subEntityId, t]);
 
   const loadRecords = useCallback(async () => {
     if (!subEntitySlug || !parentRecordId) return;
@@ -190,7 +191,7 @@ export default function SubEntityFieldEnhanced({
     if (searchQuery) {
       filtered = filtered.filter(record => {
         const searchableText = displayFields
-          .map(field => formatCellValue(record.data[field], tBool('yes'), tBool('no')))
+          .map(field => displayValue(field, record.data[field]))
           .join(' ')
           .toLowerCase();
         return searchableText.includes(searchQuery.toLowerCase());
@@ -208,9 +209,12 @@ export default function SubEntityFieldEnhanced({
     setFilteredRecords(filtered);
   }, [records, searchQuery, sortField, sortOrder]);
 
-  const displayFields = subEntityDisplayFields && subEntityDisplayFields.length > 0
+  // Campo oculto para o cargo (ex.: cliente no portal) nao aparece nem como rotulo
+  const hiddenByRole = getHiddenFields(subEntitySlug);
+  const displayFields = (subEntityDisplayFields && subEntityDisplayFields.length > 0
     ? subEntityDisplayFields
-    : (subEntity?.fields || []).slice(0, 4).map(f => f.slug || f.name);
+    : (subEntity?.fields || []).filter(f => !hiddenByRole.has(f.slug || f.name)).slice(0, 4).map(f => f.slug || f.name))
+    .filter(slug => !hiddenByRole.has(slug));
 
   const getFieldLabel = (slug: string) => {
     const field = subEntity?.fields?.find(f => (f.slug || f.name) === slug);
@@ -220,6 +224,29 @@ export default function SubEntityFieldEnhanced({
   const getFieldType = (slug: string) => {
     const field = subEntity?.fields?.find(f => (f.slug || f.name) === slug);
     return field?.type || 'text';
+  };
+
+  // Texto da celula: campos com opcao/data/moeda sempre pelo rotulo local; o resto
+  // aceita o valor ja formatado pela API (_formatted)
+  const cellText = (record: SubRecord, slug: string, val: unknown): string => {
+    const field = subEntity?.fields?.find(f => (f.slug || f.name) === slug);
+    const preformatted = (record as unknown as { _formatted?: Record<string, unknown> })._formatted?.[slug];
+    const needsLocal = !!field?.options?.length || ['date', 'datetime', 'currency', 'number', 'percentage', 'boolean'].includes(field?.type || '');
+    return !needsLocal && typeof preformatted === 'string' ? preformatted : displayValue(slug, val);
+  };
+
+  // Rotulo da opcao, data/moeda no formato local e Sim/Nao (como na tabela de registros)
+  const displayValue = (slug: string, val: unknown): string => {
+    const field = subEntity?.fields?.find(f => (f.slug || f.name) === slug);
+    if (field?.options?.length && (typeof val === 'string' || typeof val === 'number')) {
+      const opt = (field.options as Array<string | { value: string; label: string }>)
+        .find((o) => (typeof o === 'string' ? o : String(o.value)) === String(val));
+      if (opt) return typeof opt === 'string' ? opt : opt.label;
+    }
+    if (field && ['date', 'datetime', 'currency', 'number', 'percentage'].includes(field.type) && val !== null && val !== undefined && val !== '') {
+      return formatFieldValue(val, { type: field.type as FieldType, emptyValue: '-' });
+    }
+    return formatCellValue(val, tBool('yes'), tBool('no'));
   };
 
   const handleCreate = () => {
@@ -241,9 +268,21 @@ export default function SubEntityFieldEnhanced({
     if (!recordToDelete || !subEntitySlug) return;
     setDeleting(true);
     try {
-      await api.delete(`/data/${subEntitySlug}/${recordToDelete.id}`);
-      setRecords(prev => prev.filter(r => r.id !== recordToDelete.id));
-      toast.success(t('recordRemoved'));
+      const deletedId = recordToDelete.id;
+      await api.delete(`/data/${subEntitySlug}/${deletedId}`);
+      setRecords(prev => prev.filter(r => r.id !== deletedId));
+      // Fica na lixeira: oferece desfazer na hora (igual a tabela principal).
+      toast.success(tData('toast.deletedToUndo'), {
+        duration: 10_000,
+        action: {
+          label: tData('toast.undo'),
+          onClick: () => {
+            api.post(`/trash/${subEntitySlug}/${deletedId}/restore`)
+              .then(() => loadRecords())
+              .catch((e) => toast.error(getErrorMessage(e)));
+          },
+        },
+      });
     } catch (error) {
       console.error('Error deleting sub-record:', error);
       toast.error(t('removeError'));
@@ -448,7 +487,7 @@ export default function SubEntityFieldEnhanced({
                         <tr key={record.id} className="hover:bg-muted/30 transition-colors">
                           {displayFields.map(field => {
                             const value = record.data[field];
-                            const formatted = (record as Record<string, unknown>)._formatted?.[field] as string ?? formatCellValue(value, tBool('yes'), tBool('no'));
+                            const formatted = cellText(record, field, value);
                             const fieldType = getFieldType(field);
 
                             return (
@@ -515,7 +554,7 @@ export default function SubEntityFieldEnhanced({
                         <div className="flex items-start justify-between gap-2">
                           <div className="flex-1 min-w-0">
                             <div className="font-medium text-sm truncate">
-                              {(record as Record<string, unknown>)._formatted?.[displayFields[0]] as string ?? formatCellValue(record.data[displayFields[0]], tBool('yes'), tBool('no'))}
+                              {cellText(record, displayFields[0], record.data[displayFields[0]])}
                             </div>
                             <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground">
                               <Calendar className="h-3 w-3" />
@@ -556,7 +595,7 @@ export default function SubEntityFieldEnhanced({
                       <CardContent className="pt-0 space-y-2">
                         {displayFields.slice(1).map(field => {
                           const value = record.data[field];
-                          const formatted = (record as Record<string, unknown>)._formatted?.[field] as string ?? formatCellValue(value, tBool('yes'), tBool('no'));
+                          const formatted = cellText(record, field, value);
                           const fieldType = getFieldType(field);
 
                           return (
@@ -610,7 +649,7 @@ export default function SubEntityFieldEnhanced({
                               <div className="flex items-start justify-between gap-2 mb-3">
                                 <div className="flex-1">
                                   <div className="font-medium text-sm mb-1">
-                                    {(record as Record<string, unknown>)._formatted?.[displayFields[0]] as string ?? formatCellValue(record.data[displayFields[0]], tBool('yes'), tBool('no'))}
+                                    {cellText(record, displayFields[0], record.data[displayFields[0]])}
                                   </div>
                                   <div className="flex items-center gap-2 text-xs text-muted-foreground">
                                     <Calendar className="h-3 w-3" />
@@ -657,7 +696,7 @@ export default function SubEntityFieldEnhanced({
                               <div className="grid grid-cols-2 gap-x-4 gap-y-2">
                                 {displayFields.slice(1).map(field => {
                                   const value = record.data[field];
-                                  const formatted = (record as Record<string, unknown>)._formatted?.[field] as string ?? formatCellValue(value, tBool('yes'), tBool('no'));
+                                  const formatted = cellText(record, field, value);
                                   const fieldType = getFieldType(field);
 
                                   return (

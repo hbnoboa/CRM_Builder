@@ -1,9 +1,8 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import axios, { isAxiosError } from 'axios';
+import { isAxiosError } from 'axios';
 import type { User, AuthResponse, LoginCredentials, RegisterDate } from '@/types';
 import api from '@/lib/api';
-import { isTokenExpired } from '@/lib/jwt';
 
 interface AuthState {
   user: User | null;
@@ -11,12 +10,16 @@ interface AuthState {
   isLoading: boolean;
   error: string | null;
 
-  login: (credentials: LoginCredentials) => Promise<void>;
+  /** mfaToken presente = falta o segundo passo (loginWithMfa). */
+  login: (credentials: LoginCredentials) => Promise<{ mfaToken?: string }>;
+  loginWithMfa: (mfaToken: string, code: string) => Promise<void>;
   register: (data: RegisterDate) => Promise<void>;
+  acceptInvitation: (token: string, body: { name?: string; password: string }) => Promise<User>;
   logout: () => Promise<void>;
   getProfile: () => Promise<void>;
   ensureAuth: () => Promise<'ok' | 'redirect'>;
   switchTenant: (tenantId: string) => Promise<void>;
+  stopImpersonation: () => Promise<void>;
   setUser: (user: User) => void;
   clearError: () => void;
 }
@@ -32,18 +35,43 @@ export const useAuthStore = create<AuthState>()(
       login: async (credentials: LoginCredentials) => {
         set({ isLoading: true, error: null });
         try {
-          const response = await api.post<AuthResponse>('/auth/login', credentials);
+          const response = await api.post<AuthResponse | { mfaRequired: true; mfaToken: string }>('/auth/login', credentials);
+          // Conta com verificacao em duas etapas: a senha so libera o segundo passo.
+          if ('mfaRequired' in response.data) {
+            set({ isLoading: false });
+            return { mfaToken: response.data.mfaToken };
+          }
           const { user, accessToken, refreshToken } = response.data;
           
           // Store tokens in localStorage
           localStorage.setItem('accessToken', accessToken);
           localStorage.setItem('refreshToken', refreshToken);
-          
+          // Modelo B: tenant ativo inicial = tenant do usuario (persistido p/ F5)
+          if (user?.tenantId) localStorage.setItem('activeTenantId', user.tenantId);
+
           set({ user, isAuthenticated: true, isLoading: false });
+          return {};
         } catch (error: unknown) {
           const message = isAxiosError<{ message?: string }>(error)
             ? error.response?.data?.message || 'Login failed'
             : 'Login failed';
+          set({ error: message, isLoading: false });
+          throw error;
+        }
+      },
+
+      loginWithMfa: async (mfaToken: string, code: string) => {
+        set({ isLoading: true, error: null });
+        try {
+          const { data } = await api.post<AuthResponse>('/auth/login/mfa', { mfaToken, code });
+          localStorage.setItem('accessToken', data.accessToken);
+          localStorage.setItem('refreshToken', data.refreshToken);
+          if (data.user?.tenantId) localStorage.setItem('activeTenantId', data.user.tenantId);
+          set({ user: data.user, isAuthenticated: true, isLoading: false });
+        } catch (error: unknown) {
+          const message = isAxiosError<{ message?: string }>(error)
+            ? error.response?.data?.message || 'Codigo invalido'
+            : 'Codigo invalido';
           set({ error: message, isLoading: false });
           throw error;
         }
@@ -57,6 +85,7 @@ export const useAuthStore = create<AuthState>()(
 
           localStorage.setItem('accessToken', accessToken);
           localStorage.setItem('refreshToken', refreshToken);
+          if (user?.tenantId) localStorage.setItem('activeTenantId', user.tenantId);
 
           set({ user, isAuthenticated: true, isLoading: false });
         } catch (error: unknown) {
@@ -68,6 +97,17 @@ export const useAuthStore = create<AuthState>()(
         }
       },
 
+      /** Aceita um convite e ja entra na empresa que convidou. */
+      acceptInvitation: async (token: string, body: { name?: string; password: string }) => {
+        const response = await api.post<AuthResponse>(`/invitations/public/${token}/accept`, body);
+        const { user, accessToken, refreshToken } = response.data;
+        localStorage.setItem('accessToken', accessToken);
+        localStorage.setItem('refreshToken', refreshToken);
+        if (user?.tenantId) localStorage.setItem('activeTenantId', user.tenantId);
+        set({ user, isAuthenticated: true, isLoading: false, error: null });
+        return user;
+      },
+
       logout: async () => {
         try {
           await api.post('/auth/logout');
@@ -76,6 +116,10 @@ export const useAuthStore = create<AuthState>()(
         } finally {
           localStorage.removeItem('accessToken');
           localStorage.removeItem('refreshToken');
+          localStorage.removeItem('activeTenantId');
+          localStorage.removeItem('impersonationBackup');
+          localStorage.removeItem('impersonatedBy');
+          localStorage.removeItem('impersonationOrigin');
           set({ user: null, isAuthenticated: false });
         }
       },
@@ -114,46 +158,26 @@ export const useAuthStore = create<AuthState>()(
 
         set({ isLoading: true });
 
-        // If access token exists and is not expired, fetch profile
-        if (accessToken && !isTokenExpired(accessToken)) {
-          try {
-            const response = await api.get<User>('/auth/me');
-            set({ user: response.data, isAuthenticated: true, isLoading: false });
+        // Delega TODO refresh ao interceptor do `api` (single-flight unico, como o portal
+        // do cliente do segmob). Mesmo com o access token expirado, GET /me retorna 401 e o
+        // interceptor renova (com fila) e re-tenta. Isso evita o 2o caminho de refresh que
+        // corria com o interceptor e causava logout sob rotacao (StrictMode/abas).
+        try {
+          const response = await api.get<User>('/auth/me');
+          set({ user: response.data, isAuthenticated: true, isLoading: false });
+          return 'ok';
+        } catch (error) {
+          // Erro de rede (sem resposta) e nao-401: mantem sessao otimisticamente.
+          if (isAxiosError(error) && !error.response) {
+            set({ isLoading: false });
             return 'ok';
-          } catch (error) {
-            if (isAxiosError(error) && error.response?.status === 401) {
-              // Token rejected by server — fall through to refresh
-            } else {
-              // Network error — keep session optimistically
-              set({ isLoading: false });
-              return 'ok';
-            }
           }
+          // 401 mesmo apos o interceptor tentar renovar — sessao morta.
+          localStorage.removeItem('accessToken');
+          localStorage.removeItem('refreshToken');
+          set({ user: null, isAuthenticated: false, isLoading: false });
+          return 'redirect';
         }
-
-        // Access token expired or rejected — try refresh directly (bypass interceptor)
-        if (refreshToken) {
-          try {
-            const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
-            const response = await axios.post<AuthResponse>(`${API_URL}/auth/refresh`, {
-              refreshToken,
-            });
-            const { user, accessToken: newAccess, refreshToken: newRefresh } = response.data;
-
-            localStorage.setItem('accessToken', newAccess);
-            localStorage.setItem('refreshToken', newRefresh);
-            set({ user, isAuthenticated: true, isLoading: false });
-            return 'ok';
-          } catch {
-            // Refresh failed — session is truly dead
-          }
-        }
-
-        // All attempts failed — clean up and redirect
-        localStorage.removeItem('accessToken');
-        localStorage.removeItem('refreshToken');
-        set({ user: null, isAuthenticated: false, isLoading: false });
-        return 'redirect';
       },
 
       switchTenant: async (tenantId: string) => {
@@ -164,6 +188,8 @@ export const useAuthStore = create<AuthState>()(
 
           localStorage.setItem('accessToken', accessToken);
           localStorage.setItem('refreshToken', refreshToken);
+          // Modelo B: persistir tenant ativo -> sobrevive ao F5 (enviado em X-Tenant-Id)
+          localStorage.setItem('activeTenantId', user?.tenantId || tenantId);
 
           set({ user, isLoading: false });
 
@@ -176,6 +202,30 @@ export const useAuthStore = create<AuthState>()(
             : 'Failed to switch tenant';
           set({ error: message, isLoading: false });
           throw error;
+        }
+      },
+
+      stopImpersonation: async () => {
+        const raw = localStorage.getItem('impersonationBackup');
+        if (raw) {
+          try {
+            const backup = JSON.parse(raw);
+            if (backup.accessToken) localStorage.setItem('accessToken', backup.accessToken);
+            if (backup.refreshToken) localStorage.setItem('refreshToken', backup.refreshToken);
+            if (backup.activeTenantId) localStorage.setItem('activeTenantId', backup.activeTenantId);
+            else localStorage.removeItem('activeTenantId');
+          } catch {
+            /* backup corrompido — segue limpando */
+          }
+        }
+        localStorage.removeItem('impersonationBackup');
+        localStorage.removeItem('impersonatedBy');
+        try {
+          const response = await api.get<User>('/auth/me');
+          set({ user: response.data });
+          window.dispatchEvent(new CustomEvent('tenant-changed'));
+        } catch {
+          /* ignore */
         }
       },
 

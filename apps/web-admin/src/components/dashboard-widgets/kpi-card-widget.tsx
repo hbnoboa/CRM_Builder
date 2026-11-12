@@ -12,9 +12,10 @@ interface KpiCardWidgetProps {
   config: WidgetConfig['config'];
   title?: string;
   isEditMode?: boolean;
+  entityFields?: Array<{ slug: string; type: string }>;
 }
 
-export function KpiCardWidget({ entitySlug, config, title, isEditMode }: KpiCardWidgetProps) {
+export function KpiCardWidget({ entitySlug, config, title, isEditMode, entityFields }: KpiCardWidgetProps) {
   const dashFilters = useWidgetFilters();
   const isRatio = !!config.ratioFieldSlug && !!config.fieldSlug;
   const isCountRatio = isRatio && config.fieldSlug === 'count' && config.ratioFieldSlug === 'count';
@@ -152,6 +153,11 @@ export function KpiCardWidget({ entitySlug, config, title, isEditMode }: KpiCard
       const formatted = (v ?? 0).toLocaleString('pt-BR', { maximumFractionDigits: 1 });
       return config.ratioMode === 'ratio' ? formatted : `${formatted}%`;
     }
+    // Soma/media de campo de moeda sai em reais (R$ 12.345)
+    const fieldType = isFieldAgg ? entityFields?.find((f) => f.slug === config.fieldSlug)?.type : undefined;
+    if (fieldType === 'currency') {
+      return (v ?? 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 });
+    }
     if (config.aggregation === 'avg' || config.aggregation === 'min' || config.aggregation === 'max') {
       return (v ?? 0).toLocaleString('pt-BR', { maximumFractionDigits: 2 });
     }
@@ -166,7 +172,7 @@ export function KpiCardWidget({ entitySlug, config, title, isEditMode }: KpiCard
       error={error ? 'Erro ao carregar dados' : null}
     >
       <div className="flex flex-col justify-center h-full gap-1">
-        <span className={cn('text-3xl font-bold', getThresholdColor())}>
+        <span className={cn('whitespace-nowrap text-[clamp(1.25rem,6vw,1.875rem)] font-bold', getThresholdColor())}>
           {formatValue(value)}
         </span>
         {comparison && config.showComparison && (

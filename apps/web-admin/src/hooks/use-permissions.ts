@@ -2,7 +2,7 @@
 
 import { useMemo } from 'react';
 import { useAuthStore } from '@/stores/auth-store';
-import type { RoleType, ModulePermission, ModulePermissions, EntityPermission } from '@/types';
+import type { ModulePermission, ModulePermissions, EntityPermission, PermissionScope } from '@/types';
 
 const FULL_CRUD: ModulePermission = { canRead: true, canCreate: true, canUpdate: true, canDelete: true };
 const NO_CRUD: ModulePermission = { canRead: false, canCreate: false, canUpdate: false, canDelete: false };
@@ -20,6 +20,11 @@ function normalizeModulePermission(value: unknown): ModulePermission {
   return { ...NO_CRUD };
 }
 
+/** Acesso total DENTRO do tenant (todos os módulos/tabelas, presente e futuro). */
+export function readFullTenantAccess(mp: Record<string, unknown> | null | undefined): boolean {
+  return !!mp && typeof mp === 'object' && (mp as Record<string, unknown>).allAccess === true;
+}
+
 function normalizeModulePermissions(mp: Record<string, unknown> | null | undefined): ModulePermissions {
   if (!mp) return {};
   const result: Record<string, ModulePermission> = {};
@@ -30,54 +35,43 @@ function normalizeModulePermissions(mp: Record<string, unknown> | null | undefin
 }
 
 /**
- * Permissoes de modulo padrao APENAS para PLATFORM_ADMIN.
- * Todos os outros roles (ADMIN, MANAGER, USER, VIEWER, CUSTOM) devem ter
- * permissoes definidas em modulePermissions no banco de dados.
+ * Permissoes de modulo concedidas a quem tem ACESSO TOTAL ao tenant
+ * (modulePermissions.allAccess). Nao existe tier por roleType:
+ * todos os demais cargos usam exclusivamente modulePermissions do banco.
  */
 const READ_ONLY: ModulePermission = { canRead: true, canCreate: false, canUpdate: false, canDelete: false };
 
-const PDF_READ_GENERATE: ModulePermission = { canRead: true, canCreate: false, canUpdate: false, canDelete: false, canGenerate: true } as ModulePermission;
-
-const DEFAULT_MODULE_PERMISSIONS: Record<RoleType, ModulePermissions> = {
-  PLATFORM_ADMIN: {
-    dashboard: FULL_CRUD,
-    users: FULL_CRUD,
-    settings: FULL_CRUD,
-    entities: FULL_CRUD,
-    tenants: FULL_CRUD,
-    data: FULL_CRUD,
-    roles: FULL_CRUD,
-    automations: {
-      ...FULL_CRUD,
-      canExecute: true,
-      // Sub-permissões para automações
-      webhooks: FULL_CRUD,
-      actionChains: FULL_CRUD,
-      entityAutomation: FULL_CRUD,
-    } as ModulePermission,
-    templates: {
-      ...FULL_CRUD,
-      canGenerate: true,
-      // Sub-permissões para templates
-      pdfTemplates: FULL_CRUD,
-      emailTemplates: FULL_CRUD,
-    } as ModulePermission,
-    logs: {
-      ...READ_ONLY,
-      // Sub-permissões para logs
-      auditLogs: READ_ONLY,
-      executionLogs: READ_ONLY,
-    } as ModulePermission,
-    notifications: FULL_CRUD,
-    publicLinks: FULL_CRUD,
-    archive: FULL_CRUD,
-  },
-  // Todos os outros roles usam apenas modulePermissions do DB
-  ADMIN: {},
-  MANAGER: {},
-  USER: {},
-  VIEWER: {},
-  CUSTOM: {},
+const FULL_TENANT_PERMISSIONS: ModulePermissions = {
+  dashboard: FULL_CRUD,
+  users: FULL_CRUD,
+  settings: FULL_CRUD,
+  entities: FULL_CRUD,
+  data: FULL_CRUD,
+  roles: FULL_CRUD,
+  automations: {
+    ...FULL_CRUD,
+    canExecute: true,
+    // Sub-permissões para automações
+    webhooks: FULL_CRUD,
+    actionChains: FULL_CRUD,
+    entityAutomation: FULL_CRUD,
+  } as ModulePermission,
+  templates: {
+    ...FULL_CRUD,
+    canGenerate: true,
+    // Sub-permissões para templates
+    pdfTemplates: FULL_CRUD,
+    emailTemplates: FULL_CRUD,
+  } as ModulePermission,
+  logs: {
+    ...READ_ONLY,
+    // Sub-permissões para logs
+    auditLogs: READ_ONLY,
+    executionLogs: READ_ONLY,
+  } as ModulePermission,
+  notifications: FULL_CRUD,
+  publicLinks: FULL_CRUD,
+  archive: FULL_CRUD,
 };
 
 /**
@@ -89,7 +83,6 @@ const MODULE_KEY_MAP: Record<string, keyof ModulePermissions> = {
   users: 'users',
   roles: 'roles',
   settings: 'settings',
-  tenants: 'tenants',
   data: 'data',
   automations: 'automations',
   templates: 'templates',
@@ -104,36 +97,70 @@ const MODULE_KEY_MAP: Record<string, keyof ModulePermissions> = {
   executionLogs: 'logs',            // mapeia para logs
 };
 
-const MODULE_KEYS: (keyof ModulePermissions)[] = ['dashboard', 'users', 'settings', 'entities', 'tenants', 'data', 'roles', 'automations', 'templates', 'logs', 'notifications', 'publicLinks', 'archive'];
+/** Modulos da camada "administracao da empresa" (espelha ADMIN_AREA_MODULES da API). */
+const ADMIN_AREA_MODULES = ['entities', 'users', 'roles', 'settings', 'automations', 'templates', 'logs', 'publicLinks', 'apis'] as const;
+
+/** Secao de /gestao -> permissao que abre a secao. */
+type SectionRule = { module: string; action: 'canRead' | 'canCreate' | 'canUpdate' | 'canDelete' | 'canManage' | 'any' };
+const ADMIN_SECTION_RULES: Record<string, SectionRule | SectionRule[]> = {
+  users: { module: 'users', action: 'canRead' },
+  roles: { module: 'roles', action: 'canRead' },
+  permissions: { module: 'roles', action: 'canRead' },
+  entities: { module: 'entities', action: 'any' },
+  'pdf-templates': { module: 'pdfTemplates', action: 'canRead' },
+  // Mesma permissao da API (modulo dashboard): so quem cria/edita/exclui configura.
+  'dashboard-templates': [
+    { module: 'dashboard', action: 'canCreate' },
+    { module: 'dashboard', action: 'canUpdate' },
+    { module: 'dashboard', action: 'canDelete' },
+  ],
+  // Mesma permissao da API: todas as rotas de links exigem canManage.
+  'public-links': { module: 'publicLinks', action: 'canManage' },
+  pages: { module: 'publicLinks', action: 'canManage' },
+  'audit-logs': { module: 'auditLogs', action: 'canRead' },
+  'execution-logs': { module: 'executionLogs', action: 'canRead' },
+  organization: { module: 'settings', action: 'canUpdate' },
+  plan: { module: 'settings', action: 'canUpdate' },
+  teams: { module: 'users', action: 'canRead' },
+  privacy: { module: 'settings', action: 'canUpdate' },
+  // qualquer uma das regras abre a secao
+  security: [{ module: 'users', action: 'canRead' }, { module: 'settings', action: 'canUpdate' }],
+  integrations: [{ module: 'apis', action: 'any' }, { module: 'automations', action: 'canRead' }],
+};
+
+const MODULE_KEYS: (keyof ModulePermissions)[] = ['dashboard', 'users', 'settings', 'entities', 'data', 'roles', 'automations', 'templates', 'logs', 'notifications', 'publicLinks', 'archive'];
 
 export function usePermissions() {
   const user = useAuthStore((s) => s.user);
 
-  // Obtem roleType do customRole (novo sistema unificado)
-  const roleType = user?.customRole?.roleType as RoleType | undefined;
+  // Toda autorizacao e permission-driven: basta o usuario ter um cargo (customRole).
+  const hasRole = !!user?.customRole;
+
+  // Acesso total ao tenant = modulePermissions.allAccess (dinâmico, sem cross-tenant).
+  const fullAccess = useMemo(
+    () => readFullTenantAccess(user?.customRole?.modulePermissions as Record<string, unknown> | undefined),
+    [user],
+  );
 
   const modulePermissions = useMemo<ModulePermissions>(() => {
-    if (!user || !roleType) return {};
+    if (!user || !hasRole) return {};
 
-    // PLATFORM_ADMIN sempre tem tudo (hardcoded)
-    if (roleType === 'PLATFORM_ADMIN') {
-      return DEFAULT_MODULE_PERMISSIONS.PLATFORM_ADMIN;
+    // Acesso total ao tenant libera tudo (hardcoded)
+    if (fullAccess) {
+      return FULL_TENANT_PERMISSIONS;
     }
 
-    // Todos os outros roles: usar APENAS modulePermissions do banco
+    // Demais cargos: usar APENAS modulePermissions do banco
     if (user.customRole?.modulePermissions) {
       return normalizeModulePermissions(user.customRole.modulePermissions as Record<string, unknown>) as ModulePermissions;
     }
 
-    // Sem modulePermissions no DB = sem acesso (exceto PLATFORM_ADMIN)
+    // Sem modulePermissions no DB = sem acesso
     return {};
-  }, [user, roleType]);
+  }, [user, hasRole, fullAccess]);
 
   const entityPermissions = useMemo<EntityPermission[]>(() => {
-    if (!user || !roleType) return [];
-
-    // PLATFORM_ADMIN tem acesso total a tudo
-    if (roleType === 'PLATFORM_ADMIN') return [];
+    if (!user || !hasRole) return [];
 
     if (user.customRole?.permissions) {
       return Array.isArray(user.customRole.permissions)
@@ -142,11 +169,11 @@ export function usePermissions() {
     }
 
     return [];
-  }, [user, roleType]);
+  }, [user, hasRole]);
 
-  // CUSTOM roles: se tem entidades com canRead, garantir acesso ao modulo data
+  // Se tem entidades com canRead, garantir acesso ao modulo data
   const adjustedModulePermissions = useMemo<ModulePermissions>(() => {
-    if (roleType !== 'CUSTOM' || entityPermissions.length === 0) return modulePermissions;
+    if (entityPermissions.length === 0) return modulePermissions;
 
     const hasAnyEntityRead = entityPermissions.some((e) => e.canRead);
     if (!hasAnyEntityRead) return modulePermissions;
@@ -163,16 +190,42 @@ export function usePermissions() {
         canDelete: entityPermissions.some((e) => e.canDelete),
       },
     };
-  }, [roleType, modulePermissions, entityPermissions]);
+  }, [modulePermissions, entityPermissions]);
+
+  /**
+   * Regra da tabela: a especifica ou, sem ela, o coringa '*' (mesma resolucao da API
+   * e do app). Os cargos padrao (Gerente, Operador, Visualizador) usam so o coringa.
+   */
+  const findEntityPermission = (entitySlug: string): EntityPermission | undefined =>
+    entityPermissions.find((p) => p.entitySlug === entitySlug)
+    ?? entityPermissions.find((p) => p.entitySlug === '*');
+
+  /** Campos que o cargo nao ve nesta tabela. Sem entrada, o campo esta liberado. */
+  const getHiddenFields = (entitySlug: string): Set<string> => {
+    if (fullAccess) return new Set();
+    return new Set((findEntityPermission(entitySlug)?.fieldPermissions ?? []).filter((f) => !f.canView).map((f) => f.fieldSlug));
+  };
+
+  /** Campos que o cargo nao edita nesta tabela. Sem entrada, o campo esta liberado. */
+  const getReadOnlyFields = (entitySlug: string): Set<string> => {
+    if (fullAccess) return new Set();
+    return new Set((findEntityPermission(entitySlug)?.fieldPermissions ?? []).filter((f) => !f.canEdit).map((f) => f.fieldSlug));
+  };
+
+  /** Lixeira: quem pode excluir em alguma tabela ve (e restaura) o que excluiu. */
+  const canUseTrash = useMemo(
+    () => !!user && hasRole && (fullAccess || entityPermissions.some((p) => p.canDelete)),
+    [user, hasRole, fullAccess, entityPermissions],
+  );
 
   /**
    * Verifica se o usuario tem acesso a um modulo (canRead)
    */
   const hasModuleAccess = (moduleKey: string): boolean => {
-    if (!user || !roleType) return false;
+    if (!user || !hasRole) return false;
 
-    // PLATFORM_ADMIN sempre tem acesso
-    if (roleType === 'PLATFORM_ADMIN') return true;
+    // Acesso total ao tenant sempre tem acesso
+    if (fullAccess) return true;
 
     const permKey = MODULE_KEY_MAP[moduleKey];
     if (!permKey) return false; // Se nao mapeado, negar por padrao (fail-secure)
@@ -190,10 +243,10 @@ export function usePermissions() {
     moduleKey: string,
     action: 'canRead' | 'canCreate' | 'canUpdate' | 'canDelete',
   ): boolean => {
-    if (!user || !roleType) return false;
+    if (!user || !hasRole) return false;
 
-    // PLATFORM_ADMIN sempre tem acesso
-    if (roleType === 'PLATFORM_ADMIN') return true;
+    // Acesso total ao tenant sempre tem acesso
+    if (fullAccess) return true;
 
     const permKey = MODULE_KEY_MAP[moduleKey] || moduleKey as keyof ModulePermissions;
     const perm = adjustedModulePermissions[permKey];
@@ -209,29 +262,29 @@ export function usePermissions() {
     entitySlug: string,
     action: 'canCreate' | 'canRead' | 'canUpdate' | 'canDelete',
   ): boolean => {
-    if (!user || !roleType) return false;
+    if (!user || !hasRole) return false;
 
-    // APENAS PLATFORM_ADMIN tem acesso automatico
-    if (roleType === 'PLATFORM_ADMIN') return true;
+    // Acesso total ao tenant tem acesso automatico
+    if (fullAccess) return true;
 
-    // Todos os outros roles: verificar permissions[entitySlug]
-    const perm = entityPermissions.find((p) => p.entitySlug === entitySlug);
+    // Todos os outros roles: verificar permissions[entitySlug] (ou o coringa)
+    const perm = findEntityPermission(entitySlug);
     if (!perm) return false;
 
     return perm[action] ?? false;
   };
 
   /**
-   * Retorna o scope para uma entidade (all | own)
+   * Retorna o scope para uma entidade (all | own | team | client)
    */
-  const getEntityScope = (entitySlug: string): 'all' | 'own' => {
-    if (!user || !roleType) return 'own';
+  const getEntityScope = (entitySlug: string): PermissionScope => {
+    if (!user || !hasRole) return 'own';
 
-    // APENAS PLATFORM_ADMIN tem scope automatico
-    if (roleType === 'PLATFORM_ADMIN') return 'all';
+    // Acesso total ao tenant tem scope automatico
+    if (fullAccess) return 'all';
 
     // Todos os outros: usar scope definido nas permissoes
-    const perm = entityPermissions.find((p) => p.entitySlug === entitySlug);
+    const perm = findEntityPermission(entitySlug);
     return perm?.scope || 'own';
   };
 
@@ -239,10 +292,10 @@ export function usePermissions() {
    * Verifica permissao sub-granular (acoes especiais) em um modulo
    */
   const hasModuleAction = (moduleKey: string, action: string): boolean => {
-    if (!user || !roleType) return false;
+    if (!user || !hasRole) return false;
 
-    // APENAS PLATFORM_ADMIN tem acesso automatico
-    if (roleType === 'PLATFORM_ADMIN') return true;
+    // Acesso total ao tenant tem acesso automatico
+    if (fullAccess) return true;
 
     const permKey = MODULE_KEY_MAP[moduleKey] || moduleKey as keyof ModulePermissions;
     const perm = adjustedModulePermissions[permKey] as Record<string, unknown> | undefined;
@@ -255,56 +308,71 @@ export function usePermissions() {
    * Verifica permissao sub-granular em uma entidade especifica
    */
   const hasEntityAction = (entitySlug: string, action: string): boolean => {
-    if (!user || !roleType) return false;
+    if (!user || !hasRole) return false;
 
-    // APENAS PLATFORM_ADMIN tem acesso automatico
-    if (roleType === 'PLATFORM_ADMIN') return true;
+    // Acesso total ao tenant tem acesso automatico
+    if (fullAccess) return true;
 
-    const perm = entityPermissions.find((p) => p.entitySlug === entitySlug) as Record<string, unknown> | undefined;
+    const perm = findEntityPermission(entitySlug) as Record<string, unknown> | undefined;
     if (!perm) return false;
 
     return perm[action] === true;
   };
 
   /**
-   * Verifica se o user e PLATFORM_ADMIN
-   * IMPORTANTE: Nenhum outro role (incluindo ADMIN) tem privilegios automaticos
+   * Administracao da empresa (/gestao): mesma regra do hasAdminArea da API —
+   * acesso total, ou qualquer permissao num modulo de gestao (settings: so canUpdate).
    */
-  const isAdmin = roleType === 'PLATFORM_ADMIN';
+  const canAccessAdminArea = useMemo(() => {
+    if (!user || !hasRole) return false;
+    if (fullAccess) return true;
+    const raw = (user.customRole?.modulePermissions ?? {}) as Record<string, unknown>;
+    return ADMIN_AREA_MODULES.some((key) => {
+      const perm = raw[key];
+      if (perm === true) return true;
+      if (!perm || typeof perm !== 'object') return false;
+      const p = perm as Record<string, unknown>;
+      // settings: so editar a organizacao; templates: ver/gerar e operacao (gerar PDF).
+      if (key === 'settings') return p.canUpdate === true;
+      if (key === 'templates') return p.canCreate === true || p.canUpdate === true || p.canDelete === true;
+      return Object.values(p).some((v) => v === true);
+    });
+  }, [user, hasRole, fullAccess]);
 
   /**
-   * Verifica se e PLATFORM_ADMIN
+   * SUPERFICIE OPERACIONAL (espelha o SERVICE_SCOPE=user do backend, #18): quem nao
+   * entra na administracao usa o shell operacional (nav slim, sem chrome de gestao).
    */
-  const isPlatformAdmin = roleType === 'PLATFORM_ADMIN';
+  const isOperationalSurface = !!user && hasRole && !canAccessAdminArea;
 
-  /**
-   * Retorna a rota padrao baseada nas permissoes do usuario.
-   * Prioridade: dashboard > data > entities > users > settings
-   */
-  const getDefaultRoute = (): string => {
-    const routePriority: { moduleKey: string; href: string }[] = [
-      { moduleKey: 'dashboard', href: '/dashboard' },
-      { moduleKey: 'data', href: '/data' },
-      { moduleKey: 'entities', href: '/data' },
-      { moduleKey: 'users', href: '/users' },
-      { moduleKey: 'roles', href: '/roles' },
-      { moduleKey: 'apis', href: '/apis' },
-      { moduleKey: 'tenants', href: '/tenants' },
-      { moduleKey: 'settings', href: '/settings' },
-    ];
-
-    for (const route of routePriority) {
-      if (hasModuleAccess(route.moduleKey)) {
-        return route.href;
-      }
-    }
-
-    return '/dashboard';
+  /** Pode abrir esta secao da administracao? (`section` = 1o segmento depois de /gestao) */
+  const canAccessAdminSection = (section: string | undefined): boolean => {
+    if (!canAccessAdminArea) return false;
+    if (fullAccess || !section) return true;
+    const rules = ADMIN_SECTION_RULES[section];
+    if (!rules) return false;
+    return ([] as SectionRule[]).concat(rules).some((rule) =>
+      rule.action === 'any'
+        ? (['canRead', 'canCreate', 'canUpdate', 'canDelete'] as const).some((a) => hasModulePermission(rule.module, a))
+        : rule.action === 'canManage'
+          ? hasModuleAction(rule.module, rule.action)
+          : hasModulePermission(rule.module, rule.action),
+    );
   };
+
+  /**
+   * "Admin com tudo" = acesso total DENTRO do tenant (modulePermissions.allAccess).
+   * Poderes de plataforma vivem apenas no console de staff (/admin).
+   */
+  const isAdmin = fullAccess;
+
+  /**
+   * #21: a Home de ação (cards permission-aware) é o landing universal.
+   */
+  const getDefaultRoute = (): string => '/home';
 
   return {
     user,
-    roleType,
     modulePermissions: adjustedModulePermissions,
     entityPermissions,
     hasModuleAccess,
@@ -313,9 +381,14 @@ export function usePermissions() {
     hasModuleAction,
     hasEntityAction,
     getEntityScope,
+    getHiddenFields,
+    getReadOnlyFields,
     getDefaultRoute,
     isAdmin,
-    isPlatformAdmin,
+    isOperationalSurface,
+    canAccessAdminArea,
+    canAccessAdminSection,
+    canUseTrash,
   };
 }
 
@@ -323,35 +396,7 @@ export function usePermissions() {
  * Funcao pura para determinar rota padrao baseada no user.
  * Usada no login (onSubmit) onde o hook ainda nao re-renderizou.
  */
-export function getDefaultRouteForUser(user: { customRole?: { roleType?: string; modulePermissions?: Record<string, unknown> } | null } | null): string {
-  if (!user?.customRole?.roleType) return '/dashboard';
-
-  const roleType = user.customRole.roleType as RoleType;
-
-  // PLATFORM_ADMIN sempre vai para dashboard
-  if (roleType === 'PLATFORM_ADMIN') return '/dashboard';
-
-  // Todos os outros: usar modulePermissions do DB
-  let modulePerms: ModulePermissions = {};
-  if (user.customRole.modulePermissions) {
-    modulePerms = normalizeModulePermissions(user.customRole.modulePermissions) as ModulePermissions;
-  }
-
-  const routePriority: { moduleKey: keyof ModulePermissions; href: string }[] = [
-    { moduleKey: 'dashboard', href: '/dashboard' },
-    { moduleKey: 'data', href: '/data' },
-    { moduleKey: 'entities', href: '/data' },
-    { moduleKey: 'users', href: '/users' },
-    { moduleKey: 'roles', href: '/roles' },
-    { moduleKey: 'apis', href: '/apis' },
-    { moduleKey: 'tenants', href: '/tenants' },
-    { moduleKey: 'settings', href: '/settings' },
-  ];
-
-  for (const route of routePriority) {
-    const perm = modulePerms[route.moduleKey];
-    if (perm?.canRead) return route.href;
-  }
-
-  return '/dashboard';
+export function getDefaultRouteForUser(_user?: unknown): string {
+  // #21: a Home de ação é o landing universal (cards permission-aware).
+  return '/home';
 }

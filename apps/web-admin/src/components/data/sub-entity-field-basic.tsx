@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { useTranslations } from 'next-intl';
+import { getErrorMessage } from '@/lib/get-error-message';
 import {
   Plus,
   Trash2,
@@ -28,7 +29,6 @@ import {
 } from '@/components/ui/alert-dialog';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
-import { useTenant } from '@/stores/tenant-context';
 import { RecordFormDialog } from './record-form-dialog';
 import type { EntityField } from '@/types';
 
@@ -78,8 +78,8 @@ export default function SubEntityField({
 }: SubEntityFieldProps) {
   const t = useTranslations('subEntity');
   const tCommon = useTranslations('common');
+  const tData = useTranslations('data');
   const tBool = useTranslations('booleanValues');
-  const { tenantId } = useTenant();
   const [subEntity, setSubEntity] = useState<SubEntity | null>(null);
   const [records, setRecords] = useState<SubRecord[]>([]);
   const [loading, setLoading] = useState(true);
@@ -97,9 +97,7 @@ export default function SubEntityField({
   // Load sub-entity definition (by slug for tenant-safe resolution)
   const loadSubEntity = useCallback(async () => {
     try {
-      const params: Record<string, string> = {};
-      if (tenantId) params.tenantId = tenantId;
-      const response = await api.get('/entities', { params });
+      const response = await api.get('/entities');
       const allEntities = Array.isArray(response.data) ? response.data : response.data?.data || [];
       const found = allEntities.find((e: SubEntity) => e.slug === subEntitySlug || e.id === subEntityId);
       if (found) {
@@ -109,7 +107,7 @@ export default function SubEntityField({
       console.error('Error loading sub-entity:', error);
       toast.error(t('loadError'));
     }
-  }, [subEntitySlug, subEntityId, tenantId, t]);
+  }, [subEntitySlug, subEntityId, t]);
 
   // Load sub-records
   const loadRecords = useCallback(async () => {
@@ -163,9 +161,21 @@ export default function SubEntityField({
     if (!recordToDelete || !subEntitySlug) return;
     setDeleting(true);
     try {
-      await api.delete(`/data/${subEntitySlug}/${recordToDelete.id}`);
-      setRecords(prev => prev.filter(r => r.id !== recordToDelete.id));
-      toast.success(t('recordRemoved'));
+      const deletedId = recordToDelete.id;
+      await api.delete(`/data/${subEntitySlug}/${deletedId}`);
+      setRecords(prev => prev.filter(r => r.id !== deletedId));
+      // Fica na lixeira: oferece desfazer na hora (igual a tabela principal).
+      toast.success(tData('toast.deletedToUndo'), {
+        duration: 10_000,
+        action: {
+          label: tData('toast.undo'),
+          onClick: () => {
+            api.post(`/trash/${subEntitySlug}/${deletedId}/restore`)
+              .then(() => loadRecords())
+              .catch((e) => toast.error(getErrorMessage(e)));
+          },
+        },
+      });
     } catch (error) {
       console.error('Error deleting sub-record:', error);
       toast.error(t('removeError'));
@@ -285,7 +295,7 @@ export default function SubEntityField({
                       <tr key={record.id} className="hover:bg-muted/30 transition-colors">
                         {displayFields.map(field => (
                           <td key={field} className="px-3 py-2 text-sm max-w-[200px] truncate">
-                            {(record as Record<string, unknown>)._formatted?.[field] as string ?? formatCellValue(record.data[field], tBool('yes'), tBool('no'))}
+                            {(record as unknown as { _formatted?: Record<string, unknown> })._formatted?.[field] as string ?? formatCellValue(record.data[field], tBool('yes'), tBool('no'))}
                           </td>
                         ))}
                         <td className="px-3 py-2 text-xs text-muted-foreground whitespace-nowrap">
@@ -330,7 +340,7 @@ export default function SubEntityField({
                         {displayFields.map((field, idx) => (
                           <div key={field} className={idx === 0 ? 'font-medium text-sm' : 'text-xs text-muted-foreground'}>
                             {idx > 0 && <span className="text-muted-foreground/60">{getFieldLabel(field)}: </span>}
-                            {(record as Record<string, unknown>)._formatted?.[field] as string ?? formatCellValue(record.data[field], tBool('yes'), tBool('no'))}
+                            {(record as unknown as { _formatted?: Record<string, unknown> })._formatted?.[field] as string ?? formatCellValue(record.data[field], tBool('yes'), tBool('no'))}
                           </div>
                         ))}
                         <div className="text-xs text-muted-foreground">

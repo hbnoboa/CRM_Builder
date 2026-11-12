@@ -3,6 +3,7 @@ import { useCallback, useMemo } from 'react';
 import { toast } from 'sonner';
 import { dataService, QueryDataParams, EntityDataResponse } from '@/services/data.service';
 import { getErrorMessage } from '@/lib/get-error-message';
+import { entityKeys } from '@/hooks/use-entities';
 
 export const dataKeys = {
   all: ['entityData'] as const,
@@ -115,13 +116,11 @@ export function useCreateEntityData(messages?: MutationMessages) {
       entitySlug,
       data,
       parentRecordId,
-      tenantId,
     }: {
       entitySlug: string;
       data: Record<string, unknown>;
       parentRecordId?: string;
-      tenantId?: string;
-    }) => dataService.create(entitySlug, data, parentRecordId, tenantId),
+    }) => dataService.create(entitySlug, data, parentRecordId),
     onSuccess: (_, { entitySlug }) => {
       queryClient.invalidateQueries({
         queryKey: dataKeys.list(entitySlug),
@@ -134,6 +133,8 @@ export function useCreateEntityData(messages?: MutationMessages) {
           return key.includes(entitySlug);
         }
       });
+      // Atualiza o _count exibido no badge da sidebar (entities agrupadas)
+      queryClient.invalidateQueries({ queryKey: entityKeys.grouped() });
       if (messages?.success) toast.success(messages.success);
     },
     onError: (error: unknown) => {
@@ -150,13 +151,11 @@ export function useUpdateEntityData(messages?: MutationMessages) {
       entitySlug,
       id,
       data,
-      tenantId,
     }: {
       entitySlug: string;
       id: string;
       data: Record<string, unknown>;
-      tenantId?: string;
-    }) => dataService.update(entitySlug, id, data, tenantId),
+    }) => dataService.update(entitySlug, id, data),
     onSuccess: (_, { entitySlug, id }) => {
       queryClient.invalidateQueries({
         queryKey: dataKeys.list(entitySlug),
@@ -203,6 +202,8 @@ export function useDeleteEntityData(messages?: MutationMessages) {
           return key.includes(entitySlug);
         }
       });
+      // Atualiza o _count exibido no badge da sidebar (entities agrupadas)
+      queryClient.invalidateQueries({ queryKey: entityKeys.grouped() });
       if (messages?.success) toast.success(messages.success);
     },
     onError: (error: unknown) => {

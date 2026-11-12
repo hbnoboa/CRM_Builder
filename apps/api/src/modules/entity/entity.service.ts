@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException, ConflictException, Logger } from '@nestjs/common';
+import { createHash } from 'crypto';
 import { PrismaService } from '../../prisma/prisma.service';
 import { NotificationService } from '../notification/notification.service';
 import { AuditService } from '../audit/audit.service';
@@ -15,10 +16,14 @@ import {
   MAX_LIMIT,
 } from '../../common/types';
 import { Prisma } from '@prisma/client';
-import { RoleType } from '../../common/decorators/roles.decorator';
 import { getEffectiveTenantId } from '../../common/utils/tenant.util';
 import { buildFilterClause } from '../../common/utils/build-filter-clause';
 import { GlobalFilterDto } from './dto/update-global-filters.dto';
+import { creatorFilter } from '../../common/utils/team-scope';
+import { invalidateEntityQueryCache } from '../../common/services/entity-query-cache';
+
+/** Datas que a leitura injeta em `fields`; nao sao campos da tabela. */
+const SYSTEM_FIELD_SLUGS = new Set(['createdAt', 'updatedAt']);
 
 export type QueryEntityDto = PaginationQuery;
 
@@ -126,13 +131,12 @@ export class EntityService {
     }
 
     // Gerar namePlural se nao fornecido
-    const namePlural = dto.namePlural || `${dto.name}s`;
+    const namePlural = dto.namePlural || (/s$/i.test(dto.name) ? dto.name : `${dto.name}s`);
 
     // Garantir que cada campo tenha slug (usa name como fallback)
-    const processedFields = (dto.fields || []).map(f => ({
-      ...f,
-      slug: f.slug || f.name,
-    }));
+    const processedFields = (dto.fields || [])
+      .map(f => ({ ...f, slug: f.slug || f.name }))
+      .filter(f => !SYSTEM_FIELD_SLUGS.has(f.slug));
 
     const entity = await this.prisma.entity.create({
       data: {
@@ -150,6 +154,9 @@ export class EntityService {
       },
     });
 
+    // Indices unicos parciais (DB) p/ campos marcados unique
+    await this.syncUniqueIndexes(entity.id, processedFields as Array<{ slug: string; unique?: boolean }>);
+
     // Enviar notificacao para o tenant
     this.notificationService.notifyEntityCreated(
       targetTenantId,
@@ -166,85 +173,36 @@ export class EntityService {
       metadata: { name: entity.name, slug: entity.slug },
     }).catch(() => {});
 
-    // Auto-criar dashboard template com data-table para a nova entidade
-    this.autoCreateDashboardTemplate(entity, processedFields, targetTenantId, currentUser)
-      .catch((err) => {
-        this.logger.error('Failed to auto-create dashboard template', {
-          error: err.message,
-          stack: err.stack,
-          entityId: entity.id,
-          entitySlug: entity.slug,
-        });
+    // Auto-criar/sincronizar o dashboard "Tabela" da entidade.
+    // await (sem race) + idempotente; falha nao impede a criacao da entidade.
+    try {
+      await this.dashboardTemplateService.syncTableTemplate(
+        entity,
+        processedFields,
+        currentUser,
+        targetTenantId,
+      );
+    } catch (err) {
+      this.logger.error('Failed to sync dashboard template (create)', {
+        error: (err as Error).message,
+        entityId: entity.id,
+        entitySlug: entity.slug,
       });
+    }
 
     return entity;
-  }
-
-  /**
-   * Cria automaticamente um dashboard template com widget data-table ao criar entidade.
-   */
-  private async autoCreateDashboardTemplate(
-    entity: { id: string; name: string; slug: string },
-    fields: FieldDefinition[],
-    tenantId: string,
-    currentUser: CurrentUser,
-  ) {
-    // Buscar todos os roles do tenant para atribuir ao template
-    const roles = await this.prisma.customRole.findMany({
-      where: { tenantId },
-      select: { id: true },
-    });
-    const roleIds = roles.map((r) => r.id);
-
-    const widgetId = 'w-data-table-1';
-    const displayFields = fields
-      .filter((f) => !['sub-entity', 'map', 'json', 'signature'].includes(f.type))
-      .map((f) => f.slug);
-
-    await this.dashboardTemplateService.create(
-      {
-        name: `${entity.name} - Tabela`,
-        entitySlug: entity.slug,
-        roleIds,
-        priority: 0,
-        layout: [{ i: widgetId, x: 0, y: 0, w: 12, h: 10, minW: 6, minH: 6 }],
-        widgets: {
-          [widgetId]: {
-            type: 'data-table',
-            title: entity.name,
-            config: {
-              displayFields,
-              pageSize: 25,
-              allowCreate: true,
-              allowEdit: true,
-              allowDelete: true,
-              allowExport: true,
-              allowImport: true,
-              allowBatchSelect: true,
-            },
-          },
-        },
-      },
-      currentUser,
-      tenantId,
-    );
   }
 
   async findAll(currentUser: CurrentUser, query: QueryEntityDto = {}) {
     const { page, limit, skip } = parsePaginationParams(query);
     const { search, sortBy = 'name', sortOrder = 'asc', tenantId: queryTenantId, cursor } = query;
 
-    // PLATFORM_ADMIN pode ver de qualquer tenant ou todos
-    const roleType = currentUser.customRole?.roleType as RoleType | undefined;
-    const where: Prisma.EntityWhereInput = {};
-
-    if (roleType === 'PLATFORM_ADMIN') {
-      if (queryTenantId) {
-        where.tenantId = queryTenantId;
-      }
-    } else {
-      where.tenantId = currentUser.tenantId;
-    }
+    // Modelo B: escopo = tenant efetivo (tenant da URL, resolvido em
+    // currentUser.tenantId pelo header X-Tenant-Slug). Nunca cross-tenant.
+    // Consistente com findAllGrouped.
+    const where: Prisma.EntityWhereInput = {
+      tenantId: getEffectiveTenantId(currentUser, queryTenantId),
+    };
 
     if (search) {
       where.OR = [
@@ -286,7 +244,9 @@ export class EntityService {
       orderBy,
       include: {
         _count: {
-          select: { data: true, archivedData: true },
+          // `data` filtra soft-deletados (EntityData esta fora do middleware de
+          // soft-delete; sem este where o count incluiria registros excluidos).
+          select: { data: { where: { deletedAt: null } }, archivedData: true },
         },
         tenant: {
           select: { id: true, name: true, slug: true },
@@ -348,25 +308,16 @@ export class EntityService {
   }
 
   async findAllGrouped(currentUser: CurrentUser, queryTenantId?: string) {
-    const roleType = (currentUser.customRole?.roleType || 'USER') as RoleType;
+    // SEMPRE escopa pelo tenant ativo do usuario (resolvido via slug/header).
     const effectiveTenantId = getEffectiveTenantId(currentUser, queryTenantId);
-    const where: Prisma.EntityWhereInput = {};
+    const where: Prisma.EntityWhereInput = { tenantId: effectiveTenantId };
 
-    if (roleType === 'PLATFORM_ADMIN') {
-      if (queryTenantId) {
-        where.tenantId = queryTenantId;
-      }
-    } else {
-      where.tenantId = currentUser.tenantId;
-    }
-
-    // CUSTOM roles: filtrar apenas entidades com canRead
-    if (roleType === 'CUSTOM') {
-      const accessibleSlugs = await this.customRoleService.getUserAccessibleEntities(currentUser.id);
-      if (accessibleSlugs.length === 0) {
-        return [];
-      }
-      where.slug = { in: accessibleSlugs };
+    // Permission-driven: '*' (allAccess/coringa) = todas as tabelas do tenant;
+    // senao restringe aos slugs com canRead em permissions[]. Sem roleType.
+    const accessible = await this.customRoleService.getUserAccessibleEntities(currentUser.id, effectiveTenantId);
+    if (accessible !== '*') {
+      if (accessible.length === 0) return [];
+      where.slug = { in: accessible };
     }
 
     const entities = await this.prisma.entity.findMany({
@@ -399,7 +350,7 @@ export class EntityService {
     // Computar contagens filtradas por entidade (scope + dataFilters + globalFilters)
     const entitiesWithCounts = await Promise.all(
       topLevelEntities.map(async (entity) => {
-        const counts = await this.countFilteredEntityRecords(entity, currentUser, effectiveTenantId, roleType);
+        const counts = await this.countFilteredEntityRecords(entity, currentUser, effectiveTenantId);
 
         // Anexar sub-entidades (id, name, slug, icon, color) para o sidebar
         const subSlugs = parentToSubEntities.get(entity.slug) || [];
@@ -409,6 +360,7 @@ export class EntityService {
           .map((sub) => ({
             id: sub!.id,
             name: sub!.name,
+            namePlural: (sub as { namePlural?: string }).namePlural || sub!.name,
             slug: sub!.slug,
             icon: (sub as any).icon || null,
             color: (sub as any).color || null,
@@ -441,24 +393,27 @@ export class EntityService {
    * Usado pelo sidebar para mostrar contagens corretas por role.
    */
   private async countFilteredEntityRecords(
-    entity: { id: string; slug: string; settings: Prisma.JsonValue },
+    entity: { id: string; slug: string; settings: Prisma.JsonValue; fields: Prisma.JsonValue },
     user: CurrentUser,
     effectiveTenantId: string,
-    roleType: RoleType | string,
   ): Promise<{ active: number; archived: number }> {
     const where: Prisma.EntityDataWhereInput = {
       entityId: entity.id,
       tenantId: effectiveTenantId,
+      // EntityData esta FORA do middleware de soft-delete (ver PrismaService),
+      // entao o count precisa excluir manualmente os soft-deletados — senao o
+      // badge da sidebar continua contando registros excluidos (divergia da tabela).
+      deletedAt: null,
     };
 
-    // Scope: 'own' = apenas registros criados pelo usuario
-    if (roleType === 'CUSTOM') {
-      const scope = await this.customRoleService.getEntityScope(user.id, entity.slug);
-      if (scope === 'own') {
-        where.createdById = user.id;
-      }
-    } else if (roleType === 'USER') {
-      where.createdById = user.id;
+    // Escopo permission-driven: 'all' => sem restricao; 'team' => criados pela
+    // equipe; senao (own/sem acesso) só os do proprio usuario.
+    // Portal do cliente: so o que e do cliente vinculado
+    const clientWhere = await this.customRoleService.clientScopeFor(user, entity);
+    if (clientWhere) where.AND = [clientWhere];
+    else {
+      const creators = creatorFilter(await this.customRoleService.getVisibleCreatorIds(user, entity.slug));
+      if (creators) where.createdById = creators;
     }
 
     // Filtros globais da entidade
@@ -476,9 +431,9 @@ export class EntityService {
     }
 
     // Filtros de dados por role (permissions[].dataFilters)
-    if (roleType !== 'PLATFORM_ADMIN' && roleType !== 'ADMIN' && user.customRole) {
+    if (user.customRole) {
       const roleFilters = this.customRoleService.getRoleDataFilters(
-        user.customRole as { roleType: string; permissions: unknown },
+        user.customRole as { permissions: unknown; modulePermissions?: unknown },
         entity.slug,
       );
       if (roleFilters.length > 0) {
@@ -506,20 +461,32 @@ export class EntityService {
     return { active, archived };
   }
 
-  async findBySlug(slug: string, currentUser: CurrentUser, tenantId?: string) {
-    // PLATFORM_ADMIN pode buscar entidade de qualquer tenant se nao especificar tenantId
-    const roleType = currentUser.customRole?.roleType as RoleType | undefined;
-    const where: Prisma.EntityWhereInput = { slug };
-
-    if (roleType === 'PLATFORM_ADMIN') {
-      // Se tenantId for especificado, filtra por ele; senao, busca em qualquer tenant
-      if (tenantId) {
-        where.tenantId = tenantId;
+  /**
+   * Resolve a entidade PAI: quem referencia esta entidade via campo type=sub-entity.
+   * A relacao e guardada so num sentido (pai.fields -> subEntitySlug), entao a filha
+   * nao "sabe" o pai. Isso expoe parentEntitySlug p/ filtros/colunas de pai no front.
+   */
+  private async resolveParentInfo(entity: { id: string; slug: string; tenantId: string }): Promise<{
+    parentEntityId: string | null;
+    parentEntitySlug: string | null;
+    parentEntityName: string | null;
+  }> {
+    const candidates = await this.prisma.entity.findMany({
+      where: { tenantId: entity.tenantId, deletedAt: null, NOT: { id: entity.id } },
+      select: { id: true, slug: true, name: true, fields: true },
+    });
+    for (const c of candidates) {
+      const fields = (c.fields as Array<{ type?: string; subEntitySlug?: string }>) || [];
+      if (fields.some((f) => f.type === 'sub-entity' && f.subEntitySlug === entity.slug)) {
+        return { parentEntityId: c.id, parentEntitySlug: c.slug, parentEntityName: c.name };
       }
-    } else {
-      // Usuarios normais sempre filtram pelo proprio tenant
-      where.tenantId = currentUser.tenantId;
     }
+    return { parentEntityId: null, parentEntitySlug: null, parentEntityName: null };
+  }
+
+  // `_tenantId` ignorado: sempre filtra pelo tenant ativo do usuario.
+  async findBySlug(slug: string, currentUser: CurrentUser, _tenantId?: string) {
+    const where: Prisma.EntityWhereInput = { slug, tenantId: currentUser.tenantId };
 
     const entity = await this.prisma.entity.findFirst({
       where,
@@ -543,6 +510,7 @@ export class EntityService {
         type: 'datetime',
         required: false,
         unique: false,
+        system: true,
       });
     }
     if (!hasUpdatedAt) {
@@ -553,26 +521,25 @@ export class EntityService {
         type: 'datetime',
         required: false,
         unique: false,
+        system: true,
       });
     }
+
+    const parent = await this.resolveParentInfo(entity);
 
     if (systemFields.length > 0) {
       return {
         ...entity,
+        ...parent,
         fields: [...fields, ...systemFields],
       };
     }
 
-    return entity;
+    return { ...entity, ...parent };
   }
 
   async findOne(id: string, currentUser: CurrentUser) {
-    // PLATFORM_ADMIN pode ver entidade de qualquer tenant
-    const roleType = currentUser.customRole?.roleType as RoleType | undefined;
-    const whereClause: Prisma.EntityWhereInput = { id };
-    if (roleType !== 'PLATFORM_ADMIN') {
-      whereClause.tenantId = currentUser.tenantId;
-    }
+    const whereClause: Prisma.EntityWhereInput = { id, tenantId: currentUser.tenantId };
 
     const entity = await this.prisma.entity.findFirst({
       where: whereClause,
@@ -601,6 +568,7 @@ export class EntityService {
         type: 'datetime',
         required: false,
         unique: false,
+        system: true,
       });
     }
     if (!hasUpdatedAt) {
@@ -611,17 +579,21 @@ export class EntityService {
         type: 'datetime',
         required: false,
         unique: false,
+        system: true,
       });
     }
+
+    const parent = await this.resolveParentInfo(entity);
 
     if (systemFields.length > 0) {
       return {
         ...entity,
+        ...parent,
         fields: [...fields, ...systemFields],
       };
     }
 
-    return entity;
+    return { ...entity, ...parent };
   }
 
   async update(id: string, dto: UpdateEntityDto, currentUser: CurrentUser) {
@@ -637,10 +609,10 @@ export class EntityService {
     };
 
     if (dto.fields !== undefined) {
-      const processedFields = dto.fields.map((f: any) => ({
-        ...f,
-        slug: f.slug || f.name,
-      }));
+      // Datas de criacao/atualizacao sao injetadas na leitura; nunca gravar como campo.
+      const processedFields = dto.fields
+        .map((f: any) => ({ ...f, slug: f.slug || f.name }))
+        .filter((f: any) => !SYSTEM_FIELD_SLUGS.has(f.slug));
       updateData.fields = processedFields as unknown as Prisma.InputJsonValue;
     }
     if (dto.settings !== undefined) {
@@ -651,6 +623,34 @@ export class EntityService {
       where: { id },
       data: updateData,
     });
+    invalidateEntityQueryCache(oldEntity.slug);
+
+    // Re-sincroniza indices unicos parciais se os campos mudaram
+    if (dto.fields !== undefined) {
+      await this.syncUniqueIndexes(
+        id,
+        (updatedEntity.fields as unknown) as Array<{ slug: string; unique?: boolean }>,
+        (oldEntity.fields as unknown) as Array<{ slug: string; unique?: boolean }>,
+      );
+    }
+
+    // Sincroniza o dashboard "Tabela" se nome ou campos mudaram
+    // (adiciona campos novos, remove mortos, atualiza titulo).
+    if (dto.fields !== undefined || dto.name !== undefined) {
+      try {
+        await this.dashboardTemplateService.syncTableTemplate(
+          { name: updatedEntity.name, slug: updatedEntity.slug },
+          (updatedEntity.fields as unknown) as Array<{ slug: string; type: string }>,
+          currentUser,
+        );
+      } catch (err) {
+        this.logger.error('Failed to sync dashboard template (update)', {
+          error: (err as Error).message,
+          entityId: id,
+          entitySlug: updatedEntity.slug,
+        });
+      }
+    }
 
     // Audit log
     this.auditService.log(currentUser, {
@@ -681,17 +681,205 @@ export class EntityService {
     const currentSettings = (entity.settings as Record<string, unknown>) || {};
     const settings = { ...currentSettings, globalFilters };
 
-    return this.prisma.entity.update({
+    const updated = await this.prisma.entity.update({
       where: { id },
       data: { settings: settings as unknown as Prisma.InputJsonValue },
     });
+    invalidateEntityQueryCache(entity.slug);
+    return updated;
+  }
+
+  /** Coleta ids da entidade + todas as sub-entidades (recursivo via campos type=sub-entity). */
+  private async collectDescendantEntityIds(
+    root: { id: string; slug: string; fields: unknown },
+    tenantId: string,
+  ): Promise<string[]> {
+    const ids: string[] = [root.id];
+    const visited = new Set<string>([root.slug]);
+    let frontier: Array<{ id: string; slug: string; fields: unknown }> = [root];
+    for (let depth = 0; depth < 20 && frontier.length > 0; depth++) {
+      const childSlugs = new Set<string>();
+      for (const e of frontier) {
+        const fields = (e.fields as Array<{ type: string; subEntitySlug?: string }>) || [];
+        for (const f of fields) {
+          if (f.type === 'sub-entity' && f.subEntitySlug && !visited.has(f.subEntitySlug)) {
+            childSlugs.add(f.subEntitySlug);
+          }
+        }
+      }
+      if (childSlugs.size === 0) break;
+      // middleware adiciona deletedAt:null -> so entidades vivas
+      const children = await this.prisma.entity.findMany({
+        where: { tenantId, slug: { in: [...childSlugs] } },
+        select: { id: true, slug: true, fields: true },
+      });
+      if (children.length === 0) break;
+      for (const c of children) { ids.push(c.id); visited.add(c.slug); }
+      frontier = children;
+    }
+    return ids;
+  }
+
+  // Nome estavel e curto (<=63) p/ o indice unico parcial de um campo JSONB.
+  private uniqueIndexName(entityId: string, slug: string): string {
+    return `uq_ed_${createHash('md5').update(`${entityId}:${slug}`).digest('hex').slice(0, 24)}`;
+  }
+
+  /**
+   * Sincroniza indices UNIQUE de EXPRESSAO PARCIAL para campos marcados unique:
+   *   UNIQUE ((data->>'campo')) WHERE deletedAt IS NULL AND entityId='id'
+   * Defesa em profundidade (DB) alem do check app-level. Cria os novos e dropa
+   * os que deixaram de ser unique (diff com prevFields).
+   */
+  private async syncUniqueIndexes(
+    entityId: string,
+    fields: Array<{ slug: string; unique?: boolean }>,
+    prevFields?: Array<{ slug: string; unique?: boolean }>,
+  ): Promise<void> {
+    const safe = (s: string) => /^[a-zA-Z0-9_]+$/.test(s);
+    const newUnique = new Set((fields || []).filter((f) => f.unique && safe(f.slug)).map((f) => f.slug));
+    try {
+      for (const slug of newUnique) {
+        const name = this.uniqueIndexName(entityId, slug);
+        await this.prisma.$executeRawUnsafe(
+          `CREATE UNIQUE INDEX IF NOT EXISTS "${name}" ON "EntityData"((data->>'${slug}')) WHERE "deletedAt" IS NULL AND "entityId" = '${entityId}'`,
+        );
+      }
+      if (prevFields) {
+        const prevUnique = (prevFields || []).filter((f) => f.unique && safe(f.slug)).map((f) => f.slug);
+        for (const slug of prevUnique) {
+          if (!newUnique.has(slug)) {
+            await this.prisma.$executeRawUnsafe(`DROP INDEX IF EXISTS "${this.uniqueIndexName(entityId, slug)}"`);
+          }
+        }
+      }
+    } catch (e) {
+      // Indice pode falhar se ja houver duplicatas vivas; nao bloquear a operacao.
+      this.logger.warn(`syncUniqueIndexes(${entityId}): ${e}`);
+    }
+  }
+
+  /** Descendentes (entidades) deletados na MESMA operacao (deletedAt = ts) — restore-cascata. */
+  private async collectDeletedDescendantEntityIds(
+    root: { id: string; slug: string; fields: unknown },
+    tenantId: string,
+    ts: Date,
+  ): Promise<string[]> {
+    const ids: string[] = [root.id];
+    const visited = new Set<string>([root.slug]);
+    let frontier: Array<{ id: string; slug: string; fields: unknown }> = [root];
+    for (let depth = 0; depth < 20 && frontier.length > 0; depth++) {
+      const childSlugs = new Set<string>();
+      for (const e of frontier) {
+        const fields = (e.fields as Array<{ type: string; subEntitySlug?: string }>) || [];
+        for (const f of fields) {
+          if (f.type === 'sub-entity' && f.subEntitySlug && !visited.has(f.subEntitySlug)) {
+            childSlugs.add(f.subEntitySlug);
+          }
+        }
+      }
+      if (childSlugs.size === 0) break;
+      const children = await this.prisma.entity.findMany({
+        where: { tenantId, slug: { in: [...childSlugs] }, deletedAt: ts },
+        select: { id: true, slug: true, fields: true },
+      });
+      if (children.length === 0) break;
+      for (const c of children) { ids.push(c.id); visited.add(c.slug); }
+      frontier = children;
+    }
+    return ids;
+  }
+
+  /**
+   * Cascata de soft-delete/restore para artefatos que dependem de uma entidade.
+   * EntityData esta fora do middleware e estes modelos referenciam a entidade por
+   * `entityId`/`sourceEntityId` (FK) ou por `entitySlug` (string, ex: DashboardTemplate),
+   * entao precisam ser limpos explicitamente — senao acumulam orfaos (8 dashboards
+   * orfaos foram encontrados em producao por causa disso).
+   * matchDeletedAt=null + setDeletedAt=now  -> exclui dependentes ativos
+   * matchDeletedAt=ts   + setDeletedAt=null -> restaura os da mesma operacao
+   */
+  private async cascadeDependents(
+    entityIds: string[],
+    slugs: string[],
+    matchDeletedAt: Date | null,
+    setDeletedAt: Date | null,
+  ): Promise<void> {
+    const byId = { entityId: { in: entityIds }, deletedAt: matchDeletedAt };
+    const data = { deletedAt: setDeletedAt };
+    await Promise.all([
+      this.prisma.pdfTemplate.updateMany({ where: { sourceEntityId: { in: entityIds }, deletedAt: matchDeletedAt }, data }),
+      this.prisma.entityAutomation.updateMany({ where: byId, data }),
+      this.prisma.entityFieldRule.updateMany({ where: byId, data }),
+      this.prisma.webhook.updateMany({ where: byId, data }),
+      this.prisma.actionChain.updateMany({ where: byId, data }),
+      this.prisma.publicLink.updateMany({
+        where: { OR: [{ entityId: { in: entityIds } }, { entitySlug: { in: slugs } }], deletedAt: matchDeletedAt },
+        data,
+      }),
+      this.prisma.dashboardTemplate.updateMany({ where: { entitySlug: { in: slugs }, deletedAt: matchDeletedAt }, data }),
+    ]);
+  }
+
+  /** Restaura uma entidade (tabela) soft-deletada + sub-entidades e registros da mesma operacao. */
+  async restore(id: string, currentUser: CurrentUser) {
+    const where: Prisma.EntityWhereInput = { id, deletedAt: { not: null }, tenantId: currentUser.tenantId };
+    const entity = await this.prisma.entity.findFirst({ where });
+    if (!entity) throw new NotFoundException('Entidade soft-deletada nao encontrada');
+
+    const ts = entity.deletedAt as Date;
+    const ids = await this.collectDeletedDescendantEntityIds(
+      { id: entity.id, slug: entity.slug, fields: entity.fields },
+      entity.tenantId,
+      ts,
+    );
+    // slugs das entidades restauradas (buscar com deletedAt: ts pois ainda estao soft-deletadas).
+    const slugRows = await this.prisma.entity.findMany({
+      where: { id: { in: ids }, deletedAt: ts },
+      select: { slug: true },
+    });
+    const slugs = slugRows.map((e) => e.slug);
+    await this.prisma.entity.updateMany({ where: { id: { in: ids } }, data: { deletedAt: null } });
+    await this.prisma.entityData.updateMany({
+      where: { entityId: { in: ids }, deletedAt: ts },
+      data: { deletedAt: null },
+    });
+    // CASCATA inversa: restaurar dependentes excluidos na MESMA operacao (deletedAt = ts).
+    await this.cascadeDependents(ids, slugs, ts, null);
+
+    this.auditService.log(currentUser, {
+      action: 'update',
+      resource: 'entity',
+      resourceId: id,
+      metadata: { restored: ids.length, name: entity.name, slug: entity.slug },
+    }).catch(() => {});
+
+    return { restored: ids.length };
   }
 
   async remove(id: string, currentUser: CurrentUser) {
     const oldEntity = await this.findOne(id, currentUser);
 
-    // Isso tambem deleta todos os dados da entidade (cascade)
-    await this.prisma.entity.delete({ where: { id } });
+    // CASCATA: soft-delete da entidade + sub-entidades (recursivo) + registros de todas.
+    const entityIds = await this.collectDescendantEntityIds(
+      { id: oldEntity.id, slug: oldEntity.slug, fields: oldEntity.fields },
+      oldEntity.tenantId,
+    );
+    // Coletar slugs ANTES do soft-delete (depois o middleware os filtraria).
+    const slugRows = await this.prisma.entity.findMany({
+      where: { id: { in: entityIds } },
+      select: { slug: true },
+    });
+    const slugs = slugRows.map((e) => e.slug);
+    const now = new Date();
+    await this.prisma.entity.updateMany({ where: { id: { in: entityIds } }, data: { deletedAt: now } });
+    await this.prisma.entityData.updateMany({
+      where: { entityId: { in: entityIds }, deletedAt: null },
+      data: { deletedAt: now },
+    });
+    // CASCATA: dependentes (dashboards, PDFs, automacoes, field rules, public links,
+    // webhooks, action chains) no MESMO timestamp para permitir restore coerente.
+    await this.cascadeDependents(entityIds, slugs, null, now);
 
     // Audit log
     this.auditService.log(currentUser, {
@@ -699,10 +887,10 @@ export class EntityService {
       resource: 'entity',
       resourceId: id,
       oldData: { name: oldEntity.name, slug: oldEntity.slug, description: oldEntity.description },
-      metadata: { name: oldEntity.name, slug: oldEntity.slug },
+      metadata: { name: oldEntity.name, slug: oldEntity.slug, cascadeEntities: entityIds.length },
     }).catch(() => {});
 
-    return { message: 'Entidade excluida com sucesso' };
+    return { message: 'Entidade, sub-entidades e registros excluidos (soft).' };
   }
 
   // Validar dados baseado na definicao dos campos

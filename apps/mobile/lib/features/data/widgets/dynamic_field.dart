@@ -15,6 +15,7 @@ import 'package:crm_mobile/core/theme/app_typography.dart';
 import 'package:crm_mobile/features/data/widgets/image_field_input.dart';
 import 'package:crm_mobile/features/data/widgets/map_field_input.dart';
 import 'package:crm_mobile/features/data/widgets/zone_diagram_field.dart';
+import 'package:crm_mobile/shared/utils/file_url.dart';
 import 'package:crm_mobile/shared/utils/formatters.dart';
 
 /// Renders a field value in read-only mode (detail page).
@@ -104,11 +105,13 @@ class DynamicFieldDisplay extends StatelessWidget {
           // Pending upload: show local file preview
           return _LocalImagePreview(queueId: url.replaceFirst('local://', ''));
         }
-        if (url.startsWith('http')) {
+        // Backend grava caminho RELATIVO (/uploads/...); resolve para absoluto.
+        final resolved = resolveFileUrl(url);
+        if (resolved != null) {
           return ClipRRect(
             borderRadius: BorderRadius.circular(AppColors.radius),
             child: CachedNetworkImage(
-              imageUrl: url,
+              imageUrl: resolved,
               cacheManager: CrmCacheManager(),
               height: 200,
               width: double.infinity,

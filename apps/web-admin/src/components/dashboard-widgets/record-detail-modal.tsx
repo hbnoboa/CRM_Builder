@@ -8,8 +8,10 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { useEntityDataItem } from '@/hooks/use-data';
-import { Loader2 } from 'lucide-react';
+import { useRouter } from '@/i18n/tenant-navigation';
+import { Loader2, MessageSquare } from 'lucide-react';
 
 interface RecordDetailModalProps {
   entitySlug: string;
@@ -27,6 +29,7 @@ function isImageUrl(val: unknown): boolean {
 }
 
 export function RecordDetailModal({ entitySlug, recordId, open, onOpenChange }: RecordDetailModalProps) {
+  const router = useRouter();
   const { data: record, isLoading } = useEntityDataItem(entitySlug, recordId);
 
   const fields = record?.entity?.fields || [];
@@ -111,6 +114,17 @@ export function RecordDetailModal({ entitySlug, recordId, open, onOpenChange }: 
             <Badge variant="outline" className="text-xs font-normal">
               {entitySlug}
             </Badge>
+            <Button
+              variant="outline"
+              size="sm"
+              className="ml-auto mr-6 gap-1.5"
+              onClick={() => {
+                onOpenChange(false);
+                router.push(`/chat?thread=${entitySlug}:${recordId}`);
+              }}
+            >
+              <MessageSquare className="h-4 w-4" /> Abrir chat
+            </Button>
           </DialogTitle>
         </DialogHeader>
 

@@ -1,8 +1,7 @@
-import { IsEmail, IsString, MinLength, IsOptional, IsEnum, IsIn } from 'class-validator';
+import { IsEmail, IsString, MinLength, IsOptional, IsEnum } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional, PartialType } from '@nestjs/swagger';
 import { Status } from '@prisma/client';
 import { Type } from 'class-transformer';
-import { ROLE_TYPES, RoleType } from '../../custom-role/dto/custom-role.dto';
 
 export class CreateUserDto {
   @ApiProperty({ example: 'usuario@empresa.com' })
@@ -17,11 +16,6 @@ export class CreateUserDto {
   @ApiProperty({ example: 'Joao Silva' })
   @IsString()
   name: string;
-
-  @ApiPropertyOptional({ description: 'Tenant ID (apenas PLATFORM_ADMIN pode especificar)' })
-  @IsString()
-  @IsOptional()
-  tenantId?: string;
 
   @ApiPropertyOptional()
   @IsString()
@@ -46,6 +40,16 @@ export class CreateUserDto {
   @ApiProperty({ description: 'ID da role customizada (obrigatorio)' })
   @IsString()
   customRoleId: string;
+
+  @ApiPropertyOptional({ description: 'Portal do cliente: tabela do cliente que a pessoa representa (ex.: empresas)' })
+  @IsString()
+  @IsOptional()
+  clientEntitySlug?: string;
+
+  @ApiPropertyOptional({ description: 'Portal do cliente: registro do cliente que a pessoa representa (null tira o vinculo)' })
+  @IsString()
+  @IsOptional()
+  clientRecordId?: string | null;
 }
 
 export class UpdateUserDto extends PartialType(CreateUserDto) {
@@ -56,6 +60,11 @@ export class UpdateUserDto extends PartialType(CreateUserDto) {
 }
 
 export class QueryUserDto {
+  @ApiPropertyOptional({ description: 'So quem representa este cliente (portal do cliente)' })
+  @IsString()
+  @IsOptional()
+  clientRecordId?: string;
+
   @ApiPropertyOptional({ default: 1 })
   @Type(() => Number)
   @IsOptional()
@@ -86,18 +95,18 @@ export class QueryUserDto {
   @IsOptional()
   sortOrder?: 'asc' | 'desc';
 
-  @ApiPropertyOptional({ description: 'Filtrar por roleType', enum: ROLE_TYPES })
-  @IsIn(ROLE_TYPES)
+  @ApiPropertyOptional({ description: 'Filtrar por customRoleId' })
+  @IsString()
   @IsOptional()
-  role?: RoleType;
+  role?: string;
+
+  @ApiPropertyOptional({ description: 'Filtrar por equipe' })
+  @IsString()
+  @IsOptional()
+  teamId?: string;
 
   @ApiPropertyOptional({ enum: Status })
   @IsEnum(Status)
   @IsOptional()
   status?: Status;
-
-  @ApiPropertyOptional({ description: 'Filtrar por tenant (apenas PLATFORM_ADMIN)' })
-  @IsString()
-  @IsOptional()
-  tenantId?: string;
 }

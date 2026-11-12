@@ -385,6 +385,16 @@ export interface EntitySettings {
   auditConfig?: EntityAuditConfig;
   /** Slug do campo boolean que trava o registro quando true */
   lockField?: string;
+  /** Campo que da nome ao registro (listas, tela inicial, painel lateral) */
+  titleField?: string;
+  /** Campo de lista que diz a situacao do registro */
+  statusField?: string;
+  /** Opcoes do statusField que encerram o registro (ex.: concluida, cancelada) */
+  doneValues?: string[];
+  /** Campo de data que marca o prazo (pendencias na tela inicial) */
+  deadlineField?: string;
+  /** Campo de pessoa da equipe responsavel pelo registro */
+  assigneeField?: string;
 }
 
 export interface Entity {

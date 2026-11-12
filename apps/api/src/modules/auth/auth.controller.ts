@@ -7,50 +7,84 @@ import {
   UseGuards,
   HttpCode,
   HttpStatus,
+  Req,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiResponse } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
+import { AuthThrottlerGuard } from '../../common/guards/auth-throttler.guard';
 import { AuthService } from './auth.service';
-import { LoginDto, RegisterDto, RefreshTokenDto, UpdateProfileDto, ChangePasswordDto, ForgotPasswordDto, ResetPasswordDto } from './dto/auth.dto';
+import { LoginDto, LoginMfaDto, RegisterDto, RefreshTokenDto, UpdateProfileDto, ChangePasswordDto, ForgotPasswordDto, ResetPasswordDto } from './dto/auth.dto';
 import { SwitchTenantDto } from './dto/switch-tenant.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import { CurrentUser as CurrentUserType } from '../../common/types';
+import { clientIp } from '../../common/utils/client-ip';
+import { requestHost } from '../../common/utils/custom-domain';
+import { assertNotImpersonating } from '../../common/utils/permission-governance';
+import type { Request } from 'express';
+import type { ClientInfo } from './session-cache';
+
+const clientInfo = (req: Request): ClientInfo => ({
+  // IPv4 chega como ::ffff:1.2.3.4 quando o servidor escuta em IPv6.
+  ip: clientIp(req)?.replace(/^::ffff:/i, ''),
+  userAgent: typeof req.headers['user-agent'] === 'string' ? req.headers['user-agent'] : undefined,
+  host: requestHost(req),
+});
 
 @ApiTags('Auth')
 @Controller('auth')
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
+  @Get('signup-info')
+  @ApiOperation({ summary: 'Dados publicos do cadastro (dias de teste)' })
+  signupInfo() {
+    return this.authService.signupInfo();
+  }
+
   @Post('register')
+  // Throttle so nas rotas publicas de auth (o guard nao e global): ver AuthThrottlerGuard.
+  @UseGuards(AuthThrottlerGuard)
   @Throttle({ default: { limit: 3, ttl: 60000 } }) // 3 requests per minute
-  @ApiOperation({ summary: 'Registrar novo usuario' })
+  @ApiOperation({ summary: 'Cadastro self-service: cria empresa (trial) + administrador e devolve a sessao' })
   @ApiResponse({ status: 201, description: 'Usuario criado' })
   @ApiResponse({ status: 409, description: 'Email ja em uso' })
   @ApiResponse({ status: 429, description: 'Muitas tentativas. Tente novamente em 1 minuto.' })
-  async register(@Body() dto: RegisterDto) {
-    return this.authService.register(dto);
+  async register(@Body() dto: RegisterDto, @Req() req: Request) {
+    return this.authService.register(dto, clientInfo(req));
   }
 
   @Post('login')
+  @UseGuards(AuthThrottlerGuard)
   @Throttle({ default: { limit: 5, ttl: 60000 } }) // 5 requests per minute
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Login' })
   @ApiResponse({ status: 200, description: 'Login realizado' })
   @ApiResponse({ status: 401, description: 'Credenciais invalidas' })
   @ApiResponse({ status: 429, description: 'Muitas tentativas. Tente novamente em 1 minuto.' })
-  async login(@Body() dto: LoginDto) {
-    return this.authService.login(dto);
+  async login(@Body() dto: LoginDto, @Req() req: Request) {
+    return this.authService.login(dto, clientInfo(req));
+  }
+
+  @Post('login/mfa')
+  @UseGuards(AuthThrottlerGuard)
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Segundo passo do login (codigo do app autenticador ou de recuperacao)' })
+  async loginMfa(@Body() dto: LoginMfaDto, @Req() req: Request) {
+    return this.authService.loginWithMfa(dto, clientInfo(req));
   }
 
   @Post('refresh')
+  @UseGuards(AuthThrottlerGuard)
   @Throttle({ default: { limit: 10, ttl: 60000 } }) // 10 requests per minute
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Renovar tokens' })
   @ApiResponse({ status: 200, description: 'Tokens renovados' })
   @ApiResponse({ status: 401, description: 'Refresh token invalido' })
   @ApiResponse({ status: 429, description: 'Muitas tentativas. Tente novamente em 1 minuto.' })
-  async refresh(@Body() dto: RefreshTokenDto) {
-    return this.authService.refreshToken(dto);
+  async refresh(@Body() dto: RefreshTokenDto, @Req() req: Request) {
+    return this.authService.refreshToken(dto, clientInfo(req));
   }
 
   @Post('logout')
@@ -59,8 +93,8 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Logout' })
   @ApiResponse({ status: 200, description: 'Logout realizado' })
-  async logout(@CurrentUser('id') userId: string) {
-    return this.authService.logout(userId);
+  async logout(@CurrentUser() user: CurrentUserType) {
+    return this.authService.logout(user.id, user.sessionId);
   }
 
   @Get('me')
@@ -95,10 +129,11 @@ export class AuthController {
   @ApiResponse({ status: 200, description: 'Senha alterada' })
   @ApiResponse({ status: 400, description: 'Senha atual incorreta' })
   async changePassword(
-    @CurrentUser('id') userId: string,
+    @CurrentUser() user: CurrentUserType,
     @Body() dto: ChangePasswordDto,
   ) {
-    return this.authService.changePassword(userId, dto);
+    assertNotImpersonating(user, 'trocar a senha');
+    return this.authService.changePassword(user.id, dto, user.sessionId);
   }
 
   @Post('switch-tenant')
@@ -109,10 +144,11 @@ export class AuthController {
   @ApiResponse({ status: 200, description: 'Tokens com novo tenant' })
   @ApiResponse({ status: 401, description: 'Sem acesso ao tenant' })
   async switchTenant(
-    @CurrentUser('id') userId: string,
+    @CurrentUser() user: CurrentUserType,
     @Body() dto: SwitchTenantDto,
+    @Req() req: Request,
   ) {
-    return this.authService.switchTenant(userId, dto.tenantId);
+    return this.authService.switchTenant(user.id, dto.tenantId, user.sessionId, clientInfo(req));
   }
 
   @Get('accessible-tenants')
@@ -125,16 +161,18 @@ export class AuthController {
   }
 
   @Post('forgot-password')
+  @UseGuards(AuthThrottlerGuard)
   @Throttle({ default: { limit: 3, ttl: 60000 } }) // 3 requests per minute
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Solicitar recuperacao de senha' })
   @ApiResponse({ status: 200, description: 'Email enviado (se existir)' })
   @ApiResponse({ status: 429, description: 'Muitas tentativas. Tente novamente em 1 minuto.' })
-  async forgotPassword(@Body() dto: ForgotPasswordDto) {
-    return this.authService.forgotPassword(dto);
+  async forgotPassword(@Body() dto: ForgotPasswordDto, @Req() req: Request) {
+    return this.authService.forgotPassword(dto, requestHost(req));
   }
 
   @Post('reset-password')
+  @UseGuards(AuthThrottlerGuard)
   @Throttle({ default: { limit: 3, ttl: 60000 } }) // 3 requests per minute
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Redefinir senha com token' })

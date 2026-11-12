@@ -1,3 +1,4 @@
+import { ServiceScope } from '../../common/service-scope/service-scope.decorator';
 import {
   Controller,
   Get,
@@ -11,18 +12,20 @@ import {
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
-import { RolesGuard } from '../../common/guards/roles.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { CurrentUser as CurrentUserType } from '../../common/types';
 import { getEffectiveTenantId } from '../../common/utils/tenant.util';
 import { EntityFieldRuleService } from './entity-field-rule.service';
 import { CreateFieldRuleDto } from './dto/create-field-rule.dto';
 import { UpdateFieldRuleDto } from './dto/update-field-rule.dto';
+import { ModulePermissionGuard } from '../../common/guards/module-permission.guard';
+import { RequireModulePermission } from '../../common/decorators/module-permission.decorator';
 
 @ApiTags('Entity Field Rules')
 @ApiBearerAuth()
+@ServiceScope('admin')
 @Controller('entities/:entityId/field-rules')
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, ModulePermissionGuard)
 export class EntityFieldRuleController {
   constructor(
     private readonly entityFieldRuleService: EntityFieldRuleService,
@@ -60,6 +63,8 @@ export class EntityFieldRuleController {
   }
 
   @Post()
+  // Regras mudam a estrutura da tabela: mesma permissao do editor de campos.
+  @RequireModulePermission('entities', 'canUpdate')
   @ApiOperation({ summary: 'Cria nova regra de campo' })
   async create(
     @Param('entityId') entityId: string,
@@ -72,6 +77,8 @@ export class EntityFieldRuleController {
   }
 
   @Patch(':id')
+  // Regras mudam a estrutura da tabela: mesma permissao do editor de campos.
+  @RequireModulePermission('entities', 'canUpdate')
   @ApiOperation({ summary: 'Atualiza regra de campo' })
   async update(
     @Param('entityId') entityId: string,
@@ -90,6 +97,8 @@ export class EntityFieldRuleController {
   }
 
   @Delete(':id')
+  // Regras mudam a estrutura da tabela: mesma permissao do editor de campos.
+  @RequireModulePermission('entities', 'canUpdate')
   @ApiOperation({ summary: 'Remove regra de campo' })
   async remove(
     @Param('entityId') entityId: string,

@@ -9,6 +9,7 @@ import { Card } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { GripVertical } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { formatFieldValue, type FieldType } from '@crm-builder/shared';
 import { toast } from 'sonner';
 import { Responsive, WidthProvider } from 'react-grid-layout/legacy';
 import 'react-grid-layout/css/styles.css';
@@ -33,8 +34,24 @@ interface KanbanBoardWidgetProps {
     name: string;
     label?: string;
     type: string;
-    options?: Array<{ label: string; value: string }> | string[];
+    options?: Array<{ label: string; value: string; color?: string }> | string[];
   }>;
+}
+
+type KanbanField = NonNullable<KanbanBoardWidgetProps['entityFields']>[number];
+
+const FORMATTED_TYPES = new Set(['date', 'datetime', 'currency', 'number', 'percentage', 'boolean']);
+
+/** Valor do cartao como o usuario le: rotulo da opcao, data local, R$... */
+function formatCardValue(value: unknown, field?: KanbanField): { text: string; color?: string } {
+  if (field?.options?.length && (typeof value === 'string' || typeof value === 'number')) {
+    const opt = field.options.find((o) => (typeof o === 'string' ? o : String(o.value)) === String(value));
+    if (opt) return typeof opt === 'string' ? { text: opt } : { text: opt.label, color: opt.color };
+  }
+  if (field && FORMATTED_TYPES.has(field.type) && value !== null && value !== undefined && value !== '') {
+    return { text: formatFieldValue(value, { type: field.type as FieldType, emptyValue: '-' }) };
+  }
+  return { text: getDisplayValue(value, true) };
 }
 
 interface KanbanCard {
@@ -118,20 +135,24 @@ function normalizeOptions(
 function KanbanCardItem({
   card,
   config,
-  columnValue
+  columnValue,
+  entityFields,
 }: {
   card: KanbanCard;
   config: KanbanBoardWidgetProps['config'];
   columnValue: string;
+  entityFields?: KanbanBoardWidgetProps['entityFields'];
 }) {
+  const fieldOf = (slug?: string) => (slug ? entityFields?.find((f) => f.slug === slug) : undefined);
   const cardData = (card as any).data || card;
 
   const title = getDisplayValue(cardData[config.cardTitleField], true) || (card as any).id || '-';
-  const subtitles = config.cardSubtitleFields?.map((field) => {
-    const value = cardData[field];
-    return getDisplayValue(value, true);
-  }) || [];
-  const badge = config.cardBadgeField ? getDisplayValue(cardData[config.cardBadgeField]) : null;
+  const subtitles = config.cardSubtitleFields?.map((field) => formatCardValue(cardData[field], fieldOf(field)).text) || [];
+  const badgeValue = config.cardBadgeField ? cardData[config.cardBadgeField] : undefined;
+  const badgeInfo = badgeValue === undefined || badgeValue === null || badgeValue === ''
+    ? null
+    : formatCardValue(badgeValue, fieldOf(config.cardBadgeField));
+  const badge = badgeInfo?.text || null;
 
   const getBadgeVariant = (value: string) => {
     const lower = value.toLowerCase();
@@ -142,9 +163,10 @@ function KanbanCardItem({
   };
 
   return (
-    <Card className="p-4 hover:shadow-md transition-shadow min-h-[100px] h-full cursor-move">
+    <Card className="p-4 hover:shadow-md transition-shadow min-h-[100px] h-full">
       <div className="flex items-start gap-3 h-full">
-        <GripVertical className="h-5 w-5 text-muted-foreground mt-0.5 flex-shrink-0" />
+        {/* So a alca arrasta: no celular, tocar/rolar no cartao nao muda a situacao */}
+        <GripVertical className="kanban-drag h-5 w-5 text-muted-foreground mt-0.5 flex-shrink-0 cursor-move touch-none" />
         <div className="flex-1 min-w-0">
           <div className="font-medium text-sm mb-2 truncate">{title}</div>
           {subtitles.length > 0 && (
@@ -156,7 +178,12 @@ function KanbanCardItem({
           )}
           {badge && (
             <div className="mt-2">
-              <Badge variant={getBadgeVariant(badge)} className="text-xs">
+              {/* Cor da opcao quando existe; senao, a variante pela palavra (legado) */}
+              <Badge
+                variant={badgeInfo?.color ? 'outline' : getBadgeVariant(badge)}
+                className="text-xs"
+                style={badgeInfo?.color ? { backgroundColor: badgeInfo.color, borderColor: badgeInfo.color, color: '#fff' } : undefined}
+              >
                 {badge}
               </Badge>
             </div>
@@ -197,7 +224,7 @@ function KanbanBoardContent({ entitySlug, title, config, entityFields }: KanbanB
       return { columns: [], gridLayout: [], cardColumnMap: new Map() };
     }
 
-    const records = data.slice(0, config.limit || 100) as KanbanCard[];
+    const records = data.slice(0, config.limit || 100) as unknown as KanbanCard[];
 
     // Criar mapa de registros por valor
     const recordsByValue = new Map<string, KanbanCard[]>();
@@ -458,7 +485,9 @@ function KanbanBoardContent({ entitySlug, title, config, entityFields }: KanbanB
 
   return (
     <WidgetWrapper title={title}>
-      <div className="flex pb-2 relative overflow-x-auto overflow-y-auto max-h-[800px]">
+      <div className="pb-2 overflow-x-auto overflow-y-auto max-h-[800px]">
+      {/* Largura minima por coluna: no celular rola para o lado em vez de espremer */}
+      <div className="relative flex" style={{ minWidth: columns.length * 220 }}>
         {/* Headers das colunas */}
         <div className="absolute top-0 left-0 right-0 flex gap-2 z-10 pointer-events-none">
           {columns.map((column) => (
@@ -489,12 +518,13 @@ function KanbanBoardContent({ entitySlug, title, config, entityFields }: KanbanB
             rowHeight={120}
             margin={[8, 12]}
             isDraggable={true}
+            draggableHandle=".kanban-drag"
             isResizable={false}
             compactType="vertical"
             containerPadding={[0, 0]}
             preventCollision={false}
-            onDrag={handleDrag}
-            onLayoutChange={handleLayoutChange}
+            onDrag={handleDrag as never}
+            onLayoutChange={handleLayoutChange as never}
           >
             {columns.flatMap((column) =>
               column.cards.map((card) => (
@@ -503,12 +533,14 @@ function KanbanBoardContent({ entitySlug, title, config, entityFields }: KanbanB
                     card={card}
                     config={config}
                     columnValue={column.value}
+                    entityFields={entityFields}
                   />
                 </div>
               ))
             )}
           </ResponsiveGridLayout>
         </div>
+      </div>
       </div>
     </WidgetWrapper>
   );

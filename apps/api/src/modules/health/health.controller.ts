@@ -1,6 +1,7 @@
 import { Controller, Get } from '@nestjs/common';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
 import { PrismaService } from '../../prisma/prisma.service';
+import { currentServiceScope } from '../../common/service-scope/service-scope.constants';
 
 @ApiTags('Health')
 @Controller('health')
@@ -12,6 +13,7 @@ export class HealthController {
   async check() {
     return {
       status: 'ok',
+      scope: currentServiceScope(),
       timestamp: new Date().toISOString(),
       uptime: process.uptime(),
     };

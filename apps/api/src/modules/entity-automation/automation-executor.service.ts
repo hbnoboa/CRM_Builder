@@ -1,4 +1,6 @@
 import { Injectable, Logger, Optional, Inject } from '@nestjs/common';
+import { EmailService } from '../email/email.service';
+import { plainEmail } from '../email/email-layout';
 import { PrismaService } from '../../prisma/prisma.service';
 import { EmailTemplateService } from '../email-template/email-template.service';
 import { NotificationService } from '../notification/notification.service';
@@ -6,7 +8,8 @@ import { Prisma, EntityAutomation } from '@prisma/client';
 import { ConditionEvaluator } from './condition-evaluator';
 import { ExecutionContextService, ExecutionContext, LoopDetectedException, MaxDepthExceededException } from './execution-context.service';
 import { CircuitBreakerService, CircuitOpenException } from './circuit-breaker.service';
-import * as vm from 'vm';
+import { TenantPlanService } from '../../common/services/tenant-plan.service';
+import { safeFetch } from '../../common/utils/safe-fetch';
 
 interface ActionConfig {
   order: number;
@@ -45,10 +48,12 @@ export class AutomationExecutorService {
     private readonly prisma: PrismaService,
     private readonly executionContextService: ExecutionContextService,
     private readonly circuitBreakerService: CircuitBreakerService,
+    private readonly tenantPlan: TenantPlanService,
     @Optional() @Inject(EmailTemplateService)
     private readonly emailTemplateService?: EmailTemplateService,
     @Optional() @Inject(NotificationService)
     private readonly notificationService?: NotificationService,
+    @Optional() private readonly emailService?: EmailService,
   ) {}
 
   /**
@@ -404,8 +409,10 @@ export class AutomationExecutorService {
       case 'aggregate_records':
         return this.executeAggregateRecords(config, context);
 
+      // Desativada: o sandbox vm nao isola codigo de quem cria automacao. Automacoes
+      // antigas com esta acao falham aqui, com o motivo no log da execucao.
       case 'run_script':
-        return this.executeRunScript(config, context);
+        throw new Error('A acao run_script foi desativada por seguranca');
 
       default:
         throw new Error(`Tipo de acao desconhecido: ${type}`);
@@ -419,40 +426,37 @@ export class AutomationExecutorService {
     config: Record<string, unknown>,
     context: AutomationContext,
   ): Promise<unknown> {
-    if (!this.emailTemplateService) {
-      this.logger.warn('EmailTemplateService nao disponivel, acao send_email ignorada');
-      return { sent: false, reason: 'EmailTemplateService not available' };
-    }
+    // Destinatarios: e-mails fixos e/ou {{record.campo}} (ex.: e-mail do cliente), separados por virgula.
+    const rawTo = this.replaceStringPlaceholders((config.to as string) || context.user?.email || '', context);
+    const to = rawTo.split(/[,;\s]+/).map((v) => v.trim()).filter((v) => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v));
+    if (to.length === 0) throw new Error(`Nenhum e-mail valido para enviar (destino: "${rawTo || 'vazio'}")`);
 
-    const templateId = config.emailTemplateId as string || config.templateId as string;
-    if (!templateId) {
-      throw new Error('emailTemplateId ou templateId e obrigatorio para send_email');
-    }
-
-    const rendered = await this.emailTemplateService.renderTemplate(
-      templateId,
-      context.tenantId,
-      {
+    let subject: string;
+    let html: string;
+    let text: string | undefined;
+    const templateId = (config.emailTemplateId as string) || (config.templateId as string);
+    if (templateId) {
+      if (!this.emailTemplateService) throw new Error('Modelos de e-mail indisponiveis');
+      const rendered = await this.emailTemplateService.renderTemplate(templateId, context.tenantId, {
         user: context.user,
         record: context.record,
         entity: context.entity,
         custom: config.variables as Record<string, unknown>,
-      },
-    );
+      });
+      subject = rendered.subject;
+      html = rendered.html;
+    } else {
+      // Modo simples: assunto e texto escritos na propria automacao, com {{record.campo}}
+      subject = this.replaceStringPlaceholders((config.subject as string) || context.entity?.name || 'Aviso', context);
+      const body = this.replaceStringPlaceholders((config.body as string) || '', context);
+      ({ html, text } = plainEmail({ title: subject, body, footer: 'Mensagem automática enviada pelo CRM Builder.' }));
+    }
 
-    const to = (config.to as string) || context.user?.email;
-
-    // Log do email preparado (envio real requer integracao com servico de email)
-    this.logger.log(
-      `Email preparado: "${rendered.subject}" para ${to}`,
-    );
-
-    return {
-      subject: rendered.subject,
-      to,
-      html: rendered.html,
-      sent: false, // Marcaria true apos integracao real com SendGrid/SES
-    };
+    if (!this.emailService) throw new Error('Servico de e-mail indisponivel');
+    const result = await this.emailService.send({ to, subject, html, text });
+    if (!result.sent && result.provider === 'smtp') throw new Error('O servidor de e-mail recusou o envio');
+    // Sem provedor configurado (provider "console") o e-mail fica so registrado.
+    return { to, subject, sent: result.sent, provider: result.provider };
   }
 
   /**
@@ -494,7 +498,7 @@ export class AutomationExecutorService {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), timeout);
 
-        const response = await fetch(url, {
+        const response = await safeFetch(url, {
           method,
           headers,
           body: method !== 'GET' ? JSON.stringify(body) : undefined,
@@ -504,10 +508,12 @@ export class AutomationExecutorService {
         clearTimeout(timeoutId);
 
         let responseBody: unknown;
+        // Le o corpo uma vez so (ler de novo depois de falhar o JSON quebra a resposta).
+        const raw = await response.text();
         try {
-          responseBody = await response.json();
+          responseBody = raw ? JSON.parse(raw) : null;
         } catch {
-          responseBody = await response.text();
+          responseBody = raw;
         }
 
         if (!response.ok) {
@@ -547,7 +553,8 @@ export class AutomationExecutorService {
     }
 
     const fieldSlug = config.fieldSlug as string;
-    const newValue = config.value;
+    // Texto aceita {{now}}, {{today}} e {{record.campo}} (ex.: data de conclusao = agora)
+    const newValue = typeof config.value === 'string' ? this.replaceStringPlaceholders(config.value, context) : config.value;
 
     if (!fieldSlug) {
       throw new Error('fieldSlug e obrigatorio para update_field');
@@ -620,6 +627,8 @@ export class AutomationExecutorService {
         context,
       ) as Record<string, unknown>;
     }
+
+    await this.tenantPlan.assertCanAddRecords(context.tenantId);
 
     const newRecord = await this.prisma.entityData.create({
       data: {
@@ -809,6 +818,7 @@ export class AutomationExecutorService {
         where: {
           entityId: entity.id,
           tenantId: context.tenantId,
+          deletedAt: null,
         },
       });
 
@@ -915,6 +925,7 @@ export class AutomationExecutorService {
           where: {
             entityId: entity.id,
             tenantId: context.tenantId,
+            deletedAt: null,
           },
         });
 
@@ -1029,6 +1040,7 @@ export class AutomationExecutorService {
           where: {
             entityId: entity.id,
             tenantId: context.tenantId,
+            deletedAt: null,
           },
         });
 
@@ -1041,6 +1053,7 @@ export class AutomationExecutorService {
         where: {
           entityId: entity.id,
           tenantId: context.tenantId,
+          deletedAt: null,
         },
       });
 
@@ -1123,130 +1136,6 @@ export class AutomationExecutorService {
   }
 
   /**
-   * Padroes bloqueados para seguranca do VM sandbox.
-   */
-  private static readonly BLOCKED_PATTERNS = [
-    /\bconstructor\b/i,
-    /\b__proto__\b/i,
-    /\bprototype\b/i,
-    /\bprocess\b/i,
-    /\brequire\b/i,
-    /\bimport\b/i,
-    /\bglobal\b/i,
-    /\bglobalThis\b/i,
-    /\bFunction\b/,
-    /\beval\b/,
-    /\bchild_process\b/i,
-    /\bexecSync\b/i,
-    /\bspawn\b/i,
-    /\bsetTimeout\b/,
-    /\bsetInterval\b/,
-    /\bsetImmediate\b/,
-  ];
-
-  private static readonly MAX_CODE_LENGTH = 10000;
-
-  /**
-   * Acao: Executar script customizado em sandbox VM.
-   */
-  private async executeRunScript(
-    config: Record<string, unknown>,
-    context: AutomationContext,
-  ): Promise<unknown> {
-    try {
-      const resolvedConfig = this.replacePlaceholders(config, context) as Record<string, unknown>;
-
-      const code = resolvedConfig.code as string;
-      if (!code) {
-        throw new Error('code e obrigatorio para run_script');
-      }
-
-      const saveAs = resolvedConfig.saveAs as string | undefined;
-
-      // Validar codigo
-      if (code.length > AutomationExecutorService.MAX_CODE_LENGTH) {
-        throw new Error(
-          `Codigo excede o limite de ${AutomationExecutorService.MAX_CODE_LENGTH} caracteres`,
-        );
-      }
-
-      for (const pattern of AutomationExecutorService.BLOCKED_PATTERNS) {
-        if (pattern.test(code)) {
-          throw new Error(`Codigo contem padrao bloqueado: ${pattern.source}`);
-        }
-      }
-
-      // Criar sandbox
-      const sandbox = {
-        record: context.record || null,
-        previousRecord: context.previousRecord || null,
-        user: context.user || null,
-        entity: context.entity || null,
-        lookups: context.lookupResults || {},
-        // Globais seguros
-        JSON,
-        Date,
-        Math,
-        Array,
-        Object: {
-          keys: Object.keys,
-          values: Object.values,
-          entries: Object.entries,
-          assign: Object.assign,
-          fromEntries: Object.fromEntries,
-        },
-        String,
-        Number,
-        Boolean,
-        parseInt,
-        parseFloat,
-        isNaN,
-        isFinite,
-        console: {
-          log: (...args: unknown[]) =>
-            this.logger.debug(`[run_script] ${args.map(String).join(' ')}`),
-        },
-        result: undefined as unknown,
-      };
-
-      // Executar no VM
-      const script = new vm.Script(`
-        (function() {
-          ${code}
-        })();
-      `);
-
-      const vmContext = vm.createContext(sandbox);
-      const scriptResult = script.runInContext(vmContext, { timeout: 5000 });
-
-      // Usar o retorno do script ou sandbox.result
-      const finalResult = scriptResult !== undefined ? scriptResult : sandbox.result;
-
-      // Salvar resultado no contexto se saveAs definido
-      if (saveAs) {
-        context.lookupResults![saveAs] = finalResult;
-      }
-
-      // Resumo para o log
-      const resultSummary =
-        finalResult === undefined
-          ? 'undefined'
-          : typeof finalResult === 'object'
-            ? JSON.stringify(finalResult).substring(0, 200)
-            : String(finalResult).substring(0, 200);
-
-      return {
-        executed: true,
-        saveAs: saveAs || null,
-        resultSummary,
-      };
-    } catch (err) {
-      const error = err as Error;
-      throw new Error(`run_script falhou: ${error.message}`);
-    }
-  }
-
-  /**
    * Substitui placeholders em strings usando o contexto da automacao.
    */
   private replaceStringPlaceholders(
@@ -1264,6 +1153,7 @@ export class AutomationExecutorService {
       .replace(/\{\{entity\.id\}\}/g, context.entity?.id || '')
       .replace(/\{\{recordId\}\}/g, context.recordId || '')
       .replace(/\{\{now\}\}/g, new Date().toISOString())
+      .replace(/\{\{today\}\}/g, new Date().toISOString().slice(0, 10))
       .replace(/\{\{timestamp\}\}/g, String(Date.now()))
       .replace(/\{\{record\.([^}]+)\}\}/g, (_, path) => {
         return this.getNestedStringValue(context.record || {}, path);
@@ -1273,10 +1163,15 @@ export class AutomationExecutorService {
       })
       .replace(/\{\{([^}]+)\}\}/g, (match, path) => {
         // Resolve lookupResults placeholders: {{saveAsName.field}} or {{saveAsName}}
-        if (!context.lookupResults) return match;
         const parts = (path as string).split('.');
         const lookupKey = parts[0];
-        if (!(lookupKey in context.lookupResults)) return match;
+        if (!context.lookupResults || !(lookupKey in context.lookupResults)) {
+          // {{campo}} sem "record." (modelos de tabela): usa o campo do registro
+          if (context.record && lookupKey in context.record) {
+            return this.getNestedStringValue(context.record, path as string);
+          }
+          return match;
+        }
         if (parts.length === 1) {
           const val = context.lookupResults[lookupKey];
           return val != null ? String(val) : '';

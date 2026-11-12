@@ -3,7 +3,8 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Loader2, X } from 'lucide-react';
+import { Textarea } from '@/components/ui/textarea';
+import { Loader2, X, ClipboardPaste } from 'lucide-react';
 import api from '@/lib/api';
 import ImageUploadField from '@/components/form/image-upload-field';
 
@@ -52,6 +53,9 @@ export function ZoneDiagramTraitEditor({
   const [newOption, setNewOption] = useState('');
   const [entities, setEntities] = useState<EntityOption[]>([]);
   const [entitiesLoaded, setEntitiesLoaded] = useState(false);
+  const [showImport, setShowImport] = useState(false);
+  const [importText, setImportText] = useState('');
+  const [importError, setImportError] = useState<string | null>(null);
 
   // Parse zones from JSON string
   const zones: ZoneConfig[] = (() => {
@@ -69,6 +73,30 @@ export function ZoneDiagramTraitEditor({
   const updateZones = useCallback((newZones: ZoneConfig[]) => {
     onChangeZones(JSON.stringify(newZones));
   }, [onChangeZones]);
+
+  // Importa zonas em massa a partir de um JSON array (mesmo formato de diagramZones).
+  const applyImport = (mode: 'replace' | 'append') => {
+    const raw = importText.trim();
+    if (!raw) { setImportError('Cole o JSON das zonas.'); return; }
+    let parsed: unknown;
+    try { parsed = JSON.parse(raw); } catch { setImportError('JSON invalido.'); return; }
+    if (!Array.isArray(parsed)) { setImportError('O JSON deve ser um array de zonas.'); return; }
+    const normalized: ZoneConfig[] = parsed.map((z: Partial<ZoneConfig>, i) => ({
+      id: z.id || `zone_imported_${i}_${Math.random().toString(36).slice(2, 6)}`,
+      label: String(z.label ?? `Zona ${i + 1}`),
+      x: typeof z.x === 'number' ? z.x : 50,
+      y: typeof z.y === 'number' ? z.y : 50,
+      optionsSource: z.optionsSource === 'entity' ? 'entity' : 'manual',
+      options: Array.isArray(z.options) ? z.options.map(String) : undefined,
+      sourceEntitySlug: z.sourceEntitySlug,
+      sourceFieldSlug: z.sourceFieldSlug,
+    }));
+    if (normalized.length === 0) { setImportError('Nenhuma zona reconhecida.'); return; }
+    updateZones(mode === 'append' ? [...zones, ...normalized] : normalized);
+    setImportText('');
+    setImportError(null);
+    setShowImport(false);
+  };
 
   // Fetch entities (lazy, only when needed for entity-linked options)
   const loadEntities = useCallback(() => {
@@ -196,8 +224,34 @@ export function ZoneDiagramTraitEditor({
                 Cancelar
               </Button>
             )}
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              className="h-6 text-[10px] px-2"
+              onClick={() => setShowImport((v) => !v)}
+            >
+              <ClipboardPaste className="h-3 w-3 mr-1" /> Importar JSON
+            </Button>
             <span className="text-[10px] text-muted-foreground ml-auto">{zones.length} zonas</span>
           </div>
+
+          {showImport && (
+            <div className="space-y-1.5 rounded-md border border-dashed p-2">
+              <Textarea
+                value={importText}
+                onChange={(e) => { setImportText(e.target.value); setImportError(null); }}
+                placeholder={'Cole o JSON das zonas (mesmo formato de diagramZones):\n[{"id":"area-0","label":1,"x":20,"y":20,"options":["A","B"],"optionsSource":"manual"}]'}
+                className="h-28 text-xs font-mono"
+              />
+              {importError && <p className="text-[11px] text-destructive">{importError}</p>}
+              <div className="flex items-center gap-1.5">
+                <Button type="button" variant="outline" size="sm" className="h-6 text-[10px] px-2" onClick={() => applyImport('append')}>Adicionar</Button>
+                <Button type="button" variant="outline" size="sm" className="h-6 text-[10px] px-2" onClick={() => applyImport('replace')}>Substituir tudo</Button>
+                <Button type="button" variant="ghost" size="sm" className="h-6 text-[10px] px-2" onClick={() => { setShowImport(false); setImportText(''); setImportError(null); }}>Cancelar</Button>
+              </div>
+            </div>
+          )}
 
           <div
             className={`relative rounded-md border-2 overflow-hidden ${

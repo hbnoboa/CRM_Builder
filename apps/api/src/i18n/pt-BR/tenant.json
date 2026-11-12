@@ -1,0 +1,23 @@
+{
+  "slugAlreadyExists": "Slug já está em uso",
+  "notFound": "Tenant não encontrado",
+  "deletedSuccessfully": "Tenant excluído com sucesso",
+  "roles": {
+    "admin": {
+      "name": "Administrador",
+      "description": "Acesso total à empresa: tabelas, usuários, cargos e configurações."
+    },
+    "manager": {
+      "name": "Gerente",
+      "description": "Vê e edita todos os registros e acompanha a equipe."
+    },
+    "operator": {
+      "name": "Operador",
+      "description": "Cria e edita os próprios registros. Cargo padrão de novos usuários."
+    },
+    "viewer": {
+      "name": "Visualizador",
+      "description": "Só consulta registros e dashboards."
+    }
+  }
+}

@@ -17,7 +17,7 @@ api:
     - !env PS_API_TOKEN
 
 # Client authentication (validates Flutter app JWTs using HS256)
-# JWT claims: sub (user id), tenantId, email, customRoleId, roleType
+# JWT claims: sub/user_id, tenantId, customRoleId
 client_auth:
   audience: ["powersync"]
   jwks:
@@ -33,22 +33,22 @@ storage:
   uri: !env PS_MONGO_URI
 
 # Sync rules: define which data each user can access
-# JWT payload: { sub: "userId", tenantId: "tenantId", customRoleId: "...", roleType: "..." }
+# JWT payload: { sub/user_id, tenantId, customRoleId }
 #
 # PowerSync supported SQL: =, !=, <, >, AND, OR, NOT, IS NULL, IS NOT NULL
 # PowerSync IN operator: works with JSONB arrays (bucket.param IN json_column)
 # No JOINs, no GROUP BY, no ORDER BY, no LIMIT, no subqueries
 # Each data query must reference ALL bucket parameters
 #
-# Strategy: Three EntityData buckets for role-based filtering:
-# 1. unrestricted_entity_data: records with no role filters (_hasRoleFilter=false)
-# 2. role_filtered_entity_data: records filtered by role (_hasRoleFilter=true)
-#    Uses PowerSync IN operator: bucket.role_id IN "_visibleToRolesJson"
-# 3. admin_all_entity_data: PLATFORM_ADMIN/ADMIN bypass role filters
-#    Their roleId may not be in _visibleToRolesJson (cross-tenant PLATFORM_ADMIN)
+# Strategy: permission-driven EntityData buckets (all derived from CustomRole
+# permissions via Postgres triggers; see migrations *_visible_roles_*):
+# 1. unrestricted_entity_data: records every tenant role can read (_hasRoleFilter=false)
+# 2. role_filtered_entity_data: scope='all' — bucket.role_id IN "_visibleToRolesJson"
+# 3. own_entity_data: scope='own' — role_id IN "_visibleToRolesOwnJson" AND createdById = user
 sync_rules:
   content: |
     bucket_definitions:
+      # rev: 2026-06-28 own-scope (force re-snapshot for clean op counts)
       # Bucket 1: user-specific data (requires user_id + tenant_id)
       user_data:
         parameters: |
@@ -73,8 +73,8 @@ sync_rules:
           SELECT
             request.jwt() ->> 'tenantId' as tenant_id
         data:
-          # Custom roles (for client-side permission checks)
-          - SELECT id, "tenantId", name, description, color, "roleType", "isSystem", permissions, "modulePermissions", "tenantPermissions", "isDefault", "createdAt", "updatedAt"
+          # Custom roles (for client-side permission checks). roleType removido (Fase 3).
+          - SELECT id, "tenantId", name, description, color, "isSystem", permissions, "modulePermissions", "tenantPermissions", "isDefault", "createdAt", "updatedAt"
             FROM "CustomRole"
             WHERE "tenantId" = bucket.tenant_id
 
@@ -95,6 +95,7 @@ sync_rules:
         parameters: |
           SELECT
             request.jwt() ->> 'tenantId' as tenant_id
+          WHERE request.jwt() ->> 'dataView' = 'full'
         data:
           - SELECT id, "tenantId", "entityId", data, "parentRecordId", "createdById", "updatedById", "createdAt", "updatedAt", "deletedAt"
             FROM "EntityData"
@@ -113,13 +114,13 @@ sync_rules:
       # Uses PowerSync IN operator on JSONB array column
       # bucket.role_id comes from JWT customRoleId claim
       # _visibleToRolesJson is a JSONB array like ["role-id-1", "role-id-2"]
-      # For same-tenant ADMIN roles, their ID is already in the array.
-      # For cross-tenant PLATFORM_ADMIN, this returns 0 records (handled by bucket 5).
+      # Which roles are in the array is computed by Postgres triggers (server-side).
       role_filtered_entity_data:
         parameters: |
           SELECT
             request.jwt() ->> 'tenantId' as tenant_id,
             request.jwt() ->> 'customRoleId' as role_id
+          WHERE request.jwt() ->> 'dataView' = 'full'
         data:
           - SELECT id, "tenantId", "entityId", data, "parentRecordId", "createdById", "updatedById", "createdAt", "updatedAt", "deletedAt"
             FROM "EntityData"
@@ -130,15 +131,17 @@ sync_rules:
               AND "_hasRoleFilter" = true
               AND bucket.role_id IN "_visibleToRolesJson"
 
-      # Bucket 5: PLATFORM_ADMIN bypasses role filters entirely
-      # PLATFORM_ADMIN is cross-tenant — their role ID belongs to a different tenant,
-      # so it's NOT in _visibleToRolesJson. This bucket gives them all role-filtered records.
-      # PowerSync deduplicates if records also match bucket 4.
-      admin_all_entity_data:
+      # Bucket 4b: own-scope data. The role can read the entity but with
+      # permission scope='own', so it only receives records IT created.
+      # _visibleToRolesOwnJson holds roles whose scope for the record is 'own'
+      # (disjoint from _visibleToRolesJson); createdById must match the user.
+      own_entity_data:
         parameters: |
           SELECT
-            request.jwt() ->> 'tenantId' as tenant_id
-          WHERE request.jwt() ->> 'roleType' = 'PLATFORM_ADMIN'
+            request.jwt() ->> 'tenantId' as tenant_id,
+            request.jwt() ->> 'customRoleId' as role_id,
+            request.user_id() as user_id
+          WHERE request.jwt() ->> 'dataView' = 'full'
         data:
           - SELECT id, "tenantId", "entityId", data, "parentRecordId", "createdById", "updatedById", "createdAt", "updatedAt", "deletedAt"
             FROM "EntityData"
@@ -146,4 +149,252 @@ sync_rules:
               AND "deletedAt" IS NULL
               AND "_matchesGlobalFilter" = true
               AND "_parentMatchesFilter" = true
-              AND "_hasRoleFilter" = true
+              AND "createdById" = bucket.user_id
+              AND bucket.role_id IN "_visibleToRolesOwnJson"
+
+      # Bucket 4c: team-scope data. Cargo com scope='team' recebe os registros
+      # criados por qualquer pessoa das suas equipes. Sem JOIN no PowerSync: o
+      # registro guarda "equipeId:cargoId" (equipes do CRIADOR x cargos team) em
+      # _visibleTeamKeysJson e o usuario tem as dele em TeamAccessKey (equipes dele
+      # x cargo dele), ambos mantidos por triggers (migration 20261112000000_teams).
+      # Os registros do proprio usuario chegam pelo bucket 4b (team entra no own).
+      team_entity_data:
+        parameters: |
+          SELECT key as team_key, "tenantId" as tenant_id
+          FROM "TeamAccessKey"
+          WHERE "userId" = request.user_id()
+            AND "tenantId" = request.jwt() ->> 'tenantId'
+            AND request.jwt() ->> 'dataView' = 'full'
+        data:
+          - SELECT id, "tenantId", "entityId", data, "parentRecordId", "createdById", "updatedById", "createdAt", "updatedAt", "deletedAt"
+            FROM "EntityData"
+            WHERE "tenantId" = bucket.tenant_id
+              AND "deletedAt" IS NULL
+              AND "_matchesGlobalFilter" = true
+              AND "_parentMatchesFilter" = true
+              AND bucket.team_key IN "_visibleTeamKeysJson"
+
+      # ══════════════ CARGOS COM CAMPO OCULTO (dataView = masked) ══════════════
+      # O token marca dataView = 'masked' quando o cargo tem algum campo com "Ver"
+      # desligado. Esses cargos nao recebem os buckets acima (gate dataView='full'):
+      # recebem a copia sem os campos ocultos (EntityDataMasked), gravada como
+      # EntityData no app. Mesmos escopos: todos, proprios e equipe.
+      # Arquivados nao vao para esses cargos (nao ha copia mascarada deles).
+      masked_entity_data:
+        parameters: |
+          SELECT
+            request.jwt() ->> 'tenantId' as tenant_id,
+            request.jwt() ->> 'customRoleId' as role_id
+          WHERE request.jwt() ->> 'dataView' = 'masked'
+        data:
+          - SELECT "recordId" as id, "tenantId", "entityId", data, "parentRecordId", "createdById", "updatedById", "createdAt", "updatedAt"
+            FROM "EntityDataMasked" AS "EntityData"
+            WHERE "tenantId" = bucket.tenant_id AND "roleId" = bucket.role_id
+              AND "_visibleAll" = true
+
+      masked_own_entity_data:
+        parameters: |
+          SELECT
+            request.jwt() ->> 'tenantId' as tenant_id,
+            request.jwt() ->> 'customRoleId' as role_id,
+            request.user_id() as user_id
+          WHERE request.jwt() ->> 'dataView' = 'masked'
+        data:
+          - SELECT "recordId" as id, "tenantId", "entityId", data, "parentRecordId", "createdById", "updatedById", "createdAt", "updatedAt"
+            FROM "EntityDataMasked" AS "EntityData"
+            WHERE "tenantId" = bucket.tenant_id AND "roleId" = bucket.role_id
+              AND "_visibleOwn" = true AND "createdById" = bucket.user_id
+
+      masked_team_entity_data:
+        parameters: |
+          SELECT key as team_key, "tenantId" as tenant_id, request.jwt() ->> 'customRoleId' as role_id
+          FROM "TeamAccessKey"
+          WHERE "userId" = request.user_id()
+            AND "tenantId" = request.jwt() ->> 'tenantId'
+            AND request.jwt() ->> 'dataView' = 'masked'
+        data:
+          - SELECT "recordId" as id, "tenantId", "entityId", data, "parentRecordId", "createdById", "updatedById", "createdAt", "updatedAt"
+            FROM "EntityDataMasked" AS "EntityData"
+            WHERE "tenantId" = bucket.tenant_id AND "roleId" = bucket.role_id
+              AND bucket.team_key IN "_visibleTeamKeysJson"
+
+      # ══════════════════════ CHAT (mobile) ══════════════════════
+      # PowerSync: cada data query cobre TODOS os params do bucket; sem OR entre
+      # params diferentes -> buckets SEPARADOS unrestricted vs role (como EntityData).
+
+      # Canais de grupo/record SEM filtro de role (todo mundo do tenant vê).
+      chat_channels_unrestricted:
+        parameters: |
+          SELECT request.jwt() ->> 'tenantId' as tenant_id
+        data:
+          - SELECT id, "tenantId", type, "entityId", "recordId", name, "dmKey", "createdById", "createdAt", "updatedAt", "deletedAt"
+            FROM "Channel"
+            WHERE "tenantId" = bucket.tenant_id AND "deletedAt" IS NULL
+              AND type != 'dm' AND "_hasRoleFilter" = false
+
+      # Canais de grupo/record COM filtro de role (herdam visibilidade da entidade).
+      chat_channels_role:
+        parameters: |
+          SELECT
+            request.jwt() ->> 'tenantId' as tenant_id,
+            request.jwt() ->> 'customRoleId' as role_id
+        data:
+          - SELECT id, "tenantId", type, "entityId", "recordId", name, "dmKey", "createdById", "createdAt", "updatedAt", "deletedAt"
+            FROM "Channel"
+            WHERE "tenantId" = bucket.tenant_id AND "deletedAt" IS NULL
+              AND type != 'dm' AND "_hasRoleFilter" = true
+              AND bucket.role_id IN "_visibleToRolesJson"
+
+      # Threads de REGISTRO para cargos scope='own' — so o DONO do registro recebe.
+      # Espelha o bucket 4b de EntityData: (role_id IN own) AND (dono = user).
+      chat_channels_record_own:
+        parameters: |
+          SELECT
+            request.jwt() ->> 'tenantId' as tenant_id,
+            request.jwt() ->> 'customRoleId' as role_id,
+            request.user_id() as user_id
+        data:
+          - SELECT id, "tenantId", type, "entityId", "recordId", name, "dmKey", "createdById", "createdAt", "updatedAt", "deletedAt"
+            FROM "Channel"
+            WHERE "tenantId" = bucket.tenant_id AND "deletedAt" IS NULL
+              AND type = 'record'
+              AND "_recordCreatedById" = bucket.user_id
+              AND bucket.role_id IN "_visibleToRolesOwnJson"
+
+      # Threads de REGISTRO para cargos scope='team': o canal herda as chaves
+      # "equipeId:cargoId" do registro (migration 20261116000000_chat_record_team_scope)
+      # e casa com TeamAccessKey do usuario, como o bucket 4c de EntityData.
+      chat_channels_record_team:
+        parameters: |
+          SELECT key as team_key, "tenantId" as tenant_id
+          FROM "TeamAccessKey"
+          WHERE "userId" = request.user_id()
+            AND "tenantId" = request.jwt() ->> 'tenantId'
+        data:
+          - SELECT id, "tenantId", type, "entityId", "recordId", name, "dmKey", "createdById", "createdAt", "updatedAt", "deletedAt"
+            FROM "Channel"
+            WHERE "tenantId" = bucket.tenant_id AND "deletedAt" IS NULL
+              AND type = 'record'
+              AND bucket.team_key IN "_visibleTeamKeysJson"
+
+      # DMs por membership (parameter query multi-linha).
+      chat_dm_channels:
+        parameters: |
+          SELECT "channelId" as channel_id
+          FROM "ChannelMember"
+          WHERE "userId" = request.user_id()
+        data:
+          - SELECT id, "tenantId", type, "entityId", "recordId", name, "dmKey", "createdById", "createdAt", "updatedAt", "deletedAt"
+            FROM "Channel"
+            WHERE id = bucket.channel_id AND type = 'dm' AND "deletedAt" IS NULL
+
+      # Membros dos canais do usuário.
+      chat_channel_members:
+        parameters: |
+          SELECT "channelId" as channel_id
+          FROM "ChannelMember"
+          WHERE "userId" = request.user_id()
+        data:
+          - SELECT id, "channelId", "userId", role, "lastReadAt", "createdAt"
+            FROM "ChannelMember"
+            WHERE "channelId" = bucket.channel_id
+
+      # Mensagens de grupo/record SEM filtro de role (channelIds via parameter query).
+      chat_messages_unrestricted:
+        parameters: |
+          SELECT id as channel_id
+          FROM "Channel"
+          WHERE "tenantId" = request.jwt() ->> 'tenantId'
+            AND "deletedAt" IS NULL AND type != 'dm' AND "_hasRoleFilter" = false
+        data:
+          - SELECT id, "tenantId", "channelId", "senderId", type, content, meta, "createdAt"
+            FROM "Message"
+            WHERE "channelId" = bucket.channel_id AND "recipientId" IS NULL
+
+      # Mensagens de grupo/record COM filtro de role.
+      chat_messages_role:
+        parameters: |
+          SELECT id as channel_id
+          FROM "Channel"
+          WHERE "tenantId" = request.jwt() ->> 'tenantId'
+            AND "deletedAt" IS NULL AND type != 'dm' AND "_hasRoleFilter" = true
+            AND request.jwt() ->> 'customRoleId' IN "_visibleToRolesJson"
+        data:
+          - SELECT id, "tenantId", "channelId", "senderId", type, content, meta, "createdAt"
+            FROM "Message"
+            WHERE "channelId" = bucket.channel_id AND "recipientId" IS NULL
+
+      # Mensagens de thread de registro para cargos scope='own' (so o dono).
+      chat_messages_record_own:
+        parameters: |
+          SELECT id as channel_id
+          FROM "Channel"
+          WHERE "tenantId" = request.jwt() ->> 'tenantId'
+            AND "deletedAt" IS NULL AND type = 'record'
+            AND "_recordCreatedById" = request.user_id()
+            AND request.jwt() ->> 'customRoleId' IN "_visibleToRolesOwnJson"
+        data:
+          - SELECT id, "tenantId", "channelId", "senderId", type, content, meta, "createdAt"
+            FROM "Message"
+            WHERE "channelId" = bucket.channel_id AND "recipientId" IS NULL
+
+      # Mensagens de thread de registro para cargos scope='team'. Sem JOIN: a
+      # mensagem carrega a copia das chaves do canal (vazia em canal excluido).
+      chat_messages_record_team:
+        parameters: |
+          SELECT key as team_key, "tenantId" as tenant_id
+          FROM "TeamAccessKey"
+          WHERE "userId" = request.user_id()
+            AND "tenantId" = request.jwt() ->> 'tenantId'
+        data:
+          - SELECT id, "tenantId", "channelId", "senderId", type, content, meta, "createdAt"
+            FROM "Message"
+            WHERE "tenantId" = bucket.tenant_id AND "recipientId" IS NULL
+              AND bucket.team_key IN "_visibleTeamKeysJson"
+
+      # Mensagens de DM por membership.
+      chat_dm_messages:
+        parameters: |
+          SELECT "channelId" as channel_id
+          FROM "ChannelMember"
+          WHERE "userId" = request.user_id()
+        data:
+          - SELECT id, "tenantId", "channelId", "senderId", type, content, meta, "createdAt"
+            FROM "Message"
+            WHERE "channelId" = bucket.channel_id AND "recipientId" IS NULL
+
+      # Mensagens PRIVADAS dentro de um canal (resultado de /consulta, relatorio,
+      # conversa com o @bot): so quem pediu recebe. Os buckets acima levam so
+      # "recipientId" IS NULL (migration 20261117000000_message_recipient).
+      chat_private_messages:
+        parameters: |
+          SELECT
+            request.user_id() as user_id,
+            request.jwt() ->> 'tenantId' as tenant_id
+        data:
+          - SELECT id, "tenantId", "channelId", "senderId", type, content, meta, "createdAt"
+            FROM "Message"
+            WHERE "recipientId" = bucket.user_id AND "tenantId" = bucket.tenant_id
+
+      # Comandos SEM allowlist (visíveis a todos os cargos).
+      chat_commands_unrestricted:
+        parameters: |
+          SELECT request.jwt() ->> 'tenantId' as tenant_id
+        data:
+          - SELECT id, "tenantId", slug, description, icon, "targetEntitySlug", fields, "actionType", "actionConfig", "execMode", "isActive", "createdAt", "updatedAt"
+            FROM "CommandTemplate"
+            WHERE "tenantId" = bucket.tenant_id AND "isActive" = true AND "_visibleToRolesJson" = '[]'
+
+      # Comandos com allowlist do cargo do usuário.
+      chat_commands_role:
+        parameters: |
+          SELECT
+            request.jwt() ->> 'tenantId' as tenant_id,
+            request.jwt() ->> 'customRoleId' as role_id
+        data:
+          - SELECT id, "tenantId", slug, description, icon, "targetEntitySlug", fields, "actionType", "actionConfig", "execMode", "isActive", "createdAt", "updatedAt"
+            FROM "CommandTemplate"
+            WHERE "tenantId" = bucket.tenant_id AND "isActive" = true
+              AND bucket.role_id IN "_visibleToRolesJson"
+
+# touch: force re-snapshot 2026-06-28-final

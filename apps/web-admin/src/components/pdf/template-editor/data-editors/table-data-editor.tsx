@@ -26,14 +26,14 @@ const FILTER_OPERATORS = [
   { value: 'greater', label: 'Maior que' },
   { value: 'less', label: 'Menor que' },
   { value: 'contains', label: 'Contem' },
-  { value: 'not_empty', label: 'Nao esta vazio' },
+  { value: 'not_empty', label: 'Não está vazio' },
 ] as const;
 
 const NO_VALUE_OPERATORS = ['not_empty', 'has_items', 'no_items'];
 
 const SYSTEM_FIELDS = [
-  { slug: 'createdAt', name: 'Data de Criacao', label: 'Data de Criacao', type: 'datetime' },
-  { slug: 'updatedAt', name: 'Data de Atualizacao', label: 'Data de Atualizacao', type: 'datetime' },
+  { slug: 'createdAt', name: 'Data de Criacao', label: 'Data de Criação', type: 'datetime' },
+  { slug: 'updatedAt', name: 'Data de Atualizacao', label: 'Data de Atualização', type: 'datetime' },
   { slug: '_geolocation.lat', name: 'Latitude', label: 'Latitude', type: 'number' },
   { slug: '_geolocation.lng', name: 'Longitude', label: 'Longitude', type: 'number' },
   { slug: '_geolocation.city', name: 'Cidade (GPS)', label: 'Cidade (GPS)', type: 'text' },
@@ -62,6 +62,12 @@ export function TableDataEditor({
   const columnFields = (element.dataSource && subEntities?.[element.dataSource]?.fields)
     ? [...subEntities[element.dataSource].fields!, ...SYSTEM_FIELDS]
     : [...availableFields, ...SYSTEM_FIELDS];
+
+  // Opcoes de sub-tabela: campos que sao listas (sub-entidade/relacao/array).
+  // Cada uma vira "uma linha por item filho".
+  const subOptions = availableFields.filter(
+    (f) => f.type === 'relation' || f.type === 'array' || f.type === 'sub-entity',
+  );
 
   const handleColumnChange = (index: number, updates: Partial<TableColumn>) => {
     const newColumns = [...element.columns];
@@ -128,7 +134,7 @@ export function TableDataEditor({
     <div className="space-y-4">
       {/* Fonte de dados */}
       <div className="space-y-2">
-        <Label>De onde vem os dados?</Label>
+        <Label>1. De onde vêm as linhas da tabela?</Label>
         <Select
           value={element.dataSource || '_self'}
           onValueChange={(value) => onChange({ dataSource: value === '_self' ? undefined : value })}
@@ -137,19 +143,23 @@ export function TableDataEditor({
             <SelectValue placeholder="Selecione" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="_self">Registro principal</SelectItem>
-            {availableFields
-              .filter((f) => f.type === 'relation' || f.type === 'array' || f.type === 'sub-entity')
-              .map((f) => (
-                <SelectItem key={f.slug} value={f.slug}>
-                  {f.label || f.name}
-                </SelectItem>
-              ))}
+            <SelectItem value="_self">Registro principal (1 linha)</SelectItem>
+            {subOptions.map((f) => (
+              <SelectItem key={f.slug} value={f.slug}>
+                {f.label || f.name} (uma linha por item)
+              </SelectItem>
+            ))}
           </SelectContent>
         </Select>
-        {element.dataSource && subEntities?.[element.dataSource] && (
+        {element.dataSource && subEntities?.[element.dataSource] ? (
           <p className="text-xs text-blue-600">
-            Usando campos de: {subEntities[element.dataSource].name}
+            Uma linha para cada <strong>{subEntities[element.dataSource].name}</strong>. As colunas abaixo são os campos dessa lista.
+          </p>
+        ) : (
+          <p className="text-xs text-muted-foreground">
+            {subOptions.length > 0
+              ? '“Registro principal” faz uma linha só. Escolha uma sub-lista para ter uma linha por item (ex.: cada não conformidade).'
+              : '“Registro principal” faz uma linha com os campos do próprio registro.'}
           </p>
         )}
       </div>
@@ -157,12 +167,18 @@ export function TableDataEditor({
       {/* Colunas */}
       <div className="space-y-2">
         <div className="flex items-center justify-between">
-          <Label>Colunas da tabela</Label>
+          <Label>2. Colunas da tabela</Label>
           <Button variant="outline" size="sm" onClick={handleAddColumn}>
             <Plus className="h-4 w-4 mr-1" />
             Coluna
           </Button>
         </div>
+
+        {element.columns.length === 0 && (
+          <p className="text-xs text-muted-foreground border border-dashed rounded-md p-3 text-center">
+            Nenhuma coluna ainda. Clique em <strong>+ Coluna</strong> — cada coluna mostra um campo (ex.: Chassi, Peça, Avaria).
+          </p>
+        )}
 
         <div className="space-y-2">
           {element.columns.map((column, index) => (
@@ -195,7 +211,7 @@ export function TableDataEditor({
                   </Select>
                 </div>
                 <Input
-                  placeholder="Titulo da coluna"
+                  placeholder="Título da coluna"
                   value={column.header}
                   onChange={(e) => handleColumnChange(index, { header: e.target.value })}
                   className="flex-1 min-w-0"
@@ -230,8 +246,8 @@ export function TableDataEditor({
                       <SelectItem value="titlecase">Primeira Maiuscula</SelectItem>
                     </SelectGroup>
                     <SelectGroup>
-                      <SelectLabel>Numeros</SelectLabel>
-                      <SelectItem value="number">Numero (1.234)</SelectItem>
+                      <SelectLabel>Números</SelectLabel>
+                      <SelectItem value="number">Número (1.234)</SelectItem>
                       <SelectItem value="currency">Moeda (R$ 1.234,56)</SelectItem>
                       <SelectItem value="percentage">Percentual (45,67%)</SelectItem>
                     </SelectGroup>
@@ -250,7 +266,7 @@ export function TableDataEditor({
                     </SelectGroup>
                     <SelectGroup>
                       <SelectLabel>Outros</SelectLabel>
-                      <SelectItem value="boolean">Sim / Nao</SelectItem>
+                      <SelectItem value="boolean">Sim / Não</SelectItem>
                     </SelectGroup>
                   </SelectContent>
                 </Select>

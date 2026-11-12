@@ -133,7 +133,7 @@ export default function PublicAppPage() {
       <header className="sticky top-0 z-50 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <div className="flex items-center justify-between px-4 h-14 max-w-2xl mx-auto">
           <h1 className="text-lg font-semibold truncate">
-            {entity?.namePlural || entity?.name || 'Carregando...'}
+            {entity?.name || 'Carregando...'}
           </h1>
           <div className="flex items-center gap-2">
             <Button variant="ghost" size="icon" onClick={fetchData} title="Atualizar">

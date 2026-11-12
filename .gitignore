@@ -15,6 +15,7 @@ out/
 .env.local
 .env.*.local
 .env.production
+.env.prod
 .env.staging
 ecosystem.config.js
 !.env.example
@@ -58,3 +59,10 @@ apps/api/scripts/
 # Google Cloud SDK
 google-cloud-sdk/
 google-cloud-sdk-*.tar.gz
+
+# Contas de teste geradas pelo seed do roteiro
+e2e/.dev-accounts.local.json
+e2e/.local-accounts.local.json
+
+# Sites de clientes (dominio proprio): um .conf e certificados por dominio, so no servidor
+nginx/ssl/sites/

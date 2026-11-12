@@ -1,0 +1,180 @@
+name: CI/CD
+
+# CI (lint/typecheck) + deploy num ÚNICO workflow.
+#   - pull_request (main/develop) : só CI, sem deploy
+#   - workflow_dispatch env=dev   : CI -> deploy DEV manual (Actions > CI/CD > Run workflow)
+#   - workflow_dispatch env=prod  : CI -> deploy PROD manual, SÓ da branch main
+#   Merge/push em develop NAO faz deploy: dev e prod sobem so quando alguem dispara.
+#
+# O CI BLOQUEIA o deploy: se o typecheck da API falhar, não sobe.
+# lint e tsc do web rodam INFORMATIVOS (continue-on-error): o repo tem dívida
+# pré-existente que o `next build` ignora (ignoreBuildErrors/ignoreDuringBuilds);
+# não bloqueiam pra não travar deploy. Reative como bloqueantes quando a dívida cair.
+#
+# Deploy: build no runner (cache) -> push na Google Artifact Registry -> deploy na
+# VM via `gcloud compute ssh` (auth keyless por Workload Identity Federation).
+
+run-name: >-
+  ${{ github.event_name == 'pull_request'
+      && format('CI · {0}', github.head_ref)
+      || format('🚀 CI/CD → {0} · {1} · por {2}',
+           (github.event_name == 'workflow_dispatch' && inputs.environment == 'prod') && 'PROD' || 'DEV',
+           github.ref_name, github.actor) }}
+
+on:
+  pull_request:
+    branches: [main, develop]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Ambiente alvo (prod so roda a partir da branch main)
+        type: choice
+        options: [dev, prod]
+        default: dev
+
+permissions:
+  contents: read
+  id-token: write   # WIF (OIDC)
+
+# PR: um por ref, cancela o anterior. Deploy: um por ambiente, NÃO cancela.
+concurrency:
+  group: cicd-${{ github.event_name == 'pull_request' && github.ref || format('deploy-{0}', inputs.environment || 'dev') }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  GAR_HOST: us-central1-docker.pkg.dev
+  GCP_PROJECT: ios-forms-299fb
+  GAR_REPO: crm
+  WIF_PROVIDER: projects/35661851099/locations/global/workloadIdentityPools/github/providers/github-provider
+  WIF_SA: crm-ci@ios-forms-299fb.iam.gserviceaccount.com
+  VM_NAME: ios-vm
+  VM_ZONE: us-central1-f
+  VM_USER: hbnoboa11
+  VM_DIR: /home/hbnoboa11/crm-builder
+
+jobs:
+  # ---- CI: lint + typecheck (roda em PR e antes de todo deploy) ------------
+  ci:
+    name: Lint & Type Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # Sem `version:` — a action lê o `packageManager` do package.json (senão dá
+      # ERR_PNPM_BAD_PM_VERSION por "multiple versions of pnpm specified").
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+      - run: pnpm install --frozen-lockfile
+      # Builda o pacote compartilhado (a API resolve @crm-builder/shared via dist/).
+      - run: pnpm --filter @crm-builder/shared build
+      # Gera o Prisma Client (senão o tsc não acha @prisma/client — PrismaClient/Prisma).
+      - run: cd apps/api && pnpm prisma generate
+      - name: Type check API (bloqueia o deploy)
+        run: cd apps/api && pnpm exec tsc --noEmit
+      - name: Lint (informativo — dívida pré-existente)
+        run: pnpm run lint
+        continue-on-error: true
+      - name: Type check Web (informativo — next ignora no build)
+        run: cd apps/web-admin && pnpm exec tsc --noEmit
+        continue-on-error: true
+
+  # ---- resolve o ambiente + guard: PROD so a partir da main ---------------
+  setup:
+    needs: ci
+    if: ${{ github.event_name != 'pull_request' }}
+    runs-on: ubuntu-latest
+    outputs:
+      env: ${{ steps.pick.outputs.env }}
+    steps:
+      - id: pick
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            ENV="${{ inputs.environment }}"
+          else
+            ENV="dev"
+          fi
+          if [ "$ENV" = "prod" ] && [ "${{ github.ref }}" != "refs/heads/main" ]; then
+            echo "::error title=Branch errada pra PROD::Deploy de PROD so roda a partir da branch 'main' (ref atual: ${{ github.ref }})."
+            exit 1
+          fi
+          echo "env=$ENV" >> "$GITHUB_OUTPUT"
+          echo "Ambiente alvo: $ENV (event=${{ github.event_name }}, ref=${{ github.ref }})"
+
+  # ---- build + push das imagens na GAR ------------------------------------
+  build:
+    name: Build & Push (${{ needs.setup.outputs.env }})
+    needs: setup
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+      - run: pnpm install --frozen-lockfile
+      - run: cd apps/api && pnpm prisma generate
+      - name: Build (shared -> api + web)
+        run: pnpm build
+        env:
+          NEXT_PUBLIC_API_URL: /api/v1
+
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ env.WIF_PROVIDER }}
+          service_account: ${{ env.WIF_SA }}
+      - uses: google-github-actions/setup-gcloud@v2
+      - run: gcloud auth configure-docker ${{ env.GAR_HOST }} --quiet
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build & push API
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: apps/api/Dockerfile
+          push: true
+          tags: |
+            ${{ env.GAR_HOST }}/${{ env.GCP_PROJECT }}/${{ env.GAR_REPO }}/crm-builder-api:${{ needs.setup.outputs.env }}
+            ${{ env.GAR_HOST }}/${{ env.GCP_PROJECT }}/${{ env.GAR_REPO }}/crm-builder-api:${{ needs.setup.outputs.env }}-${{ github.sha }}
+          cache-from: type=gha,scope=api
+          cache-to: type=gha,mode=max,scope=api
+
+      - name: Build & push Web
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: apps/web-admin/Dockerfile
+          build-args: |
+            NEXT_PUBLIC_API_URL=/api/v1
+          push: true
+          tags: |
+            ${{ env.GAR_HOST }}/${{ env.GCP_PROJECT }}/${{ env.GAR_REPO }}/crm-builder-web:${{ needs.setup.outputs.env }}
+            ${{ env.GAR_HOST }}/${{ env.GCP_PROJECT }}/${{ env.GAR_REPO }}/crm-builder-web:${{ needs.setup.outputs.env }}-${{ github.sha }}
+          cache-from: type=gha,scope=web
+          cache-to: type=gha,mode=max,scope=web
+
+  # ---- deploy na VM (gated por environment; prod pode exigir aprovacao) ----
+  deploy:
+    name: Deploy (${{ needs.setup.outputs.env }})
+    needs: [setup, build]
+    runs-on: ubuntu-latest
+    environment: ${{ needs.setup.outputs.env }}
+    steps:
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ env.WIF_PROVIDER }}
+          service_account: ${{ env.WIF_SA }}
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - name: Deploy na VM (gcloud ssh)
+        env:
+          ENV_NAME: ${{ needs.setup.outputs.env }}
+          REF: ${{ github.ref_name }}
+        run: |
+          gcloud compute ssh "${VM_USER}@${VM_NAME}" \
+            --zone "${VM_ZONE}" --project "${GCP_PROJECT}" --quiet \
+            --ssh-flag="-o StrictHostKeyChecking=no" \
+            --command "cd '${VM_DIR}' && git fetch --quiet origin '${REF}' && git reset --hard --quiet 'origin/${REF}' && ENV_NAME='${ENV_NAME}' bash scripts/vm-deploy.sh"

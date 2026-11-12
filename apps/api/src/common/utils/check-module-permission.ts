@@ -1,23 +1,20 @@
 import { ForbiddenException } from '@nestjs/common';
 import type { CurrentUser } from '../types';
+import { hasFullTenantAccess } from './platform-access';
 
 /**
  * Verifica se o usuario tem uma permissao especifica em um modulo.
  * Lanca ForbiddenException se nao tiver.
  *
- * APENAS PLATFORM_ADMIN tem permissoes automaticas.
- * Todos os outros roles (ADMIN, MANAGER, USER, VIEWER, CUSTOM) devem ter
- * permissoes definidas em modulePermissions no banco de dados.
+ * Apenas cargos com allAccess tem permissoes automaticas (dentro do proprio tenant).
+ * Os demais devem ter permissoes definidas em modulePermissions no banco de dados.
  */
 export function checkModulePermission(
   user: CurrentUser,
   module: string,
   action: string,
 ): void {
-  const roleType = user.customRole?.roleType;
-
-  // APENAS PLATFORM_ADMIN tem acesso automatico
-  if (roleType === 'PLATFORM_ADMIN') return;
+  if (hasFullTenantAccess(user.customRole?.modulePermissions)) return;
 
   // Todos os outros roles verificam modulePermissions do DB
   const mp = user.customRole?.modulePermissions as Record<string, Record<string, boolean>> | undefined;
@@ -44,10 +41,7 @@ export function checkEntityAction(
   entitySlug: string,
   action: string,
 ): void {
-  const roleType = user.customRole?.roleType;
-
-  // APENAS PLATFORM_ADMIN tem acesso automatico
-  if (roleType === 'PLATFORM_ADMIN') return;
+  if (hasFullTenantAccess(user.customRole?.modulePermissions)) return;
 
   // 1. Checar module-level (modulePermissions.data[action])
   const mp = user.customRole?.modulePermissions as Record<string, Record<string, boolean>> | undefined;
@@ -56,7 +50,9 @@ export function checkEntityAction(
   // 2. Checar entity-level (permissions[entitySlug][action])
   const permissions = user.customRole?.permissions as Array<Record<string, unknown>> | undefined;
   if (permissions) {
-    const entityPerm = permissions.find((p) => p.entitySlug === entitySlug);
+    // Mesma resolucao do resto da API: regra da tabela ou, sem ela, o coringa '*'.
+    const entityPerm = permissions.find((p) => p.entitySlug === entitySlug)
+      ?? permissions.find((p) => p.entitySlug === '*');
     if (entityPerm?.[action] === true) return;
   }
 

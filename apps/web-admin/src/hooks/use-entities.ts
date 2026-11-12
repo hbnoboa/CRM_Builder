@@ -3,6 +3,7 @@ import { useCallback, useMemo } from 'react';
 import { toast } from 'sonner';
 import { entitiesService, CreateEntityData, UpdateEntityData, QueryEntitiesParams, EntityGrouped } from '@/services/entities.service';
 import { getErrorMessage } from '@/lib/get-error-message';
+import { useActiveTenant } from '@/stores/tenant-context';
 
 export const entityKeys = {
   all: ['entities'] as const,
@@ -74,10 +75,13 @@ export function useInfiniteEntities(
   };
 }
 
-export function useEntitiesGrouped(tenantId?: string | null) {
+// tenantKey: identificador do tenant atual (slug da URL) — entra na queryKey para
+// refazer o fetch ao trocar de tenant. O tenant em si é resolvido no backend via
+// header X-Tenant-Slug, então NÃO passamos ?tenantId (evita id defasado/errado).
+export function useEntitiesGrouped(tenantKey?: string | null) {
   return useQuery({
-    queryKey: [...entityKeys.grouped(), tenantId],
-    queryFn: () => entitiesService.getAllGrouped(tenantId || undefined),
+    queryKey: [...entityKeys.grouped(), tenantKey],
+    queryFn: () => entitiesService.getAllGrouped(),
     staleTime: 30000,
   });
 }
@@ -91,8 +95,9 @@ export function useEntity(id: string) {
 }
 
 export function useEntityBySlug(slug: string) {
+  const { slug: tenantSlug } = useActiveTenant();
   return useQuery({
-    queryKey: entityKeys.bySlug(slug),
+    queryKey: [...entityKeys.bySlug(slug), tenantSlug],
     queryFn: () => entitiesService.getBySlug(slug),
     enabled: !!slug,
   });

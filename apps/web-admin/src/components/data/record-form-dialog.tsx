@@ -1,22 +1,20 @@
 'use client';
 
+import { TrackingLinkButton } from '@/components/site/tracking-link-button';
+import { ClientPortalButton } from './client-portal-button';
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import { Loader2, Star, Eye, EyeOff, Play, Pause, Square, Clock, AlertTriangle, CheckCircle, XCircle, X, Plus } from 'lucide-react';
+import { withoutSystemFields } from '@/lib/system-fields';
 import { useTranslations } from 'next-intl';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
+import { DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
+import { Sheet, SheetContent, SheetDescription, SheetTitle } from '@/components/ui/sheet';
+import { OptionBadge } from '@/components/ui/option-badge';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Slider as SliderUI } from '@/components/ui/slider';
 import { SearchableSelect } from '@/components/ui/searchable-select';
@@ -25,6 +23,7 @@ import { useCreateEntityData, useUpdateEntityData } from '@/hooks/use-data';
 import { usePermissions } from '@/hooks/use-permissions';
 import { useTenant } from '@/stores/tenant-context';
 import { api } from '@/lib/api';
+import { useQuery } from '@tanstack/react-query';
 import dynamic from 'next/dynamic';
 import type { EntityField, FieldType } from '@/types';
 import type { MapFieldValue } from '@/components/form/map-field';
@@ -67,6 +66,25 @@ interface RecordData {
   data: Record<string, unknown>;
 }
 
+interface RecordFormFieldsProps {
+  entity: Entity;
+  record?: RecordData | null;
+  onSuccess?: () => void;
+  parentRecordId?: string;
+  editableFields?: string[];
+  /** Builder/preview: desabilita todos os inputs e não busca opções de API. */
+  readOnly?: boolean;
+  /** Esconde o rodapé (cancelar/salvar) — usado no builder. */
+  hideFooter?: boolean;
+  /** Chamado ao cancelar (substitui o antigo onOpenChange(false)). */
+  onCancel?: () => void;
+  /** Chamado após salvar com sucesso (substitui o onOpenChange(false) do submit). */
+  onSubmitted?: () => void;
+  /** Se fornecido (apenas criação), substitui o create padrão — recebe os dados
+   *  processados e cuida do save (ex.: comando de chat /avaria → executeCommand). */
+  submitOverride?: (data: Record<string, unknown>) => Promise<void>;
+}
+
 interface RecordFormDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -75,6 +93,9 @@ interface RecordFormDialogProps {
   onSuccess?: () => void;
   parentRecordId?: string;
   editableFields?: string[];
+  submitOverride?: (data: Record<string, unknown>) => Promise<void>;
+  /** So leitura (ex.: portal do cliente sem permissao de editar): sem salvar. */
+  readOnly?: boolean;
 }
 
 // ─── Masks ──────────────────────────────────────────────────────────────────
@@ -123,15 +144,25 @@ function formatCurrencyDisplay(value: string | number): string {
 }
 
 // ─── Component ──────────────────────────────────────────────────────────────
-export function RecordFormDialog({
-  open,
-  onOpenChange,
-  entity,
+export function RecordFormFields({
+  entity: entityProp,
   record,
   onSuccess,
   parentRecordId,
   editableFields,
-}: RecordFormDialogProps) {
+  readOnly = false,
+  hideFooter = false,
+  onCancel,
+  onSubmitted,
+  submitOverride,
+}: RecordFormFieldsProps) {
+  // Datas de criacao/atualizacao vem junto da tabela, mas quem preenche e o sistema.
+  const entity = useMemo(
+    () => ({ ...entityProp, fields: withoutSystemFields(entityProp.fields) }),
+    [entityProp],
+  );
+  // Sempre montado = "aberto". Mantém as effects/usos de `open` existentes intactos.
+  const open = true;
   const t = useTranslations('data');
   const tCommon = useTranslations('common');
   const tPlaceholders = useTranslations('placeholders');
@@ -140,7 +171,9 @@ export function RecordFormDialog({
   const createRecord = useCreateEntityData({ success: isEditing ? t('toast.updated') : t('toast.created') });
   const updateRecord = useUpdateEntityData({ success: t('toast.updated') });
   const { tenantId, effectiveTenantId } = useTenant();
-  const { hasEntityAction, isAdmin } = usePermissions();
+  const { hasEntityAction, isAdmin, getHiddenFields, getReadOnlyFields } = usePermissions();
+  const hiddenByRole = getHiddenFields(entity.slug);
+  const readOnlyByRole = getReadOnlyFields(entity.slug);
 
   // Lock check: registro travado quando lockField esta true
   const lockField = entity.settings?.lockField;
@@ -156,6 +189,13 @@ export function RecordFormDialog({
   const [loadingRelations, setLoadingRelations] = useState<Record<string, boolean>>({});
   const [showPassword, setShowPassword] = useState<Record<string, boolean>>({});
   const [tagInputs, setTagInputs] = useState<Record<string, string>>({});
+  const hasUserSelect = entity.fields.some((f) => f.type === 'user-select');
+  const { data: teamDirectory } = useQuery({
+    queryKey: ['team-directory'],
+    queryFn: async () => (await api.get<Array<{ id: string; name: string }>>('/team-directory')).data,
+    enabled: hasUserSelect,
+    staleTime: 5 * 60_000,
+  });
 
   const normalizeSelectValue = (val: unknown): unknown => {
     if (val && typeof val === 'object' && 'value' in (val as Record<string, unknown>)) {
@@ -216,7 +256,6 @@ export function RecordFormDialog({
     setLoadingRelations(prev => ({ ...prev, [field.slug]: true }));
     try {
       const params: Record<string, string | number> = { limit: 500 };
-      if (effectiveTenantId) params.tenantId = effectiveTenantId;
       const response = await api.get(`/data/${field.relatedEntitySlug}`, { params });
       const data = Array.isArray(response.data) ? response.data : response.data?.data || [];
       const displayField = field.relatedDisplayField || '';
@@ -256,15 +295,15 @@ export function RecordFormDialog({
     } finally {
       setLoadingRelations(prev => ({ ...prev, [field.slug]: false }));
     }
-  }, [effectiveTenantId, t]);
+  }, [t]);
 
   // Load options when dialog opens
   useEffect(() => {
-    if (open && entity.fields) {
+    if (!readOnly && entity.fields) {
       entity.fields.filter(f => f.type === 'api-select' && f.apiEndpoint).forEach(fetchApiOptions);
       entity.fields.filter(f => f.type === 'relation' && f.relatedEntitySlug).forEach(fetchRelationOptions);
     }
-  }, [open, entity.fields, fetchApiOptions, fetchRelationOptions]);
+  }, [readOnly, entity.fields, fetchApiOptions, fetchRelationOptions]);
 
   const handleApiSelectChange = (field: EntityField, value: string) => {
     handleFieldChange(field.slug, value);
@@ -329,7 +368,8 @@ export function RecordFormDialog({
       } else {
         const initialData: Record<string, unknown> = {};
         entity.fields?.forEach((field) => {
-          if (field.default !== undefined) initialData[field.slug] = field.default;
+          // Padrao pode ser marcador ({{now}}, {{today}}), como no preenchimento automatico
+          if (field.default !== undefined) initialData[field.slug] = typeof field.default === 'string' ? resolveValueTemplate(field.default) : field.default;
           else if (field.type === 'boolean') initialData[field.slug] = false;
           else if (field.type === 'number' || field.type === 'currency' || field.type === 'percentage') initialData[field.slug] = '';
           else if (field.type === 'multiselect') initialData[field.slug] = [];
@@ -558,6 +598,12 @@ export function RecordFormDialog({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    // A sub-entidade abre um RecordFormDialog ANINHADO. O Radix portala o conteúdo,
+    // mas mantém a árvore React — então o submit do form filho borbulharia até o
+    // <form> do pai, salvando/fechando o registro pai (UX ruim: "sai do modal").
+    // stopPropagation impede o bubble; o guard ignora submits que não são deste form.
+    e.stopPropagation();
+    if (e.target !== e.currentTarget) return;
     if (!validateForm()) return;
 
     const processedData: Record<string, unknown> = {};
@@ -598,6 +644,7 @@ export function RecordFormDialog({
       if (field.type === 'sub-entity' || field.type === 'section-title' || field.type === 'formula' || field.type === 'rollup' || field.type === 'lookup') return;
       // Skip fields the user cannot edit (field-level permissions)
       if (editableFields && !editableFields.includes(field.slug)) return;
+      if (readOnlyByRole.has(field.slug)) return;
       const value = formData[field.slug];
       if (value !== undefined && value !== '') {
         if (field.type === 'number' || field.type === 'rating' || field.type === 'slider') {
@@ -624,11 +671,14 @@ export function RecordFormDialog({
 
     try {
       if (isEditing && record) {
-        await updateRecord.mutateAsync({ entitySlug: entity.slug, id: record.id, data: processedData, tenantId: effectiveTenantId || undefined });
+        await updateRecord.mutateAsync({ entitySlug: entity.slug, id: record.id, data: processedData });
+      } else if (submitOverride) {
+        // Save delegado (ex.: comando de chat cria via executeCommand + posta card).
+        await submitOverride(processedData);
       } else {
-        await createRecord.mutateAsync({ entitySlug: entity.slug, data: processedData, parentRecordId, tenantId: effectiveTenantId || undefined });
+        await createRecord.mutateAsync({ entitySlug: entity.slug, data: processedData, parentRecordId });
       }
-      onOpenChange(false);
+      onSubmitted?.();
       onSuccess?.();
     } catch (error) { /* handled by hook */ }
   };
@@ -673,7 +723,7 @@ export function RecordFormDialog({
   // ─── Group fields into grid rows ──────────────────────────────────────────
   const fieldRows = useMemo(() => {
     // Filtra campos ocultos (type === 'hidden' OU hidden === true)
-    const visibleFields = (entity.fields || []).filter(f => f.type !== 'hidden' && !f.hidden);
+    const visibleFields = (entity.fields || []).filter(f => f.type !== 'hidden' && !f.hidden && !hiddenByRole.has(f.slug));
 
     // Agrupa campos por gridRow (mesmo approach do FieldGridEditor)
     const fieldsByRow: Record<number, EntityField[]> = {};
@@ -714,14 +764,14 @@ export function RecordFormDialog({
     }
 
     return rows;
-  }, [entity.fields]);
+  }, [entity.fields, hiddenByRole.size]);
 
   // ─── Render field ─────────────────────────────────────────────────────────
   const renderField = (field: EntityField) => {
     const value = formData[field.slug];
     const error = errors[field.slug];
     const helpText = field.helpText;
-    const isFieldDisabled = isLocked || field.disabled || isFieldReadOnly(field) || (editableFields ? !editableFields.includes(field.slug) : false);
+    const isFieldDisabled = readOnly || isLocked || field.disabled || isFieldReadOnly(field) || (editableFields ? !editableFields.includes(field.slug) : false);
     const fieldRequired = isFieldRequired(field);
 
     const fieldLabel = (
@@ -1175,13 +1225,17 @@ export function RecordFormDialog({
       // ─── NOVOS TIPOS DE CAMPO ──────────────────────────────────────────────
 
       case 'user-select': {
-        // TODO: Implementar busca de usuarios via API
-        // Por enquanto usa as opcoes do campo ou uma lista vazia
-        const userOpts: SelectOption[] = (field.options || []).map((option: string | { value: string; label: string }) => {
+        // Equipe da empresa; o valor gravado e o NOME (aparece igual em listas, PDFs e app).
+        // Opcoes fixas do campo continuam valendo como extra.
+        const fixedOpts: SelectOption[] = (field.options || []).map((option: string | { value: string; label: string }) => {
           const optVal = typeof option === 'object' ? option.value : option;
           const optLabel = typeof option === 'object' ? option.label : option;
           return { value: optVal, label: optLabel };
         });
+        const userOpts: SelectOption[] = [
+          ...(teamDirectory || []).map((m) => ({ value: m.name, label: m.name })),
+          ...fixedOpts.filter((o) => !(teamDirectory || []).some((m) => m.name === o.value)),
+        ];
         const config = field.userSelectConfig;
         return (
           <div key={field.slug} className="space-y-2">
@@ -1474,7 +1528,7 @@ export function RecordFormDialog({
             <SignatureField
               value={value as string | undefined}
               onChange={(val) => handleFieldChange(field.slug, val)}
-              label={field.name}
+              label={field.label || field.name}
               required={fieldRequired}
               disabled={isFieldDisabled}
               config={{
@@ -1508,7 +1562,7 @@ export function RecordFormDialog({
             <LookupField
               value={value as string | null}
               onChange={(val) => handleFieldChange(field.slug, val)}
-              label={field.name}
+              label={field.label || field.name}
               required={fieldRequired}
               disabled={isFieldDisabled}
               placeholder={field.placeholder || 'Buscar...'}
@@ -1586,7 +1640,12 @@ export function RecordFormDialog({
                 label: actionConfig.label || field.label || field.name,
                 style: actionConfig.style,
                 confirmMessage: actionConfig.confirmMessage,
-                action: actionConfig.action,
+                // Cast type-only: a uniao de tipos do shared usa 'custom-api' e o
+                // ActionButtonField usa 'action-chain'; o valor em runtime nao muda
+                action: actionConfig.action as unknown as {
+                  type: 'webhook' | 'status-change' | 'email' | 'action-chain';
+                  config: Record<string, unknown>;
+                },
                 visibleIf: actionConfig.visibleIf,
               }}
               recordId={record?.id}
@@ -1638,64 +1697,131 @@ export function RecordFormDialog({
   };
 
   // ─── Render ──────────────────────────────────────────────────────────────
+  // Apenas o corpo do formulário (sem o chrome de Dialog). O RecordFormDialog
+  // abaixo embrulha isto num Dialog; o builder usa direto (readOnly).
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-5xl max-h-[90vh] overflow-y-auto" onInteractOutside={(e) => e.preventDefault()} onPointerDownOutside={(e) => e.preventDefault()}>
-        <DialogHeader>
-          <DialogTitle>{isEditing ? t('editRecord') : t('newRecord')} - {entity.name}</DialogTitle>
-          <DialogDescription>{isEditing ? t('toast.updated').replace('!', '') : t('toast.created').replace('!', '')}</DialogDescription>
-        </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          {errors._form && (
-            <div className="bg-destructive/10 border border-destructive/20 text-destructive px-4 py-3 rounded-md text-sm">{errors._form}</div>
-          )}
+    <form onSubmit={handleSubmit} className="space-y-4">
+      {errors._form && (
+        <div className="bg-destructive/10 border border-destructive/20 text-destructive px-4 py-3 rounded-md text-sm">{errors._form}</div>
+      )}
 
-          {entity.fields?.length > 0 ? (
-            fieldRows.length > 0 ? (
-              <div className="space-y-4">
-                {fieldRows.map((row, rowIdx) => (
-                  <div key={rowIdx} className="grid grid-cols-12 gap-4">
-                    {row.map((field) => {
-                      const colSpan = (field.type === 'sub-entity' || field.type === 'zone-diagram' || field.type === 'section-title') ? 12 : (field.gridColSpan || 12);
-                      const colStart = field.gridColStart;
-                      return (
-                        <div key={field.slug} style={{ gridColumn: colStart ? `${colStart} / span ${colSpan}` : `span ${colSpan}` }}>
-                          {renderFieldWithPermission(field)}
-                        </div>
-                      );
-                    })}
-                  </div>
-                ))}
+      {entity.fields?.length > 0 ? (
+        fieldRows.length > 0 ? (
+          <div className="space-y-4">
+            {fieldRows.map((row, rowIdx) => (
+              <div key={rowIdx} className="flex flex-col md:grid md:grid-cols-12 gap-4">
+                {row.map((field) => {
+                  const colSpan = (field.type === 'sub-entity' || field.type === 'zone-diagram' || field.type === 'section-title') ? 12 : (field.gridColSpan || 12);
+                  const colStart = field.gridColStart;
+                  return (
+                    <div key={field.slug} style={{ gridColumn: colStart ? `${colStart} / span ${colSpan}` : `span ${colSpan}` }}>
+                      {renderFieldWithPermission(field)}
+                    </div>
+                  );
+                })}
               </div>
-            ) : (
-              entity.fields.filter(f => f.type !== 'hidden' && !f.hidden).map((field) => renderFieldWithPermission(field))
-            )
-          ) : (
-            <p className="text-sm text-muted-foreground text-center py-4">{tCommon('noResults')}</p>
+            ))}
+          </div>
+        ) : (
+          entity.fields.filter(f => f.type !== 'hidden' && !f.hidden).map((field) => renderFieldWithPermission(field))
+        )
+      ) : (
+        <p className="text-sm text-muted-foreground text-center py-4">{tCommon('noResults')}</p>
+      )}
+
+      {/* Hidden fields (type === 'hidden' OU hidden === true) */}
+      {entity.fields?.filter(f => f.type === 'hidden' || f.hidden).map(field => (
+        <input key={field.slug} type="hidden" value={String(formData[field.slug] || field.default || '')} />
+      ))}
+
+      {!hideFooter && (
+        <DialogFooter className="sticky bottom-0 -mx-6 mt-4 border-t bg-background/95 px-6 py-3 backdrop-blur">
+          {isLocked && (
+            <p className="text-xs text-amber-600 mr-auto flex items-center gap-1">
+              <AlertTriangle className="h-3.5 w-3.5" />
+              {t('recordLocked')}
+            </p>
           )}
+          <Button type="button" variant="outline" onClick={() => onCancel?.()}>{tCommon('cancel')}</Button>
+          {!isLocked && !readOnly && (
+            <Button type="submit" disabled={isLoading || !entity.fields?.length}>
+              {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {isLoading ? tCommon('saving') : isEditing ? tCommon('save') : tCommon('create')}
+            </Button>
+          )}
+        </DialogFooter>
+      )}
+    </form>
+  );
+}
 
-          {/* Hidden fields (type === 'hidden' OU hidden === true) */}
-          {entity.fields?.filter(f => f.type === 'hidden' || f.hidden).map(field => (
-            <input key={field.slug} type="hidden" value={String(formData[field.slug] || field.default || '')} />
-          ))}
+// ─── Painel lateral (API externa idêntica à do antigo diálogo) ─────────────────
+export function RecordFormDialog({
+  open,
+  onOpenChange,
+  entity,
+  record,
+  onSuccess,
+  parentRecordId,
+  editableFields,
+  submitOverride,
+  readOnly = false,
+}: RecordFormDialogProps) {
+  const t = useTranslations('data');
+  const isEditing = !!record;
 
-          <DialogFooter>
-            {isLocked && (
-              <p className="text-xs text-amber-600 mr-auto flex items-center gap-1">
-                <AlertTriangle className="h-3.5 w-3.5" />
-                {t('recordLocked')}
-              </p>
-            )}
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>{tCommon('cancel')}</Button>
-            {!isLocked && (
-              <Button type="submit" disabled={isLoading || !entity.fields?.length}>
-                {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                {isLoading ? tCommon('saving') : isEditing ? tCommon('save') : tCommon('create')}
-              </Button>
-            )}
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
+  // Cabecalho do registro: titulo (campo-titulo da tabela) e situacao (1a opcao com cor)
+  const titleField = (entity.settings as Record<string, unknown> | undefined)?.titleField as string | undefined;
+  const rawTitle = record && titleField ? record.data?.[titleField] : undefined;
+  const recordTitle = rawTitle === undefined || rawTitle === null || rawTitle === '' ? null : String(rawTitle);
+  const coloredFields = (entity.fields || []).filter((f) => (f.type === 'select' || f.type === 'radio-group')
+    && ((f.options as Array<unknown> | undefined) || []).some((o) => typeof o === 'object' && o !== null && !!(o as { color?: string }).color));
+  const statusField = coloredFields.find((f) => /status|situa|etapa|resultado|estado/i.test(f.slug)) ?? coloredFields[0];
+  const statusOption = statusField && record
+    ? ((statusField.options as Array<{ value: unknown; label: string; color?: string }>) || []).find((o) => o.value === record.data?.[statusField.slug])
+    : undefined;
+  const entityColor = (entity as { color?: string | null }).color;
+
+  return (
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent
+        className="sm:max-w-2xl lg:max-w-4xl"
+        onInteractOutside={(e) => e.preventDefault()}
+        onPointerDownOutside={(e) => e.preventDefault()}
+        data-testid="record-form-panel"
+      >
+        <div className="flex items-start gap-3 border-b px-6 py-4 pr-12">
+          <span
+            className="mt-0.5 h-2.5 w-2.5 shrink-0 rounded-full bg-primary"
+            style={entityColor ? { backgroundColor: entityColor } : undefined}
+          />
+          <div className="min-w-0 flex-1">
+            <p className="text-xs font-medium text-muted-foreground">
+              {isEditing && !readOnly ? `${t('editRecord')} · ${entity.name}` : entity.name}
+            </p>
+            <SheetTitle className="mt-0.5 truncate text-lg font-semibold leading-tight">
+              {isEditing ? (recordTitle ?? entity.name) : t('newRecord')}
+            </SheetTitle>
+            <SheetDescription className="sr-only">{t('formDescription')}</SheetDescription>
+          </div>
+          {statusOption && <OptionBadge label={statusOption.label} color={statusOption.color} className="mt-1" />}
+          {isEditing && record?.id && <TrackingLinkButton entitySlug={entity.slug} entityName={entity.name} recordId={record.id} />}
+          {isEditing && record?.id && <ClientPortalButton entitySlug={entity.slug} recordId={record.id} recordTitle={recordTitle} />}
+        </div>
+        <div className="flex-1 overflow-y-auto px-6 pt-5">
+          <RecordFormFields
+            entity={entity}
+            record={record}
+            onSuccess={onSuccess}
+            parentRecordId={parentRecordId}
+            editableFields={editableFields}
+            submitOverride={submitOverride}
+            readOnly={readOnly}
+            onCancel={() => onOpenChange(false)}
+            onSubmitted={() => onOpenChange(false)}
+          />
+        </div>
+      </SheetContent>
+    </Sheet>
   );
 }

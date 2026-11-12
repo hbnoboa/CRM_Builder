@@ -1,5 +1,6 @@
 import { Injectable, OnModuleInit, OnModuleDestroy, Logger } from '@nestjs/common';
 import { Prisma, PrismaClient } from '@prisma/client';
+import { OpsMonitorService } from '../common/services/ops-monitor.service';
 
 @Injectable()
 export class PrismaService extends PrismaClient implements OnModuleInit, OnModuleDestroy {
@@ -7,6 +8,7 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
 
   constructor() {
     super({
+      // Eventos de consulta tambem em producao: alimentam "consultas lentas" do console.
       log: process.env.NODE_ENV === 'development'
         ? [
             { emit: 'event', level: 'query' },
@@ -14,20 +16,54 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
             { emit: 'stdout', level: 'warn' },
             { emit: 'stdout', level: 'error' },
           ]
-        : [{ emit: 'stdout', level: 'error' }],
+        : [{ emit: 'event', level: 'query' }, { emit: 'stdout', level: 'error' }],
       // Datasource configuration for connection pooling
       datasourceUrl: process.env.DATABASE_URL,
     });
 
-    // Log slow queries in development
-    if (process.env.NODE_ENV === 'development') {
-      // @ts-expect-error - Prisma event typing
-      this.$on('query', (e: Prisma.QueryEvent) => {
-        if (e.duration > 100) {
-          this.logger.warn(`Slow query (${e.duration}ms): ${e.query}`);
+    // ── Soft delete GLOBAL (middleware) ──────────────────────────────────────
+    // Para os models do allowlist: delete/deleteMany viram soft (deletedAt) e
+    // find*/count ganham deletedAt:null automaticamente. Respeita filtros de
+    // deletedAt ja presentes (ex.: restore). findUnique fica intacto (lookups por
+    // id/unique internos). EntityData/ArchivedEntityData FORA (archive + cascata proprios).
+    // Notification fica FORA: e transiente (sino/avisos); delete fisico e o correto
+    // (o cleanup cron deve remover de verdade, nao acumular soft rows).
+    const SOFT_DELETE_MODELS = new Set([
+      'Tenant', 'User', 'Entity', 'CustomRole', 'UserTenantAccess',
+      'PdfTemplate', 'Webhook', 'EmailTemplate', 'ActionChain', 'ScheduledTask',
+      'EntityAutomation', 'EntityFieldRule', 'DashboardTemplate', 'PublicLink',
+    ]);
+    const READ_OPS = new Set(['findFirst', 'findFirstOrThrow', 'findMany', 'count', 'aggregate', 'groupBy']);
+
+    this.$use(async (params, next) => {
+      const model = params.model;
+      if (model && SOFT_DELETE_MODELS.has(model)) {
+        if (params.action === 'delete') {
+          params.action = 'update';
+          params.args = { ...(params.args || {}), data: { deletedAt: new Date() } };
+        } else if (params.action === 'deleteMany') {
+          params.action = 'updateMany';
+          params.args = params.args || {};
+          params.args.data = { ...(params.args.data || {}), deletedAt: new Date() };
+        } else if (READ_OPS.has(params.action)) {
+          params.args = params.args || {};
+          params.args.where = params.args.where || {};
+          if (params.args.where.deletedAt === undefined) {
+            params.args.where.deletedAt = null;
+          }
         }
-      });
-    }
+      }
+      return next(params);
+    });
+
+    // Consultas lentas: log no dev (>100ms) e registro para o console (>= SLOW_QUERY_MS).
+    const slowMs = Number(process.env.SLOW_QUERY_MS || 500);
+    const isDev = process.env.NODE_ENV === 'development';
+    // @ts-expect-error - Prisma event typing
+    this.$on('query', (e: Prisma.QueryEvent) => {
+      if (isDev && e.duration > 100) this.logger.warn(`Slow query (${e.duration}ms): ${e.query}`);
+      if (e.duration >= slowMs) OpsMonitorService.current?.recordSlowQuery(e.duration, e.query);
+    });
   }
 
   async onModuleInit() {

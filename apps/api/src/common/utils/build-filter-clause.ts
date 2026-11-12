@@ -13,6 +13,42 @@ export function buildFilterClause(
 ): Prisma.EntityDataWhereInput | null {
   const type = fieldType?.toLowerCase() || 'text';
 
+  // Campos de SISTEMA (colunas reais, nao JSON): createdAt / updatedAt. Filtra por
+  // intervalo na propria coluna timestamp (ex.: consulta de veiculos por "atualizado
+  // entre X e Y"). Suporta between/gt/gte/lt/lte/equals; datas date-only pegam o dia
+  // inteiro (limite superior = inicio do dia seguinte, exclusivo).
+  if (fieldSlug === 'createdAt' || fieldSlug === 'updatedAt') {
+    const parse = (v: unknown): Date | null => {
+      if (v === null || v === undefined || v === '') return null;
+      const d = new Date(String(v));
+      return isNaN(d.getTime()) ? null : d;
+    };
+    const nextDay = (d: Date) => new Date(d.getTime() + 86400000);
+    const from = parse(value);
+    const to = parse(value2);
+    const wrap = (cond: Record<string, unknown>): Prisma.EntityDataWhereInput =>
+      ({ [fieldSlug]: cond } as Prisma.EntityDataWhereInput);
+    switch (operator) {
+      case 'between':
+        if (from && to) return wrap({ gte: from, lt: nextDay(to) });
+        if (from) return wrap({ gte: from });
+        if (to) return wrap({ lt: nextDay(to) });
+        return null;
+      case 'gt':
+        return from ? wrap({ gt: from }) : null;
+      case 'gte':
+        return from ? wrap({ gte: from }) : null;
+      case 'lt':
+        return from ? wrap({ lt: from }) : null;
+      case 'lte':
+        return from ? wrap({ lt: nextDay(from) }) : null; // inclui o dia inteiro
+      case 'equals':
+        return from ? wrap({ gte: from, lt: nextDay(from) }) : null;
+      default:
+        return null;
+    }
+  }
+
   // Operadores que nao precisam de valor
   if (operator === 'isEmpty') {
     return {
@@ -47,6 +83,28 @@ export function buildFilterClause(
   // Tipos especiais (nao filtráveis)
   const specialTypes = ['sla-status', 'action-button'];
 
+  // notEquals: negacao de equals para qualquer tipo, INCLUINDO registros sem o
+  // campo (null/ausente) — espelha a semantica do PowerSync (record_value IS
+  // DISTINCT FROM value, onde NULL passa). Sem isto, role dataFilters / global
+  // filters / dashboard filters com 'notEquals' eram silenciosamente ignorados.
+  if (operator === 'notEquals') {
+    let eqVal: Prisma.InputJsonValue;
+    if (type === 'boolean') {
+      eqVal = value === true || value === 'true' || value === 1 || value === '1';
+    } else if (numberTypes.includes(type)) {
+      eqVal = Number(value);
+    } else {
+      eqVal = String(value ?? '');
+    }
+    return {
+      OR: [
+        { NOT: { data: { path: [fieldSlug], equals: eqVal } } },
+        { data: { path: [fieldSlug], equals: Prisma.DbNull } },
+        { data: { path: [fieldSlug], equals: Prisma.JsonNull } },
+      ],
+    };
+  }
+
   if (type === 'boolean') {
     if (operator === 'equals') {
       let boolValue: boolean;
@@ -57,6 +115,19 @@ export function buildFilterClause(
       }
       return { data: { path: [fieldSlug], equals: boolValue } };
     }
+  }
+
+  // Selects podem ter sido gravados como string pura ("Colisão") OU como objeto
+  // {value,label} (formato legado). Para `equals`, casar AMBOS os formatos via OR,
+  // senao filtros/dashboards perdem registros historicos.
+  if (selectTypes.includes(type) && operator === 'equals') {
+    const strValue = String(value || '');
+    return {
+      OR: [
+        { data: { path: [fieldSlug], equals: strValue } },
+        { data: { path: [fieldSlug, 'value'], equals: strValue } },
+      ],
+    };
   }
 
   if (textTypes.includes(type) || selectTypes.includes(type)) {

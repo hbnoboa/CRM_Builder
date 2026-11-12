@@ -67,6 +67,8 @@ interface ElementPropertiesPanelProps {
     slug: string;
     fields?: AvailableField[];
   }>;
+  parentFields?: AvailableField[];
+  parentEntityName?: string;
   computedFields?: ComputedField[];
   templateType: 'single' | 'batch';
 }
@@ -114,6 +116,8 @@ function BodyElementEditor({
   onDelete,
   availableFields,
   subEntities,
+  parentFields,
+  parentEntityName,
   computedFields,
   templateType,
 }: {
@@ -123,6 +127,8 @@ function BodyElementEditor({
   onDelete: () => void;
   availableFields: AvailableField[];
   subEntities?: ElementPropertiesPanelProps['subEntities'];
+  parentFields?: AvailableField[];
+  parentEntityName?: string;
   computedFields?: ComputedField[];
   templateType: 'single' | 'batch';
 }) {
@@ -131,8 +137,9 @@ function BodyElementEditor({
   const handleElementChange = (updates: Partial<PdfElement>) => {
     onChange({
       ...content,
+      // Cast: o spread com Partial<PdfElement> quebra a uniao discriminada
       body: content.body.map((el) =>
-        el.id === element.id ? { ...el, ...updates } : el,
+        el.id === element.id ? ({ ...el, ...updates } as PdfElement) : el,
       ),
     });
   };
@@ -156,7 +163,7 @@ function BodyElementEditor({
       <Separator />
 
       {/* Appearance Section */}
-      <Section title="Aparencia">
+      <Section title="Aparência">
         {element.type === 'text' && (
           <TextElementEditor
             element={element as TextElement}
@@ -213,6 +220,8 @@ function BodyElementEditor({
                 onChange={handleElementChange}
                 availableFields={availableFields}
                 isBatch={templateType === 'batch'}
+                parentFields={parentFields}
+                parentEntityName={parentEntityName}
                 computedFields={computedFields?.map((cf) => ({ slug: cf.slug, label: cf.label }))}
               />
             )}
@@ -257,7 +266,7 @@ function BodyElementEditor({
       {templateType === 'batch' && (
         <>
           <Separator />
-          <Section title="Repeticao" defaultOpen={!!element.repeatPerRecord}>
+          <Section title="Repetição" defaultOpen={!!element.repeatPerRecord}>
             <div className="flex items-center justify-between">
               <div>
                 <Label className="text-xs">Repetir por registro</Label>
@@ -289,6 +298,8 @@ export function ElementPropertiesPanel({
   onDeselect,
   availableFields,
   subEntities,
+  parentFields,
+  parentEntityName,
   computedFields,
   templateType,
 }: ElementPropertiesPanelProps) {
@@ -342,6 +353,8 @@ export function ElementPropertiesPanel({
         onDelete={() => onDelete(element.id)}
         availableFields={availableFields}
         subEntities={subEntities}
+        parentFields={parentFields}
+        parentEntityName={parentEntityName}
         computedFields={computedFields}
         templateType={templateType}
       />

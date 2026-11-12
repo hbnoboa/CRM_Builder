@@ -73,6 +73,7 @@ export class ComputedFieldService {
         where: {
           entityId: relatedEntity.id,
           tenantId,
+          deletedAt: null, // rollup nao agrega registros soft-deletados
           // NOTA: Query JSON no Prisma é limitada
           // Idealmente usar raw SQL com operadores JSON
         },

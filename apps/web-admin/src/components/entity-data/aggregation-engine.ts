@@ -6,6 +6,7 @@ export interface FieldDistributionItem {
   value: string;
   label: string;
   count: number;
+  color?: string;
 }
 
 export interface TimeSeriesPoint {
@@ -104,10 +105,23 @@ function toStr(val: unknown): string {
   return String(val);
 }
 
+// Mesmos rotulos e cores do servidor (stats.service) para campos booleanos
+const BOOLEAN_META: Record<string, { label: string; color: string }> = {
+  true: { label: 'Sim', color: '#2563eb' },
+  false: { label: 'Não', color: '#94a3b8' },
+};
+
 function getLabel(value: string, field?: EntityField): string {
+  if (field?.type === 'boolean' && BOOLEAN_META[value]) return BOOLEAN_META[value].label;
   if (!field?.options) return value;
   const opt = field.options.find(o => o.value === value);
   return opt?.label ?? value;
+}
+
+function getColor(value: string, field?: EntityField): string | undefined {
+  if (field?.type === 'boolean') return BOOLEAN_META[value]?.color;
+  const opt = field?.options?.find(o => o.value === value) as { color?: string } | undefined;
+  return opt?.color || undefined;
 }
 
 function toDateKey(dateStr: string): string {
@@ -302,6 +316,7 @@ export function groupByField(
       value,
       label: getLabel(value, field),
       count,
+      ...(getColor(value, field) ? { color: getColor(value, field) } : {}),
     }))
     .sort((a, b) => b.count - a.count);
 
@@ -520,12 +535,16 @@ export function topRecords(
   if (sortBy) {
     const mult = sortOrder === 'asc' ? 1 : -1;
     result.sort((a, b) => {
-      const aVal = getFieldValue(a, sortBy);
-      const bVal = getFieldValue(b, sortBy);
-      const aNum = toNum(aVal);
-      const bNum = toNum(bVal);
+      const aStr = toStr(getFieldValue(a, sortBy));
+      const bStr = toStr(getFieldValue(b, sortBy));
+      // Vazios no fim; datas ISO e numeros "puros" comparados pelo valor (parseFloat("2026-11-08") = 2026)
+      if (!aStr || !bStr) return Number(!aStr) - Number(!bStr);
+      const isoDate = /^\d{4}-\d{2}-\d{2}/;
+      if (isoDate.test(aStr) && isoDate.test(bStr)) return (Date.parse(aStr) - Date.parse(bStr)) * mult;
+      const aNum = Number(aStr);
+      const bNum = Number(bStr);
       if (!isNaN(aNum) && !isNaN(bNum)) return (aNum - bNum) * mult;
-      return toStr(aVal).localeCompare(toStr(bVal)) * mult;
+      return aStr.localeCompare(bStr, 'pt-BR', { numeric: true, sensitivity: 'base' }) * mult;
     });
   }
 

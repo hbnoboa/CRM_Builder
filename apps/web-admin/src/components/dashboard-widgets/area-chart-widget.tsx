@@ -78,7 +78,7 @@ export function AreaChartWidget({ entitySlug, config, title, isEditMode }: AreaC
             labelFormatter={(v) => {
               try { return format(parseISO(v as string), 'dd MMM yyyy', { locale: ptBR }); } catch { return v as string; }
             }}
-            formatter={(v: number) => [(v ?? 0).toLocaleString('pt-BR'), title || '']}
+            formatter={((v: number) => [(v ?? 0).toLocaleString('pt-BR'), title || '']) as never}
           />
           <Area
             type="monotone"

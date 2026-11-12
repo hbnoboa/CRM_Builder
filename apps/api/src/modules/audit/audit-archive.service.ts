@@ -1,5 +1,4 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { Cron, CronExpression } from '@nestjs/schedule';
 import { PrismaService } from '../../prisma/prisma.service';
 
 @Injectable()
@@ -14,13 +13,9 @@ export class AuditArchiveService {
   constructor(private readonly prisma: PrismaService) {}
 
   /**
-   * Cron job diário (3h AM): Arquiva logs antigos > 90 dias
-   * Move logs de AuditLog para ArchivedAuditLog
+   * Engine: arquiva logs > 90 dias (AuditLog -> ArchivedAuditLog).
+   * Agendamento centralizado em DataLifecycleService.
    */
-  @Cron('0 3 * * *', {
-    name: 'archive-old-audit-logs',
-    timeZone: 'America/Sao_Paulo',
-  })
   async archiveOldLogs(): Promise<void> {
     const startTime = Date.now();
     this.logger.log('🗄️ Iniciando arquivamento de audit logs antigos...');
@@ -102,12 +97,10 @@ export class AuditArchiveService {
   }
 
   /**
-   * Cron job semanal (Domingo 4h AM): Deleta logs arquivados muito antigos > 1 ano
+   * Engine (legado): deleta logs arquivados > 1 ano SEM backup.
+   * NAO use diretamente — o cold-tier de DataLifecycleService exporta pro GCS
+   * antes de deletar. Mantido apenas para compatibilidade/ad-hoc.
    */
-  @Cron('0 4 * * 0', {
-    name: 'delete-very-old-audit-logs',
-    timeZone: 'America/Sao_Paulo',
-  })
   async deleteVeryOldLogs(): Promise<void> {
     const startTime = Date.now();
     this.logger.log('🗑️ Iniciando deleção de audit logs arquivados muito antigos...');
@@ -144,9 +137,9 @@ export class AuditArchiveService {
   }
 
   /**
-   * Método manual para arquivar logs (útil para testes ou execução ad-hoc)
+   * Método manual para arquivar logs de UM tenant (execução ad-hoc pelo admin do tenant).
    */
-  async manualArchive(daysOld: number = this.ARCHIVE_AFTER_DAYS): Promise<{
+  async manualArchive(tenantId: string, daysOld: number = this.ARCHIVE_AFTER_DAYS): Promise<{
     archived: number;
     cutoffDate: string;
     durationMs: number;
@@ -163,6 +156,7 @@ export class AuditArchiveService {
     while (hasMore) {
       const logs = await this.prisma.auditLog.findMany({
         where: {
+          tenantId,
           createdAt: { lt: cutoffDate },
         },
         take: this.BATCH_SIZE,
@@ -209,9 +203,9 @@ export class AuditArchiveService {
   }
 
   /**
-   * Método manual para deletar logs arquivados (útil para testes)
+   * Método manual para deletar logs arquivados de UM tenant.
    */
-  async manualDelete(daysOld: number = this.DELETE_AFTER_DAYS): Promise<{
+  async manualDelete(tenantId: string, daysOld: number = this.DELETE_AFTER_DAYS): Promise<{
     deleted: number;
     cutoffDate: string;
     durationMs: number;
@@ -224,6 +218,7 @@ export class AuditArchiveService {
 
     const result = await this.prisma.archivedAuditLog.deleteMany({
       where: {
+        tenantId,
         createdAt: { lt: cutoffDate },
       },
     });
@@ -238,9 +233,10 @@ export class AuditArchiveService {
   }
 
   /**
-   * Retorna estatísticas sobre audit logs
+   * Retorna estatísticas sobre audit logs. Com `tenantId`, restringe ao tenant
+   * (endpoint do app); sem, visao global (uso interno: DataLifecycleService).
    */
-  async getStats(): Promise<{
+  async getStats(tenantId?: string): Promise<{
     active: {
       total: number;
       oldestDate: Date | null;
@@ -259,6 +255,8 @@ export class AuditArchiveService {
       batchSize: number;
     };
   }> {
+    const scope = tenantId ? { tenantId } : {};
+
     // Estatísticas de logs ativos
     const [
       activeTotal,
@@ -266,17 +264,20 @@ export class AuditArchiveService {
       activeNewest,
       activeByTenant,
     ] = await Promise.all([
-      this.prisma.auditLog.count(),
+      this.prisma.auditLog.count({ where: scope }),
       this.prisma.auditLog.findFirst({
+        where: scope,
         orderBy: { createdAt: 'asc' },
         select: { createdAt: true },
       }),
       this.prisma.auditLog.findFirst({
+        where: scope,
         orderBy: { createdAt: 'desc' },
         select: { createdAt: true },
       }),
       this.prisma.auditLog.groupBy({
         by: ['tenantId'],
+        where: scope,
         _count: { tenantId: true },
         orderBy: { _count: { tenantId: 'desc' } },
         take: 10,
@@ -290,17 +291,20 @@ export class AuditArchiveService {
       archivedNewest,
       archivedByTenant,
     ] = await Promise.all([
-      this.prisma.archivedAuditLog.count(),
+      this.prisma.archivedAuditLog.count({ where: scope }),
       this.prisma.archivedAuditLog.findFirst({
+        where: scope,
         orderBy: { createdAt: 'asc' },
         select: { createdAt: true },
       }),
       this.prisma.archivedAuditLog.findFirst({
+        where: scope,
         orderBy: { createdAt: 'desc' },
         select: { createdAt: true },
       }),
       this.prisma.archivedAuditLog.groupBy({
         by: ['tenantId'],
+        where: scope,
         _count: { tenantId: true },
         orderBy: { _count: { tenantId: 'desc' } },
         take: 10,

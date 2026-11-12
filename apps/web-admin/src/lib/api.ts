@@ -15,6 +15,17 @@ function isPublicContext(): boolean {
   return window.location.pathname.includes('/p/');
 }
 
+// Modelo B: o tenant é o 1º segmento depois do locale na URL (/{locale}/{tenant}/...).
+// Segmentos não-tenant (auth/público) são ignorados.
+const NON_TENANT_SEGMENTS = new Set(['login', 'register', 'forgot-password', 'reset-password', 'invite', 'security-setup', 'p', 'api', 'admin']);
+function tenantSlugFromUrl(): string | null {
+  if (typeof window === 'undefined') return null;
+  const segs = window.location.pathname.split('/').filter(Boolean); // [locale, tenant?, ...]
+  const seg = segs[1];
+  if (seg && !NON_TENANT_SEGMENTS.has(seg)) return seg;
+  return null;
+}
+
 // Request interceptor - add auth token
 api.interceptors.request.use(
   (config) => {
@@ -22,6 +33,20 @@ api.interceptors.request.use(
     const token = localStorage.getItem(tokenKey);
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
+    }
+
+    // Modelo B: tenant ativo vai como X-Tenant-Id (persistido -> sobrevive ao F5).
+    // O backend resolve tenant+role via Membership a partir deste header.
+    if (!isPublicContext()) {
+      // Preferencial: tenant da URL (slug). Fallback: activeTenantId (localStorage).
+      const slug = tenantSlugFromUrl();
+      if (slug) {
+        config.headers['X-Tenant-Slug'] = slug;
+      }
+      const activeTenantId = localStorage.getItem('activeTenantId');
+      if (activeTenantId) {
+        config.headers['X-Tenant-Id'] = activeTenantId;
+      }
     }
 
     return config;
@@ -54,16 +79,54 @@ function subscribeToRefresh(): Promise<string> {
   });
 }
 
+// Sessao encerrada por empresa suspensa: as requests paralelas que ainda voltarem
+// (401 sem token) nao podem disparar o redirect generico por cima do aviso.
+let sessionEndedBySuspension = false;
+
 // Auth endpoints that should NOT trigger token refresh on 401
-const AUTH_ENDPOINTS = ['/auth/login', '/auth/register', '/auth/refresh'];
+const AUTH_ENDPOINTS = ['/auth/login', '/auth/login/mfa', '/auth/register', '/auth/refresh', '/auth/forgot-password', '/auth/reset-password'];
+// Rotas publicas com token no caminho (convite): 401 e resposta do formulario, nao sessao vencida.
+const PUBLIC_PREFIXES = ['/invitations/public/'];
 
 // Response interceptor - handle token refresh
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
+    // Empresa suspensa/cancelada pelo console da plataforma: encerra a sessao
+    // (refresh nao resolve) e mostra o motivo na tela de login.
+    if (
+      error.response?.status === 403 &&
+      error.response?.data?.code === 'TENANT_SUSPENDED' &&
+      !isPublicContext() &&
+      typeof window !== 'undefined'
+    ) {
+      if (sessionEndedBySuspension) return Promise.reject(error);
+      sessionEndedBySuspension = true;
+      localStorage.removeItem('accessToken');
+      localStorage.removeItem('refreshToken');
+      localStorage.removeItem('activeTenantId');
+      const locale = window.location.pathname.split('/').filter(Boolean)[0] || 'pt-BR';
+      window.location.href = `/${locale}/login?reason=suspended`;
+      return Promise.reject(error);
+    }
+
+    if (sessionEndedBySuspension) return Promise.reject(error);
+
+    // Empresa exige duas etapas e a pessoa nao ativou: leva para ativar (uma vez).
+    if (
+      error.response?.status === 403 &&
+      error.response?.data?.code === 'MFA_SETUP_REQUIRED' &&
+      typeof window !== 'undefined' &&
+      !window.location.pathname.includes('/security-setup')
+    ) {
+      const locale = window.location.pathname.split('/').filter(Boolean)[0] || 'pt-BR';
+      window.location.href = `/${locale}/security-setup`;
+      return Promise.reject(error);
+    }
+
     const originalRequest = error.config;
     const url = originalRequest?.url || '';
-    const isAuthEndpoint = AUTH_ENDPOINTS.some((path) => url.endsWith(path));
+    const isAuthEndpoint = AUTH_ENDPOINTS.some((path) => url.endsWith(path)) || PUBLIC_PREFIXES.some((p) => url.includes(p));
 
     // Only attempt refresh for non-auth endpoints with 401 status
     if (error.response?.status === 401 && !originalRequest._retry && !isAuthEndpoint) {
@@ -111,6 +174,8 @@ api.interceptors.response.use(
         onRefreshFailed(refreshError);
 
         // Clear tokens and redirect appropriately
+        // isPublic recalculado aqui pois o do bloco try esta fora de escopo no catch
+        const isPublic = isPublicContext();
         if (isPublic) {
           localStorage.removeItem('publicAccessToken');
           localStorage.removeItem('publicRefreshToken');

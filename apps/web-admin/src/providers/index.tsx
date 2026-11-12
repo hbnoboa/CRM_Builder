@@ -12,7 +12,9 @@ export function Providers({ children }: ProvidersProps) {
   return (
     <QueryProvider>
       {children}
-      <Toaster position="top-right" richColors closeButton />
+      {/* pointer-events: o modal do Radix bloqueia cliques fora dele (body); sem isto o
+          "Desfazer" de um toast aberto sobre um formulario nao era clicavel. */}
+      <Toaster position="top-right" richColors closeButton style={{ pointerEvents: 'auto' }} />
     </QueryProvider>
   );
 }

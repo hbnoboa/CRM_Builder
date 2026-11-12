@@ -307,15 +307,15 @@ class _ZoneDiagramFieldInputState extends State<ZoneDiagramFieldInput> {
         child: Column(
           children: [
             Icon(Icons.location_on_outlined,
-                size: 32, color: context.colors.mutedForeground),
+                size: 32, color: context.colors.mutedForeground,),
             const SizedBox(height: 8),
             Text(_label,
                 style: AppTypography.labelLarge
-                    .copyWith(color: context.colors.mutedForeground)),
+                    .copyWith(color: context.colors.mutedForeground),),
             const SizedBox(height: 4),
             Text('Nenhuma zona configurada',
                 style: AppTypography.caption
-                    .copyWith(color: context.colors.mutedForeground)),
+                    .copyWith(color: context.colors.mutedForeground),),
           ],
         ),
       );
@@ -328,7 +328,7 @@ class _ZoneDiagramFieldInputState extends State<ZoneDiagramFieldInput> {
         Row(
           children: [
             Icon(Icons.location_on_outlined,
-                size: 18, color: context.colors.mutedForeground),
+                size: 18, color: context.colors.mutedForeground,),
             const SizedBox(width: 6),
             Text(_label, style: AppTypography.labelLarge),
             const SizedBox(width: 8),
@@ -354,7 +354,7 @@ class _ZoneDiagramFieldInputState extends State<ZoneDiagramFieldInput> {
                     const SizedBox(width: 2),
                     Text('Limpar',
                         style: AppTypography.caption
-                            .copyWith(color: context.colors.mutedForeground)),
+                            .copyWith(color: context.colors.mutedForeground),),
                   ],
                 ),
               ),
@@ -373,7 +373,7 @@ class _ZoneDiagramFieldInputState extends State<ZoneDiagramFieldInput> {
           const SizedBox(height: 12),
           Text('Selecoes',
               style: AppTypography.caption
-                  .copyWith(color: context.colors.mutedForeground)),
+                  .copyWith(color: context.colors.mutedForeground),),
           const SizedBox(height: 4),
           Wrap(
             spacing: 6,
@@ -382,7 +382,7 @@ class _ZoneDiagramFieldInputState extends State<ZoneDiagramFieldInput> {
                 .where((z) => _selections.containsKey(z.label))
                 .map((zone) => Container(
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 8, vertical: 4),
+                          horizontal: 8, vertical: 4,),
                       decoration: BoxDecoration(
                         color: const Color(0xFFECFDF5),
                         borderRadius: BorderRadius.circular(6),
@@ -395,7 +395,7 @@ class _ZoneDiagramFieldInputState extends State<ZoneDiagramFieldInput> {
                             '${zone.label}: ',
                             style: AppTypography.caption.copyWith(
                                 fontWeight: FontWeight.w700,
-                                color: const Color(0xFF047857)),
+                                color: const Color(0xFF047857),),
                           ),
                           Text(
                             _selections[zone.label]!,
@@ -407,12 +407,12 @@ class _ZoneDiagramFieldInputState extends State<ZoneDiagramFieldInput> {
                             GestureDetector(
                               onTap: () => _handleClearZone(zone.label),
                               child: const Icon(Icons.close,
-                                  size: 12, color: Color(0xFF047857)),
+                                  size: 12, color: Color(0xFF047857),),
                             ),
                           ],
                         ],
                       ),
-                    ))
+                    ),)
                 .toList(),
           ),
         ],
@@ -448,7 +448,7 @@ class _ZoneDiagramFieldInputState extends State<ZoneDiagramFieldInput> {
                     height: 250,
                     color: context.colors.muted,
                     child: const Center(
-                        child: Icon(Icons.broken_image_outlined, size: 48)),
+                        child: Icon(Icons.broken_image_outlined, size: 48),),
                   ),
                   imageBuilder: (context, imageProvider) {
                     // Use Image widget to get natural size for proper positioning
@@ -478,9 +478,9 @@ class _ZoneDiagramFieldInputState extends State<ZoneDiagramFieldInput> {
                                   : null,
                               child: Container(
                                 constraints: const BoxConstraints(
-                                    minWidth: 32, minHeight: 32),
+                                    minWidth: 32, minHeight: 32,),
                                 padding: const EdgeInsets.symmetric(
-                                    horizontal: 6),
+                                    horizontal: 6,),
                                 decoration: BoxDecoration(
                                   color: isSelected
                                       ? const Color(0xFF10B981)
@@ -505,7 +505,7 @@ class _ZoneDiagramFieldInputState extends State<ZoneDiagramFieldInput> {
                                 ),
                                 child: isSelected
                                     ? const Icon(Icons.check,
-                                        size: 16, color: Colors.white)
+                                        size: 16, color: Colors.white,)
                                     : Text(
                                         zone.label.length > 3
                                             ? zone.label.substring(0, 3)
@@ -552,15 +552,15 @@ class _ZoneDiagramFieldInputState extends State<ZoneDiagramFieldInput> {
                 dense: true,
                 leading: isSelected
                     ? const Icon(Icons.check_circle,
-                        color: Color(0xFF10B981), size: 20)
+                        color: Color(0xFF10B981), size: 20,)
                     : Icon(Icons.radio_button_unchecked,
                         color: context.colors.mutedForeground.withValues(alpha: 0.3),
-                        size: 20),
+                        size: 20,),
                 title: Row(
                   children: [
                     Text(zone.label,
                         style: AppTypography.bodyMedium
-                            .copyWith(fontWeight: FontWeight.w500)),
+                            .copyWith(fontWeight: FontWeight.w500),),
                     if (isSelected) ...[
                       Text(
                         ' — ${_selections[zone.label]}',
@@ -576,10 +576,10 @@ class _ZoneDiagramFieldInputState extends State<ZoneDiagramFieldInput> {
                   children: [
                     Text('${options.length}',
                         style: AppTypography.caption
-                            .copyWith(color: context.colors.mutedForeground)),
+                            .copyWith(color: context.colors.mutedForeground),),
                     const SizedBox(width: 4),
                     Icon(Icons.chevron_right,
-                        size: 18, color: context.colors.mutedForeground),
+                        size: 18, color: context.colors.mutedForeground,),
                   ],
                 ),
                 onTap: widget.enabled ? () => _showZoneOptions(zone) : null,
@@ -661,7 +661,7 @@ class _ZoneOptionsSheetState extends State<_ZoneOptionsSheet> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(widget.zone.label,
-                          style: AppTypography.h4),
+                          style: AppTypography.h4,),
                       if (widget.selected != null)
                         Text(
                           widget.selected!,
@@ -755,7 +755,7 @@ class _ZoneOptionsSheetState extends State<_ZoneOptionsSheet> {
                             children: [
                               Text('Nenhuma opcao disponivel',
                                   style: AppTypography.bodyMedium
-                                      .copyWith(color: context.colors.mutedForeground)),
+                                      .copyWith(color: context.colors.mutedForeground),),
                               if (widget.enabled) ...[
                                 const SizedBox(height: 16),
                                 ListTile(
@@ -801,11 +801,11 @@ class _ZoneOptionsSheetState extends State<_ZoneOptionsSheet> {
                                 ),
                                 child: isSelected
                                     ? const Icon(Icons.check,
-                                        size: 12, color: Colors.white)
+                                        size: 12, color: Colors.white,)
                                     : null,
                               ),
                               title: Text(option,
-                                  style: AppTypography.bodyMedium),
+                                  style: AppTypography.bodyMedium,),
                               onTap: widget.enabled
                                   ? () => widget.onSelect(option)
                                   : null,
@@ -857,11 +857,11 @@ class ZoneDiagramFieldDisplay extends StatelessWidget {
         children: [
           Text(name,
               style: AppTypography.labelMedium
-                  .copyWith(color: context.colors.mutedForeground)),
+                  .copyWith(color: context.colors.mutedForeground),),
           const SizedBox(height: 4),
           Text('-',
               style: AppTypography.bodyMedium
-                  .copyWith(color: context.colors.mutedForeground)),
+                  .copyWith(color: context.colors.mutedForeground),),
         ],
       );
     }
@@ -871,7 +871,7 @@ class ZoneDiagramFieldDisplay extends StatelessWidget {
       children: [
         Text(name,
             style: AppTypography.labelMedium
-                .copyWith(color: context.colors.mutedForeground)),
+                .copyWith(color: context.colors.mutedForeground),),
         const SizedBox(height: 8),
         Wrap(
           spacing: 6,

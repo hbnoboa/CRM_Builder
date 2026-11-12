@@ -64,7 +64,7 @@ class Formatters {
   }
 
   static String boolean(dynamic value,
-      {String t = 'Sim', String f = 'Nao'}) {
+      {String t = 'Sim', String f = 'Nao',}) {
     final boolVal =
         value == true || value == 'true' || value == '1' || value == 1;
     return boolVal ? t : f;

@@ -63,7 +63,7 @@ const FIELD_TYPES: Array<{
   icon: typeof Calculator;
   description: string;
 }> = [
-  { type: 'arithmetic', label: 'Calculo', icon: Calculator, description: 'Somar, subtrair, multiplicar campos' },
+  { type: 'arithmetic', label: 'Cálculo', icon: Calculator, description: 'Somar, subtrair, multiplicar campos' },
   { type: 'conditional', label: 'Texto condicional', icon: GitBranch, description: 'Mostrar texto A ou B conforme campo' },
   { type: 'filtered-count', label: 'Contagem filtrada', icon: Hash, description: 'Contar registros do lote com filtro' },
   { type: 'concat', label: 'Juntar campos', icon: Link2, description: 'Combinar campos em um so texto' },
@@ -84,7 +84,7 @@ function slugify(text: string): string {
     .replace(/^_|_$/g, '');
 }
 
-function createDefaultConfig(type: ComputedFieldType): ArithmeticConfig | ConditionalConfig | FilteredCountConfig | ConcatConfig {
+function createDefaultConfig(type: ComputedFieldType): ArithmeticConfig | ConditionalConfig | FilteredCountConfig | ConcatConfig | MapConfig | SubEntityAggregateConfig {
   switch (type) {
     case 'arithmetic':
       return {
@@ -167,7 +167,7 @@ export function DataTab({
       config: createDefaultConfig(type),
     };
     onChange([...computedFields, newField]);
-    setExpandedFields((prev) => new Set([...prev, newField.id]));
+    setExpandedFields((prev) => new Set([...Array.from(prev), newField.id]));
   };
 
   const handleRemove = (id: string) => {
@@ -234,7 +234,7 @@ export function DataTab({
           <div className="space-y-2">
             <h3 className="font-medium">Nome do arquivo PDF</h3>
             <div className="space-y-1">
-              <Label className="text-sm">Padrao do nome</Label>
+              <Label className="text-sm">Padrão do nome</Label>
               <Input
                 placeholder="Ex: {chassi} ou relatorio-{navio}"
                 value={settings?.fileNamePattern || ''}
@@ -256,7 +256,7 @@ export function DataTab({
             <div className="space-y-1">
               <Label className="text-sm">Texto a exibir no PDF</Label>
               <Input
-                placeholder="Ex: -, N/A, Nao informado"
+                placeholder="Ex: -, N/A, Não informado"
                 value={settings?.emptyFieldDefault || ''}
                 onChange={(e) =>
                   onSettingsChange({

@@ -1,6 +1,5 @@
 // Enums & type unions
 export type {
-  RoleType,
   Status,
   TenantStatus,
   PermissionScope,
@@ -10,7 +9,6 @@ export type {
   SortOrder,
   NotificationType,
 } from './enums';
-export { ROLE_TYPES } from './enums';
 
 // Pagination
 export type {
@@ -138,3 +136,7 @@ export {
   formatPercentage,
 } from './formatters';
 export type { FormatFieldOptions } from './formatters';
+
+// Modelos de solucao (pagina inicial / cadastro com modelo)
+export { SOLUTION_CATALOG, SOLUTION_SLUGS, solutionOwnerEmail } from './solutions';
+export type { SolutionCatalogItem } from './solutions';

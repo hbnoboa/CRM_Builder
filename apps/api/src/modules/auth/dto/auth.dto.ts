@@ -1,4 +1,5 @@
-import { IsEmail, IsString, MinLength, MaxLength, IsOptional, Matches, IsBoolean, ValidateIf } from 'class-validator';
+import { IsEmail, IsString, MinLength, MaxLength, IsOptional, Matches, IsBoolean, ValidateIf, IsIn } from 'class-validator';
+import { SOLUTION_SLUGS } from '@crm-builder/shared';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class LoginDto {
@@ -34,31 +35,27 @@ export class RegisterDto {
 
   @ApiProperty({ example: 'Joao Silva' })
   @IsString()
+  @MinLength(2)
+  @MaxLength(100)
   name: string;
 
-  @ApiProperty({ example: 'cuid_do_tenant' })
+  // Cadastro self-service: cria uma EMPRESA nova (tenant em trial) com este
+  // usuario como administrador. Nao existe mais "entrar num tenant por id".
+  @ApiProperty({ example: 'Minha Empresa Ltda' })
   @IsString()
-  tenantId: string;
+  @MinLength(2, { message: 'Nome da empresa deve ter no minimo 2 caracteres' })
+  @MaxLength(100)
+  tenantName: string;
 
-  @ApiPropertyOptional({ description: 'CPF (11 digitos)' })
-  @IsString()
+  @ApiPropertyOptional({ description: 'Modelo de solucao para comecar (slug do catalogo)', enum: SOLUTION_SLUGS })
   @IsOptional()
-  cpf?: string;
+  @IsIn(SOLUTION_SLUGS, { message: 'Modelo invalido' })
+  modelo?: string;
 
-  @ApiPropertyOptional({ description: 'CNPJ (14 digitos)' })
-  @IsString()
+  @ApiPropertyOptional({ description: 'Copiar os registros de exemplo do modelo (padrao: sim)' })
   @IsOptional()
-  cnpj?: string;
-
-  @ApiPropertyOptional({ description: 'Telefone com DDD' })
-  @IsString()
-  @IsOptional()
-  phone?: string;
-
-  @ApiPropertyOptional({ description: 'ID da custom role (se nao informado, usa role default do tenant)' })
-  @IsString()
-  @IsOptional()
-  customRoleId?: string;
+  @IsBoolean()
+  includeSamples?: boolean;
 }
 
 export class RefreshTokenDto {
@@ -86,7 +83,6 @@ export class AuthResponseDto {
     customRole: {
       id: string;
       name: string;
-      roleType: string;
       isSystem: boolean;
     };
     tenantId: string;
@@ -145,4 +141,16 @@ export class ResetPasswordDto {
     message: 'Nova senha deve conter pelo menos uma letra maiuscula, uma minuscula e um numero',
   })
   newPassword: string;
+}
+
+export class LoginMfaDto {
+  @ApiProperty({ description: 'Token devolvido pelo /auth/login quando mfaRequired' })
+  @IsString()
+  mfaToken: string;
+
+  @ApiProperty({ example: '123456', description: 'Codigo do app autenticador ou de recuperacao' })
+  @IsString()
+  @MinLength(6)
+  @MaxLength(20)
+  code: string;
 }

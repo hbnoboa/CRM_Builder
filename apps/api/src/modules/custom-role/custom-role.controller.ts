@@ -1,26 +1,52 @@
+import { ServiceScope } from '../../common/service-scope/service-scope.decorator';
 import {
-  Controller, Get, Post, Patch, Delete, Body, Param, Query, UseGuards, ForbiddenException,
+  Controller, Get, Post, Patch, Delete, Body, Param, Query, UseGuards, ForbiddenException, HttpCode, HttpStatus,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiResponse } from '@nestjs/swagger';
 import { CustomRoleService } from './custom-role.service';
 import { PermissionCacheService } from './permission-cache.service';
-import { CreateCustomRoleDto, UpdateCustomRoleDto, QueryCustomRoleDto } from './dto/custom-role.dto';
+import { CreateCustomRoleDto, UpdateCustomRoleDto, QueryCustomRoleDto, ReorderCustomRolesDto } from './dto/custom-role.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { ModulePermissionGuard } from '../../common/guards/module-permission.guard';
 import { RequireModulePermission } from '../../common/decorators/module-permission.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { CurrentUser as CurrentUserType } from '../../common/types';
-
-const ADMIN_ROLES = ['PLATFORM_ADMIN', 'ADMIN'];
+import { hasFullTenantAccess } from '../../common/utils/platform-access';
 
 function assertAdminRole(user: CurrentUserType): void {
-  const roleType = user.customRole?.roleType;
-  if (!roleType || !ADMIN_ROLES.includes(roleType)) {
-    throw new ForbiddenException('Acesso negado. Roles necessarias: ADMIN, PLATFORM_ADMIN');
+  // Gerir cargos = permissão (acesso total ao tenant OU roles.canUpdate).
+  if (hasFullTenantAccess(user.customRole?.modulePermissions)) {
+    return;
+  }
+  const mp = user.customRole?.modulePermissions as Record<string, Record<string, boolean>> | undefined;
+  if (mp?.roles?.canUpdate !== true) {
+    throw new ForbiddenException('Acesso negado. Requer permissão de gerir cargos.');
+  }
+}
+
+/**
+ * Ver a LISTA de cargos: quem le cargos, ou quem precisa escolher um cargo em outra
+ * tela (convidar/criar pessoa, chave de API, link publico, dashboard por cargo).
+ * Editar continua exigindo roles.canUpdate (assertAdminRole).
+ */
+function assertCanListRoles(user: CurrentUserType): void {
+  if (hasFullTenantAccess(user.customRole?.modulePermissions)) return;
+  const mp = (user.customRole?.modulePermissions ?? {}) as Record<string, Record<string, boolean> | undefined>;
+  const allowed =
+    mp.roles?.canRead === true ||
+    mp.users?.canCreate === true ||
+    mp.users?.canAssignRole === true ||
+    mp.apis?.canCreate === true ||
+    mp.publicLinks?.canManage === true ||
+    mp.dashboard?.canCreate === true ||
+    mp.dashboard?.canUpdate === true;
+  if (!allowed) {
+    throw new ForbiddenException('Acesso negado. Requer permissão de ver cargos.');
   }
 }
 
 @ApiTags('Custom Roles')
+@ServiceScope('admin')
 @Controller('custom-roles')
 @UseGuards(JwtAuthGuard, ModulePermissionGuard)
 @ApiBearerAuth()
@@ -35,26 +61,32 @@ export class CustomRoleController {
   @ApiOperation({ summary: 'Criar role customizada' })
   @ApiResponse({ status: 201, description: 'Role criada com sucesso' })
   async create(@Body() dto: CreateCustomRoleDto, @CurrentUser() user: CurrentUserType) {
-    const tenantId = dto.tenantId;
-    return this.customRoleService.create(dto, user, tenantId);
+    return this.customRoleService.create(dto, user);
   }
 
   @Get('my-permissions')
   @ApiOperation({ summary: 'Obter permissões do usuário logado' })
   async getMyPermissions(@CurrentUser() user: CurrentUserType) {
     const [entities, modules] = await Promise.all([
-      this.customRoleService.getUserAccessibleEntities(user.id),
-      this.customRoleService.getUserModulePermissions(user.id),
+      this.customRoleService.getAccessibleEntitySlugs(user.id, user.tenantId),
+      this.customRoleService.getUserModulePermissions(user.id, user.tenantId),
     ]);
     return { entities, modules };
   }
 
   @Get()
-  @RequireModulePermission('roles', 'canRead')
   @ApiOperation({ summary: 'Listar roles customizadas' })
   async findAll(@Query() query: QueryCustomRoleDto, @CurrentUser() user: CurrentUserType) {
-    assertAdminRole(user);
+    assertCanListRoles(user);
     return this.customRoleService.findAll(query, user);
+  }
+
+  @Post('reorder')
+  @RequireModulePermission('roles', 'canUpdate')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Reordenar os cargos abaixo do seu' })
+  async reorder(@Body() dto: ReorderCustomRolesDto, @CurrentUser() user: CurrentUserType) {
+    return this.customRoleService.reorder(dto.orderedIds, user);
   }
 
   @Get(':id')
@@ -65,7 +97,6 @@ export class CustomRoleController {
     @Query('tenantId') tenantId: string | undefined,
     @CurrentUser() user: CurrentUserType,
   ) {
-    assertAdminRole(user);
     return this.customRoleService.findOne(id, user, tenantId);
   }
 
@@ -77,8 +108,7 @@ export class CustomRoleController {
     @Body() dto: UpdateCustomRoleDto,
     @CurrentUser() user: CurrentUserType,
   ) {
-    const tenantId = dto.tenantId;
-    return this.customRoleService.update(id, dto, user, tenantId);
+    return this.customRoleService.update(id, dto, user);
   }
 
   @Delete(':id')
@@ -94,14 +124,15 @@ export class CustomRoleController {
 
   @Post(':roleId/assign/:userId')
   @RequireModulePermission('roles', 'canUpdate')
-  @ApiOperation({ summary: 'Atribuir role a um usuário' })
+  @ApiOperation({ summary: 'Atribuir role a um usuário (acesso temporário via expiresAt opcional)' })
   async assignToUser(
     @Param('roleId') roleId: string,
     @Param('userId') userId: string,
     @Query('tenantId') tenantId: string | undefined,
     @CurrentUser() user: CurrentUserType,
+    @Body() body?: { expiresAt?: string | null },
   ) {
-    return this.customRoleService.assignToUser(roleId, userId, user, tenantId);
+    return this.customRoleService.assignToUser(roleId, userId, user, tenantId, body?.expiresAt);
   }
 
   @Delete('user/:userId')

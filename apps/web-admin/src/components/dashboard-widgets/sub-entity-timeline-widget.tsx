@@ -30,13 +30,13 @@ import {
   XCircle,
   Circle,
 } from 'lucide-react';
-import { useDashboardFilters } from './dashboard-filter-context';
+import { useWidgetFilters } from './dashboard-filter-context';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { api } from '@/lib/api';
 import { useTenant } from '@/stores/tenant-context';
-import { useRouter } from 'next/navigation';
+import { useRouter } from '@/i18n/tenant-navigation';
 import { cn } from '@/lib/utils';
 
 interface SubEntityTimelineWidgetProps {
@@ -130,7 +130,8 @@ export default function SubEntityTimelineWidget({ config }: SubEntityTimelineWid
   const t = useTranslations('widgets');
   const { tenantId } = useTenant();
   const router = useRouter();
-  const { crossFilters } = useDashboardFilters();
+  // Resolvedor central (traduz parent./child., exclui o próprio widget).
+  const { filters: dashboardFilters } = useWidgetFilters();
 
   const [loading, setLoading] = useState(true);
   const [records, setRecords] = useState<TimelineRecord[]>([]);
@@ -144,9 +145,7 @@ export default function SubEntityTimelineWidget({ config }: SubEntityTimelineWid
 
       try {
         // Load sub-entity definition
-        const entitiesRes = await api.get('/entities', {
-          params: tenantId ? { tenantId } : {},
-        });
+        const entitiesRes = await api.get('/entities');
         const entities = Array.isArray(entitiesRes.data) ? entitiesRes.data : entitiesRes.data?.data || [];
         const found = entities.find((e: { slug: string }) => e.slug === subEntitySlug);
 
@@ -169,20 +168,9 @@ export default function SubEntityTimelineWidget({ config }: SubEntityTimelineWid
           params.parentRecordId = parentRecordId;
         }
 
-        // Apply cross filters from dashboard
-        if (crossFilters.length > 0) {
-          const apiFilters = crossFilters
-            .filter(f => f.fieldSlug.startsWith('parent.'))
-            .map(f => ({
-              fieldSlug: f.fieldSlug.replace('parent.', ''),
-              operator: 'in',
-              value: f.values,
-              fieldType: 'relation',
-            }));
-
-          if (apiFilters.length > 0) {
-            params.filters = JSON.stringify(apiFilters);
-          }
+        // Filtros do dashboard via resolvedor central -> dashboardFilters.
+        if (dashboardFilters) {
+          params.dashboardFilters = dashboardFilters;
         }
 
         const response = await api.get(`/data/${subEntitySlug}`, { params });
@@ -197,7 +185,7 @@ export default function SubEntityTimelineWidget({ config }: SubEntityTimelineWid
     }
 
     loadData();
-  }, [subEntitySlug, parentRecordId, limit, dateField, sortOrder, tenantId, crossFilters]);
+  }, [subEntitySlug, parentRecordId, limit, dateField, sortOrder, tenantId, dashboardFilters]);
 
   const handleViewAll = () => {
     const url = parentRecordId
@@ -334,7 +322,7 @@ export default function SubEntityTimelineWidget({ config }: SubEntityTimelineWid
                           </div>
 
                           {/* Status badge */}
-                          {status && (
+                          {Boolean(status) && (
                             <Badge variant="outline" className="text-xs shrink-0">
                               {formatValue(status)}
                             </Badge>

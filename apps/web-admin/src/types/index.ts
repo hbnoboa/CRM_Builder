@@ -1,6 +1,5 @@
 // Re-export all shared types from @crm-builder/shared
 export type {
-  RoleType,
   TenantStatus,
   PermissionScope,
   FieldType,
@@ -28,7 +27,6 @@ export type {
   ModulePermission,
   ModulePermissions,
   NotificationRule,
-  Page,
   // Novas interfaces de configuracao de campos
   UserSelectConfig,
   WorkflowStatusConfig,
@@ -56,10 +54,10 @@ export type {
   EntityAuditConfig,
 } from '@crm-builder/shared';
 
-export { ROLE_TYPES, DEFAULT_PAGE, DEFAULT_LIMIT, MAX_LIMIT } from '@crm-builder/shared';
+export { DEFAULT_PAGE, DEFAULT_LIMIT, MAX_LIMIT } from '@crm-builder/shared';
 
 // Re-import for use in local aliases
-import type { RoleType, EntityData, Status as SharedStatus } from '@crm-builder/shared';
+import type { EntityData, Status as SharedStatus } from '@crm-builder/shared';
 
 // ============================================================================
 // Frontend-specific types (not shared)
@@ -69,13 +67,16 @@ import type { RoleType, EntityData, Status as SharedStatus } from '@crm-builder/
 export type Status = SharedStatus | 'PENDING';
 
 // Alias para compatibilidade
-export type UserRole = RoleType;
 
 export interface RegisterDate {
   email: string;
   password: string;
   name: string;
   tenantName: string;
+  /** Modelo de solucao escolhido na pagina inicial (slug do catalogo). */
+  modelo?: string;
+  /** Copiar os registros de exemplo do modelo. */
+  includeSamples?: boolean;
 }
 
 

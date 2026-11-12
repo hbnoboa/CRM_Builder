@@ -43,6 +43,7 @@ services:
   # API (NestJS)
   # ===================
   api:
+    image: ${API_IMAGE:-crm-builder-api:latest}
     build:
       context: .
       dockerfile: apps/api/Dockerfile
@@ -57,6 +58,10 @@ services:
       REDIS_HOST: redis
       REDIS_PORT: 6379
       REDIS_PASSWORD: ${REDIS_PASSWORD}
+      # Dominios proprios: sem DOMAIN_REGISTRAR a compra fica desligada (so ligar dominio existente)
+      SITE_DOMAIN_CNAME: ${SITE_DOMAIN_CNAME:-iossystem.com.br}
+      SITE_DOMAIN_IPS: ${SITE_DOMAIN_IPS:-}
+      DOMAIN_REGISTRAR: ${DOMAIN_REGISTRAR:-}
       JWT_SECRET: ${JWT_SECRET}
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
       JWT_EXPIRATION: ${JWT_EXPIRATION:-8h}
@@ -68,6 +73,14 @@ services:
       GCS_CREDENTIALS: ${GCS_CREDENTIALS:-}
       GCS_BASE_URL: ${GCS_BASE_URL:-}
       POWERSYNC_URL: https://iossystem.com.br/sync
+      # E-mail (convites e nova senha). Sem EMAIL_PROVIDER=smtp, nada e enviado.
+      EMAIL_PROVIDER: ${EMAIL_PROVIDER:-}
+      EMAIL_FROM: ${EMAIL_FROM:-}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_SECURE: ${SMTP_SECURE:-false}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
     depends_on:
       postgres:
         condition: service_healthy
@@ -88,6 +101,7 @@ services:
   # WEB (Next.js)
   # ===================
   web:
+    image: ${WEB_IMAGE:-crm-builder-web:latest}
     build:
       context: .
       dockerfile: apps/web-admin/Dockerfile
@@ -98,6 +112,8 @@ services:
     environment:
       TZ: America/Sao_Paulo
       NODE_ENV: production
+      # Dominio proprio das empresas: o web pergunta a API qual empresa responde no endereco
+      INTERNAL_API_URL: http://api:3001/api/v1
     depends_on:
       api:
         condition: service_healthy
@@ -132,6 +148,8 @@ services:
     image: postgres:16-alpine
     container_name: crm-postgres-dev
     restart: unless-stopped
+    # Replicacao logica p/ o PowerSync de dev (crm-powersync-dev).
+    command: ["postgres", "-c", "wal_level=logical"]
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: CrmBuilderDev2026Pass
@@ -169,6 +187,7 @@ services:
   # DEV API (NestJS)
   # ===================
   api-dev:
+    image: ${API_DEV_IMAGE:-crm-builder-api-dev:latest}
     build:
       context: .
       dockerfile: apps/api/Dockerfile
@@ -193,7 +212,30 @@ services:
       GCS_KEY_FILE: ${GCS_KEY_FILE:-}
       GCS_CREDENTIALS: ${GCS_CREDENTIALS:-}
       GCS_BASE_URL: ${GCS_BASE_URL:-}
-      POWERSYNC_URL: https://iossystem.com.br/sync
+      POWERSYNC_URL: https://dev.iossystem.com.br/sync
+      # E-mail (convites e nova senha). Sem EMAIL_PROVIDER=smtp, nada e enviado.
+      EMAIL_PROVIDER: ${EMAIL_PROVIDER:-}
+      EMAIL_FROM: ${EMAIL_FROM:-}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_SECURE: ${SMTP_SECURE:-false}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      # Assistente de criacao com IA (so dev): ponte local para o `claude -p`
+      # (scripts/ai-bridge). Sem estas variaveis o assistente fica escondido.
+      AI_BUILDER_PROVIDER: ${AI_BUILDER_PROVIDER_DEV:-}
+      AI_BRIDGE_URL: ${AI_BRIDGE_URL_DEV:-}
+      AI_BRIDGE_TOKEN: ${AI_BRIDGE_TOKEN_DEV:-}
+      # Paginas para clientes no subdominio (ex.: https://{empresa}.dev.iossystem.com.br).
+      # Vazio = endereco /p/<empresa>/<pagina>. Ver docs/paginas-para-clientes.md
+      SITE_PAGES_BASE_URL: ${SITE_PAGES_BASE_URL_DEV:-}
+      # Dominios proprios (ver docs/dominios-proprios.md): destino do CNAME/IPs do registro A
+      # e registrador. Em dev a compra usa o registrador de TESTE (nada e registrado de verdade).
+      SITE_DOMAIN_CNAME: ${SITE_DOMAIN_CNAME_DEV:-dev.iossystem.com.br}
+      SITE_DOMAIN_IPS: ${SITE_DOMAIN_IPS_DEV:-}
+      DOMAIN_REGISTRAR: ${DOMAIN_REGISTRAR_DEV:-mock}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     depends_on:
       postgres-dev:
         condition: service_healthy
@@ -214,6 +256,7 @@ services:
   # DEV WEB (Next.js)
   # ===================
   web-dev:
+    image: ${WEB_DEV_IMAGE:-crm-builder-web-dev:latest}
     build:
       context: .
       dockerfile: apps/web-admin/Dockerfile
@@ -224,6 +267,7 @@ services:
     environment:
       TZ: America/Sao_Paulo
       NODE_ENV: production
+      INTERNAL_API_URL: http://api-dev:3001/api/v1
     depends_on:
       api-dev:
         condition: service_healthy

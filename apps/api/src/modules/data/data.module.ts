@@ -6,6 +6,8 @@ import { DataService } from './data.service';
 import { DataIoService } from './data-io.service';
 import { ComputedFieldsService } from './computed-fields.service';
 import { DataController } from './data.controller';
+import { TrashController } from './trash.controller';
+import { TrashService } from './trash.service';
 import { ImportController } from './import.controller';
 import { ImportQueueProcessor } from './import-queue.processor';
 import { EntityModule } from '../entity/entity.module';
@@ -35,8 +37,8 @@ import { EntityDataQueryModule } from '../../common/services/entity-data-query.m
       name: 'data-import',
     }),
   ],
-  controllers: [DataController, ImportController],
-  providers: [DataService, DataIoService, ComputedFieldsService, ImportQueueProcessor],
+  controllers: [DataController, ImportController, TrashController],
+  providers: [DataService, DataIoService, ComputedFieldsService, ImportQueueProcessor, TrashService],
   exports: [DataService, DataIoService, ComputedFieldsService],
 })
 export class DataModule {}

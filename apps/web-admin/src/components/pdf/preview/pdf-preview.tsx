@@ -18,7 +18,6 @@ export function PdfPreview({ template, content }: PdfPreviewProps) {
   const [simulationConfig, setSimulationConfig] = useState<SimulationConfig | null>(null);
   const previewPdf = usePreviewPdf();
   const isGeneratingRef = useRef(false);
-  const contentKeyRef = useRef<string>('');
 
   const handleGeneratePreview = useCallback(async (simulation?: SimulationConfig | null) => {
     if (isGeneratingRef.current || !content) return;
@@ -47,20 +46,20 @@ export function PdfPreview({ template, content }: PdfPreviewProps) {
     handleGeneratePreview(config);
   }, [handleGeneratePreview]);
 
-  // Auto-gerar preview com debounce quando content muda
+  // Auto-gerar preview com debounce quando content muda.
+  // Usa a string do content como dependencia (StrictMode-safe): o guard por ref
+  // anterior pulava o agendamento no double-invoke do React, e o preview nunca
+  // abria sozinho (so apos clicar "Atualizar"). Com contentKey como dep, abre live.
+  const contentKey = content ? JSON.stringify(content) : '';
   useEffect(() => {
-    if (!content) return;
-
-    const key = JSON.stringify(content);
-    if (key === contentKeyRef.current) return;
-    contentKeyRef.current = key;
+    if (!contentKey) return;
 
     const timer = setTimeout(() => {
       handleGeneratePreview();
     }, 1500);
 
     return () => clearTimeout(timer);
-  }, [content]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [contentKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Cleanup URLs ao desmontar
   useEffect(() => {

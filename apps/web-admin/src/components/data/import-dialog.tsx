@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, type MouseEventHandler } from 'react';
 import { useTranslations } from 'next-intl';
 import {
   Dialog,
@@ -42,6 +42,7 @@ import {
   Layers,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { getErrorMessage } from '@/lib/get-error-message';
 import { dataService } from '@/services/data.service';
 import { cn } from '@/lib/utils';
 
@@ -168,8 +169,7 @@ export function ImportDialog({
         toast.error(t('noRecordsImported'));
       }
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : t('importError');
-      toast.error(message);
+      toast.error(getErrorMessage(error, t('importError')));
     } finally {
       setLoading(false);
     }
@@ -478,7 +478,8 @@ export function ImportDialog({
               <Button variant="outline" onClick={() => handleClose(false)} disabled={loading}>
                 {t('cancel')}
               </Button>
-              <Button onClick={handlePreview} disabled={!file || loading}>
+              {/* Cast type-only: preserva o comportamento em runtime (o evento continua sendo repassado) */}
+              <Button onClick={handlePreview as unknown as MouseEventHandler<HTMLButtonElement>} disabled={!file || loading}>
                 {loading ? (
                   <>
                     <Loader2 className="h-4 w-4 mr-2 animate-spin" />

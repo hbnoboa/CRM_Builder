@@ -1,3 +1,5 @@
+import { RequireFeature } from '../../common/decorators/require-feature.decorator';
+import { ServiceScope } from '../../common/service-scope/service-scope.decorator';
 import {
   Controller,
   Get,
@@ -73,6 +75,8 @@ class ExecuteManualDto {
 
 @ApiTags('Action Chains')
 @ApiBearerAuth()
+@ServiceScope('admin')
+@RequireFeature('automations')
 @Controller('action-chains')
 @UseGuards(JwtAuthGuard, ModulePermissionGuard)
 export class ActionChainController {

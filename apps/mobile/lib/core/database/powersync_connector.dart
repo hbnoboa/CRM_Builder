@@ -7,7 +7,9 @@ import 'package:powersync/powersync.dart';
 import 'package:crm_mobile/core/auth/secure_storage.dart';
 import 'package:crm_mobile/core/config/env.dart';
 import 'package:crm_mobile/core/network/api_client.dart';
+import 'package:crm_mobile/core/network/plan_errors.dart';
 import 'package:logger/logger.dart';
+import 'package:crm_mobile/core/auth/token_refresher.dart';
 
 final _logger = Logger(printer: SimplePrinter());
 
@@ -41,7 +43,7 @@ class _ExponentialBackoff {
 
 /// Connects PowerSync to the backend:
 /// - fetchCredentials: calls /sync/credentials to get a PowerSync-specific JWT
-///   that includes the effective tenantId (supports PLATFORM_ADMIN tenant switching)
+///   scoped to the user's current tenant (taken from the access token by the API)
 /// - uploadData: sends offline mutations to NestJS API
 ///
 /// Write checkpoints são gerenciados automaticamente pelo PowerSync Service v1.20.5+.
@@ -80,14 +82,10 @@ class CrmPowerSyncConnector extends PowerSyncBackendConnector {
 
     try {
       // Call /sync/credentials to get a PowerSync-specific JWT.
-      // This endpoint returns a token with the effective tenantId
-      // (supports PLATFORM_ADMIN tenant override via selectedTenantId).
+      // The tenant comes from the access token (current tenant of the user).
       final dio = createApiClient();
-      final selectedTenantId = await SecureStorage.getSelectedTenantId();
 
-      final response = await dio.post('/sync/credentials', data: {
-        if (selectedTenantId != null) 'tenantId': selectedTenantId,
-      },);
+      final response = await dio.post('/sync/credentials');
 
       final data = response.data as Map<String, dynamic>;
 
@@ -116,7 +114,7 @@ class CrmPowerSyncConnector extends PowerSyncBackendConnector {
       );
     } catch (e) {
       _logger.e('PowerSync: failed to get sync credentials', error: e);
-      // Fallback: use access token directly (won't have tenant override)
+      // Fallback: use access token directly
       final userId = _extractUserIdFromToken(token);
       _logger.w('PowerSync: using fallback credentials (userId: $userId)');
 
@@ -171,26 +169,10 @@ class CrmPowerSyncConnector extends PowerSyncBackendConnector {
     }
   }
 
-  /// Use refresh token to get new access token.
+  /// Use refresh token to get new access token (renovacao unica do app).
   Future<String?> _refreshToken() async {
     try {
-      final refreshToken = await SecureStorage.getRefreshToken();
-      if (refreshToken == null) return null;
-
-      final refreshDio = Dio(BaseOptions(baseUrl: Env.apiUrl));
-      final response = await refreshDio.post(
-        '/auth/refresh',
-        data: {'refreshToken': refreshToken},
-      );
-
-      final newAccessToken = response.data['accessToken'] as String;
-      final newRefreshToken = response.data['refreshToken'] as String;
-
-      await SecureStorage.setTokens(
-        accessToken: newAccessToken,
-        refreshToken: newRefreshToken,
-      );
-
+      final newAccessToken = await TokenRefresher.refresh();
       _logger.i('PowerSync: token refreshed successfully');
       return newAccessToken;
     } catch (e) {
@@ -298,6 +280,12 @@ class CrmPowerSyncConnector extends PowerSyncBackendConnector {
                 _logger.i('Created record ${op.id} in $entitySlug');
                 break;
               case UpdateType.patch:
+                // Excluir no app e um UPDATE de deletedAt: vira DELETE no servidor.
+                if (opData['deletedAt'] != null) {
+                  await dio.delete('/data/$entitySlug/${op.id}');
+                  _logger.i('Deleted record ${op.id} from $entitySlug');
+                  break;
+                }
                 // Update existing record
                 if (parsedData == null) {
                   _logger.w('No data found for PATCH on record ${op.id}, skipping');
@@ -319,8 +307,36 @@ class CrmPowerSyncConnector extends PowerSyncBackendConnector {
           } else if (table == 'Notification') {
             // Mark notification as read
             if (op.op == UpdateType.patch) {
-              await dio.patch('/notifications/${op.id}/read');
+              // A API marca como lida via POST (PATCH dava 404 e era ignorado).
+              await dio.post('/notifications/${op.id}/read');
             }
+            success = true;
+          } else if (table == 'Message') {
+            // Envio otimista de texto: o app inseriu a mensagem localmente e o
+            // PowerSync roteia a escrita aqui. O `id` (cuid do cliente) vai no
+            // corpo -> upsert idempotente no servidor: o sync de volta encontra
+            // a MESMA mensagem (mesmo id) e nao cria duplicata no SQLite.
+            if (op.op == UpdateType.put) {
+              var channelId = opData['channelId'] as String?;
+              if (channelId == null) {
+                final rows = await database.getAll(
+                  'SELECT channelId FROM Message WHERE id = ?', [op.id],);
+                if (rows.isNotEmpty) {
+                  channelId = rows.first['channelId'] as String?;
+                }
+              }
+              if (channelId == null) {
+                _logger.w('Message sem channelId (${op.id}), skipping');
+                success = true;
+                continue;
+              }
+              await dio.post('/chat/channels/$channelId/messages', data: {
+                'id': op.id,
+                'content': opData['content'],
+              },);
+              _logger.i('Posted message ${op.id} to channel $channelId');
+            }
+            // PATCH/DELETE de mensagem (editar/apagar) nao expostos no MVP.
             success = true;
           } else {
             // Log unhandled tables - Entity, CustomRole, User are read-only (sync from server)
@@ -334,11 +350,19 @@ class CrmPowerSyncConnector extends PowerSyncBackendConnector {
           _logger.e('Failed to upload mutation: ${op.table} ${op.op}', error: e);
 
           // Check if it's a client error (4xx) - skip and continue (no retry)
+          // 401 (sessao), 408 e 429 sao temporarios: a alteracao fica na fila.
           if (e is DioException &&
               e.response?.statusCode != null &&
               e.response!.statusCode! >= 400 &&
-              e.response!.statusCode! < 500) {
+              e.response!.statusCode! < 500 &&
+              !const {401, 408, 429}.contains(e.response!.statusCode)) {
             _logger.w('Skipping failed mutation (client error ${e.response!.statusCode})');
+            // O servidor recusou o que foi feito (offline): limite do plano, campo
+            // obrigatorio/unico, sem permissao... Avisa em vez de a mudanca sumir em
+            // silencio.
+            PlanErrors.showSnack(
+              'Uma alteração não foi sincronizada: ${PlanErrors.message(e, 'o servidor recusou a alteração')}.',
+            );
             success = true;
             continue;
           }

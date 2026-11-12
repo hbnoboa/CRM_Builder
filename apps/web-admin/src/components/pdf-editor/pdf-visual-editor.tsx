@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter } from '@/i18n/tenant-navigation';
 import {
   ArrowLeft,
   Plus,
@@ -29,12 +29,14 @@ import { ElementPickerModal, createDefaultElement } from './element-picker-modal
 import { ElementPropertiesPanel } from './element-properties-panel';
 import { TemplateInfoPanel } from './template-info-panel';
 import { ComputedFieldsDialog } from './computed-fields-dialog';
+import { BindingLabelsProvider } from './element-renderers';
+import type { Entity } from '@/types';
 
 // ─── System fields available in all templates ────────────
 
 const SYSTEM_FIELDS = [
-  { slug: 'createdAt', name: 'Data de Criacao', label: 'Data de Criacao', type: 'datetime' },
-  { slug: 'updatedAt', name: 'Data de Atualizacao', label: 'Data de Atualizacao', type: 'datetime' },
+  { slug: 'createdAt', name: 'Data de Criacao', label: 'Data de Criação', type: 'datetime' },
+  { slug: 'updatedAt', name: 'Data de Atualizacao', label: 'Data de Atualização', type: 'datetime' },
   { slug: '_geolocation.lat', name: 'Latitude', label: 'Latitude', type: 'number' },
   { slug: '_geolocation.lng', name: 'Longitude', label: 'Longitude', type: 'number' },
   { slug: '_geolocation.city', name: 'Cidade (GPS)', label: 'Cidade (GPS)', type: 'text' },
@@ -69,7 +71,9 @@ export function PdfVisualEditor({ template }: PdfVisualEditorProps) {
   const [hasChanges, setHasChanges] = useState(false);
 
   const [selected, setSelected] = useState<SelectedZone>(null);
-  const [showPreview, setShowPreview] = useState(false);
+  // WYSIWYG: o PDF real (render do backend) fica sempre visível por padrão, como
+  // fonte da verdade ao lado do canvas de edição. O canvas é só p/ posicionar/selecionar.
+  const [showPreview, setShowPreview] = useState(true);
   const [elementPickerOpen, setElementPickerOpen] = useState(false);
   const [computedFieldsOpen, setComputedFieldsOpen] = useState(false);
 
@@ -88,7 +92,31 @@ export function PdfVisualEditor({ template }: PdfVisualEditorProps) {
   const availableFields = [
     ...(template.sourceEntity?.fields || []),
     ...SYSTEM_FIELDS,
-  ];
+  ].filter((f, i, all) => all.findIndex((o) => o.slug === f.slug) === i);
+
+  // Campos da tabela-pai (fonte "_parent"): entidades cujo sub-registro e a fonte
+  // deste template. Union dos campos escalares — permite ligar campos do pai no
+  // cabecalho sem token magico. Vem do backend em template.parentEntities.
+  const parentEntities =
+    (template as { parentEntities?: Array<{ name: string; fields?: Array<{ slug: string; name: string; label?: string; type: string }> }> })
+      .parentEntities || [];
+  const parentFields = (() => {
+    const seen = new Set<string>();
+    const out: Array<{ slug: string; name: string; label?: string; type: string }> = [];
+    for (const p of parentEntities) {
+      for (const f of p.fields || []) {
+        if (f.type === 'sub-entity' || seen.has(f.slug)) continue;
+        seen.add(f.slug);
+        out.push(f);
+      }
+    }
+    return out;
+  })();
+  const parentEntityName = parentEntities[0]?.name;
+  const bindingLabels = new Map<string, string>([
+    ...parentFields.map((f) => [`_parent.${f.slug}`, f.label || f.name] as [string, string]),
+    ...availableFields.map((f) => [f.slug, f.label || f.name] as [string, string]),
+  ]);
 
   // ─── Handlers ────────────────────────────────────────
 
@@ -211,6 +239,7 @@ export function PdfVisualEditor({ template }: PdfVisualEditorProps) {
   // ─── Render ──────────────────────────────────────────
 
   return (
+    <BindingLabelsProvider labels={bindingLabels}>
     <div className="flex flex-col h-screen">
       {/* ═══ Toolbar ═══ */}
       <div className="h-14 border-b bg-card flex items-center px-2 sm:px-4 gap-1.5 sm:gap-2 flex-shrink-0">
@@ -219,7 +248,7 @@ export function PdfVisualEditor({ template }: PdfVisualEditorProps) {
           variant="ghost"
           size="icon"
           className="h-8 w-8"
-          onClick={() => router.push('/pdf-templates')}
+          onClick={() => router.push('/gestao/pdf-templates')}
         >
           <ArrowLeft className="h-4 w-4" />
         </Button>
@@ -321,8 +350,8 @@ export function PdfVisualEditor({ template }: PdfVisualEditorProps) {
 
       {/* ═══ Main Area ═══ */}
       <div className="flex flex-1 overflow-hidden">
-        {/* ─── Canvas ─── */}
-        <div className="flex-1 overflow-y-auto bg-muted/30">
+        {/* ─── Canvas (estrutura / edição) ─── */}
+        <div className="flex-1 min-w-[300px] overflow-y-auto bg-muted/30">
           <PdfCanvas
             content={localContent}
             selected={selected}
@@ -332,6 +361,24 @@ export function PdfVisualEditor({ template }: PdfVisualEditorProps) {
             orientation={localOrientation}
           />
         </div>
+
+        {/* ─── Preview Panel: PDF real = fonte da verdade (WYSIWYG), co-igual ao canvas ─── */}
+        {showPreview && (
+          <div className="flex-1 min-w-[360px] border-l bg-card overflow-y-auto">
+            <Card className="border-0 shadow-none rounded-none h-full">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-lg">Resultado real (PDF)</CardTitle>
+                <CardDescription>Exatamente como o PDF vai sair, com um registro de exemplo</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <PdfPreview
+                  template={localTemplate}
+                  content={localContent}
+                />
+              </CardContent>
+            </Card>
+          </div>
+        )}
 
         {/* ─── Properties Panel ─── */}
         <div className="w-64 md:w-72 lg:w-80 border-l bg-card flex-shrink-0 overflow-y-auto">
@@ -344,6 +391,8 @@ export function PdfVisualEditor({ template }: PdfVisualEditorProps) {
               onDeselect={() => setSelected(null)}
               availableFields={availableFields}
               subEntities={template.subEntities}
+              parentFields={parentFields}
+              parentEntityName={parentEntityName}
               computedFields={localContent.computedFields}
               templateType={template.templateType}
             />
@@ -356,24 +405,6 @@ export function PdfVisualEditor({ template }: PdfVisualEditorProps) {
             />
           )}
         </div>
-
-        {/* ─── Preview Panel (optional) ─── */}
-        {showPreview && (
-          <div className="w-72 lg:w-96 border-l bg-card flex-shrink-0 overflow-y-auto">
-            <Card className="border-0 shadow-none rounded-none h-full">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-lg">Preview PDF</CardTitle>
-                <CardDescription>Gerado pelo backend</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <PdfPreview
-                  template={localTemplate}
-                  content={localContent}
-                />
-              </CardContent>
-            </Card>
-          </div>
-        )}
       </div>
 
       {/* ═══ Modals ═══ */}
@@ -381,6 +412,8 @@ export function PdfVisualEditor({ template }: PdfVisualEditorProps) {
         open={elementPickerOpen}
         onClose={() => setElementPickerOpen(false)}
         onSelect={handleAddElement}
+        templateId={template.id}
+        sourceEntity={template.sourceEntity as Entity | undefined}
       />
 
       <ComputedFieldsDialog
@@ -399,5 +432,6 @@ export function PdfVisualEditor({ template }: PdfVisualEditorProps) {
         }
       />
     </div>
+    </BindingLabelsProvider>
   );
 }

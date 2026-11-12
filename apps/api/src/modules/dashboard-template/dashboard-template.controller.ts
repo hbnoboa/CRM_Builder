@@ -1,7 +1,7 @@
+import { ServiceScope } from '../../common/service-scope/service-scope.decorator';
 import { Controller, Get, Post, Patch, Delete, Param, Body, Query, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
-import { RolesGuard } from '../../common/guards/roles.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { CurrentUser as CurrentUserType } from '../../common/types';
 import { checkModulePermission } from '../../common/utils/check-module-permission';
@@ -9,8 +9,9 @@ import { DashboardTemplateService } from './dashboard-template.service';
 import { CreateDashboardTemplateDto, UpdateDashboardTemplateDto } from './dto/dashboard-template.dto';
 
 @ApiTags('Dashboard Templates')
+@ServiceScope('admin')
 @Controller('dashboard-templates')
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard)
 @ApiBearerAuth()
 export class DashboardTemplateController {
   constructor(private readonly service: DashboardTemplateService) {}

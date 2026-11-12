@@ -1,3 +1,6 @@
+import { Type } from 'class-transformer';
+import { RequireFeature } from '../../common/decorators/require-feature.decorator';
+import { ServiceScope } from '../../common/service-scope/service-scope.decorator';
 import {
   Controller,
   Get,
@@ -8,6 +11,8 @@ import {
   Param,
   Query,
   UseGuards,
+  HttpCode,
+  HttpStatus,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
@@ -59,6 +64,8 @@ class CreateWebhookDto {
   events: string[];
 
   @IsOptional()
+  // Objetos livres: sem @Type a conversao implicita do ValidationPipe os troca por []
+  @Type(() => Object)
   @IsArray()
   filterConditions?: Array<{ field: string; operator: string; value: unknown }>;
 
@@ -90,6 +97,8 @@ class UpdateWebhookDto extends CreateWebhookDto {
 
 @ApiTags('Webhooks')
 @ApiBearerAuth()
+@ServiceScope('admin')
+@RequireFeature('webhooks')
 @Controller('webhooks')
 @UseGuards(JwtAuthGuard, ModulePermissionGuard)
 export class WebhookController {
@@ -135,6 +144,14 @@ export class WebhookController {
   @ApiOperation({ summary: 'Remove webhook' })
   async delete(@Param('id') id: string, @CurrentUser() user: CurrentUserType) {
     return this.webhookService.delete(id, user.tenantId);
+  }
+
+  @Post(':id/test')
+  @RequireModulePermission('automations', 'canUpdate', 'webhooks')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Envia um evento de exemplo agora' })
+  async test(@Param('id') id: string, @CurrentUser() user: CurrentUserType) {
+    return this.webhookService.test(id, user.tenantId);
   }
 
   @Get(':id/executions')

@@ -1,3 +1,4 @@
+import { ServiceScope } from '../../common/service-scope/service-scope.decorator';
 import {
   Controller,
   Get,
@@ -78,6 +79,7 @@ class PreviewEmailTemplateDto {
 
 @ApiTags('Email Templates')
 @ApiBearerAuth()
+@ServiceScope('admin')
 @Controller('email-templates')
 @UseGuards(JwtAuthGuard, ModulePermissionGuard)
 export class EmailTemplateController {

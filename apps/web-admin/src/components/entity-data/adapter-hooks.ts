@@ -84,9 +84,11 @@ export function useAdaptedRecordsOverTime(
   days?: number,
   dashFilters?: DashboardFilterParams,
   entitySlugOverride?: string,
+  dateField?: string,
 ) {
   const ctx = useEntityDataOptional();
-  const useClient = !!ctx && !entitySlugOverride && ctx.isFullDataset && ctx.entity?.slug === entitySlug;
+  // Agrupar por um campo de data (ex.: data da vistoria) fica no servidor.
+  const useClient = !!ctx && !entitySlugOverride && !dateField && ctx.isFullDataset && ctx.entity?.slug === entitySlug;
   const effectiveSlug = entitySlugOverride || entitySlug;
 
   const clientData = useMemo(() => {
@@ -98,6 +100,7 @@ export function useAdaptedRecordsOverTime(
     useClient ? undefined : effectiveSlug,
     useClient ? undefined : days,
     useClient ? undefined : dashFilters,
+    useClient ? undefined : dateField,
   );
 
   if (useClient) {
@@ -132,10 +135,16 @@ export function useAdaptedFieldDistribution(
     useClient ? undefined : dashFilters,
   );
 
+  // O servidor agrupa vazios em "(vazio)"; o modo local os ignora. Mesmo resultado nos dois.
+  const serverData = useMemo(
+    () => server.data?.filter((item) => item.value !== '(vazio)' && item.value !== ''),
+    [server.data],
+  );
+
   if (useClient) {
     return { data: clientData, isLoading: false, error: null } as AdapterResult<typeof clientData>;
   }
-  return server;
+  return { ...server, data: serverData } as typeof server;
 }
 
 // ─── Field Aggregation ──────────────────────────────────────────────

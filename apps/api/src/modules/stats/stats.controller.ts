@@ -1,7 +1,6 @@
 import { Controller, Get, Param, Query, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
-import { RolesGuard } from '../../common/guards/roles.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { CurrentUser as CurrentUserType } from '../../common/types';
 import { StatsService } from './stats.service';
@@ -9,7 +8,7 @@ import { checkModulePermission } from '../../common/utils/check-module-permissio
 
 @ApiTags('Stats')
 @Controller('stats')
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard)
 @ApiBearerAuth()
 export class StatsController {
   constructor(private readonly statsService: StatsService) {}
@@ -48,6 +47,13 @@ export class StatsController {
   ) {
     checkModulePermission(user, 'dashboard', 'canRead');
     return this.statsService.getUsersActivity(user, tenantId, days || 7);
+  }
+
+  @Get('my-home')
+  @ApiOperation({ summary: 'Inicio da pessoa: tabelas visiveis e registros recentes dela' })
+  async getMyHome(@CurrentUser() user: CurrentUserType) {
+    // Sem modulo proprio: cada tabela ja passa pela permissao de leitura e pelo escopo
+    return this.statsService.getMyHome(user);
   }
 
   @Get('recent-activity')
@@ -97,9 +103,10 @@ export class StatsController {
     @Query('dateStart') dateStart?: string,
     @Query('dateEnd') dateEnd?: string,
     @Query('tenantId') tenantId?: string,
+    @Query('dateField') dateField?: string,
   ) {
     checkModulePermission(user, 'data', 'canRead');
-    return this.statsService.getEntityRecordsOverTime(user, entitySlug, tenantId, days ? Number(days) : 30, { filters, dateStart, dateEnd });
+    return this.statsService.getEntityRecordsOverTime(user, entitySlug, tenantId, days ? Number(days) : 30, { filters, dateStart, dateEnd }, dateField);
   }
 
   @Get('entity/:entitySlug/field-distribution')

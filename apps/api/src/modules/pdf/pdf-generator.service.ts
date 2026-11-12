@@ -4,6 +4,7 @@ import {
   BadRequestException,
   Logger,
 } from '@nestjs/common';
+import { AsyncLocalStorage } from 'async_hooks';
 import { PrismaService } from '../../prisma/prisma.service';
 import { UploadService } from '../upload/upload.service';
 import { PdfTemplate, PdfGeneration, PdfGenerationStatus, Prisma } from '@prisma/client';
@@ -17,6 +18,8 @@ import {
 } from '../../common/types';
 import { getEffectiveTenantId } from '../../common/utils/tenant.util';
 import { EntityDataQueryService } from '../../common/services/entity-data-query.service';
+import { CustomRoleService } from '../custom-role/custom-role.service';
+import { hiddenFieldSlugs, omitFields } from '../../common/utils/field-permissions';
 import { formatFieldValue as sharedFormatFieldValue } from '@crm-builder/shared';
 import { QueryPdfGenerationDto, PreviewPdfDto, SimulationConfigDto } from './dto';
 import {
@@ -49,16 +52,65 @@ const https = require('https');
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const http = require('http');
 
+/** Rotulos das opcoes por tabela (slug do campo -> valor -> rotulo) da renderizacao em curso. */
+interface OptionLabelScope {
+  byEntity: Map<string, Map<string, Map<string, string>>>;
+  /** Tabela do template, a pai (para _parent.*) e a filha de cada campo sub-tabela. */
+  sourceEntityId: string | null;
+  parentEntityId: string | null;
+  subEntityByField: Map<string, string>;
+}
+
 @Injectable()
 export class PdfGeneratorService {
   private readonly logger = new Logger(PdfGeneratorService.name);
   private emptyFieldDefault = '';
+  /** Rotulos das opcoes (slug do campo -> valor -> rotulo) da renderizacao em curso. */
+  private readonly optionLabels = new AsyncLocalStorage<OptionLabelScope>();
 
   constructor(
     private prisma: PrismaService,
     private uploadService: UploadService,
     private queryService: EntityDataQueryService,
+    private customRoleService: CustomRoleService,
   ) {}
+
+  /**
+   * Registros pedidos por ID, so se o cargo puder ver (mesmo pipeline da lista), e sem
+   * os campos ocultos. Modelo sem tabela de origem usa a tabela do proprio registro.
+   */
+  private async loadReadableRecords(
+    recordIds: string[],
+    sourceEntityId: string | null,
+    currentUser: CurrentUser,
+    tenantId: string,
+  ) {
+    let entityId = sourceEntityId;
+    if (!entityId && recordIds.length > 0) {
+      const found =
+        (await this.prisma.entityData.findFirst({ where: { id: recordIds[0], tenantId }, select: { entityId: true } })) ??
+        (await this.prisma.archivedEntityData.findFirst({ where: { id: recordIds[0], tenantId }, select: { entityId: true } }));
+      entityId = found?.entityId ?? null;
+    }
+    const entity = entityId
+      ? await this.prisma.entity.findFirst({ where: { id: entityId, tenantId }, select: { slug: true } })
+      : null;
+    if (!entity) return [];
+
+    const { where } = await this.queryService.buildWhere({ entitySlug: entity.slug, user: currentUser, tenantId, includeChildren: true });
+    const scoped = { ...where, id: { in: recordIds } };
+    const [active, archived] = await Promise.all([
+      this.prisma.entityData.findMany({ where: scoped, orderBy: { createdAt: 'asc' } }),
+      this.prisma.archivedEntityData.findMany({ where: this.queryService.buildArchivedWhere(scoped), orderBy: { createdAt: 'asc' } }),
+    ]);
+    const hidden = hiddenFieldSlugs(
+      await this.customRoleService.getFieldPermissions(currentUser.id, entity.slug, tenantId),
+    );
+    return [
+      ...active,
+      ...archived.map((r) => ({ ...r, parentRecordId: r.parentRecordId ?? null, deletedAt: null })),
+    ].map((r) => ({ ...r, data: omitFields(r.data, hidden) }));
+  }
 
   /**
    * Gera PDF para um unico registro
@@ -87,31 +139,26 @@ export class PdfGeneratorService {
       throw new NotFoundException('Template nao encontrado');
     }
 
-    // Buscar dados do registro (EntityData + ArchivedEntityData)
-    let record = await this.prisma.entityData.findFirst({
-      where: {
-        id: recordId,
-        tenantId: targetTenantId,
-        entityId: template.sourceEntityId || undefined,
-      },
-    });
-
-    if (!record) {
-      // Fallback: buscar em ArchivedEntityData
-      const archivedRecord = await this.prisma.archivedEntityData.findFirst({
-        where: {
-          id: recordId,
-          tenantId: targetTenantId,
-          entityId: template.sourceEntityId || undefined,
-        },
-      });
-      if (archivedRecord) {
-        record = { ...archivedRecord, deletedAt: null } as unknown as typeof record;
-      }
-    }
+    // Buscar dados do registro (EntityData + ArchivedEntityData), como o cargo pode ver
+    const [record] = await this.loadReadableRecords([recordId], template.sourceEntityId, currentUser, targetTenantId);
 
     if (!record) {
       throw new NotFoundException('Registro nao encontrado');
+    }
+
+    // Registro-pai em _parent.* (ex.: laudo da vistoria mostra a placa do veiculo).
+    // Mesmas regras do registro: so se o cargo enxerga o pai, e sem campos ocultos.
+    let parentData: Record<string, unknown> = {};
+    if (record.parentRecordId) {
+      const [parent] = await this.loadReadableRecords([record.parentRecordId], null, currentUser, targetTenantId);
+      if (parent) {
+        parentData = {
+          ...(parent.data as Record<string, unknown>),
+          id: parent.id,
+          createdAt: parent.createdAt,
+          updatedAt: parent.updatedAt,
+        };
+      }
     }
 
     // Enriquecer dados com sub-entidades e campos do sistema
@@ -120,6 +167,7 @@ export class PdfGeneratorService {
       id: record.id,
       createdAt: record.createdAt,
       updatedAt: record.updatedAt,
+      _parent: parentData,
     };
     const data = await this.enrichDataWithSubEntities(
       baseData,
@@ -197,7 +245,7 @@ export class PdfGeneratorService {
     useAllRecords?: boolean,
     filters?: string,
     search?: string,
-  ): Promise<{ buffer: Buffer; fileName: string }> {
+  ): Promise<{ buffer: Buffer; fileName: string; fileUrl?: string }> {
     const targetTenantId = getEffectiveTenantId(currentUser, tenantId);
 
     // Buscar template
@@ -251,28 +299,7 @@ export class PdfGeneratorService {
         ...archivedRecords.map((r) => ({ ...r, parentRecordId: r.parentRecordId ?? null })),
       ];
     } else {
-      const [activeRecords, archivedRecords] = await Promise.all([
-        this.prisma.entityData.findMany({
-          where: {
-            id: { in: recordIds },
-            tenantId: targetTenantId,
-            entityId: template.sourceEntityId || undefined,
-          },
-          orderBy: { createdAt: 'asc' },
-        }),
-        this.prisma.archivedEntityData.findMany({
-          where: {
-            id: { in: recordIds },
-            tenantId: targetTenantId,
-            entityId: template.sourceEntityId || undefined,
-          },
-          orderBy: { createdAt: 'asc' },
-        }),
-      ]);
-      records = [
-        ...activeRecords,
-        ...archivedRecords.map((r) => ({ ...r, parentRecordId: r.parentRecordId ?? null })),
-      ];
+      records = await this.loadReadableRecords(recordIds, template.sourceEntityId, currentUser, targetTenantId);
     }
 
     if (records.length === 0) {
@@ -393,6 +420,32 @@ export class PdfGeneratorService {
       }
     }
 
+    // Injetar registro-pai quando todos os registros pertencem a uma mesma
+    // operacao (batch de sub-entidade). Expoe os campos reais do pai em
+    // _parent.* para o cabecalho (ex.: navio, viagem, data_inicio, data_fim,
+    // total_veiculos) sem quebrar o corpo por registro nem as fotos (netas).
+    let parentData: Record<string, unknown> = {};
+    const parentIds = Array.from(
+      new Set(records.map((r) => r.parentRecordId).filter((p): p is string => !!p)),
+    );
+    if (parentIds.length === 1) {
+      const parent =
+        (await this.prisma.entityData.findFirst({
+          where: { id: parentIds[0], tenantId: targetTenantId },
+        })) ||
+        (await this.prisma.archivedEntityData.findFirst({
+          where: { id: parentIds[0], tenantId: targetTenantId },
+        }));
+      if (parent) {
+        parentData = {
+          ...(parent.data as Record<string, unknown>),
+          id: parent.id,
+          createdAt: parent.createdAt,
+          updatedAt: parent.updatedAt,
+        };
+      }
+    }
+
     // Montar dados agregados para o template
     const batchData: Record<string, unknown> = {
       _items: enrichedRecords,
@@ -403,6 +456,7 @@ export class PdfGeneratorService {
       _lastUpdatedAt: lastUpdatedAt,
       _first: enrichedRecords[0] || {},
       _last: enrichedRecords[enrichedRecords.length - 1] || {},
+      _parent: parentData,
       _max: maxValues,
       _min: minValues,
     };
@@ -460,7 +514,7 @@ export class PdfGeneratorService {
       },
     });
 
-    return { buffer, fileName };
+    return { buffer, fileName, fileUrl: fileUrl ?? undefined };
   }
 
   /**
@@ -577,18 +631,7 @@ export class PdfGeneratorService {
 
     // Se forneceu recordId, buscar dados reais
     if (dto.recordId) {
-      let record = await this.prisma.entityData.findFirst({
-        where: {
-          id: dto.recordId,
-          tenantId: targetTenantId,
-        },
-      });
-      if (!record) {
-        const archived = await this.prisma.archivedEntityData.findFirst({
-          where: { id: dto.recordId, tenantId: targetTenantId },
-        });
-        if (archived) record = { ...archived, deletedAt: null } as unknown as typeof record;
-      }
+      const [record] = await this.loadReadableRecords([dto.recordId], template.sourceEntityId, currentUser, targetTenantId);
 
       if (record) {
         const baseData = {
@@ -621,10 +664,81 @@ export class PdfGeneratorService {
   }
 
   /**
+   * PDF de um registro pelo link de acompanhamento (pagina para clientes): o acesso
+   * ja foi decidido pelo token; aqui so confere que o modelo e publicado, do mesmo
+   * tenant e da mesma tabela do registro.
+   */
+  async generateForTracking(templateId: string, recordId: string, tenantId: string): Promise<{ buffer: Buffer; fileName: string }> {
+    const template = await this.prisma.pdfTemplate.findFirst({
+      where: { id: templateId, tenantId, isPublished: true },
+      include: { sourceEntity: true },
+    });
+    const record = await this.prisma.entityData.findFirst({ where: { id: recordId, tenantId, deletedAt: null } });
+    if (!template || !record || template.sourceEntityId !== record.entityId) throw new NotFoundException('Documento nao encontrado');
+
+    let parentData: Record<string, unknown> = {};
+    if (record.parentRecordId) {
+      const parent = await this.prisma.entityData.findFirst({ where: { id: record.parentRecordId, tenantId, deletedAt: null } });
+      if (parent) parentData = { ...(parent.data as Record<string, unknown>), id: parent.id, createdAt: parent.createdAt, updatedAt: parent.updatedAt };
+    }
+    const data = await this.enrichDataWithSubEntities(
+      { ...(record.data as Record<string, unknown>), id: record.id, createdAt: record.createdAt, updatedAt: record.updatedAt, _parent: parentData },
+      template.sourceEntity?.fields as Array<{ slug: string; type: string; subEntityId?: string }>,
+      record.id,
+      tenantId,
+    );
+    const computedFields = (template.content as unknown as PdfTemplateContent)?.computedFields;
+    if (computedFields?.length) this.evaluateComputedFields(data, computedFields);
+    const buffer = await this.renderPdf(template, data);
+    return { buffer, fileName: `${template.slug}.pdf` };
+  }
+
+  /**
+   * Previa de um conteudo que ainda nao virou modelo (assistente de IA): dados de
+   * exemplo da tabela, de cada lista interna e do registro de cima (_parent).
+   */
+  async previewDraft(entityId: string, content: PdfTemplateContent, currentUser: CurrentUser): Promise<Buffer> {
+    const tenantId = getEffectiveTenantId(currentUser);
+    const entities = await this.prisma.entity.findMany({
+      where: { tenantId },
+      select: { id: true, slug: true, name: true, fields: true, settings: true },
+    });
+    const entity = entities.find((e) => e.id === entityId);
+    if (!entity) throw new NotFoundException('Tabela nao encontrada');
+
+    type DraftField = { slug: string; name: string; label?: string; type: string; options?: unknown[]; subEntityId?: string };
+    const named = (raw: unknown) => ((raw as DraftField[]) || []).map((f) => ({ ...f, name: f.label || f.name || f.slug }));
+    // Exemplo sem arquivo: foto/assinatura vazias mostram "Sem foto" em vez de erro
+    const mock = (list: DraftField[], i: number) => {
+      const record = this.generateMockRecord(list, i);
+      for (const f of list) if (['image', 'signature', 'file'].includes(f.type)) record[f.slug] = null;
+      return record;
+    };
+    const fields = named(entity.fields);
+    const data = mock(fields, 1);
+    data.id = 'previa';
+    data.createdAt = new Date().toISOString();
+    data.updatedAt = data.createdAt;
+    for (const f of fields.filter((x) => x.type === 'sub-entity' && x.subEntityId)) {
+      const child = entities.find((e) => e.id === f.subEntityId);
+      if (child) data[f.slug] = [1, 2, 3].map((i) => mock(named(child.fields), i));
+    }
+    const parent = entities.find((e) => named(e.fields).some((x) => x.type === 'sub-entity' && x.subEntityId === entity.id));
+    if (parent) data._parent = mock(named(parent.fields), 1);
+
+    const template = {
+      id: 'previa', tenantId, name: 'Prévia', slug: 'previa', pageSize: 'A4', orientation: 'PORTRAIT',
+      margins: { top: 70, right: 70, bottom: 70, left: 70 }, content, sourceEntityId: entity.id, sourceEntity: entity,
+      templateType: 'single',
+    } as unknown as PdfTemplate;
+    return this.renderPdf(template, data);
+  }
+
+  /**
    * Lista historico de geracoes
    */
   async getGenerations(currentUser: CurrentUser, query: QueryPdfGenerationDto) {
-    const targetTenantId = getEffectiveTenantId(currentUser, query.tenantId);
+    const targetTenantId = getEffectiveTenantId(currentUser);
     const limit = Math.min(parseInt(query.limit || String(DEFAULT_LIMIT)), MAX_LIMIT);
 
     const where: Prisma.PdfGenerationWhereInput = {
@@ -730,6 +844,14 @@ export class PdfGeneratorService {
     template: PdfTemplate,
     data: Record<string, unknown>,
   ): Promise<Buffer> {
+    const labels = await this.loadOptionLabels(template);
+    return this.optionLabels.run(labels, () => this.renderPdfDocument(template, data));
+  }
+
+  private async renderPdfDocument(
+    template: PdfTemplate,
+    data: Record<string, unknown>,
+  ): Promise<Buffer> {
     const margins = template.margins as unknown as PdfMargins || {
       top: 70,
       right: 70,
@@ -793,6 +915,15 @@ export class PdfGeneratorService {
    * renderiza os elementos que estao dentro do marcador _repeat
    */
   private async renderBatchPdf(
+    template: PdfTemplate,
+    batchData: Record<string, unknown>,
+    allRecords: Record<string, unknown>[],
+  ): Promise<Buffer> {
+    const labels = await this.loadOptionLabels(template);
+    return this.optionLabels.run(labels, () => this.renderBatchPdfDocument(template, batchData, allRecords));
+  }
+
+  private async renderBatchPdfDocument(
     template: PdfTemplate,
     batchData: Record<string, unknown>,
     allRecords: Record<string, unknown>[],
@@ -994,7 +1125,7 @@ export class PdfGeneratorService {
 
       doc.font('Helvetica').fontSize(8).fillColor('#666666');
 
-      const pageLabel = `Pagina ${i + 1} de ${totalPages}`;
+      const pageLabel = `Página ${i + 1} de ${totalPages}`;
       const position = footer.position || 'center';
       const hasText = !!footer.text;
       const hasPages = !!footer.showPageNumbers;
@@ -1105,7 +1236,7 @@ export class PdfGeneratorService {
             }
           }
         } else if (element.type === 'text' && element.text) {
-          const resolvedText = this.resolveBindings(element.text, data);
+          const resolvedText = this.resolveDisplayBindings(element.text, data);
           const fontSize = element.fontSize || 12;
           const padding = element.padding || 8;
 
@@ -1223,7 +1354,7 @@ export class PdfGeneratorService {
 
     // Renderizar titulo
     if (header?.title?.text) {
-      const titleText = this.resolveBindings(header.title.text, data);
+      const titleText = this.resolveDisplayBindings(header.title.text, data);
       doc
         .font(header.title.bold !== false ? 'Helvetica-Bold' : 'Helvetica')
         .fontSize(header.title.fontSize || 14)
@@ -1234,7 +1365,7 @@ export class PdfGeneratorService {
 
     // Renderizar subtitulo
     if (header?.subtitle?.text) {
-      const subtitleText = this.resolveBindings(header.subtitle.text, data);
+      const subtitleText = this.resolveDisplayBindings(header.subtitle.text, data);
       doc
         .font('Helvetica')
         .fontSize(10)
@@ -1330,7 +1461,7 @@ export class PdfGeneratorService {
     element: TextElement,
     data: Record<string, unknown>,
   ): void {
-    const text = this.resolveBindings(element.content, data);
+    const text = this.resolveDisplayBindings(element.content, data);
     const pageWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
     const font = element.fontWeight === 'bold' ? 'Helvetica-Bold' : 'Helvetica';
     const fontSize = element.fontSize || 10;
@@ -1386,7 +1517,7 @@ export class PdfGeneratorService {
         for (let c = 0; c < cols && i + c < fields.length; c++) {
           const field = fields[i + c];
           const label = field.label;
-          const value = this.resolveBindings(field.binding, data);
+          const value = this.resolveDisplayBindings(field.binding, data);
           const formattedValue = this.formatValue(value, field.format, field.defaultValue);
           const x = doc.page.margins.left + c * colWidth;
 
@@ -1404,7 +1535,7 @@ export class PdfGeneratorService {
     } else if (element.layout === 'horizontal') {
       for (const field of element.fields) {
         const label = field.label;
-        const value = this.resolveBindings(field.binding, data);
+        const value = this.resolveDisplayBindings(field.binding, data);
         const formattedValue = this.formatValue(value, field.format, field.defaultValue);
 
         if (lineSpacing) {
@@ -1435,7 +1566,7 @@ export class PdfGeneratorService {
       // Vertical: label e valor em linhas separadas
       for (const field of element.fields) {
         const label = field.label;
-        const value = this.resolveBindings(field.binding, data);
+        const value = this.resolveDisplayBindings(field.binding, data);
         const formattedValue = this.formatValue(value, field.format, field.defaultValue);
 
         doc
@@ -1532,7 +1663,8 @@ export class PdfGeneratorService {
     const tableRows = rows.map((row) =>
       element.columns.map((col) => {
         const value = this.getNestedValue(row, col.field);
-        return this.formatValue(value, col.format, col.defaultValue);
+        const childEntityId = element.dataSource ? this.optionLabels.getStore()?.subEntityByField.get(element.dataSource) : undefined;
+        return this.formatValue(col.format ? value : this.displayValue(col.field, value, childEntityId), col.format, col.defaultValue);
       }),
     );
 
@@ -1553,11 +1685,15 @@ export class PdfGeneratorService {
           },
         },
       );
-    } else if (element.emptyMessage) {
+    }
+    // Sem linhas: a mensagem aparece abaixo do cabecalho (antes so saia com o cabecalho escondido)
+    if (tableRows.length === 0 && element.emptyMessage) {
       doc
         .font('Helvetica')
         .fontSize(8)
-        .text(element.emptyMessage, { align: 'center' });
+        .fillColor('#666666')
+        .text(element.emptyMessage, doc.page.margins.left, doc.y, { align: 'center' })
+        .fillColor('#000000');
     }
 
     doc.moveDown(0.5);
@@ -1607,7 +1743,7 @@ export class PdfGeneratorService {
       doc
         .font('Helvetica')
         .fontSize(8)
-        .text('Nenhuma imagem disponivel', { align: 'center' });
+        .text('Nenhuma imagem disponível', doc.page.margins.left, doc.y, { align: 'center' });
       return;
     }
 
@@ -1632,7 +1768,7 @@ export class PdfGeneratorService {
       doc
         .font('Helvetica')
         .fontSize(8)
-        .text('Nenhuma imagem disponivel', { align: 'center' });
+        .text('Nenhuma imagem disponível', doc.page.margins.left, doc.y, { align: 'center' });
       return;
     }
 
@@ -1721,12 +1857,13 @@ export class PdfGeneratorService {
     const childRecords = Array.isArray(rawData) ? rawData as Record<string, unknown>[] : [];
 
     if (childRecords.length === 0) {
-      const parentUrls = parentFields.map((f) => data[f] as string).filter(Boolean);
-      if (parentUrls.length === 0) {
-        doc.font('Helvetica').fontSize(8).text('Nenhuma imagem disponivel', { align: 'center' });
-        return;
-      }
-      const results = await Promise.allSettled(parentUrls.map((url) => this.fetchImageBuffer(url)));
+      // Uma celula por campo do pai, na coluna certa; vazio vira o quadro "Sem foto"
+      const results = await Promise.allSettled(
+        parentFields.map((f) => {
+          const url = data[f] as string;
+          return url ? this.fetchImageBuffer(url) : Promise.reject(new Error('Sem URL'));
+        }),
+      );
       const rowY = doc.y;
       for (let i = 0; i < results.length; i++) {
         const x = doc.page.margins.left + i * columnWidth + (columnWidth - imageWidth) / 2;
@@ -1977,9 +2114,12 @@ export class PdfGeneratorService {
         // Fall through to fallback
       }
     }
+    // Campo vazio nao e erro: o quadro fica com "Sem foto"
+    const reason = result.status === 'rejected' ? String((result.reason as Error)?.message ?? '') : '';
+    const empty = reason === 'Sem URL' || reason === 'URL vazia';
     doc.rect(x, y, width, height).strokeColor('#CCCCCC').stroke();
     doc.font('Helvetica').fontSize(6).fillColor('#999999')
-      .text('[Erro]', x, y + height / 2 - 3, { width, align: 'center' });
+      .text(empty ? 'Sem foto' : '[Erro]', x, y + height / 2 - 3, { width, align: 'center' });
   }
 
   /**
@@ -2424,6 +2564,71 @@ export class PdfGeneratorService {
   /**
    * Resolve bindings {{campo}} no texto
    */
+  /**
+   * Rotulos das opcoes das tabelas da empresa, separados por tabela: o laudo mostra
+   * campos do registro, das filhas (tabelas) e do pai (_parent.*), e o mesmo slug
+   * (ex.: "tipo") pode ter opcoes diferentes em cada tabela.
+   */
+  private async loadOptionLabels(template: PdfTemplate): Promise<OptionLabelScope> {
+    const entities = await this.prisma.entity.findMany({
+      where: { tenantId: template.tenantId },
+      select: { id: true, fields: true },
+    });
+    type FieldDef = { slug?: string; type?: string; subEntityId?: string; options?: Array<{ value?: unknown; label?: unknown } | string> };
+    const byEntity = new Map<string, Map<string, Map<string, string>>>();
+    let parentEntityId: string | null = null;
+    const subEntityByField = new Map<string, string>();
+    for (const entity of entities) {
+      const fields = (entity.fields as FieldDef[]) || [];
+      const perField = new Map<string, Map<string, string>>();
+      for (const field of fields) {
+        if (field.type === 'sub-entity' && field.subEntityId) {
+          if (entity.id === template.sourceEntityId && field.slug) subEntityByField.set(field.slug, field.subEntityId);
+          if (field.subEntityId === template.sourceEntityId) parentEntityId = entity.id;
+        }
+        if (!field.slug || !Array.isArray(field.options) || field.options.length === 0) continue;
+        const map = new Map<string, string>();
+        for (const opt of field.options) {
+          if (typeof opt === 'string') map.set(opt, opt);
+          else if (opt?.value !== undefined && opt?.label) map.set(String(opt.value), String(opt.label));
+        }
+        perField.set(field.slug, map);
+      }
+      byEntity.set(entity.id, perField);
+    }
+    return { byEntity, sourceEntityId: template.sourceEntityId, parentEntityId, subEntityByField };
+  }
+
+  /**
+   * Valor como o usuario le: rotulo da opcao e Sim/Nao em vez de true/false.
+   * entityId: tabela dona do campo (filha numa tabela do PDF); sem ele, a do template
+   * (ou a pai, para _parent.*).
+   */
+  private displayValue(path: string, value: unknown, entityId?: string | null): unknown {
+    if (typeof value === 'boolean') return value ? 'Sim' : 'Não';
+    const scope = this.optionLabels.getStore();
+    if (!scope) return value;
+    const owner = entityId ?? (path.startsWith('_parent.') ? scope.parentEntityId : scope.sourceEntityId);
+    const options = owner ? scope.byEntity.get(owner)?.get(path.split('.').pop() || path) : undefined;
+    if (!options) return value;
+    if (Array.isArray(value)) {
+      return value.map((v) => (typeof v === 'string' || typeof v === 'number' ? options.get(String(v)) ?? v : v));
+    }
+    if (typeof value === 'string' || typeof value === 'number') return options.get(String(value)) ?? value;
+    return value;
+  }
+
+  /** Como resolveBindings, mas para texto exibido (rotulos em vez de valores crus). */
+  private resolveDisplayBindings(template: string, data: Record<string, unknown>): string {
+    if (!template) return '';
+
+    return template.replace(/\{\{([^}]+)\}\}/g, (_, path) => {
+      const value = this.displayValue(path.trim(), this.getNestedValue(data, path.trim()));
+      if (value === undefined || value === null) return '';
+      return Array.isArray(value) ? value.join(', ') : String(value);
+    });
+  }
+
   private resolveBindings(template: string, data: Record<string, unknown>): string {
     if (!template) return '';
 
@@ -2532,6 +2737,7 @@ export class PdfGeneratorService {
               entityId: field.subEntityId,
               parentRecordId: recordId,
               tenantId,
+              deletedAt: null, // PDF nao inclui sub-registros soft-deletados
             },
             orderBy: { createdAt: 'asc' },
           }),

@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:crm_mobile/core/auth/secure_storage.dart';
-import 'package:crm_mobile/core/config/env.dart';
+import 'package:crm_mobile/core/auth/token_refresher.dart';
+import 'package:crm_mobile/core/network/plan_errors.dart';
 
 /// Mirrors web-admin's api.ts interceptors:
 /// - Adds Bearer token to every request
@@ -29,6 +30,9 @@ class AuthInterceptor extends QueuedInterceptor {
     DioException err,
     ErrorInterceptorHandler handler,
   ) async {
+    // Empresa suspensa / app fora do plano: o AuthNotifier encerra a sessao.
+    PlanErrors.handle(err);
+
     if (err.response?.statusCode != 401 || _isRefreshing) {
       return handler.next(err);
     }
@@ -36,26 +40,13 @@ class AuthInterceptor extends QueuedInterceptor {
     _isRefreshing = true;
 
     try {
-      final refreshToken = await SecureStorage.getRefreshToken();
-      if (refreshToken == null) {
+      if (await SecureStorage.getRefreshToken() == null) {
         await _forceLogout();
         return handler.next(err);
       }
 
-      // Call refresh endpoint (use a clean Dio to avoid interceptor loop)
-      final refreshDio = Dio(BaseOptions(baseUrl: Env.apiUrl));
-      final response = await refreshDio.post(
-        '/auth/refresh',
-        data: {'refreshToken': refreshToken},
-      );
-
-      final newAccessToken = response.data['accessToken'] as String;
-      final newRefreshToken = response.data['refreshToken'] as String;
-
-      await SecureStorage.setTokens(
-        accessToken: newAccessToken,
-        refreshToken: newRefreshToken,
-      );
+      // Renovacao unica compartilhada (ver TokenRefresher).
+      final newAccessToken = await TokenRefresher.refresh();
 
       // Retry original request with new token
       final options = err.requestOptions;
@@ -63,7 +54,13 @@ class AuthInterceptor extends QueuedInterceptor {
 
       final retryResponse = await _dio.fetch(options);
       return handler.resolve(retryResponse);
-    } catch (_) {
+    } catch (e) {
+      // Sessao encerrada de proposito: logout completo (sem relogin silencioso).
+      // Limpa antes de avisar: com o app abrindo, ninguem ouve o aviso ainda.
+      if (PlanErrors.isSessionRevoked(e)) {
+        await SecureStorage.clearAll();
+        PlanErrors.sessionRevoked();
+      }
       await _forceLogout();
       return handler.next(err);
     } finally {

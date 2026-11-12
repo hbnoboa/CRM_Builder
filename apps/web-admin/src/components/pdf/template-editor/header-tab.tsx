@@ -72,7 +72,7 @@ export function HeaderTab({ header, onChange, availableFields = [] }: HeaderTabP
         <div className="flex items-start gap-2">
           <Info className="h-4 w-4 mt-0.5 flex-shrink-0" />
           <div>
-            <p className="font-medium">Cabecalho do PDF</p>
+            <p className="font-medium">Cabeçalho do PDF</p>
             <p className="mt-1 opacity-80">
               O modo <strong>Flexivel</strong> permite criar headers complexos com multiplas linhas e elementos.
               O modo <strong>Simples</strong> oferece um layout basico com logo, titulo e subtitulo.
@@ -112,14 +112,14 @@ export function HeaderTab({ header, onChange, availableFields = [] }: HeaderTabP
             checked={header?.showOnAllPages ?? true}
             onCheckedChange={(checked) => onChange({ ...header, showOnAllPages: checked })}
           />
-          <Label>Mostrar cabecalho em todas as paginas</Label>
+          <Label>Mostrar cabeçalho em todas as páginas</Label>
         </div>
         <div className="flex items-center gap-2">
           <Switch
             checked={header?.showDivider ?? true}
             onCheckedChange={(checked) => onChange({ ...header, showDivider: checked })}
           />
-          <Label>Mostrar linha divisoria apos cabecalho</Label>
+          <Label>Mostrar linha divisória após cabeçalho</Label>
         </div>
       </div>
     </div>

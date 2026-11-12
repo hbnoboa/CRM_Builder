@@ -1,13 +1,12 @@
 import api from '@/lib/api';
-import { User, UserRole, Status, PaginatedResponse } from '@/types';
+import { User, Status, PaginatedResponse } from '@/types';
 
 export interface QueryUsersParams {
   page?: number;
   limit?: number;
   search?: string;
-  role?: UserRole;
+  role?: string;
   status?: Status;
-  tenantId?: string;
   cursor?: string;
   sortBy?: string;
   sortOrder?: 'asc' | 'desc';
@@ -17,7 +16,7 @@ export interface CreateUserData {
   email: string;
   password: string;
   name: string;
-  role?: UserRole;
+  role?: string;
   avatar?: string;
 }
 
@@ -25,7 +24,7 @@ export interface UpdateUserData {
   email?: string;
   password?: string;
   name?: string;
-  role?: UserRole;
+  role?: string;
   status?: Status;
   avatar?: string;
 }
@@ -34,6 +33,19 @@ export const usersService = {
   async getAll(params?: QueryUsersParams): Promise<PaginatedResponse<User>> {
     const response = await api.get<PaginatedResponse<User>>('/users', { params });
     return response.data;
+  },
+
+  /** Todas as pessoas da empresa (a API pagina de 100 em 100). */
+  async getAllPages(params?: Omit<QueryUsersParams, 'page' | 'limit'>): Promise<PaginatedResponse<User>> {
+    const limit = 100;
+    const first = await this.getAll({ ...params, page: 1, limit });
+    const all = [...(first.data ?? [])];
+    const totalPages = first.meta?.totalPages ?? 1;
+    for (let page = 2; page <= totalPages; page++) {
+      const next = await this.getAll({ ...params, page, limit });
+      all.push(...(next.data ?? []));
+    }
+    return { ...first, data: all };
   },
 
   async getById(id: string): Promise<User> {
@@ -54,37 +66,4 @@ export const usersService = {
   async delete(id: string): Promise<void> {
     await api.delete(`/users/${id}`);
   },
-
-  // Tenant Access
-  async getUserTenantAccess(userId: string): Promise<TenantAccessItem[]> {
-    const response = await api.get<TenantAccessItem[]>(`/users/${userId}/tenant-access`);
-    return response.data;
-  },
-
-  async grantTenantAccess(userId: string, data: GrantTenantAccessData): Promise<TenantAccessItem> {
-    const response = await api.post<TenantAccessItem>(`/users/${userId}/tenant-access`, data);
-    return response.data;
-  },
-
-  async revokeTenantAccess(accessId: string): Promise<void> {
-    await api.delete(`/users/tenant-access/${accessId}`);
-  },
 };
-
-export interface TenantAccessItem {
-  id: string;
-  userId: string;
-  tenantId: string;
-  customRoleId: string;
-  status: string;
-  grantedAt: string;
-  expiresAt: string | null;
-  tenant: { id: string; name: string; slug: string };
-  customRole: { id: string; name: string; roleType: string; color?: string };
-}
-
-export interface GrantTenantAccessData {
-  tenantId: string;
-  customRoleId: string;
-  expiresAt?: string;
-}

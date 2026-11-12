@@ -3,9 +3,26 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { CustomRoleService } from '../custom-role/custom-role.service';
 import { EntityDataQueryService, type DashboardFilterOptions } from '../../common/services/entity-data-query.service';
 import { CurrentUser } from '../../common/types';
-import { RoleType } from '../../common/decorators/roles.decorator';
 import { getEffectiveTenantId } from '../../common/utils/tenant.util';
 import { Prisma, type PrismaClient } from '@prisma/client';
+import { creatorFilter, teammateIds } from '../../common/utils/team-scope';
+import { hiddenFieldSlugs } from '../../common/utils/field-permissions';
+
+/** Numeros como numeros, datas ISO como datas, o resto como texto (pt-BR). */
+function compareSortValues(a: unknown, b: unknown): number {
+  if (typeof a === 'number' && typeof b === 'number') return a - b;
+  const sa = typeof a === 'object' && a && 'label' in a ? String((a as { label: unknown }).label) : String(a);
+  const sb = typeof b === 'object' && b && 'label' in b ? String((b as { label: unknown }).label) : String(b);
+  const iso = /^\d{4}-\d{2}-\d{2}/;
+  if (iso.test(sa) && iso.test(sb)) return Date.parse(sa) - Date.parse(sb);
+  const na = Number(sa);
+  const nb = Number(sb);
+  if (sa.trim() !== '' && sb.trim() !== '' && !Number.isNaN(na) && !Number.isNaN(nb)) return na - nb;
+  return sa.localeCompare(sb, 'pt-BR', { numeric: true, sensitivity: 'base' });
+}
+
+/** Ajustes da tabela usados na tela inicial (titulo, situacao, prazo, responsavel). */
+type HomeSettings = { titleField?: string; statusField?: string; doneValues?: string[]; deadlineField?: string; assigneeField?: string };
 
 @Injectable()
 export class StatsService {
@@ -18,17 +35,22 @@ export class StatsService {
   ) {}
 
   // Helper: resolve tenantId e roleType a partir do user
+  // Sempre escopado ao tenant ativo do usuario (sem visao global/cross-tenant).
   private resolveContext(user: CurrentUser, queryTenantId?: string) {
-    const roleType = (user.customRole?.roleType || 'USER') as RoleType;
+    // roleType removido (Fase 3): mantido so como sentinel para os helpers abaixo.
+    const roleType = 'tenant';
     const effectiveTenantId = getEffectiveTenantId(user, queryTenantId);
-    const effectiveRole = (roleType === 'PLATFORM_ADMIN' && queryTenantId) ? 'filtered' : roleType;
-    return { effectiveTenantId, roleType, effectiveRole };
+    return { effectiveTenantId, roleType };
   }
 
   // Helper: base where para tenant
-  private getWhere(tenantId: string, effectiveRole: string) {
-    if (effectiveRole === 'PLATFORM_ADMIN') return {};
+  private getWhere(tenantId: string) {
     return { tenantId };
+  }
+
+  /** Identidade global (#10): "usuarios do tenant" = quem tem membership nele. */
+  private getUserWhere(tenantId: string): Prisma.UserWhereInput {
+    return { tenantAccess: { some: { tenantId, deletedAt: null } } };
   }
 
   /**
@@ -63,15 +85,16 @@ export class StatsService {
   private async getAccessibleEntities(
     user: CurrentUser,
     effectiveTenantId: string,
-    roleType: RoleType | string,
+    _roleType?: string,
   ) {
     const where: Prisma.EntityWhereInput = { tenantId: effectiveTenantId };
 
-    // CUSTOM role: filtrar por entidades com canRead
-    if (roleType === 'CUSTOM') {
-      const accessibleSlugs = await this.customRoleService.getUserAccessibleEntities(user.id);
-      if (accessibleSlugs.length === 0) return [];
-      where.slug = { in: accessibleSlugs };
+    // Permission-driven: '*' (allAccess/coringa) = todas; senao restringe aos slugs
+    // com canRead em permissions[]. Sem roleType.
+    const accessible = await this.customRoleService.getUserAccessibleEntities(user.id, effectiveTenantId);
+    if (accessible !== '*') {
+      if (accessible.length === 0) return [];
+      where.slug = { in: accessible };
     }
 
     const entities = await this.prisma.entity.findMany({
@@ -79,19 +102,9 @@ export class StatsService {
       select: { id: true, slug: true, name: true, settings: true, fields: true },
     });
 
-    // Identificar sub-entidades (referenciadas por campo type=sub-entity)
-    const subEntitySlugs = new Set<string>();
-    for (const entity of entities) {
-      const fields = (entity.fields as unknown as Array<{ type: string; subEntitySlug?: string }>) || [];
-      for (const field of fields) {
-        if (field.type === 'sub-entity' && field.subEntitySlug) {
-          subEntitySlugs.add(field.subEntitySlug);
-        }
-      }
-    }
-
-    // Excluir sub-entidades
-    return entities.filter((e) => !subEntitySlugs.has(e.slug));
+    // Inclui as tabelas que ficam dentro de outra (ex.: Ordem de servico dentro de Cliente):
+    // para quem usa, elas sao tabelas do dia a dia e os numeros precisam bater com a administracao.
+    return entities;
   }
 
   /**
@@ -101,7 +114,7 @@ export class StatsService {
     entity: { id: string; slug: string; settings: unknown },
     user: CurrentUser,
     effectiveTenantId: string,
-    _roleType: RoleType | string,
+    _roleType?: string,
   ): Promise<{ active: number; archived: number }> {
     const result = await this.buildEntityWhere(user, entity.slug, effectiveTenantId);
     if (!result) return { active: 0, archived: 0 };
@@ -119,8 +132,8 @@ export class StatsService {
 
 
   async getDashboardStats(user: CurrentUser, queryTenantId?: string) {
-    const { effectiveTenantId, roleType, effectiveRole } = this.resolveContext(user, queryTenantId);
-    const where = this.getWhere(effectiveTenantId, effectiveRole);
+    const { effectiveTenantId, roleType } = this.resolveContext(user, queryTenantId);
+    const where = this.getWhere(effectiveTenantId);
 
     // Buscar entidades acessiveis
     const entities = await this.getAccessibleEntities(user, effectiveTenantId, roleType);
@@ -134,18 +147,12 @@ export class StatsService {
       totalRecords = counts.reduce((sum, c) => sum + c.active + c.archived, 0);
     }
 
-    const [totalUsers, totalTenants] = await Promise.all([
-      this.prisma.user.count({ where }),
-      roleType === 'PLATFORM_ADMIN'
-        ? this.prisma.tenant.count()
-        : Promise.resolve(0),
-    ]);
+    const totalUsers = await this.prisma.user.count({ where: this.getUserWhere(effectiveTenantId) });
 
     return {
       totalEntities: entities.length,
       totalRecords,
       totalUsers,
-      ...(roleType === 'PLATFORM_ADMIN' ? { totalTenants } : {}),
     };
   }
 
@@ -167,25 +174,19 @@ export class StatsService {
       entityId: { in: entityIds },
       tenantId: effectiveTenantId,
       createdAt: { gte: startDate },
+      deletedAt: null, // serie temporal nao conta soft-deletados
     };
 
-    // Aplicar scope para USER/CUSTOM
-    if (roleType === 'USER') {
-      where.createdById = user.id;
-    } else if (roleType === 'CUSTOM') {
-      // Para CUSTOM, verificar se alguma entidade tem scope 'own'
-      // Simplificacao: se todas as entidades tem scope 'own', filtrar
-      const hasOwnScope = await this.hasAnyOwnScope(user, entities);
-      if (hasOwnScope) {
-        where.createdById = user.id;
-      }
-    }
+    // Escopo own permission-driven (sem roleType): aplica só se alguma entidade
+    // acessível tiver scope 'own'. allAccess/canRead-all => 'all' => sem restricao.
+    const creators = creatorFilter(await this.restrictedCreators(user, entities));
+    if (creators) where.createdById = creators;
 
     const archivedWhere = {
       entityId: where.entityId as unknown,
       tenantId: where.tenantId as string,
       createdAt: where.createdAt as unknown,
-      ...(where.createdById ? { createdById: where.createdById as string } : {}),
+      ...(where.createdById ? { createdById: where.createdById as string | { in: string[] } } : {}),
     } as Prisma.ArchivedEntityDataWhereInput;
 
     const [records, archivedRecords] = await Promise.all([
@@ -229,21 +230,24 @@ export class StatsService {
     return result;
   }
 
-  /** Verifica se o usuario tem scope 'own' em alguma entidade */
-  private async hasAnyOwnScope(
+  /**
+   * Restricao por criador para estatisticas: 'own' em alguma tabela => so os
+   * proprios; senao 'team' em alguma => os da equipe; senao null (sem restricao).
+   */
+  private async restrictedCreators(
     user: CurrentUser,
     entities: { slug: string }[],
-  ): Promise<boolean> {
+  ): Promise<string[] | null> {
     const permissions = (user.customRole?.permissions || []) as Array<{
       entitySlug: string;
-      scope?: 'all' | 'own';
+      scope?: 'all' | 'own' | 'team' | 'client';
     }>;
-
-    for (const entity of entities) {
-      const perm = permissions.find((p) => p.entitySlug === entity.slug);
-      if (perm?.scope === 'own') return true;
-    }
-    return false;
+    const wildcard = permissions.find((p) => p.entitySlug === '*');
+    const scopes = entities.map((e) => (permissions.find((p) => p.entitySlug === e.slug) ?? wildcard)?.scope);
+    // 'client' (portal do cliente): aqui so se conhece criador, vale o mais restrito
+    if (scopes.includes('own') || scopes.includes('client')) return [user.id];
+    if (scopes.includes('team')) return teammateIds(this.prisma, user.id, user.tenantId);
+    return null;
   }
 
   async getEntitiesDistribution(user: CurrentUser, queryTenantId?: string) {
@@ -270,8 +274,8 @@ export class StatsService {
   }
 
   async getUsersActivity(user: CurrentUser, queryTenantId?: string, days: number = 7) {
-    const { effectiveTenantId, effectiveRole } = this.resolveContext(user, queryTenantId);
-    const where = this.getWhere(effectiveTenantId, effectiveRole);
+    const { effectiveTenantId } = this.resolveContext(user, queryTenantId);
+    const where = this.getUserWhere(effectiveTenantId);
 
     const users = await this.prisma.user.findMany({
       where,
@@ -351,6 +355,7 @@ export class StatsService {
     queryTenantId?: string,
     days: number = 30,
     dashFilters?: DashboardFilterOptions,
+    dateField?: string,
   ) {
     const result = await this.buildEntityWhere(user, entitySlug, queryTenantId, dashFilters);
     if (!result) return [];
@@ -358,6 +363,34 @@ export class StatsService {
     const { where } = result;
     const startDate = new Date();
     startDate.setDate(startDate.getDate() - days);
+
+    // Campo de data do registro (ex.: data da vistoria) em vez da data de criacao.
+    const fields = ((result.entity?.fields ?? []) as unknown as Array<{ slug: string; type: string }>);
+    const dateSlug = dateField && fields.some((f) => f.slug === dateField && ['date', 'datetime'].includes(f.type))
+      ? dateField
+      : null;
+    if (dateSlug) {
+      const day = (v: unknown): string | null => {
+        if (typeof v !== 'string' || !v) return null;
+        const d = new Date(v);
+        return isNaN(d.getTime()) ? null : d.toISOString().split('T')[0];
+      };
+      const byField = { ...where, data: { path: [dateSlug], gte: startDate.toISOString().split('T')[0] } } as Prisma.EntityDataWhereInput;
+      const [active, archived] = await Promise.all([
+        this.prisma.entityData.findMany({ where: byField, select: { data: true } }),
+        this.prisma.archivedEntityData.findMany({
+          where: this.queryService.buildArchivedWhere(byField),
+          select: { data: true },
+        }),
+      ]);
+      const grouped: Record<string, number> = {};
+      for (const r of [...active, ...archived]) {
+        const key = day((r.data as Record<string, unknown> | null)?.[dateSlug]);
+        if (key) grouped[key] = (grouped[key] || 0) + 1;
+      }
+      return this.fillDates(startDate, grouped);
+    }
+
     where.createdAt = { gte: startDate };
     const archivedWhere = this.queryService.buildArchivedWhere(where);
 
@@ -456,11 +489,30 @@ export class StatsService {
       if (!labelMap.has(valueKey)) labelMap.set(valueKey, displayLabel);
     }
 
+    // Rotulo e cor das opcoes do campo (select/radio/booleano): o grafico mostra
+    // "Média" em vez de "media" e usa a cor configurada na opcao.
+    const fieldDef = ((result.entity?.fields ?? []) as unknown as Array<{
+      slug: string; type: string; options?: Array<string | { value: string; label?: string; color?: string }>;
+    }>).find((f) => f.slug === fieldSlug);
+    const optionMeta = new Map<string, { label: string; color?: string }>();
+    for (const o of fieldDef?.options ?? []) {
+      if (typeof o === 'string') optionMeta.set(o, { label: o });
+      else optionMeta.set(String(o.value), { label: o.label || String(o.value), color: o.color });
+    }
+    if (fieldDef?.type === 'boolean') {
+      optionMeta.set('true', { label: 'Sim', color: '#2563eb' });
+      optionMeta.set('false', { label: 'Não', color: '#94a3b8' });
+    }
+
     // Ordenar por contagem desc e limitar
     return Array.from(distribution.entries())
       .sort((a, b) => b[1] - a[1])
       .slice(0, limit)
-      .map(([value, count]) => ({ value, label: labelMap.get(value) || value, count }));
+      .map(([value, count]) => {
+        const meta = optionMeta.get(value);
+        const label = meta?.label ?? labelMap.get(value) ?? value;
+        return meta?.color ? { value, label, count, color: meta.color } : { value, label, count };
+      });
   }
 
   async getCrossFieldDistribution(
@@ -1011,9 +1063,12 @@ export class StatsService {
       allRecords.sort((a, b) => {
         const dataA = (a.data as Record<string, unknown>)?.[sortBy];
         const dataB = (b.data as Record<string, unknown>)?.[sortBy];
-        const numA = typeof dataA === 'number' ? dataA : parseFloat(String(dataA)) || 0;
-        const numB = typeof dataB === 'number' ? dataB : parseFloat(String(dataB)) || 0;
-        return sortOrder === 'desc' ? numB - numA : numA - numB;
+        // Vazios sempre no fim, em qualquer direcao
+        const emptyA = dataA === null || dataA === undefined || dataA === '';
+        const emptyB = dataB === null || dataB === undefined || dataB === '';
+        if (emptyA || emptyB) return Number(emptyA) - Number(emptyB);
+        const cmp = compareSortValues(dataA, dataB);
+        return sortOrder === 'desc' ? -cmp : cmp;
       });
     } else {
       allRecords.sort((a, b) => {
@@ -1401,9 +1456,153 @@ export class StatsService {
     return rows.slice(0, limit);
   }
 
+  /**
+   * Inicio da pessoa: tabelas que ela ve (com contagem no escopo dela) e os
+   * registros que ela criou ou alterou por ultimo, com titulo e etiqueta de
+   * situacao. Tudo pelo pipeline central (escopo, filtros) e sem campos ocultos.
+   */
+  async getMyHome(user: CurrentUser) {
+    const tenantId = getEffectiveTenantId(user);
+    const accessible = await this.customRoleService.getUserAccessibleEntities(user.id, tenantId);
+    if (accessible !== '*' && accessible.length === 0) return { tables: [], recent: [], pending: [] };
+    const entities = await this.prisma.entity.findMany({
+      where: { tenantId, deletedAt: null, ...(accessible !== '*' ? { slug: { in: accessible } } : {}) },
+      select: { id: true, slug: true, name: true, namePlural: true, color: true, icon: true, fields: true, settings: true },
+      orderBy: { createdAt: 'asc' },
+      take: 40,
+    });
+
+    type FieldDef = { slug: string; type: string; subEntitySlug?: string; options?: Array<string | { value: string; label: string; color?: string }> };
+    const subSlugs = new Set<string>();
+    for (const e of entities) {
+      for (const f of ((e.fields as unknown as FieldDef[]) || [])) if (f.type === 'sub-entity' && f.subEntitySlug) subSlugs.add(f.subEntitySlug);
+    }
+
+    const perEntity = await Promise.all(entities.map(async (entity) => {
+      const fields = (entity.fields as unknown as FieldDef[]) || [];
+      const hidden = hiddenFieldSlugs(await this.customRoleService.getFieldPermissions(user.id, entity.slug, tenantId));
+      const { where } = await this.queryService.buildWhere({ entitySlug: entity.slug, user, tenantId, includeChildren: true });
+      const [count, mine] = await Promise.all([
+        this.prisma.entityData.count({ where }),
+        this.prisma.entityData.findMany({
+          where: { AND: [where, { OR: [{ createdById: user.id }, { updatedById: user.id }] }] },
+          select: { id: true, data: true, updatedAt: true },
+          orderBy: { updatedAt: 'desc' },
+          take: 6,
+        }),
+      ]);
+      // Titulo: campo-titulo da tabela, senao o primeiro campo de texto visivel
+      const titleField = (entity.settings as Record<string, unknown> | null)?.titleField as string | undefined;
+      const titleSlug = titleField && !hidden.has(titleField)
+        ? titleField
+        : fields.find((f) => ['text', 'email', 'phone', 'number'].includes(f.type) && !hidden.has(f.slug))?.slug;
+      const settings = (entity.settings as HomeSettings | null) || {};
+      // Situacao: a escolhida nos Ajustes da tabela; senao uma lista com cores,
+      // preferindo a que se chama situacao/status/etapa/resultado
+      const colored = fields.filter((f) => (f.type === 'select' || f.type === 'radio-group') && !hidden.has(f.slug)
+        && (f.options || []).some((o) => typeof o !== 'string' && !!o.color));
+      const configuredStatus = settings.statusField && !hidden.has(settings.statusField)
+        ? fields.find((f) => f.slug === settings.statusField)
+        : undefined;
+      const statusField = configuredStatus
+        ?? colored.find((f) => /status|situa|etapa|resultado|estado/i.test(f.slug)) ?? colored[0];
+      const statusOf = (data: Record<string, unknown>) => {
+        const value = statusField ? data[statusField.slug] : undefined;
+        const opt = statusField?.options?.find((o) => (typeof o === 'string' ? o : o.value) === value);
+        if (!opt) return null;
+        return typeof opt === 'string' ? { label: opt, color: null } : { label: opt.label, color: opt.color ?? null };
+      };
+      const titleOf = (data: Record<string, unknown>) => {
+        const rawTitle = titleSlug ? data[titleSlug] : undefined;
+        return rawTitle === undefined || rawTitle === null || rawTitle === '' ? null : String(rawTitle).slice(0, 120);
+      };
+      const recent = mine.map((r) => {
+        const data = (r.data as Record<string, unknown>) || {};
+        return {
+          id: r.id,
+          entitySlug: entity.slug,
+          entityName: entity.name,
+          color: entity.color,
+          title: titleOf(data),
+          status: statusOf(data),
+          updatedAt: r.updatedAt,
+        };
+      });
+      const pending = await this.homePending(entity, settings, fields, hidden, where, user, titleOf, statusOf);
+      return {
+        table: {
+          slug: entity.slug, name: entity.name, namePlural: entity.namePlural, color: entity.color, icon: entity.icon,
+          count, isSub: subSlugs.has(entity.slug),
+        },
+        recent,
+        pending,
+      };
+    }));
+
+    return {
+      pending: perEntity.flatMap((p) => p.pending)
+        .sort((a, b) => a.deadline.localeCompare(b.deadline))
+        .slice(0, 10),
+      tables: perEntity.map((p) => p.table),
+      recent: perEntity.flatMap((p) => p.recent)
+        .sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime())
+        .slice(0, 8),
+    };
+  }
+
+  /**
+   * Pendencias da tabela (Ajustes > Prazo): registros com prazo que nao estao numa
+   * situacao que encerra; com "Responsavel", so os da pessoa (o campo guarda o nome).
+   * Le no maximo 300 registros por tabela (os de prazo mais proximo vem do filtro em memoria).
+   */
+  private async homePending(
+    entity: { slug: string; name: string; color: string | null },
+    settings: HomeSettings,
+    fields: Array<{ slug: string; type: string }>,
+    hidden: Set<string>,
+    where: Prisma.EntityDataWhereInput,
+    user: CurrentUser,
+    titleOf: (data: Record<string, unknown>) => string | null,
+    statusOf: (data: Record<string, unknown>) => { label: string; color: string | null } | null,
+  ) {
+    const deadlineSlug = settings.deadlineField;
+    if (!deadlineSlug || hidden.has(deadlineSlug) || !fields.some((f) => f.slug === deadlineSlug)) return [];
+    const done = new Set(settings.doneValues || []);
+    const and: Prisma.EntityDataWhereInput[] = [where];
+    if (settings.statusField) {
+      for (const value of Array.from(done)) {
+        // Campo Sim/Nao (ex.: "Resolvida") guarda booleano; as opcoes chegam como 'true'/'false'
+        const stored = value === 'true' ? true : value === 'false' ? false : value;
+        and.push({ NOT: { data: { path: [settings.statusField], equals: stored } } });
+      }
+    }
+    if (settings.assigneeField) and.push({ data: { path: [settings.assigneeField], equals: user.name } });
+    const rows = await this.prisma.entityData.findMany({
+      where: { AND: and },
+      select: { id: true, data: true },
+      orderBy: { updatedAt: 'desc' },
+      take: 300,
+    });
+    return rows.flatMap((r) => {
+      const data = (r.data as Record<string, unknown>) || {};
+      const raw = data[deadlineSlug];
+      if (typeof raw !== 'string' || !raw) return [];
+      if (settings.statusField && done.has(String(data[settings.statusField] ?? ''))) return [];
+      return [{
+        id: r.id,
+        entitySlug: entity.slug,
+        entityName: entity.name,
+        color: entity.color,
+        title: titleOf(data),
+        status: statusOf(data),
+        deadline: raw,
+      }];
+    });
+  }
+
   async getRecentActivity(user: CurrentUser, queryTenantId?: string, limit: number = 10) {
-    const { effectiveTenantId, roleType, effectiveRole } = this.resolveContext(user, queryTenantId);
-    const where = this.getWhere(effectiveTenantId, effectiveRole);
+    const { effectiveTenantId, roleType } = this.resolveContext(user, queryTenantId);
+    const where = this.getWhere(effectiveTenantId);
 
     // Para entidades, filtrar pelas acessiveis
     const entities = await this.getAccessibleEntities(user, effectiveTenantId, roleType);
@@ -1411,23 +1610,18 @@ export class StatsService {
 
     const recordsWhere: Prisma.EntityDataWhereInput = {
       ...where,
+      deletedAt: null, // atividade recente nao lista soft-deletados
       ...(entityIds.length > 0 ? { entityId: { in: entityIds } } : { entityId: '__none__' }),
     };
 
-    // Aplicar scope para USER/CUSTOM
-    if (roleType === 'USER') {
-      recordsWhere.createdById = user.id;
-    } else if (roleType === 'CUSTOM') {
-      const hasOwnScope = await this.hasAnyOwnScope(user, entities);
-      if (hasOwnScope) {
-        recordsWhere.createdById = user.id;
-      }
-    }
+    // Escopo own permission-driven (sem roleType).
+    const recordCreators = creatorFilter(await this.restrictedCreators(user, entities));
+    if (recordCreators) recordsWhere.createdById = recordCreators;
 
     const archivedWhere = {
       ...(recordsWhere.tenantId ? { tenantId: recordsWhere.tenantId as string } : {}),
       ...(recordsWhere.entityId ? { entityId: recordsWhere.entityId as unknown } : {}),
-      ...(recordsWhere.createdById ? { createdById: recordsWhere.createdById as string } : {}),
+      ...(recordsWhere.createdById ? { createdById: recordsWhere.createdById as string | { in: string[] } } : {}),
     } as Prisma.ArchivedEntityDataWhereInput;
 
     const [records, archivedRecords, entitiesList] = await Promise.all([
@@ -1437,7 +1631,8 @@ export class StatsService {
           id: true,
           createdAt: true,
           updatedAt: true,
-          entity: { select: { name: true } },
+          data: true,
+          entity: { select: { name: true, slug: true, settings: true, fields: true } },
         },
         orderBy: { updatedAt: 'desc' },
         take: limit,
@@ -1469,6 +1664,22 @@ export class StatsService {
       }),
     ]);
 
+    // Nome do registro (campo-titulo ou primeiro texto visivel ao cargo) no lugar de "Registro"
+    const hiddenBySlug = new Map<string, Set<string>>();
+    for (const slug of Array.from(new Set(records.map((r) => r.entity.slug)))) {
+      hiddenBySlug.set(slug, hiddenFieldSlugs(await this.customRoleService.getFieldPermissions(user.id, slug, effectiveTenantId)));
+    }
+    const recordTitle = (r: (typeof records)[number]): string => {
+      const hidden = hiddenBySlug.get(r.entity.slug) ?? new Set<string>();
+      const fields = (r.entity.fields as unknown as Array<{ slug: string; type: string }>) || [];
+      const titleField = (r.entity.settings as Record<string, unknown> | null)?.titleField as string | undefined;
+      const slug = titleField && !hidden.has(titleField)
+        ? titleField
+        : fields.find((f) => ['text', 'email', 'phone', 'number'].includes(f.type) && !hidden.has(f.slug))?.slug;
+      const value = slug ? (r.data as Record<string, unknown> | null)?.[slug] : undefined;
+      return value === undefined || value === null || value === '' ? 'Registro' : String(value).slice(0, 80);
+    };
+
     const activities = [
       ...records.map((r) => ({
         id: r.id,
@@ -1477,7 +1688,7 @@ export class StatsService {
           r.createdAt.getTime() === r.updatedAt.getTime()
             ? ('created' as const)
             : ('updated' as const),
-        name: `Registro`,
+        name: recordTitle(r),
         entityName: r.entity.name,
         timestamp: r.updatedAt.toISOString(),
       })),

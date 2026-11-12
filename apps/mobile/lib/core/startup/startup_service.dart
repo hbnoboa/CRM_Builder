@@ -32,12 +32,18 @@ class StartupService extends _$StartupService {
       final isOnline = !results.contains(ConnectivityResult.none);
 
       if (isOnline && _wasOffline) {
-        // Just came back online - sync pending data
-        debugPrint('[StartupService] Back online - syncing pending data');
+        // Just came back online - reconecta a sessao (aberta offline) e sincroniza
+        debugPrint('[StartupService] Back online - resuming session and syncing');
+        ref.read(authProvider.notifier).resumeOnline();
         _syncPendingData();
       }
 
       _wasOffline = !isOnline;
+    });
+
+    // Estado inicial: o app pode ter aberto sem rede (o stream so avisa mudancas).
+    Connectivity().checkConnectivity().then((results) {
+      _wasOffline = results.isEmpty || results.contains(ConnectivityResult.none);
     });
 
     // Cleanup subscription on dispose

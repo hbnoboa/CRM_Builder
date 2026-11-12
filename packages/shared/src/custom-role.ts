@@ -1,4 +1,4 @@
-import { RoleType, PermissionScope } from './enums';
+import { PermissionScope } from './enums';
 import { TenantPermissions } from './tenant';
 
 export interface FieldPermission {
@@ -73,7 +73,6 @@ export interface ModulePermissions {
   apis?: ModulePermission;
   pdfTemplates?: ModulePermission;
   entities?: ModulePermission;
-  tenants?: ModulePermission;
   data?: ModulePermission;
   roles?: ModulePermission;
   dashboardTemplates?: ModulePermission;
@@ -81,6 +80,15 @@ export interface ModulePermissions {
   actionChains?: ModulePermission;
   emailTemplates?: ModulePermission;
   notifications?: ModulePermission;
+  // Chaves agrupadas usadas pela sidebar (agregam sub-modulos):
+  // automations = webhooks + actionChains + entityAutomation
+  // templates   = pdfTemplates + emailTemplates + dashboardTemplates
+  // logs        = auditLogs + executionLogs
+  automations?: ModulePermission;
+  templates?: ModulePermission;
+  logs?: ModulePermission;
+  publicLinks?: ModulePermission;
+  archive?: ModulePermission;
 }
 
 export interface CustomRole {
@@ -88,14 +96,15 @@ export interface CustomRole {
   name: string;
   description?: string;
   color?: string;
-  roleType: RoleType;
   isSystem: boolean;
   permissions: EntityPermission[];
   modulePermissions?: ModulePermissions;
   tenantPermissions?: TenantPermissions;
   isDefault?: boolean;
+  /** Rank de governanca: numero MENOR = mais poder (1 = topo). */
+  rank?: number;
   tenantId: string;
-  _count?: { users: number };
+  _count?: { tenantAccessUsers: number };
   users?: Array<{ id: string; name: string; email: string; avatar?: string }>;
   createdAt?: string;
   updatedAt?: string;

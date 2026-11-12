@@ -1,3 +1,5 @@
+import { RequireFeature } from '../../common/decorators/require-feature.decorator';
+import { ServiceScope } from '../../common/service-scope/service-scope.decorator';
 import {
   Controller,
   Get,
@@ -33,6 +35,8 @@ import {
 } from './dto';
 
 @ApiTags('PDF Templates')
+@ServiceScope('admin')
+@RequireFeature('pdf')
 @Controller('pdf-templates')
 @UseGuards(JwtAuthGuard, ModulePermissionGuard)
 @ApiBearerAuth()
@@ -49,10 +53,9 @@ export class PdfController {
   @ApiOperation({ summary: 'Criar template de PDF' })
   async create(
     @Body() dto: CreatePdfTemplateDto,
-    @Query('tenantId') tenantId: string | undefined,
     @CurrentUser() user: CurrentUserType,
   ) {
-    return this.templateService.create({ ...dto, tenantId: tenantId || dto.tenantId }, user);
+    return this.templateService.create(dto, user);
   }
 
   @Get()
@@ -60,6 +63,52 @@ export class PdfController {
   @ApiOperation({ summary: 'Listar templates do tenant' })
   async findAll(@Query() query: QueryPdfTemplateDto, @CurrentUser() user: CurrentUserType) {
     return this.templateService.findAll(user, query);
+  }
+
+  // ================= HISTORICO DE GERACOES =================
+  // IMPORTANTE: rotas estaticas ('generations') declaradas ANTES de @Get(':id'),
+  // senao o Express casa /generations como :id='generations' (404 no historico).
+
+  @Get('generations')
+  @RequireModulePermission('templates', 'canRead', 'pdfTemplates')
+  @ApiOperation({ summary: 'Listar historico de geracoes' })
+  async getGenerations(
+    @Query() query: QueryPdfGenerationDto,
+    @CurrentUser() user: CurrentUserType,
+  ) {
+    return this.generatorService.getGenerations(user, query);
+  }
+
+  @Get('generations/:id')
+  @RequireModulePermission('templates', 'canRead', 'pdfTemplates')
+  @ApiOperation({ summary: 'Buscar geracao por ID' })
+  async getGeneration(
+    @Param('id') id: string,
+    @Query('tenantId') tenantId: string | undefined,
+    @CurrentUser() user: CurrentUserType,
+  ) {
+    return this.generatorService.getGeneration(id, user, tenantId);
+  }
+
+  @Get('generations/:id/download')
+  @RequireModulePermission('templates', 'canRead', 'pdfTemplates')
+  @ApiOperation({ summary: 'Download do PDF gerado' })
+  @ApiProduces('application/pdf', 'application/zip')
+  async downloadGeneration(
+    @Param('id') id: string,
+    @Query('tenantId') tenantId: string | undefined,
+    @CurrentUser() user: CurrentUserType,
+    @Res() res: Response,
+  ) {
+    const generation = await this.generatorService.getGeneration(id, user, tenantId);
+
+    if (!generation.fileUrl) {
+      res.status(404).json({ message: 'Arquivo nao disponivel' });
+      return;
+    }
+
+    // Redirecionar para URL do arquivo (GCS)
+    res.redirect(generation.fileUrl);
   }
 
   @Get(':id')
@@ -90,10 +139,9 @@ export class PdfController {
   async update(
     @Param('id') id: string,
     @Body() dto: UpdatePdfTemplateDto,
-    @Query('tenantId') tenantId: string | undefined,
     @CurrentUser() user: CurrentUserType,
   ) {
-    return this.templateService.update(id, { ...dto, tenantId: tenantId || dto.tenantId }, user);
+    return this.templateService.update(id, dto, user);
   }
 
   @Delete(':id')
@@ -219,49 +267,5 @@ export class PdfController {
     });
 
     res.send(buffer);
-  }
-
-  // ================= HISTORICO DE GERACOES =================
-
-  @Get('generations')
-  @RequireModulePermission('templates', 'canRead', 'pdfTemplates')
-  @ApiOperation({ summary: 'Listar historico de geracoes' })
-  async getGenerations(
-    @Query() query: QueryPdfGenerationDto,
-    @CurrentUser() user: CurrentUserType,
-  ) {
-    return this.generatorService.getGenerations(user, query);
-  }
-
-  @Get('generations/:id')
-  @RequireModulePermission('templates', 'canRead', 'pdfTemplates')
-  @ApiOperation({ summary: 'Buscar geracao por ID' })
-  async getGeneration(
-    @Param('id') id: string,
-    @Query('tenantId') tenantId: string | undefined,
-    @CurrentUser() user: CurrentUserType,
-  ) {
-    return this.generatorService.getGeneration(id, user, tenantId);
-  }
-
-  @Get('generations/:id/download')
-  @RequireModulePermission('templates', 'canRead', 'pdfTemplates')
-  @ApiOperation({ summary: 'Download do PDF gerado' })
-  @ApiProduces('application/pdf', 'application/zip')
-  async downloadGeneration(
-    @Param('id') id: string,
-    @Query('tenantId') tenantId: string | undefined,
-    @CurrentUser() user: CurrentUserType,
-    @Res() res: Response,
-  ) {
-    const generation = await this.generatorService.getGeneration(id, user, tenantId);
-
-    if (!generation.fileUrl) {
-      res.status(404).json({ message: 'Arquivo nao disponivel' });
-      return;
-    }
-
-    // Redirecionar para URL do arquivo (GCS)
-    res.redirect(generation.fileUrl);
   }
 }

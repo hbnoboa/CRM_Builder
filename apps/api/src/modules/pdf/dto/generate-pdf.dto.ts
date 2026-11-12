@@ -94,6 +94,8 @@ export class SimulationConfigDto {
   fieldVariety?: Record<string, number>;
 
   @ApiPropertyOptional({ description: 'Combinacoes de valores relacionados. Cada item define valores de campos que devem ir juntos. Ex: [{ marca: "Toyota", modelo: "Corolla" }, { marca: "Ford", modelo: "Ranger" }]. Registros sao distribuidos ciclicamente entre as combinacoes.' })
+  // Objetos livres: sem @Type a conversao implicita do ValidationPipe os troca por []
+  @Type(() => Object)
   @IsArray()
   @IsOptional()
   fieldProfiles?: Record<string, string>[];

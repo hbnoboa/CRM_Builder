@@ -8,8 +8,6 @@ part 'theme_provider.g.dart';
 
 /// State containing both light and dark themes.
 class TenantThemeState {
-  final ThemeData light;
-  final ThemeData dark;
 
   const TenantThemeState({required this.light, required this.dark});
 
@@ -17,6 +15,8 @@ class TenantThemeState {
         light: AppTheme.light,
         dark: AppTheme.dark,
       );
+  final ThemeData light;
+  final ThemeData dark;
 }
 
 /// Riverpod provider that manages the dynamic tenant theme.

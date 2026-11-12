@@ -1,5 +1,4 @@
 import 'package:flutter/foundation.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:crm_mobile/core/auth/auth_provider.dart';
 import 'package:crm_mobile/core/auth/secure_storage.dart';
@@ -12,37 +11,6 @@ part 'tenant_provider.g.dart';
 // ═══════════════════════════════════════════════════════
 // TENANT MODELS
 // ═══════════════════════════════════════════════════════
-
-/// Basic tenant info (for PLATFORM_ADMIN listing all tenants)
-class TenantInfo {
-  const TenantInfo({
-    required this.id,
-    required this.name,
-    required this.slug,
-    this.logo,
-    this.status = 'ACTIVE',
-    this.userCount = 0,
-    this.createdAt,
-  });
-
-  factory TenantInfo.fromJson(Map<String, dynamic> json) => TenantInfo(
-        id: json['id'] as String,
-        name: json['name'] as String,
-        slug: json['slug'] as String,
-        logo: json['logo'] as String?,
-        status: json['status'] as String? ?? 'ACTIVE',
-        userCount: (json['_count'] as Map<String, dynamic>?)?['users'] as int? ?? 0,
-        createdAt: json['createdAt'] as String?,
-      );
-
-  final String id;
-  final String name;
-  final String slug;
-  final String? logo;
-  final String status;
-  final int userCount;
-  final String? createdAt;
-}
 
 /// Accessible tenant info (for multi-tenant users)
 /// Includes isHome flag and customRole for that tenant
@@ -86,7 +54,8 @@ class AccessibleTenantRole {
       AccessibleTenantRole(
         id: json['id'] as String,
         name: json['name'] as String,
-        roleType: json['roleType'] as String,
+        // Modelo permission-driven removeu roleType do backend; default seguro.
+        roleType: json['roleType'] as String? ?? 'CUSTOM',
       );
 
   final String id;
@@ -100,21 +69,15 @@ class AccessibleTenantRole {
 
 class TenantSwitchState {
   const TenantSwitchState({
-    this.selectedTenantId,
     this.selectedTenantName,
-    this.tenants = const [],
     this.accessibleTenants = const [],
     this.isLoading = false,
     this.isSwitching = false,
     this.error,
   });
 
-  /// Currently selected tenant ID (for PLATFORM_ADMIN or after switch)
-  final String? selectedTenantId;
+  /// Name of the tenant the user switched to via /auth/switch-tenant
   final String? selectedTenantName;
-
-  /// All tenants (PLATFORM_ADMIN only)
-  final List<TenantInfo> tenants;
 
   /// Tenants accessible to this user (multi-tenant users)
   final List<AccessibleTenant> accessibleTenants;
@@ -124,20 +87,15 @@ class TenantSwitchState {
   final String? error;
 
   TenantSwitchState copyWith({
-    String? selectedTenantId,
     String? selectedTenantName,
-    List<TenantInfo>? tenants,
     List<AccessibleTenant>? accessibleTenants,
     bool? isLoading,
     bool? isSwitching,
     String? error,
-    bool clearSelection = false,
     bool clearError = false,
   }) =>
       TenantSwitchState(
-        selectedTenantId: clearSelection ? null : (selectedTenantId ?? this.selectedTenantId),
-        selectedTenantName: clearSelection ? null : (selectedTenantName ?? this.selectedTenantName),
-        tenants: tenants ?? this.tenants,
+        selectedTenantName: selectedTenantName ?? this.selectedTenantName,
         accessibleTenants: accessibleTenants ?? this.accessibleTenants,
         isLoading: isLoading ?? this.isLoading,
         isSwitching: isSwitching ?? this.isSwitching,
@@ -153,52 +111,7 @@ class TenantSwitchState {
 class TenantSwitch extends _$TenantSwitch {
   @override
   TenantSwitchState build() {
-    _init();
     return const TenantSwitchState();
-  }
-
-  /// Restore previously selected tenant from SecureStorage (PLATFORM_ADMIN only).
-  Future<void> _init() async {
-    final selectedId = await SecureStorage.getSelectedTenantId();
-    if (selectedId != null) {
-      state = state.copyWith(selectedTenantId: selectedId);
-    }
-  }
-
-  /// Load all tenants (PLATFORM_ADMIN only).
-  /// Fetches from API since Tenant table is not synced via PowerSync.
-  Future<void> loadTenants() async {
-    state = state.copyWith(isLoading: true, clearError: true);
-
-    try {
-      final dio = ref.read(apiClientProvider);
-      final response = await dio.get('/tenants', queryParameters: {
-        'limit': 100,
-      });
-
-      final data = response.data as Map<String, dynamic>;
-      final items = (data['data'] as List<dynamic>?) ?? [];
-
-      final tenants = items.map((json) => TenantInfo.fromJson(json as Map<String, dynamic>)).toList();
-
-      // If we have a selectedTenantId but no name, resolve it
-      String? tenantName = state.selectedTenantName;
-      if (state.selectedTenantId != null && tenantName == null) {
-        final match = tenants.where((t) => t.id == state.selectedTenantId).firstOrNull;
-        tenantName = match?.name;
-      }
-
-      state = state.copyWith(
-        tenants: tenants,
-        isLoading: false,
-        selectedTenantName: tenantName,
-      );
-
-      debugPrint('[TenantSwitch] Loaded ${tenants.length} tenants from API');
-    } catch (e) {
-      debugPrint('[TenantSwitch] Failed to load tenants from API: $e');
-      state = state.copyWith(isLoading: false, tenants: []);
-    }
   }
 
   /// Load accessible tenants for multi-tenant users.
@@ -243,36 +156,6 @@ class TenantSwitch extends _$TenantSwitch {
     }
   }
 
-  /// Switch tenant for PLATFORM_ADMIN (session-based, no JWT change).
-  /// Uses SecureStorage and clears PowerSync data.
-  Future<void> switchTenant(String tenantId, String tenantName) async {
-    if (tenantId == state.selectedTenantId) return;
-
-    state = state.copyWith(isSwitching: true);
-
-    try {
-      await SecureStorage.setSelectedTenantId(tenantId);
-
-      // Clear local data and reconnect PowerSync.
-      await AppDatabase.instance.clearData();
-      await AppDatabase.instance.connect();
-
-      state = state.copyWith(
-        selectedTenantId: tenantId,
-        selectedTenantName: tenantName,
-        isSwitching: false,
-      );
-
-      debugPrint('[TenantSwitch] PLATFORM_ADMIN switched to tenant: $tenantName ($tenantId)');
-    } catch (e) {
-      debugPrint('[TenantSwitch] Failed to switch tenant: $e');
-      state = state.copyWith(
-        isSwitching: false,
-        error: 'Falha ao trocar tenant',
-      );
-    }
-  }
-
   /// Switch tenant for multi-tenant users (JWT-based).
   /// Calls /auth/switch-tenant endpoint which returns new tokens.
   Future<void> switchTenantWithJwt(String tenantId) async {
@@ -288,7 +171,7 @@ class TenantSwitch extends _$TenantSwitch {
       final dio = ref.read(apiClientProvider);
       final response = await dio.post('/auth/switch-tenant', data: {
         'tenantId': tenantId,
-      });
+      },);
 
       final data = response.data as Map<String, dynamic>;
       final user = User.fromJson(data['user'] as Map<String, dynamic>);
@@ -332,7 +215,6 @@ class TenantSwitch extends _$TenantSwitch {
       final tenant = state.accessibleTenants.where((t) => t.id == tenantId).firstOrNull;
 
       state = state.copyWith(
-        selectedTenantId: tenantId,
         selectedTenantName: tenant?.name,
         isSwitching: false,
       );
@@ -343,30 +225,6 @@ class TenantSwitch extends _$TenantSwitch {
       state = state.copyWith(
         isSwitching: false,
         error: 'Falha ao trocar tenant',
-      );
-    }
-  }
-
-  /// Clear tenant selection (go back to user's own tenant).
-  Future<void> clearSelection() async {
-    state = state.copyWith(isSwitching: true);
-
-    try {
-      await SecureStorage.setSelectedTenantId(null);
-      await AppDatabase.instance.clearData();
-      await AppDatabase.instance.connect();
-
-      state = state.copyWith(
-        clearSelection: true,
-        isSwitching: false,
-      );
-
-      debugPrint('[TenantSwitch] Cleared tenant selection');
-    } catch (e) {
-      debugPrint('[TenantSwitch] Failed to clear selection: $e');
-      state = state.copyWith(
-        isSwitching: false,
-        error: 'Falha ao restaurar tenant',
       );
     }
   }

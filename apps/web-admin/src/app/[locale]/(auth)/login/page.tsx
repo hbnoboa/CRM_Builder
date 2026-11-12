@@ -1,9 +1,10 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { Link, useRouter } from '@/i18n/navigation';
-import { useForm } from 'react-hook-form';
+import { useForm, type Resolver } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Eye, EyeOff, Loader2 } from 'lucide-react';
@@ -13,7 +14,8 @@ import { Label } from '@/components/ui/label';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
 import { useAuthStore } from '@/stores/auth-store';
 import { getDefaultRouteForUser } from '@/hooks/use-permissions';
-import { LanguageSwitcher } from '@/components/language-switcher';
+import { AuthShell } from '@/components/auth/auth-shell';
+import { onCustomDomain, useCustomDomain } from '@/lib/custom-domain';
 
 type LoginForm = {
   email: string;
@@ -22,11 +24,27 @@ type LoginForm = {
 };
 
 export default function LoginPage() {
+  return (
+    <Suspense>
+      <LoginPageContent />
+    </Suspense>
+  );
+}
+
+function LoginPageContent() {
   const router = useRouter();
   const t = useTranslations('auth.login');
   const tValidation = useTranslations('validation');
   const [showPassword, setShowPassword] = useState(false);
-  const { login, isLoading, error, clearError } = useAuthStore();
+  const { login, loginWithMfa, isLoading, error, clearError } = useAuthStore();
+  const tMfa = useTranslations('auth.mfa');
+  const [mfaToken, setMfaToken] = useState<string | null>(null);
+  const [code, setCode] = useState('');
+  const searchParams = useSearchParams();
+  const suspended = searchParams.get('reason') === 'suspended';
+  // Dominio proprio da empresa: login so dela, com a marca dela
+  const { brand, loading: brandLoading } = useCustomDomain();
+  const buttonStyle = brand?.brandColor ? { backgroundColor: brand.brandColor } : undefined;
 
   const loginSchema = useMemo(() => z.object({
     email: z.string().min(1, tValidation('emailRequired')).email(tValidation('emailInvalid')),
@@ -39,41 +57,96 @@ export default function LoginPage() {
     handleSubmit,
     formState: { errors },
   } = useForm<LoginForm>({
-    resolver: zodResolver(loginSchema),
+    // Cast local: o schema tem rememberMe com default, deixando o input opcional,
+    // o que diverge do tipo LoginForm (rememberMe obrigatorio). Somente tipagem.
+    resolver: zodResolver(loginSchema) as unknown as Resolver<LoginForm>,
     defaultValues: {
       rememberMe: false,
     },
   });
 
+  const goHome = () => {
+    const user = useAuthStore.getState().user;
+    // Tenant na URL: prefixa o slug do tenant "home" do usuário (#15 robusto).
+    const slug = brand?.tenant || (user as { tenant?: { slug?: string } } | null)?.tenant?.slug;
+    const route = getDefaultRouteForUser(user); // '/home'
+    router.push(slug ? `/${slug}${route}` : route);
+  };
+
   const onSubmit = async (data: LoginForm) => {
     try {
-      await login(data);
-      const user = useAuthStore.getState().user;
-      router.push(getDefaultRouteForUser(user));
-    } catch (err) {
+      const result = await login(data);
+      if (result.mfaToken) {
+        setMfaToken(result.mfaToken);
+        return;
+      }
+      goHome();
+    } catch {
       // Error is handled by the store
     }
   };
 
+  const submitCode = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!mfaToken) return;
+    try {
+      await loginWithMfa(mfaToken, code);
+      goHome();
+    } catch {
+      // Error is handled by the store
+    }
+  };
+
+  if (brandLoading && onCustomDomain()) {
+    return <div className="flex min-h-screen items-center justify-center"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>;
+  }
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-4">
-      <Card className="w-full max-w-md">
-        <CardHeader className="space-y-1 text-center">
-          <div className="flex justify-end mb-2">
-            <LanguageSwitcher />
-          </div>
-          <div className="flex justify-center mb-4">
-            <div className="w-12 h-12 rounded-lg bg-primary flex items-center justify-center">
-              <span className="text-2xl font-bold text-primary-foreground">C</span>
-            </div>
-          </div>
-          <CardTitle className="text-2xl font-bold">{t('title')}</CardTitle>
+    <AuthShell>
+      <Card className="w-full border-0 shadow-none">
+        <CardHeader className="space-y-1 px-0">
+          <CardTitle className="text-2xl font-bold">{brand ? 'Entrar' : t('title')}</CardTitle>
           <CardDescription>
-            {t('subtitle')}
+            {brand ? `Use o e-mail e a senha da sua conta em ${brand.name}.` : t('subtitle')}
           </CardDescription>
         </CardHeader>
+        {mfaToken ? (
+          <form onSubmit={submitCode} data-testid="mfa-step">
+            <CardContent className="space-y-4 px-0">
+              {error && <div className="p-3 text-sm text-red-500 bg-red-50 dark:bg-red-950 rounded-md">{error}</div>}
+              <p className="text-sm text-muted-foreground">{tMfa('prompt')}</p>
+              <div className="space-y-2">
+                <Label htmlFor="mfa-code">{tMfa('code')}</Label>
+                <Input
+                  id="mfa-code"
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  autoFocus
+                  value={code}
+                  onChange={(e) => setCode(e.target.value)}
+                  placeholder="123456"
+                  className="text-center font-mono text-lg tracking-widest"
+                />
+                <p className="text-xs text-muted-foreground">{tMfa('recoveryHint')}</p>
+              </div>
+            </CardContent>
+            <CardFooter className="flex flex-col gap-2 px-0">
+              <Button type="submit" className="w-full bg-orange-600 text-white hover:bg-orange-700 hover:opacity-90" style={buttonStyle} disabled={isLoading || code.trim().length < 6}>
+                {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                {tMfa('verify')}
+              </Button>
+              <Button type="button" variant="ghost" className="w-full" onClick={() => { setMfaToken(null); setCode(''); clearError(); }}>
+                {tMfa('back')}
+              </Button>
+            </CardFooter>
+          </form>
+        ) : (
         <form onSubmit={handleSubmit(onSubmit)}>
-          <CardContent className="space-y-4">
+          <CardContent className="space-y-4 px-0">
+            {suspended && !error && (
+              <div className="p-3 text-sm text-amber-900 bg-amber-50 dark:bg-amber-950 dark:text-amber-100 rounded-md" data-testid="tenant-suspended-message">
+                {t('tenantSuspended')}
+              </div>
+            )}
             {error && (
               <div className="p-3 text-sm text-red-500 bg-red-50 dark:bg-red-950 rounded-md">
                 {error}
@@ -137,15 +210,15 @@ export default function LoginPage() {
               </label>
               <Link
                 href="/forgot-password"
-                className="text-sm text-primary hover:underline"
+                className="text-sm text-orange-600 hover:underline"
               >
                 {t('forgotPassword')}
               </Link>
             </div>
           </CardContent>
 
-          <CardFooter className="flex flex-col gap-4">
-            <Button type="submit" className="w-full" disabled={isLoading}>
+          <CardFooter className="flex flex-col gap-4 px-0">
+            <Button type="submit" className="w-full bg-orange-600 text-white hover:bg-orange-700 hover:opacity-90" style={buttonStyle} disabled={isLoading} data-testid="login-submit">
               {isLoading ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -155,10 +228,26 @@ export default function LoginPage() {
                 t('signIn')
               )}
             </Button>
-
+            {brand && (
+              <p className="text-sm text-muted-foreground" data-testid="login-request-access-link">
+                Ainda não tem acesso?{' '}
+                <Link href="/request-access" className="font-medium hover:underline" style={brand.brandColor ? { color: brand.brandColor } : undefined}>
+                  Pedir acesso
+                </Link>
+              </p>
+            )}
+            {!brand && (
+              <p className="text-sm text-muted-foreground" data-testid="login-register-link">
+                {t('noAccount')}{' '}
+                <Link href="/register" className="font-medium text-orange-600 hover:underline">
+                  {t('createAccount')}
+                </Link>
+              </p>
+            )}
           </CardFooter>
         </form>
+        )}
       </Card>
-    </div>
+    </AuthShell>
   );
 }

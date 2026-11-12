@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:crm_mobile/core/permissions/permission_provider.dart';
 import 'package:crm_mobile/core/theme/app_colors_extension.dart';
+import 'package:crm_mobile/core/tenant/tenant_features_provider.dart';
 
 /// Main shell scaffold with bottom navigation.
 /// Shows only Dashboard (if permitted) and Data modules.
@@ -17,6 +18,7 @@ class ShellScaffold extends ConsumerWidget {
     final theme = Theme.of(context);
     final colors = context.colors;
     final permissions = ref.watch(permissionsProvider);
+    final features = ref.watch(tenantFeaturesProvider).valueOrNull ?? const <String, bool>{};
     final currentPath = GoRouterState.of(context).matchedLocation;
 
     // Build navigation items based on permissions
@@ -37,6 +39,15 @@ class ShellScaffold extends ConsumerWidget {
         activeIcon: Icons.folder_rounded,
         label: 'Dados',
         path: '/data',
+      ),);
+    }
+
+    if (permissions.hasModuleAccess('chat') && isFeatureEnabled(features, 'chat')) {
+      navItems.add(const _NavItem(
+        icon: Icons.chat_bubble_outline,
+        activeIcon: Icons.chat_bubble_rounded,
+        label: 'Chat',
+        path: '/chat',
       ),);
     }
 

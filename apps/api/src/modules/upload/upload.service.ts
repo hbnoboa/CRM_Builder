@@ -4,6 +4,7 @@ import { Storage } from '@google-cloud/storage';
 import { v4 as uuidv4 } from 'uuid';
 import * as path from 'path';
 import * as fs from 'fs';
+import { TenantPlanService } from '../../common/services/tenant-plan.service';
 
 export interface UploadedFile {
   url: string;
@@ -23,7 +24,10 @@ export class UploadService {
   private bucket: string;
   private baseUrl: string;
 
-  constructor(private readonly configService: ConfigService) {
+  constructor(
+    private readonly configService: ConfigService,
+    private readonly tenantPlan: TenantPlanService,
+  ) {
     // Configuração do Google Cloud Storage
     const projectId = this.configService.get<string>('GCS_PROJECT_ID');
     const keyFilename = this.configService.get<string>('GCS_KEY_FILE');
@@ -61,6 +65,8 @@ export class UploadService {
     file: Express.Multer.File,
     tenantId: string,
     folder: string = 'uploads',
+    // uploadMultipleFiles ja checou o lote inteiro.
+    skipStorageCheck = false,
   ): Promise<UploadedFile> {
     if (!file) {
       throw new BadRequestException('Nenhum arquivo enviado');
@@ -100,6 +106,8 @@ export class UploadService {
       );
     }
 
+    if (!skipStorageCheck) await this.tenantPlan.assertCanAddStorage(tenantId, file.size);
+
     const ext = path.extname(file.originalname);
     const fileName = `${uuidv4()}${ext}`;
     const filePath = `${tenantId}/${folder}/${fileName}`;
@@ -113,9 +121,10 @@ export class UploadService {
       
       const localPath = path.join(uploadsDir, fileName);
       fs.writeFileSync(localPath, file.buffer);
-      
+      await this.tenantPlan.addStorage(tenantId, file.size);
+
       const publicUrl = `/uploads/${filePath}`;
-      
+
       this.logger.log(`✅ Arquivo salvo localmente: ${publicUrl}`);
       
       return {
@@ -152,6 +161,7 @@ export class UploadService {
         this.logger.warn(`Não foi possível tornar público individualmente (Uniform Bucket-Level Access ativado). Configure o bucket como público via IAM.`);
       }
 
+      await this.tenantPlan.addStorage(tenantId, file.size);
       const publicUrl = `${this.baseUrl}/${filePath}`;
 
       this.logger.log(`✅ Arquivo enviado: ${publicUrl}`);
@@ -177,8 +187,10 @@ export class UploadService {
     tenantId: string,
     folder: string = 'uploads',
   ): Promise<UploadedFile[]> {
+    const total = files.reduce((sum, f) => sum + (f?.size ?? 0), 0);
+    await this.tenantPlan.assertCanAddStorage(tenantId, total);
     return Promise.all(
-      files.map((file) => this.uploadFile(file, tenantId, folder)),
+      files.map((file) => this.uploadFile(file, tenantId, folder, true)),
     );
   }
 
@@ -189,7 +201,11 @@ export class UploadService {
     }
 
     try {
-      await this.storage.bucket(this.bucket).file(filePath).delete();
+      const blob = this.storage.bucket(this.bucket).file(filePath);
+      const [metadata] = await blob.getMetadata().catch(() => [{ size: 0 }] as const);
+      await blob.delete();
+      const tenantId = filePath.split('/')[0];
+      if (tenantId) await this.tenantPlan.addStorage(tenantId, -Number(metadata.size ?? 0));
       this.logger.log(`✅ Arquivo deletado: ${filePath}`);
     } catch (error) {
       this.logger.error('Erro ao deletar arquivo:', error);
@@ -241,6 +257,8 @@ export class UploadService {
 
       const localPath = path.join(uploadsDir, fileName);
       fs.writeFileSync(localPath, buffer);
+      // Arquivos gerados pelo sistema (PDFs, backups) contam no uso, mas nao sao bloqueados.
+      await this.tenantPlan.addStorage(tenantId, buffer.length);
 
       const publicUrl = `/uploads/${filePath}`;
 
@@ -278,6 +296,7 @@ export class UploadService {
         this.logger.warn('Não foi possível tornar público individualmente (Uniform Bucket-Level Access ativado).');
       }
 
+      await this.tenantPlan.addStorage(tenantId, buffer.length);
       const publicUrl = `${this.baseUrl}/${filePath}`;
 
       this.logger.log(`✅ Buffer enviado para GCS: ${publicUrl}`);
@@ -296,6 +315,67 @@ export class UploadService {
       this.logger.error('Erro ao fazer upload de buffer:', error);
       throw new BadRequestException('Erro ao fazer upload do arquivo');
     }
+  }
+
+  /**
+   * Soma o tamanho real de todos os arquivos do tenant (prefixo "{tenantId}/") e
+   * grava no contador. Corrige o uso de arquivos anteriores ao contador.
+   */
+  async recomputeTenantStorage(tenantId: string): Promise<number> {
+    let total = 0;
+    if (!this.storage) {
+      const root = path.join(process.cwd(), 'uploads', tenantId);
+      const walk = (dir: string) => {
+        if (!fs.existsSync(dir)) return;
+        for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+          const full = path.join(dir, entry.name);
+          if (entry.isDirectory()) walk(full);
+          else total += fs.statSync(full).size;
+        }
+      };
+      walk(root);
+    } else {
+      const [files] = await this.storage.bucket(this.bucket).getFiles({ prefix: `${tenantId}/` });
+      for (const f of files) total += Number(f.metadata.size ?? 0);
+    }
+    await this.tenantPlan.setStorageBytes(tenantId, total);
+    return total;
+  }
+
+  /** Onde os arquivos ficam (para a tela de saude do console). */
+  get storageMode(): { mode: 'gcs' | 'local'; bucket: string | null } {
+    return this.storage ? { mode: 'gcs', bucket: this.bucket } : { mode: 'local', bucket: null };
+  }
+
+  /** Arquivos da empresa (prefixo "{tenantId}/"): caminho e tamanho, para a exportacao. */
+  async listTenantFiles(tenantId: string): Promise<Array<{ path: string; bytes: number }>> {
+    const out: Array<{ path: string; bytes: number }> = [];
+    if (!this.storage) {
+      const base = path.join(process.cwd(), 'uploads');
+      const walk = (dir: string) => {
+        if (!fs.existsSync(dir)) return;
+        for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+          const full = path.join(dir, entry.name);
+          if (entry.isDirectory()) walk(full);
+          else out.push({ path: path.relative(base, full).split(path.sep).join('/'), bytes: fs.statSync(full).size });
+        }
+      };
+      walk(path.join(base, tenantId));
+    } else {
+      const [files] = await this.storage.bucket(this.bucket).getFiles({ prefix: `${tenantId}/` });
+      for (const f of files) out.push({ path: f.name, bytes: Number(f.metadata.size ?? 0) });
+    }
+    return out;
+  }
+
+  /** Apaga TODOS os arquivos da empresa (exclusao definitiva da conta). */
+  async deleteTenantFiles(tenantId: string): Promise<void> {
+    if (!/^[a-z0-9]+$/i.test(tenantId)) throw new Error('tenantId invalido');
+    if (!this.storage) {
+      fs.rmSync(path.join(process.cwd(), 'uploads', tenantId), { recursive: true, force: true });
+      return;
+    }
+    await this.storage.bucket(this.bucket).deleteFiles({ prefix: `${tenantId}/`, force: true });
   }
 
   // Upload de imagem com redimensionamento (requer sharp)

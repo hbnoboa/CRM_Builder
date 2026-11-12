@@ -70,7 +70,7 @@ export function BarChartWidget({ entitySlug, config, title, isEditMode }: BarCha
             contentStyle={TOOLTIP_STYLE}
             labelStyle={TOOLTIP_LABEL_STYLE}
             itemStyle={TOOLTIP_ITEM_STYLE}
-            formatter={(v: number) => [(v ?? 0).toLocaleString('pt-BR'), title || '']}
+            formatter={((v: number) => [(v ?? 0).toLocaleString('pt-BR'), title || '']) as never}
           />
           <Bar
             dataKey="count"
@@ -79,7 +79,7 @@ export function BarChartWidget({ entitySlug, config, title, isEditMode }: BarCha
               const entry = (data || [])[idx];
               if (entry) handleClick(entry);
             }}
-            label={config.showRatio && total > 0 ? {
+            label={config.showRatio && total > 0 ? ({
               position: 'right' as const,
               fontSize: 9,
               fill: 'hsl(var(--muted-foreground))',
@@ -87,12 +87,12 @@ export function BarChartWidget({ entitySlug, config, title, isEditMode }: BarCha
                 const pct = ((v / total) * 100).toFixed(0);
                 return `${v}/${total} (${pct}%)`;
               },
-            } : false}
+            } as never) : false}
           >
             {(data || []).map((entry, idx) => (
               <Cell
                 key={entry.value}
-                fill={colors[idx % colors.length]}
+                fill={entry.color ?? colors[idx % colors.length]}
                 opacity={activeFilter && !activeFilter.values.includes(entry.value) ? 0.3 : 1}
               />
             ))}

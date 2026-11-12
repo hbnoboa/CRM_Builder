@@ -67,11 +67,27 @@ model Tenant {
 
   status Status @default(ACTIVE)
 
+  // SaaS (console da plataforma): ciclo de vida comercial + plano + funcoes.
+  // `status` continua sendo o que bloqueia login/acesso; `lifecycle` e o estado
+  // comercial e o PlatformTenantsService mantem os dois coerentes.
+  lifecycle        TenantLifecycle @default(ACTIVE)
+  trialEndsAt      DateTime?
+  planId           String?
+  plan             Plan?           @relation(fields: [planId], references: [id])
+  // Sobrescreve as funcoes do plano para este tenant: { "chat": false, "pdf": true }
+  featureOverrides Json            @default("{}")
+  // Armazenamento usado (KB) — somado/subtraido no upload/exclusao; o console
+  // recalcula a partir dos arquivos reais (inclui os anteriores ao contador).
+  storageUsedKb    Int             @default(0)
+  // Dono da empresa: contato de plano/suporte. Nao pode ser removido nem rebaixado
+  // pelos outros admins do tenant; troca so pelo proprio dono ou pelo console.
+  ownerId          String?
+  owner            User?           @relation("TenantOwner", fields: [ownerId], references: [id], onDelete: SetNull)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   // Relacionamentos
-  users            User[]
+  // users diretos REMOVIDOS (#10): o vinculo agora e via UserTenantAccess (membership).
   entities         Entity[]
   entityData       EntityData[]
   archivedData     ArchivedEntityData[]
@@ -94,31 +110,148 @@ model Tenant {
   dashboardTemplates   DashboardTemplate[]
   publicLinks          PublicLink[]
 
+  invitations      Invitation[]
+  apiKeys          ApiKey[]
+  lifecycleEvents  TenantLifecycleEvent[]
+  teams            Team[]
+  supportTickets   SupportTicket[]
   @@index([slug])
   @@index([status])
+  @@index([lifecycle])
+  @@index([planId])
+  @@index([ownerId])
+  deletedAt DateTime?
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// PLATAFORMA (console /admin da equipe — fora dos tenants)
+// ═══════════════════════════════════════════════════════════════════════════
+
+enum TenantLifecycle {
+  TRIAL
+  ACTIVE
+  PAST_DUE
+  SUSPENDED
+  CANCELED
+}
+
+enum PlatformStaffRole {
+  OWNER
+  SUPPORT
+  FINANCE
+  READONLY
+}
+
+model Plan {
+  id          String  @id @default(cuid())
+  name        String
+  slug        String  @unique
+  description String?
+  // { "maxUsers": 10, "maxRecords": 50000, "maxStorageMb": 2048 } — ausente/null = ilimitado
+  limits      Json    @default("{}")
+  // { "chat": true, "pdf": true, "automations": true, ... } — ver plan-features.ts
+  features    Json    @default("{}")
+  // Plano usado no cadastro self-service (exatamente um deveria ter true)
+  isDefault   Boolean @default(false)
+  isActive    Boolean @default(true)
+  sortOrder   Int     @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenants Tenant[]
+
+  @@index([isDefault])
+}
+
+// Equipe da plataforma (voce + funcionarios). NAO e User de tenant: login,
+// token e permissoes proprios — nenhum cargo de tenant consegue virar staff.
+model PlatformStaff {
+  id          String            @id @default(cuid())
+  email       String            @unique
+  password    String
+  name        String
+  role        PlatformStaffRole @default(READONLY)
+  status      Status            @default(ACTIVE)
+  lastLoginAt DateTime?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  auditLogs PlatformAuditLog[]
+}
+
+// Toda acao da equipe no console (separado do AuditLog dos tenants).
+/// Historico comercial da empresa (cadastro, conversao, suspensao, cancelamento):
+/// base das metricas do console. `from` nulo = criacao.
+model TenantLifecycleEvent {
+  id        String           @id @default(cuid())
+  tenantId  String
+  tenant    Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  from      TenantLifecycle?
+  to        TenantLifecycle
+  /// signup | console | trial_expired
+  source    String
+  staffId   String?
+  createdAt DateTime         @default(now())
+
+  @@index([createdAt])
+  @@index([tenantId])
+}
+
+model PlatformAuditLog {
+  id         String   @id @default(cuid())
+  staffId    String
+  staffName  String
+  action     String
+  targetType String
+  targetId   String?
+  tenantId   String?
+  metadata   Json?
+  ip         String?
+  createdAt  DateTime @default(now())
+
+  staff PlatformStaff @relation(fields: [staffId], references: [id])
+
+  @@index([createdAt(sort: Desc)])
+  @@index([staffId])
+  @@index([tenantId])
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
 // USERS
 // ═══════════════════════════════════════════════════════════════════════════
 
+// IDENTIDADE GLOBAL (#10): o User e identidade pura. O vinculo usuario<->tenant<->cargo
+// vive 100% em UserTenantAccess (Membership). Sem tenantId/customRoleId aqui.
+// email/cpf/phone sao unicos GLOBALmente (uma pessoa = uma identidade, N tenants).
 model User {
   id       String @id @default(cuid())
-  tenantId String
 
-  email    String
+  email    String  @unique
   password String
   name     String
   avatar   String?
 
   // Identificacao adicional (para usuarios publicos via weblinks)
-  cpf   String? // Digitos: 00000000000
+  cpf   String? @unique // Digitos: 00000000000
   cnpj  String? // Digitos: 00000000000000
-  phone String? // Digitos: 00000000000
+  phone String? @unique // Digitos: 00000000000
 
-  // role REMOVIDO - agora usamos apenas customRole.roleType
-  customRoleId String
-  status       Status @default(ACTIVE)
+  status Status @default(ACTIVE)
+  // Usuario tecnico de uma chave de API: nao faz login, nao aparece na equipe nem
+  // ocupa vaga do plano; existe para as permissoes por cargo valerem para a chave.
+  isServiceAccount Boolean @default(false)
+  // Verificacao em duas etapas (TOTP). Segredos cifrados (common/utils/secret-box);
+  // codigos de recuperacao guardados como sha256 e de uso unico.
+  mfaSecret        String?
+  mfaPendingSecret String?
+  mfaEnabledAt     DateTime?
+  mfaRecoveryCodes String[] @default([])
+  teamMemberships  TeamMember[]
+  notificationPreferences NotificationPreference[]
+  announcementDismissals  AnnouncementDismissal[]
 
   lastLoginAt       DateTime?
   resetToken        String?
@@ -127,8 +260,6 @@ model User {
   updatedAt         DateTime  @updatedAt
 
   // Relacionamentos
-  tenant        Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  customRole    CustomRole     @relation(fields: [customRoleId], references: [id])
   refreshTokens RefreshToken[]
   notifications Notification[]
   deviceTokens  DeviceToken[]
@@ -140,33 +271,36 @@ model User {
   // PDFs solicitados por este usuario
   pdfGenerations PdfGeneration[]
 
-  // Acessos a outros tenants (multi-tenant por usuario)
+  // Vinculo com tenants (fonte da verdade de tenant + cargo)
   tenantAccess UserTenantAccess[]
+  ownedTenants Tenant[]           @relation("TenantOwner")
 
-  @@unique([tenantId, email])
-  @@unique([tenantId, cpf])
-  @@unique([tenantId, phone])
-  @@index([tenantId])
+  invitationsSent Invitation[]     @relation("InvitationsSent")
+  apiKeysCreated  ApiKey[]         @relation("ApiKeysCreated")
+  apiKeyService   ApiKey?          @relation("ApiKeyServiceUser")
+  sessions        UserSession[]
   @@index([email])
   @@index([cpf])
   @@index([phone])
   @@index([status])
-  @@index([tenantId, status])
-  @@index([customRoleId])
-  @@index([tenantId, createdAt(sort: Desc)])
+  deletedAt DateTime?
 }
 
 model RefreshToken {
   id        String   @id @default(cuid())
   userId    String
+  // sha256 do refresh token (tokens antigos, de antes do hash, guardavam o token puro)
   token     String   @unique
+  sessionId String?
   expiresAt DateTime
   createdAt DateTime @default(now())
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user    User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  session UserSession? @relation(fields: [sessionId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([token])
+  @@index([sessionId])
 }
 
 model DeviceToken {
@@ -217,6 +351,7 @@ model Entity {
   @@index([tenantId])
   @@index([tenantId, name])
   @@index([tenantId, category])
+  deletedAt DateTime?
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -243,7 +378,9 @@ model EntityData {
   updatedById String?
 
   // Soft delete for PowerSync sync (tracks deletions for mobile)
-  deletedAt DateTime?
+  deletedAt   DateTime?
+  // Quem excluiu (lixeira). Sem FK: a lixeira mostra o nome mesmo se a pessoa sair.
+  deletedById String?
 
   // Trigger-maintained: true if record passes entity's globalFilters
   // Used by PowerSync sync rules to filter at sync time
@@ -265,6 +402,16 @@ model EntityData {
   // _visibleToRolesJson: JSONB array of role IDs (PowerSync IN operator needs JSONB, not TEXT[])
   hasRoleFilter      Boolean @default(false) @map("_hasRoleFilter")
   visibleToRolesJson Json    @default("[]") @map("_visibleToRolesJson")
+
+  // Trigger-maintained: roles that can read this record ONLY if they created it
+  // (permission scope='own'). PowerSync own_entity_data bucket pairs this with
+  // createdById = request.user_id(). Disjoint from _visibleToRolesJson (a role
+  // lands in one or the other per record, by its scope for the entity).
+  visibleToRolesOwnJson Json @default("[]") @map("_visibleToRolesOwnJson")
+
+  // Trigger-maintained: chaves "equipeId:cargoId" para cargos com escopo 'team'
+  // (uma por equipe do CRIADOR). PowerSync casa com TeamAccessKey do usuario.
+  visibleTeamKeysJson Json @default("[]") @map("_visibleTeamKeysJson")
 
   entity       Entity       @relation(fields: [entityId], references: [id], onDelete: Cascade)
   tenant       Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
@@ -332,6 +479,9 @@ model AuditLog {
   oldData    Json?
   newData    Json?
   metadata   Json?
+  // Impersonacao: ator REAL que executou a acao assumindo a identidade de userId.
+  impersonatedById   String?
+  impersonatedByName String?
   createdAt  DateTime @default(now())
 
   @@index([tenantId])
@@ -357,8 +507,8 @@ model ArchivedAuditLog {
   oldData    Json?
   newData    Json?
   metadata   Json?
-  createdAt  DateTime
-  archivedAt DateTime @default(now())
+  createdAt  DateTime @db.Timestamp(6)
+  archivedAt DateTime @default(now()) @db.Timestamp(6)
 
   @@index([tenantId])
   @@index([tenantId, createdAt(sort: Desc)])
@@ -400,6 +550,7 @@ model Notification {
   @@index([userId, createdAt(sort: Desc)])
   @@index([tenantId, userId])
   @@index([entitySlug])
+  deletedAt DateTime?
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -413,10 +564,10 @@ model CustomRole {
   description String?
   color       String? @default("#6366f1")
 
-  // Tipo da role: PLATFORM_ADMIN, ADMIN, MANAGER, USER, VIEWER, CUSTOM
-  roleType String @default("CUSTOM")
+  // roleType REMOVIDO (Fase 3): autorizacao e 100% permission-driven
+  // (modulePermissions + permissions[]/'*' + rank). Ver RELATORIO §11.
 
-  // Marca roles pre-configuradas do sistema (nome e roleType protegidos)
+  // Marca roles pre-configuradas do sistema (nome protegido)
   isSystem Boolean @default(false)
 
   // JSON array de permissoes por entidade
@@ -431,21 +582,30 @@ model CustomRole {
   // Formato: { "canAccessAllTenants": true, "allowedTenantIds": [] }
   tenantPermissions Json @default("{}")
 
+  /// Incrementado a cada mudanca de autorizacao. Vai no claim `permsV` do token;
+  /// token defasado -> 401 -> refresh silencioso no cliente. Ver JwtStrategy.
+  permsVersion Int @default(0)
+
   isDefault Boolean  @default(false)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   tenant            Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  users             User[]
+  // users diretos REMOVIDOS (#10): cargo agora vem via UserTenantAccess (membership).
   tenantAccessUsers UserTenantAccess[]
   publicLinks       PublicLink[]
 
-  @@unique([tenantId, name])
+  // Unicidade de nome via INDICE PARCIAL (WHERE deletedAt IS NULL) — permite recriar
+  // um nome apos soft delete. Criado por SQL raw na migration (Prisma nao expressa
+  // unique parcial): CREATE UNIQUE INDEX "CustomRole_tenantId_name_active_key"
+  //   ON "CustomRole"("tenantId","name") WHERE "deletedAt" IS NULL;
+  invitations       Invitation[]
+  apiKeys           ApiKey[]
   @@index([tenantId])
   @@index([isSystem])
-  @@index([roleType])
   @@index([tenantId, isDefault])
-  @@index([tenantId, roleType])
+  deletedAt DateTime?
+  rank      Int      @default(100)
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -458,9 +618,15 @@ model UserTenantAccess {
   tenantId     String
   customRoleId String
   status       Status    @default(ACTIVE)
+  // Membership "home": tenant default no login. Exatamente uma por usuario.
+  isPrimary    Boolean   @default(false)
   grantedAt    DateTime  @default(now())
   expiresAt    DateTime?
   grantedById  String?
+  // Portal do cliente: registro (e tabela) do cliente que esta pessoa representa.
+  // Cargos com escopo 'client' veem so ele e o que esta dentro dele ou ligado a ele.
+  clientEntityId String?
+  clientRecordId String?
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
@@ -472,6 +638,8 @@ model UserTenantAccess {
   @@index([userId])
   @@index([tenantId])
   @@index([customRoleId])
+  @@index([tenantId, clientRecordId])
+  deletedAt DateTime?
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -526,6 +694,7 @@ model PdfTemplate {
   @@index([sourceEntityId])
   @@index([isPublished])
   @@index([tenantId, isPublished])
+  deletedAt DateTime?
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -625,6 +794,7 @@ model Webhook {
   @@index([status])
   @@index([tenantId, status])
   @@index([tenantId, entityId])
+  deletedAt DateTime?
 }
 
 model WebhookExecution {
@@ -701,6 +871,7 @@ model EmailTemplate {
   @@index([tenantId])
   @@index([isActive])
   @@index([tenantId, isActive])
+  deletedAt DateTime?
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -752,6 +923,7 @@ model ActionChain {
   @@index([isActive])
   @@index([tenantId, isActive])
   @@index([tenantId, entityId])
+  deletedAt DateTime?
 }
 
 model ActionChainExecution {
@@ -832,6 +1004,7 @@ model ScheduledTask {
   @@index([isActive])
   @@index([nextRunAt])
   @@index([tenantId, isActive])
+  deletedAt DateTime?
 }
 
 model ScheduledTaskExecution {
@@ -954,6 +1127,7 @@ model EntityAutomation {
   @@index([tenantId, entityId, isActive])
   @@index([trigger, isActive])
   @@index([nextRunAt])
+  deletedAt DateTime?
 }
 
 model AutomationExecution {
@@ -1015,6 +1189,7 @@ model EntityFieldRule {
 
   @@index([entityId, fieldSlug])
   @@index([tenantId, entityId])
+  deletedAt DateTime?
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -1039,6 +1214,9 @@ model DashboardTemplate {
   // Abas do dashboard: [{ id, label, icon?, widgetIds[] }]
   tabs Json @default("[]")
 
+  // Preferencias do dashboard (ex.: { headerCountEntitySlug }) - nao afeta a estrutura visual
+  settings Json @default("{}")
+
   // IDs das CustomRoles atribuidas
   roleIds String[]
 
@@ -1054,6 +1232,7 @@ model DashboardTemplate {
   @@unique([tenantId, name])
   @@index([tenantId])
   @@index([tenantId, entitySlug])
+  deletedAt DateTime?
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -1098,4 +1277,550 @@ model PublicLink {
 
   @@index([tenantId])
   @@index([tenantId, entitySlug])
+  deletedAt DateTime?
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Módulo Chat + Bot (fatia 1: canais + mensagens). Ver docs/chat-bot-module-spec.md
+// FKs para User/Entity/Tenant são escalares (sem back-relation), como Notification.
+// ─────────────────────────────────────────────────────────────────────────────
+model Channel {
+  id          String   @id @default(cuid())
+  tenantId    String
+  type        String   // 'group' | 'dm' | 'record'
+  entityId    String?  // tabela dona (canal de grupo/record); null em DM
+  recordId    String?  // thread de um registro específico (type='record')
+  name        String?
+  dmKey       String?  // DM: chave canônica do par (userIds ordenados) p/ evitar duplicado
+  createdById String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  deletedAt   DateTime? // soft-delete: canal excluído (preserva histórico de mensagens)
+
+  // Visibilidade desnormalizada p/ o PowerSync (mantida por trigger + outbox).
+  // group -> cargos que leem a entidade; record -> herda do registro; dm -> [].
+  visibleToRolesJson    Json    @default("[]") @map("_visibleToRolesJson")
+  visibleToRolesOwnJson Json    @default("[]") @map("_visibleToRolesOwnJson")
+  hasRoleFilter         Boolean @default(false) @map("_hasRoleFilter")
+  // record: dono do REGISTRO (nao do canal), p/ o bucket own de thread.
+  recordCreatedById     String? @map("_recordCreatedById")
+  // record: chaves "equipeId:cargoId" herdadas do registro (escopo 'minha equipe').
+  visibleTeamKeysJson   Json    @default("[]") @map("_visibleTeamKeysJson")
+
+  members  ChannelMember[]
+  messages Message[]
+
+  // Unicidade garantida por índices PARCIAIS (criados via SQL na migração, pois o
+  // Prisma não expressa `WHERE` em @@unique):
+  //   - 1 canal de grupo por tabela:   UNIQUE(tenantId, entityId) WHERE recordId IS NULL AND type='group'
+  //   - 1 thread por registro:         UNIQUE(tenantId, recordId) WHERE recordId IS NOT NULL
+  //   - 1 DM por par de usuários:      UNIQUE(tenantId, dmKey)    WHERE type='dm'
+  @@index([tenantId, entityId])
+  @@index([tenantId, type])
+}
+
+model ChannelMember {
+  id         String    @id @default(cuid())
+  channelId  String
+  userId     String
+  role       String    @default("member") // 'admin' | 'member'
+  lastReadAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  channel Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+
+  @@unique([channelId, userId])
+  @@index([userId])
+}
+
+model Message {
+  id        String   @id @default(cuid())
+  tenantId  String
+  channelId String
+  senderId  String?  // null = bot/sistema
+  type      String   @default("text") // text | form_submission | command | bot | system
+  content   String?
+  meta      Json?    // { templateSlug, values, recordId, requestedById, before, after }
+  createdAt DateTime @default(now())
+  // Copia das chaves de equipe do canal (thread de registro) p/ o bucket do PowerSync.
+  visibleTeamKeysJson Json @default("[]") @map("_visibleTeamKeysJson")
+  // Mensagem privada no canal (resultado de /consulta, relatorio, conversa com o @bot):
+  // so esta pessoa ve. null = todo o canal.
+  recipientId String?
+
+  channel Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+
+  @@index([channelId, createdAt])
+  @@index([recipientId])
+}
+
+// CommandTemplate: comandos do chat (Trilho A: form-command; Trilho B: bot).
+// Configurável por tenant via builder. Ver docs/chat-bot-module-spec.md §4/§8.
+model CommandTemplate {
+  id               String   @id @default(cuid())
+  tenantId         String
+  slug             String   // '/avaria'
+  description      String?
+  icon             String?
+  targetEntitySlug String?  // tabela alvo
+  fields           Json?    // subconjunto de slugs de campo (null = todos)
+  actionType       String   @default("create_record") // create_record | update_field | query | run_action_chain | post_only
+  actionConfig     Json     @default("{}")
+  execMode         String   @default("as_user") // as_user | as_bot
+  elevation        Json?    // { requesterRoles, requireConfirmation }
+  llm              Json?    // { enabled, model, systemPrompt }
+  visibleToRoleIds String[] @default([]) // allowlist de cargos que veem/executam ([] = todos)
+  // Espelho JSONB da allowlist p/ o PowerSync (mantido por trigger). [] = todos.
+  visibleToRolesJson Json   @default("[]") @map("_visibleToRolesJson")
+  isActive         Boolean  @default(true)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@unique([tenantId, slug])
+  @@index([tenantId, isActive])
+}
+
+/// Anexação N:N entre canal e comando: define QUAIS comandos aparecem em CADA chat.
+/// Um mesmo comando pode ser reusado em vários chats; cada chat tem o seu conjunto.
+/// Se um canal não tem nenhuma linha aqui, cai no fallback (grupo=comandos da tabela).
+model ChannelCommand {
+  id                String   @id @default(cuid())
+  tenantId          String
+  channelId         String
+  commandTemplateId String
+  createdAt         DateTime @default(now())
+
+  @@unique([channelId, commandTemplateId])
+  @@index([channelId])
+  @@index([tenantId])
+}
+
+// Identidade do bot por tenant: usuário-bot (p/ updatedById/audit) + cargo-teto.
+model BotIdentity {
+  id           String   @id @default(cuid())
+  tenantId     String   @unique
+  userId       String   // usuário-bot real (audit/updatedById)
+  customRoleId String   // teto do bot (máximo que ele pode fazer)
+  name         String   @default("Assistente")
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+/// Outbox do recompute de visibilidade do PowerSync. A app enfileira aqui (na mesma
+/// transacao do update do cargo) as entidades cujo filtro/scope mudou; o
+/// VisibilityRecomputeJob (@nestjs/schedule) processa em lotes. Ver a migration
+/// 20260820000000_visibility_recompute_outbox. Acessada via SQL cru (nao pelo client).
+model VisibilityRecompute {
+  id         BigInt   @id @default(autoincrement())
+  tenantId   String
+  entitySlug String
+  cursor     String   @default("")
+  createdAt  DateTime @default(now()) @db.Timestamptz(6)
+
+  @@map("visibility_recompute")
+}
+
+// Convite para entrar numa empresa: o admin escolhe e-mail e cargo; a pessoa abre o
+// link, define a propria senha (ou entra com a que ja tem) e vira membro.
+model Invitation {
+  id           String    @id @default(cuid())
+  tenantId     String
+  email        String
+  name         String?
+  customRoleId String
+  // sha256 do token do link (o token puro so existe no e-mail/link copiado)
+  tokenHash    String    @unique
+  invitedById  String?
+  expiresAt    DateTime
+  acceptedAt   DateTime?
+  revokedAt    DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  tenant     Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  customRole CustomRole @relation(fields: [customRoleId], references: [id], onDelete: Cascade)
+  invitedBy  User?      @relation("InvitationsSent", fields: [invitedById], references: [id], onDelete: SetNull)
+
+  @@index([tenantId])
+  @@index([tenantId, email])
+}
+
+// Chave de API da empresa (integracoes externas). Age em nome de quem criou, com o
+// cargo escolhido; so o hash fica no banco (a chave pura aparece uma vez na criacao).
+model ApiKey {
+  id           String    @id @default(cuid())
+  tenantId     String
+  name         String
+  // inicio da chave para reconhecer na lista (ex.: "crm_Ab12Cd34")
+  prefix       String
+  keyHash      String    @unique
+  customRoleId String
+  createdById  String
+  // usuario tecnico da chave (membro da empresa no cargo da chave)
+  serviceUserId String   @unique
+  lastUsedAt   DateTime?
+  expiresAt    DateTime?
+  revokedAt    DateTime?
+  createdAt    DateTime  @default(now())
+
+  tenant     Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  customRole CustomRole @relation(fields: [customRoleId], references: [id], onDelete: Cascade)
+  createdBy  User       @relation("ApiKeysCreated", fields: [createdById], references: [id], onDelete: Cascade)
+  serviceUser User      @relation("ApiKeyServiceUser", fields: [serviceUserId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+}
+
+// Sessao de login (um aparelho/navegador). Sobrevive a rotacao do refresh token;
+// encerrar a sessao derruba o access token na hora (o JwtStrategy confere o "sid").
+model UserSession {
+  id         String    @id @default(cuid())
+  userId     String
+  ip         String?
+  userAgent  String?
+  // ex.: "Suporte da plataforma" quando a sessao e uma impersonacao do console
+  label      String?
+  createdAt  DateTime  @default(now())
+  lastUsedAt DateTime  @default(now())
+  revokedAt  DateTime?
+
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  refreshTokens RefreshToken[]
+
+  @@index([userId])
+}
+
+/// Equipe/departamento da empresa. Cargo com escopo 'team' ve os registros criados
+/// por qualquer pessoa das suas equipes.
+model Team {
+  id          String       @id @default(cuid())
+  tenantId    String
+  tenant      Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  name        String
+  description String?
+  color       String?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  members     TeamMember[]
+
+  @@unique([tenantId, name])
+  @@index([tenantId])
+}
+
+model TeamMember {
+  id        String   @id @default(cuid())
+  teamId    String
+  team      Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  isLeader  Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@unique([teamId, userId])
+  @@index([userId])
+}
+
+/// Mantida por trigger: "equipeId:cargoId" de cada equipe do usuario, com o cargo
+/// dele na empresa. Parametro do bucket team_entity_data do PowerSync (sem JOIN la).
+model TeamAccessKey {
+  id       String @id @default(dbgenerated("(gen_random_uuid())::text"))
+  userId   String
+  tenantId String
+  key      String
+
+  @@unique([userId, key])
+  @@index([userId, tenantId])
+}
+
+/// Preferencias de notificacao da pessoa NA empresa (o cargo continua como teto).
+model NotificationPreference {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tenantId  String
+  prefs     Json     @default("{}")
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, tenantId])
+  @@index([tenantId])
+}
+
+enum SupportTicketStatus {
+  OPEN          // aguardando o suporte
+  WAITING_CUSTOMER // suporte respondeu, aguardando o cliente
+  RESOLVED
+  CLOSED
+}
+
+enum SupportTicketPriority {
+  LOW
+  NORMAL
+  HIGH
+  URGENT
+}
+
+/// Chamado de suporte aberto por alguem da empresa; atendido no console.
+model SupportTicket {
+  id              String                @id @default(cuid())
+  number          Int                   @unique @default(autoincrement())
+  tenantId        String
+  tenant          Tenant                @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  createdById     String?
+  createdByName   String
+  createdByEmail  String
+  subject         String
+  category        String                @default("question")
+  priority        SupportTicketPriority @default(NORMAL)
+  status          SupportTicketStatus   @default(OPEN)
+  assignedStaffId String?
+  lastMessageAt   DateTime              @default(now())
+  lastMessageBy   String                @default("customer") // customer | staff
+  closedAt        DateTime?
+  createdAt       DateTime              @default(now())
+  updatedAt       DateTime              @updatedAt
+  messages        SupportMessage[]
+
+  @@index([tenantId, status])
+  @@index([status, lastMessageAt])
+  @@index([assignedStaffId])
+}
+
+model SupportMessage {
+  id            String        @id @default(cuid())
+  ticketId      String
+  ticket        SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  authorType    String        // customer | staff | system
+  authorUserId  String?
+  authorStaffId String?
+  authorName    String
+  body          String
+  /// Nota interna da equipe do console (o cliente nunca ve).
+  internal      Boolean       @default(false)
+  createdAt     DateTime      @default(now())
+
+  @@index([ticketId, createdAt])
+}
+
+enum AnnouncementSeverity {
+  INFO
+  WARNING
+  CRITICAL
+}
+
+/// Comunicado da plataforma para os clientes (faixa no topo do sistema).
+model Announcement {
+  id             String               @id @default(cuid())
+  title          String
+  body           String
+  severity       AnnouncementSeverity @default(INFO)
+  /// Publico: { "type": "all" | "plans" | "lifecycles" | "tenants", "ids": [] }
+  audience       Json                 @default("{\"type\":\"all\",\"ids\":[]}")
+  /// So quem administra a empresa (acesso total ou settings.update) ve.
+  adminsOnly     Boolean              @default(false)
+  dismissible    Boolean              @default(true)
+  linkUrl        String?
+  linkLabel      String?
+  startsAt       DateTime             @default(now())
+  endsAt         DateTime?
+  publishedAt    DateTime?
+  createdById    String
+  createdByName  String
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
+  dismissals     AnnouncementDismissal[]
+
+  @@index([publishedAt, startsAt])
+}
+
+model AnnouncementDismissal {
+  id             String       @id @default(cuid())
+  announcementId String
+  announcement   Announcement @relation(fields: [announcementId], references: [id], onDelete: Cascade)
+  userId         String
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tenantId       String
+  dismissedAt    DateTime     @default(now())
+
+  @@unique([announcementId, userId])
+  @@index([userId])
+}
+
+/// Copia do registro SEM os campos ocultos, uma por cargo com campo oculto
+/// (so para o PowerSync: o app desses cargos recebe isto no lugar de EntityData).
+/// Mantida por triggers (migration 20261118000000_masked_entity_data); nao gravar pela API.
+model EntityDataMasked {
+  id                  String    @id // recordId:roleId
+  recordId            String
+  roleId              String
+  tenantId            String
+  entityId            String
+  data                Json
+  parentRecordId      String?
+  createdById         String?
+  updatedById         String?
+  createdAt           DateTime?
+  updatedAt           DateTime?
+  visibleAll          Boolean   @default(false) @map("_visibleAll")
+  visibleOwn          Boolean   @default(false) @map("_visibleOwn")
+  visibleTeamKeysJson Json      @default("[]") @map("_visibleTeamKeysJson")
+
+  @@index([recordId])
+  @@index([tenantId, roleId])
+}
+
+// Pedidos de contato comercial da pagina inicial ("Falar com especialista").
+// Sem empresa: e quem ainda nao e cliente. Tratados no console (Contatos comerciais).
+enum SalesLeadStatus {
+  NEW
+  CONTACTED
+  QUALIFIED
+  WON
+  DISCARDED
+}
+
+model SalesLead {
+  id        String          @id @default(cuid())
+  name      String
+  email     String
+  phone     String?
+  company   String
+  teamSize  String?
+  segment   String?
+  interest  String? // slug do modelo de interesse
+  message   String?
+  source    String? // pagina de origem (/, /solucoes/<slug>, /contato)
+  status    SalesLeadStatus @default(NEW)
+  notes     String?
+  ip        String?
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+
+  @@index([status, createdAt])
+  @@index([email])
+}
+
+/// Pagina para clientes da empresa (formulario publico e/ou acompanhamento),
+/// servida em /p/<empresa>/<slug>. Blocos em JSON (site-pages/site-blocks.ts).
+model SitePage {
+  id          String    @id @default(cuid())
+  tenantId    String
+  slug        String
+  title       String
+  description String?
+  blocks      Json      @default("[]")
+  /// Secoes da pagina e a posicao de cada bloco na grade (12 colunas no computador).
+  layout      Json?
+  settings    Json      @default("{}")
+  isPublished Boolean   @default(false)
+  publishedAt DateTime?
+  createdById String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@unique([tenantId, slug])
+  @@index([tenantId])
+}
+
+/// Fonte enviada pela empresa para as paginas para clientes (arquivo guardado
+/// aqui mesmo; a API serve para o site, no mesmo endereco da pagina).
+model SiteFont {
+  id        String   @id @default(cuid())
+  tenantId  String
+  name      String
+  mime      String
+  size      Int
+  data      Bytes
+  createdAt DateTime @default(now())
+
+  @@index([tenantId])
+}
+
+/// Link de acompanhamento de um registro: quem tem o token ve, na pagina de
+/// acompanhamento, so os campos que a pagina libera. Um por registro.
+model RecordTrackingLink {
+  id           String    @id @default(cuid())
+  tenantId     String
+  entityId     String
+  recordId     String    @unique
+  token        String    @unique
+  createdById  String?
+  lastAccessAt DateTime?
+  createdAt    DateTime  @default(now())
+
+  @@index([tenantId])
+}
+
+/// Dominio proprio de uma empresa para o site (ex.: meucafe.com.br). Ligado pelo
+/// cliente (connected: ele aponta o DNS) ou comprado pela plataforma (purchased).
+/// Um dominio pertence a uma empresa so (hostname unico no sistema todo).
+model TenantDomain {
+  id          String    @id @default(cuid())
+  tenantId    String
+  hostname    String    @unique
+  /// connected | purchased
+  kind        String    @default("connected")
+  /// pending_dns | active | error
+  status      String    @default("pending_dns")
+  /// Dominio principal: usado nos links do site (acompanhamento, menu).
+  isPrimary   Boolean   @default(false)
+  verifiedAt  DateTime?
+  lastCheckAt DateTime?
+  lastError   String?
+  orderId     String?
+  createdById String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([tenantId])
+}
+
+/// Pedido de compra de dominio. A cobranca e feita fora do sistema: a equipe da
+/// plataforma marca como pago no console e entao o registro acontece.
+model DomainOrder {
+  id           String    @id @default(cuid())
+  tenantId     String
+  hostname     String
+  years        Int       @default(1)
+  priceCents   Int
+  currency     String    @default("BRL")
+  /// awaiting_payment | registering | registered | failed | cancelled
+  status       String    @default("awaiting_payment")
+  /// Titular do dominio (nome, CPF/CNPJ, e-mail, telefone). Dado pessoal (LGPD).
+  registrant   Json
+  provider     String
+  providerRef  String?
+  expiresAt    DateTime?
+  paidAt       DateTime?
+  paidByStaff  String?
+  lastError    String?
+  notes        String?
+  createdById  String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@index([tenantId])
+  @@index([status])
+}
+
+/// Pedido de acesso feito pelo dominio proprio da empresa ("Pedir acesso" no login).
+/// A conta so e criada quando um administrador aprova e escolhe o cargo.
+model AccessRequest {
+  id           String    @id @default(cuid())
+  tenantId     String
+  name         String
+  email        String
+  /// Senha escolhida no pedido (hash). Usada so se a pessoa ainda nao tem conta.
+  passwordHash String
+  /// pending | approved | rejected
+  status       String    @default("pending")
+  customRoleId String?
+  decidedById  String?
+  decidedAt    DateTime?
+  ip           String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@index([tenantId, status])
+  @@index([email])
 }

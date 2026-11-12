@@ -67,18 +67,18 @@ interface ElementsTabProps {
 }
 
 const ELEMENT_TYPES = [
-  { type: 'text', label: 'Texto', icon: Type, description: 'Texto estatico ou dinamico' },
-  { type: 'field-group', label: 'Grupo de Campos', icon: LayoutGrid, description: 'Exibe varios campos' },
+  { type: 'text', label: 'Texto', icon: Type, description: 'Texto estático ou dinâmico' },
+  { type: 'field-group', label: 'Grupo de Campos', icon: LayoutGrid, description: 'Exibe vários campos' },
   { type: 'table', label: 'Tabela', icon: Table, description: 'Tabela com dados' },
   { type: 'image-grid', label: 'Grade de Imagens', icon: Image, description: 'Grid de imagens' },
-  { type: 'statistics', label: 'Estatisticas', icon: BarChart3, description: 'Dados agrupados' },
+  { type: 'statistics', label: 'Estatísticas', icon: BarChart3, description: 'Dados agrupados' },
   { type: 'divider', label: 'Divisor', icon: Minus, description: 'Linha horizontal' },
   { type: 'spacer', label: 'Espacador', icon: ChevronDown, description: 'Espaco em branco' },
 ] as const;
 
 const SYSTEM_FIELDS = [
-  { slug: 'createdAt', name: 'Data de Criacao', label: 'Data de Criacao', type: 'datetime' },
-  { slug: 'updatedAt', name: 'Data de Atualizacao', label: 'Data de Atualizacao', type: 'datetime' },
+  { slug: 'createdAt', name: 'Data de Criacao', label: 'Data de Criação', type: 'datetime' },
+  { slug: 'updatedAt', name: 'Data de Atualizacao', label: 'Data de Atualização', type: 'datetime' },
   { slug: '_geolocation.lat', name: 'Latitude', label: 'Latitude', type: 'number' },
   { slug: '_geolocation.lng', name: 'Longitude', label: 'Longitude', type: 'number' },
   { slug: '_geolocation.city', name: 'Cidade (GPS)', label: 'Cidade (GPS)', type: 'text' },
@@ -140,7 +140,7 @@ function createDefaultElement(type: string): PdfElement {
       return {
         id,
         type: 'statistics',
-        title: 'Estatisticas',
+        title: 'Estatísticas',
         groupBy: ['campo'],
         metrics: [
           { field: '_count', aggregation: 'count', label: 'Total' },
@@ -199,7 +199,7 @@ export function ElementsTab({
   const handleAddElement = (type: string) => {
     const newElement = createDefaultElement(type);
     onChange([...elements, newElement]);
-    setExpandedElements((prev) => new Set([...prev, newElement.id]));
+    setExpandedElements((prev) => new Set([...Array.from(prev), newElement.id]));
   };
 
   const handleRemoveElement = (id: string) => {
@@ -213,7 +213,8 @@ export function ElementsTab({
 
   const handleUpdateElement = (id: string, updates: Partial<PdfElement>) => {
     onChange(
-      elements.map((el) => (el.id === id ? { ...el, ...updates } : el))
+      // Cast: o spread com Partial<PdfElement> quebra a uniao discriminada
+      elements.map((el) => (el.id === id ? ({ ...el, ...updates } as PdfElement) : el))
     );
   };
 

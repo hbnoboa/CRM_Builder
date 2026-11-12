@@ -16,7 +16,7 @@ import type { SubEntityAggregateConfig, FilteredCountFilter } from '@/services/p
 const AGGREGATIONS = [
   { value: 'count', label: 'Contar registros', needsField: false },
   { value: 'sum', label: 'Somar valores', needsField: true },
-  { value: 'avg', label: 'Calcular media', needsField: true },
+  { value: 'avg', label: 'Calcular média', needsField: true },
   { value: 'min', label: 'Menor valor', needsField: true },
   { value: 'max', label: 'Maior valor', needsField: true },
 ] as const;
@@ -54,7 +54,10 @@ export function SubEntityAggregateBuilder({
     (f) => f.type === 'sub-entity' || f.type === 'relation' || f.type === 'array',
   );
 
-  const selectedSubEntity = config.subEntityField && subEntities?.[config.subEntityField];
+  // Narrowing: quando subEntityField e "" o && retorna string vazia; forcamos undefined
+  const selectedSubEntity = config.subEntityField
+    ? subEntities?.[config.subEntityField]
+    : undefined;
   const subFields = selectedSubEntity?.fields || [];
 
   const aggregationInfo = AGGREGATIONS.find((a) => a.value === config.aggregation);
@@ -146,7 +149,7 @@ export function SubEntityAggregateBuilder({
               onValueChange={(v) => onChange({ ...config, field: v === '_empty' ? undefined : v })}
             >
               <SelectTrigger>
-                <SelectValue placeholder="Campo numerico..." />
+                <SelectValue placeholder="Campo numérico..." />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="_empty">Selecione...</SelectItem>

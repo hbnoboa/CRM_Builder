@@ -11,7 +11,7 @@ class RoleBadge extends StatelessWidget {
     this.size = RoleBadgeSize.medium,
   });
 
-  /// The role type (PLATFORM_ADMIN, ADMIN, MANAGER, USER, VIEWER, CUSTOM)
+  /// The role type (ADMIN, MANAGER, USER, VIEWER, CUSTOM)
   final String roleType;
 
   /// Optional custom role name to display
@@ -83,11 +83,6 @@ class RoleBadge extends StatelessWidget {
     }
 
     switch (roleType.toUpperCase()) {
-      case 'PLATFORM_ADMIN':
-        return _RoleConfig(
-          backgroundColor: Colors.purple.shade100,
-          textColor: Colors.purple.shade700,
-        );
       case 'ADMIN':
         return _RoleConfig(
           backgroundColor: Colors.red.shade100,
@@ -119,8 +114,6 @@ class RoleBadge extends StatelessWidget {
 
   String _getDefaultName(String roleType) {
     switch (roleType.toUpperCase()) {
-      case 'PLATFORM_ADMIN':
-        return 'Platform Admin';
       case 'ADMIN':
         return 'Admin';
       case 'MANAGER':

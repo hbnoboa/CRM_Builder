@@ -1,11 +1,10 @@
 import { Injectable, CanActivate, ExecutionContext, ForbiddenException } from '@nestjs/common';
-import { RoleType } from '../decorators/roles.decorator';
 
 /**
  * Guard que valida isolamento multi-tenant
  *
  * Verifica se o usuario esta tentando acessar recursos do seu proprio tenant.
- * PLATFORM_ADMIN pode acessar qualquer tenant.
+ * Nao ha excecao: acesso cross-tenant so existe no console da plataforma.
  *
  * Uso: @UseGuards(JwtAuthGuard, TenantGuard)
  */
@@ -17,14 +16,6 @@ export class TenantGuard implements CanActivate {
 
     if (!user) {
       throw new ForbiddenException('Usuario nao autenticado');
-    }
-
-    // Obter roleType do customRole
-    const roleType = user.customRole?.roleType as RoleType | undefined;
-
-    // PLATFORM_ADMIN pode acessar qualquer tenant
-    if (roleType === 'PLATFORM_ADMIN') {
-      return true;
     }
 
     // Extrair tenantId da requisicao (params, query ou body)

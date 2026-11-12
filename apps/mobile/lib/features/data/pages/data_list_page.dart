@@ -10,6 +10,8 @@ import 'package:crm_mobile/core/theme/app_colors_extension.dart';
 import 'package:crm_mobile/core/theme/app_typography.dart';
 import 'package:crm_mobile/core/permissions/permission_provider.dart';
 import 'package:crm_mobile/features/data/data/data_repository.dart';
+import 'package:crm_mobile/features/data/providers/filter_provider.dart';
+import 'package:crm_mobile/features/data/widgets/filter_bottom_sheet.dart';
 import 'package:crm_mobile/features/data/widgets/data_card.dart';
 import 'package:crm_mobile/shared/widgets/app_drawer.dart';
 import 'package:crm_mobile/shared/widgets/permission_gate.dart';
@@ -169,12 +171,19 @@ class _DataListPageState extends ConsumerState<DataListPage> {
             entitySlug: widget.entitySlug,
           );
 
+          // Filtros da sessao (botao ao lado da busca), aplicados no SQLite local.
+          final localFilters =
+              ref.watch(entityLocalFiltersProvider)[widget.entitySlug] ?? const [];
+
           return Column(
             children: [
-              // Search bar
+              // Search bar + filtros
               Padding(
                 padding: const EdgeInsets.all(16),
-                child: TextField(
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
                   controller: _searchController,
                   decoration: InputDecoration(
                     hintText: 'Buscar...',
@@ -201,6 +210,35 @@ class _DataListPageState extends ConsumerState<DataListPage> {
                       });
                     });
                   },
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Badge(
+                      isLabelVisible: localFilters.isNotEmpty,
+                      label: Text('${localFilters.length}'),
+                      child: IconButton(
+                        tooltip: 'Filtros',
+                        icon: const Icon(Icons.filter_list),
+                        onPressed: () => showModalBottomSheet<void>(
+                          context: context,
+                          isScrollControlled: true,
+                          backgroundColor: Colors.transparent,
+                          builder: (_) => FilterBottomSheet(
+                            entitySlug: widget.entitySlug,
+                            entityId: entityId,
+                            // O filtro global ja vem aplicado pelo sync; aqui so os da sessao.
+                            globalFilters: const [],
+                            // Campo oculto para o cargo nao vira filtro.
+                            fields: fields.where((f) {
+                              final slug = (f as Map<String, dynamic>)['slug'] as String? ?? '';
+                              return ref.read(permissionsProvider).getVisibleFields(widget.entitySlug)?.contains(slug) ?? true;
+                            }).toList(),
+                            canManageGlobal: false,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
 
@@ -215,6 +253,7 @@ class _DataListPageState extends ConsumerState<DataListPage> {
                     orderBy: 'createdAt DESC',
                     limit: _limit,
                     roleFilters: roleFilters,
+                    localFilters: localFilters,
                     createdById: scopeUserId,
                   ),
                   builder: (context, snapshot) {
@@ -225,7 +264,7 @@ class _DataListPageState extends ConsumerState<DataListPage> {
 
                     if (records.isEmpty) {
                       final canCreate = perms.hasEntityPermission(
-                        widget.entitySlug, 'canCreate');
+                        widget.entitySlug, 'canCreate',);
                       final showCreateButton = canCreate &&
                           _search.isEmpty;
 
@@ -282,7 +321,7 @@ class _DataListPageState extends ConsumerState<DataListPage> {
                                         const SizedBox(height: 24),
                                         ElevatedButton.icon(
                                           onPressed: () => context.push(
-                                            '/data/${widget.entitySlug}/new'),
+                                            '/data/${widget.entitySlug}/new',),
                                           icon: const Icon(Icons.add),
                                           label: const Text('Criar Primeiro'),
                                           style: ElevatedButton.styleFrom(
@@ -315,6 +354,7 @@ class _DataListPageState extends ConsumerState<DataListPage> {
                             entityId: entityId,
                             search: _search.isNotEmpty ? _search : null,
                             roleFilters: roleFilters,
+                            localFilters: localFilters,
                             createdById: scopeUserId,
                           ),
                           builder: (context, countSnapshot) {
@@ -342,7 +382,7 @@ class _DataListPageState extends ConsumerState<DataListPage> {
                           child: RefreshIndicator(
                       onRefresh: () async {
                         setState(
-                            () => _limit = AppConstants.defaultPageSize);
+                            () => _limit = AppConstants.defaultPageSize,);
                         await Future.delayed(
                           const Duration(milliseconds: 500),
                         );
@@ -426,7 +466,7 @@ class _DataListPageState extends ConsumerState<DataListPage> {
                                     BorderRadius.circular(AppColors.radius),
                               ),
                               child: const Icon(Icons.delete_outlined,
-                                  color: Colors.white),
+                                  color: Colors.white,),
                             ),
                             child: card,
                           );

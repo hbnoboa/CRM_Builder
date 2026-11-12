@@ -2,7 +2,6 @@ import { Injectable, Logger } from '@nestjs/common';
 import { RedisService } from '../../common/services/redis.service';
 
 export interface UserPermissions {
-  roleType: string;
   modulePermissions: Record<string, unknown>;
   entityPermissions: Array<{
     entitySlug: string;
@@ -10,7 +9,7 @@ export interface UserPermissions {
     canCreate: boolean;
     canUpdate: boolean;
     canDelete: boolean;
-    scope: 'all' | 'own';
+    scope: 'all' | 'own' | 'team';
     dataFilters?: Array<{ fieldSlug: string; operator: string; value: unknown }>;
   }>;
 }

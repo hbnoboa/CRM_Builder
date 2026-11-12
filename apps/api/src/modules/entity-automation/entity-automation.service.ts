@@ -14,7 +14,7 @@ import { ConditionEvaluator } from './condition-evaluator';
 import { AutomationTrigger, Prisma } from '@prisma/client';
 import { buildCursorResponse } from '../../common/utils/cursor-pagination.util';
 
-interface TriggerContext {
+export interface TriggerContext {
   event: string;
   recordId?: string;
   record?: Record<string, unknown>;
@@ -49,7 +49,6 @@ export class EntityAutomationService {
     'lookup_record',
     'update_related_record',
     'aggregate_records',
-    'run_script',
   ];
 
   constructor(
@@ -483,9 +482,10 @@ export class EntityAutomationService {
   }
 
   /**
-   * Verifica se uma automacao corresponde ao evento e contexto.
+   * Verifica se uma automacao corresponde ao evento e contexto (usado tambem pela
+   * fila do DataService: campo que mudou, de/para, situacao).
    */
-  private matchesTrigger(
+  matchesTrigger(
     automation: { trigger: AutomationTrigger; triggerConfig: unknown },
     event: string,
     context: TriggerContext,

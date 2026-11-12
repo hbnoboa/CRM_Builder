@@ -15,13 +15,13 @@ export class ArchiveService {
     private readonly uploadService: UploadService,
   ) {}
 
-  // Arquivamento automatico de EntityData REMOVIDO: o cron mensal
-  // (@Cron '0 3 1 * *' -> runArchival) movia EntityData > 3 meses para
-  // ArchivedEntityData, tirando os registros do uso operacional.
-  // O arquivamento segue disponivel sob demanda via ArchiveController.
-
   /**
-   * Manual trigger for archival (called from controller).
+   * Engine de arquivamento de EntityData (hot -> warm + backup GCS).
+   * Agendamento centralizado em DataLifecycleService; aqui fica só a lógica,
+   * reutilizável por cron, trigger manual e testes.
+   *   1. Copy to ArchivedEntityData (lightweight table, fonte de leitura)
+   *   2. Backup JSON to GCS (cold, apenas disaster-recovery)
+   *   3. Delete from EntityData (frees PowerSync indexes)
    */
   async runArchival(): Promise<{
     totalArchived: number;

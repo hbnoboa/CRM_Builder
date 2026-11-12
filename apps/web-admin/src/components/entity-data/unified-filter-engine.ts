@@ -93,9 +93,11 @@ function toStr(val: unknown): string {
   if (typeof val === 'object') {
     if (Array.isArray(val)) return val.map(v => toStr(v)).join(', ');
     const obj = val as Record<string, unknown>;
+    // value-first: a barra de filtro envia o `value` da opcao e o backend (stats)
+    // tambem agrupa por `value`. Preferir label aqui desalinhava o match client.
+    if ('value' in obj) return String(obj.value);
     if ('label' in obj) return String(obj.label);
     if ('name' in obj) return String(obj.name);
-    if ('value' in obj) return String(obj.value);
     return JSON.stringify(val);
   }
   return String(val);
@@ -380,9 +382,17 @@ export function applyAllFilters(
   // 4. Date range global (aplica em createdAt)
   if (filters.dateRange) {
     const { start, end } = filters.dateRange;
+    // createdAt é ISO completo ("2026-06-27T10:00:00.000Z") e start/end vêm como
+    // só-data ("2026-06-27"). Comparar a string completa contra a curta zerava tudo
+    // (`"...T..." <= "2026-06-27"` é false). Compara só a parte da data (YYYY-MM-DD).
+    const startDay = (start || '').slice(0, 10);
+    const endDay = (end || '').slice(0, 10);
     result = result.filter(record => {
-      const created = record.createdAt || '';
-      return created >= start && created <= end;
+      const createdDay = (record.createdAt || '').slice(0, 10);
+      if (!createdDay) return false;
+      if (startDay && createdDay < startDay) return false;
+      if (endDay && createdDay > endDay) return false;
+      return true;
     });
   }
 

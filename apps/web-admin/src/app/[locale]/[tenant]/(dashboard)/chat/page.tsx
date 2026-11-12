@@ -1,0 +1,1091 @@
+'use client';
+
+import { useCallback, useEffect, useRef, useState, Fragment } from 'react';
+import { Hash, Send, MessageSquare, User as UserIcon, Loader2, Slash, FileText, Settings2, ArrowLeft, Pencil, Check, X, Search, ChevronDown, Plus, Trash2, Image as ImageIcon, Bot, ListChecks, FilePlus2, FileEdit, Download, Sparkles, Paperclip, Film } from 'lucide-react';
+import { useSearchParams } from 'next/navigation';
+import { toast } from 'sonner';
+import api from '@/lib/api';
+import { useAuthStore } from '@/stores/auth-store';
+import { useTenant } from '@/stores/tenant-context';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { cn } from '@/lib/utils';
+import { RecordFormDialog } from '@/components/data/record-form-dialog';
+import { QuickCaptureForm } from '@/components/chat/quick-capture-form';
+import { QueryRunner, triggerDownload, resolveFileUrl } from '@/components/chat/query-runner';
+import { RecordEditForm } from '@/components/chat/record-edit-form';
+import { CommandManager } from '@/components/chat/command-manager';
+import { CommandPickerDialog } from '@/components/chat/command-picker-dialog';
+import { NewChatDialog } from '@/components/chat/new-chat-dialog';
+import { NewDmDialog } from '@/components/chat/new-dm-dialog';
+import type { Entity } from '@/types';
+
+interface EntityLite { id: string; slug: string; name: string; fields?: unknown[] }
+interface Channel { id: string; type: 'group' | 'dm'; entityId?: string | null; name?: string | null; createdById?: string; entity?: { slug: string; name: string; icon?: string; color?: string } }
+interface Message { id: string; senderId: string | null; senderName?: string | null; type: string; content: string | null; meta?: Record<string, unknown>; createdAt: string }
+interface ChatCommand { slug: string; description?: string; targetEntitySlug?: string; actionType?: string; actionConfig?: Record<string, unknown> }
+type ThreadChannel = Channel & { recordId?: string | null; entity?: { slug: string; name: string } };
+type Active = { id: string; label: string; kind: 'group' | 'dm' | 'record'; entitySlug?: string; scopeRecordId?: string };
+
+const PAGE_SIZE = 80;
+/** Une duas listas de mensagens por id, em ordem cronológica (mantém histórico
+ *  já carregado ao paginar/atualizar via polling — não reinicia a lista). */
+function mergeMessages(a: Message[], b: Message[]): Message[] {
+  const map = new Map<string, Message>();
+  for (const m of a) map.set(m.id, m);
+  for (const m of b) map.set(m.id, m);
+  return Array.from(map.values()).sort(
+    (x, y) => new Date(x.createdAt).getTime() - new Date(y.createdAt).getTime(),
+  );
+}
+
+// ── Helpers de apresentação (estilo WhatsApp) ──────────────────────────────
+function hashStr(s: string): number { let h = 0; for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0; return Math.abs(h); }
+/** Cor determinística por pessoa (nome colorido + avatar), como no WhatsApp em grupo. */
+function hueFor(id: string): number { return hashStr(id) % 360; }
+function initials(name: string): string {
+  const p = (name || '?').trim().split(/\s+/).filter(Boolean);
+  return (((p[0]?.[0] || '') + (p.length > 1 ? p[p.length - 1][0] : '')) || '?').toUpperCase();
+}
+const isSameDay = (a: Date, b: Date) => a.toDateString() === b.toDateString();
+function dayLabel(d: Date): string {
+  const today = new Date(); const yest = new Date(); yest.setDate(today.getDate() - 1);
+  if (isSameDay(d, today)) return 'Hoje';
+  if (isSameDay(d, yest)) return 'Ontem';
+  return d.toLocaleDateString('pt-BR', { day: 'numeric', month: 'long', ...(d.getFullYear() !== today.getFullYear() ? { year: 'numeric' } : {}) });
+}
+const hhmm = (d: Date) => d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+/** Heurística: valor parece uma imagem (path/url de imagem)? */
+function looksLikeImage(v: unknown): boolean {
+  return typeof v === 'string' && (/\.(png|jpe?g|gif|webp|svg|avif)(\?|$)/i.test(v) || /^\/?uploads?\//i.test(v) || /^https?:.*(image|photo|foto)/i.test(v));
+}
+
+/** Miniatura de imagem com fallback (path quebrado -> ícone). */
+function Thumb({ url }: { url: string }) {
+  const [err, setErr] = useState(false);
+  const src = resolveFileUrl(url);
+  if (err || !src) return <div className="flex h-14 w-14 items-center justify-center rounded-md border bg-black/5 text-muted-foreground"><ImageIcon className="h-5 w-5" /></div>;
+  // eslint-disable-next-line @next/next/no-img-element
+  return <a href={src} target="_blank" rel="noreferrer" className="shrink-0"><img src={src} alt="" onError={() => setErr(true)} className="h-14 w-14 rounded-md border object-cover hover:opacity-90" /></a>;
+}
+
+// ── Anexos ───────────────────────────────────────────────────────────────
+
+type Attachment = { url: string; name: string; size?: number; mime?: string; kind?: 'image' | 'video' | 'file' };
+
+const MAX_ATTACHMENT = 25 * 1024 * 1024;
+/** Mesmos tipos que o servidor aceita (upload.service). */
+const ACCEPT = 'image/jpeg,image/png,image/gif,image/webp,video/mp4,video/quicktime,video/webm,application/pdf,.doc,.docx,.xls,.xlsx,.csv,.txt';
+const ACCEPTED_MIME = /^(image\/(jpeg|png|gif|webp)|video\/(mp4|quicktime|webm)|application\/(pdf|msword|vnd\.openxmlformats-officedocument\.(wordprocessingml\.document|spreadsheetml\.sheet)|vnd\.ms-excel)|text\/(csv|plain))$/;
+
+const fileSize = (n?: number) => (!n ? '' : n < 1024 * 1024 ? `${Math.max(1, Math.round(n / 1024))} KB` : `${(n / 1024 / 1024).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} MB`);
+
+/** Imagens, videos e arquivos de uma mensagem. */
+function AttachmentView({ items }: { items: Attachment[] }) {
+  return (
+    <div className="space-y-1.5" data-testid="chat-attachment">
+      {items.map((a) => {
+        const src = resolveFileUrl(a.url);
+        if (a.kind === 'image') {
+          return (
+            <a key={a.url} href={src || '#'} target="_blank" rel="noreferrer" className="block">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={src || ''} alt={a.name} className="max-h-72 max-w-full rounded-lg object-contain" loading="lazy" />
+            </a>
+          );
+        }
+        if (a.kind === 'video') return <video key={a.url} src={src || ''} controls className="max-h-72 max-w-full rounded-lg" />;
+        return (
+          <button key={a.url} type="button" onClick={() => src && triggerDownload(src, a.name)}
+            className="flex w-full min-w-[220px] items-center gap-2 rounded-lg border bg-background/60 p-2 text-left text-foreground hover:bg-background">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary"><FileText className="h-4 w-4" /></span>
+            <span className="min-w-0 flex-1">
+              <span className="block truncate text-[13px] font-medium">{a.name}</span>
+              <span className="block text-[10px] text-muted-foreground">{[a.name.split('.').pop()?.toUpperCase(), fileSize(a.size)].filter(Boolean).join(' · ')} · toque para baixar</span>
+            </span>
+            <Download className="h-4 w-4 text-muted-foreground" />
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+/** Arquivo escolhido, ainda nao enviado (com previa se for imagem). */
+function PendingFile({ file, onRemove }: { file: File; onRemove: () => void }) {
+  const [url, setUrl] = useState<string | null>(null);
+  useEffect(() => {
+    if (!file.type.startsWith('image/')) return;
+    const u = URL.createObjectURL(file);
+    setUrl(u);
+    return () => URL.revokeObjectURL(u);
+  }, [file]);
+  return (
+    <span className="relative flex items-center gap-2 rounded-lg border bg-background p-1.5 pr-7 text-xs">
+      {url
+        // eslint-disable-next-line @next/next/no-img-element
+        ? <img src={url} alt="" className="h-10 w-10 rounded object-cover" />
+        : <span className="flex h-10 w-10 items-center justify-center rounded bg-muted">{file.type.startsWith('video/') ? <Film className="h-4 w-4" /> : <FileText className="h-4 w-4" />}</span>}
+      <span className="max-w-[140px]">
+        <span className="block truncate font-medium">{file.name}</span>
+        <span className="block text-[10px] text-muted-foreground">{fileSize(file.size)}</span>
+      </span>
+      <button type="button" onClick={onRemove} aria-label="Tirar anexo" className="absolute right-1 top-1 rounded-full p-0.5 hover:bg-muted"><X className="h-3.5 w-3.5" /></button>
+    </span>
+  );
+}
+
+/** Destaca a 1ª ocorrência do termo buscado (case-insensitive) no texto. */
+function highlightText(text: string, term: string) {
+  const t = (term || '').trim();
+  if (!t) return text;
+  const i = text.toLowerCase().indexOf(t.toLowerCase());
+  if (i < 0) return text;
+  return <>{text.slice(0, i)}<mark className="rounded bg-yellow-300/70 px-0.5 text-inherit">{text.slice(i, i + t.length)}</mark>{text.slice(i + t.length)}</>;
+}
+
+export default function ChatPage() {
+  const user = useAuthStore((s) => s.user);
+  const { effectiveTenantId } = useTenant();
+  const searchParams = useSearchParams();
+  const [tables, setTables] = useState<EntityLite[]>([]);
+  const [allEntities, setAllEntities] = useState<EntityLite[]>([]);
+  const [dms, setDms] = useState<Channel[]>([]);
+  const [threads, setThreads] = useState<ThreadChannel[]>([]);
+  const [groups, setGroups] = useState<Channel[]>([]);
+  const [active, setActive] = useState<Active | null>(null);
+  const [renaming, setRenaming] = useState(false);
+  const [renameDraft, setRenameDraft] = useState('');
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [commands, setCommands] = useState<ChatCommand[]>([]);
+  const [draft, setDraft] = useState('');
+  // Botao IA: mensagens vao para o assistente (como "@bot ...")
+  const [aiMode, setAiMode] = useState(false);
+  const [files, setFiles] = useState<File[]>([]);
+  const [sendingFiles, setSendingFiles] = useState(false);
+  const [dragging, setDragging] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [botThinking, setBotThinking] = useState(false);
+  const [opening, setOpening] = useState(false);
+  const [runningCmd, setRunningCmd] = useState<{ cmd: ChatCommand; entity: Entity } | null>(null);
+  const [quickCmd, setQuickCmd] = useState<{ cmd: ChatCommand; entity: EntityLite; parentEntity: EntityLite | null } | null>(null);
+  const [queryCmd, setQueryCmd] = useState<{ cmd: ChatCommand; entity: EntityLite } | null>(null);
+  const [editCmd, setEditCmd] = useState<{ cmd: ChatCommand; entity: EntityLite } | null>(null);
+  const [slashIndex, setSlashIndex] = useState(0);
+  const [showCmdManager, setShowCmdManager] = useState(false);
+  const [pickerFor, setPickerFor] = useState<{ entitySlug: string; recordId: string } | null>(null);
+  const [managePicker, setManagePicker] = useState<{ channelId: string; initial: string[] } | null>(null);
+  const [roles, setRoles] = useState<Array<{ id: string; name: string }>>([]);
+  const [newChatOpen, setNewChatOpen] = useState(false);
+  const [newDmOpen, setNewDmOpen] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const endRef = useRef<HTMLDivElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const atBottomRef = useRef(true); // só rola sozinho pro fim quando o usuário já está no fim
+  const [atBottom, setAtBottom] = useState(true);
+  const [hasMore, setHasMore] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchQ, setSearchQ] = useState('');
+  const [searchResults, setSearchResults] = useState<Message[]>([]);
+  const [highlightId, setHighlightId] = useState<string | null>(null);
+  const lastMsgIdRef = useRef<string | null>(null);
+
+  // Rótulo/tipo de um campo (pra mostrar "Peça" em vez de "peca" e detectar imagem).
+  const fieldMeta = useCallback((entitySlug: string | undefined, slug: string): { label: string; type?: string } => {
+    const ent = allEntities.find((e) => e.slug === entitySlug);
+    const f = ((ent?.fields || []) as Array<{ slug: string; label?: string; name?: string; type?: string }>).find((x) => x.slug === slug);
+    return { label: f?.label || f?.name || slug, type: f?.type };
+  }, [allEntities]);
+
+  const canManageCommands = (() => {
+    const mp = user?.customRole?.modulePermissions as Record<string, Record<string, unknown> | boolean> | undefined;
+    if (mp?.allAccess === true) return true;
+    return (mp?.entities as Record<string, unknown>)?.canUpdate === true
+      || (mp?.roles as Record<string, unknown>)?.canManagePermissions === true;
+  })();
+
+  // Permissão dedicada de gerir canais: quem cria/renomeia canais e vê todas as tabelas.
+  const canManageChat = (() => {
+    const mp = user?.customRole?.modulePermissions as Record<string, Record<string, unknown> | boolean> | undefined;
+    if (mp?.allAccess === true) return true;
+    return (mp?.chat as Record<string, unknown>)?.manage === true;
+  })();
+
+  const canReadEntity = useCallback((slug: string) => {
+    const mp = user?.customRole?.modulePermissions as Record<string, Record<string, unknown> | boolean> | undefined;
+    if (mp?.allAccess === true) return true;
+    const perms = user?.customRole?.permissions as Array<Record<string, unknown>> | undefined;
+    if (!Array.isArray(perms)) return false;
+    const exact = perms.find((p) => p.entitySlug === slug);
+    if (exact) return exact.canRead === true;
+    const wild = perms.find((p) => p.entitySlug === '*');
+    if (wild) return wild.canRead === true;
+    return false;
+  }, [user]);
+
+  // So a resposta do pedido mais recente vale: a carga inicial pode voltar depois da
+  // atualizacao feita ao abrir um chat e apagaria o chat recem-criado da lista.
+  const channelsRequestRef = useRef(0);
+  const loadChannels = useCallback(async () => {
+    const request = ++channelsRequestRef.current;
+    const chRes = await api.get('/chat/channels');
+    if (request !== channelsRequestRef.current) return;
+    setDms(chRes.data?.dms || []);
+    setThreads(chRes.data?.threads || []);
+    setGroups(chRes.data?.groups || []);
+  }, []);
+
+  const reloadChannels = useCallback(async () => {
+    try {
+      await loadChannels();
+    } catch { /* ignore */ }
+  }, [loadChannels]);
+
+  // Recarrega tabelas + canais ao montar E ao TROCAR DE TENANT (limpa o canal ativo
+  // para não mostrar conversa do tenant anterior). Só zera o canal ativo quando o
+  // tenant REALMENTE muda — senão re-execuções do efeito apagariam a seleção.
+  const lastTenantRef = useRef(effectiveTenantId);
+  useEffect(() => {
+    if (lastTenantRef.current !== effectiveTenantId) {
+      lastTenantRef.current = effectiveTenantId;
+      setActive(null);
+      setThreads([]);
+    }
+    (async () => {
+      try {
+        const [entRes] = await Promise.all([api.get('/entities'), loadChannels()]);
+        const ent: EntityLite[] = entRes.data?.data || entRes.data || [];
+        setAllEntities(ent);
+        setTables(ent.filter((e) => canReadEntity(e.slug)));
+      } catch { /* ignore */ }
+    })();
+  }, [canReadEntity, effectiveTenantId, loadChannels]);
+
+  useEffect(() => {
+    if (!canManageCommands) return;
+    api.get('/custom-roles')
+      .then((r) => setRoles((r.data?.data || r.data || []).map((x: { id: string; name: string }) => ({ id: x.id, name: x.name }))))
+      .catch(() => setRoles([]));
+  }, [canManageCommands]);
+
+  // Fecha modo renomear / runners de comando ao trocar de canal.
+  useEffect(() => { setRenaming(false); setQueryCmd(null); setEditCmd(null); setConfirmDelete(false); }, [active?.id]);
+
+  const loadMessages = useCallback(async (channelId: string, opts?: { replace?: boolean }) => {
+    try {
+      const res = await api.get(`/chat/channels/${channelId}/messages?limit=${PAGE_SIZE}`);
+      const fetched: Message[] = res.data || [];
+      if (opts?.replace) {
+        setMessages(fetched);
+        setHasMore(fetched.length >= PAGE_SIZE);
+      } else {
+        // polling: mescla (mantém histórico já carregado + adiciona novas)
+        setMessages((prev) => mergeMessages(prev, fetched));
+      }
+    } catch { /* ignore */ }
+  }, []);
+
+  // Carrega mensagens ANTERIORES (paginação p/ trás), preservando a rolagem.
+  const loadOlder = useCallback(async () => {
+    if (!active || loadingMore || messages.length === 0) return;
+    setLoadingMore(true);
+    const el = scrollRef.current;
+    const prevHeight = el?.scrollHeight ?? 0;
+    const oldest = messages[0];
+    try {
+      const res = await api.get(`/chat/channels/${active.id}/messages?limit=${PAGE_SIZE}&before=${encodeURIComponent(oldest.createdAt)}`);
+      const older: Message[] = res.data || [];
+      setHasMore(older.length >= PAGE_SIZE);
+      if (older.length) {
+        setMessages((prev) => mergeMessages(older, prev));
+        // mantém o ponto de leitura: reposiciona pela diferença de altura
+        requestAnimationFrame(() => { const e2 = scrollRef.current; if (e2) e2.scrollTop = e2.scrollHeight - prevHeight; });
+      }
+    } catch { /* ignore */ } finally { setLoadingMore(false); }
+  }, [active, loadingMore, messages]);
+
+  // Mensagens do canal ativo (polling; Socket.IO numa fatia futura).
+  useEffect(() => {
+    if (!active) return;
+    atBottomRef.current = true; setAtBottom(true);
+    loadMessages(active.id, { replace: true });
+    const t = setInterval(() => loadMessages(active.id), 4000);
+    return () => clearInterval(t);
+  }, [active, loadMessages]);
+
+  // Comandos disponíveis para a tabela do canal de grupo ativo.
+  useEffect(() => {
+    if (!active || (active.kind !== 'group' && active.kind !== 'record')) { setCommands([]); return; }
+    // Comandos POR CANAL: se o chat tem comandos anexados, mostra só esses; senão
+    // cai no fallback do backend (grupo=tabela, thread=todos).
+    api.get(`/chat/commands?channelId=${active.id}`).then((r) => setCommands(r.data || [])).catch(() => setCommands([]));
+  }, [active]);
+
+  // Rola pro fim SÓ quando chega mensagem NOVA (não a cada poll) E o usuário já está
+  // no fim. Assim o polling não te puxa pra baixo enquanto você lê o histórico.
+  useEffect(() => {
+    const lastId = messages.length ? messages[messages.length - 1].id : null;
+    const isNew = lastId !== lastMsgIdRef.current;
+    lastMsgIdRef.current = lastId;
+    if (isNew && atBottomRef.current) endRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
+
+  const onMessagesScroll = () => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const near = el.scrollHeight - el.scrollTop - el.clientHeight < 120;
+    atBottomRef.current = near;
+    setAtBottom(near);
+  };
+
+  const jumpToBottom = () => {
+    if (!active) return;
+    atBottomRef.current = true; setAtBottom(true);
+    loadMessages(active.id, { replace: true });
+    requestAnimationFrame(() => endRef.current?.scrollIntoView({ behavior: 'smooth' }));
+  };
+
+  // Busca no histórico do canal (debounce).
+  useEffect(() => {
+    if (!searchOpen || !active || searchQ.trim().length < 1) { setSearchResults([]); return; }
+    const chId = active.id;
+    const t = setTimeout(async () => {
+      try { const res = await api.get(`/chat/channels/${chId}/messages/search?q=${encodeURIComponent(searchQ)}`); setSearchResults(res.data || []); }
+      catch { setSearchResults([]); }
+    }, 300);
+    return () => clearTimeout(t);
+  }, [searchQ, searchOpen, active]);
+
+  // Vai até uma mensagem encontrada: carrega contexto dos DOIS lados (antes e depois),
+  // deixando a mensagem no MEIO — senão ela vira o "fim" e o polling desliza pro final.
+  const jumpToMessage = useCallback(async (msg: Message) => {
+    if (!active) return;
+    const t = new Date(msg.createdAt).getTime();
+    const beforeIso = new Date(t + 1).toISOString(); // inclui a própria msg (topo da janela de cima)
+    const afterIso = new Date(t).toISOString();       // contexto ABAIXO da msg
+    try {
+      const [b, a] = await Promise.all([
+        api.get(`/chat/channels/${active.id}/messages?limit=40&before=${encodeURIComponent(beforeIso)}`),
+        api.get(`/chat/channels/${active.id}/messages?limit=25&after=${encodeURIComponent(afterIso)}`),
+      ]);
+      const windowMsgs = mergeMessages(b.data || [], a.data || []);
+      setMessages(windowMsgs);
+      setHasMore(true);
+      atBottomRef.current = false; setAtBottom(false);
+      // trava o auto-scroll: a última msg da janela não conta como "nova".
+      lastMsgIdRef.current = windowMsgs.length ? windowMsgs[windowMsgs.length - 1].id : null;
+      setSearchOpen(false); setSearchQ(''); setSearchResults([]);
+      setHighlightId(msg.id);
+      requestAnimationFrame(() => document.getElementById(`msg-${msg.id}`)?.scrollIntoView({ block: 'center' }));
+      setTimeout(() => setHighlightId((h) => (h === msg.id ? null : h)), 2500);
+    } catch { /* ignore */ }
+  }, [active]);
+
+  async function openDm(person: { id: string; name: string }) {
+    setNewDmOpen(false);
+    setOpening(true);
+    try {
+      const res = await api.post('/chat/channels/dm', { userId: person.id });
+      await reloadChannels();
+      setActive({ id: res.data.id, label: person.name, kind: 'dm' });
+    } catch (e) {
+      const msg = (e as { response?: { data?: { message?: string } } })?.response?.data?.message;
+      toast.error(msg || 'Não foi possível abrir a conversa.');
+    } finally { setOpening(false); }
+  }
+
+  async function openTable(e: EntityLite) {
+    setOpening(true);
+    try {
+      const res = await api.post(`/chat/channels/group/${e.slug}`);
+      setActive({ id: res.data.id, label: e.name, kind: 'group', entitySlug: e.slug });
+    } catch { /* sem acesso */ } finally { setOpening(false); }
+  }
+
+  const openThread = useCallback(async (entitySlug: string, recordId: string, commandIds?: string[]) => {
+    setOpening(true);
+    try {
+      // Seletor SÓ na criação: se o chat ainda não existe e o usuário gerencia
+      // comandos, abre o picker (a menos que já tenha vindo com commandIds do picker).
+      if (commandIds === undefined && canManageCommands) {
+        const meta = await api.get(`/chat/channels/record/${entitySlug}/${recordId}/meta`);
+        if (!meta.data?.exists) {
+          setPickerFor({ entitySlug, recordId });
+          setOpening(false);
+          return;
+        }
+      }
+      const res = await api.post(
+        `/chat/channels/record/${entitySlug}/${recordId}`,
+        commandIds ? { commandIds } : {},
+      );
+      setActive({
+        id: res.data.id,
+        label: res.data.name || 'Registro',
+        kind: 'record',
+        entitySlug,
+        scopeRecordId: recordId,
+      });
+      // Aparece na hora no sidebar (evita corrida com o fetch inicial de canais).
+      setThreads((prev) =>
+        prev.some((t) => t.id === res.data.id)
+          ? prev
+          : [{ ...res.data, entity: { slug: entitySlug, name: res.data.name } }, ...prev],
+      );
+      await reloadChannels();
+    } catch { /* sem acesso ao registro */ } finally { setOpening(false); }
+  }, [reloadChannels, canManageCommands]);
+
+  // Abre o thread vindo da ViewPage do registro: ?thread=<entitySlug>:<recordId>
+  useEffect(() => {
+    const param = searchParams.get('thread');
+    if (!param) return;
+    const idx = param.indexOf(':');
+    if (idx < 0) return;
+    const entitySlug = param.slice(0, idx);
+    const recordId = param.slice(idx + 1);
+    if (entitySlug && recordId) void openThread(entitySlug, recordId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
+
+  function openCommand(cmd: ChatCommand) {
+    setDraft('');
+    const entity = allEntities.find((t) => t.slug === cmd.targetEntitySlug) || tables.find((t) => t.slug === cmd.targetEntitySlug);
+    if (!entity) return;
+    if (cmd.actionType === 'query') { setQueryCmd({ cmd, entity }); return; }
+    if (cmd.actionType === 'update_record') { setEditCmd({ cmd, entity }); return; }
+    const cfg = (cmd.actionConfig || {}) as { quickFields?: string[]; formFields?: unknown[]; parentEntitySlug?: string };
+    // Captura rápida inline quando o comando tem campos escolhidos (formFields, gravado
+    // pela tela, ou quickFields, legado); senão, form completo (modal).
+    if ((cfg.formFields?.length ?? 0) > 0 || (cfg.quickFields?.length ?? 0) > 0) {
+      const parentEntity = cfg.parentEntitySlug ? tables.find((t) => t.slug === cfg.parentEntitySlug) || null : null;
+      setQuickCmd({ cmd, entity, parentEntity });
+    } else {
+      setRunningCmd({ cmd, entity: entity as unknown as Entity });
+    }
+  }
+
+  async function askAssistant(text: string) {
+    if (!active) return;
+    setDraft('');
+    setBotThinking(true);
+    try { await api.post(`/chat/channels/${active.id}/bot`, { message: text }); await loadMessages(active.id); }
+    catch { setDraft(text.replace(/^@bot\s*/i, '')); }
+    finally { setBotThinking(false); }
+  }
+
+  /** Junta arquivos escolhidos/colados/arrastados (confere tipo e tamanho antes de enviar). */
+  function addFiles(list: FileList | File[] | null) {
+    const picked = Array.from(list || []);
+    if (!picked.length) return;
+    const ok: File[] = [];
+    for (const f of picked) {
+      if (!ACCEPTED_MIME.test(f.type)) toast.error(`${f.name}: tipo de arquivo não aceito.`);
+      else if (f.size > MAX_ATTACHMENT) toast.error(`${f.name}: maior que 25 MB.`);
+      else ok.push(f);
+    }
+    if (ok.length) {
+      setAiMode(false);
+      setFiles((prev) => [...prev, ...ok].slice(0, 10));
+    }
+  }
+
+  /** Envia cada anexo como uma mensagem; o texto digitado vai de legenda no ultimo. */
+  async function sendFiles(text: string) {
+    if (!active || files.length === 0) return;
+    setSendingFiles(true);
+    const queue = [...files];
+    try {
+      for (let i = 0; i < queue.length; i++) {
+        const f = queue[i];
+        const form = new FormData();
+        form.append('file', f);
+        if (text && i === queue.length - 1) form.append('caption', text);
+        await api.post(`/chat/channels/${active.id}/attachments`, form, { headers: { 'Content-Type': 'multipart/form-data' } });
+        setFiles((prev) => prev.filter((x) => x !== f));
+      }
+      setDraft('');
+    } catch (e) {
+      const msg = (e as { response?: { data?: { message?: string } } })?.response?.data?.message;
+      toast.error(msg || 'Não foi possível enviar o anexo.');
+    } finally {
+      setSendingFiles(false);
+      await loadMessages(active.id);
+    }
+  }
+
+  async function send(ev: React.FormEvent) {
+    ev.preventDefault();
+    const text = draft.trim();
+    if (files.length > 0 && active) { await sendFiles(text); return; }
+    if (!text || !active) return;
+    // Slash-command: /slug → abre o formulário do comando em vez de enviar texto.
+    if (text.startsWith('/')) {
+      const slug = text.slice(1).trim().toLowerCase();
+      const cmd = commands.find((c) => c.slug.toLowerCase() === slug);
+      if (cmd) { openCommand(cmd); return; }
+    }
+    // Assistente: "@bot ..." ou o botao IA ligado → responde com as permissoes de quem pergunta.
+    if (aiMode || text.toLowerCase().startsWith('@bot')) {
+      await askAssistant(text.toLowerCase().startsWith('@bot') ? text : `@bot ${text}`);
+      return;
+    }
+    setDraft('');
+    try { await api.post(`/chat/channels/${active.id}/messages`, { content: text }); await loadMessages(active.id); }
+    catch { setDraft(text); }
+  }
+
+  const slashMatches = !aiMode && draft.startsWith('/')
+    ? commands.filter((c) => c.slug.toLowerCase().startsWith(draft.slice(1).toLowerCase()))
+    : [];
+
+  // Navegação por teclado nas sugestões de /comando (↑ ↓ Tab Enter Esc).
+  function handleComposerKey(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (slashMatches.length === 0) return;
+    if (e.key === 'ArrowDown') { e.preventDefault(); setSlashIndex((i) => Math.min(i + 1, slashMatches.length - 1)); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); setSlashIndex((i) => Math.max(i - 1, 0)); }
+    else if (e.key === 'Tab' || e.key === 'Enter') { e.preventDefault(); openCommand(slashMatches[Math.min(slashIndex, slashMatches.length - 1)]); }
+    else if (e.key === 'Escape') { setDraft(''); }
+  }
+
+  // Sidebar: quem gerencia o chat vê todas as tabelas (pode criar o canal ao clicar);
+  // os demais veem só as tabelas que JÁ têm canal de grupo (não criam nada novo).
+  const groupSlugs = new Set(groups.map((g) => g.entity?.slug).filter(Boolean) as string[]);
+  const visibleTables = canManageChat ? tables : tables.filter((t) => groupSlugs.has(t.slug));
+
+  // Renomear: permitido para o criador do canal OU quem gerencia o chat.
+  const activeChannel = active ? [...groups, ...threads, ...dms].find((c) => c.id === active.id) : undefined;
+  const canRenameActive = !!active && (canManageChat || activeChannel?.createdById === user?.id);
+
+  async function submitRename() {
+    if (!active) return;
+    const name = renameDraft.trim();
+    if (!name) { setRenaming(false); return; }
+    try {
+      await api.patch(`/chat/channels/${active.id}`, { name });
+      setActive({ ...active, label: name });
+      await reloadChannels();
+    } catch { /* ignore */ }
+    setRenaming(false);
+  }
+
+  async function submitDelete() {
+    if (!active) return;
+    const id = active.id;
+    try {
+      await api.delete(`/chat/channels/${id}`);
+      setConfirmDelete(false);
+      setActive(null);
+      setThreads((p) => p.filter((c) => c.id !== id));
+      setDms((p) => p.filter((c) => c.id !== id));
+      setGroups((p) => p.filter((c) => c.id !== id));
+      await reloadChannels();
+      toast.success('Chat excluído.');
+    } catch (e) {
+      const msg = (e as { response?: { data?: { message?: string } } })?.response?.data?.message;
+      toast.error(msg || 'Erro ao excluir o chat.');
+    }
+  }
+
+  return (
+    <div className="flex h-[calc(100vh-7rem)] gap-4">
+      <aside className={cn('shrink-0 border rounded-lg overflow-y-auto bg-card', active ? 'hidden md:block md:w-64' : 'w-full md:w-64')}>
+        <div className="p-3">
+          <Button size="sm" className="w-full mb-2 justify-start gap-2" onClick={() => setNewChatOpen(true)}>
+            <Plus className="h-4 w-4" /> Conversa em grupo
+          </Button>
+          <Button variant="outline" size="sm" className="w-full mb-2 justify-start gap-2" onClick={() => setNewDmOpen(true)} data-testid="new-dm">
+            <UserIcon className="h-4 w-4" /> Mensagem para uma pessoa
+          </Button>
+          {canManageCommands && (
+            <Button variant="outline" size="sm" className="w-full mb-3 justify-start gap-2" onClick={() => setShowCmdManager(true)}>
+              <Settings2 className="h-4 w-4" /> Comandos rápidos
+            </Button>
+          )}
+          <div className="text-[11px] uppercase tracking-wider text-muted-foreground font-medium mb-1.5">Tabelas</div>
+          <div className="space-y-0.5">
+            {visibleTables.map((e) => (
+              <button key={e.id} onClick={() => openTable(e)}
+                className={cn('w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-sm text-left hover:bg-accent transition-colors',
+                  active?.entitySlug === e.slug && 'bg-accent font-medium')}>
+                <Hash className="h-4 w-4 text-muted-foreground shrink-0" />
+                <span className="truncate">{e.name}</span>
+              </button>
+            ))}
+            {visibleTables.length === 0 && (
+              <div className="text-xs text-muted-foreground px-2 py-1">
+                {canManageChat ? 'Nenhuma tabela disponível' : 'Nenhum canal disponível ainda'}
+              </div>
+            )}
+          </div>
+          {threads.length > 0 && (
+            <>
+              <div className="text-[11px] uppercase tracking-wider text-muted-foreground font-medium mt-4 mb-1.5">Registros</div>
+              <div className="space-y-0.5">
+                {threads.map((c) => (
+                  <button key={c.id}
+                    onClick={() => setActive({ id: c.id, label: c.name || 'Registro', kind: 'record', entitySlug: c.entity?.slug, scopeRecordId: c.recordId || undefined })}
+                    className={cn('w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-sm text-left hover:bg-accent transition-colors',
+                      active?.id === c.id && 'bg-accent font-medium')}>
+                    <FileText className="h-4 w-4 text-muted-foreground shrink-0" />
+                    <span className="truncate">{c.name || 'Registro'}</span>
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+          {dms.length > 0 && (
+            <>
+              <div className="text-[11px] uppercase tracking-wider text-muted-foreground font-medium mt-4 mb-1.5">Diretas</div>
+              <div className="space-y-0.5">
+                {dms.map((c) => (
+                  <button key={c.id} onClick={() => setActive({ id: c.id, label: c.name || 'Conversa direta', kind: 'dm' })}
+                    className={cn('w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-sm text-left hover:bg-accent transition-colors',
+                      active?.id === c.id && 'bg-accent font-medium')}>
+                    <UserIcon className="h-4 w-4 text-muted-foreground shrink-0" />
+                    <span className="truncate">{c.name || 'Conversa direta'}</span>
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+      </aside>
+
+      <section className={cn('flex-1 flex-col border rounded-lg bg-card min-w-0', active ? 'flex' : 'hidden md:flex')}>
+        {!active ? (
+          <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground gap-2">
+            <MessageSquare className="h-8 w-8" />
+            <p className="text-sm">Escolha uma tabela à esquerda para conversar com a equipe sobre ela.</p>
+          </div>
+        ) : (
+          <>
+            <header className="flex items-center gap-2 px-4 py-3 border-b">
+              <button className="md:hidden -ml-1 p-1 rounded hover:bg-accent shrink-0" onClick={() => setActive(null)} aria-label="Voltar">
+                <ArrowLeft className="h-4 w-4" />
+              </button>
+              {active.kind === 'group' ? <Hash className="h-4 w-4 text-muted-foreground" /> : active.kind === 'record' ? <FileText className="h-4 w-4 text-muted-foreground" /> : <UserIcon className="h-4 w-4 text-muted-foreground" />}
+              {renaming ? (
+                <span className="flex items-center gap-1">
+                  <Input autoFocus value={renameDraft} onChange={(e) => setRenameDraft(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') submitRename(); if (e.key === 'Escape') setRenaming(false); }}
+                    className="h-7 text-sm w-44" />
+                  <button className="p-1 rounded hover:bg-accent" onClick={submitRename} aria-label="Salvar"><Check className="h-3.5 w-3.5" /></button>
+                  <button className="p-1 rounded hover:bg-accent" onClick={() => setRenaming(false)} aria-label="Cancelar"><X className="h-3.5 w-3.5" /></button>
+                </span>
+              ) : (
+                <>
+                  <span className="font-medium text-sm">{active.label}</span>
+                  {canRenameActive && !confirmDelete && (
+                    <button className="p-1 rounded hover:bg-accent text-muted-foreground" title="Renomear"
+                      onClick={() => { setRenameDraft(active.label); setRenaming(true); }}>
+                      <Pencil className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                  {canRenameActive && (confirmDelete ? (
+                    <span className="flex items-center gap-1 text-xs">
+                      <span className="text-muted-foreground">Excluir chat?</span>
+                      <button className="p-1 rounded hover:bg-destructive/10 text-destructive" onClick={submitDelete} title="Confirmar exclusão"><Check className="h-3.5 w-3.5" /></button>
+                      <button className="p-1 rounded hover:bg-accent" onClick={() => setConfirmDelete(false)} title="Cancelar"><X className="h-3.5 w-3.5" /></button>
+                    </span>
+                  ) : (
+                    <button className="p-1 rounded hover:bg-accent text-muted-foreground hover:text-destructive" title="Excluir chat"
+                      onClick={() => setConfirmDelete(true)}>
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  ))}
+                </>
+              )}
+              {opening && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />}
+              {commands.length > 0 && (
+                <span className="text-[11px] text-muted-foreground flex items-center gap-1 min-w-0 truncate">
+                  <Slash className="h-3 w-3 shrink-0" /> {commands.map((c) => '/' + c.slug).join(' ')}
+                </span>
+              )}
+              <button
+                className={cn('ml-auto p-1.5 rounded hover:bg-accent shrink-0', searchOpen ? 'bg-accent text-foreground' : 'text-muted-foreground')}
+                title="Buscar mensagens" onClick={() => setSearchOpen((o) => !o)}
+              >
+                <Search className="h-4 w-4" />
+              </button>
+              {active.kind === 'record' && canManageCommands && active.entitySlug && active.scopeRecordId && (
+                <Button
+                  variant="ghost" size="sm" className="h-7 gap-1 text-xs shrink-0"
+                  onClick={async () => {
+                    try {
+                      const meta = await api.get(`/chat/channels/record/${active.entitySlug}/${active.scopeRecordId}/meta`);
+                      setManagePicker({ channelId: active.id, initial: meta.data?.commandIds || [] });
+                    } catch { setManagePicker({ channelId: active.id, initial: [] }); }
+                  }}
+                >
+                  <Settings2 className="h-3.5 w-3.5" /> Comandos
+                </Button>
+              )}
+            </header>
+
+            {searchOpen && (
+              <div className="border-b bg-muted/30 px-3 py-2 space-y-2">
+                <div className="relative">
+                  <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+                  <Input autoFocus value={searchQ} onChange={(e) => setSearchQ(e.target.value)}
+                    placeholder="Buscar no histórico do chat…" className="pl-8 h-9 text-sm" />
+                  <button className="absolute right-2 top-2 text-muted-foreground hover:text-foreground"
+                    onClick={() => { setSearchOpen(false); setSearchQ(''); setSearchResults([]); }} aria-label="Fechar busca"><X className="h-4 w-4" /></button>
+                </div>
+                {searchQ.trim().length > 0 && (
+                  searchResults.length === 0 ? (
+                    <p className="px-1 py-1 text-xs text-muted-foreground">Nenhuma mensagem encontrada.</p>
+                  ) : (
+                    <div className="max-h-52 divide-y overflow-y-auto rounded-md border bg-background">
+                      {searchResults.map((r) => {
+                        const who = r.senderId === user?.id ? 'Você' : r.senderId === null ? 'Bot' : (r.senderName || 'Usuário');
+                        return (
+                          <button key={r.id} onClick={() => jumpToMessage(r)} className="flex w-full items-center gap-2 px-2.5 py-2 text-left hover:bg-accent">
+                            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[11px] font-semibold text-white"
+                              style={{ backgroundColor: r.senderId === null ? 'hsl(38 92% 50%)' : `hsl(${hueFor(r.senderId || 'me')} 55% 45%)` }}>
+                              {r.senderId === null ? <Bot className="h-3.5 w-3.5" /> : initials(who)}
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <div className="truncate text-xs">{highlightText(r.content || '(sem texto)', searchQ)}</div>
+                              <div className="text-[10px] text-muted-foreground">{who} · {new Date(r.createdAt).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</div>
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )
+                )}
+              </div>
+            )}
+
+            <div
+              className="relative flex-1 min-h-0"
+              onDragOver={(e) => { if (e.dataTransfer.types.includes('Files')) { e.preventDefault(); setDragging(true); } }}
+              onDragLeave={(e) => { if (e.currentTarget === e.target) setDragging(false); }}
+              onDrop={(e) => { e.preventDefault(); setDragging(false); addFiles(e.dataTransfer.files); }}
+            >
+              {dragging && (
+                <div className="pointer-events-none absolute inset-2 z-20 flex items-center justify-center rounded-xl border-2 border-dashed border-primary bg-primary/10 text-sm font-medium text-primary">
+                  Solte para anexar
+                </div>
+              )}
+              <div ref={scrollRef} onScroll={onMessagesScroll} className="absolute inset-0 overflow-y-auto p-4 space-y-3">
+                {hasMore && (
+                  <div className="flex justify-center pb-1">
+                    <Button variant="outline" size="sm" className="h-7 text-xs" onClick={loadOlder} disabled={loadingMore}>
+                      {loadingMore ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Carregar mensagens anteriores'}
+                    </Button>
+                  </div>
+                )}
+                {messages.length === 0 && <p className="text-center text-xs text-muted-foreground py-8">Sem mensagens ainda. Diga olá 👋</p>}
+              {messages.map((m, idx) => {
+                const prev = messages[idx - 1];
+                const mine = m.senderId === user?.id;
+                const isBot = m.senderId === null;
+                const isCard = m.type === 'form_submission';
+                const isQuery = m.type === 'query_result';
+                const isReport = m.type === 'report';
+                const attachments = m.type === 'attachment' ? ((m.meta?.attachments || []) as Attachment[]) : [];
+                const isText = !isCard && !isQuery && !isReport && attachments.length === 0;
+                const values = (m.meta?.values || {}) as Record<string, unknown>;
+                const qCols = (m.meta?.columns || []) as Array<{ slug: string; label: string }>;
+                const qRows = (m.meta?.rows || []) as string[][];
+                const entitySlug = m.meta?.entitySlug as string | undefined;
+                const dt = new Date(m.createdAt);
+                const prevDt = prev ? new Date(prev.createdAt) : null;
+                const showDate = !prevDt || !isSameDay(prevDt, dt);
+                const firstOfGroup = showDate || !prev || prev.senderId !== m.senderId || (dt.getTime() - (prevDt?.getTime() || 0)) > 5 * 60 * 1000;
+                const displayName = mine ? 'Você' : isBot ? 'Assistente' : (m.senderName || 'Usuário');
+                const pending = isBot ? (m.meta?.pendingAction as { done?: boolean; cancelled?: boolean; requestedById?: string } | undefined) : undefined;
+                const canAnswer = !!pending && !pending.done && pending.requestedById === user?.id;
+                const hue = hueFor(m.senderId || 'bot');
+                const entries = Object.entries(values);
+                const isImg = ([k, v]: [string, unknown]) => !!v && (fieldMeta(entitySlug, k).type === 'image' || looksLikeImage(v));
+                const imgs = entries.filter(isImg);
+                const fields = entries.filter((e) => !isImg(e));
+                return (
+                  <Fragment key={m.id}>
+                    {showDate && (
+                      <div className="flex justify-center py-1">
+                        <span className="rounded-full bg-muted px-3 py-0.5 text-[11px] font-medium text-muted-foreground shadow-sm">{dayLabel(dt)}</span>
+                      </div>
+                    )}
+                    <div className={cn('flex items-end gap-2', mine && 'flex-row-reverse', firstOfGroup ? 'mt-1.5' : 'mt-0.5')}>
+                      {!mine && (firstOfGroup ? (
+                        <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[11px] font-semibold text-white"
+                          style={{ backgroundColor: isBot ? 'hsl(38 92% 50%)' : `hsl(${hue} 55% 45%)` }}>
+                          {isBot ? <Bot className="h-4 w-4" /> : initials(displayName)}
+                        </div>
+                      ) : <div className="w-7 shrink-0" />)}
+                      <div id={`msg-${m.id}`}
+                        className={cn('scroll-mt-4 rounded-2xl px-2.5 py-1.5 text-sm shadow-sm',
+                          isQuery ? 'w-full max-w-full' : 'max-w-[80%]',
+                          isText ? (mine ? 'bg-primary text-primary-foreground' : isBot ? 'bg-amber-500/15 border border-amber-500/30' : 'bg-muted') : 'bg-background border',
+                          firstOfGroup && (mine ? 'rounded-tr-md' : 'rounded-tl-md'),
+                          highlightId === m.id && 'ring-2 ring-yellow-400')}>
+                        {!mine && firstOfGroup && (
+                          <div className="mb-0.5 text-xs font-semibold" style={{ color: isBot ? 'hsl(38 92% 42%)' : `hsl(${hue} 60% 42%)` }}>{displayName}</div>
+                        )}
+                        {isCard ? (
+                          <div>
+                            <div className="mb-1 flex flex-wrap items-center gap-1.5 text-[13px] font-medium text-primary">
+                              {m.meta?.edited ? <FileEdit className="h-3.5 w-3.5" /> : <FilePlus2 className="h-3.5 w-3.5" />}
+                              {m.meta?.edited ? 'Editou' : 'Registrou'}
+                              {m.meta?.label ? <span className="rounded bg-primary/15 px-1.5 py-0.5 text-xs font-semibold text-primary">{String(m.meta.label)}</span> : null}
+                            </div>
+                            {fields.length > 0 && (
+                              <div className="grid grid-cols-2 gap-x-3 gap-y-0.5">
+                                {fields.map(([k, v]) => (
+                                  <div key={k} className="flex min-w-0 gap-1 text-xs"><span className="text-muted-foreground">{fieldMeta(entitySlug, k).label}:</span><span className="truncate">{String(v)}</span></div>
+                                ))}
+                              </div>
+                            )}
+                            {imgs.length > 0 && (
+                              <div className="mt-1.5 flex flex-wrap gap-1.5">{imgs.map(([k, v]) => <Thumb key={k} url={String(v)} />)}</div>
+                            )}
+                          </div>
+                        ) : isQuery ? (
+                          <div className="overflow-x-auto">
+                            {isBot && m.content && <p className="mb-1 text-sm">{m.content}</p>}
+                            <div className="mb-1.5 flex items-center gap-1.5 text-[13px] font-medium text-primary">
+                              <ListChecks className="h-3.5 w-3.5" /> {String(m.meta?.total ?? qRows.length)} resultado(s)
+                            </div>
+                            {qRows.length === 0 ? <p className="text-xs text-muted-foreground">Nenhum resultado.</p> : (
+                              <table className="w-full text-xs">
+                                <thead><tr className="border-b text-left text-muted-foreground">
+                                  {qCols.map((c) => <th key={c.slug} className="whitespace-nowrap py-1 pr-3 font-medium">{c.label}</th>)}
+                                </tr></thead>
+                                <tbody>
+                                  {qRows.map((r, i) => (
+                                    <tr key={i} className="border-b border-border/40">
+                                      {r.map((cell, j) => <td key={j} className="max-w-[220px] truncate whitespace-nowrap py-1 pr-3">{cell}</td>)}
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            )}
+                            {Number(m.meta?.total ?? 0) > qRows.length && <p className="mt-1 text-[10px] text-muted-foreground">Mostrando {qRows.length} de {String(m.meta?.total)} — gere um relatório para ver tudo.</p>}
+                          </div>
+                        ) : isReport ? (
+                          (() => {
+                            const reportUrl = m.meta?.url ? resolveFileUrl(String(m.meta.url)) : null;
+                            return (
+                              <button type="button" disabled={!reportUrl}
+                                onClick={() => reportUrl && triggerDownload(reportUrl, String(m.meta?.filename || 'relatorio'))}
+                                className="flex w-full items-center gap-2 text-left disabled:cursor-default disabled:opacity-60">
+                                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-emerald-500/15 text-emerald-600"><Download className="h-4 w-4" /></div>
+                                <div className="min-w-0">
+                                  <div className="truncate text-[13px] font-medium">{String(m.meta?.filename || 'Relatório')}</div>
+                                  <div className="text-[10px] text-muted-foreground">{String(m.meta?.format || '').toUpperCase()} · {String(m.meta?.total ?? 0)} registro(s) · {reportUrl ? 'toque para baixar' : 'indisponível'}</div>
+                                </div>
+                              </button>
+                            );
+                          })()
+                        ) : attachments.length > 0 ? (
+                          <div>
+                            <AttachmentView items={attachments} />
+                            {m.meta?.caption ? <div className="mt-1 whitespace-pre-line">{String(m.meta.caption)}</div> : null}
+                          </div>
+                        ) : (
+                          <div>
+                            <div className="whitespace-pre-line">{m.content}</div>
+                            {canAnswer && (
+                              <div className="mt-2 flex gap-2" data-testid="bot-confirm">
+                                <Button size="sm" className="h-8" onClick={() => void askAssistant('@bot sim')} disabled={botThinking}>
+                                  <Check className="mr-1 h-3.5 w-3.5" /> Confirmar
+                                </Button>
+                                <Button size="sm" variant="outline" className="h-8" onClick={() => void askAssistant('@bot não')} disabled={botThinking}>
+                                  <X className="mr-1 h-3.5 w-3.5" /> Cancelar
+                                </Button>
+                              </div>
+                            )}
+                            {pending?.done && <p className="mt-1 text-[11px] text-muted-foreground">{pending.cancelled ? 'Cancelado' : 'Confirmado'}</p>}
+                          </div>
+                        )}
+                        <div className={cn('mt-0.5 text-right text-[10px] leading-none', isText && mine ? 'text-primary-foreground/60' : 'text-muted-foreground')}>{hhmm(dt)}</div>
+                      </div>
+                    </div>
+                  </Fragment>
+                );
+              })}
+                {botThinking && (
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground" data-testid="bot-thinking">
+                    <Loader2 className="h-4 w-4 animate-spin" /> Assistente pensando…
+                  </div>
+                )}
+                <div ref={endRef} />
+              </div>
+              {!atBottom && (
+                <button onClick={jumpToBottom}
+                  className="absolute bottom-3 right-3 flex items-center gap-1 rounded-full border bg-background px-2.5 py-1 text-xs shadow-md hover:bg-accent">
+                  <ChevronDown className="h-3.5 w-3.5" /> Descer
+                </button>
+              )}
+            </div>
+
+            {editCmd ? (
+              <RecordEditForm
+                channelId={active.id}
+                cmd={editCmd.cmd}
+                entity={editCmd.entity}
+                scopeParentId={active.kind === 'record' ? active.scopeRecordId : undefined}
+                onCancel={() => setEditCmd(null)}
+                onDone={() => { setEditCmd(null); loadMessages(active.id); }}
+              />
+            ) : queryCmd ? (
+              <QueryRunner
+                channelId={active.id}
+                cmd={queryCmd.cmd}
+                entity={queryCmd.entity}
+                scopeParentId={active.kind === 'record' ? active.scopeRecordId : undefined}
+                onCancel={() => setQueryCmd(null)}
+                onDone={() => { setQueryCmd(null); loadMessages(active.id); }}
+              />
+            ) : quickCmd ? (
+              <QuickCaptureForm
+                channelId={active.id}
+                cmd={quickCmd.cmd}
+                entity={quickCmd.entity}
+                parentEntity={quickCmd.parentEntity}
+                scopeParentId={active.kind === 'record' ? active.scopeRecordId : undefined}
+                onCancel={() => setQuickCmd(null)}
+                onDone={() => { setQuickCmd(null); loadMessages(active.id); }}
+              />
+            ) : (
+              <div className="border-t">
+                {/* Sugestões de slash-command */}
+                {slashMatches.length > 0 && (
+                  <div className="px-3 pt-2 flex flex-col gap-1">
+                    {slashMatches.map((c, i) => (
+                      <button key={c.slug} type="button" onMouseEnter={() => setSlashIndex(i)} onClick={() => openCommand(c)}
+                        className={cn('flex items-center gap-1.5 rounded-md border px-2 py-1 text-xs text-left transition-colors',
+                          i === Math.min(slashIndex, slashMatches.length - 1) ? 'border-primary bg-primary/10' : 'border-border hover:bg-accent')}>
+                        <Slash className="h-3 w-3 text-primary" />
+                        <span className="font-medium">/{c.slug}</span>
+                        {c.description && <span className="text-muted-foreground">— {c.description}</span>}
+                      </button>
+                    ))}
+                    <span className="text-[10px] text-muted-foreground px-1">↑↓ navegar · Tab/Enter selecionar · Esc sair</span>
+                  </div>
+                )}
+                {files.length > 0 && (
+                  <div className="flex flex-wrap gap-2 px-3 pt-2" data-testid="chat-pending-files">
+                    {files.map((f, i) => <PendingFile key={`${f.name}-${i}`} file={f} onRemove={() => setFiles((prev) => prev.filter((x) => x !== f))} />)}
+                  </div>
+                )}
+                <form onSubmit={send} className="flex items-center gap-2 p-3">
+                  <input ref={fileInputRef} type="file" multiple accept={ACCEPT} className="hidden" data-testid="chat-file-input"
+                    onChange={(e) => { addFiles(e.target.files); e.target.value = ''; }} />
+                  <Button type="button" variant="ghost" size="icon" className="h-9 w-9 shrink-0" onClick={() => fileInputRef.current?.click()}
+                    disabled={sendingFiles} title="Anexar foto ou arquivo" aria-label="Anexar foto ou arquivo" data-testid="chat-attach">
+                    <Paperclip className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    type="button"
+                    variant={aiMode ? 'default' : 'outline'}
+                    size="sm"
+                    className="h-9 shrink-0"
+                    onClick={() => { setAiMode((v) => !v); setFiles([]); }}
+                    aria-pressed={aiMode}
+                    title="Perguntar ao assistente (IA)"
+                    data-testid="chat-ai-toggle"
+                  >
+                    <Sparkles className="mr-1 h-4 w-4" /> IA
+                  </Button>
+                  <Input
+                    value={draft}
+                    onChange={(e) => { setDraft(e.target.value); setSlashIndex(0); }}
+                    onKeyDown={handleComposerKey}
+                    onPaste={(e) => { if (e.clipboardData.files.length) { e.preventDefault(); addFiles(e.clipboardData.files); } }}
+                    placeholder={aiMode ? 'Pergunte ao assistente…' : files.length ? 'Legenda (opcional)…' : 'Escreva uma mensagem… /comando ou @bot'}
+                    className="flex-1"
+                    disabled={botThinking || sendingFiles}
+                    data-testid="chat-input"
+                  />
+                  <Button type="submit" size="icon" disabled={sendingFiles || (!draft.trim() && files.length === 0)} data-testid="chat-send">
+                    {sendingFiles ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                  </Button>
+                </form>
+              </div>
+            )}
+          </>
+        )}
+      </section>
+
+      {/* Formulário do slash-command (reusa o form de registro; save via executeCommand) */}
+      {runningCmd && active && (
+        <RecordFormDialog
+          open
+          onOpenChange={(o) => { if (!o) setRunningCmd(null); }}
+          entity={runningCmd.entity}
+          submitOverride={async (data) => {
+            await api.post(`/chat/channels/${active.id}/commands/${runningCmd.cmd.slug}`, { values: data });
+            setRunningCmd(null);
+            await loadMessages(active.id);
+          }}
+        />
+      )}
+
+      {canManageCommands && (
+        <CommandManager
+          open={showCmdManager}
+          onOpenChange={setShowCmdManager}
+          entities={allEntities}
+          roles={roles}
+          onChanged={() => {
+            if (active) {
+              api.get(`/chat/commands?channelId=${active.id}`).then((r) => setCommands(r.data || [])).catch(() => {});
+            }
+          }}
+        />
+      )}
+
+      {/* Seletor de comandos NA CRIAÇÃO do chat de registro */}
+      {pickerFor && (
+        <CommandPickerDialog
+          open
+          mode="create"
+          confirmLabel="Criar e abrir"
+          onOpenChange={(v) => { if (!v) setPickerFor(null); }}
+          onConfirm={async (ids) => {
+            const p = pickerFor;
+            setPickerFor(null);
+            if (p) await openThread(p.entitySlug, p.recordId, ids);
+          }}
+        />
+      )}
+
+      {newDmOpen && <NewDmDialog onPick={openDm} onClose={() => setNewDmOpen(false)} />}
+
+      {/* Novo chat de registro: escolhe tabela + registro e abre o chat dele */}
+      {newChatOpen && (
+        <NewChatDialog
+          entities={tables}
+          onClose={() => setNewChatOpen(false)}
+          onPick={(slug, recordId) => { setNewChatOpen(false); openThread(slug, recordId); }}
+        />
+      )}
+
+      {/* Gerenciar comandos de um chat existente */}
+      {managePicker && (
+        <CommandPickerDialog
+          open
+          mode="manage"
+          confirmLabel="Salvar"
+          initialSelected={managePicker.initial}
+          onOpenChange={(v) => { if (!v) setManagePicker(null); }}
+          onConfirm={async (ids) => {
+            const mp = managePicker;
+            setManagePicker(null);
+            if (!mp) return;
+            await api.put(`/chat/channels/${mp.channelId}/commands`, { commandIds: ids });
+            if (active?.id === mp.channelId) {
+              api.get(`/chat/commands?channelId=${mp.channelId}`).then((r) => setCommands(r.data || [])).catch(() => {});
+            }
+          }}
+        />
+      )}
+    </div>
+  );
+}

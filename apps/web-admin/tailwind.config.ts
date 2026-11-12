@@ -50,6 +50,24 @@ const config: Config = {
           DEFAULT: "hsl(var(--card))",
           foreground: "hsl(var(--card-foreground))",
         },
+        // Escala da cor da empresa (gerada em lib/generate-theme.ts)
+        brand: {
+          50: "hsl(var(--brand-50) / <alpha-value>)",
+          100: "hsl(var(--brand-100) / <alpha-value>)",
+          200: "hsl(var(--brand-200) / <alpha-value>)",
+          300: "hsl(var(--brand-300) / <alpha-value>)",
+          400: "hsl(var(--brand-400) / <alpha-value>)",
+          500: "hsl(var(--brand-500) / <alpha-value>)",
+          600: "hsl(var(--brand-600) / <alpha-value>)",
+          700: "hsl(var(--brand-700) / <alpha-value>)",
+          800: "hsl(var(--brand-800) / <alpha-value>)",
+          900: "hsl(var(--brand-900) / <alpha-value>)",
+          950: "hsl(var(--brand-950) / <alpha-value>)",
+        },
+        "nav-active": {
+          DEFAULT: "hsl(var(--nav-active) / <alpha-value>)",
+          foreground: "hsl(var(--nav-active-foreground) / <alpha-value>)",
+        },
       },
       borderRadius: {
         lg: "var(--radius)",
@@ -72,7 +90,12 @@ const config: Config = {
       },
     },
   },
-  plugins: [require("tailwindcss-animate")],
+  plugins: [
+    require("tailwindcss-animate"),
+    // Paginas para clientes: "csm:" = o bloco (ou a pagina) tem 640px ou mais de largura.
+    // Responde ao espaco do bloco na grade e a moldura da previa, nao a tela inteira.
+    ({ addVariant }: { addVariant: (name: string, def: string) => void }) => addVariant("csm", "@container (min-width: 640px)"),
+  ],
 };
 
 export default config;

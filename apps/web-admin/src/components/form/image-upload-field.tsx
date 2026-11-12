@@ -214,6 +214,17 @@ export default function ImageUploadField({
     return /\.(mp4|mov|webm|mpeg)(\?.*)?$/i.test(url);
   };
 
+  // Resolve URL relativa (ex.: /uploads/... servido pela API) contra a ORIGEM da API.
+  // No local o upload devolve /uploads/... e o <img> resolveria contra o web (:3100),
+  // que não serve isso. Em prod as URLs já são absolutas (GCS) → no-op.
+  const resolveMediaUrl = (url: string) => {
+    if (!url || /^(https?:|data:|blob:)/i.test(url)) return url;
+    try {
+      const base = (api.defaults.baseURL as string) || process.env.NEXT_PUBLIC_API_URL || '';
+      return base ? new URL(url, new URL(base).origin).toString() : url;
+    } catch { return url; }
+  };
+
   // Show drop zone: always for single-file (to allow replace), or while under maxFiles for multiple
   const showDropZone = multiple ? values.length < maxFiles : true;
 
@@ -230,14 +241,14 @@ export default function ImageUploadField({
               {isVideo(url) ? (
                 <div className="relative aspect-video rounded-lg border overflow-hidden bg-muted">
                   <video
-                    src={url}
+                    src={resolveMediaUrl(url)}
                     className="w-full h-full object-cover"
                     controls
                     preload="metadata"
                   />
                   <div className="absolute top-1 right-1 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity z-10">
                     <a
-                      href={url}
+                      href={resolveMediaUrl(url)}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="bg-background/90 text-foreground rounded-full p-1 shadow-md hover:bg-background"
@@ -262,22 +273,24 @@ export default function ImageUploadField({
                   style={imageDisplaySize ? { width: imageDisplaySize, height: imageDisplaySize } : { aspectRatio: '1/1', width: '100%', maxWidth: 200 }}
                 >
                   <img
-                    src={url}
+                    src={resolveMediaUrl(url)}
                     alt={`Arquivo ${index + 1}`}
                     className="w-full h-full object-cover"
                     onError={(e) => {
-                      (e.currentTarget as HTMLImageElement).src = '';
-                      (e.currentTarget as HTMLImageElement).style.display = 'none';
-                      (e.currentTarget.parentElement as HTMLElement).classList.add('flex', 'items-center', 'justify-center');
+                      const im = e.currentTarget as HTMLImageElement;
+                      if (im.dataset.errored) return; // evita loop: setar src='' re-dispararia onError
+                      im.dataset.errored = '1';
+                      im.style.display = 'none';
+                      (im.parentElement as HTMLElement).classList.add('flex', 'items-center', 'justify-center');
                       const icon = document.createElement('div');
                       icon.innerHTML = '🖼️';
                       icon.className = 'text-3xl';
-                      e.currentTarget.parentElement?.appendChild(icon);
+                      im.parentElement?.appendChild(icon);
                     }}
                   />
                   <div className="absolute top-1 right-1 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity z-10">
                     <a
-                      href={url}
+                      href={resolveMediaUrl(url)}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="bg-background/90 text-foreground rounded-full p-1 shadow-md hover:bg-background"
@@ -300,7 +313,7 @@ export default function ImageUploadField({
                 <div className="flex items-center gap-2 p-2 rounded-lg border bg-muted">
                   <FileIcon className="h-5 w-5 text-muted-foreground shrink-0" />
                   <a
-                    href={url}
+                    href={resolveMediaUrl(url)}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="text-sm truncate flex-1 hover:underline hover:text-primary"
@@ -309,7 +322,7 @@ export default function ImageUploadField({
                     {url.split('/').pop() || url}
                   </a>
                   <a
-                    href={url}
+                    href={resolveMediaUrl(url)}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="text-muted-foreground hover:text-foreground shrink-0"

@@ -3,9 +3,13 @@ import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { AuthService } from './auth.service';
+import { AccountSecurityService } from './account-security.service';
+import { AccountSecurityController, CompanySecurityController } from './account-security.controller';
 import { AuthController } from './auth.controller';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { UserModule } from '../user/user.module';
+import { TenantModule } from '../tenant/tenant.module';
+import { SolutionsModule } from '../solutions/solutions.module';
 
 @Module({
   imports: [
@@ -15,16 +19,18 @@ import { UserModule } from '../user/user.module';
       useFactory: async (configService: ConfigService) => ({
         secret: configService.get<string>('JWT_SECRET'),
         signOptions: {
-          expiresIn: configService.get<string>('JWT_EXPIRATION') || '8h',
+          expiresIn: configService.get<string>('JWT_EXPIRATION') || '1h',
           audience: 'powersync',
         },
       }),
       inject: [ConfigService],
     }),
     UserModule,
+    TenantModule,
+    SolutionsModule,
   ],
-  controllers: [AuthController],
-  providers: [AuthService, JwtStrategy],
+  controllers: [AuthController, AccountSecurityController, CompanySecurityController],
+  providers: [AuthService, JwtStrategy, AccountSecurityService],
   exports: [AuthService, JwtModule],
 })
 export class AuthModule {}

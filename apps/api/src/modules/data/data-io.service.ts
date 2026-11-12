@@ -11,6 +11,7 @@ import { checkEntityAction } from '../../common/utils/check-module-permission';
 import { getEffectiveTenantId } from '../../common/utils/tenant.util';
 import { DataService, QueryDataDto } from './data.service';
 import * as ExcelJS from 'exceljs';
+import { TenantPlanService } from '../../common/services/tenant-plan.service';
 
 export interface ImportError {
   row: number;
@@ -57,6 +58,7 @@ export class DataIoService {
     private readonly prisma: PrismaService,
     private readonly entityService: EntityService,
     private readonly dataService: DataService,
+    private readonly tenantPlan: TenantPlanService,
   ) {}
 
   // =========================================================================
@@ -355,6 +357,8 @@ export class DataIoService {
         validRows.push(data);
       }
     }
+
+    await this.tenantPlan.assertCanAddRecords(effectiveTenantId, validRows.length);
 
     // Insert in batches
     let imported = 0;

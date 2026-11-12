@@ -40,13 +40,13 @@ class SyncStatusIndicator extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               _buildStatusRow(ctx, 'Conectado', status?.connected == true ? 'Sim' : 'Nao',
-                  status?.connected == true ? colors.success : colors.destructive),
+                  status?.connected == true ? colors.success : colors.destructive,),
               _buildStatusRow(ctx, 'Uploading', status?.uploading == true ? 'Sim' : 'Nao',
-                  status?.uploading == true ? colors.warning : null),
+                  status?.uploading == true ? colors.warning : null,),
               _buildStatusRow(ctx, 'Downloading', status?.downloading == true ? 'Sim' : 'Nao',
-                  status?.downloading == true ? colors.warning : null),
+                  status?.downloading == true ? colors.warning : null,),
               _buildStatusRow(ctx, 'Ultimo sync',
-                  status?.lastSyncedAt != null ? _formatDate(status!.lastSyncedAt!) : '-'),
+                  status?.lastSyncedAt != null ? _formatDate(status!.lastSyncedAt!) : '-',),
             ],
           ),
           actions: [

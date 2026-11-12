@@ -1,9 +1,12 @@
-import { Injectable, NotFoundException, ConflictException, ForbiddenException, Logger } from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException, ForbiddenException, BadRequestException, Logger } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { PermissionCacheService } from './permission-cache.service';
-import { CreateCustomRoleDto, UpdateCustomRoleDto, QueryCustomRoleDto, RoleType, DataFilterDto } from './dto/custom-role.dto';
+import { CreateCustomRoleDto, UpdateCustomRoleDto, QueryCustomRoleDto, DataFilterDto } from './dto/custom-role.dto';
 import { getEffectiveTenantId } from '../../common/utils/tenant.util';
+import { hasFullTenantAccess } from '../../common/utils/platform-access';
+import { assertPermissionsSubset, assertEntityPermissionsSubset, assertCanActOnRank, assertNotImpersonating } from '../../common/utils/permission-governance';
+import { assertAssignableRole, loadManagedMember } from '../../common/utils/member-governance';
 import { Prisma } from '@prisma/client';
 import {
   CurrentUser,
@@ -13,6 +16,8 @@ import {
   DEFAULT_LIMIT,
   MAX_LIMIT,
 } from '../../common/types';
+import { teammateIds } from '../../common/utils/team-scope';
+import { clientScopeWhere, type ClientLink } from '../../common/utils/client-scope';
 
 export interface ModulePermissionCrud {
   canRead?: boolean;
@@ -55,16 +60,60 @@ export class CustomRoleService {
     private permissionCache: PermissionCacheService,
   ) {}
 
+  /**
+   * Identidade global (#10): o cargo do usuario vem da Membership. Resolve o
+   * cargo no tenant dado (ou na membership primaria, se tenant omitido).
+   */
+  private async resolveMembershipRole(userId: string, tenantId?: string) {
+    const sel = { permissions: true, modulePermissions: true } as const;
+    if (tenantId) {
+      const m = await this.prisma.userTenantAccess.findUnique({
+        where: { userId_tenantId: { userId, tenantId } },
+        select: { tenantId: true, customRoleId: true, status: true, deletedAt: true, customRole: { select: sel } },
+      });
+      // Com empresa informada, vale so o vinculo com ela: nunca o cargo de outra empresa.
+      return m && m.status === 'ACTIVE' && m.deletedAt === null ? m : null;
+    }
+    const list = await this.prisma.userTenantAccess.findMany({
+      where: { userId, status: 'ACTIVE', deletedAt: null },
+      select: { tenantId: true, customRoleId: true, status: true, deletedAt: true, customRole: { select: sel } },
+      orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }],
+      take: 1,
+    });
+    return list[0] ?? null;
+  }
+
   async create(dto: CreateCustomRoleDto, currentUser: CurrentUser, requestedTenantId?: string) {
+    assertNotImpersonating(currentUser, 'criar cargo');
     const tenantId = getEffectiveTenantId(currentUser, requestedTenantId);
 
     // Verificar se nome já existe no tenant
-    const existing = await this.prisma.customRole.findUnique({
-      where: { tenantId_name: { tenantId, name: dto.name } },
+    const existing = await this.prisma.customRole.findFirst({
+      where: { tenantId, name: dto.name, deletedAt: null },
     });
 
     if (existing) {
       throw new ConflictException('Já existe uma role com este nome');
+    }
+
+    // Governanca anti-escalada: so concede permissoes que o proprio ator possui.
+    assertPermissionsSubset(currentUser.customRole?.modulePermissions, dto.modulePermissions);
+    assertEntityPermissionsSubset(currentUser.customRole?.modulePermissions, currentUser.customRole?.permissions, dto.permissions);
+
+    // RANK: numero MENOR = mais poder. Cargo criado deve ser SUBORDINADO ao criador
+    // (rank estritamente MAIOR), senao a governanca trava (cargos no mesmo rank nao
+    // se gerenciam nem podem ser atribuidos).
+    const actorRank = currentUser.customRole?.rank ?? 999999;
+    let rank: number;
+    if (dto.rank !== undefined) {
+      if (dto.rank <= actorRank) {
+        throw new ForbiddenException(
+          `Rank invalido: voce so cria cargos de rank maior que o seu (${actorRank}); rank menor/igual concederia poder igual ou superior.`,
+        );
+      }
+      rank = dto.rank;
+    } else {
+      rank = actorRank + 10;
     }
 
     const newRole = await this.prisma.customRole.create({
@@ -73,14 +122,14 @@ export class CustomRoleService {
         name: dto.name,
         description: dto.description,
         color: dto.color,
-        roleType: 'CUSTOM', // Roles criadas manualmente sao sempre CUSTOM
         isSystem: false,
+        rank,
         permissions: dto.permissions as unknown as Prisma.InputJsonValue,
         modulePermissions: (dto.modulePermissions || {}) as unknown as Prisma.InputJsonValue,
         isDefault: dto.isDefault || false,
       },
       include: {
-        _count: { select: { users: true } },
+        _count: { select: { tenantAccessUsers: { where: { deletedAt: null, user: { deletedAt: null } } } } },
       },
     });
 
@@ -89,7 +138,7 @@ export class CustomRoleService {
       action: 'create',
       resource: 'custom_role',
       resourceId: newRole.id,
-      newData: { name: newRole.name, description: newRole.description, color: newRole.color, roleType: newRole.roleType },
+      newData: { name: newRole.name, description: newRole.description, color: newRole.color },
       metadata: { name: newRole.name },
     }).catch(() => {});
 
@@ -101,9 +150,9 @@ export class CustomRoleService {
     const limit = Math.min(MAX_LIMIT, Math.max(1, query.limit || DEFAULT_LIMIT));
     const skip = (page - 1) * limit;
     const { search, cursor, sortBy = 'createdAt', sortOrder = 'desc' } = query;
-    const tenantId = getEffectiveTenantId(currentUser, query.tenantId);
+    const tenantId = getEffectiveTenantId(currentUser);
 
-    const where: Prisma.CustomRoleWhereInput = { tenantId };
+    const where: Prisma.CustomRoleWhereInput = { tenantId, deletedAt: null };
 
     if (search) {
       where.OR = [
@@ -137,7 +186,7 @@ export class CustomRoleService {
       take: takeWithExtra,
       orderBy,
       include: {
-        _count: { select: { users: true } },
+        _count: { select: { tenantAccessUsers: { where: { deletedAt: null, user: { deletedAt: null } } } } },
       },
     };
 
@@ -189,10 +238,12 @@ export class CustomRoleService {
     const role = await this.prisma.customRole.findFirst({
       where: { id, tenantId },
       include: {
-        _count: { select: { users: true } },
-        users: {
-          select: { id: true, name: true, email: true, avatar: true },
+        _count: { select: { tenantAccessUsers: { where: { deletedAt: null, user: { deletedAt: null } } } } },
+        // Identidade global (#10): usuarios do cargo vem via membership.
+        tenantAccessUsers: {
           take: 10,
+          where: { deletedAt: null, status: 'ACTIVE' },
+          select: { user: { select: { id: true, name: true, email: true, avatar: true } } },
         },
       },
     });
@@ -201,31 +252,53 @@ export class CustomRoleService {
       throw new NotFoundException('Role não encontrada');
     }
 
-    return role;
+    // Mantem o shape `users` esperado pelo frontend.
+    const { tenantAccessUsers, ...rest } = role;
+    return { ...rest, users: tenantAccessUsers.map((m) => m.user) };
   }
 
   async update(id: string, dto: UpdateCustomRoleDto, currentUser: CurrentUser, requestedTenantId?: string) {
+    assertNotImpersonating(currentUser, 'editar cargo');
     const tenantId = getEffectiveTenantId(currentUser, requestedTenantId);
 
     const role = await this.findOne(id, currentUser, requestedTenantId);
 
-    // Proteger roles de sistema: nome e roleType nao podem ser alterados
+    // RANK RULE: so edita cargos de rank inferior (numero maior) ao seu.
+    assertCanActOnRank(currentUser.customRole?.rank ?? 999999, role.rank ?? 0);
+
+    // Proteger roles de sistema: nome nao pode ser alterado
     if (role.isSystem) {
       if (dto.name && dto.name !== role.name) {
         throw new ForbiddenException('Nome de roles do sistema nao pode ser alterado');
-      }
-      if (dto.roleType && dto.roleType !== role.roleType) {
-        throw new ForbiddenException('Tipo de roles do sistema nao pode ser alterado');
       }
     }
 
     // Verificar conflito de nome
     if (dto.name && dto.name !== role.name) {
       const existing = await this.prisma.customRole.findFirst({
-        where: { tenantId, name: dto.name, id: { not: id } },
+        where: { tenantId, name: dto.name, id: { not: id }, deletedAt: null },
       });
       if (existing) {
         throw new ConflictException('Ja existe uma role com este nome');
+      }
+    }
+
+    // Governanca anti-escalada: so concede permissoes que o proprio ator possui.
+    if (dto.modulePermissions !== undefined) {
+      assertPermissionsSubset(currentUser.customRole?.modulePermissions, dto.modulePermissions, role.modulePermissions);
+    }
+    if (dto.permissions !== undefined) {
+      assertEntityPermissionsSubset(currentUser.customRole?.modulePermissions, currentUser.customRole?.permissions, dto.permissions);
+    }
+
+    // RANK: ator so pode mover um cargo para rank estritamente MAIOR que o seu
+    // (nunca igual/abaixo = nao pode criar par ou superior a si).
+    if (dto.rank !== undefined) {
+      const actorRank = currentUser.customRole?.rank ?? 999999;
+      if (dto.rank <= actorRank) {
+        throw new ForbiddenException(
+          `Rank invalido: voce so define rank maior que o seu (${actorRank}).`,
+        );
       }
     }
 
@@ -234,16 +307,46 @@ export class CustomRoleService {
     if (dto.description !== undefined) data.description = dto.description;
     if (dto.color !== undefined) data.color = dto.color;
     if (dto.isDefault !== undefined) data.isDefault = dto.isDefault;
+    if (dto.rank !== undefined) data.rank = dto.rank;
     if (dto.permissions !== undefined) data.permissions = dto.permissions as unknown as Prisma.InputJsonValue;
     if (dto.modulePermissions !== undefined) data.modulePermissions = (dto.modulePermissions || {}) as unknown as Prisma.InputJsonValue;
-    if (dto.tenantPermissions !== undefined) data.tenantPermissions = dto.tenantPermissions as unknown as Prisma.InputJsonValue;
 
-    const updatedRole = await this.prisma.customRole.update({
-      where: { id },
-      data,
-      include: {
-        _count: { select: { users: true } },
-      },
+    // Qualquer mudanca de autorizacao bumpa permsVersion -> tokens ativos com permsV
+    // defasado tomam 401 e fazem refresh silencioso (JwtStrategy.ensurePermsFresh).
+    const authChanged =
+      dto.permissions !== undefined ||
+      dto.modulePermissions !== undefined;
+    if (authChanged) data.permsVersion = { increment: 1 };
+
+    // Entidades cujo filtro/scope mudou -> precisam recomputar a visibilidade do
+    // PowerSync. O enfileiramento vai na MESMA transacao do update (enqueue
+    // transacional; um consumidor async recomputa em lotes). Ver VisibilityRecomputeJob.
+    const affected = this.affectedEntitySlugs(role.permissions, dto.permissions);
+
+    const updatedRole = await this.prisma.$transaction(async (tx) => {
+      const r = await tx.customRole.update({
+        where: { id },
+        data,
+        include: {
+          _count: { select: { tenantAccessUsers: { where: { deletedAt: null, user: { deletedAt: null } } } } },
+        },
+      });
+      if (affected === '*') {
+        await tx.$executeRawUnsafe(
+          `INSERT INTO "visibility_recompute" ("tenantId", "entitySlug")
+             SELECT $1, slug FROM "Entity" WHERE "tenantId" = $1 AND "deletedAt" IS NULL`,
+          tenantId,
+        );
+      } else {
+        for (const slug of affected) {
+          await tx.$executeRawUnsafe(
+            `INSERT INTO "visibility_recompute" ("tenantId", "entitySlug") VALUES ($1, $2)`,
+            tenantId,
+            slug,
+          );
+        }
+      }
+      return r;
     });
 
     // Audit log
@@ -256,15 +359,14 @@ export class CustomRoleService {
       metadata: { name: updatedRole.name },
     }).catch(() => {});
 
-    // Invalidar cache de permissions
-    // Buscar todos os usuários com essa role e invalidar cache
-    const usersWithRole = await this.prisma.user.findMany({
-      where: { customRoleId: id },
-      select: { id: true, tenantId: true },
+    // Invalidar cache de permissions: usuarios com essa role vem via membership.
+    const memberships = await this.prisma.userTenantAccess.findMany({
+      where: { customRoleId: id, deletedAt: null },
+      select: { userId: true },
     });
 
-    if (usersWithRole.length > 0) {
-      const userIds = usersWithRole.map(u => u.id);
+    if (memberships.length > 0) {
+      const userIds = memberships.map((m) => m.userId);
       await this.permissionCache.invalidateMultipleUsers(userIds, tenantId);
       this.logger.log(`🗑️ Invalidados caches de ${userIds.length} usuários após update de role ${updatedRole.name}`);
     }
@@ -272,24 +374,60 @@ export class CustomRoleService {
     return updatedRole;
   }
 
+  /**
+   * Slugs de entidade cujo filtro/scope de leitura mudou entre as permissoes
+   * antiga e nova (added/removed/modified) — sao as que precisam recomputar a
+   * visibilidade. Retorna '*' se o coringa mudou (recomputa todas as entidades).
+   * [] quando permissions nao foi tocado no update.
+   */
+  private affectedEntitySlugs(
+    oldPerms: unknown,
+    newPerms: unknown,
+  ): string[] | '*' {
+    if (newPerms === undefined) return [];
+    const toMap = (arr: unknown): Map<string, string> => {
+      const m = new Map<string, string>();
+      if (Array.isArray(arr)) {
+        for (const p of arr) {
+          const slug = (p as { entitySlug?: string })?.entitySlug;
+          if (slug) m.set(slug, JSON.stringify(p));
+        }
+      }
+      return m;
+    };
+    const o = toMap(oldPerms);
+    const n = toMap(newPerms);
+    const changed: string[] = [];
+    for (const slug of new Set([...o.keys(), ...n.keys()])) {
+      if (o.get(slug) !== n.get(slug)) changed.push(slug);
+    }
+    if (changed.includes('*')) return '*';
+    return changed;
+  }
+
   async remove(id: string, currentUser: CurrentUser, requestedTenantId?: string) {
+    assertNotImpersonating(currentUser, 'excluir cargo');
     const role = await this.findOne(id, currentUser, requestedTenantId);
+
+    // RANK RULE: so exclui cargos de rank inferior (numero maior) ao seu.
+    assertCanActOnRank(currentUser.customRole?.rank ?? 999999, role.rank ?? 0);
 
     // Roles de sistema nao podem ser excluidas
     if (role.isSystem) {
       throw new ForbiddenException('Roles do sistema nao podem ser excluidas');
     }
 
-    // Verificar se ha usuarios usando esta role
-    const usersCount = await this.prisma.user.count({
-      where: { customRoleId: id },
+    // Verificar se ha usuarios usando esta role (via membership)
+    const usersCount = await this.prisma.userTenantAccess.count({
+      where: { customRoleId: id, deletedAt: null, user: { deletedAt: null } },
     });
 
     if (usersCount > 0) {
       throw new ConflictException(`Esta role esta atribuida a ${usersCount} usuario(s). Reassine-os antes de excluir.`);
     }
 
-    await this.prisma.customRole.delete({ where: { id } });
+    // Soft delete (mantem historico; a listagem ja filtra deletedAt:null).
+    await this.prisma.customRole.update({ where: { id }, data: { deletedAt: new Date() } });
 
     // Audit log
     this.auditService.log(currentUser, {
@@ -303,8 +441,58 @@ export class CustomRoleService {
     return { message: 'Role excluida com sucesso' };
   }
 
-  async assignToUser(roleId: string, userId: string, currentUser: CurrentUser, requestedTenantId?: string) {
+  /**
+   * Nova ordem dos cargos ABAIXO do ator (do mais alto ao mais baixo). Os niveis
+   * viram actorRank+10, +20... — a tela mostra so a ordem, nunca o numero.
+   */
+  async reorder(orderedIds: string[], currentUser: CurrentUser) {
+    assertNotImpersonating(currentUser, 'reordenar cargos');
+    const actorRank = currentUser.customRole?.rank ?? Number.MAX_SAFE_INTEGER;
+    const below = await this.prisma.customRole.findMany({
+      where: { tenantId: currentUser.tenantId, deletedAt: null, rank: { gt: actorRank } },
+      select: { id: true },
+    });
+    const expected = new Set(below.map((r) => r.id));
+    if (orderedIds.length !== expected.size || new Set(orderedIds).size !== expected.size || orderedIds.some((id) => !expected.has(id))) {
+      throw new BadRequestException('Envie todos os cargos abaixo do seu, cada um uma vez');
+    }
+
+    await this.prisma.$transaction(
+      orderedIds.map((id, index) =>
+        this.prisma.customRole.update({ where: { id }, data: { rank: actorRank + 10 * (index + 1) } }),
+      ),
+    );
+    this.auditService.log(currentUser, {
+      action: 'update',
+      resource: 'custom_role',
+      metadata: { subAction: 'reorder', orderedIds },
+    }).catch(() => {});
+    return { success: true };
+  }
+
+  async assignToUser(
+    roleId: string,
+    userId: string,
+    currentUser: CurrentUser,
+    requestedTenantId?: string,
+    expiresAt?: string | null,
+  ) {
+    assertNotImpersonating(currentUser, 'atribuir cargo');
     const tenantId = getEffectiveTenantId(currentUser, requestedTenantId);
+
+    // #19 item 6: acesso temporario. expiresAt opcional (null/ausente = permanente).
+    // Generaliza o tempo-limitado da impersonacao para memberships/grants.
+    let expiresAtDate: Date | null = null;
+    if (expiresAt) {
+      const parsed = new Date(expiresAt);
+      if (isNaN(parsed.getTime())) {
+        throw new BadRequestException('expiresAt invalido (use ISO 8601)');
+      }
+      if (parsed <= new Date()) {
+        throw new BadRequestException('expiresAt deve estar no futuro');
+      }
+      expiresAtDate = parsed;
+    }
 
     // Verificar se a role existe e pertence ao tenant
     const role = await this.prisma.customRole.findFirst({
@@ -312,25 +500,36 @@ export class CustomRoleService {
     });
     if (!role) throw new NotFoundException('Role não encontrada');
 
-    // Verificar se o usuário existe e pertence ao tenant
-    const user = await this.prisma.user.findFirst({
-      where: { id: userId, tenantId },
+    // Governanca anti-escalada: so atribui cargo cujas permissoes o ator possui
+    // e de rank inferior (numero maior) ao seu.
+    assertPermissionsSubset(currentUser.customRole?.modulePermissions, role.modulePermissions);
+    assertEntityPermissionsSubset(currentUser.customRole?.modulePermissions, currentUser.customRole?.permissions, role.permissions);
+
+    // So troca o cargo de quem ja e membro desta empresa e esta abaixo do ator
+    // (adicionar gente nova passa por /users, que respeita o limite do plano).
+    const target = await loadManagedMember(this.prisma, currentUser, userId);
+    if (target.isSelf) throw new ForbiddenException('Voce nao pode mudar o proprio cargo');
+    await assertAssignableRole(this.prisma, currentUser, roleId);
+
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, name: true, email: true },
     });
     if (!user) throw new NotFoundException('Usuário não encontrado');
 
-    const updatedUser = await this.prisma.user.update({
-      where: { id: userId },
-      data: { customRoleId: roleId },
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        customRoleId: true,
-        customRole: {
-          select: { id: true, name: true, roleType: true, isSystem: true },
-        },
-      },
+    // Membership autoritativa (#10): o cargo do usuario no tenant VIVE aqui.
+    await this.prisma.userTenantAccess.update({
+      where: { id: target.membership.id },
+      data: { customRoleId: roleId, expiresAt: expiresAtDate },
     });
+
+    const updatedUser = {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      customRoleId: roleId,
+      customRole: { id: role.id, name: role.name, isSystem: role.isSystem },
+    };
 
     // Audit log
     this.auditService.log(currentUser, {
@@ -351,8 +550,18 @@ export class CustomRoleService {
   async removeFromUser(userId: string, currentUser: CurrentUser, requestedTenantId?: string) {
     const tenantId = getEffectiveTenantId(currentUser, requestedTenantId);
 
-    const user = await this.prisma.user.findFirst({
-      where: { id: userId, tenantId },
+    // Membership do usuario neste tenant (fonte da verdade).
+    const membership = await this.prisma.userTenantAccess.findUnique({
+      where: { userId_tenantId: { userId, tenantId } },
+      select: { customRoleId: true },
+    });
+    if (!membership) throw new NotFoundException('Usuario nao pertence a este tenant');
+    const target = await loadManagedMember(this.prisma, currentUser, userId);
+    if (target.isSelf) throw new ForbiddenException('Voce nao pode mudar o proprio cargo');
+
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, name: true, email: true },
     });
     if (!user) throw new NotFoundException('Usuario nao encontrado');
 
@@ -365,22 +574,21 @@ export class CustomRoleService {
       throw new NotFoundException('Tenant sem role default configurada');
     }
 
-    const oldRoleId = user.customRoleId;
+    const oldRoleId = membership.customRoleId;
 
-    // Atribuir role default ao inves de null
-    const updatedUser = await this.prisma.user.update({
-      where: { id: userId },
-      data: { customRoleId: defaultRole.id },
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        customRoleId: true,
-        customRole: {
-          select: { id: true, name: true, roleType: true, isSystem: true },
-        },
-      },
+    // Membership autoritativa (#10): volta o vinculo para o cargo default.
+    await this.prisma.userTenantAccess.update({
+      where: { userId_tenantId: { userId, tenantId } },
+      data: { customRoleId: defaultRole.id, deletedAt: null },
     });
+
+    const updatedUser = {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      customRoleId: defaultRole.id,
+      customRole: { id: defaultRole.id, name: defaultRole.name, isSystem: defaultRole.isSystem },
+    };
 
     // Audit log
     this.auditService.log(currentUser, {
@@ -396,213 +604,193 @@ export class CustomRoleService {
   }
 
   /**
-   * Verifica se um usuario tem permissao para uma entidade especifica
+   * Acha a permissao por entidade em permissions[]. Match EXATO do entitySlug tem
+   * prioridade; senao cai no coringa '*' (entrada "todas as tabelas"). Modelo
+   * permission-driven: NAO depende mais de roleType (toda role e CUSTOM).
+   */
+  private findEntityPerm<T extends { entitySlug: string }>(
+    permissions: unknown,
+    entitySlug: string,
+  ): T | null {
+    const perms = (permissions || []) as T[];
+    if (!Array.isArray(perms)) return null;
+    return (
+      perms.find((p) => p.entitySlug === entitySlug) ??
+      perms.find((p) => p.entitySlug === '*') ??
+      null
+    );
+  }
+
+  /**
+   * Verifica se um usuario tem permissao para uma entidade especifica.
+   * Decisao por permissao (allAccess OU permissions[]/'*'), nunca por roleType.
    */
   async hasEntityPermission(
     userId: string,
     entitySlug: string,
     action: 'canCreate' | 'canRead' | 'canUpdate' | 'canDelete',
+    tenantId: string,
   ): Promise<boolean> {
-    const user = await this.prisma.user.findUnique({
-      where: { id: userId },
-      select: {
-        customRoleId: true,
-        customRole: {
-          select: { roleType: true, permissions: true },
-        },
-      },
-    });
+    const m = await this.resolveMembershipRole(userId, tenantId);
+    if (!m || !m.customRole) return false;
 
-    if (!user || !user.customRole) return false;
-
-    const roleType = user.customRole.roleType as RoleType;
-
-    // PLATFORM_ADMIN e ADMIN tem acesso total
-    if (roleType === 'PLATFORM_ADMIN' || roleType === 'ADMIN') {
+    // Acesso total ao tenant libera tudo.
+    if (hasFullTenantAccess(m.customRole.modulePermissions)) {
       return true;
     }
 
-    // MANAGER tem acesso total a CRUD
-    if (roleType === 'MANAGER') {
-      return ['canCreate', 'canRead', 'canUpdate', 'canDelete'].includes(action);
-    }
-
-    // USER tem acesso a criar, ler e atualizar proprios
-    if (roleType === 'USER') {
-      return ['canCreate', 'canRead', 'canUpdate'].includes(action);
-    }
-
-    // VIEWER so pode ler
-    if (roleType === 'VIEWER') {
-      return action === 'canRead';
-    }
-
-    // CUSTOM: usa permissoes definidas
-    const permissions = user.customRole.permissions as unknown as Array<{
+    const entry = this.findEntityPerm<{
       entitySlug: string;
-      canCreate: boolean;
-      canRead: boolean;
-      canUpdate: boolean;
-      canDelete: boolean;
-      scope?: 'all' | 'own';
-    }>;
-
-    const entityPerm = permissions.find((p) => p.entitySlug === entitySlug);
-    if (!entityPerm) return false;
-
-    return entityPerm[action] === true;
+      canCreate?: boolean; canRead?: boolean; canUpdate?: boolean; canDelete?: boolean;
+    }>(m.customRole.permissions, entitySlug);
+    return !!entry && entry[action] === true;
   }
 
   /**
    * Retorna o escopo de visibilidade do usuario para uma entidade
-   * @returns 'all' | 'own' | null (null = sem acesso)
+   * @returns 'all' | 'own' | 'team' | null (null = sem acesso)
    */
   async getEntityScope(
     userId: string,
     entitySlug: string,
-  ): Promise<'all' | 'own' | null> {
-    const user = await this.prisma.user.findUnique({
-      where: { id: userId },
-      select: {
-        customRole: {
-          select: { roleType: true, permissions: true },
-        },
-      },
+    tenantId: string,
+  ): Promise<'all' | 'own' | 'team' | 'client' | null> {
+    const m = await this.resolveMembershipRole(userId, tenantId);
+    if (!m || !m.customRole) return null;
+
+    // Acesso total ao tenant vê tudo.
+    if (hasFullTenantAccess(m.customRole.modulePermissions)) {
+      return 'all';
+    }
+
+    const entry = this.findEntityPerm<{
+      entitySlug: string; canRead?: boolean; scope?: 'all' | 'own' | 'team' | 'client';
+    }>(m.customRole.permissions, entitySlug);
+    if (!entry || entry.canRead !== true) return null;
+    return entry.scope === 'own' || entry.scope === 'team' || entry.scope === 'client' ? entry.scope : 'all';
+  }
+
+  /**
+   * Cliente vinculado ao acesso da pessoa nesta empresa (portal do cliente), se houver.
+   * A tabela precisa ser da mesma empresa e o registro tambem.
+   */
+  async getClientLink(userId: string, tenantId: string): Promise<ClientLink | null> {
+    const m = await this.prisma.userTenantAccess.findUnique({
+      where: { userId_tenantId: { userId, tenantId } },
+      select: { status: true, deletedAt: true, clientEntityId: true, clientRecordId: true },
     });
+    if (!m || m.status !== 'ACTIVE' || m.deletedAt !== null || !m.clientEntityId || !m.clientRecordId) return null;
+    const entity = await this.prisma.entity.findFirst({ where: { id: m.clientEntityId, tenantId }, select: { id: true, slug: true } });
+    if (!entity) return null;
+    return { entityId: entity.id, entitySlug: entity.slug, recordId: m.clientRecordId };
+  }
 
-    if (!user || !user.customRole) return null;
+  /**
+   * Portal do cliente: com escopo 'client' na tabela, o filtro do que e do cliente
+   * vinculado (o registro dele, o que esta dentro dele e o que aponta para ele).
+   * null = a pessoa tem outro escopo nesta tabela.
+   */
+  async clientScopeFor(
+    user: { id: string; tenantId: string },
+    entity: { id: string; slug: string; fields: unknown },
+  ): Promise<Prisma.EntityDataWhereInput | null> {
+    const scope = await this.getEntityScope(user.id, entity.slug, user.tenantId);
+    if (scope !== 'client') return null;
+    const link = await this.getClientLink(user.id, user.tenantId);
+    if (!link || entity.id === link.entityId) return clientScopeWhere(entity, link);
+    // Netos: o que esta dentro dos registros que estao dentro do cliente
+    const where = { tenantId: user.tenantId, parentRecordId: link.recordId };
+    const [active, archived] = await Promise.all([
+      this.prisma.entityData.findMany({ where, select: { id: true }, take: 5000 }),
+      this.prisma.archivedEntityData.findMany({ where, select: { id: true }, take: 5000 }),
+    ]);
+    return clientScopeWhere(entity, link, [...active, ...archived].map((r) => r.id));
+  }
 
-    const roleType = user.customRole.roleType as RoleType;
-
-    // PLATFORM_ADMIN e ADMIN veem tudo
-    if (roleType === 'PLATFORM_ADMIN' || roleType === 'ADMIN') {
-      return 'all';
-    }
-
-    // MANAGER ve tudo do tenant
-    if (roleType === 'MANAGER') {
-      return 'all';
-    }
-
-    // VIEWER ve tudo mas nao edita
-    if (roleType === 'VIEWER') {
-      return 'all';
-    }
-
-    // USER ve apenas proprios
-    if (roleType === 'USER') {
-      return 'own';
-    }
-
-    // CUSTOM: usa permissoes definidas
-    const permissions = user.customRole.permissions as unknown as Array<{
-      entitySlug: string;
-      canRead: boolean;
-      scope?: 'all' | 'own';
-    }>;
-
-    const entityPerm = permissions.find((p) => p.entitySlug === entitySlug);
-    if (!entityPerm || !entityPerm.canRead) return null;
-
-    // Default scope = 'all' para manter compatibilidade
-    return entityPerm.scope || 'all';
+  /**
+   * De quais criadores a pessoa ve registros nesta tabela: null = de todos;
+   * senao a lista (so ela para 'own'/sem acesso; ela + colegas de equipe para 'team').
+   * Escopo 'client' e aplicado pela consulta central (EntityDataQueryService); aqui,
+   * para quem ainda so conhece criador, vale o mais restrito: so o que ela criou.
+   */
+  async getVisibleCreatorIds(user: { id: string; tenantId: string }, entitySlug: string): Promise<string[] | null> {
+    const scope = await this.getEntityScope(user.id, entitySlug, user.tenantId);
+    if (scope === 'all') return null;
+    if (scope === 'team') return teammateIds(this.prisma, user.id, user.tenantId);
+    return [user.id];
   }
 
   /**
    * Retorna as permissoes por campo para uma entidade.
-   * Retorna null se nao houver restricoes (PLATFORM_ADMIN, ADMIN, ou fieldPermissions vazio).
+   * Retorna null se nao houver restricoes (allAccess ou fieldPermissions vazio).
    */
   async getFieldPermissions(
     userId: string,
     entitySlug: string,
+    tenantId: string,
   ): Promise<Array<{ fieldSlug: string; canView: boolean; canEdit: boolean }> | null> {
-    const user = await this.prisma.user.findUnique({
-      where: { id: userId },
-      select: {
-        customRole: {
-          select: { roleType: true, permissions: true },
-        },
-      },
-    });
+    const m = await this.resolveMembershipRole(userId, tenantId);
+    if (!m || !m.customRole) return null;
 
-    if (!user || !user.customRole) return null;
+    // Acesso total ao tenant vê todos os campos (sem restrição).
+    if (hasFullTenantAccess(m.customRole.modulePermissions)) {
+      return null;
+    }
 
-    const roleType = user.customRole.roleType as RoleType;
-
-    // PLATFORM_ADMIN e ADMIN veem todos os campos
-    if (roleType === 'PLATFORM_ADMIN' || roleType === 'ADMIN') return null;
-
-    // Para roles nao-CUSTOM sem fieldPermissions definidas, retornar null (sem restricao)
-    if (roleType !== 'CUSTOM') return null;
-
-    const permissions = user.customRole.permissions as unknown as Array<{
+    const entry = this.findEntityPerm<{
       entitySlug: string;
       fieldPermissions?: Array<{ fieldSlug: string; canView: boolean; canEdit: boolean }>;
-    }>;
+    }>(m.customRole.permissions, entitySlug);
+    if (!entry?.fieldPermissions || entry.fieldPermissions.length === 0) return null;
 
-    const entityPerm = permissions.find((p) => p.entitySlug === entitySlug);
-    if (!entityPerm?.fieldPermissions || entityPerm.fieldPermissions.length === 0) return null;
-
-    return entityPerm.fieldPermissions;
+    return entry.fieldPermissions;
   }
 
   /**
-   * Retorna todas as entidades que o usuario pode acessar
+   * Retorna as entidades acessiveis (canRead): '*' = TODAS (allAccess ou
+   * coringa em permissions[]), ou a lista explicita de slugs. Quem chama trata '*'
+   * como "sem filtro de slug" (escopo de tenant ja aplicado no caller).
    */
-  async getUserAccessibleEntities(userId: string): Promise<string[]> {
-    const user = await this.prisma.user.findUnique({
-      where: { id: userId },
-      select: {
-        tenantId: true,
-        customRole: {
-          select: { roleType: true, permissions: true },
-        },
-      },
-    });
+  async getUserAccessibleEntities(userId: string, tenantId: string): Promise<'*' | string[]> {
+    const m = await this.resolveMembershipRole(userId, tenantId);
+    if (!m || !m.customRole) return [];
 
-    if (!user || !user.customRole) return [];
-
-    const roleType = user.customRole.roleType as RoleType;
-
-    // PLATFORM_ADMIN, ADMIN, MANAGER, USER e VIEWER acessam todas entidades
-    // A diferenca esta no escopo (all vs own) verificado em getEntityScope
-    if (['PLATFORM_ADMIN', 'ADMIN', 'MANAGER', 'USER', 'VIEWER'].includes(roleType)) {
-      const entities = await this.prisma.entity.findMany({
-        where: { tenantId: user.tenantId },
-        select: { slug: true },
-      });
-      return entities.map((e) => e.slug);
+    // Acesso total ao tenant vê todas as entidades.
+    if (hasFullTenantAccess(m.customRole.modulePermissions)) {
+      return '*';
     }
 
-    // CUSTOM: usa permissoes definidas
-    const permissions = user.customRole.permissions as unknown as Array<{
+    const permissions = (m.customRole.permissions || []) as Array<{
       entitySlug: string;
-      canRead: boolean;
+      canRead?: boolean;
     }>;
+    // Coringa '*' com canRead => todas as tabelas (incl. futuras), por escolha.
+    if (permissions.some((p) => p.entitySlug === '*' && p.canRead === true)) return '*';
 
-    return permissions.filter((p) => p.canRead).map((p) => p.entitySlug);
+    return permissions.filter((p) => p.canRead === true).map((p) => p.entitySlug);
+  }
+
+  /**
+   * Mesma decisao que getUserAccessibleEntities, mas SEMPRE materializa em lista de
+   * slugs concreta (resolve '*' para todas as entidades do tenant do usuario).
+   * Para endpoints que expoem a lista ao frontend.
+   */
+  async getAccessibleEntitySlugs(userId: string, tenantId: string): Promise<string[]> {
+    const accessible = await this.getUserAccessibleEntities(userId, tenantId);
+    if (accessible !== '*') return accessible;
+    const entities = await this.prisma.entity.findMany({
+      where: { tenantId },
+      select: { slug: true },
+    });
+    return entities.map((e) => e.slug);
   }
 
   /**
    * Retorna as permissoes de modulo do usuario (formato CRUD)
    */
   async getUserModulePermissions(userId: string, tenantId?: string): Promise<NormalizedModulePermissions> {
-    // Buscar user para ter tenantId (necessário para cache)
-    const user = await this.prisma.user.findUnique({
-      where: { id: userId },
-      select: {
-        tenantId: true,
-        customRole: {
-          select: {
-            id: true,
-            roleType: true,
-            modulePermissions: true,
-            permissions: true,
-          },
-        },
-      },
-    });
-
+    // Cargo via membership (do tenant dado, ou primaria).
+    const user = await this.resolveMembershipRole(userId, tenantId);
     if (!user || !user.customRole) return {};
 
     const effectiveTenantId = tenantId || user.tenantId;
@@ -614,12 +802,11 @@ export class CustomRoleService {
     }
 
     // Cache miss - buscar do banco
-    const roleType = user.customRole.roleType as RoleType;
-
     let modulePermissions: NormalizedModulePermissions;
 
-    // PLATFORM_ADMIN tem acesso total a tudo
-    if (roleType === 'PLATFORM_ADMIN') {
+    // Acesso total ao tenant tem CRUD em tudo. (Módulos futuros
+    // são cobertos dinamicamente pelo bypass no guard/hook; aqui é só o retrato de display.)
+    if (hasFullTenantAccess(user.customRole.modulePermissions)) {
       modulePermissions = {
         dashboard: FULL_CRUD,
         users: FULL_CRUD,
@@ -627,7 +814,6 @@ export class CustomRoleService {
         apis: FULL_CRUD,
         pages: FULL_CRUD,
         entities: FULL_CRUD,
-        tenants: FULL_CRUD,
       };
     } else {
       // Demais roles: usar modulePermissions configuradas (normalizado de boolean → CRUD)
@@ -636,7 +822,6 @@ export class CustomRoleService {
 
     // Salvar no cache
     await this.permissionCache.setUserPermissions(userId, effectiveTenantId, {
-      roleType,
       modulePermissions: user.customRole.modulePermissions as Record<string, unknown>,
       entityPermissions: (user.customRole.permissions as any[]) || [],
     });
@@ -647,24 +832,20 @@ export class CustomRoleService {
   /**
    * Retorna os filtros de dados da role para uma entidade especifica.
    * Fonte unica: permissions[].dataFilters (inline por entidade).
-   * PLATFORM_ADMIN/ADMIN retornam [] (sem filtros).
+   * Cargos com allAccess retornam [] (sem filtros).
    */
   getRoleDataFilters(
-    customRole: { roleType: string; permissions: unknown },
+    customRole: { permissions: unknown; modulePermissions?: unknown },
     entitySlug: string,
   ): DataFilterDto[] {
-    const roleType = customRole.roleType as RoleType;
-
-    // PLATFORM_ADMIN e ADMIN nao tem filtros por role
-    if (roleType === 'PLATFORM_ADMIN' || roleType === 'ADMIN') {
+    // Acesso total ao tenant nao tem filtros por role.
+    if (hasFullTenantAccess(customRole.modulePermissions)) {
       return [];
     }
 
-    const permissions = (customRole.permissions || []) as Array<{
-      entitySlug: string;
-      dataFilters?: DataFilterDto[];
-    }>;
-    const entityPerm = permissions.find((p) => p.entitySlug === entitySlug);
-    return entityPerm?.dataFilters?.length ? [...entityPerm.dataFilters] : [];
+    const entry = this.findEntityPerm<{
+      entitySlug: string; dataFilters?: DataFilterDto[];
+    }>(customRole.permissions, entitySlug);
+    return entry?.dataFilters?.length ? [...entry.dataFilters] : [];
   }
 }

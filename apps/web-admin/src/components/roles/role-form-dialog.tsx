@@ -23,9 +23,9 @@ import {
 } from '@/components/ui/select';
 import {
   Eye, Plus, Pencil, Trash2, Shield, Database, Users,
-  Settings, Code, LayoutDashboard, Globe, User, Building2,
+  Settings, Code, LayoutDashboard, Globe, User, UsersRound,
   ChevronRight, ListFilter, X, FileText, Bell, ScrollText, BarChart3,
-  Webhook, Zap, Mail,
+  Webhook, Zap, Mail, Building2,
 } from 'lucide-react';
 import { useCreateCustomRole, useUpdateCustomRole } from '@/hooks/use-custom-roles';
 import { useQuery } from '@tanstack/react-query';
@@ -51,10 +51,12 @@ function normalizeModulePermToRecord(mp: Record<string, unknown> | null | undefi
   return result;
 }
 
+type ModuleActionDef = { key: string; label: string; desc: string; writes?: string[]; danger?: boolean };
+
+// notifications removido: era um modulo "fantasma" (nenhum endpoint/guard o verifica).
 const MODULE_KEYS = [
-  'dashboard', 'users', 'roles', 'entities', 'data', 'settings', 'tenants',
-  'automations', 'templates', 'logs',
-  'publicLinks', 'notifications', 'archive'
+  'dashboard', 'data', 'entities', 'users', 'roles', 'settings',
+  'automations', 'templates', 'logs', 'publicLinks', 'apis', 'archive', 'chat'
 ] as const;
 
 function getDefaultModulePerms(): Record<string, ModulePermission> {
@@ -91,7 +93,7 @@ function getOperatorCategory(fieldType: string): string {
   return 'text';
 }
 
-function DataFilterAdder({ fields, onAdd }: {
+export function DataFilterAdder({ fields, onAdd }: {
   fields: EntityField[];
   onAdd: (filter: DataFilter) => void;
 }) {
@@ -108,6 +110,7 @@ function DataFilterAdder({ fields, onAdd }: {
       text: [
         { value: 'contains', label: t('dataFilters.operators.contains') },
         { value: 'equals', label: t('dataFilters.operators.equals') },
+        { value: 'notEquals', label: t('dataFilters.operators.notEquals') },
         { value: 'startsWith', label: t('dataFilters.operators.startsWith') },
         { value: 'endsWith', label: t('dataFilters.operators.endsWith') },
         { value: 'isEmpty', label: t('dataFilters.operators.isEmpty') },
@@ -136,6 +139,7 @@ function DataFilterAdder({ fields, onAdd }: {
       ],
       select: [
         { value: 'equals', label: t('dataFilters.operators.equals') },
+        { value: 'notEquals', label: t('dataFilters.operators.notEquals') },
         { value: 'isEmpty', label: t('dataFilters.operators.isEmpty') },
         { value: 'isNotEmpty', label: t('dataFilters.operators.isNotEmpty') },
       ],
@@ -280,6 +284,8 @@ export function RoleFormDialog({ open, onOpenChange, role, onSuccess }: RoleForm
   const [isDefault, setIsDefault] = useState(false);
   const [permissions, setPermissions] = useState<EntityPermission[]>([]);
   const [modulePerms, setModulePerms] = useState<Record<string, ModulePermission>>(getDefaultModulePerms);
+  // Acesso total ao tenant (dinâmico): flag que libera tudo, inclusive módulos/tabelas futuros.
+  const [allAccess, setAllAccess] = useState(false);
   const [openModules, setOpenModules] = useState<Set<string>>(new Set());
   const [openEntities, setOpenEntities] = useState<Set<string>>(new Set());
 
@@ -288,7 +294,6 @@ export function RoleFormDialog({ open, onOpenChange, role, onSuccess }: RoleForm
     queryKey: ['entities-for-roles', effectiveTenantId],
     queryFn: async () => {
       const params: Record<string, unknown> = { limit: 100 };
-      if (effectiveTenantId) params.tenantId = effectiveTenantId;
       const res = await api.get('/entities', { params });
       return res.data;
     },
@@ -319,8 +324,12 @@ export function RoleFormDialog({ open, onOpenChange, role, onSuccess }: RoleForm
           ? { canRead: true, canCreate: false, canUpdate: false, canDelete: false }
           : { ...EMPTY_MODULE_PERM });
       }
-      setModulePerms(perms);
+      const fa = (role.modulePermissions as Record<string, unknown> | undefined)?.allAccess === true;
+      setAllAccess(fa);
+      // Com acesso total, mostra tudo marcado (mesmo que o DB só tenha o flag).
+      setModulePerms(fa ? buildFullModulePerms() : perms);
     } else {
+      setAllAccess(false);
       setName('');
       setDescription('');
       setColor('#6366f1');
@@ -338,10 +347,17 @@ export function RoleFormDialog({ open, onOpenChange, role, onSuccess }: RoleForm
 
     setPermissions((prev) => {
       const existingBySlug = new Map(prev.map((p) => [p.entitySlug, p]));
-      return entities.map((e) => {
+      // Regra coringa '*' (todas as tabelas, inclusive futuras): as tabelas sem regra
+      // propria herdam dela, e ela e mantida (oculta) para continuar valendo ao salvar.
+      // Sem isso, abrir e salvar um cargo '*' o rebaixava para "Todos, so leitura".
+      const wildcard = existingBySlug.get('*');
+      const rows = entities.map((e) => {
         const existing = existingBySlug.get(e.slug);
         if (existing) {
           return { ...existing, entityName: e.name, scope: existing.scope || 'all' };
+        }
+        if (wildcard) {
+          return { ...wildcard, entitySlug: e.slug, entityName: e.name, scope: wildcard.scope || 'all' };
         }
         return {
           entitySlug: e.slug,
@@ -353,8 +369,12 @@ export function RoleFormDialog({ open, onOpenChange, role, onSuccess }: RoleForm
           scope: 'all' as PermissionScope,
         };
       });
+      return wildcard ? [wildcard, ...rows] : rows;
     });
   }, [entities, open]);
+
+  // Linhas por tabela (a regra coringa '*' fica fora da lista, so no estado).
+  const entityPermissionRows = permissions.filter((p) => p.entitySlug !== '*');
 
   const toggleEntityPermission = (entitySlug: string, field: keyof EntityPermission) => {
     setPermissions((prev) =>
@@ -394,7 +414,8 @@ export function RoleFormDialog({ open, onOpenChange, role, onSuccess }: RoleForm
             fps[idx].canEdit = false;
           }
         } else {
-          fps.push({ fieldSlug, canView: true, canEdit: action === 'canEdit' });
+          // Campo sem entrada esta liberado: o primeiro clique ja tira a permissao clicada.
+          fps.push({ fieldSlug, canView: action !== 'canView', canEdit: false });
         }
         return { ...p, fieldPermissions: fps };
       })
@@ -497,21 +518,57 @@ export function RoleFormDialog({ open, onOpenChange, role, onSuccess }: RoleForm
     );
   };
 
-  const toggleModulePerm = (moduleKey: string, action: keyof ModulePermission) => {
-    setModulePerms((prev) => ({
-      ...prev,
-      [moduleKey]: {
-        ...prev[moduleKey],
-        [action]: !(prev[moduleKey]?.[action] ?? false),
-      },
-    }));
+  // Liga/desliga uma acao. Uma acao pode escrever varias flags (ex.: publicLinks
+  // 'Gerenciar' grava canManage + CRUD para casar backend e frontend).
+  // Materializa TODOS os módulos com todas as ações marcadas (usado ao ligar "Acesso total").
+  const buildFullModulePerms = (): Record<string, ModulePermission> => {
+    const full: Record<string, ModulePermission> = {};
+    for (const key of MODULE_KEYS) {
+      const acts: Record<string, boolean> = {};
+      for (const a of MODULE_ACTIONS[key] ?? []) {
+        for (const w of a.writes ?? [a.key]) acts[w] = true;
+      }
+      full[key] = acts as unknown as ModulePermission;
+    }
+    return full;
   };
 
-  const toggleAllForModule = (moduleKey: string, value: boolean) => {
-    setModulePerms((prev) => ({
-      ...prev,
-      [moduleKey]: { canRead: value, canCreate: value, canUpdate: value, canDelete: value },
-    }));
+  // Liga o "Acesso total": marca tudo (módulos + coringa '*' de entidade) e ativa o flag.
+  const enableFullAccess = () => {
+    setModulePerms(buildFullModulePerms());
+    setPermissions((prev) => {
+      const rest = prev.filter((p) => p.entitySlug !== '*');
+      const wildcard: EntityPermission = {
+        entitySlug: '*', canRead: true, canCreate: true, canUpdate: true, canDelete: true, scope: 'all',
+      };
+      return [wildcard, ...rest];
+    });
+    setAllAccess(true);
+  };
+
+  const toggleModuleAction = (
+    moduleKey: string,
+    action: { key: string; writes?: string[] },
+  ) => {
+    if (allAccess) setAllAccess(false); // customizou → materializa (estado já está cheio) e sai do modo dinâmico
+    const writes = action.writes ?? [action.key];
+    const current = !!(modulePerms[moduleKey] as Record<string, unknown> | undefined)?.[action.key];
+    setModulePerms((prev) => {
+      const next = { ...(prev[moduleKey] ?? EMPTY_MODULE_PERM) } as Record<string, unknown>;
+      for (const w of writes) next[w] = !current;
+      return { ...prev, [moduleKey]: next as unknown as ModulePermission };
+    });
+  };
+
+  const toggleAllModule = (moduleKey: string, value: boolean) => {
+    if (allAccess) setAllAccess(false);
+    setModulePerms((prev) => {
+      const next = { ...(prev[moduleKey] ?? EMPTY_MODULE_PERM) } as Record<string, unknown>;
+      for (const a of MODULE_ACTIONS[moduleKey] ?? []) {
+        for (const w of a.writes ?? [a.key]) next[w] = value;
+      }
+      return { ...prev, [moduleKey]: next as unknown as ModulePermission };
+    });
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -537,8 +594,9 @@ export function RoleFormDialog({ open, onOpenChange, role, onSuccess }: RoleForm
         ...(p.canConfigureColumns ? { canConfigureColumns: true } : {}),
         ...(p.notificationRules?.enabled ? { notificationRules: p.notificationRules } : {}),
       })),
-      modulePermissions: modulePerms as ModulePermissions,
-      ...(effectiveTenantId ? { tenantId: effectiveTenantId } : {}),
+      // allAccess: flag dinâmico de "acesso total ao tenant". Sempre enviado (true/false)
+      // para ligar/desligar de forma explícita no banco.
+      modulePermissions: { ...modulePerms, allAccess } as ModulePermissions,
     };
 
     try {
@@ -561,7 +619,6 @@ export function RoleFormDialog({ open, onOpenChange, role, onSuccess }: RoleForm
     apis: <Code className="h-4 w-4" />,
     templates: <FileText className="h-4 w-4" />,
     entities: <Database className="h-4 w-4" />,
-    tenants: <Building2 className="h-4 w-4" />,
     data: <Globe className="h-4 w-4" />,
     roles: <Shield className="h-4 w-4" />,
     logs: <ScrollText className="h-4 w-4" />,
@@ -576,57 +633,63 @@ export function RoleFormDialog({ open, onOpenChange, role, onSuccess }: RoleForm
     { key: 'canDelete' as const, label: t('form.delete'), icon: <Trash2 className="h-3.5 w-3.5" /> },
   ];
 
-  const MODULE_EXTRA_ACTIONS: Record<string, { key: string; label: string }[]> = {
-    templates: [
-      { key: 'canGenerate', label: t('permissions.canGenerate') },
-    ],
-    entities: [
-      { key: 'canUpdateLayout', label: t('permissions.canUpdateLayout') },
-      { key: 'canCreateField', label: t('permissions.canCreateField') },
-      { key: 'canDeleteField', label: t('permissions.canDeleteField') },
-      { key: 'canUpdateField', label: t('permissions.canUpdateField') },
-    ],
+  // Schema de acoes REAIS por modulo (cada uma enforçada/usada no sistema).
+  // Cada acao e um toggle independente, com label + descricao. `writes` permite
+  // que um toggle grave varias flags (publicLinks: canManage + CRUD). `danger`
+  // destaca acoes destrutivas. Sem CRUD generico onde nao existe (ex.: logs nao
+  // tem "criar"; archive so tem ver + excluir definitivo).
+  const A = (key: string, label: string, descKey: string, opts?: { writes?: string[]; danger?: boolean }) => ({
+    key, label, desc: t(`acts.${descKey}`), writes: opts?.writes, danger: opts?.danger,
+  });
+  const R = (m: string) => A('canRead', t('form.read'), `${m}_canRead`);
+  const C = (m: string) => A('canCreate', t('form.create'), `${m}_canCreate`);
+  const U = (m: string) => A('canUpdate', t('form.update'), `${m}_canUpdate`);
+  const D = (m: string) => A('canDelete', t('form.delete'), `${m}_canDelete`, { danger: true });
+
+  const MODULE_ACTIONS: Record<string, ModuleActionDef[]> = {
+    dashboard: [R('dashboard'), C('dashboard'), U('dashboard'), D('dashboard')],
+    data: [R('data'), C('data'), U('data'), D('data')],
+    // entities: sem canRead (nao e verificado em lugar nenhum); so estrutura.
+    entities: [C('entities'), U('entities'), D('entities')],
     users: [
-      { key: 'canAssignRole', label: t('permissions.canAssignRole') },
-      { key: 'canChangeStatus', label: t('permissions.canChangeStatus') },
-      { key: 'canManageTenantAccess', label: t('permissions.canManageTenantAccess') },
+      R('users'), C('users'), U('users'), D('users'),
+      A('canAssignRole', t('permissions.canAssignRole'), 'users_canAssignRole'),
+      A('canChangeStatus', t('permissions.canChangeStatus'), 'users_canChangeStatus'),
+      A('canManageTenantAccess', t('permissions.canManageTenantAccess'), 'users_canManageTenantAccess'),
     ],
     roles: [
-      { key: 'canSetDefault', label: t('permissions.canSetDefault') },
-      { key: 'canManagePermissions', label: t('permissions.canManagePermissions') },
+      R('roles'), C('roles'), U('roles'), D('roles'),
+      A('canSetDefault', t('permissions.canSetDefault'), 'roles_canSetDefault'),
+      A('canManagePermissions', t('permissions.canManagePermissions'), 'roles_canManagePermissions'),
     ],
-    tenants: [
-      { key: 'canSuspend', label: t('permissions.canSuspend') },
-      { key: 'canActivate', label: t('permissions.canActivate') },
-    ],
-    data: [
-      { key: 'canConfigureColumns', label: t('permissions.canConfigureColumns') },
-      { key: 'canExport', label: t('permissions.canExport') },
-      { key: 'canImport', label: t('permissions.canImport') },
-    ],
+    // settings: unica permissao real e abrir/editar a aba "Organizacao"
+    // (perfil/idioma/tema sao pessoais e nao exigem permissao).
+    settings: [A('canUpdate', t('permissions.canManageOrg'), 'settings_canUpdate')],
     automations: [
-      { key: 'canExecute', label: t('permissions.canExecute') },
-    ],
-    archive: [
-      { key: 'canPermanentDelete', label: t('permissions.canPermanentDelete') },
-    ],
-  };
-
-  const MODULE_SUB_PERMISSIONS = useMemo(() => ({
-    automations: [
-      { key: 'webhooks', label: t('subModules.webhooks') },
-      { key: 'actionChains', label: t('subModules.actionChains') },
-      { key: 'entityAutomation', label: t('subModules.entityAutomation') },
+      R('automations'), C('automations'), U('automations'), D('automations'),
+      A('canExecute', t('permissions.canExecute'), 'automations_canExecute'),
     ],
     templates: [
-      { key: 'pdfTemplates', label: t('subModules.pdfTemplates') },
-      { key: 'emailTemplates', label: t('subModules.emailTemplates') },
+      R('templates'), C('templates'), U('templates'), D('templates'),
+      A('canGenerate', t('permissions.canGenerate'), 'templates_canGenerate'),
     ],
-    logs: [
-      { key: 'auditLogs', label: t('subModules.auditLogs') },
-      { key: 'executionLogs', label: t('subModules.executionLogs') },
+    logs: [R('logs'), U('logs'), D('logs')],
+    publicLinks: [
+      A('canManage', t('permissions.canManage'), 'publicLinks_canManage', {
+        writes: ['canManage', 'canRead', 'canCreate', 'canUpdate', 'canDelete'],
+      }),
     ],
-  }), [t]);
+    // apis: chaves de API (Integracoes). A chave age com um cargo abaixo de quem cria.
+    apis: [R('apis'), C('apis'), D('apis')],
+    archive: [
+      R('archive'),
+      A('canPermanentDelete', t('permissions.canPermanentDelete'), 'archive_canPermanentDelete', { danger: true }),
+    ],
+    // chat: permissão dedicada de gerir canais/comandos (criar canal, renomear, gerir comandos).
+    chat: [
+      { key: 'manage', label: 'Gerenciar chat', desc: 'Criar e renomear canais; gerenciar comandos do chat' },
+    ],
+  };
 
   const ENTITY_EXTRA_ACTIONS = [
     { key: 'canConfigureColumns', label: t('permissions.canConfigureColumns') },
@@ -715,12 +778,30 @@ export function RoleFormDialog({ open, onOpenChange, role, onSuccess }: RoleForm
             </div>
           )}
 
+          {/* Acesso total ao tenant (dinâmico) */}
+          {hasModuleAction('roles', 'canManagePermissions') && (
+            <label className="flex items-start gap-3 rounded-lg border border-primary/30 bg-primary/5 p-3 cursor-pointer">
+              <Checkbox
+                checked={allAccess}
+                onCheckedChange={(v) => { if (v) enableFullAccess(); else setAllAccess(false); }}
+                className="mt-0.5"
+              />
+              <span className="text-sm">
+                <span className="font-medium">Acesso a tudo (como o dono)</span>
+                <span className="block text-xs text-muted-foreground">
+                  Vê e faz tudo na empresa, <strong>inclusive nas tabelas e telas criadas depois</strong>. Use só para quem administra.
+                  Se desmarcar qualquer item abaixo, esta opção desliga.
+                </span>
+              </span>
+            </label>
+          )}
+
           {/* Permissions Tabs */}
           {hasModuleAction('roles', 'canManagePermissions') && (
-            <Tabs defaultValue="modules">
+            <Tabs defaultValue="entities">
               <TabsList className="w-full grid grid-cols-2">
-                <TabsTrigger value="modules">{t('form.systemModules')}</TabsTrigger>
                 <TabsTrigger value="entities">{t('form.entityPermissions')}</TabsTrigger>
+                <TabsTrigger value="modules">{t('form.systemModules')}</TabsTrigger>
               </TabsList>
 
               {/* System Modules Tab */}
@@ -729,11 +810,11 @@ export function RoleFormDialog({ open, onOpenChange, role, onSuccess }: RoleForm
                   <div className="space-y-1">
                     {MODULE_KEYS.map((key) => {
                       const perm = modulePerms[key] || EMPTY_MODULE_PERM;
-                      const crudCount = countCrudActive(perm);
-                      const maxCrud = key === 'dashboard' ? 1 : 4;
-                      const hasAny = crudCount > 0;
+                      const actions = MODULE_ACTIONS[key] || [];
+                      const total = actions.length;
+                      const activeCount = actions.filter((a) => !!(perm as Record<string, unknown>)[a.key]).length;
+                      const hasAny = activeCount > 0;
                       const isOpen = openModules.has(key);
-                      const extraActions = MODULE_EXTRA_ACTIONS[key];
 
                       return (
                         <Collapsible
@@ -756,164 +837,57 @@ export function RoleFormDialog({ open, onOpenChange, role, onSuccess }: RoleForm
                                 <div className="text-xs text-muted-foreground">{t(`modules.${key}Desc`)}</div>
                               </div>
                               <Badge
-                                variant={crudCount === maxCrud ? 'default' : crudCount > 0 ? 'secondary' : 'outline'}
+                                variant={total > 0 && activeCount === total ? 'default' : activeCount > 0 ? 'secondary' : 'outline'}
                                 className="text-[10px] px-1.5 py-0"
                               >
-                                {key === 'dashboard' ? (perm.canRead ? t('form.access') : t('form.noAccess')) : `${crudCount}/${maxCrud}`}
+                                {!hasAny ? t('form.noAccess') : activeCount === total ? t('form.access') : t('form.partial')}
                               </Badge>
                               <ChevronRight className={`h-4 w-4 text-muted-foreground transition-transform ${isOpen ? 'rotate-90' : ''}`} />
                             </button>
                           </CollapsibleTrigger>
                           <CollapsibleContent>
-                            <div className="ml-7 mr-1 mt-1 mb-2 p-3 rounded-lg border border-dashed space-y-3">
-                              {/* CRUD checkboxes */}
-                              <div className="flex items-center justify-between">
-                                <div className="flex flex-wrap items-center gap-2">
-                                  {key === 'dashboard' ? (
-                                    <label
-                                      className={`flex items-center gap-1.5 cursor-pointer rounded-md border px-2.5 py-1.5 text-xs font-medium transition-colors ${
-                                        perm.canRead
-                                          ? 'border-primary bg-primary/10 text-primary'
-                                          : 'border-border text-muted-foreground hover:border-muted-foreground/50'
-                                      }`}
-                                    >
-                                      <Checkbox
-                                        checked={perm.canRead || false}
-                                        onCheckedChange={() => toggleModulePerm(key, 'canRead')}
-                                        className="h-3.5 w-3.5"
-                                      />
-                                      <Eye className="h-3.5 w-3.5" />
-                                      {t('form.access')}
-                                    </label>
-                                  ) : (
-                                    crudActions.map(({ key: action, label, icon }) => (
-                                      <label
-                                        key={action}
-                                        className={`flex items-center gap-1.5 cursor-pointer rounded-md border px-2.5 py-1.5 text-xs font-medium transition-colors ${
-                                          perm[action]
-                                            ? 'border-primary bg-primary/10 text-primary'
-                                            : 'border-border text-muted-foreground hover:border-muted-foreground/50'
-                                        }`}
-                                      >
-                                        <Checkbox
-                                          checked={perm[action] || false}
-                                          onCheckedChange={() => toggleModulePerm(key, action)}
-                                          className="h-3.5 w-3.5"
-                                        />
-                                        {icon}
-                                        {label}
-                                      </label>
-                                    ))
-                                  )}
-                                </div>
-                                {key !== 'dashboard' && (
+                            <div className="ml-7 mr-1 mt-1 mb-2 p-3 rounded-lg border border-dashed space-y-2">
+                              {/* "Selecionar tudo" do modulo (so quando ha 2+ acoes) */}
+                              {total > 1 && (
+                                <label className="flex items-center justify-end gap-1.5 cursor-pointer text-[11px] text-muted-foreground pb-1">
+                                  {t('permissions.selectAll')}
                                   <Checkbox
-                                    checked={crudCount === 4}
-                                    onCheckedChange={(checked) => toggleAllForModule(key, !!checked)}
-                                    className="h-4 w-4"
+                                    checked={activeCount === total}
+                                    onCheckedChange={(checked) => toggleAllModule(key, !!checked)}
+                                    className="h-3.5 w-3.5"
                                   />
-                                )}
-                              </div>
-                              {/* Extra actions */}
-                              {extraActions && extraActions.length > 0 && (
-                                <>
-                                  <Separator />
-                                  <div>
-                                    <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">
-                                      {t('permissions.specialActions')}
-                                    </span>
-                                    <div className="flex flex-wrap items-center gap-2 mt-1.5">
-                                      {extraActions.map(({ key: actionKey, label: actionLabel }) => (
-                                        <label
-                                          key={actionKey}
-                                          className={`flex items-center gap-1.5 cursor-pointer rounded-md border px-2.5 py-1.5 text-xs font-medium transition-colors ${
-                                            (perm as Record<string, unknown>)[actionKey]
-                                              ? 'border-amber-500/60 bg-amber-500/10 text-amber-700 dark:text-amber-400'
-                                              : 'border-border text-muted-foreground hover:border-muted-foreground/50'
-                                          }`}
-                                        >
-                                          <Checkbox
-                                            checked={!!(perm as Record<string, unknown>)[actionKey]}
-                                            onCheckedChange={() => toggleModulePerm(key, actionKey as keyof ModulePermission)}
-                                            className="h-3.5 w-3.5"
-                                          />
-                                          {actionLabel}
-                                        </label>
-                                      ))}
-                                    </div>
-                                  </div>
-                                </>
+                                </label>
                               )}
-                              {/* Sub-permissions for consolidated modules */}
-                              {MODULE_SUB_PERMISSIONS[key] && MODULE_SUB_PERMISSIONS[key].length > 0 && (
-                                <>
-                                  <Separator />
-                                  <div>
-                                    <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">
-                                      {t('subModules.title')}
-                                    </span>
-                                    <div className="space-y-2 mt-2">
-                                      {MODULE_SUB_PERMISSIONS[key].map(({ key: subKey, label: subLabel }) => {
-                                        const subPerm = (perm as Record<string, any>)[subKey] as ModulePermission || { ...EMPTY_MODULE_PERM };
-                                        const subCrudCount = countCrudActive(subPerm);
-
-                                        return (
-                                          <div key={subKey} className="border rounded-md p-2">
-                                            <div className="flex items-center justify-between mb-2">
-                                              <span className="text-xs font-medium">{subLabel}</span>
-                                              <Checkbox
-                                                checked={subCrudCount === 4}
-                                                onCheckedChange={(checked) => {
-                                                  const newValue = checked ? { canRead: true, canCreate: true, canUpdate: true, canDelete: true } : { ...EMPTY_MODULE_PERM };
-                                                  setModulePerms(prev => ({
-                                                    ...prev,
-                                                    [key]: {
-                                                      ...prev[key],
-                                                      [subKey]: newValue,
-                                                    },
-                                                  }));
-                                                }}
-                                                className="h-3.5 w-3.5"
-                                              />
-                                            </div>
-                                            <div className="flex flex-wrap items-center gap-1.5">
-                                              {crudActions.map(({ key: action, label: actionLabel, icon }) => (
-                                                <label
-                                                  key={action}
-                                                  className={`flex items-center gap-1 cursor-pointer rounded-md border px-2 py-1 text-[11px] font-medium transition-colors ${
-                                                    subPerm[action]
-                                                      ? 'border-primary/50 bg-primary/5 text-primary'
-                                                      : 'border-border text-muted-foreground hover:border-muted-foreground/30'
-                                                  }`}
-                                                >
-                                                  <Checkbox
-                                                    checked={subPerm[action] || false}
-                                                    onCheckedChange={() => {
-                                                      setModulePerms(prev => ({
-                                                        ...prev,
-                                                        [key]: {
-                                                          ...prev[key],
-                                                          [subKey]: {
-                                                            ...(prev[key][subKey] || EMPTY_MODULE_PERM),
-                                                            [action]: !(subPerm[action] || false),
-                                                          },
-                                                        },
-                                                      }));
-                                                    }}
-                                                    className="h-3 w-3"
-                                                  />
-                                                  {icon}
-                                                  {actionLabel}
-                                                </label>
-                                              ))}
-                                            </div>
-                                          </div>
-                                        );
-                                      })}
+                              {/* Acoes independentes, cada uma com descricao */}
+                              {actions.map((a) => {
+                                const active = !!(perm as Record<string, unknown>)[a.key];
+                                return (
+                                  <label
+                                    key={a.key}
+                                    className={`flex items-start gap-3 cursor-pointer rounded-md border px-3 py-2 transition-colors ${
+                                      active
+                                        ? a.danger
+                                          ? 'border-red-500/50 bg-red-500/5'
+                                          : 'border-primary/40 bg-primary/5'
+                                        : 'border-border hover:bg-accent/40'
+                                    }`}
+                                  >
+                                    <Checkbox
+                                      checked={active}
+                                      onCheckedChange={() => toggleModuleAction(key, a)}
+                                      className="h-4 w-4 mt-0.5"
+                                    />
+                                    <div className="flex-1 min-w-0">
+                                      <div className={`text-xs font-medium ${active && a.danger ? 'text-red-600 dark:text-red-400' : ''}`}>
+                                        {a.label}
+                                      </div>
+                                      <div className="text-[11px] text-muted-foreground leading-snug">
+                                        {a.desc}
+                                      </div>
                                     </div>
-                                  </div>
-                                </>
-                              )}
+                                  </label>
+                                );
+                              })}
                             </div>
                           </CollapsibleContent>
                         </Collapsible>
@@ -925,13 +899,13 @@ export function RoleFormDialog({ open, onOpenChange, role, onSuccess }: RoleForm
               {/* Entity Permissions Tab */}
               <TabsContent value="entities">
                 <p className="text-sm text-muted-foreground mb-3">{t('form.entityPermissionsDesc')}</p>
-                {permissions.length === 0 ? (
+                {entityPermissionRows.length === 0 ? (
                   <div className="text-center py-6 text-muted-foreground text-sm border rounded-lg">
                     {t('form.noEntities')}
                   </div>
                 ) : (
                     <div className="space-y-1">
-                      {permissions.map((perm) => {
+                      {entityPermissionRows.map((perm) => {
                         const entity = entities.find((e) => e.slug === perm.entitySlug);
                         const allChecked = perm.canCreate && perm.canRead && perm.canUpdate && perm.canDelete;
                         const crudCount = (perm.canRead ? 1 : 0) + (perm.canCreate ? 1 : 0) + (perm.canUpdate ? 1 : 0) + (perm.canDelete ? 1 : 0);
@@ -955,15 +929,20 @@ export function RoleFormDialog({ open, onOpenChange, role, onSuccess }: RoleForm
                                   <div className="text-sm font-medium">
                                     {entity?.name || perm.entityName || perm.entitySlug}
                                   </div>
-                                  <div className="text-xs text-muted-foreground">
-                                    {perm.scope === 'own' ? t('form.scopeOwn') : t('form.scopeAll')}
+                                  <div className="text-xs text-muted-foreground" data-testid={`role-entity-summary-${perm.entitySlug}`}>
+                                    {crudCount === 0 ? t('form.noAccess') : (() => {
+                                      const verbs = [perm.canRead && 'vê', perm.canCreate && 'cria', perm.canUpdate && 'edita', perm.canDelete && 'exclui'].filter(Boolean) as string[];
+                                      const sentence = verbs.length > 1 ? `${verbs.slice(0, -1).join(', ')} e ${verbs[verbs.length - 1]}` : verbs[0];
+                                      const whose = perm.scope === 'own' ? 'só os que criou' : perm.scope === 'team' ? 'os da equipe' : 'todos os registros';
+                                      return `${sentence.charAt(0).toUpperCase()}${sentence.slice(1)} · ${whose}`;
+                                    })()}
                                   </div>
                                 </div>
                                 <Badge
                                   variant={crudCount === 4 ? 'default' : crudCount > 0 ? 'secondary' : 'outline'}
                                   className="text-[10px] px-1.5 py-0"
                                 >
-                                  {crudCount}/4
+                                  {crudCount === 4 ? t('form.fullAccess') : crudCount > 0 ? t('form.partial') : t('form.noAccess')}
                                 </Badge>
                                 <ChevronRight className={`h-4 w-4 text-muted-foreground transition-transform ${isOpen ? 'rotate-90' : ''}`} />
                               </button>
@@ -1004,7 +983,7 @@ export function RoleFormDialog({ open, onOpenChange, role, onSuccess }: RoleForm
                                     value={perm.scope || 'all'}
                                     onValueChange={(value: PermissionScope) => setEntityScope(perm.entitySlug, value)}
                                   >
-                                    <SelectTrigger className="h-7 w-[130px] text-xs">
+                                    <SelectTrigger className="h-7 w-[190px] text-xs" data-testid={`scope-${perm.entitySlug}`}>
                                       <SelectValue />
                                     </SelectTrigger>
                                     <SelectContent>
@@ -1014,10 +993,23 @@ export function RoleFormDialog({ open, onOpenChange, role, onSuccess }: RoleForm
                                           {t('form.scopeAll')}
                                         </div>
                                       </SelectItem>
+                                      <SelectItem value="team">
+                                        <div className="flex items-center gap-1.5">
+                                          <UsersRound className="h-3.5 w-3.5" />
+                                          {t('form.scopeTeam')}
+                                        </div>
+                                      </SelectItem>
                                       <SelectItem value="own">
                                         <div className="flex items-center gap-1.5">
                                           <User className="h-3.5 w-3.5" />
                                           {t('form.scopeOwn')}
+                                        </div>
+                                      </SelectItem>
+                                      {/* Portal do cliente: so o registro do cliente vinculado a pessoa e o que esta dentro dele */}
+                                      <SelectItem value="client">
+                                        <div className="flex items-center gap-1.5">
+                                          <Building2 className="h-3.5 w-3.5" />
+                                          {t('form.scopeClient')}
                                         </div>
                                       </SelectItem>
                                     </SelectContent>
@@ -1035,13 +1027,13 @@ export function RoleFormDialog({ open, onOpenChange, role, onSuccess }: RoleForm
                                       <label
                                         key={actionKey}
                                         className={`flex items-center gap-1.5 cursor-pointer rounded-md border px-2.5 py-1.5 text-xs font-medium transition-colors ${
-                                          (perm as Record<string, unknown>)[actionKey]
+                                          (perm as unknown as Record<string, unknown>)[actionKey]
                                             ? 'border-amber-500/60 bg-amber-500/10 text-amber-700 dark:text-amber-400'
                                             : 'border-border text-muted-foreground hover:border-muted-foreground/50'
                                         }`}
                                       >
                                         <Checkbox
-                                          checked={!!(perm as Record<string, unknown>)[actionKey]}
+                                          checked={!!(perm as unknown as Record<string, unknown>)[actionKey]}
                                           onCheckedChange={() => toggleEntityPermission(perm.entitySlug, actionKey as keyof EntityPermission)}
                                           className="h-3.5 w-3.5"
                                         />
@@ -1102,7 +1094,7 @@ export function RoleFormDialog({ open, onOpenChange, role, onSuccess }: RoleForm
                                             onAdd={(filter) => addDataFilter(perm.entitySlug, filter)}
                                           />
                                           <p className="text-[10px] text-muted-foreground">
-                                            Filtros restringem quais registros usuarios com esta role podem ver nesta entidade.
+                                            Os filtros limitam quais registros desta tabela as pessoas com este cargo conseguem ver (ex.: só a Situação Aberta).
                                           </p>
                                         </div>
                                       )}

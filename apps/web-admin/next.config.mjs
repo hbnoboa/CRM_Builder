@@ -35,6 +35,18 @@ const nextConfig = {
     ],
   },
 
+  // A administracao da empresa mudou para /{empresa}/gestao/...: links e favoritos
+  // antigos continuam funcionando.
+  async redirects() {
+    return [
+      {
+        source: '/:locale(pt-BR|en|es)/:tenant/:section(users|roles|entities|pdf-templates|dashboard-templates|public-links|audit-logs|execution-logs|permissions)/:rest*',
+        destination: '/:locale/:tenant/gestao/:section/:rest*',
+        permanent: false,
+      },
+    ];
+  },
+
   // Excluir canvas (dependencia nativa do Konva) do bundle server-side
   webpack: (config, { isServer }) => {
     if (isServer) {

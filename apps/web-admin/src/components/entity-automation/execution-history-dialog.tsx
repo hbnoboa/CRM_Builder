@@ -29,7 +29,7 @@ const statusConfig: Record<
   string,
   { icon: typeof CheckCircle; label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' }
 > = {
-  completed: { icon: CheckCircle, label: 'Concluido', variant: 'default' },
+  completed: { icon: CheckCircle, label: 'Concluído', variant: 'default' },
   running: { icon: Loader2, label: 'Executando', variant: 'secondary' },
   failed: { icon: XCircle, label: 'Falhou', variant: 'destructive' },
   cancelled: { icon: AlertTriangle, label: 'Cancelado', variant: 'outline' },
@@ -87,7 +87,7 @@ export function ExecutionHistoryDialog({
         <DialogHeader>
           <DialogTitle>Historico de Execucoes - {automationName}</DialogTitle>
           <DialogDescription>
-            Visualize o historico de execucoes desta automacao.
+            Visualize o histórico de execuções desta automação.
           </DialogDescription>
         </DialogHeader>
 
@@ -99,7 +99,7 @@ export function ExecutionHistoryDialog({
           ) : executions.length === 0 ? (
             <div className="text-center py-12 text-muted-foreground">
               <Clock className="h-8 w-8 mx-auto mb-2 opacity-50" />
-              <p>Nenhuma execucao encontrada.</p>
+              <p>Nenhuma execução encontrada.</p>
             </div>
           ) : (
             <div className="space-y-2">
@@ -190,7 +190,7 @@ export function ExecutionHistoryDialog({
                                     {result.error && (
                                       <p className="text-destructive text-xs mt-1">{result.error}</p>
                                     )}
-                                    {result.output && (
+                                    {Boolean(result.output) && (
                                       <details className="mt-1">
                                         <summary className="text-xs text-muted-foreground cursor-pointer hover:text-foreground">
                                           Ver saida
@@ -209,7 +209,7 @@ export function ExecutionHistoryDialog({
                           </div>
                         ) : (
                           <div className="p-3 text-sm text-muted-foreground text-center">
-                            Nenhum resultado de passo disponivel.
+                            Nenhum resultado de passo disponível.
                           </div>
                         )}
                       </div>

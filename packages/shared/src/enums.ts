@@ -1,17 +1,5 @@
-// ============================================================================
-// ROLE TYPES
-// ============================================================================
-
-export type RoleType = 'PLATFORM_ADMIN' | 'ADMIN' | 'MANAGER' | 'USER' | 'VIEWER' | 'CUSTOM';
-
-export const ROLE_TYPES: RoleType[] = [
-  'PLATFORM_ADMIN',
-  'ADMIN',
-  'MANAGER',
-  'USER',
-  'VIEWER',
-  'CUSTOM',
-];
+// ROLE TYPES removidos (Fase 3): autorizacao e 100% permission-driven
+// (modulePermissions/permissions[]). Nao existe mais tier por roleType.
 
 // ============================================================================
 // STATUS
@@ -25,7 +13,13 @@ export type TenantStatus = 'ACTIVE' | 'INACTIVE' | 'SUSPENDED' | 'TRIAL';
 // PERMISSION SCOPE
 // ============================================================================
 
-export type PermissionScope = 'all' | 'own';
+/** all = todos; own = so os que criei; team = os criados por alguem das minhas equipes. */
+/**
+ * Quais registros o cargo ve numa tabela: todos, so os que a pessoa criou, os da
+ * equipe dela, ou so os do cliente vinculado a ela (portal do cliente: o registro do
+ * cliente e o que esta dentro dele ou ligado a ele).
+ */
+export type PermissionScope = 'all' | 'own' | 'team' | 'client';
 
 // ============================================================================
 // FIELD TYPES (Entity Builder)

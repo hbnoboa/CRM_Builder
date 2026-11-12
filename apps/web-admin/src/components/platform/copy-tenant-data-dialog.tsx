@@ -1,0 +1,836 @@
+'use client';
+
+import { useState, useMemo, useCallback } from 'react';
+import { useTranslations } from 'next-intl';
+import { toast } from 'sonner';
+import { getErrorMessage } from '@/lib/get-error-message';
+import {
+  Copy,
+  ChevronRight,
+  ChevronLeft,
+  Check,
+  Loader2,
+  AlertTriangle,
+  Shield,
+  Database,
+  FileText,
+  Zap,
+  Globe,
+  ListChecks,
+  LayoutDashboard,
+} from 'lucide-react';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Badge } from '@/components/ui/badge';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from '@/components/ui/accordion';
+import { usePlatformCopyableData, usePlatformCopyTenantData, usePlatformTenants } from '@/hooks/use-platform';
+import type {
+  CopyableData,
+  CopyEntitySelection,
+  CopyResult,
+  PlatformTenantRow,
+} from '@/types/platform';
+
+interface CopyTenantDataDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  /** Empresa de destino ja escolhida (aberto a partir da tela do cliente no console). */
+  targetTenantId?: string;
+  onSuccess?: () => void;
+}
+
+type Step = 'select-tenants' | 'select-items' | 'result';
+
+interface SelectedItems {
+  roles: Set<string>;
+  entities: Map<string, boolean>; // id → includeData
+  pdfTemplates: Set<string>;
+  automations: Set<string>;
+  webhooks: Set<string>;
+  fieldRules: Set<string>;
+  dashboardTemplates: Set<string>;
+}
+
+const emptySelection = (): SelectedItems => ({
+  roles: new Set(),
+  entities: new Map(),
+  pdfTemplates: new Set(),
+  automations: new Set(),
+  webhooks: new Set(),
+  fieldRules: new Set(),
+  dashboardTemplates: new Set(),
+});
+
+export function CopyTenantDataDialog({
+  open,
+  onOpenChange,
+  targetTenantId: presetTargetId = '',
+  onSuccess,
+}: CopyTenantDataDialogProps) {
+  const t = useTranslations('platform');
+  const tCommon = useTranslations('common');
+
+  const [step, setStep] = useState<Step>('select-tenants');
+  const [sourceTenantId, setSourceTenantId] = useState<string>('');
+  const [targetTenantId, setTargetTenantId] = useState<string>(presetTargetId);
+  const [conflictStrategy, setConflictStrategy] = useState<'skip' | 'suffix'>('skip');
+  const [selected, setSelected] = useState<SelectedItems>(emptySelection());
+  const [result, setResult] = useState<CopyResult | null>(null);
+
+  const { data: tenantsData } = usePlatformTenants({ limit: 100 });
+  const tenants: PlatformTenantRow[] = Array.isArray(tenantsData?.data) ? tenantsData.data : [];
+
+  const { data: copyableData, isLoading: loadingCopyable } = usePlatformCopyableData(
+    step === 'select-items' ? sourceTenantId : null,
+  );
+
+  const copyMutation = usePlatformCopyTenantData();
+
+  const totalSelected = useMemo(
+    () =>
+      selected.roles.size +
+      selected.entities.size +
+      selected.pdfTemplates.size +
+      selected.automations.size +
+      selected.webhooks.size +
+      selected.fieldRules.size +
+      selected.dashboardTemplates.size,
+    [selected],
+  );
+
+  const resetDialog = useCallback(() => {
+    setStep('select-tenants');
+    setSourceTenantId('');
+    setTargetTenantId(presetTargetId);
+    setConflictStrategy('skip');
+    setSelected(emptySelection());
+    setResult(null);
+  }, [presetTargetId]);
+
+  const handleOpenChange = useCallback(
+    (open: boolean) => {
+      if (!open) resetDialog();
+      onOpenChange(open);
+    },
+    [onOpenChange, resetDialog],
+  );
+
+  const handleNext = useCallback(() => {
+    if (step === 'select-tenants') {
+      setSelected(emptySelection());
+      setStep('select-items');
+    }
+  }, [step]);
+
+  const handleBack = useCallback(() => {
+    if (step === 'select-items') setStep('select-tenants');
+  }, [step]);
+
+  const handleCopy = useCallback(async () => {
+    const modules: {
+      roles?: string[];
+      entities?: CopyEntitySelection[];
+      pdfTemplates?: string[];
+      automations?: string[];
+      webhooks?: string[];
+      fieldRules?: string[];
+      dashboardTemplates?: string[];
+    } = {};
+
+    if (selected.roles.size > 0) modules.roles = Array.from(selected.roles);
+    if (selected.entities.size > 0) {
+      modules.entities = Array.from(selected.entities.entries()).map(([id, includeData]) => ({
+        id,
+        includeData,
+      }));
+    }
+    if (selected.pdfTemplates.size > 0) modules.pdfTemplates = Array.from(selected.pdfTemplates);
+    if (selected.automations.size > 0) modules.automations = Array.from(selected.automations);
+    if (selected.webhooks.size > 0) modules.webhooks = Array.from(selected.webhooks);
+    if (selected.fieldRules.size > 0) modules.fieldRules = Array.from(selected.fieldRules);
+    if (selected.dashboardTemplates.size > 0) modules.dashboardTemplates = Array.from(selected.dashboardTemplates);
+
+    try {
+      const res = await copyMutation.mutateAsync({
+        sourceTenantId,
+        targetTenantId,
+        conflictStrategy,
+        modules,
+      });
+      setResult(res);
+      setStep('result');
+      onSuccess?.();
+    } catch (error) {
+      toast.error(getErrorMessage(error));
+    }
+  }, [selected, sourceTenantId, targetTenantId, conflictStrategy, copyMutation, onSuccess]);
+
+  // ═══════════════════════════════════════
+  // Toggle helpers
+  // ═══════════════════════════════════════
+
+  const toggleRole = (id: string) => {
+    setSelected((prev) => {
+      const next = new Set(prev.roles);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return { ...prev, roles: next };
+    });
+  };
+
+  const toggleAllRoles = (data: CopyableData) => {
+    setSelected((prev) => {
+      const allSelected = data.roles.every((r) => prev.roles.has(r.id));
+      return {
+        ...prev,
+        roles: allSelected ? new Set() : new Set(data.roles.map((r) => r.id)),
+      };
+    });
+  };
+
+  const toggleEntity = (id: string) => {
+    setSelected((prev) => {
+      const next = new Map(prev.entities);
+      if (next.has(id)) next.delete(id);
+      else next.set(id, false);
+      return { ...prev, entities: next };
+    });
+  };
+
+  const toggleEntityData = (id: string) => {
+    setSelected((prev) => {
+      const next = new Map(prev.entities);
+      if (next.has(id)) {
+        next.set(id, !next.get(id));
+      }
+      return { ...prev, entities: next };
+    });
+  };
+
+  const toggleAllEntities = (data: CopyableData) => {
+    setSelected((prev) => {
+      const allSelected = data.entities.every((e) => prev.entities.has(e.id));
+      return {
+        ...prev,
+        entities: allSelected
+          ? new Map()
+          : new Map(data.entities.map((e) => [e.id, false])),
+      };
+    });
+  };
+
+  const toggleAutomation = (id: string) => {
+    setSelected((prev) => {
+      const next = new Set(prev.automations);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return { ...prev, automations: next };
+    });
+  };
+
+  const toggleAllAutomations = (data: CopyableData) => {
+    setSelected((prev) => {
+      const allSelected = data.automations.every((a) => prev.automations.has(a.id));
+      return {
+        ...prev,
+        automations: allSelected ? new Set() : new Set(data.automations.map((a) => a.id)),
+      };
+    });
+  };
+
+  const toggleWebhook = (id: string) => {
+    setSelected((prev) => {
+      const next = new Set(prev.webhooks);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return { ...prev, webhooks: next };
+    });
+  };
+
+  const toggleAllWebhooks = (data: CopyableData) => {
+    setSelected((prev) => {
+      const allSelected = data.webhooks.every((w) => prev.webhooks.has(w.id));
+      return {
+        ...prev,
+        webhooks: allSelected ? new Set() : new Set(data.webhooks.map((w) => w.id)),
+      };
+    });
+  };
+
+  const toggleFieldRule = (id: string) => {
+    setSelected((prev) => {
+      const next = new Set(prev.fieldRules);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return { ...prev, fieldRules: next };
+    });
+  };
+
+  const toggleAllFieldRules = (data: CopyableData) => {
+    setSelected((prev) => {
+      const allSelected = data.fieldRules.every((r) => prev.fieldRules.has(r.id));
+      return {
+        ...prev,
+        fieldRules: allSelected ? new Set() : new Set(data.fieldRules.map((r) => r.id)),
+      };
+    });
+  };
+
+  const toggleDashboard = (id: string) => {
+    setSelected((prev) => {
+      const next = new Set(prev.dashboardTemplates);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return { ...prev, dashboardTemplates: next };
+    });
+  };
+
+  const toggleAllDashboards = (data: CopyableData) => {
+    setSelected((prev) => {
+      const allSelected = data.dashboardTemplates.every((d) => prev.dashboardTemplates.has(d.id));
+      return {
+        ...prev,
+        dashboardTemplates: allSelected ? new Set() : new Set(data.dashboardTemplates.map((d) => d.id)),
+      };
+    });
+  };
+
+  const togglePdfTemplate = (id: string) => {
+    setSelected((prev) => {
+      const next = new Set(prev.pdfTemplates);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return { ...prev, pdfTemplates: next };
+    });
+  };
+
+  const toggleAllPdfTemplates = (data: CopyableData) => {
+    setSelected((prev) => {
+      const allSelected = data.pdfTemplates.every((t) => prev.pdfTemplates.has(t.id));
+      return {
+        ...prev,
+        pdfTemplates: allSelected
+          ? new Set()
+          : new Set(data.pdfTemplates.map((t) => t.id)),
+      };
+    });
+  };
+
+  // ═══════════════════════════════════════
+  // Render
+  // ═══════════════════════════════════════
+
+  return (
+    <Dialog open={open} onOpenChange={handleOpenChange}>
+      <DialogContent className="max-w-2xl max-h-[85vh] flex flex-col">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Copy className="h-5 w-5" />
+            {t('copyData.title')}
+          </DialogTitle>
+          <DialogDescription>{t('copyData.description')}</DialogDescription>
+        </DialogHeader>
+
+        {/* ═══════ STEP 1: Select Tenants ═══════ */}
+        {step === 'select-tenants' && (
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">{t('copyData.sourceTenant')}</label>
+              <Select value={sourceTenantId} onValueChange={(v) => {
+                setSourceTenantId(v);
+                if (v === targetTenantId) setTargetTenantId('');
+              }}>
+                <SelectTrigger>
+                  <SelectValue placeholder={t('copyData.selectTenant')} />
+                </SelectTrigger>
+                <SelectContent>
+                  {tenants.map((tenant) => (
+                    <SelectItem key={tenant.id} value={tenant.id}>
+                      {tenant.name} ({tenant.slug})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-sm font-medium">{t('copyData.targetTenant')}</label>
+              <Select value={targetTenantId} onValueChange={setTargetTenantId}>
+                <SelectTrigger>
+                  <SelectValue placeholder={t('copyData.selectTenant')} />
+                </SelectTrigger>
+                <SelectContent>
+                  {tenants
+                    .filter((t) => t.id !== sourceTenantId)
+                    .map((tenant) => (
+                      <SelectItem key={tenant.id} value={tenant.id}>
+                        {tenant.name} ({tenant.slug})
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-sm font-medium">{t('copyData.conflictStrategy')}</label>
+              <Select value={conflictStrategy} onValueChange={(v) => setConflictStrategy(v as 'skip' | 'suffix')}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="skip">{t('copyData.skip')}</SelectItem>
+                  <SelectItem value="suffix">{t('copyData.suffix')}</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                {conflictStrategy === 'skip'
+                  ? t('copyData.skipDescription')
+                  : t('copyData.suffixDescription')}
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* ═══════ STEP 2: Select Items ═══════ */}
+        {step === 'select-items' && (
+          <ScrollArea className="flex-1 min-h-0 max-h-[50vh] pr-3">
+            {loadingCopyable ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+              </div>
+            ) : copyableData ? (
+              <Accordion type="multiple" {...({ defaultValue: ['roles', 'entities', 'pdfTemplates', 'automations', 'webhooks', 'fieldRules', 'dashboardTemplates'] } as Record<string, unknown>)} className="w-full">
+                {/* Roles */}
+                {copyableData.roles.length > 0 && (
+                  <AccordionItem value="roles">
+                    <AccordionTrigger className="hover:no-underline">
+                      <div className="flex items-center gap-2">
+                        <Shield className="h-4 w-4" />
+                        <span>{t('copyData.modules.roles')}</span>
+                        <Badge variant="secondary">{copyableData.roles.length}</Badge>
+                      </div>
+                    </AccordionTrigger>
+                    <AccordionContent>
+                      <div className="space-y-2 pl-2">
+                        <label className="flex items-center gap-2 text-sm font-medium cursor-pointer">
+                          <Checkbox
+                            checked={copyableData.roles.every((r) => selected.roles.has(r.id))}
+                            onCheckedChange={() => toggleAllRoles(copyableData)}
+                          />
+                          {t('copyData.selectAll')}
+                        </label>
+                        {copyableData.roles.map((role) => (
+                          <label key={role.id} className="flex items-center gap-2 text-sm cursor-pointer pl-4">
+                            <Checkbox
+                              checked={selected.roles.has(role.id)}
+                              onCheckedChange={() => toggleRole(role.id)}
+                            />
+                            <span
+                              className="w-3 h-3 rounded-full shrink-0"
+                              style={{ backgroundColor: role.color || '#6366f1' }}
+                            />
+                            <span className="flex-1">{role.name}</span>
+                          </label>
+                        ))}
+                      </div>
+                    </AccordionContent>
+                  </AccordionItem>
+                )}
+
+                {/* Entities */}
+                {copyableData.entities.length > 0 && (
+                  <AccordionItem value="entities">
+                    <AccordionTrigger className="hover:no-underline">
+                      <div className="flex items-center gap-2">
+                        <Database className="h-4 w-4" />
+                        <span>{t('copyData.modules.entities')}</span>
+                        <Badge variant="secondary">{copyableData.entities.length}</Badge>
+                      </div>
+                    </AccordionTrigger>
+                    <AccordionContent>
+                      <div className="space-y-2 pl-2">
+                        <label className="flex items-center gap-2 text-sm font-medium cursor-pointer">
+                          <Checkbox
+                            checked={copyableData.entities.every((e) => selected.entities.has(e.id))}
+                            onCheckedChange={() => toggleAllEntities(copyableData)}
+                          />
+                          {t('copyData.selectAll')}
+                        </label>
+                        {copyableData.entities.map((entity) => (
+                          <div key={entity.id} className="pl-4 space-y-1">
+                            <label className="flex items-center gap-2 text-sm cursor-pointer">
+                              <Checkbox
+                                checked={selected.entities.has(entity.id)}
+                                onCheckedChange={() => toggleEntity(entity.id)}
+                              />
+                              <span>{entity.icon}</span>
+                              <span className="flex-1">{entity.name}</span>
+                              <span className="text-xs text-muted-foreground">{entity.slug}</span>
+                            </label>
+                            {selected.entities.has(entity.id) && entity._count.data > 0 && (
+                              <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer pl-8">
+                                <Checkbox
+                                  checked={selected.entities.get(entity.id) || false}
+                                  onCheckedChange={() => toggleEntityData(entity.id)}
+                                />
+                                {t('copyData.includeData')}
+                                <Badge variant="outline" className="text-xs">
+                                  {entity._count.data} {t('copyData.records')}
+                                </Badge>
+                              </label>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </AccordionContent>
+                  </AccordionItem>
+                )}
+
+                {/* Automations */}
+                {copyableData.automations.length > 0 && (
+                  <AccordionItem value="automations">
+                    <AccordionTrigger className="hover:no-underline">
+                      <div className="flex items-center gap-2">
+                        <Zap className="h-4 w-4" />
+                        <span>{t('copyData.modules.automations')}</span>
+                        <Badge variant="secondary">{copyableData.automations.length}</Badge>
+                      </div>
+                    </AccordionTrigger>
+                    <AccordionContent>
+                      <div className="space-y-2 pl-2">
+                        <label className="flex items-center gap-2 text-sm font-medium cursor-pointer">
+                          <Checkbox
+                            checked={copyableData.automations.every((a) => selected.automations.has(a.id))}
+                            onCheckedChange={() => toggleAllAutomations(copyableData)}
+                          />
+                          {t('copyData.selectAll')}
+                        </label>
+                        {copyableData.automations.map((auto) => (
+                          <label key={auto.id} className="flex items-center gap-2 text-sm cursor-pointer pl-4">
+                            <Checkbox
+                              checked={selected.automations.has(auto.id)}
+                              onCheckedChange={() => toggleAutomation(auto.id)}
+                            />
+                            <span className="flex-1">{auto.name}</span>
+                            <span className="text-xs text-muted-foreground">{auto.entity.name}</span>
+                          </label>
+                        ))}
+                      </div>
+                    </AccordionContent>
+                  </AccordionItem>
+                )}
+
+                {/* Webhooks */}
+                {copyableData.webhooks.length > 0 && (
+                  <AccordionItem value="webhooks">
+                    <AccordionTrigger className="hover:no-underline">
+                      <div className="flex items-center gap-2">
+                        <Globe className="h-4 w-4" />
+                        <span>{t('copyData.modules.webhooks')}</span>
+                        <Badge variant="secondary">{copyableData.webhooks.length}</Badge>
+                      </div>
+                    </AccordionTrigger>
+                    <AccordionContent>
+                      <div className="space-y-2 pl-2">
+                        <label className="flex items-center gap-2 text-sm font-medium cursor-pointer">
+                          <Checkbox
+                            checked={copyableData.webhooks.every((w) => selected.webhooks.has(w.id))}
+                            onCheckedChange={() => toggleAllWebhooks(copyableData)}
+                          />
+                          {t('copyData.selectAll')}
+                        </label>
+                        {copyableData.webhooks.map((wh) => (
+                          <label key={wh.id} className="flex items-center gap-2 text-sm cursor-pointer pl-4">
+                            <Checkbox
+                              checked={selected.webhooks.has(wh.id)}
+                              onCheckedChange={() => toggleWebhook(wh.id)}
+                            />
+                            <Badge variant="outline" className="text-xs font-mono">
+                              {wh.method}
+                            </Badge>
+                            <span className="flex-1 font-mono text-xs truncate">{wh.url}</span>
+                          </label>
+                        ))}
+                      </div>
+                    </AccordionContent>
+                  </AccordionItem>
+                )}
+
+                {/* Field Rules */}
+                {copyableData.fieldRules.length > 0 && (
+                  <AccordionItem value="fieldRules">
+                    <AccordionTrigger className="hover:no-underline">
+                      <div className="flex items-center gap-2">
+                        <ListChecks className="h-4 w-4" />
+                        <span>{t('copyData.modules.fieldRules')}</span>
+                        <Badge variant="secondary">{copyableData.fieldRules.length}</Badge>
+                      </div>
+                    </AccordionTrigger>
+                    <AccordionContent>
+                      <div className="space-y-2 pl-2">
+                        <label className="flex items-center gap-2 text-sm font-medium cursor-pointer">
+                          <Checkbox
+                            checked={copyableData.fieldRules.every((r) => selected.fieldRules.has(r.id))}
+                            onCheckedChange={() => toggleAllFieldRules(copyableData)}
+                          />
+                          {t('copyData.selectAll')}
+                        </label>
+                        {copyableData.fieldRules.map((rule) => (
+                          <label key={rule.id} className="flex items-center gap-2 text-sm cursor-pointer pl-4">
+                            <Checkbox
+                              checked={selected.fieldRules.has(rule.id)}
+                              onCheckedChange={() => toggleFieldRule(rule.id)}
+                            />
+                            <span className="flex-1">{rule.fieldSlug}</span>
+                            <Badge variant="outline" className="text-xs">{rule.ruleType}</Badge>
+                            <span className="text-xs text-muted-foreground">{rule.entity.name}</span>
+                          </label>
+                        ))}
+                      </div>
+                    </AccordionContent>
+                  </AccordionItem>
+                )}
+
+                {/* Dashboards */}
+                {copyableData.dashboardTemplates.length > 0 && (
+                  <AccordionItem value="dashboardTemplates">
+                    <AccordionTrigger className="hover:no-underline">
+                      <div className="flex items-center gap-2">
+                        <LayoutDashboard className="h-4 w-4" />
+                        <span>Dashboards</span>
+                        <Badge variant="secondary">{copyableData.dashboardTemplates.length}</Badge>
+                      </div>
+                    </AccordionTrigger>
+                    <AccordionContent>
+                      <div className="space-y-2 pl-2">
+                        <label className="flex items-center gap-2 text-sm font-medium cursor-pointer">
+                          <Checkbox
+                            checked={copyableData.dashboardTemplates.every((d) => selected.dashboardTemplates.has(d.id))}
+                            onCheckedChange={() => toggleAllDashboards(copyableData)}
+                          />
+                          {t('copyData.selectAll')}
+                        </label>
+                        {copyableData.dashboardTemplates.map((dash) => (
+                          <label key={dash.id} className="flex items-center gap-2 text-sm cursor-pointer pl-4">
+                            <Checkbox
+                              checked={selected.dashboardTemplates.has(dash.id)}
+                              onCheckedChange={() => toggleDashboard(dash.id)}
+                            />
+                            <span className="flex-1">{dash.name}</span>
+                            {dash.entitySlug && (
+                              <span className="text-xs text-muted-foreground">{dash.entitySlug}</span>
+                            )}
+                          </label>
+                        ))}
+                      </div>
+                    </AccordionContent>
+                  </AccordionItem>
+                )}
+
+                {/* PDF Templates */}
+                {copyableData.pdfTemplates.length > 0 && (
+                  <AccordionItem value="pdfTemplates">
+                    <AccordionTrigger className="hover:no-underline">
+                      <div className="flex items-center gap-2">
+                        <FileText className="h-4 w-4" />
+                        <span>{t('copyData.modules.pdfTemplates')}</span>
+                        <Badge variant="secondary">{copyableData.pdfTemplates.length}</Badge>
+                      </div>
+                    </AccordionTrigger>
+                    <AccordionContent>
+                      <div className="space-y-2 pl-2">
+                        <label className="flex items-center gap-2 text-sm font-medium cursor-pointer">
+                          <Checkbox
+                            checked={copyableData.pdfTemplates.every((t) => selected.pdfTemplates.has(t.id))}
+                            onCheckedChange={() => toggleAllPdfTemplates(copyableData)}
+                          />
+                          {t('copyData.selectAll')}
+                        </label>
+                        {copyableData.pdfTemplates.map((tmpl) => (
+                          <label key={tmpl.id} className="flex items-center gap-2 text-sm cursor-pointer pl-4">
+                            <Checkbox
+                              checked={selected.pdfTemplates.has(tmpl.id)}
+                              onCheckedChange={() => togglePdfTemplate(tmpl.id)}
+                            />
+                            <span className="flex-1">{tmpl.name}</span>
+                            <span className="text-xs text-muted-foreground">{tmpl.slug}</span>
+                          </label>
+                        ))}
+                      </div>
+                    </AccordionContent>
+                  </AccordionItem>
+                )}
+              </Accordion>
+            ) : null}
+          </ScrollArea>
+        )}
+
+        {/* ═══════ STEP 3: Result ═══════ */}
+        {step === 'result' && result && (
+          <div className="space-y-4 py-2">
+            <div className="flex items-center gap-2 text-green-600">
+              <Check className="h-5 w-5" />
+              <span className="font-semibold">{t('copyData.result.title')}</span>
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+              {result.copied.roles > 0 && (
+                <div className="bg-muted rounded-lg p-3 text-center">
+                  <div className="text-lg font-bold">{result.copied.roles}</div>
+                  <div className="text-xs text-muted-foreground">{t('copyData.modules.roles')}</div>
+                </div>
+              )}
+              {result.copied.entities > 0 && (
+                <div className="bg-muted rounded-lg p-3 text-center">
+                  <div className="text-lg font-bold">{result.copied.entities}</div>
+                  <div className="text-xs text-muted-foreground">{t('copyData.modules.entities')}</div>
+                </div>
+              )}
+              {result.copied.entityData > 0 && (
+                <div className="bg-muted rounded-lg p-3 text-center">
+                  <div className="text-lg font-bold">{result.copied.entityData}</div>
+                  <div className="text-xs text-muted-foreground">{t('copyData.records')}</div>
+                </div>
+              )}
+              {result.copied.automations > 0 && (
+                <div className="bg-muted rounded-lg p-3 text-center">
+                  <div className="text-lg font-bold">{result.copied.automations}</div>
+                  <div className="text-xs text-muted-foreground">{t('copyData.modules.automations')}</div>
+                </div>
+              )}
+              {result.copied.webhooks > 0 && (
+                <div className="bg-muted rounded-lg p-3 text-center">
+                  <div className="text-lg font-bold">{result.copied.webhooks}</div>
+                  <div className="text-xs text-muted-foreground">{t('copyData.modules.webhooks')}</div>
+                </div>
+              )}
+              {result.copied.fieldRules > 0 && (
+                <div className="bg-muted rounded-lg p-3 text-center">
+                  <div className="text-lg font-bold">{result.copied.fieldRules}</div>
+                  <div className="text-xs text-muted-foreground">{t('copyData.modules.fieldRules')}</div>
+                </div>
+              )}
+              {result.copied.pdfTemplates > 0 && (
+                <div className="bg-muted rounded-lg p-3 text-center">
+                  <div className="text-lg font-bold">{result.copied.pdfTemplates}</div>
+                  <div className="text-xs text-muted-foreground">{t('copyData.modules.pdfTemplates')}</div>
+                </div>
+              )}
+              {result.copied.dashboardTemplates > 0 && (
+                <div className="bg-muted rounded-lg p-3 text-center">
+                  <div className="text-lg font-bold">{result.copied.dashboardTemplates}</div>
+                  <div className="text-xs text-muted-foreground">Dashboards</div>
+                </div>
+              )}
+            </div>
+
+            {result.skipped.length > 0 && (
+              <div className="space-y-1">
+                <p className="text-sm font-medium">{t('copyData.result.skipped')} ({result.skipped.length})</p>
+                <div className="text-xs text-muted-foreground space-y-0.5 max-h-24 overflow-y-auto">
+                  {result.skipped.map((item, i) => (
+                    <div key={i}>- {item}</div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {result.warnings.length > 0 && (
+              <div className="space-y-1">
+                <p className="text-sm font-medium flex items-center gap-1 text-yellow-600">
+                  <AlertTriangle className="h-3.5 w-3.5" />
+                  {t('copyData.result.warnings')} ({result.warnings.length})
+                </p>
+                <div className="text-xs text-muted-foreground space-y-0.5 max-h-24 overflow-y-auto">
+                  {result.warnings.map((item, i) => (
+                    <div key={i}>- {item}</div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ═══════ Footer ═══════ */}
+        <DialogFooter className="flex-row justify-between sm:justify-between">
+          {step === 'select-tenants' && (
+            <>
+              <Button variant="ghost" onClick={() => handleOpenChange(false)}>
+                {tCommon('cancel')}
+              </Button>
+              <Button
+                onClick={handleNext}
+                disabled={!sourceTenantId || !targetTenantId}
+              >
+                {t('copyData.next')}
+                <ChevronRight className="h-4 w-4 ml-1" />
+              </Button>
+            </>
+          )}
+
+          {step === 'select-items' && (
+            <>
+              <Button variant="ghost" onClick={handleBack}>
+                <ChevronLeft className="h-4 w-4 mr-1" />
+                {t('copyData.back')}
+              </Button>
+              <div className="flex items-center gap-3">
+                {totalSelected > 0 && (
+                  <span className="text-sm text-muted-foreground">
+                    {totalSelected} {t('copyData.itemsSelected')}
+                  </span>
+                )}
+                <Button
+                  onClick={handleCopy}
+                  disabled={totalSelected === 0 || copyMutation.isPending}
+                >
+                  {copyMutation.isPending ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                      {t('copyData.copying')}
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="h-4 w-4 mr-1" />
+                      {t('copyData.copy')}
+                    </>
+                  )}
+                </Button>
+              </div>
+            </>
+          )}
+
+          {step === 'result' && (
+            <>
+              <div />
+              <Button onClick={() => handleOpenChange(false)}>
+                {tCommon('close')}
+              </Button>
+            </>
+          )}
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}

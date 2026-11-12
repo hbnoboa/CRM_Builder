@@ -54,24 +54,6 @@ class SecureStorage {
   }
 
   // ═══════════════════════════════════════════════════════
-  // PLATFORM_ADMIN cross-tenant (mirrors sessionStorage)
-  // ═══════════════════════════════════════════════════════
-
-  static const _keySelectedTenantId = 'selectedTenantId';
-
-  static Future<String?> getSelectedTenantId() async {
-    return _storage.read(key: _keySelectedTenantId);
-  }
-
-  static Future<void> setSelectedTenantId(String? tenantId) async {
-    if (tenantId == null) {
-      await _storage.delete(key: _keySelectedTenantId);
-    } else {
-      await _storage.write(key: _keySelectedTenantId, value: tenantId);
-    }
-  }
-
-  // ═══════════════════════════════════════════════════════
   // BIOMETRIC
   // ═══════════════════════════════════════════════════════
 
@@ -103,25 +85,25 @@ class SecureStorage {
   // OFFLINE AUTH CACHE
   // ═══════════════════════════════════════════════════════
 
-  /// Cache credentials for offline login and silent re-auth.
-  /// Stores email, password (encrypted by Keychain/Keystore), hash, and user JSON.
+  /// Guarda o necessario para o login offline: e-mail, hash PBKDF2 e usuario.
+  /// A senha NAO e guardada (e a gravada por versoes antigas e apagada aqui).
   static Future<void> cacheCredentials({
     required String email,
-    required String password,
     required String passwordHash,
     required String userJson,
   }) async {
     await Future.wait([
+      _storage.delete(key: AppConstants.keyLoggedOut),
+      _storage.delete(key: AppConstants.keyCachedPassword),
       _storage.write(key: AppConstants.keyCachedEmail, value: email.toLowerCase()),
-      _storage.write(key: AppConstants.keyCachedPassword, value: password),
       _storage.write(key: AppConstants.keyCachedPasswordHash, value: passwordHash),
       _storage.write(key: AppConstants.keyCachedUserJson, value: userJson),
     ]);
   }
 
-  /// Get cached password for silent re-authentication.
-  static Future<String?> getCachedPassword() async {
-    return _storage.read(key: AppConstants.keyCachedPassword);
+  /// Apaga a senha em texto que versoes antigas do app guardavam.
+  static Future<void> purgeLegacyPassword() async {
+    await _storage.delete(key: AppConstants.keyCachedPassword);
   }
 
   /// Get cached email for offline login.
@@ -151,13 +133,25 @@ class SecureStorage {
   // CLEAR ALL (on logout)
   // ═══════════════════════════════════════════════════════
 
+  /// "Sair" foi escolhido: o proximo cold start nao entra sozinho pelo cache.
+  static Future<void> setLoggedOut(bool value) async {
+    if (value) {
+      await _storage.write(key: AppConstants.keyLoggedOut, value: 'true');
+    } else {
+      await _storage.delete(key: AppConstants.keyLoggedOut);
+    }
+  }
+
+  static Future<bool> isLoggedOut() async {
+    return await _storage.read(key: AppConstants.keyLoggedOut) == 'true';
+  }
+
   /// Clear session data (tokens) but KEEP offline credentials cache.
   /// Used for normal logout so user can login again offline.
   static Future<void> clearSession() async {
     await Future.wait([
       _storage.delete(key: AppConstants.keyAccessToken),
       _storage.delete(key: AppConstants.keyRefreshToken),
-      _storage.delete(key: _keySelectedTenantId),
     ]);
   }
 

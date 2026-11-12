@@ -133,10 +133,10 @@ void main() {
         expect(state.hasModuleAccess('dashboard'), isFalse);
       });
 
-      test('returns true for PLATFORM_ADMIN on any module', () {
+      test('returns true for full tenant access (allAccess) on any module', () {
         const state = PermissionsState(
-          roleType: 'PLATFORM_ADMIN',
-          isPlatformAdmin: true,
+          roleType: 'CUSTOM',
+          hasFullAccess: true,
         );
         expect(state.hasModuleAccess('dashboard'), isTrue);
         expect(state.hasModuleAccess('users'), isTrue);
@@ -178,10 +178,10 @@ void main() {
         expect(state.hasModulePermission('dashboard', 'canRead'), isFalse);
       });
 
-      test('returns true for PLATFORM_ADMIN on any action', () {
+      test('returns true for full tenant access (allAccess) on any action', () {
         const state = PermissionsState(
-          roleType: 'PLATFORM_ADMIN',
-          isPlatformAdmin: true,
+          roleType: 'CUSTOM',
+          hasFullAccess: true,
         );
         expect(state.hasModulePermission('users', 'canDelete'), isTrue);
       });
@@ -240,10 +240,10 @@ void main() {
         expect(state.hasEntityPermission('clientes', 'canRead'), isFalse);
       });
 
-      test('returns true for PLATFORM_ADMIN', () {
+      test('returns true for full tenant access (allAccess)', () {
         const state = PermissionsState(
-          roleType: 'PLATFORM_ADMIN',
-          isPlatformAdmin: true,
+          roleType: 'CUSTOM',
+          hasFullAccess: true,
         );
         expect(state.hasEntityPermission('clientes', 'canDelete'), isTrue);
       });
@@ -321,10 +321,10 @@ void main() {
         expect(state.getEntityScope('clientes'), 'own');
       });
 
-      test('returns "all" for PLATFORM_ADMIN', () {
+      test('returns "all" for full tenant access (allAccess)', () {
         const state = PermissionsState(
-          roleType: 'PLATFORM_ADMIN',
-          isPlatformAdmin: true,
+          roleType: 'CUSTOM',
+          hasFullAccess: true,
           isAdmin: true,
         );
         expect(state.getEntityScope('clientes'), 'all');

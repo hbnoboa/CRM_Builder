@@ -1,18 +1,30 @@
-import { Injectable, Logger } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  NotFoundException,
+  BadRequestException,
+  UnprocessableEntityException,
+  ConflictException,
+} from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { Prisma } from '@prisma/client';
 import { CurrentUser } from '../../common/types/auth.types';
 import { QueryAuditLogDto } from './dto/audit-log.dto';
 import { buildCursorResponse } from '../../common/utils/cursor-pagination.util';
 
-export type AuditAction = 'create' | 'update' | 'delete';
+export type AuditAction = 'create' | 'update' | 'delete' | 'restore' | 'purge' | 'export';
 export type AuditResource =
   | 'entity_data'
   | 'user'
   | 'entity'
   | 'custom_role'
   | 'custom_api'
-  | 'page';
+  | 'page'
+  | 'tenant'
+  | 'invitation'
+  | 'api_key'
+  | 'team'
+  | 'site_domain';
 
 export interface AuditLogInput {
   action: AuditAction;
@@ -27,6 +39,11 @@ const SENSITIVE_PATTERNS = [
   /password/i, /token/i, /secret/i, /key/i, /credential/i,
   /authorization/i, /credit.?card/i, /ssn/i, /cpf/i, /cnpj/i,
 ];
+
+/** A tela envia so a data: o filtro inclui o dia inteiro, no horario de Brasilia. */
+export function auditDateTo(value: string): Date {
+  return new Date(/^\d{4}-\d{2}-\d{2}$/.test(value) ? `${value}T23:59:59.999-03:00` : value);
+}
 
 @Injectable()
 export class AuditService {
@@ -43,6 +60,9 @@ export class AuditService {
         data: {
           tenantId: user.tenantId,
           userId: user.id,
+          // Impersonacao: registra o ator real (quem assumiu a identidade).
+          impersonatedById: user.impersonatedBy?.id ?? null,
+          impersonatedByName: user.impersonatedBy?.name ?? null,
           action: input.action,
           resource: input.resource,
           resourceId: input.resourceId ?? null,
@@ -57,11 +77,107 @@ export class AuditService {
   }
 
   /**
-   * Query audit logs with pagination and filters. PLATFORM_ADMIN only.
+   * #19 item 7: "desfazer" sobre audit + soft-delete. Operacionaliza o
+   * "reversivel + auditavel" da spec §7.4. Suportado para `entity_data`:
+   *   - create -> soft-delete o registro criado (lossless)
+   *   - delete -> restaura o registro (lossless: a linha soft-deletada continua intacta)
+   *   - update -> grava o oldData de volta (BLOQUEADO se o log tiver campos
+   *     sensiveis mascarados como [REDACTED], pois restaurar corromperia os dados)
+   * O proprio revert vira um novo evento de auditoria (espinha imutavel).
+   */
+  async revert(user: CurrentUser, auditLogId: string) {
+    const log = await this.prisma.auditLog.findUnique({ where: { id: auditLogId } });
+    if (!log) throw new NotFoundException('Audit log nao encontrado');
+
+    // Multi-tenant: so reverte log do proprio tenant.
+    if (log.tenantId !== user.tenantId) {
+      throw new NotFoundException('Audit log nao encontrado');
+    }
+
+    if (log.resource !== 'entity_data') {
+      throw new BadRequestException('Revert suportado apenas para entity_data');
+    }
+    if (!log.resourceId) throw new BadRequestException('Audit log sem resourceId');
+
+    const record = await this.prisma.entityData.findUnique({ where: { id: log.resourceId } });
+    if (!record) throw new NotFoundException('Registro alvo nao existe mais');
+    if (record.tenantId !== log.tenantId) {
+      throw new BadRequestException('Inconsistencia de tenant no registro alvo');
+    }
+
+    // Acao inversa que sera registrada na espinha de auditoria.
+    let revertAction: AuditAction;
+    try {
+      if (log.action === 'create') {
+        if (record.deletedAt) throw new BadRequestException('Registro ja esta excluido');
+        await this.prisma.entityData.update({
+          where: { id: record.id },
+          data: { deletedAt: new Date(), deletedById: user.id },
+        });
+        revertAction = 'delete';
+      } else if (log.action === 'delete') {
+        if (!record.deletedAt) throw new BadRequestException('Registro nao esta excluido');
+        await this.prisma.entityData.update({
+          where: { id: record.id },
+          data: { deletedAt: null, deletedById: null },
+        });
+        revertAction = 'create';
+      } else if (log.action === 'update') {
+        const oldData = log.oldData as Record<string, unknown> | null;
+        if (!oldData || typeof oldData !== 'object') {
+          throw new BadRequestException('Audit sem oldData para reverter');
+        }
+        if (this.hasRedacted(oldData)) {
+          throw new UnprocessableEntityException(
+            'Revert de update bloqueado: o log contem campos sensiveis mascarados ([REDACTED]); restaurar corromperia os dados.',
+          );
+        }
+        await this.prisma.entityData.update({
+          where: { id: record.id },
+          data: { data: oldData as Prisma.InputJsonValue },
+        });
+        revertAction = 'update';
+      } else {
+        throw new BadRequestException('Acao nao reversivel');
+      }
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+        throw new ConflictException(
+          'Revert violaria um campo unico (outro registro vivo ja usa esse valor).',
+        );
+      }
+      throw error;
+    }
+
+    // Espinha imutavel: o revert e um novo evento auditado.
+    await this.log(user, {
+      action: revertAction,
+      resource: 'entity_data',
+      resourceId: record.id,
+      metadata: { revertOf: log.id, originalAction: log.action },
+    });
+
+    return { reverted: true, auditLogId: log.id, originalAction: log.action, recordId: record.id };
+  }
+
+  /** Detecta valores mascarados ([REDACTED]) recursivamente. */
+  private hasRedacted(obj: Record<string, unknown>): boolean {
+    for (const value of Object.values(obj)) {
+      if (value === '[REDACTED]') return true;
+      if (value && typeof value === 'object' && !Array.isArray(value)) {
+        if (this.hasRedacted(value as Record<string, unknown>)) return true;
+      }
+    }
+    return false;
+  }
+
+  /**
+   * Query audit logs with pagination and filters. SEMPRE escopado ao tenant informado
+   * (o tenant ativo do caller) — nunca lista logs de outros tenants.
    * Busca em AuditLog (ativos) e ArchivedAuditLog (arquivados) quando necessário.
    */
-  async findAll(query: QueryAuditLogDto) {
-    const { page = 1, limit = 50, cursor, tenantId, action, resource, userId, dateFrom, dateTo, search } = query;
+  async findAll(tenantId: string, query: QueryAuditLogDto) {
+    const { page = 1, limit = 50, cursor, action, resource, userId, dateFrom, dateTo, search } = query;
     const skip = (page - 1) * limit;
     const useCursor = !!cursor;
 
@@ -72,13 +188,9 @@ export class AuditService {
     const needsArchived = dateFrom && new Date(dateFrom) < archiveCutoffDate;
 
     // Construir where clause
-    const where: Prisma.AuditLogWhereInput = {};
-    const whereArchived: Prisma.ArchivedAuditLogWhereInput = {};
+    const where: Prisma.AuditLogWhereInput = { tenantId };
+    const whereArchived: Prisma.ArchivedAuditLogWhereInput = { tenantId };
 
-    if (tenantId) {
-      where.tenantId = tenantId;
-      whereArchived.tenantId = tenantId;
-    }
     if (action) {
       where.action = action;
       whereArchived.action = action;
@@ -100,8 +212,8 @@ export class AuditService {
         whereArchived.createdAt.gte = new Date(dateFrom);
       }
       if (dateTo) {
-        where.createdAt.lte = new Date(dateTo);
-        whereArchived.createdAt.lte = new Date(dateTo);
+        where.createdAt.lte = auditDateTo(dateTo);
+        whereArchived.createdAt.lte = auditDateTo(dateTo);
       }
     }
 

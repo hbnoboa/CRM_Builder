@@ -45,7 +45,7 @@ export interface WidgetConfig {
     thresholds?: { warn: number; danger: number };
 
     // Charts
-    dataSource?: 'records-over-time' | 'field-distribution' | 'field-trend' | 'funnel';
+    dataSource?: 'records-over-time' | 'field-distribution' | 'field-trend' | 'funnel' | 'grouped-ratio';
     groupByField?: string;
     days?: number;
     chartColor?: string;
@@ -157,6 +157,21 @@ export interface WidgetConfig {
       matchBy?: 'fields' | 'children';
       alias: string;
     };
+
+    // Data-table / sub-entity list / timeline / kanban: colunas e flags de exibição
+    entitySlug?: string;
+    subEntitySlug?: string;
+    fields?: string[];
+    titleField?: string;
+    descriptionField?: string;
+    dateField?: string;
+    statusField?: string;
+    groupBy?: string;
+    enablePagination?: boolean;
+    showCreatedAt?: boolean;
+    showUpdatedAt?: boolean;
+    showGeolocation?: boolean;
+    showParentInfo?: boolean;
   };
 }
 
@@ -237,6 +252,8 @@ export interface FieldDistributionItem {
   value: string;
   label: string;
   count: number;
+  /** Cor da opcao do campo (select), quando configurada. */
+  color?: string;
 }
 
 export interface FieldAggregation {

@@ -32,7 +32,7 @@ import { GroupedBarChartWidget } from './grouped-bar-chart-widget';
 import { ZoneDiagramWidget } from './zone-diagram-widget';
 import { ImageGalleryWidget } from './image-gallery-widget';
 import { StatListWidget } from './stat-list-widget';
-import { DataTableWidget } from './data-table-widget';
+import { DataTableWidget, ScopedFilterBridge } from './data-table-widget';
 import SubEntityListWidget from './sub-entity-list-widget';
 import SubEntityTimelineWidget from './sub-entity-timeline-widget';
 import { KanbanBoardWidget } from './kanban-board-widget';
@@ -51,6 +51,8 @@ interface EntityDashboardProps {
   entityFields?: EntityFieldLike[];
   templateId?: string;
   externalFilters?: Array<{ fieldSlug: string; operator: string; value: unknown; value2?: unknown }>;
+  /** Painel ainda nao salvo (previa do assistente de IA): nao busca o modelo. */
+  previewTemplate?: { layout: unknown[]; widgets: Record<string, unknown>; tabs?: unknown[]; settings?: Record<string, unknown> };
 }
 
 function renderWidget(
@@ -79,7 +81,7 @@ function renderWidget(
 
   switch (widgetConfig.type as WidgetType) {
     case 'kpi-card':
-      return <KpiCardWidget {...commonProps} />;
+      return <KpiCardWidget {...commonProps} entityFields={effectiveFields} />;
     case 'number-card':
       return <NumberCardWidget {...commonProps} />;
     case 'area-chart':
@@ -122,12 +124,27 @@ function renderWidget(
       return <StatListWidget {...commonProps} />;
     case 'data-table':
       return <DataTableWidget {...commonProps} />;
-    case 'sub-entity-list':
-      return <SubEntityListWidget config={widgetConfig.config} />;
-    case 'sub-entity-timeline':
-      return <SubEntityTimelineWidget config={widgetConfig.config} />;
+    case 'sub-entity-list': {
+      // Re-escopa o contexto do widget para a entidade FILHA (subEntitySlug), para
+      // que useWidgetFilters() traduza os filtros do pai como `parent.<campo>`
+      // (resolvidos no backend via parentRecordId). Centraliza no resolvedor único.
+      const childSlug = (widgetConfig.config as { subEntitySlug?: string }).subEntitySlug || effectiveSlug;
+      return (
+        <WidgetProvider entitySlug={childSlug} widgetId={widgetId}>
+          <SubEntityListWidget config={widgetConfig.config as never} />
+        </WidgetProvider>
+      );
+    }
+    case 'sub-entity-timeline': {
+      const childSlug = (widgetConfig.config as { subEntitySlug?: string }).subEntitySlug || effectiveSlug;
+      return (
+        <WidgetProvider entitySlug={childSlug} widgetId={widgetId}>
+          <SubEntityTimelineWidget config={widgetConfig.config as never} />
+        </WidgetProvider>
+      );
+    }
     case 'kanban-board':
-      return <KanbanBoardWidget {...commonProps} entityFields={effectiveFields} />;
+      return <KanbanBoardWidget {...commonProps} config={commonProps.config as never} entityFields={effectiveFields} />;
     default:
       return (
         <WidgetWrapper title={widgetConfig.title}>
@@ -139,10 +156,60 @@ function renderWidget(
   }
 }
 
-export function EntityDashboard({ entitySlug, entityFields, templateId, externalFilters }: EntityDashboardProps) {
-  const myTemplate = useMyDashboardTemplate(templateId ? undefined : entitySlug);
+const PREVIEW_COLS = { lg: 12, md: 12, sm: 12, xs: 4, xxs: 2 };
+const GRID_COLS = { lg: 12, md: 12, sm: 6, xs: 4, xxs: 2 };
+
+type GridItem = { i: string; x: number; y: number; w: number; h: number };
+/** Blocos pequenos (um numero) ficam lado a lado em telas estreitas. */
+const SMALL_WIDGETS = new Set(['kpi-card', 'number-card', 'gauge-chart']);
+
+/**
+ * Tela estreita: na ordem do painel (linha a linha), numeros dois por linha e o
+ * resto na largura toda. Antes cada bloco ocupava a tela inteira, um embaixo do outro.
+ */
+function packForNarrow<T extends GridItem>(items: T[], widgets: Record<string, unknown>, cols: number): T[] {
+  const ordered = [...items].sort((a, b) => a.y - b.y || a.x - b.x);
+  const out: T[] = [];
+  let x = 0;
+  let y = 0;
+  let rowH = 0;
+  for (const item of ordered) {
+    const type = (widgets[item.i] as { type?: string } | undefined)?.type ?? '';
+    const w = SMALL_WIDGETS.has(type) ? Math.max(1, Math.floor(cols / 2)) : cols;
+    if (x + w > cols) {
+      y += rowH;
+      x = 0;
+      rowH = 0;
+    }
+    out.push({ ...item, x, y, w });
+    x += w;
+    rowH = Math.max(rowH, item.h);
+    if (x >= cols) {
+      y += rowH;
+      x = 0;
+      rowH = 0;
+    }
+  }
+  return out;
+}
+
+function responsiveLayouts<T extends GridItem>(items: T[], widgets: Record<string, unknown>, preview: boolean) {
+  return {
+    lg: items,
+    md: items,
+    // Previa do assistente no computador: area estreita, mas com o layout de tela grande
+    sm: preview ? items : packForNarrow(items, widgets, GRID_COLS.sm),
+    xs: packForNarrow(items, widgets, GRID_COLS.xs),
+    xxs: packForNarrow(items, widgets, GRID_COLS.xxs),
+  };
+}
+
+export function EntityDashboard({ entitySlug, entityFields, templateId, externalFilters, previewTemplate }: EntityDashboardProps) {
+  const myTemplate = useMyDashboardTemplate(templateId || previewTemplate ? undefined : entitySlug);
   const specificTemplate = useDashboardTemplate(templateId);
-  const { data: template, isLoading } = templateId ? specificTemplate : myTemplate;
+  const fetched = templateId ? specificTemplate : myTemplate;
+  const template = (previewTemplate as typeof fetched.data | undefined) ?? fetched.data;
+  const isLoading = !previewTemplate && fetched.isLoading;
   const { data: entitiesData } = useEntities();
 
   // Check if any widget uses entitySlugOverride to decide if we need the entities list
@@ -152,24 +219,57 @@ export function EntityDashboard({ entitySlug, entityFields, templateId, external
     return list as EntityLike[];
   }, [entitiesData]);
 
-  const layouts = useMemo(() => {
-    if (!template?.layout) return {};
+  // Fallback: se a entidade nao tem dashboard template (auto-create falhou, role sem
+  // template, etc.), renderiza uma tabela default com todos os campos em vez de tela
+  // branca. Garante que Registros sempre mostre os dados.
+  const fallbackTemplate = useMemo(() => {
+    const widgetId = 'w-data-table-1';
+    const displayFields = (entityFields || [])
+      .filter((f) => !['sub-entity', 'map', 'json', 'signature'].includes(f.type))
+      .map((f) => f.slug);
     return {
-      lg: template.layout,
-      md: template.layout.map((item) => ({
-        ...item,
-        w: Math.min(item.w, 10),
-      })),
-      sm: template.layout.map((item) => ({
-        ...item,
-        w: Math.min(item.w, 6),
-        x: 0,
-      })),
-    };
-  }, [template?.layout]);
+      layout: [{ i: widgetId, x: 0, y: 0, w: 12, h: 10, minW: 6, minH: 6 }],
+      widgets: {
+        [widgetId]: {
+          type: 'data-table',
+          title: '',
+          config: {
+            displayFields,
+            pageSize: 25,
+            allowCreate: true,
+            allowEdit: true,
+            allowDelete: true,
+            allowExport: true,
+            allowImport: true,
+            allowBatchSelect: true,
+          },
+        },
+      },
+    } as unknown as NonNullable<typeof template>;
+  }, [entityFields]);
+
+  // Enquanto carrega = null (mostra nada); carregou sem template = fallback.
+  // Usa || (nao ??) porque a API retorna corpo vazio ('') quando nao ha template.
+  const effectiveTemplate = template || (isLoading ? null : fallbackTemplate);
+
+  const layouts = useMemo(() => {
+    if (!effectiveTemplate?.layout) return {};
+    return responsiveLayouts(effectiveTemplate.layout, effectiveTemplate.widgets || {}, !!previewTemplate);
+  }, [effectiveTemplate?.layout, effectiveTemplate?.widgets, previewTemplate]);
+
+  // Celular: desliga drag/resize (senão o toque para ROLAR arrasta/redimensiona os
+  // widgets — o "dashboard bugado") e o grid cai para 2 colunas (breakpoint xxs; numeros lado a lado).
+  const [isNarrow, setIsNarrow] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 767px)');
+    const update = () => setIsNarrow(mq.matches);
+    update();
+    mq.addEventListener('change', update);
+    return () => mq.removeEventListener('change', update);
+  }, []);
 
   // Tabs support
-  const tabs = (template as { tabs?: { id: string; label: string; icon?: string; widgetIds: string[] }[] })?.tabs;
+  const tabs = (effectiveTemplate as { tabs?: { id: string; label: string; icon?: string; widgetIds: string[] }[] })?.tabs;
   const hasTabs = tabs && tabs.length > 1;
   const [activeTabId, setActiveTabId] = useState<string | undefined>(undefined);
   // Track visited tabs so we can keep them mounted (avoid remount on tab switch)
@@ -189,10 +289,13 @@ export function EntityDashboard({ entitySlug, entityFields, templateId, external
     });
   }, [hasTabs, effectiveTabId]);
 
-  if (isLoading || !template) return null;
+  if (!effectiveTemplate) return null;
 
-  const allWidgetEntries = Object.entries(template.widgets || {});
+  const allWidgetEntries = Object.entries(effectiveTemplate.widgets || {});
   if (allWidgetEntries.length === 0) return null;
+
+  // settings.headerCountEntitySlug: contador do topo reflete outra entidade (opcional)
+  const headerCountSlug = ((effectiveTemplate as { settings?: { headerCountEntitySlug?: string } }).settings?.headerCountEntitySlug) || undefined;
 
   // For non-tabbed dashboards, render all widgets
   if (!hasTabs) {
@@ -205,16 +308,17 @@ export function EntityDashboard({ entitySlug, entityFields, templateId, external
         <div className="mb-4">
 
           <DashboardFilterBar entityFields={entityFields} />
-          <RecordCountBadge />
+          <RecordCountBadge countEntitySlug={headerCountSlug} mainEntitySlug={entitySlug} />
           <ResponsiveGridLayout
             className="layout"
+            measureBeforeMount
             layouts={layouts}
-            breakpoints={{ lg: 1200, md: 996, sm: 768 }}
-            cols={{ lg: 12, md: 10, sm: 6 }}
+            breakpoints={{ lg: 1200, md: 996, sm: 768, xs: 480, xxs: 0 }}
+            cols={previewTemplate ? PREVIEW_COLS : GRID_COLS}
             rowHeight={30}
             margin={[12, 12]}
-            isDraggable={true}
-            isResizable={true}
+            isDraggable={!isNarrow}
+            isResizable={!isNarrow}
             draggableHandle=".widget-drag-handle"
             compactType="vertical"
             containerPadding={[0, 0]}
@@ -250,7 +354,7 @@ export function EntityDashboard({ entitySlug, entityFields, templateId, external
       </WidgetProvider>
       <div className="mb-4">
         <DashboardFilterBar entityFields={entityFields} />
-        <RecordCountBadge />
+        <RecordCountBadge countEntitySlug={headerCountSlug} mainEntitySlug={entitySlug} />
         <div className="flex gap-1 mb-3 border-b">
           {tabs.map((tab) => (
             <button
@@ -274,27 +378,21 @@ export function EntityDashboard({ entitySlug, entityFields, templateId, external
 
           const tabWidgetEntries = allWidgetEntries.filter(([id]) => tab.widgetIds.includes(id));
           const tabWidgetIds = new Set(tabWidgetEntries.map(([id]) => id));
-          const tabLayouts = {
-            lg: (template.layout || []).filter((item) => tabWidgetIds.has(item.i)),
-            md: (template.layout || []).filter((item) => tabWidgetIds.has(item.i)).map((item) => ({
-              ...item, w: Math.min(item.w, 10),
-            })),
-            sm: (template.layout || []).filter((item) => tabWidgetIds.has(item.i)).map((item) => ({
-              ...item, w: Math.min(item.w, 6), x: 0,
-            })),
-          };
+          const tabFull = (effectiveTemplate.layout || []).filter((item) => tabWidgetIds.has(item.i));
+          const tabLayouts = responsiveLayouts(tabFull, effectiveTemplate.widgets || {}, !!previewTemplate);
 
           return (
             <div key={tab.id} style={{ display: isActive ? undefined : 'none' }}>
               <ResponsiveGridLayout
                 className="layout"
+                measureBeforeMount
                 layouts={tabLayouts}
-                breakpoints={{ lg: 1200, md: 996, sm: 768 }}
-                cols={{ lg: 12, md: 10, sm: 6 }}
+                breakpoints={{ lg: 1200, md: 996, sm: 768, xs: 480, xxs: 0 }}
+                cols={previewTemplate ? PREVIEW_COLS : GRID_COLS}
                 rowHeight={30}
                 margin={[12, 12]}
-                isDraggable={true}
-                isResizable={true}
+                isDraggable={!isNarrow}
+                isResizable={!isNarrow}
                 draggableHandle=".widget-drag-handle"
                 compactType="vertical"
                 containerPadding={[0, 0]}
@@ -405,7 +503,12 @@ function DashboardFilterBridge() {
 }
 
 
-function RecordCountBadge() {
+function RecordCountBadge({ countEntitySlug, mainEntitySlug }: { countEntitySlug?: string; mainEntitySlug?: string } = {}) {
+  // settings.headerCountEntitySlug: o contador do topo pode refletir OUTRA entidade
+  // (ex.: dashboard de Operacoes mostrando a contagem de Veiculos), sem mudar o resto.
+  if (countEntitySlug && countEntitySlug !== mainEntitySlug) {
+    return <ScopedCountBadge countEntitySlug={countEntitySlug} />;
+  }
   const ctx = useEntityDataOptional();
   if (!ctx) return null;
   const total = ctx.allRecords.length;
@@ -418,6 +521,32 @@ function RecordCountBadge() {
         ? <span>{filtered.toLocaleString('pt-BR')} de {total.toLocaleString('pt-BR')} registros</span>
         : <span>{total.toLocaleString('pt-BR')} registros</span>
       }
+    </div>
+  );
+}
+
+// Contador do topo escopado a outra entidade (provider proprio + ponte de filtros).
+function ScopedCountBadge({ countEntitySlug }: { countEntitySlug: string }) {
+  return (
+    <WidgetProvider entitySlug={countEntitySlug} widgetId="__header-count__">
+      <EntityDataProvider entitySlug={countEntitySlug}>
+        <ScopedFilterBridge />
+        <ScopedCountInner />
+      </EntityDataProvider>
+    </WidgetProvider>
+  );
+}
+
+function ScopedCountInner() {
+  const ctx = useEntityDataOptional();
+  if (!ctx) return null;
+  // Para datasets grandes (paginados no servidor) usa totalServerRecords (ja reflete filtros);
+  // para datasets pequenos (carregados client-side) usa a contagem filtrada local.
+  const count = ctx.isFullDataset ? ctx.sortedRecords.length : ctx.totalServerRecords;
+  return (
+    <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-2">
+      <Database className="h-3.5 w-3.5" />
+      <span>{count.toLocaleString('pt-BR')} registros</span>
     </div>
   );
 }

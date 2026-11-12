@@ -8,6 +8,7 @@ import * as XLSX from 'xlsx';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { ImportError } from './dto/import-data.dto';
+import { TenantPlanService } from '../../common/services/tenant-plan.service';
 
 interface ImportJobData {
   importId: string;
@@ -26,6 +27,7 @@ export class ImportQueueProcessor {
     private readonly prisma: PrismaService,
     private readonly entityService: EntityService,
     private readonly notificationService: NotificationService,
+    private readonly tenantPlan: TenantPlanService,
   ) {}
 
   @OnQueueActive()
@@ -70,6 +72,9 @@ export class ImportQueueProcessor {
       }
 
       const entityFields = (entity.fields as any[]) || [];
+
+      // Limite do plano: falha a importacao inteira antes de inserir qualquer linha.
+      await this.tenantPlan.assertCanAddRecords(tenantId, rows.length);
 
       // 3. Processar em chunks de 100
       const CHUNK_SIZE = 100;

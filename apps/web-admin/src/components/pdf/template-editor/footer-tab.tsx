@@ -38,8 +38,8 @@ export function FooterTab({ footer, onChange }: FooterTabProps) {
       {/* Texto do Footer */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-lg">Texto do Rodape</CardTitle>
-          <CardDescription>Texto que aparecera no rodape de cada pagina</CardDescription>
+          <CardTitle className="text-lg">Texto do Rodapé</CardTitle>
+          <CardDescription>Texto que aparecerá no rodapé de cada página</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-2">
@@ -55,7 +55,7 @@ export function FooterTab({ footer, onChange }: FooterTabProps) {
           </div>
 
           <div className="space-y-2">
-            <Label>Posicao do Texto</Label>
+            <Label>Posição do Texto</Label>
             <Select
               value={localFooter.position || 'center'}
               onValueChange={(value) =>
@@ -78,8 +78,8 @@ export function FooterTab({ footer, onChange }: FooterTabProps) {
       {/* Numeracao */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-lg">Numeracao de Paginas</CardTitle>
-          <CardDescription>Exibir numero das paginas no rodape</CardDescription>
+          <CardTitle className="text-lg">Numeração de Páginas</CardTitle>
+          <CardDescription>Exibir número das páginas no rodapé</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="flex items-center gap-2">
@@ -87,7 +87,7 @@ export function FooterTab({ footer, onChange }: FooterTabProps) {
               checked={localFooter.showPageNumbers ?? true}
               onCheckedChange={(checked) => handleChange({ showPageNumbers: checked })}
             />
-            <Label>Mostrar numeracao de paginas</Label>
+            <Label>Mostrar numeração de páginas</Label>
           </div>
           <p className="text-xs text-muted-foreground mt-2">
             Formato: &quot;Pagina X de Y&quot;
@@ -98,7 +98,7 @@ export function FooterTab({ footer, onChange }: FooterTabProps) {
       {/* Preview */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-lg">Preview do Rodape</CardTitle>
+          <CardTitle className="text-lg">Preview do Rodapé</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="border rounded-md p-4 bg-muted/30">

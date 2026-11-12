@@ -11,10 +11,8 @@ interface PermissionGateProps {
   entitySlug?: string;
   /** Ação de entidade */
   action?: 'canCreate' | 'canRead' | 'canUpdate' | 'canDelete';
-  /** Se true, exige admin */
+  /** Se true, exige acesso total ao tenant (allAccess) */
   requireAdmin?: boolean;
-  /** Se true, exige PLATFORM_ADMIN */
-  requirePlatformAdmin?: boolean;
   /** Fallback quando sem acesso (se não informado, mostra card de acesso restrito) */
   fallback?: React.ReactNode;
   children: React.ReactNode;
@@ -25,18 +23,15 @@ export function PermissionGate({
   entitySlug,
   action,
   requireAdmin,
-  requirePlatformAdmin,
   fallback,
   children,
 }: PermissionGateProps) {
-  const { hasModuleAccess, hasEntityPermission, isAdmin, isPlatformAdmin } = usePermissions();
+  const { hasModuleAccess, hasEntityPermission, isAdmin } = usePermissions();
   const t = useTranslations('common');
 
   let hasAccess = true;
 
-  if (requirePlatformAdmin) {
-    hasAccess = isPlatformAdmin;
-  } else if (requireAdmin) {
+  if (requireAdmin) {
     hasAccess = isAdmin;
   } else if (module) {
     hasAccess = hasModuleAccess(module);

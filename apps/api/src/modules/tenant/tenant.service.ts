@@ -1,13 +1,30 @@
-import { Injectable, NotFoundException, ConflictException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { I18nService } from 'nestjs-i18n';
 import { PrismaService } from '../../prisma/prisma.service';
-import { CreateTenantDto, UpdateTenantDto, QueryTenantDto } from './dto/tenant.dto';
-import { Status, Prisma } from '@prisma/client';
+import { CreateTenantDto, UpdateMyTenantDto } from './dto/tenant.dto';
+import { Status, Prisma, TenantLifecycle } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
+import { DEFAULT_ROLE_TEMPLATES, type DefaultRoleKey } from '../../common/utils/default-roles';
+import { hasFullTenantAccess } from '../../common/utils/platform-access';
+import { recordLifecycleEvent } from '../../common/utils/tenant-lifecycle-events';
 
-// Removido: Nao criar roles de sistema automaticamente.
-// Apenas PLATFORM_ADMIN é hardcoded (criado no seed para o Platform tenant).
-// Todos os outros roles devem ser criados manualmente via interface.
+// Slugs que colidem com rotas do web-admin (/{locale}/{slug}/...) ou da API.
+export const RESERVED_TENANT_SLUGS = new Set([
+  'admin', 'api', 'app', 'p', 'login', 'register', 'signup', 'forgot-password',
+  'platform', 'home', 'www', 'dashboard', 'settings', 'profile',
+  // paginas publicas do site (pagina inicial)
+  'contato', 'solucoes', 'precos', 'invite', 'reset-password', 'security-setup',
+]);
+
+/** Campos comerciais definidos na criacao (console da plataforma / cadastro). */
+export interface CreateTenantOptions {
+  planId?: string | null;
+  lifecycle?: TenantLifecycle;
+  trialEndsAt?: Date | null;
+  /** Quem criou (historico comercial): cadastro self-service ou console. */
+  source?: 'signup' | 'console';
+  staffId?: string;
+}
 
 @Injectable()
 export class TenantService {
@@ -16,7 +33,33 @@ export class TenantService {
     private readonly i18n: I18nService,
   ) {}
 
-  async create(dto: CreateTenantDto) {
+  /** Cria os cargos padrao (DEFAULT_ROLE_TEMPLATES) no idioma da requisicao. */
+  private async createDefaultRoles(tx: Prisma.TransactionClient, tenantId: string) {
+    const created = {} as Record<DefaultRoleKey, { id: string }>;
+    for (const tpl of DEFAULT_ROLE_TEMPLATES) {
+      created[tpl.key] = await tx.customRole.create({
+        data: {
+          tenantId,
+          name: this.i18n.t(`tenant.roles.${tpl.key}.name`),
+          description: this.i18n.t(`tenant.roles.${tpl.key}.description`),
+          color: tpl.color,
+          rank: tpl.rank,
+          isSystem: false,
+          isDefault: tpl.isDefault,
+          modulePermissions: tpl.modulePermissions,
+          permissions: tpl.permissions,
+        },
+        select: { id: true },
+      });
+    }
+    return created;
+  }
+
+  async create(dto: CreateTenantDto, options: CreateTenantOptions = {}) {
+    if (RESERVED_TENANT_SLUGS.has(dto.slug)) {
+      throw new BadRequestException(`Slug reservado: ${dto.slug}`);
+    }
+
     // Verificar se slug ja existe
     const existing = await this.prisma.tenant.findUnique({
       where: { slug: dto.slug },
@@ -26,7 +69,6 @@ export class TenantService {
       throw new ConflictException(this.i18n.t('tenant.slugAlreadyExists'));
     }
 
-    // Criar apenas o tenant (sem roles automaticas)
     const tenant = await this.prisma.$transaction(async (tx) => {
       // 1. Criar tenant
       const createdTenant = await tx.tenant.create({
@@ -35,41 +77,48 @@ export class TenantService {
           slug: dto.slug,
           domain: dto.domain,
           logo: dto.logo,
+          planId: options.planId ?? undefined,
+          lifecycle: options.lifecycle,
+          trialEndsAt: options.trialEndsAt ?? undefined,
         },
       });
 
-      // 2. Se informou dados de admin, criar usuario (mas sem role ainda)
-      // IMPORTANTE: PLATFORM_ADMIN precisa criar um role customizado primeiro
-      // e depois atribuir ao usuario via PATCH /users/:id
+      await recordLifecycleEvent(tx, {
+        tenantId: createdTenant.id,
+        from: null,
+        to: createdTenant.lifecycle,
+        source: options.source ?? 'console',
+        staffId: options.staffId,
+      });
+
+      // 2. Cargos padrao (mesmos nomes e niveis em toda empresa)
+      const roles = await this.createDefaultRoles(tx, createdTenant.id);
+
+      // 3. Admin inicial = dono da empresa, no cargo Administrador
       if (dto.adminEmail && dto.adminPassword && dto.adminName) {
         const hashedPassword = await bcrypt.hash(dto.adminPassword, 12);
 
-        // Criar um role temporário "Admin Inicial" para o primeiro usuário
-        const initialRole = await tx.customRole.create({
+        const createdAdmin = await tx.user.create({
           data: {
-            tenantId: createdTenant.id,
-            name: this.i18n.t('tenant.initialRoleName'),
-            description: this.i18n.t('tenant.initialRoleDescription'),
-            color: '#7c3aed',
-            roleType: 'CUSTOM',
-            isSystem: false,
-            modulePermissions: {
-              dashboard: { canRead: true },
-            },
-            permissions: [],
-          },
-        });
-
-        await tx.user.create({
-          data: {
-            tenantId: createdTenant.id,
             email: dto.adminEmail,
             password: hashedPassword,
             name: dto.adminName,
-            customRoleId: initialRole.id,
             status: Status.ACTIVE,
           },
         });
+
+        // Membership home (primaria) — fonte da verdade do vinculo + cargo (#10).
+        await tx.userTenantAccess.create({
+          data: {
+            userId: createdAdmin.id,
+            tenantId: createdTenant.id,
+            customRoleId: roles.admin.id,
+            status: Status.ACTIVE,
+            isPrimary: true,
+          },
+        });
+
+        return tx.tenant.update({ where: { id: createdTenant.id }, data: { ownerId: createdAdmin.id } });
       }
 
       return createdTenant;
@@ -78,55 +127,13 @@ export class TenantService {
     return tenant;
   }
 
-  async findAll(query: QueryTenantDto) {
-    const { page = 1, limit = 20, search, status } = query;
-    const skip = (page - 1) * limit;
-
-    const where: Prisma.TenantWhereInput = {};
-
-    if (status) where.status = status;
-    if (search) {
-      where.OR = [
-        { name: { contains: search, mode: 'insensitive' } },
-        { slug: { contains: search, mode: 'insensitive' } },
-      ];
-    }
-
-    const [data, total] = await Promise.all([
-      this.prisma.tenant.findMany({
-        where,
-        skip,
-        take: limit,
-        orderBy: { createdAt: 'desc' },
-        include: {
-          _count: {
-            select: {
-              users: true,
-            },
-          },
-        },
-      }),
-      this.prisma.tenant.count({ where }),
-    ]);
-
-    return {
-      data,
-      meta: {
-        total,
-        page,
-        limit,
-        totalPages: Math.ceil(total / limit),
-      },
-    };
-  }
-
   async findOne(id: string) {
     const tenant = await this.prisma.tenant.findUnique({
       where: { id },
       include: {
         _count: {
           select: {
-            users: true,
+            userTenantAccess: true,
           },
         },
       },
@@ -139,52 +146,56 @@ export class TenantService {
     return tenant;
   }
 
-  async update(id: string, dto: UpdateTenantDto) {
-    await this.findOne(id);
+  /** Nome, logo e tema da empresa, editados pela administracao da propria empresa. */
+  async updateMine(tenantId: string, dto: UpdateMyTenantDto) {
+    const tenant = await this.findOne(tenantId);
+    const settings = (tenant.settings ?? {}) as Record<string, unknown>;
+    const theme = { ...((settings.theme ?? {}) as Record<string, unknown>) };
+    if (dto.brandColor !== undefined) {
+      if (dto.brandColor === null) delete theme.brandColor;
+      else theme.brandColor = dto.brandColor.toLowerCase();
+    }
+    if (dto.darkMode !== undefined) theme.darkMode = dto.darkMode;
+    const ai = { ...((settings.ai ?? {}) as Record<string, unknown>) };
+    if (dto.aiReadRecords !== undefined) ai.readRecords = dto.aiReadRecords;
 
-    return this.prisma.tenant.update({
-      where: { id },
-      data: dto,
+    const updated = await this.prisma.tenant.update({
+      where: { id: tenantId },
+      data: {
+        ...(dto.name !== undefined && { name: dto.name.trim() }),
+        ...(dto.logo !== undefined && { logo: dto.logo }),
+        settings: { ...settings, theme, ai } as Prisma.InputJsonValue,
+      },
     });
-  }
-
-  async suspend(id: string) {
-    await this.findOne(id);
-
-    return this.prisma.tenant.update({
-      where: { id },
-      data: { status: Status.SUSPENDED },
-    });
-  }
-
-  async activate(id: string) {
-    await this.findOne(id);
-
-    return this.prisma.tenant.update({
-      where: { id },
-      data: { status: Status.ACTIVE },
-    });
-  }
-
-  async remove(id: string) {
-    await this.findOne(id);
-
-    await this.prisma.tenant.delete({ where: { id } });
-
-    return { message: this.i18n.t('tenant.deletedSuccessfully') };
-  }
-
-  async getStats() {
-    const [total, active, suspended] = await Promise.all([
-      this.prisma.tenant.count(),
-      this.prisma.tenant.count({ where: { status: Status.ACTIVE } }),
-      this.prisma.tenant.count({ where: { status: Status.SUSPENDED } }),
-    ]);
-
     return {
-      total,
-      active,
-      suspended,
+      before: { name: tenant.name, logo: tenant.logo, theme: settings.theme ?? null, ai: settings.ai ?? null },
+      after: { name: updated.name, logo: updated.logo, theme, ai },
+      tenant: updated,
     };
   }
+
+  /** O dono passa a empresa para outro membro ativo com acesso total. */
+  async transferOwnership(tenantId: string, currentUserId: string, newOwnerId: string) {
+    const tenant = await this.findOne(tenantId);
+    if (tenant.ownerId !== currentUserId) {
+      throw new ForbiddenException('So o dono da empresa pode transferir a propriedade');
+    }
+    if (newOwnerId === currentUserId) return { ownerId: newOwnerId };
+    const membership = await this.prisma.userTenantAccess.findFirst({
+      where: {
+        tenantId, userId: newOwnerId, deletedAt: null, status: Status.ACTIVE,
+        user: { deletedAt: null, status: Status.ACTIVE },
+      },
+      select: { customRole: { select: { modulePermissions: true } } },
+    });
+    if (!membership) throw new BadRequestException('O novo dono precisa ser um membro ativo da empresa');
+    if (!hasFullTenantAccess(membership.customRole.modulePermissions)) {
+      throw new BadRequestException('O novo dono precisa estar num cargo com acesso total (ex.: Administrador)');
+    }
+    await this.prisma.tenant.update({ where: { id: tenantId }, data: { ownerId: newOwnerId } });
+    return { ownerId: newOwnerId };
+  }
+
+  // Gestao de tenants (listar/editar/suspender/excluir/estatisticas) vive no console
+  // da plataforma (modules/platform); aqui ficam so create() e findOne().
 }

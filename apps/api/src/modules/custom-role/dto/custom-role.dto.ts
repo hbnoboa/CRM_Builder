@@ -1,12 +1,12 @@
-import { IsString, IsOptional, IsBoolean, IsArray, ValidateNested, IsIn, Allow } from 'class-validator';
+import { IsString, IsOptional, IsBoolean, IsArray, ValidateNested, IsIn, IsInt, Min, Allow, IsObject, ArrayMinSize } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional, PartialType } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { RoleType, PermissionScope, ROLE_TYPES } from '@crm-builder/shared';
+import { PermissionScope } from '@crm-builder/shared';
 
-export { RoleType, PermissionScope, ROLE_TYPES };
+export { PermissionScope };
 
 const VALID_FILTER_OPERATORS = [
-  'equals', 'contains', 'startsWith', 'endsWith',
+  'equals', 'notEquals', 'contains', 'startsWith', 'endsWith',
   'gt', 'gte', 'lt', 'lte', 'between',
   'isEmpty', 'isNotEmpty',
 ] as const;
@@ -104,11 +104,11 @@ export class EntityPermissionDto {
   canDelete?: boolean;
 
   @ApiPropertyOptional({
-    enum: ['all', 'own'],
+    enum: ['all', 'own', 'team', 'client'],
     default: 'all',
-    description: 'Escopo de visibilidade: all = todos os registros, own = apenas proprios registros'
+    description: 'Escopo de visibilidade: all = todos; own = so os proprios; team = os da equipe; client = so os do cliente vinculado ao usuario (portal do cliente)',
   })
-  @IsString()
+  @IsIn(['all', 'own', 'team', 'client'])
   @IsOptional()
   scope?: PermissionScope;
 
@@ -226,12 +226,6 @@ export class ModulePermissionsDto {
   @ValidateNested()
   @Type(() => ModulePermissionDto)
   @IsOptional()
-  tenants?: ModulePermissionDto;
-
-  @ApiPropertyOptional({ type: ModulePermissionDto })
-  @ValidateNested()
-  @Type(() => ModulePermissionDto)
-  @IsOptional()
   data?: ModulePermissionDto;
 
   @ApiPropertyOptional({ type: ModulePermissionDto })
@@ -241,31 +235,7 @@ export class ModulePermissionsDto {
   roles?: ModulePermissionDto;
 }
 
-export class TenantPermissionsDto {
-  @ApiPropertyOptional({
-    default: false,
-    description: 'Se true, pode acessar todos os tenants (apenas PLATFORM_ADMIN)'
-  })
-  @IsBoolean()
-  @IsOptional()
-  canAccessAllTenants?: boolean;
-
-  @ApiPropertyOptional({
-    type: [String],
-    description: 'Lista de IDs de tenants permitidos (se canAccessAllTenants = false)'
-  })
-  @IsArray()
-  @IsString({ each: true })
-  @IsOptional()
-  allowedTenantIds?: string[];
-}
-
 export class CreateCustomRoleDto {
-  @ApiPropertyOptional({ description: 'Tenant ID (apenas PLATFORM_ADMIN pode especificar)' })
-  @IsString()
-  @IsOptional()
-  tenantId?: string;
-
   @ApiProperty({ example: 'Vendedor' })
   @IsString()
   name: string;
@@ -280,15 +250,7 @@ export class CreateCustomRoleDto {
   @IsOptional()
   color?: string;
 
-  @ApiPropertyOptional({
-    enum: ROLE_TYPES,
-    default: 'CUSTOM',
-    description: 'Tipo da role: PLATFORM_ADMIN, ADMIN, MANAGER, USER, VIEWER, CUSTOM'
-  })
-  @IsString()
-  @IsIn(ROLE_TYPES)
-  @IsOptional()
-  roleType?: RoleType;
+  // roleType REMOVIDO (Fase 3): autorizacao e permission-driven (permissions[]/'*').
 
   @ApiPropertyOptional({
     default: false,
@@ -304,25 +266,30 @@ export class CreateCustomRoleDto {
   @Type(() => EntityPermissionDto)
   permissions: EntityPermissionDto[];
 
-  @ApiPropertyOptional({ type: ModulePermissionsDto })
-  @ValidateNested()
-  @Type(() => ModulePermissionsDto)
+  // modulePermissions é JSON flexível (módulos + submódulos aninhados + chaves
+  // especiais como `allAccess`). NÃO usar DTO whitelistado aqui: com whitelist:true
+  // qualquer chave não declarada (allAccess, automations, templates, logs, archive…)
+  // era SILENCIOSAMENTE removida, descartando permissões a cada save. A validação
+  // semântica/anti-escalada acontece no service (assertPermissionsSubset).
+  @ApiPropertyOptional({ type: Object })
+  @IsObject()
   @IsOptional()
-  modulePermissions?: ModulePermissionsDto;
-
-  @ApiPropertyOptional({
-    type: TenantPermissionsDto,
-    description: 'Permissoes de tenant (apenas para PLATFORM_ADMIN)'
-  })
-  @ValidateNested()
-  @Type(() => TenantPermissionsDto)
-  @IsOptional()
-  tenantPermissions?: TenantPermissionsDto;
+  modulePermissions?: Record<string, unknown>;
 
   @ApiPropertyOptional({ default: false })
   @IsBoolean()
   @IsOptional()
   isDefault?: boolean;
+
+  @ApiPropertyOptional({
+    minimum: 1,
+    description:
+      'Rank de governanca (numero MENOR = mais poder; 1 = topo). Um ator so cria/edita cargos de rank estritamente MAIOR que o seu. Se omitido, recebe um rank subordinado ao do criador.',
+  })
+  @IsInt()
+  @Min(1)
+  @IsOptional()
+  rank?: number;
 }
 
 export class UpdateCustomRoleDto extends PartialType(CreateCustomRoleDto) {}
@@ -357,9 +324,12 @@ export class QueryCustomRoleDto {
   @IsString()
   @IsOptional()
   sortOrder?: 'asc' | 'desc';
+}
 
-  @ApiPropertyOptional({ description: 'Tenant ID para cross-tenant browsing (PLATFORM_ADMIN)' })
-  @IsString()
-  @IsOptional()
-  tenantId?: string;
+export class ReorderCustomRolesDto {
+  @ApiProperty({ description: 'Cargos abaixo do seu, do mais alto ao mais baixo', type: [String] })
+  @IsArray()
+  @ArrayMinSize(1)
+  @IsString({ each: true })
+  orderedIds: string[];
 }

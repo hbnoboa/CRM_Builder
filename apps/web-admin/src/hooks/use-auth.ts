@@ -1,5 +1,6 @@
 import { useMutation } from '@tanstack/react-query';
 import { toast } from 'sonner';
+import { getErrorMessage } from '@/lib/get-error-message';
 import { authService, UpdateProfileData } from '@/services/auth.service';
 import { useAuthStore } from '@/stores/auth-store';
 
@@ -18,7 +19,7 @@ export function useUpdateProfile(messages?: MutationMessages) {
       if (messages?.success) toast.success(messages.success);
     },
     onError: (error: Error) => {
-      toast.error(messages?.error || error.message);
+      toast.error(getErrorMessage(error, messages?.error));
     },
   });
 }
@@ -31,7 +32,7 @@ export function useChangePassword(messages?: MutationMessages) {
       if (messages?.success) toast.success(messages.success);
     },
     onError: (error: Error) => {
-      toast.error(messages?.error || error.message);
+      toast.error(getErrorMessage(error, messages?.error));
     },
   });
 }

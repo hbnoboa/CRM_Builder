@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useCallback, useEffect } from 'react';
+import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { useTranslations } from 'next-intl';
 import {
   Table,
@@ -46,6 +46,7 @@ import {
   ArrowUp,
   ArrowDown,
   MoreHorizontal,
+  MessageSquare,
   Loader2,
   Columns3,
   Eye,
@@ -72,8 +73,10 @@ import {
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { toast } from 'sonner';
-import { useEntityDataOptional } from '@/components/entity-data/entity-data-context';
+import { useEntityDataOptional, useEntityData, EntityDataProvider } from '@/components/entity-data/entity-data-context';
 import { usePermissions } from '@/hooks/use-permissions';
+import { useAuthStore } from '@/stores/auth-store';
+import { useRouter } from '@/i18n/tenant-navigation';
 import { useDeleteEntityData } from '@/hooks/use-data';
 import { RecordFormDialog } from '@/components/data/record-form-dialog';
 import { ImportDialog } from '@/components/data/import-dialog';
@@ -81,12 +84,15 @@ import { exportToJson, exportToXlsx } from '@/lib/export-utils';
 import { pdfTemplatesService, type PdfTemplate } from '@/services/pdf-templates.service';
 import { dataService } from '@/services/data.service';
 import { formatFieldValue, type FormatFieldOptions } from '@crm-builder/shared';
+import { OptionBadge } from '@/components/ui/option-badge';
+import { EmptyState } from '@/components/ui/empty-state';
 import { useEntityBySlug } from '@/hooks/use-entities';
 import { api } from '@/lib/api';
+import { getErrorMessage } from '@/lib/get-error-message';
 import { useDashboardFilters } from './dashboard-filter-context';
 import { WidgetWrapper } from './widget-wrapper';
 import type { WidgetConfig } from '@crm-builder/shared';
-import type { DataRecord, EntityField } from '@/components/entity-data/unified-filter-types';
+import type { DataRecord, EntityField, CrossFilter, FieldFilter } from '@/components/entity-data/unified-filter-types';
 import type { Entity } from '@/types';
 
 // ─── Filter Operators ────────────────────────────────────────────────
@@ -245,13 +251,87 @@ export function DataTableWidget({ entitySlug, config, title }: DataTableWidgetPr
     );
   }
 
+  // Widget aponta p/ uma entidade DIFERENTE da pagina (entitySlugOverride: ex. tabela de
+  // Veiculos num dashboard de Operacoes). O ctx da pagina e da entidade errada, entao damos
+  // ao widget seu PROPRIO EntityDataProvider — assim a data-table completa funciona p/ filhas.
+  if (entitySlug && ctx.entitySlug && entitySlug !== ctx.entitySlug) {
+    return (
+      <EntityDataProvider entitySlug={entitySlug}>
+        <DataTableWidgetScoped entitySlug={entitySlug} config={config} title={title} />
+      </EntityDataProvider>
+    );
+  }
+
   return <DataTableWidgetInner entitySlug={entitySlug} config={config} title={title} ctx={ctx} />;
+}
+
+// Le o ctx do EntityDataProvider proprio (entidade do override) e renderiza a tabela.
+// Inclui uma ponte que injeta os filtros do dashboard (ja traduzidos p/ parent.*/child.*
+// pelo contexto do widget) no provider proprio — senao o data-table do override ignoraria
+// os filtros (ex.: filtrar Veiculos por campo da Operacao pai).
+function DataTableWidgetScoped({ entitySlug, config, title }: DataTableWidgetProps) {
+  const ctx = useEntityData();
+  return (
+    <>
+      <ScopedFilterBridge />
+      <DataTableWidgetInner entitySlug={entitySlug} config={config} title={title} ctx={ctx} />
+    </>
+  );
+}
+
+// Espelha a DashboardFilterBridge, mas para o EntityDataProvider PROPRIO do widget (override).
+// Exportado p/ reuso (ex.: contador do topo escopado a outra entidade).
+export function ScopedFilterBridge() {
+  const { crossFilters, slicerFilters, dateRange } = useDashboardFilters();
+  const ctx = useEntityData();
+  const prevRef = useRef<string>('');
+  const prevServerRef = useRef<string>('');
+  const isCross = (s: string) => s.startsWith('parent.') || s.startsWith('child.') || s.startsWith('_hasChildren');
+
+  useEffect(() => {
+    const clientCross: CrossFilter[] = [];
+    const serverItems: Array<{ fieldSlug: string; operator: string; value: unknown; fieldType?: string }> = [];
+
+    for (const cf of crossFilters) {
+      if (isCross(cf.fieldSlug)) {
+        serverItems.push({ fieldSlug: cf.fieldSlug, operator: cf.values.length > 1 ? 'in' : 'equals', value: cf.values.length > 1 ? cf.values : cf.values[0] });
+      } else {
+        clientCross.push({ fieldSlug: cf.fieldSlug, values: cf.values, entitySlug: cf.entitySlug });
+      }
+    }
+    for (const sf of slicerFilters) {
+      if (isCross(sf.fieldSlug)) {
+        serverItems.push({ fieldSlug: sf.fieldSlug, operator: sf.operator, value: sf.value, ...(sf.fieldType && { fieldType: sf.fieldType }) });
+      }
+    }
+    const slicerFieldFilters: FieldFilter[] = slicerFilters
+      .filter((sf) => !isCross(sf.fieldSlug))
+      .map((sf) => ({ id: `slicer-${sf.fieldSlug}`, fieldSlug: sf.fieldSlug, fieldType: sf.fieldType || 'text', operator: sf.operator as FieldFilter['operator'], value: sf.value }));
+
+    const clientKey = JSON.stringify({ cf: clientCross, sf: slicerFieldFilters, dr: dateRange });
+    if (clientKey !== prevRef.current) {
+      prevRef.current = clientKey;
+      ctx.setFilters({ crossFilters: clientCross, fieldFilters: slicerFieldFilters, dateRange });
+    }
+    const serverKey = JSON.stringify(serverItems);
+    if (serverKey !== prevServerRef.current) {
+      prevServerRef.current = serverKey;
+      ctx.setServerDashFilters(serverItems.length > 0 ? serverKey : undefined);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [crossFilters, slicerFilters, dateRange]);
+
+  return null;
 }
 
 function DataTableWidgetInner({ entitySlug, config, title, ctx }: DataTableWidgetProps & { ctx: NonNullable<ReturnType<typeof useEntityDataOptional>> }) {
   const t = useTranslations('data');
   const tCommon = useTranslations('common');
-  const { hasEntityPermission, hasModulePermission, hasModuleAction, hasEntityAction } = usePermissions();
+  const router = useRouter();
+  const { hasEntityPermission, hasModulePermission, hasModuleAction, hasEntityAction, getHiddenFields } = usePermissions();
+  // Campo oculto para o cargo nao vira coluna nem filtro.
+  const hiddenByRole = getHiddenFields(entitySlug);
+  const hiddenByRoleKey = Array.from(hiddenByRole).join(',');
   const deleteRecord = useDeleteEntityData();
 
   const {
@@ -283,7 +363,17 @@ function DataTableWidgetInner({ entitySlug, config, title, ctx }: DataTableWidge
   // State
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [hiddenColumns, setHiddenColumns] = useState<Set<string>>(new Set());
+  // Colunas escondidas ficam salvas neste navegador, por tabela (e titulo do widget).
+  const columnsStorageKey = `crm:hiddenColumns:${entitySlug}:${title ?? 'default'}`;
+  const [hiddenColumns, setHiddenColumns] = useState<Set<string>>(() => {
+    try {
+      const raw = typeof window !== 'undefined' ? window.localStorage.getItem(columnsStorageKey) : null;
+      const parsed: unknown = raw ? JSON.parse(raw) : [];
+      return new Set(Array.isArray(parsed) ? parsed.filter((v): v is string => typeof v === 'string') : []);
+    } catch {
+      return new Set();
+    }
+  });
   const [localSearch, setLocalSearch] = useState('');
   const [formOpen, setFormOpen] = useState(false);
   const [editRecord, setEditRecord] = useState<DataRecord | null>(null);
@@ -310,9 +400,17 @@ function DataTableWidgetInner({ entitySlug, config, title, ctx }: DataTableWidge
   // Permissions - check both module-level and entity-level (same as backend)
   // CRUD básico usa hasModulePermission (para canCreate, canUpdate, canDelete)
   // Ações sub-granulares usam hasModuleAction (para canExport, canImport, etc)
-  const canCreate = allowCreate && (hasModulePermission('data', 'canCreate') || hasEntityPermission(entitySlug, 'canCreate'));
-  const canEdit = allowEdit && (hasModulePermission('data', 'canUpdate') || hasEntityPermission(entitySlug, 'canUpdate'));
-  const canDelete = allowDelete && (hasModulePermission('data', 'canDelete') || hasEntityPermission(entitySlug, 'canDelete'));
+  // Portal do cliente: vale so a permissao da tabela (o modulo libera so as tabelas do cargo)
+  const portal = !!useAuthStore((s) => s.user?.clientPortal);
+  const can = (action: 'canCreate' | 'canUpdate' | 'canDelete') =>
+    portal ? hasEntityPermission(entitySlug, action) : hasModulePermission('data', action) || hasEntityPermission(entitySlug, action);
+  const canCreate = allowCreate && can('canCreate');
+  // Portal do cliente: sem editar, o registro abre so para ler (e ver o que esta dentro dele)
+  const canOpen = (allowEdit && can('canUpdate')) || portal;
+  const canEdit = allowEdit && can('canUpdate');
+  const canDelete = allowDelete && can('canDelete');
+  // Coluna de ações sempre presente: "Abrir chat" vale para qualquer um que veja a linha.
+  const showRowActions = true;
   const canExport = allowExport && (hasModuleAction('data', 'canExport') || hasEntityAction(entitySlug, 'canExport'));
   const canImport = allowImport && (hasModuleAction('data', 'canImport') || hasEntityAction(entitySlug, 'canImport'));
 
@@ -362,6 +460,7 @@ function DataTableWidgetInner({ entitySlug, config, title, ctx }: DataTableWidge
     // Own fields
     if (entity?.fields) {
       const ownFields = entity.fields.filter(f =>
+        !hiddenByRole.has(f.slug) &&
         f.type !== 'hidden' && f.type !== 'section-title' && f.type !== 'action-button' &&
         f.type !== 'file' && f.type !== 'image' && f.type !== 'json' && f.type !== 'richtext' &&
         f.type !== 'sub-entity'
@@ -373,10 +472,10 @@ function DataTableWidgetInner({ entitySlug, config, title, ctx }: DataTableWidge
 
     // Parent fields (if sub-entity)
     if (parentEntityData && parentEntitySlug) {
-      const parentFields = ((parentEntityData as Record<string, unknown>).fields as EntityField[] || []).filter((f: EntityField) =>
+      const parentFields = ((parentEntityData as unknown as Record<string, unknown>).fields as EntityField[] || []).filter((f: EntityField) =>
         !['hidden', 'file', 'image', 'json', 'richtext', 'sub-entity'].includes(f.type)
       );
-      const parentName = (parentEntityData as Record<string, unknown>).name as string || parentEntitySlug;
+      const parentName = (parentEntityData as unknown as Record<string, unknown>).name as string || parentEntitySlug;
       for (const f of parentFields) {
         result.push({
           ...f,
@@ -389,7 +488,7 @@ function DataTableWidgetInner({ entitySlug, config, title, ctx }: DataTableWidge
     }
 
     // Child entity fields + _hasChildren
-    for (const [childSlug, { name: childName, fields }] of childEntitiesFields) {
+    for (const [childSlug, { name: childName, fields }] of Array.from(childEntitiesFields)) {
       // Virtual "has children" field
       result.push({
         slug: `_hasChildren:${childSlug}`,
@@ -410,7 +509,8 @@ function DataTableWidgetInner({ entitySlug, config, title, ctx }: DataTableWidge
     }
 
     return result;
-  }, [entity?.fields, entity?.name, parentEntityData, parentEntitySlug, childEntitiesFields]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [entity?.fields, entity?.name, parentEntityData, parentEntitySlug, childEntitiesFields, hiddenByRoleKey]);
 
   // Handler to add a slicer filter
   const handleAddSlicerFilter = useCallback(() => {
@@ -455,6 +555,7 @@ function DataTableWidgetInner({ entitySlug, config, title, ctx }: DataTableWidge
   const visibleFields = useMemo(() => {
     if (!entity?.fields) return [];
     let fields = entity.fields.filter(f =>
+      !hiddenByRole.has(f.slug) &&
       f.type !== 'hidden' &&
       f.type !== 'section-title' &&
       f.type !== 'action-button',
@@ -470,12 +571,14 @@ function DataTableWidgetInner({ entitySlug, config, title, ctx }: DataTableWidge
     // Append meta columns
     fields = [...fields, ...metaColumns];
     return fields.filter(f => !hiddenColumns.has(f.slug));
-  }, [entity?.fields, config.displayFields, hiddenColumns, metaColumns]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [entity?.fields, config.displayFields, hiddenColumns, metaColumns, hiddenByRoleKey]);
 
   // All toggleable fields
   const allToggleableFields = useMemo(() => {
     if (!entity?.fields) return [];
     let fields = entity.fields.filter(f =>
+      !hiddenByRole.has(f.slug) &&
       f.type !== 'hidden' &&
       f.type !== 'section-title' &&
       f.type !== 'action-button',
@@ -488,7 +591,8 @@ function DataTableWidgetInner({ entitySlug, config, title, ctx }: DataTableWidge
         .filter((f): f is EntityField => !!f);
     }
     return [...fields, ...metaColumns];
-  }, [entity?.fields, config.displayFields, metaColumns]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [entity?.fields, config.displayFields, metaColumns, hiddenByRoleKey]);
 
   // Pagination
   const totalRecords = sortedRecords.length;
@@ -565,11 +669,24 @@ function DataTableWidgetInner({ entitySlug, config, title, ctx }: DataTableWidge
   const handleConfirmDelete = useCallback(async () => {
     if (!recordToDelete) return;
     try {
+      const deletedId = recordToDelete.id;
       await deleteRecord.mutateAsync({
         entitySlug,
-        id: recordToDelete.id,
+        id: deletedId,
       });
-      removeRecord(recordToDelete.id);
+      removeRecord(deletedId);
+      // Fica na lixeira: oferece desfazer na hora.
+      toast.success(t('toast.deletedToUndo'), {
+        duration: 10_000,
+        action: {
+          label: t('toast.undo'),
+          onClick: () => {
+            api.post(`/trash/${entitySlug}/${deletedId}/restore`)
+              .then(() => refresh())
+              .catch((e) => toast.error(getErrorMessage(e)));
+          },
+        },
+      });
       setSelectedIds(prev => {
         const next = new Set(prev);
         next.delete(recordToDelete.id);
@@ -721,9 +838,14 @@ function DataTableWidgetInner({ entitySlug, config, title, ctx }: DataTableWidge
       const next = new Set(prev);
       if (next.has(slug)) next.delete(slug);
       else next.add(slug);
+      try {
+        window.localStorage.setItem(columnsStorageKey, JSON.stringify(Array.from(next)));
+      } catch {
+        // armazenamento indisponivel (aba anonima/bloqueada): fica so nesta tela
+      }
       return next;
     });
-  }, []);
+  }, [columnsStorageKey]);
 
   // Get sort icon
   const getSortIcon = (fieldSlug: string) => {
@@ -770,8 +892,11 @@ function DataTableWidgetInner({ entitySlug, config, title, ctx }: DataTableWidge
       );
     }
 
-    // Use shared formatter
-    const formatted = formatFieldValue(value, { type: field.type } as FormatFieldOptions);
+    // Use shared formatter. O registro guarda o value da opcao: a lista mostra o rotulo.
+    const option = (field.options as Array<{ value: unknown; label: string; color?: string }> | undefined)?.find((o) => o.value === value);
+    // Opcao com cor (situacao, prioridade...) vira etiqueta colorida
+    if (option?.color) return <OptionBadge label={option.label} color={option.color} />;
+    const formatted = option?.label ?? formatFieldValue(value, { type: field.type } as FormatFieldOptions);
     return <span className="truncate max-w-[200px] block">{formatted}</span>;
   };
 
@@ -803,7 +928,7 @@ function DataTableWidgetInner({ entitySlug, config, title, ctx }: DataTableWidge
           />
         </div>
 
-        <div className="flex items-center gap-1.5 ml-auto">
+        <div className="flex items-center gap-1.5 ml-auto flex-wrap justify-end">
           {/* Filter */}
           <Popover open={filterPopoverOpen} onOpenChange={setFilterPopoverOpen}>
             <PopoverTrigger asChild>
@@ -1062,8 +1187,42 @@ function DataTableWidgetInner({ entitySlug, config, title, ctx }: DataTableWidge
         </div>
       )}
 
+      {/* Celular: cartoes (titulo + os proximos campos) em vez de colunas espremidas */}
+      <div className="flex-1 space-y-2 overflow-auto sm:hidden" style={{ minHeight: '340px' }} data-testid="data-table-cards">
+        {isLoading ? (
+          <Loader2 className="mx-auto mt-8 h-5 w-5 animate-spin" />
+        ) : (
+          displayedRecords.map((record) => {
+            const [first, ...rest] = visibleFields;
+            return (
+              <div
+                key={record.id}
+                role={canOpen ? 'button' : undefined}
+                tabIndex={canOpen ? 0 : undefined}
+                onClick={() => canOpen && handleEdit(record)}
+                onKeyDown={(e) => { if (canOpen && (e.key === 'Enter' || e.key === ' ')) handleEdit(record); }}
+                className={`rounded-lg border bg-card p-3 ${canOpen ? 'cursor-pointer active:bg-muted/40' : ''}`}
+                data-testid={canOpen ? 'open-record-card' : undefined}
+              >
+                {first && <div className={`truncate text-sm font-semibold ${canOpen ? 'text-primary' : ''}`}>{renderCellValue(record, first)}</div>}
+                {rest.length > 0 && (
+                  <dl className="mt-1.5 grid grid-cols-2 gap-x-3 gap-y-1.5">
+                    {rest.slice(0, 4).map((field) => (
+                      <div key={field.slug} className="min-w-0">
+                        <dt className="truncate text-[11px] text-muted-foreground">{field.label || field.name}</dt>
+                        <dd className="truncate text-xs">{renderCellValue(record, field)}</dd>
+                      </div>
+                    ))}
+                  </dl>
+                )}
+              </div>
+            );
+          })
+        )}
+      </div>
+
       {/* Table — min 10 rows visible */}
-      <div className="rounded-md border overflow-auto flex-1" style={{ minHeight: '340px' }}>
+      <div className="hidden rounded-md border overflow-auto flex-1 sm:block" style={{ minHeight: '340px' }}>
         <Table>
           <TableHeader className="sticky top-0 z-10 bg-background">
             <TableRow>
@@ -1087,7 +1246,7 @@ function DataTableWidgetInner({ entitySlug, config, title, ctx }: DataTableWidge
                   </div>
                 </TableHead>
               ))}
-              {(canEdit || canDelete) && (
+              {showRowActions && (
                 <TableHead className="w-[80px]" />
               )}
             </TableRow>
@@ -1096,24 +1255,13 @@ function DataTableWidgetInner({ entitySlug, config, title, ctx }: DataTableWidge
             {isLoading ? (
               <TableRow>
                 <TableCell
-                  colSpan={visibleFields.length + (allowBatchSelect ? 1 : 0) + ((canEdit || canDelete) ? 1 : 0)}
+                  colSpan={visibleFields.length + (allowBatchSelect ? 1 : 0) + (showRowActions ? 1 : 0)}
                   className="h-24 text-center"
                 >
                   <Loader2 className="h-5 w-5 animate-spin mx-auto" />
                 </TableCell>
               </TableRow>
-            ) : displayedRecords.length === 0 ? (
-              <TableRow>
-                <TableCell
-                  colSpan={visibleFields.length + (allowBatchSelect ? 1 : 0) + ((canEdit || canDelete) ? 1 : 0)}
-                  className="h-24 text-center text-muted-foreground"
-                >
-                  {filters.searchTerm || filters.fieldFilters.length > 0
-                    ? t('noResultsFiltered')
-                    : t('noRecords')}
-                </TableCell>
-              </TableRow>
-            ) : (
+            ) : displayedRecords.length === 0 ? null : (
               displayedRecords.map(record => (
                 <TableRow
                   key={record.id}
@@ -1127,11 +1275,18 @@ function DataTableWidgetInner({ entitySlug, config, title, ctx }: DataTableWidge
                       />
                     </TableCell>
                   )}
-                  {visibleFields.map(field => (
+                  {visibleFields.map((field, colIndex) => (
                     <TableCell
                       key={field.slug}
                       className="cursor-pointer hover:bg-muted/30 transition-colors"
+                      title={colIndex === 0 && canOpen ? 'Abrir registro' : 'Clique para filtrar por este valor'}
+                      data-testid={colIndex === 0 && canOpen ? 'open-record-cell' : undefined}
                       onClick={() => {
+                        // Primeira coluna abre o registro; as demais filtram pelo valor clicado
+                        if (colIndex === 0 && canOpen) {
+                          handleEdit(record);
+                          return;
+                        }
                         const val = record.data?.[field.slug];
                         if (val !== null && val !== undefined) {
                           handleCellClick(field.slug, String(
@@ -1142,11 +1297,12 @@ function DataTableWidgetInner({ entitySlug, config, title, ctx }: DataTableWidge
                         }
                       }}
                     >
-                      {renderCellValue(record, field)}
+                      {colIndex === 0 && canOpen ? (
+                        <span className="font-medium text-primary hover:underline">{renderCellValue(record, field)}</span>
+                      ) : renderCellValue(record, field)}
                     </TableCell>
                   ))}
-                  {(canEdit || canDelete) && (
-                    <TableCell>
+                  <TableCell>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                           <Button variant="ghost" size="icon" className="h-8 w-8">
@@ -1154,11 +1310,25 @@ function DataTableWidgetInner({ entitySlug, config, title, ctx }: DataTableWidge
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
+                          {portal ? (
+                            <DropdownMenuItem onClick={() => handleEdit(record)}>
+                              <Eye className="h-4 w-4 mr-2" />
+                              Abrir
+                            </DropdownMenuItem>
+                          ) : (
+                            <DropdownMenuItem onClick={() => router.push(`/chat?thread=${entitySlug}:${record.id}`)}>
+                              <MessageSquare className="h-4 w-4 mr-2" />
+                              Abrir chat
+                            </DropdownMenuItem>
+                          )}
                           {canEdit && (
+                            <>
+                            <DropdownMenuSeparator />
                             <DropdownMenuItem onClick={() => handleEdit(record)}>
                               <Pencil className="h-4 w-4 mr-2" />
                               {tCommon('edit')}
                             </DropdownMenuItem>
+                            </>
                           )}
                           {canDelete && (
                             <>
@@ -1175,12 +1345,42 @@ function DataTableWidgetInner({ entitySlug, config, title, ctx }: DataTableWidge
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </TableCell>
-                  )}
                 </TableRow>
               ))
             )}
           </TableBody>
         </Table>
+        {/* Vazio fica fora das linhas: centralizado mesmo com a tabela rolada para o lado */}
+        {!isLoading && displayedRecords.length === 0 && (
+          <div className="sticky left-0 flex w-full justify-center">
+            {filters.searchTerm || filters.fieldFilters.length > 0 ? (
+                    // Busca/filtro sem resultado: o caminho de volta e limpar
+                    <EmptyState
+                      icon={<Search className="h-5 w-5" />}
+                      title={t('noResultsFiltered')}
+                      action={
+                        <Button variant="outline" size="sm" onClick={() => { handleSearch(''); ctx.clearAllFilters(); }}>
+                          {t('clearFilters')}
+                        </Button>
+                      }
+                      className="py-10"
+                    />
+                  ) : (
+                    // Primeiro uso: um passo claro para comecar
+                    <EmptyState
+                      icon={<Plus className="h-5 w-5" />}
+                      title={t('noRecords')}
+                      description={canCreate ? t('emptyHint') : undefined}
+                      action={canCreate ? (
+                        <Button size="sm" onClick={handleCreate}>
+                          <Plus className="mr-1 h-4 w-4" /> {t('createFirst')}
+                        </Button>
+                      ) : undefined}
+                      className="py-10"
+                    />
+                  )}
+          </div>
+        )}
       </div>
 
       {/* Footer — always visible, never clipped */}
@@ -1224,6 +1424,7 @@ function DataTableWidgetInner({ entitySlug, config, title, ctx }: DataTableWidge
           entity={entityForDialog}
           record={editRecord ? { id: editRecord.id, data: editRecord.data } as unknown as null : null}
           onSuccess={handleFormSuccess}
+          readOnly={!!editRecord && !canEdit}
         />
       )}
 
@@ -1254,10 +1455,8 @@ function DataTableWidgetInner({ entitySlug, config, title, ctx }: DataTableWidge
           entityName={entity.name}
           open={importOpen}
           onOpenChange={setImportOpen}
-          onSuccess={() => {
-            setImportOpen(false);
-            refresh();
-          }}
+          // Nao fecha aqui: o dialogo mostra o resultado e as linhas com erro.
+          onSuccess={refresh}
         />
       )}
       </div>

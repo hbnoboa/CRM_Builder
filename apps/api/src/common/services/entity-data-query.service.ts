@@ -4,9 +4,11 @@ import { EntityService } from '../../modules/entity/entity.service';
 import { CustomRoleService } from '../../modules/custom-role/custom-role.service';
 import { Prisma, Entity } from '@prisma/client';
 import { CurrentUser } from '../types';
-import { RoleType } from '../decorators/roles.decorator';
+import { hasFullTenantAccess } from '../utils/platform-access';
 import { getEffectiveTenantId } from '../utils/tenant.util';
 import { buildFilterClause } from '../utils/build-filter-clause';
+import { creatorFilter } from '../utils/team-scope';
+import { ENTITY_QUERY_CACHE_TTL, entityQueryCache } from './entity-query-cache';
 
 // ─── Interfaces ─────────────────────────────────────────────────────────────
 
@@ -37,6 +39,7 @@ export interface BuildWhereOptions {
   recordIds?: string[];
   hasChildrenIn?: string;
   skipScope?: boolean;            // para operacoes de sistema
+  onlyDeleted?: boolean;          // lixeira: so registros excluidos (mesmas regras de visibilidade)
 }
 
 export interface BuildWhereResult {
@@ -47,8 +50,8 @@ export interface BuildWhereResult {
 
 // ─── Entity Cache ───────────────────────────────────────────────────────────
 
-const entityCache = new Map<string, { entity: Entity; timestamp: number }>();
-const CACHE_TTL = 5000; // 5 seconds
+const entityCache = entityQueryCache;
+const CACHE_TTL = ENTITY_QUERY_CACHE_TTL;
 
 // ─── Service ────────────────────────────────────────────────────────────────
 
@@ -84,6 +87,7 @@ export class EntityDataQueryService {
       recordIds,
       hasChildrenIn,
       skipScope,
+      onlyDeleted,
     } = options;
 
     const effectiveTenantId = getEffectiveTenantId(user, queryTenantId);
@@ -94,17 +98,14 @@ export class EntityDataQueryService {
     // 2. Base where
     const where: Prisma.EntityDataWhereInput = {
       entityId: entity.id,
+      // F2: soft delete — nunca retornar registros marcados como excluidos.
+      // Ponto unico: toda leitura de EntityData passa por aqui.
+      // A lixeira pede o inverso, com todas as outras regras iguais.
+      deletedAt: onlyDeleted ? { not: null } : null,
     };
 
-    // 3. Tenant isolation
-    const userRoleType = user.customRole?.roleType as RoleType | undefined;
-    if (userRoleType === 'PLATFORM_ADMIN') {
-      if (queryTenantId) {
-        where.tenantId = queryTenantId;
-      }
-    } else {
-      where.tenantId = user.tenantId;
-    }
+    // 3. Tenant isolation — sempre o tenant ativo do usuario (sem bypass cross-tenant).
+    where.tenantId = effectiveTenantId;
 
     // 4. Sub-entidade / parentRecordId
     if (parentRecordId) {
@@ -143,7 +144,7 @@ export class EntityDataQueryService {
 
     // 7. Scope (own = apenas registros criados pelo usuario)
     if (!skipScope) {
-      await this.applyScopeFromCustomRole(where, user, entitySlug);
+      await this.applyScopeFromCustomRole(where, user, entity);
     }
 
     // 8. Filtros globais da entidade (entity.settings.globalFilters)
@@ -186,7 +187,7 @@ export class EntityDataQueryService {
     if (where.id) aw.id = where.id as string | { in: string[] };
     if (where.entityId) aw.entityId = where.entityId as string;
     if (where.tenantId) aw.tenantId = where.tenantId as string;
-    if (where.createdById) aw.createdById = where.createdById as string;
+    if (where.createdById) aw.createdById = where.createdById as string | { in: string[] };
     if (where.parentRecordId !== undefined) aw.parentRecordId = where.parentRecordId as string | null;
 
     // Copy search OR clauses (data JSON path queries)
@@ -210,10 +211,7 @@ export class EntityDataQueryService {
    * Busca entidade por slug com cache de 5s para evitar queries duplicadas.
    */
   async getEntityCached(entitySlug: string, currentUser: CurrentUser, tenantId?: string): Promise<Entity> {
-    const roleType = currentUser.customRole?.roleType as RoleType | undefined;
-    const effectiveTenantId = roleType === 'PLATFORM_ADMIN' && !tenantId
-      ? undefined
-      : getEffectiveTenantId(currentUser, tenantId);
+    const effectiveTenantId = getEffectiveTenantId(currentUser, tenantId);
     const cacheKey = `${entitySlug}:${effectiveTenantId || 'any'}`;
     const cached = entityCache.get(cacheKey);
 
@@ -731,19 +729,30 @@ export class EntityDataQueryService {
 
   /**
    * Aplica escopo de acesso baseado na CustomRole.
-   * scope='own' → filtra apenas registros criados pelo usuario.
+   * scope='own' → so registros criados pelo usuario; 'team' → criados por ele ou
+   * por alguem das equipes dele.
    */
   private async applyScopeFromCustomRole(
     where: Prisma.EntityDataWhereInput,
     user: CurrentUser,
-    entitySlug: string,
+    entity: { id: string; slug: string; fields: unknown },
   ): Promise<void> {
-    const scope = await this.customRoleService.getEntityScope(user.id, entitySlug);
-
-    if (scope === 'own') {
-      where.createdById = user.id;
-      this.logger.debug(`Applying scope 'own' for user ${user.id} on entity ${entitySlug}`);
+    const clientWhere = await this.clientScopeFor(user, entity);
+    if (clientWhere) {
+      where.AND = [...((where.AND as Prisma.EntityDataWhereInput[] | undefined) ?? []), clientWhere];
+      return;
     }
+    const ids = await this.customRoleService.getVisibleCreatorIds(user, entity.slug);
+    const filter = creatorFilter(ids);
+    if (filter) where.createdById = filter;
+  }
+
+  /**
+   * Portal do cliente: com escopo 'client' na tabela, so o que e do cliente vinculado
+   * (o registro dele, o que esta dentro dele e o que aponta para ele). null = outro escopo.
+   */
+  clientScopeFor(user: CurrentUser, entity: { id: string; slug: string; fields: unknown }): Promise<Prisma.EntityDataWhereInput | null> {
+    return this.customRoleService.clientScopeFor(user, entity);
   }
 
   /**
@@ -771,19 +780,22 @@ export class EntityDataQueryService {
 
   /**
    * Aplica filtros de dados por role na query.
-   * PLATFORM_ADMIN/ADMIN nao recebem filtros.
+   * Cargos com allAccess nao recebem filtros.
    */
   applyRoleDataFilters(
     where: Prisma.EntityDataWhereInput,
     user: CurrentUser,
     entitySlug: string,
   ): void {
-    const roleType = user.customRole?.roleType as RoleType | undefined;
-    if (roleType === 'PLATFORM_ADMIN' || roleType === 'ADMIN') return;
+    // Acesso total ao tenant não recebe filtros de dados (vê todos os registros
+    // do tenant); demais derivam de permissions[]/'*'.
+    if (hasFullTenantAccess(user.customRole?.modulePermissions)) {
+      return;
+    }
     if (!user.customRole) return;
 
     const roleFilters = this.customRoleService.getRoleDataFilters(
-      user.customRole as { roleType: string; permissions: unknown },
+      user.customRole as { permissions: unknown; modulePermissions?: unknown },
       entitySlug,
     );
 

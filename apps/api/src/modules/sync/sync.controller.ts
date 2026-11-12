@@ -1,8 +1,11 @@
-import { Controller, Post, Body, UseGuards, Request } from '@nestjs/common';
+import { RequireFeature } from '../../common/decorators/require-feature.decorator';
+import { ServiceScope } from '../../common/service-scope/service-scope.decorator';
+import { Controller, Post, UseGuards, Request, ForbiddenException } from '@nestjs/common';
+import { PrismaService } from '../../prisma/prisma.service';
 import { JwtService } from '@nestjs/jwt';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
-import { RolesGuard } from '../../common/guards/roles.guard';
 import { AuthenticatedRequest } from '../../common/types';
+import { roleHasHiddenFields } from '../../common/utils/field-permissions';
 
 /**
  * Sync credentials endpoint for PowerSync.
@@ -12,26 +15,26 @@ import { AuthenticatedRequest } from '../../common/types';
  * The token includes tenantId and user_id as claims,
  * which PowerSync sync rules use to filter data per user.
  *
- * PLATFORM_ADMIN users can override tenantId to view
- * another tenant's data (mirrors web-admin tenant switching).
+ * Always scoped to the user's active tenant (membership resolved by JwtStrategy).
  */
+@ServiceScope('user')
+@RequireFeature('mobile')
 @Controller('sync')
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard)
 export class SyncController {
-  constructor(private readonly jwtService: JwtService) {}
+  constructor(private readonly jwtService: JwtService, private readonly prisma: PrismaService) {}
 
   @Post('credentials')
-  async getCredentials(
-    @Request() req: AuthenticatedRequest,
-    @Body() body: { tenantId?: string },
-  ) {
+  // Body `tenantId` (sent by older mobile builds) is ignored: no cross-tenant sync.
+  async getCredentials(@Request() req: AuthenticatedRequest) {
     const user = req.user;
 
-    // PLATFORM_ADMIN can override tenantId to sync another tenant's data
-    const effectiveTenantId =
-      user.customRole?.roleType === 'PLATFORM_ADMIN' && body.tenantId
-        ? body.tenantId
-        : user.tenantId;
+    // Portal do cliente e so web: a sincronizacao do app nao conhece a regra do cliente
+    const membership = await this.prisma.userTenantAccess.findUnique({
+      where: { userId_tenantId: { userId: user.id, tenantId: user.tenantId } },
+      select: { clientRecordId: true },
+    });
+    if (membership?.clientRecordId) throw new ForbiddenException('Acesso de cliente: use o portal pelo navegador');
 
     // Generate a PowerSync-specific token with sync-relevant claims.
     // PowerSync reads these via request.jwt() ->> 'key' in sync rules.
@@ -39,9 +42,10 @@ export class SyncController {
       {
         sub: user.id,
         user_id: user.id,
-        tenantId: effectiveTenantId,
+        tenantId: user.tenantId,
         customRoleId: user.customRoleId,
-        roleType: user.customRole?.roleType || 'USER',
+        // Cargo com campo oculto recebe so a copia sem esses campos (buckets masked_*).
+        dataView: roleHasHiddenFields(user.customRole) ? 'masked' : 'full',
       },
       { expiresIn: '1h' },
     );

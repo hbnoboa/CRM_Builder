@@ -3,6 +3,8 @@ import {
   Get,
   Post,
   Delete,
+  Put,
+  Body,
   Param,
   Query,
   UseGuards,
@@ -10,13 +12,12 @@ import {
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { NotificationService, QueryNotificationDto } from './notification.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
-import { RolesGuard } from '../../common/guards/roles.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { CurrentUser as CurrentUserType } from '../../common/types';
 
 @ApiTags('Notifications')
 @Controller('notifications')
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard)
 @ApiBearerAuth()
 export class NotificationController {
   constructor(private readonly notificationService: NotificationService) {}
@@ -32,6 +33,18 @@ export class NotificationController {
       user.tenantId,
       query,
     );
+  }
+
+  @Get('preferences')
+  @ApiOperation({ summary: 'Minhas preferencias de notificacao (nesta empresa)' })
+  preferences(@CurrentUser() user: CurrentUserType) {
+    return this.notificationService.getPreferences(user.id, user.tenantId);
+  }
+
+  @Put('preferences')
+  @ApiOperation({ summary: 'Salvar minhas preferencias de notificacao' })
+  savePreferences(@CurrentUser() user: CurrentUserType, @Body() body: Record<string, unknown>) {
+    return this.notificationService.savePreferences(user.id, user.tenantId, body);
   }
 
   @Get('unread-count')
@@ -59,6 +72,13 @@ export class NotificationController {
   async markAllAsRead(@CurrentUser() user: CurrentUserType) {
     await this.notificationService.markAllAsRead(user.id, user.tenantId);
     return { success: true };
+  }
+
+  @Delete()
+  @ApiOperation({ summary: 'Apagar todas as minhas notificacoes (nesta empresa)' })
+  async deleteAll(@CurrentUser() user: CurrentUserType) {
+    const { count } = await this.notificationService.deleteAllForUser(user.id, user.tenantId);
+    return { success: true, count };
   }
 
   @Delete(':id')

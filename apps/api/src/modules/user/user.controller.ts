@@ -1,4 +1,6 @@
+import { ServiceScope } from '../../common/service-scope/service-scope.decorator';
 import {
+  BadRequestException,
   Controller,
   Get,
   Post,
@@ -21,6 +23,7 @@ import { CurrentUser as CurrentUserType } from '../../common/types';
 import { checkModulePermission } from '../../common/utils/check-module-permission';
 
 @ApiTags('Users')
+@ServiceScope('admin')
 @Controller('users')
 @UseGuards(JwtAuthGuard, ModulePermissionGuard)
 @ApiBearerAuth()
@@ -39,6 +42,14 @@ export class UserController {
     // Impedir auto-escalacao de privilegio
     delete dto.customRoleId;
     delete dto.status;
+    // Senha e e-mail so com a senha atual (POST /auth/change-password): uma sessao
+    // roubada nao pode trocar a senha nem o e-mail de recuperacao.
+    if (dto.password) {
+      throw new BadRequestException('Para trocar a senha use Configuracoes > Segurança (pede a senha atual)');
+    }
+    if (dto.email) {
+      throw new BadRequestException('O e-mail da conta nao pode ser trocado por aqui');
+    }
     return this.userService.update(user.id, dto, user);
   }
 
@@ -72,6 +83,7 @@ export class UserController {
     @Body() dto: UpdateUserDto,
     @CurrentUser() user: CurrentUserType,
   ) {
+    await this.userService.dropUnchangedMembershipFields(id, dto, user);
     if (dto.customRoleId) {
       checkModulePermission(user, 'users', 'canAssignRole');
     }

@@ -3,7 +3,8 @@
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Plus, Trash2, GripVertical, ChevronDown } from 'lucide-react';
+import { Textarea } from '@/components/ui/textarea';
+import { Plus, Trash2, GripVertical, ChevronDown, ClipboardPaste } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface OptionItem {
@@ -28,14 +29,53 @@ export function OptionsTraitEditor({ value, onChange }: OptionsTraitProps) {
     try {
       const parsed = JSON.parse(value || '[]');
       if (!Array.isArray(parsed)) return [];
+      // Opcoes JA EXISTENTES entram como customValue=true: editar o label NAO deve
+      // re-slugificar o `value`, senao diverge dos registros ja gravados (que usam
+      // o value original). Opcoes novas (addOption) continuam auto-sincronizando.
       return parsed.map((o: string | OptionItem) =>
-        typeof o === 'string' ? { value: o, label: o } : o,
+        typeof o === 'string'
+          ? { value: o, label: o, customValue: true }
+          : { ...o, customValue: true },
       );
     } catch {
       return [];
     }
   });
   const [expandedIndex, setExpandedIndex] = useState<number | null>(null);
+  const [showImport, setShowImport] = useState(false);
+  const [importText, setImportText] = useState('');
+  const [importError, setImportError] = useState<string | null>(null);
+
+  // Importa opcoes em massa: aceita JSON (array de strings ou de {value,label})
+  // OU uma lista simples com uma opcao por linha. Opcoes importadas entram como
+  // customValue para nao re-slugificar (ver fix #1).
+  const applyImport = (mode: 'replace' | 'append') => {
+    const raw = importText.trim();
+    if (!raw) { setImportError('Cole as opcoes primeiro.'); return; }
+    let parsed: OptionItem[];
+    try {
+      const asJson = JSON.parse(raw);
+      if (!Array.isArray(asJson)) throw new Error('nao e array');
+      parsed = asJson.map((o: string | OptionItem) =>
+        typeof o === 'string'
+          ? { value: o, label: o, customValue: true }
+          : { value: String(o.value ?? o.label ?? ''), label: String(o.label ?? o.value ?? ''), color: o.color, customValue: true },
+      );
+    } catch {
+      // Fallback: uma opcao por linha (label = value)
+      parsed = raw
+        .split('\n')
+        .map((l) => l.trim())
+        .filter(Boolean)
+        .map((l) => ({ value: l, label: l, customValue: true }));
+    }
+    if (parsed.length === 0) { setImportError('Nenhuma opcao reconhecida.'); return; }
+    const merged = mode === 'append' ? [...options, ...parsed] : parsed;
+    sync(merged);
+    setImportText('');
+    setImportError(null);
+    setShowImport(false);
+  };
 
   const sync = (updated: OptionItem[]) => {
     setOptions(updated);
@@ -90,10 +130,32 @@ export function OptionsTraitEditor({ value, onChange }: OptionsTraitProps) {
     <div className="space-y-2">
       <div className="flex items-center justify-between">
         <span className="text-xs font-medium text-muted-foreground">Opcoes</span>
-        <Button variant="outline" size="sm" className="h-6 text-xs" onClick={addOption}>
-          <Plus className="h-3 w-3 mr-1" /> Adicionar
-        </Button>
+        <div className="flex items-center gap-1">
+          <Button variant="ghost" size="sm" className="h-6 text-xs" onClick={() => setShowImport((v) => !v)}>
+            <ClipboardPaste className="h-3 w-3 mr-1" /> Importar
+          </Button>
+          <Button variant="outline" size="sm" className="h-6 text-xs" onClick={addOption}>
+            <Plus className="h-3 w-3 mr-1" /> Adicionar
+          </Button>
+        </div>
       </div>
+
+      {showImport && (
+        <div className="space-y-1.5 rounded-md border border-dashed p-2">
+          <Textarea
+            value={importText}
+            onChange={(e) => { setImportText(e.target.value); setImportError(null); }}
+            placeholder={'Cole 1 opcao por linha, ou um JSON:\n["A","B"]  ou  [{"value":"a","label":"A"}]'}
+            className="h-24 text-xs font-mono"
+          />
+          {importError && <p className="text-[11px] text-destructive">{importError}</p>}
+          <div className="flex items-center gap-1.5">
+            <Button variant="outline" size="sm" className="h-6 text-xs" onClick={() => applyImport('append')}>Adicionar à lista</Button>
+            <Button variant="outline" size="sm" className="h-6 text-xs" onClick={() => applyImport('replace')}>Substituir tudo</Button>
+            <Button variant="ghost" size="sm" className="h-6 text-xs" onClick={() => { setShowImport(false); setImportText(''); setImportError(null); }}>Cancelar</Button>
+          </div>
+        </div>
+      )}
 
       {options.length === 0 && (
         <p className="text-xs text-muted-foreground italic py-2">Nenhuma opcao. Clique em Adicionar.</p>

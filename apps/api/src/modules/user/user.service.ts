@@ -1,9 +1,9 @@
-import { Injectable, NotFoundException, ConflictException, ForbiddenException, Logger } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, ConflictException, ForbiddenException, Logger } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { NotificationService } from '../notification/notification.service';
 import { AuditService } from '../audit/audit.service';
 import { CreateUserDto, UpdateUserDto, QueryUserDto } from './dto/user.dto';
-import { Prisma } from '@prisma/client';
+import { Prisma, Status } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
 import {
   CurrentUser,
@@ -13,8 +13,14 @@ import {
   DEFAULT_LIMIT,
   MAX_LIMIT,
 } from '../../common/types';
-import { RoleType } from '../../common/decorators/roles.decorator';
 import { getEffectiveTenantId } from '../../common/utils/tenant.util';
+import { TenantPlanService } from '../../common/services/tenant-plan.service';
+import { assertAssignableRole, loadManagedMember } from '../../common/utils/member-governance';
+import { assertPasswordPolicy } from '../../common/utils/password-policy';
+
+// Identidade global (#10): "usuarios de um tenant" = usuarios COM membership nele.
+// O cargo exibido e o da membership naquele tenant.
+const ROLE_PREVIEW = { id: true, name: true, color: true, isSystem: true, rank: true, modulePermissions: true } as const;
 
 @Injectable()
 export class UserService {
@@ -24,95 +30,123 @@ export class UserService {
     private prisma: PrismaService,
     private notificationService: NotificationService,
     private auditService: AuditService,
+    private tenantPlan: TenantPlanService,
   ) {}
 
+  /** Achata user + membership do tenant num shape compativel com o frontend. */
+  private flatten(
+    user: Record<string, unknown> & { tenantAccess?: Array<{ tenantId: string; customRoleId: string; customRole: unknown; tenant?: unknown; clientEntityId?: string | null; clientRecordId?: string | null }> },
+  ): Record<string, unknown> {
+    const { tenantAccess, teamMemberships, ...rest } = user as typeof user & {
+      teamMemberships?: Array<{ isLeader: boolean; team: { id: string; name: string; color: string | null } }>;
+    };
+    const m = tenantAccess?.[0];
+    return {
+      ...rest,
+      ...(teamMemberships ? { teams: teamMemberships.map((t) => ({ ...t.team, isLeader: t.isLeader })) } : {}),
+      tenantId: m?.tenantId ?? null,
+      customRoleId: m?.customRoleId ?? null,
+      customRole: m?.customRole ?? null,
+      clientEntityId: m?.clientEntityId ?? null,
+      clientRecordId: m?.clientRecordId ?? null,
+      ...(m?.tenant ? { tenant: m.tenant } : {}),
+    };
+  }
+
+  /**
+   * Portal do cliente: confere a tabela e o registro do cliente (mesma empresa, ativo).
+   * recordId null/vazio = sem vinculo.
+   */
+  private async resolveClientLink(
+    tenantId: string, entitySlug: string | undefined, recordId: string | null | undefined,
+  ): Promise<{ clientEntityId: string | null; clientRecordId: string | null }> {
+    if (!recordId) return { clientEntityId: null, clientRecordId: null };
+    if (!entitySlug) throw new BadRequestException('Informe a tabela do cliente');
+    const entity = await this.prisma.entity.findFirst({ where: { tenantId, slug: entitySlug, deletedAt: null }, select: { id: true } });
+    if (!entity) throw new BadRequestException('Tabela do cliente nao encontrada');
+    const record = await this.prisma.entityData.findFirst({ where: { id: recordId, tenantId, entityId: entity.id, deletedAt: null }, select: { id: true } });
+    if (!record) throw new BadRequestException('Registro do cliente nao encontrado nessa tabela');
+    return { clientEntityId: entity.id, clientRecordId: record.id };
+  }
+
   async create(dto: CreateUserDto, currentUser: CurrentUser) {
-    // Determinar tenantId (PLATFORM_ADMIN pode criar em outro tenant)
-    const targetTenantId = getEffectiveTenantId(currentUser, dto.tenantId);
+    const targetTenantId = getEffectiveTenantId(currentUser);
+    await assertAssignableRole(this.prisma, currentUser, dto.customRoleId);
+    await this.tenantPlan.assertCanAddUsers(targetTenantId);
 
-    // Verificar se email ja existe no tenant
-    const existing = await this.prisma.user.findFirst({
-      where: {
-        email: dto.email,
-        tenantId: targetTenantId,
-      },
-    });
-
+    // Email agora e identidade GLOBAL.
+    const existing = await this.prisma.user.findUnique({ where: { email: dto.email } });
     if (existing) {
       throw new ConflictException('Email ja esta em uso');
     }
 
+    await assertPasswordPolicy(this.prisma, [targetTenantId], dto.password);
     const hashedPassword = await bcrypt.hash(dto.password, 12);
 
-    // Remove tenantId do dto para evitar duplicacao
-    const { tenantId: _, ...userData } = dto;
-
-    // Normalizar CPF/phone: armazenar apenas digitos
+    const { customRoleId, clientEntitySlug, clientRecordId, ...userData } = dto;
+    const clientLink = await this.resolveClientLink(targetTenantId, clientEntitySlug, clientRecordId);
     if (userData.cpf) userData.cpf = userData.cpf.replace(/\D/g, '') || undefined;
     if (userData.cnpj) userData.cnpj = userData.cnpj.replace(/\D/g, '') || undefined;
     if (userData.phone) userData.phone = userData.phone.replace(/\D/g, '') || undefined;
 
+    // Cria a identidade (sem tenant/cargo).
     const newUser = await this.prisma.user.create({
-      data: {
-        ...userData,
-        password: hashedPassword,
-        tenantId: targetTenantId,
-      },
+      data: { ...userData, password: hashedPassword },
       select: {
-        id: true,
-        email: true,
-        name: true,
-        avatar: true,
-        cpf: true,
-        cnpj: true,
-        phone: true,
-        customRoleId: true,
-        status: true,
-        tenantId: true,
-        createdAt: true,
-        customRole: { select: { id: true, name: true, color: true, roleType: true, isSystem: true } },
+        id: true, email: true, name: true, avatar: true,
+        cpf: true, cnpj: true, phone: true, status: true, createdAt: true,
       },
     });
 
-    // Enviar notificacao para o tenant
-    this.notificationService.notifyNewUser(
-      targetTenantId,
-      newUser.name,
-      currentUser.name,
-    ).catch((err) => this.logger.error('Failed to send notification', err));
+    // Membership home (primaria) — fonte da verdade do vinculo + cargo.
+    const membership = await this.prisma.userTenantAccess.upsert({
+      where: { userId_tenantId: { userId: newUser.id, tenantId: targetTenantId } },
+      update: { customRoleId, status: 'ACTIVE', deletedAt: null, isPrimary: true, ...clientLink },
+      create: { userId: newUser.id, tenantId: targetTenantId, customRoleId, status: 'ACTIVE', isPrimary: true, ...clientLink },
+      include: { customRole: { select: ROLE_PREVIEW } },
+    });
 
-    // Audit log (fire-and-forget, never log passwords)
+    this.notificationService.notifyNewUser(targetTenantId, newUser.name, currentUser.name)
+      .catch((err) => this.logger.error('Failed to send notification', err));
+
     this.auditService.log(currentUser, {
       action: 'create',
       resource: 'user',
       resourceId: newUser.id,
-      newData: { email: dto.email, name: dto.name, customRoleId: dto.customRoleId },
+      newData: { email: dto.email, name: dto.name, customRoleId, ...(clientLink.clientRecordId ? { clientRecordId: clientLink.clientRecordId } : {}) },
     }).catch(() => {});
 
-    return newUser;
+    return {
+      ...newUser,
+      tenantId: targetTenantId,
+      customRoleId,
+      customRole: membership.customRole,
+      ...clientLink,
+    };
   }
 
   async findAll(query: QueryUserDto, currentUser: CurrentUser) {
     const page = Math.max(1, query.page || 1);
     const limit = Math.min(MAX_LIMIT, Math.max(1, query.limit || DEFAULT_LIMIT));
     const skip = (page - 1) * limit;
-    const { search, role, status, tenantId: queryTenantId, cursor, sortBy = 'createdAt', sortOrder = 'desc' } = query;
+    const { search, role, status, cursor, teamId, clientRecordId, sortBy = 'createdAt', sortOrder = 'desc' } = query;
 
-    // Base filter por tenant
-    const roleType = currentUser.customRole?.roleType as RoleType | undefined;
-    const where: Prisma.UserWhereInput = {};
+    // Lista sempre escopada ao tenant ativo do usuario.
+    const effectiveTenantId = getEffectiveTenantId(currentUser);
 
-    if (roleType === 'PLATFORM_ADMIN') {
-      if (queryTenantId) {
-        where.tenantId = queryTenantId;
-      }
-    } else {
-      where.tenantId = currentUser.tenantId;
-    }
+    const membershipFilter: Prisma.UserTenantAccessWhereInput = {
+      tenantId: effectiveTenantId,
+      deletedAt: null,
+      status: 'ACTIVE',
+    };
+    // Filtro por cargo agora e por id do cargo (roleType removido).
+    if (role) membershipFilter.customRoleId = role;
+    if (clientRecordId) membershipFilter.clientRecordId = clientRecordId;
 
-    // Filtros opcionais
-    if (role) where.customRole = { roleType: role };
+    // Usuario tecnico de chave de API nao faz parte da equipe.
+    const where: Prisma.UserWhereInput = { tenantAccess: { some: membershipFilter }, isServiceAccount: false };
     if (status) where.status = status;
+    if (teamId) where.teamMemberships = { some: { teamId, team: { tenantId: effectiveTenantId } } };
     if (search) {
       where.OR = [
         { name: { contains: search, mode: 'insensitive' } },
@@ -120,49 +154,39 @@ export class UserService {
       ];
     }
 
-    // Cursor pagination
     const useCursor = !!cursor;
     let cursorClause: { id: string } | undefined;
-
     if (useCursor) {
       const decodedCursor = decodeCursor(cursor);
-      if (decodedCursor) {
-        cursorClause = { id: decodedCursor.id };
-      }
+      if (decodedCursor) cursorClause = { id: decodedCursor.id };
     }
 
-    // OrderBy com id como tiebreaker
-    const orderBy: Prisma.UserOrderByWithRelationInput[] = [
-      { [sortBy]: sortOrder },
-    ];
-    if (sortBy !== 'id') {
-      orderBy.push({ id: sortOrder });
-    }
+    const orderBy: Prisma.UserOrderByWithRelationInput[] = [{ [sortBy]: sortOrder }];
+    if (sortBy !== 'id') orderBy.push({ id: sortOrder });
 
     const takeWithExtra = limit + 1;
-
     const findManyArgs: Prisma.UserFindManyArgs = {
       where,
       take: takeWithExtra,
       orderBy,
       select: {
-        id: true,
-        email: true,
-        name: true,
-        avatar: true,
-        cpf: true,
-        cnpj: true,
-        phone: true,
-        customRoleId: true,
-        status: true,
-        tenantId: true,
-        lastLoginAt: true,
-        createdAt: true,
-        customRole: {
-          select: { id: true, name: true, color: true, roleType: true, isSystem: true },
+        id: true, email: true, name: true, avatar: true,
+        cpf: true, cnpj: true, phone: true, status: true, lastLoginAt: true, createdAt: true,
+        tenantAccess: {
+          where: { tenantId: effectiveTenantId },
+          take: 1,
+          select: {
+            tenantId: true,
+            customRoleId: true,
+            clientEntityId: true,
+            clientRecordId: true,
+            customRole: { select: ROLE_PREVIEW },
+            tenant: { select: { id: true, name: true, slug: true } },
+          },
         },
-        tenant: {
-          select: { id: true, name: true, slug: true },
+        teamMemberships: {
+          where: { team: { tenantId: effectiveTenantId } },
+          select: { isLeader: true, team: { select: { id: true, name: true, color: true } } },
         },
       },
     };
@@ -180,30 +204,20 @@ export class UserService {
     ]);
 
     const hasNextPage = rawData.length > limit;
-    const data = hasNextPage ? rawData.slice(0, limit) : rawData;
+    const sliced = hasNextPage ? rawData.slice(0, limit) : rawData;
+    const data = sliced.map((u) => this.flatten(u as Parameters<typeof this.flatten>[0]));
     const hasPreviousPage = useCursor ? true : page > 1;
 
     let nextCursor: string | undefined;
     let previousCursor: string | undefined;
-
     if (data.length > 0) {
       const lastItem = data[data.length - 1];
       const firstItem = data[0];
-
       if (hasNextPage) {
-        nextCursor = encodeCursor({
-          id: lastItem.id,
-          sortField: sortBy,
-          sortValue: (lastItem as Record<string, unknown>)[sortBy] as string,
-        });
+        nextCursor = encodeCursor({ id: lastItem.id as string, sortField: sortBy });
       }
-
       if (hasPreviousPage && useCursor) {
-        previousCursor = encodeCursor({
-          id: firstItem.id,
-          sortField: sortBy,
-          sortValue: (firstItem as Record<string, unknown>)[sortBy] as string,
-        });
+        previousCursor = encodeCursor({ id: firstItem.id as string, sortField: sortBy });
       }
     }
 
@@ -219,42 +233,33 @@ export class UserService {
   }
 
   async findOne(id: string, currentUser: CurrentUser) {
-    // PLATFORM_ADMIN pode ver usuario de qualquer tenant
-    const roleType = currentUser.customRole?.roleType as RoleType | undefined;
-    const whereClause: Prisma.UserWhereInput = { id };
-    if (roleType !== 'PLATFORM_ADMIN') {
-      whereClause.tenantId = currentUser.tenantId;
-    }
+    // O usuario precisa ter membership no tenant atual.
+    const where: Prisma.UserWhereInput = {
+      id,
+      tenantAccess: { some: { tenantId: currentUser.tenantId, deletedAt: null } },
+    };
 
     const user = await this.prisma.user.findFirst({
-      where: whereClause,
+      where,
       select: {
-        id: true,
-        email: true,
-        name: true,
-        avatar: true,
-        cpf: true,
-        cnpj: true,
-        phone: true,
-        customRoleId: true,
-        status: true,
-        tenantId: true,
-        lastLoginAt: true,
-        createdAt: true,
-        updatedAt: true,
-        customRole: {
+        id: true, email: true, name: true, avatar: true,
+        cpf: true, cnpj: true, phone: true, status: true,
+        lastLoginAt: true, createdAt: true, updatedAt: true,
+        tenantAccess: {
+          // Empresas de outros vinculos so aparecem para o proprio usuario.
+          where: id === currentUser.id ? { deletedAt: null } : { deletedAt: null, tenantId: currentUser.tenantId },
           select: {
-            id: true, name: true, color: true,
-            roleType: true, isSystem: true,
-            permissions: true, modulePermissions: true,
+            tenantId: true,
+            customRoleId: true,
+            isPrimary: true,
+            clientEntityId: true,
+            clientRecordId: true,
+            customRole: {
+              select: { id: true, name: true, color: true, isSystem: true, permissions: true, modulePermissions: true },
+            },
+            tenant: { select: { id: true, name: true, slug: true } },
           },
-        },
-        tenant: {
-          select: {
-            id: true,
-            name: true,
-            slug: true,
-          },
+          orderBy: [{ isPrimary: 'desc' }],
         },
       },
     });
@@ -263,43 +268,96 @@ export class UserService {
       throw new NotFoundException('Usuario nao encontrado');
     }
 
-    return user;
+    // Cargo a exibir: o do tenant atual, senao o primario.
+    const all = user.tenantAccess;
+    const current = all.find((m) => m.tenantId === currentUser.tenantId) ?? all[0];
+    const { tenantAccess, ...rest } = user;
+    return {
+      ...rest,
+      tenantId: current?.tenantId ?? null,
+      customRoleId: current?.customRoleId ?? null,
+      customRole: current?.customRole ?? null,
+      clientEntityId: current?.clientEntityId ?? null,
+      clientRecordId: current?.clientRecordId ?? null,
+      tenant: current?.tenant ?? null,
+      tenants: all.map((m) => ({ tenantId: m.tenantId, tenant: m.tenant, customRole: m.customRole, isPrimary: m.isPrimary })),
+    };
+  }
+
+  /**
+   * O formulario manda cargo e situacao mesmo sem mudanca: tira o que ja esta igual,
+   * para editar o proprio nome (ou o de alguem sem "atribuir cargo"/"mudar situacao")
+   * nao virar tentativa de trocar cargo/situacao.
+   */
+  async dropUnchangedMembershipFields(id: string, dto: UpdateUserDto, currentUser: CurrentUser): Promise<void> {
+    if (!dto.customRoleId && !dto.status) return;
+    const membership = await this.prisma.userTenantAccess.findFirst({
+      where: { userId: id, tenantId: currentUser.tenantId, deletedAt: null },
+      select: { customRoleId: true, status: true, user: { select: { status: true } } },
+    });
+    if (!membership) return;
+    if (dto.customRoleId && dto.customRoleId === membership.customRoleId) delete dto.customRoleId;
+    if (dto.status) {
+      const otherTenants = await this.prisma.userTenantAccess.count({
+        where: { userId: id, tenantId: { not: currentUser.tenantId }, deletedAt: null },
+      });
+      // Membro de varias empresas: a situacao mora na membership; senao, no User.
+      const current = otherTenants > 0 ? membership.status : membership.user.status;
+      if (String(dto.status) === String(current)) delete dto.status;
+    }
   }
 
   async update(id: string, dto: UpdateUserDto, currentUser: CurrentUser) {
-    // Verifica se usuario existe (e se tem permissao)
     const oldUser = await this.findOne(id, currentUser);
+    const target = await loadManagedMember(this.prisma, currentUser, id);
 
-    // Se mudando senha, fazer hash
-    if (dto.password) {
-      dto.password = await bcrypt.hash(dto.password, 12);
+    if (target.isSelf && (dto.customRoleId || dto.status)) {
+      throw new ForbiddenException('Voce nao pode mudar o proprio cargo ou a propria situacao');
+    }
+    if (!target.isSelf && target.inOtherTenants && (dto.email || dto.password)) {
+      throw new ForbiddenException('Este usuario tambem acessa outras empresas: so ele pode trocar o proprio e-mail e senha');
+    }
+    if (dto.customRoleId) await assertAssignableRole(this.prisma, currentUser, dto.customRoleId);
+    // Reativar conta conta vaga do plano (criar/convidar ja checam).
+    if (dto.status === 'ACTIVE') {
+      const currentStatus = target.inOtherTenants ? target.membership.status : oldUser.status;
+      if (currentStatus !== 'ACTIVE') await this.tenantPlan.assertCanAddUsers(currentUser.tenantId);
     }
 
-    // Normalizar CPF/CNPJ/phone — armazenar apenas digitos
+    if (dto.password) {
+      const tenants = await this.prisma.userTenantAccess.findMany({ where: { userId: id, deletedAt: null }, select: { tenantId: true } });
+      await assertPasswordPolicy(this.prisma, tenants.map((t) => t.tenantId), dto.password);
+      dto.password = await bcrypt.hash(dto.password, 12);
+    }
     if (dto.cpf) dto.cpf = dto.cpf.replace(/\D/g, '') || undefined;
     if (dto.cnpj) dto.cnpj = dto.cnpj.replace(/\D/g, '') || undefined;
     if (dto.phone) dto.phone = dto.phone.replace(/\D/g, '') || undefined;
 
-    const updatedUser = await this.prisma.user.update({
-      where: { id },
-      data: dto,
-      select: {
-        id: true,
-        email: true,
-        name: true,
-        avatar: true,
-        cpf: true,
-        cnpj: true,
-        phone: true,
-        customRoleId: true,
-        status: true,
-        tenantId: true,
-        updatedAt: true,
-        customRole: { select: { id: true, name: true, color: true, roleType: true, isSystem: true } },
-      },
-    });
+    // customRoleId (e o vinculo de cliente) nao moram no User -> vao para a membership.
+    const { customRoleId, clientEntitySlug, clientRecordId, ...userData } = dto;
+    // A propria pessoa nunca troca o proprio vinculo de cliente (o pedido e ignorado)
+    if (clientRecordId !== undefined && !target.isSelf) {
+      const clientLink = await this.resolveClientLink(currentUser.tenantId, clientEntitySlug, clientRecordId);
+      await this.prisma.userTenantAccess.update({ where: { id: target.membership.id }, data: clientLink });
+    }
 
-    // Audit log (fire-and-forget, never log passwords)
+    // Quem tambem e membro de outra empresa: a situacao vale so para o vinculo daqui.
+    if (target.inOtherTenants && userData.status) {
+      await this.prisma.userTenantAccess.update({ where: { id: target.membership.id }, data: { status: userData.status } });
+      delete userData.status;
+    }
+
+    await this.prisma.user.update({ where: { id }, data: userData });
+
+    // Cargo: atualiza a membership do tenant atual (autoritativa).
+    if (customRoleId) {
+      await this.prisma.userTenantAccess.upsert({
+        where: { userId_tenantId: { userId: id, tenantId: currentUser.tenantId } },
+        update: { customRoleId, status: 'ACTIVE', deletedAt: null },
+        create: { userId: id, tenantId: currentUser.tenantId, customRoleId, status: 'ACTIVE' },
+      });
+    }
+
     this.auditService.log(currentUser, {
       action: 'update',
       resource: 'user',
@@ -308,7 +366,7 @@ export class UserService {
       newData: { ...dto, password: undefined },
     }).catch(() => {});
 
-    return updatedUser;
+    return this.findOne(id, currentUser);
   }
 
   // ═══════════════════════════════════════════════════════════════
@@ -319,44 +377,41 @@ export class UserService {
     currentUser: CurrentUser,
     dto: { userId: string; tenantId: string; customRoleId: string; expiresAt?: string },
   ) {
-    const roleType = currentUser.customRole?.roleType as RoleType | undefined;
-
-    // Apenas PLATFORM_ADMIN ou ADMIN do tenant destino podem conceder acesso
-    if (roleType !== 'PLATFORM_ADMIN' && currentUser.tenantId !== dto.tenantId) {
+    // So concede acesso ao proprio tenant ativo.
+    if (currentUser.tenantId !== dto.tenantId) {
       throw new ForbiddenException('Sem permissao para conceder acesso a este tenant');
     }
 
-    // Verificar que o usuario existe
     const user = await this.prisma.user.findUnique({
       where: { id: dto.userId },
-      select: { id: true, tenantId: true, name: true },
+      select: { id: true, name: true },
     });
     if (!user) throw new NotFoundException('Usuario nao encontrado');
 
-    // Nao pode conceder acesso ao proprio home tenant
-    if (user.tenantId === dto.tenantId) {
-      throw new ConflictException('Usuario ja pertence a este tenant');
-    }
-
-    // Verificar que o tenant destino existe
     const tenant = await this.prisma.tenant.findUnique({
       where: { id: dto.tenantId },
       select: { id: true, name: true },
     });
     if (!tenant) throw new NotFoundException('Tenant nao encontrado');
 
-    // Verificar que a role pertence ao tenant destino
     const role = await this.prisma.customRole.findFirst({
       where: { id: dto.customRoleId, tenantId: dto.tenantId },
       select: { id: true, name: true },
     });
     if (!role) throw new NotFoundException('Role nao encontrada neste tenant');
+    await assertAssignableRole(this.prisma, currentUser, dto.customRoleId);
 
-    // Criar ou atualizar acesso (upsert)
+    // So conta no limite do plano quando o usuario ainda nao tinha acesso ativo.
+    const existingAccess = await this.prisma.userTenantAccess.findUnique({
+      where: { userId_tenantId: { userId: dto.userId, tenantId: dto.tenantId } },
+      select: { status: true, deletedAt: true },
+    });
+    if (!existingAccess || existingAccess.status !== 'ACTIVE' || existingAccess.deletedAt) {
+      await this.tenantPlan.assertCanAddUsers(dto.tenantId);
+    }
+
     const access = await this.prisma.userTenantAccess.upsert({
-      where: {
-        userId_tenantId: { userId: dto.userId, tenantId: dto.tenantId },
-      },
+      where: { userId_tenantId: { userId: dto.userId, tenantId: dto.tenantId } },
       create: {
         userId: dto.userId,
         tenantId: dto.tenantId,
@@ -367,12 +422,13 @@ export class UserService {
       update: {
         customRoleId: dto.customRoleId,
         status: 'ACTIVE',
+        deletedAt: null,
         grantedById: currentUser.id,
         expiresAt: dto.expiresAt ? new Date(dto.expiresAt) : null,
       },
       include: {
         tenant: { select: { id: true, name: true, slug: true } },
-        customRole: { select: { id: true, name: true, roleType: true } },
+        customRole: { select: { id: true, name: true } },
       },
     });
 
@@ -383,16 +439,22 @@ export class UserService {
   async revokeTenantAccess(currentUser: CurrentUser, accessId: string) {
     const access = await this.prisma.userTenantAccess.findUnique({
       where: { id: accessId },
-      select: { id: true, tenantId: true, userId: true },
+      select: { id: true, tenantId: true, userId: true, isPrimary: true },
     });
 
     if (!access) throw new NotFoundException('Acesso nao encontrado');
 
-    const roleType = currentUser.customRole?.roleType as RoleType | undefined;
-    if (roleType !== 'PLATFORM_ADMIN' && currentUser.tenantId !== access.tenantId) {
+    if (currentUser.tenantId !== access.tenantId) {
       throw new ForbiddenException('Sem permissao para revogar este acesso');
     }
 
+    if (access.isPrimary) {
+      throw new ForbiddenException('Nao e possivel revogar o tenant primario (home) do usuario');
+    }
+    const target = await loadManagedMember(this.prisma, currentUser, access.userId);
+    if (target.isSelf) throw new ForbiddenException('Voce nao pode revogar o proprio acesso');
+
+    // Soft delete da membership (mantem historico).
     await this.prisma.userTenantAccess.delete({ where: { id: accessId } });
 
     this.logger.log(`Tenant access revoked: accessId ${accessId}`);
@@ -400,39 +462,52 @@ export class UserService {
   }
 
   async listUserTenantAccess(currentUser: CurrentUser, userId: string) {
-    const roleType = currentUser.customRole?.roleType as RoleType | undefined;
-
-    // PLATFORM_ADMIN pode ver de qualquer user, outros so de users do mesmo tenant
-    if (roleType !== 'PLATFORM_ADMIN') {
-      const user = await this.prisma.user.findFirst({
-        where: { id: userId, tenantId: currentUser.tenantId },
-        select: { id: true },
-      });
-      if (!user) throw new NotFoundException('Usuario nao encontrado');
-    }
+    // So ve o acesso do usuario ao tenant atual (nunca memberships em outros tenants).
+    const shares = await this.prisma.userTenantAccess.findFirst({
+      where: { userId, tenantId: currentUser.tenantId, deletedAt: null },
+      select: { id: true },
+    });
+    if (!shares) throw new NotFoundException('Usuario nao encontrado');
 
     return this.prisma.userTenantAccess.findMany({
-      where: { userId },
+      where: { userId, tenantId: currentUser.tenantId },
       include: {
         tenant: { select: { id: true, name: true, slug: true } },
-        customRole: { select: { id: true, name: true, roleType: true, color: true } },
+        customRole: { select: { id: true, name: true, color: true } },
       },
-      orderBy: { createdAt: 'desc' },
+      orderBy: [{ isPrimary: 'desc' }, { createdAt: 'desc' }],
     });
   }
 
   async remove(id: string, currentUser: CurrentUser) {
-    // Verifica se usuario existe (e se tem permissao)
     const oldUser = await this.findOne(id, currentUser);
 
-    // Nao pode deletar a si mesmo
     if (id === currentUser.id) {
       throw new ForbiddenException('Voce nao pode excluir sua propria conta');
     }
+    const target = await loadManagedMember(this.prisma, currentUser, id);
 
-    await this.prisma.user.delete({ where: { id } });
+    if (target.inOtherTenants) {
+      // Membro de outras empresas: sai so desta (a conta continua nas outras).
+      await this.prisma.userTenantAccess.delete({ where: { id: target.membership.id } });
+      if (target.membership.isPrimary) {
+        const next = await this.prisma.userTenantAccess.findFirst({
+          where: { userId: id, deletedAt: null },
+          orderBy: { createdAt: 'asc' },
+          select: { id: true },
+        });
+        if (next) await this.prisma.userTenantAccess.update({ where: { id: next.id }, data: { isPrimary: true } });
+      }
+    } else {
+      // User esta no allowlist de soft-delete -> delete vira soft (deletedAt).
+      await this.prisma.user.delete({ where: { id } });
+      // O vinculo sai junto: senao a pessoa excluida segue contando no cargo.
+      await this.prisma.userTenantAccess.updateMany({
+        where: { userId: id, tenantId: currentUser.tenantId, deletedAt: null },
+        data: { deletedAt: new Date(), status: Status.INACTIVE },
+      });
+    }
 
-    // Audit log (fire-and-forget, never log passwords)
     this.auditService.log(currentUser, {
       action: 'delete',
       resource: 'user',

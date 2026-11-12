@@ -70,7 +70,7 @@ export function GroupedBarChartWidget({ entitySlug, config, title, isEditMode }:
           layout={isHorizontal ? 'vertical' : 'horizontal'}
           onClick={(state) => {
             if (state?.activeLabel && rowField) {
-              toggleCrossFilter(rowField, state.activeLabel);
+              toggleCrossFilter(rowField, String(state.activeLabel));
             }
           }}
         >
@@ -90,7 +90,7 @@ export function GroupedBarChartWidget({ entitySlug, config, title, isEditMode }:
             contentStyle={TOOLTIP_STYLE}
             labelStyle={TOOLTIP_LABEL_STYLE}
             itemStyle={TOOLTIP_ITEM_STYLE}
-            formatter={(v: number) => [(v ?? 0).toLocaleString('pt-BR')]}
+            formatter={((v: number) => [(v ?? 0).toLocaleString('pt-BR')]) as never}
           />
           {config.showLegend !== false && <Legend wrapperStyle={LEGEND_STYLE} />}
           {segments.map((seg, idx) => (
@@ -99,12 +99,12 @@ export function GroupedBarChartWidget({ entitySlug, config, title, isEditMode }:
               dataKey={seg}
               fill={colors[idx % colors.length]}
               cursor="pointer"
-              label={config.showValues !== false ? {
+              label={config.showValues !== false ? ({
                 position: 'top' as const,
                 fontSize: 9,
                 fill: 'hsl(var(--muted-foreground))',
                 formatter: (v: number) => (v > 0 ? v.toLocaleString('pt-BR') : ''),
-              } : false}
+              } as never) : false}
             />
           ))}
           {config.referenceLines?.map((ref, i) => (

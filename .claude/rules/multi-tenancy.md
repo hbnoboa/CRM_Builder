@@ -55,7 +55,7 @@ async buscarDados(entitySlug: string, user: CurrentUser) {
 ```
 
 **O pipeline aplica automaticamente:**
-1. Tenant isolation (PLATFORM_ADMIN bypass)
+1. Tenant isolation (sempre o tenant do usuario; nao ha bypass)
 2. Scope (own/all) via `getEntityScope()`
 3. Global filters (`entity.settings.globalFilters`)
 4. Role data filters (`customRole.permissions[].dataFilters`)
@@ -86,15 +86,11 @@ const users = await this.prisma.user.findMany({
 });
 ```
 
-## Regra #3: Usar getEffectiveTenantId para PLATFORM_ADMIN
+## Regra #3: O tenant e sempre o do usuario
 
-```typescript
-import { getEffectiveTenantId } from '../../common/utils/tenant.util';
-
-// PLATFORM_ADMIN pode acessar qualquer tenant via queryTenantId
-// Outros roles sempre usam seu proprio tenantId
-const effectiveTenantId = getEffectiveTenantId(currentUser, queryTenantId);
-```
+`getEffectiveTenantId(currentUser)` devolve o tenant da sessao (membership ativa).
+`tenantId` vindo de query/body e ignorado: nenhum cargo de empresa atua em outra
+empresa. Acesso entre empresas so existe no console da plataforma (`modules/platform`).
 
 ## Regra #4: Validar Ownership em Updates/Deletes
 
@@ -122,6 +118,5 @@ if (!entity) throw new NotFoundException();
 - [ ] Queries filtram por `tenantId`?
 - [ ] EntityData usa `EntityDataQueryService.buildWhere()`?
 - [ ] Update/Delete valida ownership (findFirst + tenantId)?
-- [ ] PLATFORM_ADMIN usa `getEffectiveTenantId()`?
 - [ ] IDs de params sao validados contra tenant?
 - [ ] Module importa `EntityDataQueryModule` se acessa EntityData?

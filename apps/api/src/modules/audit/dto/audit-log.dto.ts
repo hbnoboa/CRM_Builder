@@ -23,12 +23,7 @@ export class QueryAuditLogDto {
   @IsString()
   cursor?: string;
 
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsString()
-  tenantId?: string;
-
-  @ApiPropertyOptional({ enum: ['create', 'update', 'delete'] })
+  @ApiPropertyOptional({ enum: ['create', 'update', 'delete', 'restore', 'purge'] })
   @IsOptional()
   @IsString()
   action?: string;
@@ -73,5 +68,15 @@ export class ExportAuditLogDto {
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
-  tenantId?: string;
+  action?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  resource?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  search?: string;
 }

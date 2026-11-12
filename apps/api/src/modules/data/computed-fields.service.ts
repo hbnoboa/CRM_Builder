@@ -205,6 +205,7 @@ export class ComputedFieldsService {
         where: {
           parentRecordId,
           tenantId,
+          deletedAt: null, // rollup nao agrega filhos soft-deletados
         },
         select: {
           data: true,

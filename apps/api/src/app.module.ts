@@ -1,6 +1,8 @@
 import { Module } from '@nestjs/common';
+import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { ConfigModule } from '@nestjs/config';
 import { ThrottlerModule } from '@nestjs/throttler';
+import { ServiceScopeGuard } from './common/service-scope/service-scope.guard';
 import { I18nModule, QueryResolver, HeaderResolver, AcceptLanguageResolver } from 'nestjs-i18n';
 import * as path from 'path';
 import { PrismaModule } from './prisma/prisma.module';
@@ -8,6 +10,8 @@ import { RedisModule } from './common/services/redis.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { UserModule } from './modules/user/user.module';
 import { TenantModule } from './modules/tenant/tenant.module';
+import { SolutionsModule } from './modules/solutions/solutions.module';
+import { LeadsModule } from './modules/leads/leads.module';
 import { EntityModule } from './modules/entity/entity.module';
 import { DataModule } from './modules/data/data.module';
 import { StatsModule } from './modules/stats/stats.module';
@@ -19,7 +23,11 @@ import { SyncModule } from './modules/sync/sync.module';
 import { PushModule } from './modules/push/push.module';
 import { PdfModule } from './modules/pdf/pdf.module';
 import { AuditModule } from './modules/audit/audit.module';
+import { InvitationModule } from './modules/invitation/invitation.module';
+import { ApiKeyModule } from './modules/api-key/api-key.module';
+import { EmailModule } from './modules/email/email.module';
 import { ArchiveModule } from './modules/archive/archive.module';
+import { DataLifecycleModule } from './modules/data-lifecycle/data-lifecycle.module';
 import { WebhookModule } from './modules/webhook/webhook.module';
 import { EmailTemplateModule } from './modules/email-template/email-template.module';
 import { ActionChainModule } from './modules/action-chain/action-chain.module';
@@ -30,6 +38,20 @@ import { EntityAutomationModule } from './modules/entity-automation/entity-autom
 import { EntityFieldRuleModule } from './modules/entity-field-rule/entity-field-rule.module';
 import { DashboardTemplateModule } from './modules/dashboard-template/dashboard-template.module';
 import { PublicLinkModule } from './modules/public-link/public-link.module';
+import { ChatModule } from './modules/chat/chat.module';
+import { AiBuilderModule } from './modules/ai-builder/ai-builder.module';
+import { SitePagesModule } from './modules/site-pages/site-pages.module';
+import { SiteDomainsModule } from './modules/site-domains/site-domains.module';
+import { AccessRequestModule } from './modules/access-request/access-request.module';
+import { PlatformModule } from './modules/platform/platform.module';
+import { PrivacyModule } from './modules/privacy/privacy.module';
+import { TeamModule } from './modules/team/team.module';
+import { SupportModule } from './modules/support/support.module';
+import { AnnouncementModule } from './modules/announcement/announcement.module';
+import { OpsModule } from './modules/ops/ops.module';
+import { OpsMonitorModule } from './common/services/ops-monitor.service';
+import { TenantPlanModule } from './common/services/tenant-plan.module';
+import { TenantFeatureInterceptor } from './common/interceptors/tenant-feature.interceptor';
 
 @Module({
   imports: [
@@ -65,6 +87,9 @@ import { PublicLinkModule } from './modules/public-link/public-link.module';
     // Redis (Global)
     RedisModule,
 
+    // Plano/funcoes/limites por tenant (Global)
+    TenantPlanModule,
+
     // Health Check
     HealthModule,
 
@@ -72,6 +97,8 @@ import { PublicLinkModule } from './modules/public-link/public-link.module';
     AuthModule,
     UserModule,
     TenantModule,
+    SolutionsModule,
+    LeadsModule,
     EntityModule,
     DataModule,
     CustomRoleModule,
@@ -82,7 +109,11 @@ import { PublicLinkModule } from './modules/public-link/public-link.module';
     PushModule,
     PdfModule,
     AuditModule,
+    EmailModule,
+    InvitationModule,
+    ApiKeyModule,
     ArchiveModule,
+    DataLifecycleModule,
 
     // Automacoes (Sprint 3)
     WebhookModule,
@@ -103,6 +134,27 @@ import { PublicLinkModule } from './modules/public-link/public-link.module';
 
     // Public Links (formularios externos)
     PublicLinkModule,
+    ChatModule,
+    AiBuilderModule,
+    SitePagesModule,
+    SiteDomainsModule,
+    AccessRequestModule,
+
+    // Console da plataforma (equipe)
+    PlatformModule,
+    PrivacyModule,
+    TeamModule,
+    SupportModule,
+    AnnouncementModule,
+    OpsMonitorModule,
+    OpsModule,
+  ],
+  providers: [
+    // Separacao admin x user (#18): guard global de ambiente. Roda antes dos
+    // guards de rota, entao rotas fora do scope respondem 404.
+    { provide: APP_GUARD, useClass: ServiceScopeGuard },
+    // Funcoes desligadas no plano do tenant (@RequireFeature) -> 403.
+    { provide: APP_INTERCEPTOR, useClass: TenantFeatureInterceptor },
   ],
 })
 export class AppModule {}

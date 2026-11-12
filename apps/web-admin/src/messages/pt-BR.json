@@ -78,7 +78,7 @@
   },
   "auth": {
     "login": {
-      "title": "CRM Builder",
+      "title": "Entrar na sua conta",
       "subtitle": "Digite suas credenciais para acessar o painel",
       "email": "Email",
       "emailPlaceholder": "seu@email.com",
@@ -89,11 +89,12 @@
       "signIn": "Entrar",
       "signingIn": "Entrando...",
       "noAccount": "Não tem uma conta?",
-      "createAccount": "Criar conta"
+      "createAccount": "Criar conta",
+      "tenantSuspended": "O acesso desta empresa está suspenso. Fale com o administrador ou com o suporte."
     },
     "register": {
-      "title": "CRM Builder",
-      "subtitle": "Crie sua conta para acessar o painel",
+      "title": "Crie sua conta",
+      "subtitle": "Crie sua empresa e teste grátis por {days} dias",
       "name": "Nome",
       "namePlaceholder": "Seu nome completo",
       "company": "Empresa",
@@ -124,42 +125,66 @@
     "noPermission": "Você não tem permissão para acessar esta página.",
     "currentRole": "Sua role atual:",
     "notDefined": "Não definida",
-    "backToDashboard": "Voltar ao Dashboard"
+    "backToDashboard": "Voltar ao início",
+    "mfa": {
+      "prompt": "Digite o código de 6 dígitos do seu app autenticador.",
+      "code": "Código de verificação",
+      "recoveryHint": "Sem o celular? Use um código de recuperação.",
+      "verify": "Verificar",
+      "back": "Voltar"
+    }
   },
   "navigation": {
-    "dashboard": "Dashboard",
+    "dashboard": "Painel",
     "entities": "Tabelas",
     "data": "Registros",
     "users": "Usuários",
     "roles": "Cargos",
     "permissions": "Permissões",
-    "pdfTemplates": "Templates PDF",
+    "pdfTemplates": "Modelos de PDF",
     "settings": "Configurações",
-    "tenants": "Tenants",
-    "auditLogs": "Logs de Auditoria",
-    "dashboardTemplates": "Dashboards",
-    "publicLinks": "Links Publicos",
+    "auditLogs": "Auditoria",
+    "dashboardTemplates": "Painéis",
+    "publicLinks": "Links públicos",
     "profile": "Perfil",
     "hello": "Olá,",
-    "admin": "Admin"
+    "admin": "Admin",
+    "home": "Início",
+    "chat": "Chat",
+    "operational": "Operacional",
+    "gestao": "Administração",
+    "trash": "Lixeira",
+    "support": "Suporte",
+    "search": "Buscar ou ir para…",
+    "searchPlaceholder": "Buscar tabela, página ou ação",
+    "pages": "Páginas",
+    "tables": "Tabelas",
+    "actions": "Ações",
+    "newTable": "Nova tabela",
+    "noResults": "Nada encontrado",
+    "theme": "Tema",
+    "themeLight": "Claro",
+    "themeDark": "Escuro",
+    "themeSystem": "Automático",
+    "adminArea": "Área da administração",
+    "backToOperation": "Voltar para a operação"
   },
   "roles": {
-    "PLATFORM_ADMIN": "Super Admin",
     "ADMIN": "Administrador",
     "MANAGER": "Gerente",
     "USER": "Usuário",
-    "VIEWER": "Visualizador"
+    "VIEWER": "Visualizador",
+    "CUSTOM": "Personalizado"
   },
   "roleDescriptions": {
-    "PLATFORM_ADMIN": "Acesso total à plataforma, incluindo todos os tenants",
-    "ADMIN": "Acesso total ao tenant, pode gerenciar usuários e configurações",
-    "MANAGER": "Pode gerenciar equipe e ver dados da organização",
+    "ADMIN": "Acesso a tudo na empresa, pode gerenciar usuários e configurações",
+    "MANAGER": "Pode gerenciar a equipe e ver os dados da empresa",
     "USER": "Acesso padrão, pode ver e editar seus próprios dados",
     "VIEWER": "Apenas visualização, sem permissão de edição"
   },
   "dashboard": {
-    "title": "Dashboard",
-    "welcome": "Bem-vindo de volta, {name}! Aqui está um resumo do seu CRM.",
+    "title": "Painel",
+    "welcome": "Olá, {name}! Este é o resumo da sua empresa.",
     "stats": {
       "entities": "Tabelas",
       "records": "Registros",
@@ -170,43 +195,43 @@
       "last24h": "últimas 24h"
     },
     "entityCards": {
-      "title": "Registros por Tabela",
-      "subtitle": "Visão geral de registros por tabela",
+      "title": "Registros por tabela",
+      "subtitle": "Quantos registros cada tabela tem",
       "records": "{count} registros",
       "viewAll": "Ver todas"
     },
     "charts": {
-      "recordsLast30Days": "Registros nos Últimos 30 Dias",
-      "recordsEvolution": "Evolução de registros criados",
-      "distributionByEntity": "Distribuição por Tabela",
-      "recordsPerEntity": "Número de registros por tabela"
+      "recordsLast30Days": "Registros nos últimos 30 dias",
+      "recordsEvolution": "Quantos registros foram criados por dia",
+      "distributionByEntity": "Comparação entre tabelas",
+      "recordsPerEntity": "Quantos registros cada tabela tem"
     },
     "activity": {
-      "title": "Atividade Recente",
-      "subtitle": "Últimas ações realizadas no sistema",
+      "title": "Atividade recente",
+      "subtitle": "O que a equipe fez por último",
       "noActivity": "Nenhuma atividade registrada",
       "created": "Criou",
-      "updated": "Atualizou",
+      "updated": "Editou",
       "deleted": "Excluiu",
       "in": "em"
     },
     "activeUsers": {
-      "title": "Usuários Ativos",
-      "subtitle": "Últimos logins de usuários",
+      "title": "Último acesso da equipe",
+      "subtitle": "Quem entrou no sistema por último",
       "noUsers": "Nenhum usuário registrado",
-      "neverLoggedIn": "Nunca fez login"
+      "neverLoggedIn": "Ainda não entrou"
     },
     "quickActions": {
-      "title": "Ações Rápidas",
-      "subtitle": "Comece a construir seu CRM",
-      "newEntity": "Nova Tabela",
-      "newEntityDesc": "Defina uma estrutura de dados",
+      "title": "Atalhos",
+      "subtitle": "Atalhos para configurar a empresa",
+      "newEntity": "Nova tabela",
+      "newEntityDesc": "Criar um tipo de registro",
       "newPage": "Nova Página",
-      "newPageDesc": "Crie uma página personalizada",
+      "newPageDesc": "Ver e lançar registros",
       "newApi": "Nova API",
       "newApiDesc": "Configure um endpoint",
-      "manageUsers": "Gerenciar Usuários",
-      "manageUsersDesc": "Adicione membros da equipe"
+      "manageUsers": "Equipe",
+      "manageUsersDesc": "Convidar pessoas"
     },
     "empty": {
       "noRecords": "Nenhum registro criado ainda",
@@ -217,12 +242,12 @@
   },
   "users": {
     "title": "Usuários",
-    "subtitle": "Gerencie os usuários da sua organização",
-    "newUser": "Novo Usuário",
+    "subtitle": "Pessoas que entram no sistema da empresa. O cargo de cada uma define o que ela vê e faz.",
+    "newUser": "Cadastrar com senha",
     "editUser": "Editar Usuário",
     "deleteUser": "Excluir Usuário",
     "stats": {
-      "total": "Total de Usuários",
+      "total": "Total de usuários",
       "active": "Ativos",
       "administrators": "Administradores",
       "pending": "Pendentes"
@@ -261,24 +286,37 @@
       "updated": "Usuário atualizado com sucesso",
       "deleted": "Usuário excluído com sucesso"
     },
-    "tenantAccess": {
-      "menu": "Acesso a Tenants",
-      "title": "Acesso a Tenants",
-      "description": "Gerencie os tenants que {name} pode acessar",
-      "home": "Principal",
-      "additionalAccess": "Acessos Adicionais",
-      "noAccess": "Nenhum acesso adicional configurado",
-      "grantAccess": "Conceder Acesso",
-      "selectTenant": "Selecione o tenant",
-      "selectRole": "Selecione a role",
-      "grant": "Conceder",
-      "granted": "Acesso concedido com sucesso",
-      "revoked": "Acesso revogado com sucesso"
-    }
+    "owner": "Dono",
+    "invite": {
+      "button": "Convidar por e-mail",
+      "title": "Convidar pessoa",
+      "description": "Ela recebe um link para criar a própria senha e entrar na empresa.",
+      "email": "E-mail",
+      "name": "Nome (opcional)",
+      "namePlaceholder": "Como a pessoa se chama",
+      "role": "Cargo",
+      "chooseRole": "Escolha o cargo",
+      "submit": "Enviar convite",
+      "sent": "Convite enviado para {email}. Você também pode copiar o link:",
+      "notSent": "O e-mail não está configurado: copie o link e envie para {email} (WhatsApp, por exemplo).",
+      "copy": "Copiar link",
+      "another": "Convidar outra pessoa",
+      "done": "Concluir",
+      "pendingTitle": "{count, plural, one {# convite pendente} other {# convites pendentes}}",
+      "by": "por {name}",
+      "expiresAt": "vale até {date}",
+      "expiredAt": "venceu em {date}",
+      "expired": "Vencido",
+      "resend": "Reenviar",
+      "revoke": "Cancelar",
+      "revoked": "Convite cancelado",
+      "resentTitle": "Link novo do convite"
+    },
+    "allTeams": "Todas as equipes"
   },
   "entities": {
     "title": "Tabelas",
-    "subtitle": "Gerencie as tabelas de dados do seu CRM",
+    "subtitle": "As tabelas da empresa: clientes, ordens de serviço, veículos...",
     "newEntity": "Nova Tabela",
     "editEntity": "Editar Tabela",
     "stats": {
@@ -335,7 +373,7 @@
       "createFirstApi": "Criar primeira API"
     },
     "backToEntities": "Voltar para tabelas",
-    "newEntityDescription": "Crie uma nova tabela para seu CRM",
+    "newEntityDescription": "Crie uma nova tabela",
     "basicInfo": "Informações Básicas",
     "basicInfoDescription": "Nome e descrição da tabela",
     "name": "Nome",
@@ -516,13 +554,15 @@
     },
     "deleteConfirm": {
       "title": "Excluir registro?",
-      "message": "Tem certeza que deseja excluir este registro? Esta ação não pode ser desfeita."
+      "message": "Tem certeza que deseja excluir este registro? Ele vai para a lixeira e pode ser restaurado."
     },
     "recordLocked": "Este registro esta finalizado e nao pode ser editado",
     "toast": {
       "created": "Registro criado com sucesso",
       "updated": "Registro atualizado com sucesso",
-      "deleted": "Registro excluído com sucesso"
+      "deleted": "Registro excluído com sucesso",
+      "undo": "Desfazer",
+      "deletedToUndo": "Registro excluído. Ele fica na lixeira."
     },
     "filter": {
       "title": "Filtrar",
@@ -542,6 +582,7 @@
       "operators": {
         "contains": "Contém",
         "equals": "Igual a",
+        "notEquals": "Diferente de",
         "startsWith": "Começa com",
         "endsWith": "Termina com",
         "isEmpty": "Está vazio",
@@ -628,19 +669,23 @@
         "relation": "Relação",
         "api-select": "API Select"
       }
-    }
+    },
+    "formDescription": "Preencha os campos e salve.",
+    "clearFilters": "Limpar busca e filtros",
+    "emptyHint": "Comece lançando o primeiro. Também dá para importar uma planilha.",
+    "createFirst": "Criar o primeiro"
   },
   "rolesPage": {
     "title": "Cargos",
-    "subtitle": "Gerencie os cargos e permissões da sua organização",
-    "newRole": "Novo Cargo",
+    "subtitle": "O que cada pessoa pode ver e fazer. Cargos mais acima gerenciam os de baixo.",
+    "newRole": "Novo cargo",
     "editRole": "Editar Cargo",
     "stats": {
       "total": "Total de Cargos",
       "usersWithRoles": "Usuários com Cargos",
-      "usersAssigned": "Usuários Atribuídos",
+      "usersAssigned": "Pessoas com cargo",
       "rolesWithPermissions": "Cargos com Permissões",
-      "defaults": "Cargos Padrão"
+      "defaults": "Cargo padrão"
     },
     "default": "Padrão",
     "usersCount": "usuários",
@@ -661,90 +706,94 @@
       "slugPlaceholder": "gerente-vendas",
       "slugHint": "Identificador único para este cargo. Deixe vazio para gerar automaticamente.",
       "description": "Descrição (opcional)",
-      "descriptionPlaceholder": "Descreva as responsabilidades deste cargo...",
+      "descriptionPlaceholder": "Ex.: Recebe as ordens no app e registra o serviço.",
       "createDescription": "Preencha os dados para criar um novo cargo.",
       "editDescription": "Atualize as informações do cargo.",
       "color": "Cor",
-      "systemModules": "Módulos do Sistema",
-      "systemModulesDesc": "Selecione quais módulos este cargo terá acesso",
-      "entityPermissions": "Permissões por Tabela",
-      "entityPermissionsDesc": "Defina permissões CRUD para cada tabela",
+      "systemModules": "Telas da administração",
+      "systemModulesDesc": "Quais telas de configuração este cargo pode abrir. Para a maioria da equipe, deixe tudo desmarcado.",
+      "entityPermissions": "O que faz nas tabelas",
+      "entityPermissionsDesc": "Para cada tabela, marque o que as pessoas com este cargo podem fazer e quais registros elas veem.",
       "noEntities": "Nenhuma tabela cadastrada ainda.",
       "entity": "Tabela",
       "create": "Criar",
-      "read": "Ler",
+      "read": "Ver",
       "update": "Editar",
       "delete": "Excluir",
-      "access": "Acesso",
+      "access": "Liberado",
       "noAccess": "Sem acesso",
-      "fullAccess": "Acesso total",
-      "partial": "Parcial",
-      "scope": "Escopo",
+      "fullAccess": "Tudo",
+      "partial": "Em parte",
+      "scope": "Quais registros",
       "scopeAll": "Todos",
-      "scopeOwn": "Apenas meus",
-      "isDefault": "Cargo Padrão",
-      "isDefaultDesc": "Atribuir automaticamente a novos usuários",
+      "scopeOwn": "Só os que a pessoa criou",
+      "isDefault": "Cargo padrão",
+      "isDefaultDesc": "Quem for convidado sem escolher um cargo entra com este.",
       "customRole": "Cargo Customizado",
       "customRolePlaceholder": "Selecione um cargo customizado",
       "noCustomRole": "Sem cargo customizado",
-      "fieldPermissions": "Permissões por Campo",
+      "fieldPermissions": "Campos que pode ver ou editar",
       "field": "Campo",
       "view": "Ver",
-      "editField": "Editar"
+      "editField": "Editar",
+      "scopeTeam": "Os da equipe dela",
+      "scopeClient": "Do cliente vinculado"
     },
     "modules": {
       "dashboard": "Painel",
-      "dashboardDesc": "Visão geral e estatísticas",
+      "dashboardDesc": "Ver os painéis",
+      "chat": "Chat",
+      "chatDesc": "Criar conversas da equipe e comandos do chat",
       "users": "Usuários",
-      "usersDesc": "Gerenciar contas de usuários",
+      "usersDesc": "Convidar e gerenciar as pessoas da equipe",
       "settings": "Configurações",
-      "settingsDesc": "Ajustes gerais do sistema",
+      "settingsDesc": "Dados e ajustes da empresa",
       "entities": "Tabelas",
-      "entitiesDesc": "Definir estrutura de tabelas",
-      "tenants": "Tenants",
-      "tenantsDesc": "Gerenciar empresas e clientes",
+      "entitiesDesc": "Criar tabelas e montar os campos",
       "data": "Registros",
-      "dataDesc": "Registros de cada tabela",
-      "roles": "Perfis de Acesso",
-      "rolesDesc": "Configurar cargos e permissões",
-      "pdfTemplates": "Templates PDF",
-      "pdfTemplatesDesc": "Gerar documentos a partir de templates",
-      "auditLogs": "Logs de Auditoria",
-      "auditLogsDesc": "Visualizar logs de auditoria do sistema",
-      "dashboardTemplates": "Templates de Dashboard",
-      "dashboardTemplatesDesc": "Configurar templates de dashboard por cargo",
-      "webhooks": "Webhooks",
-      "webhooksDesc": "Integrar com serviços externos via HTTP",
+      "dataDesc": "Ver e lançar registros",
+      "roles": "Cargos",
+      "rolesDesc": "Criar cargos e definir o que cada um pode fazer",
+      "pdfTemplates": "Modelos de PDF",
+      "pdfTemplatesDesc": "Criar e gerar documentos em PDF",
+      "auditLogs": "Auditoria",
+      "auditLogsDesc": "Ver quem fez o quê no sistema",
+      "dashboardTemplates": "Painéis",
+      "dashboardTemplatesDesc": "Montar os painéis de cada cargo",
+      "webhooks": "Avisar outros sistemas",
+      "webhooksDesc": "Mandar dados para ERP, Zapier e afins quando algo muda",
       "actionChains": "Automações",
-      "actionChainsDesc": "Criar fluxos de ações automatizadas",
-      "emailTemplates": "Templates de Email",
-      "emailTemplatesDesc": "Gerenciar templates de email do sistema",
+      "actionChainsDesc": "Coisas que o sistema faz sozinho",
+      "emailTemplates": "Modelos de e-mail",
+      "emailTemplatesDesc": "Textos dos e-mails enviados pelo sistema",
       "notifications": "Notificações",
       "notificationsDesc": "Ver notificações do sistema",
-      "automations": "Automações",
-      "automationsDesc": "Gerenciar webhooks, action chains e automações de entidades",
-      "templates": "Templates",
-      "templatesDesc": "Gerenciar templates de PDF e email",
-      "logs": "Registros",
-      "logsDesc": "Visualizar logs de auditoria e execução",
-      "publicLinks": "Links Públicos",
-      "publicLinksDesc": "Criar e gerenciar links públicos de formulários",
-      "archive": "Arquivo",
-      "archiveDesc": "Registros arquivados e lixeira",
-      "executionLogs": "Logs de Execução",
-      "executionLogsDesc": "Logs de execução de automações",
-      "entityAutomation": "Automações de Entidade",
-      "entityAutomationDesc": "Automações vinculadas a entidades"
+      "automations": "Automações e integrações",
+      "automationsDesc": "Avisos, e-mails automáticos e ligação com outros sistemas",
+      "templates": "Modelos",
+      "templatesDesc": "Modelos de PDF e de e-mail",
+      "logs": "Históricos",
+      "logsDesc": "Auditoria e execuções das automações",
+      "publicLinks": "Links públicos",
+      "publicLinksDesc": "Formulários que pessoas de fora preenchem sem login",
+      "archive": "Lixeira",
+      "archiveDesc": "Registros excluídos e arquivados",
+      "executionLogs": "Execuções",
+      "executionLogsDesc": "O que as automações fizeram e se deu certo",
+      "entityAutomation": "Automações das tabelas",
+      "entityAutomationDesc": "Automações criadas em cada tabela",
+      "apis": "Chaves de API",
+      "apisDesc": "Deixar outro sistema ler e gravar registros"
     },
     "subModules": {
       "title": "Sub-módulos",
-      "webhooks": "Webhooks",
-      "actionChains": "Action Chains",
+      "webhooks": "Avisar outros sistemas",
+      "actionChains": "Automações",
       "entityAutomation": "Automações de Entidade",
-      "pdfTemplates": "Templates PDF",
-      "emailTemplates": "Templates de Email",
-      "auditLogs": "Logs de Auditoria",
-      "executionLogs": "Logs de Execução"
+      "pdfTemplates": "Modelos de PDF",
+      "emailTemplates": "Modelos de e-mail",
+      "auditLogs": "Auditoria",
+      "executionLogs": "Execuções"
     },
     "userRoles": {
       "title": "Gerenciar Permissões",
@@ -783,8 +832,8 @@
       "systemTab": "Sistema",
       "entitiesTab": "Por Tabela",
       "entitiesTitle": "Permissões por Tabela",
-      "systemDescription": "Permissões gerais do sistema que controlam o acesso a recursos globais.",
-      "entitiesDescription": "Defina permissões específicas para cada tabela (CRUD).",
+      "systemDescription": "Quais telas de configuração este cargo pode abrir.",
+      "entitiesDescription": "Para cada tabela, marque o que as pessoas com este cargo podem fazer.",
       "noEntities": "Nenhuma tabela cadastrada ainda.",
       "entity": {
         "canCreate": "Criar",
@@ -792,36 +841,37 @@
         "canUpdate": "Atualizar",
         "canDelete": "Excluir"
       },
-      "specialActions": "Ações Específicas",
-      "canActivate": "Ativar / Desativar",
-      "canTest": "Testar Endpoint",
+      "specialActions": "Pode também",
+      "canTest": "Testar",
       "canPublish": "Publicar / Despublicar",
       "canDuplicate": "Duplicar Página",
-      "canSuspend": "Suspender",
-      "canAssignRole": "Atribuir Cargo",
-      "canChangeStatus": "Alterar Status do Usuário",
-      "canSetDefault": "Definir como Padrão",
-      "canManagePermissions": "Gerenciar Permissões",
-      "canUpdateLayout": "Alterar Layout (Grid)",
-      "canCreateField": "Adicionar Campos",
-      "canDeleteField": "Remover Campos",
-      "canUpdateField": "Editar Configuração de Campos",
-      "canConfigureColumns": "Configurar Colunas Visíveis",
-      "canExport": "Exportar Registros",
-      "canImport": "Importar Registros",
-      "canEditLocked": "Editar Registros Travados",
+      "canAssignRole": "Trocar o cargo das pessoas",
+      "canChangeStatus": "Ativar ou desativar pessoas",
+      "canSetDefault": "Definir cargo padrão",
+      "canManagePermissions": "Definir o que cada cargo pode fazer",
+      "canUpdateLayout": "Mudar a arrumação dos campos",
+      "canCreateField": "Adicionar campos",
+      "canDeleteField": "Remover campos",
+      "canUpdateField": "Mudar campos",
+      "canConfigureColumns": "Escolher colunas da lista",
+      "canExport": "Exportar para planilha",
+      "canImport": "Importar de planilha",
+      "canEditLocked": "Mexer em registros travados",
       "canGenerate": "Gerar PDF",
-      "canExecute": "Executar Manualmente",
-      "canManageTenantAccess": "Gerenciar Acesso a Tenants",
-      "canPermanentDelete": "Excluir Permanentemente"
+      "canExecute": "Rodar automação na mão",
+      "canManageTenantAccess": "Dar acesso a outras empresas do grupo",
+      "canPermanentDelete": "Apagar de vez (sem lixeira)",
+      "canManage": "Gerenciar",
+      "canManageOrg": "Configurações da empresa"
     },
     "dataFilters": {
-      "title": "Filtros de Dados",
-      "sectionTitle": "Filtros de Dados ({count})",
-      "description": "Filtros restringem quais registros usuários com esta role podem ver nesta entidade.",
+      "title": "Ver só alguns registros",
+      "sectionTitle": "Ver só alguns registros ({count})",
+      "description": "Limita quais registros desta tabela as pessoas com este cargo conseguem ver.",
       "operators": {
         "contains": "Contém",
         "equals": "Igual a",
+        "notEquals": "Diferente de",
         "startsWith": "Começa com",
         "endsWith": "Termina com",
         "isEmpty": "Está vazio",
@@ -836,7 +886,7 @@
     "notificationRules": {
       "title": "Notificações",
       "active": "(ativo)",
-      "enableLabel": "Receber notificações desta entidade",
+      "enableLabel": "Receber avisos desta tabela",
       "whenLabel": "Quando:",
       "onCreate": "Criação",
       "onUpdate": "Edição",
@@ -864,113 +914,58 @@
       "invite": "Convidar",
       "assign": "Atribuir",
       "upload": "Fazer Upload"
-    }
-  },
-  "tenants": {
-    "title": "Tenants",
-    "subtitle": "Gerencie os tenants da plataforma",
-    "newTenant": "Novo Tenant",
-    "accessRestricted": "Acesso Restrito",
-    "platformAdminOnly": "Esta página é restrita a administradores da plataforma (PLATFORM_ADMIN).",
-    "stats": {
-      "total": "Total de Tenants",
-      "active": "Ativos",
-      "suspended": "Suspensos",
-      "premium": "Planos Premium"
     },
-    "searchPlaceholder": "Buscar tenants...",
-    "noTenantsFound": "Nenhum tenant encontrado",
-    "noTenantsMatchSearch": "Nenhum tenant corresponde à sua busca.",
-    "createTenantsToStart": "Crie tenants para começar.",
-    "suspend": "Suspender",
-    "activate": "Ativar",
-    "form": {
-      "name": "Nome da Empresa",
-      "namePlaceholder": "Minha Empresa",
-      "slug": "Slug (URL)",
-      "slugPlaceholder": "minha-empresa",
-      "domain": "Domínio Personalizado (opcional)",
-      "domainPlaceholder": "app.minhaempresa.com",
-      "plan": "Plano",
-      "planPlaceholder": "Selecione um plano",
-      "adminTitle": "Administrador do Tenant",
-      "adminOptionalHint": "Deixe em branco para criar o tenant sem usuários. Você pode adicionar usuários depois.",
-      "optional": "opcional",
-      "adminName": "Nome do Administrador",
-      "adminNamePlaceholder": "João Silva",
-      "adminEmail": "Email do Administrador",
-      "adminEmailPlaceholder": "admin@empresa.com",
-      "adminPassword": "Senha do Administrador",
-      "adminPasswordPlaceholder": "Senha segura",
-      "createDescription": "Preencha os dados para criar um novo tenant.",
-      "editDescription": "Atualize as informações do tenant.",
-      "logoHint": "Clique para adicionar o logo da empresa",
-      "themeTitle": "Tema",
-      "themeReset": "Resetar",
-      "brandColor": "Cor Principal",
-      "secondaryColor": "Cor Secundária",
-      "accentColor": "Cor de Destaque",
-      "presetColors": "Cores predefinidas",
-      "darkModePreference": "Modo escuro padrão",
-      "darkMode": {
-        "light": "Claro",
-        "dark": "Escuro",
-        "system": "Sistema"
-      },
-      "themePreview": "Pré-visualização",
-      "previewButton": "Botão",
-      "previewSecondary": "Secundário",
-      "previewAccent": "Destaque",
-      "previewDelete": "Excluir",
-      "previewMutedText": "Texto secundário de exemplo",
-      "previewCard": "Card de exemplo com borda"
+    "acts": {
+      "dashboard_canRead": "Ver os painéis e suas estatísticas.",
+      "dashboard_canCreate": "Criar painéis.",
+      "dashboard_canUpdate": "Editar painéis.",
+      "dashboard_canDelete": "Excluir painéis.",
+      "data_canRead": "Abrir a seção de Registros e ver dados (respeitando as permissões de cada tabela).",
+      "data_canCreate": "Exibir a ação de criar registro (a permissão efetiva é definida por tabela).",
+      "data_canUpdate": "Exibir a ação de editar registro (efetiva por tabela).",
+      "data_canDelete": "Exibir a ação de excluir registro (efetiva por tabela).",
+      "entities_canRead": "Ver a estrutura das tabelas.",
+      "entities_canCreate": "Criar novas tabelas.",
+      "entities_canUpdate": "Editar a estrutura de tabelas (campos e layout).",
+      "entities_canDelete": "Excluir tabelas.",
+      "users_canRead": "Ver a lista de usuários.",
+      "users_canCreate": "Convidar ou criar usuários.",
+      "users_canUpdate": "Editar dados de usuários.",
+      "users_canDelete": "Remover usuários.",
+      "users_canAssignRole": "Definir o cargo de um usuário.",
+      "users_canChangeStatus": "Ativar ou desativar usuários.",
+      "users_canManageTenantAccess": "Gerenciar a quais tenants o usuário tem acesso.",
+      "roles_canRead": "Ver os cargos.",
+      "roles_canCreate": "Criar cargos.",
+      "roles_canUpdate": "Editar cargos.",
+      "roles_canDelete": "Excluir cargos.",
+      "roles_canSetDefault": "Definir o cargo padrão de novos usuários.",
+      "roles_canManagePermissions": "Editar as permissões dos cargos (esta tela).",
+      "settings_canRead": "Ver as configurações da empresa.",
+      "settings_canUpdate": "Alterar as configurações da empresa (marca, cor). As preferências pessoais (perfil, idioma, tema) não precisam desta permissão.",
+      "automations_canRead": "Ver webhooks e automações.",
+      "automations_canCreate": "Criar webhooks e automações.",
+      "automations_canUpdate": "Editar webhooks e automações.",
+      "automations_canDelete": "Excluir webhooks e automações.",
+      "automations_canExecute": "Executar ou disparar automações manualmente.",
+      "templates_canRead": "Ver modelos de PDF.",
+      "templates_canCreate": "Criar modelos de PDF.",
+      "templates_canUpdate": "Editar modelos de PDF.",
+      "templates_canDelete": "Excluir modelos de PDF.",
+      "templates_canGenerate": "Gerar PDF a partir dos modelos.",
+      "logs_canRead": "Visualizar logs de auditoria e de execução.",
+      "logs_canUpdate": "Editar ou anotar logs de auditoria.",
+      "logs_canDelete": "Excluir logs de auditoria.",
+      "publicLinks_canManage": "Criar e gerenciar links públicos de compartilhamento.",
+      "archive_canRead": "Ver registros arquivados.",
+      "archive_canPermanentDelete": "Excluir permanentemente registros arquivados (irreversível).",
+      "apis_canRead": "Ver as chaves de API da empresa.",
+      "apis_canCreate": "Criar chaves de API (com cargo abaixo do seu).",
+      "apis_canDelete": "Revogar chaves de API."
     },
-    "deleteConfirm": {
-      "title": "Excluir Tenant",
-      "message": "Tem certeza que deseja excluir o tenant {name}?",
-      "warning": "Esta ação não pode ser desfeita e todos os dados associados serão removidos."
-    },
-    "toast": {
-      "created": "Tenant criado com sucesso",
-      "updated": "Tenant atualizado com sucesso",
-      "deleted": "Tenant excluído com sucesso",
-      "suspended": "Tenant suspenso com sucesso",
-      "activated": "Tenant ativado com sucesso"
-    },
-    "copyData": {
-      "button": "Copiar Dados",
-      "title": "Copiar Dados entre Tenants",
-      "description": "Copie roles, tabelas, registros, paginas, APIs e templates de um tenant para outro.",
-      "sourceTenant": "Tenant de Origem",
-      "targetTenant": "Tenant de Destino",
-      "selectTenant": "Selecione um tenant",
-      "conflictStrategy": "Em caso de conflito",
-      "skip": "Pular existentes",
-      "skipDescription": "Itens com mesmo nome/slug no destino serao ignorados.",
-      "suffix": "Renomear com sufixo",
-      "suffixDescription": "Itens duplicados serao criados com sufixo '(copia)'.",
-      "next": "Proximo",
-      "back": "Voltar",
-      "copy": "Copiar",
-      "copying": "Copiando...",
-      "selectAll": "Selecionar todos",
-      "includeData": "Incluir dados",
-      "records": "registros",
-      "itemsSelected": "itens selecionados",
-      "modules": {
-        "roles": "Perfis de Acesso",
-        "entities": "Tabelas",
-        "pdfTemplates": "Templates PDF",
-        "automations": "Automacoes",
-        "webhooks": "Webhooks",
-        "fieldRules": "Regras de Campo"
-      },
-      "result": {
-        "title": "Copia concluida com sucesso!",
-        "skipped": "Itens pulados",
-        "warnings": "Avisos"
-      }
-    }
+    "orderHint": "A ordem define quem gerencia quem: cada cargo administra os que estão abaixo dele.",
+    "moveUp": "Subir",
+    "moveDown": "Descer"
   },
   "profile": {
     "title": "Perfil",
@@ -985,20 +980,23 @@
     "subtitle": "Gerencie suas preferências e configurações de conta",
     "tabs": {
       "profile": "Perfil",
+      "notifications": "Notificações",
       "language": "Idioma",
-      "theme": "Tema"
+      "theme": "Tema",
+      "security": "Segurança",
+      "privacy": "Privacidade"
     },
     "profile": {
       "title": "Perfil",
       "description": "Atualize suas informações pessoais",
-      "fullName": "Nome Completo"
+      "fullName": "Nome completo"
     },
     "security": {
       "description": "Altere sua senha de acesso",
-      "changePassword": "Alterar Senha",
-      "currentPassword": "Senha Atual",
-      "newPassword": "Nova Senha",
-      "confirmNewPassword": "Confirmar Nova Senha",
+      "changePassword": "Trocar senha",
+      "currentPassword": "Senha atual",
+      "newPassword": "Nova senha",
+      "confirmNewPassword": "Confirmar nova senha",
       "passwordsNotMatch": "As senhas não coincidem"
     },
     "language": {
@@ -1014,6 +1012,18 @@
       "darkDesc": "Tema com fundo escuro e texto claro",
       "system": "Sistema",
       "systemDesc": "Segue a configuracao do seu dispositivo"
+    },
+    "org": {
+      "tab": "Organização",
+      "title": "Configurações da Organização",
+      "description": "Ajustes que valem para todo o tenant.",
+      "tenantName": "Nome do tenant",
+      "tenantSlug": "Identificador (slug)",
+      "brandColor": "Cor da marca",
+      "readonly": "Somente leitura — requer permissão de configurações."
+    },
+    "plan": {
+      "tab": "Plano"
     }
   },
   "validation": {
@@ -1200,7 +1210,7 @@
     "search": "Buscar...",
     "deleteConfirm": {
       "title": "Excluir registro?",
-      "message": "Tem certeza que deseja excluir este registro de {name}? Esta ação não pode ser desfeita."
+      "message": "Tem certeza que deseja excluir este registro de {name}? Ele vai para a lixeira e pode ser restaurado."
     }
   },
   "arrayField": {
@@ -1310,7 +1320,7 @@
   },
   "permissions": {
     "title": "Permissoes",
-    "backToDashboard": "Voltar ao Dashboard",
+    "backToDashboard": "Voltar ao início",
     "pageTitle": "Gerenciamento de Permissoes",
     "loadError": "Erro ao carregar roles",
     "systemRoles": "Roles do Sistema",
@@ -1323,52 +1333,1370 @@
     "description": "Ocorreu um erro inesperado ao processar sua solicitacao.",
     "hint": "Se o problema persistir, tente atualizar a pagina ou entre em contato com o suporte.",
     "tryAgain": "Tentar Novamente",
-    "backToDashboard": "Voltar ao Dashboard"
+    "backToDashboard": "Voltar ao início"
   },
   "auditLogsPage": {
-    "title": "Logs de Auditoria",
-    "subtitle": "Registro de todas as acoes realizadas no sistema.",
+    "title": "Auditoria",
+    "subtitle": "Histórico de tudo o que a equipe fez: quem criou, editou ou apagou o quê, e quando.",
     "filters": "Filtros",
-    "clearFilters": "Limpar Filtros",
-    "allActions": "Todas as acoes",
-    "allResources": "Todos os recursos",
-    "allTenants": "Todos os tenants",
+    "clearFilters": "Limpar filtros",
+    "allActions": "Todas as ações",
+    "allResources": "Tudo",
     "dateFrom": "Data inicial",
     "dateTo": "Data final",
-    "searchPlaceholder": "Buscar por ID do recurso...",
-    "exportJson": "Exportar JSON",
-    "exporting": "Exportando...",
-    "noLogs": "Nenhum log encontrado",
-    "noLogsDescription": "Nenhum registro de auditoria corresponde aos filtros selecionados.",
+    "searchPlaceholder": "Buscar...",
+    "exportJson": "Baixar histórico",
+    "exporting": "Baixando...",
+    "noLogs": "Nada encontrado",
+    "noLogsDescription": "Nenhuma ação corresponde aos filtros escolhidos.",
     "table": {
       "date": "Data",
-      "user": "Usuario",
-      "action": "Acao",
-      "resource": "Recurso",
-      "resourceId": "ID do Recurso",
-      "details": "Detalhes"
+      "user": "Quem",
+      "action": "Ação",
+      "resource": "Onde",
+      "resourceId": "Item",
+      "details": ""
     },
     "actions": {
       "create": "Criar",
       "update": "Editar",
-      "delete": "Deletar"
+      "delete": "Excluir",
+      "restore": "Restaurar",
+      "purge": "Apagar de vez",
+      "export": "Exportar"
     },
     "resources": {
-      "entity_data": "Registros",
-      "user": "Usuario",
+      "entity_data": "Registro",
+      "user": "Usuário",
       "entity": "Tabela",
       "custom_role": "Cargo",
-      "page": "Pagina"
+      "page": "Página",
+      "team": "Equipe"
     },
-    "changes": "Alteracoes",
-    "oldData": "Dados Anteriores",
-    "newData": "Dados Novos",
+    "changes": "O que mudou",
+    "oldData": "Como estava",
+    "newData": "Como ficou",
     "noData": "Sem dados",
-    "metadata": "Metadados",
+    "metadata": "Detalhes técnicos",
     "stats": {
-      "total": "Total de Logs",
+      "total": "Ações registradas",
       "today": "Hoje",
-      "thisMonth": "Este Mes"
+      "thisMonth": "Este mês"
     }
+  },
+  "home": {
+    "title": "Início",
+    "greeting": "Olá, {name}",
+    "subtitle": "O que você quer fazer hoje?",
+    "records": "Registros",
+    "recordsDesc": "Ver e lançar dados",
+    "newTable": "Nova Tabela",
+    "newTableDesc": "Defina uma estrutura de dados",
+    "users": "Usuários",
+    "usersDesc": "Gerencie a equipe",
+    "roles": "Cargos",
+    "rolesDesc": "Permissões e acessos",
+    "pdf": "Modelos de PDF",
+    "pdfDesc": "Modelos de documentos",
+    "dashboards": "Painéis",
+    "dashboardsDesc": "Painéis configuráveis",
+    "publicLinks": "Links Públicos",
+    "publicLinksDesc": "Formulários externos",
+    "logs": "Auditoria",
+    "logsDesc": "Histórico de ações",
+    "reports": "Relatórios",
+    "reportsDesc": "Visão analítica",
+    "settings": "Configurações",
+    "settingsDesc": "Conta e organização",
+    "tablesTitle": "Suas tabelas",
+    "empty": "Nenhuma ação disponível para o seu perfil.",
+    "quickTitle": "Lançar agora",
+    "newIn": "Novo: {name}",
+    "recentTitle": "Seus registros recentes",
+    "recentEmpty": "Os registros que você criar ou alterar aparecem aqui.",
+    "recordsCount": "{count, plural, =0 {nenhum registro} one {# registro} other {# registros}}",
+    "openTable": "Abrir",
+    "adminTitle": "Administração",
+    "adminDesc": "Equipe, tabelas, documentos e configurações da empresa.",
+    "noTablesTitle": "Nenhuma tabela ainda",
+    "noTablesAdmin": "Crie a primeira tabela ou comece por um modelo pronto.",
+    "noTablesUser": "Quando o administrador liberar tabelas para o seu cargo, elas aparecem aqui.",
+    "createTable": "Criar tabela",
+    "seeAll": "Ver tudo",
+    "pendingTitle": "Minhas pendências",
+    "overdue": "{days, plural, one {atrasado # dia} other {atrasado # dias}}",
+    "dueToday": "vence hoje",
+    "dueTomorrow": "vence amanhã",
+    "dueIn": "em {days} dias"
+  },
+  "platform": {
+    "brand": "Console da plataforma",
+    "nav": {
+      "overview": "Visão geral",
+      "metrics": "Métricas",
+      "people": "Pessoas",
+      "tenants": "Clientes",
+      "plans": "Planos",
+      "staff": "Equipe",
+      "support": "Chamados",
+      "leads": "Contatos comerciais",
+      "domains": "Domínios",
+      "announcements": "Comunicados",
+      "health": "Saúde do sistema",
+      "audit": "Auditoria"
+    },
+    "roles": {
+      "OWNER": "Dono",
+      "SUPPORT": "Suporte",
+      "FINANCE": "Financeiro",
+      "READONLY": "Somente leitura"
+    },
+    "lifecycle": {
+      "TRIAL": "Em teste",
+      "ACTIVE": "Ativo",
+      "PAST_DUE": "Pagamento pendente",
+      "SUSPENDED": "Suspenso",
+      "CANCELED": "Cancelado"
+    },
+    "features": {
+      "chat": {
+        "name": "Chat",
+        "description": "Canais, comandos e bot"
+      },
+      "pdf": {
+        "name": "Modelos de PDF",
+        "description": "Editor e geração de relatórios em PDF"
+      },
+      "automations": {
+        "name": "Automações",
+        "description": "Automações, cadeias de ações e tarefas agendadas"
+      },
+      "webhooks": {
+        "name": "Integrações com outros sistemas",
+        "description": "Envio de eventos para sistemas externos"
+      },
+      "publicLinks": {
+        "name": "Links públicos",
+        "description": "Formulários externos sem login"
+      },
+      "mobile": {
+        "name": "Aplicativo de celular",
+        "description": "Sincronização offline do aplicativo"
+      }
+    },
+    "limits": {
+      "maxUsers": "Usuários",
+      "maxRecords": "Registros",
+      "unlimited": "Ilimitado",
+      "maxStorageMb": "Armazenamento (MB)"
+    },
+    "login": {
+      "title": "Console da plataforma",
+      "subtitle": "Acesso restrito à equipe",
+      "email": "Email",
+      "password": "Senha",
+      "submit": "Entrar",
+      "error": "Não foi possível entrar"
+    },
+    "account": {
+      "changePassword": "Trocar senha",
+      "logout": "Sair",
+      "currentPassword": "Senha atual",
+      "newPassword": "Nova senha",
+      "passwordRule": "Mínimo de 10 caracteres, com letra maiúscula, minúscula e número.",
+      "passwordChanged": "Senha alterada",
+      "save": "Salvar"
+    },
+    "overview": {
+      "title": "Visão geral",
+      "subtitle": "Situação dos clientes da plataforma",
+      "totalTenants": "Clientes",
+      "activeUsers": "Usuários ativos",
+      "trialsEnding": "Testes terminando nos próximos 7 dias",
+      "recentSignups": "Novos clientes (30 dias)",
+      "none": "Nada por aqui."
+    },
+    "tenants": {
+      "title": "Clientes",
+      "subtitle": "Empresas que usam a plataforma",
+      "new": "Novo cliente",
+      "search": "Buscar por nome ou slug",
+      "allLifecycles": "Todas as situações",
+      "allPlans": "Todos os planos",
+      "empty": "Nenhum cliente encontrado.",
+      "noPlan": "Sem plano",
+      "trialUntil": "até {date}",
+      "page": "Página {page} de {total}",
+      "previous": "Anterior",
+      "next": "Próxima",
+      "columns": {
+        "name": "Cliente",
+        "status": "Situação",
+        "plan": "Plano",
+        "users": "Usuários",
+        "records": "Registros",
+        "lastAccess": "Último acesso",
+        "createdAt": "Criado em"
+      },
+      "create": {
+        "title": "Novo cliente",
+        "name": "Nome da empresa",
+        "slug": "Endereço (slug)",
+        "slugHint": "Aparece na URL. Letras minúsculas, números e hífens.",
+        "plan": "Plano",
+        "noPlan": "Sem plano (tudo liberado)",
+        "lifecycle": "Situação inicial",
+        "admin": "Administrador da empresa",
+        "adminName": "Nome",
+        "adminEmail": "Email",
+        "adminPassword": "Senha inicial",
+        "passwordRule": "Mínimo de 8 caracteres, com letra maiúscula, minúscula e número.",
+        "submit": "Criar cliente",
+        "created": "Cliente criado"
+      },
+      "selectedN": "{n, plural, one {# empresa selecionada} other {# empresas selecionadas}}",
+      "bulk": {
+        "plan": "Trocar plano",
+        "trial": "Prorrogar teste",
+        "lifecycle": "Mudar situação",
+        "clear": "Limpar seleção",
+        "selectAll": "Selecionar todas desta página"
+      }
+    },
+    "tenant": {
+      "back": "Clientes",
+      "since": "cliente desde {date}",
+      "usage": {
+        "title": "Uso",
+        "users": "Usuários",
+        "records": "Registros",
+        "entities": "Tabelas",
+        "lastAccess": "Último acesso",
+        "storage": "Armazenamento (MB)",
+        "recompute": "recalcular",
+        "recomputing": "recalculando...",
+        "recomputed": "Armazenamento recalculado: {mb} MB"
+      },
+      "lifecycle": {
+        "title": "Situação",
+        "trialEnd": "Fim do teste",
+        "save": "Salvar situação",
+        "saved": "Situação atualizada",
+        "hint": {
+          "TRIAL": "Acesso liberado até o fim do teste; depois o cliente é suspenso automaticamente.",
+          "ACTIVE": "Cliente pagante com acesso normal.",
+          "PAST_DUE": "Pagamento atrasado: o acesso continua e o cliente vê um aviso.",
+          "SUSPENDED": "Acesso bloqueado. Os dados são mantidos.",
+          "CANCELED": "Contrato encerrado. Acesso bloqueado; os dados são mantidos."
+        }
+      },
+      "plan": {
+        "title": "Plano",
+        "none": "Sem plano",
+        "noneHint": "Sem plano: todas as funções liberadas e sem limites.",
+        "save": "Trocar plano",
+        "saved": "Plano atualizado"
+      },
+      "features": {
+        "title": "Funções",
+        "subtitle": "Vêm do plano; aqui você liga ou desliga só para este cliente.",
+        "fromPlan": "Do plano",
+        "custom": "Só deste cliente",
+        "reset": "voltar ao plano"
+      },
+      "details": {
+        "title": "Dados",
+        "name": "Nome",
+        "domain": "Domínio próprio",
+        "slug": "Endereço (slug)",
+        "slugHint": "O slug não muda depois de criado: está nos links dos usuários.",
+        "save": "Salvar",
+        "saved": "Dados atualizados"
+      },
+      "members": {
+        "title": "Usuários",
+        "name": "Usuário",
+        "role": "Cargo",
+        "lastAccess": "Último acesso",
+        "inactive": "inativo",
+        "enterAs": "Entrar como",
+        "inactiveHint": "Reative o cliente para entrar como usuário.",
+        "owner": "Dono",
+        "makeOwner": "Tornar dono",
+        "ownerChanged": "Dono da empresa alterado",
+        "add": "Adicionar membro",
+        "addTitle": "Adicionar membro existente",
+        "addHint": "Dá acesso a esta empresa para alguém que já tem conta (por exemplo, colaborador de outra empresa).",
+        "email": "E-mail",
+        "chooseRole": "Escolha o cargo",
+        "addSubmit": "Adicionar",
+        "added": "Membro adicionado"
+      },
+      "owner": "dono: {name}",
+      "copyFromOther": "Copiar dados de outra empresa",
+      "roles": {
+        "title": "Cargos",
+        "subtitle": "Cargos da empresa, do mais alto para o mais baixo.",
+        "unusedHint": "{count, plural, one {# cargo sem uso pode ser removido.} other {# cargos sem uso podem ser removidos.}}",
+        "name": "Cargo",
+        "members": "Membros",
+        "fullAccess": "Acesso total",
+        "default": "Padrão",
+        "unused": "Sem uso",
+        "remove": "Remover",
+        "confirm": "Confirmar remoção",
+        "cancel": "Cancelar",
+        "removed": "Cargo removido"
+      }
+    },
+    "plans": {
+      "title": "Planos",
+      "subtitle": "Limites e funções de cada plano",
+      "new": "Novo plano",
+      "edit": "Editar",
+      "empty": "Nenhum plano ainda. Sem plano, os clientes têm tudo liberado e sem limites.",
+      "default": "Padrão do cadastro",
+      "inactive": "Inativo",
+      "tenantsCount": "{count, plural, =0 {nenhum cliente} one {# cliente} other {# clientes}}",
+      "form": {
+        "newTitle": "Novo plano",
+        "editTitle": "Editar plano",
+        "name": "Nome",
+        "slug": "Identificador",
+        "description": "Descrição",
+        "limits": "Limites",
+        "limitsHint": "Deixe em branco para ilimitado.",
+        "features": "Funções incluídas",
+        "isDefault": "Padrão do cadastro",
+        "isDefaultHint": "Empresas que se cadastram sozinhas entram neste plano.",
+        "isActive": "Ativo (pode ser atribuído)",
+        "save": "Salvar plano",
+        "saved": "Plano salvo"
+      }
+    },
+    "staff": {
+      "title": "Equipe",
+      "subtitle": "Quem acessa este console",
+      "new": "Adicionar pessoa",
+      "you": "você",
+      "saved": "Equipe atualizada",
+      "deactivate": "Desativar",
+      "activate": "Ativar",
+      "resetPassword": "Nova senha",
+      "remove": "Remover",
+      "rolesTitle": "O que cada cargo pode fazer",
+      "roleHelp": {
+        "OWNER": "tudo, inclusive gerenciar a equipe.",
+        "SUPPORT": "ver clientes, criar clientes, mudar funções e entrar como usuário para dar suporte.",
+        "FINANCE": "ver clientes, mudar plano e situação (teste, ativo, suspenso) e gerenciar planos.",
+        "READONLY": "apenas visualizar."
+      },
+      "status": {
+        "ACTIVE": "Ativo",
+        "INACTIVE": "Inativo",
+        "SUSPENDED": "Suspenso"
+      },
+      "columns": {
+        "name": "Pessoa",
+        "role": "Cargo",
+        "status": "Status",
+        "lastLogin": "Último acesso"
+      },
+      "create": {
+        "title": "Adicionar à equipe",
+        "subtitle": "A pessoa entra em /admin com este email e senha.",
+        "name": "Nome",
+        "email": "Email",
+        "role": "Cargo",
+        "password": "Senha inicial",
+        "passwordRule": "Mínimo de 10 caracteres, com letra maiúscula, minúscula e número.",
+        "submit": "Adicionar",
+        "created": "Pessoa adicionada"
+      },
+      "reset": {
+        "title": "Nova senha para {name}",
+        "password": "Nova senha",
+        "passwordRule": "Mínimo de 10 caracteres, com letra maiúscula, minúscula e número.",
+        "submit": "Definir senha",
+        "done": "Senha redefinida"
+      },
+      "removeDialog": {
+        "title": "Remover {name} da equipe?",
+        "description": "A pessoa perde o acesso ao console na hora. O histórico de auditoria é mantido.",
+        "cancel": "Cancelar",
+        "confirm": "Remover",
+        "done": "Removido da equipe"
+      }
+    },
+    "audit": {
+      "title": "Auditoria",
+      "subtitle": "Tudo o que a equipe fez no console",
+      "tenantTitle": "Histórico da equipe neste cliente",
+      "empty": "Nenhuma ação registrada.",
+      "page": "Página {page} de {total}",
+      "previous": "Anterior",
+      "next": "Próxima",
+      "columns": {
+        "when": "Quando",
+        "who": "Quem",
+        "action": "Ação",
+        "target": "Alvo",
+        "ip": "IP"
+      },
+      "actions": {
+        "staff": {
+          "login": "entrou no console",
+          "created": "adicionou membro da equipe",
+          "updated": "alterou membro da equipe",
+          "removed": "removeu membro da equipe",
+          "password_changed": "trocou a própria senha"
+        },
+        "plan": {
+          "created": "criou plano",
+          "updated": "alterou plano"
+        },
+        "tenant": {
+          "created": "criou cliente",
+          "updated": "alterou dados do cliente",
+          "lifecycle_changed": "mudou a situação",
+          "plan_changed": "mudou o plano",
+          "features_changed": "mudou as funções",
+          "impersonated": "entrou como usuário",
+          "storage_recomputed": "recalculou o armazenamento",
+          "role_deleted": "removeu um cargo sem uso",
+          "owner_changed": "trocou o dono da empresa",
+          "member_added": "adicionou um membro",
+          "data_copied": "copiou dados de outra empresa",
+          "trial_extended": "prorrogou o teste"
+        },
+        "user": {
+          "password_reset_sent": "enviou link de nova senha",
+          "sessions_revoked": "desconectou de todos os aparelhos",
+          "mfa_reset": "desligou as duas etapas"
+        },
+        "support": {
+          "reply": "respondeu chamado",
+          "note": "anotou no chamado (interno)",
+          "update": "alterou o chamado"
+        },
+        "announcement": {
+          "created": "criou comunicado",
+          "updated": "alterou comunicado",
+          "published": "publicou comunicado",
+          "unpublished": "tirou comunicado do ar",
+          "deleted": "excluiu comunicado"
+        }
+      }
+    },
+    "copyData": {
+      "button": "Copiar Dados",
+      "title": "Copiar Dados entre Tenants",
+      "description": "Copie roles, tabelas, registros, paginas, APIs e templates de um tenant para outro.",
+      "sourceTenant": "Tenant de Origem",
+      "targetTenant": "Tenant de Destino",
+      "selectTenant": "Selecione um tenant",
+      "conflictStrategy": "Em caso de conflito",
+      "skip": "Pular existentes",
+      "skipDescription": "Itens com mesmo nome/slug no destino serao ignorados.",
+      "suffix": "Renomear com sufixo",
+      "suffixDescription": "Itens duplicados serao criados com sufixo '(copia)'.",
+      "next": "Proximo",
+      "back": "Voltar",
+      "copy": "Copiar",
+      "copying": "Copiando...",
+      "selectAll": "Selecionar todos",
+      "includeData": "Incluir dados",
+      "records": "registros",
+      "itemsSelected": "itens selecionados",
+      "modules": {
+        "roles": "Perfis de Acesso",
+        "entities": "Tabelas",
+        "pdfTemplates": "Templates PDF",
+        "automations": "Automacoes",
+        "webhooks": "Webhooks",
+        "fieldRules": "Regras de Campo"
+      },
+      "result": {
+        "title": "Copia concluida com sucesso!",
+        "skipped": "Itens pulados",
+        "warnings": "Avisos"
+      }
+    },
+    "metrics": {
+      "title": "Métricas do negócio",
+      "subtitle": "Entradas, conversões e saídas de clientes",
+      "period": "Período",
+      "months": "{n} meses",
+      "paying": "Clientes pagantes",
+      "payingHint": "ativos + em atraso",
+      "trials": "Em teste",
+      "signups30": "Novos cadastros (30 dias)",
+      "conversions30": "Conversões (30 dias)",
+      "cancellations30": "Cancelamentos (30 dias)",
+      "trialRate": "Conversão do teste",
+      "trialRateHint": "{converted} de {total} testes encerrados em {days} dias",
+      "noData": "sem dados ainda",
+      "vsPrev": "{prev} nos 30 dias anteriores",
+      "selfService": "{n} pelo site",
+      "monthlyTitle": "Mês a mês",
+      "monthlyHint": "Contado pelo histórico de cada empresa (fuso de Brasília).",
+      "series": {
+        "signups": "Cadastros",
+        "conversions": "Conversões (teste → ativo)",
+        "cancellations": "Cancelamentos",
+        "suspensions": "Suspensões"
+      },
+      "showTable": "Ver em tabela",
+      "hideTable": "Ver gráficos",
+      "month": "Mês",
+      "plansTitle": "Por plano",
+      "plan": "Plano",
+      "noPlan": "Sem plano",
+      "inactivePlan": "inativo",
+      "total": "Total",
+      "payingCol": "Pagantes",
+      "trialCol": "Em teste",
+      "otherCol": "Suspensos/cancelados",
+      "members": "Pessoas",
+      "usageTitle": "Uso",
+      "people": "Pessoas com acesso",
+      "active30": "Entraram nos últimos 30 dias",
+      "records": "Registros",
+      "riskTitle": "Clientes sem uso há 30 dias",
+      "riskHint": "Ativos ou em atraso sem ninguém entrando: risco de cancelar.",
+      "never": "nunca entrou",
+      "lastLogin": "último acesso {date}",
+      "membersCount": "{n, plural, one {# pessoa} other {# pessoas}}",
+      "none": "Nenhum. Ótimo sinal.",
+      "loadError": "Não foi possível carregar as métricas. Seu papel na equipe pode não ter acesso a elas."
+    },
+    "closure": {
+      "closureTitle": "Encerramento pedido pelo dono",
+      "closureBody": "Pedido por {email} em {requested}. Exclusão definitiva em {date}.",
+      "closureReason": "Motivo: {reason}",
+      "closureHint": "Para desistir, mude a situação para Ativo antes dessa data."
+    },
+    "bulk": {
+      "title": {
+        "plan": "Trocar plano",
+        "trial": "Prorrogar teste",
+        "lifecycle": "Mudar situação"
+      },
+      "scopeSelected": "{n, plural, one {# empresa escolhida} other {# empresas escolhidas}}",
+      "scopePlan": "Todas as empresas do plano {plan}",
+      "toPlan": "Novo plano",
+      "noPlan": "Sem plano (tudo liberado)",
+      "choose": "Escolha",
+      "days": "Dias a mais",
+      "daysHint": "Conta a partir do fim atual do teste (ou de hoje, se já venceu). Só vale para empresas em teste.",
+      "toLifecycle": "Nova situação",
+      "trialEnd": "Teste até",
+      "blocksAccess": "Bloqueia o acesso de todas as pessoas dessas empresas.",
+      "preview": "Ver prévia",
+      "apply": "{n, plural, one {Aplicar a # empresa} other {Aplicar a # empresas}}",
+      "willChange": "{n, plural, =0 {Nada vai mudar} one {# empresa vai mudar} other {# empresas vão mudar}}",
+      "skippedN": "{n, plural, one {# fica de fora} other {# ficam de fora}}",
+      "reason": {
+        "same_plan": "já está nesse plano",
+        "not_trial": "não está em teste",
+        "same_lifecycle": "já está nessa situação"
+      },
+      "applied": "{n, plural, =0 {Nada mudou} one {# empresa atualizada} other {# empresas atualizadas}}",
+      "failedN": "{n, plural, one {# falhou} other {# falharam}}",
+      "close": "Fechar",
+      "cancel": "Cancelar",
+      "moveTenants": "Mover clientes"
+    }
+  },
+  "subscription": {
+    "banner": {
+      "trial": "{days, plural, one {Falta # dia} other {Faltam # dias}} do seu período de teste.",
+      "trialLastDay": "Hoje é o último dia do seu período de teste.",
+      "seePlan": "Ver plano",
+      "pastDue": "Há um pagamento pendente. Fale com a gente para evitar a suspensão do acesso."
+    },
+    "panel": {
+      "noPlan": "Plano completo",
+      "trialLeft": "{days, plural, one {# dia restante} other {# dias restantes}} de teste. Para continuar depois, fale com a gente.",
+      "contact": "Para mudar de plano, fale com a gente.",
+      "usage": {
+        "users": "Usuários",
+        "records": "Registros",
+        "storage": "Armazenamento"
+      },
+      "unlimited": "sem limite",
+      "nearLimit": "Perto do limite do plano.",
+      "features": "Funções do seu plano",
+      "notIncluded": "não incluída no plano"
+    },
+    "onboarding": {
+      "title": "Primeiros passos",
+      "progress": "{done} de {total} concluídos",
+      "dismiss": "Dispensar",
+      "steps": {
+        "table": {
+          "title": "Crie sua primeira tabela",
+          "description": "Defina os campos do que você quer controlar: clientes, pedidos, veículos..."
+        },
+        "record": {
+          "title": "Cadastre o primeiro registro",
+          "description": "Preencha um registro na tabela que você criou."
+        },
+        "team": {
+          "title": "Convide sua equipe",
+          "description": "Adicione as pessoas que vão usar o sistema com você."
+        }
+      }
+    },
+    "owner": {
+      "title": "Dono da empresa",
+      "current": "Dono(a) da conta: {name}. É o contato do plano e do suporte e não pode ser removido(a) pelos outros administradores.",
+      "none": "Sem dono definido. Fale com o suporte.",
+      "hint": "Para passar a empresa para outra pessoa, escolha um membro com cargo de acesso total (ex.: Administrador).",
+      "choose": "Escolha o novo dono",
+      "transfer": "Transferir",
+      "transferred": "Propriedade transferida"
+    }
+  },
+  "gestao": {
+    "label": "Administração",
+    "openMenu": "Abrir menu",
+    "closeMenu": "Fechar menu",
+    "backToOperation": "Voltar para a operação",
+    "groups": {
+      "team": "Equipe",
+      "structure": "Estrutura",
+      "security": "Segurança",
+      "company": "Empresa"
+    },
+    "nav": {
+      "dashboard": "Visão geral",
+      "users": "Usuários",
+      "teams": "Equipes",
+      "roles": "Cargos",
+      "permissions": "Guia de permissões",
+      "entities": "Tabelas",
+      "pdfTemplates": "Modelos de PDF",
+      "dashboardTemplates": "Painéis",
+      "sitePages": "Páginas para clientes",
+      "publicLinks": "Links públicos",
+      "auditLogs": "Auditoria",
+      "executionLogs": "Execuções",
+      "organization": "Organização",
+      "plan": "Plano",
+      "integrations": "Integrações",
+      "securityPolicy": "Segurança",
+      "privacy": "Dados e privacidade"
+    },
+    "home": {
+      "title": "Olá, {name}",
+      "subtitle": "Administração da {company}: equipe, estrutura e plano num só lugar.",
+      "usage": {
+        "users": "Usuários",
+        "records": "Registros",
+        "storage": "Armazenamento",
+        "entities": "Tabelas",
+        "unlimited": "sem limite"
+      },
+      "pending": {
+        "title": "Precisa de atenção",
+        "none": "Tudo em dia por aqui.",
+        "neverLoggedIn": "{count, plural, one {# usuário nunca entrou} other {# usuários nunca entraram}}",
+        "inactive30": "{count, plural, one {# usuário sem acesso há mais de 30 dias} other {# usuários sem acesso há mais de 30 dias}}",
+        "unusedRoles": "{count, plural, one {# cargo sem uso} other {# cargos sem uso}}",
+        "failedRuns": "{count, plural, one {# automação falhou nos últimos 7 dias} other {# automações falharam nos últimos 7 dias}}",
+        "trial": "{days, plural, =0 {O período de teste acaba hoje} one {Falta # dia de teste} other {Faltam # dias de teste}}",
+        "invites": "{count, plural, one {# convite aguardando resposta} other {# convites aguardando resposta}}"
+      },
+      "activity": {
+        "title": "Atividade recente",
+        "empty": "Nenhuma ação registrada ainda.",
+        "noAccess": "Seu cargo não vê os logs da empresa.",
+        "system": "Sistema",
+        "by": "por {name}"
+      },
+      "shortcuts": "Atalhos"
+    },
+    "plan": {
+      "title": "Plano",
+      "subtitle": "Uso, limites e funções do plano da empresa, e quem é o dono."
+    },
+    "organization": {
+      "title": "Organização",
+      "subtitle": "Nome, logo e cores da empresa: aparecem para toda a equipe.",
+      "save": "Salvar",
+      "saved": "Organização atualizada",
+      "invalidColor": "Use uma cor no formato #RRGGBB.",
+      "identity": {
+        "title": "Identidade",
+        "description": "Como a empresa aparece no menu e na tela de login.",
+        "name": "Nome da empresa",
+        "logo": "Logo",
+        "uploadLogo": "Enviar logo",
+        "changeLogo": "Trocar logo",
+        "removeLogo": "Remover",
+        "logoHint": "PNG, JPG ou WEBP. Quadrado e com fundo transparente fica melhor."
+      },
+      "appearance": {
+        "title": "Aparência",
+        "description": "Cor da marca e tema que a equipe vê ao entrar.",
+        "color": "Cor da marca",
+        "resetColor": "Usar a cor padrão",
+        "preview": "Prévia:",
+        "sampleButton": "Botão",
+        "sampleLink": "Link",
+        "theme": "Tema padrão",
+        "themeHint": "Cada pessoa ainda pode trocar o tema nas próprias configurações.",
+        "themes": {
+          "light": "Claro",
+          "dark": "Escuro",
+          "system": "Seguir o sistema"
+        }
+      },
+      "address": {
+        "title": "Endereço de acesso",
+        "description": "O link que a equipe usa para entrar no sistema. Endereço e domínio são configurados pelo suporte.",
+        "slug": "Link da empresa",
+        "domain": "Endereço próprio (ex.: crm.suaempresa.com.br)",
+        "noDomain": "Nenhum"
+      }
+    },
+    "entities": {
+      "title": "Tabelas",
+      "subtitle": "Estrutura das tabelas da empresa. Os registros ficam na operação.",
+      "new": "Nova tabela",
+      "empty": "Nenhuma tabela criada ainda.",
+      "meta": "{fields} campos · {records} registros"
+    },
+    "integrations": {
+      "title": "Integrações",
+      "subtitle": "Conecte a empresa a outros sistemas (ERP, site, Zapier, planilhas). As automações de cada tabela são criadas na própria tabela (aba Automações); aqui você vê todas juntas.",
+      "tabs": {
+        "keys": "Chaves de API",
+        "webhooks": "Avisar outros sistemas",
+        "automations": "Automações"
+      },
+      "keys": {
+        "title": "Chaves de API",
+        "description": "Para outro sistema ler e gravar registros. A chave age em nome de quem a criou, com o cargo escolhido.",
+        "new": "Nova chave",
+        "empty": "Nenhuma chave criada. Crie uma quando outro sistema (site, ERP) precisar ler ou gravar registros.",
+        "meta": "cargo {role} · criada por {by}",
+        "lastUsed": "usada em {date}",
+        "neverUsed": "nunca usada",
+        "expires": "vence em {date}",
+        "revoke": "Revogar",
+        "confirmRevoke": "Confirmar",
+        "cancel": "Cancelar",
+        "revoked": "Chave revogada",
+        "howTo": "Mande a chave no cabeçalho X-API-Key. Ela só acessa registros, tabelas e envio de arquivos:",
+        "newTitle": "Nova chave de API",
+        "newHint": "Escolha um cargo com só o necessário: a integração terá exatamente as permissões dele.",
+        "name": "Nome",
+        "namePlaceholder": "Ex.: Integração ERP",
+        "role": "Cargo da chave",
+        "chooseRole": "Escolha o cargo",
+        "roleHint": "Só aparecem cargos abaixo do seu.",
+        "validity": "Validade",
+        "validities": {
+          "30": "30 dias",
+          "90": "90 dias",
+          "365": "1 ano",
+          "never": "Sem vencimento"
+        },
+        "create": "Criar chave",
+        "createdTitle": "Chave criada",
+        "createdHint": "Copie agora: por segurança ela não aparece de novo.",
+        "copy": "Copiar chave",
+        "done": "Concluir"
+      },
+      "webhooks": {
+        "title": "Avisar outro sistema (webhooks)",
+        "description": "Quando um registro é criado, editado ou excluído, o sistema manda os dados para o endereço de outro sistema. Use quando o outro sistema (ERP, Zapier, Make...) pedir uma \"URL de webhook\".",
+        "new": "Conectar sistema",
+        "empty": "Nenhum sistema conectado ainda.",
+        "allTables": "Todas as tabelas",
+        "test": "Testar",
+        "runs": "Envios",
+        "edit": "Editar",
+        "delete": "Excluir",
+        "confirmDelete": "Confirmar exclusão",
+        "deleted": "Webhook excluído",
+        "saved": "Webhook salvo",
+        "testOk": "Teste enviado: o destino respondeu {code}.",
+        "testFail": "O teste falhou: {error}",
+        "status": {
+          "ACTIVE": "Ativo",
+          "INACTIVE": "Pausado",
+          "PAUSED": "Pausado"
+        },
+        "events": {
+          "created": "Criado",
+          "updated": "Editado",
+          "deleted": "Excluído",
+          "test": "Teste"
+        },
+        "newTitle": "Conectar outro sistema",
+        "editTitle": "Editar conexão",
+        "dialogHint": "Cole o endereço que o outro sistema forneceu. Os dados de cada registro vão para lá automaticamente.",
+        "name": "Nome (para você reconhecer)",
+        "url": "Endereço do outro sistema",
+        "table": "Tabela",
+        "when": "Quando enviar",
+        "secret": "Chave de segurança (avançado)",
+        "secretHint": "Só precisa se o outro sistema pedir para conferir a assinatura: cada envio leva o cabeçalho X-Webhook-Signature (HMAC SHA-256).",
+        "active": "Ativo",
+        "save": "Salvar",
+        "runsTitle": "Envios de {name}",
+        "noRuns": "Nenhum envio ainda."
+      },
+      "automations": {
+        "title": "Automações",
+        "description": "Tudo o que o sistema faz sozinho, em todas as tabelas. Para criar ou mudar, abra a tabela na aba Automações.",
+        "empty": "Nenhuma automação criada.",
+        "paused": "Pausada",
+        "editInTable": "Editar na tabela",
+        "triggers": {
+          "ON_CREATE": "ao criar",
+          "ON_UPDATE": "ao editar",
+          "ON_DELETE": "ao excluir",
+          "ON_FIELD_CHANGE": "quando um campo muda",
+          "ON_STATUS_CHANGE": "quando o status muda",
+          "SCHEDULE": "agendada",
+          "MANUAL": "manual"
+        }
+      }
+    },
+    "security": {
+      "title": "Segurança",
+      "subtitle": "Regras de acesso da empresa e a situação de cada pessoa da equipe.",
+      "policy": {
+        "title": "Regras de acesso",
+        "description": "Valem para toda a equipe desta empresa.",
+        "requireMfa": "Exigir verificação em duas etapas",
+        "requireMfaHint": "Quem não tiver ativado precisa ativar no próximo acesso. Ative na sua conta antes de ligar.",
+        "minLength": "Tamanho mínimo da senha",
+        "symbol": "Exigir símbolo na senha",
+        "symbolHint": "Ex.: ! @ # $",
+        "baseRule": "Toda senha já precisa de letras maiúsculas, minúsculas e número. Vale nas próximas senhas criadas ou trocadas.",
+        "save": "Salvar regras",
+        "saved": "Regras de acesso salvas"
+      },
+      "team": {
+        "title": "Equipe",
+        "description": "Situação de segurança de cada pessoa.",
+        "summary": "{withMfa} de {total} com verificação em duas etapas",
+        "mfaOn": "2 etapas",
+        "mfaOff": "Sem 2 etapas",
+        "inactive": "Inativo",
+        "lastLogin": "último acesso {date}",
+        "neverLogged": "nunca entrou",
+        "devices": "{count, plural, =0 {nenhum aparelho} one {# aparelho} other {# aparelhos}}",
+        "logout": "Desconectar",
+        "loggedOut": "{count, plural, =0 {Nenhum aparelho conectado} one {Desconectado de # aparelho} other {Desconectado de # aparelhos}}"
+      }
+    },
+    "privacy": {
+      "title": "Dados e privacidade",
+      "subtitle": "Leve os dados da empresa com você ou encerre a conta (LGPD).",
+      "export": {
+        "title": "Exportar todos os dados",
+        "hint": "Um arquivo ZIP com tudo o que a empresa tem na plataforma, em JSON e CSV (abre no Excel).",
+        "button": "Baixar tudo (ZIP)",
+        "preparing": "Preparando o arquivo…",
+        "done": "Arquivo pronto",
+        "onlyAdmins": "Somente o dono ou quem tem acesso total pode exportar todos os dados.",
+        "items": {
+          "records": "Registros de todas as tabelas (ativos, arquivados e na lixeira)",
+          "people": "Equipe e cargos (sem senhas)",
+          "structure": "Estrutura das tabelas e campos",
+          "settings": "Modelos de PDF, painéis, automações e integrações (sem senhas e chaves de acesso)",
+          "files": "Lista de arquivos enviados",
+          "audit": "Histórico de ações (auditoria)"
+        }
+      },
+      "close": {
+        "title": "Encerrar a conta da empresa",
+        "hint": "A empresa fica inativa na hora para toda a equipe. Depois de {days} dias todos os dados e arquivos são apagados definitivamente.",
+        "beforeTitle": "Antes de encerrar",
+        "before": "Baixe todos os dados acima. Até o fim do prazo, o suporte consegue reativar a conta se você mudar de ideia.",
+        "button": "Encerrar a conta",
+        "onlyOwner": "Somente o dono da empresa pode encerrar a conta.",
+        "dialogTitle": "Encerrar a conta de {name}?",
+        "dialogHint": "Ninguém mais consegue entrar. Em {days} dias tudo é apagado definitivamente.",
+        "typeName": "Digite o nome da empresa ({name})",
+        "reason": "Motivo (opcional)",
+        "password": "Sua senha",
+        "code": "Código de verificação em duas etapas",
+        "cancel": "Cancelar",
+        "confirm": "Encerrar definitivamente",
+        "done": "Conta encerrada. Os dados serão apagados em {date}."
+      }
+    },
+    "teams": {
+      "title": "Equipes",
+      "subtitle": "Departamentos e times da empresa.",
+      "new": "Nova equipe",
+      "scopeHint": "Em Cargos, a opção \"Os da equipe dela\" faz a pessoa ver os registros criados por qualquer colega das equipes dela (além dos próprios). Vale no computador e no celular.",
+      "empty": "Nenhuma equipe ainda",
+      "emptyHint": "Crie equipes para organizar a empresa e liberar a visibilidade por equipe.",
+      "membersCount": "{n, plural, =0 {Sem membros} one {# membro} other {# membros}}",
+      "edit": "Editar",
+      "delete": "Excluir",
+      "manageMembers": "Membros",
+      "deleteTitle": "Excluir a equipe {name}?",
+      "deleteHint": "Os registros continuam. Quem via registros dos colegas por esta equipe deixa de ver.",
+      "deleted": "Equipe excluída",
+      "newTitle": "Nova equipe",
+      "editTitle": "Editar equipe",
+      "name": "Nome",
+      "namePlaceholder": "Ex.: Vendas Sul",
+      "description": "Descrição (opcional)",
+      "color": "Cor",
+      "save": "Salvar",
+      "saved": "Equipe salva",
+      "cancel": "Cancelar",
+      "membersTitle": "Membros de {name}",
+      "membersHint": "Marque quem faz parte. O líder aparece em destaque.",
+      "searchPeople": "Buscar pessoa",
+      "leader": "Líder",
+      "membersSaved": "Membros salvos"
+    }
+  },
+  "invite": {
+    "title": "Entrar na {company}",
+    "subtitle": "Você foi convidado como {role}.",
+    "subtitleBy": "{name} convidou você como {role}.",
+    "email": "E-mail",
+    "name": "Seu nome",
+    "newPassword": "Crie uma senha",
+    "confirmPassword": "Confirme a senha",
+    "passwordHint": "Mínimo 8 caracteres, com maiúscula, minúscula e número.",
+    "currentPassword": "Sua senha",
+    "existingHint": "Você já tem uma conta com este e-mail. Entre com a sua senha para aceitar.",
+    "createAndJoin": "Criar conta e entrar",
+    "join": "Aceitar e entrar",
+    "forgot": "Esqueci minha senha",
+    "goToLogin": "Ir para o login",
+    "errors": {
+      "weakPassword": "A senha precisa de 8+ caracteres, com maiúscula, minúscula e número.",
+      "mismatch": "As senhas não conferem."
+    },
+    "unavailable": {
+      "title": "Convite indisponível",
+      "invalid": "Este link de convite não é válido.",
+      "expired": "Este convite venceu. Peça um novo ao administrador da empresa.",
+      "revoked": "Este convite foi cancelado.",
+      "accepted": "Este convite já foi usado. Entre com seu e-mail e senha."
+    }
+  },
+  "resetPassword": {
+    "title": "Nova senha",
+    "subtitle": "Escolha uma senha nova para a sua conta.",
+    "newPassword": "Nova senha",
+    "confirmPassword": "Confirme a senha",
+    "hint": "Mínimo 8 caracteres, com maiúscula, minúscula e número.",
+    "save": "Salvar senha",
+    "done": "Senha alterada. Já pode entrar com a nova senha.",
+    "goToLogin": "Ir para o login",
+    "weakPassword": "A senha precisa de 8+ caracteres, com maiúscula, minúscula e número.",
+    "mismatch": "As senhas não conferem."
+  },
+  "security": {
+    "mfa": {
+      "title": "Verificação em duas etapas",
+      "description": "Além da senha, o login pede um código do app autenticador do celular (Google Authenticator, Microsoft Authenticator, Authy...).",
+      "on": "Ativada",
+      "off": "Desativada",
+      "requiredHint": "A sua empresa exige a verificação em duas etapas.",
+      "enable": "Ativar verificação em duas etapas",
+      "step1": "Abra o app autenticador no celular.",
+      "step2": "Leia o QR code (ou digite a chave manualmente).",
+      "step3": "Digite o código de 6 dígitos que aparecer.",
+      "manualKey": "Chave para digitar manualmente:",
+      "codeLabel": "Código do app",
+      "confirm": "Confirmar e ativar",
+      "enabledNow": "Verificação em duas etapas ativada.",
+      "recoveryIntro": "Guarde estes códigos de recuperação num lugar seguro. Cada um entra uma vez, se você ficar sem o celular.",
+      "copyCodes": "Copiar códigos",
+      "done": "Concluir",
+      "codesLeft": "{count, plural, one {# código de recuperação disponível} other {# códigos de recuperação disponíveis}}",
+      "newCodes": "Gerar novos códigos",
+      "disable": "Desativar",
+      "disabled": "Verificação em duas etapas desativada",
+      "disableTitle": "Desativar a verificação em duas etapas",
+      "disableHint": "Confirme com a sua senha e um código do app.",
+      "newCodesTitle": "Novos códigos de recuperação",
+      "newCodesHint": "Os códigos antigos deixam de valer.",
+      "password": "Senha",
+      "generate": "Gerar"
+    },
+    "sessions": {
+      "title": "Aparelhos conectados",
+      "description": "Onde a sua conta está aberta agora. Encerre o que você não reconhecer.",
+      "revokeOthers": "Sair de todos os outros",
+      "revokedOthers": "{count, plural, =0 {Nenhum outro aparelho estava conectado} one {# aparelho desconectado} other {# aparelhos desconectados}}",
+      "revoke": "Encerrar",
+      "revoked": "Sessão encerrada",
+      "current": "Este aparelho",
+      "app": "Aplicativo no celular",
+      "device": "{browser} no {os}",
+      "support": "Suporte: {name}",
+      "lastActive": "ativo {date}",
+      "since": "desde {date}"
+    },
+    "setup": {
+      "title": "Ative a verificação em duas etapas",
+      "subtitle": "A sua empresa exige um código do celular, além da senha, para entrar no sistema.",
+      "logout": "Sair"
+    }
+  },
+  "trash": {
+    "title": "Lixeira",
+    "subtitle": "Registros excluídos. Restaure o que foi apagado por engano.",
+    "subtitleRetention": "Registros excluídos. Itens com mais de {days} dias são apagados de vez automaticamente.",
+    "search": "Buscar nos excluídos",
+    "allTables": "Todas as tabelas",
+    "subRecord": "sub-registro",
+    "deletedBy": "Excluído por {name} em {when}",
+    "deletedAt": "Excluído em {when}",
+    "withSubRecords": "{n, plural, one {+ # sub-registro} other {+ # sub-registros}}",
+    "purgeAt": "apagado de vez em {date}",
+    "restore": "Restaurar",
+    "restored": "Registro restaurado",
+    "restoredMany": "{n} registros restaurados (com sub-registros)",
+    "restoreError": "Não foi possível restaurar",
+    "purge": "Apagar de vez",
+    "purgeTitle": "Apagar de vez?",
+    "purgeHint": "\"{title}\" será apagado definitivamente e não poderá ser recuperado.",
+    "purgeHintSub": "{n, plural, one {# sub-registro vai junto.} other {# sub-registros vão juntos.}}",
+    "purged": "Apagado de vez",
+    "empty": "Esvaziar lixeira",
+    "emptyTitle": "Esvaziar toda a lixeira?",
+    "emptyTableTitle": "Esvaziar a lixeira de {name}?",
+    "emptyHint": "Todos os itens serão apagados definitivamente. Não dá para desfazer.",
+    "emptied": "{n, plural, =0 {Nada para apagar} one {# registro apagado} other {# registros apagados}}",
+    "emptyState": "A lixeira está vazia",
+    "noResults": "Nada encontrado",
+    "emptyStateHint": "O que for excluído nas tabelas aparece aqui.",
+    "retentionLabel": "Apagar automaticamente",
+    "retentionNever": "Esvaziar automaticamente: nunca",
+    "retentionDays": "Apagar após {days} dias",
+    "retentionSaved": "Prazo da lixeira salvo",
+    "pageOf": "Página {page} de {pages} · {total} itens",
+    "prev": "Anterior",
+    "next": "Próxima",
+    "cancel": "Cancelar"
+  },
+  "privacy": {
+    "personal": {
+      "exportTitle": "Baixar meus dados",
+      "exportHint": "Um arquivo com seus dados pessoais: conta, empresas em que participa, acessos e ações registradas.",
+      "exportButton": "Baixar meus dados",
+      "deleteTitle": "Excluir minha conta",
+      "deleteHint": "Apaga seus dados pessoais e tira você de todas as empresas. Os registros que você criou continuam nas empresas, sem o seu nome.",
+      "deleteButton": "Excluir minha conta",
+      "deleteWarning": "Não dá para desfazer. Se você for dono de alguma empresa, passe a propriedade ou encerre a conta da empresa antes.",
+      "password": "Sua senha",
+      "code": "Código de verificação em duas etapas",
+      "typeToConfirm": "Digite EXCLUIR para confirmar",
+      "cancel": "Cancelar",
+      "deleted": "Sua conta foi excluída"
+    }
+  },
+  "notificationPrefs": {
+    "saved": "Preferências salvas",
+    "eventsTitle": "O que avisar",
+    "eventsHint": "Avisos sobre registros das tabelas que você pode ver. O administrador pode limitar ainda mais pelo seu cargo.",
+    "events": {
+      "created": "Registro criado",
+      "updated": "Registro alterado",
+      "deleted": "Registro excluído"
+    },
+    "ownActions": "Minhas próprias ações",
+    "ownActionsHint": "Avisar também sobre o que eu mesmo fiz.",
+    "channelsTitle": "Como avisar",
+    "channelsHint": "Os avisos sempre ficam no sino.",
+    "popups": "Avisos na tela",
+    "popupsHint": "Mostrar um aviso no canto da tela quando chegar algo novo.",
+    "push": "Notificação no celular",
+    "pushHint": "Enviar para o app do celular (precisa estar com o app instalado e logado).",
+    "tablesTitle": "Tabelas",
+    "tablesHint": "Desligue as tabelas que não quer acompanhar.",
+    "noTables": "Nenhuma tabela disponível."
+  },
+  "support": {
+    "title": "Suporte",
+    "subtitle": "Fale com a equipe da plataforma. Acompanhe aqui as respostas.",
+    "subtitleAll": "Chamados da empresa com a equipe da plataforma.",
+    "new": "Novo chamado",
+    "newHint": "Conte o que precisa. A equipe responde por aqui e por e-mail.",
+    "tabs": {
+      "open": "Em andamento",
+      "closed": "Encerrados"
+    },
+    "emptyOpen": "Nenhum chamado em andamento. Precisa de ajuda? Abra um chamado e nossa equipe responde aqui.",
+    "emptyClosed": "Nenhum chamado encerrado.",
+    "created": "Chamado #{number} aberto",
+    "updated": "atualizado {when}",
+    "newReply": "nova resposta",
+    "subject": "Assunto",
+    "categoryLabel": "Tipo",
+    "priorityLabel": "Prioridade",
+    "message": "Mensagem",
+    "messagePlaceholder": "Descreva o que aconteceu, o que esperava e, se puder, os passos para repetir.",
+    "send": "Enviar",
+    "cancel": "Cancelar",
+    "back": "Chamados",
+    "closedHint": "Chamado encerrado. Se precisar, abra um novo.",
+    "reopenHint": "Este chamado está resolvido. Se escrever de novo, ele volta para o suporte.",
+    "replyPlaceholder": "Escreva sua resposta",
+    "markResolved": "Marcar como resolvido",
+    "resolved": "Chamado marcado como resolvido",
+    "supportTeam": "{name} (suporte)",
+    "internalNote": "nota interna",
+    "category": {
+      "question": "Dúvida",
+      "problem": "Problema",
+      "billing": "Financeiro",
+      "suggestion": "Sugestão"
+    },
+    "priority": {
+      "LOW": "Baixa",
+      "NORMAL": "Normal",
+      "HIGH": "Alta",
+      "URGENT": "Urgente"
+    },
+    "status": {
+      "OPEN": "Aguardando suporte",
+      "WAITING_CUSTOMER": "Aguardando você",
+      "RESOLVED": "Resolvido",
+      "CLOSED": "Encerrado"
+    },
+    "system": {
+      "status": "{name} mudou a situação para {status}",
+      "resolvedByCustomer": "{name} marcou como resolvido",
+      "assigned": "{name} assumiu o chamado",
+      "unassigned": "{name} liberou o chamado"
+    },
+    "console": {
+      "title": "Chamados",
+      "subtitle": "{open} aguardando o suporte · {unassigned} sem responsável",
+      "search": "Buscar por assunto, número, e-mail ou empresa",
+      "active": "Em andamento",
+      "allStatuses": "Todas as situações",
+      "allPriorities": "Todas as prioridades",
+      "anyone": "Qualquer responsável",
+      "mine": "Meus",
+      "unassigned": "Sem responsável",
+      "ticket": "Chamado",
+      "customer": "Cliente",
+      "status": "Situação",
+      "assignee": "Responsável",
+      "lastActivity": "Última atividade",
+      "byCustomer": "pelo cliente",
+      "byStaff": "pelo suporte",
+      "empty": "Nenhum chamado.",
+      "prev": "Anterior",
+      "next": "Próxima",
+      "back": "Chamados",
+      "replyPlaceholder": "Resposta para o cliente (vai também por e-mail)",
+      "notePlaceholder": "Nota interna (o cliente não vê)",
+      "internal": "Nota interna",
+      "saveNote": "Salvar nota",
+      "sendReply": "Responder",
+      "noteSaved": "Nota salva",
+      "replySent": "Resposta enviada",
+      "noPlan": "Sem plano",
+      "handling": "Atendimento",
+      "priority": "Prioridade",
+      "takeIt": "Assumir",
+      "release": "Liberar",
+      "statuses": {
+        "OPEN": "Aguardando o suporte",
+        "WAITING_CUSTOMER": "Aguardando o cliente",
+        "RESOLVED": "Resolvido",
+        "CLOSED": "Encerrado"
+      }
+    }
+  },
+  "announcements": {
+    "more": "Saiba mais",
+    "dismiss": "Fechar aviso",
+    "console": {
+      "title": "Comunicados",
+      "subtitle": "Avisos para os clientes, mostrados no topo do sistema.",
+      "new": "Novo comunicado",
+      "editTitle": "Editar comunicado",
+      "empty": "Nenhum comunicado ainda.",
+      "state": {
+        "draft": "Rascunho",
+        "scheduled": "Agendado",
+        "active": "No ar",
+        "ended": "Encerrado"
+      },
+      "severity": {
+        "INFO": "Informativo",
+        "WARNING": "Atenção",
+        "CRITICAL": "Crítico"
+      },
+      "audience": {
+        "all": "Todos os clientes",
+        "plans": "Planos",
+        "lifecycles": "Situação",
+        "tenants": "Empresas específicas"
+      },
+      "adminsOnlyShort": "só administradores",
+      "period": "{start} até {end}",
+      "noEnd": "sem fim",
+      "stats": "alcança {reach} empresas · {dismissed} fecharam",
+      "publish": "Publicar",
+      "unpublish": "Tirar do ar",
+      "published": "Comunicado publicado",
+      "unpublished": "Comunicado tirado do ar",
+      "edit": "Editar",
+      "delete": "Excluir",
+      "deleted": "Comunicado excluído",
+      "fields": {
+        "title": "Título",
+        "body": "Texto",
+        "severity": "Nível",
+        "audience": "Para quem",
+        "startsAt": "Início",
+        "endsAt": "Fim (opcional)",
+        "linkUrl": "Link (opcional)",
+        "linkLabel": "Texto do link",
+        "adminsOnly": "Só para quem administra a empresa",
+        "dismissible": "Pode ser fechado"
+      },
+      "searchTenant": "Buscar empresa",
+      "reach": "Vai aparecer para {n, plural, =0 {nenhuma empresa} one {# empresa} other {# empresas}}",
+      "reachPick": "Escolha o público",
+      "save": "Salvar",
+      "saved": "Comunicado salvo",
+      "cancel": "Cancelar",
+      "deleteConfirmTitle": "Excluir o comunicado \"{title}\"?",
+      "deleteConfirmText": "Ele sai do ar na hora para todos os clientes. Não dá para desfazer."
+    }
+  },
+  "health": {
+    "title": "Saúde do sistema",
+    "checkedAt": "Verificado em {when} · atualiza a cada 30 s",
+    "refresh": "Atualizar",
+    "status": {
+      "ok": "OK",
+      "warning": "Atenção",
+      "down": "Fora",
+      "off": "Desligado"
+    },
+    "overall": {
+      "ok": "Tudo funcionando",
+      "warning": "Funcionando, com pontos de atenção",
+      "down": "Há componentes fora do ar",
+      "off": "—"
+    },
+    "c": {
+      "database": "Banco de dados",
+      "queues": "Filas",
+      "powersync": "PowerSync (app)",
+      "email": "E-mail",
+      "push": "Push (celular)",
+      "storage": "Arquivos"
+    },
+    "latency": "Resposta",
+    "size": "Tamanho",
+    "connections": "Conexões",
+    "longestQuery": "Consulta mais longa",
+    "migrations": "Migrations",
+    "failedMigrations": "{n} com falha",
+    "lastMigration": "Última",
+    "visibilityBacklog": "Recálculo de visibilidade na fila",
+    "memory": "Memória",
+    "queue": {
+      "data-import": "Importação",
+      "automation-execution": "Automações"
+    },
+    "queueCounts": "{waiting} na fila · {active} rodando · {failed} com falha",
+    "version": "Versão",
+    "environment": "Ambiente",
+    "uptime": "No ar há",
+    "eventLoop": "Atraso (p99)",
+    "notConfigured": "Não configurado",
+    "configured": "Configurado",
+    "localDisk": "Disco local",
+    "emailHint": "Sem provedor de e-mail: convites e “esqueci a senha” não chegam.",
+    "problems": "Problemas recentes",
+    "errors24h": "Erros 500 (24 h)",
+    "automationFailed": "Automações com falha (24 h)",
+    "webhookFailed": "Webhooks com falha (24 h)",
+    "errorsChart": "Erros por hora",
+    "errorsN": "{n, plural, =0 {nenhum erro} one {# erro} other {# erros}}",
+    "recentErrors": "Últimos erros",
+    "noErrors": "Nenhum erro registrado.",
+    "slowQueries": "Consultas lentas",
+    "noSlow": "Nenhuma consulta lenta registrada."
+  },
+  "people": {
+    "title": "Pessoas",
+    "subtitle": "Encontre qualquer pessoa em todas as empresas.",
+    "search": "Nome, e-mail, telefone ou CPF",
+    "hint": "Digite ao menos 2 caracteres.",
+    "none": "Ninguém encontrado.",
+    "never": "nunca",
+    "lastLogin": "último acesso {when}",
+    "devices": "{n, plural, =0 {nenhum aparelho conectado} one {# aparelho} other {# aparelhos}}",
+    "mfa": "Duas etapas ativa",
+    "noCompany": "Sem empresa",
+    "status": {
+      "ACTIVE": "Ativa",
+      "INACTIVE": "Inativa",
+      "SUSPENDED": "Suspensa"
+    },
+    "membership": {
+      "ACTIVE": "Ativo",
+      "INACTIVE": "Inativo",
+      "SUSPENDED": "Suspenso",
+      "REMOVED": "Removido"
+    },
+    "back": "Pessoas",
+    "since": "conta desde {when}",
+    "mfaOn": "duas etapas ativa",
+    "mfaOff": "sem duas etapas",
+    "actions": {
+      "password-reset": "Enviar link de nova senha",
+      "logout": "Desconectar de tudo",
+      "mfa-reset": "Desligar duas etapas"
+    },
+    "done": {
+      "password-reset": "Link de nova senha enviado",
+      "logout": "Pessoa desconectada de todos os aparelhos",
+      "mfa-reset": "Duas etapas desligadas"
+    },
+    "confirm": {
+      "password-reset": {
+        "title": "Enviar link de nova senha para {name}?",
+        "body": "Um e-mail vai para {email} com um link válido por 1 hora. A senha atual continua valendo até ser trocada."
+      },
+      "logout": {
+        "title": "Desconectar {name} de todos os aparelhos?",
+        "body": "Web e celular pedem login de novo na próxima ação."
+      },
+      "mfa-reset": {
+        "title": "Desligar as duas etapas de {name}?",
+        "body": "Use quando a pessoa perdeu o celular. Confirme a identidade antes. Ela é desconectada e, se a empresa exigir, configura de novo no próximo acesso."
+      }
+    },
+    "confirmButton": "Confirmar",
+    "cancel": "Cancelar",
+    "companies": "Empresas",
+    "company": "Empresa",
+    "role": "Cargo",
+    "situation": "Situação",
+    "enterAs": "Entrar como",
+    "devicesTitle": "Aparelhos conectados ({n})",
+    "noDevices": "Nenhum aparelho conectado.",
+    "lastUsed": "usado {when}",
+    "recentActions": "Últimas ações",
+    "noActions": "Nenhuma ação registrada."
   }
 }

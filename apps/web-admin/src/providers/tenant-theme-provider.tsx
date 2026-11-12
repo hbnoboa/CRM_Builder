@@ -1,9 +1,9 @@
 'use client';
 
-import { useEffect, useMemo, ReactNode } from 'react';
+import { useEffect, ReactNode } from 'react';
 import { ThemeProvider as NextThemeProvider } from 'next-themes';
 import { useTenant } from '@/stores/tenant-context';
-import { generateThemeVariables } from '@/lib/generate-theme';
+import { DEFAULT_BRAND_COLOR, generateThemeVariables } from '@/lib/generate-theme';
 
 const THEME_STYLE_ID = 'tenant-theme';
 
@@ -36,25 +36,16 @@ interface TenantThemeProviderProps {
 }
 
 export function TenantThemeProvider({ children }: TenantThemeProviderProps) {
-  const { tenant, isPlatformAdmin, selectedTenantId, allTenants } = useTenant();
+  const { tenant } = useTenant();
 
-  // PLATFORM_ADMIN: use the selected tenant's theme; otherwise use own tenant's theme
-  const effectiveTenant = useMemo(() => {
-    if (isPlatformAdmin && selectedTenantId) {
-      return allTenants.find((t) => t.id === selectedTenantId) || tenant;
-    }
-    return tenant;
-  }, [isPlatformAdmin, selectedTenantId, allTenants, tenant]);
+  // Tema do tenant atual (GET /tenants/me)
+  const effectiveTenant = tenant;
 
-  const brandColor = (effectiveTenant?.settings as Record<string, any>)?.theme?.brandColor as string | undefined;
+  // Empresa sem cor definida usa a cor do produto (nada de sistema todo preto e cinza)
+  const brandColor = ((effectiveTenant?.settings as Record<string, any>)?.theme?.brandColor as string | undefined) || DEFAULT_BRAND_COLOR;
   const tenantDarkMode = (effectiveTenant?.settings as Record<string, any>)?.theme?.darkMode as string | undefined;
 
   useEffect(() => {
-    if (!brandColor) {
-      removeThemeFromDOM();
-      return;
-    }
-
     try {
       const theme = generateThemeVariables(brandColor);
       applyThemeToDOM(theme);

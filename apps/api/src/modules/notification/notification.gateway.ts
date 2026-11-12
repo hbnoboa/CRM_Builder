@@ -69,9 +69,10 @@ export class NotificationGateway
     try {
       const pubClient = new Redis(redisUrl, {
         maxRetriesPerRequest: 3,
+        // Nunca desistir: com `null` apos 3 tentativas o cliente ficava fechado para
+        // sempre depois de um reinicio do Redis, e o proximo emit derrubava a API.
         retryStrategy(times) {
-          if (times > 3) return null;
-          return Math.min(times * 200, 1000);
+          return Math.min(times * 500, 5000);
         },
         lazyConnect: true,
       });
@@ -167,13 +168,16 @@ export class NotificationGateway
     @ConnectedSocket() client: AuthenticatedSocket,
     @MessageBody() data: { channel: string },
   ) {
-    // Validar que usuario so pode se inscrever em canais do proprio tenant
-    if (data.channel.startsWith('tenant:')) {
-      const channelTenantId = data.channel.replace('tenant:', '');
-      if (channelTenantId !== client.tenantId) {
-        this.logger.warn(`Usuario ${client.userId} tentou subscribe cross-tenant: ${data.channel}`);
-        return { event: 'error', data: { message: 'Acesso negado' } };
-      }
+    // Validar que usuario so pode se inscrever em canais do proprio tenant ou no seu.
+    // Canais: `tenant:<tenantId>`, (escopo por entidade) `tenant:<tenantId>:entity:<slug>`
+    // ou `user:<userId>`. Qualquer outro nome de sala e recusado.
+    const channel = String(data.channel ?? '');
+    const allowed = channel.startsWith('tenant:')
+      ? channel.split(':')[1] === client.tenantId
+      : channel === `user:${client.userId}`;
+    if (!allowed) {
+      this.logger.warn(`Usuario ${client.userId} tentou subscribe negado: ${channel}`);
+      return { event: 'error', data: { message: 'Acesso negado' } };
     }
 
     client.join(data.channel);
@@ -197,15 +201,28 @@ export class NotificationGateway
    * Enviar notificação para um usuário específico
    */
   sendToUser(userId: string, notification: Notification) {
-    this.server.to(`user:${userId}`).emit('notification', notification);
+    this.safeEmit(() => this.server.to(`user:${userId}`).emit('notification', notification));
     this.logger.log(`📤 Notificação enviada para usuário: ${userId}`);
+  }
+
+  /**
+   * O adaptador Redis lanca erro SINCRONO ("Connection is closed") quando o Redis
+   * esta fora; sem isto a excecao escapava e derrubava o processo. Tempo real e
+   * melhor esforco: perde o aviso, nao a API.
+   */
+  private safeEmit(fn: () => unknown) {
+    try {
+      fn();
+    } catch (error) {
+      this.logger.warn(`Envio em tempo real falhou: ${(error as Error).message}`);
+    }
   }
 
   /**
    * Enviar notificação para todos os usuários de um tenant
    */
   sendToTenant(tenantId: string, notification: Notification) {
-    this.server.to(`tenant:${tenantId}`).emit('notification', notification);
+    this.safeEmit(() => this.server.to(`tenant:${tenantId}`).emit('notification', notification));
     this.logger.log(`📤 Notificação enviada para tenant: ${tenantId}`);
   }
 
@@ -213,7 +230,7 @@ export class NotificationGateway
    * Enviar evento para um canal específico
    */
   sendToChannel(channel: string, event: string, data: any) {
-    this.server.to(channel).emit(event, data);
+    this.safeEmit(() => this.server.to(channel).emit(event, data));
   }
 
   /**
@@ -224,17 +241,22 @@ export class NotificationGateway
    * @param excludeUserId - Optional userId to exclude from receiving this event (avoids infinite loops)
    */
   emitDataChanged(tenantId: string, payload: { operation: string; entitySlug: string; [key: string]: unknown }, excludeUserId?: string) {
-    const room = `tenant:${tenantId}`;
+    // #19 item 8: escopo por (tenant, entidade). Emite para a sala do tenant
+    // (todos que ouvem o tenant inteiro) E para a sala da entidade
+    // (clientes que assinam so aquela entidade). socket.io deduplica a entrega
+    // para sockets presentes nas duas salas. Backward-compat: a sala do tenant
+    // continua recebendo tudo.
+    const tenantRoom = `tenant:${tenantId}`;
+    const entityRoom = `tenant:${tenantId}:entity:${payload.entitySlug}`;
+    const target = this.server.to(tenantRoom).to(entityRoom);
 
     if (excludeUserId) {
-      // Broadcast para todos no tenant EXCETO o usuário que originou a mudança
-      const userRoom = `user:${excludeUserId}`;
-      this.server.to(room).except(userRoom).emit('data-changed', payload);
-      this.logger.log(`📡 data-changed: ${payload.operation} ${payload.entitySlug} → ${room} (exceto ${excludeUserId})`);
+      // Broadcast EXCETO o usuário que originou a mudança (evita loop)
+      this.safeEmit(() => target.except(`user:${excludeUserId}`).emit('data-changed', payload));
+      this.logger.log(`📡 data-changed: ${payload.operation} ${payload.entitySlug} → ${tenantRoom}+${entityRoom} (exceto ${excludeUserId})`);
     } else {
-      // Broadcast para todos (comportamento antigo, para compatibilidade)
-      this.server.to(room).emit('data-changed', payload);
-      this.logger.log(`📡 data-changed: ${payload.operation} ${payload.entitySlug} → ${room}`);
+      this.safeEmit(() => target.emit('data-changed', payload));
+      this.logger.log(`📡 data-changed: ${payload.operation} ${payload.entitySlug} → ${tenantRoom}+${entityRoom}`);
     }
   }
 
@@ -242,7 +264,7 @@ export class NotificationGateway
    * Broadcast para todos os clientes conectados
    */
   broadcast(notification: Notification) {
-    this.server.emit('notification', notification);
+    this.safeEmit(() => this.server.emit('notification', notification));
     this.logger.log(`📢 Broadcast enviado para todos`);
   }
 

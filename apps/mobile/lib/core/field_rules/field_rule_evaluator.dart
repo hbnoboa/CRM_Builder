@@ -28,14 +28,6 @@ enum ConditionOperator {
 
 /// A single field rule from EntityFieldRule table
 class FieldRule {
-  final String id;
-  final String entityId;
-  final String fieldSlug;
-  final FieldRuleType ruleType;
-  final Map<String, dynamic>? condition;
-  final Map<String, dynamic> config;
-  final int priority;
-  final bool isActive;
 
   FieldRule({
     required this.id,
@@ -60,6 +52,14 @@ class FieldRule {
       isActive: map['isActive'] == 1 || map['isActive'] == true,
     );
   }
+  final String id;
+  final String entityId;
+  final String fieldSlug;
+  final FieldRuleType ruleType;
+  final Map<String, dynamic>? condition;
+  final Map<String, dynamic> config;
+  final int priority;
+  final bool isActive;
 
   static FieldRuleType _parseRuleType(String type) {
     switch (type) {
@@ -94,9 +94,9 @@ class FieldRule {
 
 /// Evaluates field rules against form data
 class FieldRuleEvaluator {
-  final List<FieldRule> _rules;
 
   FieldRuleEvaluator(this._rules);
+  final List<FieldRule> _rules;
 
   /// Load rules for an entity from the local database
   static Future<FieldRuleEvaluator> loadForEntity(String entityId) async {

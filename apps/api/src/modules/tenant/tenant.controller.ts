@@ -1,52 +1,29 @@
-import {
-  Controller,
-  Get,
-  Post,
-  Put,
-  Patch,
-  Delete,
-  Body,
-  Param,
-  Query,
-  UseGuards,
-  ForbiddenException,
-} from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiBearerAuth, ApiResponse } from '@nestjs/swagger';
+import { ServiceScope } from '../../common/service-scope/service-scope.decorator';
+import { Body, Controller, ForbiddenException, Get, Patch, UseGuards } from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { TenantService } from './tenant.service';
-import { TenantCopyService } from './tenant-copy.service';
-import { CreateTenantDto, UpdateTenantDto, QueryTenantDto } from './dto/tenant.dto';
-import { CopyTenantDataDto } from './dto/copy-tenant-data.dto';
+import { TenantOverviewService } from './tenant-overview.service';
+import { hasAdminArea } from '../../common/utils/platform-access';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
-import { RolesGuard } from '../../common/guards/roles.guard';
-import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { CurrentUser as CurrentUserType } from '../../common/types';
+import { assertNotImpersonating } from '../../common/utils/permission-governance';
+import { TransferOwnershipDto, UpdateMyTenantDto } from './dto/tenant.dto';
 import { checkModulePermission } from '../../common/utils/check-module-permission';
+import { AuditService } from '../audit/audit.service';
 
-function assertTenantAccess(user: CurrentUserType, action: 'canRead' | 'canCreate' | 'canUpdate' | 'canDelete' = 'canRead'): void {
-  const roleType = user.customRole?.roleType;
-  if (roleType === 'PLATFORM_ADMIN') return;
-
-  const mp = user.customRole?.modulePermissions as Record<string, unknown> | undefined;
-  const tenantPerm = mp?.tenants;
-
-  // Backward compat: boolean true = acesso total
-  if (tenantPerm === true) return;
-
-  // CRUD format
-  if (tenantPerm && typeof tenantPerm === 'object' && (tenantPerm as Record<string, boolean>)[action] === true) return;
-
-  throw new ForbiddenException('Acesso negado. Permissao de tenants necessaria.');
-}
-
+// Gestao de tenants (CRUD, suspender/ativar, estatisticas, copia de dados) vive so
+// no console da plataforma (modules/platform). Aqui o usuario so ve o proprio tenant.
 @ApiTags('Tenants')
+@ServiceScope('admin')
 @Controller('tenants')
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard)
 @ApiBearerAuth()
 export class TenantController {
   constructor(
     private readonly tenantService: TenantService,
-    private readonly tenantCopyService: TenantCopyService,
+    private readonly overviewService: TenantOverviewService,
+    private readonly auditService: AuditService,
   ) {}
 
   // Endpoint para usuario autenticado obter seu proprio tenant
@@ -56,87 +33,34 @@ export class TenantController {
     return this.tenantService.findOne(user.tenantId);
   }
 
-  @Post()
-  @Roles('PLATFORM_ADMIN', 'ADMIN')
-  @ApiOperation({ summary: 'Criar novo tenant' })
-  @ApiResponse({ status: 201, description: 'Tenant criado' })
-  async create(@Body() dto: CreateTenantDto, @CurrentUser() user: CurrentUserType) {
-    assertTenantAccess(user, 'canCreate');
-    return this.tenantService.create(dto);
+  @Patch('me')
+  @ApiOperation({ summary: 'Editar nome, logo e tema da propria empresa (settings.canUpdate)' })
+  async updateMyTenant(@Body() dto: UpdateMyTenantDto, @CurrentUser() user: CurrentUserType) {
+    checkModulePermission(user, 'settings', 'canUpdate');
+    const { before, after, tenant } = await this.tenantService.updateMine(user.tenantId, dto);
+    this.auditService.log(user, {
+      action: 'update',
+      resource: 'tenant',
+      resourceId: user.tenantId,
+      oldData: before,
+      newData: after,
+    }).catch(() => {});
+    return tenant;
   }
 
-  @Get()
-  @Roles('PLATFORM_ADMIN', 'ADMIN')
-  @ApiOperation({ summary: 'Listar tenants' })
-  async findAll(@Query() query: QueryTenantDto, @CurrentUser() user: CurrentUserType) {
-    assertTenantAccess(user);
-    return this.tenantService.findAll(query);
+  @Get('me/overview')
+  @ApiOperation({ summary: 'Painel da administracao da empresa (pendencias e atividade)' })
+  async getOverview(@CurrentUser() user: CurrentUserType) {
+    if (!hasAdminArea(user.customRole?.modulePermissions)) {
+      throw new ForbiddenException('Sem acesso a administracao da empresa');
+    }
+    return this.overviewService.overview(user);
   }
 
-  @Get('stats')
-  @Roles('PLATFORM_ADMIN', 'ADMIN')
-  @ApiOperation({ summary: 'Estatísticas de tenants' })
-  async getStats(@CurrentUser() user: CurrentUserType) {
-    assertTenantAccess(user);
-    return this.tenantService.getStats();
-  }
-
-  @Post('copy-data')
-  @Roles('PLATFORM_ADMIN')
-  @ApiOperation({ summary: 'Copiar dados entre tenants (PLATFORM_ADMIN)' })
-  @ApiResponse({ status: 200, description: 'Dados copiados com sucesso' })
-  async copyData(@Body() dto: CopyTenantDataDto, @CurrentUser() user: CurrentUserType) {
-    assertTenantAccess(user, 'canCreate');
-    return this.tenantCopyService.executeCopy(dto);
-  }
-
-  @Get(':id/copyable-data')
-  @Roles('PLATFORM_ADMIN')
-  @ApiOperation({ summary: 'Listar dados copiaveis de um tenant (PLATFORM_ADMIN)' })
-  async getCopyableData(@Param('id') id: string, @CurrentUser() user: CurrentUserType) {
-    assertTenantAccess(user);
-    return this.tenantCopyService.getCopyableData(id);
-  }
-
-  @Get(':id')
-  @Roles('PLATFORM_ADMIN', 'ADMIN')
-  @ApiOperation({ summary: 'Buscar tenant por ID' })
-  async findOne(@Param('id') id: string, @CurrentUser() user: CurrentUserType) {
-    assertTenantAccess(user);
-    return this.tenantService.findOne(id);
-  }
-
-  @Patch(':id')
-  @Roles('PLATFORM_ADMIN', 'ADMIN')
-  @ApiOperation({ summary: 'Atualizar tenant' })
-  async update(@Param('id') id: string, @Body() dto: UpdateTenantDto, @CurrentUser() user: CurrentUserType) {
-    assertTenantAccess(user, 'canUpdate');
-    return this.tenantService.update(id, dto);
-  }
-
-  @Patch(':id/suspend')
-  @Roles('PLATFORM_ADMIN', 'ADMIN')
-  @ApiOperation({ summary: 'Suspender tenant' })
-  async suspend(@Param('id') id: string, @CurrentUser() user: CurrentUserType) {
-    assertTenantAccess(user, 'canUpdate');
-    checkModulePermission(user, 'tenants', 'canSuspend');
-    return this.tenantService.suspend(id);
-  }
-
-  @Patch(':id/activate')
-  @Roles('PLATFORM_ADMIN', 'ADMIN')
-  @ApiOperation({ summary: 'Ativar tenant' })
-  async activate(@Param('id') id: string, @CurrentUser() user: CurrentUserType) {
-    assertTenantAccess(user, 'canUpdate');
-    checkModulePermission(user, 'tenants', 'canActivate');
-    return this.tenantService.activate(id);
-  }
-
-  @Delete(':id')
-  @Roles('PLATFORM_ADMIN', 'ADMIN')
-  @ApiOperation({ summary: 'Excluir tenant' })
-  async remove(@Param('id') id: string, @CurrentUser() user: CurrentUserType) {
-    assertTenantAccess(user, 'canDelete');
-    return this.tenantService.remove(id);
+  @Patch('me/owner')
+  @ApiOperation({ summary: 'Transferir a propriedade da empresa (so o dono)' })
+  async transferOwnership(@Body() dto: TransferOwnershipDto, @CurrentUser() user: CurrentUserType) {
+    assertNotImpersonating(user, 'transferir a propriedade');
+    return this.tenantService.transferOwnership(user.tenantId, user.id, dto.userId);
   }
 }

@@ -1,7 +1,16 @@
 // Pure TypeScript HSL-based theme generation from a single brand color.
 // No external dependencies — all math is inline.
+//
+// Garante contraste WCAG AA (>= 4.5:1) em TODO par superfície/texto, para
+// QUALQUER cor de marca. A cor do texto (claro/escuro) é escolhida por
+// contraste real (luminância percebida), nunca por limiar de lightness HSL,
+// e a superfície é ajustada automaticamente quando necessário.
 
 type HSL = { h: number; s: number; l: number };
+
+// Alvo interno com margem acima do mínimo AA (4.5) para nunca encostar na
+// borda por arredondamento ao serializar as variáveis.
+const AA = 4.6;
 
 export function hexToHSL(hex: string): HSL {
   hex = hex.replace('#', '');
@@ -46,9 +55,9 @@ function luminance(r: number, g: number, b: number): number {
   return 0.2126 * rs + 0.7152 * gs + 0.0722 * bs;
 }
 
-function contrastRatio(hsl1: HSL, hsl2: HSL): number {
-  const [r1, g1, b1] = hslToRGB(hsl1.h, hsl1.s, hsl1.l);
-  const [r2, g2, b2] = hslToRGB(hsl2.h, hsl2.s, hsl2.l);
+function contrastRatio(a: HSL, b: HSL): number {
+  const [r1, g1, b1] = hslToRGB(a.h, a.s, a.l);
+  const [r2, g2, b2] = hslToRGB(b.h, b.s, b.l);
   const l1 = luminance(r1, g1, b1);
   const l2 = luminance(r2, g2, b2);
   const lighter = Math.max(l1, l2);
@@ -60,20 +69,48 @@ function hsl(h: number, s: number, l: number): string {
   return `${h} ${s}% ${l}%`;
 }
 
+function hslStr(c: HSL): string {
+  return hsl(c.h, c.s, c.l);
+}
+
 function clamp(val: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, val));
 }
 
-// Ensure primary has at least 4.5:1 contrast ratio against the given background
-function ensureContrast(primary: HSL, bg: HSL, darken: boolean): HSL {
-  const p = { ...primary };
+// Pick the text color (near-white or hue-tinted near-black) with the BEST
+// real contrast against the given surface — by luminance, not HSL lightness.
+function pickForeground(bg: HSL): HSL {
+  const white: HSL = { h: bg.h, s: clamp(bg.s * 0.1, 0, 8), l: 99 };
+  const black: HSL = { h: bg.h, s: clamp(bg.s * 0.2, 0, 14), l: 11 };
+  return contrastRatio(bg, white) >= contrastRatio(bg, black) ? white : black;
+}
+
+// Guarantee AA: keep the best foreground and nudge the SURFACE lightness
+// toward the extreme until contrast >= 4.5. Works for any input color.
+function withAA(surface: HSL): { bg: HSL; fg: HSL } {
+  const bg: HSL = { ...surface };
+  let fg = pickForeground(bg);
   let attempts = 0;
-  while (contrastRatio(p, bg) < 4.5 && attempts < 40) {
-    p.l = darken ? p.l - 2 : p.l + 2;
-    p.l = clamp(p.l, 5, 95);
+  while (contrastRatio(bg, fg) < AA && attempts < 80) {
+    // fg light -> darken surface; fg dark -> lighten surface
+    bg.l = fg.l > 50 ? clamp(bg.l - 1.5, 0, 100) : clamp(bg.l + 1.5, 0, 100);
+    fg = pickForeground(bg);
     attempts++;
   }
-  return p;
+  return { bg, fg };
+}
+
+// Ensure a foreground-on-fixed-background pair reaches AA by moving the
+// FOREGROUND (used for muted text where the surface must stay put).
+function foregroundFor(bg: HSL, hint: HSL): HSL {
+  const fg: HSL = { ...hint };
+  const darken = luminance(...hslToRGB(bg.h, bg.s, bg.l)) > 0.4; // light bg -> dark text
+  let attempts = 0;
+  while (contrastRatio(bg, fg) < AA && attempts < 80) {
+    fg.l = darken ? clamp(fg.l - 2, 0, 100) : clamp(fg.l + 2, 0, 100);
+    attempts++;
+  }
+  return fg;
 }
 
 export interface ThemeVariables {
@@ -81,94 +118,117 @@ export interface ThemeVariables {
   dark: Record<string, string>;
 }
 
+/** Cor padrao do produto (CRM Builder) para empresas sem cor definida. */
+export const DEFAULT_BRAND_COLOR = '#ea580c';
+
+// Escala da marca (50..950) com luminosidade fixa por passo: o mesmo passo tem
+// o mesmo peso visual para qualquer cor de empresa (base dos tons suaves do menu,
+// etiquetas e destaques). Saturacao menor nas pontas para nao "gritar".
+const BRAND_STEPS: Array<[number, number, number]> = [
+  // passo, luminosidade, fator de saturacao
+  [50, 97, 0.9], [100, 94, 0.9], [200, 87, 0.92], [300, 78, 0.95], [400, 66, 1],
+  [500, 56, 1], [600, 48, 1], [700, 40, 0.95], [800, 32, 0.9], [900, 25, 0.85], [950, 16, 0.8],
+];
+
+function brandScale(h: number, s: number): Record<string, string> {
+  const sat = clamp(s, 30, 92);
+  const out: Record<string, string> = {};
+  for (const [step, l, f] of BRAND_STEPS) out[`--brand-${step}`] = hsl(h, Math.round(sat * f * 10) / 10, l);
+  return out;
+}
+
 export function generateThemeVariables(
   hex: string,
   secondaryHex?: string,
-  accentHex?: string
+  _accentHex?: string,
 ): ThemeVariables {
   const primary = hexToHSL(hex);
   const secondary = secondaryHex ? hexToHSL(secondaryHex) : null;
-  const accent = accentHex ? hexToHSL(accentHex) : null;
 
   const h = primary.h;
   const s = primary.s;
+  const scale = brandScale(h, s);
+  const sat = clamp(s, 30, 92);
+  // Neutros levemente tingidos pelo matiz da marca (nao competem com ela)
+  const nTint = clamp(s * 0.06, 2, 7);
 
-  // ---- LIGHT MODE ----
-  const lightBg: HSL = { h, s: clamp(s * 0.05, 1, 4), l: 98.5 };
-  const lightPrimary = ensureContrast(
-    { h, s: clamp(s, 40, 90), l: clamp(primary.l, 15, 45) },
-    lightBg,
-    true,
-  );
+  // ---------- LIGHT MODE ----------
+  // Pagina levemente cinza + cartoes brancos: separa as superficies sem sombra pesada
+  const lBackground: HSL = { h, s: nTint, l: 97 };
+  const lCard: HSL = { h, s: 0, l: 100 };
+  const lMuted: HSL = { h, s: nTint, l: 94.5 };
+  const lBorder: HSL = { h, s: nTint, l: 89 };
+  const lInk: HSL = { h, s: clamp(s * 0.12, 4, 14), l: 12 };
 
-  // Secondary color - use provided or derive from primary
-  const lightSecondary = secondary
-    ? ensureContrast({ h: secondary.h, s: clamp(secondary.s, 35, 80), l: clamp(secondary.l, 20, 50) }, lightBg, true)
-    : { h, s: clamp(s * 0.6, 15, 40), l: 70 };
-
-  // Accent color - use provided or derive from primary
-  const lightAccent = accent
-    ? ensureContrast({ h: accent.h, s: clamp(accent.s, 35, 80), l: clamp(accent.l, 20, 50) }, lightBg, true)
-    : { h: (h + 30) % 360, s: clamp(s * 0.7, 20, 50), l: 65 };
+  const lPrimary = withAA({ h, s: clamp(s, 35, 95), l: clamp(primary.l, 20, 50) });
+  // Secundario e hover (accent) NEUTROS/suaves, como no shadcn: a marca so aparece
+  // em acao principal, item ativo, foco e destaques.
+  const lSecondary: HSL = { h, s: nTint, l: 93 };
+  const lAccent: HSL = { h, s: sat * 0.9, l: 96 };
+  const lDestructive = withAA({ h: 0, s: 75, l: 50 });
 
   const light: Record<string, string> = {
-    '--background': hsl(h, clamp(s * 0.05, 1, 4), 98.5),
-    '--foreground': hsl(h, clamp(s * 0.1, 3, 10), 8),
-    '--card': hsl(h, clamp(s * 0.05, 1, 4), 99),
-    '--card-foreground': hsl(h, clamp(s * 0.1, 3, 10), 8),
-    '--popover': hsl(h, clamp(s * 0.05, 1, 4), 99),
-    '--popover-foreground': hsl(h, clamp(s * 0.1, 3, 10), 8),
-    '--primary': hsl(lightPrimary.h, lightPrimary.s, lightPrimary.l),
-    '--primary-foreground': lightPrimary.l < 50 ? hsl(0, 0, 100) : hsl(h, clamp(s, 40, 80), 5),
-    '--secondary': hsl(lightSecondary.h, lightSecondary.s, lightSecondary.l),
-    '--secondary-foreground': hsl(0, 0, 100),
-    '--muted': hsl(h, clamp(s * 0.06, 1, 6), 96),
-    '--muted-foreground': hsl(h, clamp(s * 0.08, 3, 10), 46),
-    '--accent': hsl(lightAccent.h, lightAccent.s, lightAccent.l),
-    '--accent-foreground': hsl(0, 0, 100),
-    '--destructive': hsl(0, 84.2, 60.2),
-    '--destructive-foreground': hsl(0, 0, 100),
-    '--border': hsl(h, clamp(s * 0.06, 2, 6), 91),
-    '--input': hsl(h, clamp(s * 0.06, 2, 6), 91),
-    '--ring': hsl(lightPrimary.h, lightPrimary.s, lightPrimary.l),
+    ...scale,
+    '--background': hslStr(lBackground),
+    '--foreground': hslStr(foregroundFor(lBackground, lInk)),
+    '--card': hslStr(lCard),
+    '--card-foreground': hslStr(foregroundFor(lCard, lInk)),
+    '--popover': hslStr(lCard),
+    '--popover-foreground': hslStr(foregroundFor(lCard, lInk)),
+    '--primary': hslStr(lPrimary.bg),
+    '--primary-foreground': hslStr(lPrimary.fg),
+    '--secondary': hslStr(secondary ? withAA({ h: secondary.h, s: clamp(secondary.s, 25, 85), l: clamp(secondary.l, 20, 55) }).bg : lSecondary),
+    '--secondary-foreground': hslStr(secondary ? withAA({ h: secondary.h, s: clamp(secondary.s, 25, 85), l: clamp(secondary.l, 20, 55) }).fg : foregroundFor(lSecondary, lInk)),
+    '--muted': hslStr(lMuted),
+    '--muted-foreground': hslStr(foregroundFor(lMuted, { h, s: clamp(s * 0.1, 3, 12), l: 42 })),
+    '--accent': hslStr(lAccent),
+    '--accent-foreground': hslStr(foregroundFor(lAccent, { h, s: sat, l: 28 })),
+    '--destructive': hslStr(lDestructive.bg),
+    '--destructive-foreground': hslStr(lDestructive.fg),
+    '--border': hslStr(lBorder),
+    '--input': hsl(h, nTint, 86),
+    '--ring': hslStr(lPrimary.bg),
+    // Item ativo do menu: tom claro da marca + texto escuro da marca (nunca bloco solido)
+    '--nav-active': hsl(h, sat * 0.9, 94),
+    '--nav-active-foreground': hslStr(foregroundFor({ h, s: sat * 0.9, l: 94 }, { h, s: sat, l: 32 })),
   };
 
-  // ---- DARK MODE ----
-  const darkBg: HSL = { h, s: clamp(s * 0.05, 1, 4), l: 6 };
-  const darkPrimary = ensureContrast(
-    { h, s: clamp(s * 0.85, 35, 85), l: clamp(primary.l > 50 ? primary.l : 100 - primary.l, 55, 75) },
-    darkBg,
-    false,
-  );
+  // ---------- DARK MODE ----------
+  // Superficies sobem de luminosidade com a elevacao (fundo < cartao < popover)
+  const dBackground: HSL = { h, s: clamp(s * 0.08, 2, 8), l: 7 };
+  const dCard: HSL = { h, s: clamp(s * 0.08, 2, 8), l: 10 };
+  const dMuted: HSL = { h, s: clamp(s * 0.08, 2, 8), l: 15 };
+  const dBorder: HSL = { h, s: clamp(s * 0.08, 2, 8), l: 19 };
+  const dInk: HSL = { h, s: clamp(s * 0.05, 1, 6), l: 95 };
 
-  const darkSecondary = secondary
-    ? ensureContrast({ h: secondary.h, s: clamp(secondary.s * 0.8, 30, 75), l: clamp(secondary.l > 50 ? secondary.l : 100 - secondary.l, 50, 70) }, darkBg, false)
-    : { h, s: clamp(s * 0.6, 15, 40), l: 60 };
-
-  const darkAccent = accent
-    ? ensureContrast({ h: accent.h, s: clamp(accent.s * 0.8, 30, 75), l: clamp(accent.l > 50 ? accent.l : 100 - accent.l, 50, 70) }, darkBg, false)
-    : { h: (h + 30) % 360, s: clamp(s * 0.7, 20, 50), l: 55 };
+  const dPrimary = withAA({ h, s: clamp(s * 0.85, 35, 88), l: clamp(primary.l > 50 ? primary.l : 100 - primary.l, 58, 72) });
+  const dSecondary: HSL = { h, s: clamp(s * 0.08, 2, 8), l: 17 };
+  const dAccent: HSL = { h, s: sat * 0.45, l: 17 };
+  const dDestructive = withAA({ h: 0, s: 62, l: 55 });
 
   const dark: Record<string, string> = {
-    '--background': hsl(h, clamp(s * 0.05, 1, 4), 6),
-    '--foreground': hsl(h, clamp(s * 0.05, 1, 4), 98),
-    '--card': hsl(h, clamp(s * 0.05, 1, 4), 7),
-    '--card-foreground': hsl(h, clamp(s * 0.05, 1, 4), 98),
-    '--popover': hsl(h, clamp(s * 0.05, 1, 4), 7),
-    '--popover-foreground': hsl(h, clamp(s * 0.05, 1, 4), 98),
-    '--primary': hsl(darkPrimary.h, darkPrimary.s, darkPrimary.l),
-    '--primary-foreground': hsl(h, clamp(s, 40, 80), 8),
-    '--secondary': hsl(darkSecondary.h, darkSecondary.s, darkSecondary.l),
-    '--secondary-foreground': hsl(h, clamp(s * 0.05, 1, 4), 98),
-    '--muted': hsl(h, clamp(s * 0.06, 1, 6), 14),
-    '--muted-foreground': hsl(h, clamp(s * 0.05, 2, 6), 65),
-    '--accent': hsl(darkAccent.h, darkAccent.s, darkAccent.l),
-    '--accent-foreground': hsl(h, clamp(s * 0.05, 1, 4), 98),
-    '--destructive': hsl(0, 62.8, 30.6),
-    '--destructive-foreground': hsl(0, 0, 98),
-    '--border': hsl(h, clamp(s * 0.06, 2, 6), 16),
-    '--input': hsl(h, clamp(s * 0.06, 2, 6), 16),
-    '--ring': hsl(darkPrimary.h, clamp(darkPrimary.s * 0.6, 15, 30), 83),
+    ...scale,
+    '--background': hslStr(dBackground),
+    '--foreground': hslStr(foregroundFor(dBackground, dInk)),
+    '--card': hslStr(dCard),
+    '--card-foreground': hslStr(foregroundFor(dCard, dInk)),
+    '--popover': hsl(dCard.h, dCard.s, 12),
+    '--popover-foreground': hslStr(foregroundFor({ ...dCard, l: 12 }, dInk)),
+    '--primary': hslStr(dPrimary.bg),
+    '--primary-foreground': hslStr(dPrimary.fg),
+    '--secondary': hslStr(dSecondary),
+    '--secondary-foreground': hslStr(foregroundFor(dSecondary, dInk)),
+    '--muted': hslStr(dMuted),
+    '--muted-foreground': hslStr(foregroundFor(dMuted, { h, s: clamp(s * 0.05, 2, 8), l: 68 })),
+    '--accent': hslStr(dAccent),
+    '--accent-foreground': hslStr(foregroundFor(dAccent, { h, s: sat * 0.7, l: 85 })),
+    '--destructive': hslStr(dDestructive.bg),
+    '--destructive-foreground': hslStr(dDestructive.fg),
+    '--border': hslStr(dBorder),
+    '--input': hsl(dBorder.h, dBorder.s, 22),
+    '--ring': hslStr(dPrimary.bg),
+    '--nav-active': hsl(h, sat * 0.45, 18),
+    '--nav-active-foreground': hslStr(foregroundFor({ h, s: sat * 0.45, l: 18 }, { h, s: sat * 0.7, l: 82 })),
   };
 
   return { light, dark };

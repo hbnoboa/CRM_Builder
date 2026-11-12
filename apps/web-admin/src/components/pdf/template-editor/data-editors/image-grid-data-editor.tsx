@@ -31,7 +31,10 @@ export function ImageGridDataEditor({
   availableFields,
   subEntities,
 }: ImageGridDataEditorProps) {
-  const selectedSubEntity = element.dataSource && subEntities?.[element.dataSource];
+  // Narrowing: quando dataSource e "" o && retorna string vazia; forcamos undefined
+  const selectedSubEntity = element.dataSource
+    ? subEntities?.[element.dataSource]
+    : undefined;
   const subEntityImageFields = selectedSubEntity?.fields?.filter(
     (f) => f.type === 'image'
   ) || [];
@@ -114,7 +117,7 @@ export function ImageGridDataEditor({
               })}
             >
               <SelectTrigger>
-                <SelectValue placeholder="Selecione a sub-entidade..." />
+                <SelectValue placeholder="Selecione a sub-tabela..." />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="_empty">Nenhuma (usar campos diretos)</SelectItem>
@@ -187,7 +190,7 @@ export function ImageGridDataEditor({
               <div className="rounded-md bg-amber-50 border border-amber-200 p-3 text-sm text-amber-800 dark:bg-amber-950 dark:border-amber-800 dark:text-amber-200">
                 <div className="flex items-center gap-2">
                   <Info className="h-4 w-4" />
-                  <span>Esta sub-entidade nao tem campos de imagem.</span>
+                  <span>Esta sub-tabela não tem campos de imagem.</span>
                 </div>
               </div>
             )}
@@ -223,7 +226,7 @@ export function ImageGridDataEditor({
         <div className="space-y-4 rounded-lg border p-4">
           <div className="flex items-center gap-2">
             <Type className="h-4 w-4 text-primary" />
-            <Label className="text-sm font-semibold">Cabecalhos e Legendas</Label>
+            <Label className="text-sm font-semibold">Cabeçalhos e Legendas</Label>
           </div>
 
           <p className="text-xs text-muted-foreground">
@@ -235,7 +238,7 @@ export function ImageGridDataEditor({
               <thead>
                 <tr className="border-b">
                   <th className="text-left py-1.5 pr-2 font-medium text-muted-foreground w-20">Coluna</th>
-                  <th className="text-left py-1.5 px-2 font-medium text-muted-foreground">Cabecalho</th>
+                  <th className="text-left py-1.5 px-2 font-medium text-muted-foreground">Cabeçalho</th>
                   <th className="text-left py-1.5 pl-2 font-medium text-muted-foreground">Legenda (campo)</th>
                 </tr>
               </thead>
