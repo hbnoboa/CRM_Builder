@@ -20,12 +20,12 @@ function Title({ text, center }: { text?: string; center?: boolean }) {
 const GRID: Record<number, string> = { 1: '', 2: 'csm:grid-cols-2', 3: 'csm:grid-cols-3', 4: 'csm:grid-cols-4' };
 
 /** Video: arquivo enviado, YouTube ou Vimeo tocam na propria pagina. */
-export function VideoView({ block, preview }: { block: Of<'video'>; preview?: boolean }) {
+export function VideoView({ block, preview, fill }: { block: Of<'video'>; preview?: boolean; fill?: boolean }) {
   const v = parseVideo(block.url);
   if (!v) return null;
   return (
-    <figure>
-      <div className="relative aspect-video w-full overflow-hidden rounded-2xl bg-black shadow-md">
+    <figure className={cn(fill && 'flex flex-col')}>
+      <div className={cn('relative w-full overflow-hidden rounded-2xl bg-black shadow-md', fill ? 'min-h-[160px] flex-1' : 'aspect-video')}>
         {v.kind === 'file' ? (
           <video src={v.url} controls playsInline className="absolute inset-0 h-full w-full object-cover" />
         ) : (
@@ -48,7 +48,7 @@ export function VideoView({ block, preview }: { block: Of<'video'>; preview?: bo
 }
 
 /** Mapa do Google com o endereco, e os botoes para abrir o mapa e tracar a rota. */
-export function MapView({ block, preview }: { block: Of<'map'>; preview?: boolean }) {
+export function MapView({ block, preview, fill }: { block: Of<'map'>; preview?: boolean; fill?: boolean }) {
   const q = encodeURIComponent(block.address);
   const src = `https://www.google.com/maps?q=${q}&z=${block.zoom}&output=embed`;
   const links = [
@@ -56,10 +56,10 @@ export function MapView({ block, preview }: { block: Of<'map'>; preview?: boolea
     { label: 'Como chegar', href: `https://www.google.com/maps/dir/?api=1&destination=${q}` },
   ];
   return (
-    <div data-testid="site-map">
-      <div className="overflow-hidden rounded-2xl border shadow-sm">
+    <div data-testid="site-map" className={cn(fill && 'flex flex-col')}>
+      <div className={cn('overflow-hidden rounded-2xl border shadow-sm', fill && 'min-h-[160px] flex-1')}>
         <iframe src={src} title={`Mapa: ${block.address}`} loading="lazy" referrerPolicy="no-referrer-when-downgrade" data-testid="site-map-embed"
-          className={cn('block w-full border-0', preview && 'pointer-events-none')} style={{ height: block.height }} />
+          className={cn('block w-full border-0', preview && 'pointer-events-none')} style={{ height: fill ? '100%' : block.height }} />
       </div>
       <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
         {links.map((l, i) => (

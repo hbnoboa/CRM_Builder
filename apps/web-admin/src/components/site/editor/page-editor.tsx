@@ -22,7 +22,7 @@ import { absoluteSiteUrl, type SiteBlockView, type SitePageData } from '@/lib/si
 import { cn } from '@/lib/utils';
 import { useTenant } from '@/stores/tenant-context';
 import { SITE_GRID, siteLook } from '@/components/site/site-page-view';
-import { DESKTOP_WIDTH, PHONE_WIDTH, PageCanvas, TEXT_TYPES, gridSpot, rowsFor } from './page-canvas';
+import { DESKTOP_WIDTH, FILL_TYPES, PHONE_WIDTH, PageCanvas, TEXT_TYPES, gridSpot, rowsFor } from './page-canvas';
 import { PageInspector } from './page-inspector';
 import * as ops from './page-doc';
 import { useDocHistory } from './use-doc-history';
@@ -219,8 +219,10 @@ export function SitePageEditor({ id }: { id: string }) {
     ro.observe(inner);
     return () => ro.disconnect();
   }, [ready, device]);
-  const scale = device === 'desktop' ? Math.min(1, (stageWidth - 48) / DESKTOP_WIDTH) : 1;
-  const pageWidth = device === 'desktop' ? DESKTOP_WIDTH : PHONE_WIDTH;
+  // Sem escala (como o editor de paineis): o arrasto e as alcas acompanham o mouse 1:1.
+  // No computador a pagina ocupa a largura disponivel (no minimo a de um notebook).
+  const scale = 1;
+  const pageWidth = device === 'desktop' ? Math.max(stageWidth - 48, DESKTOP_WIDTH) : PHONE_WIDTH;
 
   const save = async (): Promise<boolean> => {
     try {
@@ -439,8 +441,11 @@ export function SitePageEditor({ id }: { id: string }) {
                     setSelection({ kind: 'item', id: bid });
                   }}
                   onResizeItem={(bid, h) => {
-                    // Mais alto que o conteudo: guarda a altura escolhida; menor: volta a automatica
-                    updateDoc((d) => ops.patchItem(d, bid, { minH: h > contentRows(bid) ? h : undefined }), { silent: true });
+                    // Foto, destaque, mapa, video e espaco: a altura e a que a pessoa puxou (cresce ou diminui).
+                    // Texto e o resto: mais alto que o conteudo guarda a altura; menor volta a automatica.
+                    const type = doc.blocks.find((b) => b.id === bid)?.type;
+                    const free = !!type && FILL_TYPES.has(type);
+                    updateDoc((d) => ops.patchItem(d, bid, { minH: free || h > contentRows(bid) ? h : undefined }), { silent: true });
                   }}
                   onMobileOrder={(sid, ids) => change((d) => ops.setMobileOrder(d, sid, ids))}
                   toolbarSlot={toolbarSlot}
