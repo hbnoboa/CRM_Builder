@@ -3,6 +3,7 @@ import {
   IsDateString,
   IsEmail,
   IsEnum,
+  IsIn,
   IsInt,
   IsObject,
   IsOptional,
@@ -185,6 +186,49 @@ export class UpdatePlanDto {
   @Type(() => Number)
   @IsInt()
   sortOrder?: number;
+}
+
+// ── Pessoas (todas as empresas) ─────────────────────────────────────────────
+
+export class PlatformQueryUsersDto {
+  @ApiPropertyOptional({ description: 'Nome, e-mail, telefone, CPF ou id' })
+  @IsOptional()
+  @IsString()
+  q?: string;
+
+  @ApiPropertyOptional({ description: 'So quem tem acesso a esta empresa' })
+  @IsOptional()
+  @IsString()
+  tenantId?: string;
+
+  @ApiPropertyOptional({ enum: ['ACTIVE', 'INACTIVE', 'SUSPENDED'] })
+  @IsOptional()
+  @IsIn(['ACTIVE', 'INACTIVE', 'SUSPENDED'])
+  status?: 'ACTIVE' | 'INACTIVE' | 'SUSPENDED';
+
+  @ApiPropertyOptional({ enum: ['on', 'off'], description: 'Duas etapas ligada/desligada' })
+  @IsOptional()
+  @IsIn(['on', 'off'])
+  mfa?: 'on' | 'off';
+
+  @ApiPropertyOptional({ description: 'So donos de empresa' })
+  @IsOptional()
+  @IsIn(['true'])
+  owner?: 'true';
+
+  @ApiPropertyOptional({ default: 1 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  page?: number;
+
+  @ApiPropertyOptional({ default: 20 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  limit?: number;
 }
 
 // ── Tenants ─────────────────────────────────────────────────────────────────

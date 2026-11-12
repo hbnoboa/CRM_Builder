@@ -2697,6 +2697,24 @@
     "noDevices": "Nenhum aparelho conectado.",
     "lastUsed": "usado {when}",
     "recentActions": "Últimas ações",
-    "noActions": "Nenhuma ação registrada."
+    "noActions": "Nenhuma ação registrada.",
+    "allCompanies": "Todas as empresas",
+    "allStatus": "Qualquer situação",
+    "allMfa": "Duas etapas: todas",
+    "mfaOnly": "Com duas etapas",
+    "mfaNone": "Sem duas etapas",
+    "ownersOnly": "Só donos de empresa",
+    "everyone": "Todas as pessoas",
+    "columns": {
+      "person": "Pessoa",
+      "companies": "Empresas e cargos",
+      "lastLogin": "Último acesso",
+      "devices": "Aparelhos",
+      "status": "Situação"
+    },
+    "total": "{n, plural, one {# pessoa} other {# pessoas}}",
+    "page": "Página {page} de {total}",
+    "previous": "Anterior",
+    "next": "Próxima"
   }
 }
