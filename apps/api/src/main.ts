@@ -29,6 +29,8 @@ async function bootstrap() {
   validateSecrets(logger);
 
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
+  // PDF em lote manda os ids da lista filtrada da tabela (29 mil ids ~ 800 KB); padrao era 100 KB.
+  app.useBodyParser('json', { limit: '5mb' });
 
   // Security headers (Helmet)
   app.use(helmet({

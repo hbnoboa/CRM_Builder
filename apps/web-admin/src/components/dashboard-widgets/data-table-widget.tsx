@@ -344,6 +344,7 @@ function DataTableWidgetInner({ entitySlug, config, title, ctx }: DataTableWidge
     removeRecord,
     refresh,
     isLoading,
+    error: loadError,
   } = ctx;
 
   // Use DashboardFilterProvider for cross-filter clicks so they sync with other widgets
@@ -812,9 +813,21 @@ function DataTableWidgetInner({ entitySlug, config, title, ctx }: DataTableWidge
         }
         toast.success(ids.length === 1 ? 'PDF gerado com sucesso' : `${success} de ${ids.length} PDF(s) gerado(s)`);
       } else {
+        // Sem selecao, o lote e o que a tabela mostra. Os filtros do painel (clique em grafico,
+        // filtro da pagina) e da tabela sao aplicados no navegador e parte no servidor, entao com
+        // qualquer filtro ativo vao os ids da lista filtrada; sem filtro, "todos" (sem mandar ids).
+        const tableFiltered = sortedRecords.length < allRecords.length
+          || dashFilters.crossFilters.length > 0
+          || dashFilters.slicerFilters.length > 0
+          || !!dashFilters.dateRange
+          || !!filters.searchTerm
+          || filters.fieldFilters.length > 0;
+        if (!hasSelection && tableFiltered && ids.length === 0) {
+          toast.error('Nenhum registro com os filtros atuais');
+          return;
+        }
         const { blob, fileName } = await pdfTemplatesService.generateBatch(template.id, {
-          // Sem selecao: todos os registros QUE PASSAM na busca e nos filtros da tabela
-          ...(hasSelection ? { recordIds: ids } : { useAllRecords: true, ...activeQueryFilters() }),
+          ...(hasSelection || tableFiltered ? { recordIds: ids } : { useAllRecords: true }),
           mergePdfs: true,
         });
         const url = URL.createObjectURL(blob);
@@ -832,7 +845,7 @@ function DataTableWidgetInner({ entitySlug, config, title, ctx }: DataTableWidge
     } finally {
       setGeneratingPdf(false);
     }
-  }, [generatingPdf, selectedIds, sortedRecords, activeQueryFilters]);
+  }, [generatingPdf, selectedIds, sortedRecords, allRecords.length, dashFilters, filters]);
 
   // Column toggle
   const toggleColumn = useCallback((slug: string) => {
@@ -1394,7 +1407,17 @@ function DataTableWidgetInner({ entitySlug, config, title, ctx }: DataTableWidge
               ? totalRecords < allRecords.length
                 ? `${totalRecords.toLocaleString('pt-BR')} de ${allRecords.length.toLocaleString('pt-BR')} registros`
                 : `${totalRecords.toLocaleString('pt-BR')} registros`
-              : '0 registros'}
+              // Sem linhas: so diz "0" depois que a carga terminou bem (tabela grande demora)
+              : isLoading
+                ? 'Carregando registros…'
+                : loadError
+                  ? (
+                    <>
+                      Não foi possível carregar os registros.{' '}
+                      <button type="button" className="underline hover:text-foreground" onClick={() => refresh()}>Tentar de novo</button>
+                    </>
+                  )
+                  : '0 registros'}
           {selectedIds.size > 0 && ` · ${selectedIds.size} selecionado(s)`}
         </span>
         {enablePagination && totalPages > 1 && (
