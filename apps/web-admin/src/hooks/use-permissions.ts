@@ -2,7 +2,7 @@
 
 import { useMemo } from 'react';
 import { useAuthStore } from '@/stores/auth-store';
-import type { ModulePermission, ModulePermissions, EntityPermission } from '@/types';
+import type { ModulePermission, ModulePermissions, EntityPermission, PermissionScope } from '@/types';
 
 const FULL_CRUD: ModulePermission = { canRead: true, canCreate: true, canUpdate: true, canDelete: true };
 const NO_CRUD: ModulePermission = { canRead: false, canCreate: false, canUpdate: false, canDelete: false };
@@ -275,9 +275,9 @@ export function usePermissions() {
   };
 
   /**
-   * Retorna o scope para uma entidade (all | own)
+   * Retorna o scope para uma entidade (all | own | team | client)
    */
-  const getEntityScope = (entitySlug: string): 'all' | 'own' | 'team' => {
+  const getEntityScope = (entitySlug: string): PermissionScope => {
     if (!user || !hasRole) return 'own';
 
     // Acesso total ao tenant tem scope automatico

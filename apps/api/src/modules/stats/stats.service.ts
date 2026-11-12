@@ -240,11 +240,12 @@ export class StatsService {
   ): Promise<string[] | null> {
     const permissions = (user.customRole?.permissions || []) as Array<{
       entitySlug: string;
-      scope?: 'all' | 'own' | 'team';
+      scope?: 'all' | 'own' | 'team' | 'client';
     }>;
     const wildcard = permissions.find((p) => p.entitySlug === '*');
     const scopes = entities.map((e) => (permissions.find((p) => p.entitySlug === e.slug) ?? wildcard)?.scope);
-    if (scopes.includes('own')) return [user.id];
+    // 'client' (portal do cliente): aqui so se conhece criador, vale o mais restrito
+    if (scopes.includes('own') || scopes.includes('client')) return [user.id];
     if (scopes.includes('team')) return teammateIds(this.prisma, user.id, user.tenantId);
     return null;
   }

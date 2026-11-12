@@ -23,6 +23,7 @@ import {
 import { DASHBOARD_MAX_LIMIT } from '@crm-builder/shared';
 import { getEffectiveTenantId } from '../../common/utils/tenant.util';
 import { EntityDataQueryService } from '../../common/services/entity-data-query.service';
+import { clientRelationFields } from '../../common/utils/client-scope';
 import { AuditService } from '../audit/audit.service';
 import { formatRecordData } from '../../common/utils/format-record';
 import { TenantPlanService } from '../../common/services/tenant-plan.service';
@@ -277,10 +278,13 @@ export class DataService {
       }
     }
 
+    // Portal do cliente: o registro novo fica preso ao cliente da pessoa
+    const bound = await this.bindToClient(currentUser, entity, (dto.data as Record<string, unknown>) || {}, dto.parentRecordId, true);
+
     // Processar campos calculados (formula, rollup, timer, sla-status)
     const fields = (entity.fields as unknown) as EntityField[];
     const settings = entity.settings as EntitySettings;
-    const inputData = dto.data as Record<string, unknown> || {};
+    const inputData = bound.data;
     const dataWithComputedFields = await this.computedFieldsService.processComputedFields(
       inputData,
       fields,
@@ -307,7 +311,7 @@ export class DataService {
         tenantId: targetTenantId,
         entityId: entity.id,
         data: dataWithComputedFields as Prisma.InputJsonValue,
-        parentRecordId: dto.parentRecordId || null,
+        parentRecordId: bound.parentRecordId || null,
         createdById: currentUser.id,
         updatedById: currentUser.id,
       },
@@ -1277,7 +1281,7 @@ export class DataService {
     }
 
     // Verificar scope: se usuario tem scope 'own', so pode ver proprios registros
-    await this.assertCreatorVisible(currentUser, entitySlug, recordResult.createdById);
+    await this.assertCreatorVisible(currentUser, entitySlug, recordResult, !!recordResult._isArchived);
 
     // Verificar filtros de dados por role (apenas para registros ativos — archived nao tem role filters)
     if (!recordResult._isArchived) {
@@ -1451,7 +1455,7 @@ export class DataService {
     // Verificar permissao de escopo
     // Para archived: verificar scope manualmente (checkScope espera EntityData)
     if (isArchivedRecord) {
-      await this.assertCreatorVisible(currentUser, entitySlug, archivedRecord.createdById);
+      await this.assertCreatorVisible(currentUser, entitySlug, archivedRecord, true);
     } else {
       await this.checkScope(record!, currentUser, entitySlug);
     }
@@ -1490,7 +1494,8 @@ export class DataService {
     const fields = (entity.fields as unknown) as EntityField[];
     const settings = entity.settings as EntitySettings;
     const previousData = activeRecord.data as Record<string, unknown>;
-    const inputData = dto.data as Record<string, unknown> || {};
+    // Portal do cliente: a relacao com o cliente nao muda de dono
+    const inputData = (await this.bindToClient(currentUser, entity, (dto.data as Record<string, unknown>) || {}, undefined, false)).data;
     const dataWithComputedFields = await this.computedFieldsService.processComputedFields(
       { ...previousData, ...inputData },
       fields,
@@ -1638,7 +1643,7 @@ export class DataService {
     }
 
     // Escopo (own/team)
-    await this.assertCreatorVisible(currentUser, entitySlug, record.createdById);
+    await this.assertCreatorVisible(currentUser, entitySlug, record);
 
     // RESTORE-CASCATA: reativa o pai + descendentes que cairam na MESMA operacao
     // (mesmo deletedAt timestamp). Nao toca em filhos deletados separadamente.
@@ -1759,7 +1764,7 @@ export class DataService {
 
     // Verificar permissao de escopo
     if (isArchivedDeletion) {
-      await this.assertCreatorVisible(currentUser, entitySlug, targetRecord.createdById);
+      await this.assertCreatorVisible(currentUser, entitySlug, targetRecord, true);
     } else {
       await this.checkScope(record!, currentUser, entitySlug);
     }
@@ -1946,8 +1951,65 @@ export class DataService {
     }
   }
 
+  /**
+   * Portal do cliente: com escopo 'client', o registro precisa ser do cliente vinculado.
+   * Devolve false quando o escopo e outro (quem chamou segue com as regras dele).
+   */
+  private async assertClientScope(user: CurrentUser, entitySlug: string, recordId: string, archived: boolean): Promise<boolean> {
+    const entity = await this.queryService.getEntityCached(entitySlug, user, user.tenantId);
+    const clientWhere = await this.queryService.clientScopeFor(user, entity);
+    if (!clientWhere) return false;
+    const found = archived
+      ? await this.prisma.archivedEntityData.findFirst({
+        where: { id: recordId, tenantId: user.tenantId, AND: [this.queryService.buildArchivedWhere(clientWhere)] }, select: { id: true },
+      })
+      : await this.prisma.entityData.findFirst({ where: { id: recordId, tenantId: user.tenantId, AND: [clientWhere] }, select: { id: true } });
+    if (!found) throw new ForbiddenException('Acesso negado a este registro');
+    return true;
+  }
+
+  /**
+   * Portal do cliente: o que a pessoa cria fica preso ao cliente dela. Dentro do
+   * registro do cliente (ou de um registro que esta dentro dele) ou com a relacao
+   * apontando para ele. Nao cria outro cadastro de cliente.
+   */
+  private async bindToClient(
+    user: CurrentUser, entity: Entity, data: Record<string, unknown>, parentRecordId: string | null | undefined, creating: boolean,
+  ): Promise<{ data: Record<string, unknown>; parentRecordId: string | null | undefined }> {
+    const clientWhere = await this.queryService.clientScopeFor(user, entity);
+    if (!clientWhere) return { data, parentRecordId };
+    const link = await this.customRoleService.getClientLink(user.id, user.tenantId);
+    if (!link) throw new ForbiddenException('Seu acesso nao esta vinculado a um cliente');
+    if (entity.id === link.entityId) {
+      if (creating) throw new ForbiddenException('Voce nao pode criar outro cadastro de cliente');
+      return { data, parentRecordId };
+    }
+    const relations = clientRelationFields(entity.fields, link);
+    const bound = { ...data };
+    for (const slug of relations) if (creating || slug in bound) bound[slug] = link.recordId;
+    if (!creating) return { data: bound, parentRecordId };
+
+    if (parentRecordId) {
+      // O pai precisa ser o cliente ou estar dentro dele
+      const parent = await this.prisma.entityData.findFirst({
+        where: { id: parentRecordId, tenantId: user.tenantId, OR: [{ id: link.recordId }, { parentRecordId: link.recordId }] },
+        select: { id: true },
+      });
+      if (!parent) throw new ForbiddenException('Voce so pode criar registros dentro do seu cadastro');
+      return { data: bound, parentRecordId };
+    }
+    // Tabela que fica dentro da tabela do cliente: entra dentro do registro dele
+    const clientEntity = await this.prisma.entity.findFirst({ where: { id: link.entityId, tenantId: user.tenantId }, select: { fields: true } });
+    const isChild = ((clientEntity?.fields as unknown as EntityField[] | null) ?? [])
+      .some((f) => f.type === 'sub-entity' && (f.subEntityId === entity.id || f.subEntitySlug === entity.slug));
+    if (isChild) return { data: bound, parentRecordId: link.recordId };
+    if (relations.length) return { data: bound, parentRecordId };
+    throw new ForbiddenException('Esta tabela nao fica ligada ao seu cadastro');
+  }
+
   // Verificar se usuario pode modificar o registro
   private async checkScope(record: EntityData, user: CurrentUser, entitySlug: string) {
+    if (await this.assertClientScope(user, entitySlug, record.id, false)) return;
     // Permission-driven: escopo vem de permissions[]/'*'. 'all' => livre;
     // 'team' => registros da equipe; 'own'/sem-acesso => só os do proprio usuario.
     const ids = await this.customRoleService.getVisibleCreatorIds(user, entitySlug);
@@ -1959,8 +2021,12 @@ export class DataService {
     }
   }
 
-  /** Leitura/restauracao: o criador precisa estar no escopo (own/team) da pessoa. */
-  private async assertCreatorVisible(user: CurrentUser, entitySlug: string, createdById: string | null) {
+  /** Leitura/restauracao: o registro precisa estar no escopo (own/team/client) da pessoa. */
+  private async assertCreatorVisible(
+    user: CurrentUser, entitySlug: string, record: { id: string; createdById: string | null }, archived = false,
+  ) {
+    if (await this.assertClientScope(user, entitySlug, record.id, archived)) return;
+    const createdById = record.createdById;
     const ids = await this.customRoleService.getVisibleCreatorIds(user, entitySlug);
     if (ids && (!createdById || !ids.includes(createdById))) {
       throw new ForbiddenException('Acesso negado a este registro');

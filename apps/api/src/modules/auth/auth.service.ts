@@ -279,6 +279,7 @@ export class AuthService {
         customRole: membership.customRole,
         tenantId: membership.tenantId,
         tenant: membership.tenant,
+        clientPortal: !!membership.clientRecordId,
         hasMultipleTenants: accessCount > 1,
       },
       ...tokens,
@@ -454,6 +455,8 @@ export class AuthService {
         tenant: membership!.tenant,
         customRoleId: membership!.customRoleId,
         customRole: membership!.customRole,
+        // Portal do cliente: a tela esconde o que e da equipe (chat, suporte, plano)
+        clientPortal: !!membership!.clientRecordId,
         hasMultipleTenants: accessCount > 1,
       };
     }
@@ -465,6 +468,7 @@ export class AuthService {
       tenant: primary.tenant,
       customRoleId: primary.customRoleId,
       customRole: primary.customRole,
+      clientPortal: !!primary.clientRecordId,
       hasMultipleTenants: accessCount > 1,
     };
   }

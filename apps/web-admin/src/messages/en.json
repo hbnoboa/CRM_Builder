@@ -733,7 +733,8 @@
       "field": "Field",
       "view": "View",
       "editField": "Edit",
-      "scopeTeam": "My team"
+      "scopeTeam": "My team",
+      "scopeClient": "Linked client only"
     },
     "modules": {
       "dashboard": "Dashboard",

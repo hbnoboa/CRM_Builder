@@ -14,7 +14,12 @@ export type TenantStatus = 'ACTIVE' | 'INACTIVE' | 'SUSPENDED' | 'TRIAL';
 // ============================================================================
 
 /** all = todos; own = so os que criei; team = os criados por alguem das minhas equipes. */
-export type PermissionScope = 'all' | 'own' | 'team';
+/**
+ * Quais registros o cargo ve numa tabela: todos, so os que a pessoa criou, os da
+ * equipe dela, ou so os do cliente vinculado a ela (portal do cliente: o registro do
+ * cliente e o que esta dentro dele ou ligado a ele).
+ */
+export type PermissionScope = 'all' | 'own' | 'team' | 'client';
 
 // ============================================================================
 // FIELD TYPES (Entity Builder)

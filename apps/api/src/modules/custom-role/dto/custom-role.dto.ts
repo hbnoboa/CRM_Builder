@@ -104,11 +104,11 @@ export class EntityPermissionDto {
   canDelete?: boolean;
 
   @ApiPropertyOptional({
-    enum: ['all', 'own'],
+    enum: ['all', 'own', 'team', 'client'],
     default: 'all',
-    description: 'Escopo de visibilidade: all = todos os registros, own = apenas proprios registros'
+    description: 'Escopo de visibilidade: all = todos; own = so os proprios; team = os da equipe; client = so os do cliente vinculado ao usuario (portal do cliente)',
   })
-  @IsString()
+  @IsIn(['all', 'own', 'team', 'client'])
   @IsOptional()
   scope?: PermissionScope;
 

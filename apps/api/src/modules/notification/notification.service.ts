@@ -162,7 +162,7 @@ export class NotificationService {
           const permissions = user.customRole.permissions as unknown as Array<{
             entitySlug: string;
             canRead: boolean;
-            scope?: 'all' | 'own' | 'team';
+            scope?: 'all' | 'own' | 'team' | 'client';
             notificationRules?: {
               enabled: boolean;
               onCreate: boolean;
@@ -187,7 +187,8 @@ export class NotificationService {
           // Escopo do cargo: so avisa de registro que a pessoa pode ver.
           if (context && context.creatorId !== undefined && !fullAccess) {
             const scope = entityPerm.scope ?? 'all';
-            if (scope === 'own' && context.creatorId !== user.id) continue;
+            // 'client' (portal do cliente) segue o mais restrito: so o que a pessoa criou
+            if ((scope === 'own' || scope === 'client') && context.creatorId !== user.id) continue;
             if (scope === 'team' && context.creatorId !== user.id) {
               const mine = teamsOf.get(user.id);
               const theirs = context.creatorId ? teamsOf.get(context.creatorId) : undefined;

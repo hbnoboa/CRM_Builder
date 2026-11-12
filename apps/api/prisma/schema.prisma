@@ -623,6 +623,10 @@ model UserTenantAccess {
   grantedAt    DateTime  @default(now())
   expiresAt    DateTime?
   grantedById  String?
+  // Portal do cliente: registro (e tabela) do cliente que esta pessoa representa.
+  // Cargos com escopo 'client' veem so ele e o que esta dentro dele ou ligado a ele.
+  clientEntityId String?
+  clientRecordId String?
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
@@ -634,6 +638,7 @@ model UserTenantAccess {
   @@index([userId])
   @@index([tenantId])
   @@index([customRoleId])
+  @@index([tenantId, clientRecordId])
   deletedAt DateTime?
 }
 

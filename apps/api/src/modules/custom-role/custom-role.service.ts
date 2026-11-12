@@ -17,6 +17,7 @@ import {
   MAX_LIMIT,
 } from '../../common/types';
 import { teammateIds } from '../../common/utils/team-scope';
+import { clientScopeWhere, type ClientLink } from '../../common/utils/client-scope';
 
 export interface ModulePermissionCrud {
   canRead?: boolean;
@@ -653,7 +654,7 @@ export class CustomRoleService {
     userId: string,
     entitySlug: string,
     tenantId: string,
-  ): Promise<'all' | 'own' | 'team' | null> {
+  ): Promise<'all' | 'own' | 'team' | 'client' | null> {
     const m = await this.resolveMembershipRole(userId, tenantId);
     if (!m || !m.customRole) return null;
 
@@ -663,15 +664,54 @@ export class CustomRoleService {
     }
 
     const entry = this.findEntityPerm<{
-      entitySlug: string; canRead?: boolean; scope?: 'all' | 'own' | 'team';
+      entitySlug: string; canRead?: boolean; scope?: 'all' | 'own' | 'team' | 'client';
     }>(m.customRole.permissions, entitySlug);
     if (!entry || entry.canRead !== true) return null;
-    return entry.scope === 'own' || entry.scope === 'team' ? entry.scope : 'all';
+    return entry.scope === 'own' || entry.scope === 'team' || entry.scope === 'client' ? entry.scope : 'all';
+  }
+
+  /**
+   * Cliente vinculado ao acesso da pessoa nesta empresa (portal do cliente), se houver.
+   * A tabela precisa ser da mesma empresa e o registro tambem.
+   */
+  async getClientLink(userId: string, tenantId: string): Promise<ClientLink | null> {
+    const m = await this.prisma.userTenantAccess.findUnique({
+      where: { userId_tenantId: { userId, tenantId } },
+      select: { status: true, deletedAt: true, clientEntityId: true, clientRecordId: true },
+    });
+    if (!m || m.status !== 'ACTIVE' || m.deletedAt !== null || !m.clientEntityId || !m.clientRecordId) return null;
+    const entity = await this.prisma.entity.findFirst({ where: { id: m.clientEntityId, tenantId }, select: { id: true, slug: true } });
+    if (!entity) return null;
+    return { entityId: entity.id, entitySlug: entity.slug, recordId: m.clientRecordId };
+  }
+
+  /**
+   * Portal do cliente: com escopo 'client' na tabela, o filtro do que e do cliente
+   * vinculado (o registro dele, o que esta dentro dele e o que aponta para ele).
+   * null = a pessoa tem outro escopo nesta tabela.
+   */
+  async clientScopeFor(
+    user: { id: string; tenantId: string },
+    entity: { id: string; slug: string; fields: unknown },
+  ): Promise<Prisma.EntityDataWhereInput | null> {
+    const scope = await this.getEntityScope(user.id, entity.slug, user.tenantId);
+    if (scope !== 'client') return null;
+    const link = await this.getClientLink(user.id, user.tenantId);
+    if (!link || entity.id === link.entityId) return clientScopeWhere(entity, link);
+    // Netos: o que esta dentro dos registros que estao dentro do cliente
+    const where = { tenantId: user.tenantId, parentRecordId: link.recordId };
+    const [active, archived] = await Promise.all([
+      this.prisma.entityData.findMany({ where, select: { id: true }, take: 5000 }),
+      this.prisma.archivedEntityData.findMany({ where, select: { id: true }, take: 5000 }),
+    ]);
+    return clientScopeWhere(entity, link, [...active, ...archived].map((r) => r.id));
   }
 
   /**
    * De quais criadores a pessoa ve registros nesta tabela: null = de todos;
    * senao a lista (so ela para 'own'/sem acesso; ela + colegas de equipe para 'team').
+   * Escopo 'client' e aplicado pela consulta central (EntityDataQueryService); aqui,
+   * para quem ainda so conhece criador, vale o mais restrito: so o que ela criou.
    */
   async getVisibleCreatorIds(user: { id: string; tenantId: string }, entitySlug: string): Promise<string[] | null> {
     const scope = await this.getEntityScope(user.id, entitySlug, user.tenantId);

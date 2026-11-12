@@ -22,6 +22,8 @@ export class TeamDirectoryController {
   @Get()
   @ApiOperation({ summary: 'Membros ativos da empresa (id e nome)' })
   async list(@CurrentUser() user: CurrentUserType) {
+    // Portal do cliente: a lista da equipe nao e mostrada a clientes
+    if (user.clientRecordId) return [];
     const rows = await this.prisma.userTenantAccess.findMany({
       where: {
         tenantId: getEffectiveTenantId(user),

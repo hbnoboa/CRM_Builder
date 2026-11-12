@@ -54,6 +54,7 @@ import { api } from '@/lib/api';
 import { RecordFormDialog } from './record-form-dialog';
 import { cn } from '@/lib/utils';
 import type { EntityField } from '@/types';
+import { usePermissions } from '@/hooks/use-permissions';
 import { formatFieldValue, type FieldType } from '@crm-builder/shared';
 
 interface SubEntityFieldEnhancedProps {
@@ -119,6 +120,7 @@ export default function SubEntityFieldEnhanced({
   enableSort = true,
   enableFilter = false,
 }: SubEntityFieldEnhancedProps) {
+  const { getHiddenFields } = usePermissions();
   const t = useTranslations('subEntity');
   const tCommon = useTranslations('common');
   const tData = useTranslations('data');
@@ -207,9 +209,12 @@ export default function SubEntityFieldEnhanced({
     setFilteredRecords(filtered);
   }, [records, searchQuery, sortField, sortOrder]);
 
-  const displayFields = subEntityDisplayFields && subEntityDisplayFields.length > 0
+  // Campo oculto para o cargo (ex.: cliente no portal) nao aparece nem como rotulo
+  const hiddenByRole = getHiddenFields(subEntitySlug);
+  const displayFields = (subEntityDisplayFields && subEntityDisplayFields.length > 0
     ? subEntityDisplayFields
-    : (subEntity?.fields || []).slice(0, 4).map(f => f.slug || f.name);
+    : (subEntity?.fields || []).filter(f => !hiddenByRole.has(f.slug || f.name)).slice(0, 4).map(f => f.slug || f.name))
+    .filter(slug => !hiddenByRole.has(slug));
 
   const getFieldLabel = (slug: string) => {
     const field = subEntity?.fields?.find(f => (f.slug || f.name) === slug);

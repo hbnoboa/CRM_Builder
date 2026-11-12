@@ -1,6 +1,7 @@
 import { RequireFeature } from '../../common/decorators/require-feature.decorator';
 import { ServiceScope } from '../../common/service-scope/service-scope.decorator';
-import { Controller, Post, UseGuards, Request } from '@nestjs/common';
+import { Controller, Post, UseGuards, Request, ForbiddenException } from '@nestjs/common';
+import { PrismaService } from '../../prisma/prisma.service';
 import { JwtService } from '@nestjs/jwt';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { AuthenticatedRequest } from '../../common/types';
@@ -21,12 +22,19 @@ import { roleHasHiddenFields } from '../../common/utils/field-permissions';
 @Controller('sync')
 @UseGuards(JwtAuthGuard)
 export class SyncController {
-  constructor(private readonly jwtService: JwtService) {}
+  constructor(private readonly jwtService: JwtService, private readonly prisma: PrismaService) {}
 
   @Post('credentials')
   // Body `tenantId` (sent by older mobile builds) is ignored: no cross-tenant sync.
   async getCredentials(@Request() req: AuthenticatedRequest) {
     const user = req.user;
+
+    // Portal do cliente e so web: a sincronizacao do app nao conhece a regra do cliente
+    const membership = await this.prisma.userTenantAccess.findUnique({
+      where: { userId_tenantId: { userId: user.id, tenantId: user.tenantId } },
+      select: { clientRecordId: true },
+    });
+    if (membership?.clientRecordId) throw new ForbiddenException('Acesso de cliente: use o portal pelo navegador');
 
     // Generate a PowerSync-specific token with sync-relevant claims.
     // PowerSync reads these via request.jwt() ->> 'key' in sync rules.

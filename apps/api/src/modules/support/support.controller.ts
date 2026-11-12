@@ -6,6 +6,7 @@ import { Type } from 'class-transformer';
 import { IsBoolean, IsEnum, IsIn, IsInt, IsOptional, IsString, MaxLength, Min, MinLength, ValidateIf } from 'class-validator';
 import { SupportTicketPriority, SupportTicketStatus } from '@prisma/client';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+import { NoClientPortalGuard } from '../../common/guards/no-client-portal.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { CurrentUser as CurrentUserType } from '../../common/types';
 import { ServiceScope } from '../../common/service-scope/service-scope.decorator';
@@ -46,7 +47,7 @@ class StaffListDto {
 /** "Falar com o suporte": chamados da propria empresa. */
 @ApiTags('Support')
 @Controller('support/tickets')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, NoClientPortalGuard)
 @ApiBearerAuth()
 export class SupportController {
   constructor(private readonly support: SupportService) {}

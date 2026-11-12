@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, ConflictException, ForbiddenException, Logger } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, ConflictException, ForbiddenException, Logger } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { NotificationService } from '../notification/notification.service';
 import { AuditService } from '../audit/audit.service';
@@ -35,7 +35,7 @@ export class UserService {
 
   /** Achata user + membership do tenant num shape compativel com o frontend. */
   private flatten(
-    user: Record<string, unknown> & { tenantAccess?: Array<{ tenantId: string; customRoleId: string; customRole: unknown; tenant?: unknown }> },
+    user: Record<string, unknown> & { tenantAccess?: Array<{ tenantId: string; customRoleId: string; customRole: unknown; tenant?: unknown; clientEntityId?: string | null; clientRecordId?: string | null }> },
   ): Record<string, unknown> {
     const { tenantAccess, teamMemberships, ...rest } = user as typeof user & {
       teamMemberships?: Array<{ isLeader: boolean; team: { id: string; name: string; color: string | null } }>;
@@ -47,8 +47,26 @@ export class UserService {
       tenantId: m?.tenantId ?? null,
       customRoleId: m?.customRoleId ?? null,
       customRole: m?.customRole ?? null,
+      clientEntityId: m?.clientEntityId ?? null,
+      clientRecordId: m?.clientRecordId ?? null,
       ...(m?.tenant ? { tenant: m.tenant } : {}),
     };
+  }
+
+  /**
+   * Portal do cliente: confere a tabela e o registro do cliente (mesma empresa, ativo).
+   * recordId null/vazio = sem vinculo.
+   */
+  private async resolveClientLink(
+    tenantId: string, entitySlug: string | undefined, recordId: string | null | undefined,
+  ): Promise<{ clientEntityId: string | null; clientRecordId: string | null }> {
+    if (!recordId) return { clientEntityId: null, clientRecordId: null };
+    if (!entitySlug) throw new BadRequestException('Informe a tabela do cliente');
+    const entity = await this.prisma.entity.findFirst({ where: { tenantId, slug: entitySlug, deletedAt: null }, select: { id: true } });
+    if (!entity) throw new BadRequestException('Tabela do cliente nao encontrada');
+    const record = await this.prisma.entityData.findFirst({ where: { id: recordId, tenantId, entityId: entity.id, deletedAt: null }, select: { id: true } });
+    if (!record) throw new BadRequestException('Registro do cliente nao encontrado nessa tabela');
+    return { clientEntityId: entity.id, clientRecordId: record.id };
   }
 
   async create(dto: CreateUserDto, currentUser: CurrentUser) {
@@ -65,7 +83,8 @@ export class UserService {
     await assertPasswordPolicy(this.prisma, [targetTenantId], dto.password);
     const hashedPassword = await bcrypt.hash(dto.password, 12);
 
-    const { customRoleId, ...userData } = dto;
+    const { customRoleId, clientEntitySlug, clientRecordId, ...userData } = dto;
+    const clientLink = await this.resolveClientLink(targetTenantId, clientEntitySlug, clientRecordId);
     if (userData.cpf) userData.cpf = userData.cpf.replace(/\D/g, '') || undefined;
     if (userData.cnpj) userData.cnpj = userData.cnpj.replace(/\D/g, '') || undefined;
     if (userData.phone) userData.phone = userData.phone.replace(/\D/g, '') || undefined;
@@ -82,8 +101,8 @@ export class UserService {
     // Membership home (primaria) — fonte da verdade do vinculo + cargo.
     const membership = await this.prisma.userTenantAccess.upsert({
       where: { userId_tenantId: { userId: newUser.id, tenantId: targetTenantId } },
-      update: { customRoleId, status: 'ACTIVE', deletedAt: null, isPrimary: true },
-      create: { userId: newUser.id, tenantId: targetTenantId, customRoleId, status: 'ACTIVE', isPrimary: true },
+      update: { customRoleId, status: 'ACTIVE', deletedAt: null, isPrimary: true, ...clientLink },
+      create: { userId: newUser.id, tenantId: targetTenantId, customRoleId, status: 'ACTIVE', isPrimary: true, ...clientLink },
       include: { customRole: { select: ROLE_PREVIEW } },
     });
 
@@ -94,7 +113,7 @@ export class UserService {
       action: 'create',
       resource: 'user',
       resourceId: newUser.id,
-      newData: { email: dto.email, name: dto.name, customRoleId },
+      newData: { email: dto.email, name: dto.name, customRoleId, ...(clientLink.clientRecordId ? { clientRecordId: clientLink.clientRecordId } : {}) },
     }).catch(() => {});
 
     return {
@@ -102,6 +121,7 @@ export class UserService {
       tenantId: targetTenantId,
       customRoleId,
       customRole: membership.customRole,
+      ...clientLink,
     };
   }
 
@@ -109,7 +129,7 @@ export class UserService {
     const page = Math.max(1, query.page || 1);
     const limit = Math.min(MAX_LIMIT, Math.max(1, query.limit || DEFAULT_LIMIT));
     const skip = (page - 1) * limit;
-    const { search, role, status, cursor, teamId, sortBy = 'createdAt', sortOrder = 'desc' } = query;
+    const { search, role, status, cursor, teamId, clientRecordId, sortBy = 'createdAt', sortOrder = 'desc' } = query;
 
     // Lista sempre escopada ao tenant ativo do usuario.
     const effectiveTenantId = getEffectiveTenantId(currentUser);
@@ -121,6 +141,7 @@ export class UserService {
     };
     // Filtro por cargo agora e por id do cargo (roleType removido).
     if (role) membershipFilter.customRoleId = role;
+    if (clientRecordId) membershipFilter.clientRecordId = clientRecordId;
 
     // Usuario tecnico de chave de API nao faz parte da equipe.
     const where: Prisma.UserWhereInput = { tenantAccess: { some: membershipFilter }, isServiceAccount: false };
@@ -157,6 +178,8 @@ export class UserService {
           select: {
             tenantId: true,
             customRoleId: true,
+            clientEntityId: true,
+            clientRecordId: true,
             customRole: { select: ROLE_PREVIEW },
             tenant: { select: { id: true, name: true, slug: true } },
           },
@@ -229,6 +252,8 @@ export class UserService {
             tenantId: true,
             customRoleId: true,
             isPrimary: true,
+            clientEntityId: true,
+            clientRecordId: true,
             customRole: {
               select: { id: true, name: true, color: true, isSystem: true, permissions: true, modulePermissions: true },
             },
@@ -252,6 +277,8 @@ export class UserService {
       tenantId: current?.tenantId ?? null,
       customRoleId: current?.customRoleId ?? null,
       customRole: current?.customRole ?? null,
+      clientEntityId: current?.clientEntityId ?? null,
+      clientRecordId: current?.clientRecordId ?? null,
       tenant: current?.tenant ?? null,
       tenants: all.map((m) => ({ tenantId: m.tenantId, tenant: m.tenant, customRole: m.customRole, isPrimary: m.isPrimary })),
     };
@@ -306,8 +333,13 @@ export class UserService {
     if (dto.cnpj) dto.cnpj = dto.cnpj.replace(/\D/g, '') || undefined;
     if (dto.phone) dto.phone = dto.phone.replace(/\D/g, '') || undefined;
 
-    // customRoleId nao mora mais no User -> vai para a membership.
-    const { customRoleId, ...userData } = dto;
+    // customRoleId (e o vinculo de cliente) nao moram no User -> vao para a membership.
+    const { customRoleId, clientEntitySlug, clientRecordId, ...userData } = dto;
+    // A propria pessoa nunca troca o proprio vinculo de cliente (o pedido e ignorado)
+    if (clientRecordId !== undefined && !target.isSelf) {
+      const clientLink = await this.resolveClientLink(currentUser.tenantId, clientEntitySlug, clientRecordId);
+      await this.prisma.userTenantAccess.update({ where: { id: target.membership.id }, data: clientLink });
+    }
 
     // Quem tambem e membro de outra empresa: a situacao vale so para o vinculo daqui.
     if (target.inOtherTenants && userData.status) {
