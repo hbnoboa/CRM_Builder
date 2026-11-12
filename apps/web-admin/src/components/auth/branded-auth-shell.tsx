@@ -1,4 +1,7 @@
+'use client';
+
 import type { CustomDomainBrand } from '@/lib/custom-domain';
+import { useBrandFavicon } from '@/lib/use-brand-favicon';
 
 /**
  * Login no dominio proprio da empresa: so a marca dela (logo, nome, cor), sem nada do
@@ -6,6 +9,7 @@ import type { CustomDomainBrand } from '@/lib/custom-domain';
  */
 export function BrandedAuthShell({ brand, children }: { brand: CustomDomainBrand; children: React.ReactNode }) {
   const color = brand.brandColor || '#0f172a';
+  useBrandFavicon(brand.logo);
   return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-background px-4 py-10"
       style={{ backgroundImage: `radial-gradient(circle at top, color-mix(in srgb, ${color} 14%, transparent), transparent 60%)` }}>
