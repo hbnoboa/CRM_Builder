@@ -5,6 +5,7 @@ import { useParams, useSearchParams } from 'next/navigation';
 import { Loader2 } from 'lucide-react';
 import { SitePageView } from '@/components/site/site-page-view';
 import { siteApi, type SitePageData } from '@/lib/site-api';
+import { useBrandFavicon } from '@/lib/use-brand-favicon';
 
 /** Pagina para clientes da empresa: /p/<empresa>/<pagina> (com ?c= o acompanhamento). */
 export function SitePublicClient() {
@@ -23,6 +24,7 @@ export function SitePublicClient() {
   }, [params.slug, params.page, token]);
 
   useEffect(load, [load]);
+  useBrandFavicon(data?.tenant.logo);
 
   if (error) {
     return (
