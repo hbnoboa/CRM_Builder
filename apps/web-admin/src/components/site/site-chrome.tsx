@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, type CSSProperties } from 'react';
+import { useEffect, useState, type CSSProperties } from 'react';
 import type { LucideIcon } from 'lucide-react';
 import { Clock, Mail, MapPin, Menu, MessageCircle, Phone, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -234,6 +234,19 @@ function RowList({ rows, brand, className, iconsOnly }: { rows: Row[]; brand: st
 }
 
 /** Rodape do site nos formatos: cartao, colunas, centralizado e minimo. */
+/**
+ * "Area da equipe": login de funcionarios (e clientes do portal). No dominio proprio da
+ * empresa o login e /entrar (com a marca dela); no endereco da plataforma, o login normal.
+ */
+function TeamLoginLink() {
+  const [href, setHref] = useState('/pt-BR/login');
+  useEffect(() => {
+    const host = window.location.hostname;
+    if (!/(^|\.)iossystem\.com\.br$|^localhost$|^127\./.test(host)) setHref('/entrar');
+  }, []);
+  return <a href={href} className="underline-offset-2 hover:underline" data-testid="site-team-link">Área da equipe</a>;
+}
+
 export function SiteFooterView({ data, brand, scrap, width, editing }: { data: SitePageData; brand: string; scrap: boolean; width: string; editing?: boolean }) {
   const f = data.site?.footer ?? {};
   const st: SiteFooterStyle = data.site?.footerStyle ?? {};
@@ -242,9 +255,10 @@ export function SiteFooterView({ data, brand, scrap, width, editing }: { data: S
   const contacts = contactRows(f);
   const socials = socialRows(f);
   const empty = !f.text && !contacts.length && !socials.length;
+  const team = data.site?.teamLink ? <> · <TeamLoginLink /></> : null;
   const credit = scrap
-    ? <p className="pb-10 pt-4 text-center text-xs text-slate-500"><span className="site-h3 block !text-2xl" style={{ color: brand }}>feito com ♡</span>{data.tenant.name} · CRM Builder</p>
-    : <p className="px-4 pb-8 pt-3 text-center text-xs text-slate-400">{data.tenant.name} · feito com CRM Builder</p>;
+    ? <p className="pb-10 pt-4 text-center text-xs text-slate-500"><span className="site-h3 block !text-2xl" style={{ color: brand }}>feito com ♡</span>{data.tenant.name} · CRM Builder{team}</p>
+    : <p className="px-4 pb-8 pt-3 text-center text-xs text-slate-400">{data.tenant.name} · feito com CRM Builder{team}</p>;
 
   if (empty) {
     return (

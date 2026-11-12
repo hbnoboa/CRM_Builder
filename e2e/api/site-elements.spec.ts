@@ -103,5 +103,14 @@ test.describe.serial('elementos, topo/rodape e animacoes das paginas', () => {
     const pub = await (await request.get(`${API}/site/${tenant.slug}/${pageSlug}`)).json();
     expect(pub.site.header).toEqual({ layout: 'centered' });
     expect(pub.site.footerStyle).toEqual({ layout: 'minimal', tone: 'dark' });
+    expect(pub.site.teamLink).toBe(false);
+  });
+
+  test('link "Area da equipe" no rodape: so quando a empresa liga', async ({ request }) => {
+    const on = await (await call(request, 'put', '/site-pages/site', tenant.owner, { expected: 200, data: { look: {}, menu: [], footer: {}, teamLink: true } })).json();
+    expect(on.config.teamLink).toBe(true);
+    expect((await (await request.get(`${API}/site/${tenant.slug}/${pageSlug}`)).json()).site.teamLink).toBe(true);
+    const off = await (await call(request, 'put', '/site-pages/site', tenant.owner, { expected: 200, data: { look: {}, menu: [], footer: {} } })).json();
+    expect(off.config.teamLink).toBeUndefined();
   });
 });

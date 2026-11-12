@@ -166,4 +166,9 @@ export class UpdateSiteDto {
   @IsOptional()
   @IsObject()
   footerStyle?: Record<string, unknown>;
+
+  @ApiPropertyOptional({ description: 'Link "Area da equipe" no rodape (login)' })
+  @IsOptional()
+  @IsBoolean()
+  teamLink?: boolean;
 }

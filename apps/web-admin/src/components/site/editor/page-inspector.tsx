@@ -280,6 +280,13 @@ function FooterPanel({ doc, patchSite }: Props) {
         <Segmented value={fs.tone ?? 'page'} onChange={(tone) => setFs({ tone })}
           options={[{ value: 'page', label: 'Como a página' }, { value: 'surface', label: 'Caixa' }, { value: 'dark', label: 'Escura' }, { value: 'accent', label: 'Destaque' }]} />
       </Field>
+      <label className="flex items-start gap-2 rounded-md border p-2 text-sm" data-testid="site-team-link-toggle">
+        <input type="checkbox" className="mt-0.5" checked={!!doc.site.teamLink} onChange={(e) => patchSite({ teamLink: e.target.checked })} />
+        <span>
+          Link “Área da equipe” no rodapé
+          <span className="block text-[11px] text-muted-foreground">Leva ao login dos funcionários (e dos clientes do portal), discreto ao lado do nome da empresa.</span>
+        </span>
+      </label>
       <SiteFooterFields footer={doc.site.footer} onChange={(footer) => patchSite({ footer }, 'site-footer')} />
     </Panel>
   );
