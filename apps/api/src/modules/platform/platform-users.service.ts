@@ -4,6 +4,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { AuthService } from '../auth/auth.service';
 import { PlatformAuditService } from './platform-audit.service';
 import type { PlatformStaffPrincipal } from './platform-permissions';
+import type { PlatformQueryUsersDto } from './dto/platform.dto';
 
 const USER_SELECT = {
   id: true, name: true, email: true, phone: true, cpf: true, status: true, lastLoginAt: true, createdAt: true, mfaEnabledAt: true,
@@ -58,26 +59,42 @@ export class PlatformUsersService {
     return new Map(rows.map((r) => [r.userId, r._count._all]));
   }
 
-  async search(q: string) {
-    const term = q.trim();
-    if (term.length < 2) return [];
+  /** Lista de pessoas de todas as empresas: mais recentes primeiro, com busca e filtros. */
+  async list(query: PlatformQueryUsersDto) {
+    const page = Math.max(1, query.page ?? 1);
+    const limit = Math.min(100, Math.max(1, query.limit ?? 20));
+    const term = (query.q ?? '').trim();
     const digits = term.replace(/\D/g, '');
-    const users = await this.prisma.user.findMany({
-      where: {
-        isServiceAccount: false,
+    const where: Prisma.UserWhereInput = {
+      isServiceAccount: false,
+      ...(term ? {
         OR: [
           { name: { contains: term, mode: 'insensitive' } },
           { email: { contains: term, mode: 'insensitive' } },
           ...(digits.length >= 4 ? [{ phone: { contains: digits } }, { cpf: { contains: digits } }] : []),
           { id: term },
         ],
-      },
-      select: USER_SELECT,
-      orderBy: [{ lastLoginAt: { sort: 'desc', nulls: 'last' } }, { name: 'asc' }],
-      take: 30,
-    });
+      } : {}),
+      ...(query.tenantId ? { tenantAccess: { some: { tenantId: query.tenantId, deletedAt: null } } } : {}),
+      ...(query.status ? { status: query.status } : {}),
+      ...(query.mfa === 'on' ? { mfaEnabledAt: { not: null } } : query.mfa === 'off' ? { mfaEnabledAt: null } : {}),
+      ...(query.owner === 'true' ? { ownedTenants: { some: { deletedAt: null } } } : {}),
+    };
+    const [total, users] = await Promise.all([
+      this.prisma.user.count({ where }),
+      this.prisma.user.findMany({
+        where,
+        select: USER_SELECT,
+        orderBy: [{ lastLoginAt: { sort: 'desc', nulls: 'last' } }, { name: 'asc' }],
+        skip: (page - 1) * limit,
+        take: limit,
+      }),
+    ]);
     const sessions = await this.sessionCounts(users.map((u) => u.id));
-    return users.map((u) => this.shape(u, sessions.get(u.id) ?? 0));
+    return {
+      data: users.map((u) => this.shape(u, sessions.get(u.id) ?? 0)),
+      meta: { total, page, limit, totalPages: Math.max(1, Math.ceil(total / limit)) },
+    };
   }
 
   async detail(id: string) {

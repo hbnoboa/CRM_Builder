@@ -2693,6 +2693,24 @@
     "noDevices": "No devices signed in.",
     "lastUsed": "used {when}",
     "recentActions": "Recent actions",
-    "noActions": "No actions recorded."
+    "noActions": "No actions recorded.",
+    "allCompanies": "All companies",
+    "allStatus": "Any status",
+    "allMfa": "Two-step: all",
+    "mfaOnly": "With two-step",
+    "mfaNone": "Without two-step",
+    "ownersOnly": "Company owners only",
+    "everyone": "Everyone",
+    "columns": {
+      "person": "Person",
+      "companies": "Companies and roles",
+      "lastLogin": "Last sign-in",
+      "devices": "Devices",
+      "status": "Status"
+    },
+    "total": "{n, plural, one {# person} other {# people}}",
+    "page": "Page {page} of {total}",
+    "previous": "Previous",
+    "next": "Next"
   }
 }
