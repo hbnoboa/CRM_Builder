@@ -45,6 +45,13 @@ function toDataRecord(ed: EntityData): DataRecord {
 
 // ─── Hook ────────────────────────────────────────────────────────────
 
+/** Espera para juntar avisos de tempo real antes de buscar (ms). */
+const FLUSH_DELAY_MS = 1000;
+/** Registros por busca parcial (cabe na URL). */
+const BATCH_SIZE = 100;
+/** Acima disso no mesmo lote (ex.: importacao), uma recarga completa e mais barata. */
+const MAX_INCREMENTAL = 300;
+
 export function useEntityDataSource(
   entitySlug: string | undefined,
   dashboardFilters?: string,
@@ -102,65 +109,91 @@ export function useEntityDataSource(
     fetchAll();
   }, [entitySlug, dashboardFilters, fetchAll]);
 
-  // Escutar eventos de WebSocket (entity-data-changed)
+  // Avisos em tempo real (entity-data-changed). O servidor manda so o id do registro
+  // (cada um ve com a propria permissao): em vez de baixar a tabela inteira a cada
+  // registro salvo, junta os avisos por ~1 s e busca so os registros alterados.
+  // Muitos de uma vez (ex.: importacao) -> uma unica recarga completa.
+  const pendingRef = useRef<Map<string, 'created' | 'updated'>>(new Map());
+  const flushTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const needsFullRef = useRef(false);
+
+  const flushPending = useCallback(async () => {
+    flushTimerRef.current = null;
+    const slug = entitySlugRef.current;
+    if (!slug) return;
+    if (needsFullRef.current || pendingRef.current.size > MAX_INCREMENTAL) {
+      needsFullRef.current = false;
+      pendingRef.current.clear();
+      fetchAll();
+      return;
+    }
+    const batch = new Map(pendingRef.current);
+    pendingRef.current.clear();
+    if (batch.size === 0) return;
+    try {
+      const ids = Array.from(batch.keys());
+      const fetched = new Map<string, DataRecord>();
+      for (let i = 0; i < ids.length; i += BATCH_SIZE) {
+        const params: Record<string, string> = {
+          recordIds: JSON.stringify(ids.slice(i, i + BATCH_SIZE)),
+          includeChildren: 'true',
+          limit: String(BATCH_SIZE),
+        };
+        if (dashFiltersRef.current) params.dashboardFilters = dashFiltersRef.current;
+        const response = await dataService.getAll(slug, params);
+        for (const ed of response.data) fetched.set(ed.id, toDataRecord(ed));
+      }
+      if (entitySlugRef.current !== slug) return;
+      let added = 0;
+      let removed = 0;
+      setRecords((prev) => {
+        const known = new Set(prev.map((r) => r.id));
+        // Alterado: troca pelo que veio. Nao veio (sem permissao, fora do filtro, excluido): sai.
+        const next = prev.flatMap((r) => {
+          if (!batch.has(r.id)) return [r];
+          const fresh = fetched.get(r.id);
+          if (!fresh) { removed++; return []; }
+          return [fresh];
+        });
+        // Novos (ou que passaram a ser visiveis): entram no topo
+        const novos = Array.from(fetched.values()).filter((r) => !known.has(r.id));
+        added = novos.length;
+        return novos.length ? [...novos, ...next] : next;
+      });
+      if (added || removed) setTotalServerRecords((n) => Math.max(0, n + added - removed));
+    } catch {
+      // Falhou a busca parcial: recarrega tudo uma vez, como antes
+      fetchAll();
+    }
+  }, [fetchAll]);
+
+  const scheduleFlush = useCallback(() => {
+    if (!flushTimerRef.current) flushTimerRef.current = setTimeout(flushPending, FLUSH_DELAY_MS);
+  }, [flushPending]);
+
+  useEffect(() => () => { if (flushTimerRef.current) clearTimeout(flushTimerRef.current); }, []);
+
   useEffect(() => {
     if (!entitySlug || disableWebSocketUpdates) return;
 
     const handler = (e: Event) => {
       const detail = (e as CustomEvent<EntityDataChangedDetail>).detail;
-      console.log('[WebSocket] entity-data-changed recebido:', detail);
-
-      if (!detail || detail.entitySlug !== entitySlugRef.current) {
-        console.log('[WebSocket] Ignorando evento - entitySlug diferente:', {
-          received: detail?.entitySlug,
-          current: entitySlugRef.current,
-        });
-        return;
-      }
-
-      console.log(`[WebSocket] Processando ${detail.operation} para ${detail.entitySlug}`);
+      if (!detail || detail.entitySlug !== entitySlugRef.current) return;
 
       switch (detail.operation) {
-        case 'created': {
-          if (detail.record) {
-            // Inserir no topo (mais recente)
-            const newRecord: DataRecord = {
-              id: detail.record.id,
-              data: detail.record.data,
-              createdAt: detail.record.createdAt || detail.record.updatedAt || new Date().toISOString(),
-              updatedAt: detail.record.updatedAt || new Date().toISOString(),
-            };
-            setRecords(prev => [newRecord, ...prev]);
-            setTotalServerRecords(prev => prev + 1);
-          } else {
-            // Sem dados do record, re-fetch completo
-            fetchAll();
-          }
-          break;
-        }
-
+        case 'created':
         case 'updated': {
-          if (detail.record) {
-            setRecords(prev =>
-              prev.map(r =>
-                r.id === detail.record!.id
-                  ? {
-                      ...r,
-                      data: { ...r.data, ...detail.record!.data },
-                      updatedAt: detail.record!.updatedAt || new Date().toISOString(),
-                    }
-                  : r,
-              ),
-            );
-          } else {
-            // Do servidor vem so o id: busca de novo com a permissao de quem esta vendo.
-            fetchAll();
-          }
+          const id = detail.record?.id || detail.recordId;
+          if (!id) { needsFullRef.current = true; scheduleFlush(); break; }
+          // 'created' vence 'updated' para o mesmo id no mesmo lote
+          if (pendingRef.current.get(id) !== 'created') pendingRef.current.set(id, detail.operation);
+          scheduleFlush();
           break;
         }
 
         case 'deleted': {
           if (detail.recordId) {
+            pendingRef.current.delete(detail.recordId);
             setRecords(prev => prev.filter(r => r.id !== detail.recordId));
             setTotalServerRecords(prev => Math.max(0, prev - 1));
           }
@@ -169,14 +202,15 @@ export function useEntityDataSource(
 
         case 'refresh':
         default:
-          fetchAll();
+          needsFullRef.current = true;
+          scheduleFlush();
           break;
       }
     };
 
     window.addEventListener('entity-data-changed', handler);
     return () => window.removeEventListener('entity-data-changed', handler);
-  }, [entitySlug, fetchAll, disableWebSocketUpdates]);
+  }, [entitySlug, scheduleFlush, disableWebSocketUpdates]);
 
   const isFullDataset = DASHBOARD_MAX_LIMIT === 0 || totalServerRecords <= DASHBOARD_MAX_LIMIT;
 

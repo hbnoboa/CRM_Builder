@@ -83,11 +83,35 @@ interface NotificationProviderProps {
   children: ReactNode;
 }
 
+/** Janela em que os avisos de uma tabela viram uma unica recarga dos numeros do painel.
+ *  30 s enquanto as estatisticas leem a tabela inteira no servidor (cada recarga pesa);
+ *  volta a 10 s quando elas forem calculadas no banco. */
+const STATS_REFRESH_WINDOW_MS = 30_000;
+
 export function NotificationProvider({ children }: NotificationProviderProps) {
   console.log('🚀 [NotificationProvider] Componente renderizando');
   const { isAuthenticated } = useAuthStore();
   console.log('🔑 [NotificationProvider] isAuthenticated:', isAuthenticated);
   const queryClient = useQueryClient();
+  // Numeros do painel (entity-stats) por tabela: recarrega no 1o aviso e, na janela
+  // seguintes, junta os avisos numa unica recarga no fim. Durante uma operacao cada
+  // registro salvo gerava uma recarga de todos os widgets daquela tabela.
+  const statsThrottleRef = useRef(new Map<string, { pending: boolean }>());
+  const invalidateEntityStats = useCallback((entitySlug: string) => {
+    const throttle = statsThrottleRef.current;
+    const current = throttle.get(entitySlug);
+    if (current) { current.pending = true; return; }
+    queryClient.invalidateQueries({
+      queryKey: ['entity-stats'],
+      predicate: (query) => (query.queryKey as unknown[]).includes(entitySlug),
+    });
+    throttle.set(entitySlug, { pending: false });
+    setTimeout(() => {
+      const state = throttle.get(entitySlug);
+      throttle.delete(entitySlug);
+      if (state?.pending) invalidateEntityStats(entitySlug);
+    }, STATS_REFRESH_WINDOW_MS);
+  }, [queryClient]);
   const [socket, setSocket] = useState<Socket | null>(null);
   const [isConnected, setIsConnected] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
@@ -202,8 +226,12 @@ export function NotificationProvider({ children }: NotificationProviderProps) {
           duration: 5000,
         });
 
-        // Emit custom event for data pages (fallback refresh since notifications don't carry record data)
-        if (notification.data?.entitySlug) {
+        // Recarga de reserva para avisos que nao vem com o evento de dados (ex.: importacao
+        // concluida, automacao). Os de registro criado/alterado/excluido ja chegam como
+        // 'data-changed' com o id: recarregar a tabela inteira aqui anulava a busca parcial.
+        const notifData = notification.data as Record<string, unknown> | undefined;
+        const isRecordNotice = !!notifData && ('createdBy' in notifData || 'updatedBy' in notifData || 'deletedBy' in notifData);
+        if (notification.data?.entitySlug && !isRecordNotice) {
           window.dispatchEvent(
             new CustomEvent('entity-data-changed', {
               detail: { operation: 'refresh', entitySlug: notification.data.entitySlug },
@@ -216,19 +244,9 @@ export function NotificationProvider({ children }: NotificationProviderProps) {
       newSocket.on('data-changed', (payload: Record<string, unknown>) => {
         console.log('🔔 [WebSocket] Evento data-changed recebido do servidor:', payload);
 
-        // Invalidate TanStack Query cache for dashboard widgets
+        // Numeros do painel daquela tabela (no maximo uma recarga por janela)
         const entitySlug = payload.entitySlug as string | undefined;
-        if (entitySlug) {
-          console.log('🔄 [WebSocket] Invalidando cache de entity-stats para:', entitySlug);
-          queryClient.invalidateQueries({
-            queryKey: ['entity-stats'],
-            // Apenas invalidar queries que contenham esse entitySlug
-            predicate: (query) => {
-              const key = query.queryKey as unknown[];
-              return key.includes(entitySlug);
-            }
-          });
-        }
+        if (entitySlug) invalidateEntityStats(entitySlug);
 
         // Dispatch event for useEntityDataSource (table widget)
         window.dispatchEvent(
