@@ -1,7 +1,8 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CustomRoleService } from '../custom-role/custom-role.service';
-import { EntityDataQueryService, type DashboardFilterOptions } from '../../common/services/entity-data-query.service';
+import { EntityDataQueryService, type BuildWhereResult, type DashboardFilterOptions } from '../../common/services/entity-data-query.service';
+import { compositeKeySql, fieldSql, parentsSql, runStats, sameStats, scopeSql, statsMode } from './stats-sql';
 import { CurrentUser } from '../../common/types';
 import { getEffectiveTenantId } from '../../common/utils/tenant.util';
 import { Prisma, type PrismaClient } from '@prisma/client';
@@ -24,6 +25,27 @@ function compareSortValues(a: unknown, b: unknown): number {
 /** Ajustes da tabela usados na tela inicial (titulo, situacao, prazo, responsavel). */
 type HomeSettings = { titleField?: string; statusField?: string; doneValues?: string[]; deadlineField?: string; assigneeField?: string };
 
+type GroupedDataOptions = {
+  aggregations?: Array<{
+    type: 'count' | 'sum' | 'avg' | 'min' | 'max' | 'distinctCount' | 'mode' | 'first';
+    fieldSlug?: string;
+    alias: string;
+    distinctFields?: string[];
+  }>;
+  crossEntityCount?: {
+    entitySlug: string;
+    matchFields?: Array<{ source: string; target: string }>;
+    matchBy?: 'fields' | 'children'; // 'children' = count sub-entity records by parentRecordId
+    alias: string;
+  };
+  limit?: number;
+  sortBy?: string;
+  sortOrder?: 'asc' | 'desc';
+} & DashboardFilterOptions;
+
+/** Recorte de uma estatistica: WHERE do pipeline central + campos ocultos do cargo. */
+type StatsScope = BuildWhereResult & { hidden: Set<string> };
+
 @Injectable()
 export class StatsService {
   private readonly logger = new Logger(StatsService.name);
@@ -33,6 +55,61 @@ export class StatsService {
     private readonly customRoleService: CustomRoleService,
     private readonly queryService: EntityDataQueryService,
   ) {}
+
+  /**
+   * Caminho antigo (JavaScript) x novo (SQL), conforme STATS_SQL. Em "shadow" calcula
+   * os dois, registra a diferenca e devolve o antigo.
+   */
+  private async dual<T>(name: string, js: () => Promise<T>, sql: () => Promise<T>): Promise<T> {
+    const mode = statsMode();
+    if (mode === 'off') return js();
+    if (mode === 'on') return sql();
+    const [oldResult, newResult] = await Promise.all([
+      js(),
+      sql().catch((e: Error) => { this.logger.error(`[stats-sql] ${name} falhou: ${e.message}`); return undefined; }),
+    ]);
+    if (newResult !== undefined) {
+      if (sameStats(oldResult, newResult)) this.logger.log(`[stats-sql] ${name} igual`);
+      else this.logger.warn(`[stats-sql] ${name} DIFERENTE js=${JSON.stringify(oldResult).slice(0, 600)} sql=${JSON.stringify(newResult).slice(0, 600)}`);
+    }
+    return oldResult;
+  }
+
+  /** CTE "recs" (registros do recorte) e, se pedido, "parents" (registros-pai). */
+  private async statsCtes(scope: StatsScope, withParents = false): Promise<Prisma.Sql> {
+    const recs = await scopeSql(this.prisma, scope.where, this.queryService.buildArchivedWhere(scope.where));
+    return withParents
+      ? Prisma.sql`WITH recs AS (${recs}), parents AS (${parentsSql(scope.effectiveTenantId)})`
+      : Prisma.sql`WITH recs AS (${recs})`;
+  }
+
+  /** count/sum/avg/min/max de um campo numerico (regra do parseFloat), num recorte. */
+  private async numAggSql(scope: StatsScope, fieldSlug: string, where?: Prisma.EntityDataWhereInput) {
+    const sc = where ? { ...scope, where } : scope;
+    const [row] = await runStats<{ count: number; sum: number; avg: number; min: number; max: number }>(this.prisma, Prisma.sql`
+      ${await this.statsCtes(sc)}
+      SELECT count(n)::int AS count, coalesce(sum(n), 0)::float8 AS sum, coalesce(avg(n), 0)::float8 AS avg,
+             coalesce(min(n), 0)::float8 AS min, coalesce(max(n), 0)::float8 AS max
+        FROM (SELECT stats_num(${fieldSql(fieldSlug)}) AS n FROM recs r) x`);
+    return row;
+  }
+
+  /** Valor da agregacao pedida (count/sum/avg/min/max; outra = soma), como aggregateValues. */
+  private pickAgg(row: { count: number; sum: number; avg: number; min: number; max: number }, type: string): number {
+    if (!row || row.count === 0) return 0;
+    switch (type) {
+      case 'count': return row.count;
+      case 'avg': return row.avg;
+      case 'min': return row.min;
+      case 'max': return row.max;
+      default: return row.sum;
+    }
+  }
+
+  /** FROM com o join no registro-pai so quando algum campo e "parent.x". */
+  private recsFrom(withParents: boolean): Prisma.Sql {
+    return withParents ? Prisma.sql`recs r LEFT JOIN parents p ON p.id = r."parentRecordId"` : Prisma.sql`recs r`;
+  }
 
   // Helper: resolve tenantId e roleType a partir do user
   // Sempre escopado ao tenant ativo do usuario (sem visao global/cross-tenant).
@@ -422,7 +499,38 @@ export class StatsService {
   ) {
     const result = await this.buildEntityWhere(user, entitySlug, queryTenantId, dashFilters, [dateField]);
     if (!result) return [];
+    return this.dual('records-over-time',
+      () => this.recordsOverTimeJs({ ...result, where: { ...result.where } }, days, dateField),
+      () => this.recordsOverTimeSql({ ...result, where: { ...result.where } }, days, dateField));
+  }
 
+  private async recordsOverTimeSql(result: StatsScope, days: number, dateField?: string) {
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - days);
+    const fields = ((result.entity?.fields ?? []) as unknown as Array<{ slug: string; type: string }>);
+    const dateSlug = dateField && fields.some((f) => f.slug === dateField && ['date', 'datetime'].includes(f.type)) ? dateField : null;
+    if (dateSlug) {
+      // So o valor do campo de data; o dia sai com a mesma conversao do caminho antigo
+      const byField = { ...result.where, data: { path: [dateSlug], gte: startDate.toISOString().split('T')[0] } } as Prisma.EntityDataWhereInput;
+      const values = await runStats<{ v: unknown }>(this.prisma, Prisma.sql`
+        ${await this.statsCtes({ ...result, where: byField })} SELECT r.data -> ${dateSlug}::text AS v FROM recs r`);
+      const grouped: Record<string, number> = {};
+      for (const { v } of values) {
+        if (typeof v !== 'string' || !v) continue;
+        const d = new Date(v);
+        if (isNaN(d.getTime())) continue;
+        const key = d.toISOString().split('T')[0];
+        grouped[key] = (grouped[key] || 0) + 1;
+      }
+      return this.fillDates(startDate, grouped);
+    }
+    const rows = await runStats<{ d: string; n: number }>(this.prisma, Prisma.sql`
+      ${await this.statsCtes({ ...result, where: { ...result.where, createdAt: { gte: startDate } } })}
+      SELECT to_char(r."createdAt", 'YYYY-MM-DD') AS d, count(*)::int AS n FROM recs r GROUP BY 1`);
+    return this.fillDates(startDate, Object.fromEntries(rows.map((r) => [r.d, r.n])));
+  }
+
+  private async recordsOverTimeJs(result: StatsScope, days: number, dateField?: string) {
     const { where } = result;
     const startDate = new Date();
     startDate.setDate(startDate.getDate() - days);
@@ -494,7 +602,25 @@ export class StatsService {
   ) {
     const result = await this.buildEntityWhere(user, entitySlug, queryTenantId, dashFilters, [fieldSlug]);
     if (!result) return [];
+    return this.dual('field-distribution',
+      () => this.fieldDistributionJs(result, fieldSlug, limit),
+      () => this.fieldDistributionSql(result, fieldSlug, limit));
+  }
 
+  private async fieldDistributionSql(result: StatsScope, fieldSlug: string, limit: number) {
+    const withParents = fieldSlug.startsWith('parent.');
+    const rows = await runStats<{ value: string; label: string; count: number }>(this.prisma, Prisma.sql`
+      ${await this.statsCtes(result, withParents)}
+      SELECT stats_key(v) AS value, min(stats_label(v)) AS label, count(*)::int AS count
+        FROM (SELECT ${fieldSql(fieldSlug, true)} AS v FROM ${this.recsFrom(withParents)}) x
+       GROUP BY 1
+       ORDER BY 3 DESC, 1`);
+    const distribution = new Map(rows.map((r) => [r.value, r.count]));
+    const labelMap = new Map(rows.map((r) => [r.value, r.label]));
+    return this.finishDistribution(result, fieldSlug, distribution, labelMap, limit);
+  }
+
+  private async fieldDistributionJs(result: StatsScope, fieldSlug: string, limit: number) {
     const { where } = result;
     const isParentField = fieldSlug.startsWith('parent.');
     const needsParent = isParentField;
@@ -552,6 +678,17 @@ export class StatsService {
       if (!labelMap.has(valueKey)) labelMap.set(valueKey, displayLabel);
     }
 
+    return this.finishDistribution(result, fieldSlug, distribution, labelMap, limit);
+  }
+
+  /** Rotulo/cor das opcoes, ordem por contagem e top-N (igual para os dois caminhos). */
+  private finishDistribution(
+    result: StatsScope,
+    fieldSlug: string,
+    distribution: Map<string, number>,
+    labelMap: Map<string, string>,
+    limit: number,
+  ) {
     // Rotulo e cor das opcoes do campo (select/radio/booleano): o grafico mostra
     // "Média" em vez de "media" e usa a cor configurada na opcao.
     const fieldDef = ((result.entity?.fields ?? []) as unknown as Array<{
@@ -588,7 +725,32 @@ export class StatsService {
   ) {
     const result = await this.buildEntityWhere(user, entitySlug, queryTenantId, options, [rowFieldSlug, columnFieldSlug]);
     if (!result) return { rows: [], columns: [], matrix: {}, maxValue: 0 };
+    const limit = options?.limit || 20;
+    return this.dual('cross-field-distribution',
+      () => this.crossFieldJs(result, rowFieldSlug, columnFieldSlug, limit),
+      () => this.crossFieldSql(result, rowFieldSlug, columnFieldSlug, limit));
+  }
 
+  private async crossFieldSql(result: StatsScope, rowFieldSlug: string, columnFieldSlug: string, limit: number) {
+    const withParents = rowFieldSlug.startsWith('parent.') || columnFieldSlug.startsWith('parent.');
+    const cells = await runStats<{ rk: string; rl: string; ck: string; cl: string; n: number }>(this.prisma, Prisma.sql`
+      ${await this.statsCtes(result, withParents)}
+      SELECT stats_key(rv) AS rk, min(stats_label(rv)) AS rl, stats_key(cv) AS ck, min(stats_label(cv)) AS cl, count(*)::int AS n
+        FROM (SELECT ${fieldSql(rowFieldSlug, true)} AS rv, ${fieldSql(columnFieldSlug, true)} AS cv FROM ${this.recsFrom(withParents)}) x
+       GROUP BY 1, 3`);
+    const matrix: Record<string, Record<string, number>> = {};
+    const labelMap = new Map<string, string>();
+    const colSet = new Set<string>();
+    for (const c of cells) {
+      if (!labelMap.has(c.rk)) labelMap.set(c.rk, c.rl);
+      if (!labelMap.has(c.ck)) labelMap.set(c.ck, c.cl);
+      colSet.add(c.ck);
+      (matrix[c.rk] ??= {})[c.ck] = c.n;
+    }
+    return this.finishCrossField(matrix, colSet, labelMap, limit);
+  }
+
+  private async crossFieldJs(result: StatsScope, rowFieldSlug: string, columnFieldSlug: string, limit: number) {
     const { where } = result;
     const needsParent = rowFieldSlug.startsWith('parent.') || columnFieldSlug.startsWith('parent.');
 
@@ -635,8 +797,18 @@ export class StatsService {
       matrix[rowVal][colVal] = (matrix[rowVal][colVal] || 0) + 1;
     }
 
+    return this.finishCrossField(matrix, colSet, labelMap, limit);
+  }
+
+  /** Top-N linhas pelo total, maior celula e rotulos (igual para os dois caminhos). */
+  private finishCrossField(
+    matrix: Record<string, Record<string, number>>,
+    colSet: Set<string>,
+    labelMap: Map<string, string>,
+    limit: number,
+  ) {
+    const rowSet = Object.keys(matrix);
     // Limitar rows por top-N (ordenado por total desc)
-    const limit = options?.limit || 20;
     const rowTotals = Array.from(rowSet)
       .map((row) => ({
         value: row,
@@ -772,7 +944,39 @@ export class StatsService {
   ) {
     const qr = await this.buildEntityWhere(user, entitySlug, queryTenantId, options, [fieldSlug]);
     if (!qr) return { count: 0, sum: 0, avg: 0, min: 0, max: 0 };
+    return this.dual('field-aggregation',
+      () => this.fieldAggregationJs(qr, fieldSlug, options),
+      () => this.fieldAggregationSql(qr, fieldSlug, options));
+  }
 
+  private async fieldAggregationSql(qr: StatsScope, fieldSlug: string, options?: { aggregation?: string; comparePeriod?: boolean; days?: number }) {
+    const all = await this.numAggSql(qr, fieldSlug);
+    const result: Record<string, unknown> = { count: all.count, sum: all.sum, avg: all.avg, min: all.min, max: all.max };
+    if (options?.comparePeriod) {
+      const days = options.days || 30;
+      const now = new Date();
+      const periodStart = new Date(now);
+      periodStart.setDate(periodStart.getDate() - days);
+      const previousStart = new Date(periodStart);
+      previousStart.setDate(previousStart.getDate() - days);
+      const agg = options.aggregation || 'sum';
+      // Periodo atual dentro do recorte (como o filtro em memoria do caminho antigo);
+      // periodo anterior troca a data de criacao (como o caminho antigo)
+      const cur = await this.numAggSql(qr, fieldSlug, { ...qr.where, AND: [...((qr.where.AND as Prisma.EntityDataWhereInput[]) ?? []), { createdAt: { gte: periodStart, lte: now } }] });
+      const prev = await this.numAggSql(qr, fieldSlug, { ...qr.where, createdAt: { gte: previousStart, lt: periodStart } });
+      const current = this.pickAgg(cur, agg);
+      const previous = this.pickAgg(prev, agg);
+      result.periodComparison = {
+        current,
+        previous,
+        changePercent: previous > 0 ? ((current - previous) / previous) * 100 : current > 0 ? 100 : 0,
+        changeAbsolute: current - previous,
+      };
+    }
+    return result;
+  }
+
+  private async fieldAggregationJs(qr: StatsScope, fieldSlug: string, options?: { aggregation?: string; comparePeriod?: boolean; days?: number }) {
     const { where } = qr;
 
     const records = await this.fetchDataFromBoth(where);
@@ -859,8 +1063,26 @@ export class StatsService {
   ) {
     const qr = await this.buildEntityWhere(user, entitySlug, queryTenantId, options, [numeratorField, options?.denominatorEntitySlug && options.denominatorEntitySlug !== entitySlug ? null : denominatorField]);
     if (!qr) return { numerator: 0, denominator: 0, ratio: 0, percentage: 0 };
+    return this.dual('field-ratio',
+      () => this.fieldRatioCore(user, qr, entitySlug, numeratorField, denominatorField, queryTenantId, options, false),
+      () => this.fieldRatioCore(user, qr, entitySlug, numeratorField, denominatorField, queryTenantId, options, true));
+  }
 
+  private async fieldRatioCore(
+    user: CurrentUser,
+    qr: StatsScope,
+    entitySlug: string,
+    numeratorField: string,
+    denominatorField: string,
+    queryTenantId: string | undefined,
+    options: ({ aggregation?: string; comparePeriod?: boolean; days?: number; denominatorEntitySlug?: string } & DashboardFilterOptions) | undefined,
+    useSql: boolean,
+  ) {
     const { where } = qr;
+    // Soma/media de um campo num recorte: no banco (useSql) ou carregando os registros
+    const aggOf = async (scopeQr: StatsScope, w: Prisma.EntityDataWhereInput, field: string, type: string) => useSql
+      ? this.pickAgg(await this.numAggSql(scopeQr, field, w), type)
+      : this.aggregateValues(this.extractNumericValues(await this.fetchDataFromBoth(w) as { data: unknown }[], field), type);
     const agg = options?.aggregation || 'sum';
     const isNumeratorCount = numeratorField === 'count';
     const isDenominatorCount = denominatorField === 'count';
@@ -868,10 +1090,12 @@ export class StatsService {
 
     // Build denominator WHERE if cross-entity
     let denWhere = where;
+    let denScope: StatsScope = qr;
     if (denominatorEntitySlug && denominatorEntitySlug !== entitySlug) {
       const denQr = await this.buildEntityWhere(user, denominatorEntitySlug, queryTenantId, options, [denominatorField]);
       if (!denQr) return { numerator: 0, denominator: 0, ratio: 0, percentage: 0 };
       denWhere = denQr.where;
+      denScope = denQr;
     }
 
     // For 'count' fields, just count records; for real fields, extract values
@@ -881,17 +1105,13 @@ export class StatsService {
     if (isNumeratorCount) {
       numerator = await this.countBoth(where);
     } else {
-      const records = await this.fetchDataFromBoth(where);
-      const vals = this.extractNumericValues(records as { data: unknown }[], numeratorField);
-      numerator = this.aggregateValues(vals, agg);
+      numerator = await aggOf(qr, where, numeratorField, agg);
     }
 
     if (isDenominatorCount) {
       denominator = await this.countBoth(denWhere);
     } else {
-      const records = await this.fetchDataFromBoth(denWhere);
-      const vals = this.extractNumericValues(records as { data: unknown }[], denominatorField);
-      denominator = this.aggregateValues(vals, agg);
+      denominator = await aggOf(denScope, denWhere, denominatorField, agg);
     }
 
     const ratio = denominator !== 0 ? numerator / denominator : 0;
@@ -909,33 +1129,21 @@ export class StatsService {
 
       const curNum = isNumeratorCount
         ? await this.countBoth({ ...where, createdAt: { gte: periodStart, lte: now } })
-        : this.aggregateValues(this.extractNumericValues(
-            await this.fetchDataFromBoth({ ...where, createdAt: { gte: periodStart, lte: now } }) as { data: unknown }[],
-            numeratorField,
-          ), agg);
+        : await aggOf(qr, { ...where, createdAt: { gte: periodStart, lte: now } }, numeratorField, agg);
 
       const curDen = isDenominatorCount
         ? await this.countBoth({ ...denWhere, createdAt: { gte: periodStart, lte: now } })
-        : this.aggregateValues(this.extractNumericValues(
-            await this.fetchDataFromBoth({ ...denWhere, createdAt: { gte: periodStart, lte: now } }) as { data: unknown }[],
-            denominatorField,
-          ), agg);
+        : await aggOf(denScope, { ...denWhere, createdAt: { gte: periodStart, lte: now } }, denominatorField, agg);
 
       const curPct = curDen !== 0 ? (curNum / curDen) * 100 : 0;
 
       const prevNum = isNumeratorCount
         ? await this.countBoth({ ...where, createdAt: { gte: previousStart, lt: periodStart } })
-        : this.aggregateValues(this.extractNumericValues(
-            await this.fetchDataFromBoth({ ...where, createdAt: { gte: previousStart, lt: periodStart } }) as { data: unknown }[],
-            numeratorField,
-          ), agg);
+        : await aggOf(qr, { ...where, createdAt: { gte: previousStart, lt: periodStart } }, numeratorField, agg);
 
       const prevDen = isDenominatorCount
         ? await this.countBoth({ ...denWhere, createdAt: { gte: previousStart, lt: periodStart } })
-        : this.aggregateValues(this.extractNumericValues(
-            await this.fetchDataFromBoth({ ...denWhere, createdAt: { gte: previousStart, lt: periodStart } }) as { data: unknown }[],
-            denominatorField,
-          ), agg);
+        : await aggOf(denScope, { ...denWhere, createdAt: { gte: previousStart, lt: periodStart } }, denominatorField, agg);
 
       const prevPct = prevDen !== 0 ? (prevNum / prevDen) * 100 : 0;
 
@@ -981,7 +1189,37 @@ export class StatsService {
   ) {
     const qr = await this.buildEntityWhere(user, entitySlug, queryTenantId, options, [fieldSlug]);
     if (!qr) return [];
+    return this.dual('field-trend',
+      () => this.fieldTrendJs({ ...qr, where: { ...qr.where } }, fieldSlug, options),
+      () => this.fieldTrendSql({ ...qr, where: { ...qr.where } }, fieldSlug, options));
+  }
 
+  private async fieldTrendSql(qr: StatsScope, fieldSlug: string, options?: { aggregation?: string; days?: number }) {
+    const days = options?.days || 30;
+    const agg = options?.aggregation || 'sum';
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - days);
+    const rows = await runStats<{ d: string; count: number; sum: number; avg: number; min: number; max: number }>(this.prisma, Prisma.sql`
+      ${await this.statsCtes({ ...qr, where: { ...qr.where, createdAt: { gte: startDate } } })}
+      SELECT d, count(n)::int AS count, coalesce(sum(n), 0)::float8 AS sum, coalesce(avg(n), 0)::float8 AS avg,
+             coalesce(min(n), 0)::float8 AS min, coalesce(max(n), 0)::float8 AS max
+        FROM (SELECT to_char(r."createdAt", 'YYYY-MM-DD') AS d, stats_num(${fieldSql(fieldSlug)}) AS n FROM recs r) x
+       WHERE n IS NOT NULL
+       GROUP BY d`);
+    const byDay = new Map(rows.map((r) => [r.d, r]));
+    const result: Array<{ date: string; value: number }> = [];
+    const currentDate = new Date(startDate);
+    const today = new Date();
+    while (currentDate <= today) {
+      const dateStr = currentDate.toISOString().split('T')[0];
+      const row = byDay.get(dateStr);
+      result.push({ date: dateStr, value: row ? this.pickAgg(row, agg) : 0 });
+      currentDate.setDate(currentDate.getDate() + 1);
+    }
+    return result;
+  }
+
+  private async fieldTrendJs(qr: StatsScope, fieldSlug: string, options?: { aggregation?: string; days?: number }) {
     const { where } = qr;
     const days = options?.days || 30;
     const agg = options?.aggregation || 'sum';
@@ -1104,8 +1342,46 @@ export class StatsService {
   ) {
     const result = await this.buildEntityWhere(user, entitySlug, queryTenantId, options, [...(options?.fields ?? []), options?.sortBy]);
     if (!result) return [];
+    return this.dual('top-records',
+      () => this.topRecordsJs(result, options),
+      () => this.topRecordsSql(result, options));
+  }
 
-    const { where, hidden } = result;
+  private async topRecordsSql(result: StatsScope, options?: { limit?: number; sortBy?: string; sortOrder?: 'asc' | 'desc'; fields?: string[] }) {
+    const limit = Number(options?.limit) || 5;
+    const sortBy = options?.sortBy || 'createdAt';
+    const sortOrder = options?.sortOrder || 'desc';
+    type TopRecord = { id: string; data: unknown; createdAt: Date; updatedAt: Date; parentRecordId: string | null };
+    const ctes = await this.statsCtes(result);
+    let sliced: TopRecord[];
+    if (sortBy === 'createdAt' || sortBy === 'updatedAt') {
+      const col = Prisma.raw(`"${sortBy}"`);
+      const dir = Prisma.raw(sortOrder === 'desc' ? 'DESC' : 'ASC');
+      sliced = await runStats<TopRecord>(this.prisma, Prisma.sql`
+        ${ctes} SELECT * FROM recs ORDER BY ${col} ${dir}, id LIMIT ${limit}`);
+    } else {
+      // So o valor de ordenacao de cada registro; a ordem (numero, data, texto pt-BR, vazios
+      // no fim) e a mesma do caminho antigo; depois os dados completos so dos escolhidos.
+      const values = await runStats<{ id: string; v: unknown }>(this.prisma, Prisma.sql`
+        ${ctes} SELECT id, r.data -> ${sortBy}::text AS v FROM recs r`);
+      values.sort((a, b) => {
+        const emptyA = a.v === null || a.v === undefined || a.v === '';
+        const emptyB = b.v === null || b.v === undefined || b.v === '';
+        if (emptyA || emptyB) return Number(emptyA) - Number(emptyB);
+        const cmp = compareSortValues(a.v, b.v);
+        return sortOrder === 'desc' ? -cmp : cmp;
+      });
+      const ids = values.slice(0, limit).map((v) => v.id);
+      const full = await runStats<TopRecord>(this.prisma, Prisma.sql`
+        ${ctes} SELECT * FROM recs WHERE id = ANY(${ids}::text[])`);
+      const byId = new Map(full.map((r) => [r.id, r]));
+      sliced = ids.map((id) => byId.get(id)).filter((r): r is TopRecord => !!r);
+    }
+    return this.finishTopRecords(result, sliced, options);
+  }
+
+  private async topRecordsJs(result: StatsScope, options?: { limit?: number; sortBy?: string; sortOrder?: 'asc' | 'desc'; fields?: string[] }) {
+    const { where } = result;
     const limit = options?.limit || 5;
     const sortBy = options?.sortBy || 'createdAt';
     const sortOrder = options?.sortOrder || 'desc';
@@ -1142,7 +1418,16 @@ export class StatsService {
     }
 
     const sliced = allRecords.slice(0, limit);
+    return this.finishTopRecords(result, sliced, options);
+  }
 
+  /** Campos pedidos (sem os ocultos) e campos do registro-pai (igual para os dois caminhos). */
+  private async finishTopRecords(
+    result: StatsScope,
+    sliced: Array<{ id: string; data: unknown; createdAt: Date; updatedAt: Date; parentRecordId: string | null }>,
+    options?: { fields?: string[] },
+  ) {
+    const { hidden } = result;
     // Resolve parent fields if any requested
     const { parent: parentFieldSlugs } = this.extractParentSlugs(options?.fields || []);
     const parentDataMap = await this.resolveParentFields(sliced, parentFieldSlugs);
@@ -1234,7 +1519,65 @@ export class StatsService {
   ) {
     const qr = await this.buildEntityWhere(user, entitySlug, queryTenantId, options, [...fieldSlugs, options?.filterField]);
     if (!qr) return { total: 0 };
+    return this.dual('distinct-count',
+      () => this.distinctCountJs(qr, fieldSlugs, options),
+      () => this.distinctCountSql(qr, fieldSlugs, options));
+  }
 
+  private async distinctCountSql(
+    qr: StatsScope,
+    fieldSlugs: string[],
+    options?: { comparePeriod?: boolean; days?: number; filterField?: string; filterValue?: string },
+  ) {
+    // Mesmo criterio do shouldInclude: "true" aceita Sim/sim, "false" aceita Nao/nao/Não
+    const target = options?.filterValue ?? '';
+    const accepted = target === 'true' ? ['true', 'Sim', 'sim'] : target === 'false' ? ['false', 'Nao', 'nao', 'Não'] : [target];
+    const include = options?.filterField
+      ? Prisma.sql`stats_key(${fieldSql(options.filterField)}) = ANY(${accepted}::text[])`
+      : Prisma.sql`true`;
+    const days = options?.days || 30;
+    const now = new Date();
+    const periodStart = new Date(now);
+    periodStart.setDate(periodStart.getDate() - days);
+    const previousStart = new Date(periodStart);
+    previousStart.setDate(previousStart.getDate() - days);
+
+    const [counts] = await runStats<{ all: number; filtered: number; current: number }>(this.prisma, Prisma.sql`
+      ${await this.statsCtes(qr)}
+      SELECT count(DISTINCT k)::int AS all,
+             count(DISTINCT k) FILTER (WHERE inc)::int AS filtered,
+             count(DISTINCT k) FILTER (WHERE inc AND created >= ${periodStart} AND created <= ${now})::int AS current
+        FROM (SELECT ${compositeKeySql(fieldSlugs)} AS k, ${include} AS inc, r."createdAt" AS created FROM recs r) x`);
+
+    const total = options?.filterField ? counts.filtered : counts.all;
+    const result: Record<string, unknown> = {
+      total,
+      ...(options?.filterField ? { totalDistinct: counts.all, filteredDistinct: counts.filtered } : {}),
+    };
+    if (options?.comparePeriod) {
+      // Periodo anterior: mesmo recorte com a data de criacao trocada (como no caminho antigo)
+      const prevScope: StatsScope = { ...qr, where: { ...qr.where, createdAt: { gte: previousStart, lt: periodStart } } };
+      const [prev] = await runStats<{ n: number }>(this.prisma, Prisma.sql`
+        ${await this.statsCtes(prevScope)}
+        SELECT count(DISTINCT k) FILTER (WHERE inc)::int AS n
+          FROM (SELECT ${compositeKeySql(fieldSlugs)} AS k, ${include} AS inc FROM recs r) x`);
+      const current = counts.current;
+      const previous = prev.n;
+      result.periodComparison = {
+        current,
+        previous,
+        changePercent: previous > 0 ? ((current - previous) / previous) * 100 : current > 0 ? 100 : 0,
+        changeAbsolute: current - previous,
+      };
+    }
+    return result;
+  }
+
+  private async distinctCountJs(
+    qr: StatsScope,
+    fieldSlugs: string[],
+    options?: { comparePeriod?: boolean; days?: number; filterField?: string; filterValue?: string },
+  ) {
     const { where } = qr;
     const archivedWhere = this.queryService.buildArchivedWhere(where);
 
@@ -1332,23 +1675,7 @@ export class StatsService {
     entitySlug: string,
     groupByFields: string[],
     queryTenantId?: string,
-    options?: {
-      aggregations?: Array<{
-        type: 'count' | 'sum' | 'avg' | 'min' | 'max' | 'distinctCount' | 'mode' | 'first';
-        fieldSlug?: string;
-        alias: string;
-        distinctFields?: string[];
-      }>;
-      crossEntityCount?: {
-        entitySlug: string;
-        matchFields?: Array<{ source: string; target: string }>;
-        matchBy?: 'fields' | 'children'; // 'children' = count sub-entity records by parentRecordId
-        alias: string;
-      };
-      limit?: number;
-      sortBy?: string;
-      sortOrder?: 'asc' | 'desc';
-    } & DashboardFilterOptions,
+    options?: GroupedDataOptions,
   ): Promise<Array<Record<string, unknown>>> {
     const qr = await this.buildEntityWhere(user, entitySlug, queryTenantId, options, [
       ...groupByFields,
@@ -1356,7 +1683,100 @@ export class StatsService {
       ...(options?.crossEntityCount?.matchFields ?? []).map((m) => m.source),
     ]);
     if (!qr) return [];
+    return this.dual('grouped-data',
+      () => this.groupedDataJs(user, qr, groupByFields, queryTenantId, options),
+      () => this.groupedDataSql(user, qr, groupByFields, queryTenantId, options));
+  }
 
+  private async groupedDataSql(
+    user: CurrentUser,
+    qr: StatsScope,
+    groupByFields: string[],
+    queryTenantId: string | undefined,
+    options?: GroupedDataOptions,
+  ): Promise<Array<Record<string, unknown>>> {
+    const aggregations = options?.aggregations || [{ type: 'count' as const, alias: 'total' }];
+    const cross = options?.crossEntityCount;
+    const order = Prisma.sql`ORDER BY r."createdAt", r.id`;
+    // Uma coluna por agregacao (a0, a1, ...); o nome final vem do alias em JS
+    const aggCols = aggregations.map((agg, i) => {
+      const col = Prisma.raw(`a${i}`);
+      const field = agg.fieldSlug ? fieldSql(agg.fieldSlug) : Prisma.sql`NULL::jsonb`;
+      switch (agg.type) {
+        case 'count': return Prisma.sql`count(*)::int AS ${col}`;
+        case 'first': return agg.fieldSlug ? Prisma.sql`(array_agg(stats_key(${field}) ${order}))[1] AS ${col}` : Prisma.sql`NULL AS ${col}`;
+        case 'mode': return agg.fieldSlug ? Prisma.sql`mode() WITHIN GROUP (ORDER BY stats_key(${field})) AS ${col}` : Prisma.sql`NULL AS ${col}`;
+        case 'distinctCount': {
+          const dFields = agg.distinctFields || (agg.fieldSlug ? [agg.fieldSlug] : []);
+          return Prisma.sql`count(DISTINCT ${compositeKeySql(dFields)})::int AS ${col}`;
+        }
+        case 'sum': return Prisma.sql`coalesce(sum(stats_num(${field})), 0)::float8 AS ${col}`;
+        case 'avg': return Prisma.sql`coalesce(avg(stats_num(${field})), 0)::float8 AS ${col}`;
+        case 'min': return Prisma.sql`coalesce(min(stats_num(${field})), 0)::float8 AS ${col}`;
+        case 'max': return Prisma.sql`coalesce(max(stats_num(${field})), 0)::float8 AS ${col}`;
+        default: return Prisma.sql`NULL AS ${col}`;
+      }
+    });
+    const keyCols = groupByFields.map((f, i) => Prisma.sql`stats_key(${fieldSql(f)}) AS ${Prisma.raw(`k${i}`)}`);
+    const groupBy = groupByFields.length ? Prisma.sql`GROUP BY ${Prisma.join(groupByFields.map((_, i) => Prisma.raw(String(i + 1))), ', ')}` : Prisma.empty;
+
+    // Contagem de filhos por registro (matchBy children): so o periodo do painel vale para eles
+    let kidsCte = Prisma.empty;
+    let kidsJoin = Prisma.empty;
+    let kidsCol = Prisma.empty;
+    if (cross?.matchBy === 'children') {
+      const crossQr = await this.buildEntityWhere(user, cross.entitySlug, queryTenantId, { dateStart: options?.dateStart, dateEnd: options?.dateEnd });
+      if (crossQr) {
+        const kids = await scopeSql(this.prisma, crossQr.where, this.queryService.buildArchivedWhere(crossQr.where));
+        kidsCte = Prisma.sql`, kids AS (SELECT "parentRecordId" AS pid, count(*)::int AS n FROM (${kids}) k WHERE "parentRecordId" IS NOT NULL GROUP BY 1)`;
+        kidsJoin = Prisma.sql`LEFT JOIN kids kc ON kc.pid = r.id`;
+        kidsCol = Prisma.sql`, coalesce(sum(kc.n), 0)::int AS kids`;
+      }
+    }
+    // Contagem por campos (matchBy fields): chave dos campos de origem do 1o registro do grupo
+    const matchFields = cross && cross.matchBy !== 'children' ? cross.matchFields ?? [] : [];
+    const srcCol = matchFields.length
+      ? Prisma.sql`, (array_agg(${compositeKeySql(matchFields.map((m) => m.source))} ${order}))[1] AS src`
+      : Prisma.empty;
+
+    const groups = await runStats<Record<string, unknown>>(this.prisma, Prisma.sql`
+      ${await this.statsCtes(qr)}${kidsCte}
+      SELECT ${Prisma.join([...keyCols, ...aggCols], ', ')} ${kidsCol} ${srcCol}
+        FROM recs r ${kidsJoin}
+       ${groupBy}`);
+
+    let crossCounts: Map<string, number> | undefined;
+    if (matchFields.length && cross) {
+      const crossQr = await this.buildEntityWhere(user, cross.entitySlug, queryTenantId, options, matchFields.map((m) => m.target));
+      if (crossQr) {
+        const counts = await runStats<{ k: string; n: number }>(this.prisma, Prisma.sql`
+          ${await this.statsCtes(crossQr)}
+          SELECT ${compositeKeySql(matchFields.map((m) => m.target))} AS k, count(*)::int AS n FROM recs r GROUP BY 1`);
+        crossCounts = new Map(counts.map((c) => [c.k, c.n]));
+      }
+    }
+
+    const rows = groups.map((g) => {
+      const row: Record<string, unknown> = {};
+      groupByFields.forEach((f, i) => { row[f] = g[`k${i}`]; });
+      aggregations.forEach((agg, i) => {
+        const v = g[`a${i}`];
+        row[agg.alias] = agg.type === 'first' || agg.type === 'mode' ? (v ?? (agg.type === 'mode' ? '' : null)) : Number(v ?? 0);
+      });
+      if (cross?.matchBy === 'children' && 'kids' in g) row[cross.alias] = Number(g.kids ?? 0);
+      else if (crossCounts && cross) row[cross.alias] = crossCounts.get(String(g.src)) || 0;
+      return row;
+    });
+    return this.finishGrouped(rows, options);
+  }
+
+  private async groupedDataJs(
+    user: CurrentUser,
+    qr: StatsScope,
+    groupByFields: string[],
+    queryTenantId: string | undefined,
+    options?: GroupedDataOptions,
+  ): Promise<Array<Record<string, unknown>>> {
     const { where } = qr;
 
     // Fetch records with IDs for cross-entity child matching
@@ -1504,6 +1924,11 @@ export class StatsService {
       rows.push(row);
     }
 
+    return this.finishGrouped(rows, options);
+  }
+
+  /** Ordenacao e limite dos grupos (igual para os dois caminhos). */
+  private finishGrouped(rows: Array<Record<string, unknown>>, options?: GroupedDataOptions) {
     // 4. Sort
     const sortBy = options?.sortBy;
     const sortOrder = options?.sortOrder || 'desc';
