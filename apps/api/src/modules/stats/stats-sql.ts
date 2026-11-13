@@ -141,3 +141,107 @@ export function canonical(value: unknown): unknown {
 export function sameStats(a: unknown, b: unknown): boolean {
   return JSON.stringify(canonical(a)) === JSON.stringify(canonical(b));
 }
+
+// ─── Regra unica dos numeros (fase 2): a mesma do navegador (aggregation-engine) ───
+
+/** Texto de um valor (toStr do navegador): vazio -> '', objeto -> label/name/value, lista -> "a, b". */
+export function toStr(val: unknown): string {
+  if (val === null || val === undefined) return '';
+  if (typeof val === 'object') {
+    if (Array.isArray(val)) return val.map((v) => toStr(v)).join(', ');
+    const obj = val as Record<string, unknown>;
+    if ('label' in obj) return String(obj.label);
+    if ('name' in obj) return String(obj.name);
+    if ('value' in obj) return String(obj.value);
+    return JSON.stringify(val);
+  }
+  return String(val);
+}
+
+export function toNum(val: unknown): number {
+  if (typeof val === 'number') return val;
+  const n = parseFloat(String(val));
+  return isNaN(n) ? NaN : n;
+}
+
+export function isValidNum(val: unknown): boolean {
+  const n = toNum(val);
+  return !isNaN(n) && isFinite(n);
+}
+
+/** Inicio do periodo atual (meia-noite local de hoje - dias + 1) e do anterior. */
+export function periodBounds(days: number) {
+  const now = new Date();
+  const currentStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() - days + 1);
+  const previousStart = new Date(currentStart.getTime() - days * 86400000);
+  return { now, currentStart, previousStart };
+}
+
+export function comparison(current: number, previous: number) {
+  const changeAbsolute = current - previous;
+  const changePercent = previous !== 0 ? (changeAbsolute / Math.abs(previous)) * 100 : current !== 0 ? 100 : 0;
+  return { current, previous, changePercent, changeAbsolute };
+}
+
+/** Dia local (fuso do servidor) no formato AAAA-MM-DD. */
+export function localDayKey(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+/** Fuso do servidor, para o banco agrupar pelo mesmo dia local. */
+export function serverTimeZone(): string {
+  return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+}
+
+/** Dias do periodo (do inicio local ate hoje), na ordem. */
+export function dayKeys(days: number): { start: Date; keys: string[] } {
+  const now = new Date();
+  const start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - days + 1);
+  const keys: string[] = [];
+  for (let i = 0; i < days; i++) keys.push(localDayKey(new Date(start.getFullYear(), start.getMonth(), start.getDate() + i)));
+  return { start, keys };
+}
+
+/** Ordem dos "top registros": vazios no fim, data ISO, numero, texto pt-BR. */
+export function compareTopValues(aRaw: unknown, bRaw: unknown, desc: boolean): number {
+  const mult = desc ? -1 : 1;
+  const a = toStr(aRaw);
+  const b = toStr(bRaw);
+  if (!a || !b) return Number(!a) - Number(!b);
+  const iso = /^\d{4}-\d{2}-\d{2}/;
+  if (iso.test(a) && iso.test(b)) return (Date.parse(a) - Date.parse(b)) * mult;
+  const an = Number(a);
+  const bn = Number(b);
+  if (!isNaN(an) && !isNaN(bn)) return (an - bn) * mult;
+  return a.localeCompare(b, 'pt-BR', { numeric: true, sensitivity: 'base' }) * mult;
+}
+
+/** Ordem das linhas agrupadas: numero se os dois forem numeros, senao texto. */
+export function compareGroupValues(a: unknown, b: unknown, asc: boolean): number {
+  const mult = asc ? 1 : -1;
+  if (isValidNum(a) && isValidNum(b)) return (toNum(a) - toNum(b)) * mult;
+  return toStr(a).localeCompare(toStr(b)) * mult;
+}
+
+type FieldDef = { slug: string; type?: string; options?: Array<string | { value: unknown; label?: string; color?: string }> };
+
+/** Rotulo e cor de um valor pelas opcoes do campo (e Sim/Nao para booleano). */
+export function optionMeta(field: FieldDef | undefined, value: string): { label: string; color?: string } {
+  if (field?.type === 'boolean') {
+    if (value === 'true') return { label: 'Sim', color: '#2563eb' };
+    if (value === 'false') return { label: 'Não', color: '#94a3b8' };
+  }
+  for (const o of field?.options ?? []) {
+    if (typeof o === 'string') { if (o === value) return { label: o }; continue; }
+    if (String(o.value) === value) return { label: o.label || value, ...(o.color ? { color: o.color } : {}) };
+  }
+  return { label: value };
+}
+
+/** Filtro "campo = valor" das contagens distintas: sem diferenciar maiusculas, Sim/Nao como true/false. */
+export function acceptedFilterValues(target: string): string[] {
+  const t = target.toLowerCase();
+  if (t === 'true' || t === 'sim') return ['true', 'sim'];
+  if (t === 'false' || t === 'nao' || t === 'não') return ['false', 'nao', 'não'];
+  return [t];
+}
