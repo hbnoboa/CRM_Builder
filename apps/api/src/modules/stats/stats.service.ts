@@ -6,7 +6,7 @@ import { CurrentUser } from '../../common/types';
 import { getEffectiveTenantId } from '../../common/utils/tenant.util';
 import { Prisma, type PrismaClient } from '@prisma/client';
 import { creatorFilter, teammateIds } from '../../common/utils/team-scope';
-import { hiddenFieldSlugs } from '../../common/utils/field-permissions';
+import { hiddenFieldSlugs, omitFields } from '../../common/utils/field-permissions';
 
 /** Numeros como numeros, datas ISO como datas, o resto como texto (pt-BR). */
 function compareSortValues(a: unknown, b: unknown): number {
@@ -57,14 +57,22 @@ export class StatsService {
    * Helper: constroi WHERE para entity stats via servico centralizado.
    * Retorna null se a entidade nao for encontrada (graceful).
    */
+  /**
+   * WHERE das estatisticas de uma tabela + campos ocultos do cargo.
+   * `usedFields`: campos que a estatistica agrupa, soma, ordena ou mostra. Se algum deles
+   * (ou um campo usado nos filtros do painel) for oculto para o cargo, a estatistica
+   * responde vazia, como se o campo nao existisse — senao daria para ver ou deduzir o valor.
+   */
   private async buildEntityWhere(
     user: CurrentUser,
     entitySlug: string,
     queryTenantId?: string,
     dashboardFilters?: DashboardFilterOptions,
+    usedFields: Array<string | null | undefined> = [],
   ) {
+    let result: Awaited<ReturnType<EntityDataQueryService['buildWhere']>>;
     try {
-      return await this.queryService.buildWhere({
+      result = await this.queryService.buildWhere({
         entitySlug,
         user,
         tenantId: queryTenantId,
@@ -75,6 +83,61 @@ export class StatsService {
       if (e instanceof NotFoundException) return null;
       throw e;
     }
+    const hidden = await this.hiddenFields(user, entitySlug, result.effectiveTenantId);
+    const fields = [...usedFields, ...this.filterFieldSlugs(dashboardFilters)].filter((f): f is string => !!f);
+    if (await this.touchesHiddenField(user, result.entity, result.effectiveTenantId, hidden, fields)) return null;
+    return { ...result, hidden };
+  }
+
+  private async hiddenFields(user: CurrentUser, entitySlug: string, tenantId: string): Promise<Set<string>> {
+    return hiddenFieldSlugs(await this.customRoleService.getFieldPermissions(user.id, entitySlug, tenantId));
+  }
+
+  /** Campos citados nos filtros do painel (JSON de [{ fieldSlug, ... }]). */
+  private filterFieldSlugs(dashboardFilters?: DashboardFilterOptions): string[] {
+    if (!dashboardFilters?.filters) return [];
+    try {
+      const parsed = JSON.parse(dashboardFilters.filters) as unknown;
+      return Array.isArray(parsed)
+        ? parsed.map((f) => (f && typeof f === 'object' ? (f as { fieldSlug?: unknown }).fieldSlug : undefined)).filter((f): f is string => typeof f === 'string')
+        : [];
+    } catch {
+      return [];
+    }
+  }
+
+  /**
+   * Algum campo usado e oculto? Campo proprio, `parent.x` (oculto na tabela-pai) ou
+   * `child.x` (oculto em alguma sub-tabela desta).
+   */
+  private async touchesHiddenField(
+    user: CurrentUser,
+    entity: { id: string; slug: string; fields?: unknown },
+    tenantId: string,
+    hidden: Set<string>,
+    fields: string[],
+  ): Promise<boolean> {
+    if (fields.some((f) => hidden.has(f))) return true;
+    const parentFields = fields.filter((f) => f.startsWith('parent.')).map((f) => f.slice(7));
+    const childFields = fields.filter((f) => f.startsWith('child.')).map((f) => f.slice(6));
+    if (parentFields.length > 0) {
+      const all = await this.prisma.entity.findMany({ where: { tenantId, deletedAt: null }, select: { slug: true, fields: true } });
+      const parent = all.find((e) => ((e.fields as Array<{ type?: string; subEntityId?: string; subEntitySlug?: string }>) || [])
+        .some((f) => f.type === 'sub-entity' && (f.subEntityId === entity.id || f.subEntitySlug === entity.slug)));
+      if (parent) {
+        const parentHidden = await this.hiddenFields(user, parent.slug, tenantId);
+        if (parentFields.some((f) => parentHidden.has(f))) return true;
+      }
+    }
+    if (childFields.length > 0) {
+      const subSlugs = ((entity.fields as Array<{ type?: string; subEntitySlug?: string }>) || [])
+        .filter((f) => f.type === 'sub-entity' && f.subEntitySlug).map((f) => f.subEntitySlug as string);
+      for (const slug of subSlugs) {
+        const childHidden = await this.hiddenFields(user, slug, tenantId);
+        if (childFields.some((f) => childHidden.has(f))) return true;
+      }
+    }
+    return false;
   }
 
   /**
@@ -357,7 +420,7 @@ export class StatsService {
     dashFilters?: DashboardFilterOptions,
     dateField?: string,
   ) {
-    const result = await this.buildEntityWhere(user, entitySlug, queryTenantId, dashFilters);
+    const result = await this.buildEntityWhere(user, entitySlug, queryTenantId, dashFilters, [dateField]);
     if (!result) return [];
 
     const { where } = result;
@@ -429,7 +492,7 @@ export class StatsService {
     limit: number = 20,
     dashFilters?: DashboardFilterOptions,
   ) {
-    const result = await this.buildEntityWhere(user, entitySlug, queryTenantId, dashFilters);
+    const result = await this.buildEntityWhere(user, entitySlug, queryTenantId, dashFilters, [fieldSlug]);
     if (!result) return [];
 
     const { where } = result;
@@ -523,7 +586,7 @@ export class StatsService {
     queryTenantId?: string,
     options?: { limit?: number } & DashboardFilterOptions,
   ) {
-    const result = await this.buildEntityWhere(user, entitySlug, queryTenantId, options);
+    const result = await this.buildEntityWhere(user, entitySlug, queryTenantId, options, [rowFieldSlug, columnFieldSlug]);
     if (!result) return { rows: [], columns: [], matrix: {}, maxValue: 0 };
 
     const { where } = result;
@@ -707,7 +770,7 @@ export class StatsService {
     queryTenantId?: string,
     options?: { aggregation?: string; comparePeriod?: boolean; days?: number } & DashboardFilterOptions,
   ) {
-    const qr = await this.buildEntityWhere(user, entitySlug, queryTenantId, options);
+    const qr = await this.buildEntityWhere(user, entitySlug, queryTenantId, options, [fieldSlug]);
     if (!qr) return { count: 0, sum: 0, avg: 0, min: 0, max: 0 };
 
     const { where } = qr;
@@ -794,7 +857,7 @@ export class StatsService {
     queryTenantId?: string,
     options?: { aggregation?: string; comparePeriod?: boolean; days?: number; denominatorEntitySlug?: string } & DashboardFilterOptions,
   ) {
-    const qr = await this.buildEntityWhere(user, entitySlug, queryTenantId, options);
+    const qr = await this.buildEntityWhere(user, entitySlug, queryTenantId, options, [numeratorField, options?.denominatorEntitySlug && options.denominatorEntitySlug !== entitySlug ? null : denominatorField]);
     if (!qr) return { numerator: 0, denominator: 0, ratio: 0, percentage: 0 };
 
     const { where } = qr;
@@ -806,7 +869,7 @@ export class StatsService {
     // Build denominator WHERE if cross-entity
     let denWhere = where;
     if (denominatorEntitySlug && denominatorEntitySlug !== entitySlug) {
-      const denQr = await this.buildEntityWhere(user, denominatorEntitySlug, queryTenantId, options);
+      const denQr = await this.buildEntityWhere(user, denominatorEntitySlug, queryTenantId, options, [denominatorField]);
       if (!denQr) return { numerator: 0, denominator: 0, ratio: 0, percentage: 0 };
       denWhere = denQr.where;
     }
@@ -916,7 +979,7 @@ export class StatsService {
     queryTenantId?: string,
     options?: { aggregation?: string; days?: number } & DashboardFilterOptions,
   ) {
-    const qr = await this.buildEntityWhere(user, entitySlug, queryTenantId, options);
+    const qr = await this.buildEntityWhere(user, entitySlug, queryTenantId, options, [fieldSlug]);
     if (!qr) return [];
 
     const { where } = qr;
@@ -979,7 +1042,7 @@ export class StatsService {
     const result = await this.buildEntityWhere(user, entitySlug, queryTenantId, dashFilters);
     if (!result) return [];
 
-    const { where } = result;
+    const { where, hidden } = result;
 
     const archivedWhere = this.queryService.buildArchivedWhere(where);
 
@@ -1017,14 +1080,14 @@ export class StatsService {
         action: r.createdAt.getTime() === r.updatedAt.getTime() ? 'created' as const : 'updated' as const,
         timestamp: r.updatedAt.toISOString(),
         userName: r.createdBy?.name || 'Sistema',
-        data: r.data,
+        data: omitFields(r.data as Record<string, unknown>, hidden),
       })),
       ...archivedRecords.map((r) => ({
         id: r.id,
         action: 'archived' as const,
         timestamp: r.updatedAt.toISOString(),
         userName: 'Sistema',
-        data: r.data,
+        data: omitFields(r.data as Record<string, unknown>, hidden),
       })),
     ];
 
@@ -1039,10 +1102,10 @@ export class StatsService {
     queryTenantId?: string,
     options?: { limit?: number; sortBy?: string; sortOrder?: 'asc' | 'desc'; fields?: string[] } & DashboardFilterOptions,
   ) {
-    const result = await this.buildEntityWhere(user, entitySlug, queryTenantId, options);
+    const result = await this.buildEntityWhere(user, entitySlug, queryTenantId, options, [...(options?.fields ?? []), options?.sortBy]);
     if (!result) return [];
 
-    const { where } = result;
+    const { where, hidden } = result;
     const limit = options?.limit || 5;
     const sortBy = options?.sortBy || 'createdAt';
     const sortOrder = options?.sortOrder || 'desc';
@@ -1087,7 +1150,7 @@ export class StatsService {
     return sliced.map((r) => {
       const ownData = options?.fields
         ? Object.fromEntries(options.fields.filter((f) => !f.startsWith('parent.')).map((f) => [f, (r.data as Record<string, unknown>)?.[f]]))
-        : { ...(r.data as Record<string, unknown>) };
+        : omitFields({ ...(r.data as Record<string, unknown>) }, hidden);
 
       // Merge parent fields into data
       const pData = parentDataMap.get(r.id);
@@ -1110,7 +1173,7 @@ export class StatsService {
     stages?: string[],
     dashFilters?: DashboardFilterOptions,
   ) {
-    const result = await this.buildEntityWhere(user, entitySlug, queryTenantId, dashFilters);
+    const result = await this.buildEntityWhere(user, entitySlug, queryTenantId, dashFilters, [fieldSlug]);
     if (!result) return [];
 
     const { entity } = result;
@@ -1169,7 +1232,7 @@ export class StatsService {
     queryTenantId?: string,
     options?: { comparePeriod?: boolean; days?: number; filterField?: string; filterValue?: string } & DashboardFilterOptions,
   ) {
-    const qr = await this.buildEntityWhere(user, entitySlug, queryTenantId, options);
+    const qr = await this.buildEntityWhere(user, entitySlug, queryTenantId, options, [...fieldSlugs, options?.filterField]);
     if (!qr) return { total: 0 };
 
     const { where } = qr;
@@ -1287,7 +1350,11 @@ export class StatsService {
       sortOrder?: 'asc' | 'desc';
     } & DashboardFilterOptions,
   ): Promise<Array<Record<string, unknown>>> {
-    const qr = await this.buildEntityWhere(user, entitySlug, queryTenantId, options);
+    const qr = await this.buildEntityWhere(user, entitySlug, queryTenantId, options, [
+      ...groupByFields,
+      ...(options?.aggregations ?? []).flatMap((a) => [a.fieldSlug, ...(a.distinctFields ?? [])]),
+      ...(options?.crossEntityCount?.matchFields ?? []).map((m) => m.source),
+    ]);
     if (!qr) return [];
 
     const { where } = qr;
@@ -1356,7 +1423,7 @@ export class StatsService {
         }
       } else if (matchFields && matchFields.length > 0) {
         // Field-based matching
-        const crossQr = await this.buildEntityWhere(user, crossSlug, queryTenantId, options);
+        const crossQr = await this.buildEntityWhere(user, crossSlug, queryTenantId, options, matchFields.map((m) => m.target));
         if (crossQr) {
           const crossRecords = await this.fetchDataFromBoth(crossQr.where);
           crossCounts = new Map<string, number>();
