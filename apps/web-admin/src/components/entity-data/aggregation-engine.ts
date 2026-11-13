@@ -124,8 +124,17 @@ function getColor(value: string, field?: EntityField): string | undefined {
   return opt?.color || undefined;
 }
 
-function toDateKey(dateStr: string): string {
-  return dateStr.substring(0, 10);
+/** Dia local (AAAA-MM-DD) de uma data: o mesmo dia que o servidor usa (regra unica). */
+function localDayKey(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+/** Filtro "campo = valor" das contagens distintas: sem diferenciar maiusculas, Sim/Nao = true/false. */
+function acceptedFilterValues(target: string): string[] {
+  const t = target.toLowerCase();
+  if (t === 'true' || t === 'sim') return ['true', 'sim'];
+  if (t === 'false' || t === 'nao' || t === 'não') return ['false', 'nao', 'não'];
+  return [t];
 }
 
 function isValidNum(val: unknown): val is number {
@@ -188,7 +197,7 @@ export function countRecords(
 export function aggregateField(
   records: DataRecord[],
   fieldSlug: string,
-  options?: { comparePeriod?: boolean; days?: number },
+  options?: { comparePeriod?: boolean; days?: number; aggregation?: string },
 ): FieldAggregation & { periodComparison?: PeriodComparison } {
   const values: number[] = [];
   for (const r of records) {
@@ -209,15 +218,18 @@ export function aggregateField(
   if (options?.comparePeriod) {
     const days = options.days ?? 30;
     const { current, previous } = splitByPeriod(records, days);
-    const currentSum = current.reduce((acc, r) => {
-      const v = toNum(getFieldValue(r, fieldSlug));
-      return acc + (isNaN(v) ? 0 : v);
-    }, 0);
-    const previousSum = previous.reduce((acc, r) => {
-      const v = toNum(getFieldValue(r, fieldSlug));
-      return acc + (isNaN(v) ? 0 : v);
-    }, 0);
-    result.periodComparison = computeComparison(currentSum, previousSum);
+    // Regra unica: compara pela agregacao escolhida (soma por padrao)
+    const pick = (rs: DataRecord[]) => {
+      const a = aggregateField(rs, fieldSlug);
+      switch (options.aggregation) {
+        case 'count': return a.count;
+        case 'avg': return a.avg;
+        case 'min': return a.min;
+        case 'max': return a.max;
+        default: return a.sum;
+      }
+    };
+    result.periodComparison = computeComparison(pick(current), pick(previous));
   }
 
   return result;
@@ -257,26 +269,26 @@ export function distinctCount(
   const allKeys = new Set(records.map(getCompositeKey));
   const totalDistinct = allKeys.size;
 
-  let filteredDistinct: number | undefined;
-  if (options?.filterField && options.filterValue !== undefined) {
-    const filtered = records.filter(r =>
-      toStr(getFieldValue(r, options.filterField!)).toLowerCase() ===
-      options.filterValue!.toLowerCase()
-    );
-    filteredDistinct = new Set(filtered.map(getCompositeKey)).size;
-  }
+  // Regra unica: com filtro, "total" e o numero filtrado (era sempre o total sem filtro,
+  // e o KPI de proporcao dava 100%)
+  const hasFilter = !!options?.filterField && options.filterValue !== undefined;
+  const accepted = hasFilter ? acceptedFilterValues(options!.filterValue!) : [];
+  const included = hasFilter
+    ? records.filter(r => accepted.includes(toStr(getFieldValue(r, options!.filterField!)).toLowerCase()))
+    : records;
+  const filteredDistinct = hasFilter ? new Set(included.map(getCompositeKey)).size : undefined;
+  const total = filteredDistinct ?? totalDistinct;
 
   const result: EntityRecordCount & { totalDistinct?: number; filteredDistinct?: number } = {
-    total: totalDistinct,
-    active: totalDistinct,
+    total,
+    active: total,
     archived: 0,
-    totalDistinct,
-    filteredDistinct,
+    ...(hasFilter ? { totalDistinct, filteredDistinct } : {}),
   };
 
   if (options?.comparePeriod) {
     const days = options.days ?? 30;
-    const { current, previous } = splitByPeriod(records, days);
+    const { current, previous } = splitByPeriod(included, days);
     const currentDistinct = new Set(current.map(getCompositeKey)).size;
     const previousDistinct = new Set(previous.map(getCompositeKey)).size;
     result.periodComparison = computeComparison(currentDistinct, previousDistinct);
@@ -349,7 +361,7 @@ export function groupByDate(
 
   // Gerar todas as chaves no período
   for (let i = 0; i < effectiveDays; i++) {
-    const d = new Date(startDate.getTime() + i * 86400000);
+    const d = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate() + i);
     const key = getDateGroupKey(d, granularity);
     if (!counts.has(key)) counts.set(key, 0);
   }
@@ -370,7 +382,7 @@ export function groupByDate(
 function getDateGroupKey(d: Date, granularity: DateGranularity): string {
   switch (granularity) {
     case 'day':
-      return d.toISOString().substring(0, 10);
+      return localDayKey(d);
     case 'week': {
       // ISO week: segunda-feira da semana
       const day = d.getDay();
@@ -380,7 +392,7 @@ function getDateGroupKey(d: Date, granularity: DateGranularity): string {
     case 'month':
       return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
     default:
-      return d.toISOString().substring(0, 10);
+      return localDayKey(d);
   }
 }
 
@@ -399,15 +411,14 @@ export function fieldTrend(
   const groups = new Map<string, number[]>();
 
   for (let i = 0; i < effectiveDays; i++) {
-    const d = new Date(startDate.getTime() + i * 86400000);
-    groups.set(d.toISOString().substring(0, 10), []);
+    groups.set(localDayKey(new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate() + i)), []);
   }
 
   for (const r of records) {
     if (!r.createdAt) continue;
     const d = new Date(r.createdAt);
     if (d < startDate) continue;
-    const key = toDateKey(r.createdAt);
+    const key = localDayKey(d);
     const v = toNum(getFieldValue(r, fieldSlug));
     if (!isNaN(v)) {
       const arr = groups.get(key);
@@ -593,11 +604,14 @@ export function fieldRatio(
   aggregation: 'sum' | 'avg' = 'sum',
   options?: { comparePeriod?: boolean; days?: number },
 ): FieldRatioResult & { periodComparison?: PeriodComparison } {
-  const numAgg = aggregateField(records, numeratorField);
-  const denAgg = aggregateField(records, denominatorField);
-
-  const numVal = aggregation === 'avg' ? numAgg.avg : numAgg.sum;
-  const denVal = aggregation === 'avg' ? denAgg.avg : denAgg.sum;
+  // Regra unica: o campo "count" conta registros (como no servidor)
+  const valueOf = (rs: DataRecord[], field: string) => {
+    if (field === 'count') return rs.length;
+    const a = aggregateField(rs, field);
+    return aggregation === 'avg' ? a.avg : a.sum;
+  };
+  const numVal = valueOf(records, numeratorField);
+  const denVal = valueOf(records, denominatorField);
   const ratio = denVal !== 0 ? numVal / denVal : 0;
 
   const result: FieldRatioResult & { periodComparison?: PeriodComparison } = {
@@ -611,19 +625,10 @@ export function fieldRatio(
     const days = options.days ?? 30;
     const { current, previous } = splitByPeriod(records, days);
 
-    const curNum = aggregateField(current, numeratorField);
-    const curDen = aggregateField(current, denominatorField);
-    const prevNum = aggregateField(previous, numeratorField);
-    const prevDen = aggregateField(previous, denominatorField);
-
-    const curRatio = (aggregation === 'avg' ? curDen.avg : curDen.sum) !== 0
-      ? (aggregation === 'avg' ? curNum.avg : curNum.sum) /
-        (aggregation === 'avg' ? curDen.avg : curDen.sum)
-      : 0;
-    const prevRatio = (aggregation === 'avg' ? prevDen.avg : prevDen.sum) !== 0
-      ? (aggregation === 'avg' ? prevNum.avg : prevNum.sum) /
-        (aggregation === 'avg' ? prevDen.avg : prevDen.sum)
-      : 0;
+    const curDen = valueOf(current, denominatorField);
+    const prevDen = valueOf(previous, denominatorField);
+    const curRatio = curDen !== 0 ? valueOf(current, numeratorField) / curDen : 0;
+    const prevRatio = prevDen !== 0 ? valueOf(previous, numeratorField) / prevDen : 0;
 
     result.periodComparison = computeComparison(curRatio * 100, prevRatio * 100);
   }
@@ -749,7 +754,7 @@ function computeAggregation(records: DataRecord[], agg: AggregationDef): unknown
 
     case 'first': {
       if (!agg.fieldSlug || records.length === 0) return null;
-      return getFieldValue(records[0], agg.fieldSlug);
+      return toStr(getFieldValue(records[0], agg.fieldSlug));
     }
 
     default:

@@ -1,8 +1,8 @@
 import { test, expect } from '@playwright/test';
 import { call, createPerson, createTenant, listRoles, ownerStaff, type Session, type Tenant } from './helpers';
 
-// Estatisticas calculadas no banco (fase 1): mesmas regras do calculo antigo em JavaScript
-// (vazio, objeto {value,label}, lista, numero em texto) e o mesmo recorte (escopo do cargo).
+// Estatisticas calculadas no banco: regra unica dos numeros (a mesma do navegador) e o
+// mesmo recorte do pipeline central (escopo do cargo).
 test.describe.configure({ mode: 'serial' });
 
 let tenant: Tenant;
@@ -46,19 +46,23 @@ test.beforeAll(async ({ request }) => {
   await criar(ana, { nome: 'e', cor: 'verde', valor: '100' });
 });
 
-test('distribuicao: vazio, objeto {value,label} e lista seguem a regra antiga', async ({ request }) => {
-  const cores = await get(request, tenant.owner, 'field-distribution?fieldSlug=cor&limit=50');
+test('distribuicao: vazio nao conta, objeto pelo rotulo, lista item a item, "Outros" acima do limite', async ({ request }) => {
+  const cores = await get(request, tenant.owner, 'field-distribution?fieldSlug=cor');
   const porValor = Object.fromEntries(cores.map((c: { value: string; label: string; count: number }) => [c.value, c]));
   expect(porValor.azul.count).toBe(2);
-  expect(porValor.vm).toMatchObject({ label: 'Vermelho', count: 1 });
-  expect(porValor['(vazio)'].count).toBe(1);
+  expect(porValor.Vermelho.count).toBe(1); // objeto {value,label} vale pelo rotulo
   expect(porValor.verde.count).toBe(1);
+  expect(porValor['(vazio)']).toBeUndefined();
+  expect(porValor['']).toBeUndefined();
 
-  const tags = await get(request, tenant.owner, 'field-distribution?fieldSlug=tags&limit=50');
-  const porTag = Object.fromEntries(tags.map((t: { value: string; count: number }) => [t.value, t.count]));
-  expect(porTag['x,y']).toBe(2); // lista vira "x,y" (String(array))
-  expect(porTag['']).toBe(1); // lista vazia
-  expect(porTag['(vazio)']).toBe(2);
+  const tags = await get(request, tenant.owner, 'field-distribution?fieldSlug=tags');
+  expect(Object.fromEntries(tags.map((t: { value: string; count: number }) => [t.value, t.count]))).toEqual({ x: 2, y: 2 });
+
+  const top1 = await get(request, tenant.owner, 'field-distribution?fieldSlug=cor&limit=1');
+  expect(top1).toEqual([
+    expect.objectContaining({ value: 'azul', count: 2 }),
+    expect.objectContaining({ value: '__others__', label: 'Outros', count: 2 }),
+  ]);
 });
 
 test('soma/media pela regra do parseFloat ("7abc" conta 7; texto sem numero nao conta)', async ({ request }) => {
@@ -75,9 +79,11 @@ test('soma/media pela regra do parseFloat ("7abc" conta 7; texto sem numero nao 
   expect(azul).toMatchObject({ n: 2, soma: 10, tiposTag: 2 });
 });
 
-test('contagem distinta com filtro Sim/Nao e lista dos primeiros por campo', async ({ request }) => {
+test('contagem distinta (com filtro, "total" e o filtrado) e lista dos primeiros por campo', async ({ request }) => {
   const dist = await get(request, tenant.owner, 'distinct-count?fields=cor');
-  expect(dist.total).toBe(4); // azul, vm, (vazio), verde
+  expect(dist.total).toBe(4); // azul, Vermelho, vazio, verde
+  const azuis = await get(request, tenant.owner, 'distinct-count?fields=nome&filterField=cor&filterValue=AZUL');
+  expect(azuis).toMatchObject({ total: 2, totalDistinct: 5, filteredDistinct: 2 });
 
   const top = await get(request, tenant.owner, 'top-records?limit=3&sortBy=nome&sortOrder=asc&fields=nome');
   expect(top.map((r: { data: { nome: string } }) => r.data.nome)).toEqual(['a', 'b', 'c']);

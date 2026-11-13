@@ -122,7 +122,7 @@ export class StatsController {
     @Query('tenantId') tenantId?: string,
   ) {
     checkModulePermission(user, 'data', 'canRead');
-    return this.statsService.getFieldDistribution(user, entitySlug, fieldSlug, tenantId, limit ? Number(limit) : 20, { filters, dateStart, dateEnd });
+    return this.statsService.getFieldDistribution(user, entitySlug, fieldSlug, tenantId, limit ? Number(limit) : undefined, { filters, dateStart, dateEnd });
   }
 
   @Get('entity/:entitySlug/cross-field-distribution')
@@ -141,7 +141,7 @@ export class StatsController {
     checkModulePermission(user, 'data', 'canRead');
     return this.statsService.getCrossFieldDistribution(
       user, entitySlug, rowField, columnField, tenantId,
-      { limit: limit ? Number(limit) : 20, filters, dateStart, dateEnd },
+      { limit: limit ? Number(limit) : undefined, filters, dateStart, dateEnd },
     );
   }
 
