@@ -56,6 +56,7 @@ import { cn } from '@/lib/utils';
 import type { EntityField } from '@/types';
 import { usePermissions } from '@/hooks/use-permissions';
 import { formatFieldValue, type FieldType } from '@crm-builder/shared';
+import { useRecordPageNav } from './record-nav';
 
 interface SubEntityFieldEnhancedProps {
   parentRecordId: string;
@@ -249,15 +250,28 @@ export default function SubEntityFieldEnhanced({
     return formatCellValue(val, tBool('yes'), tBool('no'));
   };
 
-  const handleCreate = () => {
+  // Na pagina de um registro, os filhos abrem em paginas proprias; fora dela, no painel
+  const pageNav = useRecordPageNav();
+
+  const handleCreate = (e?: React.MouseEvent) => {
+    if (pageNav) { pageNav.openRecord(subEntitySlug, null, { parent: parentRecordId, event: e }); return; }
     setSelectedRecord(null);
     setFormOpen(true);
   };
 
-  const handleEdit = (record: SubRecord) => {
+  const handleEdit = (record: SubRecord, e?: React.MouseEvent) => {
+    if (pageNav) { pageNav.openRecord(subEntitySlug, record.id, { event: e }); return; }
     setSelectedRecord(record);
     setFormOpen(true);
   };
+
+  // Na pagina de um registro: clicar no filho (linha, cartao, linha do tempo) abre a pagina dele
+  const openProps = (record: SubRecord) => pageNav ? {
+    onClick: (e: React.MouseEvent) => handleEdit(record, e),
+    onAuxClick: (e: React.MouseEvent) => { if (e.button === 1) handleEdit(record, e); },
+    role: 'link' as const,
+    'data-testid': 'open-subrecord-row',
+  } : {};
 
   const handleDeleteClick = (record: SubRecord) => {
     setRecordToDelete(record);
@@ -484,7 +498,11 @@ export default function SubEntityFieldEnhanced({
                     </thead>
                     <tbody className="divide-y">
                       {filteredRecords.map(record => (
-                        <tr key={record.id} className="hover:bg-muted/30 transition-colors">
+                        <tr
+                          key={record.id}
+                          className={`hover:bg-muted/30 transition-colors${pageNav ? ' cursor-pointer' : ''}`}
+                          {...openProps(record)}
+                        >
                           {displayFields.map(field => {
                             const value = record.data[field];
                             const formatted = cellText(record, field, value);
@@ -515,14 +533,14 @@ export default function SubEntityFieldEnhanced({
                             </div>
                           </td>
                           {!readOnly && (
-                            <td className="px-4 py-3 text-right">
+                            <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
                               <div className="flex items-center justify-end gap-1">
                                 <Button
                                   type="button"
                                   variant="ghost"
                                   size="icon"
                                   className="h-7 w-7"
-                                  onClick={() => handleEdit(record)}
+                                  onClick={(e) => { e.stopPropagation(); handleEdit(record, e); }}
                                 >
                                   <Pencil className="h-3.5 w-3.5" />
                                 </Button>
@@ -531,7 +549,7 @@ export default function SubEntityFieldEnhanced({
                                   variant="ghost"
                                   size="icon"
                                   className="h-7 w-7 text-destructive hover:text-destructive"
-                                  onClick={() => handleDeleteClick(record)}
+                                  onClick={(e) => { e.stopPropagation(); handleDeleteClick(record); }}
                                 >
                                   <Trash2 className="h-3.5 w-3.5" />
                                 </Button>
@@ -549,7 +567,7 @@ export default function SubEntityFieldEnhanced({
               {viewMode === 'cards' && (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3 p-3">
                   {filteredRecords.map(record => (
-                    <Card key={record.id} className="hover:shadow-md transition-shadow">
+                    <Card key={record.id} className={cn('hover:shadow-md transition-shadow', pageNav && 'cursor-pointer')} {...openProps(record)}>
                       <CardHeader className="pb-3">
                         <div className="flex items-start justify-between gap-2">
                           <div className="flex-1 min-w-0">
@@ -569,6 +587,7 @@ export default function SubEntityFieldEnhanced({
                             </div>
                           </div>
                           {!readOnly && (
+                            <div onClick={(e) => e.stopPropagation()}>
                             <DropdownMenu>
                               <DropdownMenuTrigger asChild>
                                 <Button variant="ghost" size="icon" className="h-7 w-7">
@@ -576,12 +595,12 @@ export default function SubEntityFieldEnhanced({
                                 </Button>
                               </DropdownMenuTrigger>
                               <DropdownMenuContent align="end">
-                                <DropdownMenuItem onClick={() => handleEdit(record)}>
+                                <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleEdit(record, e); }}>
                                   <Pencil className="h-3.5 w-3.5 mr-2" />
                                   Editar
                                 </DropdownMenuItem>
                                 <DropdownMenuItem
-                                  onClick={() => handleDeleteClick(record)}
+                                  onClick={(e) => { e.stopPropagation(); handleDeleteClick(record); }}
                                   className="text-destructive"
                                 >
                                   <Trash2 className="h-3.5 w-3.5 mr-2" />
@@ -589,6 +608,7 @@ export default function SubEntityFieldEnhanced({
                                 </DropdownMenuItem>
                               </DropdownMenuContent>
                             </DropdownMenu>
+                            </div>
                           )}
                         </div>
                       </CardHeader>
@@ -644,7 +664,7 @@ export default function SubEntityFieldEnhanced({
 
                         {/* Content */}
                         <div className={cn("flex-1 pb-6", isLast && "pb-0")}>
-                          <Card className="group-hover:shadow-md transition-shadow">
+                          <Card className={cn('group-hover:shadow-md transition-shadow', pageNav && 'cursor-pointer')} {...openProps(record)}>
                             <CardContent className="p-4">
                               <div className="flex items-start justify-between gap-2 mb-3">
                                 <div className="flex-1">
@@ -676,7 +696,7 @@ export default function SubEntityFieldEnhanced({
                                       variant="ghost"
                                       size="icon"
                                       className="h-7 w-7"
-                                      onClick={() => handleEdit(record)}
+                                      onClick={(e) => { e.stopPropagation(); handleEdit(record, e); }}
                                     >
                                       <Pencil className="h-3.5 w-3.5" />
                                     </Button>
@@ -685,7 +705,7 @@ export default function SubEntityFieldEnhanced({
                                       variant="ghost"
                                       size="icon"
                                       className="h-7 w-7 text-destructive hover:text-destructive"
-                                      onClick={() => handleDeleteClick(record)}
+                                      onClick={(e) => { e.stopPropagation(); handleDeleteClick(record); }}
                                     >
                                       <Trash2 className="h-3.5 w-3.5" />
                                     </Button>

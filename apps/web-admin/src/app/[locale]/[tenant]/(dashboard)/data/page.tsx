@@ -13,10 +13,8 @@ import { api } from '@/lib/api';
 import { useTenant } from '@/stores/tenant-context';
 import { useMyDashboardTemplates } from '@/hooks/use-dashboard-templates';
 import { cn } from '@/lib/utils';
-import { usePermissions } from '@/hooks/use-permissions';
-import { useAuthStore } from '@/stores/auth-store';
-import { RecordFormDialog } from '@/components/data/record-form-dialog';
-import type { Entity as FullEntity, EntityField } from '@/types';
+import { recordPath } from '@/components/data/record-nav';
+import type { EntityField } from '@/types';
 import { HelpButton } from '@/components/help/help-button';
 import dynamic from 'next/dynamic';
 
@@ -43,10 +41,7 @@ function DataPageContent() {
   const searchParams = useSearchParams();
   const entityParam = searchParams.get('entity');
   const router = useRouter();
-  const { hasModulePermission, hasEntityPermission } = usePermissions();
-  // Portal do cliente: so a permissao da tabela vale para criar
-  const portal = !!useAuthStore((s) => s.user?.clientPortal);
-  // "+ Novo" do inicio (?novo=1): abre o formulario de criacao, qualquer que seja o painel
+  // "+ Novo" do inicio (?novo=1): vai para a pagina de criacao da tabela (ela confere a permissao)
   const wantsCreate = searchParams.get('novo') === '1';
   const { effectiveTenantId } = useTenant();
 
@@ -157,6 +152,14 @@ function DataPageContent() {
     fetchEntities();
   }, [effectiveTenantId]);
 
+  // "+ Novo" (?novo=1): a criacao agora e uma pagina propria
+  useEffect(() => {
+    if (wantsCreate && entityParam) {
+      router.replace(recordPath(entityParam, null, { back: `/data?entity=${entityParam}` }));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [wantsCreate, entityParam]);
+
   // React to sidebar entity clicks (URL query param changes)
   useEffect(() => {
     if (entityParam && entities.length > 0) {
@@ -232,13 +235,6 @@ function DataPageContent() {
                 </button>
               ))}
             </div>
-          )}
-          {wantsCreate && selectedEntity.fields && ((!portal && hasModulePermission('data', 'canCreate')) || hasEntityPermission(selectedEntity.slug, 'canCreate')) && (
-            <RecordFormDialog
-              open
-              onOpenChange={(open) => { if (!open) router.replace(`/data?entity=${selectedEntity.slug}`); }}
-              entity={selectedEntity as unknown as FullEntity}
-            />
           )}
           <EntityDashboard
             entitySlug={selectedEntity.slug}

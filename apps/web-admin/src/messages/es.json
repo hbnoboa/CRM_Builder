@@ -669,7 +669,16 @@
     "formDescription": "Completa los campos y guarda.",
     "clearFilters": "Limpiar búsqueda y filtros",
     "emptyHint": "Empieza registrando el primero. También puedes importar una planilla.",
-    "createFirst": "Crear el primero"
+    "createFirst": "Crear el primero",
+    "recordPage": {
+      "back": "Volver",
+      "records": "Registros",
+      "notFound": "Registro no encontrado o sin acceso.",
+      "noPermission": "No tienes permiso para crear registros en esta tabla.",
+      "createdAddChildren": "Registro creado. Ahora puedes agregar {name} en él.",
+      "unsavedLeave": "Hay cambios sin guardar en este registro. ¿Salir de todos modos?",
+      "inside": "Dentro de"
+    }
   },
   "rolesPage": {
     "title": "Roles",

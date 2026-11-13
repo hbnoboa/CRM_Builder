@@ -31,6 +31,7 @@ import { toast } from 'sonner';
 import { api } from '@/lib/api';
 import { RecordFormDialog } from './record-form-dialog';
 import type { EntityField } from '@/types';
+import { useRecordPageNav } from './record-nav';
 
 interface SubEntityFieldProps {
   parentRecordId: string;
@@ -142,12 +143,17 @@ export default function SubEntityField({
     return field?.label || field?.name || slug;
   };
 
-  const handleCreate = () => {
+  // Na pagina de um registro, os filhos abrem em paginas proprias; fora dela, no painel
+  const pageNav = useRecordPageNav();
+
+  const handleCreate = (e?: React.MouseEvent) => {
+    if (pageNav) { pageNav.openRecord(subEntitySlug, null, { parent: parentRecordId, event: e }); return; }
     setSelectedRecord(null);
     setFormOpen(true);
   };
 
-  const handleEdit = (record: SubRecord) => {
+  const handleEdit = (record: SubRecord, e?: React.MouseEvent) => {
+    if (pageNav) { pageNav.openRecord(subEntitySlug, record.id, { event: e }); return; }
     setSelectedRecord(record);
     setFormOpen(true);
   };
@@ -239,7 +245,7 @@ export default function SubEntityField({
             className="h-7 text-xs"
             onClick={(e) => {
               e.stopPropagation();
-              handleCreate();
+              handleCreate(e);
             }}
           >
             <Plus className="h-3 w-3 mr-1" />
@@ -309,7 +315,7 @@ export default function SubEntityField({
                                 variant="ghost"
                                 size="icon"
                                 className="h-7 w-7"
-                                onClick={() => handleEdit(record)}
+                                onClick={(e) => { e.stopPropagation(); handleEdit(record, e); }}
                               >
                                 <Pencil className="h-3 w-3" />
                               </Button>
@@ -355,7 +361,7 @@ export default function SubEntityField({
                             variant="ghost"
                             size="icon"
                             className="h-7 w-7"
-                            onClick={() => handleEdit(record)}
+                            onClick={(e) => { e.stopPropagation(); handleEdit(record, e); }}
                           >
                             <Pencil className="h-3 w-3" />
                           </Button>
