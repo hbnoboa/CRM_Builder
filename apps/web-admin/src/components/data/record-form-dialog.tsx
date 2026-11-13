@@ -78,8 +78,10 @@ interface RecordFormFieldsProps {
   hideFooter?: boolean;
   /** Chamado ao cancelar (substitui o antigo onOpenChange(false)). */
   onCancel?: () => void;
-  /** Chamado após salvar com sucesso (substitui o onOpenChange(false) do submit). */
-  onSubmitted?: () => void;
+  /** Chamado após salvar com sucesso (substitui o onOpenChange(false) do submit). Recebe o id salvo. */
+  onSubmitted?: (saved?: { id: string }) => void;
+  /** Avisado quando o usuario altera algum campo (true) e depois de salvar (false). */
+  onDirtyChange?: (dirty: boolean) => void;
   /** Se fornecido (apenas criação), substitui o create padrão — recebe os dados
    *  processados e cuida do save (ex.: comando de chat /avaria → executeCommand). */
   submitOverride?: (data: Record<string, unknown>) => Promise<void>;
@@ -154,6 +156,7 @@ export function RecordFormFields({
   hideFooter = false,
   onCancel,
   onSubmitted,
+  onDirtyChange,
   submitOverride,
 }: RecordFormFieldsProps) {
   // Datas de criacao/atualizacao vem junto da tabela, mas quem preenche e o sistema.
@@ -486,6 +489,7 @@ export function RecordFormFields({
 
   const handleFieldChange = (fieldSlug: string, value: unknown) => {
     setFormData((prev) => ({ ...prev, [fieldSlug]: value }));
+    onDirtyChange?.(true);
     if (errors[fieldSlug]) {
       setErrors((prev) => { const newErrors = { ...prev }; delete newErrors[fieldSlug]; return newErrors; });
     }
@@ -670,15 +674,19 @@ export function RecordFormFields({
     });
 
     try {
+      let saved: { id: string } | undefined;
       if (isEditing && record) {
         await updateRecord.mutateAsync({ entitySlug: entity.slug, id: record.id, data: processedData });
+        saved = { id: record.id };
       } else if (submitOverride) {
         // Save delegado (ex.: comando de chat cria via executeCommand + posta card).
         await submitOverride(processedData);
       } else {
-        await createRecord.mutateAsync({ entitySlug: entity.slug, data: processedData, parentRecordId });
+        const created = await createRecord.mutateAsync({ entitySlug: entity.slug, data: processedData, parentRecordId });
+        saved = created?.id ? { id: created.id } : undefined;
       }
-      onSubmitted?.();
+      onDirtyChange?.(false);
+      onSubmitted?.(saved);
       onSuccess?.();
     } catch (error) { /* handled by hook */ }
   };
@@ -1755,6 +1763,23 @@ export function RecordFormFields({
   );
 }
 
+// ─── Cabeçalho do registro (painel e página) ──────────────────────────────────
+type HeaderEntity = Pick<Entity, 'fields'> & { settings?: unknown; color?: string | null };
+
+/** Titulo (campo-titulo da tabela), situacao (1a opcao com cor) e cor da tabela. */
+export function useRecordHeader(entity: HeaderEntity, record?: RecordData | null) {
+  const titleField = (entity.settings as Record<string, unknown> | undefined)?.titleField as string | undefined;
+  const rawTitle = record && titleField ? record.data?.[titleField] : undefined;
+  const recordTitle = rawTitle === undefined || rawTitle === null || rawTitle === '' ? null : String(rawTitle);
+  const coloredFields = (entity.fields || []).filter((f) => (f.type === 'select' || f.type === 'radio-group')
+    && ((f.options as Array<unknown> | undefined) || []).some((o) => typeof o === 'object' && o !== null && !!(o as { color?: string }).color));
+  const statusField = coloredFields.find((f) => /status|situa|etapa|resultado|estado/i.test(f.slug)) ?? coloredFields[0];
+  const statusOption = statusField && record
+    ? ((statusField.options as Array<{ value: unknown; label: string; color?: string }>) || []).find((o) => o.value === record.data?.[statusField.slug])
+    : undefined;
+  return { recordTitle, statusOption, entityColor: entity.color ?? null };
+}
+
 // ─── Painel lateral (API externa idêntica à do antigo diálogo) ─────────────────
 export function RecordFormDialog({
   open,
@@ -1771,16 +1796,7 @@ export function RecordFormDialog({
   const isEditing = !!record;
 
   // Cabecalho do registro: titulo (campo-titulo da tabela) e situacao (1a opcao com cor)
-  const titleField = (entity.settings as Record<string, unknown> | undefined)?.titleField as string | undefined;
-  const rawTitle = record && titleField ? record.data?.[titleField] : undefined;
-  const recordTitle = rawTitle === undefined || rawTitle === null || rawTitle === '' ? null : String(rawTitle);
-  const coloredFields = (entity.fields || []).filter((f) => (f.type === 'select' || f.type === 'radio-group')
-    && ((f.options as Array<unknown> | undefined) || []).some((o) => typeof o === 'object' && o !== null && !!(o as { color?: string }).color));
-  const statusField = coloredFields.find((f) => /status|situa|etapa|resultado|estado/i.test(f.slug)) ?? coloredFields[0];
-  const statusOption = statusField && record
-    ? ((statusField.options as Array<{ value: unknown; label: string; color?: string }>) || []).find((o) => o.value === record.data?.[statusField.slug])
-    : undefined;
-  const entityColor = (entity as { color?: string | null }).color;
+  const { recordTitle, statusOption, entityColor } = useRecordHeader(entity as HeaderEntity, record);
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
