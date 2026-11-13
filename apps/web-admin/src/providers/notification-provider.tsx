@@ -83,10 +83,8 @@ interface NotificationProviderProps {
   children: ReactNode;
 }
 
-/** Janela em que os avisos de uma tabela viram uma unica recarga dos numeros do painel.
- *  30 s enquanto as estatisticas leem a tabela inteira no servidor (cada recarga pesa);
- *  volta a 10 s quando elas forem calculadas no banco. */
-const STATS_REFRESH_WINDOW_MS = 30_000;
+/** Janela em que os avisos de uma tabela viram uma unica recarga dos numeros do painel. */
+const STATS_REFRESH_WINDOW_MS = 10_000;
 
 export function NotificationProvider({ children }: NotificationProviderProps) {
   console.log('🚀 [NotificationProvider] Componente renderizando');

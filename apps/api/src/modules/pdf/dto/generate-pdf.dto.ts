@@ -43,6 +43,21 @@ export class GenerateBatchPdfDto {
   @IsOptional()
   search?: string;
 
+  @ApiPropertyOptional({ description: 'Filtros do painel (JSON [{ fieldSlug, operator, value }]) para usar com useAllRecords' })
+  @IsString()
+  @IsOptional()
+  dashboardFilters?: string;
+
+  @ApiPropertyOptional({ description: 'Periodo do painel (data de criacao) para usar com useAllRecords' })
+  @IsString()
+  @IsOptional()
+  dateStart?: string;
+
+  @ApiPropertyOptional({ description: 'Periodo do painel (data de criacao) para usar com useAllRecords' })
+  @IsString()
+  @IsOptional()
+  dateEnd?: string;
+
   @ApiPropertyOptional({ description: 'Se true, gera um unico PDF com todos os registros', default: false })
   @IsBoolean()
   @IsOptional()
