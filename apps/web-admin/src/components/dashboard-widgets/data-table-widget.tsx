@@ -55,6 +55,7 @@ import {
   FileText,
   Filter,
   X,
+  ExternalLink,
 } from 'lucide-react';
 import {
   Popover,
@@ -78,7 +79,7 @@ import { usePermissions } from '@/hooks/use-permissions';
 import { useAuthStore } from '@/stores/auth-store';
 import { useRouter } from '@/i18n/tenant-navigation';
 import { useDeleteEntityData } from '@/hooks/use-data';
-import { RecordFormDialog } from '@/components/data/record-form-dialog';
+import { useOpenRecord } from '@/components/data/record-nav';
 import { ImportDialog } from '@/components/data/import-dialog';
 import { exportToJson, exportToXlsx } from '@/lib/export-utils';
 import { pdfTemplatesService, type PdfTemplate } from '@/services/pdf-templates.service';
@@ -93,7 +94,6 @@ import { useDashboardFilters } from './dashboard-filter-context';
 import { WidgetWrapper } from './widget-wrapper';
 import type { WidgetConfig } from '@crm-builder/shared';
 import type { DataRecord, EntityField, CrossFilter, FieldFilter } from '@/components/entity-data/unified-filter-types';
-import type { Entity } from '@/types';
 
 // ─── Filter Operators ────────────────────────────────────────────────
 
@@ -376,8 +376,6 @@ function DataTableWidgetInner({ entitySlug, config, title, ctx }: DataTableWidge
     }
   });
   const [localSearch, setLocalSearch] = useState('');
-  const [formOpen, setFormOpen] = useState(false);
-  const [editRecord, setEditRecord] = useState<DataRecord | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [recordToDelete, setRecordToDelete] = useState<DataRecord | null>(null);
   const [importOpen, setImportOpen] = useState(false);
@@ -651,16 +649,15 @@ function DataTableWidgetInner({ entitySlug, config, title, ctx }: DataTableWidge
     }
   }, [selectedIds.size, displayedRecords]);
 
-  // CRUD handlers
-  const handleCreate = useCallback(() => {
-    setEditRecord(null);
-    setFormOpen(true);
-  }, []);
+  // CRUD handlers: criar e abrir registro sao paginas proprias (Ctrl/Cmd ou botao do meio: nova guia)
+  const openRecord = useOpenRecord();
+  const handleCreate = useCallback((e?: React.MouseEvent) => {
+    openRecord(entitySlug, null, { event: e });
+  }, [openRecord, entitySlug]);
 
-  const handleEdit = useCallback((record: DataRecord) => {
-    setEditRecord(record);
-    setFormOpen(true);
-  }, []);
+  const handleEdit = useCallback((record: DataRecord, e?: React.MouseEvent) => {
+    openRecord(entitySlug, record.id, { event: e });
+  }, [openRecord, entitySlug]);
 
   const handleDeleteClick = useCallback((record: DataRecord) => {
     setRecordToDelete(record);
@@ -699,11 +696,6 @@ function DataTableWidgetInner({ entitySlug, config, title, ctx }: DataTableWidge
     }
   }, [recordToDelete, entitySlug, deleteRecord, removeRecord]);
 
-  const handleFormSuccess = useCallback(() => {
-    setFormOpen(false);
-    setEditRecord(null);
-    refresh();
-  }, [refresh]);
 
   // Busca e filtros de campo ativos, no formato da API (exportacao e PDF em lote usam os mesmos)
   const activeQueryFilters = useCallback((): { search?: string; filters?: string } => ({
@@ -914,18 +906,6 @@ function DataTableWidgetInner({ entitySlug, config, title, ctx }: DataTableWidge
     const formatted = option?.label ?? formatFieldValue(value, { type: field.type } as FormatFieldOptions);
     return <span className="truncate max-w-[200px] block">{formatted}</span>;
   };
-
-  // Entity object for RecordFormDialog
-  const entityForDialog = entity
-    ? {
-        id: entity.id,
-        name: entity.name,
-        slug: entity.slug,
-        tenantId: '',
-        fields: entity.fields as unknown as Entity['fields'],
-        settings: entity.settings as Entity['settings'],
-      } as Entity
-    : null;
 
   return (
     <WidgetWrapper title={title || entity?.name || entitySlug}>
@@ -1214,7 +1194,8 @@ function DataTableWidgetInner({ entitySlug, config, title, ctx }: DataTableWidge
                 key={record.id}
                 role={canOpen ? 'button' : undefined}
                 tabIndex={canOpen ? 0 : undefined}
-                onClick={() => canOpen && handleEdit(record)}
+                onClick={(e) => canOpen && handleEdit(record, e)}
+                onAuxClick={(e) => { if (canOpen && e.button === 1) handleEdit(record, e); }}
                 onKeyDown={(e) => { if (canOpen && (e.key === 'Enter' || e.key === ' ')) handleEdit(record); }}
                 className={`rounded-lg border bg-card p-3 ${canOpen ? 'cursor-pointer active:bg-muted/40' : ''}`}
                 data-testid={canOpen ? 'open-record-card' : undefined}
@@ -1296,10 +1277,11 @@ function DataTableWidgetInner({ entitySlug, config, title, ctx }: DataTableWidge
                       className="cursor-pointer hover:bg-muted/30 transition-colors"
                       title={colIndex === 0 && canOpen ? 'Abrir registro' : 'Clique para filtrar por este valor'}
                       data-testid={colIndex === 0 && canOpen ? 'open-record-cell' : undefined}
-                      onClick={() => {
+                      onAuxClick={(e) => { if (colIndex === 0 && canOpen && e.button === 1) handleEdit(record, e); }}
+                      onClick={(e) => {
                         // Primeira coluna abre o registro; as demais filtram pelo valor clicado
                         if (colIndex === 0 && canOpen) {
-                          handleEdit(record);
+                          handleEdit(record, e);
                           return;
                         }
                         const val = record.data?.[field.slug];
@@ -1325,6 +1307,12 @@ function DataTableWidgetInner({ entitySlug, config, title, ctx }: DataTableWidge
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
+                          {canOpen && (
+                            <DropdownMenuItem onClick={() => openRecord(entitySlug, record.id, { event: new MouseEvent('click', { ctrlKey: true }) })}>
+                              <ExternalLink className="h-4 w-4 mr-2" />
+                              Abrir em nova guia
+                            </DropdownMenuItem>
+                          )}
                           {portal ? (
                             <DropdownMenuItem onClick={() => handleEdit(record)}>
                               <Eye className="h-4 w-4 mr-2" />
@@ -1440,18 +1428,6 @@ function DataTableWidgetInner({ entitySlug, config, title, ctx }: DataTableWidge
           </div>
         )}
       </div>
-
-      {/* Form Dialog */}
-      {entityForDialog && (
-        <RecordFormDialog
-          open={formOpen}
-          onOpenChange={setFormOpen}
-          entity={entityForDialog}
-          record={editRecord ? { id: editRecord.id, data: editRecord.data } as unknown as null : null}
-          onSuccess={handleFormSuccess}
-          readOnly={!!editRecord && !canEdit}
-        />
-      )}
 
       {/* Delete Dialog */}
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>

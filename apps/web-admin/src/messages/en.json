@@ -670,7 +670,16 @@
     "formDescription": "Fill in the fields and save.",
     "clearFilters": "Clear search and filters",
     "emptyHint": "Start by adding the first one. You can also import a spreadsheet.",
-    "createFirst": "Create the first"
+    "createFirst": "Create the first",
+    "recordPage": {
+      "back": "Back",
+      "records": "Records",
+      "notFound": "Record not found or no access.",
+      "noPermission": "You are not allowed to create records in this table.",
+      "createdAddChildren": "Record created. You can now add {name} to it.",
+      "unsavedLeave": "This record has unsaved changes. Leave anyway?",
+      "inside": "Inside"
+    }
   },
   "rolesPage": {
     "title": "Roles",
